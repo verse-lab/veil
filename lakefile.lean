@@ -9,6 +9,8 @@ lean_lib «LeanSts» where
 
 lean_lib «Examples» where
 
+require LSpec from git "https://github.com/lurk-lab/LSpec.git"
+
 @[default_target]
 lean_exe «lean-sts» where
   root := `Main

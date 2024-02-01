@@ -22,6 +22,9 @@ class RelationalTransitionSystem (σ : Type) extends
   (RelationalTransitionSystem.pred σ)
   RelationalTransitionSystem.state_pred
   RelationalTransitionSystem.action_pred
+  where
+  init : σ → Prop
+  next : (RelationalTransitionSystem.action σ)
 
 class FunctionalTransitionSystem (σ : Type) extends
   TransitionSystem σ

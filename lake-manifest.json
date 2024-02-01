@@ -1,5 +1,14 @@
 {"version": 7,
  "packagesDir": ".lake/packages",
- "packages": [],
+ "packages":
+ [{"url": "https://github.com/lurk-lab/LSpec.git",
+   "type": "git",
+   "subDir": null,
+   "rev": "3388be5a1d1390594a74ec469fd54a5d84ff6114",
+   "name": "LSpec",
+   "manifestFile": "lake-manifest.json",
+   "inputRev": null,
+   "inherited": false,
+   "configFile": "lakefile.lean"}],
  "name": "«lean-sts»",
  "lakeDir": ".lake"}
