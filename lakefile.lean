@@ -7,6 +7,8 @@ package «lean-sts» where
 lean_lib «LeanSts» where
   -- add library configuration options here
 
+lean_lib «Examples» where
+
 @[default_target]
 lean_exe «lean-sts» where
   root := `Main
