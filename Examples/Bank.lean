@@ -48,3 +48,5 @@ open LSpec
   -- This requires a Testable instance, which requires DecidableEq (?) for BankState
   -- test "init equals init" (BankSystem.init (initialState Int)) $
   test "true" True
+
+#lspec check "add_comm" $ ∀ n m : Nat, n + m = m + n
