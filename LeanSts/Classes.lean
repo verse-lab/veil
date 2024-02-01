@@ -1,0 +1,32 @@
+
+import LeanSts.Basic
+
+class TransitionSystem
+  /- Types of states and actions -/
+  (σ : Type)
+  (action : Type)
+
+  /- Types of executions/traces/behaviours -/
+  (exec : Type)
+
+  /- Types of predicates over executions, states, and actions -/
+  (pred : Type)
+  (state_pred : (f : σ → Prop) → pred)
+  (action_pred :  (a : action) → pred)
+
+
+class RelationalTransitionSystem (σ : Type) extends
+  TransitionSystem σ
+  (RelationalTransitionSystem.action σ)
+  (RelationalTransitionSystem.exec σ)
+  (RelationalTransitionSystem.pred σ)
+  RelationalTransitionSystem.state_pred
+  RelationalTransitionSystem.action_pred
+
+class FunctionalTransitionSystem (σ : Type) extends
+  TransitionSystem σ
+  FunctionalTransitionSystem.action
+  (FunctionalTransitionSystem.exec σ)
+  (FunctionalTransitionSystem.pred σ)
+  FunctionalTransitionSystem.state_pred
+  FunctionalTransitionSystem.action_pred
