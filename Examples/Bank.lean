@@ -1,6 +1,5 @@
-import LeanSts.Basic
-import LeanSts.Classes
--- import LSpec
+import LeanSts.TransitionSystem
+import LeanSts.State
 import Mathlib.Tactic
 
 -- TODO: find a better way to model sorts than variables
@@ -10,14 +9,6 @@ variable (account : Type) [DecidableEq account]
 
 structure BankState where
   balance : account → Int
-
-def updateFn [DecidableEq α] (f : α → β) (a : α) (b : β) : α → β :=
-  λ x => if x = a then b else f x
-notation st"[ " a " ↦ " b " ]" => updateFn st a b
-
-@[simp] lemma updateFn_unfold [DecidableEq α] (f : α → β) (a : α) (b : β) (x : α) :
-  (f[a ↦ b]) x = if x = a then b else f x := by
-  simp only [updateFn]
 
 def initialState : BankState account := { balance := λ _ => 0 }
 
