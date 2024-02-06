@@ -1,6 +1,7 @@
 import LeanSts.Basic
 import LeanSts.Classes
-import LSpec
+-- import LSpec
+import Mathlib.Tactic
 
 -- TODO: find a better way to model sorts than variables
 section Bank
@@ -13,6 +14,10 @@ structure BankState where
 def updateFn [DecidableEq α] (f : α → β) (a : α) (b : β) : α → β :=
   λ x => if x = a then b else f x
 notation st"[ " a " ↦ " b " ]" => updateFn st a b
+
+@[simp] lemma updateFn_unfold [DecidableEq α] (f : α → β) (a : α) (b : β) (x : α) :
+  (f[a ↦ b]) x = if x = a then b else f x := by
+  simp only [updateFn]
 
 def initialState : BankState account := { balance := λ _ => 0 }
 
@@ -39,14 +44,47 @@ instance BankSystem : RelationalTransitionSystem (BankState Int) where
   -- CIC-style
   next := λ st st' => ∃ (_t : BankTransition Int st st'), True
 
-#check BankSystem.init
+-- def BankSystem : RelationalTransitionSystem (BankState Int) := {
+--   init := λ st => st = initialState Int
+--   next := λ st st' => ∃ (_t : BankTransition Int st st'), True
+-- }
 
-open LSpec
+def safety (st : BankState Int) : Prop := (∀ acc, st.balance acc ≥ 0)
 
-#lspec
-  test "four equals four" (4 = 4) $
-  -- This requires a Testable instance, which requires DecidableEq (?) for BankState
-  -- test "init equals init" (BankSystem.init (initialState Int)) $
-  test "true" True
+theorem bank_safety_init :
+  ∀ st, BankSystem.init st → safety st := by
+  intro st
+  simp only [RelationalTransitionSystem.init, safety, BankSystem, initialState]
+  intro h acc
+  simp only [h, le_refl]
 
-#lspec check "add_comm" $ ∀ n m : Nat, n + m = m + n
+-- TODO: automate this fully
+theorem bank_safety_inductive :
+  ∀ st st', BankSystem.next st st' → safety st → safety st' := by
+  intro st st' tr safe
+  simp only [BankSystem, RelationalTransitionSystem.next] at tr
+  rcases tr with ⟨tr, _⟩
+  rw [safety] at safe ⊢
+  cases tr with
+  | deposit tr  => {
+    simp only [deposit] at tr
+    rcases tr with ⟨acc, amount, pre, post⟩
+    intro acc'
+    simp only [post, updateFn_unfold, ge_iff_le]
+    split_ifs with eq
+    { specialize safe acc; linarith }
+    { apply safe }
+  }
+  | withdraw tr => {
+    simp only [withdraw] at tr
+    rcases tr with ⟨acc, amount, ⟨pre1, pre2, post⟩⟩
+    intro acc'
+    simp only [post, updateFn_unfold, ge_iff_le]
+    split_ifs with eq
+    { specialize safe acc; linarith }
+    { apply safe }
+  }
+
+-- set_option trace.Meta.synthInstance true
+-- example : ∀ n m : Nat, n + m = m + n := by
+--   slim_check

@@ -9,6 +9,7 @@ lean_lib «LeanSts» where
 
 lean_lib «Examples» where
 
+require mathlib from git "https://github.com/leanprover-community/mathlib4.git"
 require LSpec from git "https://github.com/lurk-lab/LSpec.git"
 
 @[default_target]
