@@ -1,11 +1,6 @@
 import LeanSts.State
 import LeanSts.TransitionSystem
-import Mathlib.Tactic
-import Mathlib.Testing.SlimCheck.Testable
-import Mathlib.Testing.SlimCheck.Sampleable
-import Mathlib.Testing.SlimCheck.Functions
-import Mathlib.Testing.SlimCheck.Gen
-
+import LeanSts.Testing
 
 section Ring
 
@@ -37,7 +32,7 @@ structure RingStructure (node : Type) :=
 -- #sample (Nat → Nat → Bool)
 -- #sample (Fin 4)
 
-open SlimCheck SlimCheck.Gen
+-- open SlimCheck SlimCheck.Gen
 
 -- instance Ring.sampleableExt [SampleableExt α] : SampleableExt (RingStructure α) :=
 --   SampleableExt.mkSelfContained do
@@ -45,17 +40,16 @@ open SlimCheck SlimCheck.Gen
 --     let btw ← SampleableExt.sample (α → α → α → Bool)
 --     pure ⟨le, btw⟩
 
+
+-- #sample (Nat → Nat → Bool)
+
 -- open SampleableExt
--- instance Ring.sampleableExt [SampleableExt α] : SampleableExt (RingStructure α) where
---   proxy := Prod (SampleableExt.proxy α → α → Bool) (SampleableExt.proxy α → α → α → Bool)
---   interp f := ⟨fun _ _ => false, fun _ _ _ => false⟩
---   sample := do
-
-
-
-
-
-
+-- instance Ring.sampleableExt [SampleableExt α] :
+--   SampleableExt (RingStructure α)
+--   where
+--   proxy := Prod (SampleableExt.proxy (α → α → Bool)) (SampleableExt.proxy (α → α → α → Bool))
+  -- interp f := ⟨SampleableExt.interp f.0, SampleableExt.interp f.1⟩
+  -- sample :=
 
 -- #sample RingStructure (Fin 5)
 
