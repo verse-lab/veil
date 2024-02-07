@@ -4,58 +4,31 @@ import LeanSts.Testing
 
 section Ring
 
-structure RingStructure (node : Type) :=
-  -- TODO: need to somehow mark these as immutable
-  -- relation
-  le (x y : node) : Bool
-  -- axioms: le is a total order
-  -- le_refl       (x : node) : le x x
-  -- le_trans  (x y z : node) : le x y → le y z → le x z
-  -- le_antisymm (x y : node) : le x y → le y x → x = y
-  -- le_total    (x y : node) : le x y ∨ le y x
+structure TotalOrder (t : Type) :=
+  -- relation: total order
+  le (x y : t) : Bool
+  -- axioms
+  le_refl       (x : t) : le x x
+  le_trans  (x y z : t) : le x y → le y z → le x z
+  le_antisymm (x y : t) : le x y → le y x → x = y
+  le_total    (x y : t) : le x y ∨ le y x
 
+structure Between (t : Type) :=
   -- relation: btw represents a ring
   btw (w x y : node) : Bool
   -- axioms
-  -- btw_ring    (x y z : node) : btw x y z → btw y z x
-  -- btw_trans (w x y z : node) : btw w x y → btw w y z → btw w x z
-  -- btw_side    (w x y : node) : btw w x y → ¬ btw w y x
-  -- btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
+  btw_ring    (x y z : node) : btw x y z → btw y z x
+  btw_trans (w x y z : node) : btw w x y → btw w y z → btw w x z
+  btw_side    (w x y : node) : btw w x y → ¬ btw w y x
+  btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
 
+structure RingStructure (node : Type) :=
+  -- immutable relations & axioms
+  total_order : TotalOrder node
+  between : Between node
   -- actual state
-  -- leader (n : node) : Bool
-  -- pending (n1 n2 : node) : Bool
-
--- #sample Bool
--- #sample Nat
--- #sample Bool × Nat
--- #sample (Nat → Nat → Bool)
--- #sample (Fin 4)
-
--- open SlimCheck SlimCheck.Gen
-
--- instance Ring.sampleableExt [SampleableExt α] : SampleableExt (RingStructure α) :=
---   SampleableExt.mkSelfContained do
---     let le ← SampleableExt.sample (α → α → Bool)
---     let btw ← SampleableExt.sample (α → α → α → Bool)
---     pure ⟨le, btw⟩
-
-
--- #sample (Nat → Nat → Bool)
-
--- open SampleableExt
--- instance Ring.sampleableExt [SampleableExt α] :
---   SampleableExt (RingStructure α)
---   where
---   proxy := Prod (SampleableExt.proxy (α → α → Bool)) (SampleableExt.proxy (α → α → α → Bool))
-  -- interp f := ⟨SampleableExt.interp f.0, SampleableExt.interp f.1⟩
-  -- sample :=
-
--- #sample RingStructure (Fin 5)
-
--- example : ∃ r : RingStructure (Fin 5), True := by
---  slim_check
-
+  leader (n : node) : Bool
+  pending (n1 n2 : node) : Bool
 
 
 
