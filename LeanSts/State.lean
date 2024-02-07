@@ -52,16 +52,9 @@ instance FOStructure'.SampleableExt (σ₁ : Type u) (σ₂ : Type v)
   :
   SampleableExt (FOStructure' σ₁ σ₂)
   where
-  proxy := FOStructure' (SampleableExt.proxy σ₁) (SampleableExt.proxy σ₂)
-  interp := fun a => {
-    ex_individual := SampleableExt.interp a.1
-    ex_function:= fun _ => true
-    }
-  sample := do
-    let a : σ₁ ← @SampleableExt.sample σ₁ _
-    let b ← @SampleableExt.sample (σ₂ → Bool) _
-    return { ex_individual := a, ex_function := b }
-
+  proxy := Prod (SampleableExt.proxy σ₁) (SampleableExt.proxy (σ₂ → Bool))
+  interp := fun ⟨a, b⟩ => ⟨SampleableExt.interp a, SampleableExt.interp b⟩
+  sample := Gen.prodOf sample sample
 
 -- TODO:
 -- add a generator fo FOStructure based on `sort`, `individual`, `relation`,
