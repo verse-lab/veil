@@ -25,6 +25,26 @@ modelling distributed systems. To enable this practically, we ought to be able
 to represent all TLA+ specifications within our framework and support both
 model-checking (akin to TLC) and proving them (akin to TLAPS).
 
+## Install
+
+Pre-requisities:
+
+```bash
+# for Lean SMT's version of CVC5
+sudo apt install clang-15 libc++-15-dev
+curl https://github.com/HanielB/cvc5/releases/download/leanPrinter-v0.0.4/cvc5-Linux-2023-03-10-f9e30de2dd -L > "$HOME/.local/bin/cvc5"
+chmod +x "$HOME/.local/bin/cvc5"
+```
+
+Build:
+
+```bash
+lake update
+lake exe cache get
+lake build +Smt:dynlib
+lake build
+```
+
 ## Questions
 
 - To what extent we can _test_ such systems using QuickChick-style approaches?
