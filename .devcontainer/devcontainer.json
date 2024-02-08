@@ -24,7 +24,7 @@
 	// "forwardPorts": [],
 
 	// Uncomment the next line to run commands after the container is created.
-	// "postCreateCommand": "cat /etc/os-release",
+	"postCreateCommand": "rm -rf .lake && ./build.sh",
 
 	// Configure tool-specific properties.
 	// "customizations": {},

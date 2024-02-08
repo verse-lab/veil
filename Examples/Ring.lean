@@ -1,6 +1,9 @@
 import LeanSts.State
 import LeanSts.TransitionSystem
 import LeanSts.Testing
+import Smt
+
+-- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
 section Ring
 
@@ -30,6 +33,17 @@ structure RingStructure (node : Type) :=
   leader (n : node) : Bool
   pending (n1 n2 : node) : Bool
 
+
+-- set_option smt.solver.kind "z3"
+theorem modus_ponens (p q : Prop) : p → (p → q) → q := by
+  smt
+
+#print modus_ponens
+
+-- This crashes the Lean server:
+-- def X : Type := Fin 5
+-- example inst : ∃ x : TotalOrder Nat, True := by
+--   smt
 
 
 end Ring
