@@ -12,19 +12,19 @@ structure TotalOrder (t : Type) :=
 
 def x : TotalOrder Nat := {
   le := (· ≤ ·)
-  le_refl := by simp
-  le_trans := by {
-    intro x y z; simp only [decide_eq_true_eq]
-    apply LE.le.trans
-  }
-  le_antisymm := by {
-    intro x y; simp only [decide_eq_true_eq]
-    apply LE.le.antisymm
-  }
-  le_total := by {
-    intro x y; simp only [decide_eq_true_eq]
-    sorry
-  }
+  -- le_refl := by simp
+  -- le_trans := by {
+  --   intro x y z; simp only [decide_eq_true_eq]
+  --   apply LE.le.trans
+  -- }
+  -- le_antisymm := by {
+  --   intro x y; simp only [decide_eq_true_eq]
+  --   apply LE.le.antisymm
+  -- }
+  -- le_total := by {
+  --   intro x y; simp only [decide_eq_true_eq]
+  --   sorry
+  -- }
 }
 
 set_option auto.smt true
@@ -44,5 +44,32 @@ example (x : α) (y : List α) : List.head? (x :: y) = .some x := by
   -- have h₁ : List.head? (α := α) [] = .none := rfl
   have h₂ : ∀ (x : α) (ys : _), List.head? (x :: ys) = .some x := fun _ _ => rfl
   auto
--- example : ∃ (x : TotalOrder Nat), x.le 3 7 := by
---   auto
+
+example : ∃ (x : TotalOrder Nat), x.le 3 7 := by
+  auto -- lamSort2STermAux :: Unexpected error. Higher order input?
+
+#check Nat.le
+def nat_le (x y : Nat) : Bool :=
+  match x, y with
+  | 0, _ => true
+  | _, 0 => false
+  | Nat.succ x, Nat.succ y => nat_le x y
+
+example : ∃ (x y : Nat), nat_le (x + 5) 0 = true := by
+  auto
+  -- !! This is actually false -- it seems the encoding into SMT says
+  -- nothing about the definition of nat_le!
+
+def always_false (x : Nat) := false
+example : ∃ (n : Nat), always_false n = true := by
+  auto
+
+structure concrete_TotalOrder :=
+  le (x y : Nat) : Bool
+
+example : ∃ (x : concrete_TotalOrder), x.le 3 7 := by
+  auto -- lamSort2STermAux :: Unexpected error. Higher order input?
+  -- so this isn't due to the type polymorphism of TotalOrder
+
+example : ∃ (le : Nat → Nat → Bool), le 3 7 := by
+  auto
