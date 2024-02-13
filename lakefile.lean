@@ -12,10 +12,12 @@ lean_lib «LeanSts» where
 
 lean_lib «Examples» where
 
-require smt from git "https://github.com/dranov/lean-smt.git"@"fix-link-error"
+-- require smt from git "https://github.com/dranov/lean-smt.git"@"fix-link-error"
 -- lean-smt includes mathlib
 -- require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v4.4.0"
 
+require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "main"
+require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v4.6.0-rc1"
 
 @[default_target]
 lean_exe «lean-sts» where
