@@ -30,8 +30,14 @@ def x : TotalOrder Nat := {
 set_option auto.smt true
 set_option auto.smt.trust true
 
+-- set_option trace.auto.tactic true
+set_option trace.auto.printLemmas true
+
 set_option trace.auto.smt.printCommands true
 set_option trace.auto.smt.result true
+set_option trace.auto.smt.model true
+-- set_option trace.auto.smt.proof false
+
 
 example : ∃ (x : Nat), x + 3 = 7 := by
   -- simp only [Nat.succ.injEq, exists_eq]
@@ -55,12 +61,17 @@ def nat_le (x y : Nat) : Bool :=
   | _, 0 => false
   | Nat.succ x, Nat.succ y => nat_le x y
 
-example : ∃ (x y : Nat), nat_le (x + 5) 0 = true := by
+example : ∃ (x y : Nat), nat_le (x + 5) 7 = true := by
   auto
   -- !! This is actually false -- it seems the encoding into SMT says
   -- nothing about the definition of nat_le!
 
-def always_false (x : Nat) := false
+def always_false (x : Int) : Bool := false
+lemma af_false (x : Nat) : always_false x = false := rfl
+example : ∃ (n : Int), always_false n = true := by
+  auto [af_false]
+  -- lemma `af_false` doesn't get translated to SMT
+
 example : ∃ (n : Nat), always_false n = true := by
   auto
 
@@ -72,4 +83,21 @@ example : ∃ (x : concrete_TotalOrder), x.le 3 7 := by
   -- so this isn't due to the type polymorphism of TotalOrder
 
 example : ∃ (le : Nat → Nat → Bool), le 3 7 := by
-  auto
+  auto -- lamSort2STermAux :: Unexpected error. Higher order input?
+
+inductive Zone where
+  | Z1 | Z2 | Z3 | Z4
+  deriving Inhabited, Repr, DecidableEq
+
+abbrev Area : Type := Int
+
+def Zone.MinArea1 : Zone → Area
+  | .Z1    => 10000
+  | .Z2    => 5000
+  | .Z3     => 3500
+  | .Z4     => 2500
+
+example (x: Zone) : x.MinArea1 >= 2500 := by cases x <;> simp [Zone.MinArea1] -- succeeds
+example (x: Zone) : x.MinArea1 >= 2500 := by
+  unfold Zone.MinArea1
+  cases x <;> auto
