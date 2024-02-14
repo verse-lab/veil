@@ -2,8 +2,6 @@ import LeanSts.State
 import LeanSts.TransitionSystem
 import LeanSts.Testing
 
--- import Auto
-
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
 section Ring
@@ -116,11 +114,6 @@ def inv_init {node : Type} [DecidableEq node] :
     specialize hpending L L
     contradiction
   }
-
--- set_option auto.smt true
--- set_option trace.auto.printLemmas true
--- set_option trace.auto.smt.printCommands true
--- set_option trace.auto.smt.result true
 
 theorem inv_inductive {node : Type} [DecidableEq node] :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by

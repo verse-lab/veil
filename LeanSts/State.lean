@@ -23,3 +23,7 @@ notation f"[ " a " , " b " ↦ " c " ]" => updateFn2 f a b c
 -- TODO: write a macro to define SampleableExt instances for Structures
 -- See https://github.com/verse-lab/lean-sts/commit/228605e7bb54c9f7cfec5d437f79c9607fb413fa
 -- for an example.
+
+open Lean in
+initialize
+  registerTraceClass `gen_smt
