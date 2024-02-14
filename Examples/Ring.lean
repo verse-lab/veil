@@ -255,9 +255,37 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
       }
     }
     { -- recv, just havoc
-      -- apply And.intro
-      sorry
-
+      apply And.intro
+      { apply hsafety }
+      apply And.intro
+      { -- inv_1
+        simp only [inv_1._eq_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+          Bool.ite_eq_true_distrib, and_imp]
+        intro S D N
+        split_ifs with cond3
+        {
+          intro _ Hbtw
+          rcases cond3 with ⟨cond4, cond5⟩
+          rw [←cond4, ←cond5] at hpre2
+          apply (hinv_1 _ _ _ (And.intro hpre2 Hbtw))
+        }
+        { intro h1 h2; apply hinv_1; apply And.intro <;> assumption }
+      }
+      {
+        -- inv_2
+        simp only [inv_2._eq_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+          Bool.ite_eq_true_distrib]
+        intro N L
+        split_ifs with cond3
+        {
+          intro _
+          rcases cond3 with ⟨cond4, cond5⟩
+          rw [←cond4, ←cond5] at cond2
+          have Ht : _ := st.total_order.le_refl L
+          contradiction
+        }
+        { apply hinv_2 }
+      }
     }
   }
 
