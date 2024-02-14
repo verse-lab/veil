@@ -187,7 +187,8 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
         apply hsafety
         apply hp'
         intro Hn
-        simp [cond1, ←Hn] at hpre2
+        simp [cond1] at hpre2
+        have Ht : _ := (hinv_2 N _ hpre2) -- is this useful?
         sorry
       }
       apply And.intro
@@ -219,7 +220,39 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
       }
     }
     { -- recv, inner if
-      sorry
+      apply And.intro
+      { apply hsafety}
+      apply And.intro
+      { -- inv_1
+        simp only [inv_1._eq_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+          Bool.ite_eq_true_distrib, and_imp]
+        rintro S D N
+        split_ifs with cond3 cond4
+        { intro F ; contradiction }
+        {
+          intro _ Hbtw
+          apply (hinv_1 S D N)
+          apply And.intro
+          { simpa only [cond4] }
+          { assumption }
+        }
+        { intro h1 h2; apply hinv_1; apply And.intro <;> assumption }
+      }
+      {
+        -- inv_2
+        simp only [inv_2._eq_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+          Bool.ite_eq_true_distrib]
+        intro N L
+        split_ifs with cond3 cond4
+        { intro F ; contradiction }
+        {
+          intro _
+          rcases cond4 with ⟨cond5, cond6⟩
+          rw [←cond5, ←cond6] at hpre2
+          apply (hinv_2 _ _ hpre2)
+        }
+        { apply hinv_2 }
+      }
     }
     { -- recv, just havoc
       -- apply And.intro
