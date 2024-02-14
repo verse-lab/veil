@@ -2,7 +2,7 @@ import LeanSts.State
 import LeanSts.TransitionSystem
 import LeanSts.Testing
 
-import Auto
+-- import Auto
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
@@ -117,22 +117,22 @@ def inv_init {node : Type} [DecidableEq node] :
     contradiction
   }
 
-set_option auto.smt true
-set_option trace.auto.printLemmas true
-set_option trace.auto.smt.printCommands true
-set_option trace.auto.smt.result true
+-- set_option auto.smt true
+-- set_option trace.auto.printLemmas true
+-- set_option trace.auto.smt.printCommands true
+-- set_option trace.auto.smt.result true
 
 theorem inv_inductive {node : Type} [DecidableEq node] :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext ⟨hsafety, hinv_1, hinv_2⟩
   rcases hnext with hsend | hrecv
-  {
+  { -- send
     rcases hsend with ⟨n, next, hpre, hpost⟩
     simp only [inv, safety, inv_1, inv_2, hpost]
     apply And.intro
     { apply hsafety }
     apply And.intro
-    {
+    { -- inv_1
       rw [inv_1] at hinv_1
       rintro S D N ⟨hp', hbtw'⟩
       apply (hinv_1 S D N)
@@ -141,7 +141,7 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
         simp at hp'; apply hp'
         intro Hs Hd
         -- suspect there is a contradiction with hpre and some of the `btw` axioms
-        simp [Hs, Hd] at hbtw'
+        simp only [Hs, Hd] at hbtw'
         rcases (hpre N) with ⟨hpre1, hpre2⟩
         apply (st.between.btw_side _ _ _ hbtw')
         apply hpre2
@@ -150,21 +150,82 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
           intro Hn
           rw [Hn] at hbtw'
           have Hx : _ := st.between.btw_ring _ _ _ hbtw'
-          -- auto [hbtw', st.between.btw_ring, st.between.btw_trans, st.between.btw_side, st.between.btw_total]
-          sorry
+          have Hy : _ := st.between.btw_side _ _ _ hbtw'
+          contradiction
         }
         {
-          sorry
+          intro Hn
+          rw [Hn] at hbtw'
+          have Hx : _ := st.between.btw_side _ _ _ hbtw'
+          contradiction
         }
 
       }
       { exact hbtw' }
-
     }
-    { sorry }
+    { -- inv_2
+      rw [inv_2] at hinv_2
+      simp only [updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq, ite_eq_left_iff, not_and]
+      rintro N L hp'
+      apply hinv_2
+      apply hp'
+      intro Hn
+      rw [Hn]
+      rcases (hpre L) with ⟨Hnn, _⟩
+      assumption
+    }
   }
   { -- recv
-    sorry
+    rw [recv] at hrecv
+    rcases hrecv with ⟨sender, n, next, havoc, hpre1, hpre2, hpost⟩
+    split_ifs at hpost with cond1 cond2 <;> rw [hpost]
+    {
+      apply And.intro
+      { -- safety
+        simp only [safety, updateFn_unfold, ite_eq_left_iff]
+        rintro N L hp'
+        apply hsafety
+        apply hp'
+        intro Hn
+        simp [cond1, ←Hn] at hpre2
+        sorry
+      }
+      apply And.intro
+      { -- inv_1
+        simp only [inv_1._eq_1, and_imp, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+          Bool.ite_eq_true_distrib] at hinv_1 ⊢
+        intro S D N
+        split_ifs with cond
+        {
+          rcases cond with ⟨cond2, cond3⟩
+          rw [←cond2, ←cond3] at hpre2
+          intro _
+          apply (hinv_1 _ _ _ hpre2)
+        }
+        { apply hinv_1 }
+
+      }
+      { -- inv_2
+        simp [inv_2] at hinv_2 ⊢
+        intro N L
+        split_ifs with cond
+        {
+          rcases cond with ⟨cond2, cond3⟩
+          rw [←cond2, ←cond3] at hpre2
+          intro _
+          apply (hinv_2 _ _ hpre2)
+        }
+        { apply hinv_2 }
+      }
+    }
+    { -- recv, inner if
+      sorry
+    }
+    { -- recv, just havoc
+      -- apply And.intro
+      sorry
+
+    }
   }
 
 
