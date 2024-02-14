@@ -177,19 +177,28 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
   }
   { -- recv
     rw [recv] at hrecv
+    -- NOTE: hpre1 is unused, so it's not actually needed as a precondition for `recv` (?)
     rcases hrecv with ⟨sender, n, next, havoc, hpre1, hpre2, hpost⟩
     split_ifs at hpost with cond1 cond2 <;> rw [hpost]
     {
       apply And.intro
       { -- safety
         simp only [safety, updateFn_unfold, ite_eq_left_iff]
+        rw [cond1] at hpre2
         rintro N L hp'
-        apply hsafety
-        apply hp'
-        intro Hn
-        simp [cond1] at hpre2
-        have Ht : _ := (hinv_2 N _ hpre2) -- is this useful?
-        sorry
+        cases Hx : (L == n)
+        {
+          simp only [beq_eq_false_iff_ne, ne_eq] at Hx
+          specialize (hp' Hx)
+          apply hsafety
+          assumption
+        }
+        {
+          simp only [beq_iff_eq] at Hx
+          rw [←Hx] at hpre2
+          apply hinv_2
+          assumption
+        }
       }
       apply And.intro
       { -- inv_1
