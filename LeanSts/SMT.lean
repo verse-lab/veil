@@ -32,7 +32,7 @@ structure TotalOrder (t : Type) :=
 example : ∃ (t : TotalOrder (Fin 5)), True := by
   auto
 
-open Lean Elab Tactic
+open Lean Elab Tactic Meta
 syntax (name := gen_smt) "gen_smt" term : tactic
 
 set_option trace.gen_smt true
@@ -69,6 +69,9 @@ def isNotSupportedBecause (indVal : InductiveVal) : Option String :=
 -- https://leanprover.zulipchat.com/#narrow/stream/217875-Is-there-code-for-X.3F/topic/Metaprogramming.20a.20structure.20declaration/near/369262671
 
 
+set_option pp.all true
+set_option pp.raw true
+
 @[tactic gen_smt]
 def evalGenSMT : Tactic
 | `(gen_smt | gen_smt $term) => withMainContext do
@@ -81,15 +84,19 @@ def evalGenSMT : Tactic
     throwError "unsupported inductive type '{typeName}' because {reason.getD "unknown reason"}"
   -- at this point, guaranteed to have exactly one constructor and
   -- to have no funny business going on
-  -- TODO: handle raw `inductive`s (not `structure`s)
+  -- TODO: handle raw `inductive`s (not `structure`s) -- see `Structure.lean : isStructureLike`
   -- TODO: handle `structure`s with `extends`
   let some info := getStructureInfo? env typeName
    | throwError "{typeName} is not a structure"
   trace[gen_smt] "structure {info.structName} has fields {info.fieldNames}"
   for field in info.fieldInfo do
+    if field.subobject?.isSome then
+      continue
     let proj := (env.find? field.projFn).get!
     let projType := proj.type
     trace[gen_smt] "field {field.fieldName} has type {projType}"
+    if (← isProp projType) then
+      trace[gen_smt] "field {field.fieldName} is an axiom"
 | _ => throwUnsupportedSyntax
 
 -- TODO: transform TotalOrder (after monomorphization) into a function and some axioms
