@@ -38,15 +38,6 @@ syntax (name := gen_smt) "gen_smt" term : tactic
 set_option trace.gen_smt true
 -- set_option trace.Elab.definition true
 
--- https://github.com/opencompl/lean-mlir-semantics/blob/master/MLIRSemantics/Util/Metagen.lean#L110-L157
-
--- def getCtors (typ : Name) : MetaM (Option InductiveVal) := do
---   let env ← getEnv
-  -- match env.find? typ with
-  -- | some (ConstantInfo.inductInfo val) =>
---     pure val
---   | _ => pure []
-
 /-- Can this inductive type be translated to SMT? -/
 def isSupportedInductiveType (indVal : InductiveVal) : Bool :=
   indVal.numIndices = 0 &&
@@ -74,9 +65,14 @@ def isNotSupportedBecause (indVal : InductiveVal) : Option String :=
   else
     none
 
+-- https://github.com/opencompl/lean-mlir-semantics/blob/master/MLIRSemantics/Util/Metagen.lean#L110-L157
+-- https://leanprover.zulipchat.com/#narrow/stream/217875-Is-there-code-for-X.3F/topic/Metaprogramming.20a.20structure.20declaration/near/369262671
+
+
 @[tactic gen_smt]
 def evalGenSMT : Tactic
 | `(gen_smt | gen_smt $term) => withMainContext do
+  let env ← getEnv
   let expr ← elabTerm term none false
   let typeName := expr.getAppFn.constName!
   let indVal ← getConstInfoInduct typeName
@@ -85,13 +81,15 @@ def evalGenSMT : Tactic
     throwError "unsupported inductive type '{typeName}' because {reason.getD "unknown reason"}"
   -- at this point, guaranteed to have exactly one constructor and
   -- to have no funny business going on
-  let ctor := indVal.ctors.head!
-  let env ← getEnv
-  if let some (ConstantInfo.ctorInfo val) := env.find? ctor then
-    trace[gen_smt] s!"{val.induct} ctor {val.cidx} with {val.numParams} parameters and {val.numFields} fields"
-  else
-    throwError "expected constructor '{ctor}' to be a constructor"
-
+  -- TODO: handle raw `inductive`s (not `structure`s)
+  -- TODO: handle `structure`s with `extends`
+  let some info := getStructureInfo? env typeName
+   | throwError "{typeName} is not a structure"
+  trace[gen_smt] "structure {info.structName} has fields {info.fieldNames}"
+  for field in info.fieldInfo do
+    let proj := (env.find? field.projFn).get!
+    let projType := proj.type
+    trace[gen_smt] "field {field.fieldName} has type {projType}"
 | _ => throwUnsupportedSyntax
 
 -- TODO: transform TotalOrder (after monomorphization) into a function and some axioms
