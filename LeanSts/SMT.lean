@@ -29,7 +29,27 @@ structure TotalOrder (t : Type) :=
   le_antisymm (x y : t) : le x y → le y x → x = y
   le_total    (x y : t) : le x y ∨ le y x
 
-example : ∃ (t : TotalOrder (Fin 5)), True := by
+/-
+
+Want to generate something like the following. Note that we are NOT
+generating a datatype, but rather an _instance_ of a datatype.
+The overall process I envision is to collect all instances of the structure
+in the context (when `auto` or an equivalent tactic is invoked) and generate
+an instance of `le` (and the axioms) for each, e.g. `le_1`, `le_2`, etc.
+This corresponds to what Ivy does when it unfolds the transition relation,
+possibly multiple times.
+
+(declare-sort t)
+(declare-fun le (t t) Bool)
+(assert (forall ((x t)) (le x x)))
+(assert (forall ((x t) (y t) (z t)) (=> (and (le x y) (le y z)) (le x z))))
+(assert (forall ((x t) (y t)) (=> (and (le x y) (le y x)) (= x y))))
+(assert (forall ((x t) (y t)) (or (le x y) (le y x)))
+
+(check-sat)
+-/
+
+example : ∃ (t : TotalOrder Nat), True := by
   auto
 
 open Lean Elab Tactic Meta
@@ -72,6 +92,8 @@ def isNotSupportedBecause (indVal : InductiveVal) : Option String :=
 set_option pp.all true
 set_option pp.raw true
 
+-- TODO: transform TotalOrder (after monomorphization) into a function and some axioms
+
 @[tactic gen_smt]
 def evalGenSMT : Tactic
 | `(gen_smt | gen_smt $term) => withMainContext do
@@ -94,12 +116,15 @@ def evalGenSMT : Tactic
       continue
     let proj := (env.find? field.projFn).get!
     let projType := proj.type
-    trace[gen_smt] "field {field.fieldName} has type {projType}"
-    if (← isProp projType) then
-      trace[gen_smt] "field {field.fieldName} is an axiom"
+    let isAxiom := (← isProp projType)
+    -- TODO: distinguish between constants / relations / functions
+    let typeStr := if isAxiom then "[axiom]" else "[function]"
+    trace[gen_smt] "{typeStr} {field.fieldName} : {projType}"
 | _ => throwUnsupportedSyntax
 
--- TODO: transform TotalOrder (after monomorphization) into a function and some axioms
+-- Problems with `lean-auto`:
+-- (1) (in collectAppInstSimpleInduct) Warning: TotalOrder or some type within the same mutual block is not a simple inductive type.
+-- (2) (in lamSort2SSort) Only first-order types are translated
 
 example : True := by
   gen_smt (TotalOrder (Fin 5))
