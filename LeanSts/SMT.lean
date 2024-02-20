@@ -49,9 +49,6 @@ possibly multiple times.
 (check-sat)
 -/
 
-example : ∃ (t : TotalOrder Nat), True := by
-  auto
-
 open Lean Elab Tactic Meta
 syntax (name := gen_smt) "gen_smt" term : tactic
 
@@ -89,10 +86,29 @@ def isNotSupportedBecause (indVal : InductiveVal) : Option String :=
 -- https://leanprover.zulipchat.com/#narrow/stream/217875-Is-there-code-for-X.3F/topic/Metaprogramming.20a.20structure.20declaration/near/369262671
 
 
-set_option pp.all true
-set_option pp.raw true
+-- set_option pp.all true
+-- set_option pp.raw true
 
 -- TODO: transform TotalOrder (after monomorphization) into a function and some axioms
+
+#print TotalOrder.mk
+
+/-- An _instance_ of an inductive type with axioms.
+  NOTE: this is not the type itself, but an _instance_ of the type. -/
+structure InductiveWithAxioms /- extends Auto.SimpleIndVal -/ where
+  /-- Name of type constructor -/
+  name : Name
+  /-- Instantiated type constructor -/
+  type : Expr
+  /-- Instantiated fields -/
+  fields : Array Expr
+  /-- Instantiated axioms -/
+  axioms : Array Expr
+
+deriving Repr
+
+instance : ToMessageData InductiveWithAxioms :=
+  ⟨fun ind => m!"{ind.type}:\n{ind.fields}\n{ind.axioms}"⟩
 
 @[tactic gen_smt]
 def evalGenSMT : Tactic
@@ -101,6 +117,10 @@ def evalGenSMT : Tactic
   let expr ← elabTerm term none false
   let typeName := expr.getAppFn.constName!
   let indVal ← getConstInfoInduct typeName
+  -- let isSimpleInductive ← Auto.isSimpleInductive typeName
+  -- our `structure`s are not simple inductive types because they have
+  -- axioms/properties, which are necessarily dependent
+  -- trace[gen_smt] "isSimpleInductive: {isSimpleInductive}"
   if !(isSupportedInductiveType indVal) then
     let reason := isNotSupportedBecause indVal
     throwError "unsupported inductive type '{typeName}' because {reason.getD "unknown reason"}"
@@ -110,23 +130,53 @@ def evalGenSMT : Tactic
   -- TODO: handle `structure`s with `extends`
   let some info := getStructureInfo? env typeName
    | throwError "{typeName} is not a structure"
+
+  let args := expr.getAppArgs
+  trace[gen_smt] "args: {args}"
+  let isFullyInstantiated := args.size == indVal.numParams
+  if !isFullyInstantiated then
+    throwError "expected fully instantiated structure, got {args.size} arguments, but expected {indVal.numParams}"
+
+  let mut fields := Array.empty
+  let mut axioms := Array.empty
+
   trace[gen_smt] "structure {info.structName} has fields {info.fieldNames}"
   for field in info.fieldInfo do
     if field.subobject?.isSome then
       continue
     let proj := (env.find? field.projFn).get!
     let projType := proj.type
+    let instantiated ← instantiateForall projType args
+
     let isAxiom := (← isProp projType)
     -- TODO: distinguish between constants / relations / functions
     let typeStr := if isAxiom then "[axiom]" else "[function]"
     trace[gen_smt] "{typeStr} {field.fieldName} : {projType}"
+    if isAxiom then
+      axioms := axioms.push instantiated
+    else
+      fields := fields.push instantiated
+
+  let ind := InductiveWithAxioms.mk typeName expr fields axioms
+  trace[gen_smt] "inductive type: {ind}"
+
+
+    -- Generate (String × LamSort × LamTerm) for projections?
+
+
 | _ => throwUnsupportedSyntax
 
 -- Problems with `lean-auto`:
 -- (1) (in collectAppInstSimpleInduct) Warning: TotalOrder or some type within the same mutual block is not a simple inductive type.
 -- (2) (in lamSort2SSort) Only first-order types are translated
 
+example : ∃ (t : Fin 5), True := by
+  auto
+
+example : ∃ (t : TotalOrder Nat), True := by
+  auto
+
 example : True := by
-  gen_smt (TotalOrder (Fin 5))
+  gen_smt (TotalOrder Int)
   exact True.intro
 end SMT
