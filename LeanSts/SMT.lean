@@ -19,7 +19,7 @@ set_option trace.auto.printLemmas true
 set_option trace.auto.smt.printCommands true
 set_option trace.auto.smt.result true
 
-section SMT
+namespace SMT
 structure TotalOrder (t : Type) :=
   -- relation: total order
   le (x y : t) : Bool

@@ -1,6 +1,14 @@
 import LeanSts.State
 import LeanSts.TransitionSystem
 import LeanSts.Testing
+import LeanSts.SMT
+import Duper
+
+set_option auto.smt true
+set_option auto.smt.trust true
+-- set_option trace.auto.printLemmas true
+-- set_option trace.auto.smt.printCommands true
+set_option trace.auto.smt.result true
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
@@ -17,12 +25,28 @@ structure TotalOrder (t : Type) :=
 
 structure Between (node : Type) :=
   -- relation: btw represents a ring
+  -- read: w is between x and y
   btw (w x y : node) : Bool
   -- axioms
   btw_ring    (x y z : node) : btw x y z → btw y z x
   btw_trans (w x y z : node) : btw w x y → btw w y z → btw w x z
   btw_side    (w x y : node) : btw w x y → ¬ btw w y x
   btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
+
+theorem btw_irreflexive : ∀ (n : α), (h : Between α) → ¬ h.btw n n n := by
+  rintro n ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
+  dsimp
+  -- NOTE: this works after destruction of Between, but not before
+  --  because the monomorphization procedure is not good enough
+  -- auto
+
+  -- proof in Lean
+  duper [btw_side]
+
+  -- constructive proof:
+  -- intro h
+  -- specialize (btw_side _ _ _ h)
+  -- contradiction
 
 structure Structure (node : Type) [DecidableEq node]  :=
   -- immutable relations & axioms
@@ -56,7 +80,7 @@ def recv (node : Type) [DecidableEq node] : RelationalTransitionSystem.action (S
         st' = {st with leader := st.leader[n ↦ true], pending := st.pending[sender, n ↦ havoc]}
       else
         if st.total_order.le n sender then
-          st' = {st with pending := st.pending[sender, n ↦ havoc][n , next ↦ false]}
+          st' = {st with pending := st.pending[sender, n ↦ havoc][sender , next ↦ true]}
         else
           st' = {st with pending := st.pending[sender, n ↦ havoc]}
 
@@ -230,7 +254,16 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
           Bool.ite_eq_true_distrib, and_imp]
         rintro S D N
         split_ifs with cond3 cond4
-        { intro F ; contradiction }
+        { intro _ Hbtw
+          simp_all only [ne_eq, and_imp]
+          -- `N` is a node before `sender` (and therefore before `n`)
+          -- thus the fact that a message reached `n` must mean that `N <= sender`
+          apply (hinv_1 sender n)
+          apply And.intro
+          { assumption }
+          -- from Hbtw and hpre1 (and btw_trans?)
+          sorry
+         }
         {
           intro _ Hbtw
           apply (hinv_1 S D N)
@@ -246,7 +279,7 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
           Bool.ite_eq_true_distrib]
         intro N L
         split_ifs with cond3 cond4
-        { intro F ; contradiction }
+        { intro F ; sorry }
         {
           intro _
           rcases cond4 with ⟨cond5, cond6⟩
