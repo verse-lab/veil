@@ -25,28 +25,50 @@ structure TotalOrder (t : Type) :=
 
 structure Between (node : Type) :=
   -- relation: btw represents a ring
-  -- read: w is between x and y
-  btw (w x y : node) : Bool
+  -- read: y is between x and z
+  btw (x y z : node) : Bool
   -- axioms
   btw_ring    (x y z : node) : btw x y z → btw y z x
   btw_trans (w x y z : node) : btw w x y → btw w y z → btw w x z
   btw_side    (w x y : node) : btw w x y → ¬ btw w y x
   btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
 
-theorem btw_irreflexive : ∀ (n : α), (h : Between α) → ¬ h.btw n n n := by
-  rintro n ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
+theorem btw_irreflexive : ∀ (n m : α), (h : Between α) → ¬ h.btw m n n := by
+  rintro n m ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
   dsimp
   -- NOTE: this works after destruction of Between, but not before
   --  because the monomorphization procedure is not good enough
   -- auto
-
   -- proof in Lean
-  duper [btw_side]
-
+  duper [btw_side] {portfolioInstance := 1}
   -- constructive proof:
   -- intro h
   -- specialize (btw_side _ _ _ h)
   -- contradiction
+
+theorem btw_irreflexive' : ∀ (n m : α), (h : Between α) → ¬ h.btw m m n := by
+  rintro n m ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
+  dsimp
+  duper [btw_ring, btw_side] {portfolioInstance := 1}
+
+theorem btw_arg : ∀ (a b c : α), (h : Between α) → h.btw a b c →
+  ¬ a = b ∧ ¬ a = c ∧ ¬ b = c := by
+  rintro a b c ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩ h
+  simp_all
+  duper [btw_ring, btw_trans, btw_side, btw_total, h]
+
+-- set_option maxHeartbeats 2000000
+
+-- FIXME:
+-- should it be `b.btw next n z`?
+
+theorem btw_next (b : Between node):
+  (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → b.btw n next z)) →
+  (∀ (z : node), ¬ b.btw n z next) := by
+  intro h z hbtw
+  rcases b with ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
+  duper [h, hbtw, btw_ring, btw_trans, btw_side, btw_total]
+
 
 structure Structure (node : Type) [DecidableEq node]  :=
   -- immutable relations & axioms
@@ -254,16 +276,41 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
           Bool.ite_eq_true_distrib, and_imp]
         rintro S D N
         split_ifs with cond3 cond4
-        { intro _ Hbtw
+        { intro _ hbtw
           simp_all only [ne_eq, and_imp]
           -- `N` is a node before `sender` (and therefore before `n`)
           -- thus the fact that a message reached `n` must mean that `N <= sender`
-          apply (hinv_1 sender n)
-          apply And.intro
-          { assumption }
-          -- from Hbtw and hpre1 (and btw_trans?)
-          sorry
-         }
+          -- rw [inv_1] at hinv_1
+          -- rw [inv_2] at hinv_2
+          -- rcases st with ⟨⟨le, le_refl, le_trans, le_antisymm, le_total⟩, ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩, leader, pending⟩
+          -- simp_all
+          -- Times out:
+          -- duper [hinv_1, hinv_2, hpre1, hpre2, cond1, cond2, cond3, hbtw, le_refl, le_trans, le_antisymm, le_total, btw_ring, btw_trans, btw_side, btw_total]
+          by_cases hn: (N = n)
+          { simp_all }
+          {
+            apply (hinv_1 sender n)
+            apply And.intro
+            { assumption }
+            have Hn : _ := btw_next _  (by simp; apply hpre1)
+            have ht : _ := st.between.btw_total sender N n
+            rcases ht with h | h | h | h | h
+            { assumption }
+            {
+              rcases st with ⟨tot, ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩, leader, pending⟩
+              simp_all
+              -- FIXME: how to prove this manually?
+              duper [h, Hn, hbtw, btw_ring, btw_trans, btw_side, btw_total]
+            }
+            {
+              simp [h] at hbtw
+              have hcontra : _ := btw_irreflexive' _ _ st.between hbtw
+              contradiction
+            }
+            { contradiction }
+            { contradiction }
+          }
+        }
         {
           intro _ Hbtw
           apply (hinv_1 S D N)
@@ -279,7 +326,34 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
           Bool.ite_eq_true_distrib]
         intro N L
         split_ifs with cond3 cond4
-        { intro F ; sorry }
+        { intro _
+          rw [safety] at hsafety
+          rw [inv_1] at hinv_1
+          rw [inv_2] at hinv_2
+          by_cases hl: (st.leader L)
+          { apply hsafety; assumption }
+          rcases cond3 with ⟨cond3a, cond3b⟩
+          -- have heq : (sender = next) := by { rw [← cond3.1]; simp only [cond3.2] }
+          -- simp_all
+          subst_vars
+          specialize (hpre1 N)
+          rcases hpre1 with ⟨_, hpre1⟩
+          by_cases H:(N ≠ n ∧ N ≠ L)
+          { simp_all
+            apply hinv_1
+            { apply hpre2 }
+            apply st.between.btw_ring
+            assumption
+          }
+          {
+            simp_all
+            by_cases Hn: (N = n)
+            { simp_all }
+            { simp_all
+              apply st.total_order.le_refl
+            }
+          }
+        }
         {
           intro _
           rcases cond4 with ⟨cond5, cond6⟩
