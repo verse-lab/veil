@@ -30,7 +30,7 @@ def x : TotalOrder Nat := {
 set_option auto.smt true
 set_option auto.smt.trust true
 
--- set_option trace.auto.tactic true
+set_option trace.auto.tactic true
 set_option trace.auto.printLemmas true
 
 set_option trace.auto.smt.printCommands true
@@ -38,6 +38,15 @@ set_option trace.auto.smt.result true
 set_option trace.auto.smt.model true
 -- set_option trace.auto.smt.proof false
 
+
+def f (x : Nat) : Nat := x + 1
+
+example : ∀ (f : Nat → Nat), (∀ x, f x = x + 1) → ∃ (x : Nat), f x + 1 = 2 := by
+  auto
+
+example :  ∃ (x : Nat), f x + 1 = 2 := by
+  unfold f
+  auto
 
 example : ∃ (x : Nat), x + 3 = 7 := by
   -- simp only [Nat.succ.injEq, exists_eq]

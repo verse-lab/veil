@@ -6,9 +6,12 @@ import Duper
 
 set_option auto.smt true
 set_option auto.smt.trust true
--- set_option trace.auto.printLemmas true
--- set_option trace.auto.smt.printCommands true
+set_option trace.auto.printLemmas true
+set_option trace.auto.smt.printCommands true
 set_option trace.auto.smt.result true
+
+set_option trace.duper.printProof true
+-- set_option trace.duper.proofReconstruction true
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
@@ -40,11 +43,13 @@ theorem btw_irreflexive : ∀ (n m : α), (h : Between α) → ¬ h.btw m n n :=
   --  because the monomorphization procedure is not good enough
   -- auto
   -- proof in Lean
-  duper [btw_side] {portfolioInstance := 1}
+  -- duper [btw_side] {portfolioInstance := 1 }
   -- constructive proof:
   -- intro h
   -- specialize (btw_side _ _ _ h)
   -- contradiction
+
+#print btw_irreflexive
 
 theorem btw_irreflexive' : ∀ (n m : α), (h : Between α) → ¬ h.btw m m n := by
   rintro n m ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
@@ -68,6 +73,22 @@ theorem btw_next (b : Between node):
   intro h z hbtw
   rcases b with ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
   duper [h, hbtw, btw_ring, btw_trans, btw_side, btw_total]
+
+set_option trace.aesop true
+theorem btw_opposite (b : Between node)
+  (Hn : ∀ (z : node), ¬b.btw n z next = true)
+  (h1 : b.btw sender N next = true)
+  (h2 : b.btw sender n N = true) :
+  False := by
+  rcases b with ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
+  simp_all
+  -- clear btw_side btw_total
+  -- have ht21 : _ := btw_trans _ _ _ _ h2 h1
+  -- have h3 : _ := btw_ring _ _ _ ht21
+  duper [Hn, h1, h2, btw_ring, btw_trans] {portfolioInstance := 1}
+  -- auto
+  -- doesn't work:
+  -- aesop (add unsafe Hn, unsafe h1, unsafe h2, unsafe btw_ring, unsafe btw_trans)
 
 
 structure Structure (node : Type) [DecidableEq node]  :=
@@ -297,10 +318,14 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
             rcases ht with h | h | h | h | h
             { assumption }
             {
-              rcases st with ⟨tot, ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩, leader, pending⟩
-              simp_all
+              -- clear * - h Hn hbtw
+              -- have F : False := by apply btw_opposite st.between Hn hbtw h
+              -- contradiction
+              -- auto
               -- FIXME: how to prove this manually?
-              duper [h, Hn, hbtw, btw_ring, btw_trans, btw_side, btw_total]
+              -- rcases st with ⟨tot, ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩, leader, pending⟩
+              -- simp_all
+              -- duper [h, Hn, hbtw, btw_ring, btw_trans]
             }
             {
               simp [h] at hbtw
