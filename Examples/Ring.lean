@@ -147,19 +147,17 @@ theorem inv_inductive :
   rcases hnext with hsend | hrecv
   { -- send
     rcases hsend with ⟨n, next, hpre, hpost⟩
-    -- simp_all
-    -- duper [hsafety, hinv_1, hinv_2, hpre, btw_ring, btw_side]
     simp only [inv, safety, inv_1, inv_2, hpost]
     apply And.intro
     { apply hsafety }
     apply And.intro
     { -- inv_1
       simp_all
-      duper [btw_ring, btw_side, hpre, hinv_1]
+      duper [btw_ring, btw_side, hpre, hinv_1] {portfolioInstance := 1}
     }
     { -- inv_2
       simp_all
-      duper [hpre, hinv_2]
+      duper [hpre, hinv_2] {portfolioInstance := 1}
     }
   }
   { -- recv
@@ -170,69 +168,30 @@ theorem inv_inductive :
     {
       apply And.intro
       { -- safety
-        simp only [safety, updateFn_unfold, ite_eq_left_iff]
-        rw [cond1] at hpre2
-        rintro N L hp'
-        cases Hx : (L == n)
-        {
-          simp only [beq_eq_false_iff_ne, ne_eq] at Hx
-          specialize (hp' Hx)
-          apply hsafety
-          assumption
-        }
-        {
-          simp only [beq_iff_eq] at Hx
-          rw [←Hx] at hpre2
-          apply hinv_2
-          assumption
-        }
+        simp_all
+        duper [hsafety, hinv_1, hinv_2, cond1, hpre2] {portfolioInstance := 1}
       }
       apply And.intro
       { -- inv_1
-        simp only [inv_1._eq_1, and_imp, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq] at hinv_1 ⊢
-        intro S D N
-        split_ifs with cond
-        {
-          rcases cond with ⟨cond2, cond3⟩
-          rw [←cond2, ←cond3] at hpre2
-          intro _
-          apply (hinv_1 _ _ _ hpre2)
-        }
-        { apply hinv_1 }
-
+        simp_all
+        intro S D N; split_ifs with cond <;> duper [hinv_1, cond, hpre2] {portfolioInstance := 1}
       }
       { -- inv_2
-        simp [inv_2] at hinv_2 ⊢
-        intro N L
-        split_ifs with cond
-        {
-          rcases cond with ⟨cond2, cond3⟩
-          rw [←cond2, ←cond3] at hpre2
-          intro _
-          apply (hinv_2 _ _ hpre2)
-        }
-        { apply hinv_2 }
+        simp_all
+        intro N L; split_ifs with cond <;> duper [hinv_2, cond, hpre2] {portfolioInstance := 1}
       }
     }
     { -- recv, inner if
       apply And.intro
-      { apply hsafety}
+      { apply hsafety }
       apply And.intro
       { -- inv_1
-        simp only [inv_1._eq_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+        simp only [inv_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
           Bool.ite_eq_true_distrib, and_imp]
         rintro S D N
         split_ifs with cond3 cond4
         { intro _ hbtw
           simp_all only [ne_eq, and_imp]
-          -- `N` is a node before `sender` (and therefore before `n`)
-          -- thus the fact that a message reached `n` must mean that `N <= sender`
-          -- rw [inv_1] at hinv_1
-          -- rw [inv_2] at hinv_2
-          -- rcases st with ⟨⟨le, le_refl, le_trans, le_antisymm, le_total⟩, ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩, leader, pending⟩
-          -- simp_all
-          -- Times out:
-          -- duper [hinv_1, hinv_2, hpre1, hpre2, cond1, cond2, cond3, hbtw, le_refl, le_trans, le_antisymm, le_total, btw_ring, btw_trans, btw_side, btw_total]
           by_cases hn: (N = n)
           { simp_all }
           {
@@ -243,14 +202,8 @@ theorem inv_inductive :
             have ht : _ := btw_total sender N n
             rcases ht with h | h | h | h | h
             { assumption }
-            {
-              duper [h, Hn, hbtw, btw_ring, btw_trans]
-            }
-            {
-              simp [h] at hbtw
-              have hcontra : _ := btw_irreflexive' _ _ _ hbtw
-              contradiction
-            }
+            { duper [h, Hn, hbtw, btw_ring, btw_trans] }
+            { duper [h, hbtw, btw_irreflexive'] }
             { contradiction }
             { contradiction }
           }
@@ -266,7 +219,7 @@ theorem inv_inductive :
       }
       {
         -- inv_2
-        simp only [inv_2._eq_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+        simp only [inv_2, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
           Bool.ite_eq_true_distrib]
         intro N L
         split_ifs with cond3 cond4
@@ -284,10 +237,7 @@ theorem inv_inductive :
           rcases hpre1 with ⟨_, hpre1⟩
           by_cases H:(N ≠ n ∧ N ≠ L)
           { simp_all
-            apply hinv_1
-            { apply hpre2 }
-            apply btw_ring
-            assumption
+            duper [hinv_1, hpre1, hpre2, btw_ring]
           }
           {
             simp_all
@@ -312,32 +262,13 @@ theorem inv_inductive :
       { apply hsafety }
       apply And.intro
       { -- inv_1
-        simp only [inv_1._eq_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
-          Bool.ite_eq_true_distrib, and_imp]
-        intro S D N
-        split_ifs with cond3
-        {
-          intro _ Hbtw
-          rcases cond3 with ⟨cond4, cond5⟩
-          rw [←cond4, ←cond5] at hpre2
-          apply (hinv_1 _ _ _ (And.intro hpre2 Hbtw))
-        }
-        { intro h1 h2; apply hinv_1; apply And.intro <;> assumption }
+        simp_all
+        intro S D N; split_ifs with cond3 <;> duper [cond3, hpre2, hinv_1]
       }
       {
         -- inv_2
-        simp only [inv_2._eq_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
-          Bool.ite_eq_true_distrib]
-        intro N L
-        split_ifs with cond3
-        {
-          intro _
-          rcases cond3 with ⟨cond4, cond5⟩
-          rw [←cond4, ←cond5] at cond2
-          have Ht : _ := TotalOrder.le_refl L
-          contradiction
-        }
-        { apply hinv_2 }
+        simp_all
+        intro N L ; split_ifs with cond3 <;> duper [cond2, cond3, TotalOrder.le_refl, hinv_2]
       }
     }
   }
