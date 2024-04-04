@@ -6,8 +6,7 @@ import Mathlib.Tactic
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
 section Ring
-
-structure TotalOrder (t : Type) :=
+class TotalOrder (t : Type) :=
   -- relation: total order
   le (x y : t) : Bool
   -- axioms
@@ -16,7 +15,7 @@ structure TotalOrder (t : Type) :=
   le_antisymm (x y : t) : le x y → le y x → x = y
   le_total    (x y : t) : le x y ∨ le y x
 
-structure Between (node : Type) :=
+class Between (node : Type) :=
   -- relation: btw represents a ring
   -- read: y is between x and z
   btw (x y z : node) : Bool
@@ -26,103 +25,84 @@ structure Between (node : Type) :=
   btw_side    (w x y : node) : btw w x y → ¬ btw w y x
   btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
 
-theorem btw_irreflexive : ∀ (n m : α), (h : Between α) → ¬ h.btw m n n := by
-  rintro n m ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
-  dsimp
-  -- NOTE: this works after destruction of Between, but not before
-  --  because the monomorphization procedure is not good enough
-  -- auto
-  -- proof in Lean
-  duper [btw_side] {portfolioInstance := 1 }
-  -- constructive proof:
-  -- intro h
-  -- specialize (btw_side _ _ _ h)
-  -- contradiction
+variable (node : Type)
+variable [DecidableEq node] [TotalOrder node] [Between node]
+open Between TotalOrder
 
-theorem btw_irreflexive' : ∀ (n m : α), (h : Between α) → ¬ h.btw m m n := by
-  rintro n m ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
-  dsimp
+theorem btw_irreflexive : ∀ (n m : node),  ¬ btw m n n := by
+  duper [btw_side] {portfolioInstance := 1}
+
+theorem btw_irreflexive' : ∀ (n m : node), ¬ btw m m n := by
   duper [btw_ring, btw_side] {portfolioInstance := 1}
 
-theorem btw_arg : ∀ (a b c : α), (h : Between α) → h.btw a b c →
+theorem btw_arg : ∀ (a b c : node), btw a b c →
   ¬ a = b ∧ ¬ a = c ∧ ¬ b = c := by
-  rintro a b c ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩ h
-  simp_all
-  duper [btw_ring, btw_trans, btw_side, btw_total, h]
+  duper [btw_ring, btw_trans, btw_side, Between.btw_total] {portfolioInstance := 1}
 
--- set_option maxHeartbeats 2000000
+theorem btw_next :
+  (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z)) →
+  (∀ (z : node), ¬ btw n z next) := by
+  duper [btw_ring, btw_trans, btw_side, Between.btw_total] {portfolioInstance := 1}
 
-theorem btw_next (b : Between node):
-  (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → b.btw n next z)) →
-  (∀ (z : node), ¬ b.btw n z next) := by
-  intro h z hbtw
-  rcases b with ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
-  duper [h, hbtw, btw_ring, btw_trans, btw_side, btw_total]
-
-theorem btw_opposite (b : Between node)
-  (Hn : ∀ (z : node), ¬b.btw n z next = true)
-  (h1 : b.btw sender N next = true)
-  (h2 : b.btw sender n N = true) :
+theorem btw_opposite
+  (Hn : ∀ (z : node), ¬ btw n z next = true)
+  (h1 : btw sender N next = true)
+  (h2 : btw sender n N = true) :
   False := by
-  rcases b with ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩
-  simp_all
   duper [Hn, h1, h2, btw_ring, btw_trans] {portfolioInstance := 1}
 
-structure Structure (node : Type) [DecidableEq node]  :=
-  -- immutable relations & axioms
-  total_order : TotalOrder node
-  between : Between node
-  -- actual state
+structure Structure :=
   leader (n : node) : Bool
   pending (n1 n2 : node) : Bool
 
-def initialState? (node : Type) [DecidableEq node] (rs : Structure node) : Prop :=
+def initialState? (rs : Structure node) : Prop :=
   (∀ (n : node), ¬ rs.leader n) ∧
   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
 
-def send (node : Type) [DecidableEq node] : RelationalTransitionSystem.action (Structure node) :=
+def send : RelationalTransitionSystem.action (Structure node) :=
   λ (st st' : Structure node) =>
     ∃ (n next : node),
       -- preconditions
-      (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → st.between.btw n next z)) ∧
+      (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z)) ∧
       -- postconditions
       st' = {st with pending := st.pending[n , next ↦ true]}
 
-def recv (node : Type) [DecidableEq node] : RelationalTransitionSystem.action (Structure node) :=
+def recv : RelationalTransitionSystem.action (Structure node) :=
   λ (st st' : Structure node) =>
     ∃ (sender n next : node) (havoc : Bool),
       -- preconditions
-      (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → st.between.btw n next z)) ∧
+      (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z)) ∧
       (st.pending sender n) ∧
       -- postconditions
       -- `pending(sender, n) := *` is modelled using `havoc`
       if sender = n then
         st' = {st with leader := st.leader[n ↦ true], pending := st.pending[sender, n ↦ havoc]}
       else
-        if st.total_order.le n sender then
+        if le n sender then
           st' = {st with pending := st.pending[sender, n ↦ havoc][sender , next ↦ true]}
         else
           st' = {st with pending := st.pending[sender, n ↦ havoc]}
 
-instance System {node : Type} [DecidableEq node] :
-  RelationalTransitionSystem (Structure node)
+-- so we don't need to add `node` explicitly to all definitions below
+variable {node : Type}
+variable [DecidableEq node] [TotalOrder node] [Between node]
+
+instance System : RelationalTransitionSystem (Structure node)
   where
   init := λ st => initialState? node st
   -- TLA-style
   next := λ st st' => send node st st' ∨ recv node st st'
 
-def safety {node : Type} [DecidableEq node] (st : Structure node) : Prop :=
-  ∀ (N L : node), st.leader L → st.total_order.le N L
+def safety (st : Structure node) : Prop :=
+  ∀ (N L : node), st.leader L → le N L
 
-def inv_1 {node : Type} [DecidableEq node] (st : Structure node) : Prop :=
-  ∀ (S D N : node), st.pending S D ∧ st.between.btw S N D → st.total_order.le N S
+def inv_1 (st : Structure node) : Prop :=
+  ∀ (S D N : node), st.pending S D ∧ btw S N D → le N S
 
-def inv_2 {node : Type} [DecidableEq node] (st : Structure node) : Prop :=
-  ∀ (N L : node), st.pending L L → st.total_order.le N L
+def inv_2 (st : Structure node) : Prop :=
+  ∀ (N L : node), st.pending L L → le N L
 
--- set_option pp.notation false
-
-def safety_init {node : Type} [DecidableEq node] :
+def safety_init :
   ∀ (st : Structure node), System.init st → safety st := by
   intro st
   simp only [RelationalTransitionSystem.init, safety, System, initialState?]
@@ -131,10 +111,10 @@ def safety_init {node : Type} [DecidableEq node] :
   specialize hleader L
   contradiction
 
-def inv {node : Type} [DecidableEq node] (st : Structure node) : Prop :=
+def inv (st : Structure node) : Prop :=
   safety st ∧ inv_1 st ∧ inv_2 st
 
-def inv_init {node : Type} [DecidableEq node] :
+def inv_init :
   ∀ (st : Structure node), System.init st → inv st := by
   intro st
   simp only [RelationalTransitionSystem.init, safety, System, initialState?]
@@ -159,7 +139,7 @@ def inv_init {node : Type} [DecidableEq node] :
     contradiction
   }
 
-theorem inv_inductive {node : Type} [DecidableEq node] :
+theorem inv_inductive :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext ⟨hsafety, hinv_1, hinv_2⟩
   rcases hnext with hsend | hrecv
@@ -180,20 +160,20 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
         -- suspect there is a contradiction with hpre and some of the `btw` axioms
         simp only [Hs, Hd] at hbtw'
         rcases (hpre N) with ⟨hpre1, hpre2⟩
-        apply (st.between.btw_side _ _ _ hbtw')
+        apply (btw_side _ _ _ hbtw')
         apply hpre2
         apply And.intro
         {
           intro Hn
           rw [Hn] at hbtw'
-          have Hx : _ := st.between.btw_ring _ _ _ hbtw'
-          have Hy : _ := st.between.btw_side _ _ _ hbtw'
+          have Hx : _ := btw_ring _ _ _ hbtw'
+          have Hy : _ := btw_side _ _ _ hbtw'
           contradiction
         }
         {
           intro Hn
           rw [Hn] at hbtw'
-          have Hx : _ := st.between.btw_side _ _ _ hbtw'
+          have Hx : _ := btw_side _ _ _ hbtw'
           contradiction
         }
 
@@ -290,17 +270,15 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
             apply And.intro
             { assumption }
             have Hn : _ := btw_next _  (by simp; apply hpre1)
-            have ht : _ := st.between.btw_total sender N n
+            have ht : _ := btw_total sender N n
             rcases ht with h | h | h | h | h
             { assumption }
             {
-              rcases st with ⟨tot, ⟨btw, btw_ring, btw_trans, btw_side, btw_total⟩, leader, pending⟩
-              simp_all
               duper [h, Hn, hbtw, btw_ring, btw_trans]
             }
             {
               simp [h] at hbtw
-              have hcontra : _ := btw_irreflexive' _ _ st.between hbtw
+              have hcontra : _ := btw_irreflexive' _ _ _ hbtw
               contradiction
             }
             { contradiction }
@@ -338,7 +316,7 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
           { simp_all
             apply hinv_1
             { apply hpre2 }
-            apply st.between.btw_ring
+            apply btw_ring
             assumption
           }
           {
@@ -346,7 +324,7 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
             by_cases Hn: (N = n)
             { simp_all }
             { simp_all
-              apply st.total_order.le_refl
+              apply TotalOrder.le_refl
             }
           }
         }
@@ -386,7 +364,7 @@ theorem inv_inductive {node : Type} [DecidableEq node] :
           intro _
           rcases cond3 with ⟨cond4, cond5⟩
           rw [←cond4, ←cond5] at cond2
-          have Ht : _ := st.total_order.le_refl L
+          have Ht : _ := TotalOrder.le_refl L
           contradiction
         }
         { apply hinv_2 }
