@@ -15,13 +15,10 @@ lean_lib «LeanSts» where
 lean_lib Examples {
   globs := #[.submodules "Examples"]
 }
--- require smt from git "https://github.com/dranov/lean-smt.git"@"fix-link-error"
--- lean-smt includes mathlib
--- require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v4.4.0"
 
 require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "master"
-require auto from git "https://github.com/dranov/lean-auto.git" @ "higher-order-debug"
-require Duper from git "https://github.com/leanprover-community/duper.git" @ "v0.0.10"
+require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "main"
+require Duper from git "https://github.com/leanprover-community/duper.git" @ "main"
 
 @[default_target]
 lean_exe «lean-sts» where
