@@ -59,7 +59,7 @@ def initialState? (rs : Structure node) : Prop :=
   (∀ (n : node), ¬ rs.leader n) ∧
   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
 
-def send : RelationalTransitionSystem.action (Structure node) :=
+@[simp] def send : RelationalTransitionSystem.action (Structure node) :=
   λ (st st' : Structure node) =>
     ∃ (n next : node),
       -- preconditions
@@ -67,7 +67,7 @@ def send : RelationalTransitionSystem.action (Structure node) :=
       -- postconditions
       st' = {st with pending := st.pending[n , next ↦ true]}
 
-def recv : RelationalTransitionSystem.action (Structure node) :=
+@[simp] def recv : RelationalTransitionSystem.action (Structure node) :=
   λ (st st' : Structure node) =>
     ∃ (sender n next : node) (havoc : Bool),
       -- preconditions
@@ -93,13 +93,13 @@ instance System : RelationalTransitionSystem (Structure node)
   -- TLA-style
   next := λ st st' => send node st st' ∨ recv node st st'
 
-def safety (st : Structure node) : Prop :=
+@[simp] def safety (st : Structure node) : Prop :=
   ∀ (N L : node), st.leader L → le N L
 
-def inv_1 (st : Structure node) : Prop :=
+@[simp] def inv_1 (st : Structure node) : Prop :=
   ∀ (S D N : node), st.pending S D ∧ btw S N D → le N S
 
-def inv_2 (st : Structure node) : Prop :=
+@[simp] def inv_2 (st : Structure node) : Prop :=
   ∀ (N L : node), st.pending L L → le N L
 
 def safety_init :
@@ -111,7 +111,7 @@ def safety_init :
   specialize hleader L
   contradiction
 
-def inv (st : Structure node) : Prop :=
+@[simp] def inv (st : Structure node) : Prop :=
   safety st ∧ inv_1 st ∧ inv_2 st
 
 def inv_init :
@@ -139,57 +139,27 @@ def inv_init :
     contradiction
   }
 
+set_option maxHeartbeats 2000000
+
 theorem inv_inductive :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext ⟨hsafety, hinv_1, hinv_2⟩
   rcases hnext with hsend | hrecv
   { -- send
     rcases hsend with ⟨n, next, hpre, hpost⟩
+    -- simp_all
+    -- duper [hsafety, hinv_1, hinv_2, hpre, btw_ring, btw_side]
     simp only [inv, safety, inv_1, inv_2, hpost]
     apply And.intro
     { apply hsafety }
     apply And.intro
     { -- inv_1
-      rw [inv_1] at hinv_1
-      rintro S D N ⟨hp', hbtw'⟩
-      apply (hinv_1 S D N)
-      apply And.intro
-      {
-        simp at hp'; apply hp'
-        intro Hs Hd
-        -- suspect there is a contradiction with hpre and some of the `btw` axioms
-        simp only [Hs, Hd] at hbtw'
-        rcases (hpre N) with ⟨hpre1, hpre2⟩
-        apply (btw_side _ _ _ hbtw')
-        apply hpre2
-        apply And.intro
-        {
-          intro Hn
-          rw [Hn] at hbtw'
-          have Hx : _ := btw_ring _ _ _ hbtw'
-          have Hy : _ := btw_side _ _ _ hbtw'
-          contradiction
-        }
-        {
-          intro Hn
-          rw [Hn] at hbtw'
-          have Hx : _ := btw_side _ _ _ hbtw'
-          contradiction
-        }
-
-      }
-      { exact hbtw' }
+      simp_all
+      duper [btw_ring, btw_side, hpre, hinv_1]
     }
     { -- inv_2
-      rw [inv_2] at hinv_2
-      simp only [updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq, ite_eq_left_iff, not_and]
-      rintro N L hp'
-      apply hinv_2
-      apply hp'
-      intro Hn
-      rw [Hn]
-      rcases (hpre L) with ⟨Hnn, _⟩
-      assumption
+      simp_all
+      duper [hpre, hinv_2]
     }
   }
   { -- recv
