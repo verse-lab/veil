@@ -141,6 +141,12 @@ def inv_init :
 
 set_option maxHeartbeats 2000000
 
+set_option auto.smt true
+set_option auto.smt.trust true
+set_option trace.auto.smt.printCommands true
+set_option trace.auto.smt.result true
+set_option trace.auto.smt.stderr true
+
 theorem inv_inductive :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext ⟨hsafety, hinv_1, hinv_2⟩
@@ -153,7 +159,12 @@ theorem inv_inductive :
     apply And.intro
     { -- inv_1
       simp_all
-      duper [btw_ring, btw_side, hpre, hinv_1] {portfolioInstance := 1}
+      rcases st with ⟨leader, pending⟩
+      rcases st' with ⟨leader', pending'⟩
+      simp_all
+      rcases hpost with ⟨hpost1, hpost2⟩
+      -- FIXME: why do we need to destruct here?
+      auto [btw_ring, btw_side, hpre, hinv_1, hinv_2, hsafety, hpost1, hpost2]
     }
     { -- inv_2
       simp_all
@@ -249,10 +260,8 @@ theorem inv_inductive :
           }
         }
         {
-          intro _
-          rcases cond4 with ⟨cond5, cond6⟩
-          rw [←cond5, ←cond6] at hpre2
-          apply (hinv_2 _ _ hpre2)
+          simp_all
+          duper [cond4, hinv_2, hpre2]
         }
         { apply hinv_2 }
       }
