@@ -7,7 +7,7 @@ import Mathlib.Tactic
 -- See also: https://github.com/aman-goel/ivybench/blob/master/paxos/ivy/Paxos.ivy
 -- See also: https://github.com/nano-o/ivy-proofs/blob/master/paxos/paxos.ivy
 
-section Paxos
+section PaxosFOL
 class BoundedTotalOrder (t : Type) :=
   -- relation: total order
   le (x y : t) : Bool
@@ -48,7 +48,7 @@ structure Structure :=
 
   -- Phase 2(a): if the proposer receives a response to its _prepare_ requests
   -- (numbered `r`) from a majority/quorum of acceptors, then it sends an _accept_
-  -- request to each of those acceptorsfor a proposal numbered `r` with a
+  -- request to each of those acceptors for a proposal numbered `r` with a
   -- value `v`, where `v` is the value of the highest-numbered proposal among
   -- the responses, or is any value if trhe responses reported no proposals
   msg_2a (r : round) (v : value) : Bool -- also called "proposal"
@@ -63,11 +63,11 @@ structure Structure :=
 
 
 -- equivalent to `one_b` in the original Ivy spec
-def exists1B (st : @Structure value node round) (n : node) (r : round) : Prop :=
+@[simp] def exists1B (st : @Structure value node round) (n : node) (r : round) : Prop :=
   ∃ (rmax : round) (v : value), st.msg_1b n r rmax v
 
 -- (ghost) relation left_rnd(N:node, R:round) # := exists R2, RMAX, V. ~le(R2,R) & one_b_max_vote(N,R,RMAX,V)
-def leftRound (st : @Structure value node round) (n : node) (r : round) : Prop :=
+@[simp]def leftRound (st : @Structure value node round) (n : node) (r : round) : Prop :=
   ∃ (r2 : round) (rmax : round) (v : value),
     ¬ BoundedTotalOrder.le r2 r ∧
     st.msg_1b n r rmax v
@@ -77,7 +77,7 @@ def leftRound (st : @Structure value node round) (n : node) (r : round) : Prop :
 --         (maxr ~= negone & ~le(r,maxr) & vote(n,maxr,v) &
 --         (forall MAXR:round,V:value. (~le(r,MAXR) & vote(n,MAXR,V)) -> le(MAXR,maxr))
 --         ));
-def maximalVote (st : @Structure value node round) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
+@[simp]def maximalVote (st : @Structure value node round) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
   -- uninitialised, i.e. there are no votes at valid round numbers
   (maxr = BoundedTotalOrder.negative_one ∧
     (∀ (MAXR : round) (V : value), ¬ (¬ BoundedTotalOrder.le r MAXR ∧ st.msg_2b n MAXR V))) ∨
@@ -89,11 +89,11 @@ def maximalVote (st : @Structure value node round) (n : node) (r : round) (maxr 
     (∀ (MAXR : round) (V : value), (¬ BoundedTotalOrder.le r MAXR ∧ st.msg_2b n MAXR V) → BoundedTotalOrder.le MAXR maxr)
   )
 
-def chosenAt (st : @Structure value node round) (r : round) (v : value) : Prop :=
+@[simp]def chosenAt (st : @Structure value node round) (r : round) (v : value) : Prop :=
   ∃ (q : quorum), ∀ (n : node), Quorum.member n q → st.decision n r v
 
 -- quorum that shows (rin, vin) is safe
-def showsSafeAt (st : @Structure value node round) (qin : quorum) (rin : round) (vin : value): Prop :=
+@[simp] def showsSafeAt (st : @Structure value node round) (qin : quorum) (rin : round) (vin : value): Prop :=
   -- a majority of acceptors have joined round `rin`
   (∀ (N : node), Quorum.member N qin → exists1B st N rin) ∧
   -- and either
@@ -111,10 +111,10 @@ def showsSafeAt (st : @Structure value node round) (qin : quorum) (rin : round) 
     )
   )
 
-def isSafeAt (st : @Structure value node round) (r : round) (v : value) : Prop :=
+@[simp] def isSafeAt (st : @Structure value node round) (r : round) (v : value) : Prop :=
   ∃ (q : quorum), showsSafeAt st q r v
 
-def initialState? (st : @Structure value node round) : Prop :=
+@[simp] def initialState? (st : @Structure value node round) : Prop :=
   (∀ (r : round), ¬ st.msg_1a r) ∧
   (∀ (n : node) (r1 r2 : round) (v : value), ¬ st.msg_1b n r1 r2 v) ∧
   (∀ (r : round) (v : value), ¬ st.msg_2a r v) ∧
@@ -174,3 +174,101 @@ def initialState? (st : @Structure value node round) : Prop :=
       chosenAt st r v ∧
       -- update
       st' = { st with decision := st.decision[n, r, v ↦ true] }
+
+instance System : RelationalTransitionSystem (@Structure value node round)
+  where
+  init := λ st => initialState? st
+  -- TLA-style
+  next := λ st st' =>
+    phase_1a st st' ∨
+    phase_1b st st' ∨
+    phase_2a st st' ∨
+    phase_2b st st' ∨
+    decision st st'
+
+@[simp] def safety (st : @Structure value node round) : Prop :=
+  ∀ (n1 n2 : node) (r1 r2 : round) (v1 v2 : value),
+    (st.decision n1 r1 v1 ∧ st.decision n2 r2 v2) → r1 = r2 ∧ v1 = v2
+
+def safety_init :
+  ∀ (st : @Structure value node round),
+    initialState? st → safety st := by
+  intro st
+  simp only [RelationalTransitionSystem.init, safety, System, initialState?]
+  duper
+
+@[simp] def inv_propose_same (st : @Structure value node round) : Prop :=
+  ∀ (r : round) (v1 v2 : value), st.msg_2a r v1 ∧ st.msg_2a r v2 → v1 = v2
+
+@[simp] def inv_vote_proposed (st : @Structure value node round) : Prop :=
+  ∀ (n : node) (r : round) (v : value), st.msg_2b n r v → st.msg_2a r v
+
+@[simp] def inv_decision_quorum_vote (st : @Structure value node round) : Prop :=
+  ∀ (r : round) (v : value),
+    (∃ (n : node), st.decision n r v) →
+    (∃ (q : quorum), ∀ (n : node), Quorum.member n q → st.msg_2b n r v)
+
+@[simp] def inv_no_votes_at_negone (st : @Structure value node round) : Prop :=
+  ∀ (n : node) (v : value), ¬ st.msg_2b n BoundedTotalOrder.negative_one v
+
+@[simp] def inv_one_b_left_rnd (st : @Structure value node round) : Prop :=
+  ∀ (n : node) (r1 r2 : round),
+    (exists1B st n r2 ∧ ¬ BoundedTotalOrder.le r2 r1) → leftRound st n r1
+
+@[simp] def inv_vote_negone (st : @Structure value node round) : Prop :=
+  ∀ (n : node) (r1 r2 : round) (v1 v2 : value),
+    (st.msg_1b n r2 BoundedTotalOrder.negative_one v1 ∧ ¬ BoundedTotalOrder.le r2 r1) →
+    ¬ st.msg_2b n r1 v2
+
+@[simp] def inv_vote_max_rnd_negone (st : @Structure value node round) : Prop :=
+  ∀ (n : node) (r1 r2 : round) (v1 v2 : value),
+    (st.msg_1b n r2 r1 v1 ∧ ¬ BoundedTotalOrder.le r1 r2) →
+    ¬ st.msg_2b n r1 v2
+
+@[simp] def inv_vote_max_rnd (st : @Structure value node round) : Prop :=
+  ∀ (n : node) (r rmax : round) (v : value),
+    (st.msg_1b n r rmax v ∧ rmax ≠ BoundedTotalOrder.negative_one) →
+    (¬ BoundedTotalOrder.le r rmax ∧ st.msg_2b n rmax v)
+
+@[simp] def inv_no_conflicting_votes (st : @Structure value node round) : Prop :=
+  ∀ (n : node) (r rmax rother : round) (v vother: value),
+    (st.msg_1b n r rmax v ∧
+       ¬ BoundedTotalOrder.le r rother ∧ ¬ BoundedTotalOrder.le rother rmax) →
+    ¬ st.msg_2b n rother vother
+
+@[simp] def inv_accept_no_diff_vote (st : @Structure value node round) : Prop :=
+  ∀ (r1 r2 : round) (v1 v2 : value) (q : quorum),
+    (¬ BoundedTotalOrder.le r2 r1 ∧ st.msg_2a r2 v2 ∧ v1 ≠ v2) →
+    (∃ (n : node), Quorum.member n q ∧ leftRound st n r1 ∧ ¬ st.msg_2b n r1 v1)
+
+@[simp] def inv (st : @Structure value node round) : Prop :=
+  safety st ∧
+  inv_propose_same st ∧
+  inv_vote_proposed st ∧
+  inv_decision_quorum_vote st ∧
+  inv_no_votes_at_negone st ∧
+  inv_one_b_left_rnd st ∧
+  inv_vote_negone st ∧
+  inv_vote_max_rnd_negone st ∧
+  inv_vote_max_rnd st ∧
+  inv_no_conflicting_votes st ∧
+  inv_accept_no_diff_vote st
+
+set_option maxHeartbeats 2000000
+
+set_option auto.smt true
+set_option auto.smt.trust true
+set_option trace.auto.smt.printCommands true
+set_option trace.auto.smt.result true
+set_option trace.auto.smt.stderr true
+
+def inv_init :
+  ∀ (st : @Structure value node round), initialState? st → inv st := by simp_all only [initialState?,
+    Bool.not_eq_true, inv, safety, and_self, IsEmpty.forall_iff, implies_true, inv_propose_same,
+    inv_vote_proposed, inv_decision_quorum_vote, exists_false, imp_false, inv_no_votes_at_negone,
+    not_false_eq_true, inv_one_b_left_rnd, exists1B, false_and, leftRound, and_false,
+    inv_vote_negone, inv_vote_max_rnd_negone, inv_vote_max_rnd, ne_eq, inv_no_conflicting_votes,
+    inv_accept_no_diff_vote, and_true, exists_and_right, and_imp]
+
+
+end PaxosFOL
