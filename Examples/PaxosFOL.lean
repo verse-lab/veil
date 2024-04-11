@@ -67,7 +67,7 @@ structure Structure :=
   ∃ (rmax : round) (v : value), st.msg_1b n r rmax v
 
 -- (ghost) relation left_rnd(N:node, R:round) # := exists R2, RMAX, V. ~le(R2,R) & one_b_max_vote(N,R,RMAX,V)
-@[simp]def leftRound (st : @Structure value node round) (n : node) (r : round) : Prop :=
+@[simp] def leftRound (st : @Structure value node round) (n : node) (r : round) : Prop :=
   ∃ (r2 : round) (rmax : round) (v : value),
     ¬ BoundedTotalOrder.le r2 r ∧
     st.msg_1b n r rmax v
@@ -77,7 +77,7 @@ structure Structure :=
 --         (maxr ~= negone & ~le(r,maxr) & vote(n,maxr,v) &
 --         (forall MAXR:round,V:value. (~le(r,MAXR) & vote(n,MAXR,V)) -> le(MAXR,maxr))
 --         ));
-@[simp]def maximalVote (st : @Structure value node round) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
+@[simp] def maximalVote (st : @Structure value node round) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
   -- uninitialised, i.e. there are no votes at valid round numbers
   (maxr = BoundedTotalOrder.negative_one ∧
     (∀ (MAXR : round) (V : value), ¬ (¬ BoundedTotalOrder.le r MAXR ∧ st.msg_2b n MAXR V))) ∨
@@ -89,7 +89,7 @@ structure Structure :=
     (∀ (MAXR : round) (V : value), (¬ BoundedTotalOrder.le r MAXR ∧ st.msg_2b n MAXR V) → BoundedTotalOrder.le MAXR maxr)
   )
 
-@[simp]def chosenAt (st : @Structure value node round) (r : round) (v : value) : Prop :=
+@[simp] def chosenAt (st : @Structure value node round) (r : round) (v : value) : Prop :=
   ∃ (q : quorum), ∀ (n : node), Quorum.member n q → st.decision n r v
 
 -- quorum that shows (rin, vin) is safe
@@ -261,6 +261,7 @@ set_option auto.smt.trust true
 set_option trace.auto.smt.printCommands true
 set_option trace.auto.smt.result true
 set_option trace.auto.smt.stderr true
+set_option trace.auto.smt.unsatCore true
 
 def inv_init :
   ∀ (st : @Structure value node round), initialState? st → inv st := by simp_all only [initialState?,
@@ -269,6 +270,36 @@ def inv_init :
     not_false_eq_true, inv_one_b_left_rnd, exists1B, false_and, leftRound, and_false,
     inv_vote_negone, inv_vote_max_rnd_negone, inv_vote_max_rnd, ne_eq, inv_no_conflicting_votes,
     inv_accept_no_diff_vote, and_true, exists_and_right, and_imp]
+
+
+
+theorem inv_inductive :
+  ∀ (st st' : @Structure value node round), System.next st st' → inv st → inv st' := by
+  -- intro st st' hnext
+  intro ⟨msg_1a, msg_1b, msg_2a, msg_2b, decision⟩
+  intro ⟨msg_1a', msg_1b', msg_2a', msg_2b', decision'⟩
+  intro hnext
+  intro ⟨hs, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩
+  rw [inv]
+  dsimp at hs h1 h2 h3 h4 h5 h6 h7 h8 h9 h10
+  dsimp
+  rcases hnext with h1a | h1b | h2a | h2b | hdecide
+  {
+    simp only [phase_1a, ne_eq, Structure.mk.injEq] at h1a
+    unfold updateFn at h1a
+    -- repeat constructor <;> auto
+    repeat constructor
+    { auto }
+    { auto }
+  }
+  {
+    simp only [phase_1b, ne_eq, leftRound, Bool.not_eq_true, exists_and_left, exists_and_right, not_and,
+  not_exists, forall_exists_index, maximalVote, and_imp, Structure.mk.injEq] at h1b
+    unfold updateFn4 at h1b
+    repeat' constructor
+    -- { auto }
+    -- { auto }
+  }
 
 
 end PaxosFOL
