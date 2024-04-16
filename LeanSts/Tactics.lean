@@ -1,4 +1,5 @@
 import Lean.Elab.Tactic
+import Std.Lean.Meta.UnusedNames
 import LeanSts.TransitionSystem
 
 -- For automation
@@ -15,38 +16,39 @@ import Duper
 -- (1) Destruct the `next` action
 -- RelationalTransitionSystem.next st st'
 
-#check RelationalTransitionSystem.next
-
 open Lean Lean.Elab.Tactic
+
+-- Creates a fresh variable with the suggested name.
+def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.Ident := do
+  let name ← Meta.getUnusedUserName suggestion
+  return Lean.mkIdent name
+
+def isPrimed (n : Name) : Bool := n.getString!.endsWith "'"
+def getNumPrimes (n : Name) : Nat := n.getString!.foldl (fun n c => if c == '\'' then n + 1 else n) 0
+
 /-- Destruct a structure into its fields -/
-elab "sdestruct " ids:(colGt ident)*  : tactic => withMainContext do
-  dbg_trace "sdestruct {ids}"
+elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
   for id in ids do
-    dbg_trace "enter loop"
     let lctx ← Lean.MonadLCtx.getLCtx
-    let .some ld := lctx.findFromUserName? (getNameOfIdent' id)
-      | throwError "{id} was not found in the local context"
+    let name := (getNameOfIdent' id)
+    let .some ld := lctx.findFromUserName? name
+      | throwError "sdestruct: {id} is not in the local context"
     let .some sn := ld.type.getAppFn.constName?
-      | throwError "{id} is not a constant"
-    let .some sinfo := getStructureInfo? (<- getEnv) sn
-      | throwError "{id} : {sn} is not a structure"
-    dbg_trace "destructing: {ld.userName}"
-    evalTactic $ <- `(tactic| unhygienic rcases $(mkIdent ld.userName):ident)
-  -- let env ← getEnv
-  -- for id in ids do
-  --   let n := getNameOfIdent' id
-  --   let
-  --   let t <- Meta.inferType
-  --   let .some _ := getStructureInfo? env n
-  --     | throwError "{n} is not a structure"
+      | throwError "sdestruct: {id} is not a constant"
+    let .some _sinfo := getStructureInfo? (<- getEnv) sn
+      | throwError "sdestruct: {id} ({sn} is not a structure)"
+    -- TODO: create better names; an attempt is below
+    -- e.g.: `rcases st with ⟨st_leader, st_pending⟩`
+    -- let newFieldNames := _sinfo.fieldNames.map fun n => mkIdent (name.toString ++ "_" ++ n.toString)
+    -- let newFieldIdents ← newFieldNames.mapM fun n => do `(rcasesPat| $n)
+    -- let pattern ← `(rcasesPat|⟨$newFieldIdents⟩)
+    evalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident)
 
-
-
-    -- return
+elab "sintro " ids:(colGt ident)* : tactic => withMainContext do
+  evalTactic $ ← `(tactic| intro $(ids)* ; sdestruct $(ids)*)
 
 elab "sts_induction" : tactic => withMainContext do
   let lctx ← Lean.MonadLCtx.getLCtx
-  let (_goal, goalType) := (← getMainGoal, ← getMainTarget)
   -- (1) Identify the `next` hypothesis
   let opt_hnext ← lctx.findDeclM? fun (ldecl : Lean.LocalDecl) => do
     let declExpr := ldecl.toExpr
@@ -58,9 +60,8 @@ elab "sts_induction" : tactic => withMainContext do
   let hnext ← match opt_hnext with
   | none => throwError "sts_induction tactic failed: no `next` hypothesis found"
   | some hnext => pure hnext
-  dbg_trace "Found `next` hypothesis: {hnext.toExpr}"
-  -- (2) Destruct the `next` hypothesis into individual actions
-
-
-
+  let hnextName := mkIdent hnext.userName
+  let case_split ← `(tactic| repeat' (rcases $hnextName:ident with $(← fresh "htr") | $hnextName))
+  -- (2) Destruct the `next` hypothesis into separate goals for each individual action
+  evalTactic $ case_split
   return
