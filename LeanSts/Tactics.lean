@@ -37,12 +37,9 @@ elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
       | throwError "sdestruct: {id} is not a constant"
     let .some _sinfo := getStructureInfo? (<- getEnv) sn
       | throwError "sdestruct: {id} ({sn} is not a structure)"
-    -- TODO: create better names; an attempt is below
-    -- e.g.: `rcases st with ⟨st_leader, st_pending⟩`
-    -- let newFieldNames := _sinfo.fieldNames.map fun n => mkIdent (name.toString ++ "_" ++ n.toString)
-    -- let newFieldIdents ← newFieldNames.mapM fun n => do `(rcasesPat| $n)
-    -- let pattern ← `(rcasesPat|⟨$newFieldIdents⟩)
-    evalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident)
+    let newFieldNames := _sinfo.fieldNames.map (mkIdent $ name ++ ·)
+    let s <- `(rcasesPat| ⟨ $[$newFieldNames],* ⟩)
+    evalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident with $s)
 
 elab "sintro " ids:(colGt ident)* : tactic => withMainContext do
   evalTactic $ ← `(tactic| intro $(ids)* ; sdestruct $(ids)*)
