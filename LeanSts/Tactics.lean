@@ -19,16 +19,30 @@ import Duper
 
 open Lean Lean.Elab.Tactic
 /-- Destruct a structure into its fields -/
-elab "sdestruct " ids:ident* : tactic => withMainContext do
+elab "sdestruct " ids:(colGt ident)*  : tactic => withMainContext do
   dbg_trace "sdestruct {ids}"
-  let env ← getEnv
   for id in ids do
-    let n := getNameOfIdent' id
-    let .some info := getStructureInfo? env n
-      | throwError "{n} is not a structure"
+    dbg_trace "enter loop"
+    let lctx ← Lean.MonadLCtx.getLCtx
+    let .some ld := lctx.findFromUserName? (getNameOfIdent' id)
+      | throwError "{id} was not found in the local context"
+    let .some sn := ld.type.getAppFn.constName?
+      | throwError "{id} is not a constant"
+    let .some sinfo := getStructureInfo? (<- getEnv) sn
+      | throwError "{id} : {sn} is not a structure"
+    dbg_trace "destructing: {ld.userName}"
+    evalTactic $ <- `(tactic| unhygienic rcases $(mkIdent ld.userName):ident)
+  -- let env ← getEnv
+  -- for id in ids do
+  --   let n := getNameOfIdent' id
+  --   let
+  --   let t <- Meta.inferType
+  --   let .some _ := getStructureInfo? env n
+  --     | throwError "{n} is not a structure"
 
 
-    return
+
+    -- return
 
 elab "sts_induction" : tactic => withMainContext do
   let lctx ← Lean.MonadLCtx.getLCtx
