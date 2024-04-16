@@ -25,6 +25,8 @@ class RelationalTransitionSystem (σ : Type) extends
   where
   init : σ → Prop
   next : (RelationalTransitionSystem.action σ)
+  -- safety : σ → Prop
+  -- inv : σ → Prop
 
 class FunctionalTransitionSystem (σ : Type) extends
   TransitionSystem σ
