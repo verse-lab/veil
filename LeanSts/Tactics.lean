@@ -26,9 +26,12 @@ def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.
 def isPrimed (n : Name) : Bool := n.getString!.endsWith "'"
 def getNumPrimes (n : Name) : Nat := n.getString!.foldl (fun n c => if c == '\'' then n + 1 else n) 0
 
-/-- Destruct a structure into its fields -/
+/-- Destruct a structure into its fields.
+    If no identifier is provided, destructs the goal. -/
 elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
-  for id in ids do
+  if ids.size == 0 then
+    evalTactic $ ← `(tactic| repeat' constructor)
+  else for id in ids do
     let lctx ← Lean.MonadLCtx.getLCtx
     let name := (getNameOfIdent' id)
     let .some ld := lctx.findFromUserName? name
@@ -58,7 +61,9 @@ elab "sts_induction" : tactic => withMainContext do
   | none => throwError "sts_induction tactic failed: no `next` hypothesis found"
   | some hnext => pure hnext
   let hnextName := mkIdent hnext.userName
-  let case_split ← `(tactic| repeat' (rcases $hnextName:ident with $(← fresh "htr") | $hnextName))
+  let htrName ← fresh "htr"
+  evalTactic  $ ← `(tactic| revert $hnextName; intro $htrName:ident)
+  let case_split ← `(tactic| repeat' (rcases $htrName:ident with $htrName | $htrName))
   -- (2) Destruct the `next` hypothesis into separate goals for each individual action
   evalTactic $ case_split
   return

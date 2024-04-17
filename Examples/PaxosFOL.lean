@@ -258,10 +258,10 @@ set_option maxHeartbeats 2000000
 
 set_option auto.smt true
 set_option auto.smt.trust true
-set_option trace.auto.smt.printCommands true
-set_option trace.auto.smt.result true
-set_option trace.auto.smt.stderr true
-set_option trace.auto.smt.unsatCore true
+-- set_option trace.auto.smt.printCommands true
+-- set_option trace.auto.smt.result true
+-- set_option trace.auto.smt.stderr true
+-- set_option trace.auto.smt.unsatCore true
 
 def inv_init :
   ∀ (st : @Structure value node round), initialState? st → inv st := by simp_all only [initialState?,
@@ -277,37 +277,16 @@ def inv_init :
 theorem inv_inductive :
   ∀ (st st' : @Structure value node round), System.next st st' → inv st → inv st' := by
   intro st st' hnext hinv
-  sts_induction
-  sdestruct st st'
-  -- intro ⟨msg_1a, msg_1b, msg_2a, msg_2b, decision⟩
-  -- intro ⟨msg_1a', msg_1b', msg_2a', msg_2b', decision'⟩
-  -- intro hnext
-  -- intro ⟨hs, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩
-  -- rw [inv]
-  -- dsimp at hs h1 h2 h3 h4 h5 h6 h7 h8 h9 h10
-  -- dsimp
-  -- rcases hnext with h1a | h1b | h2a | h2b | hdecide
-  -- {
-  --   simp only [phase_1a, ne_eq, Structure.mk.injEq] at h1a
-  --   unfold updateFn at h1a
-  --   rw [inv]
-  --   sorry
-  -- }
-  -- {
-  --   simp only [phase_1b, ne_eq, leftRound, Bool.not_eq_true, exists_and_left, exists_and_right, not_and,
-  -- not_exists, forall_exists_index, maximalVote, and_imp, Structure.mk.injEq] at h1b
-  --   unfold updateFn4 at h1b
-  --   -- repeat' constructor <;> try auto
-  --   sorry
-  -- }
-  -- {
-  --   sorry
-  -- }
-  -- {
-  --   sorry
-  -- }
-  -- {
-  --   sorry
-  -- }
+  sts_induction <;> (dsimp only [inv]; sdestruct) <;> repeat
+  -- TODO: make this into a tactic
+  (
+    sdestruct st st';
+    simp at hinv htr ⊢;
+    try unfold updateFn at htr; try unfold updateFn2 at htr;
+    try unfold updateFn3 at htr; try unfold updateFn4 at htr;
+    -- duper [hinv, htr]
+    auto
+  )
+
 
 end PaxosFOL
