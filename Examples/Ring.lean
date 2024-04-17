@@ -174,115 +174,116 @@ theorem inv_inductive :
       duper [hpre, hinv_2] {portfolioInstance := 1}
     }
   }
-  { -- recv
-    -- rw [recv] at hrecv
-    -- -- NOTE: hpre1 is unused, so it's not actually needed as a precondition for `recv` (?)
-    -- rcases hrecv with ⟨sender, n, next, havoc, hpre1, hpre2, hpost⟩
-    -- split_ifs at hpost with cond1 cond2 <;> rw [hpost]
-    -- {
-    --   apply And.intro
-    --   { -- safety
-    --     simp_all
-    --     duper [hsafety, hinv_1, hinv_2, cond1, hpre2] {portfolioInstance := 1}
-    --   }
-    --   apply And.intro
-    --   { -- inv_1
-    --     simp_all
-    --     intro S D N; split_ifs with cond <;> duper [hinv_1, cond, hpre2] {portfolioInstance := 1}
-    --   }
-    --   { -- inv_2
-    --     simp_all
-    --     intro N L; split_ifs with cond <;> duper [hinv_2, cond, hpre2] {portfolioInstance := 1}
-    --   }
-    -- }
-    -- { -- recv, inner if
-    --   apply And.intro
-    --   { apply hsafety }
-    --   apply And.intro
-    --   { -- inv_1
-    --     simp only [inv_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
-    --       Bool.ite_eq_true_distrib, and_imp]
-    --     rintro S D N
-    --     split_ifs with cond3 cond4
-    --     { intro _ hbtw
-    --       simp_all only [ne_eq, and_imp]
-    --       by_cases hn: (N = n)
-    --       { simp_all }
-    --       {
-    --         apply (hinv_1 sender n)
-    --         apply And.intro
-    --         { assumption }
-    --         have Hn : _ := btw_next _  (by simp; apply hpre1)
-    --         have ht : _ := btw_total sender N n
-    --         rcases ht with h | h | h | h | h
-    --         { assumption }
-    --         { duper [h, Hn, hbtw, btw_ring, btw_trans] }
-    --         { duper [h, hbtw, btw_irreflexive'] }
-    --         { contradiction }
-    --         { contradiction }
-    --       }
-    --     }
-    --     {
-    --       intro _ Hbtw
-    --       apply (hinv_1 S D N)
-    --       apply And.intro
-    --       { simpa only [cond4] }
-    --       { assumption }
-    --     }
-    --     { intro h1 h2; apply hinv_1; apply And.intro <;> assumption }
-    --   }
-    --   {
-    --     -- inv_2
-    --     simp only [inv_2, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
-    --       Bool.ite_eq_true_distrib]
-    --     intro N L
-    --     split_ifs with cond3 cond4
-    --     { intro _
-    --       rw [safety] at hsafety
-    --       rw [inv_1] at hinv_1
-    --       rw [inv_2] at hinv_2
-    --       by_cases hl: (st.leader L)
-    --       { apply hsafety; assumption }
-    --       rcases cond3 with ⟨cond3a, cond3b⟩
-    --       -- have heq : (sender = next) := by { rw [← cond3.1]; simp only [cond3.2] }
-    --       -- simp_all
-    --       subst_vars
-    --       specialize (hpre1 N)
-    --       rcases hpre1 with ⟨_, hpre1⟩
-    --       by_cases H:(N ≠ n ∧ N ≠ L)
-    --       { simp_all
-    --         duper [hinv_1, hpre1, hpre2, btw_ring]
-    --       }
-    --       {
-    --         simp_all
-    --         by_cases Hn: (N = n)
-    --         { simp_all }
-    --         { simp_all
-    --           apply TotalOrder.le_refl
-    --         }
-    --       }
-    --     }
-    --     {
-    --       simp_all
-    --       duper [cond4, hinv_2, hpre2]
-    --     }
-    --     { apply hinv_2 }
-    --   }
-    -- }
-    -- { -- recv, just havoc
-    --   apply And.intro
-    --   { apply hsafety }
-    --   apply And.intro
-    --   { -- inv_1
-    --     simp_all
-    --     intro S D N; split_ifs with cond3 <;> duper [cond3, hpre2, hinv_1]
-    --   }
-    --   {
-    --     -- inv_2
-    --     simp_all
-    --     intro N L ; split_ifs with cond3 <;> duper [cond2, cond3, TotalOrder.le_refl, hinv_2]
-    --   }
-    -- }
+  {
+    -- recv
+    rw [recv] at hrecv
+    -- NOTE: hpre1 is unused, so it's not actually needed as a precondition for `recv` (?)
+    rcases hrecv with ⟨sender, n, next, havoc, hpre1, hpre2, hpost⟩
+    split_ifs at hpost with cond1 cond2 <;> rw [hpost]
+    {
+      apply And.intro
+      { -- safety
+        simp_all
+        duper [hsafety, hinv_1, hinv_2, cond1, hpre2] {portfolioInstance := 1}
+      }
+      apply And.intro
+      { -- inv_1
+        simp_all
+        intro S D N; split_ifs with cond <;> duper [hinv_1, cond, hpre2] {portfolioInstance := 1}
+      }
+      { -- inv_2
+        simp_all
+        intro N L; split_ifs with cond <;> duper [hinv_2, cond, hpre2] {portfolioInstance := 1}
+      }
+    }
+    { -- recv, inner if
+      apply And.intro
+      { apply hsafety }
+      apply And.intro
+      { -- inv_1
+        simp only [inv_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+          Bool.ite_eq_true_distrib, and_imp]
+        rintro S D N
+        split_ifs with cond3 cond4
+        { intro _ hbtw
+          simp_all only [ne_eq, and_imp]
+          by_cases hn: (N = n)
+          { simp_all }
+          {
+            apply (hinv_1 sender n)
+            apply And.intro
+            { assumption }
+            have Hn : _ := btw_next _  (by simp; apply hpre1)
+            have ht : _ := btw_total sender N n
+            rcases ht with h | h | h | h | h
+            { assumption }
+            { duper [h, Hn, hbtw, btw_ring, btw_trans] }
+            { duper [h, hbtw, btw_irreflexive'] }
+            { contradiction }
+            { contradiction }
+          }
+        }
+        {
+          intro _ Hbtw
+          apply (hinv_1 S D N)
+          apply And.intro
+          { simpa only [cond4] }
+          { assumption }
+        }
+        { intro h1 h2; apply hinv_1; apply And.intro <;> assumption }
+      }
+      {
+        -- inv_2
+        simp only [inv_2, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
+          Bool.ite_eq_true_distrib]
+        intro N L
+        split_ifs with cond3 cond4
+        { intro _
+          rw [safety] at hsafety
+          rw [inv_1] at hinv_1
+          rw [inv_2] at hinv_2
+          by_cases hl: (st.leader L)
+          { apply hsafety; assumption }
+          rcases cond3 with ⟨cond3a, cond3b⟩
+          -- have heq : (sender = next) := by { rw [← cond3.1]; simp only [cond3.2] }
+          -- simp_all
+          subst_vars
+          specialize (hpre1 N)
+          rcases hpre1 with ⟨_, hpre1⟩
+          by_cases H:(N ≠ n ∧ N ≠ L)
+          { simp_all
+            duper [hinv_1, hpre1, hpre2, btw_ring]
+          }
+          {
+            simp_all
+            by_cases Hn: (N = n)
+            { simp_all }
+            { simp_all
+              apply TotalOrder.le_refl
+            }
+          }
+        }
+        {
+          simp_all
+          duper [cond4, hinv_2, hpre2]
+        }
+        { apply hinv_2 }
+      }
+    }
+    { -- recv, just havoc
+      apply And.intro
+      { apply hsafety }
+      apply And.intro
+      { -- inv_1
+        simp_all
+        intro S D N; split_ifs with cond3 <;> duper [cond3, hpre2, hinv_1]
+      }
+      {
+        -- inv_2
+        simp_all
+        intro N L ; split_ifs with cond3 <;> duper [cond2, cond3, TotalOrder.le_refl, hinv_2]
+      }
+    }
   }
 
 end Ring

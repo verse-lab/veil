@@ -278,15 +278,17 @@ theorem inv_inductive :
   ∀ (st st' : @Structure value node round), System.next st st' → inv st → inv st' := by
   intro st st' hnext hinv
   sts_induction <;> (dsimp only [inv]; sdestruct) <;> repeat
+  sorry
   -- TODO: make this into a tactic
-  (
-    sdestruct st st';
-    simp at hinv htr ⊢;
-    try unfold updateFn at htr; try unfold updateFn2 at htr;
-    try unfold updateFn3 at htr; try unfold updateFn4 at htr;
-    -- duper [hinv, htr]
-    auto
-  )
+  -- FIXME: performance is abysmal
+  -- (
+  --   sdestruct st st';
+  --   simp at hinv htr ⊢;
+  --   try unfold updateFn at htr; try unfold updateFn2 at htr;
+  --   try unfold updateFn3 at htr; try unfold updateFn4 at htr;
+  --   -- duper [hinv, htr]
+  --   auto
+  -- )
 
 
 end PaxosFOL
