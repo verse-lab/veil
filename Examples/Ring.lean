@@ -143,9 +143,9 @@ set_option maxHeartbeats 2000000
 
 set_option auto.smt true
 set_option auto.smt.trust true
-set_option trace.auto.smt.printCommands true
-set_option trace.auto.smt.result true
-set_option trace.auto.smt.stderr true
+-- set_option trace.auto.smt.printCommands true
+-- set_option trace.auto.smt.result true
+-- set_option trace.auto.smt.stderr true
 
 theorem inv_inductive :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
@@ -167,7 +167,7 @@ theorem inv_inductive :
       unfold updateFn2 at hpost -- it works once I add the unfolding function
                                 -- this makes sence, as updateFn2 is a high oreder funtion
                                 -- What can we do about it?Uunfold all high order function?
-      auto [btw_ring, btw_side, hpre, hinv_1, hinv_2, hsafety, hpost]
+      duper [btw_ring, btw_side, hpre, hinv_1, hinv_2, hsafety, hpost]
     }
     { -- inv_2
       simp_all
