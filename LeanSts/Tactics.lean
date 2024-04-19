@@ -6,15 +6,10 @@ import LeanSts.TransitionSystem
 import Auto
 import Duper
 
--- Tactics to:
--- destruct all `structure`s
--- unfold all definitions (`dsimp`)
--- `repeat' apply And.intro` / `constructor in the goal`
--- call `auto`
-
--- Plan:
--- (1) Destruct the `next` action
--- RelationalTransitionSystem.next st st'
+-- Register our own version of @[simp], i.e. @[sts]
+-- We add this to (hopefully) improve the performance of `simp`
+-- by not looking through all the mathlib lemmas.
+register_simp_attr sts
 
 open Lean Lean.Elab.Tactic
 
