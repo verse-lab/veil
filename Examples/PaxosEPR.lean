@@ -3,8 +3,7 @@ import LeanSts.TransitionSystem
 import LeanSts.Tactics
 import Mathlib.Tactic
 
--- Based on: https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_fol.ivy
---           https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_fol.pyv
+-- Based on: https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_epr.ivy
 -- See also: https://github.com/aman-goel/ivybench/blob/master/paxos/ivy/Paxos.ivy
 -- See also: https://github.com/nano-o/ivy-proofs/blob/master/paxos/paxos.ivy
 -- See also: https://github.com/aman-goel/ivybench/blob/master/paxos/ivy/oopsla17_paxos.ivy
@@ -45,6 +44,17 @@ structure Structure :=
   -- equivalent to `one_b_max_vote` in the original Ivy spec
   one_b_max_vote (n : node) (r : round) (max_round : round) (max_val : value) : Bool
 
+  -- (ghost) relation one_b(N:node, R:round) # := exists RMAX, V. one_b_max_vote(N,R,RMAX,V)
+  -- @[sts] def one_b (st : @Structure node value round) (n : node) (r : round) : Prop :=
+  --   ∃ (rmax : round) (v : value), st.one_b_max_vote n r rmax v
+  one_b (n : node) (r : round) : Bool
+
+  -- (ghost) relation left_rnd(N:node, R:round) # := exists R2, RMAX, V. ~le(R2,R) & one_b_max_vote(N,R,RMAX,V)
+  -- @[sts] def leftRound (st : @Structure node value round) (n : node) (r : round) : Prop :=
+  -- ∃ (r2 : round) (rmax : round) (v : value),
+  --   ¬ TotalOrder.le r2 r ∧ st.one_b_max_vote n r rmax v
+  leftRound (n : node) (r : round) : Bool
+
   -- Phase 2(a): if the proposer receives a response to its _prepare_ requests
   -- (numbered `r`) from a majority/quorum of acceptors, then it sends an _accept_
   -- request to each of those acceptors for a proposal numbered `r` with a
@@ -60,15 +70,6 @@ structure Structure :=
   -- Got 2(b) from a quorum
   decision (n : node) (r : round) (v : value) : Bool
 
--- (ghost) relation one_b(N:node, R:round) # := exists RMAX, V. one_b_max_vote(N,R,RMAX,V)
-@[sts] def one_b (st : @Structure node value round) (n : node) (r : round) : Prop :=
-  ∃ (rmax : round) (v : value), st.one_b_max_vote n r rmax v
-
-/-- (ghost) relation left_rnd(N:node, R:round) # := exists R2, RMAX, V. ~le(R2,R) & one_b_max_vote(N,R,RMAX,V) -/
-@[sts] def leftRound (st : @Structure node value round) (n : node) (r : round) : Prop :=
-  ∃ (r2 : round) (rmax : round) (v : value),
-    ¬ TotalOrder.le r2 r ∧ st.one_b_max_vote n r rmax v
-
 /-- Find the maximal vote in a round less than `r` made by node `n` -/
 @[sts] def maximalVote (st : @Structure node value round) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
   (maxr = TotalOrder.none ∧
@@ -79,7 +80,7 @@ structure Structure :=
 /-- Quorum `q` shows `(r, v)` is safe. -/
 @[sts] def showsSafeAt (st : @Structure node value round) (q : quorum) (r : round) (v : value): Prop :=
   -- a majority of acceptors have joined round `r` (L85 in `paxos_fol.ivy`)
-  (∀ (N : node), Quorum.member N q → one_b st N r) ∧
+  (∀ (N : node), Quorum.member N q → st.one_b N r) ∧
   (∃ (maxr : round),
     -- and `(r, v)` is maximal in the quorum
     ((maxr = TotalOrder.none ∧
@@ -100,6 +101,8 @@ structure Structure :=
 @[sts] def initialState? (st : @Structure node value round) : Prop :=
   (∀ (r : round), ¬ st.one_a r) ∧
   (∀ (n : node) (r1 r2 : round) (v : value), ¬ st.one_b_max_vote n r1 r2 v) ∧
+  (∀ (n : node) (r : round), ¬ st.one_b n r) ∧
+  (∀ (n : node) (r : round), ¬ st.leftRound n r) ∧
   (∀ (r : round) (v : value), ¬ st.proposal r v) ∧
   (∀ (n : node) (r : round) (v : value), ¬ st.vote n r v) ∧
   (∀ (n : node) (r : round) (v : value), ¬ st.decision n r v)
@@ -120,11 +123,16 @@ structure Structure :=
       -- preconditions
       r ≠ TotalOrder.none ∧
       st.one_a r ∧
-      ¬ leftRound st n r ∧
+      ¬ st.leftRound n r ∧
       maximalVote st n r max_round max_val ∧
       -- update
-      st' = { st with one_b_max_vote := st.one_b_max_vote[n, r, max_round, max_val ↦ true] }
-      -- NOTE: `one_b` and `leftRound` are ghost relations which we don't update
+      -- NOTE: `one_b` and `leftRound` are derived relations, which we must update
+      st' = { st with one_b_max_vote := st.one_b_max_vote[n, r, max_round, max_val ↦ true],
+                      one_b := st.one_b[n, r ↦ true],
+                      -- left_rnd(n, R) := left_rnd(n, R) | ~le(r, R)
+                      -- TODO: add a helper function in `State.lean` for this kind of thing
+                      leftRound := λ N R  => st.leftRound N R ∨ (N = n ∧ ¬ TotalOrder.le r R)
+       }
 
 -- "propose" = receive a quorum of 1b's and send a 2a (proposal)
 @[sts] def phase_2a : RelationalTransitionSystem.action (@Structure node value round) :=
@@ -143,7 +151,7 @@ structure Structure :=
     ∃ (n : node) (r : round) (v : value),
       -- preconditions
       r ≠ TotalOrder.none ∧
-      ¬ leftRound st n r ∧
+      ¬ st.leftRound n r ∧
       st.proposal r v ∧
       -- update
       st' = { st with vote := st.vote[n, r, v ↦ true] }
@@ -221,6 +229,14 @@ def safety_init :
       st.one_b_max_vote n r3 rmax v ∧
       ¬ st.vote n r1 v1)
 
+-- Properties of one_b, left_rnd
+-- #conjecture one_b_max_vote(N,R,RMAX,V) -> one_b(N,R)
+-- conjecture one_b(N,R2) & ~le(R2,R1) -> left_rnd(N,R1)
+
+@[sts] def one_b_left_round (st : @Structure node value round) : Prop :=
+  ∀ (n : node) (r1 r2 : round),
+    st.one_b n r2 ∧ ¬ TotalOrder.le r2 r1 → st.leftRound n r1
+
 @[sts] def inv (st : @Structure node value round) : Prop :=
   safety st ∧
   inv_propose_unique st ∧
@@ -230,7 +246,8 @@ def safety_init :
   inv_one_b_max_vote2 st ∧
   inv_one_b_max_vote3 st ∧
   inv_no_vote_at_none st ∧
-  inv_choose_propose st
+  inv_choose_propose st ∧
+  one_b_left_round st
 
 def inv_init :
   ∀ (st : @Structure node value round), initialState? st → inv st := by simp_all [sts]
@@ -249,17 +266,15 @@ set_option trace.auto.smt.result true
 theorem inv_inductive :
   ∀ (st st' : @Structure node value round), System.next st st' → inv st → inv st' := by
   intro st st' hnext hinv
-  sts_induction <;> (dsimp only [inv]; sdestruct) <;> repeat'
+  sts_induction <;> (dsimp only [inv]; sdestruct) <;> repeat
   sorry
-  -- TODO: make this into a tactic
-  -- FIXME: performance is abysmal
   -- (
   --   sdestruct st st';
-  --   simp only [sts] at hinv htr ⊢;
+  --   simp [sts, Structure.mk.injEq] at hinv htr ⊢;
   --   try unfold updateFn at htr; try unfold updateFn2 at htr;
   --   try unfold updateFn3 at htr; try unfold updateFn4 at htr;
-  --   -- duper [hinv, htr]
-  --   auto
+  --   auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm,
+  --         TotalOrder.le_total, Quorum.quorum_intersection, hinv, htr]
   -- )
 
 end PaxosFOL
