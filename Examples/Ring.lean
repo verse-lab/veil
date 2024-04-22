@@ -55,7 +55,7 @@ structure Structure :=
   leader (n : node) : Bool
   pending (n1 n2 : node) : Bool
 
-def initialState? (rs : Structure node) : Prop :=
+@[simp] def initialState? (rs : Structure node) : Prop :=
   (∀ (n : node), ¬ rs.leader n) ∧
   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
 
@@ -146,6 +146,19 @@ set_option auto.smt.trust true
 -- set_option trace.auto.smt.printCommands true
 -- set_option trace.auto.smt.result true
 -- set_option trace.auto.smt.stderr true
+
+theorem inv_inductive_smt :
+  ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
+  intro st st' hnext hinv
+  sts_induction <;> (dsimp only [inv]; sdestruct) <;> repeat
+  (
+    sdestruct st st';
+    simp [sts] at hinv htr ⊢;
+    (try unfold updateFn at htr) ; (try unfold updateFn2 at htr);
+    (try unfold updateFn3 at htr) ; (try unfold updateFn4 at htr);
+    auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm, TotalOrder.le_total,
+      Between.btw_ring, Between.btw_trans, Between.btw_side, Between.btw_total, hinv, htr]
+  )
 
 theorem inv_inductive :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
@@ -285,5 +298,6 @@ theorem inv_inductive :
       }
     }
   }
+
 
 end Ring
