@@ -24,8 +24,8 @@ def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.
 structure StsState where
   typ : Expr
   init : Expr
-  actions : Array Expr
-  invariants : Array Expr
+  actions : List Expr
+  invariants : List Expr
   deriving Inhabited
 
 open StsState
@@ -51,20 +51,20 @@ syntax (name:= initial) "initial" : attr
 initialize registerBuiltinAttribute {
   name := `initial
   descr := "Marks as an initial state"
-  add := fun declName _ _ => MetaM.run' do
-    liftCommandElabM $ Command.runTermElabM fun vs => do
-      -- Type Checking
-      -- let initTp := (<- Lean.getConstInfo declName).type
-      -- let initTp <- instantiateForall initTp vs
-      -- let stateTp <- instantiateForall (<- stsExt.get).typ vs
-      -- let wrongType := throwError "Inital state predicate expected of type {stateTp} -> Prop, but got {initTp} instead"
-      -- let some (stateTp', prop) := initTp.arrow?
-      --   | wrongType
-      -- unless stateTp' == stateTp && prop.isProp do wrongType
-      -- Check if the initial state has already been declared
-      let intTp := (<- stsExt.get).init
-      unless intTp == default do
-        throwError "Inital state predicate has already been declared: {intTp}"
-      let init := (<- Lean.getConstInfo declName).value!
-      stsExt.modify ({ · with init := init })
+  add := fun declName _ _ => do
+    -- Check if the initial state has already been declared
+    let intTp := (<- stsExt.get).init
+    unless intTp == default do
+      throwError "Inital state predicate has already been declared: {intTp}"
+    let init := mkConst declName
+    stsExt.modify ({ · with init := init })
+}
+
+syntax (name:= action) "action" : attr
+
+initialize registerBuiltinAttribute {
+  name := `action
+  descr := "Marks as a state stransition"
+  add := fun declName _ _ => do
+    stsExt.modify (fun s => { s with actions := mkConst declName :: s.actions})
 }

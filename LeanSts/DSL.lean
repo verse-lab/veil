@@ -14,12 +14,7 @@ macro_rules
 macro "state" ":=" fs:Command.structFields : command => do
   `(@[state] structure $(mkIdent "State") where mk :: $fs)
 
--- type node1
--- type node2
 
--- state :=
---   foo : node2
---   bar : node1
 
 elab "initial" ":=" ini:term : command => do
   Command.runTermElabM fun vs => do
@@ -30,4 +25,43 @@ elab "initial" ":=" ini:term : command => do
     let stateTp <- PrettyPrinter.delab stateTp
     liftCommandElabM $ elabCommand $ <- `(@[initial] def $(mkIdent "inital?") : $stateTp -> Prop := $ini)
 
--- initial := fun x => True
+elab "action" nm:declId ":=" act:term : command => do
+  Command.runTermElabM fun vs => do
+    let stateTp := (<- stsExt.get).typ
+    unless stateTp != default do throwError "State has not been declared so far"
+    -- TODO: Check that `State` uses all section variables here
+    let stateTp := mkAppN stateTp vs
+    let stateTp <- PrettyPrinter.delab stateTp
+    liftCommandElabM $ elabCommand $ <- `(@[action] def $nm : $stateTp -> $stateTp -> Prop := $act)
+
+def assembleActions : CommandElabM Unit := do
+  Command.runTermElabM fun vs => do
+    let stateTp := mkAppN (<- stsExt.get).typ vs
+    let stateTp <- PrettyPrinter.delab stateTp
+    let act0 :: actions := (<- stsExt.get).actions
+      | throwError "There are no transitions defined"
+    let act0 <- etaExpand act0
+    let acts <- lambdaTelescope act0 fun args act0 => do
+      let mut acts := act0
+      for act in actions do
+        let act := mkAppN act args
+        acts <- mkAppM ``Or #[act, acts]
+      mkLambdaFVars args acts
+    let acts <- instantiateLambda acts vs
+    let acts <- PrettyPrinter.delab acts
+    liftCommandElabM $ elabCommand $ <- `(def $(mkIdent "Next") : $stateTp -> $stateTp -> Prop := $acts)
+
+type node1
+type node2
+
+state :=
+  foo : node1
+  bar : node2
+
+initial := fun x => True
+
+action bazz := fun x y => True
+action bazzz := fun x y => False
+#eval assembleActions
+
+#print Next
