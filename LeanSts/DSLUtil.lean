@@ -68,3 +68,12 @@ initialize registerBuiltinAttribute {
   add := fun declName _ _ => do
     stsExt.modify (fun s => { s with actions := mkConst declName :: s.actions})
 }
+
+syntax (name:= inv) "inv" : attr
+
+initialize registerBuiltinAttribute {
+  name := `inv
+  descr := "Marks as an invariant clause"
+  add := fun declName _ _ => do
+    stsExt.modify (fun s => { s with invariants := mkConst declName :: s.invariants})
+}
