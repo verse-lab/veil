@@ -47,27 +47,30 @@ elab_rules : command
     let stateTp := mkAppN stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
     liftCommandElabM $ elabCommand $ <- match br with
-    | some br =>
+    | some br =>                                                            -- TODO: add macro a beta reduction here
        `(@[action] def $nm : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
     | _ =>
        `(@[action] def $nm : $stateTp -> $stateTp -> Prop := $act)
 
 -- elab "action" nm:declId br:bracketedBinder ":=" act:term : command =>
 
+def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
+    let exp0 :: exprs := exps
+      | throwError ("There are no" ++ name ++ "defined")
+    let exp0 <- etaExpand exp0
+    let exps <- lambdaTelescope exp0 fun args exp0 => do
+      let mut exps := exp0
+      for exp in exprs do
+        let exp := mkAppN exp args
+        exps <- mkAppM op #[exp, exps]
+      mkLambdaFVars args exps
+    instantiateLambda exps vs
+
 def assembleActions : CommandElabM Unit := do
   Command.runTermElabM fun vs => do
     let stateTp := mkAppN (<- stsExt.get).typ vs
     let stateTp <- PrettyPrinter.delab stateTp
-    let act0 :: actions := (<- stsExt.get).actions
-      | throwError "There are no transitions defined"
-    let act0 <- etaExpand act0
-    let acts <- lambdaTelescope act0 fun args act0 => do
-      let mut acts := act0
-      for act in actions do
-        let act := mkAppN act args
-        acts <- mkAppM ``Or #[act, acts]
-      mkLambdaFVars args acts
-    let acts <- instantiateLambda acts vs
+    let acts <- combineLemmas ``Or (<- stsExt.get).actions vs "transitions"
     let acts <- PrettyPrinter.delab acts
     liftCommandElabM $ elabCommand $ <- `(def $(mkIdent "Next") : $stateTp -> $stateTp -> Prop := $acts)
 
@@ -86,6 +89,15 @@ elab inv ":=" inv:term : command => do
     let inv_name := "inv" ++ toString num
     liftCommandElabM $ elabCommand $ <- `(@[inv] def $(mkIdent inv_name) : $stateTp -> Prop := $inv)
 
+
+def assembleInvariant : CommandElabM Unit := do
+  Command.runTermElabM fun vs => do
+    let stateTp := mkAppN (<- stsExt.get).typ vs
+    let stateTp <- PrettyPrinter.delab stateTp
+    let invs <- combineLemmas ``And (<- stsExt.get).invariants vs "transitions"
+    let invs <- PrettyPrinter.delab invs
+    liftCommandElabM $ elabCommand $ <- `(def $(mkIdent "Inv") : $stateTp -> Prop := $invs)
+
 type node1
 type node2
 
@@ -95,12 +107,16 @@ state :=
 
 initial := fun x => True
 
-action bazz (n m : Nat) := fun (x y : @State node1 node2) => n > m
-#print bazz
+action bazz (n m : Nat) := fun (x y) => n > m
+-- #print bazz
 action bazzz := fun x y => False
 #eval assembleActions
+#print Next
 
+safety := fun st => 5 = 5
 invariant := fun st => True
 invariant := fun st => st.foo = st.foo
 
-#print Next
+#eval assembleInvariant
+
+#print Inv
