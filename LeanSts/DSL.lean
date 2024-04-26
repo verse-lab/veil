@@ -94,7 +94,9 @@ def assembleInvariant : CommandElabM Unit := do
     let invs <- PrettyPrinter.delab invs
     liftCommandElabM $ elabCommand $ <- `(def $(mkIdent "Inv") : $stateTp -> Prop := $invs)
 
-def instantiateSystem : CommandElabM Unit :=
+def instantiateSystem : CommandElabM Unit := do
+  assembleActions
+  assembleInvariant
   Command.runTermElabM fun vs => do
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
@@ -102,11 +104,30 @@ def instantiateSystem : CommandElabM Unit :=
     let initSt    <- PrettyPrinter.delab initSt
     let nextTrans := mkAppN (<- mkConst "Next") vs
     let nextTrans <- PrettyPrinter.delab nextTrans
+    let inv       := mkAppN (<- mkConst "Inv") vs
+    let inv       <- PrettyPrinter.delab inv
     liftCommandElabM $ elabCommand $ <-
       `(instance : RelationalTransitionSystem $stateTp where
           init := $initSt
-          next := $nextTrans)
+          next := $nextTrans
+          inv  := $inv)
 
+elab "#gen_spec" : command => do
+  instantiateSystem
+
+elab "inv_init_by" proof:term : command => do
+   Command.runTermElabM fun vs => do
+    let stateTp   := mkAppN (<- stsExt.get).typ vs
+    let stateTp   <- PrettyPrinter.delab stateTp
+    liftCommandElabM $ elabCommand $ <-
+      `(theorem $(mkIdent "inv_init") : inv_init (σ := $stateTp) := $proof)
+
+elab "inv_inductive_by" proof:term : command => do
+   Command.runTermElabM fun vs => do
+    let stateTp   := mkAppN (<- stsExt.get).typ vs
+    let stateTp   <- PrettyPrinter.delab stateTp
+    liftCommandElabM $ elabCommand $ <-
+      `(theorem $(mkIdent "inv_inductive") : inv_inductive (σ := $stateTp) := $proof)
 
 type node1
 type node2
@@ -120,15 +141,18 @@ initial := fun x => True
 action bazz (n m : Nat) := fun (x y) => n > m
 -- #print bazz
 action bazzz := fun x y => False
-#eval assembleActions
-#print Next
+-- #eval assembleActions
+-- #print Next
 
 safety := fun st => 5 = 5
 invariant := fun st => True
 invariant := fun st => st.foo = st.foo
 
-#eval assembleInvariant
+-- #eval assembleInvariant
 
-#print Inv
+-- #print Inv
 
 #eval instantiateSystem
+
+-- example : inv_init (σ := State node1 node2) := by
+--   rw [inv_init]

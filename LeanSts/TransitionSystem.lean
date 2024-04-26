@@ -24,9 +24,18 @@ class RelationalTransitionSystem (σ : Type) extends
   RelationalTransitionSystem.action_pred
   where
   init : σ → Prop
-  next : (RelationalTransitionSystem.action σ)
+  next : RelationalTransitionSystem.action σ
   -- safety : σ → Prop
-  -- inv : σ → Prop
+  inv : σ → Prop
+
+open RelationalTransitionSystem
+
+def inv_init [RelationalTransitionSystem σ] :=
+  ∀ (s : σ), init s -> inv s
+
+def inv_inductive [RelationalTransitionSystem σ] :=
+  ∀ (s1 s2 : σ), next s1 s2 -> inv s1 -> inv s2
+
 
 class FunctionalTransitionSystem (σ : Type) extends
   TransitionSystem σ
