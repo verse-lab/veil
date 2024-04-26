@@ -2,7 +2,8 @@
 import Lean
 import LeanSts.DSLUtil
 import Lean.Parser
-open Lean Elab Command Term Meta Lean.Parser
+import LeanSts.TransitionSystem
+open Lean Elab Command Term Meta Lean.Parser RelationalTransitionSystem
 
 -- Modelled after the Ivy language
 -- https://github.com/kenmcmil/ivy/blob/master/doc/language.md
@@ -23,7 +24,7 @@ elab "initial" ":=" ini:term : command => do
     -- TODO: Check that `State` uses all section variables here
     let stateTp := mkAppN stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
-    liftCommandElabM $ elabCommand $ <- `(@[initial] def $(mkIdent "inital?") : $stateTp -> Prop := $ini)
+    liftCommandElabM $ elabCommand $ <- `(@[initial] def $(mkIdent "initalState?") : $stateTp -> Prop := $ini)
 
 
 syntax "action" declId (explicitBinders)? ":=" term : command
@@ -74,11 +75,7 @@ def assembleActions : CommandElabM Unit := do
     let acts <- PrettyPrinter.delab acts
     liftCommandElabM $ elabCommand $ <- `(def $(mkIdent "Next") : $stateTp -> $stateTp -> Prop := $acts)
 
-declare_syntax_cat inv
-syntax "invariant" : inv
-syntax "safety" : inv
-
-elab inv ":=" inv:term : command => do
+elab nm:("invariant" <|> "safety") ":=" inv:term : command => do
   Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
@@ -89,7 +86,6 @@ elab inv ":=" inv:term : command => do
     let inv_name := "inv" ++ toString num
     liftCommandElabM $ elabCommand $ <- `(@[inv] def $(mkIdent inv_name) : $stateTp -> Prop := $inv)
 
-
 def assembleInvariant : CommandElabM Unit := do
   Command.runTermElabM fun vs => do
     let stateTp := mkAppN (<- stsExt.get).typ vs
@@ -97,6 +93,20 @@ def assembleInvariant : CommandElabM Unit := do
     let invs <- combineLemmas ``And (<- stsExt.get).invariants vs "transitions"
     let invs <- PrettyPrinter.delab invs
     liftCommandElabM $ elabCommand $ <- `(def $(mkIdent "Inv") : $stateTp -> Prop := $invs)
+
+def instantiateSystem : CommandElabM Unit :=
+  Command.runTermElabM fun vs => do
+    let stateTp   := mkAppN (<- stsExt.get).typ vs
+    let stateTp   <- PrettyPrinter.delab stateTp
+    let initSt    := mkAppN (<- mkConst "initalState?") vs
+    let initSt    <- PrettyPrinter.delab initSt
+    let nextTrans := mkAppN (<- mkConst "Next") vs
+    let nextTrans <- PrettyPrinter.delab nextTrans
+    liftCommandElabM $ elabCommand $ <-
+      `(instance : RelationalTransitionSystem $stateTp where
+          init := $initSt
+          next := $nextTrans)
+
 
 type node1
 type node2
@@ -120,3 +130,5 @@ invariant := fun st => st.foo = st.foo
 #eval assembleInvariant
 
 #print Inv
+
+#eval instantiateSystem

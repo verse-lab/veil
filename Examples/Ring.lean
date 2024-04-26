@@ -114,8 +114,10 @@ def safety_init :
 @[simp] def inv (st : Structure node) : Prop :=
   safety st ∧ inv_1 st ∧ inv_2 st
 
+open RelationalTransitionSystem
+
 def inv_init :
-  ∀ (st : Structure node), System.init st → inv st := by
+  ∀ (st : Structure node), init st → inv st := by
   intro st
   simp only [RelationalTransitionSystem.init, safety, System, initialState?]
   rintro ⟨hleader, hpending⟩
