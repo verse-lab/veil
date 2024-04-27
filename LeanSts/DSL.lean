@@ -14,7 +14,7 @@ macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
 
 structure foo := foo : nat
 
-elab "state" ":=" fs:Command.structFields : command => do
+elab "state" "=" fs:Command.structFields : command => do
   let scope <- getScope
   let vd := scope.varDecls
   elabCommand $ <-
@@ -31,23 +31,44 @@ def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   Command.runTermElabM fun _ => do
     let nms := (<- stsExt.get).rel_sig
-    -- let fs <- `(Command.structFields| $[$nms : $tps]*)
     liftCommandElabM $ elabCommand $ <-
-      `(@[state] structure $(mkIdent "State") $[$vd]* where $(mkIdent "mk"):ident :: $[$nms]*)
+      `(@[stateDef] structure $(mkIdent "State") $[$vd]* where $(mkIdent "mk"):ident :: $[$nms]*)
 
 elab "#gen_state" : command => assembleState
 
+def prop := (Lean.Expr.sort (Lean.Level.zero))
 
-elab "initial" ":=" ini:term : command => do
+elab "initial" "=" ini:term : command => do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun vs => do
+  elabCommand <| <- Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
+    let _ <- elabTermEnsuringType ini (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
-    liftCommandElabM $ elabCommand $ <-
-      `(@[initial] def $(mkIdent "initalState?") $[$vd]* : $stateTp -> Prop := $ini)
+    `(@[initial] def $(mkIdent "initalState?") $[$vd]* : $stateTp -> Prop := $ini)
 
+-- elab "my_def" ":=" trm:term : command => do
+--   Command.runTermElabM fun vs => do
+--     elabCommand <| <- `(def foo := $trm)
+
+-- my_def := 5 5
+
+-- type node1
+-- type node2
+-- instantiate DecidableEq node1
+
+-- relation foo : node1
+-- relation bar : node2
+
+-- #eval assembleState
+
+-- -- #print State
+
+
+-- initial = fun _ => True 5
+
+-- #check initalState?
 
 syntax "action" declId (explicitBinders)? ":=" term : command
 
@@ -55,16 +76,21 @@ syntax "action" declId (explicitBinders)? ":=" term : command
 elab_rules : command
   | `(command| action $nm:declId $br:explicitBinders ? := $act) => do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun vs => do
+  elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
+    match br with
+    | some br =>
+      let _ <- elabTerm (<-`(term| fun st1 st2 => exists $br, $act st1 st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
+    | none =>
+      let _ <- elabTerm act (<- mkArrow stateTp (<- mkArrow stateTp prop))
     let stateTp <- PrettyPrinter.delab stateTp
-    liftCommandElabM $ elabCommand $ <- match br with
+    match br with
     | some br =>                                                            -- TODO: add macro a beta reduction here
-       `(@[action] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
-    | _ =>
-       `(@[action] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := $act)
+       `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
+    | _ => do
+       `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := $act)
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
     let exp0 :: exprs := exps
@@ -80,35 +106,43 @@ def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String
 
 def assembleActions : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun vs => do
+  elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp := mkAppN (<- stsExt.get).typ vs
     let stateTp <- PrettyPrinter.delab stateTp
     let acts <- combineLemmas ``Or (<- stsExt.get).actions vs "transitions"
     let acts <- PrettyPrinter.delab acts
-    liftCommandElabM $ elabCommand $ <-
-      `(def $(mkIdent "Next") $[$vd]* : $stateTp -> $stateTp -> Prop := $acts)
+    `(@[actSimp] def $(mkIdent "Next") $[$vd]* : $stateTp -> $stateTp -> Prop := $acts)
 
-elab ("invariant" <|> "safety") ":=" inv:term : command => do
+elab "safety" "=" safe:term : command => do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun vs => do
+  elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
+    let _ <- elabTerm safe (<- mkArrow stateTp prop)
+    let stateTp <- PrettyPrinter.delab stateTp
+    `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := $safe)
+
+elab "invariant" "=" inv:term : command => do
+  let vd := (<- getScope).varDecls
+  elabCommand $ <- Command.runTermElabM fun vs => do
+    let stateTp := (<- stsExt.get).typ
+    unless stateTp != default do throwError "State has not been declared so far"
+    let stateTp := mkAppN stateTp vs
+    let _ <- elabTerm inv (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
     let num := (<- stsExt.get).invariants.length
     let inv_name := "inv" ++ toString num
-    liftCommandElabM $ elabCommand $ <-
-      `(@[inv] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := $inv)
+    `(@[invDef, invSimp] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := $inv)
 
 def assembleInvariant : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun vs => do
+  elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp := mkAppN (<- stsExt.get).typ vs
     let stateTp <- PrettyPrinter.delab stateTp
     let invs <- combineLemmas ``And (<- stsExt.get).invariants vs "transitions"
     let invs <- PrettyPrinter.delab invs
-    liftCommandElabM $ elabCommand $ <-
-      `(def $(mkIdent "Inv") $[$vd]* : $stateTp -> Prop := $invs)
+    `(@[invSimp] def $(mkIdent "Inv") $[$vd]* : $stateTp -> Prop := $invs)
 
 def instantiateSystem : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
@@ -121,57 +155,65 @@ def instantiateSystem : CommandElabM Unit := do
     let initSt    <- PrettyPrinter.delab initSt
     let nextTrans := mkAppN (<- mkConst "Next") vs
     let nextTrans <- PrettyPrinter.delab nextTrans
+    let safe      := mkAppN (<- mkConst "Safety") vs
+    let safe      <- PrettyPrinter.delab safe
     let inv       := mkAppN (<- mkConst "Inv") vs
     let inv       <- PrettyPrinter.delab inv
     liftCommandElabM $ elabCommand $ <-
       `(instance $[$vd]* : RelationalTransitionSystem $stateTp where
+          safe := $safe
           init := $initSt
           next := $nextTrans
-          inv  := $inv)
+          inv    := $inv
+          )
 
 elab "#gen_spec" : command => instantiateSystem
 
-elab "inv_init_by" proof:tacticSeq : command => do
+elab "safety_init_by" proof:tacticSeq : command => do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun vs => do
+  elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
-    liftCommandElabM $ elabCommand $ <-
-      `(theorem $(mkIdent "invInit") $[$vd]* : inv_init (σ := $stateTp) :=
-       by unfold inv_init; exact by $proof)
+    `(theorem $(mkIdent "safety_init") $[$vd]* : safetyInit (σ := $stateTp) :=
+       by unfold inv_init; intros $(mkIdent "st"); exact by $proof)
+
+elab "inv_init_by" proof:tacticSeq : command => do
+  let vd := (<- getScope).varDecls
+  elabCommand $ <- Command.runTermElabM fun vs => do
+    let stateTp   := mkAppN (<- stsExt.get).typ vs
+    let stateTp   <- PrettyPrinter.delab stateTp
+    `(theorem $(mkIdent "inv_init") $[$vd]* : invInit (σ := $stateTp) :=
+       by unfold inv_init; intros $(mkIdent "st"); exact by $proof)
 
 elab "inv_inductive_by" proof:tacticSeq : command => do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun vs => do
+  elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
-    liftCommandElabM $ elabCommand $ <-
-      `(theorem $(mkIdent "invInductive") $[$vd]* : inv_inductive (σ := $stateTp) :=
-      by unfold inv_inductive; exact by $proof)
+    `(theorem $(mkIdent "inv_inductive") $[$vd]* : invInductive (σ := $stateTp) :=
+      by unfold inv_inductive; intros $(mkIdent "st1") $(mkIdent "st2"); exact by $proof)
 
-type node1
-type node2
-instantiate DecidableEq node1
+attribute [initSimp] RelationalTransitionSystem.init
+attribute [invSimp] RelationalTransitionSystem.inv
+attribute [actSimp] RelationalTransitionSystem.next
+attribute [safeSimp] RelationalTransitionSystem.safe
 
-relation foo : node1
-relation bar : node2
 
-#eval assembleState
 
--- #print State
+-- action bazz (n m : Nat) := fun (x y) => n > m
 
-initial := fun x => True
+-- action bazzz := fun x y => False
 
-action bazz (n m : Nat) := fun (x y) => n > m
+-- safety = fun st => 5 = 5
+-- invariant = fun st => True
+-- invariant = fun st => st.foo = st.foo
 
-action bazzz := fun x y => False
+-- #gen_spec
 
-safety := fun st => 5 = 5
-invariant := fun st => True
-invariant := fun st => st.foo = st.foo
+-- inv_init_by
+--   simp only [invSimp, initSimp]
+--   sorry
 
-#gen_spec
-
-inv_init_by sorry
-
-inv_inductive_by sorry
+-- inv_inductive_by
+--   simp only [invSimp, actSimp]
+--   sorry

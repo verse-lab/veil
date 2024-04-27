@@ -87,12 +87,6 @@ structure Structure :=
 variable {node : Type}
 variable [DecidableEq node] [TotalOrder node] [Between node]
 
-instance System : RelationalTransitionSystem (Structure node)
-  where
-  init := λ st => initialState? node st
-  -- TLA-style
-  next := λ st st' => send node st st' ∨ recv node st st'
-
 @[simp] def safety (st : Structure node) : Prop :=
   ∀ (N L : node), st.leader L → le N L
 
@@ -101,7 +95,17 @@ instance System : RelationalTransitionSystem (Structure node)
 
 @[simp] def inv_2 (st : Structure node) : Prop :=
   ∀ (N L : node), st.pending L L → le N L
+@[simp] def inv' (st : Structure node) : Prop :=
+  safety st ∧ inv_1 st ∧ inv_2 st
 
+instance System : RelationalTransitionSystem (Structure node)
+  where
+  init := λ st => initialState? node st
+  -- TLA-style
+  next := λ st st' => send node st st' ∨ recv node st st'
+  inv := inv'
+
+open RelationalTransitionSystem
 def safety_init :
   ∀ (st : Structure node), System.init st → safety st := by
   intro st
@@ -111,12 +115,10 @@ def safety_init :
   specialize hleader L
   contradiction
 
-@[simp] def inv (st : Structure node) : Prop :=
-  safety st ∧ inv_1 st ∧ inv_2 st
 
 open RelationalTransitionSystem
 
-def inv_init :
+def inv_init' :
   ∀ (st : Structure node), init st → inv st := by
   intro st
   simp only [RelationalTransitionSystem.init, safety, System, initialState?]
@@ -152,17 +154,17 @@ set_option auto.smt.trust true
 theorem inv_inductive_smt :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext hinv
-  sts_induction <;> (dsimp only [inv]; sdestruct) <;> repeat
+  sts_induction <;> (dsimp only [inv, inv']; sdestruct) <;> repeat
   (
     sdestruct st st';
-    simp [sts] at hinv htr ⊢;
+    simp [sts, inv] at hinv htr ⊢;
     (try unfold updateFn at htr) ; (try unfold updateFn2 at htr);
     (try unfold updateFn3 at htr) ; (try unfold updateFn4 at htr);
     auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm, TotalOrder.le_total,
       Between.btw_ring, Between.btw_trans, Between.btw_side, Between.btw_total, hinv, htr]
   )
 
-theorem inv_inductive :
+theorem inv_inductive' :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext ⟨hsafety, hinv_1, hinv_2⟩
   rcases hnext with hsend | hrecv
