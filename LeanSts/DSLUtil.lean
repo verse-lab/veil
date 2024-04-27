@@ -22,9 +22,10 @@ def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.
   return Lean.mkIdent name
 
 structure StsState where
-  typ : Expr
-  init : Expr
-  actions : List Expr
+  typ        : Expr
+  rel_sig    : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)
+  init       : Expr
+  actions    : List Expr
   invariants : List Expr
   deriving Inhabited
 

@@ -20,6 +20,16 @@ elab "state" ":=" fs:Command.structFields : command => do
   elabCommand $ <-
     `(@[state] structure $(mkIdent "State") $[$vd]* where mk :: $fs)
 
+elab "relation" sig:Command.structExplicitBinder : command => liftTermElabM do
+  stsExt.modify (fun s => { s with rel_sig := s.rel_sig.push sig })
+
+def assembleState : CommandElabM Unit := do
+  let vd := (<- getScope).varDecls
+  Command.runTermElabM fun _ => do
+    let nms := (<- stsExt.get).rel_sig
+    -- let fs <- `(Command.structFields| $[$nms : $tps]*)
+    liftCommandElabM $ elabCommand $ <-
+      `(@[state] structure $(mkIdent "State") $[$vd]* where mk :: $[$nms]*)
 
 
 elab "initial" ":=" ini:term : command => do
@@ -27,7 +37,6 @@ elab "initial" ":=" ini:term : command => do
   Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
-    -- TODO: Check that `State` uses all section variables here
     let stateTp := mkAppN stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
     liftCommandElabM $ elabCommand $ <-
@@ -36,15 +45,6 @@ elab "initial" ":=" ini:term : command => do
 
 syntax "action" declId (explicitBinders)? ":=" term : command
 
--- def explicitBinders' : Parser := explicitBinders
-
--- def foo (x : Array $ TSyntax `Lean.Parser.Term.explicitBinder) : MacroM ((TSyntax `Lean.explicitBinders)) :=
---   if x.size == 1 then
---     match x[0]! with
---     | `(explicitBinder| ($[$x:ident]* : $tp)) => `(explicitBinders| $[($x : $tp)]*)
---     | _ => Macro.throwError "Unsupprted binder syntax"
---   else return default
-
 
 elab_rules : command
   | `(command| action $nm:declId $br:explicitBinders ? := $act) => do
@@ -52,7 +52,6 @@ elab_rules : command
   Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
-    -- TODO: Check that `State` uses all section variables here
     let stateTp := mkAppN stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
     liftCommandElabM $ elabCommand $ <- match br with
@@ -60,8 +59,6 @@ elab_rules : command
        `(@[action] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
     | _ =>
        `(@[action] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := $act)
-
--- elab "action" nm:declId br:bracketedBinder ":=" act:term : command =>
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
     let exp0 :: exprs := exps
@@ -90,7 +87,6 @@ elab ("invariant" <|> "safety") ":=" inv:term : command => do
   Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
-    -- TODO: Check that `State` uses all section variables here
     let stateTp := mkAppN stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
     let num := (<- stsExt.get).invariants.length
