@@ -46,7 +46,7 @@ elab "initial" "=" ini:term : command => do
     let stateTp := mkAppN stateTp vs
     let _ <- elabTermEnsuringType ini (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
-    `(@[initial] def $(mkIdent "initalState?") $[$vd]* : $stateTp -> Prop := $ini)
+    `(@[initDef, initSimp] def $(mkIdent "initalState?") $[$vd]* : $stateTp -> Prop := $ini)
 
 -- elab "my_def" ":=" trm:term : command => do
 --   Command.runTermElabM fun vs => do
@@ -169,33 +169,42 @@ def instantiateSystem : CommandElabM Unit := do
 
 elab "#gen_spec" : command => instantiateSystem
 
-elab "safety_init_by" proof:tacticSeq : command => do
+elab "prove_safety_init" proof:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
     `(theorem $(mkIdent "safety_init") $[$vd]* : safetyInit (σ := $stateTp) :=
-       by unfold inv_init; intros $(mkIdent "st"); exact by $proof)
+       by unfold safetyInit;
+          simp only [initSimp, safeSimp]
+          intros $(mkIdent "st");
+          exact $proof)
 
-elab "inv_init_by" proof:tacticSeq : command => do
+elab "prove_inv_init" proof:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
     `(theorem $(mkIdent "inv_init") $[$vd]* : invInit (σ := $stateTp) :=
-       by unfold inv_init; intros $(mkIdent "st"); exact by $proof)
+       by unfold invInit
+          simp only [initSimp, invSimp]
+          intros $(mkIdent "st")
+          exact $proof)
 
-elab "inv_inductive_by" proof:tacticSeq : command => do
+elab "prove_inv_inductive" proof:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
     `(theorem $(mkIdent "inv_inductive") $[$vd]* : invInductive (σ := $stateTp) :=
-      by unfold inv_inductive; intros $(mkIdent "st1") $(mkIdent "st2"); exact by $proof)
+      by unfold invInductive;
+         intros $(mkIdent "st1") $(mkIdent "st2")
+         simp only [actSimp, invSimp, safeSimp]
+         exact $proof)
 
 attribute [initSimp] RelationalTransitionSystem.init
 attribute [invSimp] RelationalTransitionSystem.inv
-attribute [actSimp] RelationalTransitionSystem.next
+-- attribute [actSimp] RelationalTransitionSystem.next
 attribute [safeSimp] RelationalTransitionSystem.safe
 
 
