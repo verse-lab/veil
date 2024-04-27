@@ -93,9 +93,10 @@ action recv (sender n next : node) (havoc : Bool) :=
         else
           st' = {st with pending := st.pending[sender, n ↦ havoc]}
 
-safety = fun st => ∀ (N L : node), st.leader L → le N L
-invariant = fun st => ∀ (S D N : node), st.pending S D ∧ btw S N D → le N S
-invariant = fun st =>  ∀ (N L : node), st.pending L L → le N L
+
+safety = ∀ (N L : node), leader L → le N L
+invariant = ∀ (S D N : node), pending S D ∧ btw S N D → le N S
+invariant = ∀ (N L : node), pending L L → le N L
 
 #gen_spec
 

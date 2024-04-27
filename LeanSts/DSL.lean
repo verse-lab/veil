@@ -113,15 +113,17 @@ def assembleActions : CommandElabM Unit := do
     let acts <- PrettyPrinter.delab acts
     `(@[actSimp] def $(mkIdent "Next") $[$vd]* : $stateTp -> $stateTp -> Prop := $acts)
 
+
 elab "safety" "=" safe:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
-    let _ <- elabTerm safe (<- mkArrow stateTp prop)
+    let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact $safe)
+    let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
-    `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := $safe)
+    `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := $stx: byTactic)
 
 elab "invariant" "=" inv:term : command => do
   let vd := (<- getScope).varDecls
@@ -129,11 +131,12 @@ elab "invariant" "=" inv:term : command => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
-    let _ <- elabTerm inv (<- mkArrow stateTp prop)
+    let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact $inv)
+    let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
     let num := (<- stsExt.get).invariants.length
     let inv_name := "inv" ++ toString num
-    `(@[invDef, invSimp] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := $inv)
+    `(@[invDef, invSimp] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := $stx: byTactic)
 
 def assembleInvariant : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
