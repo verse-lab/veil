@@ -20,8 +20,12 @@ elab "state" ":=" fs:Command.structFields : command => do
   elabCommand $ <-
     `(@[state] structure $(mkIdent "State") $[$vd]* where mk :: $fs)
 
-elab "relation" sig:Command.structExplicitBinder : command => liftTermElabM do
-  stsExt.modify (fun s => { s with rel_sig := s.rel_sig.push sig })
+elab "relation" sig:Command.structSimpleBinder : command => do
+  match sig with
+  | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
+    let _ <- runTermElabM fun _ => elabTerm tp none
+  | _ => throwErrorAt sig "Unsupported syntax"
+  liftTermElabM do stsExt.modify (fun s => { s with rel_sig := s.rel_sig.push sig })
 
 def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
@@ -29,7 +33,9 @@ def assembleState : CommandElabM Unit := do
     let nms := (<- stsExt.get).rel_sig
     -- let fs <- `(Command.structFields| $[$nms : $tps]*)
     liftCommandElabM $ elabCommand $ <-
-      `(@[state] structure $(mkIdent "State") $[$vd]* where mk :: $[$nms]*)
+      `(@[state] structure $(mkIdent "State") $[$vd]* where $(mkIdent "mk"):ident :: $[$nms]*)
+
+elab "#gen_state" : command => assembleState
 
 
 elab "initial" ":=" ini:term : command => do
@@ -147,9 +153,12 @@ type node1
 type node2
 instantiate DecidableEq node1
 
-state :=
-  foo : node1
-  bar : node2
+relation foo : node1
+relation bar : node2
+
+#eval assembleState
+
+-- #print State
 
 initial := fun x => True
 
