@@ -6,7 +6,7 @@ import LeanSts.DSL
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
-section RingPrec
+section Ring
 
 
 class TotalOrder (t : Type) :=
@@ -28,8 +28,10 @@ class Between (node : Type) :=
   btw_side    (w x y : node) : btw w x y → ¬ btw w y x
   btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
 
-variable (node : Type)
-variable [DecidableEq node] [TotalOrder node] [Between node]
+type node
+instantiate DecidableEq node
+instantiate TotalOrder node
+instantiate Between node
 
 open Between TotalOrder
 
@@ -55,15 +57,7 @@ theorem btw_opposite
   False := by
   duper [Hn, h1, h2, btw_ring, btw_trans] {portfolioInstance := 1}
 
-end RingPrec
-
-section Ring
 open Between TotalOrder
-
-type node
-instantiate DecidableEq node
-instantiate TotalOrder node
-instantiate Between node
 
 relation leader : node -> Bool
 relation pending : node -> node -> Bool
@@ -104,5 +98,52 @@ invariant = fun st => ∀ (S D N : node), st.pending S D ∧ btw S N D → le N 
 invariant = fun st =>  ∀ (N L : node), st.pending L L → le N L
 
 #gen_spec
+
+prove_safety_init by {
+  rintro ⟨hleader, _hpending⟩
+  intro N L hcontra
+  specialize hleader L
+  contradiction
+}
+
+prove_inv_init by {
+  rintro ⟨hleader, hpending⟩
+  apply And.intro
+  {
+    rintro S D N ⟨hcontra, _hbtw⟩
+    specialize hpending S D
+    contradiction
+  }
+  {
+    intro N L hcontra
+    specialize hpending L L
+    contradiction
+  }
+}
+
+set_option maxHeartbeats 2000000
+
+set_option auto.smt true
+set_option auto.smt.trust true
+
+prove_inv_inductive by {
+  intro hnext hinv
+  sts_induction <;> (sdestruct) <;> repeat
+  (
+    sdestruct st1 st2;
+    simp [sts, actSimp] at hinv htr ⊢;
+    (try unfold updateFn at htr) ; (try unfold updateFn2 at htr);
+    (try unfold updateFn3 at htr) ; (try unfold updateFn4 at htr);
+    auto [TotalOrder.le_refl,
+      TotalOrder.le_trans,
+      TotalOrder.le_antisymm,
+      TotalOrder.le_total,
+      Between.btw_ring,
+      Between.btw_trans,
+      Between.btw_side,
+      Between.btw_total,
+      hinv, htr]
+  )
+}
 
 end Ring
