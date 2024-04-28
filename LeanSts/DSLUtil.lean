@@ -23,6 +23,7 @@ def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ) : AttrM 
 
 structure StsState where
   typ        : Expr
+  typ_vs     : Expr
   rel_sig    : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)
   init       : Expr
   actions    : List Expr

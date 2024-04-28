@@ -31,88 +31,110 @@ syntax "do" term           : lang
 syntax "if" term:max "then\n" lang "else\n" lang : lang
 syntax Term.structInstLVal ":=" term    : lang
 
-def σTp (vs : Array Expr) : TermElabM Expr :=
-  return mkAppN (<- stsExt.get).typ vs
+-- def σTp (vs : Array Expr) : TermElabM Expr :=
+--   return mkAppN (<- stsExt.get).typ vs
 
 
-def langTp (vs : Array Expr) : TermElabM Expr := do
-  let σTp <- σTp vs
-  mkAppM ``Lang #[σTp]
+-- def langTp (vs : Array Expr) : TermElabM Expr := do
+--   let σTp <- σTp vs
+--   mkAppM ``Lang #[σTp]
 
--- elab_rules : term
---   | `(lang| $l1:lang; $l2:lang) =>
---     liftCommandElabM $ runTermElabM fun vs => do
---     let l1  <- elabTerm l1 (<- langTp vs)
---     let l2  <- elabTerm l2 (<- langTp vs)
---     mkAppOptM ``Lang.seq #[none, l1, l2]
---   | `(lang| if $cnd:term then $thn:lang else $els:lang) =>
---     liftCommandElabM $ runTermElabM fun vs => do
---     let thn  <- elabTerm thn (<- langTp vs)
---     let els  <- elabTerm els (<- langTp vs)
---     let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact ($cnd : Bool))
---     let cnd <- elabByTactic stx (<- mkArrow (<- σTp) (mkConst ``Bool))
---     mkAppOptM ``Lang.ite #[none, cnd, thn, els]
---   | `(lang| require $t:term) =>
---       liftCommandElabM $ runTermElabM fun vs => do
---       let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact $t)
---       let rq <- elabByTactic stx (<- mkArrow (mkAppN (<- σTp) vs) prop)
---       mkAppOptM ``Lang.require #[none, rq]
---   | `(lang| do $t:term) =>
---       liftCommandElabM $ runTermElabM fun vs => do
---       let act <- elabTerm t (<- mkArrow (mkAppN (<- σTp) vs) (mkAppN (<- σTp) vs))
---       mkAppOptM ``Lang.act #[none, act]
---   | `(lang| $id:structInstLVal := $t:term) =>
---     liftCommandElabM $ runTermElabM fun vs => do
---     let st := mkIdent "st"
---     let act <- `(Term.byTactic| by unhygienic cases $st: ident; exact $t)
---     let stx <- `(Term.structInstField| $id: structInstLVal := $act:byTactic)
---     let stx <- `(lang| do (fun $st => { $st: ident with $stx: structInstField}))
---     elabTerm stx (<- langTp vs)
+def σTp : TermElabM Expr :=
+  return (<- stsExt.get).typ_vs
 
-partial def elabLang (vs : Array Expr) : TSyntax `lang -> TermElabM Expr
+
+def langTp : TermElabM Expr := do
+  mkAppOptM ``Lang #[<- σTp]
+
+elab_rules : term
   | `(lang| $l1:lang; $l2:lang) => do
-    let l1  <- elabLang vs l1 --(<- langTp vs)
-    let l2  <- elabLang vs l2 --(<- langTp vs)
+    let l1 <- elabTerm l1 (<- langTp)
+    let l2  <- elabTerm l2 (<- langTp)
     mkAppOptM ``Lang.seq #[none, l1, l2]
   | `(lang| if $cnd:term then $thn:lang else $els:lang) => do
-    let thn  <- elabLang vs thn --(<- langTp vs)
-    let els  <- elabLang vs els --(<- langTp vs)
+    let thn  <- elabTerm thn (<- langTp)
+    let els  <- elabTerm els (<- langTp)
     let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact ($cnd : Bool))
-    let cnd <- elabByTactic stx (<- mkArrow (<- σTp vs) (mkConst ``Bool))
+    let cnd <- elabByTactic stx (<- mkArrow (<- σTp) (mkConst ``Bool))
     mkAppOptM ``Lang.ite #[none, cnd, thn, els]
-  | `(lang| require $t:term) => do
-      let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact $t)
-      let rq <- elabByTactic stx (<- mkArrow (<- σTp vs) prop)
-      mkAppOptM ``Lang.require #[none, rq]
   | `(lang| do $t:term) => do
-      let act <- elabTerm t (<- mkArrow (<- σTp vs) (<- σTp vs))
+      let act <- elabTerm t (<- mkArrow (<- σTp) (<- σTp))
       mkAppOptM ``Lang.act #[none, act]
   | `(lang| $id:structInstLVal := $t:term) => do
     let st := mkIdent "st"
     let act <- `(Term.byTactic| by unhygienic cases $st: ident; exact $t)
     let stx <- `(Term.structInstField| $id: structInstLVal := $act:byTactic)
     let stx <- `(lang| do (fun $st => { $st: ident with $stx: structInstField}))
-    elabLang vs stx --(<- langTp vs)
-  | _ => throwUnsupportedSyntax
+    elabTerm stx (<- langTp)
+
+macro_rules
+  | `(lang| require $t:term) => do
+     `(term| @Lang.require _
+       ((by intro st;
+            unhygienic cases st;
+            exact ($t : Prop)) : $(mkIdent "State") .. -> Prop))
+
+-- partial def elabLang (vs : Array Expr) : TSyntax `lang -> TermElabM Expr
+--   | `(lang| $l1:lang; $l2:lang) => do
+--     let l1  <- elabLang vs l1 --(<- langTp vs)
+--     let l2  <- elabLang vs l2 --(<- langTp vs)
+--     mkAppOptM ``Lang.seq #[none, l1, l2]
+--   | `(lang| if $cnd:term then $thn:lang else $els:lang) => do
+--     let thn  <- elabLang vs thn --(<- langTp vs)
+--     let els  <- elabLang vs els --(<- langTp vs)
+--     let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact ($cnd : Bool))
+--     let cnd <- elabByTactic stx (<- mkArrow (<- σTp vs) (mkConst ``Bool))
+--     mkAppOptM ``Lang.ite #[none, cnd, thn, els]
+--   | `(lang| require $t:term) => do
+--       let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact $t)
+--       let tp <- mkArrow (<- σTp vs) prop
+--       dbg_trace ("type:" ++ toString stx)
+--       let rq <- elabByTactic stx tp
+--       dbg_trace ("type:" ++ toString rq)
+--       mkAppOptM ``Lang.require #[none, rq]
+--   | `(lang| do $t:term) => do
+--       let act <- elabTerm t (<- mkArrow (<- σTp vs) (<- σTp vs))
+--       mkAppOptM ``Lang.act #[none, act]
+--   | `(lang| $id:structInstLVal := $t:term) => do
+--     let st := mkIdent "st"
+--     let act <- `(Term.byTactic| by unhygienic cases $st: ident; exact $t)
+--     let stx <- `(Term.structInstField| $id: structInstLVal := $act:byTactic)
+--     let stx <- `(lang| do (fun $st => { $st: ident with $stx: structInstField}))
+--     elabLang vs stx --(<- langTp vs)
+--   | _ => throwUnsupportedSyntax
 
 end WP
 
 syntax "action" declId (explicitBinders)? " = " "{{" lang "}}" : command
 
+elab "{|" l:lang "|}" : term => do
+  let lTp <- langTp
+  elabTerm l lTp
+
 elab_rules : command
   | `(command| action $nm:declId $br:explicitBinders ? = {{ $l:lang }}) => do
+    let vd := (<- getScope).varDecls
     elabCommand <| <- Command.runTermElabM fun vs => do
-      let l <- elabLang vs l
-      dbg_trace l
-      let l <- PrettyPrinter.delab l
-      let l <- `(term| fun st st' => wp _ (fun st => st' = st) $l st)
-      `(action $nm $br ? := $l)
+      let stateTp := (<- stsExt.get).typ
+      unless stateTp != default do throwError "State has not been declared so far"
+      let stateTp := mkAppN stateTp vs
+      stsExt.modify fun s => { s with typ_vs := stateTp }
+      -- let l <- elabTermAndSynthesize l (<- langTp)
+      -- dbg_trace l
+      -- let l <- PrettyPrinter.delab l
+      let act <- `(term| fun st st' => @wp _ (fun st => st' = st) {| $l:lang |} st)
+      match br with
+      | some br =>
+        let _ <- elabTerm (<-`(term| fun st1 st2 => exists $br, $act st1 st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
+      | none =>
+        let _ <- elabTerm act (<- mkArrow stateTp (<- mkArrow stateTp prop))
+      let stateTp <- PrettyPrinter.delab stateTp
+      match br with
+      | some br =>                                                            -- TODO: add macro a beta reduction here
+        `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
+      | _ => do
+        `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := $act)
 
-
--- elab "{|" l:lang "|}" : term =>
---   liftCommandElabM $ runTermElabM fun vs => do
---   let lTp <- langTp vs
---   elabTerm l lTp
 
 -- macro "{{" l:lang "}}" : term =>
 --   `(term| fun st st' => wp _ (fun st => st' = st) {| $l |} st)

@@ -71,11 +71,12 @@ initial = fun rs =>
   (∀ (n : node), ¬ rs.leader n) ∧
   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
 
--- #check {| require 4 != 5 |}
 
-action send (n next : node) = {{
-    require n != next
-}}
+action send = {{ require 5 = 5 }}
+#print send
+-- example (st st' : State node) : send node st st' := by sorry
+  -- rw [send]
+  -- simp [actSimp]
   --  λ (st st' : State node) =>
   --     -- preconditions
   --     (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z)) ∧
