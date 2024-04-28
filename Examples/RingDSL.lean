@@ -1,6 +1,7 @@
 import LeanSts.State
 import LeanSts.TransitionSystem
 import LeanSts.Tactics
+import LeanSts.WP
 -- import Mathlib.Tactic
 import LeanSts.DSL
 
@@ -70,12 +71,16 @@ initial = fun rs =>
   (∀ (n : node), ¬ rs.leader n) ∧
   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
 
-action send (n next : node) :=
-   λ (st st' : State node) =>
-      -- preconditions
-      (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z)) ∧
-      -- postconditions
-      st' = {st with pending := st.pending[n , next ↦ true]}
+-- #check {| require 4 != 5 |}
+
+action send (n next : node) = {{
+    require n != next
+}}
+  --  λ (st st' : State node) =>
+  --     -- preconditions
+  --     (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z)) ∧
+  --     -- postconditions
+  --     st' = {st with pending := st.pending[n , next ↦ true]}
 
 
 action recv (sender n next : node) (havoc : Bool) :=
