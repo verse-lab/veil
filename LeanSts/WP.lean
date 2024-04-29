@@ -33,18 +33,42 @@ syntax Term.structInstLVal (term:max)+ ":=" term    : lang
 syntax "[lang|" lang "]" : term
 syntax "[lang1|" lang "]" : term
 
+partial def getCapitals (s : Syntax) :=
+  let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
+    if s.isIdent then
+      let len := s.getId.toString.length
+      if (s.getId.isStr && (s.getId.toString.get 0).isUpper && len == 1) then
+        acc.push ⟨s⟩
+      else
+        acc
+    else
+      s.getArgs.foldl (init := acc) loop
+  (loop #[] s).toList.eraseDups.toArray
+
+def closeCapitalsA (s : Term) : MacroM Term :=
+  let caps := getCapitals s
+  `(forall $[$caps]*, $s)
+
+def closeCapitalsF (s : Term) : MacroM Term :=
+  let caps := getCapitals s
+  `(fun $[$caps]* => $s)
+
+
 macro_rules
   | `([lang|$l1:lang; $l2:lang]) => `(@Lang.seq _ [lang|$l1] [lang|$l2])
-  | `([lang|require $t:term]) =>
+  | `([lang|require $t:term]) => do
+    let t' <- closeCapitalsA t
     withRef t $
-     `(@Lang.require _ (funcases ($t : Prop) : $(mkIdent "State") .. -> Prop))
+     `(@Lang.require _ (funcases ($t' : Prop) : $(mkIdent "State") .. -> Prop))
   | `([lang|if $cnd:term then $thn:lang else $els:lang]) => do
-    let cnd <- withRef cnd `(funcases ($cnd : Bool))
+    let cnd' <- closeCapitalsA cnd
+    let cnd <- withRef cnd `(funcases ($cnd' : Bool))
     `(@Lang.ite _ ($cnd: term) [lang|$thn] [lang|$els])
   | `([lang| do $t:term ]) => `(@Lang.act _ $t)
-  | `([lang| $id:structInstLVal := $t:term ]) =>
+  | `([lang| $id:structInstLVal := $t:term ]) => do
+    let t' <- closeCapitalsF t
     `(@Lang.act _ (fun st =>
-      { st with $id := (by unhygienic cases st; exact $t)}))
+      { st with $id := (by unhygienic cases st; exact $t')}))
   | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
     -- dbg_trace id.raw.getHead?.get!
     let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])

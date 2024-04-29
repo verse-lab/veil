@@ -75,15 +75,12 @@ after_init {
 #print initalState?
 
 action send (n next : node) = {
-  require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
+  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
   pending n next := true
 }
 
--- action recv (sender n next : node) (havoc : Bool) = fun st st' =>
---   wp _ (Eq st') [lang| require pending sender ]
-
 action recv (sender n next : node) (havoc : Bool) = {
-  require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z);
+  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
   require pending sender n;
   if (sender = n) then
     leader n := true;
