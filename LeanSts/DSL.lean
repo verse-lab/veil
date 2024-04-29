@@ -37,15 +37,18 @@ def assembleState : CommandElabM Unit := do
 
 elab "#gen_state" : command => assembleState
 
+def stateTp (vs : Array Expr) : MetaM Expr := do
+  let stateTp := (<- stsExt.get).typ
+  unless stateTp != default do throwError "State has not been declared so far"
+  return mkAppN stateTp vs
+
 def prop := (Lean.Expr.sort (Lean.Level.zero))
 
 elab "initial" ini:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand <| <- Command.runTermElabM fun vs => do
-    let stateTp := (<- stsExt.get).typ
-    unless stateTp != default do throwError "State has not been declared so far"
-    let stateTp := mkAppN stateTp vs
-    let _ <- elabTermEnsuringType ini (<- mkArrow stateTp prop)
+    let stateTp <- stateTp vs
+    let _ <- elabTerm ini (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
     `(@[initDef, initSimp] def $(mkIdent "initalState?") $[$vd]* : $stateTp -> Prop := $ini)
 
@@ -104,9 +107,7 @@ elab_rules : command
   | `(command| action $nm:declId $br:explicitBinders ? = $act) => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp := (<- stsExt.get).typ
-    unless stateTp != default do throwError "State has not been declared so far"
-    let stateTp := mkAppN stateTp vs
+    let stateTp <- stateTp vs
     match br with
     | some br =>
       let _ <- elabTerm (<-`(term| fun st1 st2 => exists $br, $act st1 st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
@@ -114,7 +115,7 @@ elab_rules : command
       let _ <- elabTerm act (<- mkArrow stateTp (<- mkArrow stateTp prop))
     let stateTp <- PrettyPrinter.delab stateTp
     match br with
-    | some br =>                                                            -- TODO: add macro a beta reduction here
+    | some br =>                                                            -- TODO: add macro for a beta reduction here
        `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
     | _ => do
        `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := $act)
@@ -135,8 +136,7 @@ def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String
 def assembleActions : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp := mkAppN (<- stsExt.get).typ vs
-    let stateTp <- PrettyPrinter.delab stateTp
+    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let acts <- combineLemmas ``Or (<- stsExt.get).actions vs "transitions"
     let acts <- PrettyPrinter.delab acts
     `(@[actSimp] def $(mkIdent "Next") $[$vd]* : $stateTp -> $stateTp -> Prop := $acts)
@@ -145,9 +145,7 @@ def assembleActions : CommandElabM Unit := do
 elab "safety" safe:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp := (<- stsExt.get).typ
-    unless stateTp != default do throwError "State has not been declared so far"
-    let stateTp := mkAppN stateTp vs
+    let stateTp <- stateTp vs
     let stx <- `(funcases $safe)
     let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
@@ -156,9 +154,7 @@ elab "safety" safe:term : command => do
 elab "invariant" inv:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp := (<- stsExt.get).typ
-    unless stateTp != default do throwError "State has not been declared so far"
-    let stateTp := mkAppN stateTp vs
+    let stateTp <- stateTp vs
     let stx <- `(funcases $inv)
     let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
@@ -169,8 +165,7 @@ elab "invariant" inv:term : command => do
 def assembleInvariant : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp := mkAppN (<- stsExt.get).typ vs
-    let stateTp <- PrettyPrinter.delab stateTp
+    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let invs <- combineLemmas ``And (<- stsExt.get).invariants vs "transitions"
     let invs <- PrettyPrinter.delab invs
     `(@[invSimp] def $(mkIdent "Inv") $[$vd]* : $stateTp -> Prop := $invs)
@@ -195,7 +190,7 @@ def instantiateSystem : CommandElabM Unit := do
           safe := $safe
           init := $initSt
           next := $nextTrans
-          inv    := $inv
+          inv  := $inv
           )
 
 elab "#gen_spec" : command => instantiateSystem
@@ -203,8 +198,7 @@ elab "#gen_spec" : command => instantiateSystem
 elab "prove_safety_init" proof:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   := mkAppN (<- stsExt.get).typ vs
-    let stateTp   <- PrettyPrinter.delab stateTp
+    let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
     `(theorem $(mkIdent "safety_init") $[$vd]* : safetyInit (σ := $stateTp) :=
        by unfold safetyInit;
           simp only [initSimp, safeSimp]
@@ -214,8 +208,7 @@ elab "prove_safety_init" proof:term : command => do
 elab "prove_inv_init" proof:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   := mkAppN (<- stsExt.get).typ vs
-    let stateTp   <- PrettyPrinter.delab stateTp
+    let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
     `(theorem $(mkIdent "inv_init") $[$vd]* : invInit (σ := $stateTp) :=
        by unfold invInit
           simp only [initSimp, invSimp]
@@ -225,8 +218,7 @@ elab "prove_inv_init" proof:term : command => do
 elab "prove_inv_inductive" proof:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   := mkAppN (<- stsExt.get).typ vs
-    let stateTp   <- PrettyPrinter.delab stateTp
+    let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
     `(theorem $(mkIdent "inv_inductive") $[$vd]* : invInductive (σ := $stateTp) :=
       by unfold invInductive;
          intros $(mkIdent "st1") $(mkIdent "st2")
