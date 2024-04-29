@@ -68,31 +68,31 @@ relation pending : node -> node -> Bool
 #print State
 
 after_init {
-  leader  := fun _ => false;
-  pending := fun _ _ => false
+  leader _ := false;
+  pending _ _ := false
 }
 
 #print initalState?
 
 action send (n next : node) = {
   require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
-  pending := pending[n, next ↦ true]
+  pending n next := true
 }
 
 -- action recv (sender n next : node) (havoc : Bool) = fun st st' =>
 --   wp _ (Eq st') [lang| require pending sender ]
 
 action recv (sender n next : node) (havoc : Bool) = {
-  require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
+  require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z);
   require pending sender n;
   if (sender = n) then
-    leader  := leader[n ↦ true];
-    pending := pending[sender, n ↦ havoc]
+    leader n := true;
+    pending sender n := havoc
   else if (le n sender) then
-    pending := pending[sender, n ↦ havoc] ;
-    pending := pending[sender, next ↦ true]
+    pending sender n := havoc;
+    pending sender n := true
   else
-    pending := pending[sender, n ↦ havoc]
+    pending sender n := havoc
 }
 
 safety ∀ (N L : node), leader L → le N L
@@ -126,8 +126,7 @@ prove_inv_inductive by {
   (
     sdestruct st1 st2;
     simp [sts, actSimp] at hinv htr ⊢;
-    (try unfold updateFn at htr) ; (try unfold updateFn2 at htr);
-    (try unfold updateFn3 at htr) ; (try unfold updateFn4 at htr);
+    (try dsimp at htr)
     auto [TotalOrder.le_refl,
       TotalOrder.le_trans,
       TotalOrder.le_antisymm,

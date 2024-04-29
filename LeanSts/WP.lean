@@ -29,6 +29,7 @@ syntax "require" term      : lang
 syntax "do" term           : lang
 syntax "if" term:max "then\n" lang "else\n" lang : lang
 syntax Term.structInstLVal ":=" term    : lang
+syntax Term.structInstLVal (term:max)+ ":=" term    : lang
 syntax "[lang|" lang "]" : term
 syntax "[lang1|" lang "]" : term
 
@@ -44,6 +45,11 @@ macro_rules
   | `([lang| $id:structInstLVal := $t:term ]) =>
     `(@Lang.act _ (fun st =>
       { st with $id := (by unhygienic cases st; exact $t)}))
+  | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
+    -- dbg_trace id.raw.getHead?.get!
+    let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
+    `([lang| $id:structInstLVal := $stx])
+
 
 /- TODO: avoid code duplication -/
 macro_rules
@@ -56,6 +62,8 @@ macro_rules
     `(@Lang.ite _ ($cnd: term) [lang1|$thn] [lang1|$els])
   | `([lang1| $id:structInstLVal := $t:term ]) =>
     `(@Lang.act _ (fun st => { st with $id := (by clear st; exact $t)}))
+  | `([lang1| $id:structInstLVal $ts: ident * := $t:term ]) =>
+    `([lang1| $id:structInstLVal := fun $ts * => $t])
 
 
 end WP
