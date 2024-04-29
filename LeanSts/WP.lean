@@ -36,8 +36,7 @@ syntax "[lang1|" lang "]" : term
 partial def getCapitals (s : Syntax) :=
   let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
     if s.isIdent then
-      let len := s.getId.toString.length
-      if (s.getId.isStr && (s.getId.toString.get 0).isUpper && len == 1) then
+      if isCapital s then
         acc.push ⟨s⟩
       else
         acc
@@ -66,9 +65,8 @@ macro_rules
     `(@Lang.ite _ ($cnd: term) [lang|$thn] [lang|$els])
   | `([lang| do $t:term ]) => `(@Lang.act _ $t)
   | `([lang| $id:structInstLVal := $t:term ]) => do
-    let t' <- closeCapitalsF t
     `(@Lang.act _ (fun st =>
-      { st with $id := (by unhygienic cases st; exact $t')}))
+      { st with $id := (by unhygienic cases st; exact $t)}))
   | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
     -- dbg_trace id.raw.getHead?.get!
     let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
