@@ -28,5 +28,5 @@ macro_rules
     let tuple1 <- `(term| [tupl| $is: term *])
     let tuple2 <- `(term| [tupl| $[$x: ident] * ] )
     let stx <- `(fun $[$x:ident]* => if $tuple2 = $tuple1 then $b else $f:term $x *)
-    dbg_trace toString stx
+    -- dbg_trace toString stx
     return stx
