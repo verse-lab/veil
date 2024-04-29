@@ -79,6 +79,9 @@ action send (n next : node) = {
   pending := pending[n, next ↦ true]
 }
 
+-- action recv (sender n next : node) (havoc : Bool) = fun st st' =>
+--   wp _ (Eq st') [lang| require pending sender ]
+
 action recv (sender n next : node) (havoc : Bool) = {
   require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
   require pending sender n;
@@ -86,7 +89,7 @@ action recv (sender n next : node) (havoc : Bool) = {
     leader  := leader[n ↦ true];
     pending := pending[sender, n ↦ havoc]
   else if (le n sender) then
-    pending := pending[sender, n ↦ havoc];
+    pending := pending[sender, n ↦ havoc] ;
     pending := pending[sender, next ↦ true]
   else
     pending := pending[sender, n ↦ havoc]

@@ -50,9 +50,10 @@ elab "initial" ini:term : command => do
     `(@[initDef, initSimp] def $(mkIdent "initalState?") $[$vd]* : $stateTp -> Prop := $ini)
 
 
-macro "after_init" "{" l:lang "}" : command => do
+elab "after_init" "{" l:lang "}" : command => do
+    liftTermElabM $ stsExt.modify ({· with init? := true})
     let act <- `(fun st' => @wp _ (fun st => st' = st) [lang1| $l ] st')
-    `(initial $act)
+    elabCommand $ <- `(initial $act)
 
 -- elab "after init" "{" l:lang "}" : command => do
 --   elabCommand <| <- Command.runTermElabM fun vs => do
@@ -106,7 +107,6 @@ elab_rules : command
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
-    stsExt.modify fun s => { s with typ_vs := stateTp }
     match br with
     | some br =>
       let _ <- elabTerm (<-`(term| fun st1 st2 => exists $br, $act st1 st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
@@ -148,10 +148,10 @@ elab "safety" safe:term : command => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
-    let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact $safe)
+    let stx <- `(funcases $safe)
     let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
-    `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := $stx: byTactic)
+    `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := $stx: term)
 
 elab "invariant" inv:term : command => do
   let vd := (<- getScope).varDecls
@@ -159,12 +159,12 @@ elab "invariant" inv:term : command => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
-    let stx <- `(Term.byTactic| by intro st; unhygienic cases st; exact $inv)
+    let stx <- `(funcases $inv)
     let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
     let num := (<- stsExt.get).invariants.length
     let inv_name := "inv" ++ toString num
-    `(@[invDef, invSimp] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := $stx: byTactic)
+    `(@[invDef, invSimp] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := $stx: term)
 
 def assembleInvariant : CommandElabM Unit := do
   let vd := (<- getScope).varDecls

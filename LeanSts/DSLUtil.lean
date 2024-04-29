@@ -1,9 +1,10 @@
 import Lean
 import Lean.Elab.Tactic
 import Lean.Meta
+import Lean.Parser
 import Std.Lean.Meta.UnusedNames
 
-open Lean Meta Elab
+open Lean Meta Elab Lean.Parser
 -- open Lean Elab Command Term Meta Tactic
 
 initialize registerTraceClass `sts.init
@@ -23,12 +24,12 @@ def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ) : AttrM 
 
 structure StsState where
   typ        : Expr
-  typ_vs     : Expr
   rel_sig    : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)
   init       : Expr
   actions    : List Expr
   safety     : Expr
   invariants : List Expr
+  init?      : Bool
   deriving Inhabited
 
 open StsState
@@ -99,3 +100,6 @@ register_simp_attr invSimp
 register_simp_attr actSimp
 register_simp_attr initSimp
 register_simp_attr safeSimp
+
+macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
+macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
