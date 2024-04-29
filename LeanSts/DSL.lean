@@ -70,16 +70,17 @@ elab "initial" "=" ini:term : command => do
 
 -- #check initalState?
 
-syntax "action" declId (explicitBinders)? ":=" term : command
+syntax "action" declId (explicitBinders)? "=" term : command
 
 
 elab_rules : command
-  | `(command| action $nm:declId $br:explicitBinders ? := $act) => do
+  | `(command| action $nm:declId $br:explicitBinders ? = $act) => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
     unless stateTp != default do throwError "State has not been declared so far"
     let stateTp := mkAppN stateTp vs
+    stsExt.modify fun s => { s with typ_vs := stateTp }
     match br with
     | some br =>
       let _ <- elabTerm (<-`(term| fun st1 st2 => exists $br, $act st1 st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))

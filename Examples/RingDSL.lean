@@ -72,33 +72,24 @@ initial = fun rs =>
   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
 
 
-action send = {{ require 5 = 5 }}
-#print send
--- example (st st' : State node) : send node st st' := by sorry
-  -- rw [send]
-  -- simp [actSimp]
-  --  λ (st st' : State node) =>
-  --     -- preconditions
-  --     (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z)) ∧
-  --     -- postconditions
-  --     st' = {st with pending := st.pending[n , next ↦ true]}
+action send (n next : node) := {{
+  require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
+  pending := pending[n, next ↦ true]
+}}
 
+action recv (sender n next : node) (havoc : Bool) := {{
+  require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
+  require pending sender n;
+  if (sender = n) then
+    leader  := leader[n ↦ true];
+    pending := pending[sender, n ↦ havoc]
+  else if (le n sender) then
+    pending := pending[sender, n ↦ havoc];
+    pending := pending[sender , next ↦ true]
+  else
+    pending := pending[sender, n ↦ havoc]
 
-action recv (sender n next : node) (havoc : Bool) :=
-  λ (st st' : State node) =>
-      -- preconditions
-      (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z)) ∧
-      (st.pending sender n) ∧
-      -- postconditions
-      -- `pending(sender, n) := *` is modelled using `havoc`
-      if sender = n then
-        st' = {st with leader := st.leader[n ↦ true], pending := st.pending[sender, n ↦ havoc]}
-      else
-        if TotalOrder.le n sender then
-          st' = {st with pending := st.pending[sender, n ↦ havoc][sender , next ↦ true]}
-        else
-          st' = {st with pending := st.pending[sender, n ↦ havoc]}
-
+}}
 
 safety = ∀ (N L : node), leader L → le N L
 invariant = ∀ (S D N : node), pending S D ∧ btw S N D → le N S
