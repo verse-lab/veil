@@ -1,7 +1,6 @@
 import Lean
 import Lean.Parser
 import LeanSts.DSLUtil
-import LeanSts.DSL
 import LeanSts.State
 
 open Lean Elab Command Term Meta Lean.Parser
@@ -51,7 +50,7 @@ macro_rules
         (by unhygienic cases st;
             exact $t))}))
 
-macro "{{" l:lang "}}" : term =>
-  `(fun st st' => @wp _ (fun st => st' = st) {| $l |} st)
+-- macro "{{" l:lang "}}" : term =>
+--   `(fun st st' => @wp _ (fun st => st' = st) {| $l |} st)
 
 end WP

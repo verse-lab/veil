@@ -3,6 +3,7 @@ import Lean
 import LeanSts.DSLUtil
 import Lean.Parser
 import LeanSts.TransitionSystem
+import LeanSts.WP
 open Lean Elab Command Term Meta Lean.Parser RelationalTransitionSystem
 
 -- Modelled after the Ivy language
@@ -38,7 +39,7 @@ elab "#gen_state" : command => assembleState
 
 def prop := (Lean.Expr.sort (Lean.Level.zero))
 
-elab "initial" "=" ini:term : command => do
+elab "initial" ini:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand <| <- Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
@@ -72,6 +73,12 @@ elab "initial" "=" ini:term : command => do
 
 syntax "action" declId (explicitBinders)? "=" term : command
 
+syntax "action" declId (explicitBinders)? "=" "{" lang "}" : command
+
+macro_rules
+  | `(command| action $nm:declId $br:explicitBinders ? = { $l:lang }) => do
+    let act <- `(fun st st' => @wp _ (fun st => st' = st) {| $l |} st)
+    `(action $nm $br ? = $act)
 
 elab_rules : command
   | `(command| action $nm:declId $br:explicitBinders ? = $act) => do
@@ -92,6 +99,7 @@ elab_rules : command
        `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
     | _ => do
        `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := $act)
+
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
     let exp0 :: exprs := exps
@@ -115,7 +123,7 @@ def assembleActions : CommandElabM Unit := do
     `(@[actSimp] def $(mkIdent "Next") $[$vd]* : $stateTp -> $stateTp -> Prop := $acts)
 
 
-elab "safety" "=" safe:term : command => do
+elab "safety" safe:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
@@ -126,7 +134,7 @@ elab "safety" "=" safe:term : command => do
     let stateTp <- PrettyPrinter.delab stateTp
     `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := $stx: byTactic)
 
-elab "invariant" "=" inv:term : command => do
+elab "invariant" inv:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp := (<- stsExt.get).typ
