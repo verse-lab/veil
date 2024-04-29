@@ -166,7 +166,7 @@ def assembleInvariant : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let invs <- combineLemmas ``And (<- stsExt.get).invariants vs "transitions"
+    let invs <- combineLemmas ``And (<- stsExt.get).invariants vs "invariants"
     let invs <- PrettyPrinter.delab invs
     `(@[invSimp] def $(mkIdent "Inv") $[$vd]* : $stateTp -> Prop := $invs)
 
