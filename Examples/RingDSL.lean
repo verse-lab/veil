@@ -72,12 +72,12 @@ initial = fun rs =>
   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
 
 
-action send (n next : node) := {{
+action send (n next : node) = {{
   require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
   pending := pending[n, next ↦ true]
 }}
 
-action recv (sender n next : node) (havoc : Bool) := {{
+action recv (sender n next : node) (havoc : Bool) = {{
   require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
   require pending sender n;
   if (sender = n) then
