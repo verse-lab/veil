@@ -29,28 +29,46 @@ syntax "require" term      : lang
 syntax "do" term           : lang
 syntax "if" term:max "then\n" lang "else\n" lang : lang
 syntax Term.structInstLVal ":=" term    : lang
-syntax "{|" lang "|}" : term
+syntax "[lang|" lang "]" : term
+syntax "[lang1|" lang "]" : term
 
 macro_rules
-  | `({|$l1:lang; $l2:lang|}) => do
-    `(@Lang.seq _ {|$l1|} {|$l2|})
-  | `({|require $t:term|}) => do
+  | `([lang|$l1:lang; $l2:lang]) => do
+    `(@Lang.seq _ [lang|$l1] [lang|$l2])
+  | `([lang|require $t:term]) => do
      `(@Lang.require _
        ((by intro st;
             unhygienic cases st;
             exact ($t : Prop)) : $(mkIdent "State") .. -> Prop))
-  | `({|if $cnd:term then $thn:lang else $els:lang|}) => do
+  | `([lang|if $cnd:term then $thn:lang else $els:lang]) => do
     `(@Lang.ite _ (by intro st;
                       unhygienic cases st;
-                      exact ($cnd : Bool)) {|$thn|} {|$els|})
-  | `({| do $t:term |}) => `(@Lang.act _ $t)
-  | `({| $id:structInstLVal := $t:term |}) =>
+                      exact ($cnd : Bool)) [lang|$thn] [lang|$els])
+  | `([lang| do $t:term ]) => `(@Lang.act _ $t)
+  | `([lang| $id:structInstLVal := $t:term ]) =>
     `(@Lang.act _ (fun st =>
       { st with $id := (
         (by unhygienic cases st;
             exact $t))}))
 
+macro_rules
+  | `([lang1|require $t:term]) => do
+     `(@Lang.require _
+       ((by intro st;
+            clear st;
+            exact ($t : Prop)) : $(mkIdent "State") .. -> Prop))
+  | `([lang1|if $cnd:term then $thn:lang else $els:lang]) => do
+    `(@Lang.ite _ (by intro st;
+                      clear st;
+                      exact ($cnd : Bool)) [lang1|$thn] [lang1|$els])
+  | `([lang1| $id:structInstLVal := $t:term ]) =>
+    `(@Lang.act _ (fun st =>
+      { st with $id := (
+        (by clear st;
+            exact $t))}))
+  | `([lang1| $l1:lang; $l2:lang]) => do `(@Lang.seq _ [lang1|$l1] [lang1|$l2])
+
 -- macro "{{" l:lang "}}" : term =>
---   `(fun st st' => @wp _ (fun st => st' = st) {| $l |} st)
+--   `(fun st st' => @wp _ (fun st => st' = st) {| $l ] st)
 
 end WP

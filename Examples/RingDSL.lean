@@ -67,10 +67,12 @@ relation pending : node -> node -> Bool
 
 #print State
 
-initial fun rs =>
-  (∀ (n : node), ¬ rs.leader n) ∧
-  (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
+after_init {
+  leader  := fun _ => false;
+  pending := fun _ _ => false
+}
 
+#print initalState?
 
 action send (n next : node) = {
   require ∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → Between.btw n next z);
@@ -97,25 +99,17 @@ invariant ∀ (N L : node), pending L L → le N L
 #gen_spec
 
 prove_safety_init by {
-  rintro ⟨hleader, _hpending⟩
-  intro N L hcontra
-  specialize hleader L
-  contradiction
+  sdestruct st;
+  simp [actSimp]
+  rintro ⟨rlf⟩
+  simp
 }
 
 prove_inv_init by {
-  rintro ⟨hleader, hpending⟩
-  apply And.intro
-  {
-    rintro S D N ⟨hcontra, _hbtw⟩
-    specialize hpending S D
-    contradiction
-  }
-  {
-    intro N L hcontra
-    specialize hpending L L
-    contradiction
-  }
+  sdestruct st;
+  simp [actSimp]
+  rintro ⟨rlf⟩ ⟨rlf⟩
+  simp
 }
 
 set_option maxHeartbeats 2000000

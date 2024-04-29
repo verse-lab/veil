@@ -49,6 +49,25 @@ elab "initial" ini:term : command => do
     let stateTp <- PrettyPrinter.delab stateTp
     `(@[initDef, initSimp] def $(mkIdent "initalState?") $[$vd]* : $stateTp -> Prop := $ini)
 
+
+macro "after_init" "{" l:lang "}" : command => do
+    let act <- `(fun st' => @wp _ (fun st => st' = st) [lang1| $l ] st')
+    `(initial $act)
+
+-- elab "after init" "{" l:lang "}" : command => do
+--   elabCommand <| <- Command.runTermElabM fun vs => do
+--     let stateTp := (<- stsExt.get).typ
+--     unless stateTp != default do throwError "State has not been declared so far"
+--     let stateTp := mkAppN stateTp vs
+--     let act <- `(fun st st' => @wp _ (fun st => st' = st) {| $l |} st)
+--     let act <- elabTerm act (<- mkArrow stateTp (<- mkArrow stateTp prop))
+--     dbg_trace act
+--     let act <- withTransparency (mode := TransparencyMode.reducible) <| reduce act (skipProofs := false) (skipTypes := false)
+--     let act <- lambdaTelescope act fun args lam => mkLambdaFVars args[:1] lam
+--     if act.hasLooseBVars then throwError "The inital state predicate must not depend on the state"
+--     let act <- PrettyPrinter.delab act
+--     `(initial $act)
+
 -- elab "my_def" ":=" trm:term : command => do
 --   Command.runTermElabM fun vs => do
 --     elabCommand <| <- `(def foo := $trm)
@@ -77,7 +96,7 @@ syntax "action" declId (explicitBinders)? "=" "{" lang "}" : command
 
 macro_rules
   | `(command| action $nm:declId $br:explicitBinders ? = { $l:lang }) => do
-    let act <- `(fun st st' => @wp _ (fun st => st' = st) {| $l |} st)
+    let act <- `(fun st st' => @wp _ (fun st => st' = st) [lang| $l ] st)
     `(action $nm $br ? = $act)
 
 elab_rules : command
