@@ -75,6 +75,10 @@ partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
   else
     k
 
+/-- This is used wherener we want to define a predicate over a state
+    (for intstance, in `safety`, `invatiant` and `relation`). Instead
+    of writing `fun st => Pred` this command will pattern match over
+    `st` making all its fileds accessible for `Pred` -/
 def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let stateTp <- stateTp vs
   let .some sn := stateTp.getAppFn.constName?

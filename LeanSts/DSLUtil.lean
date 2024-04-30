@@ -106,9 +106,8 @@ register_simp_attr actSimp
 register_simp_attr initSimp
 register_simp_attr safeSimp
 
-/-- This is used wherener we want to define a predicate over a state
-    (for intstance, in `safety`, `invatiant` and `require`). Instead
-    of writing `fun st => Pred` this command will pattern match over
+/-- This is used in `require` were we define a predicate over a state.
+    Instead of writing `fun st => Pred` this command will pattern match over
     `st` making all its fileds accessible for `Pred` -/
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
 

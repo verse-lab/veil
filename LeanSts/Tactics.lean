@@ -65,7 +65,7 @@ elab "sts_induction" : tactic => withMainContext do
   return
 
 /--
-  `exact_state` is usually used after `funcases`. At this point the goal should
+  `exact_state` is usually used after `funcases` ar `funcasesM`. At this point the goal should
   contain all state fields as hypotheses. This tactic will then construct the
   state term using the field hypotheses and close the goal.
 -/
