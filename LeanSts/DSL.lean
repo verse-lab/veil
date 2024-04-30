@@ -53,6 +53,12 @@ def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
     `(Term.bracketedBinderF| {$id:ident : $tp:term})
   | stx => return stx
 
+def getNinderNanes : TSyntax `Lean.Parser.Term.bracketedBinder ->
+  TermElabM (TSyntax `term)
+  | `(Term.explicitBinderF| ($id:ident : $_:term)) => do
+    `($id)
+  | stx => throwErrorAt stx "Unsupported syntax"
+
 #print BinderInfo
 
 partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
@@ -83,8 +89,7 @@ partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
 relation R : <Type>
 ```
 This command defines a ghost relation. This relation will be just a
-predicate over state. Here we do not support implicit quantification over
-capital letters -/
+predicate over state. -/
 elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd := (<- getScope).varDecls
   -- As we are going to call this predicate explicitly we want to make all
@@ -97,8 +102,6 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
     let .some _sinfo := getStructureInfo? (<- getEnv) sn
       | throwError "{stateTp} is not a structure"
     let fns := _sinfo.fieldNames.map Lean.mkIdent
-    -- same trick as in "funcases"
-    -- let stcasesOn <- mkConst
     let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
     let casesOn <- PrettyPrinter.delab casesOn
     let stateTp <- PrettyPrinter.delab stateTp
@@ -106,23 +109,20 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
       (fun $(mkIdent "st") : $stateTp =>
         $(casesOn) (motive := fun _ => Prop) $(mkIdent "st") <| (fun $[$fns]* => ($t : Prop))))
     let stx' <- withAutoBoundExplicit do
-      Term.elabBinders br fun _ => do
+      Term.elabBinders br fun br => do
+        let vars := (← getLCtx).getFVars.filter
+          (fun x => not $ vs.elem x || br.elem x)
         let e <- elabTerm stx' none
-        trace[sts] e
-        let vars := (← getLCtx).getFVars.filter (not $ vs.elem ·)
         lambdaTelescope e fun st e => do
-          let e <- (mkLambdaFVars vars.reverse e)
+          let e <- mkForallFVars vars e
+          let e <- mkLambdaFVars br e
           mkLambdaFVars st e
-    let mtp <- mkFreshExprMVar none
-    let stx'' := mkApp stx' mtp
-    let stxTp <- inferType stx''
-    let stxTp <- PrettyPrinter.delab stxTp
     let stx <- withOptions (fun opts => opts.insert `pp.motives.all true) do PrettyPrinter.delab stx'
-    trace[sts] stateTp
+    let br' <- br.mapM (fun x => getNinderNanes x)
                             -- we don't want to pass the state as an argument
                             -- so we use `exact_state` tactic that will assemble
                             -- the state from the context
-    `(def $nm $vd'* (st : $stateTp /-:= by exact_state-/) : $stxTp := $stx st)
+    `(abbrev $nm $vd'* $br* (st : $stateTp := by exact_state) := $stx st $br'*)
 
 /--
 assembles all declared `relation` predicates into a single `State` -/
