@@ -53,14 +53,6 @@ def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
     `(Term.bracketedBinderF| {$id:ident : $tp:term})
   | stx => return stx
 
-def getNinderNanes : TSyntax `Lean.Parser.Term.bracketedBinder ->
-  TermElabM (TSyntax `term)
-  | `(Term.explicitBinderF| ($id:ident : $_:term)) => do
-    `($id)
-  | stx => throwErrorAt stx "Unsupported syntax"
-
-#print BinderInfo
-
 partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
   let flag := autoImplicit.get (← getOptions)
   if flag then
@@ -95,34 +87,39 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   -- As we are going to call this predicate explicitly we want to make all
   -- section binders implicit
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
-  elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- stateTp vs
-    let .some sn := stateTp.getAppFn.constName?
-      | throwError "{stateTp} is not a constant"
+  elabCommand $ <-  Command.runTermElabM fun vs => do
+    let stateTp' <- stateTp vs
+    let .some sn := stateTp'.getAppFn.constName?
+      | throwError "{stateTp'} is not a constant"
     let .some _sinfo := getStructureInfo? (<- getEnv) sn
-      | throwError "{stateTp} is not a structure"
+      | throwError "{stateTp'} is not a structure"
     let fns := _sinfo.fieldNames.map Lean.mkIdent
     let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
     let casesOn <- PrettyPrinter.delab casesOn
-    let stateTp <- PrettyPrinter.delab stateTp
+    let stateTp <- PrettyPrinter.delab stateTp'
     let stx' <- `(term|
       (fun $(mkIdent "st") : $stateTp =>
         $(casesOn) (motive := fun _ => Prop) $(mkIdent "st") <| (fun $[$fns]* => ($t : Prop))))
-    let stx' <- withAutoBoundExplicit do
-      Term.elabBinders br fun br => do
-        let vars := (← getLCtx).getFVars.filter
-          (fun x => not $ vs.elem x || br.elem x)
-        let e <- elabTerm stx' none
-        lambdaTelescope e fun st e => do
-          let e <- mkForallFVars vars e
-          let e <- mkLambdaFVars br e
-          mkLambdaFVars st e
-    let stx <- withOptions (fun opts => opts.insert `pp.motives.all true) do PrettyPrinter.delab stx'
-    let br' <- br.mapM (fun x => getNinderNanes x)
+    withAutoBoundImplicit <|
+    Term.elabBinders br fun brs => do
+      let vars := (← getLCtx).getFVars.filter (fun x => not $ vs.elem x || brs.elem x)
+      let e <- elabTerm stx' (<- mkArrow stateTp' prop)
+      trace[sts] e
+      synthesizeSyntheticMVarsNoPostponing
+      lambdaTelescope e fun _ e => do
+        let e <- mkForallFVars vars e
+        let e <- withOptions (fun opts => opts.insert `pp.motives.all true) do PrettyPrinter.delab e
+        `(abbrev $nm $vd'* $br* ($(mkIdent "st") : $stateTp := by exact_state) : Prop := $e)
+    -- return default
+    -- trace[sts] stx'
+    --
+    -- let br' <- br.mapM (fun x => getNinderNanes x)
                             -- we don't want to pass the state as an argument
                             -- so we use `exact_state` tactic that will assemble
                             -- the state from the context
-    `(abbrev $nm $vd'* $br* (st : $stateTp := by exact_state) := $stx st $br'*)
+    -- let s <-
+    -- dbg_trace s
+    -- return s
 
 /--
 assembles all declared `relation` predicates into a single `State` -/
