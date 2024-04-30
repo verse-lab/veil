@@ -67,13 +67,7 @@ relation one_b : node -> round -> Bool
 
 #gen_state
 
--- set_option pp.all true
-
-set_option trace.sts true
-
-relation fooo := 5 = (N : Nat)
-
--- #print fooo
+relation aa := True
 
 relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr = TotalOrder.none ∧
@@ -81,19 +75,158 @@ relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr ≠ TotalOrder.none ∧ ¬ TotalOrder.le r maxr ∧ vote n maxr maxv ∧
       (∀ (MAXR : round) (V : value), (¬ TotalOrder.le r MAXR ∧ vote n MAXR V) → TotalOrder.le MAXR maxr))
 
-
-
+#print maximalVote
 
 /- Quorum `q` shows `(r, v)` is safe. -/
-relation showsSafeAt :=
-    True
+relation showsSafeAt (q : quorum) (r : round) (v : value) :=
+    (∀ (N : node), Quorum.member N q → one_b N r) ∧
+  (∃ (maxr : round),
+    -- and `(r, v)` is maximal in the quorum
+    ((maxr = TotalOrder.none ∧
+      (∀ (N : node) (MAXR : round) (V : value),
+        ¬ (Quorum.member N q ∧ one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrder.none))) ∨
+    (maxr ≠ TotalOrder.none ∧
+      (∃ (N : node), Quorum.member N q ∧ one_b_max_vote N r maxr v) ∧
+      (∀ (N : node) (MAXR : round) (V : value),
+        (Quorum.member N q ∧ one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrder.none) → TotalOrder.le MAXR maxr)
+  )))
 
-#check showsSafeAt
+relation isSafeAt (r : round) (v : value) :=
+  ∃ (q : quorum), showsSafeAt q r v
 
-macro "showsSafeAt" : term => `(showsSafeAt (st := by exact_state))
+relation chosenAt (r : round) (v : value) :=
+  ∃ (q : quorum), ∀ (n : node), Quorum.member n q → vote n r v
 
-relation isSafeAt := showsSafeAt
+after_init {
+  one_a _                := false;
+  one_b_max_vote _ _ _ _ := false;
+  proposal _ _           := false;
+  vote _ _ _             := false;
+  decision _ _ _         := false;
+  one_b _ _              := false;
+  leftRound _ _          := false
+}
 
-#print isSafeAt
+-- a proposer selects a round and sends a message asking nodes to join the round
+action phase_1a (r : round) = {
+  require r != TotalOrder.none;
+  one_a r := true
+}
+
+
+-- "join round" = receive 1a and answer with 1b
+action phase_1b (n : node) (r : round) (max_round : round) (max_val : value) = {
+  require r ≠ TotalOrder.none;
+  require one_a r;
+  require ¬ leftRound n r;
+  require maximalVote n r max_round max_val;
+  -- maximalVote n r max_round max_val;
+  one_b_max_vote n r max_round max_val := true;
+  one_b n r := true;
+  leftRound n R := leftRound n R ∨ (¬ TotalOrder.le r R)
+  -- leftRound := λ N R  => st.leftRound N R ∨ (N = n ∧ ¬ TotalOrder.le r R)
+}
+
+-- "propose" = receive a quorum of 1b's and send a 2a (proposal)
+action phase_2a (r : round) (v : value) = {
+  require r ≠ TotalOrder.none;
+  require ¬ proposal r V;
+  require isSafeAt r v;
+  proposal r v := true
+}
+
+-- "cast vote" = receive a 2a and send 2b
+action phase_2b (n : node) (r : round) (v : value) = {
+  require r ≠ TotalOrder.none;
+  require ¬ leftRound n r;
+  require proposal r v;
+  vote n r v := true
+}
+
+-- "decide" = receive a quorum of 2b's
+action decision_ (n : node) (r : round) (v : value) = {
+  require r ≠ TotalOrder.none;
+  require chosenAt r v;
+  decision n r v := true
+}
+
+safety (decision N1 R1 V1 ∧ decision N2 R2 V2) → R1 = R2 ∧ V1 = V2
+
+
+invariant proposal R V1 ∧ proposal R V2 → V1 = V2
+
+invariant vote N R V → proposal R V
+
+invariant
+    (∃ (n : node), decision n R V) →
+    (∃ (q : quorum), ∀ (n : node), Quorum.member n q → vote n R V)
+
+-- Properties of `one_b_max_vote`
+invariant
+  (one_b_max_vote N R1 TotalOrder.none V1 ∧ ¬ TotalOrder.le R2 R1) → ¬ vote N R1 V2
+
+invariant
+  (one_b_max_vote N R RMAX V ∧ RMAX ≠ TotalOrder.none) →
+    (¬ TotalOrder.le R RMAX ∧ vote N RMAX V)
+
+invariant ∀ (n : node) (r rmax rother : round) (v vother : value),
+  (one_b_max_vote n r rmax v ∧ rmax ≠ TotalOrder.none ∧
+    ¬ TotalOrder.le r rother ∧ ¬ TotalOrder.le rother rmax) →
+    ¬ vote n rother vother
+
+-- Properties of `none`
+
+invariant ¬ vote N TotalOrder.none V
+
+
+-- Properties of choosable and proposal
+
+invariant
+  (¬ TotalOrder.le R2 R1 ∧ proposal R2 V2  ∧ V1 ≠ V2) →
+  (∃ (n : node) (r3 rmax : round) (v : value),
+    Quorum.member n Q ∧ ¬ TotalOrder.le r3 R1 ∧
+    one_b_max_vote n r3 rmax v ∧
+    ¬ vote n R1 V1)
+
+
+-- Properties of one_b, left_rnd
+-- #conjecture one_b_max_vote(N,R,RMAX,V) -> one_b(N,R)
+-- conjecture one_b(N,R2) & ~le(R2,R1) -> left_rnd(N,R1)
+
+invariant one_b N R2 ∧ ¬ TotalOrder.le R2 R1 → leftRound N R1
+
+-- #check Inv
+
+#gen_spec
+
+
+
+prove_safety_init by {
+  sdestruct st
+  simp [actSimp]
+  duper
+}
+
+prove_inv_init by {
+  simp_all [actSimp]
+}
+
+
+set_option maxHeartbeats 2000000
+
+set_option auto.smt true
+set_option auto.smt.trust true
+-- set_option trace.auto.smt.printCommands true
+set_option trace.auto.smt.result true
+-- set_option trace.auto.smt.stderr true
+-- set_option trace.auto.smt.unsatCore true
+
+-- FIXME: the Lean Infoview has massive performance problems
+-- when we do the destruction here; it simply becomes unusable
+prove_inv_inductive by {
+  intro hnext hinv
+  sts_induction <;> (sdestruct) <;> repeat
+  sorry
+}
 
 end PaxosFOL
