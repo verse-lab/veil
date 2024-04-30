@@ -21,15 +21,20 @@ def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ) : AttrM 
 -- def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.Ident := do
 --   let name ← getUnusedUserName suggestion
 --   return Lean.mkIdent name
-
+/-- Auxiliary structure to store the transition system objects -/
 structure StsState where
+  /-- type of the transition system state -/
   typ        : Expr
+  /-- signatures of all relations -/
   rel_sig    : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)
+  /-- initial state predicate -/
   init       : Expr
+  /-- list of transitions -/
   actions    : List Expr
+  /-- safety property -/
   safety     : Expr
+  /-- list of invariants -/
   invariants : List Expr
-  init?      : Bool
   deriving Inhabited
 
 open StsState
@@ -101,6 +106,12 @@ register_simp_attr actSimp
 register_simp_attr initSimp
 register_simp_attr safeSimp
 
-
+/-- This is used wherener we want to define a predicate over a state
+    (for intstance, in `safety`, `invatiant` and `require`). Instead
+    of writing `fun st => Pred` this command will pattern match over
+    `st` making all its fileds accessible for `Pred` -/
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
+
+/-- This is used wherener we want to define a predicate over a state
+    which should not depend on the state (for instance in `after_init`). -/
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)

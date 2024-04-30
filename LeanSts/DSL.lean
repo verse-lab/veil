@@ -21,7 +21,12 @@ elab "state" "=" fs:Command.structFields : command => do
   let vd := scope.varDecls
   elabCommand $ <-
     `(@[state] structure $(mkIdent "State") $[$vd]* where mk :: $fs)
-
+/--
+  ```lean
+  relation R : <Type>
+  ```
+  `realtion` command saves a `State` structure field declaration
+-/
 elab "relation" sig:Command.structSimpleBinder : command => do
   match sig with
   | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
@@ -29,6 +34,8 @@ elab "relation" sig:Command.structSimpleBinder : command => do
   | _ => throwErrorAt sig "Unsupported syntax"
   liftTermElabM do stsExt.modify (fun s => { s with rel_sig := s.rel_sig.push sig })
 
+/-- Retrieves the current `State` structure and applies it to
+    section variables `vs` -/
 def stateTp (vs : Array Expr) : MetaM Expr := do
   let stateTp := (<- stsExt.get).typ
   unless stateTp != default do throwError "State has not been declared so far"
@@ -39,22 +46,35 @@ def prop := (Lean.Expr.sort (Lean.Level.zero))
 def Term.explicitBinderF := Term.explicitBinder (requireType := false)
 def Term.implicitBinderF := Term.implicitBinder (requireType := false)
 
+/-- Transforms explicit binder into implicit one -/
 def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
   CommandElabM (TSyntax `Lean.Parser.Term.bracketedBinder)
   | `(Term.explicitBinderF| ($id:ident : $tp:term)) => do
     `(Term.bracketedBinderF| {$id:ident : $tp:term})
   | stx => return stx
 
+/--
+```lean
+relation R : <Type>
+```
+This command defines a ghost relation.  -/
 elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd := (<- getScope).varDecls
+  -- As we are going to call this predicate explicitly we want to make all
+  -- section binders implicit
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
+    -- same trick as in "funcases"
     let stx <- `(by unhygienic cases st; exact $t)
     let stateTp <- PrettyPrinter.delab stateTp
+                            -- we don't want to pass the state as an argument
+                            -- so we use `exact_state` tactic that will assemble
+                            -- the state from the context
     `(abbrev $nm $vd'* $br* (st : $stateTp := by exact_state) : Prop := $stx: term)
 
-
+/--
+assembles all declared `relation` predicates into a single `State` -/
 def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   Command.runTermElabM fun _ => do
@@ -62,8 +82,10 @@ def assembleState : CommandElabM Unit := do
     liftCommandElabM $ elabCommand $ <-
       `(@[stateDef] structure $(mkIdent "State") $[$vd]* where $(mkIdent "mk"):ident :: $[$nms]*)
 
+@[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState
 
+/-- Declaring the initial state predicate -/
 elab "initial" ini:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand <| <- Command.runTermElabM fun vs => do
@@ -72,21 +94,48 @@ elab "initial" ini:term : command => do
     let stateTp <- PrettyPrinter.delab stateTp
     `(@[initDef, initSimp] def $(mkIdent "initalState?") $[$vd]* : $stateTp -> Prop := $ini)
 
-
+/-- Declaring the initial state predicate in the form of a code -/
 elab "after_init" "{" l:lang "}" : command => do
-    liftTermElabM $ stsExt.modify ({· with init? := true})
+   -- Here we want to compute `WP[l]{st, st' = st} : State -> Prop`
+   -- where `st'` is a final state. We expand `l` using `[lang1| l]`
+   -- where `lang1` syntax will make sure that `WP` doesn't depend
+   -- on the prestate state. As  `WP[l]{st, st' = st} : State -> Prop`
+   -- doesn't depend on a prestate we can reduce it into `fun _ => Ini(st')`
+   -- To get `Ini(st')` we should apply `fun _ => Ini(st')`  to any
+   -- state, so we use `st'` as it is the only state we have in the context.
     let act <- `(fun st' => @wp _ (fun st => st' = st) [lang1| $l ] st')
     elabCommand $ <- `(initial $act)
 
+/--
+Transition system action definied via a relation
+-/
 syntax "action" declId (explicitBinders)? "=" term : command
 
+/--
+Transition system action definied via a code
+-/
 syntax "action" declId (explicitBinders)? "=" "{" lang "}" : command
 
+/--
+Desugaring of the transition system action definied via a code, into the one
+defined via a relation. Here we just compute the weakest precondition of the
+code and then define the action as a relation.
+
+Note: Unlike `after_init` we expand `l` using `[lang| l]` as we want action
+to depend on the prestate.
+-/
 macro_rules
   | `(command| action $nm:declId $br:explicitBinders ? = { $l:lang }) => do
     let act <- `(fun st st' => @wp _ (fun st => st' = st) [lang| $l ] st)
     `(action $nm $br ? = $act)
 
+/--
+```lean
+action name binders* = act
+```
+This command defines a transition system action. The action is defined as a relation
+`act`, which is existential quantified over the `binders`.
+-/
 elab_rules : command
   | `(command| action $nm:declId $br:explicitBinders ? = $act) => do
   let vd := (<- getScope).varDecls
@@ -117,6 +166,9 @@ def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String
       mkLambdaFVars args exps
     instantiateLambda exps vs
 
+/--
+Assembles all declared actions into a `Next` transition relation
+-/
 def assembleActions : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
@@ -125,7 +177,7 @@ def assembleActions : CommandElabM Unit := do
     let acts <- PrettyPrinter.delab acts
     `(@[actSimp] def $(mkIdent "Next") $[$vd]* : $stateTp -> $stateTp -> Prop := $acts)
 
-
+/-- Safety property. All capital variables are implicitly quantified -/
 elab "safety" safe:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
@@ -136,6 +188,8 @@ elab "safety" safe:term : command => do
     let stateTp <- PrettyPrinter.delab stateTp
     `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := $stx: term)
 
+/-- Invariant of the transition system.
+    All capital variables are implicitly quantified -/
 elab "invariant" inv:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
@@ -148,6 +202,7 @@ elab "invariant" inv:term : command => do
     let inv_name := "inv" ++ toString num
     `(@[invDef, invSimp] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := $stx: term)
 
+/-- Assembles all declared invariants into a single `Inv` predicate -/
 def assembleInvariant : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
@@ -156,6 +211,9 @@ def assembleInvariant : CommandElabM Unit := do
     let invs <- PrettyPrinter.delab invs
     `(@[invSimp] def $(mkIdent "Inv") $[$vd]* : $stateTp -> Prop := $invs)
 
+/--
+Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
+-/
 def instantiateSystem : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   assembleActions
@@ -179,6 +237,7 @@ def instantiateSystem : CommandElabM Unit := do
           inv  := $inv
           )
 
+@[inherit_doc instantiateSystem]
 elab "#gen_spec" : command => instantiateSystem
 
 elab "prove_safety_init" proof:term : command => do

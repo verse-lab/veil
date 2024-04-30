@@ -8,12 +8,17 @@ open Lean Elab Command Term Meta Lean.Parser
 section WP
 
 variable (σ : Type)
-
+/--
+Language for defining programs in relational transition systems.
+-/
 inductive Lang where
+    /-- All capital variables will be quantified -/
   | require (rq  : σ -> Prop)
-  | act    (act : σ -> σ)
-  | ite    (cnd : σ -> Bool) (thn : Lang) (els : Lang)
-  | seq    (l1 : Lang) (l2 : Lang)
+    /-- this is mostly used for assignments. But we can have a command that arbitrarily changes the state
+        Assingments can use capital letters as well -/
+  | act     (act : σ -> σ)
+  | ite     (cnd : σ -> Bool) (thn : Lang) (els : Lang)
+  | seq     (l1 : Lang) (l2 : Lang)
 
 @[inline] abbrev hprop := σ -> Prop
 
@@ -28,9 +33,16 @@ syntax lang ";" colGe lang : lang
 syntax "require" term      : lang
 syntax "do" term           : lang
 syntax "if" term:max "then\n" lang "else\n" lang : lang
+/-- intermediate syntax for assigment. The actual syntax is
+    `pending := pending[n, s ↦ true]` -/
 syntax Term.structInstLVal ":=" term    : lang
+/-- syntax for assigment -/
 syntax Term.structInstLVal (term:max)+ ":=" term    : lang
+/-- Syntax to trigger the expantion into a code which may
+    depend on the prestate -/
 syntax "[lang|" lang "]" : term
+/-- Syntax to trigger the expantion into a code which doesn't
+    depend on the prestate -/
 syntax "[lang1|" lang "]" : term
 
 partial def getCapitals (s : Syntax) :=
@@ -44,6 +56,8 @@ partial def getCapitals (s : Syntax) :=
       s.getArgs.foldl (init := acc) loop
   (loop #[] s).toList.eraseDups.toArray
 
+/-- Close the given expression under all capital letters.
+    this is called for `require`, `safety` and `invariant` -/
 def closeCapitals (s : Term) : MacroM Term :=
   let caps := getCapitals s
   `(forall $[$caps]*, $s)
@@ -54,22 +68,31 @@ macro_rules
   | `([lang|require $t:term]) => do
     let t' <- closeCapitals t
     withRef t $
+      -- require a proposition on the state
      `(@Lang.require _ (funcases ($t' : Prop) : $(mkIdent "State") .. -> Prop))
   | `([lang|if $cnd:term then $thn:lang else $els:lang]) => do
     let cnd' <- closeCapitals cnd
+    -- condition might depend on the state as well
     let cnd <- withRef cnd `(funcases ($cnd' : Bool))
     `(@Lang.ite _ ($cnd: term) [lang|$thn] [lang|$els])
   | `([lang| do $t:term ]) => `(@Lang.act _ $t)
+    -- expansion of the intermediate syntax for assigment
+    -- for intance `pending := pending[n, s ↦ true]` will get
+    -- expanded to `Lang.act (fun st => { st with pending := st.pending[n, s ↦ true] })`
   | `([lang| $id:structInstLVal := $t:term ]) => do
     `(@Lang.act _ (fun st =>
       { st with $id := (by unhygienic cases st; exact $t)}))
+    -- expansion of the actual syntax for assigment
+    -- for intance `pending n s := true` will get
+    -- expanded to `pending := pending[n, s ↦ true]`
   | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
-    -- dbg_trace id.raw.getHead?.get!
     let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
     `([lang| $id:structInstLVal := $stx])
 
 
 /- TODO: avoid code duplication -/
+/-- Same expansion as above but, intead of `funcases` we use `funclear` to
+    prevent the generated code from depending on the prestate -/
 macro_rules
   | `([lang1| $l1:lang; $l2:lang]) => `(@Lang.seq _ [lang1|$l1] [lang1|$l2])
   | `([lang1|require $t:term]) => do
