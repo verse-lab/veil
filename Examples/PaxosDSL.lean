@@ -90,6 +90,8 @@ relation showsSafeAt :=
 
 #check showsSafeAt
 
-relation isSafeAt := showsSafeAt (st := by exact_state)
+relation isSafeAt := showsSafeAt
+
+#print isSafeAt
 
 end PaxosFOL
