@@ -67,11 +67,15 @@ relation one_b : node -> round -> Bool
 
 #gen_state
 
+relation aa := True
+
 relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr = TotalOrder.none ∧
       (∀ (MAXR : round) (V : value), ¬ (¬ TotalOrder.le r MAXR ∧ vote n MAXR V))) ∨
     (maxr ≠ TotalOrder.none ∧ ¬ TotalOrder.le r maxr ∧ vote n maxr maxv ∧
       (∀ (MAXR : round) (V : value), (¬ TotalOrder.le r MAXR ∧ vote n MAXR V) → TotalOrder.le MAXR maxr))
+
+#print maximalVote
 
 /- Quorum `q` shows `(r, v)` is safe. -/
 relation showsSafeAt (q : quorum) (r : round) (v : value) :=

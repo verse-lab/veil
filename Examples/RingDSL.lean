@@ -96,9 +96,9 @@ action recv (sender n next : node) (havoc : Bool) = {
     pending sender n := havoc
 }
 
-safety ∀ (N L : node), leader L → le N L
-invariant ∀ (S D N : node), pending S D ∧ btw S N D → le N S
-invariant ∀ (N L : node), pending L L → le N L
+safety leader L → le N L
+invariant pending S D ∧ btw S N D → le N S
+invariant pending L L → le N L
 
 #gen_spec
 

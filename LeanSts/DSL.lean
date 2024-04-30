@@ -57,7 +57,9 @@ def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
 ```lean
 relation R : <Type>
 ```
-This command defines a ghost relation.  -/
+This command defines a ghost relation. This relation will be just a
+predicate over state. Here we do not support implicit quantification over
+capital letters -/
 elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd := (<- getScope).varDecls
   -- As we are going to call this predicate explicitly we want to make all
