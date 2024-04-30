@@ -1,6 +1,7 @@
 import Lean.Elab.Tactic
 import Std.Lean.Meta.UnusedNames
 import LeanSts.TransitionSystem
+import LeanSts.DSLUtil
 
 -- For automation
 import Auto
@@ -62,3 +63,14 @@ elab "sts_induction" : tactic => withMainContext do
   -- (2) Destruct the `next` hypothesis into separate goals for each individual action
   evalTactic $ case_split
   return
+
+elab "exact_state" : tactic => do
+  let stateTp := (<- stsExt.get).typ
+  let .some sn := stateTp.constName?
+    | throwError "{stateTp} is not a constant"
+  let .some _sinfo := getStructureInfo? (<- getEnv) sn
+    | throwError "{stateTp} is not a structure"
+  let fns := _sinfo.fieldNames.map mkIdent
+  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent "State") ..))
+
+  evalTactic $ ← `(tactic| exact $constr)

@@ -4,6 +4,7 @@ import LeanSts.DSLUtil
 import Lean.Parser
 import LeanSts.TransitionSystem
 import LeanSts.WP
+import LeanSts.Tactics
 open Lean Elab Command Term Meta Lean.Parser RelationalTransitionSystem
 
 -- Modelled after the Ivy language
@@ -28,6 +29,33 @@ elab "relation" sig:Command.structSimpleBinder : command => do
   | _ => throwErrorAt sig "Unsupported syntax"
   liftTermElabM do stsExt.modify (fun s => { s with rel_sig := s.rel_sig.push sig })
 
+def stateTp (vs : Array Expr) : MetaM Expr := do
+  let stateTp := (<- stsExt.get).typ
+  unless stateTp != default do throwError "State has not been declared so far"
+  return mkAppN stateTp vs
+
+def prop := (Lean.Expr.sort (Lean.Level.zero))
+
+def Term.explicitBinderF := Term.explicitBinder (requireType := false)
+def Term.implicitBinderF := Term.implicitBinder (requireType := false)
+
+def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
+  CommandElabM (TSyntax `Lean.Parser.Term.bracketedBinder)
+  | `(Term.explicitBinderF| ($id:ident : $tp:term)) => do
+    `(Term.bracketedBinderF| {$id:ident : $tp:term})
+  | stx => return stx
+
+elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
+  let vd := (<- getScope).varDecls
+  let vd' <- vd.mapM (fun x => mkImplicitBinders x)
+  elabCommand $ <- Command.runTermElabM fun vs => do
+    let stateTp <- stateTp vs
+    let stx <- `(by have st' := st; unhygienic cases st; exact $t)
+    let _ <- elabByTactic stx (<- mkArrow stateTp prop)
+    let stateTp <- PrettyPrinter.delab stateTp
+    `(abbrev $nm $vd'* $br* (st : $stateTp := by exact_state) : Prop := $stx: term)
+
+
 def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   Command.runTermElabM fun _ => do
@@ -36,13 +64,6 @@ def assembleState : CommandElabM Unit := do
       `(@[stateDef] structure $(mkIdent "State") $[$vd]* where $(mkIdent "mk"):ident :: $[$nms]*)
 
 elab "#gen_state" : command => assembleState
-
-def stateTp (vs : Array Expr) : MetaM Expr := do
-  let stateTp := (<- stsExt.get).typ
-  unless stateTp != default do throwError "State has not been declared so far"
-  return mkAppN stateTp vs
-
-def prop := (Lean.Expr.sort (Lean.Level.zero))
 
 elab "initial" ini:term : command => do
   let vd := (<- getScope).varDecls
@@ -57,42 +78,6 @@ elab "after_init" "{" l:lang "}" : command => do
     liftTermElabM $ stsExt.modify ({· with init? := true})
     let act <- `(fun st' => @wp _ (fun st => st' = st) [lang1| $l ] st')
     elabCommand $ <- `(initial $act)
-
--- elab "after init" "{" l:lang "}" : command => do
---   elabCommand <| <- Command.runTermElabM fun vs => do
---     let stateTp := (<- stsExt.get).typ
---     unless stateTp != default do throwError "State has not been declared so far"
---     let stateTp := mkAppN stateTp vs
---     let act <- `(fun st st' => @wp _ (fun st => st' = st) {| $l |} st)
---     let act <- elabTerm act (<- mkArrow stateTp (<- mkArrow stateTp prop))
---     dbg_trace act
---     let act <- withTransparency (mode := TransparencyMode.reducible) <| reduce act (skipProofs := false) (skipTypes := false)
---     let act <- lambdaTelescope act fun args lam => mkLambdaFVars args[:1] lam
---     if act.hasLooseBVars then throwError "The inital state predicate must not depend on the state"
---     let act <- PrettyPrinter.delab act
---     `(initial $act)
-
--- elab "my_def" ":=" trm:term : command => do
---   Command.runTermElabM fun vs => do
---     elabCommand <| <- `(def foo := $trm)
-
--- my_def := 5 5
-
--- type node1
--- type node2
--- instantiate DecidableEq node1
-
--- relation foo : node1
--- relation bar : node2
-
--- #eval assembleState
-
--- -- #print State
-
-
--- initial = fun _ => True 5
-
--- #check initalState?
 
 syntax "action" declId (explicitBinders)? "=" term : command
 
@@ -227,25 +212,4 @@ elab "prove_inv_inductive" proof:term : command => do
 
 attribute [initSimp] RelationalTransitionSystem.init
 attribute [invSimp] RelationalTransitionSystem.inv
--- attribute [actSimp] RelationalTransitionSystem.next
 attribute [safeSimp] RelationalTransitionSystem.safe
-
-
-
--- action bazz (n m : Nat) := fun (x y) => n > m
-
--- action bazzz := fun x y => False
-
--- safety = fun st => 5 = 5
--- invariant = fun st => True
--- invariant = fun st => st.foo = st.foo
-
--- #gen_spec
-
--- inv_init_by
---   simp only [invSimp, initSimp]
---   sorry
-
--- inv_inductive_by
---   simp only [invSimp, actSimp]
---   sorry

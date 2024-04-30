@@ -101,5 +101,6 @@ register_simp_attr actSimp
 register_simp_attr initSimp
 register_simp_attr safeSimp
 
+
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)

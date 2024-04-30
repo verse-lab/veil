@@ -72,7 +72,11 @@ after_init {
   pending _ _ := false
 }
 
-#print initalState?
+-- initial fun rs =>
+--   (∀ (n : node), ¬ rs.leader n) ∧
+--   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
+
+-- #print initalState?
 
 action send (n next : node) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);

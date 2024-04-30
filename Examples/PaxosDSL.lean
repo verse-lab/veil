@@ -72,14 +72,27 @@ relation one_b : node -> round -> Bool
 
 #gen_state
 
-/-- Find the maximal vote in a round less than `r` made by node `n` -/
-@[sts] def maximalVote (vote : node -> round -> value -> Bool) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
-  (maxr = TotalOrder.none ∧
-    (∀ (MAXR : round) (V : value), ¬ (¬ TotalOrder.le r MAXR ∧ vote n MAXR V))) ∨
-  (maxr ≠ TotalOrder.none ∧ ¬ TotalOrder.le r maxr ∧ vote n maxr maxv ∧
-    (∀ (MAXR : round) (V : value), (¬ TotalOrder.le r MAXR ∧ vote n MAXR V) → TotalOrder.le MAXR maxr))
+relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
+    (maxr = TotalOrder.none ∧
+      (∀ (MAXR : round) (V : value), ¬ (¬ TotalOrder.le r MAXR ∧ vote n MAXR V))) ∨
+    (maxr ≠ TotalOrder.none ∧ ¬ TotalOrder.le r maxr ∧ vote n maxr maxv ∧
+      (∀ (MAXR : round) (V : value), (¬ TotalOrder.le r MAXR ∧ vote n MAXR V) → TotalOrder.le MAXR maxr))
 
-/-- Quorum `q` shows `(r, v)` is safe. -/
+/- Quorum `q` shows `(r, v)` is safe. -/
+relation showsSafeAt (q : quorum) (r : round) (v : value) :=
+    (∀ (N : node), Quorum.member N q → one_b N r) ∧
+  (∃ (maxr : round),
+    -- and `(r, v)` is maximal in the quorum
+    ((maxr = TotalOrder.none ∧
+      (∀ (N : node) (MAXR : round) (V : value),
+        ¬ (Quorum.member N q ∧ one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrder.none))) ∨
+    (maxr ≠ TotalOrder.none ∧
+      (∃ (N : node), Quorum.member N q ∧ one_b_max_vote N r maxr v) ∧
+      (∀ (N : node) (MAXR : round) (V : value),
+        (Quorum.member N q ∧ one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrder.none) → TotalOrder.le MAXR maxr)
+  )))
+
+
 abbrev showsSafeAt
   (one_b : node -> round -> Bool)
   (one_b_max_vote : node -> round -> round -> value -> Bool)
@@ -128,7 +141,7 @@ action phase_1b (n : node) (r : round) (max_round : round) (max_val : value) = {
   require r ≠ TotalOrder.none;
   require one_a r;
   require ¬ leftRound n r;
-  require maximalVote _ _ _ vote n r max_round max_val;
+  require maximalVote n r max_round max_val;
   -- maximalVote n r max_round max_val;
   one_b_max_vote n r max_round max_val := true;
   one_b n r := true;
@@ -208,6 +221,8 @@ invariant ∀ (n : node) (r1 r2 : round),
 -- #check Inv
 
 #gen_spec
+
+
 
 prove_safety_init by {
   sdestruct st
