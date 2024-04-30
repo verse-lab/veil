@@ -151,7 +151,6 @@ action decision_ (n : node) (r : round) (v : value) = {
 
 safety (decision N1 R1 V1 ∧ decision N2 R2 V2) → R1 = R2 ∧ V1 = V2
 
-
 invariant proposal R V1 ∧ proposal R V2 → V1 = V2
 
 invariant vote N R V → proposal R V
@@ -168,10 +167,10 @@ invariant
   (one_b_max_vote N R RMAX V ∧ RMAX ≠ TotalOrder.none) →
     (¬ TotalOrder.le R RMAX ∧ vote N RMAX V)
 
-invariant ∀ (n : node) (r rmax rother : round) (v vother : value),
-  (one_b_max_vote n r rmax v ∧ rmax ≠ TotalOrder.none ∧
+invariant ∀ (N : node) (r rmax rother : round) (v vother : value),
+  (one_b_max_vote N r rmax v ∧ rmax ≠ TotalOrder.none ∧
     ¬ TotalOrder.le r rother ∧ ¬ TotalOrder.le rother rmax) →
-    ¬ vote n rother vother
+    ¬ vote N rother vother
 
 -- Properties of `none`
 
@@ -182,10 +181,10 @@ invariant ¬ vote N TotalOrder.none V
 
 invariant
   (¬ TotalOrder.le R2 R1 ∧ proposal R2 V2  ∧ V1 ≠ V2) →
-  (∃ (n : node) (r3 rmax : round) (v : value),
-    Quorum.member n Q ∧ ¬ TotalOrder.le r3 R1 ∧
-    one_b_max_vote n r3 rmax v ∧
-    ¬ vote n R1 V1)
+  (∃ (N : node) (R3 RMAX : round) (V : value),
+    Quorum.member N Q ∧ ¬ TotalOrder.le R3 R1 ∧
+    one_b_max_vote N R3 RMAX V ∧
+    ¬ vote N R1 V1)
 
 
 -- Properties of one_b, left_rnd

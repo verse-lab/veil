@@ -75,7 +75,35 @@ partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
   else
     k
 
+def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
+  let stateTp <- stateTp vs
+  let .some sn := stateTp.getAppFn.constName?
+    | throwError "{stateTp} is not a constant"
+  let .some _sinfo := getStructureInfo? (<- getEnv) sn
+    | throwError "{stateTp} is not a structure"
+  let fns := _sinfo.fieldNames.map Lean.mkIdent
+  let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
+  let casesOn <- PrettyPrinter.delab casesOn
+  let stateTp <- PrettyPrinter.delab stateTp
+  `(term| (fun $(mkIdent "st") : $stateTp =>
+      $(casesOn) (motive := fun _ => Prop) $(mkIdent "st") <| (fun $[$fns]* => ($t : Prop))))
 
+
+def elabBindersAndCapitals
+  (br : Array Syntax)
+  (vs : Array Expr)
+  (e : Syntax)
+  (k : Array Expr -> Expr -> TermElabM α)
+   : TermElabM α := do
+  withAutoBoundExplicit $ Term.elabBinders br fun brs => do
+    let vars := (← getLCtx).getFVars.filter (fun x => not $ vs.elem x || brs.elem x)
+    trace[sts] e
+    let e <- elabTermAndSynthesize e none
+    lambdaTelescope e fun _ e => do
+        let e <- mkForallFVars vars e
+        k vars e
+
+def my_delab :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
 /--
 ```lean
 relation R : <Type>
@@ -89,25 +117,11 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <-  Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
-    let .some sn := stateTp.getAppFn.constName?
-      | throwError "{stateTp} is not a constant"
-    let .some _sinfo := getStructureInfo? (<- getEnv) sn
-      | throwError "{stateTp} is not a structure"
-    let fns := _sinfo.fieldNames.map Lean.mkIdent
-    let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
-    let casesOn <- PrettyPrinter.delab casesOn
     let stateTp <- PrettyPrinter.delab stateTp
-    let stx' <- `(term|
-      (fun $(mkIdent "st") : $stateTp =>
-        $(casesOn) (motive := fun _ => Prop) $(mkIdent "st") <| (fun $[$fns]* => ($t : Prop))))
-    withAutoBoundImplicit do
-    Term.elabBinders br fun brs => do
-      let vars := (← getLCtx).getFVars.filter (fun x => not $ vs.elem x || brs.elem x)
-      let e <- elabTermAndSynthesize stx' none
-      lambdaTelescope e fun _ e => do
-        let e <- mkForallFVars vars e
-        let e <- withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab e
-        `(abbrev $nm $vd'* $br* ($(mkIdent "st") : $stateTp := by exact_state) : Prop := $e)
+    let stx' <- funcasesM t vs
+    elabBindersAndCapitals br vs stx' fun _ e => do
+      let e <- my_delab e
+      `(abbrev $nm $[$vd']* $br* ($(mkIdent "st") : $stateTp := by exact_state) : Prop := $e)
 
 /--
 assembles all declared `relation` predicates into a single `State` -/
@@ -219,11 +233,12 @@ elab "safety" safe:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
-    let safe <- liftMacroM $ closeCapitals safe
-    let stx <- `(funcases $safe)
-    let _ <- elabByTactic stx (<- mkArrow stateTp prop)
+    -- let safe <- liftMacroM $ closeCapitals safe
     let stateTp <- PrettyPrinter.delab stateTp
-    `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := $stx: term)
+    let stx <- funcasesM safe vs
+    elabBindersAndCapitals #[] vs stx fun _ e => do
+      let e <- my_delab e
+      `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := fun $(mkIdent "st") => $e: term)
 
 /-- Invariant of the transition system.
     All capital variables are implicitly quantified -/
@@ -231,13 +246,15 @@ elab "invariant" inv:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
-    let inv <- liftMacroM $ closeCapitals inv
-    let stx <- `(funcases $inv)
+    -- let inv <- liftMacroM $ closeCapitals inv
+    let stx <- funcasesM inv vs
     let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
     let num := (<- stsExt.get).invariants.length
     let inv_name := "inv" ++ toString num
-    `(@[invDef, invSimp] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := $stx: term)
+    elabBindersAndCapitals #[] vs stx fun _ e => do
+      let e <- my_delab e
+      `(@[invDef, invSimp] def $(mkIdent inv_name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent "st") => $e: term)
 
 /-- Assembles all declared invariants into a single `Inv` predicate -/
 def assembleInvariant : CommandElabM Unit := do
