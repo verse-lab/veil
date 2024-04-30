@@ -113,6 +113,7 @@ syntax "action" declId (explicitBinders)? "=" term : command
 
 /--
 Transition system action definied via a code
+All capital letters in `require` and in assigmnets are implicitly quantified
 -/
 syntax "action" declId (explicitBinders)? "=" "{" lang "}" : command
 

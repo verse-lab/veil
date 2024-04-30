@@ -15,7 +15,7 @@ inductive Lang where
     /-- All capital variables will be quantified -/
   | require (rq  : σ -> Prop)
     /-- this is mostly used for assignments. But we can have a command that arbitrarily changes the state
-        Assingments can use capital letters as well -/
+         All capital variables will be quantifiedl -/
   | act     (act : σ -> σ)
   | ite     (cnd : σ -> Bool) (thn : Lang) (els : Lang)
   | seq     (l1 : Lang) (l2 : Lang)
