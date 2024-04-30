@@ -90,6 +90,8 @@ relation showsSafeAt :=
 
 #check showsSafeAt
 
+macro "showsSafeAt" : term => `(showsSafeAt (st := by exact_state))
+
 relation isSafeAt := showsSafeAt
 
 #print isSafeAt

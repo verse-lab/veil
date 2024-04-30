@@ -88,38 +88,26 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   -- section binders implicit
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <-  Command.runTermElabM fun vs => do
-    let stateTp' <- stateTp vs
-    let .some sn := stateTp'.getAppFn.constName?
-      | throwError "{stateTp'} is not a constant"
+    let stateTp <- stateTp vs
+    let .some sn := stateTp.getAppFn.constName?
+      | throwError "{stateTp} is not a constant"
     let .some _sinfo := getStructureInfo? (<- getEnv) sn
-      | throwError "{stateTp'} is not a structure"
+      | throwError "{stateTp} is not a structure"
     let fns := _sinfo.fieldNames.map Lean.mkIdent
     let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
     let casesOn <- PrettyPrinter.delab casesOn
-    let stateTp <- PrettyPrinter.delab stateTp'
+    let stateTp <- PrettyPrinter.delab stateTp
     let stx' <- `(term|
       (fun $(mkIdent "st") : $stateTp =>
         $(casesOn) (motive := fun _ => Prop) $(mkIdent "st") <| (fun $[$fns]* => ($t : Prop))))
-    withAutoBoundImplicit <|
+    withAutoBoundImplicit do
     Term.elabBinders br fun brs => do
       let vars := (← getLCtx).getFVars.filter (fun x => not $ vs.elem x || brs.elem x)
-      let e <- elabTerm stx' (<- mkArrow stateTp' prop)
-      trace[sts] e
-      synthesizeSyntheticMVarsNoPostponing
+      let e <- elabTermAndSynthesize stx' none
       lambdaTelescope e fun _ e => do
         let e <- mkForallFVars vars e
-        let e <- withOptions (fun opts => opts.insert `pp.motives.all true) do PrettyPrinter.delab e
+        let e <- withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab e
         `(abbrev $nm $vd'* $br* ($(mkIdent "st") : $stateTp := by exact_state) : Prop := $e)
-    -- return default
-    -- trace[sts] stx'
-    --
-    -- let br' <- br.mapM (fun x => getNinderNanes x)
-                            -- we don't want to pass the state as an argument
-                            -- so we use `exact_state` tactic that will assemble
-                            -- the state from the context
-    -- let s <-
-    -- dbg_trace s
-    -- return s
 
 /--
 assembles all declared `relation` predicates into a single `State` -/
