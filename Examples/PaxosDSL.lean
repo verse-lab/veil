@@ -67,7 +67,6 @@ relation one_b : node -> round -> Bool
 
 #gen_state
 
-relation aa := True
 
 relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr = TotalOrder.none ∧
@@ -79,7 +78,7 @@ relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
 
 /- Quorum `q` shows `(r, v)` is safe. -/
 relation showsSafeAt (q : quorum) (r : round) (v : value) :=
-    (∀ (N : node), Quorum.member N q → one_b N r) ∧
+    (Quorum.member N q → one_b N r) ∧
   (∃ (maxr : round),
     -- and `(r, v)` is maximal in the quorum
     ((maxr = TotalOrder.none ∧

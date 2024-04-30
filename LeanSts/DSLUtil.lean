@@ -115,3 +115,5 @@ macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exa
 /-- This is used wherener we want to define a predicate over a state
     which should not depend on the state (for instance in `after_init`). -/
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
+
+initialize registerTraceClass `sts

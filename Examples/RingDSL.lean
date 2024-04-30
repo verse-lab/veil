@@ -65,7 +65,8 @@ relation pending : node -> node -> Bool
 
 #gen_state
 
-#print State
+
+set_option trace.sts true
 
 after_init {
   leader _ := false;

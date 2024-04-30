@@ -53,6 +53,31 @@ def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
     `(Term.bracketedBinderF| {$id:ident : $tp:term})
   | stx => return stx
 
+#print BinderInfo
+
+partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
+  let flag := autoImplicit.get (← getOptions)
+  if flag then
+    withReader (fun ctx => { ctx with autoBoundImplicit := flag, autoBoundImplicits := {} }) do
+      let rec loop (s : Term.SavedState) : TermElabM α := do
+        try
+          k
+        catch
+          | ex => match isAutoBoundImplicitLocalException? ex with
+            | some n =>
+              if isCapital (Lean.mkIdent n) then
+              -- Restore state, declare `n`, and try again
+                s.restore
+                withLocalDecl n .default (← mkFreshTypeMVar) fun x =>
+                  withReader (fun ctx => { ctx with autoBoundImplicits := ctx.autoBoundImplicits.push x } ) do
+                    loop (← saveState)
+              else throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}"
+            | none   => throw ex
+      loop (← saveState)
+  else
+    k
+
+
 /--
 ```lean
 relation R : <Type>
@@ -67,13 +92,37 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
+    let .some sn := stateTp.getAppFn.constName?
+      | throwError "{stateTp} is not a constant"
+    let .some _sinfo := getStructureInfo? (<- getEnv) sn
+      | throwError "{stateTp} is not a structure"
+    let fns := _sinfo.fieldNames.map Lean.mkIdent
     -- same trick as in "funcases"
-    let stx <- `(by unhygienic cases st; exact $t)
+    -- let stcasesOn <- mkConst
+    let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
+    let casesOn <- PrettyPrinter.delab casesOn
     let stateTp <- PrettyPrinter.delab stateTp
+    let stx' <- `(term|
+      (fun $(mkIdent "st") : $stateTp =>
+        $(casesOn) (motive := fun _ => Prop) $(mkIdent "st") <| (fun $[$fns]* => ($t : Prop))))
+    let stx' <- withAutoBoundExplicit do
+      Term.elabBinders br fun _ => do
+        let e <- elabTerm stx' none
+        trace[sts] e
+        let vars := (← getLCtx).getFVars.filter (not $ vs.elem ·)
+        lambdaTelescope e fun st e => do
+          let e <- (mkLambdaFVars vars.reverse e)
+          mkLambdaFVars st e
+    let mtp <- mkFreshExprMVar none
+    let stx'' := mkApp stx' mtp
+    let stxTp <- inferType stx''
+    let stxTp <- PrettyPrinter.delab stxTp
+    let stx <- withOptions (fun opts => opts.insert `pp.motives.all true) do PrettyPrinter.delab stx'
+    trace[sts] stateTp
                             -- we don't want to pass the state as an argument
                             -- so we use `exact_state` tactic that will assemble
                             -- the state from the context
-    `(abbrev $nm $vd'* $br* (st : $stateTp := by exact_state) : Prop := $stx: term)
+    `(def $nm $vd'* (st : $stateTp /-:= by exact_state-/) : $stxTp := $stx st)
 
 /--
 assembles all declared `relation` predicates into a single `State` -/
