@@ -50,8 +50,7 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
-    let stx <- `(by have st' := st; unhygienic cases st; exact $t)
-    let _ <- elabByTactic stx (<- mkArrow stateTp prop)
+    let stx <- `(by unhygienic cases st; exact $t)
     let stateTp <- PrettyPrinter.delab stateTp
     `(abbrev $nm $vd'* $br* (st : $stateTp := by exact_state) : Prop := $stx: term)
 
@@ -108,7 +107,7 @@ elab_rules : command
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
     let exp0 :: exprs := exps
-      | throwError ("There are no" ++ name ++ "defined")
+      | throwError ("There are no " ++ name ++ " defined")
     let exp0 <- etaExpand exp0
     let exps <- lambdaTelescope exp0 fun args exp0 => do
       let mut exps := exp0
@@ -131,6 +130,7 @@ elab "safety" safe:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
+    let safe <- liftMacroM $ closeCapitals safe
     let stx <- `(funcases $safe)
     let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
@@ -140,6 +140,7 @@ elab "invariant" inv:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
+    let inv <- liftMacroM $ closeCapitals inv
     let stx <- `(funcases $inv)
     let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp

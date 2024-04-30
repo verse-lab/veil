@@ -44,23 +44,19 @@ partial def getCapitals (s : Syntax) :=
       s.getArgs.foldl (init := acc) loop
   (loop #[] s).toList.eraseDups.toArray
 
-def closeCapitalsA (s : Term) : MacroM Term :=
+def closeCapitals (s : Term) : MacroM Term :=
   let caps := getCapitals s
   `(forall $[$caps]*, $s)
-
-def closeCapitalsF (s : Term) : MacroM Term :=
-  let caps := getCapitals s
-  `(fun $[$caps]* => $s)
 
 
 macro_rules
   | `([lang|$l1:lang; $l2:lang]) => `(@Lang.seq _ [lang|$l1] [lang|$l2])
   | `([lang|require $t:term]) => do
-    let t' <- closeCapitalsA t
+    let t' <- closeCapitals t
     withRef t $
      `(@Lang.require _ (funcases ($t' : Prop) : $(mkIdent "State") .. -> Prop))
   | `([lang|if $cnd:term then $thn:lang else $els:lang]) => do
-    let cnd' <- closeCapitalsA cnd
+    let cnd' <- closeCapitals cnd
     let cnd <- withRef cnd `(funcases ($cnd' : Bool))
     `(@Lang.ite _ ($cnd: term) [lang|$thn] [lang|$els])
   | `([lang| do $t:term ]) => `(@Lang.act _ $t)

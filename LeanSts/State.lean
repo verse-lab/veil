@@ -13,9 +13,7 @@ macro_rules
   | `(term| [tupl| ]) => `(())
 
 def isCapital (i : Lean.Syntax) : Bool :=
-  i.getId.isStr &&
-  (i.getId.toString.get 0).isUpper &&
-   i.getId.toString.length == 1
+  i.getId.isStr && i.getId.toString.all (fun c => c.isUpper || c.isDigit)
 
 macro_rules
   | `(term| $f[$is:term,* ↦ $b ]) => do

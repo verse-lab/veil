@@ -38,11 +38,6 @@ type round
 instantiate DecidableEq round
 instantiate TotalOrder round
 
--- variable {node : Type} [DecidableEq node]
--- variable {value : Type} [DecidableEq value]
--- variable {quorum : Type} [DecidableEq quorum] [Quorum node quorum]
--- variable {round : Type} [DecidableEq round] [TotalOrder round]
-
   -- Phase 1(a): a proposer selects a proposal number (ballot) `r` and sends a
   -- _prepare_ request (`msg_1a`) with number `r` to a majority of acceptors
 relation one_a : round -> Bool
@@ -151,24 +146,24 @@ action decision_ (n : node) (r : round) (v : value) = {
   decision n r v := true
 }
 
-safety ∀ (n1 n2 : node) (r1 r2 : round) (v1 v2 : value),
-  (decision n1 r1 v1 ∧ decision n2 r2 v2) → r1 = r2 ∧ v1 = v2
+safety (decision N1 R1 V1 ∧ decision N2 R2 V2) → R1 = R2 ∧ V1 = V2
 
-invariant ∀ (r : round) (v1 v2 : value), proposal r v1 ∧ proposal r v2 → v1 = v2
 
-invariant ∀ (n : node) (r : round) (v : value), vote n r v → proposal r v
+invariant proposal R V1 ∧ proposal R V2 → V1 = V2
 
-invariant  ∀ (r : round) (v : value),
-    (∃ (n : node), decision n r v) →
-    (∃ (q : quorum), ∀ (n : node), Quorum.member n q → vote n r v)
+invariant vote N R V → proposal R V
+
+invariant
+    (∃ (n : node), decision n R V) →
+    (∃ (q : quorum), ∀ (n : node), Quorum.member n q → vote n R V)
 
 -- Properties of `one_b_max_vote`
-invariant ∀ (n : node) (r1 r2 : round) (v1 v2 : value),
-  (one_b_max_vote n r1 TotalOrder.none v1 ∧ ¬ TotalOrder.le r2 r1) → ¬ vote n r1 v2
+invariant
+  (one_b_max_vote N R1 TotalOrder.none V1 ∧ ¬ TotalOrder.le R2 R1) → ¬ vote N R1 V2
 
-invariant ∀ (n : node) (r rmax : round) (v : value),
-  (one_b_max_vote n r rmax v ∧ rmax ≠ TotalOrder.none) →
-    (¬ TotalOrder.le r rmax ∧ vote n rmax v)
+invariant
+  (one_b_max_vote N R RMAX V ∧ RMAX ≠ TotalOrder.none) →
+    (¬ TotalOrder.le R RMAX ∧ vote N RMAX V)
 
 invariant ∀ (n : node) (r rmax rother : round) (v vother : value),
   (one_b_max_vote n r rmax v ∧ rmax ≠ TotalOrder.none ∧
@@ -177,25 +172,24 @@ invariant ∀ (n : node) (r rmax rother : round) (v vother : value),
 
 -- Properties of `none`
 
-invariant ∀ (n : node) (r : round) (v : value), ¬ vote n TotalOrder.none v
+invariant ¬ vote N TotalOrder.none V
 
 
 -- Properties of choosable and proposal
 
-invariant  ∀ (r1 r2 : round) (v1 v2 : value) (q : quorum),
-  (¬ TotalOrder.le r2 r1 ∧ proposal r2 v2  ∧ v1 ≠ v2) →
+invariant
+  (¬ TotalOrder.le R2 R1 ∧ proposal R2 V2  ∧ V1 ≠ V2) →
   (∃ (n : node) (r3 rmax : round) (v : value),
-    Quorum.member n q ∧ ¬ TotalOrder.le r3 r1 ∧
+    Quorum.member n Q ∧ ¬ TotalOrder.le r3 R1 ∧
     one_b_max_vote n r3 rmax v ∧
-    ¬ vote n r1 v1)
+    ¬ vote n R1 V1)
 
 
 -- Properties of one_b, left_rnd
 -- #conjecture one_b_max_vote(N,R,RMAX,V) -> one_b(N,R)
 -- conjecture one_b(N,R2) & ~le(R2,R1) -> left_rnd(N,R1)
 
-invariant ∀ (n : node) (r1 r2 : round),
-  one_b n r2 ∧ ¬ TotalOrder.le r2 r1 → leftRound n r1
+invariant one_b N R2 ∧ ¬ TotalOrder.le R2 R1 → leftRound N R1
 
 -- #check Inv
 
