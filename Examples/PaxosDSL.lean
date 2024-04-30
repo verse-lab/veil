@@ -75,11 +75,10 @@ relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr ≠ TotalOrder.none ∧ ¬ TotalOrder.le r maxr ∧ vote n maxr maxv ∧
       (∀ (MAXR : round) (V : value), (¬ TotalOrder.le r MAXR ∧ vote n MAXR V) → TotalOrder.le MAXR maxr))
 
-#print maximalVote
 
 /- Quorum `q` shows `(r, v)` is safe. -/
 relation showsSafeAt (q : quorum) (r : round) (v : value) :=
-    (∀ (N : node), Quorum.member N q → one_b N r) ∧
+    (Quorum.member N q → one_b N r) ∧
   (∃ (maxr : round),
     -- and `(r, v)` is maximal in the quorum
     ((maxr = TotalOrder.none ∧
