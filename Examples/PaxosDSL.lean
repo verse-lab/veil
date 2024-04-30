@@ -92,31 +92,10 @@ relation showsSafeAt (q : quorum) (r : round) (v : value) :=
         (Quorum.member N q ∧ one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrder.none) → TotalOrder.le MAXR maxr)
   )))
 
+relation isSafeAt (r : round) (v : value) :=
+  ∃ (q : quorum), showsSafeAt q r v
 
-abbrev showsSafeAt
-  (one_b : node -> round -> Bool)
-  (one_b_max_vote : node -> round -> round -> value -> Bool)
-  (q : quorum) (r : round) (v : value):  Prop :=
-  -- a majority of acceptors have joined round `r` (L85 in `paxos_fol.ivy`)
-  (∀ (N : node), Quorum.member N q → one_b N r) ∧
-  (∃ (maxr : round),
-    -- and `(r, v)` is maximal in the quorum
-    ((maxr = TotalOrder.none ∧
-      (∀ (N : node) (MAXR : round) (V : value),
-        ¬ (Quorum.member N q ∧ one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrder.none))) ∨
-    (maxr ≠ TotalOrder.none ∧
-      (∃ (N : node), Quorum.member N q ∧ one_b_max_vote N r maxr v) ∧
-      (∀ (N : node) (MAXR : round) (V : value),
-        (Quorum.member N q ∧ one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrder.none) → TotalOrder.le MAXR maxr)
-  )))
-
-abbrev isSafeAt
-  (one_b : node -> round -> Bool)
-  (one_b_max_vote : node -> round -> round -> value -> Bool)
-  (r : round) (v : value) : Prop :=
-  ∃ (q : quorum), showsSafeAt _ _ _ _ one_b one_b_max_vote  q r v
-
-abbrev chosenAt (vote : node -> round -> value -> Bool) (r : round) (v : value) : Prop :=
+relation chosenAt (r : round) (v : value) :=
   ∃ (q : quorum), ∀ (n : node), Quorum.member n q → vote n r v
 
 after_init {
@@ -153,7 +132,7 @@ action phase_1b (n : node) (r : round) (max_round : round) (max_val : value) = {
 action phase_2a (r : round) (v : value) = {
   require r ≠ TotalOrder.none;
   require ¬ proposal r V;
-  require isSafeAt _ _ _ _ one_b one_b_max_vote r v;
+  require isSafeAt r v;
   proposal r v := true
 }
 
@@ -168,7 +147,7 @@ action phase_2b (n : node) (r : round) (v : value) = {
 -- "decide" = receive a quorum of 2b's
 action decision_ (n : node) (r : round) (v : value) = {
   require r ≠ TotalOrder.none;
-  require chosenAt _ _ _ _ vote r v;
+  require chosenAt r v;
   decision n r v := true
 }
 
