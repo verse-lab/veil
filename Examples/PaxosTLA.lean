@@ -96,7 +96,7 @@ def phase_1b : RelationalTransitionSystem.action (@GlobalState acceptor value ba
         m ∈ st.msgs ∧
         m = Message.msg_1a b ∧
         m.bal > st.maxBal a ∧
-        st'.maxBal = st.maxBal[a ↦ b]
+        st'.maxBal = st.maxBal[a ↦ some b]
 
 /--
   Phase 2a: If the leader receives a response to its 1b message (for ballot b)
@@ -134,8 +134,8 @@ def phase_2b : RelationalTransitionSystem.action (@GlobalState acceptor value ba
     ∃ (a : acceptor),
       ∃ m ∈ st.msgs, ∃ b v, m = Message.msg_2a b v ∧
         send st st' (Message.msg_2b a b v) ∧
-        st'.maxVBal = st.maxVBal[a ↦ b] ∧
-        st'.maxBal = st.maxBal[a ↦ b] ∧
-        st'.maxVal = st.maxVal[a ↦ v]
+        st'.maxVBal = st.maxVBal[a ↦ some b] ∧
+        st'.maxBal = st.maxBal[a ↦ some b] ∧
+        st'.maxVal = st.maxVal[a ↦ some v]
 
 end Paxos

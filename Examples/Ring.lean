@@ -87,12 +87,6 @@ structure Structure :=
 variable {node : Type}
 variable [DecidableEq node] [TotalOrder node] [Between node]
 
-instance System : RelationalTransitionSystem (Structure node)
-  where
-  init := λ st => initialState? node st
-  -- TLA-style
-  next := λ st st' => send node st st' ∨ recv node st st'
-
 @[simp] def safety (st : Structure node) : Prop :=
   ∀ (N L : node), st.leader L → le N L
 
@@ -101,7 +95,18 @@ instance System : RelationalTransitionSystem (Structure node)
 
 @[simp] def inv_2 (st : Structure node) : Prop :=
   ∀ (N L : node), st.pending L L → le N L
+@[simp] def inv' (st : Structure node) : Prop :=
+  safety st ∧ inv_1 st ∧ inv_2 st
 
+instance System : RelationalTransitionSystem (Structure node)
+  where
+  init := λ st => initialState? node st
+  -- TLA-style
+  next := λ st st' => send node st st' ∨ recv node st st'
+  safe := safety
+  inv := inv'
+
+open RelationalTransitionSystem
 def safety_init :
   ∀ (st : Structure node), System.init st → safety st := by
   intro st
@@ -111,11 +116,11 @@ def safety_init :
   specialize hleader L
   contradiction
 
-@[simp] def inv (st : Structure node) : Prop :=
-  safety st ∧ inv_1 st ∧ inv_2 st
 
-def inv_init :
-  ∀ (st : Structure node), System.init st → inv st := by
+open RelationalTransitionSystem
+
+def inv_init' :
+  ∀ (st : Structure node), init st → inv st := by
   intro st
   simp only [RelationalTransitionSystem.init, safety, System, initialState?]
   rintro ⟨hleader, hpending⟩
@@ -150,154 +155,13 @@ set_option auto.smt.trust true
 theorem inv_inductive_smt :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext hinv
-  sts_induction <;> (dsimp only [inv]; sdestruct) <;> repeat
+  sts_induction <;> (dsimp only [RelationalTransitionSystem.inv, inv']; sdestruct) <;> repeat
   (
     sdestruct st st';
-    simp [sts] at hinv htr ⊢;
-    (try unfold updateFn at htr) ; (try unfold updateFn2 at htr);
-    (try unfold updateFn3 at htr) ; (try unfold updateFn4 at htr);
+    simp [sts, RelationalTransitionSystem.inv] at hinv htr ⊢;
+    (try unfold updateFn at htr) ;
     auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm, TotalOrder.le_total,
       Between.btw_ring, Between.btw_trans, Between.btw_side, Between.btw_total, hinv, htr]
   )
-
-theorem inv_inductive :
-  ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
-  intro st st' hnext ⟨hsafety, hinv_1, hinv_2⟩
-  rcases hnext with hsend | hrecv
-  { -- send
-    rcases hsend with ⟨n, next, hpre, hpost⟩
-    simp only [inv, safety, inv_1, inv_2, hpost]
-    apply And.intro
-    { apply hsafety }
-    apply And.intro
-    { -- inv_1
-      simp_all
-      rcases st with ⟨leader, pending⟩
-      rcases st' with ⟨leader', pending'⟩
-      simp_all
-      -- rcases hpost with ⟨hpost1, hpost2⟩
-      -- FIXME: why do we need to destruct here?
-      unfold updateFn2 at hpost -- it works once I add the unfolding function
-                                -- this makes sence, as updateFn2 is a high oreder funtion
-                                -- What can we do about it?Uunfold all high order function?
-      duper [btw_ring, btw_side, hpre, hinv_1, hinv_2, hsafety, hpost]
-    }
-    { -- inv_2
-      simp_all
-      duper [hpre, hinv_2] {portfolioInstance := 1}
-    }
-  }
-  {
-    -- recv
-    rw [recv] at hrecv
-    -- NOTE: hpre1 is unused, so it's not actually needed as a precondition for `recv` (?)
-    rcases hrecv with ⟨sender, n, next, havoc, hpre1, hpre2, hpost⟩
-    split_ifs at hpost with cond1 cond2 <;> rw [hpost]
-    {
-      apply And.intro
-      { -- safety
-        simp_all
-        duper [hsafety, hinv_1, hinv_2, cond1, hpre2] {portfolioInstance := 1}
-      }
-      apply And.intro
-      { -- inv_1
-        simp_all
-        intro S D N; split_ifs with cond <;> duper [hinv_1, cond, hpre2] {portfolioInstance := 1}
-      }
-      { -- inv_2
-        simp_all
-        intro N L; split_ifs with cond <;> duper [hinv_2, cond, hpre2] {portfolioInstance := 1}
-      }
-    }
-    { -- recv, inner if
-      apply And.intro
-      { apply hsafety }
-      apply And.intro
-      { -- inv_1
-        simp only [inv_1, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
-          Bool.ite_eq_true_distrib, and_imp]
-        rintro S D N
-        split_ifs with cond3 cond4
-        { intro _ hbtw
-          simp_all only [ne_eq, and_imp]
-          by_cases hn: (N = n)
-          { simp_all }
-          {
-            apply (hinv_1 sender n)
-            apply And.intro
-            { assumption }
-            have Hn : _ := btw_next _  (by simp; apply hpre1)
-            have ht : _ := btw_total sender N n
-            rcases ht with h | h | h | h | h
-            { assumption }
-            { duper [h, Hn, hbtw, btw_ring, btw_trans] }
-            { duper [h, hbtw, btw_irreflexive'] }
-            { contradiction }
-            { contradiction }
-          }
-        }
-        {
-          intro _ Hbtw
-          apply (hinv_1 S D N)
-          apply And.intro
-          { simpa only [cond4] }
-          { assumption }
-        }
-        { intro h1 h2; apply hinv_1; apply And.intro <;> assumption }
-      }
-      {
-        -- inv_2
-        simp only [inv_2, updateFn2_unfold, Bool.and_eq_true, decide_eq_true_eq,
-          Bool.ite_eq_true_distrib]
-        intro N L
-        split_ifs with cond3 cond4
-        { intro _
-          rw [safety] at hsafety
-          rw [inv_1] at hinv_1
-          rw [inv_2] at hinv_2
-          by_cases hl: (st.leader L)
-          { apply hsafety; assumption }
-          rcases cond3 with ⟨cond3a, cond3b⟩
-          -- have heq : (sender = next) := by { rw [← cond3.1]; simp only [cond3.2] }
-          -- simp_all
-          subst_vars
-          specialize (hpre1 N)
-          rcases hpre1 with ⟨_, hpre1⟩
-          by_cases H:(N ≠ n ∧ N ≠ L)
-          { simp_all
-            duper [hinv_1, hpre1, hpre2, btw_ring]
-          }
-          {
-            simp_all
-            by_cases Hn: (N = n)
-            { simp_all }
-            { simp_all
-              apply TotalOrder.le_refl
-            }
-          }
-        }
-        {
-          simp_all
-          duper [cond4, hinv_2, hpre2]
-        }
-        { apply hinv_2 }
-      }
-    }
-    { -- recv, just havoc
-      apply And.intro
-      { apply hsafety }
-      apply And.intro
-      { -- inv_1
-        simp_all
-        intro S D N; split_ifs with cond3 <;> duper [cond3, hpre2, hinv_1]
-      }
-      {
-        -- inv_2
-        simp_all
-        intro N L ; split_ifs with cond3 <;> duper [cond2, cond3, TotalOrder.le_refl, hinv_2]
-      }
-    }
-  }
-
 
 end Ring

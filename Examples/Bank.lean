@@ -28,19 +28,16 @@ inductive BankTransition (st st' : BankState account) where
 
 end Bank
 
+def safety (st : BankState Int) : Prop := (∀ acc, st.balance acc ≥ 0)
+
 instance BankSystem : RelationalTransitionSystem (BankState Int) where
   init := λ st => st = initialState Int
   -- TLA-style
   -- next := λ st st' => deposit Int st st' ∨ withdraw Int st st'
   -- CIC-style
   next := λ st st' => ∃ (_t : BankTransition Int st st'), True
-
--- def BankSystem : RelationalTransitionSystem (BankState Int) := {
---   init := λ st => st = initialState Int
---   next := λ st st' => ∃ (_t : BankTransition Int st st'), True
--- }
-
-def safety (st : BankState Int) : Prop := (∀ acc, st.balance acc ≥ 0)
+  safe := safety
+  inv := safety
 
 theorem bank_safety_init :
   ∀ st, BankSystem.init st → safety st := by
@@ -61,7 +58,7 @@ theorem bank_safety_inductive :
     simp only [deposit] at tr
     rcases tr with ⟨acc, amount, pre, post⟩
     intro acc'
-    simp only [post, updateFn_unfold, ge_iff_le]
+    simp only [post, updateFn, ge_iff_le]
     split_ifs with eq
     { specialize safe acc; linarith }
     { apply safe }
@@ -70,7 +67,7 @@ theorem bank_safety_inductive :
     simp only [withdraw] at tr
     rcases tr with ⟨acc, amount, ⟨pre1, pre2, post⟩⟩
     intro acc'
-    simp only [post, updateFn_unfold, ge_iff_le]
+    simp only [post, updateFn, ge_iff_le]
     split_ifs with eq
     { specialize safe acc; linarith }
     { apply safe }

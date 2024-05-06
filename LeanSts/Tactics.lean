@@ -1,6 +1,7 @@
 import Lean.Elab.Tactic
 import Std.Lean.Meta.UnusedNames
 import LeanSts.TransitionSystem
+import LeanSts.DSLUtil
 
 -- For automation
 import Auto
@@ -62,3 +63,19 @@ elab "sts_induction" : tactic => withMainContext do
   -- (2) Destruct the `next` hypothesis into separate goals for each individual action
   evalTactic $ case_split
   return
+
+/--
+  `exact_state` is usually used after `funcases` ar `funcasesM`. At this point the goal should
+  contain all state fields as hypotheses. This tactic will then construct the
+  state term using the field hypotheses and close the goal.
+-/
+elab "exact_state" : tactic => do
+  let stateTp := (<- stsExt.get).typ
+  let .some sn := stateTp.constName?
+    | throwError "{stateTp} is not a constant"
+  let .some _sinfo := getStructureInfo? (<- getEnv) sn
+    | throwError "{stateTp} is not a structure"
+  let fns := _sinfo.fieldNames.map mkIdent
+  -- fileds' names should be the same as ones in the local context
+  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent "State") ..))
+  evalTactic $ ← `(tactic| exact $constr)
