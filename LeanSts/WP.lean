@@ -89,7 +89,6 @@ macro_rules
     let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
     `([lang| $id:structInstLVal := $stx])
 
-
 /- TODO: avoid code duplication -/
 /-- Same expansion as above but, intead of `funcases` we use `funclear` to
     prevent the generated code from depending on the prestate -/

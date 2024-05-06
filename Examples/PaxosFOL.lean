@@ -158,17 +158,6 @@ structure Structure :=
       -- update
       st' = { st with decision := st.decision[n, r, v ↦ true] }
 
-instance System : RelationalTransitionSystem (@Structure node value round)
-  where
-  init := λ st => initialState? st
-  -- TLA-style
-  next := λ st st' =>
-    phase_1a st st' ∨
-    phase_1b st st' ∨
-    phase_2a st st' ∨
-    phase_2b st st' ∨
-    decision st st'
-
 @[sts] def safety (st : @Structure node value round) : Prop :=
   ∀ (n1 n2 : node) (r1 r2 : round) (v1 v2 : value),
     (st.decision n1 r1 v1 ∧ st.decision n2 r2 v2) → r1 = r2 ∧ v1 = v2
@@ -177,7 +166,7 @@ def safety_init :
   ∀ (st : @Structure node value round),
     initialState? st → safety st := by
   intro st
-  simp only [RelationalTransitionSystem.init, safety, System, initialState?]
+  simp only [RelationalTransitionSystem.init, safety, initialState?]
   duper
 
 @[sts] def inv_propose_unique (st : @Structure node value round) : Prop :=
@@ -221,7 +210,7 @@ def safety_init :
       st.one_b_max_vote n r3 rmax v ∧
       ¬ st.vote n r1 v1)
 
-@[sts] def inv (st : @Structure node value round) : Prop :=
+@[sts] def inv' (st : @Structure node value round) : Prop :=
   safety st ∧
   inv_propose_unique st ∧
   inv_vote_proposed st ∧
@@ -232,8 +221,21 @@ def safety_init :
   inv_no_vote_at_none st ∧
   inv_choose_propose st
 
+instance System : RelationalTransitionSystem (@Structure node value round)
+  where
+  init := λ st => initialState? st
+  -- TLA-style
+  next := λ st st' =>
+    phase_1a st st' ∨
+    phase_1b st st' ∨
+    phase_2a st st' ∨
+    phase_2b st st' ∨
+    decision st st'
+  safe := safety
+  inv := inv'
+
 def inv_init :
-  ∀ (st : @Structure node value round), initialState? st → inv st := by simp_all [sts]
+  ∀ (st : @Structure node value round), initialState? st → inv' st := by simp_all [sts]
 
 set_option maxHeartbeats 2000000
 
@@ -247,9 +249,9 @@ set_option trace.auto.smt.result true
 -- FIXME: the Lean Infoview has massive performance problems
 -- when we do the destruction here; it simply becomes unusable
 theorem inv_inductive :
-  ∀ (st st' : @Structure node value round), System.next st st' → inv st → inv st' := by
+  ∀ (st st' : @Structure node value round), System.next st st' → inv' st → inv' st' := by
   intro st st' hnext hinv
-  sts_induction <;> (dsimp only [inv]; sdestruct) <;> repeat'
+  sts_induction <;> (dsimp only [inv']; sdestruct) <;> repeat'
   sorry
   -- TODO: make this into a tactic
   -- FIXME: performance is abysmal
