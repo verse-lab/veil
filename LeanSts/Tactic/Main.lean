@@ -1,7 +1,6 @@
 import Lean.Elab.Tactic
-import Std.Lean.Meta.UnusedNames
+import LeanSts.Tactic.Util
 import LeanSts.TransitionSystem
-import LeanSts.DSLUtil
 
 -- For automation
 import Auto
@@ -13,60 +12,6 @@ import Duper
 register_simp_attr sts
 
 open Lean Lean.Elab.Tactic
-
--- Creates a fresh variable with the suggested name.
-def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.Ident := do
-  let name ← Meta.getUnusedUserName suggestion
-  return Lean.mkIdent name
-
-def isPrimed (n : Name) : Bool := n.getString!.endsWith "'"
-def getNumPrimes (n : Name) : Nat := n.getString!.foldl (fun n c => if c == '\'' then n + 1 else n) 0
-
-/-- Is `hyp` an application of `n`, after normalisation? -/
-def normalisedIsAppOf (hyp : LocalDecl) (n : Name) : TacticM Bool := do
-  let norm ← Meta.reduce (hyp.type) (skipTypes := false)
-  return norm.isAppOf n
-
-/-- Returns the hypotheses in `newCtx` that do not appear in `oldCtx`. -/
-def newHypotheses (oldCtx : LocalContext) (newCtx : LocalContext) : TacticM (Array LocalDecl) := do
-  let mut newHyps := #[]
-  for hyp in newCtx do
-    if (oldCtx.findFromUserName? hyp.userName |>.isNone) &&
-       !hyp.isImplementationDetail then
-      newHyps := newHyps.push hyp
-  return newHyps
-
-/-- Run the given tactic in all goals. -/
-def allGoals [Inhabited α]
-  (tac : TacticM α) (comb : List α -> α := fun _ => default)  : TacticM α := do
-  if (<- getUnsolvedGoals).length == 0 then
-    tac
-  else
-    withMainContext do
-      let mvarIds ← getUnsolvedGoals
-      let mut mvarIdsNew := #[]
-      let mut ans := []
-      for mvarId in mvarIds do
-        unless (← mvarId.isAssigned) do
-          setGoals [mvarId]
-          let (ans', mvarIdsNew') <- withMainContext do
-            let mut ans := ans
-            let mut mvarIdsNew := mvarIdsNew
-            try
-              let a <- tac
-              ans := a :: ans
-              mvarIdsNew := mvarIdsNew ++ (← getUnsolvedGoals)
-            catch ex =>
-              if (← read).recover then
-                -- logException ex
-                mvarIdsNew := mvarIdsNew.push mvarId
-              else
-                throw ex
-            return (ans, mvarIdsNew)
-          (ans, mvarIdsNew) := (ans', mvarIdsNew')
-      setGoals mvarIdsNew.toList
-      return comb ans
-
 
 /-- Destruct a structure into its fields.
     If no identifier is provided, destructs the goal. -/
@@ -128,19 +73,3 @@ elab "sts_induction" : tactic => withMainContext do
     assert! newHyps.size == 1
     let newHypName := mkIdent newHyps[0]!.userName
     evalTactic $ ← `(tactic| revert $newHypName:ident; intro $hnextName:ident)
-
-/--
-  `exact_state` is usually used after `funcases` ar `funcasesM`. At this point the goal should
-  contain all state fields as hypotheses. This tactic will then construct the
-  state term using the field hypotheses and close the goal.
--/
-elab "exact_state" : tactic => do
-  let stateTp := (<- stsExt.get).typ
-  let .some sn := stateTp.constName?
-    | throwError "{stateTp} is not a constant"
-  let .some _sinfo := getStructureInfo? (<- getEnv) sn
-    | throwError "{stateTp} is not a structure"
-  let fns := _sinfo.fieldNames.map mkIdent
-  -- fileds' names should be the same as ones in the local context
-  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent "State") ..))
-  evalTactic $ ← `(tactic| exact $constr)

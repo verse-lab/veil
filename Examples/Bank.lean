@@ -1,6 +1,6 @@
 import LeanSts.TransitionSystem
 import LeanSts.State
-import LeanSts.Tactics
+import LeanSts.Tactic
 import Mathlib.Tactic
 
 -- TODO: find a better way to model sorts than variables

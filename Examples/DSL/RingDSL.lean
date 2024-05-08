@@ -1,9 +1,9 @@
 import LeanSts.State
 import LeanSts.TransitionSystem
-import LeanSts.Tactics
-import LeanSts.WP
--- import Mathlib.Tactic
+import LeanSts.Tactic
 import LeanSts.DSL
+-- import Mathlib.Tactic
+
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 

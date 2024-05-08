@@ -1,6 +1,6 @@
 import LeanSts.State
 import LeanSts.TransitionSystem
-import LeanSts.Tactics
+import LeanSts.Tactic
 import Mathlib.Tactic
 
 -- From https://github.com/tlaplus/DrTLAPlus/blob/master/Paxos/Paxos.tla

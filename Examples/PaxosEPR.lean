@@ -1,6 +1,6 @@
 import LeanSts.State
 import LeanSts.TransitionSystem
-import LeanSts.Tactics
+import LeanSts.Tactic
 import Mathlib.Tactic
 
 -- Based on: https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_epr.ivy

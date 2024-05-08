@@ -1,7 +1,7 @@
 import Lean
 import Lean.Parser
-import LeanSts.DSLUtil
 import LeanSts.State
+import LeanSts.DSL.Util
 
 open Lean Elab Command Term Meta Lean.Parser
 
