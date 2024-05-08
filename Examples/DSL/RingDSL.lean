@@ -127,8 +127,8 @@ prove_inv_inductive by {
   sts_induction <;> (sdestruct) <;> repeat
   (
     sdestruct st1 st2;
-    simp [sts, actSimp] at hinv htr ⊢;
-    (try dsimp at htr)
+    simp [sts, actSimp] at hinv hnext ⊢;
+    (try dsimp at hnext)
     auto [TotalOrder.le_refl,
       TotalOrder.le_trans,
       TotalOrder.le_antisymm,
@@ -137,7 +137,7 @@ prove_inv_inductive by {
       Between.btw_trans,
       Between.btw_side,
       Between.btw_total,
-      hinv, htr]
+      hinv, hnext]
   )
 }
 

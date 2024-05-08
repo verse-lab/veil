@@ -272,11 +272,11 @@ theorem inv_inductive :
   sorry
   -- (
   --   sdestruct st st';
-  --   simp [sts, Structure.mk.injEq] at hinv htr ⊢;
-  --   try unfold updateFn at htr; try unfold updateFn2 at htr;
-  --   try unfold updateFn3 at htr; try unfold updateFn4 at htr;
+  --   simp [sts, Structure.mk.injEq] at hinv hnext ⊢;
+  --   try unfold updateFn at hnext; try unfold updateFn2 at hnext;
+  --   try unfold updateFn3 at hnext; try unfold updateFn4 at hnext;
   --   auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm,
-  --         TotalOrder.le_total, Quorum.quorum_intersection, hinv, htr]
+  --         TotalOrder.le_total, Quorum.quorum_intersection, hinv, hnext]
   -- )
 
 end PaxosFOL

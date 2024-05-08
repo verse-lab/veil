@@ -1,5 +1,6 @@
 import LeanSts.TransitionSystem
 import LeanSts.State
+import LeanSts.Tactics
 import Mathlib.Tactic
 
 -- TODO: find a better way to model sorts than variables
@@ -12,12 +13,12 @@ structure BankState where
 
 def initialState : BankState account := { balance := λ _ => 0 }
 
-def deposit : RelationalTransitionSystem.action (BankState account) :=
+@[simp] def deposit : RelationalTransitionSystem.action (BankState account) :=
   λ (st st' : BankState account) =>
     ∃ (a : account) (amount : Int),
       amount ≥ 0 ∧ st'.balance = st.balance[a ↦ st.balance a + amount]
 
-def withdraw : RelationalTransitionSystem.action (BankState account) :=
+@[simp] def withdraw : RelationalTransitionSystem.action (BankState account) :=
   λ (st st' : BankState account) =>
     ∃ (a : account) (amount : Int),
       amount ≥ 0 ∧ st.balance a ≥ amount ∧ st'.balance = st.balance[a ↦ st.balance a - amount]
@@ -28,7 +29,7 @@ inductive BankTransition (st st' : BankState account) where
 
 end Bank
 
-def safety (st : BankState Int) : Prop := (∀ acc, st.balance acc ≥ 0)
+@[simp] def safety (st : BankState Int) : Prop := (∀ acc, st.balance acc ≥ 0)
 
 instance BankSystem : RelationalTransitionSystem (BankState Int) where
   init := λ st => st = initialState Int
@@ -73,6 +74,15 @@ theorem bank_safety_inductive :
     { apply safe }
   }
 
--- set_option trace.Meta.synthInstance true
--- example : ∀ n m : Nat, n + m = m + n := by
---   slim_check
+set_option auto.smt true
+set_option auto.smt.trust true
+
+theorem bank_safety_smt :
+  ∀ st st', BankSystem.next st st' → safety st → safety st' := by
+  intro st st' hnext hinv
+  sts_induction <;> repeat'
+  (
+    sdestruct st st';
+    simp [sts, RelationalTransitionSystem.inv] at hinv hnext ⊢
+    auto [hinv, hnext]
+  )

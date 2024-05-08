@@ -257,10 +257,10 @@ theorem inv_inductive :
   -- FIXME: performance is abysmal
   -- (
   --   sdestruct st st';
-  --   simp only [sts] at hinv htr ⊢;
-  --   try unfold updateFn at htr; try unfold updateFn2 at htr;
-  --   try unfold updateFn3 at htr; try unfold updateFn4 at htr;
-  --   -- duper [hinv, htr]
+  --   simp only [sts] at hinv hnext ⊢;
+  --   try unfold updateFn at hnext; try unfold updateFn2 at hnext;
+  --   try unfold updateFn3 at hnext; try unfold updateFn4 at hnext;
+  --   -- duper [hinv, hnext]
   --   auto
   -- )
 
