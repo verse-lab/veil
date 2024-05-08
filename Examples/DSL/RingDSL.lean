@@ -36,37 +36,13 @@ instantiate Between node
 
 open Between TotalOrder
 
-theorem btw_irreflexive : ∀ (n m : node),  ¬ btw m n n := by
-  duper [btw_side] {portfolioInstance := 1}
-
-theorem btw_irreflexive' : ∀ (n m : node), ¬ btw m m n := by
-  duper [btw_ring, btw_side] {portfolioInstance := 1}
-
-theorem btw_arg : ∀ (a b c : node), btw a b c →
-  ¬ a = b ∧ ¬ a = c ∧ ¬ b = c := by
-  duper [btw_ring, btw_trans, btw_side, Between.btw_total] {portfolioInstance := 1}
-
-theorem btw_next :
-  (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z)) →
-  (∀ (z : node), ¬ btw n z next) := by
-  duper [btw_ring, btw_trans, btw_side, Between.btw_total] {portfolioInstance := 1}
-
-theorem btw_opposite
-  (Hn : ∀ (z : node), ¬ btw n z next = true)
-  (h1 : btw sender N next = true)
-  (h2 : btw sender n N = true) :
-  False := by
-  duper [Hn, h1, h2, btw_ring, btw_trans] {portfolioInstance := 1}
-
 open Between TotalOrder
 
 relation leader : node -> Bool
 relation pending : node -> node -> Bool
 
 #gen_state
-
-
-set_option trace.sts true
+-- set_option trace.sts true
 
 after_init {
   leader _ := false;
