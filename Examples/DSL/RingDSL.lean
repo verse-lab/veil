@@ -9,7 +9,6 @@ import LeanSts.DSL
 
 section Ring
 
-
 class TotalOrder (t : Type) :=
   -- relation: total order
   le (x y : t) : Bool
@@ -36,24 +35,15 @@ instantiate Between node
 
 open Between TotalOrder
 
-open Between TotalOrder
-
 relation leader : node -> Bool
 relation pending : node -> node -> Bool
 
 #gen_state
--- set_option trace.sts true
 
 after_init {
   leader _ := false;
   pending _ _ := false
 }
-
--- initial fun rs =>
---   (∀ (n : node), ¬ rs.leader n) ∧
---   (∀ (n1 n2 : node), ¬ rs.pending n1 n2)
-
--- #print initalState?
 
 action send (n next : node) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
@@ -92,8 +82,6 @@ prove_inv_init by {
   rintro ⟨rlf⟩ ⟨rlf⟩
   simp
 }
-
-set_option maxHeartbeats 2000000
 
 set_option auto.smt true
 set_option auto.smt.trust true
