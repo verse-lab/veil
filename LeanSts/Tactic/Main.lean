@@ -96,6 +96,7 @@ elab "solve_clause" : tactic => withMainContext do
     props := props.append (← collectPropertiesFromHyp hyp)
   -- (5) Call `auto` using these propositions
   -- dbg_trace "Props: {props}"
-  let idents := props.map mkIdent
+  -- If given duplicate terms, `auto` complains: "Auto does not accept duplicated input terms"
+  let idents := (props.toList.eraseDups.map mkIdent).toArray
   let auto_tac ← `(tactic| auto [$[$idents:ident],*])
   evalTactic auto_tac

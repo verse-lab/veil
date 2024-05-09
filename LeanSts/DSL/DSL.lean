@@ -304,7 +304,7 @@ elab "prove_inv_init" proof:term : command => do
     let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
     `(theorem $(mkIdent "inv_init") $[$vd]* : invInit (σ := $stateTp) :=
        by unfold invInit
-          simp only [initSimp, invSimp]
+          -- simp only [initSimp, invSimp]
           intros $(mkIdent "st")
           exact $proof)
 
@@ -314,7 +314,7 @@ elab "prove_inv_safe" proof:term : command => do
     let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
     `(theorem $(mkIdent "safety_init") $[$vd]* : invSafe (σ := $stateTp) :=
        by unfold invSafe;
-          simp only [initSimp, safeSimp]
+          -- simp only [initSimp, safeSimp]
           intros $(mkIdent "st");
           exact $proof)
 
@@ -325,7 +325,7 @@ elab "prove_inv_inductive" proof:term : command => do
     `(theorem $(mkIdent "inv_inductive") $[$vd]* : invInductive (σ := $stateTp) :=
       by unfold invInductive;
          intros $(mkIdent "st1") $(mkIdent "st2")
-         simp only [actSimp, invSimp, safeSimp]
+        --  simp only [actSimp, invSimp, safeSimp]
          exact $proof)
 
 attribute [initSimp] RelationalTransitionSystem.init

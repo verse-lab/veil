@@ -71,7 +71,7 @@ invariant pending L L → le N L
 
 prove_inv_init by {
   sdestruct st;
-  simp [actSimp]
+  simp [initSimp, actSimp, invSimp]
   rintro ⟨rlf⟩ ⟨rlf⟩
   simp
 }
@@ -88,21 +88,7 @@ set_option auto.smt.trust true
 
 prove_inv_inductive by {
   intro hnext hinv
-  sts_induction <;> (sdestruct) <;> repeat
-  (
-    sdestruct st1 st2;
-    simp [sts, actSimp] at hinv hnext ⊢;
-    (try dsimp at hnext)
-    auto [TotalOrder.le_refl,
-      TotalOrder.le_trans,
-      TotalOrder.le_antisymm,
-      TotalOrder.le_total,
-      Between.btw_ring,
-      Between.btw_trans,
-      Between.btw_side,
-      Between.btw_total,
-      hinv, hnext]
-  )
+  sts_induction <;> sdestruct <;> solve_clause
 }
 
 end Ring
