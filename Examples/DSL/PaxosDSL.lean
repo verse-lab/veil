@@ -192,22 +192,17 @@ invariant
 
 invariant one_b N R2 ∧ ¬ TotalOrder.le R2 R1 → leftRound N R1
 
--- #check Inv
-
 #gen_spec
-
-
-
-prove_safety_init by {
-  sdestruct st
-  simp [actSimp]
-  duper
-}
 
 prove_inv_init by {
   simp_all [actSimp]
 }
 
+prove_inv_safe by {
+  sdestruct st
+  simp [invSimp]
+  duper
+}
 
 set_option maxHeartbeats 2000000
 

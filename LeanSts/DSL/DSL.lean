@@ -242,7 +242,7 @@ elab "safety" safe:term : command => do
     let stx <- funcasesM safe vs
     elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- my_delab e
-      `(@[safeDef, safeSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := fun $(mkIdent "st") => $e: term)
+      `(@[safeDef, safeSimp, invSimp] def $(mkIdent "Safety") $[$vd]* : $stateTp -> Prop := fun $(mkIdent "st") => $e: term)
 
 /-- Invariant of the transition system.
     All capital variables are implicitly quantified -/
@@ -265,7 +265,7 @@ def assembleInvariant : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let invs <- combineLemmas ``And (<- stsExt.get).invariants vs "invariants"
+    let invs <- combineLemmas ``And ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties) vs "invariants"
     let invs <- PrettyPrinter.delab invs
     `(@[invSimp] def $(mkIdent "Inv") $[$vd]* : $stateTp -> Prop := $invs)
 
@@ -298,16 +298,6 @@ def instantiateSystem : CommandElabM Unit := do
 @[inherit_doc instantiateSystem]
 elab "#gen_spec" : command => instantiateSystem
 
-elab "prove_safety_init" proof:term : command => do
-  let vd := (<- getScope).varDecls
-  elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
-    `(theorem $(mkIdent "safety_init") $[$vd]* : safetyInit (σ := $stateTp) :=
-       by unfold safetyInit;
-          simp only [initSimp, safeSimp]
-          intros $(mkIdent "st");
-          exact $proof)
-
 elab "prove_inv_init" proof:term : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
@@ -316,6 +306,16 @@ elab "prove_inv_init" proof:term : command => do
        by unfold invInit
           simp only [initSimp, invSimp]
           intros $(mkIdent "st")
+          exact $proof)
+
+elab "prove_inv_safe" proof:term : command => do
+  let vd := (<- getScope).varDecls
+  elabCommand $ <- Command.runTermElabM fun vs => do
+    let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
+    `(theorem $(mkIdent "safety_init") $[$vd]* : invSafe (σ := $stateTp) :=
+       by unfold invSafe;
+          simp only [initSimp, safeSimp]
+          intros $(mkIdent "st");
           exact $proof)
 
 elab "prove_inv_inductive" proof:term : command => do

@@ -69,18 +69,18 @@ invariant pending L L → le N L
 
 #gen_spec
 
-prove_safety_init by {
-  sdestruct st;
-  simp [actSimp]
-  rintro ⟨rlf⟩
-  simp
-}
-
 prove_inv_init by {
   sdestruct st;
   simp [actSimp]
   rintro ⟨rlf⟩ ⟨rlf⟩
   simp
+}
+
+prove_inv_safe by {
+  sdestruct st;
+  simp [invSimp]
+  rintro S _ _
+  assumption
 }
 
 set_option auto.smt true

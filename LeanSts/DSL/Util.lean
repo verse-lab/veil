@@ -31,8 +31,8 @@ structure StsState where
   init       : Expr
   /-- list of transitions -/
   actions    : List Expr
-  /-- safety property -/
-  safety     : Expr
+  /-- safety properties -/
+  safeties     : List Expr
   /-- list of invariants -/
   invariants : List Expr
   deriving Inhabited
@@ -84,11 +84,7 @@ initialize registerBuiltinAttribute {
   name := `safe
   descr := "Marks as a safety property"
   add := fun declName _ _ => do
-    -- Check if the initial state has already been declared
-    let safety := (<- stsExt.get).safety
-    unless safety == default do
-      throwError "Safety predicate has already been declared"
-    stsExt.modify ({ · with safety := mkConst declName })
+    stsExt.modify (fun s => { s with safeties := mkConst declName :: s.safeties})
 }
 
 
