@@ -14,7 +14,8 @@ class TransitionSystem
   (state_pred : (f : σ → Prop) → pred)
   (action_pred :  (a : action) → pred)
 
-
+-- NOTE: if you change this, make sure you also change
+-- `findStateType` in `Tactic/Util.lean`
 class RelationalTransitionSystem (σ : Type) extends
   TransitionSystem σ
   (RelationalTransitionSystem.action σ)

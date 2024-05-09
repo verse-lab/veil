@@ -6,11 +6,6 @@ import LeanSts.TransitionSystem
 import Auto
 import Duper
 
--- Register our own version of @[simp], i.e. @[sts]
--- We add this to (hopefully) improve the performance of `simp`
--- by not looking through all the mathlib lemmas.
-register_simp_attr sts
-
 open Lean Lean.Elab.Tactic
 
 /-- Destruct a structure into its fields.
@@ -73,3 +68,34 @@ elab "sts_induction" : tactic => withMainContext do
     assert! newHyps.size == 1
     let newHypName := mkIdent newHyps[0]!.userName
     evalTactic $ ← `(tactic| revert $newHypName:ident; intro $hnextName:ident)
+
+/-- Solves a single-clause goal of the form `inv ∧ transition → inv_clause`. -/
+elab "solve_clause" : tactic => withMainContext do
+  -- (1) Identify the type of the state
+  let stateType ← findStateType (← getLCtx)
+  let stateName := stateType.getAppFn.constName
+  -- dbg_trace "State is structure with name: {stateName}"
+  -- (2) Destruct all the state hypotheses into components
+  for hyp in (← getLCtx) do
+    if hyp.type == stateType then
+      let name := mkIdent hyp.userName
+      evalTactic $ ← `(tactic| sdestruct $name:ident)
+  -- (3) Simplify all invariants and transitions, as well as
+  -- destruct structures into their components everywhere
+  withMainContext do
+  let injEqLemma := (mkIdent $ stateName ++ `mk ++ `injEq)
+  -- dbg_trace "Using injEqLemma: {injEqLemma}"
+  evalTactic $ ← `(tactic| simp only [actSimp, invSimp, $injEqLemma:ident] at *)
+  -- (4) Identify:
+  --   (a) all propositions in the context
+  --   (b) all propositions within typeclasses in the context
+  let mut props := #[]
+  for hyp in (← getLCtx) do
+    if hyp.isImplementationDetail then
+      continue
+    props := props.append (← collectPropertiesFromHyp hyp)
+  -- (5) Call `auto` using these propositions
+  -- dbg_trace "Props: {props}"
+  let idents := props.map mkIdent
+  let auto_tac ← `(tactic| auto [$[$idents:ident],*])
+  evalTactic auto_tac
