@@ -83,6 +83,6 @@ theorem bank_safety_smt :
   sts_induction <;> repeat'
   (
     sdestruct st st';
-    simp [sts, RelationalTransitionSystem.inv] at hinv hnext ⊢
+    simp [RelationalTransitionSystem.inv] at hinv hnext ⊢
     auto [hinv, hnext]
   )
