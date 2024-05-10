@@ -1,6 +1,7 @@
 import LeanSts.State
 import LeanSts.TransitionSystem
 import LeanSts.Tactic
+import LeanSts.DSL
 import Mathlib.Tactic
 
 -- Based on: https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_epr.ivy
@@ -45,12 +46,12 @@ structure Structure :=
   one_b_max_vote (n : node) (r : round) (max_round : round) (max_val : value) : Bool
 
   -- (ghost) relation one_b(N:node, R:round) # := exists RMAX, V. one_b_max_vote(N,R,RMAX,V)
-  -- @[sts] def one_b (st : @Structure node value round) (n : node) (r : round) : Prop :=
+  -- def one_b (st : @Structure node value round) (n : node) (r : round) : Prop :=
   --   ∃ (rmax : round) (v : value), st.one_b_max_vote n r rmax v
   one_b (n : node) (r : round) : Bool
 
   -- (ghost) relation left_rnd(N:node, R:round) # := exists R2, RMAX, V. ~le(R2,R) & one_b_max_vote(N,R,RMAX,V)
-  -- @[sts] def leftRound (st : @Structure node value round) (n : node) (r : round) : Prop :=
+  -- def leftRound (st : @Structure node value round) (n : node) (r : round) : Prop :=
   -- ∃ (r2 : round) (rmax : round) (v : value),
   --   ¬ TotalOrder.le r2 r ∧ st.one_b_max_vote n r rmax v
   leftRound (n : node) (r : round) : Bool
@@ -71,14 +72,14 @@ structure Structure :=
   decision (n : node) (r : round) (v : value) : Bool
 
 /-- Find the maximal vote in a round less than `r` made by node `n` -/
-@[sts] def maximalVote (st : @Structure node value round) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
+@[actSimp] def maximalVote (st : @Structure node value round) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
   (maxr = TotalOrder.none ∧
     (∀ (MAXR : round) (V : value), ¬ (¬ TotalOrder.le r MAXR ∧ st.vote n MAXR V))) ∨
   (maxr ≠ TotalOrder.none ∧ ¬ TotalOrder.le r maxr ∧ st.vote n maxr maxv ∧
     (∀ (MAXR : round) (V : value), (¬ TotalOrder.le r MAXR ∧ st.vote n MAXR V) → TotalOrder.le MAXR maxr))
 
 /-- Quorum `q` shows `(r, v)` is safe. -/
-@[sts] def showsSafeAt (st : @Structure node value round) (q : quorum) (r : round) (v : value): Prop :=
+@[actSimp] def showsSafeAt (st : @Structure node value round) (q : quorum) (r : round) (v : value): Prop :=
   -- a majority of acceptors have joined round `r` (L85 in `paxos_fol.ivy`)
   (∀ (N : node), Quorum.member N q → st.one_b N r) ∧
   (∃ (maxr : round),
@@ -92,13 +93,13 @@ structure Structure :=
         (Quorum.member N q ∧ st.one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrder.none) → TotalOrder.le MAXR maxr)
   )))
 
-@[sts] def isSafeAt (st : @Structure node value round) (r : round) (v : value) : Prop :=
+@[actSimp] def isSafeAt (st : @Structure node value round) (r : round) (v : value) : Prop :=
   ∃ (q : quorum), showsSafeAt st q r v
 
-@[sts] def chosenAt (st : @Structure node value round) (r : round) (v : value) : Prop :=
+@[actSimp] def chosenAt (st : @Structure node value round) (r : round) (v : value) : Prop :=
   ∃ (q : quorum), ∀ (n : node), Quorum.member n q → st.vote n r v
 
-@[sts] def initialState? (st : @Structure node value round) : Prop :=
+@[actSimp] def initialState? (st : @Structure node value round) : Prop :=
   (∀ (r : round), ¬ st.one_a r) ∧
   (∀ (n : node) (r1 r2 : round) (v : value), ¬ st.one_b_max_vote n r1 r2 v) ∧
   (∀ (n : node) (r : round), ¬ st.one_b n r) ∧
@@ -108,7 +109,7 @@ structure Structure :=
   (∀ (n : node) (r : round) (v : value), ¬ st.decision n r v)
 
 -- a proposer selects a round and sends a message asking nodes to join the round
-@[sts] def phase_1a : RelationalTransitionSystem.action (@Structure node value round) :=
+@[actSimp] def phase_1a : RelationalTransitionSystem.action (@Structure node value round) :=
   λ (st st' : @Structure node value round) =>
     ∃ (r : round),
       -- preconditions
@@ -117,7 +118,7 @@ structure Structure :=
       st' = { st with one_a := st.one_a[r ↦ true] }
 
 -- "join round" = receive 1a and answer with 1b
-@[sts] def phase_1b : RelationalTransitionSystem.action (@Structure node value round) :=
+@[actSimp] def phase_1b : RelationalTransitionSystem.action (@Structure node value round) :=
   λ (st st' : @Structure node value round) =>
     ∃ (n : node) (r : round) (max_round : round) (max_val : value),
       -- preconditions
@@ -135,7 +136,7 @@ structure Structure :=
        }
 
 -- "propose" = receive a quorum of 1b's and send a 2a (proposal)
-@[sts] def phase_2a : RelationalTransitionSystem.action (@Structure node value round) :=
+@[actSimp] def phase_2a : RelationalTransitionSystem.action (@Structure node value round) :=
   λ (st st' : @Structure node value round) =>
     ∃ (r : round) (v : value),
       -- preconditions
@@ -146,7 +147,7 @@ structure Structure :=
       st' = { st with proposal := st.proposal[r, v ↦ true] }
 
 -- -- "cast vote" = receive a 2a and send 2b
-@[sts] def phase_2b : RelationalTransitionSystem.action (@Structure node value round) :=
+@[actSimp] def phase_2b : RelationalTransitionSystem.action (@Structure node value round) :=
   λ (st st' : @Structure node value round) =>
     ∃ (n : node) (r : round) (v : value),
       -- preconditions
@@ -157,7 +158,7 @@ structure Structure :=
       st' = { st with vote := st.vote[n, r, v ↦ true] }
 
 -- "decide" = receive a quorum of 2b's
-@[sts] def decision : RelationalTransitionSystem.action (@Structure node value round) :=
+@[actSimp] def decision : RelationalTransitionSystem.action (@Structure node value round) :=
   λ (st st' : @Structure node value round) =>
     ∃ (n : node) (r : round) (v : value),
       -- preconditions
@@ -166,51 +167,52 @@ structure Structure :=
       -- update
       st' = { st with decision := st.decision[n, r, v ↦ true] }
 
-@[sts] def safety (st : @Structure node value round) : Prop :=
+@[safeSimp, invSimp] def unique_decision (st : @Structure node value round) : Prop :=
   ∀ (n1 n2 : node) (r1 r2 : round) (v1 v2 : value),
     (st.decision n1 r1 v1 ∧ st.decision n2 r2 v2) → r1 = r2 ∧ v1 = v2
 
-def safety_init :
+def unique_decision_init :
   ∀ (st : @Structure node value round),
-    initialState? st → safety st := by
+    initialState? st → unique_decision st := by
   intro st
-  simp only [RelationalTransitionSystem.init, safety, initialState?]
+  simp only [RelationalTransitionSystem.init, unique_decision, initialState?]
   duper
 
-@[sts] def inv_propose_unique (st : @Structure node value round) : Prop :=
+@[invSimp] def inv_propose_unique (st : @Structure node value round) : Prop :=
   ∀ (r : round) (v1 v2 : value), st.proposal r v1 ∧ st.proposal r v2 → v1 = v2
 
-@[sts] def inv_vote_proposed (st : @Structure node value round) : Prop :=
+@[invSimp] def inv_vote_proposed (st : @Structure node value round) : Prop :=
   ∀ (n : node) (r : round) (v : value), st.vote n r v → st.proposal r v
 
-@[sts] def inv_decision_quorum_vote (st : @Structure node value round) : Prop :=
+@[invSimp] def inv_decision_quorum_vote (st : @Structure node value round) : Prop :=
   ∀ (r : round) (v : value),
     (∃ (n : node), st.decision n r v) →
     (∃ (q : quorum), ∀ (n : node), Quorum.member n q → st.vote n r v)
 
 -- Properties of `one_b_max_vote`
-@[sts] def inv_one_b_max_vote1 (st : @Structure node value round) : Prop :=
-  ∀ (n : node) (r1 r2 : round) (v1 v2 : value),
-    (st.one_b_max_vote n r1 TotalOrder.none v1 ∧ ¬ TotalOrder.le r2 r1) → ¬ st.vote n r1 v2
+-- These are commented out in the Ivy file BECAUSE THEY DO NOT HOLD!
+-- @[invSimp] def inv_one_b_max_vote1 (st : @Structure node value round) : Prop :=
+--   ∀ (n : node) (r1 r2 : round) (v1 v2 : value),
+--     (st.one_b_max_vote n r1 TotalOrder.none v1 ∧ ¬ TotalOrder.le r2 r1) → ¬ st.vote n r1 v2
 
-@[sts] def inv_one_b_max_vote2 (st : @Structure node value round) : Prop :=
-  ∀ (n : node) (r rmax : round) (v : value),
-    (st.one_b_max_vote n r rmax v ∧ rmax ≠ TotalOrder.none) →
-    (¬ TotalOrder.le r rmax ∧ st.vote n rmax v)
+-- @[invSimp] def inv_one_b_max_vote2 (st : @Structure node value round) : Prop :=
+--   ∀ (n : node) (r rmax : round) (v : value),
+--     (st.one_b_max_vote n r rmax v ∧ rmax ≠ TotalOrder.none) →
+--     (¬ TotalOrder.le r rmax ∧ st.vote n rmax v)
 
-@[sts] def inv_one_b_max_vote3 (st : @Structure node value round) : Prop :=
-  ∀ (n : node) (r rmax rother : round) (v vother : value),
-    (st.one_b_max_vote n r rmax v ∧ rmax ≠ TotalOrder.none ∧
-       ¬ TotalOrder.le r rother ∧ ¬ TotalOrder.le rother rmax) →
-    ¬ st.vote n rother vother
+-- @[invSimp] def inv_one_b_max_vote3 (st : @Structure node value round) : Prop :=
+--   ∀ (n : node) (r rmax rother : round) (v vother : value),
+--     (st.one_b_max_vote n r rmax v ∧ rmax ≠ TotalOrder.none ∧
+--        ¬ TotalOrder.le r rother ∧ ¬ TotalOrder.le rother rmax) →
+--     ¬ st.vote n rother vother
 
 -- Properties of `none`
 
-@[sts] def inv_no_vote_at_none (st : @Structure node value round) : Prop :=
+@[invSimp] def inv_no_vote_at_none (st : @Structure node value round) : Prop :=
   ∀ (n : node) (v : value), ¬ st.vote n TotalOrder.none v
 
 -- Properties of choosable and proposal
-@[sts] def inv_choose_propose (st : @Structure node value round) : Prop :=
+@[invSimp] def inv_choose_propose (st : @Structure node value round) : Prop :=
   ∀ (r1 r2 : round) (v1 v2 : value) (q : quorum),
     (¬ TotalOrder.le r2 r1 ∧ st.proposal r2 v2  ∧ v1 ≠ v2) →
     (∃ (n : node) (r3 rmax : round) (v : value),
@@ -222,18 +224,15 @@ def safety_init :
 -- #conjecture one_b_max_vote(N,R,RMAX,V) -> one_b(N,R)
 -- conjecture one_b(N,R2) & ~le(R2,R1) -> left_rnd(N,R1)
 
-@[sts] def one_b_left_round (st : @Structure node value round) : Prop :=
+@[invSimp] def one_b_left_round (st : @Structure node value round) : Prop :=
   ∀ (n : node) (r1 r2 : round),
     st.one_b n r2 ∧ ¬ TotalOrder.le r2 r1 → st.leftRound n r1
 
-@[sts] def inv' (st : @Structure node value round) : Prop :=
-  safety st ∧
+@[invSimp] def inv' (st : @Structure node value round) : Prop :=
+  unique_decision st ∧
   inv_propose_unique st ∧
   inv_vote_proposed st ∧
   inv_decision_quorum_vote st ∧
-  inv_one_b_max_vote1 st ∧
-  inv_one_b_max_vote2 st ∧
-  inv_one_b_max_vote3 st ∧
   inv_no_vote_at_none st ∧
   inv_choose_propose st ∧
   one_b_left_round st
@@ -248,11 +247,15 @@ instance System : RelationalTransitionSystem (@Structure node value round)
     phase_2a st st' ∨
     phase_2b st st' ∨
     decision st st'
-  safe := safety
+  safe := unique_decision
   inv := inv'
 
 def inv_init :
-  ∀ (st : @Structure node value round), initialState? st → inv' st := by simp_all [sts]
+  ∀ (st : @Structure node value round), initialState? st → inv' st := by
+    simp_all only [invSimp, actSimp,
+    Bool.not_eq_true, and_self, IsEmpty.forall_iff, implies_true, exists_false,
+    imp_false, false_and, not_false_eq_true, ne_eq, and_false, and_true,
+    exists_and_left, exists_and_right, and_imp]
 
 set_option maxHeartbeats 2000000
 
@@ -268,7 +271,7 @@ set_option trace.auto.smt.result true
 theorem inv_inductive :
   ∀ (st st' : @Structure node value round), System.next st st' → inv' st → inv' st' := by
   intro st st' hnext hinv
-  sts_induction <;> (dsimp only [inv']; sdestruct) <;> repeat
+  sts_induction <;> sdestruct <;> repeat
   sorry
   -- (
   --   sdestruct st st';
@@ -278,5 +281,14 @@ theorem inv_inductive :
   --   auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm,
   --         TotalOrder.le_total, Quorum.quorum_intersection, hinv, hnext]
   -- )
+
+theorem inv_automated :
+  @invInductive (@Structure node value round) System := by
+  intro st st' hnext hinv
+  sts_induction <;> sdestruct <;> try solve_clause
+  { sorry }
+  { sorry }
+  { sorry }
+  { sorry }
 
 end PaxosFOL
