@@ -266,29 +266,36 @@ set_option trace.auto.smt.result true
 -- set_option trace.auto.smt.stderr true
 -- set_option trace.auto.smt.unsatCore true
 
--- FIXME: the Lean Infoview has massive performance problems
--- when we do the destruction here; it simply becomes unusable
-theorem inv_inductive :
-  ∀ (st st' : @Structure node value round), System.next st st' → inv' st → inv' st' := by
-  intro st st' hnext hinv
-  sts_induction <;> sdestruct <;> repeat
-  sorry
-  -- (
-  --   sdestruct st st';
-  --   simp [sts, Structure.mk.injEq] at hinv hnext ⊢;
-  --   try unfold updateFn at hnext; try unfold updateFn2 at hnext;
-  --   try unfold updateFn3 at hnext; try unfold updateFn4 at hnext;
-  --   auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm,
-  --         TotalOrder.le_total, Quorum.quorum_intersection, hinv, hnext]
-  -- )
+-- theorem inv_automated :
+--   @invInductive (@Structure node value round) System := by
+--   intro st st' hnext hinv
+--   sts_induction <;> sdestruct <;> try solve_clause
+--   { sorry }
+--   { sorry }
+--   { sorry }
+--   { sorry }
 
-theorem inv_automated :
-  @invInductive (@Structure node value round) System := by
-  intro st st' hnext hinv
-  sts_induction <;> sdestruct <;> try solve_clause
-  { sorry }
-  { sorry }
-  { sorry }
-  { sorry }
+-- The first `sorry`'ed goal from above
+theorem extracted_1 (st st' : @Structure node value round)
+  (hinv : RelationalTransitionSystem.inv st) (hnext : phase_1b st st') :
+  inv_choose_propose st' := by
+  -- sdestruct st;
+  -- sdestruct st';
+  -- simp only [actSimp, invSimp, Structure.mk.injEq] at *
+  -- auto[Quorum.quorum_intersection, TotalOrder.le_refl, TotalOrder.le_total, TotalOrder.le_antisymm,
+      --  TotalOrder.le_trans, hinv, hnext]
+  sorry
+
+theorem extracted_2 (st st' : @Structure node value round)
+  (hinv : RelationalTransitionSystem.inv st) (hnext : phase_2a st st') :
+  inv_choose_propose st' := sorry
+
+theorem extracted_3 (st st' : @Structure node value round)
+  (hinv : RelationalTransitionSystem.inv st) (hnext : phase_2b st st') :
+  inv_choose_propose st' := sorry
+
+theorem extracted_4 (st st' : @Structure node value round)
+  (hinv : RelationalTransitionSystem.inv st) (hnext : decision st st') :
+  unique_decision st' := sorry
 
 end PaxosFOL
