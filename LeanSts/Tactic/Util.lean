@@ -3,6 +3,8 @@ import Std.Lean.Meta.UnusedNames
 
 open Lean Lean.Elab.Tactic
 
+initialize registerTraceClass `sauto
+
 -- Creates a fresh variable with the suggested name.
 def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.Ident := do
   let name ← Meta.getUnusedUserName suggestion

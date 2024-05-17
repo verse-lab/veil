@@ -6,7 +6,7 @@ import LeanSts.TransitionSystem
 import Auto
 import Duper
 
-open Lean Lean.Elab.Tactic
+open Lean Lean.Elab.Tactic Meta.Tactic
 
 /-- Destruct a structure into its fields.
     If no identifier is provided, destructs the goal. -/
@@ -71,6 +71,8 @@ elab "sts_induction" : tactic => withMainContext do
 
 /-- Solves a single-clause goal of the form `inv ∧ transition → inv_clause`. -/
 elab "solve_clause" : tactic => withMainContext do
+  -- (*) Collect tactics to generate suggestion
+  let mut xtacs := #[]
   -- (1) Identify the type of the state
   let stateType ← findStateType (← getLCtx)
   let stateName := stateType.getAppFn.constName
@@ -79,13 +81,17 @@ elab "solve_clause" : tactic => withMainContext do
   for hyp in (← getLCtx) do
     if hyp.type == stateType then
       let name := mkIdent hyp.userName
-      evalTactic $ ← `(tactic| sdestruct $name:ident)
+      let dtac ← `(tactic| sdestruct $name:ident)
+      xtacs := xtacs.push dtac
+      evalTactic dtac
   -- (3) Simplify all invariants and transitions, as well as
   -- destruct structures into their components everywhere
-  withMainContext do
   let injEqLemma := (mkIdent $ stateName ++ `mk ++ `injEq)
   -- dbg_trace "Using injEqLemma: {injEqLemma}"
-  evalTactic $ ← `(tactic| simp only [actSimp, invSimp, $injEqLemma:ident] at *)
+  let simpTac ← `(tactic| simp only [actSimp, invSimp, $injEqLemma:ident] at *)
+  xtacs := xtacs.push simpTac
+  withMainContext do
+  evalTactic simpTac
   -- (4) Identify:
   --   (a) all propositions in the context
   --   (b) all propositions within typeclasses in the context
@@ -99,4 +105,6 @@ elab "solve_clause" : tactic => withMainContext do
   -- If given duplicate terms, `auto` complains: "Auto does not accept duplicated input terms"
   let idents := (props.toList.eraseDups.map mkIdent).toArray
   let auto_tac ← `(tactic| auto [$[$idents:ident],*])
+  let executed_tactics := (xtacs ++ #[auto_tac])
+  trace[sauto] "{executed_tactics}"
   evalTactic auto_tac
