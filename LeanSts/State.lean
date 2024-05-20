@@ -1,8 +1,5 @@
 import Lean
 
-@[simp] abbrev updateFn [DecidableEq α] (f : α → β) (a : α) (b : β) : α → β :=
-  λ (x : α) => if x = a then b else f x
-
 declare_syntax_cat tupl
 syntax term "[" (term),* " ↦ " term "]" : term
 syntax (term:max)* : tupl

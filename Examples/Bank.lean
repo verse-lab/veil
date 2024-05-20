@@ -59,7 +59,7 @@ theorem bank_safety_inductive :
     simp only [deposit] at tr
     rcases tr with ⟨acc, amount, pre, post⟩
     intro acc'
-    simp only [post, updateFn, ge_iff_le]
+    simp only [post, ge_iff_le]
     split_ifs with eq
     { specialize safe acc; linarith }
     { apply safe }
@@ -68,7 +68,7 @@ theorem bank_safety_inductive :
     simp only [withdraw] at tr
     rcases tr with ⟨acc, amount, ⟨pre1, pre2, post⟩⟩
     intro acc'
-    simp only [post, updateFn, ge_iff_le]
+    simp only [post, ge_iff_le]
     split_ifs with eq
     { specialize safe acc; linarith }
     { apply safe }

@@ -159,7 +159,6 @@ theorem inv_inductive_smt :
   (
     sdestruct st st';
     simp [RelationalTransitionSystem.inv] at hinv hnext ⊢;
-    (try unfold updateFn at hnext) ;
     auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm, TotalOrder.le_total,
       Between.btw_ring, Between.btw_trans, Between.btw_side, Between.btw_total, hinv, hnext]
   )

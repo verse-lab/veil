@@ -258,8 +258,6 @@ theorem inv_inductive :
   -- (
   --   sdestruct st st';
   --   simp only [simp] at hinv hnext ⊢;
-  --   try unfold updateFn at hnext; try unfold updateFn2 at hnext;
-  --   try unfold updateFn3 at hnext; try unfold updateFn4 at hnext;
   --   -- duper [hinv, hnext]
   --   auto
   -- )
