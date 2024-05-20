@@ -67,7 +67,7 @@
   {"url": "https://github.com/leanprover-community/lean-auto.git",
    "type": "git",
    "subDir": null,
-   "rev": "b0ac73e6f7083c3fa1b1a647f946f5cfc6d61cbf",
+   "rev": "515947955fc5bb94749755a37ebbd266410ab9c0",
    "name": "auto",
    "manifestFile": "lake-manifest.json",
    "inputRev": "main",
