@@ -3,11 +3,16 @@ import Lean
 declare_syntax_cat tupl
 syntax term "[" (term),* " ↦ " term "]" : term
 syntax (term:max)* : tupl
-syntax "[tupl|" tupl "]" : term
+syntax (name := tupl) "[tupl|" tupl "]" : term
 
-macro_rules
-  | `(term| [tupl|  $arg: term $args: term *]) => `(($arg, [tupl| $args: term *] ))
-  | `(term| [tupl| ]) => `(())
+open Lean Elab Term
+@[term_elab tupl]
+def tuplElab : TermElab := fun stx type? => do
+  match stx with
+  | `(term| [tupl| $arg: term $args: term *]) =>
+    let newStx ← if args.size == 0 then `($arg) else `(($arg, [tupl| $args: term *]))
+    elabTerm newStx type?
+  | _ => throwUnsupportedSyntax
 
 def isCapital (i : Lean.Syntax) : Bool :=
   i.getId.isStr && i.getId.toString.all (fun c => c.isUpper || c.isDigit)
