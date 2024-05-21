@@ -1,4 +1,5 @@
 import Lean
+import Std.Lean.Meta.UnusedNames
 
 declare_syntax_cat tupl
 syntax term "[" (term),* " ↦ " term "]" : term
@@ -46,3 +47,22 @@ simproc ↓ funextStateUpdate (_ = (fun $[$x:ident]* => if $t2 = $t1 then $b els
     let qexpr := forallE bn bt (← mkEq LHS RHS) bi
     return .visit { expr := qexpr }
   | _ => return .continue
+
+open Lean Expr Lean.Meta in
+/-- This procedure applies functional extensionality to all equalities
+    between functions. -/
+simproc ↓ funextEq (_ = _) :=
+  fun e => do
+  let_expr Eq _ lhs rhs := e | return .continue
+  let (lhsT, rhsT) := (← inferType lhs, ← inferType rhs)
+  if lhsT.isArrow && rhsT.isArrow then
+    -- NOTE: this cannot be `anonymous` because it is used in the SMT-LIB
+    -- translation, which gets confused in the presence of multiple anonymous
+    -- binders. TODO: generate a more informative name.
+    let bn ← getUnusedUserName `a
+    let bt := lhsT.bindingDomain!
+    let lhs := app lhs (bvar 0)
+    let rhs := app rhs (bvar 0)
+    let qexpr := forallE bn bt (← mkEq lhs rhs) BinderInfo.default
+    return .visit { expr := qexpr }
+  return .continue
