@@ -32,25 +32,9 @@ macro_rules
     -- dbg_trace toString stx
     return stx
 
-open Lean Expr Lean.Meta in
-/-- This procedure applies functional extensionality to state updates.
-    This is needed for translation to SMT-LIB via `lean-smt`, since
-    lambdas are not supported in the SMT-LIB language.
--/
-simproc ↓ funextStateUpdate (_ = (fun $[$x:ident]* => if $t2 = $t1 then $b else $f:term $x *)) :=
-  fun e => do
-  let_expr Eq _ old upd := e | return .continue
-  match upd with -- FIXME: not sure why `let_expr` doesn't work again
-  | .lam bn bt _ bi =>
-    let LHS := app old (bvar 0)
-    let RHS := app upd (bvar 0)
-    let qexpr := forallE bn bt (← mkEq LHS RHS) bi
-    return .visit { expr := qexpr }
-  | _ => return .continue
+open Lean Expr Lean.Meta
 
-open Lean Expr Lean.Meta in
-/-- This procedure applies functional extensionality to all equalities
-    between functions. -/
+/-- Applies functional extensionality to all equalities between functions. -/
 simproc ↓ funextEq (_ = _) :=
   fun e => do
   let_expr Eq _ lhs rhs := e | return .continue
@@ -64,5 +48,18 @@ simproc ↓ funextEq (_ = _) :=
     let lhs := app lhs (bvar 0)
     let rhs := app rhs (bvar 0)
     let qexpr := forallE bn bt (← mkEq lhs rhs) BinderInfo.default
+    return .visit { expr := qexpr }
+  return .continue
+
+/-- Replaces equality comparison between tuples with conjunction.
+  For instance, `(a, b) = (c, d)` is replaced with `a = c ∧ b = d`. -/
+simproc ↓ tupleEq (_ = _) :=
+  fun e => do
+  let_expr Eq _ lhs rhs := e | return .continue
+  if lhs.isAppOfArity `Prod.mk 4 && rhs.isAppOfArity `Prod.mk 4 then
+    -- first two arguments (indices 0 and 1) are types
+    let (lhs₁, lhs₂) := (lhs.getArg! 2, lhs.getArg! 3)
+    let (rhs₁, rhs₂) := (rhs.getArg! 2, rhs.getArg! 3)
+    let qexpr := mkAnd (← mkEq lhs₁ rhs₁) (← mkEq lhs₂ rhs₂)
     return .visit { expr := qexpr }
   return .continue
