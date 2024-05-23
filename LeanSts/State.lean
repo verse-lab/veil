@@ -32,50 +32,16 @@ macro_rules
     -- dbg_trace toString stx
     return stx
 
-open Lean Expr Lean.Meta
-
-theorem funextEq_correct {α β : Type} (f g : α → β) :
+theorem funextEq {α β : Type} (f g : α → β) :
   (f = g) = ∀ x, f x = g x := by
   apply propext
   constructor
   { intro h ; simp only [h, implies_true] }
   { intro h ; apply funext h }
 
-/-- Applies functional extensionality to all equalities between functions. -/
-simproc ↓ funextEq (_ = _) :=
-  fun e => do
-  let_expr Eq _ lhs rhs := e | return .continue
-  let (lhsT, rhsT) := (← inferType lhs, ← inferType rhs)
-  if lhsT.isArrow && rhsT.isArrow then
-    -- NOTE: this cannot be `anonymous` because it is used in the SMT-LIB
-    -- translation, which gets confused in the presence of multiple anonymous
-    -- binders. TODO: generate a more informative name.
-    let bn ← getUnusedUserName `a
-    let bt := lhsT.bindingDomain!
-    let nlhs := app lhs (bvar 0)
-    let nrhs := app rhs (bvar 0)
-    let qexpr := forallE bn bt (← mkEq nlhs nrhs) BinderInfo.default
-    let proof ← mkAppM ``funextEq_correct #[lhs, rhs]
-    return .visit { expr := qexpr, proof? := proof }
-  return .continue
-
-theorem tupleEq_correct [DecidableEq t1] [DecidableEq t2] (a c : t1) (b d : t2):
+theorem tupleEq [DecidableEq t1] [DecidableEq t2] (a c : t1) (b d : t2):
   ((a, b) = (c, d)) = (a = c ∧ b = d) := by
   apply propext
   constructor
   { intro h ; injection h ; constructor <;> assumption }
   { rintro ⟨h1, h2⟩ ; rw [h1, h2] }
-
-/-- Replaces equality comparison between tuples with conjunction.
-  For instance, `(a, b) = (c, d)` is replaced with `a = c ∧ b = d`. -/
-simproc ↓ tupleEq (_ = _) :=
-  fun e => do
-  let_expr Eq _ lhs rhs := e | return .continue
-  if lhs.isAppOfArity `Prod.mk 4 && rhs.isAppOfArity `Prod.mk 4 then
-    -- first two arguments (indices 0 and 1) are types
-    let (lhs₁, lhs₂) := (lhs.getArg! 2, lhs.getArg! 3)
-    let (rhs₁, rhs₂) := (rhs.getArg! 2, rhs.getArg! 3)
-    let qexpr := mkAnd (← mkEq lhs₁ rhs₁) (← mkEq lhs₂ rhs₂)
-    let proof ← mkAppM ``tupleEq_correct #[lhs₁, rhs₁, lhs₂, rhs₂]
-    return .visit { expr := qexpr, proof? := proof }
-  return .continue
