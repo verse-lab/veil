@@ -69,12 +69,7 @@ invariant pending L L → le N L
 
 #gen_spec
 
-prove_inv_init by {
-  sdestruct st;
-  simp [initSimp, actSimp, invSimp]
-  rintro ⟨rlf⟩ ⟨rlf⟩
-  simp
-}
+prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
 
 prove_inv_safe by {
   sdestruct st;

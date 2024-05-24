@@ -194,31 +194,20 @@ invariant one_b N R2 ∧ ¬ TotalOrder.le R2 R1 → leftRound N R1
 
 #gen_spec
 
-prove_inv_init by {
-  simp_all [initSimp, invSimp, actSimp]
-}
-
-prove_inv_safe by {
-  sdestruct st
-  simp [invSimp, safeSimp]
-  duper
-}
-
-set_option maxHeartbeats 2000000
+prove_inv_init by { simp_all [initSimp, invSimp, actSimp] }
+prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] ;duper }
 
 set_option auto.smt true
 set_option auto.smt.trust true
--- set_option trace.auto.smt.printCommands true
-set_option trace.auto.smt.result true
--- set_option trace.auto.smt.stderr true
--- set_option trace.auto.smt.unsatCore true
+set_option maxHeartbeats 2000000
 
--- FIXME: the Lean Infoview has massive performance problems
--- when we do the destruction here; it simply becomes unusable
 prove_inv_inductive by {
   intro hnext hinv
-  sts_induction <;> (sdestruct) <;> repeat
-  sorry
+  sts_induction <;> sdestruct <;> sorry --try solve_clause
+  -- { sorry }
+  -- { sorry }
+  -- { sorry }
+  -- { sorry }
 }
 
 end PaxosFOL
