@@ -7,7 +7,7 @@ import Std.Lean.Meta.UnusedNames
 open Lean Meta Elab Lean.Parser
 -- open Lean Elab Command Term Meta Tactic
 
-initialize registerTraceClass `sts.init
+initialize registerTraceClass `sts
 
 def _root_.Lean.EnvExtension.set [Inhabited σ] (ext : EnvExtension σ) (s : σ) : AttrM Unit := do
   Lean.setEnv $ ext.setState (<- getEnv) s
@@ -110,5 +110,3 @@ macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exa
 /-- This is used wherener we want to define a predicate over a state
     which should not depend on the state (for instance in `after_init`). -/
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
-
-initialize registerTraceClass `sts
