@@ -25,7 +25,7 @@ syntax expected_smt_result "trace" ("[" ident "]")? "{"
 "}" : command
 
 
-open Lean Elab Command RelationalTransitionSystem
+open Lean Elab Command Term RelationalTransitionSystem
 
 /-- A single line in a trace specification -/
 inductive TraceSpecLine
@@ -57,14 +57,47 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   let vd := (<- getScope).varDecls
   let th ← Command.runTermElabM fun vs => do
     let spec ← parseTraceSpec spec
-    dbg_trace "{spec}"
+    let numActions := spec.foldl (fun n s => match s with | TraceSpecLine.assertion _ => n | _ => n + 1) 0
+    let numStates := numActions + 1
+    let stateNames := List.toArray $ (List.range numStates).map fun i => mkIdent (Name.mkSimple s!"st{i}")
+
+    /- Track which state assertions refer to. -/
+    let mut currStateId := 0
+    /- Which assertions, including state-transitions, does the spec contain. -/
+    -- FIXME: needs to be Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+    let mut assertions : Array (TSyntax `term) := #[]
+    assertions := assertions.push (← `((t0 : RelationalTransitionSystem.init $(stateNames[0]!))))
+    let mut assertionId := 1
+    for s in spec do
+      let currState := stateNames[currStateId]!
+      match s with
+      | TraceSpecLine.action n => do
+        let assertionName := mkIdent (Name.mkSimple s!"t{assertionId}")
+        let actionName := mkIdent n
+        let nextState := stateNames[currStateId + 1]!
+        let t ← `(($assertionName : $actionName $currState $nextState))
+        assertions := assertions.push t
+        currStateId := currStateId + 1
+      | TraceSpecLine.anyAction => do
+        let assertionName := mkIdent (Name.mkSimple s!"t{assertionId}")
+        let nextState := stateNames[currStateId + 1]!
+        let t ← `(($assertionName : RelationalTransitionSystem.next $currState $nextState))
+        currStateId := currStateId + 1
+      | TraceSpecLine.assertion t => do
+        let assertionName := mkIdent (Name.mkSimple s!"h{assertionId}")
+        let t ← `(term|($assertionName : $t $currState))
+        assertions := assertions.push t
+
+    dbg_trace "{spec} with {numActions} actions"
     let name : Name ← match name with
     | some n => pure n.getId
     | none => mkFreshUserName (Name.mkSimple "trace")
     let th_id := mkIdent name
     let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
-    `(theorem $th_id $[$vd]* : invInit (σ := $stateTp) :=
-      by unfold invInit ; sorry)
+    `(theorem $th_id $[$vd]* ($[$stateNames]* : $stateTp)
+      $[$assertions]*
+
+     : True := by sorry)
   dbg_trace "{th}"
   elabCommand $ th
 
