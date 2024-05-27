@@ -2,6 +2,7 @@ import Lean
 import Lean.Elab.Tactic
 import Lean.Meta
 import Lean.Parser
+import LeanSts.State
 import Std.Lean.Meta.UnusedNames
 
 open Lean Meta Elab Lean.Parser
@@ -120,3 +121,74 @@ def stateTp (vs : Array Expr) : MetaM Expr := do
   let stateTp := (<- stsExt.get).typ
   unless stateTp != default do throwError "State has not been declared so far"
   return mkAppN stateTp vs
+
+
+open Lean Elab Command Term Meta Lean.Parser
+
+def prop := (Lean.Expr.sort (Lean.Level.zero))
+
+def Term.explicitBinderF := Term.explicitBinder (requireType := false)
+def Term.implicitBinderF := Term.implicitBinder (requireType := false)
+
+/-- Transforms explicit binder into implicit one -/
+def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
+  CommandElabM (TSyntax `Lean.Parser.Term.bracketedBinder)
+  | `(Term.explicitBinderF| ($id:ident : $tp:term)) => do
+    `(Term.bracketedBinderF| {$id:ident : $tp:term})
+  | stx => return stx
+
+partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
+  let flag := autoImplicit.get (← getOptions)
+  if flag then
+    withReader (fun ctx => { ctx with autoBoundImplicit := flag, autoBoundImplicits := {} }) do
+      let rec loop (s : Term.SavedState) : TermElabM α := do
+        try
+          k
+        catch
+          | ex => match isAutoBoundImplicitLocalException? ex with
+            | some n =>
+              if isCapital (Lean.mkIdent n) then
+              -- Restore state, declare `n`, and try again
+                s.restore
+                withLocalDecl n .default (← mkFreshTypeMVar) fun x =>
+                  withReader (fun ctx => { ctx with autoBoundImplicits := ctx.autoBoundImplicits.push x } ) do
+                    loop (← saveState)
+              else throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}"
+            | none   => throw ex
+      loop (← saveState)
+  else
+    k
+
+/-- This is used wherener we want to define a predicate over a state
+    (for intstance, in `safety`, `invatiant` and `relation`). Instead
+    of writing `fun st => Pred` this command will pattern match over
+    `st` making all its fileds accessible for `Pred` -/
+def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
+  let stateTp <- stateTp vs
+  let .some sn := stateTp.getAppFn.constName?
+    | throwError "{stateTp} is not a constant"
+  let .some _sinfo := getStructureInfo? (<- getEnv) sn
+    | throwError "{stateTp} is not a structure"
+  let fns := _sinfo.fieldNames.map Lean.mkIdent
+  let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
+  let casesOn <- PrettyPrinter.delab casesOn
+  let stateTp <- PrettyPrinter.delab stateTp
+  `(term| (fun $(mkIdent "st") : $stateTp =>
+      $(casesOn) (motive := fun _ => Prop) $(mkIdent "st") <| (fun $[$fns]* => ($t : Prop))))
+
+
+def elabBindersAndCapitals
+  (br : Array Syntax)
+  (vs : Array Expr)
+  (e : Syntax)
+  (k : Array Expr -> Expr -> TermElabM α)
+   : TermElabM α := do
+  withAutoBoundExplicit $ Term.elabBinders br fun brs => do
+    let vars := (← getLCtx).getFVars.filter (fun x => not $ vs.elem x || brs.elem x)
+    trace[sts] e
+    let e <- elabTermAndSynthesize e none
+    lambdaTelescope e fun _ e => do
+        let e <- mkForallFVars vars e
+        k vars e
+
+def my_delab :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
