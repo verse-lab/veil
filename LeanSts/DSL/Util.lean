@@ -18,9 +18,10 @@ def _root_.Lean.EnvExtension.modify [Inhabited σ] (ext : EnvExtension σ) (s : 
 def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ) : AttrM σ := do
   return ext.getState (<- getEnv)
 
--- def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.Ident := do
---   let name ← getUnusedUserName suggestion
---   return Lean.mkIdent name
+def freshIdentifier (suggestion : String) : CoreM Lean.Syntax.Ident := do
+  let name ← mkFreshUserName (Name.mkSimple suggestion)
+  return Lean.mkIdent name
+
 /-- Auxiliary structure to store the transition system objects -/
 structure StsState where
   /-- type of the transition system state -/
@@ -35,6 +36,8 @@ structure StsState where
   safeties     : List Expr
   /-- list of invariants -/
   invariants : List Expr
+  /-- number of declared traces -/
+  numTraces : Nat := 0
   deriving Inhabited
 
 open StsState
@@ -110,3 +113,10 @@ macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exa
 /-- This is used wherener we want to define a predicate over a state
     which should not depend on the state (for instance in `after_init`). -/
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
+
+/-- Retrieves the current `State` structure and applies it to
+    section variables `vs` -/
+def stateTp (vs : Array Expr) : MetaM Expr := do
+  let stateTp := (<- stsExt.get).typ
+  unless stateTp != default do throwError "State has not been declared so far"
+  return mkAppN stateTp vs

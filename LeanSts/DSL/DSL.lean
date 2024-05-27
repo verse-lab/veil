@@ -5,6 +5,7 @@ import LeanSts.Tactic
 import LeanSts.DSL.Util
 import LeanSts.DSL.WP
 import LeanSts.DSL.Tactic
+import LeanSts.DSL.Trace
 open Lean Elab Command Term Meta Lean.Parser RelationalTransitionSystem
 
 -- Modelled after the Ivy language
@@ -33,13 +34,6 @@ elab "relation" sig:Command.structSimpleBinder : command => do
     let _ <- runTermElabM fun _ => elabTerm tp none
   | _ => throwErrorAt sig "Unsupported syntax"
   liftTermElabM do stsExt.modify (fun s => { s with rel_sig := s.rel_sig.push sig })
-
-/-- Retrieves the current `State` structure and applies it to
-    section variables `vs` -/
-def stateTp (vs : Array Expr) : MetaM Expr := do
-  let stateTp := (<- stsExt.get).typ
-  unless stateTp != default do throwError "State has not been declared so far"
-  return mkAppN stateTp vs
 
 def prop := (Lean.Expr.sort (Lean.Level.zero))
 
