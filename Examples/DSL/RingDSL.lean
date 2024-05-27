@@ -86,4 +86,19 @@ prove_inv_inductive by {
   sts_induction <;> sdestruct <;> solve_clause
 }
 
+sat trace [initial_state] {} by {
+  exists { leader := fun _ => false, pending := fun _ _ => false }
+}
+
+unsat trace [trace_any] {
+  any action
+  assert ¬(leader L → le N L)
+} by {
+  -- TODO: write tactic for this
+  sintro st0 st1
+  simp only [initSimp, actSimp, invSimp, RelationalTransitionSystem.next, State.mk.injEq]
+  simp_all
+  duper
+}
+
 end Ring

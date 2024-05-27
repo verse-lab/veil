@@ -22,7 +22,7 @@ syntax traceSpec := (traceLine colEq)*
 
 syntax expected_smt_result "trace" ("[" ident "]")? "{"
   traceSpec
-"}" : command
+"}" term : command
 
 
 open Lean Elab Command Term RelationalTransitionSystem
@@ -53,15 +53,23 @@ def parseTraceSpec [Monad m] [MonadExceptOf Exception m] (stx : Syntax) : m Trac
   | _ => throwUnsupportedSyntax
 
 open Lean.Parser.Term in
-def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec)
+
+def mkAndNStx (args : List (TSyntax `term)) : TermElabM (TSyntax `term) :=
+  match args with
+  | [] => `(term|True)
+  | [a] => pure a
+  | x :: xs => do
+    let xs ← mkAndNStx xs
+    `(term|($x ∧ $xs))
+
+/- From: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/binderIdent.20vs.20Ident -/
+def toBinderIdent (i : Ident) : TSyntax ``binderIdent := Unhygienic.run <|
+  withRef i `(binderIdent| $i:ident)
+
+def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec) (pf : TSyntax `term)
   : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   let th ← Command.runTermElabM fun vs => do
-    let finalResult ← match r with
-    | `(expected_smt_result| sat) => `(True)
-    | `(expected_smt_result| unsat) => `(False)
-    | _ => unreachable!
-
     let spec ← parseTraceSpec spec
     let numActions := spec.foldl (fun n s => match s with | TraceSpecLine.assertion _ => n | _ => n + 1) 0
     let numStates := numActions + 1
@@ -70,48 +78,49 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     /- Track which state assertions refer to. -/
     let mut currStateId := 0
     /- Which assertions, including state-transitions, does the spec contain. -/
-    let mut assertions : Array (TSyntax ``bracketedBinder) := #[]
-    let assertionName := mkIdent (Name.mkSimple "init")
-    assertions := assertions.push (← `(bracketedBinderF|($assertionName : RelationalTransitionSystem.init $(stateNames[0]!))))
+    let mut assertions : Array (TSyntax `term) := #[]
+    assertions := assertions.push (← `(term|(RelationalTransitionSystem.init $(stateNames[0]!))))
     for s in spec do
       let currState := stateNames[currStateId]!
-      let assertionId := assertions.size
       match s with
       | TraceSpecLine.action n => do
-        let assertionName := mkIdent (Name.mkSimple s!"t{assertionId}")
         let nextState := stateNames[currStateId + 1]!
         let actApp := mkAppN (Expr.const n []) vs
         let stx ← PrettyPrinter.delab actApp
         -- FIXME: make a correct application, i.e. providing the `vd` names
-        let t ← `(bracketedBinderF|($assertionName : $stx $currState $nextState))
+        let t ← `(term|($stx $currState $nextState))
         assertions := assertions.push t
         currStateId := currStateId + 1
       | TraceSpecLine.anyAction => do
-        let assertionName := mkIdent (Name.mkSimple s!"t{assertionId}")
         let nextState := stateNames[currStateId + 1]!
-        let t ← `(bracketedBinderF|($assertionName : RelationalTransitionSystem.next $currState $nextState))
+        let t ← `(term|(RelationalTransitionSystem.next $currState $nextState))
         assertions := assertions.push t
         currStateId := currStateId + 1
       | TraceSpecLine.assertion t => do
-        let assertionName := mkIdent (Name.mkSimple s!"h{assertionId}")
         -- Elaborate assertions in the same way we elaborate invariants.
         -- See `elab "invariant"` in `DSL.lean`.
         let stx <- funcasesM t vs
         let t ← elabBindersAndCapitals #[] vs stx fun _ e => do
           let e <- my_delab e
           `(fun $(mkIdent "st") => $e: term)
-        let t ← `(bracketedBinderF|($assertionName : $t $currState))
+        let t ← `(term|($t $currState))
         assertions := assertions.push t
     let name : Name ← match name with
     | some n => pure n.getId
     | none => mkFreshUserName (Name.mkSimple "trace")
     let th_id := mkIdent name
+    let conjunction ← mkAndNStx assertions.toList
+    -- sat trace -> ∃ states, (conjunction of assertions)
+    -- unsat trace -> ∀ states, ¬ (conjunction of assertions)
     let stateTp ← PrettyPrinter.delab (<- stateTp vs)
-    `(theorem $th_id $[$vd]* ($[$stateNames]* : $stateTp)
-      $[$assertions]*
-     : $finalResult := by sorry)
+    let binderNames : Array (TSyntax ``Lean.binderIdent) := stateNames.map toBinderIdent
+    let assertion ← match r with
+    | `(expected_smt_result| unsat) => `(∀ ($[$stateNames]* : $stateTp), ¬ $conjunction)
+    | `(expected_smt_result| sat) => `(∃ ($[$binderNames]* : $stateTp), $conjunction)
+    | _ => dbg_trace "expected result is neither sat nor unsat!" ; unreachable!
+    `(theorem $th_id $[$vd]* : $assertion := by exact $pf)
   elabCommand $ th
 
 elab_rules : command
-  | `(command| $r:expected_smt_result trace [ $name ] { $spec:traceSpec }) => elabTraceSpec r name spec
-  | `(command| $r:expected_smt_result trace { $spec:traceSpec }) => elabTraceSpec r none spec
+  | `(command| $r:expected_smt_result trace [ $name ] { $spec:traceSpec } $pf) => elabTraceSpec r name spec pf
+  | `(command| $r:expected_smt_result trace { $spec:traceSpec } $pf) => elabTraceSpec r none spec pf
