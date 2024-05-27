@@ -52,10 +52,17 @@ def parseTraceSpec [Monad m] [MonadExceptOf Exception m] (stx : Syntax) : m Trac
     return ts.toList
   | _ => throwUnsupportedSyntax
 
+open Lean.Parser.Term in
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec)
   : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   let th ← Command.runTermElabM fun vs => do
+    dbg_trace "vs = {vs}"
+    let finalResult ← match r with
+    | `(expected_smt_result| sat) => `(True)
+    | `(expected_smt_result| unsat) => `(False)
+    | _ => unreachable!
+
     let spec ← parseTraceSpec spec
     let numActions := spec.foldl (fun n s => match s with | TraceSpecLine.assertion _ => n | _ => n + 1) 0
     let numStates := numActions + 1
@@ -64,18 +71,18 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     /- Track which state assertions refer to. -/
     let mut currStateId := 0
     /- Which assertions, including state-transitions, does the spec contain. -/
-    -- FIXME: needs to be Array (TSyntax `Lean.Parser.Term.bracketedBinder)
-    let mut assertions : Array (TSyntax `term) := #[]
-    assertions := assertions.push (← `((t0 : RelationalTransitionSystem.init $(stateNames[0]!))))
-    let mut assertionId := 1
+    let mut assertions : Array (TSyntax ``bracketedBinder) := #[]
+    assertions := assertions.push (← `(bracketedBinderF|(t0 : RelationalTransitionSystem.init $(stateNames[0]!))))
     for s in spec do
       let currState := stateNames[currStateId]!
+      let assertionId := assertions.size
       match s with
       | TraceSpecLine.action n => do
         let assertionName := mkIdent (Name.mkSimple s!"t{assertionId}")
         let actionName := mkIdent n
         let nextState := stateNames[currStateId + 1]!
-        let t ← `(($assertionName : $actionName $currState $nextState))
+        -- FIXME: make a correct application, i.e. providing the `vd` names
+        let t ← `(bracketedBinderF|($assertionName : $actionName $currState $nextState))
         assertions := assertions.push t
         currStateId := currStateId + 1
       | TraceSpecLine.anyAction => do
@@ -85,7 +92,9 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         currStateId := currStateId + 1
       | TraceSpecLine.assertion t => do
         let assertionName := mkIdent (Name.mkSimple s!"h{assertionId}")
-        let t ← `(term|($assertionName : $t $currState))
+        -- FIXME: elaborate the assertions in the same way we elaborate invariants
+        -- see `elab "invariant"` in DSL.lean
+        let t ← `(bracketedBinderF|($assertionName : $t $currState))
         assertions := assertions.push t
 
     dbg_trace "{spec} with {numActions} actions"
@@ -96,8 +105,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
     `(theorem $th_id $[$vd]* ($[$stateNames]* : $stateTp)
       $[$assertions]*
-
-     : True := by sorry)
+     : $finalResult := by sorry)
   dbg_trace "{th}"
   elabCommand $ th
 
