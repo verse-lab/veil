@@ -66,8 +66,6 @@ relation one_b : node -> round -> Bool
 
 #gen_state
 
-relation aa := True
-
 relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr = TotalOrder.none ∧
       (∀ (MAXR : round) (V : value), ¬ (¬ TotalOrder.le r MAXR ∧ vote n MAXR V))) ∨
@@ -195,7 +193,7 @@ invariant one_b N R2 ∧ ¬ TotalOrder.le R2 R1 → leftRound N R1
 #gen_spec
 
 prove_inv_init by { simp_all [initSimp, invSimp, actSimp] }
-prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] ;duper }
+prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] ; duper }
 
 set_option auto.smt true
 set_option auto.smt.trust true
@@ -208,6 +206,15 @@ prove_inv_inductive by {
   -- { sorry }
   -- { sorry }
   -- { sorry }
+}
+
+unsat trace {
+  phase_1a
+  phase_2b
+} by {
+  sintro st0 st1 st2
+  simp [initSimp, actSimp, State.mk.injEq]
+  duper
 }
 
 end PaxosFOL
