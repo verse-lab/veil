@@ -35,8 +35,28 @@ structure NodeState :=
   output : (Address × Round) → List Value
 
 def RBNetworkState := @AsynchronousNetwork.World Address (Packet Address (@Message Address Round Value)) (@NodeState Address Round Value)
-instance RBAdversary : @ByzantineAdversary Address (@Message Address Round Value) (@NetworkState Address (Packet Address (@Message Address Round Value)) (@NodeState Address Round Value)) :=
-  sorry
+instance RBAdversary
+  (f : ℕ)
+  (nodes : {ns : List Address // List.Nodup ns ∧ 0 < List.length ns ∧ f < List.length ns})
+  (isByz : {isC : Address → Bool // List.length (List.filter isC nodes.val) ≤ f})
+  :
+  @NonadaptiveByzantineAdversary Address (Packet Address (@Message Address Round Value)) (@NetworkState Address (Packet Address (@Message Address Round Value)) (@NodeState Address Round Value)) where
+  setting := {
+    N := List.length nodes.val,
+    f := f,
+    nodes := ⟨(Multiset.ofList nodes.val), by aesop⟩
+
+    N_gt_0 := by aesop
+    f_lt_N := by aesop
+    N_nodes := by aesop
+  }
+  /- Unforgeable channels assumption: the adversary can produce ANY packet
+    as long as it does not forge the origin. It cannot send packets purporting
+    to be from honest nodes. -/
+  constraint := ⟨(λ pkt _ => isByz.val pkt.src)⟩
+  isByzantine := isByz
+  byz_lte_f := by { dsimp [Finset.filter] ; aesop }
+
 
 def init (id : Address) (nodes : List Address) : @NodeState Address Round Value := {
   id := id
@@ -86,18 +106,22 @@ instance RBProtocol (nodes : List Address) (inputValue : Address → Value) :
   @NetworkProtocol Address (@Message Address Round Value) (@NodeState Address Round Value) (@InternalTransition Round) :=
   ⟨λ id => init id nodes, procInt inputValue, procMsg⟩
 
-instance RBAsyncNetwork (nodes : List Address) (inputValue : Address → Value)
+instance RBAsyncNetwork
+  (f : ℕ) /- Number of faults-/
+  (nodes : {ns : List Address // List.Nodup ns ∧ 0 < List.length ns ∧ f < List.length ns})
+  (isByz : {isC : Address → Bool // List.length (List.filter isC nodes.val) ≤ f}) /- Oracle for which nodes are corrupt -/
+  (inputValue : Address → Value) /- Oracle for value broadcast by the leader -/
   : RelationalTransitionSystem (@RBNetworkState Address Round Value) where
   init  := λ s => s = @AsynchronousNetwork.init _ _ _ _ (RBProtocol nodes inputValue) nodes
   next  := λ w w' => ∃
             (s : AsynchronousNetwork.step)
-            (_ : @AsynchronousNetwork.transition _ _ _ _ _ _  (RBProtocol nodes inputValue) RBAdversary s w w'), True
+            (_ : @AsynchronousNetwork.transition _ _ _ _ _ _  (RBProtocol nodes inputValue) (RBAdversary f nodes isByz) s w w'), True
   safe := λ _ => True
   inv  := λ _ => True
 
 namespace RBProofs
 
-theorem initInv : (@invInit (@RBNetworkState Address Round Value) (RBAsyncNetwork nodes inputValue)) := by {
+theorem initInv : (@invInit (@RBNetworkState Address Round Value) (RBAsyncNetwork f nodes isByz inputValue)) := by {
   simp [invInit, RelationalTransitionSystem.init, RelationalTransitionSystem.inv]
 }
 

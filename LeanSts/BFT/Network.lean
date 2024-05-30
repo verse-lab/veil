@@ -55,14 +55,14 @@ namespace AsynchronousNetwork
     | deliver (p : Packet)
     /-- Node `proc` executes `transition`. -/
     | intern (proc : NetAddr) (transition : InternalTransition)
-    /-- The Byzantine adversary creates a message. -/
-    | byz (src dst : NetAddr) (msg : Message)
+    /-- The Byzantine adversary creates a packet. -/
+    | byz (p : Packet)
 
   /-- Transition relation of this network. -/
   inductive transition
     [DecidableEq NetAddr] [DecidableEq Message]
     [protocol : @NetworkProtocol NetAddr Message LocalState InternalTransition]
-    [byz : @ByzantineAdversary NetAddr Message (@NetworkState NetAddr (Packet NetAddr Message) LocalState)]
+    [byz : @NonadaptiveByzantineAdversary NetAddr (Packet NetAddr Message) (@NetworkState NetAddr (Packet NetAddr Message) LocalState)]
     (s : @step NetAddr Message (Packet NetAddr Message) InternalTransition)
     (w w' : @World NetAddr (Packet NetAddr Message) LocalState)
     /-- Stuttering. -/
@@ -72,7 +72,7 @@ namespace AsynchronousNetwork
     | deliver (p : (Packet NetAddr Message))
       (_ : s = step.deliver p)
       (_ : p ∈ w.packetSoup)
-      (_ : ¬ byz.setting.isByzantine p.dst)
+      (_ : ¬ byz.isByzantine p.dst)
       (_ : let (st', msgs) := protocol.procMessage (w.localState p.dst) p.src p.msg
           w' = { w with localState := updNS p.dst st' w.localState,
                         packetSoup := Packet.consume p w.packetSoup + msgs })
@@ -80,22 +80,20 @@ namespace AsynchronousNetwork
     /-- Node `proc` executes internal transition `t`. -/
     | intern (proc : NetAddr) (t : InternalTransition)
       (_ : s = step.intern proc t)
-      (_ : ¬ byz.setting.isByzantine proc)
+      (_ : ¬ byz.isByzantine proc)
       (_ : let (st', msgs) := protocol.procInternal (w.localState proc) t
           w' = { w with localState := updNS proc st' w.localState,
                         packetSoup := w.packetSoup + msgs })
 
-    /-- The Byzantine adversary creates a message. -/
-    | byzantine (src dst : NetAddr) (msg : Message)
-      (_ : s = step.byz src dst msg)
-      /- If we want to encode that Byzantine adversaries cannot forge messages,
-        that should be expressed in `canProduceMessage`.
-        In Coq, we have an extra assumption:
+    /-- The Byzantine adversary creates a packet. -/
+    | byzantine (p : (Packet NetAddr Message))
+      (_ : s = step.byz p)
+      /- In Coq, we have an extra assumption:
           `(_ : byz.setting.isByzantine src w)`
         but this should not be part of the semantics itself.
+        Instead, we fold it into `canProducePacket`.
       -/
-      (_ : byz.constraint.canProduceMessage msg w)
-      (_ : let pkt := { src := src, dst := dst, msg := msg, consumed := false }
-        w' = { w with packetSoup := w.packetSoup + {pkt}})
+      (_ : byz.constraint.canProducePacket p w)
+      (_ : w' = { w with packetSoup := w.packetSoup + {p}})
 
 end AsynchronousNetwork
