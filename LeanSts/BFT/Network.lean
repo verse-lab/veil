@@ -10,8 +10,16 @@ deriving DecidableEq
 
 abbrev Packet (NetAddr Message : Type) := @NetworkPacket NetAddr Message
 
-def receive (p : Packet NetAddr Message) : Packet NetAddr Message :=
+namespace Packet
+private def receive (p : Packet NetAddr Message) : Packet NetAddr Message :=
   { p with consumed := true }
+
+def consume [DecidableEq (Packet NetAddr Message)] (p : Packet NetAddr Message) (soup : Multiset (Packet NetAddr Message)) : Multiset (Packet NetAddr Message) :=
+  (soup.erase p) + {receive p}
+
+def broadcast [DecidableEq NetAddr] (src : NetAddr) (dsts : List NetAddr) (msg : Message) : List (Packet NetAddr Message) :=
+  dsts.map (λ dst => { src := src, dst := dst, msg := msg, consumed := false })
+end Packet
 
 class NetworkProtocol {NetAddr Message LocalState InternalTransition : Type} :=
   localInit : NetAddr → LocalState
@@ -21,25 +29,23 @@ class NetworkProtocol {NetAddr Message LocalState InternalTransition : Type} :=
 /-- A network consists of the packet soup and the local states of nodes.
   Informally, this is called a "World". -/
 structure NetworkState {NetAddr Packet LocalState : Type} :=
+  /-- The set of all nodes in the network. -/
+  nodes: List NetAddr
   /-- The respective local state of nodes. -/
   localState : NetAddr → LocalState
   /-- The set of sent messages. -/
   packetSoup : Multiset Packet
 
-def consume [DecidableEq (Packet NetAddr Message)] (p : Packet NetAddr Message) (soup : Multiset (Packet NetAddr Message)) : Multiset (Packet NetAddr Message) :=
-  (soup.erase p) + {receive p}
-
 @[simp] def updNS {NetAddr LocalState : Type} [DecidableEq NetAddr]
   (n : NetAddr) (st : LocalState) (states : NetAddr → LocalState) : NetAddr → LocalState :=
   λ n' => if n = n' then st else states n'
 
-theorem defaultNetworkState
-  [protocol : @NetworkProtocol NetAddr Message LocalState InternalTransition]
-  : Inhabited (@NetworkState NetAddr (Packet NetAddr Message) LocalState) :=
-  ⟨{ localState := λ n => protocol.localInit n, packetSoup := ∅ }⟩
-
 namespace AsynchronousNetwork
   abbrev World {NetAddr Packet LocalState : Type} := @NetworkState NetAddr Packet LocalState
+
+  def init [protocol : @NetworkProtocol NetAddr Message LocalState InternalTransition]
+    (nodes : List NetAddr) : (@NetworkState NetAddr (Packet NetAddr Message) LocalState) :=
+    { nodes := nodes, localState := λ n => protocol.localInit n, packetSoup := ∅ }
 
   /-- Description of a step being taken. -/
   inductive step {NetAddr Message Packet InternalTransition : Type}
@@ -66,15 +72,15 @@ namespace AsynchronousNetwork
     | deliver (p : (Packet NetAddr Message))
       (_ : s = step.deliver p)
       (_ : p ∈ w.packetSoup)
-      (_ : ¬ byz.setting.isByzantine p.dst w)
+      (_ : ¬ byz.setting.isByzantine p.dst)
       (_ : let (st', msgs) := protocol.procMessage (w.localState p.dst) p.src p.msg
           w' = { w with localState := updNS p.dst st' w.localState,
-                        packetSoup := consume p w.packetSoup + msgs })
+                        packetSoup := Packet.consume p w.packetSoup + msgs })
 
     /-- Node `proc` executes internal transition `t`. -/
     | intern (proc : NetAddr) (t : InternalTransition)
       (_ : s = step.intern proc t)
-      (_ : ¬ byz.setting.isByzantine proc w)
+      (_ : ¬ byz.setting.isByzantine proc)
       (_ : let (st', msgs) := protocol.procInternal (w.localState proc) t
           w' = { w with localState := updNS proc st' w.localState,
                         packetSoup := w.packetSoup + msgs })
@@ -82,7 +88,12 @@ namespace AsynchronousNetwork
     /-- The Byzantine adversary creates a message. -/
     | byzantine (src dst : NetAddr) (msg : Message)
       (_ : s = step.byz src dst msg)
-      (_ : byz.setting.isByzantine src w)
+      /- If we want to encode that Byzantine adversaries cannot forge messages,
+        that should be expressed in `canProduceMessage`.
+        In Coq, we have an extra assumption:
+          `(_ : byz.setting.isByzantine src w)`
+        but this should not be part of the semantics itself.
+      -/
       (_ : byz.constraint.canProduceMessage msg w)
       (_ : let pkt := { src := src, dst := dst, msg := msg, consumed := false }
         w' = { w with packetSoup := w.packetSoup + {pkt}})
