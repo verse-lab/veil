@@ -58,7 +58,7 @@ instance RBAdversary
   byz_lte_f := by { dsimp [Finset.filter] ; aesop }
 
 
-def init (id : Address) (nodes : List Address) : @NodeState Address Round Value := {
+def initLocalState (id : Address) (nodes : List Address) : @NodeState Address Round Value := {
   id := id
   allNodes := nodes
   sent := λ _ => false
@@ -154,7 +154,7 @@ def procMsg (st : @NodeState Address Round Value) (src : Address) (msg : @Messag
 
 instance RBProtocol (nodes : List Address) (inputValue : Address → Value) :
   @NetworkProtocol Address (@Message Address Round Value) (@NodeState Address Round Value) (@InternalTransition Round) :=
-  ⟨λ id => init id nodes, procInt inputValue, procMsg⟩
+  ⟨λ id => initLocalState id nodes, procInt inputValue, procMsg⟩
 
 instance RBAsyncNetwork
   (f : ℕ) /- Number of faults-/
