@@ -99,9 +99,9 @@ def handleMessage (st : @NodeState Address Round Value) (src : Address) (msg : @
       let st' := {st with msgReceivedFrom := msgReceivedFrom'}
       .some (st', [])
 
-local notation "RBMessage" => @Message Address Round Value
-local notation "RBState" => @NodeState Address Round Value
-local notation "RBPacket" => Packet Address RBMessage
+local notation "RBMessage" => (@Message Address Round Value)
+local notation "RBState" => (@NodeState Address Round Value)
+local notation "RBPacket" => (Packet Address RBMessage)
 
 -- The number of nodes in the network now can only be calculated from the state
 def numNodes (st : RBState) : ℕ := st.allNodes.length
@@ -137,9 +137,18 @@ def tryUpdateOutputByMessage (st : RBState) (msg : RBMessage) : RBState :=
     st
 
 def routineCheck (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
-  let (st', pkts) := if checkVoteCondition st msg then updateVotedByMessage st msg else (st, [])
-  let st'' := tryUpdateOutputByMessage st' msg
-  (st'', pkts)
+  -- let (st', pkts) := if checkVoteCondition st msg then updateVotedByMessage st msg else (st, [])
+  -- let st'' := tryUpdateOutputByMessage st' msg
+  -- (st'', pkts)
+
+  -- Need to make the if be the outermost thing?
+  if checkVoteCondition st msg then
+    let (st', pkts) := updateVotedByMessage st msg
+    let st'' := tryUpdateOutputByMessage st' msg
+    (st'', pkts)
+  else
+    let st'' := tryUpdateOutputByMessage st msg
+    (st'', [])
 
 def procMsg (st : @NodeState Address Round Value) (src : Address) (msg : @Message Address Round Value) :
   (@NodeState Address Round Value) × List (Packet Address (@Message Address Round Value)) :=
@@ -174,6 +183,88 @@ namespace RBProofs
 theorem initInv : (@invInit (@RBNetworkState Address Round Value) (RBAsyncNetwork f nodes isByz inputValue)) := by {
   simp [invInit, RelationalTransitionSystem.init, RelationalTransitionSystem.inv]
 }
+
+local notation "RBstep" => (@AsynchronousNetwork.step (@RBNetworkState Address Round Value) RBMessage RBPacket InternalTransition)
+
+section Test
+
+variable (f : ℕ)
+  (nodes : {ns : List Address // List.Nodup ns ∧ 0 < List.length ns ∧ f < List.length ns})
+  (isByz : {isC : Address → Bool // List.length (List.filter isC nodes.val) ≤ f})
+  (inputValue : Address → Value)
+
+local notation "RBP" => (@RBProtocol _ Round _ _ _ _ nodes inputValue)
+local notation "RBAdv" => (RBAdversary f nodes isByz)
+local notation "RBtransition" => (@AsynchronousNetwork.transition _ _ _ _ _ _ RBP RBAdv)
+
+local infixl:50 "@" => NetworkState.localState
+
+example : ∀ s (w w' : RBNetworkState), RBtransition s w w' →
+  ∀ n, (w @ n).id = (w' @ n).id :=
+  by
+    intros s w w' h n0
+    rcases h with ⟨Es, Ew⟩ | ⟨⟨ns, nd, m, used⟩, Es, hin, hnonbyz, E⟩ | ⟨n, itr, Es, hnonbyz, E⟩ | ⟨p, Es, hbyz, Ew'⟩ <;> subst Es
+    · subst Ew ; rfl
+    · simp [NonadaptiveByzantineAdversary.isByzantine] at hnonbyz
+      simp only [NetworkPacket.dst] at E -- seems like simp will separate the pair automatically
+      subst E
+      have ⟨⟨stf, psf⟩, Ef⟩ : ∃ a, procMsg (w.localState nd) ns m = a := Exists.intro _ (Eq.refl _)
+      rw [Ef] ; dsimp
+      split_ifs with Etmp <;> try rfl
+      subst Etmp
+      dsimp [procMsg] at Ef
+
+      split at Ef
+      · rename_i _ st' ps E
+        split at Ef
+        · rename_i _ r v
+          simp at Ef ; rcases Ef with ⟨E0, E1⟩ ; subst E0 E1
+          dsimp [handleMessage] at E
+          split at E <;> try (solve | simp_all)
+          · simp at E ; rcases E with ⟨E0, E1⟩ ; subst E0 E1
+            rfl
+        · rename_i __1
+          simp at Ef ; rcases Ef with ⟨E0, E1⟩ ; subst E0 E1
+          dsimp [handleMessage] at E
+          split at E <;> try (solve | simp_all)
+          · rename_i __2
+            split_ifs at E with hnotin_ <;> try (solve | simp_all)
+            · simp at E ; rcases E with ⟨E0, E1⟩ ; subst E0 E1
+
+              dsimp [routineCheck]
+              split_ifs with Echeck
+              · dsimp [checkVoteCondition] at Echeck
+                split at Echeck <;> try (solve | simp_all)
+                · rename_i __3 q r v
+                  dsimp [tryUpdateOutputByMessage]
+                  dsimp [updateVotedByMessage]
+                · rename_i __3 q r v
+                  dsimp [tryUpdateOutputByMessage]
+                  split
+                  · dsimp [updateVotedByMessage]
+                  · dsimp [updateVotedByMessage]
+              · dsimp [tryUpdateOutputByMessage]
+                -- split -- why does not work?
+                split_ifs <;> split <;> rfl
+      · simp at Ef ; rcases Ef with ⟨E0, E1⟩ ; subst E0 E1
+        rfl
+    · simp [NonadaptiveByzantineAdversary.isByzantine] at hnonbyz
+      dsimp at E
+      subst E
+      have ⟨⟨st, ps⟩, E⟩ : ∃ a, (procInt inputValue (w.localState n) itr) = a := Exists.intro _ (Eq.refl _)
+      rw [E] ; dsimp
+      split_ifs with Etmp <;> try rfl
+      subst Etmp
+      dsimp [procInt] at E
+
+      split_ifs at E <;> try (solve | simp_all)
+      · simp at E ; rcases E with ⟨E0, E1⟩ ; subst E0 E1
+        rfl
+    · subst Ew'
+      simp [AdversaryConstraint.canProducePacket] at hbyz
+      dsimp
+
+end Test
 
 end RBProofs
 
