@@ -27,4 +27,4 @@ class NonadaptiveByzantineAdversary {NetAddr Packet NetworkState : Type} :=
   /-- Is this node corrupted? -/
   isByzantine : NetAddr → Bool
   /-- The `isByzantine` function respects the threshold `f` -/
-  byz_lte_f : (setting.nodes.filter (λ n => isByzantine n)).card ≤ setting.f
+  byz_lte_f : (setting.nodes.filter (isByzantine ·)).card ≤ setting.f

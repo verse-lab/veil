@@ -45,7 +45,7 @@ namespace AsynchronousNetwork
 
   def init [protocol : @NetworkProtocol NetAddr Message LocalState InternalTransition]
     (nodes : List NetAddr) : (@NetworkState NetAddr (Packet NetAddr Message) LocalState) :=
-    { nodes := nodes, localState := λ n => protocol.localInit n, packetSoup := ∅ }
+    { nodes := nodes, localState := protocol.localInit, packetSoup := ∅ }
 
   /-- Description of a step being taken. -/
   inductive step {NetAddr Message Packet InternalTransition : Type}
