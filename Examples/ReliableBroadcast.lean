@@ -99,8 +99,58 @@ def handleMessage (st : @NodeState Address Round Value) (src : Address) (msg : @
       let st' := {st with msgReceivedFrom := msgReceivedFrom'}
       .some (st', [])
 
+local notation "RBMessage" => @Message Address Round Value
+local notation "RBState" => @NodeState Address Round Value
+local notation "RBPacket" => Packet Address RBMessage
+
+-- The number of nodes in the network now can only be calculated from the state
+def numNodes (st : RBState) : ℕ := st.allNodes.length
+
+def byzThres (st : RBState) : ℕ := (numNodes st - 1) / 3
+
+def thresEcho4Vote (st : RBState) := numNodes st - byzThres st
+def thresVote4Vote (st : RBState) := numNodes st - (byzThres st + byzThres st)
+def thresVote4Output (st : RBState) := numNodes st - byzThres st
+
+def checkVoteCondition (st : RBState) (msg : RBMessage) : Bool :=
+  match msg with
+  | Message.EchoMsg q r _ =>
+    Option.isNone (st.voted (q, r)) && (thresEcho4Vote st ≤ List.length (st.msgReceivedFrom msg))
+  | Message.VoteMsg q r _ =>
+    Option.isNone (st.voted (q, r)) && (thresVote4Vote st ≤ List.length (st.msgReceivedFrom msg))
+  | _ => false
+
+def updateVotedByMessage (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
+  match msg with
+  | Message.EchoMsg q r v | Message.VoteMsg q r v =>
+    ({st with voted := st.voted[(q, r) ↦ some v]}, Packet.broadcast st.id st.allNodes (Message.VoteMsg q r v))
+  | _ => (st, [])
+
+def tryUpdateOutputByMessage (st : RBState) (msg : RBMessage) : RBState :=
+  if let Message.VoteMsg q r v := msg then
+    if thresVote4Output st ≤ List.length (st.msgReceivedFrom msg) then
+      let l := st.output (q, r)
+      {st with output := st.output[(q, r) ↦ l.insert v]}
+    else
+      st
+  else
+    st
+
+def routineCheck (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
+  let (st', pkts) := if checkVoteCondition st msg then updateVotedByMessage st msg else (st, [])
+  let st'' := tryUpdateOutputByMessage st' msg
+  (st'', pkts)
+
 def procMsg (st : @NodeState Address Round Value) (src : Address) (msg : @Message Address Round Value) :
-  (@NodeState Address Round Value) × List (Packet Address (@Message Address Round Value)) := sorry
+  (@NodeState Address Round Value) × List (Packet Address (@Message Address Round Value)) :=
+  match handleMessage st src msg with
+  | some (st', pkts) =>
+    match msg with
+    | Message.InitialMsg _ _ => (st', pkts)
+    | _ =>
+      let (st'', pkts') := routineCheck st' msg
+      (st'', pkts ++ pkts')
+  | none => (st, [])
 
 instance RBProtocol (nodes : List Address) (inputValue : Address → Value) :
   @NetworkProtocol Address (@Message Address Round Value) (@NodeState Address Round Value) (@InternalTransition Round) :=
