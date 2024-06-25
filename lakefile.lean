@@ -13,12 +13,12 @@ lean_lib «LeanSts» where
 
 @[default_target]
 lean_lib Examples {
-  globs := #[.submodules "Examples"]
+  globs := #[.submodules `Examples]
 }
 
-require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "master"
-require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "main"
-require Duper from git "https://github.com/leanprover-community/duper.git" @ "main"
+require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v4.8.0"
+require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "0f5f39a0336e36ae4ba8ab45b27865ebd9f8f025"
+require Duper from git "https://github.com/dranov/duper.git" @ "bump-v4.8.0"
 -- require loogle from
 
 @[default_target]

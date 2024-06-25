@@ -102,7 +102,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         let stx <- funcasesM t vs
         let t ← elabBindersAndCapitals #[] vs stx fun _ e => do
           let e <- my_delab e
-          `(fun $(mkIdent "st") => $e: term)
+          `(fun $(mkIdent `st) => $e: term)
         let t ← `(term|($t $currState))
         assertions := assertions.push t
     let name : Name ← match name with

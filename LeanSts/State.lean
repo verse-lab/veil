@@ -1,5 +1,5 @@
 import Lean
-import Std.Lean.Meta.UnusedNames
+import Batteries.Lean.Meta.UnusedNames
 
 declare_syntax_cat tupl
 syntax term "[" (term),* " ↦ " term "]" : term
@@ -25,7 +25,7 @@ macro_rules
       if isCapital i then
         x := x.push ⟨i.raw⟩
       else
-        x := x.push (<- Lean.Elab.Term.mkFreshIdent (Lean.mkIdent "x"))
+        x := x.push (<- Lean.Elab.Term.mkFreshIdent (Lean.mkIdent `x))
     let tuple1 <- `(term| [tupl| $is: term *])
     let tuple2 <- `(term| [tupl| $[$x: ident] * ] )
     let stx <- `(fun $[$x:ident]* => if $tuple2 = $tuple1 then $b else $f:term $x *)

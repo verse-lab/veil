@@ -1,5 +1,5 @@
 import Lean.Elab.Tactic
-import Std.Lean.Meta.UnusedNames
+import Batteries.Lean.Meta.UnusedNames
 
 open Lean Lean.Elab.Tactic
 

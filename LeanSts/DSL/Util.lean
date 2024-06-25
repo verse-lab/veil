@@ -3,7 +3,7 @@ import Lean.Elab.Tactic
 import Lean.Meta
 import Lean.Parser
 import LeanSts.State
-import Std.Lean.Meta.UnusedNames
+import Batteries.Lean.Meta.UnusedNames
 
 open Lean Meta Elab Lean.Parser
 -- open Lean Elab Command Term Meta Tactic
@@ -173,8 +173,8 @@ def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
   let casesOn <- PrettyPrinter.delab casesOn
   let stateTp <- PrettyPrinter.delab stateTp
-  `(term| (fun $(mkIdent "st") : $stateTp =>
-      $(casesOn) (motive := fun _ => Prop) $(mkIdent "st") <| (fun $[$fns]* => ($t : Prop))))
+  `(term| (fun $(mkIdent `st) : $stateTp =>
+      $(casesOn) (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
 
 
 def elabBindersAndCapitals

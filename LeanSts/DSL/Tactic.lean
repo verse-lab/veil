@@ -1,5 +1,5 @@
 import Lean.Elab.Tactic
-import Std.Lean.Meta.UnusedNames
+import Batteries.Lean.Meta.UnusedNames
 import LeanSts.TransitionSystem
 import LeanSts.DSL.Util
 open Lean Lean.Elab.Tactic
@@ -17,5 +17,5 @@ elab "exact_state" : tactic => do
     | throwError "{stateTp} is not a structure"
   let fns := _sinfo.fieldNames.map mkIdent
   -- fileds' names should be the same as ones in the local context
-  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent "State") ..))
+  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent `State) ..))
   evalTactic $ ← `(tactic| exact $constr)

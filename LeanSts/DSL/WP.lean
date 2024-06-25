@@ -69,7 +69,7 @@ macro_rules
     let t' <- closeCapitals t
     withRef t $
       -- require a proposition on the state
-     `(@Lang.require _ (funcases ($t' : Prop) : $(mkIdent "State") .. -> Prop))
+     `(@Lang.require _ (funcases ($t' : Prop) : $(mkIdent `State) .. -> Prop))
   | `([lang|if $cnd:term then $thn:lang else $els:lang]) => do
     let cnd' <- closeCapitals cnd
     -- condition might depend on the state as well
@@ -96,7 +96,7 @@ macro_rules
   | `([lang1| $l1:lang; $l2:lang]) => `(@Lang.seq _ [lang1|$l1] [lang1|$l2])
   | `([lang1|require $t:term]) => do
       withRef t $
-        `(@Lang.require _ (funclear ($t : Prop) : $(mkIdent "State") .. -> Prop))
+        `(@Lang.require _ (funclear ($t : Prop) : $(mkIdent `State) .. -> Prop))
   | `([lang1|if $cnd:term then $thn:lang else $els:lang]) => do
     let cnd <- withRef cnd `(funclear ($cnd : Bool))
     `(@Lang.ite _ ($cnd: term) [lang1|$thn] [lang1|$els])
