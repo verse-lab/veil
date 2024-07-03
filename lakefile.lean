@@ -18,8 +18,7 @@ lean_lib Examples {
 
 require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v4.8.0"
 require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "0f5f39a0336e36ae4ba8ab45b27865ebd9f8f025"
-require Duper from git "https://github.com/dranov/duper.git" @ "bump-v4.8.0"
--- require loogle from
+require Duper from git "https://github.com/leanprover-community/duper.git" @ "f5cb3a2e49766ec0c353669b840b86f4347816aa"
 
 @[default_target]
 lean_exe «lean-sts» where
