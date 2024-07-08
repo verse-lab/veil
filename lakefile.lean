@@ -9,9 +9,9 @@ def libcpp : String :=
 package «lean-sts» where
   moreLeanArgs := #[s!"--load-dynlib={libcpp}"]
   moreGlobalServerArgs := #[s!"--load-dynlib={libcpp}"]
-  -- TODO: make this cross-platform
-  moreLinkArgs := #["-L/usr/lib/x86_64-linux-gnu", "/usr/lib/x86_64-linux-gnu/libstdc++.so.6"]
-
+  moreLinkArgs :=
+    if System.Platform.isOSX || System.Platform.isWindows then #[]
+    else #["-L/usr/lib/x86_64-linux-gnu", "/usr/lib/x86_64-linux-gnu/libstdc++.so.6"]
 
 @[default_target]
 lean_lib «LeanSts» where
