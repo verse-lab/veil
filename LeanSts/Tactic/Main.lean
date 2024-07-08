@@ -4,6 +4,7 @@ import LeanSts.TransitionSystem
 
 -- For automation
 import Auto
+import Smt
 import Duper
 
 open Lean Lean.Elab.Tactic Meta.Tactic
