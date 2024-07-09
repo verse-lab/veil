@@ -8,7 +8,8 @@ import Mathlib.Tactic
 section Ring
 class TotalOrder (t : Type) :=
   -- relation: total order
-  le (x y : t) : Bool
+  le (x y : t) : Prop
+
   -- axioms
   le_refl       (x : t) : le x x
   le_trans  (x y z : t) : le x y → le y z → le x z
@@ -18,7 +19,7 @@ class TotalOrder (t : Type) :=
 class Between (node : Type) :=
   -- relation: btw represents a ring
   -- read: y is between x and z
-  btw (x y z : node) : Bool
+  btw (x y z : node) : Prop
   -- axioms
   btw_ring    (x y z : node) : btw x y z → btw y z x
   btw_trans (w x y z : node) : btw w x y → btw w y z → btw w x z
@@ -26,7 +27,8 @@ class Between (node : Type) :=
   btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
 
 variable (node : Type)
-variable [DecidableEq node] [TotalOrder node] [Between node]
+variable [DecidableEq node] [tot : TotalOrder node] [DecidableRel tot.le] [Between node]
+
 open Between TotalOrder
 
 theorem btw_irreflexive : ∀ (n m : node),  ¬ btw m n n := by
@@ -45,15 +47,15 @@ theorem btw_next :
   duper [btw_ring, btw_trans, btw_side, Between.btw_total] {portfolioInstance := 1}
 
 theorem btw_opposite
-  (Hn : ∀ (z : node), ¬ btw n z next = true)
-  (h1 : btw sender N next = true)
-  (h2 : btw sender n N = true) :
+  (Hn : ∀ (z : node), ¬ btw n z next)
+  (h1 : btw sender N next)
+  (h2 : btw sender n N) :
   False := by
   duper [Hn, h1, h2, btw_ring, btw_trans] {portfolioInstance := 1}
 
 structure Structure :=
-  leader (n : node) : Bool
-  pending (n1 n2 : node) : Bool
+  leader (n : node) : Prop
+  pending (n1 n2 : node) : Prop
 
 @[simp] def initialState? (rs : Structure node) : Prop :=
   (∀ (n : node), ¬ rs.leader n) ∧
@@ -65,27 +67,27 @@ structure Structure :=
       -- preconditions
       (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z)) ∧
       -- postconditions
-      st' = {st with pending := st.pending[n , next ↦ true]}
+      st' = {st with pending := st.pending[n , next ↦ True]}
 
 @[simp] def recv : RelationalTransitionSystem.action (Structure node) :=
   λ (st st' : Structure node) =>
-    ∃ (sender n next : node) (havoc : Bool),
+    ∃ (sender n next : node) (havoc : Prop),
       -- preconditions
       (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z)) ∧
       (st.pending sender n) ∧
       -- postconditions
       -- `pending(sender, n) := *` is modelled using `havoc`
       if sender = n then
-        st' = {st with leader := st.leader[n ↦ true], pending := st.pending[sender, n ↦ havoc]}
+        st' = {st with leader := st.leader[n ↦ True], pending := st.pending[sender, n ↦ havoc]}
       else
         if le n sender then
-          st' = {st with pending := st.pending[sender, n ↦ havoc][sender , next ↦ true]}
+          st' = {st with pending := st.pending[sender, n ↦ havoc][sender , next ↦ True]}
         else
           st' = {st with pending := st.pending[sender, n ↦ havoc]}
 
 -- so we don't need to add `node` explicitly to all definitions below
 variable {node : Type}
-variable [DecidableEq node] [TotalOrder node] [Between node]
+variable [DecidableEq node] [tot : TotalOrder node] [DecidableRel tot.le] [btwn : Between node]
 
 @[simp] def safety (st : Structure node) : Prop :=
   ∀ (N L : node), st.leader L → le N L
@@ -148,19 +150,31 @@ set_option maxHeartbeats 2000000
 
 set_option auto.smt true
 set_option auto.smt.trust true
--- set_option trace.auto.smt.printCommands true
--- set_option trace.auto.smt.result true
+set_option trace.auto.smt.printCommands true
+set_option trace.auto.smt.result true
 -- set_option trace.auto.smt.stderr true
+
+set_option trace.smt true
+set_option trace.smt.solve true
+set_option trace.smt.translate.query true
+-- without this we get "result: unknown (INCOMPLETE)"
+set_option smt.solver.finitemodelfind true
 
 theorem inv_inductive_smt :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext hinv
   sts_induction <;> (dsimp only [RelationalTransitionSystem.inv, inv']; sdestruct) <;> repeat
   (
-    sdestruct st st';
+    sdestruct st st' tot btwn;
     simp [RelationalTransitionSystem.inv] at hinv hnext ⊢;
-    auto [TotalOrder.le_refl, TotalOrder.le_trans, TotalOrder.le_antisymm, TotalOrder.le_total,
-      Between.btw_ring, Between.btw_trans, Between.btw_side, Between.btw_total, hinv, hnext]
+    trust_smt [tot.le_refl, tot.le_trans, tot.le_antisymm, tot.le_total,
+      btwn.btw_ring, btwn.btw_trans, btwn.btw_side, btwn.btw_total,
+      hinv, hnext
+    ]
+    -- auto [tot.le_refl, tot.le_trans, tot.le_antisymm, tot.le_total,
+    --   btwn.btw_ring, btwn.btw_trans, btwn.btw_side, btwn.btw_total,
+    --   hinv, hnext
+    -- ]
   )
 
 end Ring
