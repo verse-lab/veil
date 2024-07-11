@@ -20,15 +20,20 @@ if __name__ == '__main__':
     z3.set_param("model_validate", True)
     # z3.set_param("model.completion", True)
 
-    # cfg = z3.Z3_mk_config()
-    # ctx = z3.Z3_mk_context(cfg)
-    s = z3.Solver()
+    cfg = z3.Z3_mk_config()
+    ctx = z3.Z3_mk_context(cfg)
+    
     with open("/tmp/z3.log", "w") as f:
         for line in sys.stdin:
-            res = z3.Z3_eval_smtlib2_string(s.ctx.ref(), line)
+            print(f"{line.strip()}", file=f, flush=True)
+            res = z3.Z3_eval_smtlib2_string(ctx, line)
             if len(res) != 0:
                 print(res, flush=True)
-            print(f"{line}{res}", file=f, flush=True)
+                print(res, file=f, flush=True)
+
+            if "get-model" in line:
+                mo = z3.Z3_mk_model(ctx)
+                print(f";; model {mo}", file=f, flush=True)
 
     sys.exit(1)
 
