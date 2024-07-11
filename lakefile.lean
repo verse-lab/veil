@@ -23,8 +23,8 @@ lean_lib Examples {
 }
 
 require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v4.9.0"
-require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "542821345b1e8eb8e244dacafa96d677d0a55340"
-require smt from git "https://github.com/dranov/lean-smt.git"@"dranov"
+require auto from git "https://github.com/dranov/lean-auto.git" @ "dranov"
+require smt from git "https://github.com/dranov/lean-smt.git" @ "dranov"
 require Duper from git "https://github.com/leanprover-community/duper.git" @ "d53f474c91d39d49d0d30fa8d8deca51c4559690"
 
 @[default_target]
