@@ -14,7 +14,7 @@ register_option sauto.smt.solver : SolverName := {
 }
 
 inductive SmtResult
-  | Sat (model : Auto.Parser.SMTSexp.Sexp)
+  | Sat (model : String)
   | Unsat (unsatCore : Auto.Parser.SMTSexp.Sexp)
   | Unknown
 
@@ -72,12 +72,11 @@ def querySolver (goalQuery : String) : MetaM SmtResult := do
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
-      dbg_trace "returned sat"
       emitCommand solver .getModel
       let (_, solver) ← solver.takeStdin
       let stdout ← solver.stdout.readToEnd
       -- let stderr ← solver.stderr.readToEnd
-      let (model, _) ← getSexp stdout
+      let (model) := stdout
       trace[sauto] "{solverName} says Sat"
       trace[sauto] "Model:\n{model}"
       -- trace[sauto] "stderr:\n{stderr}"
