@@ -14,8 +14,8 @@ register_option sauto.smt.solver : SolverName := {
 }
 
 inductive SmtResult
-  | Sat (model : String)
-  | Unsat (unsatCore : String)
+  | Sat (model : Auto.Parser.SMTSexp.Sexp)
+  | Unsat (unsatCore : Auto.Parser.SMTSexp.Sexp)
   | Unknown
 
 namespace Smt
@@ -49,7 +49,8 @@ def createSolver (name : SolverName) (timeout : Option Nat) : MetaM SolverProc :
   | some t => pure t
   match name with
   | .none => throwError "createSolver :: Unexpected error"
-  | .z3   => createAux "z3" #["-in", "-smt2", s!"-T:{tlim}"]
+  -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-T:{tlim}"]
+  | .z3   => createAux "z3model.py" #[s!"--tlimit={tlim}"]
   | .cvc4 => throwError "cvc4 is not supported"
   | .cvc5 => createAux "cvc5" #[s!"--tlimit={tlim * 1000}", "--produce-models"]
 where
@@ -64,34 +65,36 @@ def querySolver (goalQuery : String) : MetaM SmtResult := do
   if solverName == SolverName.cvc5 then
     emitCommand solver (.setLogic "ALL")
   -- emitCommand solver (.setOption (.produceProofs true))
-  emitCommand solver (.setOption (.produceUnsatCores true))
+  -- emitCommand solver (.setOption (.produceUnsatCores true))
   emitCommandStr solver goalQuery
   emitCommand solver .checkSat
   let stdout ← solver.stdout.getLine
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
+      dbg_trace "returned sat"
       emitCommand solver .getModel
       let (_, solver) ← solver.takeStdin
       let stdout ← solver.stdout.readToEnd
-      let stderr ← solver.stderr.readToEnd
+      -- let stderr ← solver.stderr.readToEnd
       let (model, _) ← getSexp stdout
-      solver.kill
       trace[sauto] "{solverName} says Sat"
       trace[sauto] "Model:\n{model}"
       -- trace[sauto] "stderr:\n{stderr}"
-      return .Sat (toString model)
+      solver.kill
+      return .Sat model
   | .atom (.symb "unsat") =>
       emitCommand solver .getUnsatCore
       let (_, solver) ← solver.takeStdin
       let stdout ← solver.stdout.readToEnd
-      let stderr ← solver.stderr.readToEnd
+      -- let stderr ← solver.stderr.readToEnd
       let (unsatCore, _stdout) ← getSexp stdout
       solver.kill
-      trace[sauto] "{solverName} says Unsat\nunsat core:\n{unsatCore}"
+      trace[sauto] "{solverName} says Unsat"
+      trace[sauto] "Unsat core: {unsatCore}"
       -- trace[sauto] "Proof:\n{_stdout}"
       -- trace[sauto] "stderr:\n{stderr}"
-      return .Unsat (toString unsatCore)
+      return .Unsat unsatCore
   | _ => return .Unknown
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
