@@ -1,11 +1,14 @@
 #! /usr/bin/env python3
 import argparse
-import sys
 import itertools
-from typing import Any, Callable, Dict, List, Tuple, TypeAlias, Union
+import sys
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Tuple, TypeAlias, Union
+
 import z3
-import pdb
+
+# import dataclasses
+# import json
 
 # Dependencies:
 # pip3 `install z3-solver cvc5` OR `apt-get install python3-z3 python3-cvc5`
@@ -19,6 +22,15 @@ import pdb
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '--tlimit', help='time limit in seconds', type=int, default=10)
+
+# # https://stackoverflow.com/questions/51286748/make-the-python-json-encoder-support-pythons-new-dataclasses
+# class EnhancedJSONEncoder(json.JSONEncoder):
+#     def default(self, o):
+#         if dataclasses.is_dataclass(o):
+#             return dataclasses.asdict(o)
+#         if isinstance(o, z3.ExprRef):
+#             return str(o)
+#         return super().default(o)
 
 # https://github.com/Z3Prover/z3/issues/1553
 # https://stackoverflow.com/questions/63641783/outputting-z3-model-output-in-a-readable-format
@@ -36,11 +48,18 @@ class ConstantDecl:
     name: DeclName
     rng: SortName
 
+    def __repr__(self) -> str:
+        return f"{self.name}: {self.rng}"
+
 
 @dataclass(eq=True, frozen=True)
 class RelationDecl:
     name: DeclName
     dom: Tuple[SortName]
+
+    def __repr__(self) -> str:
+        ds = " → ".join(self.dom)
+        return f"{self.name}: {ds} → Bool"
 
 
 @dataclass(eq=True, frozen=True)
@@ -48,6 +67,10 @@ class FunctionDecl:
     name: DeclName
     dom: Tuple[SortName]
     rng: SortName
+
+    def __repr__(self) -> str:
+        ds = " → ".join(self.dom)
+        return f"{self.name}: {ds} → {self.rng}"
 
 
 @dataclass(eq=True, frozen=True)
@@ -70,56 +93,65 @@ class SortElement:
             return f"{self.z3expr}"
 
 
-class Model:
-    def __init__(self, z3model: z3.ModelRef):
-        print(z3model.sexpr())
-        print(z3model)
+@dataclass(eq=True, frozen=True)
+class Interpretation:
+    decl: Union[ConstantDecl, RelationDecl, FunctionDecl]
+    interp: Dict[Tuple, Union[bool, int, SortElement]]
 
+    def __repr__(self) -> str:
+        return f"{self.decl} = {self.interp}"
+
+
+class Model:
+    def __str__(self) -> str:
+        d = {'decl': self.sorts, 'interp': self.interps}
+        return str(d)
+        # return json.dumps(d, cls=EnhancedJSONEncoder)
+
+    def __init__(self, z3model: z3.ModelRef):
         # This code almost entirely copy-pasted from mypyvy's `model_to_first_order_structure``
         self.sorts: Dict[str, Any] = {
             BoolSort: [SortElement(z3.BoolVal(True), True), SortElement(z3.BoolVal(False), False)],
-            # TODO: do we need Int?
+            # IntSort: []
         }
 
         # collect all z3sorts, including sorts that appear in decls but not in z3model.sorts()
         z3sorts = z3model.sorts()
         z3sort_names = set(s.name() for s in z3sorts) | set(self.sorts.keys())
         for z3decl in sorted(z3model.decls(), key=str):
-            for z3sort in [z3decl.domain(i) for i in range(z3decl.arity())] + [z3decl.range()]:
+            collected_sorts = [z3decl.domain(i) for i in range(
+                z3decl.arity())] + [z3decl.range()]
+            # print(f"collecting z3decl {z3decl} -> {collected_sorts}")
+            for z3sort in collected_sorts:
                 sortname = z3sort.name()
                 if sortname not in z3sort_names:
-                    print(
-                        f'Found undeclared sort {sortname} in z3decl: {z3decl}', file=sys.stderr)
+                    # print(f'Found undeclared sort {sortname} in z3decl: {z3decl}')
                     z3sorts.append(z3sort)
                     z3sort_names.add(sortname)
+
+        # print(f"z3sorts: {z3sorts}")
 
         for z3sort in sorted(z3sorts, key=str):
             sortname = z3sort.name()
             assert sortname not in self.sorts, f"duplicate sort name {sortname}"
             self.sorts[sortname] = []
             univ = z3model.get_universe(z3sort)
-            # If the universe is not specified in the model, we add an arbitrary element to it
-            # (SMT-LIB assumes all sorts are non-empty, so this is safe to do)
-            if univ is None:
-                univ = [z3model.eval(
-                    z3.Const(f'{sortname}_arbitrary', z3sort), model_completion=True)]
-            z3elems = sorted(univ, key=str)
-            # self.sorts[sortname] = z3elems
-            for i, z3e in enumerate(z3elems):
-                e = UninterpretedValue(f'{sortname}{i}')
-                self.sorts[sortname].append(SortElement(z3e, e))
-
-        print(self.sorts)
+            # print(f"universe for {sortname}: {univ}")
+            # NOTE: in the mypyvy version, if `univ` is None, a single unconstrained constant
+            # is evaluated to get a value and add it to the universe. I'm not sure why.
+            # It might turn out later that we need to do the same.
+            if univ is not None:
+                z3elems = sorted(univ, key=str)
+                for i, z3e in enumerate(z3elems):
+                    e = UninterpretedValue(f'{sortname}{i}')
+                    self.sorts[sortname].append(SortElement(z3e, e))
 
         # Create mapping from (sort, z3expr) to SortElement
         elements: Dict[tuple[SortName, z3.ExprRef], SortElement] = {
-            (sortname, z3e): elem
+            (sortname, elem.z3expr): elem
             for sortname, elems in self.sorts.items()
             for elem in elems
-            for z3e in [elem.z3expr]
         }
-
-        print(f"Elements: {elements}")
 
         # interpret constants, relations, and functions
         def _eval_bool(expr: z3.ExprRef) -> bool:
@@ -132,7 +164,6 @@ class Model:
             assert z3.is_int(expr), expr
             ans = z3model.eval(expr, model_completion=True)
             assert z3.is_int_value(ans), (expr, ans)
-            print(f"_eval_int({expr}) = {ans}")
             return ans.as_long()
 
         def _eval_elem(sort: SortName) -> Callable[[z3.ExprRef], SortElement]:
@@ -145,12 +176,12 @@ class Model:
                 return elements[sort, ans]
             return _eval
 
-        self.decls = {}
+        self.interps: Dict[DeclName, Interpretation] = {}
 
         for z3decl in sorted(z3model.decls(), key=str):
             if any(z3decl.domain(i).name() not in self.sorts for i in range(z3decl.arity())):
                 assert False, f"decl {z3decl} has unknown sort"
-            name = z3decl.name()
+            name: DeclName = z3decl.name()
             dom = tuple(z3decl.domain(i).name() for i in range(z3decl.arity()))
             rng = z3decl.range().name()
             if len(dom) == 0:
@@ -159,7 +190,6 @@ class Model:
                 decl = RelationDecl(name, dom)
             else:
                 decl = FunctionDecl(name, dom, rng)
-            self.decls[name] = decl
 
             _eval: Callable[[z3.ExprRef], Union[bool, int, SortElement]]
             if rng == BoolSort:
@@ -170,23 +200,15 @@ class Model:
                 _eval = _eval_elem(rng)
 
             domains = [self.sorts[d] for d in dom]
-            print(f"domains for {z3decl}: {domains}")
+            # print(f"domains for {z3decl}: {domains}")
             # Evaluate the const/rel/function on all possible inputs
-            fi = {
-                row: _eval(z3decl(*(
-                    e.z3expr
-                    for e in row
-                )))
+            fi: Dict[Tuple, Union[bool, int, SortElement]] = {
+                row: _eval(z3decl(*(e.z3expr for e in row)))
                 for row in itertools.product(*domains)
             }
-            print(f"fi for {z3decl}: {fi}")
-
-        print(self.decls)
-
-        pdb.set_trace()
-
-    def __str__(self) -> str:
-        return f"Model({self.sorts})"
+            # NOTE: mypyvy has some assertions about `fi` here, which we elide
+            # print(f"fi for {z3decl}: {fi}")
+            self.interps[name] = Interpretation(decl, fi)
 
 
 def get_model(passedLines: List[str]) -> Model:
@@ -195,8 +217,6 @@ def get_model(passedLines: List[str]) -> Model:
     res = s.check()
     assert res == z3.sat, f"Expected sat, got {res}"
     m = s.model()
-    print(Model(m))
-    # pdb.set_trace()
     return Model(m)
 
 
