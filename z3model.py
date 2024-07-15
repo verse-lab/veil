@@ -63,7 +63,7 @@ class RelationDecl:
     dom: Tuple[SortName]
 
     def __to_lisp_as__(self) -> str:
-        return f"(relation {self.name} {sexp(self.dom)}"
+        return f"(relation {self.name} {sexp(self.dom)})"
 
     def __repr__(self) -> str:
         return self.__to_lisp_as__()
@@ -76,7 +76,7 @@ class FunctionDecl:
     rng: SortName
 
     def __to_lisp_as__(self) -> str:
-        return f"(function {self.name} {sexp(self.dom)})"
+        return f"(function {self.name} {sexp(self.dom)} {sexp(self.rng)})"
 
     def __repr__(self) -> str:
         return self.__to_lisp_as__()
@@ -115,6 +115,7 @@ class Interpretation:
 
     def __to_lisp_as__(self) -> str:
         strs = []
+        strs.append(f"{sexp(self.decl)}")
         for k, v in self.interp.items():
             strs.append(f"(interpret {self.decl.name} {sexp(k)} {sexp(v)})")
         return "\n".join(strs)
