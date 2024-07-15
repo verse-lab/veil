@@ -5,13 +5,11 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Tuple, TypeAlias, Union
 
+import sexpdata
 import z3
 
-# import dataclasses
-# import json
-
 # Dependencies:
-# pip3 `install z3-solver cvc5` OR `apt-get install python3-z3 python3-cvc5`
+# pip3 `install z3-solver cvc5 sexpdata` OR `apt-get install python3-z3 python3-cvc5 python3-sexpdata`
 
 # This program is a wrapper around Z3 that behaves (approximately) like `z3 -in`,
 # but overwrites the behaviour of the `(get-model)` command to print the
@@ -43,13 +41,20 @@ BoolSort: SortName = 'Bool'
 IntSort: SortName = 'Int'
 
 
+def sexp(x: Any) -> str:
+    return sexpdata.dumps(x, true_as='true', false_as='false', str_as='symbol')
+
+
 @dataclass(eq=True, frozen=True)
 class ConstantDecl:
     name: DeclName
     rng: SortName
 
+    def __to_lisp_as__(self) -> str:
+        return f"(constant {self.name} {self.rng})"
+
     def __repr__(self) -> str:
-        return f"{self.name}: {self.rng}"
+        return self.__to_lisp_as__()
 
 
 @dataclass(eq=True, frozen=True)
@@ -57,9 +62,11 @@ class RelationDecl:
     name: DeclName
     dom: Tuple[SortName]
 
+    def __to_lisp_as__(self) -> str:
+        return f"(relation {self.name} {sexp(self.dom)}"
+
     def __repr__(self) -> str:
-        ds = " → ".join(self.dom)
-        return f"{self.name}: {ds} → Bool"
+        return self.__to_lisp_as__()
 
 
 @dataclass(eq=True, frozen=True)
@@ -68,23 +75,31 @@ class FunctionDecl:
     dom: Tuple[SortName]
     rng: SortName
 
+    def __to_lisp_as__(self) -> str:
+        return f"(function {self.name} {sexp(self.dom)})"
+
     def __repr__(self) -> str:
-        ds = " → ".join(self.dom)
-        return f"{self.name}: {ds} → {self.rng}"
+        return self.__to_lisp_as__()
 
 
 @dataclass(eq=True, frozen=True)
 class UninterpretedValue:
     name: str
 
-    def __repr__(self) -> str:
+    def __to_lisp_as__(self) -> str:
         return self.name
+
+    def __repr__(self) -> str:
+        return self.__to_lisp_as__()
 
 
 @dataclass(eq=True, frozen=True)
 class SortElement:
     z3expr: z3.ExprRef
     val: Union[bool, UninterpretedValue]
+
+    def __to_lisp_as__(self) -> str:
+        return f"{sexp(self.val)}"
 
     def __repr__(self) -> str:
         if isinstance(self.val, UninterpretedValue):
@@ -98,15 +113,27 @@ class Interpretation:
     decl: Union[ConstantDecl, RelationDecl, FunctionDecl]
     interp: Dict[Tuple, Union[bool, int, SortElement]]
 
+    def __to_lisp_as__(self) -> str:
+        strs = []
+        for k, v in self.interp.items():
+            strs.append(f"(interpret {self.decl.name} {sexp(k)} {sexp(v)})")
+        return "\n".join(strs)
+
     def __repr__(self) -> str:
-        return f"{self.decl} = {self.interp}"
+        return self.__to_lisp_as__()
 
 
 class Model:
-    def __str__(self) -> str:
-        d = {'decl': self.sorts, 'interp': self.interps}
-        return str(d)
-        # return json.dumps(d, cls=EnhancedJSONEncoder)
+    def __to_lisp_as__(self) -> str:
+        strs = []
+        for sortname, elems in self.sorts.items():
+            strs.append(f"(sort {sexp(sortname)} {sexp(elems)})")
+        for _declname, interp in self.interps.items():
+            strs.append(f"{sexp(interp)}")
+        return "(\n" + "\n".join(strs) + "\n)"
+
+    def __repr__(self) -> str:
+        return self.__to_lisp_as__()
 
     def __init__(self, z3model: z3.ModelRef):
         # This code almost entirely copy-pasted from mypyvy's `model_to_first_order_structure``
