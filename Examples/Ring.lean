@@ -148,17 +148,8 @@ def inv_init' :
 
 set_option maxHeartbeats 2000000
 
-set_option auto.smt true
-set_option auto.smt.trust true
-set_option trace.auto.smt.printCommands true
-set_option trace.auto.smt.result true
--- set_option trace.auto.smt.stderr true
-
-set_option trace.smt true
-set_option trace.smt.solve true
-set_option trace.smt.translate.query true
--- without this we get "result: unknown (INCOMPLETE)"
-set_option smt.solver.finitemodelfind true
+set_option trace.sauto.query true
+set_option trace.sauto.result true
 
 theorem inv_inductive_smt :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
@@ -167,14 +158,10 @@ theorem inv_inductive_smt :
   (
     sdestruct st st' tot btwn;
     simp [RelationalTransitionSystem.inv] at hinv hnext ⊢;
-    trust_smt [tot.le_refl, tot.le_trans, tot.le_antisymm, tot.le_total,
+    sauto [tot.le_refl, tot.le_trans, tot.le_antisymm, tot.le_total,
       btwn.btw_ring, btwn.btw_trans, btwn.btw_side, btwn.btw_total,
       hinv, hnext
     ]
-    -- auto [tot.le_refl, tot.le_trans, tot.le_antisymm, tot.le_total,
-    --   btwn.btw_ring, btwn.btw_trans, btwn.btw_side, btwn.btw_total,
-    --   hinv, hnext
-    -- ]
   )
 
 end Ring

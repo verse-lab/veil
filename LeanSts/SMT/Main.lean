@@ -40,7 +40,7 @@ def prepareQuery (mv : MVarId) (hs : List Expr) : MetaM String := mv.withContext
   -- 2. Generate the SMT query.
   let cmds ← prepareSmtQuery hs (← mv.getType)
   let cmdString := s!"{Command.cmdsAsQuery cmds}"
-  trace[sauto] "goal:\n{goalType}"
+  trace[sauto.debug] "goal:\n{goalType}"
   -- trace[sauto] "query:\n{cmdString}"
   return cmdString
 

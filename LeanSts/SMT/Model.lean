@@ -1,11 +1,11 @@
 import Lean
 import Auto
 
-abbrev Name := Lean.Name
-abbrev UninterpretedValue := Name
+abbrev SortName := Lean.Name
+abbrev UninterpretedValue := Lean.Name
 
 structure FiniteUinterpretedSort where
-  name : Name
+  name : SortName
   size : Nat
   /-- The elements are assumed to be distinct. -/
   elements : Array UninterpretedValue
@@ -15,7 +15,7 @@ instance : ToString FiniteUinterpretedSort where
   toString s := s!"sort {s.name} = {s.elements}"
 
 structure InterpretedSort where
-  name : Name
+  name : SortName
   -- interpretation : Type
 deriving BEq, Hashable
 
@@ -25,7 +25,7 @@ instance : ToString InterpretedSort where
 def boolSortI : InterpretedSort := { name := `Bool }
 def intSortI : InterpretedSort := { name := `Int }
 
-def builtinInterpretedSorts : Lean.HashMap Name InterpretedSort :=
+def builtinInterpretedSorts : Lean.HashMap SortName InterpretedSort :=
   Lean.HashMap.ofList [(`Bool, boolSortI), (`Int, intSortI)]
 
 def InterpretedSort.interpretation (s : InterpretedSort) : Type :=
@@ -55,7 +55,7 @@ instance : ToString FirstOrderSort where
     | FirstOrderSort.Interpreted s => toString s
     | FirstOrderSort.Uninterpreted s => toString s
 
-def FirstOrderSort.name : FirstOrderSort → Name
+def FirstOrderSort.name : FirstOrderSort → SortName
   | FirstOrderSort.Interpreted s => s.name
   | FirstOrderSort.Uninterpreted s => s.name
 
@@ -80,7 +80,7 @@ def boolSort : FirstOrderSort := FirstOrderSort.Interpreted boolSortI
 def intSort : FirstOrderSort := FirstOrderSort.Interpreted intSortI
 
 structure ConstantDecl where
-  name : Name
+  name : SortName
   sort : FirstOrderSort
 deriving BEq, Hashable
 
@@ -88,7 +88,7 @@ instance : ToString ConstantDecl where
   toString c := s!"constant {c.name} : {c.sort}"
 
 structure RelationDecl where
-  name : Name
+  name : SortName
   domain : Array FirstOrderSort
 deriving BEq, Hashable
 
@@ -96,7 +96,7 @@ instance : ToString RelationDecl where
   toString r := s!"relation {r.name} : {r.domain}"
 
 structure FunctionDecl where
-  name : Name
+  name : SortName
   domain : Array FirstOrderSort
   range : FirstOrderSort
 deriving BEq, Hashable
@@ -116,7 +116,7 @@ instance : ToString Declaration where
     | Declaration.Relation r => toString r
     | Declaration.Function f => toString f
 
-def Declaration.name : Declaration → Name
+def Declaration.name : Declaration → SortName
   | Declaration.Constant c => c.name
   | Declaration.Relation r => r.name
   | Declaration.Function f => f.name
