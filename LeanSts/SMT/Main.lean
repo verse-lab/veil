@@ -8,12 +8,19 @@ open Lean hiding Command
 
 initialize
   registerTraceClass `sauto
+  registerTraceClass `sauto.query
+  registerTraceClass `sauto.result
   registerTraceClass `sauto.debug
 
 open Auto.Solver.SMT in
 register_option sauto.smt.solver : SolverName := {
   defValue := SolverName.z3
   descr := "SMT solver to use"
+}
+
+register_option sauto.smt.macrofinder : Bool := {
+  defValue := False
+  descr := "Whether to use Z3's macro-finder tactic"
 }
 
 inductive SmtResult
@@ -39,7 +46,7 @@ def prepareQuery (mv : MVarId) (hs : List Expr) : MetaM String := mv.withContext
 
 open Auto Auto.Solver.SMT
 def emitCommandStr (p : SolverProc) (c : String) : MetaM Unit := do
-  trace[sauto] "{c}"
+  trace[sauto.query] "{c}"
   p.stdin.putStr c
   p.stdin.flush
 
@@ -61,16 +68,20 @@ where
     IO.Process.spawn {stdin := .piped, stdout := .piped, stderr := .piped,
                       cmd := path, args := args}
 
-def querySolver (goalQuery : String) : MetaM SmtResult := do
-  let solverName := sauto.smt.solver.get (← getOptions)
-  trace[sauto] "solver: {solverName}"
-  let solver ← createSolver solverName .none
+def querySolver (goalQuery : String) (timeout : Option Nat) : MetaM SmtResult := do
+  let opts ← getOptions
+  let solverName := sauto.smt.solver.get opts
+  trace[sauto.debug] "solver: {solverName}"
+  let solver ← createSolver solverName timeout
   if solverName == SolverName.cvc5 then
     emitCommand solver (.setLogic "ALL")
   -- emitCommand solver (.setOption (.produceProofs true))
   -- emitCommand solver (.setOption (.produceUnsatCores true))
   emitCommandStr solver goalQuery
-  emitCommand solver .checkSat
+  if sauto.smt.macrofinder.get opts then
+    emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
+  else
+    emitCommand solver .checkSat
   let stdout ← solver.stdout.getLine
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
@@ -80,10 +91,10 @@ def querySolver (goalQuery : String) : MetaM SmtResult := do
       let stdout ← solver.stdout.readToEnd
       -- let stderr ← solver.stderr.readToEnd
       let (model, _) ← getSexp stdout
-      trace[sauto] "{solverName} says Sat"
-      trace[sauto] "Model:\n{model}"
+      trace[sauto.result] "{solverName} says Sat"
+      trace[sauto.debug] "Model:\n{model}"
       let fostruct ← extractStructure model
-      trace[sauto] "{fostruct}"
+      trace[sauto.result] "{fostruct}"
       -- trace[sauto] "stderr:\n{stderr}"
       solver.kill
       return .Sat fostruct
@@ -94,8 +105,8 @@ def querySolver (goalQuery : String) : MetaM SmtResult := do
       -- let stderr ← solver.stderr.readToEnd
       let (unsatCore, _stdout) ← getSexp stdout
       solver.kill
-      trace[sauto] "{solverName} says Unsat"
-      trace[sauto] "Unsat core: {unsatCore}"
+      trace[sauto.result] "{solverName} says Unsat"
+      trace[sauto.result] "Unsat core: {unsatCore}"
       -- trace[sauto] "Proof:\n{_stdout}"
       -- trace[sauto] "stderr:\n{stderr}"
       return .Unsat unsatCore
@@ -109,6 +120,10 @@ syntax (name := sauto) "sauto" smtHints smtTimeout : tactic
   let hs ← Tactic.parseHints ⟨stx[1]⟩
   let timeout ← Tactic.parseTimeout ⟨stx[2]⟩
   let cmdString ← prepareQuery mv hs
-  let res ← querySolver cmdString
+  let res ← querySolver cmdString timeout
+  match res with
+  | .Sat _ => throwError "the goal is false"
+  | .Unknown => throwError "the solver returned unknown"
+  | .Unsat _ => mv.admit
 
 end Smt
