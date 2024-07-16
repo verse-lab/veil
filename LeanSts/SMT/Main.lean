@@ -2,6 +2,8 @@ import Lean
 import Auto
 import Smt
 
+import LeanSts.SMT.Model
+
 open Lean hiding Command
 
 initialize
@@ -14,7 +16,7 @@ register_option sauto.smt.solver : SolverName := {
 }
 
 inductive SmtResult
-  | Sat (model : String)
+  | Sat (model : Auto.Parser.SMTSexp.Sexp)
   | Unsat (unsatCore : Auto.Parser.SMTSexp.Sexp)
   | Unknown
 
@@ -76,9 +78,10 @@ def querySolver (goalQuery : String) : MetaM SmtResult := do
       let (_, solver) ← solver.takeStdin
       let stdout ← solver.stdout.readToEnd
       -- let stderr ← solver.stderr.readToEnd
-      let (model) := stdout
+      let (model, _) ← getSexp stdout
       trace[sauto] "{solverName} says Sat"
       trace[sauto] "Model:\n{model}"
+      let _ ← parseModel model
       -- trace[sauto] "stderr:\n{stderr}"
       solver.kill
       return .Sat model
