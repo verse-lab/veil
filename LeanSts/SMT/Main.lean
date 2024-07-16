@@ -8,6 +8,7 @@ open Lean hiding Command
 
 initialize
   registerTraceClass `sauto
+  registerTraceClass `sauto.debug
 
 open Auto.Solver.SMT in
 register_option sauto.smt.solver : SolverName := {
@@ -16,7 +17,7 @@ register_option sauto.smt.solver : SolverName := {
 }
 
 inductive SmtResult
-  | Sat (model : Auto.Parser.SMTSexp.Sexp)
+  | Sat (model : FirstOrderStructure)
   | Unsat (unsatCore : Auto.Parser.SMTSexp.Sexp)
   | Unknown
 
@@ -81,10 +82,11 @@ def querySolver (goalQuery : String) : MetaM SmtResult := do
       let (model, _) ← getSexp stdout
       trace[sauto] "{solverName} says Sat"
       trace[sauto] "Model:\n{model}"
-      let _ ← parseModel model
+      let fostruct ← extractStructure model
+      trace[sauto] "{fostruct}"
       -- trace[sauto] "stderr:\n{stderr}"
       solver.kill
-      return .Sat model
+      return .Sat fostruct
   | .atom (.symb "unsat") =>
       emitCommand solver .getUnsatCore
       let (_, solver) ← solver.takeStdin

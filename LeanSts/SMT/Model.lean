@@ -12,7 +12,7 @@ structure FiniteUinterpretedSort where
 deriving BEq, Hashable
 
 instance : ToString FiniteUinterpretedSort where
-  toString s := s!"uninterpreted sort {s.name} {s.elements}"
+  toString s := s!"sort {s.name} = {s.elements}"
 
 structure InterpretedSort where
   name : Name
@@ -63,10 +63,18 @@ inductive FirstOrderValue where
   | Interpreted (s : InterpretedSort) (val : s.interpretation)
   | Uninterpreted (s : FiniteUinterpretedSort) (val : UninterpretedValue)
 
+def FirstOrderValue.isTrue (val : FirstOrderValue) : Bool :=
+  match val with
+  | FirstOrderValue.Interpreted { name := `Bool } b => b
+  | _ => false
+
 instance : ToString FirstOrderValue where
   toString
     | FirstOrderValue.Interpreted s val => s.valToString val
     | FirstOrderValue.Uninterpreted _ val => toString val
+
+def Array.funcArgsString (vals : Array FirstOrderValue) : String :=
+  "(" ++ (String.intercalate ", " (vals.map toString).toList) ++ ")"
 
 def boolSort : FirstOrderSort := FirstOrderSort.Interpreted boolSortI
 def intSort : FirstOrderSort := FirstOrderSort.Interpreted intSortI
@@ -144,6 +152,19 @@ structure FirstOrderStructure where
   interp : ExplicitInterpretation
 
 open Lean hiding Declaration
+
+/- FIXME: make this match mypyvy output to a greater extent -/
+instance : ToString FirstOrderStructure where
+  toString s := Id.run (do
+    let mut out := s!"\n"
+    for dom in s.domains do
+      out := out ++ s!"  {dom}\n"
+    for (decl, (args, val)) in s.interp.toList do
+      match decl with
+      | Declaration.Constant c => out := out ++ s!"  {c.name} = {val}\n"
+      | Declaration.Relation r => if val.isTrue then out := out ++ s!"  {r.name}{args.funcArgsString} = true\n"
+      | Declaration.Function f => out := out ++ s!"  {f.name}{args.funcArgsString} = {val}\n"
+    return out)
 
 def FirstOrderStructure.findSort (s : FirstOrderStructure) (name : Lean.Name) : MetaM FirstOrderSort :=
   match s.domains.find? (fun s => s.name == name) with
@@ -228,7 +249,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
         | _ => throwError s!"malformed element: {elem}"
       return .Uninterpreted { name := sortName, size := elems.size, elements := elems }
     )
-    trace[sauto] s!"{sort}"
+    trace[sauto.debug] s!"{sort}"
     struct := { struct with domains := struct.domains.push sort }
 
   -- (|constant| |s1| |a|),
@@ -237,7 +258,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let sortName := Name.mkSimple sortName
     let sort ← findSortWithName sortName struct
     let decl: ConstantDecl := { name := constName, sort := sort }
-    trace[sauto] s!"{decl}"
+    trace[sauto.debug] s!"{decl}"
     struct := { struct with signature := { struct.signature with constants := struct.signature.constants.push decl } }
 
   -- (|relation| |rel| (|a| |a|)),
@@ -245,7 +266,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let relName := Name.mkSimple relName
     let doms ← findSortsArray doms struct
     let decl: RelationDecl := { name := relName, domain := doms }
-    trace[sauto] s!"{decl}"
+    trace[sauto.debug] s!"{decl}"
     struct := { struct with signature := { struct.signature with relations := struct.signature.relations.push decl } }
 
   -- (|function| |f| (|a|) |Int|),
@@ -254,7 +275,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let doms ← findSortsArray doms struct
     let range ← findSortWithName (Name.mkSimple range) struct
     let decl: FunctionDecl := { name := funName, domain := doms, range := range }
-    trace[sauto] s!"{decl}"
+    trace[sauto.debug] s!"{decl}"
     struct := { struct with signature := { struct.signature with functions := struct.signature.functions.push decl } }
 
   -- (|interpret| |rel| (|a0| |a0|) |false|)
@@ -265,16 +286,16 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let decl ← struct.findDecl declName
     let args ← getValueArray args decl.domain
     let val ← getValueOfSort val decl.range
-    trace[sauto] s!"interpret {declName} {args} {val}"
+    trace[sauto.debug] s!"interpret {declName} {args} {val}"
     struct := { struct with interp := struct.interp.insert decl (args, val) }
 
   | _ => throwError s!"(parseInstruction) malformed instruction: {inst}"
   return struct
 
-def parseModel (model : Sexpr) : MetaM Unit := do
+def extractStructure (model : Sexpr) : MetaM FirstOrderStructure := do
   let mut struct : FirstOrderStructure := default
   let instructions ← extractInstructions model
-  trace[sauto] "instructions: {instructions}"
+  trace[sauto.debug] "instructions: {instructions}"
   for inst in instructions do
     struct ← parseInstruction inst struct
-  return ()
+  return struct
