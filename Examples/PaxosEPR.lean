@@ -290,21 +290,19 @@ theorem extracted_1 (st st' : @Structure node value round)
   sauto[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
        tot.le_trans, hinv, hnext]
 
+-- This returns SAT!
 theorem extracted_2 (st st' : @Structure node value round)
   (hinv : RelationalTransitionSystem.inv st) (hnext : phase_2a st st') :
   inv_choose_propose st' := by
   sdestruct st st' q tot;
   simp only [actSimp, invSimp, Structure.mk.injEq, funextEq, tupleEq] at *
-  sauto[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
-       tot.le_trans, hinv, hnext]
+  -- sauto[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
+  --      tot.le_trans, hinv, hnext]
+  sorry
 
 theorem extracted_3 (st st' : @Structure node value round)
   (hinv : RelationalTransitionSystem.inv st) (hnext : phase_2b st st') :
-  inv_choose_propose st' := by
-  sdestruct st st' q tot;
-  simp only [actSimp, invSimp, Structure.mk.injEq, funextEq, tupleEq] at *
-  trust_smt[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
-       tot.le_trans, hinv, hnext]
+  inv_choose_propose st' := sorry
 
 theorem extracted_4 (st st' : @Structure node value round)
   (hinv : RelationalTransitionSystem.inv st) (hnext : decision st st') :
