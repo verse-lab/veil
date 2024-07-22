@@ -12,7 +12,7 @@ import Mathlib.Tactic
 section PaxosFOL
 class TotalOrder (t : Type) :=
   -- relation: total order
-  le (x y : t) : Bool
+  le (x y : t) : Prop
   none : t
   -- axioms
   le_refl       (x : t) : le x x
@@ -22,20 +22,20 @@ class TotalOrder (t : Type) :=
 
 class Quorum (node : Type) (quorum : outParam Type):=
   -- relation
-  member (a : node) (q : quorum) : Bool
+  member (a : node) (q : quorum) : Prop
   -- axioms
   quorum_intersection :
     ∀ (q1 q2 : quorum), ∃ (a : node), member a q1 ∧ member a q2
 
 variable {node : Type} [DecidableEq node]
 variable {value : Type} [DecidableEq value]
-variable {quorum : Type} [DecidableEq quorum] [Quorum node quorum]
-variable {round : Type} [DecidableEq round] [TotalOrder round]
+variable {quorum : Type} [DecidableEq quorum] [q : Quorum node quorum] [DecidableBinaryRel q.member]
+variable {round : Type} [DecidableEq round] [tot: TotalOrder round] [DecidableBinaryRel tot.le]
 
 structure Structure :=
   -- Phase 1(a): a proposer selects a proposal number (ballot) `r` and sends a
   -- _prepare_ request (`msg_1a`) with number `r` to a majority of acceptors
-  one_a (r : round) : Bool
+  one_a (r : round) : Prop
 
   -- Phase 1(b) : if an acceptor `n` receives a _prepare_ request with number `r`
   -- greater than that of ANY _prepare_ request to which it has already responded
@@ -43,33 +43,33 @@ structure Structure :=
   -- proposals numbered less than `r` AND with the highest-numbered proposal (if
   -- any) that it has accepted (`max_round` and `max_val`) i.e. `msg_1b`
   -- equivalent to `one_b_max_vote` in the original Ivy spec
-  one_b_max_vote (n : node) (r : round) (max_round : round) (max_val : value) : Bool
+  one_b_max_vote (n : node) (r : round) (max_round : round) (max_val : value) : Prop
 
   -- (ghost) relation one_b(N:node, R:round) # := exists RMAX, V. one_b_max_vote(N,R,RMAX,V)
   -- def one_b (st : @Structure node value round) (n : node) (r : round) : Prop :=
   --   ∃ (rmax : round) (v : value), st.one_b_max_vote n r rmax v
-  one_b (n : node) (r : round) : Bool
+  one_b (n : node) (r : round) : Prop
 
   -- (ghost) relation left_rnd(N:node, R:round) # := exists R2, RMAX, V. ~le(R2,R) & one_b_max_vote(N,R,RMAX,V)
   -- def leftRound (st : @Structure node value round) (n : node) (r : round) : Prop :=
   -- ∃ (r2 : round) (rmax : round) (v : value),
   --   ¬ TotalOrder.le r2 r ∧ st.one_b_max_vote n r rmax v
-  leftRound (n : node) (r : round) : Bool
+  leftRound (n : node) (r : round) : Prop
 
   -- Phase 2(a): if the proposer receives a response to its _prepare_ requests
   -- (numbered `r`) from a majority/quorum of acceptors, then it sends an _accept_
   -- request to each of those acceptors for a proposal numbered `r` with a
   -- value `v`, where `v` is the value of the highest-numbered proposal among
   -- the responses, or is any value if trhe responses reported no proposals
-  proposal (r : round) (v : value) : Bool
+  proposal (r : round) (v : value) : Prop
 
   -- Phase 2(b): if an acceptor `n` receives an _accept_ request for a proposal
   -- numbered `r`, it accepts the proposal UNLESS it has already responded
   -- to a _prepare_ request having a number greater than `r`
-  vote (n : node) (r : round) (v : value) : Bool
+  vote (n : node) (r : round) (v : value) : Prop
 
   -- Got 2(b) from a quorum
-  decision (n : node) (r : round) (v : value) : Bool
+  decision (n : node) (r : round) (v : value) : Prop
 
 /-- Find the maximal vote in a round less than `r` made by node `n` -/
 @[actSimp] def maximalVote (st : @Structure node value round) (n : node) (r : round) (maxr : round) (maxv : value) : Prop :=
@@ -115,7 +115,7 @@ structure Structure :=
       -- preconditions
       r ≠ TotalOrder.none ∧
       -- update
-      st' = { st with one_a := st.one_a[r ↦ true] }
+      st' = { st with one_a := st.one_a[r ↦ True] }
 
 -- "join round" = receive 1a and answer with 1b
 @[actSimp] def phase_1b : RelationalTransitionSystem.action (@Structure node value round) :=
@@ -128,8 +128,8 @@ structure Structure :=
       maximalVote st n r max_round max_val ∧
       -- update
       -- NOTE: `one_b` and `leftRound` are derived relations, which we must update
-      st' = { st with one_b_max_vote := st.one_b_max_vote[n, r, max_round, max_val ↦ true],
-                      one_b := st.one_b[n, r ↦ true],
+      st' = { st with one_b_max_vote := st.one_b_max_vote[n, r, max_round, max_val ↦ True],
+                      one_b := st.one_b[n, r ↦ True],
                       -- left_rnd(n, R) := left_rnd(n, R) | ~le(r, R)
                       -- TODO: add a helper function in `State.lean` for this kind of thing
                       leftRound := λ N R  => st.leftRound N R ∨ (N = n ∧ ¬ TotalOrder.le r R)
@@ -144,7 +144,7 @@ structure Structure :=
       (forall (V : value), ¬ st.proposal r V) ∧
       isSafeAt st r v ∧
       -- update
-      st' = { st with proposal := st.proposal[r, v ↦ true] }
+      st' = { st with proposal := st.proposal[r, v ↦ True] }
 
 -- -- "cast vote" = receive a 2a and send 2b
 @[actSimp] def phase_2b : RelationalTransitionSystem.action (@Structure node value round) :=
@@ -155,7 +155,7 @@ structure Structure :=
       ¬ st.leftRound n r ∧
       st.proposal r v ∧
       -- update
-      st' = { st with vote := st.vote[n, r, v ↦ true] }
+      st' = { st with vote := st.vote[n, r, v ↦ True] }
 
 -- "decide" = receive a quorum of 2b's
 @[actSimp] def decision : RelationalTransitionSystem.action (@Structure node value round) :=
@@ -165,7 +165,7 @@ structure Structure :=
       r ≠ TotalOrder.none ∧
       chosenAt st r v ∧
       -- update
-      st' = { st with decision := st.decision[n, r, v ↦ true] }
+      st' = { st with decision := st.decision[n, r, v ↦ True] }
 
 @[safeSimp, invSimp] def unique_decision (st : @Structure node value round) : Prop :=
   ∀ (n1 n2 : node) (r1 r2 : round) (v1 v2 : value),
@@ -275,24 +275,36 @@ set_option trace.auto.smt.result true
 --   { sorry }
 --   { sorry }
 
+set_option smt.solver.finitemodelfind true
+set_option trace.sauto.query true
+set_option trace.sauto.result true
+
+-- set_option pp.all true
+
 -- The first `sorry`'ed goal from above
 theorem extracted_1 (st st' : @Structure node value round)
   (hinv : RelationalTransitionSystem.inv st) (hnext : phase_1b st st') :
   inv_choose_propose st' := by
-  -- sdestruct st;
-  -- sdestruct st';
-  -- simp only [actSimp, invSimp, Structure.mk.injEq] at *
-  -- auto[Quorum.quorum_intersection, TotalOrder.le_refl, TotalOrder.le_total, TotalOrder.le_antisymm,
-      --  TotalOrder.le_trans, hinv, hnext]
-  sorry
+  sdestruct st st' q tot;
+  simp only [actSimp, invSimp, Structure.mk.injEq, funextEq, tupleEq] at *
+  sauto[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
+       tot.le_trans, hinv, hnext]
 
 theorem extracted_2 (st st' : @Structure node value round)
   (hinv : RelationalTransitionSystem.inv st) (hnext : phase_2a st st') :
-  inv_choose_propose st' := sorry
+  inv_choose_propose st' := by
+  sdestruct st st' q tot;
+  simp only [actSimp, invSimp, Structure.mk.injEq, funextEq, tupleEq] at *
+  sauto[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
+       tot.le_trans, hinv, hnext]
 
 theorem extracted_3 (st st' : @Structure node value round)
   (hinv : RelationalTransitionSystem.inv st) (hnext : phase_2b st st') :
-  inv_choose_propose st' := sorry
+  inv_choose_propose st' := by
+  sdestruct st st' q tot;
+  simp only [actSimp, invSimp, Structure.mk.injEq, funextEq, tupleEq] at *
+  trust_smt[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
+       tot.le_trans, hinv, hnext]
 
 theorem extracted_4 (st st' : @Structure node value round)
   (hinv : RelationalTransitionSystem.inv st) (hnext : decision st st') :
