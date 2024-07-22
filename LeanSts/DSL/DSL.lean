@@ -16,8 +16,7 @@ macro "instantiate" t:term : command => `(variable [$t])
 macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
 
 elab "state" "=" fs:Command.structFields : command => do
-  let scope <- getScope
-  let vd := scope.varDecls
+  let vd := (<- getScope).varDecls
   elabCommand $ <-
     `(@[state] structure $(mkIdent `State) $[$vd]* where mk :: $fs)
 /--
@@ -66,12 +65,11 @@ elab "#gen_state" : command => assembleState
 
 /-- Declaring the initial state predicate -/
 elab "initial" ini:term : command => do
-  let vd := (<- getScope).varDecls
   elabCommand <| <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let _ <- elabTerm ini (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
-    `(@[initDef, initSimp] def $(mkIdent `initalState?) $[$vd]* : $stateTp -> Prop := $ini)
+    `(@[initDef, initSimp] def $(mkIdent `initalState?) : $stateTp -> Prop := $ini)
 
 /-- Declaring the initial state predicate in the form of a code -/
 elab "after_init" "{" l:lang "}" : command => do
@@ -118,7 +116,6 @@ This command defines a transition system action. The action is defined as a rela
 -/
 elab_rules : command
   | `(command| action $nm:declId $br:explicitBinders ? = $act) => do
-  let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     match br with
@@ -129,9 +126,9 @@ elab_rules : command
     let stateTp <- PrettyPrinter.delab stateTp
     match br with
     | some br =>                                                            -- TODO: add macro for a beta reduction here
-       `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
+       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
     | _ => do
-       `(@[actDef, actSimp] def $nm $[$vd]* : $stateTp -> $stateTp -> Prop := $act)
+       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := $act)
 
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
@@ -150,16 +147,14 @@ def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String
 Assembles all declared actions into a `Next` transition relation
 -/
 def assembleActions : CommandElabM Unit := do
-  let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let acts <- combineLemmas ``Or (<- stsExt.get).actions vs "transitions"
     let acts <- PrettyPrinter.delab acts
-    `(@[actSimp] def $(mkIdent `Next) $[$vd]* : $stateTp -> $stateTp -> Prop := $acts)
+    `(@[actSimp] def $(mkIdent `Next) : $stateTp -> $stateTp -> Prop := $acts)
 
 /-- Safety property. All capital variables are implicitly quantified -/
 elab "safety" safe:term : command => do
-  let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     -- let safe <- liftMacroM $ closeCapitals safe
@@ -167,12 +162,11 @@ elab "safety" safe:term : command => do
     let stx <- funcasesM safe vs
     elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- my_delab e
-      `(@[safeDef, safeSimp, invSimp] def $(mkIdent `Safety) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      `(@[safeDef, safeSimp, invSimp] def $(mkIdent `Safety) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
 
 /-- Invariant of the transition system.
     All capital variables are implicitly quantified -/
 elab "invariant" inv:term : command => do
-  let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     -- let inv <- liftMacroM $ closeCapitals inv
@@ -183,16 +177,15 @@ elab "invariant" inv:term : command => do
     let inv_name := "inv" ++ toString num
     elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- my_delab e
-      `(@[invDef, invSimp] def $(mkIdent $ Name.mkSimple inv_name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      `(@[invDef, invSimp] def $(mkIdent $ Name.mkSimple inv_name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
 
 /-- Assembles all declared invariants into a single `Inv` predicate -/
 def assembleInvariant : CommandElabM Unit := do
-  let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let invs <- combineLemmas ``And ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties) vs "invariants"
     let invs <- PrettyPrinter.delab invs
-    `(@[invSimp] def $(mkIdent `Inv) $[$vd]* : $stateTp -> Prop := $invs)
+    `(@[invSimp] def $(mkIdent `Inv) : $stateTp -> Prop := $invs)
 
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
@@ -224,30 +217,27 @@ def instantiateSystem : CommandElabM Unit := do
 elab "#gen_spec" : command => instantiateSystem
 
 elab "prove_inv_init" proof:term : command => do
-  let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
-    `(theorem $(mkIdent `inv_init) $[$vd]* : invInit (σ := $stateTp) :=
+    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    `(theorem $(mkIdent `inv_init) : invInit (σ := $stateTp) :=
        by unfold invInit
           -- simp only [initSimp, invSimp]
           intros $(mkIdent `st)
           exact $proof)
 
 elab "prove_inv_safe" proof:term : command => do
-  let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
-    `(theorem $(mkIdent `safety_init) $[$vd]* : invSafe (σ := $stateTp) :=
+    `(theorem $(mkIdent `safety_init) : invSafe (σ := $stateTp) :=
        by unfold invSafe;
           -- simp only [initSimp, safeSimp]
           intros $(mkIdent `st);
           exact $proof)
 
 elab "prove_inv_inductive" proof:term : command => do
-  let vd := (<- getScope).varDecls
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
-    `(theorem $(mkIdent `inv_inductive) $[$vd]* : invInductive (σ := $stateTp) :=
+    `(theorem $(mkIdent `inv_inductive) : invInductive (σ := $stateTp) :=
       by unfold invInductive;
          intros $(mkIdent `st1) $(mkIdent `st2)
         --  simp only [actSimp, invSimp, safeSimp]

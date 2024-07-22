@@ -68,7 +68,6 @@ def toBinderIdent (i : Ident) : TSyntax ``binderIdent := Unhygienic.run <|
 
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec) (pf : TSyntax `term)
   : CommandElabM Unit := do
-  let vd := (<- getScope).varDecls
   let th ← Command.runTermElabM fun vs => do
     let spec ← parseTraceSpec spec
     let numActions := spec.foldl (fun n s => match s with | TraceSpecLine.assertion _ => n | _ => n + 1) 0
@@ -118,7 +117,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     | `(expected_smt_result| unsat) => `(∀ ($[$stateNames]* : $stateTp), ¬ $conjunction)
     | `(expected_smt_result| sat) => `(∃ ($[$binderNames]* : $stateTp), $conjunction)
     | _ => dbg_trace "expected result is neither sat nor unsat!" ; unreachable!
-    `(theorem $th_id $[$vd]* : $assertion := by exact $pf)
+    `(theorem $th_id : $assertion := by exact $pf)
   elabCommand $ th
 
 elab_rules : command
