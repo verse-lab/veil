@@ -158,12 +158,12 @@ instance : ToString FirstOrderStructure where
   toString s := Id.run (do
     let mut out := s!"\n"
     for dom in s.domains do
-      out := out ++ s!"  {dom}\n"
+      out := out ++ s!"{dom}\n"
     for (decl, (args, val)) in s.interp.toList do
       match decl with
-      | Declaration.Constant c => out := out ++ s!"  {c.name} = {val}\n"
-      | Declaration.Relation r => if val.isTrue then out := out ++ s!"  {r.name}{args.funcArgsString} = true\n"
-      | Declaration.Function f => out := out ++ s!"  {f.name}{args.funcArgsString} = {val}\n"
+      | Declaration.Constant c => out := out ++ s!"{c.name} = {val}\n"
+      | Declaration.Relation r => if val.isTrue then out := out ++ s!"{r.name}{args.funcArgsString} = true\n"
+      | Declaration.Function f => out := out ++ s!"{f.name}{args.funcArgsString} = {val}\n"
     return out)
 
 def FirstOrderStructure.findSort (s : FirstOrderStructure) (name : Lean.Name) : MetaM FirstOrderSort :=
