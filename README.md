@@ -27,26 +27,15 @@ model-checking (akin to TLC) and proving them (akin to TLAPS).
 
 ## Build
 
-The easiest way to get started is to use a Docker container:
+The `sauto` tactic relies on a Python wrapper around the Z3 SMT solver
+that we have written. Ensure you have Python 3 installed and then either:
 
 ```bash
-docker build -t lean-sts .
-docker run -v $(pwd):/root/lean-sts -it lean-sts bash
+pip3 install z3-solver cvc5 sexpdata
 ```
 
-In the container:
+or (on Ubuntu)
 
 ```bash
-lake update
-lake exe cache get
-lake build +Smt:dynlib
+apt-get install python3-z3 python3-cvc5 python3-sexpdata
 ```
-
-### VSCode Dev Container
-
-The above image is also configured as a Visual Studio Code Dev Container.
-
-## Questions
-
-- To what extent we can _test_ such systems using QuickChick-style approaches?
-- How to define STS in Lean such that we can discharge theorems using SMT?

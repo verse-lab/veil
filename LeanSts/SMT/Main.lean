@@ -24,7 +24,7 @@ register_option sauto.smt.macrofinder : Bool := {
 }
 
 inductive SmtResult
-  | Sat (model : FirstOrderStructure)
+  | Sat (model : Option FirstOrderStructure)
   | Unsat (unsatCore : Auto.Parser.SMTSexp.Sexp)
   | Unknown
 
@@ -60,7 +60,11 @@ def createSolver (name : SolverName) (timeout : Option Nat) : MetaM SolverProc :
   match name with
   | .none => throwError "createSolver :: Unexpected error"
   -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-T:{tlim}"]
-  | .z3   => createAux "z3model.py" #[s!"--tlimit={tlim}"]
+  -- We wrap Z3 with a Python script that prints models in a more usable format.
+  | .z3   =>
+    let solverPath := (System.mkFilePath [s!"{← IO.currentDir}", "z3model.py"]).toString
+    trace[sauto.debug] "Z3 wrapper at {solverPath}"
+    createAux solverPath #[s!"--tlimit={tlim}"]
   | .cvc4 => throwError "cvc4 is not supported"
   | .cvc5 => createAux "cvc5" #[s!"--tlimit={tlim * 1000}", "--produce-models"]
 where
@@ -75,8 +79,8 @@ def querySolver (goalQuery : String) (timeout : Option Nat) : MetaM SmtResult :=
   let solver ← createSolver solverName timeout
   if solverName == SolverName.cvc5 then
     emitCommand solver (.setLogic "ALL")
-  -- emitCommand solver (.setOption (.produceProofs true))
-  -- emitCommand solver (.setOption (.produceUnsatCores true))
+    emitCommand solver (.setOption (.produceProofs true))
+    emitCommand solver (.setOption (.produceUnsatCores true))
   emitCommandStr solver goalQuery
   if sauto.smt.macrofinder.get opts then
     emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
@@ -91,13 +95,17 @@ def querySolver (goalQuery : String) (timeout : Option Nat) : MetaM SmtResult :=
       let stdout ← solver.stdout.readToEnd
       -- let stderr ← solver.stderr.readToEnd
       let (model, _) ← getSexp stdout
+      solver.kill
       trace[sauto.result] "{solverName} says Sat"
       trace[sauto.debug] "Model:\n{model}"
-      let fostruct ← extractStructure model
-      trace[sauto.result] "{fostruct}"
-      -- trace[sauto] "stderr:\n{stderr}"
-      solver.kill
-      return .Sat fostruct
+      if solverName == SolverName.z3 then
+        let fostruct ← extractStructure model
+        trace[sauto.result] "{fostruct}"
+        return .Sat fostruct
+      else
+        trace[sauto.result] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
+        trace[sauto.result] "Model:\n{model}"
+        return .Sat .none
   | .atom (.symb "unsat") =>
       emitCommand solver .getUnsatCore
       let (_, solver) ← solver.takeStdin
