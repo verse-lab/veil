@@ -190,7 +190,7 @@ def assembleInvariant : CommandElabM Unit := do
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
 -/
-def instantiateSystem : CommandElabM Unit := do
+def instantiateSystem (name : Name): CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   assembleActions
   assembleInvariant
@@ -205,16 +205,17 @@ def instantiateSystem : CommandElabM Unit := do
     let safe      <- PrettyPrinter.delab safe
     let inv       := mkAppN (<- mkConst `Inv) vs
     let inv       <- PrettyPrinter.delab inv
-    liftCommandElabM $ elabCommand $ <-
-      `(instance $[$vd]* : RelationalTransitionSystem $stateTp where
+    let stx       <-
+      `(instance (priority := low) $(mkIdent name) $[$vd]* : RelationalTransitionSystem $stateTp where
           safe := $safe
           init := $initSt
           next := $nextTrans
           inv  := $inv
           )
+    liftCommandElabM $ elabCommand $ stx
 
 @[inherit_doc instantiateSystem]
-elab "#gen_spec" : command => instantiateSystem
+elab "#gen_spec" name:ident : command => instantiateSystem name.getId
 
 elab "prove_inv_init" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do

@@ -11,7 +11,7 @@ section Ring
 
 class TotalOrder (t : Type) :=
   -- relation: total order
-  le (x y : t) : Bool
+  le (x y : t) : Prop
   -- axioms
   le_refl       (x : t) : le x x
   le_trans  (x y z : t) : le x y → le y z → le x z
@@ -21,7 +21,7 @@ class TotalOrder (t : Type) :=
 class Between (node : Type) :=
   -- relation: btw represents a ring
   -- read: y is between x and z
-  btw (x y z : node) : Bool
+  btw (x y z : node) : Prop
   -- axioms
   btw_ring    (x y z : node) : btw x y z → btw y z x
   btw_trans (w x y z : node) : btw w x y → btw w y z → btw w x z
@@ -29,36 +29,38 @@ class Between (node : Type) :=
   btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
 
 type node
-instantiate DecidableEq node
-instantiate TotalOrder node
-instantiate Between node
+instantiate dec : DecidableEq node
+instantiate tot : TotalOrder node
+variable [DecidableBinaryRel tot.le]
+instantiate btwn : Between node
+
 
 open Between TotalOrder
 
-relation leader : node -> Bool
-relation pending : node -> node -> Bool
+relation leader : node -> Prop
+relation pending : node -> node -> Prop
 
 #gen_state
 
 after_init {
-  leader _ := false;
-  pending _ _ := false
+  leader _ := False;
+  pending _ _ := False
 }
 
 action send (n next : node) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
-  pending n next := true
+  pending n next := True
 }
 
-action recv (sender n next : node) (havoc : Bool) = {
+action recv (sender n next : node) (havoc : Prop) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
   require pending sender n;
   if (sender = n) then
-    leader n := true;
+    leader n := True;
     pending sender n := havoc
   else if (le n sender) then
     pending sender n := havoc;
-    pending sender n := true
+    pending sender n := True
   else
     pending sender n := havoc
 }
@@ -67,7 +69,7 @@ safety leader L → le N L
 invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
 
-#gen_spec
+#gen_spec Ring
 
 prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
 
@@ -87,18 +89,18 @@ prove_inv_inductive by {
 }
 
 sat trace [initial_state] {} by {
-  exists { leader := fun _ => false, pending := fun _ _ => false }
+  simp [initSimp, actSimp]
+  -- exists { leader := fun _ => false, pending := fun _ _ => false }
 }
 
 unsat trace [trace_any] {
   any action
   assert ¬(leader L → le N L)
 } by {
-  -- TODO: write tactic for this
-  sintro st0 st1
-  simp only [initSimp, actSimp, invSimp, RelationalTransitionSystem.next, State.mk.injEq]
-  simp_all
-  duper
+  intros
+  sdestruct_all
+  simp only [initSimp, actSimp, invSimp, RelationalTransitionSystem.next, State.mk.injEq, funextEq, tupleEq]
+  auto
 }
 
 end Ring

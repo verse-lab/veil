@@ -27,15 +27,15 @@ class Quorum (node : Type) (quorum : outParam Type):=
     ∀ (q1 q2 : quorum), ∃ (a : node), member a q1 ∧ member a q2
 
 type node
-instantiate DecidableEq node
+instantiate dec_node : DecidableEq node
 type value
-instantiate DecidableEq value
+instantiate dec_val : DecidableEq value
 type quorum
-instantiate DecidableEq quorum
-instantiate Quorum node quorum
+instantiate dec_quorum : DecidableEq quorum
+instantiate q : Quorum node quorum
 type round
-instantiate DecidableEq round
-instantiate TotalOrder round
+instantiate dec_round : DecidableEq round
+instantiate tot : TotalOrder round
 
   -- Phase 1(a): a proposer selects a proposal number (ballot) `r` and sends a
   -- _prepare_ request (`msg_1a`) with number `r` to a majority of acceptors
@@ -190,7 +190,7 @@ invariant
 
 invariant one_b N R2 ∧ ¬ TotalOrder.le R2 R1 → leftRound N R1
 
-#gen_spec
+#gen_spec Paxos
 
 prove_inv_init by { simp_all [initSimp, invSimp, actSimp] }
 prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] ; duper }

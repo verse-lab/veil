@@ -26,9 +26,20 @@ elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
     let s <- `(rcasesPat| ⟨ $[$newFieldNames],* ⟩)
     evalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident with $s)
 
+/-- Destruct all structures in the context into their respective fields. -/
+elab "sdestruct_all" : tactic => withMainContext do
+  let lctx ← getLCtx
+  for hyp in lctx do
+    let isStructure ← match hyp.type.getAppFn.constName? with
+    | .none => pure false
+    | .some sn => pure (isStructure (<- getEnv) sn)
+    if isStructure then
+      let name := mkIdent hyp.userName
+      let dtac ← `(tactic| sdestruct $name:ident)
+      evalTactic dtac
+
 elab "sintro " ids:(colGt ident)* : tactic => withMainContext do
   evalTactic $ ← `(tactic| intro $(ids)* ; sdestruct $(ids)*)
-
 
 elab "sts_induction" : tactic => withMainContext do
   -- (1) Identify the `next` hypothesis
