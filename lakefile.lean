@@ -26,7 +26,3 @@ require mathlib from git "https://github.com/leanprover-community/mathlib4.git" 
 require auto from git "https://github.com/dranov/lean-auto.git" @ "dranov"
 require smt from git "https://github.com/dranov/lean-smt.git" @ "dranov"
 require Duper from git "https://github.com/leanprover-community/duper.git" @ "d53f474c91d39d49d0d30fa8d8deca51c4559690"
-
-@[default_target]
-lean_exe «lean-sts» where
-  root := `Main
