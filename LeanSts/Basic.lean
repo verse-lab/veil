@@ -2,6 +2,7 @@
    Reasoning about transition systems in Lean.
    We have both relationally-defined and functionally-defined transition systems.
 -/
+import Lean
 
 namespace RelationalTransitionSystem
 
@@ -53,3 +54,6 @@ def action_pred {σ : Type} (a : @action σ) : pred σ :=
 notation "⟨" a "⟩" => action_pred a
 
 end FunctionalTransitionSystem
+
+/-- Simplifiers to prepare a goal for SMT. See `SMT/Preparation.lean` -/
+register_simp_attr smtSimp

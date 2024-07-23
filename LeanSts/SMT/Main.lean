@@ -2,6 +2,8 @@ import Lean
 import Auto
 import Smt
 
+/- Not actually used here, but re-exported. -/
+import LeanSts.SMT.Preparation
 import LeanSts.SMT.Model
 
 open Lean hiding Command

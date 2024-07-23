@@ -80,12 +80,9 @@ prove_inv_safe by {
   assumption
 }
 
-set_option auto.smt true
-set_option auto.smt.trust true
-
 prove_inv_inductive by {
   intro hnext hinv
-  sts_induction <;> sdestruct <;> solve_clause
+  sts_induction <;> sdestruct_all <;> solve_clause
 }
 
 sat trace [initial_state] {} by {
@@ -100,7 +97,9 @@ unsat trace [trace_any] {
   intros
   sdestruct_all
   simp only [initSimp, actSimp, invSimp, RelationalTransitionSystem.next, State.mk.injEq, funextEq, tupleEq]
-  auto
+  simp only [eq_iff_iff, iff_false, ne_eq, and_imp, if_true_left, not_and, decide_eq_true_eq,
+    exists_and_left, exists_and_right, not_imp, Classical.not_forall, Decidable.not_not]
+  sauto
 }
 
 end Ring

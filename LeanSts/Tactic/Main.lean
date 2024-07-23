@@ -97,9 +97,10 @@ elab "solve_clause" : tactic => withMainContext do
       evalTactic dtac
   -- (3) Simplify all invariants and transitions, as well as
   -- destruct structures into their components everywhere
+  -- We also make simplifications required by `lean-smt`: `funextEq`, `tupleEq`
   let injEqLemma := (mkIdent $ stateName ++ `mk ++ `injEq)
   -- dbg_trace "Using injEqLemma: {injEqLemma}"
-  let simpTac ← `(tactic| simp only [actSimp, invSimp, $injEqLemma:ident] at *)
+  let simpTac ← `(tactic| simp only [actSimp, invSimp, safeSimp, smtSimp, $injEqLemma:ident] at *)
   xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
@@ -115,7 +116,7 @@ elab "solve_clause" : tactic => withMainContext do
   -- dbg_trace "Props: {props}"
   -- If given duplicate terms, `auto` complains: "Auto does not accept duplicated input terms"
   let idents := (props.toList.eraseDups.map mkIdent).toArray
-  let auto_tac ← `(tactic| auto [$[$idents:ident],*])
+  let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
   let executed_tactics := (xtacs ++ #[auto_tac])
   trace[sauto] "{executed_tactics}"
   evalTactic auto_tac
