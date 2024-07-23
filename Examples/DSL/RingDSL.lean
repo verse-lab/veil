@@ -95,7 +95,7 @@ unsat trace [trace_any] {
   assert ¬(leader L → le N L)
 } by {
   intros
-  sdestruct_all
+  sdestruct_hyps
   simp only [initSimp, actSimp, invSimp, RelationalTransitionSystem.next, State.mk.injEq, funextEq, tupleEq]
   simp only [eq_iff_iff, iff_false, ne_eq, and_imp, if_true_left, not_and, decide_eq_true_eq,
     exists_and_left, exists_and_right, not_imp, Classical.not_forall, Decidable.not_not]

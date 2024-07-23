@@ -8,11 +8,10 @@ import Duper
 
 open Lean Lean.Elab.Tactic Meta.Tactic
 
-/-- Destruct a structure into its fields.
-    If no identifier is provided, destructs the goal. -/
+/-- Destruct a structure into its fields. -/
 elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
   if ids.size == 0 then
-    evalTactic $ ← `(tactic| repeat' constructor)
+    throwError "sdestruct: no identifier provided"
   else for id in ids do
     let lctx ← getLCtx
     let name := (getNameOfIdent' id)
@@ -26,8 +25,12 @@ elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
     let s <- `(rcasesPat| ⟨ $[$newFieldNames],* ⟩)
     evalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident with $s)
 
+/-- Split the goal into sub-goals. -/
+elab "sdestruct_goal" : tactic => withMainContext do
+  evalTactic $ ← `(tactic| repeat' constructor)
+
 /-- Destruct all structures in the context into their respective fields. -/
-elab "sdestruct_all" : tactic => withMainContext do
+elab "sdestruct_hyps" : tactic => withMainContext do
   let lctx ← getLCtx
   for hyp in lctx do
     let isStructure ← match hyp.type.getAppFn.constName? with
@@ -37,6 +40,10 @@ elab "sdestruct_all" : tactic => withMainContext do
       let name := mkIdent hyp.userName
       let dtac ← `(tactic| sdestruct $name:ident)
       evalTactic dtac
+
+/-- Destruct the goal and all hypotheses. -/
+elab "sdestruct_all" : tactic => withMainContext do
+  evalTactic $ ← `(tactic| sdestruct_goal <;> sdestruct_hyps)
 
 elab "sintro " ids:(colGt ident)* : tactic => withMainContext do
   evalTactic $ ← `(tactic| intro $(ids)* ; sdestruct $(ids)*)

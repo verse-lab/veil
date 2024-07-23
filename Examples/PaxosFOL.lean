@@ -251,8 +251,7 @@ set_option trace.auto.smt.result true
 theorem inv_inductive :
   ∀ (st st' : @Structure node value round), System.next st st' → inv' st → inv' st' := by
   intro st st' hnext hinv
-  sts_induction <;> (dsimp only [inv']; sdestruct) <;> repeat'
-  sorry
+  sts_induction <;> (dsimp only [inv']; sdestruct_goal) <;> repeat' sorry
   -- TODO: make this into a tactic
   -- FIXME: performance is abysmal
   -- (

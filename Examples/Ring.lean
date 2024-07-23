@@ -154,7 +154,7 @@ set_option trace.sauto.result true
 theorem inv_inductive_smt :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by
   intro st st' hnext hinv
-  sts_induction <;> (dsimp only [RelationalTransitionSystem.inv, inv']; sdestruct) <;> repeat
+  sts_induction <;> (dsimp only [RelationalTransitionSystem.inv, inv']; sdestruct_goal) <;> repeat
   (
     sdestruct st st' tot btwn;
     simp [RelationalTransitionSystem.inv] at hinv hnext ⊢;

@@ -89,6 +89,7 @@ def querySolver (goalQuery : String) (timeout : Option Nat) : MetaM SmtResult :=
   else
     emitCommand solver .checkSat
   let stdout ← solver.stdout.getLine
+  trace[sauto.debug] "{stdout}"
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
@@ -96,9 +97,10 @@ def querySolver (goalQuery : String) (timeout : Option Nat) : MetaM SmtResult :=
       let (_, solver) ← solver.takeStdin
       let stdout ← solver.stdout.readToEnd
       -- let stderr ← solver.stderr.readToEnd
+      trace[sauto.result] "{solverName} says Sat"
+      trace[sauto.debug] "{stdout}"
       let (model, _) ← getSexp stdout
       solver.kill
-      trace[sauto.result] "{solverName} says Sat"
       trace[sauto.debug] "Model:\n{model}"
       if solverName == SolverName.z3 then
         let fostruct ← extractStructure model
@@ -113,9 +115,10 @@ def querySolver (goalQuery : String) (timeout : Option Nat) : MetaM SmtResult :=
       let (_, solver) ← solver.takeStdin
       let stdout ← solver.stdout.readToEnd
       -- let stderr ← solver.stderr.readToEnd
+      trace[sauto.result] "{solverName} says Unsat"
+      trace[sauto.debug] "{stdout}"
       let (unsatCore, _stdout) ← getSexp stdout
       solver.kill
-      trace[sauto.result] "{solverName} says Unsat"
       trace[sauto.result] "Unsat core: {unsatCore}"
       -- trace[sauto] "Proof:\n{_stdout}"
       -- trace[sauto] "stderr:\n{stderr}"
