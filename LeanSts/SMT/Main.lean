@@ -139,4 +139,36 @@ syntax (name := sauto) "sauto" smtHints smtTimeout : tactic
   | .Unknown => throwError "the solver returned unknown"
   | .Unsat _ => mv.admit
 
+open Lean.Meta in
+/-- UNSAFE: Switches the goal with its negation!
+    This is unsound unless we use `admit_if_satisfiable` on the resulting goal! -/
+elab "negate_goal" : tactic => withMainContext do
+  let goal ← getMainGoal
+  let goalType ← getMainTarget
+  let negatedGoalType ← mkAppM `Not #[goalType]
+  let negatedGoal ← mkFreshExprMVar $ negatedGoalType
+  goal.admit
+  setGoals [negatedGoal.mvarId!]
+
+syntax (name := admit_if_satisfiable) "admit_if_satisfiable" smtHints smtTimeout : tactic
+
+open Lean.Meta in
+/-- UNSAFE: admits the goal if it is satisfiable.
+    This is unsound unless we use `negate_goal` on the goal first!
+    MOREOVER, we need to pass in all the hypotheses in the context.
+-/
+@[tactic admit_if_satisfiable] def evalAdmitIfSat : Tactic := fun stx => withMainContext do
+  let mv ← Tactic.getMainGoal
+  let hs ← Tactic.parseHints ⟨stx[1]⟩
+  let timeout ← Tactic.parseTimeout ⟨stx[2]⟩
+  let cmdString ← prepareQuery mv hs
+  let res ← querySolver cmdString timeout
+  match res with
+  | .Sat _ =>
+    trace[sauto.result] "The negation of the goal is satisfiable, hence the goal is valid."
+    mv.admit
+  | .Unsat _ => throwError "the goal is false"
+  | .Unknown => throwError "the solver returned unknown"
+
+
 end Smt

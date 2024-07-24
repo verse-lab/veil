@@ -12,7 +12,8 @@ theorem funextEq' {α β : Type} (f g : α → β) :
 
 open Lean Expr Lean.Meta in
 /-- Applies functional extensionality to all equalities between functions.
-    Workaround for [lean-smt#100](https://github.com/ufmg-smite/lean-smt/issues/100). -/
+    This also functions as a partial workaround for
+    [lean-smt#100](https://github.com/ufmg-smite/lean-smt/issues/100). -/
 simproc ↓ funextEq (_ = _) :=
   fun e => do
   let_expr Eq _ lhs rhs := e | return .continue

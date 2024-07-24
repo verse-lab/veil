@@ -90,6 +90,41 @@ sat trace [initial_state] {} by {
   -- exists { leader := fun _ => false, pending := fun _ _ => false }
 }
 
+set_option trace.sauto true
+set_option trace.sauto.query true
+set_option trace.sauto.result true
+
+set_option auto.smt true
+set_option auto.smt.trust true
+
+sat trace {
+
+} by {
+  bmc_sat
+}
+
+unsat trace {
+  send
+  assert ¬ (∃ n next, pending n next)
+} by { bmc }
+
+-- set_option pp.all true
+
+sat trace {
+  send
+  assert ∃ n next, pending n next
+} by {
+  negate_goal
+  simp only [Classical.exists_elim, Classical.not_not]
+  unhygienic intros;
+  sdestruct_hyps;
+  simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next];
+  /- FIXME: this gets hit by `lean-smt` issue #100 -/
+  -- admit_if_satisfiable[tot.le_refl, tot.le_trans, tot.le_antisymm, tot.le_total, btwn.btw_ring, btwn.btw_trans,
+  --     btwn.btw_side, btwn.btw_total]
+  sorry
+}
+
 unsat trace [trace_any] {
   any 6 actions
   assert ¬(leader L → le N L)

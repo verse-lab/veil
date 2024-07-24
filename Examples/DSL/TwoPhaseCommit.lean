@@ -86,6 +86,22 @@ safety (decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes 
 
 sat trace [initial_state] {} by { simp [initSimp, actSimp] }
 
+set_option trace.sauto true
+set_option trace.sauto.query true
+set_option trace.sauto.result true
+
+sat trace {
+
+} by {
+  simp only [Classical.exists_elim, Classical.not_not]
+  negate_goal
+  simp only [Classical.not_not]
+  unhygienic intros;
+  sdestruct_hyps;
+  simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next]
+  admit_if_satisfiable
+}
+
 unsat trace {
   any 6 actions
   assert ¬ ((decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes N2) ∧ (decide_abort N → abort_flag))

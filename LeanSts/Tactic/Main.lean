@@ -87,6 +87,17 @@ elab "sts_induction" : tactic => withMainContext do
     let newHypName := mkIdent newHyps[0]!.userName
     evalTactic $ ← `(tactic| revert $newHypName:ident; intro $hnextName:ident)
 
+/-- Get all the names of the propositions found in the context, including
+    within typeclasses in the context. -/
+def getPropsInContext : TacticM (Array Ident) := do
+  let mut props := #[]
+  for hyp in (← getLCtx) do
+    if hyp.isImplementationDetail then
+      continue
+    props := props.append (← collectPropertiesFromHyp hyp)
+  let idents := (props.toList.eraseDups.map mkIdent).toArray
+  return idents
+
 /-- Solves a single-clause goal of the form `inv ∧ transition → inv_clause`. -/
 elab "solve_clause" : tactic => withMainContext do
   -- (*) Collect tactics to generate suggestion
@@ -114,15 +125,8 @@ elab "solve_clause" : tactic => withMainContext do
   -- (4) Identify:
   --   (a) all propositions in the context
   --   (b) all propositions within typeclasses in the context
-  let mut props := #[]
-  for hyp in (← getLCtx) do
-    if hyp.isImplementationDetail then
-      continue
-    props := props.append (← collectPropertiesFromHyp hyp)
-  -- (5) Call `auto` using these propositions
-  -- dbg_trace "Props: {props}"
-  -- If given duplicate terms, `auto` complains: "Auto does not accept duplicated input terms"
-  let idents := (props.toList.eraseDups.map mkIdent).toArray
+  let idents ← getPropsInContext
+  -- (5) Call `sauto` using these propositions
   let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
   let executed_tactics := (xtacs ++ #[auto_tac])
   trace[sauto] "{executed_tactics}"
@@ -130,12 +134,7 @@ elab "solve_clause" : tactic => withMainContext do
 
 /-- Call `sauto` with all the hypotheses in the context. -/
 elab "sauto_all" : tactic => withMainContext do
-  let mut props := #[]
-  for hyp in (← getLCtx) do
-    if hyp.isImplementationDetail then
-      continue
-    props := props.append (← collectPropertiesFromHyp hyp)
-  let idents := (props.toList.eraseDups.map mkIdent).toArray
+  let idents ← getPropsInContext
   let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
   trace[sauto] "{auto_tac}"
   evalTactic auto_tac
@@ -143,9 +142,29 @@ elab "sauto_all" : tactic => withMainContext do
 /-- Tactic to solve `unsat trace` goals. -/
 elab "bmc" : tactic => withMainContext do
   let tac ← `(tactic|
-    intros;
+    (unhygienic intros);
     sdestruct_hyps;
     simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next];
     sauto_all
   )
+  trace[sauto] "{tac}"
   evalTactic $ tac
+
+/-- Tactic to solve `sat_trace` goals. -/
+elab "bmc_sat" : tactic => withMainContext do
+  let prep_tac ← `(tactic|
+    simp only [Classical.exists_elim, Classical.not_not];
+    negate_goal;
+    simp only [Classical.not_not];
+    (unhygienic intros);
+    sdestruct_hyps;
+    simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next];
+  )
+  trace[sauto] "{prep_tac}"
+  evalTactic prep_tac
+  /- After preparing the context, call `sauto` on it. -/
+  withMainContext do
+  let idents ← getPropsInContext
+  let auto_tac ← `(tactic| admit_if_satisfiable [$[$idents:ident],*])
+  trace[sauto] "{auto_tac}"
+  evalTactic auto_tac
