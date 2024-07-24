@@ -19,18 +19,48 @@ elab "state" "=" fs:Command.structFields : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <-
     `(@[state] structure $(mkIdent `State) $[$vd]* where mk :: $fs)
+
+/-- Defines a constant, relation, or function, validating its type before adding it. -/
+def defineStateComponent
+  (sig: TSyntax `Lean.Parser.Command.structSimpleBinder)
+  (validateTp : Expr → CommandElabM Bool := fun _ => pure true)
+  (failureMsg : TSyntax `Lean.Parser.Command.structSimpleBinder → CommandElabM Unit := fun _ => throwErrorAt sig s!"{sig} is not of the expected type")
+   : CommandElabM Unit := do
+  let tp ← do match sig with
+  | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
+    runTermElabM fun _ => elabTerm tp none
+  | _ => throwErrorAt sig "Unsupported syntax"
+  if ← validateTp tp then
+    liftTermElabM do stsExt.modify (fun s => { s with sig := s.sig.push sig })
+  else
+    failureMsg sig
+
 /--
   ```lean
   relation R : <Type>
   ```
-  `realtion` command saves a `State` structure field declaration
+  `relation` command saves a `State` structure field declaration
 -/
 elab "relation" sig:Command.structSimpleBinder : command => do
-  match sig with
-  | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
-    let _ <- runTermElabM fun _ => elabTerm tp none
-  | _ => throwErrorAt sig "Unsupported syntax"
-  liftTermElabM do stsExt.modify (fun s => { s with rel_sig := s.rel_sig.push sig })
+  defineStateComponent sig
+    (fun (tp : Expr) => do
+      -- If you need to debug the forallTelescope:
+      -- let _ ← Array.mapM (fun x => return s!"{← ppExpr x}")
+      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
+      return tp.isArrow && returnsProp)
+    (fun sig => throwErrorAt sig "Invalid type: relations must return Prop")
+
+/-- `individual` command saves a `State` structure field declaration -/
+elab "individual" sig:Command.structSimpleBinder : command => do
+  defineStateComponent sig
+    (fun (tp : Expr) => return !tp.isArrow)
+    (fun sig => throwErrorAt sig "Invalid type: constants must not be arrow types")
+
+/-- `function` command saves a `State` structure field declaration -/
+elab "function" sig:Command.structSimpleBinder : command => do
+  defineStateComponent sig
+    (fun (tp : Expr) => do return tp.isArrow)
+    (fun sig => throwErrorAt sig "Invalid type: functions must have arrow type")
 
 /--
 ```lean
@@ -56,7 +86,7 @@ assembles all declared `relation` predicates into a single `State` -/
 def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   Command.runTermElabM fun _ => do
-    let nms := (<- stsExt.get).rel_sig
+    let nms := (<- stsExt.get).sig
     liftCommandElabM $ elabCommand $ <-
       `(@[stateDef] structure $(mkIdent `State) $[$vd]* where $(mkIdent `mk):ident :: $[$nms]*)
 

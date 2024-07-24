@@ -27,8 +27,8 @@ def freshIdentifier (suggestion : String) : CoreM Lean.Syntax.Ident := do
 structure StsState where
   /-- type of the transition system state -/
   typ        : Expr
-  /-- signatures of all relations -/
-  rel_sig    : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)
+  /-- signatures of all constants, relations, and functions -/
+  sig    : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)
   /-- initial state predicate -/
   init       : Expr
   /-- list of transitions -/
