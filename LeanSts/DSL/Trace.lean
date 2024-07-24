@@ -12,8 +12,10 @@ syntax (name := any_action_star) "*" : trace_line
 syntax (name := any_action) "any action" : trace_line
 syntax traceAnyAction := any_action_star <|> any_action
 
+syntax (name := traceAnyNActions) "any " num " actions": trace_line
+
 syntax (name := traceActionName) ident : trace_line
-syntax traceAction := (traceActionName <|> traceAnyAction)
+syntax traceAction := (traceActionName <|> traceAnyAction <|> traceAnyNActions)
 
 syntax (name := traceAssertion) "assert " term : trace_line
 
@@ -31,24 +33,32 @@ open Lean Elab Command Term RelationalTransitionSystem
 inductive TraceSpecLine
   | action : Name → TraceSpecLine
   | anyAction : TraceSpecLine
+  | anyNActions : Nat → TraceSpecLine
   | assertion : Term → TraceSpecLine
 deriving Inhabited, Repr
 
 instance : ToString TraceSpecLine := ⟨fun
   | TraceSpecLine.action n => s!"action {n}"
   | TraceSpecLine.anyAction => "any action"
+  | TraceSpecLine.anyNActions n => s!"any {n} actions"
   | TraceSpecLine.assertion t => s!"assertion {t}"⟩
 
 abbrev TraceSpec := List TraceSpecLine
 
-def parseTraceSpec [Monad m] [MonadExceptOf Exception m] (stx : Syntax) : m TraceSpec := do
+def parseTraceSpec [Monad m] [MonadExceptOf Exception m] [MonadError m] (stx : Syntax) : m TraceSpec := do
   match stx with
   | `(traceSpec| $[$ts]* ) => do
-    let mut ts := ts.map fun t => match t with
-      | `(traceLine| any action) | `(traceLine| * ) => TraceSpecLine.anyAction
-      | `(traceLine| assert $term) => TraceSpecLine.assertion term
-      | `(traceLine| $id:ident) => TraceSpecLine.action id.raw.getId
-      | x => dbg_trace "unsupported syntax: {x}" ; unreachable!
+    let mut ts ← ts.mapM fun t => match t with
+      | `(traceLine| any action) | `(traceLine| * ) => return TraceSpecLine.anyAction
+      | `(traceLine| any $n:num actions) => do (
+        if n.getNat < 2 then
+          throwErrorAt stx "any {n} actions: n must be >= 2"
+        else
+          return TraceSpecLine.anyNActions n.getNat
+      )
+      | `(traceLine| assert $term) => return TraceSpecLine.assertion term
+      | `(traceLine| $id:ident) => return TraceSpecLine.action id.raw.getId
+      | _ => throwErrorAt stx "unsupported syntax"
     return ts.toList
   | _ => throwUnsupportedSyntax
 
@@ -70,7 +80,11 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   : CommandElabM Unit := do
   let th ← Command.runTermElabM fun vs => do
     let spec ← parseTraceSpec spec
-    let numActions := spec.foldl (fun n s => match s with | TraceSpecLine.assertion _ => n | _ => n + 1) 0
+    let numActions := spec.foldl (fun n s =>
+      match s with
+      | TraceSpecLine.assertion _ => n
+      | TraceSpecLine.anyNActions k => n + k
+      | _ => n + 1) 0
     let numStates := numActions + 1
     let stateNames := List.toArray $ (List.range numStates).map fun i => mkIdent (Name.mkSimple s!"st{i}")
 
@@ -95,6 +109,13 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         let t ← `(term|(RelationalTransitionSystem.next $currState $nextState))
         assertions := assertions.push t
         currStateId := currStateId + 1
+      -- FIXME: remove code duplication with above
+      | TraceSpecLine.anyNActions k => do
+        for _ in [0:k] do
+          let nextState := stateNames[currStateId + 1]!
+          let t ← `(term|(RelationalTransitionSystem.next $currState $nextState))
+          assertions := assertions.push t
+          currStateId := currStateId + 1
       | TraceSpecLine.assertion t => do
         -- Elaborate assertions in the same way we elaborate invariants.
         -- See `elab "invariant"` in `DSL.lean`.

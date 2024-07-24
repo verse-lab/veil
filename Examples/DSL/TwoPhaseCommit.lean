@@ -86,17 +86,14 @@ safety (decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes 
 
 sat trace [initial_state] {} by { simp [initSimp, actSimp] }
 
--- unsat trace {
---   any action
---   any action
---   assert ¬ ((decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes N2) ∧ (decide_abort N → abort_flag))
--- } by {
---   intros st st'
---   sdestruct_hyps
---   simp only [initSimp, actSimp, invSimp, RelationalTransitionSystem.next, State.mk.injEq, funextEq, tupleEq]
---   FIXME: make this work
---   sauto
--- }
-
+unsat trace {
+  any 6 actions
+  assert ¬ ((decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes N2) ∧ (decide_abort N → abort_flag))
+} by {
+  intros
+  sdestruct_hyps
+  simp only [initSimp, actSimp, invSimp, RelationalTransitionSystem.next, State.mk.injEq, funextEq, tupleEq]
+  sauto
+}
 
 end TwoPhaseCommit

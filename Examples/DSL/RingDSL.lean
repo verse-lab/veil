@@ -91,7 +91,7 @@ sat trace [initial_state] {} by {
 }
 
 unsat trace [trace_any] {
-  any action
+  any 6 actions
   assert ¬(leader L → le N L)
 } by {
   intros
