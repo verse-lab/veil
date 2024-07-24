@@ -87,8 +87,11 @@ def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   Command.runTermElabM fun _ => do
     let nms := (<- stsExt.get).sig
-    liftCommandElabM $ elabCommand $ <-
-      `(@[stateDef] structure $(mkIdent `State) $[$vd]* where $(mkIdent `mk):ident :: $[$nms]*)
+    let sdef ← `(@[stateDef] structure $(mkIdent `State) $[$vd]* where $(mkIdent `mk):ident :: $[$nms]*)
+    let injEqLemma := (mkIdent $ `State ++ `mk ++ `injEq)
+    let smtAttr ← `(attribute [smtSimp] $injEqLemma)
+    liftCommandElabM $ elabCommand $ sdef
+    liftCommandElabM $ elabCommand $ smtAttr
 
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState

@@ -127,3 +127,25 @@ elab "solve_clause" : tactic => withMainContext do
   let executed_tactics := (xtacs ++ #[auto_tac])
   trace[sauto] "{executed_tactics}"
   evalTactic auto_tac
+
+/-- Call `sauto` with all the hypotheses in the context. -/
+elab "sauto_all" : tactic => withMainContext do
+  let mut props := #[]
+  for hyp in (← getLCtx) do
+    if hyp.isImplementationDetail then
+      continue
+    props := props.append (← collectPropertiesFromHyp hyp)
+  let idents := (props.toList.eraseDups.map mkIdent).toArray
+  let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
+  trace[sauto] "{auto_tac}"
+  evalTactic auto_tac
+
+/-- Tactic to solve `unsat trace` goals. -/
+elab "bmc" : tactic => withMainContext do
+  let tac ← `(tactic|
+    intros;
+    sdestruct_hyps;
+    simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next];
+    sauto_all
+  )
+  evalTactic $ tac
