@@ -3,6 +3,8 @@ import Batteries.Lean.Meta.UnusedNames
 
 import LeanSts.Basic
 
+open Lean Meta
+
 theorem funextEq' {α β : Type} (f g : α → β) :
   (f = g) = ∀ x, f x = g x := by
   apply propext
@@ -31,6 +33,38 @@ simproc ↓ funextEq (_ = _) :=
     return .visit { expr := qexpr, proof? := proof }
   return .continue
 attribute [smtSimp] funextEq
+
+def uniqueBinder (e : Expr) (id : UInt64): MetaM Expr := do
+  match e with
+  | .forallE bn bt body bi =>
+    let bn' :=  Name.mkSimple s!"{bn}_{id}"
+    return .forallE (bn') bt body bi
+  | _ => return e
+
+def renameBinders (e : Expr) : MetaM Expr := do
+  let e' ← Core.transform e (pre := fun e => do
+    return TransformStep.continue (← uniqueBinder e e.hash))
+  return e'
+
+def _root_.Lean.MVarId.replaceTargetDefEq' (mvarId : MVarId) (targetNew : Expr) : MetaM MVarId :=
+  mvarId.withContext do
+    mvarId.checkNotAssigned `change
+    let target  ← mvarId.getType
+    let tag     ← mvarId.getTag
+    let mvarNew ← mkFreshExprSyntheticOpaqueMVar targetNew tag
+    let newVal  ← mkExpectedTypeHint mvarNew target
+    mvarId.assign newVal
+    return mvarNew.mvarId!
+
+open Elab Tactic in
+/-- Workaround for [lean-smt#100](https://github.com/ufmg-smite/lean-smt/issues/100) -/
+elab "rename_binders" : tactic => do
+  let goal ← getMainGoal
+  let goalType ← getMainTarget
+  let goalType' ← renameBinders goalType
+  let goal' ← goal.replaceTargetDefEq' goalType'
+  setGoals [goal']
+
 
 /-- Tuples are not supported in SMT-LIB, so we destruct tuple equalities. -/
 @[smtSimp] theorem tupleEq [DecidableEq t1] [DecidableEq t2] (a c : t1) (b d : t2):

@@ -153,12 +153,13 @@ elab "bmc" : tactic => withMainContext do
 /-- Tactic to solve `sat_trace` goals. -/
 elab "bmc_sat" : tactic => withMainContext do
   let prep_tac ← `(tactic|
-    simp only [Classical.exists_elim, Classical.not_not];
     negate_goal;
-    simp only [Classical.not_not];
+    simp only [Classical.exists_elim, Classical.not_not];
     (unhygienic intros);
     sdestruct_hyps;
     simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next];
+    /- Needed to work around [lean-smt#100](https://github.com/ufmg-smite/lean-smt/issues/100) -/
+    rename_binders
   )
   trace[sauto] "{prep_tac}"
   evalTactic prep_tac
