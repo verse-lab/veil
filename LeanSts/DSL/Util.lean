@@ -193,10 +193,13 @@ def elabBindersAndCapitals
 
 def my_delab :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
 
-/-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator` -/
-def mkArrowStx (tps : List Ident) (terminator : TSyntax `term) : CommandElabM (TSyntax `term) := do
+/-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
+def mkArrowStx (tps : List Ident) (terminator : Option $ TSyntax `term := none) : CommandElabM (TSyntax `term) := do
   match tps with
-  | []      => return terminator
+  | [] => if let some t := terminator then return t else throwError "empty list of types and no terminator"
+  | [a] => match terminator with
+    | none => `(term| $a)
+    | some t => `(term| $a -> $t)
   | a :: as =>
     let cont ← mkArrowStx as terminator
     `(term| $a -> $cont)

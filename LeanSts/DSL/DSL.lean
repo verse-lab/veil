@@ -36,11 +36,10 @@ def defineStateComponent
   else
     failureMsg sig
 
-/--
+/-- Declare a relation, giving only the type. Example:
   ```lean
-  relation R : <Type>
+  relation R : address → round → Prop
   ```
-  `relation` command saves a `State` structure field declaration
 -/
 elab "relation" sig:Command.structSimpleBinder : command => do
   defineStateComponent sig
@@ -51,6 +50,11 @@ elab "relation" sig:Command.structSimpleBinder : command => do
       return tp.isArrow && returnsProp)
     (fun sig => throwErrorAt sig "Invalid type: relations must return Prop")
 
+/-- Declare a relation, giving names to the arguments. Example:
+  ```lean
+  relation sent (n : address) (r : round)
+  ```
+-/
 elab "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
   let types ← br.mapM fun m => match m with
     | `(bracketedBinder| ($_arg:ident : $tp:term)) => return (mkIdent tp.raw.getId)
@@ -73,12 +77,24 @@ elab "function" sig:Command.structSimpleBinder : command => do
     (fun (tp : Expr) => do return tp.isArrow)
     (fun sig => throwErrorAt sig "Invalid type: functions must have arrow type")
 
-/-- Ghost relation
-```lean
-relation R : <Type> := [definition]
-```
-This command defines a ghost relation. This relation will be just a
-predicate over state. -/
+/-- Declare a function, giving names to the arguments. Example:
+  ```lean
+  function currentRound (n : address) : round
+  ```
+-/
+elab "function" nm:ident br:(bracketedBinder)* ":" dom:term: command => do
+  let types ← br.mapM fun m => match m with
+    | `(bracketedBinder| ($_arg:ident : $tp:term)) => return (mkIdent tp.raw.getId)
+    | _ => throwError "Invalid syntax"
+  let typeStx ← mkArrowStx types.toList dom
+  let rel ← `(function $nm:ident : $typeStx)
+  elabCommand rel
+
+/-- Declare a ghost relation, i.e. a predicate over state. Example:
+  ```lean
+  relation R : <Type> := [definition]
+  ```
+-/
 elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd := (<- getScope).varDecls
   -- As we are going to call this predicate explicitly we want to make all
