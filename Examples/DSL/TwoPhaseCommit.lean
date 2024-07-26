@@ -5,7 +5,6 @@ import LeanSts.DSL
 section TwoPhaseCommit
 
 type node
-instantiate dec : DecidableEq node
 
 relation vote_yes : node -> Prop
 relation vote_no : node -> Prop

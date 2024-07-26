@@ -11,7 +11,7 @@ open Lean Elab Command Term Meta Lean.Parser RelationalTransitionSystem
 -- Modelled after the Ivy language
 -- https://github.com/kenmcmil/ivy/blob/master/doc/language.md
 
-macro "type" id:ident : command => `(variable ($id : Type))
+macro "type" id:ident : command => `(variable ($id : Type) [DecidableEq $id])
 macro "instantiate" t:term : command => `(variable [$t])
 macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
 

@@ -2,9 +2,6 @@ import LeanSts.State
 import LeanSts.TransitionSystem
 import LeanSts.Tactic
 import LeanSts.DSL
--- import Mathlib.Tactic
-import Lean
-
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
@@ -30,9 +27,8 @@ class Between (node : Type) :=
   btw_total   (w x y : node) : btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y
 
 type node
-instantiate dec : DecidableEq node
 instantiate tot : TotalOrder node
-variable [DecidableBinaryRel tot.le]
+instantiate dec_le : DecidableBinaryRel tot.le
 instantiate btwn : Between node
 
 

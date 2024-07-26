@@ -27,15 +27,11 @@ class Quorum (node : Type) (quorum : outParam Type):=
     ∀ (q1 q2 : quorum), ∃ (a : node), member a q1 ∧ member a q2
 
 type node
-instantiate dec_node : DecidableEq node
 type value
-instantiate dec_val : DecidableEq value
 type quorum
-instantiate dec_quorum : DecidableEq quorum
 instantiate q : Quorum node quorum
 variable [DecidableBinaryRel q.member]
 type round
-instantiate dec_round : DecidableEq round
 instantiate tot : TotalOrder round
 variable [DecidableBinaryRel tot.le]
 
