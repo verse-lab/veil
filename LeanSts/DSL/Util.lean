@@ -192,3 +192,11 @@ def elabBindersAndCapitals
         k vars e
 
 def my_delab :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
+
+/-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator` -/
+def mkArrowStx (tps : List Ident) (terminator : TSyntax `term) : CommandElabM (TSyntax `term) := do
+  match tps with
+  | []      => return terminator
+  | a :: as =>
+    let cont ← mkArrowStx as terminator
+    `(term| $a -> $cont)

@@ -27,9 +27,10 @@ def defineStateComponent
   (failureMsg : TSyntax `Lean.Parser.Command.structSimpleBinder → CommandElabM Unit := fun _ => throwErrorAt sig s!"{sig} is not of the expected type")
    : CommandElabM Unit := do
   let tp ← do match sig with
+    /- e.g. `relation initial_msg : address → address → round → value → Prop` -/
   | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
     runTermElabM fun _ => elabTerm tp none
-  | _ => throwErrorAt sig "Unsupported syntax"
+  | _ => throwErrorAt sig "Unsupported syntax {sig}"
   if ← validateTp tp then
     liftTermElabM do stsExt.modify (fun s => { s with sig := s.sig.push sig })
   else
@@ -50,6 +51,16 @@ elab "relation" sig:Command.structSimpleBinder : command => do
       return tp.isArrow && returnsProp)
     (fun sig => throwErrorAt sig "Invalid type: relations must return Prop")
 
+elab "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
+  let types ← br.mapM fun m => match m with
+    | `(bracketedBinder| ($_arg:ident : $tp:term)) => return (mkIdent tp.raw.getId)
+    | _ => throwError "Invalid syntax"
+  -- I'd want this to work, but it doesn't:
+  -- let typesStx ← `(term| $[$types]→* → Prop)
+  let typeStx ← mkArrowStx types.toList (← `(Prop))
+  let rel ← `(relation $nm:ident : $typeStx)
+  elabCommand rel
+
 /-- `individual` command saves a `State` structure field declaration -/
 elab "individual" sig:Command.structSimpleBinder : command => do
   defineStateComponent sig
@@ -62,9 +73,9 @@ elab "function" sig:Command.structSimpleBinder : command => do
     (fun (tp : Expr) => do return tp.isArrow)
     (fun sig => throwErrorAt sig "Invalid type: functions must have arrow type")
 
-/--
+/-- Ghost relation
 ```lean
-relation R : <Type>
+relation R : <Type> := [definition]
 ```
 This command defines a ghost relation. This relation will be just a
 predicate over state. -/
