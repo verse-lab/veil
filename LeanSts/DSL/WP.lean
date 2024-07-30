@@ -30,6 +30,7 @@ inductive Lang where
 
 declare_syntax_cat lang
 syntax lang ";" colGe lang : lang
+syntax "skip"              : lang
 syntax "require" term      : lang
 syntax "do" term           : lang
 syntax "if" term:max "then\n" lang "else\n" lang : lang
@@ -64,6 +65,7 @@ def closeCapitals (s : Term) : MacroM Term :=
 
 
 macro_rules
+  | `([lang|skip]) => `(@Lang.act _ (fun st => st))
   | `([lang|$l1:lang; $l2:lang]) => `(@Lang.seq _ [lang|$l1] [lang|$l2])
   | `([lang|require $t:term]) => do
     let t' <- closeCapitals t
@@ -93,6 +95,7 @@ macro_rules
 /-- Same expansion as above but, intead of `funcases` we use `funclear` to
     prevent the generated code from depending on the prestate -/
 macro_rules
+  | `([lang1|skip]) => `(@Lang.act _ (fun st => st))
   | `([lang1| $l1:lang; $l2:lang]) => `(@Lang.seq _ [lang1|$l1] [lang1|$l2])
   | `([lang1|require $t:term]) => do
       withRef t $
