@@ -143,7 +143,8 @@ structure Signature where
 
 instance : Inhabited Signature := ⟨{ constants := #[], relations := #[], functions := #[] }⟩
 
-abbrev ExplicitInterpretation := Lean.HashMap Declaration (Array FirstOrderValue × FirstOrderValue)
+abbrev InputOutputPair := Array FirstOrderValue × FirstOrderValue
+abbrev ExplicitInterpretation := Lean.HashMap Declaration (Array InputOutputPair)
 
 structure FirstOrderStructure where
   /-- Also called universes. -/
@@ -159,10 +160,13 @@ instance : ToString FirstOrderStructure where
     let mut out := s!"\n"
     for dom in s.domains do
       out := out ++ s!"{dom}\n"
-    for (decl, (args, val)) in s.interp.toList do
+    for (decl, iopairs) in s.interp.toList do
+      for (args, val) in iopairs do
       match decl with
       | Declaration.Constant c => out := out ++ s!"{c.name} = {val}\n"
-      | Declaration.Relation r => if val.isTrue then out := out ++ s!"{r.name}{args.funcArgsString} = true\n"
+      | Declaration.Relation r =>
+          -- out := out ++ s!"{r.name}{args.funcArgsString} = {val}\n"
+          if val.isTrue then out := out ++ s!"{r.name}{args.funcArgsString} = true\n"
       | Declaration.Function f => out := out ++ s!"{f.name}{args.funcArgsString} = {val}\n"
     return out)
 
@@ -287,8 +291,9 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let args ← getValueArray args decl.domain
     let val ← getValueOfSort val decl.range
     trace[sauto.debug] s!"interpret {declName} {args} {val}"
-    struct := { struct with interp := struct.interp.insert decl (args, val) }
-
+    let iopairs := struct.interp.findD decl #[]
+    let iopairs' := iopairs.push (args, val)
+    struct := { struct with interp := struct.interp.insert decl iopairs' }
   | _ => throwError s!"(parseInstruction) malformed instruction: {inst}"
   return struct
 
@@ -297,5 +302,5 @@ def extractStructure (model : Sexpr) : MetaM FirstOrderStructure := do
   let instructions ← extractInstructions model
   trace[sauto.debug] "instructions: {instructions}"
   for inst in instructions do
-    struct ← parseInstruction inst struct
+    struct := (← parseInstruction inst struct)
   return struct
