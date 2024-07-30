@@ -2,8 +2,19 @@ import Lean
 import Batteries.Lean.Meta.UnusedNames
 
 import LeanSts.Basic
+import LeanSts.DSL.Util
 
 open Lean Meta
+
+/-- Used to generate unique names for binders. -/
+structure SmtState where
+  binderIds : HashMap Name UInt64 := {}
+deriving Inhabited
+
+open SmtState
+
+initialize smtExt : EnvExtension SmtState ←
+  registerEnvExtension (pure default)
 
 theorem funextEq' {α β : Type} (f g : α → β) :
   (f = g) = ∀ x, f x = g x := by
@@ -34,16 +45,20 @@ simproc ↓ funextEq (_ = _) :=
   return .continue
 attribute [smtSimp] funextEq
 
-def uniqueBinder (e : Expr) (id : UInt64): MetaM Expr := do
+def uniqueBinder (e : Expr) : MetaM Expr := do
   match e with
   | .forallE bn bt body bi =>
-    let bn' :=  Name.mkSimple s!"{bn}_{id}"
+    let ids := (← smtExt.get).binderIds
+    let id := ids.findD bn 0
+    let bn' :=  Name.mkSimple s!"{bn}{id}"
+    smtExt.set { binderIds := ids.insert bn (id + 1) }
     return .forallE (bn') bt body bi
   | _ => return e
 
 def renameBinders (e : Expr) : MetaM Expr := do
+  smtExt.set { binderIds := default }
   let e' ← Core.transform e (pre := fun e => do
-    return TransformStep.continue (← uniqueBinder e e.hash))
+    return TransformStep.continue (← uniqueBinder e))
   return e'
 
 def _root_.Lean.MVarId.replaceTargetDefEq' (mvarId : MVarId) (targetNew : Expr) : MetaM MVarId :=
