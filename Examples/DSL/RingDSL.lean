@@ -52,14 +52,17 @@ action send (n next : node) = {
 action recv (sender n next : node) (havoc : Prop) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
   require pending sender n;
+  -- message may or may not be removed
+  -- this models that multiple messages might be in flight
+  pending sender n := havoc;
   if (sender = n) then
-    leader n := True;
-    pending sender n := havoc
-  else if (le n sender) then
-    pending sender n := havoc;
-    pending sender n := True
+    leader n := True
   else
-    pending sender n := havoc
+    -- pass message to next node
+    if (le n sender) then
+      pending sender next := True
+    else
+      skip
 }
 
 safety leader L → le N L
@@ -67,6 +70,9 @@ invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
 
 #gen_spec Ring
+
+set_option trace.sauto.query true
+set_option trace.sauto.result true
 
 prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
 
@@ -87,7 +93,27 @@ sat trace [initial_state] {} by {
   -- exists { leader := fun _ => false, pending := fun _ _ => false }
 }
 
-sat trace { } by { bmc_sat }
+sat trace {
+  send
+  assert (∃ n next, pending n next)
+} by { bmc_sat }
+
+
+sat trace [can_elect_leader_explicit] {
+  send
+  recv
+  recv
+  assert ∃ l, leader l
+} by { bmc_sat }
+
+/- FIXME: why doesn't this work? -/
+sat trace [can_elect_leader] {
+  any 3 actions
+  assert ∃ l, leader l
+} by {
+  -- bmc_sat
+  sorry
+}
 
 unsat trace {
   send
