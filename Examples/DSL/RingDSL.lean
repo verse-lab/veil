@@ -106,14 +106,10 @@ sat trace [can_elect_leader_explicit] {
   assert ∃ l, leader l
 } by { bmc_sat }
 
-/- FIXME: why doesn't this work? -/
 sat trace [can_elect_leader] {
   any 3 actions
   assert ∃ l, leader l
-} by {
-  -- bmc_sat
-  sorry
-}
+} by { bmc_sat }
 
 unsat trace {
   send

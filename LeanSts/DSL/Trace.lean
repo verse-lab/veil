@@ -112,6 +112,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       -- FIXME: remove code duplication with above
       | TraceSpecLine.anyNActions k => do
         for _ in [0:k] do
+          let currState := stateNames[currStateId]!
           let nextState := stateNames[currStateId + 1]!
           let t ← `(term|(RelationalTransitionSystem.next $currState $nextState))
           assertions := assertions.push t
