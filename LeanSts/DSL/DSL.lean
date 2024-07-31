@@ -15,6 +15,19 @@ macro "type" id:ident : command => `(variable ($id : Type) [DecidableEq $id])
 macro "instantiate" t:term : command => `(variable [$t])
 macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
 
+declare_syntax_cat propertyName
+syntax "[" ident "]": propertyName
+
+def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
+  match stx with
+  | `(propertyName| [$id]) => id.getId
+  | _ => unreachable!
+
+def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
+  match stx with
+  | some stx => stx.getPropertyName
+  | none => default
+
 elab "state" "=" fs:Command.structFields : command => do
   let vd := (<- getScope).varDecls
   elabCommand $ <-
@@ -214,38 +227,48 @@ def assembleActions : CommandElabM Unit := do
     `(@[actSimp] def $(mkIdent `Next) : $stateTp -> $stateTp -> Prop := $acts)
 
 /-- Safety property. All capital variables are implicitly quantified -/
-elab "safety" safe:term : command => do
+elab "safety" name:(propertyName)? safe:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     -- let safe <- liftMacroM $ closeCapitals safe
     let stateTp <- PrettyPrinter.delab stateTp
     let stx <- funcasesM safe vs
+    let defaultName := Name.mkSimple $ s!"safety_{(<- stsExt.get).safeties.length}"
+    let name := getPropertyNameD name defaultName
     elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- my_delab e
-      `(@[safeDef, safeSimp, invSimp] def $(mkIdent `Safety) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
 
 /-- Invariant of the transition system.
     All capital variables are implicitly quantified -/
-elab "invariant" inv:term : command => do
+elab "invariant" name:(propertyName)? inv:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     -- let inv <- liftMacroM $ closeCapitals inv
     let stx <- funcasesM inv vs
     let _ <- elabByTactic stx (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
-    let num := (<- stsExt.get).invariants.length
-    let inv_name := "inv" ++ toString num
+    let defaultName := Name.mkSimple $ s!"inv_{(<- stsExt.get).invariants.length}"
+    let name := getPropertyNameD name defaultName
     elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- my_delab e
-      `(@[invDef, invSimp] def $(mkIdent $ Name.mkSimple inv_name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
 
-/-- Assembles all declared invariants into a single `Inv` predicate -/
+/-- Assembles all declared invariants (including safety properties) into a single `Inv` predicate -/
 def assembleInvariant : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let invs <- combineLemmas ``And ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties) vs "invariants"
     let invs <- PrettyPrinter.delab invs
     `(@[invSimp] def $(mkIdent `Inv) : $stateTp -> Prop := $invs)
+
+/-- Assembles all declared safety properties into a single `Safety` predicate -/
+def assembleSafeties : CommandElabM Unit := do
+  elabCommand $ <- Command.runTermElabM fun vs => do
+    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let safeties <- combineLemmas ``And (<- stsExt.get).safeties vs "safeties"
+    let safeties <- PrettyPrinter.delab safeties
+    `(@[invSimp] def $(mkIdent `Safety) : $stateTp -> Prop := $safeties)
 
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
@@ -254,6 +277,7 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   assembleActions
   assembleInvariant
+  assembleSafeties
   Command.runTermElabM fun vs => do
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp

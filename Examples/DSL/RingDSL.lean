@@ -65,7 +65,7 @@ action recv (sender n next : node) (havoc : Prop) = {
       skip
 }
 
-safety leader L → le N L
+safety [single_leader] leader L → le N L
 invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
 
@@ -101,29 +101,30 @@ sat trace {
 
 sat trace [can_elect_leader_explicit] {
   send
+  assert (∃ n next, pending n next)
   recv
   recv
-  assert ∃ l, leader l
+  assert (∃ l, leader l)
 } by { bmc_sat }
 
 sat trace [can_elect_leader] {
   any 3 actions
-  assert ∃ l, leader l
+  assert (∃ l, leader l)
 } by { bmc_sat }
 
 unsat trace {
   send
-  assert ¬ (∃ n next, pending n next)
+  assert (¬ ∃ n next, pending n next)
 } by { bmc }
 
 sat trace {
   send
-  assert ∃ n next, pending n next
+  assert (∃ n next, pending n next)
 } by { bmc_sat }
 
 unsat trace [trace_any] {
   any 6 actions
-  assert ¬(leader L → le N L)
+  assert ¬ (leader L → le N L)
 } by { bmc }
 
 end Ring

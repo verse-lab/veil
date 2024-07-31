@@ -17,7 +17,7 @@ syntax (name := traceAnyNActions) "any " num " actions": trace_line
 syntax (name := traceActionName) ident : trace_line
 syntax traceAction := (traceActionName <|> traceAnyAction <|> traceAnyNActions)
 
-syntax (name := traceAssertion) "assert " term : trace_line
+syntax (name := traceAssertion) "assert " term:max : trace_line
 
 syntax traceLine := (traceAction <|> traceAssertion)
 syntax traceSpec := (traceLine colEq)*
