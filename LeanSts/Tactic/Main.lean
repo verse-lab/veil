@@ -30,10 +30,17 @@ elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
 elab "sdestruct_goal" : tactic => withMainContext do
   evalTactic $ ← `(tactic| repeat' constructor)
 
-/-- Destruct all structures in the context into their respective fields. -/
-elab "sdestruct_hyps" : tactic => withMainContext do
-  let lctx ← getLCtx
-  for hyp in lctx do
+instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
+
+/-- Destruct all structures in the context into their respective fields, recursively. -/
+partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) : TacticM Unit := withMainContext do
+  let mut ignoreHyps := ignoreHyps
+  let hypsToVisit := (← getLCtx).decls.filter Option.isSome
+    |> PersistentArray.map Option.get!
+    |> PersistentArray.toArray
+    |> Array.filter (fun hyp => !ignoreHyps.contains hyp)
+  for hyp in hypsToVisit do
+    ignoreHyps := ignoreHyps.push hyp
     let isStructure ← match hyp.type.getAppFn.constName? with
     | .none => pure false
     | .some sn => pure (isStructure (<- getEnv) sn)
@@ -41,10 +48,18 @@ elab "sdestruct_hyps" : tactic => withMainContext do
       let name := mkIdent hyp.userName
       let dtac ← `(tactic| sdestruct $name:ident)
       evalTactic dtac
+  -- Recursively call ourselves until the context stops changing
+  if recursive && hypsToVisit.size > 0 then
+    elabSdestructHyps recursive ignoreHyps
+
+/-- Recursively destruct hypotheses. -/
+syntax "sdestruct_hyps" : tactic
+elab_rules : tactic
+  | `(tactic| sdestruct_hyps) => elabSdestructHyps (recursive := true)
 
 /-- Destruct the goal and all hypotheses. -/
 elab "sdestruct_all" : tactic => withMainContext do
-  evalTactic $ ← `(tactic| sdestruct_goal <;> sdestruct_hyps)
+  evalTactic $ ← `(tactic| sdestruct_hyps ; sdestruct_goal )
 
 elab "sintro " ids:(colGt ident)* : tactic => withMainContext do
   evalTactic $ ← `(tactic| intro $(ids)* ; sdestruct $(ids)*)
