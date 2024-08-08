@@ -119,7 +119,7 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
     let stx' <- funcasesM t vs
     elabBindersAndCapitals br vs stx' fun _ e => do
       let e <- my_delab e
-      `(abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
+      `(@[actSimp, invSimp] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
 
 /--
 assembles all declared `relation` predicates into a single `State` -/
