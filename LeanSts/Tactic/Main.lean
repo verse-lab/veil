@@ -1,12 +1,13 @@
 import Lean.Elab.Tactic
 import LeanSts.Tactic.Util
 import LeanSts.TransitionSystem
+import Lean.Meta.Tactic.TryThis
 
 -- For automation
 import LeanSts.SMT.Main
 import Duper
 
-open Lean Lean.Elab.Tactic Meta.Tactic
+open Lean Elab Tactic Meta Simp Tactic.TryThis
 
 /-- Destruct a structure into its fields. -/
 elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
@@ -98,8 +99,7 @@ def getPropsInContext : TacticM (Array Ident) := do
   let idents := (props.toList.eraseDups.map mkIdent).toArray
   return idents
 
-/-- Solves a single-clause goal of the form `inv ∧ transition → inv_clause`. -/
-elab "solve_clause" : tactic => withMainContext do
+def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := withMainContext do
   -- (*) Collect tactics to generate suggestion
   let mut xtacs := #[]
   -- (1) Identify the type of the state
@@ -116,9 +116,13 @@ elab "solve_clause" : tactic => withMainContext do
   -- (3) Simplify all invariants and transitions, as well as
   -- destruct structures into their components everywhere
   -- We also make simplifications required by `lean-smt`: `funextEq`, `tupleEq`
-  let injEqLemma := (mkIdent $ stateName ++ `mk ++ `injEq)
+  let injEqLemma := stateName ++ `mk ++ `injEq
+  let simpIds := #[`initSimp, `actSimp, `invSimp, `smtSimp, injEqLemma].map
+    -- FIXME: is there a better way to do this?
+    (fun n => mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n []])
+  let simpIds : Syntax.TSepArray _ ",":= Syntax.TSepArray.ofElems simpIds
   -- dbg_trace "Using injEqLemma: {injEqLemma}"
-  let simpTac ← `(tactic| simp only [actSimp, invSimp, safeSimp, smtSimp, $injEqLemma:ident] at *)
+  let simpTac ← `(tactic| simp only [$simpIds,*] at *)
   xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
@@ -128,16 +132,31 @@ elab "solve_clause" : tactic => withMainContext do
   let idents ← getPropsInContext
   -- (5) Call `sauto` using these propositions
   let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
-  let executed_tactics := (xtacs ++ #[auto_tac])
-  trace[sauto] "{executed_tactics}"
+  if trace then
+    let executed_tactics := (xtacs ++ #[auto_tac])
+    let combined_tactic ← `(tactic| $executed_tactics;*)
+    addSuggestion stx combined_tactic
   evalTactic auto_tac
 
+syntax (name := solveClause) "solve_clause" : tactic
+syntax (name := solveClauseTrace) "solve_clause?" : tactic
+elab_rules : tactic
+  | `(tactic| solve_clause%$tk) => elabSolveClause tk
+  | `(tactic| solve_clause?%$tk) => elabSolveClause tk true
+
 /-- Call `sauto` with all the hypotheses in the context. -/
-elab "sauto_all" : tactic => withMainContext do
+def elabSautoAll (stx : Syntax) (trace : Bool := false) : TacticM Unit := withMainContext do
   let idents ← getPropsInContext
   let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
-  trace[sauto] "{auto_tac}"
+  if trace then
+    addSuggestion stx auto_tac
   evalTactic auto_tac
+
+syntax (name := sautoAll) "sauto_all" : tactic
+syntax (name := sautoAllTrace) "sauto_all?" : tactic
+elab_rules : tactic
+  | `(tactic| sauto_all%$tk) => elabSautoAll tk
+  | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
 elab "simplify_all" : tactic => withMainContext do
   let simp_tac ← `(tactic| simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next] at *;)
