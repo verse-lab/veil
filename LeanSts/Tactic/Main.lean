@@ -139,12 +139,16 @@ elab "sauto_all" : tactic => withMainContext do
   trace[sauto] "{auto_tac}"
   evalTactic auto_tac
 
+elab "simplify_all" : tactic => withMainContext do
+  let simp_tac ← `(tactic| simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next] at *;)
+  evalTactic simp_tac
+
 /-- Tactic to solve `unsat trace` goals. -/
 elab "bmc" : tactic => withMainContext do
   let tac ← `(tactic|
     (unhygienic intros);
     sdestruct_hyps;
-    simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next];
+    simplify_all;
     sauto_all
   )
   trace[sauto] "{tac}"
@@ -157,7 +161,7 @@ elab "bmc_sat" : tactic => withMainContext do
     simp only [Classical.exists_elim, Classical.not_not];
     (unhygienic intros);
     sdestruct_hyps;
-    simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next];
+    simplify_all;
     /- Needed to work around [lean-smt#100](https://github.com/ufmg-smite/lean-smt/issues/100) -/
     rename_binders
   )
