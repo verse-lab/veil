@@ -54,7 +54,7 @@ after_init {
   output _ _ _ _ := False
 }
 
-action init (n : address) (r : round) (v : value) = {
+action start_round (n : address) (r : round) (v : value) = {
   require ¬ sent n r;
   initial_msg n N r v := True;
   sent n r := True
@@ -72,6 +72,7 @@ action vote (n : address) (originator : address) (r : round) (v : value) = {
   require (∃ (q : quorum), ∀ (src : address), member src q → echo_msg src n originator r v) ∨
           -- in practice, this is triggered when a node receives f + 1 vote messages
           (∃ (src : address), ¬ is_byz src ∧ vote_msg src n originator r v);
+  require ¬ voted n originator r v;
   voted n originator r v := True;
   vote_msg n DST originator r v := True
 }
@@ -85,22 +86,52 @@ action deliver (n : address) (originator : address) (r : round) (v : value) = {
 /- If a value is voted for, it is the value that was initially proposed by the originator. -/
 safety [vote_integrity]
   ∀ (src dst : address) (r : round) (v : value),
-     is_byz src ∧ is_byz dst ∧ voted dst src r v → (sent src r ∧ initial_value src r v)
+     ¬ is_byz src ∧ ¬ is_byz dst ∧ voted dst src r v → (sent src r ∧ initial_value src r v)
 
 /- If a value is output, it is the value that was initially proposed by the originator. -/
 safety [output_integrity]
   ∀ (src dst : address) (r : round) (v : value),
-     is_byz src ∧ is_byz dst ∧ output dst src r v → (sent src r ∧ initial_value src r v)
+     ¬ is_byz src ∧ ¬ is_byz dst ∧ output dst src r v → (sent src r ∧ initial_value src r v)
 
-/- Also known as "output uniqueness" -/
+/- Also known as "output uniqueness". -/
 safety [agreement]
   ∀ (src dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
-     is_byz src ∧ is_byz dst₁ ∧ is_byz dst₂ ∧ output dst₁ src r v₁ ∧ output dst₂ src r v₂ → v₁ = v₂
+    ¬ is_byz dst₁ ∧ is_byz dst₂ ∧ output dst₁ src r v₁ ∧ output dst₂ src r v₂ → v₁ = v₂
 
 #gen_spec ReliableBroadcast
 
-set_option trace.sauto.query true
+-- set_option trace.sauto.query true
 set_option trace.sauto.result true
+-- set_option trace.sauto true
+
+prove_inv_init by { simp_all [initSimp, invSimp] }
+
+prove_inv_safe by { simp_all [invSimp, safeSimp] }
+
+set_option maxHeartbeats 1000000
+prove_inv_inductive by {
+  intro hnext hinv
+  sts_induction <;> sdestruct_all <;> try solve_clause
+  {
+    simplify_all
+    sdestruct_hyps
+    sauto_all?
+    sorry
+  }
+  {
+    simplify_all
+    sdestruct_hyps
+    sauto_all?
+    sorry
+  }
+  {
+    simplify_all
+    sdestruct_hyps
+    sauto_all?
+    sorry
+  }
+}
+
 
 sat trace [initial_state] {} by { bmc_sat }
 
@@ -109,21 +140,20 @@ unsat trace [cannot_echo_without_init] {
 } by { bmc }
 
 sat trace [can_echo] {
-  init
+  start_round
   echo
 } by { bmc_sat }
 
 sat trace [can_vote] {
-  init
+  start_round
   echo
   echo
   echo
   vote
 } by { bmc_sat }
 
--- set_option maxHeartbeats 1000000
 sat trace [succesful_delivery] {
-  init
+  start_round
   echo
   echo
   echo
@@ -131,6 +161,6 @@ sat trace [succesful_delivery] {
   vote
   vote
   deliver
-} by { sorry }
+} by { bmc_sat }
 
 end ReliableBroadcast

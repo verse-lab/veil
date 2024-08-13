@@ -1,0 +1,88 @@
+#lang ivy1.8
+
+# Byzantine quorums (2f + 1 nodes) intersect in at least one honest member.
+module byzantine_quorum(address, quorum) = {
+    relation is_byz(A:address)
+    relation member(A:address, Q:quorum)
+    axiom [quorum_intersection]
+        forall Q1:quorum, Q2:quorum. exists A:address. member(A, Q1) & member(A, Q2) & ~is_byz(A)
+}
+
+type quorum
+type address
+type round
+type value
+
+instance byzantine_quorum(address, quorum)
+
+# Messages over the network
+relation initial_msg(ORIGINATOR:address, DST:address, R:round, V:value)
+relation echo_msg(SRC:address, DST:address, ORIGINATOR:address, R:round, V:value)
+relation vote_msg(SRC:address, DST:address, ORIGINATOR:address, R:round, V:value)
+
+# State of the nodes
+# sent(address, round) := has the node initiated round `r`? 
+relation sent(N:address, R:round)
+relation echoed(N:address, ORIG:address, IN_ROUND:round, V:value)
+relation voted(N:address, ORIG:address, IN_ROUND:round, V:value)
+relation output(N:address, ORIG:address, IN_ROUND:round, V:value)
+
+# Ghost relations
+relation initial_value(N:address, R:round, V:value) = forall DST:address. initial_msg(N, DST, R, V)
+
+after init {
+    initial_msg(O, D, R, V) := false;
+    echo_msg(S, D, O, R, V) := false;
+    vote_msg(S, D, O, R, V) := false;
+
+    sent(N, R) := false;
+    echoed(N, O, R, V) := false;
+    voted(N, O, R, V) := false;
+    output(N, O, R, V) := false;
+}
+
+export action start_round(n:address, r:round, v:value) = {
+    require ~sent(n, r);
+    initial_msg(n, N, r, v) := true;
+    sent(n, r) := true;
+}
+
+export action echo(n:address, orig:address, r:round, v:value) = {
+    require initial_msg(orig, n, r, v);
+    require ~echoed(n, orig, r, v);
+    echoed(n, orig, r, v) := true;
+    echo_msg(n, DST, orig, r, v) := true;
+}
+
+export action vote(n:address, orig:address, r:round, v:value) = {
+    # received a quorum of echo messages OR a vote message from an honest node
+    require (exists Q:quorum. forall SRC:address. member(SRC, Q) -> echo_msg(SRC, n, orig, r, v)) |
+            (exists SRC:address. ~is_byz(SRC) & vote_msg(SRC, n, orig, r, v));
+    require ~voted(n, orig, r, v);
+    voted(n, orig, r, v) := true;
+    vote_msg(n, DST, orig, r, v) := true;
+}
+
+export action deliver(n:address, orig:address, r:round, v:value) = {
+    # received a quorum of votes
+    require (exists Q:quorum. forall SRC:address. member(SRC, Q) -> vote_msg(SRC, n, orig, r, v));
+    output(n, orig, r, v) := true;
+}
+
+# If a value is voted for, it is the value that was initially proposed by the originator.
+invariant [vote_integrity]
+    forall SRC:address, DST:address, R:round, V:value.
+        ~is_byz(SRC) & ~is_byz(DST) & voted(DST, SRC, R, V) ->
+        (sent(SRC, R) & initial_value(SRC, R, V))
+
+# If a value is output, it is the value that was initially proposed by the originator.
+invariant [output_integrity]
+    forall SRC:address, DST:address, R:round, V:value.
+        ~is_byz(SRC) & ~is_byz(DST) & output(DST, SRC, R, V) ->
+        (sent(SRC, R) & initial_value(SRC, R, V))
+
+# Also known as "output uniqueness".
+invariant [agreement]
+    forall SRC:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        ~is_byz(DST1) & ~is_byz(DST2) & output(DST1, SRC, R, V1) & output(DST2, SRC, R, V2) ->
+        (V1 = V2)
