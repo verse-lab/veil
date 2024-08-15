@@ -301,6 +301,45 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
 @[inherit_doc instantiateSystem]
 elab "#gen_spec" name:ident : command => instantiateSystem name.getId
 
+/--
+  Prints output similar to that of the `ivy_check` command.
+-/
+def checkInvariants (name : Name): CommandElabM Unit := do
+  -- trace[sauto] "The following properties are assumed as axioms:"
+  -- TODO: identify from the variables (typeclasses) in the scope/context
+  Command.runTermElabM fun _ => do
+    dbg_trace "The inductive invariant consists of the following conjectures:"
+    let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
+    for inv in invs do
+      trace[sauto] s!"  {inv}"
+    trace[sauto] "The following actions are present:"
+    let acts := (<- stsExt.get).actions
+    for act in acts do
+      dbg_trace s!"  {act}"
+  trace[sauto] "Initialization must establish the invariant:"
+  let cmds ← Command.runTermElabM fun vs => do
+    let systemTp ← PrettyPrinter.delab $ mkAppN (← mkConst name) vs
+    let stateTp ← PrettyPrinter.delab (← stateTp vs)
+    let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
+    let mut cmds := #[]
+    for inv in invs do
+      let invName := inv.constName!
+      let propTp ← PrettyPrinter.delab $ mkAppN inv vs
+      let thName := mkIdent $ Name.mkSimple s!"init_{invName}"
+      let st := mkIdent `st
+      let checkTheorem ← `(
+        theorem $thName ($st : $stateTp):
+          ($systemTp).$(mkIdent `init)  $st → $propTp $st
+        := by solve_clause)
+      cmds := cmds.push (invName, checkTheorem)
+    pure cmds
+  for (name, cmd) in cmds do
+    trace[sauto] "  {name} ...\n{cmd}"
+    elabCommand cmd
+
+@[inherit_doc checkInvariants]
+elab "#check_invariants" name:ident : command => checkInvariants name.getId
+
 elab "prove_inv_init" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
