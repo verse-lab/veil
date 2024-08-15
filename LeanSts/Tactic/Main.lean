@@ -115,30 +115,28 @@ def getPropsInContext : TacticM (Array Ident) := do
   return idents
 
 def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := withMainContext do
-  -- (*) Collect tactics to generate suggestion
+  -- (*) Collect executed tactics to generate suggestion
   let mut xtacs := #[]
   -- (1) Identify the type of the state
   let stateType ← findStateType (← getLCtx)
   let stateName := stateType.getAppFn.constName
   -- dbg_trace "State is structure with name: {stateName}"
-  -- (2) Destruct all the state hypotheses into components
-  for hyp in (← getLCtx) do
-    if hyp.type == stateType then
-      let name := mkIdent hyp.userName
-      let dtac ← `(tactic| sdestruct $name:ident)
-      xtacs := xtacs.push dtac
-      evalTactic dtac
+  -- (2) Destruct all hypotheses into components
+  let destructTac ← `(tactic| sdestruct_hyps)
+  xtacs := xtacs.push destructTac
+  evalTactic destructTac
+  withMainContext do
   -- (3) Simplify all invariants and transitions, as well as
-  -- destruct structures into their components everywhere
+  -- destruct State structures into their components everywhere (via `injEqLemma`)
   -- We also make simplifications required by `lean-smt`: `funextEq`, `tupleEq`
   let injEqLemma := stateName ++ `mk ++ `injEq
-  let simpIds := #[`initSimp, `actSimp, `invSimp, `smtSimp, injEqLemma].map
+  let simpIds := #[injEqLemma, `initSimp, `actSimp, `invSimp, `smtSimp, `RelationalTransitionSystem.init, `RelationalTransitionSystem.next, `RelationalTransitionSystem.safe, `RelationalTransitionSystem.inv].map
     -- FIXME: is there a better way to do this?
     (fun n => mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n []])
   let simpIds : Syntax.TSepArray _ ",":= Syntax.TSepArray.ofElems simpIds
   -- dbg_trace "Using injEqLemma: {injEqLemma}"
-  let simpTac ← `(tactic| simp only [$simpIds,*] at *)
-  xtacs := xtacs.push simpTac
+  let simpTac ← `(tactic| try simp only [$simpIds,*] at *)
+  let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
   -- (4) Identify:
@@ -146,12 +144,13 @@ def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := wit
   --   (b) all propositions within typeclasses in the context
   let idents ← getPropsInContext
   -- (5) Call `sauto` using these propositions
-  let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
+  let autoTac ← `(tactic| sauto [$[$idents:ident],*])
+  let mut xtacs := xtacs.push autoTac
+  evalTactic autoTac
   if trace then
-    let executed_tactics := (xtacs ++ #[auto_tac])
-    let combined_tactic ← `(tactic| $executed_tactics;*)
+    -- FIXME: the indentation is wrong for the `sauto` tactic
+    let combined_tactic ← `(tactic| $xtacs;*)
     addSuggestion stx combined_tactic
-  evalTactic auto_tac
 
 syntax (name := solveClause) "solve_clause" : tactic
 syntax (name := solveClauseTrace) "solve_clause?" : tactic
@@ -174,7 +173,7 @@ elab_rules : tactic
   | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
 elab "simplify_all" : tactic => withMainContext do
-  let simp_tac ← `(tactic| simp only [initSimp, actSimp, invSimp, smtSimp, RelationalTransitionSystem.next] at *;)
+  let simp_tac ← `(tactic| simp only [initSimp, actSimp, invSimp, safeSimp, smtSimp, RelationalTransitionSystem.init, RelationalTransitionSystem.next, RelationalTransitionSystem.safe, RelationalTransitionSystem.inv] at *;)
   evalTactic simp_tac
 
 /-- Tactic to solve `unsat trace` goals. -/

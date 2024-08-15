@@ -142,7 +142,7 @@ elab "initial" ini:term : command => do
     let stateTp <- stateTp vs
     let _ <- elabTerm ini (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
-    `(@[initDef, initSimp] def $(mkIdent `initalState?) : $stateTp -> Prop := $ini)
+    `(@[initDef, initSimp] def $(mkIdent `initialState?) : $stateTp -> Prop := $ini)
 
 /-- Declaring the initial state predicate in the form of a code -/
 elab "after_init" "{" l:lang "}" : command => do
@@ -281,7 +281,7 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
   Command.runTermElabM fun vs => do
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
-    let initSt    := mkAppN (<- mkConst `initalState?) vs
+    let initSt    := mkAppN (<- mkConst `initialState?) vs
     let initSt    <- PrettyPrinter.delab initSt
     let nextTrans := mkAppN (<- mkConst `Next) vs
     let nextTrans <- PrettyPrinter.delab nextTrans

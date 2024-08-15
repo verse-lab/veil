@@ -54,15 +54,18 @@ def allGoals [Inhabited α]
       return comb ans
 
 
-/-- Iterate over hypotheses to identify the type of the state `Structure`. -/
+/-- Iterate over hypotheses to identify the type of the state `Structure`.
+    If the state is not found, return `State` as the default. -/
 def findStateType (ctx : LocalContext) : TacticM Expr := do
   for hyp in ctx do
     if (hyp.type.isAppOf `RelationalTransitionSystem.init) ||
-       (hyp.type.isAppOf `RelationalTransitionSystem.inv)
-      --  (hyp.type.isAppOf `RelationalTransitionSystem.next)
+       (hyp.type.isAppOf `RelationalTransitionSystem.inv) ||
+       (hyp.type.isAppOf `RelationalTransitionSystem.safe) ||
+       (hyp.type.isAppOf `RelationalTransitionSystem.next)
     then
       return hyp.type.getAppArgs[0]!
-  throwError "Could not find a state `structure` in the context."
+  -- TODO: inspect the goal as well, not just the hypotheses
+  return (mkConst `State)
 
 /-- Is the given hypothesis a `class` instance (or a `structure`)? -/
 def hypIsClass (hyp : LocalDecl) : TacticM Bool := do
