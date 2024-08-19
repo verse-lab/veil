@@ -242,7 +242,6 @@ set_option maxHeartbeats 2000000
 set_option auto.smt true
 set_option auto.smt.trust true
 -- set_option trace.auto.smt.printCommands true
-set_option trace.auto.smt.result true
 -- set_option trace.auto.smt.stderr true
 -- set_option trace.auto.smt.unsatCore true
 

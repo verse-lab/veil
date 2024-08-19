@@ -115,19 +115,19 @@ prove_inv_inductive by {
   {
     simplify_all
     sdestruct_hyps
-    sauto_all?
+    -- sauto_all?
     sorry
   }
   {
     simplify_all
     sdestruct_hyps
-    sauto_all?
+    -- sauto_all?
     sorry
   }
   {
     simplify_all
     sdestruct_hyps
-    sauto_all?
+    -- sauto_all?
     sorry
   }
 }
