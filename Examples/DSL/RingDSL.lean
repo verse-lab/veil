@@ -71,8 +71,8 @@ invariant pending L L → le N L
 
 #gen_spec Ring
 
-set_option trace.sauto.query true
-set_option trace.sauto.result true
+-- set_option trace.sauto.query true
+-- set_option trace.sauto.result true
 
 prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
 

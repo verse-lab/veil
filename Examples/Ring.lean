@@ -148,8 +148,8 @@ def inv_init' :
 
 set_option maxHeartbeats 2000000
 
-set_option trace.sauto.query true
-set_option trace.sauto.result true
+-- set_option trace.sauto.query true
+-- set_option trace.sauto.result true
 
 theorem inv_inductive_smt :
   ∀ (st st' : Structure node), System.next st st' → inv st → inv st' := by

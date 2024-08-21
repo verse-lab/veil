@@ -74,9 +74,6 @@ theorem bank_safety_inductive :
     { apply safe }
   }
 
-set_option auto.smt true
-set_option auto.smt.trust true
-
 theorem bank_safety_smt :
   ∀ st st', BankSystem.next st st' → safety st → safety st' := by
   intro st st' hnext hinv
@@ -84,5 +81,5 @@ theorem bank_safety_smt :
   (
     sdestruct st st';
     simp [RelationalTransitionSystem.inv] at hinv hnext ⊢
-    auto [hinv, hnext]
+    sauto [hinv, hnext]
   )

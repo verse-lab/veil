@@ -193,8 +193,6 @@ invariant one_b N R2 ∧ ¬ TotalOrder.le R2 R1 → leftRound N R1
 prove_inv_init by { simp_all [initSimp, invSimp, actSimp] }
 prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] ; duper }
 
-set_option auto.smt true
-set_option auto.smt.trust true
 set_option maxHeartbeats 2000000
 
 prove_inv_inductive by {

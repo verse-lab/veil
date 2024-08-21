@@ -98,17 +98,14 @@ safety [agreement]
   ∀ (src dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
     ¬ is_byz dst₁ ∧ is_byz dst₂ ∧ output dst₁ src r v₁ ∧ output dst₂ src r v₂ → v₁ = v₂
 
-#gen_spec ReliableBroadcast
+set_option maxHeartbeats 10000000
 
--- set_option trace.sauto.query true
-set_option trace.sauto.result true
--- set_option trace.sauto true
+#gen_spec ReliableBroadcast
+#check_invariants ReliableBroadcast
 
 prove_inv_init by { simp_all [initSimp, invSimp] }
-
 prove_inv_safe by { simp_all [invSimp, safeSimp] }
 
-set_option maxHeartbeats 1000000
 prove_inv_inductive by {
   intro hnext hinv
   sts_induction <;> sdestruct_all <;> try solve_clause
@@ -131,7 +128,6 @@ prove_inv_inductive by {
     sorry
   }
 }
-
 
 sat trace [initial_state] {} by { bmc_sat }
 
