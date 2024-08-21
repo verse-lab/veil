@@ -324,18 +324,26 @@ def checkInvariants (name : Name): CommandElabM Unit := do
     let mut cmds := #[]
     for inv in invs do
       let invName := inv.constName!
-      let propTp ← PrettyPrinter.delab $ mkAppN inv vs
+      let property ← PrettyPrinter.delab $ mkAppN inv vs
       let thName := mkIdent $ Name.mkSimple s!"init_{invName}"
       let st := mkIdent `st
-      let checkTheorem ← `(
-        theorem $thName ($st : $stateTp):
-          ($systemTp).$(mkIdent `init)  $st → $propTp $st
-        := by solve_clause)
+      let tpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
+      let tp ← elabTerm tpStx (.some (mkConst `Prop))
+      let proofScript ← `(by intros; solve_clause)
+      trace[sauto] "Trying to prove {invName} ({tp})"
+      try
+        let attempt ← withoutErrToSorry do elabTermEnsuringType proofScript (.some tp)
+        trace[sauto] "Success: {← ppExpr attempt}"
+      catch ex =>
+        trace[sauto] "Failed to prove {invName}: {ex.toMessageData}"
+        continue
+      let checkTheorem ← `(theorem $thName : $tpStx := $proofScript)
       cmds := cmds.push (invName, checkTheorem)
     pure cmds
   for (name, cmd) in cmds do
     trace[sauto] "  {name} ...\n{cmd}"
-    elabCommand cmd
+    -- withoutModifyingEnv do
+      elabCommand cmd
 
 @[inherit_doc checkInvariants]
 elab "#check_invariants" name:ident : command => checkInvariants name.getId
