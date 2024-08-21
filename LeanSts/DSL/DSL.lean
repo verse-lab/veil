@@ -306,13 +306,11 @@ def checkTheorem (name : String) (tpStx : TSyntax `term) (proofScript : TSyntax 
   let thName := mkIdent $ Name.mkSimple name
   let tp ← elabTerm tpStx (.some (mkConst `Prop))
   let mut isProven := false
-  -- FIXME: I would have wished to use `withoutErrToSorry` here, but
-  -- for whatever reason, it doesn't throw an exception when there's
-  -- an error. Instead, we make our `sauto` tactic return a non-synthetic
-  -- `sorry` and check for that. (Lean's `sorry` is synthetic.)
-  let attempt ← elabTermAndSynthesize proofScript (.some tp)
-  if !attempt.hasSyntheticSorry then
-    isProven := true
+  try
+    let attempt ← withoutErrToSorry $ elabTermAndSynthesize proofScript (.some tp)
+    if !attempt.hasSyntheticSorry then
+      isProven := true
+  catch _ex => pure ()
   let checkTheorem ← `(theorem $thName : $tpStx := $proofScript)
   return (thName.getId, checkTheorem, isProven)
 
@@ -320,17 +318,6 @@ def checkTheorem (name : String) (tpStx : TSyntax `term) (proofScript : TSyntax 
   Prints output similar to that of the `ivy_check` command.
 -/
 def checkInvariants (name : Name): CommandElabM Unit := do
-  -- trace[sauto] "The following properties are assumed as axioms:"
-  -- TODO: identify from the variables (typeclasses) in the scope/context
-  -- Command.runTermElabM fun _ => do
-    -- trace[sauto] "The inductive invariant consists of the following conjectures:"
-    -- let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
-    -- for inv in invs do
-    --   trace[sauto] s!"  {inv}"
-    -- trace[sauto] "The following actions are present:"
-    -- let acts := (<- stsExt.get).actions
-    -- for act in acts do
-    --   trace[sauto]"  {act}"
   -- (1) Collect checks that invariants hold in the initial state
   let initChecks ← Command.runTermElabM fun vs => do
     let systemTp ← PrettyPrinter.delab $ mkAppN (← mkConst name) vs
@@ -362,18 +349,21 @@ def checkInvariants (name : Name): CommandElabM Unit := do
         actChecks := actChecks.push (invName, ← checkTheorem s!"${actName}_{invName}" tpStx proofScript)
       checks := checks.push (actName, actChecks)
     pure checks
-  trace[sauto] "Initialization must establish the invariant:"
+  let mut msgs := #[]
+  msgs := msgs.push "Initialization must establish the invariant:"
   for (invName, (_thName, cmd, success)) in initChecks do
-    trace[sauto] "  {invName} ... {if success then "✅" else "❌"}"
+    msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
     if success then
       elabCommand cmd
-  trace[sauto] "The following set of actions must preserve the invariant:"
+  msgs := msgs.push "The following set of actions must preserve the invariant:"
   for (actName, actChecks) in invChecks do
-    trace[sauto] s!"  {actName}"
+    msgs := msgs.push s!"  {actName}"
     for (invName, (_thName, cmd, success)) in actChecks do
-      trace[sauto] s!"    {invName} ... {if success then "✅" else "❌"}"
+      msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
       if success then
         elabCommand cmd
+  let msg := String.intercalate "\n" msgs.toList
+  dbg_trace msg
 
 @[inherit_doc checkInvariants]
 elab "#check_invariants" name:ident : command => checkInvariants name.getId
