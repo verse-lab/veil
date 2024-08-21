@@ -315,7 +315,7 @@ def checkInvariants (name : Name): CommandElabM Unit := do
     trace[sauto] "The following actions are present:"
     let acts := (<- stsExt.get).actions
     for act in acts do
-      dbg_trace s!"  {act}"
+      trace[sauto]"  {act}"
   trace[sauto] "Initialization must establish the invariant:"
   let cmds ← Command.runTermElabM fun vs => do
     let systemTp ← PrettyPrinter.delab $ mkAppN (← mkConst name) vs
@@ -330,19 +330,21 @@ def checkInvariants (name : Name): CommandElabM Unit := do
       let tpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
       let tp ← elabTerm tpStx (.some (mkConst `Prop))
       let proofScript ← `(by intros; solve_clause)
-      trace[sauto] "Trying to prove {invName} ({tp})"
-      try
-        let attempt ← withoutErrToSorry do elabTermEnsuringType proofScript (.some tp)
-        trace[sauto] "Success: {← ppExpr attempt}"
-      catch ex =>
-        trace[sauto] "Failed to prove {invName}: {ex.toMessageData}"
-        continue
+      let expectedType := some tp
+      let mut success := false
+      -- FIXME: I would have wished to use `withoutErrToSorry` here, but
+      -- for whatever reason, it doesn't throw an exception when there's
+      -- an error. Instead, we make our `sauto` tactic return a non-synthetic
+      -- `sorry` and check for that. (Lean's `sorry` is synthetic.)
+      let attempt ← elabTermAndSynthesize proofScript expectedType
+      if !attempt.hasSyntheticSorry then
+        success := true
       let checkTheorem ← `(theorem $thName : $tpStx := $proofScript)
-      cmds := cmds.push (invName, checkTheorem)
+      cmds := cmds.push (invName, checkTheorem, success)
     pure cmds
-  for (name, cmd) in cmds do
-    trace[sauto] "  {name} ...\n{cmd}"
-    -- withoutModifyingEnv do
+  for (name, cmd, success) in cmds do
+    trace[sauto] "  {name} ... {if success then "ok" else "failed"}"
+    if success then
       elabCommand cmd
 
 @[inherit_doc checkInvariants]
