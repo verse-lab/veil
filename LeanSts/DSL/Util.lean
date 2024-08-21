@@ -79,7 +79,7 @@ initialize registerBuiltinAttribute {
   name := `action
   descr := "Marks as a state stransition"
   add := fun declName _ _ => do
-    stsExt.modify (fun s => { s with actions := mkConst declName :: s.actions})
+    stsExt.modify (fun s => { s with actions := s.actions ++ [mkConst declName]})
 }
 
 syntax (name:= safe) "safeDef" : attr
@@ -88,7 +88,7 @@ initialize registerBuiltinAttribute {
   name := `safe
   descr := "Marks as a safety property"
   add := fun declName _ _ => do
-    stsExt.modify (fun s => { s with safeties := mkConst declName :: s.safeties})
+    stsExt.modify (fun s => { s with safeties := s.safeties ++ [mkConst declName]})
 }
 
 
@@ -98,7 +98,7 @@ initialize registerBuiltinAttribute {
   name := `inv
   descr := "Marks as an invariant clause"
   add := fun declName _ _ => do
-    stsExt.modify (fun s => { s with invariants := mkConst declName :: s.invariants})
+    stsExt.modify (fun s => { s with invariants := s.invariants ++ [mkConst declName]})
 }
 
 register_simp_attr invSimp

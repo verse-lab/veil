@@ -301,51 +301,79 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
 @[inherit_doc instantiateSystem]
 elab "#gen_spec" name:ident : command => instantiateSystem name.getId
 
+def checkTheorem (name : String) (tpStx : TSyntax `term) (proofScript : TSyntax `term) :
+  TermElabM (Name × TSyntax `command × Bool) := do
+  let thName := mkIdent $ Name.mkSimple name
+  let tp ← elabTerm tpStx (.some (mkConst `Prop))
+  let mut isProven := false
+  -- FIXME: I would have wished to use `withoutErrToSorry` here, but
+  -- for whatever reason, it doesn't throw an exception when there's
+  -- an error. Instead, we make our `sauto` tactic return a non-synthetic
+  -- `sorry` and check for that. (Lean's `sorry` is synthetic.)
+  let attempt ← elabTermAndSynthesize proofScript (.some tp)
+  if !attempt.hasSyntheticSorry then
+    isProven := true
+  let checkTheorem ← `(theorem $thName : $tpStx := $proofScript)
+  return (thName.getId, checkTheorem, isProven)
+
 /--
   Prints output similar to that of the `ivy_check` command.
 -/
 def checkInvariants (name : Name): CommandElabM Unit := do
   -- trace[sauto] "The following properties are assumed as axioms:"
   -- TODO: identify from the variables (typeclasses) in the scope/context
-  Command.runTermElabM fun _ => do
-    dbg_trace "The inductive invariant consists of the following conjectures:"
-    let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
-    for inv in invs do
-      trace[sauto] s!"  {inv}"
-    trace[sauto] "The following actions are present:"
-    let acts := (<- stsExt.get).actions
-    for act in acts do
-      trace[sauto]"  {act}"
-  trace[sauto] "Initialization must establish the invariant:"
-  let cmds ← Command.runTermElabM fun vs => do
+  -- Command.runTermElabM fun _ => do
+    -- trace[sauto] "The inductive invariant consists of the following conjectures:"
+    -- let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
+    -- for inv in invs do
+    --   trace[sauto] s!"  {inv}"
+    -- trace[sauto] "The following actions are present:"
+    -- let acts := (<- stsExt.get).actions
+    -- for act in acts do
+    --   trace[sauto]"  {act}"
+  -- (1) Collect checks that invariants hold in the initial state
+  let initChecks ← Command.runTermElabM fun vs => do
     let systemTp ← PrettyPrinter.delab $ mkAppN (← mkConst name) vs
     let stateTp ← PrettyPrinter.delab (← stateTp vs)
     let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
-    let mut cmds := #[]
+    let mut checks := #[]
     for inv in invs do
       let invName := inv.constName!
-      let property ← PrettyPrinter.delab $ mkAppN inv vs
-      let thName := mkIdent $ Name.mkSimple s!"init_{invName}"
-      let st := mkIdent `st
+      let (st, property) := (mkIdent `st, ← PrettyPrinter.delab $ mkAppN inv vs)
       let tpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
-      let tp ← elabTerm tpStx (.some (mkConst `Prop))
       let proofScript ← `(by intros; solve_clause)
-      let expectedType := some tp
-      let mut success := false
-      -- FIXME: I would have wished to use `withoutErrToSorry` here, but
-      -- for whatever reason, it doesn't throw an exception when there's
-      -- an error. Instead, we make our `sauto` tactic return a non-synthetic
-      -- `sorry` and check for that. (Lean's `sorry` is synthetic.)
-      let attempt ← elabTermAndSynthesize proofScript expectedType
-      if !attempt.hasSyntheticSorry then
-        success := true
-      let checkTheorem ← `(theorem $thName : $tpStx := $proofScript)
-      cmds := cmds.push (invName, checkTheorem, success)
-    pure cmds
-  for (name, cmd, success) in cmds do
-    trace[sauto] "  {name} ... {if success then "ok" else "failed"}"
+      checks := checks.push (invName, ← checkTheorem s!"init_{invName}" tpStx proofScript)
+    pure checks
+  -- (2) Collect checks that invariants hold after each action
+  let invChecks ← Command.runTermElabM fun vs => do
+    let systemTp ← PrettyPrinter.delab $ mkAppN (← mkConst name) vs
+    let stateTp ← PrettyPrinter.delab (← stateTp vs)
+    let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
+    let acts := (<- stsExt.get).actions
+    let mut checks := #[]
+    for actName in acts do
+      let mut actChecks := #[]
+      for inv in invs do
+        let invName := inv.constName!
+        let (st, st', property) := (mkIdent `st, mkIdent `st', ← PrettyPrinter.delab $ mkAppN inv vs)
+        let act ← PrettyPrinter.delab $ mkAppN actName vs
+        let tpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
+        let proofScript ← `(by intros; solve_clause)
+        actChecks := actChecks.push (invName, ← checkTheorem s!"${actName}_{invName}" tpStx proofScript)
+      checks := checks.push (actName, actChecks)
+    pure checks
+  trace[sauto] "Initialization must establish the invariant:"
+  for (invName, (_thName, cmd, success)) in initChecks do
+    trace[sauto] "  {invName} ... {if success then "✅" else "❌"}"
     if success then
       elabCommand cmd
+  trace[sauto] "The following set of actions must preserve the invariant:"
+  for (actName, actChecks) in invChecks do
+    trace[sauto] s!"  {actName}"
+    for (invName, (_thName, cmd, success)) in actChecks do
+      trace[sauto] s!"    {invName} ... {if success then "✅" else "❌"}"
+      if success then
+        elabCommand cmd
 
 @[inherit_doc checkInvariants]
 elab "#check_invariants" name:ident : command => checkInvariants name.getId
