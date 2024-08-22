@@ -106,6 +106,9 @@ register_simp_attr actSimp
 register_simp_attr initSimp
 register_simp_attr safeSimp
 
+/-- For `solve_by_elim` -/
+register_label_attr invProof
+
 /-- This is used in `require` were we define a predicate over a state.
     Instead of writing `fun st => Pred` this command will pattern match over
     `st` making all its fileds accessible for `Pred` -/

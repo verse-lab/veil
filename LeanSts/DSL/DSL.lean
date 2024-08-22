@@ -311,7 +311,7 @@ def checkTheorem (name : String) (tpStx : TSyntax `term) (proofScript : TSyntax 
     if !attempt.hasSyntheticSorry then
       isProven := true
   catch _ex => pure ()
-  let checkTheorem ← `(theorem $thName : $tpStx := $proofScript)
+  let checkTheorem ← `(@[invProof] theorem $thName : $tpStx := $proofScript)
   return (thName.getId, checkTheorem, isProven)
 
 /--
@@ -346,7 +346,7 @@ def checkInvariants (name : Name): CommandElabM Unit := do
         let act ← PrettyPrinter.delab $ mkAppN actName vs
         let tpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
         let proofScript ← `(by intros; solve_clause)
-        actChecks := actChecks.push (invName, ← checkTheorem s!"${actName}_{invName}" tpStx proofScript)
+        actChecks := actChecks.push (invName, ← checkTheorem s!"{actName}_{invName}" tpStx proofScript)
       checks := checks.push (actName, actChecks)
     pure checks
   let mut msgs := #[]
