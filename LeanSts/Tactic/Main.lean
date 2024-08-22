@@ -130,7 +130,7 @@ def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := wit
   -- destruct State structures into their components everywhere (via `injEqLemma`)
   -- We also make simplifications required by `lean-smt`: `funextEq`, `tupleEq`
   let injEqLemma := stateName ++ `mk ++ `injEq
-  let simpIds := #[injEqLemma, `initSimp, `actSimp, `invSimp, `smtSimp, `RelationalTransitionSystem.init, `RelationalTransitionSystem.next, `RelationalTransitionSystem.safe, `RelationalTransitionSystem.inv].map
+  let simpIds := #[injEqLemma, `initSimp, `actSimp, `invSimp, `safeSimp, `smtSimp].map
     -- FIXME: is there a better way to do this?
     (fun n => mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n []])
   let simpIds : Syntax.TSepArray _ ",":= Syntax.TSepArray.ofElems simpIds
@@ -173,7 +173,7 @@ elab_rules : tactic
   | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
 elab "simplify_all" : tactic => withMainContext do
-  let simp_tac ← `(tactic| simp only [initSimp, actSimp, invSimp, safeSimp, smtSimp, RelationalTransitionSystem.init, RelationalTransitionSystem.next, RelationalTransitionSystem.safe, RelationalTransitionSystem.inv] at *;)
+  let simp_tac ← `(tactic| simp only [initSimp, actSimp, invSimp, safeSimp, smtSimp] at *;)
   evalTactic simp_tac
 
 /-- Tactic to solve `unsat trace` goals. -/
