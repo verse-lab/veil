@@ -146,11 +146,11 @@ def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := wit
   -- (5) Call `sauto` using these propositions
   let autoTac ← `(tactic| sauto [$[$idents:ident],*])
   let mut xtacs := xtacs.push autoTac
-  evalTactic autoTac
   if trace then
     -- FIXME: the indentation is wrong for the `sauto` tactic
     let combined_tactic ← `(tactic| $xtacs;*)
     addSuggestion stx combined_tactic
+  evalTactic autoTac
 
 syntax (name := solveClause) "solve_clause" : tactic
 syntax (name := solveClauseTrace) "solve_clause?" : tactic
