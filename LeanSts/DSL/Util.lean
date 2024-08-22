@@ -39,6 +39,8 @@ structure StsState where
   safeties     : List Expr
   /-- list of invariants -/
   invariants : List Expr
+  /-- established invariant clauses; set on `@[invProof]` label -/
+  establishedClauses : List Name := []
   deriving Inhabited
 
 open StsState
@@ -107,7 +109,15 @@ register_simp_attr initSimp
 register_simp_attr safeSimp
 
 /-- For `solve_by_elim` -/
-register_label_attr invProof
+-- register_label_attr invProof
+syntax (name := invProof) "invProof" : attr
+
+initialize registerBuiltinAttribute {
+  name := `invProof
+  descr := "Marks this theorem as the proof of an invariant clause"
+  add := fun declName _ _ => do
+    stsExt.modify (fun s => { s with establishedClauses := s.establishedClauses ++ [declName]})
+}
 
 /-- This is used in `require` were we define a predicate over a state.
     Instead of writing `fun st => Pred` this command will pattern match over

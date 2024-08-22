@@ -385,6 +385,15 @@ elab_rules : command
   | `(command| #check_invariants%$tk) => checkInvariants tk
   | `(command| #check_invariants?%$tk) => checkInvariants tk (printTheorems := true)
 
+open Tactic in
+/-- Try to solve the goal using one of the already proven invariant clauses,
+    i.e. one of those marked with `@[invProof]` (via `#check_invariants`). -/
+elab "already_proven" : tactic => withMainContext do
+  let clauses := (← stsExt.get).establishedClauses.toArray
+  let tacs ← clauses.mapM (fun cl => `(tactic|(try apply $(mkIdent cl) <;> assumption)))
+  let attempt ← `(tactic| solve $[| $tacs:tactic]*)
+  evalTactic attempt
+
 elab "prove_inv_init" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
@@ -415,3 +424,4 @@ elab "prove_inv_inductive" proof:term : command => do
 attribute [initSimp] RelationalTransitionSystem.init
 attribute [invSimp] RelationalTransitionSystem.inv
 attribute [safeSimp] RelationalTransitionSystem.safe
+attribute [actSimp] RelationalTransitionSystem.next
