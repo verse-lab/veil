@@ -25,6 +25,8 @@ def freshIdentifier (suggestion : String) : CoreM Lean.Syntax.Ident := do
 
 /-- Auxiliary structure to store the transition system objects -/
 structure StsState where
+  /-- name of the system; set when `#gen_spec` runs -/
+  name: Name
   /-- type of the transition system state -/
   typ        : Expr
   /-- signatures of all constants, relations, and functions -/
@@ -37,8 +39,6 @@ structure StsState where
   safeties     : List Expr
   /-- list of invariants -/
   invariants : List Expr
-  /-- number of declared traces -/
-  numTraces : Nat := 0
   deriving Inhabited
 
 open StsState
@@ -206,3 +206,12 @@ def mkArrowStx (tps : List Ident) (terminator : Option $ TSyntax `term := none) 
   | a :: as =>
     let cont ← mkArrowStx as terminator
     `(term| $a -> $cont)
+
+/-- Hack for generating lists of commands. Used by `checkInvariants` -/
+declare_syntax_cat commands
+syntax (command ppLine ppLine)* : commands
+elab_rules : command
+  | `(commands| $cmds:command*) => do
+    for cmd in cmds do
+      elabCommand cmd
+def constructCommands (thms : Array (TSyntax `command)) : CoreM (TSyntax `commands) := `(commands| $[$thms]*)

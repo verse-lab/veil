@@ -1,12 +1,15 @@
 import Lean
 import Lean.Parser
+import Lean.Meta.Tactic.TryThis
+
 import LeanSts.TransitionSystem
 import LeanSts.Tactic
 import LeanSts.DSL.Util
 import LeanSts.DSL.WP
 import LeanSts.DSL.Tactic
 import LeanSts.DSL.Trace
-open Lean Elab Command Term Meta Lean.Parser RelationalTransitionSystem
+
+open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis RelationalTransitionSystem
 
 -- Modelled after the Ivy language
 -- https://github.com/kenmcmil/ivy/blob/master/doc/language.md
@@ -279,6 +282,8 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
   assembleInvariant
   assembleSafeties
   Command.runTermElabM fun vs => do
+    -- set the name
+    stsExt.modify (fun s => { s with name := name })
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
     let initSt    := mkAppN (<- mkConst `initialState?) vs
@@ -311,16 +316,17 @@ def checkTheorem (name : String) (tpStx : TSyntax `term) (proofScript : TSyntax 
     if !attempt.hasSyntheticSorry then
       isProven := true
   catch _ex => pure ()
-  let checkTheorem ← `(@[invProof] theorem $thName : $tpStx := $proofScript)
+  let proof ← if isProven then pure proofScript else `(by sorry)
+  let checkTheorem ← `(@[invProof] theorem $thName : $tpStx := $proof)
   return (thName.getId, checkTheorem, isProven)
 
 /--
   Prints output similar to that of the `ivy_check` command.
 -/
-def checkInvariants (name : Name): CommandElabM Unit := do
+def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElabM Unit := do
   -- (1) Collect checks that invariants hold in the initial state
   let initChecks ← Command.runTermElabM fun vs => do
-    let systemTp ← PrettyPrinter.delab $ mkAppN (← mkConst name) vs
+    let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).name) vs
     let stateTp ← PrettyPrinter.delab (← stateTp vs)
     let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
     let mut checks := #[]
@@ -333,7 +339,7 @@ def checkInvariants (name : Name): CommandElabM Unit := do
     pure checks
   -- (2) Collect checks that invariants hold after each action
   let invChecks ← Command.runTermElabM fun vs => do
-    let systemTp ← PrettyPrinter.delab $ mkAppN (← mkConst name) vs
+    let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).name) vs
     let stateTp ← PrettyPrinter.delab (← stateTp vs)
     let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
     let acts := (<- stsExt.get).actions
@@ -356,17 +362,28 @@ def checkInvariants (name : Name): CommandElabM Unit := do
     if success then
       elabCommand cmd
   msgs := msgs.push "The following set of actions must preserve the invariant:"
+  let mut theorems := #[]
   for (actName, actChecks) in invChecks do
     msgs := msgs.push s!"  {actName}"
     for (invName, (_thName, cmd, success)) in actChecks do
       msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
+      theorems := theorems.push cmd
       if success then
         elabCommand cmd
   let msg := String.intercalate "\n" msgs.toList
-  dbg_trace msg
+  if !printTheorems then
+    dbg_trace msg
+  else
+    Command.liftTermElabM do
+      let cmd ← constructCommands theorems
+      let suggestion : Suggestion := { suggestion := cmd, preInfo? := msg ++ "\n", toCodeActionTitle? := .some (fun _ => "Replace with explicit proofs.")}
+      addSuggestion stx suggestion (header := "")
 
-@[inherit_doc checkInvariants]
-elab "#check_invariants" name:ident : command => checkInvariants name.getId
+syntax "#check_invariants" : command
+syntax "#check_invariants?" : command
+elab_rules : command
+  | `(command| #check_invariants%$tk) => checkInvariants tk
+  | `(command| #check_invariants?%$tk) => checkInvariants tk (printTheorems := true)
 
 elab "prove_inv_init" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
