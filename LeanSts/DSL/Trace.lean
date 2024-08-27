@@ -1,5 +1,6 @@
 import Lean
 import Lean.Parser
+import LeanSts.MetaUtil
 import LeanSts.DSL.Util
 import LeanSts.TransitionSystem
 
@@ -71,10 +72,6 @@ def mkAndNStx (args : List (TSyntax `term)) : TermElabM (TSyntax `term) :=
   | x :: xs => do
     let xs ← mkAndNStx xs
     `(term|($x ∧ $xs))
-
-/- From: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/binderIdent.20vs.20Ident -/
-def toBinderIdent (i : Ident) : TSyntax ``binderIdent := Unhygienic.run <|
-  withRef i `(binderIdent| $i:ident)
 
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec) (pf : TSyntax `term)
   : CommandElabM Unit := do

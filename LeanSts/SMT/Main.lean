@@ -74,6 +74,27 @@ where
     IO.Process.spawn {stdin := .piped, stdout := .piped, stderr := .piped,
                       cmd := path, args := args}
 
+partial def Handle.readLineSkip (h : IO.FS.Handle) (skipLine : String := "\n") : IO String := do
+  let rec loop := do
+    let line ← h.getLine
+    if line.isEmpty || line == skipLine then
+      loop
+    else
+      return line
+  loop
+
+partial def Handle.readUntil (h : IO.FS.Handle) (endString : String) : IO String := do
+  let rec loop (s : String) := do
+    let line ← h.getLine
+    if line.isEmpty then
+      return s
+    else if line == endString then
+      return (s ++ line)
+    else
+      loop (s ++ line)
+  loop ""
+
+open Smt Smt.Tactic Translate in
 def querySolver (goalQuery : String) (timeout : Option Nat) : MetaM SmtResult := do
   let opts ← getOptions
   let solverName := sauto.smt.solver.get opts
@@ -88,27 +109,70 @@ def querySolver (goalQuery : String) (timeout : Option Nat) : MetaM SmtResult :=
     emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
   else
     emitCommand solver .checkSat
-  let stdout ← solver.stdout.getLine
-  trace[sauto.debug] "{stdout}"
+  let stdout ← Handle.readLineSkip solver.stdout
+  trace[sauto.debug] "(check-sat) {stdout.length} {stdout}"
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
       emitCommand solver .getModel
-      let (_, solver) ← solver.takeStdin
-      let stdout ← solver.stdout.readToEnd
-      -- let stderr ← solver.stderr.readToEnd
       trace[sauto.result] "{solverName} says Sat"
-      trace[sauto.debug] "{stdout}"
+      let stdout ← Handle.readUntil solver.stdout ")\n"
       let (model, _) ← getSexp stdout
-      solver.kill
       trace[sauto.debug] "Model:\n{model}"
       if solverName == SolverName.z3 then
         let fostruct ← extractStructure model
+        -- Minimize model by reducing sort sizes
+        -- FIXME: refactor this code into a separate method
+        for sort in fostruct.domains do
+          for sortSize in [1 : sort.size] do
+            -- let comment := s!" ;; Minimizing sort {sort.name} to size {sortSize}"
+            emitCommandStr solver "(push)"
+            match ← sort.cardinalityConstraint sortSize with
+            | none => continue
+            | some expr =>
+              -- prepareSmtQuery negates the expression, so we negate it here.
+              let cmds ← prepareSmtQuery [] (mkNot expr)
+              -- Do not declare sorts again, etc. Only add constraints.
+              let cmds := cmds.filter fun
+                | .assert _ => true
+                | _ => false
+              let cmd := Command.cmdsAsQuery cmds
+              emitCommandStr solver cmd
+              emitCommand solver .checkSat
+              let stdout ← Handle.readLineSkip solver.stdout
+              trace[sauto.debug] "(check-sat) {stdout.length}: {stdout}"
+              let (checkSatResponse, _) ← getSexp stdout
+              match checkSatResponse with
+              | .atom (.symb "sat") =>
+                trace[sauto.debug] "{solverName} says Sat"
+                break
+              | .atom (.symb "unsat") =>
+                trace[sauto.debug] "{solverName} says Unsat"
+                emitCommandStr solver "(pop)"
+              | e => throwError s!"Unexpected response from solver during minimization: {e}"
+        -- We need to `(check-sat)` again to get the minimized model.
+        emitCommand solver .checkSat
+        let stdout ← Handle.readLineSkip solver.stdout
+        trace[sauto.debug] "(check-sat) {stdout.length}: {stdout}"
+        let (checkSatResponse, _) ← getSexp stdout
+        if checkSatResponse != .atom (.symb "sat") then
+          throwError s!"Minimization failed! (check-sat) returned {checkSatResponse}."
+        emitCommand solver .getModel
+        let (_, solver) ← solver.takeStdin
+        let stdout ← solver.stdout.readToEnd
+        let stderr ← solver.stderr.readToEnd
+        trace[sauto.debug] "(get-model) {stdout.length}: {stdout}"
+        trace[sauto.debug] "(stderr) {stderr}"
+        let (model, _) ← getSexp stdout
+        trace[sauto.debug] "Model:\n{model}"
+        let fostruct ← extractStructure model
         trace[sauto.result] "{fostruct}"
+        solver.kill
         return .Sat fostruct
       else
         trace[sauto.result] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
         trace[sauto.result] "Model:\n{model}"
+        solver.kill
         return .Sat .none
   | .atom (.symb "unsat") =>
       emitCommand solver .getUnsatCore

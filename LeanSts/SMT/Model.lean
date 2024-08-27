@@ -1,5 +1,7 @@
 import Lean
 import Auto
+import LeanSts.MetaUtil
+
 
 abbrev SortName := Lean.Name
 abbrev UninterpretedValue := Lean.Name
@@ -58,6 +60,43 @@ instance : ToString FirstOrderSort where
 def FirstOrderSort.name : FirstOrderSort → SortName
   | FirstOrderSort.Interpreted s => s.name
   | FirstOrderSort.Uninterpreted s => s.name
+
+def FirstOrderSort.size : FirstOrderSort → Nat
+  | FirstOrderSort.Interpreted _ => 1
+  | FirstOrderSort.Uninterpreted s => s.size
+
+open Lean Elab Term Meta in
+/-- Create an SMT constraint that the given sort has cardinality *at most* `n`.-/
+def FirstOrderSort.cardinalityConstraint (n : Nat) : FirstOrderSort → MetaM (Option Expr)
+  | FirstOrderSort.Interpreted _ => return none
+  | FirstOrderSort.Uninterpreted s => do
+    -- We construct a ∃∀ formula of the form ∃a, b, c. ∀x. (x = a) ∨ (x = b) ∨ (x = c)
+    -- If we want an *exact* constraint, we need to assert `distinct(a, b, c)` as well.
+    let mut existentials := #[]
+    let varN := mkIdent (Name.mkSimple s!"x_{s.name}")
+    let mut disjs := #[]
+    for i in [:n] do
+      let varI := mkIdent (Name.mkSimple s!"card_{s.name}_{i}")
+      let disj ← `(term|($varN = $varI))
+      existentials := existentials.push (varI, s.name)
+      disjs := disjs.push disj
+    let body ← `(term|forall $varN, $(← repeatedOr disjs))
+    let stx ← repeatedExists existentials body
+    let (expr, _) ← TermElabM.run <| elabTerm stx .none
+    return expr
+  where
+  repeatedExists (vars : Array (Ident × SortName)) (body : TSyntax `term) : MetaM (TSyntax `term) := do
+    let binders ← vars.mapM fun (var, sort) => do
+      let bi := toBinderIdent var
+      let sn := mkIdent sort
+      return ← `(bracketedExplicitBinders|($bi : $sn))
+    `(term|∃ $binders*, $body)
+  repeatedOr (disjs : Array (TSyntax `term)) : MetaM (TSyntax `term) := do
+    if disjs.isEmpty then throwError "repeatedOr: empty disjunction"
+    else
+      let initT := disjs[0]!
+      let disjs := disjs[1:]
+      disjs.foldlM (init := initT) fun disj acc => `(term|Or $disj $acc)
 
 inductive FirstOrderValue where
   | Interpreted (s : InterpretedSort) (val : s.interpretation)
