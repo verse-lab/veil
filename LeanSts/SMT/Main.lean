@@ -104,35 +104,43 @@ def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
   let cmd := Smt.Translate.Command.cmdsAsQuery cmds
   emitCommandStr solver cmd
 
+/-- Try the constraint in a new frame. -/
+def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM (Option Bool) := do
+  match constr with
+  | none => return none
+  | some expr =>
+  -- we check each constraint in a separate frame
+  emitCommandStr solver "(push)"
+  addConstraint solver expr
+  emitCommand solver .checkSat
+  let stdout ← Handle.readLineSkip solver.stdout
+  let (checkSatResponse, _) ← getSexp stdout
+  -- we end the frame here, such that the next iteration of the loop
+  -- starts with a clean slate
+  emitCommandStr solver "(pop)"
+  match checkSatResponse with
+  | .atom (.symb "sat") =>
+    trace[sauto.debug] "{solverName} says Sat"
+    return true
+  | .atom (.symb "unsat") =>
+    trace[sauto.debug] "{solverName} says Unsat"
+    return false
+  | e => throwError s!"Unexpected response from solver: {e}"
+
 def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
+  -- Minimize sorts
   let mut sortConstraints : Array (FirstOrderSort × Nat × Expr) := #[]
   for sort in fostruct.domains do
     for sortSize in [1 : sort.size] do
-      -- we check each constraint in a separate frame
-      emitCommandStr solver "(push)"
-      match ← sort.cardinalityConstraint sortSize with
-      | none => continue
-      | some constraint =>
-        addConstraint solver constraint
-        emitCommand solver .checkSat
-        let stdout ← Handle.readLineSkip solver.stdout
-        trace[sauto.debug] "(check-sat) {stdout.length}: {stdout}"
-        let (checkSatResponse, _) ← getSexp stdout
-        -- we end the frame here, such that the next iteration of the loop
-        -- starts with a clean slate
-        emitCommandStr solver "(pop)"
-        match checkSatResponse with
-        | .atom (.symb "sat") =>
-          trace[sauto.debug] "{solverName} says Sat"
-          sortConstraints := sortConstraints.push (sort, sortSize, constraint)
-          -- break out of the `sortSize in [1 : sort.size]` loop
-          break
-        | .atom (.symb "unsat") =>
-          trace[sauto.debug] "{solverName} says Unsat"
-        | e => throwError s!"Unexpected response from solver during minimization: {e}"
-  -- At this point, we are operating on a clean frame. We re-assert all the
-  -- satisfied constraints and  `(check-sat)` again to get the minimized model.
+      let constraint ← sort.cardinalityConstraint sortSize
+      let isSat ← constraintIsSatisfiable solver solverName constraint
+      match isSat with
+      | .some true =>
+          sortConstraints := sortConstraints.push (sort, sortSize, constraint.get!)
+          break -- break out of the `sortSize in [1 : sort.size]` loop
+      | .some false => continue
+      | .none => throwError "Unexpected response from solver"
   for (_, _, constraint) in sortConstraints do
     addConstraint solver constraint
   emitCommand solver .checkSat
@@ -152,7 +160,6 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
   let (model, _) ← getSexp stdout
   trace[sauto.debug] "Model:\n{model}"
   let fostruct ← extractStructure model
-
   return fostruct
 
 open Smt Smt.Tactic Translate in
