@@ -94,34 +94,47 @@ partial def Handle.readUntil (h : IO.FS.Handle) (endString : String) : IO String
       loop (s ++ line)
   loop ""
 
+def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
+  -- prepareSmtQuery negates the expression, so we negate it here.
+  let cmds ← prepareSmtQuery [] (mkNot expr)
+  -- Do not declare sorts again, etc. Only add constraints (i.e. assertions).
+  let cmds := cmds.filter fun
+    | .assert _ => true
+    | _ => false
+  let cmd := Smt.Translate.Command.cmdsAsQuery cmds
+  emitCommandStr solver cmd
+
 def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
+  -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
+  let mut sortConstraints : Array (FirstOrderSort × Nat × Expr) := #[]
   for sort in fostruct.domains do
     for sortSize in [1 : sort.size] do
+      -- we check each constraint in a separate frame
       emitCommandStr solver "(push)"
       match ← sort.cardinalityConstraint sortSize with
       | none => continue
-      | some expr =>
-        -- prepareSmtQuery negates the expression, so we negate it here.
-        let cmds ← prepareSmtQuery [] (mkNot expr)
-        -- Do not declare sorts again, etc. Only add constraints (i.e. assertions).
-        let cmds := cmds.filter fun
-          | .assert _ => true
-          | _ => false
-        let cmd := Smt.Translate.Command.cmdsAsQuery cmds
-        emitCommandStr solver cmd
+      | some constraint =>
+        addConstraint solver constraint
         emitCommand solver .checkSat
         let stdout ← Handle.readLineSkip solver.stdout
         trace[sauto.debug] "(check-sat) {stdout.length}: {stdout}"
         let (checkSatResponse, _) ← getSexp stdout
+        -- we end the frame here, such that the next iteration of the loop
+        -- starts with a clean slate
+        emitCommandStr solver "(pop)"
         match checkSatResponse with
         | .atom (.symb "sat") =>
           trace[sauto.debug] "{solverName} says Sat"
+          sortConstraints := sortConstraints.push (sort, sortSize, constraint)
+          -- break out of the `sortSize in [1 : sort.size]` loop
           break
         | .atom (.symb "unsat") =>
           trace[sauto.debug] "{solverName} says Unsat"
-          emitCommandStr solver "(pop)"
         | e => throwError s!"Unexpected response from solver during minimization: {e}"
-  -- We need to `(check-sat)` again to get the minimized model.
+  -- At this point, we are operating on a clean frame. We re-assert all the
+  -- satisfied constraints and  `(check-sat)` again to get the minimized model.
+  for (_, _, constraint) in sortConstraints do
+    addConstraint solver constraint
   emitCommand solver .checkSat
   let stdout ← Handle.readLineSkip solver.stdout
   trace[sauto.debug] "(check-sat) {stdout.length}: {stdout}"
