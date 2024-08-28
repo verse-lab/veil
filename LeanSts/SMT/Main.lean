@@ -6,7 +6,7 @@ import Smt
 import LeanSts.SMT.Preparation
 import LeanSts.SMT.Model
 
-open Lean hiding Command
+open Lean hiding Command Declaration
 
 initialize
   registerTraceClass `sauto
@@ -140,8 +140,26 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
           sortConstraints := sortConstraints.push (sort, sortSize, constraint.get!)
           break -- break out of the `sortSize in [1 : sort.size]` loop
       | .some false => continue
-      | .none => throwError "Unexpected response from solver"
-  for (_, _, constraint) in sortConstraints do
+      | .none => throwError "Sort minimization: unexpected response from solver"
+  -- Minimize number of positive elements in each relation
+  let mut relConstraints : Array (Declaration × Nat × Expr) := #[]
+  for decl in fostruct.signature.declarations do
+    for relSize in [1 : ← fostruct.numTrueInstances decl] do
+      let constraint ← decl.cardinalityConstraint relSize
+      let isSat ← constraintIsSatisfiable solver solverName constraint
+      match isSat with
+      | .some true =>
+          relConstraints := relConstraints.push (decl, relSize, constraint.get!)
+          break -- break out of the `relSize in [0 : ← fostruct.numTrueInstances decl]` loop
+      | .some false => continue
+      | .none => throwError "Relation minimization: unexpected response from solver"
+  -- At this point, we are operating on a clean frame. We re-assert all the
+  -- satisfied constraints and  `(check-sat)` again to get the minimized model.
+  for (s, size, constraint) in sortConstraints do
+    trace[sauto.debug] "minimized sort {s} to size {size}"
+    addConstraint solver constraint
+  for (r, size, constraint) in relConstraints do
+    trace[sauto.debug] "minimized relation {r} to size {size}"
     addConstraint solver constraint
   emitCommand solver .checkSat
   let stdout ← Handle.readLineSkip solver.stdout

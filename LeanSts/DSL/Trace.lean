@@ -65,14 +65,6 @@ def parseTraceSpec [Monad m] [MonadExceptOf Exception m] [MonadError m] (stx : S
 
 open Lean.Parser.Term in
 
-def mkAndNStx (args : List (TSyntax `term)) : TermElabM (TSyntax `term) :=
-  match args with
-  | [] => `(term|True)
-  | [a] => pure a
-  | x :: xs => do
-    let xs ← mkAndNStx xs
-    `(term|($x ∧ $xs))
-
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec) (pf : TSyntax `term)
   : CommandElabM Unit := do
   let th ← Command.runTermElabM fun vs => do
@@ -127,7 +119,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     | some n => pure n.getId
     | none => mkFreshUserName (Name.mkSimple "trace")
     let th_id := mkIdent name
-    let conjunction ← mkAndNStx assertions.toList
+    let conjunction ← repeatedAnd assertions
     -- sat trace -> ∃ states, (conjunction of assertions)
     -- unsat trace -> ∀ states, ¬ (conjunction of assertions)
     let stateTp ← PrettyPrinter.delab (<- stateTp vs)

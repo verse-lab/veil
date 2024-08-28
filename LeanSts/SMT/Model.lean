@@ -2,7 +2,6 @@ import Lean
 import Auto
 import LeanSts.MetaUtil
 
-
 abbrev SortName := Lean.Name
 abbrev UninterpretedValue := Lean.Name
 
@@ -11,7 +10,7 @@ structure FiniteUinterpretedSort where
   size : Nat
   /-- The elements are assumed to be distinct. -/
   elements : Array UninterpretedValue
-deriving BEq, Hashable
+deriving BEq, Hashable, Inhabited
 
 instance : ToString FiniteUinterpretedSort where
   toString s := s!"sort {s.name} = {s.elements}"
@@ -19,7 +18,7 @@ instance : ToString FiniteUinterpretedSort where
 structure InterpretedSort where
   name : SortName
   -- interpretation : Type
-deriving BEq, Hashable
+deriving BEq, Hashable, Inhabited
 
 instance : ToString InterpretedSort where
   toString s := s!"interpreted sort {s.name}"
@@ -50,7 +49,7 @@ instance : Hashable InterpretedSort where
 inductive FirstOrderSort
   | Interpreted (s : InterpretedSort)
   | Uninterpreted (s : FiniteUinterpretedSort)
-deriving BEq, Hashable
+deriving BEq, Hashable, Inhabited
 
 instance : ToString FirstOrderSort where
   toString
@@ -84,19 +83,6 @@ def FirstOrderSort.cardinalityConstraint (n : Nat) : FirstOrderSort → MetaM (O
     let stx ← repeatedExists existentials body
     let (expr, _) ← TermElabM.run <| elabTerm stx .none
     return expr
-  where
-  repeatedExists (vars : Array (Ident × SortName)) (body : TSyntax `term) : MetaM (TSyntax `term) := do
-    let binders ← vars.mapM fun (var, sort) => do
-      let bi := toBinderIdent var
-      let sn := mkIdent sort
-      return ← `(bracketedExplicitBinders|($bi : $sn))
-    `(term|∃ $binders*, $body)
-  repeatedOr (disjs : Array (TSyntax `term)) : MetaM (TSyntax `term) := do
-    if disjs.isEmpty then throwError "repeatedOr: empty disjunction"
-    else
-      let initT := disjs[0]!
-      let disjs := disjs[1:]
-      disjs.foldlM (init := initT) fun disj acc => `(term|Or $disj $acc)
 
 inductive FirstOrderValue where
   | Interpreted (s : InterpretedSort) (val : s.interpretation)
@@ -175,12 +161,63 @@ def Declaration.range : Declaration → FirstOrderSort
   | Declaration.Relation _ => boolSort
   | Declaration.Function f => f.range
 
+/-- Create a SMT constraint that the number of elements in the relation to be *at most* n. -/
+def Declaration.cardinalityConstraint (decl : Declaration) (n : Nat) :  Lean.MetaM (Option Lean.Expr) :=
+  match decl with
+  | Declaration.Constant _ => return none
+  | Declaration.Function _ => return none
+  | Declaration.Relation _ => do
+    -- We create a formula of the form:
+    -- ∃ c11, c21, c31, c12, c22, c32.
+    --  ∀ x1, x2, x3. rel x1 x2 x3 → (
+    --     (x1 = c11 ∧ x2 = c21 ∧ x3 = c31) ∨
+    --     (x1 = c12 ∧ x2 = c22 ∧ x3 = c32)
+    --   )
+    -- there are `arity * n` existentials, `arity` univeralsand `n` disjunctions
+    -- e.g. #[c11, c21, c31, c12, c22, c32] (with respective sorts)
+    let mut existentials : Array (Lean.Ident × SortName) := #[]
+    -- stores each argument instance, e.g. #[[c11, c21, c31], [c12, c22, c32]]
+    let mut relInstances : Array (Array Lean.Ident) := #[]
+    -- e.g. #[x1, x2, x3] (with respective sorts)
+    let mut universals : Array (Lean.Ident × SortName) := #[]
+    for j in [0 : decl.arity] do
+      let sortName := (decl.domain[j]!).name
+      let varJ := Lean.mkIdent (Lean.Name.mkSimple s!"x_{decl.name}_{j}")
+      universals := universals.push (varJ, sortName)
+      let mut relInstanceArgs := #[]
+      for i in [0 : n] do
+        let varI := Lean.mkIdent (Lean.Name.mkSimple s!"card_{decl.name}_{i}_{j}")
+        existentials := existentials.push (varI, sortName)
+        relInstanceArgs := relInstanceArgs.push varI
+      relInstances := relInstances.push relInstanceArgs
+    let universalVars := universals.map Prod.fst
+    -- build the expression bottom-up
+    let mut disjs := #[]
+    for i in [0 : n] do
+      let mut eqs := #[]
+      for (x, c) in Array.zip universalVars relInstances[i]! do
+        eqs := eqs.push <| ← `(term|($x = $c))
+      disjs := disjs.push <| ← `(term|$(← repeatedAnd eqs))
+    let disj ← repeatedOr disjs
+    let relApp ← `(term|$(Lean.mkIdent decl.name) $universalVars*)
+    let forallBody ← `(term|($relApp → $disj))
+    let existsBody ← repeatedForall universals forallBody
+    let stx ← repeatedExists existentials existsBody
+    let (expr, _) ← Lean.Elab.Term.TermElabM.run <| Lean.Elab.Term.elabTerm stx .none
+    -- dbg_trace s!"cardinality constraint for {decl.name} (size = {n}): {← Lean.Meta.ppExpr expr}"
+    return (some expr)
+
 structure Signature where
   constants : Array ConstantDecl
   relations : Array RelationDecl
   functions : Array FunctionDecl
 
 instance : Inhabited Signature := ⟨{ constants := #[], relations := #[], functions := #[] }⟩
+
+def Signature.declarations (sig : Signature) : Array Declaration :=
+  sig.constants.map Declaration.Constant ++
+  sig.relations.map Declaration.Relation ++
+  sig.functions.map Declaration.Function
 
 abbrev InputOutputPair := Array FirstOrderValue × FirstOrderValue
 abbrev ExplicitInterpretation := Lean.HashMap Declaration (Array InputOutputPair)
@@ -222,6 +259,13 @@ def FirstOrderStructure.findDecl (s : FirstOrderStructure) (name : Lean.Name) : 
     | none => match s.signature.functions.find? (fun f => f.name == name) with
       | some f => return Declaration.Function f
       | none => throwError s!"{name} provided an interpretation for, but not previously declared!"
+
+/-- On how many argument vectors is this constant/relation/function `True`? -/
+def FirstOrderStructure.numTrueInstances (s : FirstOrderStructure) (decl : Declaration) : MetaM Nat := do
+  match s.interp.find? decl with
+  | none => return 0
+  | some iopairs =>
+      return iopairs.foldl (init := 0) fun c (_, res) => if res.isTrue then c + 1 else c
 
 instance : Inhabited FirstOrderStructure := ⟨{ domains := #[], signature := default, interp := default }⟩
 
