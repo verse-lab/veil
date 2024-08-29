@@ -104,20 +104,15 @@ def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
   let cmd := Smt.Translate.Command.cmdsAsQuery cmds
   emitCommandStr solver cmd
 
-/-- Try the constraint in a new frame. -/
+/-- Check if the constraint is satisfiable in the current frame. -/
 def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM (Option Bool) := do
   match constr with
   | none => return none
   | some expr =>
-  -- we check each constraint in a separate frame
-  emitCommandStr solver "(push)"
   addConstraint solver expr
   emitCommand solver .checkSat
   let stdout ← Handle.readLineSkip solver.stdout
   let (checkSatResponse, _) ← getSexp stdout
-  -- we end the frame here, such that the next iteration of the loop
-  -- starts with a clean slate
-  emitCommandStr solver "(pop)"
   match checkSatResponse with
   | .atom (.symb "sat") =>
     trace[sauto.debug] "{solverName} says Sat"
@@ -134,33 +129,42 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
   for sort in fostruct.domains do
     for sortSize in [1 : sort.size] do
       let constraint ← sort.cardinalityConstraint sortSize
+      -- we check each constraint in a separate frame
+      emitCommandStr solver s!"(push)"
       let isSat ← constraintIsSatisfiable solver solverName constraint
       match isSat with
       | .some true =>
           sortConstraints := sortConstraints.push (sort, sortSize, constraint.get!)
+          trace[sauto.debug] "minimized sort {sort} to size {sortSize}"
           break -- break out of the `sortSize in [1 : sort.size]` loop
-      | .some false => continue
+      | .some false =>
+        -- we end the frame here; since this constraint is unsatisfiable,
+        -- we don't want to build on top of it
+        emitCommandStr solver "(pop)"
+        continue
       | .none => throwError "Sort minimization: unexpected response from solver"
   -- Minimize number of positive elements in each relation
   let mut relConstraints : Array (Declaration × Nat × Expr) := #[]
   for decl in fostruct.signature.declarations do
-    for relSize in [1 : ← fostruct.numTrueInstances decl] do
+    let currentSize ← fostruct.numTrueInstances decl
+    trace[sauto.debug] "trying to minimize relation {decl.name} at sizes [0 : {currentSize}]"
+    for relSize in [0 : currentSize] do
       let constraint ← decl.cardinalityConstraint relSize
+      -- we check each constraint in a separate frame
+      emitCommandStr solver "(push)"
       let isSat ← constraintIsSatisfiable solver solverName constraint
       match isSat with
       | .some true =>
           relConstraints := relConstraints.push (decl, relSize, constraint.get!)
+          trace[sauto.debug] "minimized relation {decl.name} to size {relSize}"
           break -- break out of the `relSize in [0 : ← fostruct.numTrueInstances decl]` loop
-      | .some false => continue
+      | .some false =>
+        -- we end the frame here; since this constraint is unsatisfiable,
+        -- we don't want to build on top of it
+        emitCommandStr solver "(pop)"
+        trace[sauto.debug] "relation {decl.name} is unsatisfiable at size {relSize}"
+        continue
       | .none => throwError "Relation minimization: unexpected response from solver"
-  -- At this point, we are operating on a clean frame. We re-assert all the
-  -- satisfied constraints and  `(check-sat)` again to get the minimized model.
-  for (s, size, constraint) in sortConstraints do
-    trace[sauto.debug] "minimized sort {s} to size {size}"
-    addConstraint solver constraint
-  for (r, size, constraint) in relConstraints do
-    trace[sauto.debug] "minimized relation {r} to size {size}"
-    addConstraint solver constraint
   emitCommand solver .checkSat
   let stdout ← Handle.readLineSkip solver.stdout
   trace[sauto.debug] "(check-sat) {stdout.length}: {stdout}"

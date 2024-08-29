@@ -180,12 +180,16 @@ def Declaration.cardinalityConstraint (decl : Declaration) (n : Nat) :  Lean.Met
     let mut relInstances : Array (Array Lean.Ident) := #[]
     -- e.g. #[x1, x2, x3] (with respective sorts)
     let mut universals : Array (Lean.Ident × SortName) := #[]
+    -- generate `arity` universal variables
     for j in [0 : decl.arity] do
       let sortName := (decl.domain[j]!).name
       let varJ := Lean.mkIdent (Lean.Name.mkSimple s!"x_{decl.name}_{j}")
       universals := universals.push (varJ, sortName)
+    -- generate `n` instances of the relation
+    for i in [0 : n] do
       let mut relInstanceArgs := #[]
-      for i in [0 : n] do
+      for j in [0 : decl.arity] do
+        let sortName := (decl.domain[j]!).name
         let varI := Lean.mkIdent (Lean.Name.mkSimple s!"card_{decl.name}_{i}_{j}")
         existentials := existentials.push (varI, sortName)
         relInstanceArgs := relInstanceArgs.push varI
