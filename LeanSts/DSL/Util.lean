@@ -183,7 +183,7 @@ def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let .some _sinfo := getStructureInfo? (<- getEnv) sn
     | throwError "{stateTp} is not a structure"
   let fns := _sinfo.fieldNames.map Lean.mkIdent
-  let casesOn <- mkConst $ .str (.str  .anonymous "State") "casesOn"
+  let casesOn <- mkConst $ "State.casesOn".toName
   let casesOn <- PrettyPrinter.delab casesOn
   let stateTp <- PrettyPrinter.delab stateTp
   `(term| (fun $(mkIdent `st) : $stateTp =>

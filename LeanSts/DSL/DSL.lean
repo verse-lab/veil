@@ -180,7 +180,8 @@ to depend on the prestate.
 -/
 macro_rules
   | `(command| action $nm:declId $br:explicitBinders ? = { $l:lang }) => do
-    let act <- `(fun st st' => @wp _ (fun st => st' = st) [lang| $l ] st)
+    let (st, st') := (mkIdent `st, mkIdent `st')
+    let act <- `(fun $st $st' => @wp _ (fun $st => $st' = $st) [lang| $l ] $st)
     `(action $nm $br ? = $act)
 
 /--
@@ -194,15 +195,16 @@ elab_rules : command
   | `(command| action $nm:declId $br:explicitBinders ? = $act) => do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
+    let (st1, st2) := (mkIdent `st1, mkIdent `st2)
     match br with
     | some br =>
-      let _ <- elabTerm (<-`(term| fun st1 st2 => exists $br, $act st1 st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
+      let _ <- elabTerm (<-`(term| fun $st1 $st2 => exists $br, $act $st1 $st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
     | none =>
       let _ <- elabTerm act (<- mkArrow stateTp (<- mkArrow stateTp prop))
     let stateTp <- PrettyPrinter.delab stateTp
     match br with
     | some br =>                                                            -- TODO: add macro for a beta reduction here
-       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun st1 st2 => exists $br, $act st1 st2)
+       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => exists $br, $act $st1 $st2)
     | _ => do
        `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := $act)
 
@@ -334,7 +336,7 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
       let invName := inv.constName!
       let (st, property) := (mkIdent `st, ← PrettyPrinter.delab $ mkAppN inv vs)
       let tpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
-      let proofScript ← `(by intros; solve_clause)
+      let proofScript ← `(by unhygienic intros; solve_clause)
       checks := checks.push (invName, ← checkTheorem s!"init_{invName}" tpStx proofScript)
     pure checks
   -- (2) Collect checks that invariants hold after each action
@@ -351,7 +353,7 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
         let (st, st', property) := (mkIdent `st, mkIdent `st', ← PrettyPrinter.delab $ mkAppN inv vs)
         let act ← PrettyPrinter.delab $ mkAppN actName vs
         let tpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
-        let proofScript ← `(by intros; solve_clause)
+        let proofScript ← `(by unhygienic intros; solve_clause)
         actChecks := actChecks.push (invName, ← checkTheorem s!"{actName}_{invName}" tpStx proofScript)
       checks := checks.push (actName, actChecks)
     pure checks
