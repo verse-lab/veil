@@ -14,10 +14,6 @@ open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis RelationalTransition
 -- Modelled after the Ivy language
 -- https://github.com/kenmcmil/ivy/blob/master/doc/language.md
 
-macro "type" id:ident : command => `(variable ($id : Type) [DecidableEq $id])
-macro "instantiate" t:term : command => `(variable [$t])
-macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
-
 declare_syntax_cat propertyName
 syntax "[" ident "]": propertyName
 
@@ -308,20 +304,36 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
 @[inherit_doc instantiateSystem]
 elab "#gen_spec" name:ident : command => instantiateSystem name.getId
 
-def checkTheorem (name : String) (tpStx : TSyntax `term) (proofScript : TSyntax `term) :
-  TermElabM (Name × TSyntax `command × Bool) := do
-  let thName := mkIdent $ Name.mkSimple name
+def checkTheorem (name : String) (vs : Array Expr) (tpStx : TSyntax `term) (proofScript : TSyntax `term) :
+  TermElabM (Name × TSyntax `command × Lean.Declaration × Bool) := do
+  let name := Name.mkSimple name
+  let thName := mkIdent name
   withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"check {thName}") do
   let tp ← elabTerm tpStx (.some (mkConst `Prop))
   let mut isProven := false
+  let mut proofTerm := none
   try
     let attempt ← withoutErrToSorry $ elabTermAndSynthesize proofScript (.some tp)
     if !attempt.hasSyntheticSorry then
       isProven := true
+      proofTerm := some attempt
   catch _ex => pure ()
   let proof ← if isProven then pure proofScript else `(by sorry)
   let checkTheorem ← `(@[invProof] theorem $thName : $tpStx := $proof)
-  return (thName.getId, checkTheorem, isProven)
+  -- if we use the `tp` and `proofTerm` here, we see:
+  -- (kernel) declaration has free variables 'init_inv_0'
+  -- `rg "addDecl" -w -C5` in `lean4` repo to see usages of `addDecl`
+  -- if instead we do the below, we see:
+  -- (kernel) declaration has metavariables 'init_inv_0'
+  let tp ← mkForallFVars vs tp
+  proofTerm ← mkLambdaFVars vs proofTerm.get!
+  let thDecl := Declaration.thmDecl {
+    name        := name
+    levelParams := []
+    type        := tp
+    value       := proofTerm.get!
+  }
+  return (thName.getId, checkTheorem, thDecl, isProven)
 
 def elabInvTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Unit := do
   withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do
@@ -342,7 +354,7 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
       let (st, property) := (mkIdent `st, ← PrettyPrinter.delab $ mkAppN inv vs)
       let tpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
       let proofScript ← `(by unhygienic intros; solve_clause)
-      checks := checks.push (invName, ← checkTheorem s!"init_{invName}" tpStx proofScript)
+      checks := checks.push (invName, ← checkTheorem s!"init_{invName}" vs tpStx proofScript)
     pure checks
   -- (2) Collect checks that invariants hold after each action
   let invChecks ← Command.runTermElabM fun vs => do
@@ -359,24 +371,26 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
         let act ← PrettyPrinter.delab $ mkAppN actName vs
         let tpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
         let proofScript ← `(by unhygienic intros; solve_clause)
-        actChecks := actChecks.push (invName, ← checkTheorem s!"{actName}_{invName}" tpStx proofScript)
+        actChecks := actChecks.push (invName, ← checkTheorem s!"{actName}_{invName}" vs tpStx proofScript)
       checks := checks.push (actName, actChecks)
     pure checks
   let mut msgs := #[]
   msgs := msgs.push "Initialization must establish the invariant:"
-  for (invName, (thName, cmd, success)) in initChecks do
+  for (invName, (thName, thCmd, thDecl, success)) in initChecks do
     msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
     if success then
-      elabInvTheorem thName cmd
+      -- elabInvTheorem thName thCmd
+      liftCoreM <| addDecl thDecl
   msgs := msgs.push "The following set of actions must preserve the invariant:"
   let mut theorems := #[]
   for (actName, actChecks) in invChecks do
     msgs := msgs.push s!"  {actName}"
-    for (invName, (thName, cmd, success)) in actChecks do
+    for (invName, (thName, thCmd, thDecl, success)) in actChecks do
       msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
-      theorems := theorems.push cmd
+      theorems := theorems.push thCmd
       if success then
-        elabInvTheorem thName cmd
+        -- elabInvTheorem thName thCmd
+        liftCoreM <| addDecl thDecl
   let msg := String.intercalate "\n" msgs.toList
   if !printTheorems then
     dbg_trace msg
@@ -427,6 +441,12 @@ elab "prove_inv_inductive" proof:term : command => do
          intros $(mkIdent `st1) $(mkIdent `st2)
         --  simp only [actSimp, invSimp, safeSimp]
          exact $proof)
+
+/- This is a bit stupid, but we place these here so `type` doesn't interfere with
+  the `Declaration` definition in `checkTheorem` above. -/
+macro "type" id:ident : command => `(variable ($id : Type) [DecidableEq $id])
+macro "instantiate" t:term : command => `(variable [$t])
+macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
 
 attribute [initSimp] RelationalTransitionSystem.init
 attribute [invSimp] RelationalTransitionSystem.inv
