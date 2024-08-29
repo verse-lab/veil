@@ -11,6 +11,7 @@ open Lean hiding Command Declaration
 initialize
   registerTraceClass `sauto
   registerTraceClass `sauto.query
+  registerTraceClass `sauto.modelMinimization
   registerTraceClass `sauto.result
   registerTraceClass `sauto.debug
 
@@ -24,6 +25,18 @@ register_option sauto.smt.macrofinder : Bool := {
   defValue := False
   descr := "Whether to use Z3's macro-finder tactic"
 }
+
+inductive CheckSatResult
+  | Sat
+  | Unsat
+  | Unknown (reason : String)
+deriving BEq, Inhabited
+
+instance : ToString CheckSatResult where
+  toString
+    | CheckSatResult.Sat => "sat"
+    | CheckSatResult.Unsat => "unsat"
+    | CheckSatResult.Unknown r => s!"unknown ({r})"
 
 inductive SmtResult
   | Sat (model : Option FirstOrderStructure)
@@ -104,23 +117,30 @@ def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
   let cmd := Smt.Translate.Command.cmdsAsQuery cmds
   emitCommandStr solver cmd
 
-/-- Check if the constraint is satisfiable in the current frame. -/
-def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM (Option Bool) := do
-  match constr with
-  | none => return none
-  | some expr =>
-  addConstraint solver expr
+def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatResult := do
   emitCommand solver .checkSat
   let stdout ← Handle.readLineSkip solver.stdout
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
     trace[sauto.debug] "{solverName} says Sat"
-    return true
+    return CheckSatResult.Sat
   | .atom (.symb "unsat") =>
     trace[sauto.debug] "{solverName} says Unsat"
-    return false
-  | e => throwError s!"Unexpected response from solver: {e}"
+    return CheckSatResult.Unsat
+  | e => return CheckSatResult.Unknown s!"{e}"
+
+/-- Check if the constraint is satisfiable in the current frame. -/
+def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM Bool := do
+  match constr with
+  | none => return true
+  | some expr =>
+  addConstraint solver expr
+  let res ← checkSat solver solverName
+  match res with
+  | .Sat => return true
+  | .Unsat => return false
+  | .Unknown e => throwError s!"Unexpected response from solver: {e}"
 
 def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
@@ -133,43 +153,38 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
       emitCommandStr solver s!"(push)"
       let isSat ← constraintIsSatisfiable solver solverName constraint
       match isSat with
-      | .some true =>
+      | true =>
           sortConstraints := sortConstraints.push (sort, sortSize, constraint.get!)
-          trace[sauto.debug] "minimized sort {sort} to size {sortSize}"
+          trace[sauto.modelMinimization] "minimized sort {sort} to size {sortSize}"
           break -- break out of the `sortSize in [1 : sort.size]` loop
-      | .some false =>
+      | false =>
         -- we end the frame here; since this constraint is unsatisfiable,
         -- we don't want to build on top of it
         emitCommandStr solver "(pop)"
         continue
-      | .none => throwError "Sort minimization: unexpected response from solver"
   -- Minimize number of positive elements in each relation
   let mut relConstraints : Array (Declaration × Nat × Expr) := #[]
   for decl in fostruct.signature.declarations do
     let currentSize ← fostruct.numTrueInstances decl
-    trace[sauto.debug] "trying to minimize relation {decl.name} at sizes [0 : {currentSize}]"
+    trace[sauto.modelMinimization] "trying to minimize relation {decl.name} at sizes [0 : {currentSize}]"
     for relSize in [0 : currentSize] do
       let constraint ← decl.cardinalityConstraint relSize
       -- we check each constraint in a separate frame
       emitCommandStr solver "(push)"
       let isSat ← constraintIsSatisfiable solver solverName constraint
       match isSat with
-      | .some true =>
+      | true =>
           relConstraints := relConstraints.push (decl, relSize, constraint.get!)
-          trace[sauto.debug] "minimized relation {decl.name} to size {relSize}"
+          trace[sauto.modelMinimization] "minimized relation {decl.name} to size {relSize}"
           break -- break out of the `relSize in [0 : ← fostruct.numTrueInstances decl]` loop
-      | .some false =>
+      | false =>
         -- we end the frame here; since this constraint is unsatisfiable,
         -- we don't want to build on top of it
         emitCommandStr solver "(pop)"
-        trace[sauto.debug] "relation {decl.name} is unsatisfiable at size {relSize}"
+        trace[sauto.modelMinimization] "relation {decl.name} is unsatisfiable at size {relSize}"
         continue
-      | .none => throwError "Relation minimization: unexpected response from solver"
-  emitCommand solver .checkSat
-  let stdout ← Handle.readLineSkip solver.stdout
-  trace[sauto.debug] "(check-sat) {stdout.length}: {stdout}"
-  let (checkSatResponse, _) ← getSexp stdout
-  if checkSatResponse != .atom (.symb "sat") then
+  let checkSatResponse ← checkSat solver solverName
+  if checkSatResponse != .Sat then
     throwError s!"Minimization failed! (check-sat) returned {checkSatResponse}."
   emitCommand solver .getModel
   -- FIXME: it's probably not OK to kill the solver here
@@ -186,6 +201,7 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
 
 open Smt Smt.Tactic Translate in
 def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := true) : MetaM SmtResult := do
+  withTraceNode `sauto.query (fun _ => return "querySolver") (collapsed := false) do
   let opts ← getOptions
   let solverName := sauto.smt.solver.get opts
   trace[sauto.debug] "solver: {solverName}"

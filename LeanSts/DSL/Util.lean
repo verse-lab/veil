@@ -8,7 +8,8 @@ import Batteries.Lean.Meta.UnusedNames
 open Lean Meta Elab Lean.Parser
 -- open Lean Elab Command Term Meta Tactic
 
-initialize registerTraceClass `sts
+initialize
+  registerTraceClass `dsl
 
 def _root_.Lean.EnvExtension.set [Inhabited σ] (ext : EnvExtension σ) (s : σ) : AttrM Unit := do
   Lean.setEnv $ ext.setState (<- getEnv) s
@@ -198,7 +199,7 @@ def elabBindersAndCapitals
    : TermElabM α := do
   withAutoBoundExplicit $ Term.elabBinders br fun brs => do
     let vars := (← getLCtx).getFVars.filter (fun x => not $ vs.elem x || brs.elem x)
-    trace[sts] e
+    trace[dsl] e
     let e <- elabTermAndSynthesize e none
     lambdaTelescope e fun _ e => do
         let e <- mkForallFVars vars e

@@ -262,21 +262,16 @@ if __name__ == '__main__':
     # lines we've passed to Z3 thus far
     passedLines = []
 
-    # For debugging; TODO: remove
-    with open("/tmp/z3.log", "w") as f:
-        for line in sys.stdin:
-            print(f"{line.strip()}", file=f, flush=True)
-            # Overwrite the behaviour of `(get-model)` to print the model in a more readable format
-            if "(get-model)" in line:
-                m = get_model(passedLines)
-                print(m, flush=True)
-                print(m, file=f, flush=True)
-            # Execute all other commands as usual
-            else:
-                res = z3.Z3_eval_smtlib2_string(ctx, line)
-                passedLines.append(line)
-                if len(res) != 0:
-                    print(res, flush=True)
-                    print(res, file=f, flush=True)
+    for line in sys.stdin:
+        # Overwrite the behaviour of `(get-model)` to print the model in a more readable format
+        if "(get-model)" in line:
+            m = get_model(passedLines)
+            print(m, flush=True)
+        # Execute all other commands as usual
+        else:
+            res = z3.Z3_eval_smtlib2_string(ctx, line)
+            passedLines.append(line)
+            if len(res) != 0:
+                print(res, flush=True)
 
     sys.exit(1)
