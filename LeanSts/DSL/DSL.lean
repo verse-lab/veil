@@ -311,6 +311,7 @@ elab "#gen_spec" name:ident : command => instantiateSystem name.getId
 def checkTheorem (name : String) (tpStx : TSyntax `term) (proofScript : TSyntax `term) :
   TermElabM (Name × TSyntax `command × Bool) := do
   let thName := mkIdent $ Name.mkSimple name
+  withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"check {thName}") do
   let tp ← elabTerm tpStx (.some (mkConst `Prop))
   let mut isProven := false
   try
@@ -321,6 +322,10 @@ def checkTheorem (name : String) (tpStx : TSyntax `term) (proofScript : TSyntax 
   let proof ← if isProven then pure proofScript else `(by sorry)
   let checkTheorem ← `(@[invProof] theorem $thName : $tpStx := $proof)
   return (thName.getId, checkTheorem, isProven)
+
+def elabInvTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Unit := do
+  withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do
+  elabCommand cmd
 
 /--
   Prints output similar to that of the `ivy_check` command.
@@ -359,19 +364,19 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
     pure checks
   let mut msgs := #[]
   msgs := msgs.push "Initialization must establish the invariant:"
-  for (invName, (_thName, cmd, success)) in initChecks do
+  for (invName, (thName, cmd, success)) in initChecks do
     msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
     if success then
-      elabCommand cmd
+      elabInvTheorem thName cmd
   msgs := msgs.push "The following set of actions must preserve the invariant:"
   let mut theorems := #[]
   for (actName, actChecks) in invChecks do
     msgs := msgs.push s!"  {actName}"
-    for (invName, (_thName, cmd, success)) in actChecks do
+    for (invName, (thName, cmd, success)) in actChecks do
       msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
       theorems := theorems.push cmd
       if success then
-        elabCommand cmd
+        elabInvTheorem thName cmd
   let msg := String.intercalate "\n" msgs.toList
   if !printTheorems then
     dbg_trace msg

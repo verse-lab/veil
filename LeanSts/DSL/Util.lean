@@ -10,6 +10,8 @@ open Lean Meta Elab Lean.Parser
 
 initialize
   registerTraceClass `dsl
+  -- the following are primarily for performance profiling
+  registerTraceClass `dsl.perf.checkInvariants
 
 def _root_.Lean.EnvExtension.set [Inhabited σ] (ext : EnvExtension σ) (s : σ) : AttrM Unit := do
   Lean.setEnv $ ext.setState (<- getEnv) s

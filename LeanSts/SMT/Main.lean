@@ -14,10 +14,10 @@ initialize
   registerTraceClass `sauto.result
   registerTraceClass `sauto.debug
   -- the following are primarily for performance profiling
-  registerTraceClass `sauto.checkSat
-  registerTraceClass `sauto.getUnsatCore
-  registerTraceClass `sauto.getModel
-  registerTraceClass `sauto.modelMinimization
+  registerTraceClass `sauto.perf.checkSat
+  registerTraceClass `sauto.perf.getUnsatCore
+  registerTraceClass `sauto.perf.getModel
+  registerTraceClass `sauto.perf.minimizeModel
 
 open Auto.Solver.SMT in
 register_option sauto.smt.solver : SolverName := {
@@ -122,7 +122,7 @@ def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
   emitCommandStr solver cmd
 
 def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatResult := do
-  withTraceNode `sauto.checkSat (fun _ => return "checkSat") do
+  withTraceNode `sauto.perf.checkSat (fun _ => return "checkSat") do
   if sauto.smt.macrofinder.get (← getOptions) then
     emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
   else
@@ -139,14 +139,14 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
   | e => return CheckSatResult.Unknown s!"{e}"
 
 def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
-  withTraceNode `sauto.getModel (fun _ => return "getModel") do
+  withTraceNode `sauto.perf.getModel (fun _ => return "getModel") do
   emitCommand solver .getModel
   let stdout ← Handle.readUntil solver.stdout ")\n"
   let (model, _) ← getSexp stdout
   return model
 
 def getUnsatCore (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
-  withTraceNode `sauto.getUnsatCore (fun _ => return "getUnsatCore") do
+  withTraceNode `sauto.perf.getUnsatCore (fun _ => return "getUnsatCore") do
   emitCommand solver .getUnsatCore
   -- FIXME: probably shouldn't kill the solver here
   let (_, solver) ← solver.takeStdin
@@ -167,7 +167,7 @@ def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (con
   | .Unsat => return false
   | .Unknown e => throwError s!"Unexpected response from solver: {e}"
 
-def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
+private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
   -- Minimize sorts
   let mut sortConstraints : Array (FirstOrderSort × Nat × Expr) := #[]
@@ -180,7 +180,7 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
       match isSat with
       | true =>
           sortConstraints := sortConstraints.push (sort, sortSize, constraint.get!)
-          trace[sauto.modelMinimization] "minimized sort {sort} to size {sortSize}"
+          trace[sauto.debug] "minimized sort {sort} to size {sortSize}"
           break -- break out of the `sortSize in [1 : sort.size]` loop
       | false =>
         -- we end the frame here; since this constraint is unsatisfiable,
@@ -191,7 +191,7 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
   let mut relConstraints : Array (Declaration × Nat × Expr) := #[]
   for decl in fostruct.signature.declarations do
     let currentSize ← fostruct.numTrueInstances decl
-    trace[sauto.modelMinimization] "trying to minimize relation {decl.name} at sizes [0 : {currentSize}]"
+    trace[sauto.debug] "trying to minimize relation {decl.name} at sizes [0 : {currentSize}]"
     for relSize in [0 : currentSize] do
       let constraint ← decl.cardinalityConstraint relSize
       -- we check each constraint in a separate frame
@@ -200,13 +200,13 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
       match isSat with
       | true =>
           relConstraints := relConstraints.push (decl, relSize, constraint.get!)
-          trace[sauto.modelMinimization] "minimized relation {decl.name} to size {relSize}"
+          trace[sauto.debug] "minimized relation {decl.name} to size {relSize}"
           break -- break out of the `relSize in [0 : ← fostruct.numTrueInstances decl]` loop
       | false =>
         -- we end the frame here; since this constraint is unsatisfiable,
         -- we don't want to build on top of it
         emitCommandStr solver "(pop)"
-        trace[sauto.modelMinimization] "relation {decl.name} is unsatisfiable at size {relSize}"
+        trace[sauto.debug] "relation {decl.name} is unsatisfiable at size {relSize}"
         continue
   let checkSatResponse ← checkSat solver solverName
   if checkSatResponse != .Sat then
@@ -223,6 +223,11 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
   trace[sauto.debug] "Model:\n{model}"
   let fostruct ← extractStructure model
   return fostruct
+
+/- FIXME: for whatever reason, if I add `withTraceNode` directly inside `minimizeModelImpl`, it hangs. -/
+def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
+  withTraceNode `sauto.perf.minimizeModel (fun _ => return "minimizeModel") do
+  minimizeModelImpl solver solverName fostruct
 
 open Smt Smt.Tactic Translate in
 def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := true) : MetaM SmtResult := do
