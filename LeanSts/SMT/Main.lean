@@ -11,9 +11,13 @@ open Lean hiding Command Declaration
 initialize
   registerTraceClass `sauto
   registerTraceClass `sauto.query
-  registerTraceClass `sauto.modelMinimization
   registerTraceClass `sauto.result
   registerTraceClass `sauto.debug
+  -- the following are primarily for performance profiling
+  registerTraceClass `sauto.checkSat
+  registerTraceClass `sauto.getUnsatCore
+  registerTraceClass `sauto.getModel
+  registerTraceClass `sauto.modelMinimization
 
 open Auto.Solver.SMT in
 register_option sauto.smt.solver : SolverName := {
@@ -118,7 +122,11 @@ def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
   emitCommandStr solver cmd
 
 def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatResult := do
-  emitCommand solver .checkSat
+  withTraceNode `sauto.checkSat (fun _ => return "checkSat") do
+  if sauto.smt.macrofinder.get (← getOptions) then
+    emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
+  else
+    emitCommand solver .checkSat
   let stdout ← Handle.readLineSkip solver.stdout
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
@@ -129,6 +137,23 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
     trace[sauto.debug] "{solverName} says Unsat"
     return CheckSatResult.Unsat
   | e => return CheckSatResult.Unknown s!"{e}"
+
+def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
+  withTraceNode `sauto.getModel (fun _ => return "getModel") do
+  emitCommand solver .getModel
+  let stdout ← Handle.readUntil solver.stdout ")\n"
+  let (model, _) ← getSexp stdout
+  return model
+
+def getUnsatCore (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
+  withTraceNode `sauto.getUnsatCore (fun _ => return "getUnsatCore") do
+  emitCommand solver .getUnsatCore
+  -- FIXME: probably shouldn't kill the solver here
+  let (_, solver) ← solver.takeStdin
+  let stdout ← solver.stdout.readToEnd
+  solver.kill
+  let (unsatCore, _proof) ← getSexp stdout
+  return unsatCore
 
 /-- Check if the constraint is satisfiable in the current frame. -/
 def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM Bool := do
@@ -201,7 +226,7 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
 
 open Smt Smt.Tactic Translate in
 def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := true) : MetaM SmtResult := do
-  withTraceNode `sauto.query (fun _ => return "querySolver") (collapsed := false) do
+  withTraceNode `sauto.query (fun _ => return "querySolver") do
   let opts ← getOptions
   let solverName := sauto.smt.solver.get opts
   trace[sauto.debug] "solver: {solverName}"
@@ -211,19 +236,11 @@ def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := 
     emitCommand solver (.setOption (.produceProofs true))
     emitCommand solver (.setOption (.produceUnsatCores true))
   emitCommandStr solver goalQuery
-  if sauto.smt.macrofinder.get opts then
-    emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
-  else
-    emitCommand solver .checkSat
-  let stdout ← Handle.readLineSkip solver.stdout
-  trace[sauto.debug] "(check-sat) {stdout.length} {stdout}"
-  let (checkSatResponse, _) ← getSexp stdout
+  let checkSatResponse ← checkSat solver solverName
   match checkSatResponse with
-  | .atom (.symb "sat") =>
-      emitCommand solver .getModel
+  | .Sat =>
       trace[sauto.result] "{solverName} says Sat"
-      let stdout ← Handle.readUntil solver.stdout ")\n"
-      let (model, _) ← getSexp stdout
+      let model ← getModel solver
       trace[sauto.debug] "Model:\n{model}"
       -- For Z3, we have model pretty-printing and minimization.
       if solverName == SolverName.z3 then
@@ -238,17 +255,10 @@ def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := 
         trace[sauto.result] "Model:\n{model}"
         solver.kill
         return .Sat .none
-  | .atom (.symb "unsat") =>
-      emitCommand solver .getUnsatCore
-      let (_, solver) ← solver.takeStdin
-      let stdout ← solver.stdout.readToEnd
-      -- let stderr ← solver.stderr.readToEnd
+  | .Unsat =>
       trace[sauto.result] "{solverName} says Unsat"
-      trace[sauto.debug] "{stdout}"
-      let (unsatCore, _stdout) ← getSexp stdout
-      solver.kill
+      let unsatCore ← getUnsatCore solver
       trace[sauto.result] "Unsat core: {unsatCore}"
-      -- trace[sauto] "Proof:\n{_stdout}"
       -- trace[sauto] "stderr:\n{stderr}"
       return .Unsat unsatCore
   | _ => return .Unknown
