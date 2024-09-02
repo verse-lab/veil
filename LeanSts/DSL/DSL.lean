@@ -301,8 +301,13 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
           )
     liftCommandElabM $ elabCommand $ stx
 
+def setOptionPrintModel : CommandElabM Unit := do
+  elabCommand (← `(command|set_option $(mkIdent "trace.sauto.model".toName) true))
+
 @[inherit_doc instantiateSystem]
-elab "#gen_spec" name:ident : command => instantiateSystem name.getId
+elab "#gen_spec" name:ident : command => do
+  instantiateSystem name.getId
+  setOptionPrintModel
 
 def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Bool := do
   withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do

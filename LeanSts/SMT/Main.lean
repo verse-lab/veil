@@ -12,6 +12,7 @@ initialize
   registerTraceClass `sauto
   registerTraceClass `sauto.query
   registerTraceClass `sauto.result
+  registerTraceClass `sauto.model
   registerTraceClass `sauto.debug
   -- the following are primarily for performance profiling
   registerTraceClass `sauto.perf.checkSat
@@ -252,12 +253,12 @@ def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := 
         let mut fostruct ← extractStructure model
         if minimize then
           fostruct ← minimizeModel solver solverName fostruct
-        trace[sauto.result] "{fostruct}"
+        trace[sauto.model] "{fostruct}"
         return .Sat fostruct
       -- Non-Z3 solver
       else
-        trace[sauto.result] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
-        trace[sauto.result] "Model:\n{model}"
+        trace[sauto.model] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
+        trace[sauto.model] "Model:\n{model}"
         solver.kill
         return .Sat .none
   | .Unsat =>
