@@ -342,7 +342,8 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
       let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
       let initThName := s!"init_{invName}".toName
       let checkTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := $proofScript)
-      initChecks := initChecks.push (invName, (initThName, checkTheorem))
+      let failedTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := sorry)
+      initChecks := initChecks.push (invName, (initThName, checkTheorem, failedTheorem))
     -- (2) Collect checks that invariants hold after each action
     for actName in acts do
         let mut checks := #[]
@@ -353,24 +354,27 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
           let actTpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
           let actThName := s!"{actName}_{invName}".toName
           let checkTheorem ← `(@[invProof] theorem $(mkIdent actThName) : $actTpStx := $proofScript)
-          checks := checks.push (invName, (actThName, checkTheorem))
+          let failedTheorem ← `(@[invProof] theorem $(mkIdent actThName) : $actTpStx := sorry)
+          checks := checks.push (invName, (actThName, checkTheorem, failedTheorem))
         actChecks := actChecks.push (actName, checks)
     pure (initChecks, actChecks)
 
   let mut theorems := #[] -- collect Lean expression to report for `#check_invariants?`
   let mut msgs := #[]
   msgs := msgs.push "Initialization must establish the invariant:"
-  for (invName, (thName, thCmd)) in initChecks do
+  for (invName, (thName, thCmd, sorryThm)) in initChecks do
     let success ← checkTheorem thName thCmd
     msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
-    theorems := theorems.push thCmd
+    let thm := if success then thCmd else sorryThm
+    theorems := theorems.push thm
   msgs := msgs.push "The following set of actions must preserve the invariant:"
   for (actName, actChecks) in invChecks do
     msgs := msgs.push s!"  {actName}"
-    for (invName, (thName, thCmd)) in actChecks do
+    for (invName, (thName, thCmd, sorryThm)) in actChecks do
       let success ← checkTheorem thName thCmd
       msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
-      theorems := theorems.push thCmd
+      let thm := if success then thCmd else sorryThm
+      theorems := theorems.push thm
   let msg := String.intercalate "\n" msgs.toList
   if !printTheorems then
     dbg_trace msg
