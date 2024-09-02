@@ -304,93 +304,73 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
 @[inherit_doc instantiateSystem]
 elab "#gen_spec" name:ident : command => instantiateSystem name.getId
 
-def checkTheorem (name : String) (vs : Array Expr) (tpStx : TSyntax `term) (proofScript : TSyntax `term) :
-  TermElabM (Name × TSyntax `command × Lean.Declaration × Bool) := do
-  let name := Name.mkSimple name
-  let thName := mkIdent name
-  withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"check {thName}") do
-  let tp ← elabTerm tpStx (.some (mkConst `Prop))
-  let mut isProven := false
-  let mut proofTerm := none
-  try
-    let attempt ← withoutErrToSorry $ elabTermAndSynthesize proofScript (.some tp)
-    if !attempt.hasSyntheticSorry then
-      isProven := true
-      proofTerm := some attempt
-  catch _ex => pure ()
-  let proof ← if isProven then pure proofScript else `(by sorry)
-  let checkTheorem ← `(@[invProof] theorem $thName : $tpStx := $proof)
-  -- if we use the `tp` and `proofTerm` here, we see:
-  -- (kernel) declaration has free variables 'init_inv_0'
-  -- `rg "addDecl" -w -C5` in `lean4` repo to see usages of `addDecl`
-  -- if instead we do the below, we see:
-  -- (kernel) declaration has metavariables 'init_inv_0'
-  let tp ← mkForallFVars vs tp
-  proofTerm ← mkLambdaFVars vs proofTerm.get!
-  let thDecl := Declaration.thmDecl {
-    name        := name
-    levelParams := []
-    type        := tp
-    value       := proofTerm.get!
-  }
-  return (thName.getId, checkTheorem, thDecl, isProven)
-
-def elabInvTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Unit := do
+def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Bool := do
   withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do
+  let env ← getEnv
+  -- FIXME: I think we want to run `elabCommand` without `withLogging`
   elabCommand cmd
+  -- Check the `Expr` for the given theorem
+  let th ← getConstInfo theoremName
+  let isProven ← match th with
+    | ConstantInfo.thmInfo attempt => pure <| !attempt.value.hasSyntheticSorry
+    | _ => throwError s!"checkTheorem: expected {theoremName} to be a theorem"
+  -- We only add the theorem to the environment if it successfully type-checks
+  -- i.e. we restore the original environment if the theorem is not proven
+  if !isProven then
+    setEnv env
+  return isProven
 
 /--
   Prints output similar to that of the `ivy_check` command.
 -/
 def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElabM Unit := do
-  -- (1) Collect checks that invariants hold in the initial state
-  let initChecks ← Command.runTermElabM fun vs => do
-    let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).name) vs
-    let stateTp ← PrettyPrinter.delab (← stateTp vs)
-    let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
-    let mut checks := #[]
-    for inv in invs do
-      let invName := inv.constName!
-      let (st, property) := (mkIdent `st, ← PrettyPrinter.delab $ mkAppN inv vs)
-      let tpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
-      let proofScript ← `(by unhygienic intros; solve_clause)
-      checks := checks.push (invName, ← checkTheorem s!"init_{invName}" vs tpStx proofScript)
-    pure checks
-  -- (2) Collect checks that invariants hold after each action
-  let invChecks ← Command.runTermElabM fun vs => do
+  -- Generate theorems to check in the initial state and after each action
+  let (initChecks, invChecks) ← Command.runTermElabM fun vs => do
     let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).name) vs
     let stateTp ← PrettyPrinter.delab (← stateTp vs)
     let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
     let acts := (<- stsExt.get).actions
-    let mut checks := #[]
+    let mut initChecks := #[]
+    let mut actChecks := #[]
+    let (st, st') := (mkIdent `st, mkIdent `st')
+    let proofScript ← `(by unhygienic intros; solve_clause)
+    -- TODO: extract the generic part of this code out
+    -- (1) Collect checks that invariants hold in the initial state
+    for inv in invs do
+      let invName := inv.constName!
+      let property ← PrettyPrinter.delab $ mkAppN inv vs
+      let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
+      let initThName := s!"init_{invName}".toName
+      let checkTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := $proofScript)
+      initChecks := initChecks.push (invName, (initThName, checkTheorem))
+    -- (2) Collect checks that invariants hold after each action
     for actName in acts do
-      let mut actChecks := #[]
-      for inv in invs do
-        let invName := inv.constName!
-        let (st, st', property) := (mkIdent `st, mkIdent `st', ← PrettyPrinter.delab $ mkAppN inv vs)
-        let act ← PrettyPrinter.delab $ mkAppN actName vs
-        let tpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
-        let proofScript ← `(by unhygienic intros; solve_clause)
-        actChecks := actChecks.push (invName, ← checkTheorem s!"{actName}_{invName}" vs tpStx proofScript)
-      checks := checks.push (actName, actChecks)
-    pure checks
+        let mut checks := #[]
+        for inv in invs do
+          let invName := inv.constName!
+          let property ← PrettyPrinter.delab $ mkAppN inv vs
+          let act ← PrettyPrinter.delab $ mkAppN actName vs
+          let actTpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
+          let actThName := s!"{actName}_{invName}".toName
+          let checkTheorem ← `(@[invProof] theorem $(mkIdent actThName) : $actTpStx := $proofScript)
+          checks := checks.push (invName, (actThName, checkTheorem))
+        actChecks := actChecks.push (actName, checks)
+    pure (initChecks, actChecks)
+
+  let mut theorems := #[] -- collect Lean expression to report for `#check_invariants?`
   let mut msgs := #[]
   msgs := msgs.push "Initialization must establish the invariant:"
-  for (invName, (thName, thCmd, thDecl, success)) in initChecks do
+  for (invName, (thName, thCmd)) in initChecks do
+    let success ← checkTheorem thName thCmd
     msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
-    if success then
-      -- elabInvTheorem thName thCmd
-      liftCoreM <| addDecl thDecl
+    theorems := theorems.push thCmd
   msgs := msgs.push "The following set of actions must preserve the invariant:"
-  let mut theorems := #[]
   for (actName, actChecks) in invChecks do
     msgs := msgs.push s!"  {actName}"
-    for (invName, (thName, thCmd, thDecl, success)) in actChecks do
+    for (invName, (thName, thCmd)) in actChecks do
+      let success ← checkTheorem thName thCmd
       msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
       theorems := theorems.push thCmd
-      if success then
-        -- elabInvTheorem thName thCmd
-        liftCoreM <| addDecl thDecl
   let msg := String.intercalate "\n" msgs.toList
   if !printTheorems then
     dbg_trace msg
