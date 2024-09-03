@@ -86,3 +86,28 @@ invariant [agreement]
     forall SRC:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
         ~is_byz(DST1) & ~is_byz(DST2) & output(DST1, SRC, R, V1) & output(DST2, SRC, R, V2) ->
         (V1 = V2)
+
+invariant [sent_iff_initial]
+    forall SRC:address, R:round.
+        ~is_byz(SRC) -> (sent(SRC, R) <-> exists V:value. initial_value(SRC, R, V))
+
+invariant [echoed_iff_echo]
+    forall N:address, DST:address, ORIG:address, R:round, V:value.
+        echoed(N, ORIG, R, V) <-> echo_msg(N, DST, ORIG, R, V)
+
+invariant [echoed_requires_initial]
+    forall N:address, ORIG:address, R:round, V:value.
+        echoed(N, ORIG, R, V) -> initial_msg(ORIG, N, R, V)
+
+invariant [voted_iff_vote]
+    forall N:address, DST:address, ORIG:address, R:round, V:value.
+        voted(N, ORIG, R, V) <-> vote_msg(N, DST, ORIG, R, V)
+
+# not in the decidable fragment due to edge from `address` to `quorum`
+# invariant [voted_requires_echo_quorum]
+#     forall N:address, ORIG:address, R:round, V:value.
+#         voted(N, ORIG, R, V) -> exists Q:quorum. forall SRC:address. member(SRC, Q) -> echo_msg(SRC, N, ORIG, R, V)
+
+# invariant [output_requires_vote]
+#     forall N:address, ORIG:address, R:round, V:value.
+#         output(N, ORIG, R, V) -> exists Q:quorum. forall SRC:address. member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)

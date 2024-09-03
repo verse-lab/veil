@@ -98,32 +98,85 @@ safety [agreement]
   ∀ (src dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
     ¬ is_byz dst₁ ∧ is_byz dst₂ ∧ output dst₁ src r v₁ ∧ output dst₂ src r v₂ → v₁ = v₂
 
+-- These invariants are discovered in the order given, by inspecting the code
+-- of the actions one by one.
+
+-- start_round
+invariant [sent_iff_initial]
+  ∀ (src : address) (r : round),
+    sent src r ↔ ∃ (v : value), initial_value src r v
+
+-- echo
+invariant [echoed_iff_echo]
+  ∀ (n dst originator : address) (r : round) (v : value),
+    echoed n originator r v ↔ echo_msg n dst originator r v
+
+invariant [echoed_requires_initial]
+  ∀ (n originator : address) (r : round) (v : value),
+    echoed n originator r v → initial_msg originator n r v
+
+-- vote
+invariant [voted_iff_vote]
+  ∀ (n dst originator : address) (r : round) (v : value),
+    voted n originator r v ↔ vote_msg n dst originator r v
+
+-- not in the decidable fragment due to edge from `address` to `quorum`:
+-- invariant [voted_requires_echo_quorum]
+--   ∀ (n originator : address) (r : round) (v : value),
+--     voted n originator r v →
+--       ∃ (q : quorum), ∀ (src : address), member src q → echo_msg src n originator r v
+
+-- deliver
+-- not in the decidable fragment due to edge from `address` to `quorum`
+-- invariant [output_requires_vote]
+--   ∀ (n originator : address) (r : round) (v : value),
+--     output n originator r v →
+--       ∃ (q : quorum), ∀ (src : address), member src q → vote_msg src n originator r v
+
 set_option maxHeartbeats 10000000
 
 #gen_spec ReliableBroadcast
-#check_invariants ReliableBroadcast
+#check_invariants
+
+@[invProof]
+theorem vote_vote_integrity :
+    ∀ (st st' : State quorum address round value),
+      (ReliableBroadcast quorum address round value).inv st →
+        (vote quorum address round value) st st' →
+          (vote_integrity quorum address round value) st' := by
+  -- unhygienic intros; solve_clause
+  sorry
+
+@[invProof]
+theorem deliver_agreement :
+    ∀ (st st' : State quorum address round value),
+      (ReliableBroadcast quorum address round value).inv st →
+        (deliver quorum address round value) st st' →
+          (agreement quorum address round value) st' :=
+  sorry
+
 
 prove_inv_init by { simp_all [initSimp, invSimp] }
 prove_inv_safe by { simp_all [invSimp, safeSimp] }
 
+-- set_option trace.sauto.result true
+
 prove_inv_inductive by {
   intro hnext hinv
-  sts_induction <;> sdestruct_all <;> try solve_clause
+  sts_induction <;> sdestruct_goal <;> try already_proven
   {
-    simplify_all
+    solve_clause
+    -- extract_goal
+  }
+  {
     sdestruct_hyps
+    simplify_all
     -- sauto_all?
     sorry
   }
   {
-    simplify_all
     sdestruct_hyps
-    -- sauto_all?
-    sorry
-  }
-  {
     simplify_all
-    sdestruct_hyps
     -- sauto_all?
     sorry
   }
@@ -148,6 +201,7 @@ sat trace [can_vote] {
   vote
 } by { bmc_sat }
 
+/-
 sat trace [succesful_delivery] {
   start_round
   echo
@@ -158,5 +212,6 @@ sat trace [succesful_delivery] {
   vote
   deliver
 } by { bmc_sat }
+-/
 
 end ReliableBroadcast
