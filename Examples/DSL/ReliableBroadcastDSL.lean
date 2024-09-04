@@ -96,7 +96,7 @@ safety [output_integrity]
 /- Also known as "output uniqueness". -/
 safety [agreement]
   ∀ (src dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
-    ¬ is_byz dst₁ ∧ is_byz dst₂ ∧ output dst₁ src r v₁ ∧ output dst₂ src r v₂ → v₁ = v₂
+    ¬ is_byz dst₁ ∧ ¬ is_byz dst₂ ∧ output dst₁ src r v₁ ∧ output dst₂ src r v₂ → v₁ = v₂
 
 -- These invariants are discovered in the order given, by inspecting the code
 -- of the actions one by one.
