@@ -1,24 +1,40 @@
 import Lean
 import Auto
 import LeanSts.MetaUtil
+import Batteries.Data.Array.Basic
 
 abbrev SortName := Lean.Name
 abbrev UninterpretedValue := Lean.Name
 
-structure FiniteUinterpretedSort where
+instance : Ord SortName where
+  compare a b := a.cmp b
+instance : Ord UninterpretedValue where
+  compare a b := a.cmp b
+
+instance [Ord α] : Ord (Array α) where
+  compare a b :=
+    a.zip b |>.foldl (init := Ordering.eq) fun c (a, b) => match c with
+      | Ordering.eq => compare a b
+      | c => c
+
+instance [Ord α] [Ord β] : Ord (α × β) where
+  compare x y := match x, y with
+    | (a, b), (a', b') => compare a a' |>.then (compare b b')
+
+structure FiniteUninterpretedSort where
   name : SortName
   size : Nat
   /-- The elements are assumed to be distinct. -/
   elements : Array UninterpretedValue
-deriving BEq, Hashable, Inhabited
+deriving BEq, Hashable, Inhabited, Ord
 
-instance : ToString FiniteUinterpretedSort where
+instance : ToString FiniteUninterpretedSort where
   toString s := s!"sort {s.name} = {s.elements}"
 
 structure InterpretedSort where
   name : SortName
   -- interpretation : Type
-deriving BEq, Hashable, Inhabited
+deriving BEq, Hashable, Inhabited, Ord
 
 instance : ToString InterpretedSort where
   toString s := s!"interpreted sort {s.name}"
@@ -48,8 +64,8 @@ instance : Hashable InterpretedSort where
 
 inductive FirstOrderSort
   | Interpreted (s : InterpretedSort)
-  | Uninterpreted (s : FiniteUinterpretedSort)
-deriving BEq, Hashable, Inhabited
+  | Uninterpreted (s : FiniteUninterpretedSort)
+deriving BEq, Hashable, Inhabited, Ord
 
 instance : ToString FirstOrderSort where
   toString
@@ -86,7 +102,22 @@ def FirstOrderSort.cardinalityConstraint (n : Nat) : FirstOrderSort → MetaM (O
 
 inductive FirstOrderValue where
   | Interpreted (s : InterpretedSort) (val : s.interpretation)
-  | Uninterpreted (s : FiniteUinterpretedSort) (val : UninterpretedValue)
+  | Uninterpreted (s : FiniteUninterpretedSort) (val : UninterpretedValue)
+
+instance : Ord FirstOrderValue where
+  compare x y := match x, y with
+    | .Uninterpreted s₁ v₁, .Uninterpreted s₂ v₂ =>
+      match compare s₁ s₂ with
+      | Ordering.eq => compare v₁ v₂
+      | o => o
+    | .Interpreted s₁ _v₁, .Interpreted s₂ _v₂ =>
+      match compare s₁ s₂ with
+      | Ordering.eq =>
+        -- FIXME: we need to use the `Ord` instance for the interpretation type
+        Ordering.eq
+      | o => o
+    | .Interpreted .., .Uninterpreted .. => Ordering.lt
+    | .Uninterpreted .., .Interpreted .. => Ordering.gt
 
 def FirstOrderValue.isTrue (val : FirstOrderValue) : Bool :=
   match val with
@@ -107,7 +138,7 @@ def intSort : FirstOrderSort := FirstOrderSort.Interpreted intSortI
 structure ConstantDecl where
   name : SortName
   sort : FirstOrderSort
-deriving BEq, Hashable
+deriving BEq, Hashable, Ord
 
 instance : ToString ConstantDecl where
   toString c := s!"constant {c.name} : {c.sort}"
@@ -115,7 +146,7 @@ instance : ToString ConstantDecl where
 structure RelationDecl where
   name : SortName
   domain : Array FirstOrderSort
-deriving BEq, Hashable
+deriving BEq, Hashable, Ord
 
 instance : ToString RelationDecl where
   toString r := s!"relation {r.name} : {r.domain}"
@@ -124,7 +155,7 @@ structure FunctionDecl where
   name : SortName
   domain : Array FirstOrderSort
   range : FirstOrderSort
-deriving BEq, Hashable
+deriving BEq, Hashable, Ord
 
 instance : ToString FunctionDecl where
   toString f := s!"function {f.name} : {f.domain} → {f.range}"
@@ -133,7 +164,7 @@ inductive Declaration where
   | Constant (c : ConstantDecl)
   | Relation (r : RelationDecl)
   | Function (f : FunctionDecl)
-deriving BEq, Hashable
+deriving BEq, Hashable, Ord
 
 instance : ToString Declaration where
   toString
@@ -215,6 +246,7 @@ structure Signature where
   constants : Array ConstantDecl
   relations : Array RelationDecl
   functions : Array FunctionDecl
+deriving BEq, Hashable, Ord
 
 instance : Inhabited Signature := ⟨{ constants := #[], relations := #[], functions := #[] }⟩
 
@@ -223,14 +255,18 @@ def Signature.declarations (sig : Signature) : Array Declaration :=
   sig.relations.map Declaration.Relation ++
   sig.functions.map Declaration.Function
 
-abbrev InputOutputPair := Array FirstOrderValue × FirstOrderValue
+abbrev InputOutputPair := (Array FirstOrderValue) × FirstOrderValue
 abbrev ExplicitInterpretation := Lean.HashMap Declaration (Array InputOutputPair)
+
+instance : Ord ExplicitInterpretation where
+  compare x y := compare x.toArray y.toArray
 
 structure FirstOrderStructure where
   /-- Also called universes. -/
   domains : Array FirstOrderSort
   signature : Signature
   interp : ExplicitInterpretation
+deriving Ord
 
 open Lean hiding Declaration
 
@@ -240,8 +276,8 @@ instance : ToString FirstOrderStructure where
     let mut out := s!"\n"
     for dom in s.domains do
       out := out ++ s!"{dom}\n"
-    for (decl, iopairs) in s.interp.toList do
-      for (args, val) in iopairs do
+    for (decl, iopairs) in s.interp.toArray.qsortOrd do
+      for (args, val) in iopairs.qsortOrd do
       match decl with
       | Declaration.Constant c => out := out ++ s!"{c.name} = {val}\n"
       | Declaration.Relation r =>
