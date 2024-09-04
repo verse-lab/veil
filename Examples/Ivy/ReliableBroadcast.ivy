@@ -87,6 +87,8 @@ invariant [agreement]
         ~is_byz(DST1) & ~is_byz(DST2) & output(DST1, SRC, R, V1) & output(DST2, SRC, R, V2) ->
         (V1 = V2)
 
+# Looking at the actions
+
 invariant [sent_iff_initial]
     forall SRC:address, R:round.
         ~is_byz(SRC) -> (sent(SRC, R) <-> exists V:value. initial_value(SRC, R, V))
@@ -111,3 +113,21 @@ invariant [voted_iff_vote]
 # invariant [output_requires_vote]
 #     forall N:address, ORIG:address, R:round, V:value.
 #         output(N, ORIG, R, V) -> exists Q:quorum. forall SRC:address. member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)
+
+# Looking at CTIs
+
+# vote -> vote_integrity
+
+# this version is not in the decidable fragment:
+# invariant [sent_iff_initial]
+#    ∀ (src : address) (r : round),
+#      sent src r ↔ ∃ (dst : address) (v : value), initial_msg src dst r v
+# invariant [initial_value_iff_initial_msg]
+#   ∀ (src dst : address) (r : round) (v : value),
+#     initial_value src r v ↔ initial_msg src dst r v
+
+invariant [initial_value_iff_initial_msg]
+    forall SRC:address, DST:address, R:round, V:value.
+        initial_value(SRC, R, V) <-> initial_msg(SRC, DST, R, V)
+
+# deliver -> agreement

@@ -133,31 +133,37 @@ invariant [voted_iff_vote]
 --     output n originator r v →
 --       ∃ (q : quorum), ∀ (src : address), member src q → vote_msg src n originator r v
 
+-- these invariants are discovered in the order given, by eliminating CTIs
+
+-- vote_vote_integrity
+-- this version is not in the decidable fragment:
+-- invariant [sent_iff_initial]
+--   ∀ (src : address) (r : round),
+--     sent src r ↔ ∃ (dst : address) (v : value), initial_msg src dst r v
+
+-- So instead we use the following:
+invariant [initial_value_iff_initial_msg]
+  ∀ (src dst : address) (r : round) (v : value),
+    initial_value src r v ↔ initial_msg src dst r v
+
+-- deliver_agreement
+
 set_option maxHeartbeats 10000000
 
 #gen_spec ReliableBroadcast
 #check_invariants
 
 @[invProof]
-theorem vote_vote_integrity :
-    ∀ (st st' : State quorum address round value),
-      (ReliableBroadcast quorum address round value).inv st →
-        (vote quorum address round value) st st' →
-          (vote_integrity quorum address round value) st' := by
-  -- unhygienic intros; solve_clause
-  sorry
-
-@[invProof]
 theorem deliver_agreement :
     ∀ (st st' : State quorum address round value),
       (ReliableBroadcast quorum address round value).inv st →
         (deliver quorum address round value) st st' →
-          (agreement quorum address round value) st' :=
+          (agreement quorum address round value) st' := by
+  -- unhygienic intros; solve_clause
   sorry
 
-
-prove_inv_init by { simp_all [initSimp, invSimp] }
-prove_inv_safe by { simp_all [invSimp, safeSimp] }
+prove_inv_init by { solve_clause }
+prove_inv_safe by { solve_clause }
 
 -- set_option trace.sauto.result true
 
