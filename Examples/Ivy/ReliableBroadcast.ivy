@@ -134,4 +134,4 @@ invariant [initial_value_iff_initial_msg]
 
 invariant [honest_non_conflicting_initial_msg]
     forall SRC:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
-        (~is_byz(SRC) & initial_msg(SRC, DST1, R, V1) & initial_msg(SRC, DST2, R, V2)) -> V1 = V2
+        (~is_byz(SRC)) -> (initial_msg(SRC, DST1, R, V1) & initial_msg(SRC, DST2, R, V2) -> V1 = V2)

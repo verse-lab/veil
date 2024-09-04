@@ -149,7 +149,7 @@ invariant [initial_value_iff_initial_msg]
 -- deliver_agreement
 invariant [honest_non_conflicting_initial_msg]
   ∀ (src dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
-    (¬ is_byz src ∧ initial_msg src dst₁ r v₁ ∧ initial_msg src dst₂ r v₂) → v₁ = v₂
+    (¬ is_byz src) → (initial_msg src dst₁ r v₁ ∧ initial_msg src dst₂ r v₂ → v₁ = v₂)
 
 set_option maxHeartbeats 10000000
 
