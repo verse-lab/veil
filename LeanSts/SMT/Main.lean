@@ -15,6 +15,7 @@ initialize
   registerTraceClass `sauto.model
   registerTraceClass `sauto.debug
   -- the following are primarily for performance profiling
+  registerTraceClass `sauto.perf.query
   registerTraceClass `sauto.perf.checkSat
   registerTraceClass `sauto.perf.getUnsatCore
   registerTraceClass `sauto.perf.getModel
@@ -232,7 +233,7 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
 
 open Smt Smt.Tactic Translate in
 def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := true) : MetaM SmtResult := do
-  withTraceNode `sauto.query (fun _ => return "querySolver") do
+  withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
   let opts ← getOptions
   let solverName := sauto.smt.solver.get opts
   trace[sauto.debug] "solver: {solverName}"
