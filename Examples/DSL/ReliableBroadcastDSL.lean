@@ -147,19 +147,21 @@ invariant [initial_value_iff_initial_msg]
     initial_value src r v ↔ initial_msg src dst r v
 
 -- deliver_agreement
+invariant [honest_non_conflicting_initial_msg]
+  ∀ (src dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
+    (¬ is_byz src ∧ initial_msg src dst₁ r v₁ ∧ initial_msg src dst₂ r v₂) → v₁ = v₂
 
 set_option maxHeartbeats 10000000
 
 #gen_spec ReliableBroadcast
 #check_invariants
 
-@[invProof]
 theorem deliver_agreement :
     ∀ (st st' : State quorum address round value),
       (ReliableBroadcast quorum address round value).inv st →
         (deliver quorum address round value) st st' →
           (agreement quorum address round value) st' := by
-  -- unhygienic intros; solve_clause
+  unhygienic intros; solve_clause
   sorry
 
 prove_inv_init by { solve_clause }
@@ -170,16 +172,6 @@ prove_inv_safe by { solve_clause }
 prove_inv_inductive by {
   intro hnext hinv
   sts_induction <;> sdestruct_goal <;> try already_proven
-  {
-    solve_clause
-    -- extract_goal
-  }
-  {
-    sdestruct_hyps
-    simplify_all
-    -- sauto_all?
-    sorry
-  }
   {
     sdestruct_hyps
     simplify_all
