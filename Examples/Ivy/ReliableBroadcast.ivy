@@ -1,19 +1,37 @@
 #lang ivy1.8
 
-# Byzantine quorums (2f + 1 nodes) intersect in at least one honest member.
-module byzantine_quorum(address, quorum) = {
-    relation is_byz(A:address)
-    relation member(A:address, Q:quorum)
-    axiom [quorum_intersection]
-        forall Q1:quorum, Q2:quorum. exists A:address. member(A, Q1) & member(A, Q2) & ~is_byz(A)
+# Node sets and properties about Byzantine quorums.
+# Parametrised by the `is_byz` relation which determines faulty nodes.
+module node_set(node, is_byz) = {
+    type this
+    alias nset = this
+
+    relation member(N:node, S:nset)
+    relation is_empty(S:nset)
+
+    relation greater_than_third(S:nset) # f + 1 nodes
+    relation supermajority(S:nset)      # 2f + 1 nodes
+
+    axiom [supermajorities_intersect_in_honest]
+        forall S1:nset, S2:nset. exists N:node. member(N, S1) & member(N, S2) & ~is_byz(N)
+
+    axiom [greater_than_third_one_honest]
+        forall S:nset. greater_than_third(S) -> exists N:node. member(N, S) & ~is_byz(N)
+
+    axiom [supermajority_greater_than_third]
+        forall S:nset. supermajority(S) -> greater_than_third(S)
+
+    axiom [greater_than_third_non_empty]
+        forall S:nset. greater_than_third(S) -> ~is_empty(S)
 }
 
-type quorum
 type address
 type round
 type value
 
-instance byzantine_quorum(address, quorum)
+relation is_byz(N:address)
+# this defines a type `nset` whose elements satisfy the axioms above
+instance nset : node_set(address, is_byz)
 
 # Messages over the network
 relation initial_msg(ORIGINATOR:address, DST:address, R:round, V:value)
@@ -55,9 +73,10 @@ export action echo(n:address, orig:address, r:round, v:value) = {
 }
 
 export action vote(n:address, orig:address, r:round, v:value) = {
-    # received a quorum of echo messages OR a vote message from an honest node
-    require (exists Q:quorum. forall SRC:address. member(SRC, Q) -> echo_msg(SRC, n, orig, r, v)) |
-            (exists SRC:address. ~is_byz(SRC) & vote_msg(SRC, n, orig, r, v));
+    # received a 2f + 1 echo messages OR f + 1 vote message
+    require (exists Q:nset.
+                (nset.supermajority(Q) & forall SRC:address. nset.member(SRC, Q) -> echo_msg(SRC, n, orig, r, v)) |
+                (nset.greater_than_third(Q) & forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, n, orig, r, v)));
     require ~voted(n, orig, r, v);
     voted(n, orig, r, v) := true;
     vote_msg(n, DST, orig, r, v) := true;
@@ -65,7 +84,7 @@ export action vote(n:address, orig:address, r:round, v:value) = {
 
 export action deliver(n:address, orig:address, r:round, v:value) = {
     # received a quorum of votes
-    require (exists Q:quorum. forall SRC:address. member(SRC, Q) -> vote_msg(SRC, n, orig, r, v));
+    require (exists Q:nset. nset.supermajority(Q) & forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, n, orig, r, v));
     output(n, orig, r, v) := true;
 }
 
