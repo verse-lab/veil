@@ -2,6 +2,29 @@ import LeanSts.DSL
 
 section ReliableBroadcast
 
+/-
+  Reliable Broadcast is a Byzantine fault-tolerant broadcast protocol
+  that ensures that all honest nodes deliver the same message, as long
+  as the `originator` (the node that initiated the broadcast) is honest.
+
+  It proceeds in three phases:
+    - an initial phase, where the originator broadcasts `initial_msg`
+    - an echo phase, where nodes broadcast an `echo` of the value they
+      received
+    - a vote phase, where nodes broadcast a `vote` for the value they've
+      seen echoed by a `2f + 1` quorum of nodes; alternatively, a node
+      votes if it sees `f + 1` votes for the same value
+
+  The `deliver` action is triggered when a node sees `2f + 1` votes for
+  the same value, and outputs that value.
+
+  The protocol has three separate quorum thresholds:
+    - `echo4vote` -- `2f + 1` nodes that have echoed the same value to vote
+    - `vote4vote` -- `f + 1` nodes that have voted for the same value to vote
+    - `vote4output` -- `2f + 1` nodes that have voted for the same value to output
+-/
+
+
 /-- Byzantine quorums (2f + 1 nodes) intersect in at least one honest member. -/
 class ByzantineQuorum (node : Type) (quorum : outParam Type) :=
   is_byz (a : node) : Prop
@@ -161,7 +184,7 @@ theorem deliver_agreement :
       (ReliableBroadcast quorum address round value).inv st →
         (deliver quorum address round value) st st' →
           (agreement quorum address round value) st' := by
-  unhygienic intros; solve_clause
+  -- unhygienic intros; solve_clause
   sorry
 
 prove_inv_init by { solve_clause }

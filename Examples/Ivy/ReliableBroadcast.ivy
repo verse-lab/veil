@@ -122,9 +122,6 @@ invariant [voted_iff_vote]
 # invariant [sent_iff_initial]
 #    ∀ (src : address) (r : round),
 #      sent src r ↔ ∃ (dst : address) (v : value), initial_msg src dst r v
-# invariant [initial_value_iff_initial_msg]
-#   ∀ (src dst : address) (r : round) (v : value),
-#     initial_value src r v ↔ initial_msg src dst r v
 
 invariant [initial_value_iff_initial_msg]
     forall SRC:address, DST:address, R:round, V:value.
