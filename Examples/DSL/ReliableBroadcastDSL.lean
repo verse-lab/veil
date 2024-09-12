@@ -157,21 +157,21 @@ invariant [voted_iff_vote]
     voted n originator r v ↔ vote_msg n dst originator r v
 
 -- not in the decidable fragment due to edge from `address` to `nodeset`:
--- invariant [voted_requires_echo_quorum_or_vote_quorum]
---   ∀ (n originator : address) (r : round) (v : value),
---     voted n originator r v →
---       (∃ (q : nodeset), nset.supermajority q ∧
---         ∀ (src : address), member src q → echo_msg src n originator r v) ∨
---       (∃ (q : nodeset), nset.greater_than_third q ∧
---         ∀ (src : address), member src q → vote_msg src n originator r v)
+invariant [voted_requires_echo_quorum_or_vote_quorum]
+  ∀ (n originator : address) (r : round) (v : value),
+    voted n originator r v →
+      (∃ (q : nodeset), nset.supermajority q ∧
+        ∀ (src : address), member src q → echo_msg src n originator r v) ∨
+      (∃ (q : nodeset), nset.greater_than_third q ∧
+        ∀ (src : address), member src q → vote_msg src n originator r v)
 
 -- deliver
 -- not in the decidable fragment due to edge from `address` to `nodeset`
--- invariant [output_requires_vote]
---   ∀ (n originator : address) (r : round) (v : value),
---     output n originator r v →
---       ∃ (q : nodeset), nset.supermajority q ∧
---         ∀ (src : address), member src q → vote_msg src n originator r v
+invariant [output_requires_vote_quorum]
+  ∀ (n originator : address) (r : round) (v : value),
+    output n originator r v →
+      ∃ (q : nodeset), nset.supermajority q ∧
+        ∀ (src : address), member src q → vote_msg src n originator r v
 
 -- these invariants are discovered in the order given, by eliminating CTIs
 
@@ -192,7 +192,6 @@ invariant [honest_non_conflicting_initial_msg]
     (¬ is_byz src) → (initial_msg src dst₁ r v₁ ∧ initial_msg src dst₂ r v₂ → v₁ = v₂)
 
 set_option maxHeartbeats 10000000
-
 #gen_spec ReliableBroadcast
 #check_invariants
 

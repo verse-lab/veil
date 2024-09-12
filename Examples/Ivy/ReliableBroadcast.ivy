@@ -2,7 +2,7 @@
 
 # Node sets and properties about Byzantine quorums.
 # Parametrised by the `is_byz` relation which determines faulty nodes.
-module node_set(node, is_byz) = {
+module nodeset(node, is_byz) = {
     type this
     alias nset = this
 
@@ -31,7 +31,7 @@ type value
 
 relation is_byz(N:address)
 # this defines a type `nset` whose elements satisfy the axioms above
-instance nset : node_set(address, is_byz)
+instance nset : nodeset(address, is_byz)
 
 # Messages over the network
 relation initial_msg(ORIGINATOR:address, DST:address, R:round, V:value)
@@ -124,14 +124,20 @@ invariant [voted_iff_vote]
     forall N:address, DST:address, ORIG:address, R:round, V:value.
         voted(N, ORIG, R, V) <-> vote_msg(N, DST, ORIG, R, V)
 
-# not in the decidable fragment due to edge from `address` to `quorum`
-# invariant [voted_requires_echo_quorum]
-#     forall N:address, ORIG:address, R:round, V:value.
-#         voted(N, ORIG, R, V) -> exists Q:quorum. forall SRC:address. member(SRC, Q) -> echo_msg(SRC, N, ORIG, R, V)
+# not in the decidable fragment due to edge from `address` to `nset`
+invariant [voted_requires_echo_quorum_or_vote_quorum]
+    forall N:address, ORIG:address, R:round, V:value.
+        voted(N, ORIG, R, V) ->
+            (exists Q:nset. nset.supermajority(Q) &
+                forall SRC:address. nset.member(SRC, Q) -> echo_msg(SRC, N, ORIG, R, V)) |
+            (exists Q:nset. nset.greater_than_third(Q) &
+                forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V))
 
-# invariant [output_requires_vote]
-#     forall N:address, ORIG:address, R:round, V:value.
-#         output(N, ORIG, R, V) -> exists Q:quorum. forall SRC:address. member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)
+invariant [output_requires_vote_quorum]
+    forall N:address, ORIG:address, R:round, V:value.
+        output(N, ORIG, R, V) ->
+            (exists Q:nset. nset.supermajority(Q) &
+                forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V))
 
 # Looking at CTIs
 
