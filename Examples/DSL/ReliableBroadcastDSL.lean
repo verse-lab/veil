@@ -96,7 +96,7 @@ action start_round (n : address) (r : round) (v : value) = {
 
 action echo (n : address) (originator : address) (r : round) (v : value) = {
   require initial_msg originator n r v;
-  require ¬ echoed n originator r v;
+  require ¬ echoed n originator r V;
   echoed n originator r v := True;
   echo_msg n DST originator r v := True
 }
@@ -107,7 +107,7 @@ action vote (n : address) (originator : address) (r : round) (v : value) = {
               ∀ (src : address), nset.member src q → echo_msg src n originator r v) ∨
           (∃ (q : nodeset), nset.greater_than_third q ∧
               ∀ (src : address), nset.member src q → vote_msg src n originator r v);
-  require ¬ voted n originator r v;
+  require ¬ voted n originator r V;
   voted n originator r v := True;
   vote_msg n DST originator r v := True
 }
@@ -157,7 +157,7 @@ invariant [voted_iff_vote]
     voted n originator r v ↔ vote_msg n dst originator r v
 
 -- not in the decidable fragment due to edge from `address` to `nodeset`:
-invariant [voted_requires_echo_quorum_or_vote_quorum]
+-- invariant [voted_requires_echo_quorum_or_vote_quorum]
   ∀ (n originator : address) (r : round) (v : value),
     voted n originator r v →
       (∃ (q : nodeset), nset.supermajority q ∧
@@ -191,8 +191,20 @@ invariant [honest_non_conflicting_initial_msg]
   ∀ (src dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
     (¬ is_byz src) → (initial_msg src dst₁ r v₁ ∧ initial_msg src dst₂ r v₂ → v₁ = v₂)
 
+invariant [honest_non_conflicting_echoes]
+  ∀ (src originator dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
+    (¬ is_byz src) → (echo_msg src dst₁ originator r v₁ ∧ echo_msg src dst₂ originator r v₂ → v₁ = v₂)
+
+invariant [honest_non_conflicting_votes]
+  ∀ (src originator dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
+    (¬ is_byz src) → (vote_msg src dst₁ originator r v₁ ∧ vote_msg src dst₂ originator r v₂ → v₁ = v₂)
+
 set_option maxHeartbeats 10000000
+set_option auto.smt.timeout 10 -- seconds
+set_option sauto.smt.macrofinder true -- Ivy uses this by default
+
 #gen_spec ReliableBroadcast
+
 #check_invariants
 
 theorem deliver_agreement':

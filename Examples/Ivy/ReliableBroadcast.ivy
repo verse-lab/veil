@@ -67,7 +67,7 @@ export action start_round(n:address, r:round, v:value) = {
 
 export action echo(n:address, orig:address, r:round, v:value) = {
     require initial_msg(orig, n, r, v);
-    require ~echoed(n, orig, r, v);
+    require ~echoed(n, orig, r, V);
     echoed(n, orig, r, v) := true;
     echo_msg(n, DST, orig, r, v) := true;
 }
@@ -77,7 +77,7 @@ export action vote(n:address, orig:address, r:round, v:value) = {
     require (exists Q:nset.
                 (nset.supermajority(Q) & forall SRC:address. nset.member(SRC, Q) -> echo_msg(SRC, n, orig, r, v)) |
                 (nset.greater_than_third(Q) & forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, n, orig, r, v)));
-    require ~voted(n, orig, r, v);
+    require ~voted(n, orig, r, V);
     voted(n, orig, r, v) := true;
     vote_msg(n, DST, orig, r, v) := true;
 }
@@ -157,3 +157,11 @@ invariant [initial_value_iff_initial_msg]
 invariant [honest_non_conflicting_initial_msg]
     forall SRC:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
         (~is_byz(SRC)) -> (initial_msg(SRC, DST1, R, V1) & initial_msg(SRC, DST2, R, V2) -> V1 = V2)
+
+invariant [honest_non_conflicting_echoes]
+    forall SRC:address, ORIG:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        (~is_byz(SRC)) -> (echo_msg(SRC, DST1, ORIG, R, V1) & echo_msg(SRC, DST2, ORIG, R, V2) -> V1 = V2)
+
+invariant [honest_non_conflicting_votes]
+    forall SRC:address, ORIG:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        (~is_byz(SRC)) -> (vote_msg(SRC, DST1, ORIG, R, V1) & vote_msg(SRC, DST2, ORIG, R, V2) -> V1 = V2)

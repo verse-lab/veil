@@ -35,19 +35,20 @@ transition ext_c_start_round(__fml_c_n:address, __fml_c_r:round, __fml_c_v:value
 
 transition ext_c_echo(__fml_c_n:address, __fml_c_orig:address, __fml_c_r:round, __fml_c_v:value)
   modifies echo_msg, echoed
-  (forall V2:round, V3:value, V0:address, V1:address. new(echoed(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V1 = __fml_c_orig & V2 = __fml_c_r & V3 = __fml_c_v then true else echoed(V0, V1, V2, V3))) & (forall V4:value, V1:address, V3:round, V2:address, V0:address. new(echo_msg(V0, V1, V2, V3, V4)) <-> (if V0 = __fml_c_n & V2 = __fml_c_orig & V3 = __fml_c_r & V4 = __fml_c_v then true else echo_msg(V0, V1, V2, V3, V4))) & initial_msg(__fml_c_orig, __fml_c_n, __fml_c_r, __fml_c_v) & !echoed(__fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v)
+  (forall V0:address, V3:value, V1:address, V2:round. new(echoed(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V1 = __fml_c_orig & V2 = __fml_c_r & V3 = __fml_c_v then true else echoed(V0, V1, V2, V3))) & (forall V0:address, V2:address, V1:address, V3:round, V4:value. new(echo_msg(V0, V1, V2, V3, V4)) <-> (if V0 = __fml_c_n & V2 = __fml_c_orig & V3 = __fml_c_r & V4 = __fml_c_v then true else echo_msg(V0, V1, V2, V3, V4))) & initial_msg(__fml_c_orig, __fml_c_n, __fml_c_r, __fml_c_v) & (forall V:value. !echoed(__fml_c_n, __fml_c_orig, __fml_c_r, V))
 
 transition ext_c_vote(__fml_c_n:address, __fml_c_orig:address, __fml_c_r:round, __fml_c_v:value, __sk__Q:nset)
   modifies vote_msg, voted
-  (forall V2:round, V3:value, V0:address, V1:address. new(voted(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V1 = __fml_c_orig & V2 = __fml_c_r & V3 = __fml_c_v then true else voted(V0, V1, V2, V3))) & (forall V4:value, V1:address, V3:round, V2:address, V0:address. new(vote_msg(V0, V1, V2, V3, V4)) <-> (if V0 = __fml_c_n & V2 = __fml_c_orig & V3 = __fml_c_r & V4 = __fml_c_v then true else vote_msg(V0, V1, V2, V3, V4))) & (nset_supermajority(__sk__Q) & (forall SRC:address. nset_member(SRC, __sk__Q) -> echo_msg(SRC, __fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v)) | nset_greater_than_third(__sk__Q) & (forall SRC:address. nset_member(SRC, __sk__Q) -> vote_msg(SRC, __fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v))) & !voted(__fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v)
+  (forall V0:address, V3:value, V1:address, V2:round. new(voted(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V1 = __fml_c_orig & V2 = __fml_c_r & V3 = __fml_c_v then true else voted(V0, V1, V2, V3))) & (forall V0:address, V2:address, V1:address, V3:round, V4:value. new(vote_msg(V0, V1, V2, V3, V4)) <-> (if V0 = __fml_c_n & V2 = __fml_c_orig & V3 = __fml_c_r & V4 = __fml_c_v then true else vote_msg(V0, V1, V2, V3, V4))) & (nset_supermajority(__sk__Q) & (forall SRC:address. nset_member(SRC, __sk__Q) -> echo_msg(SRC, __fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v)) | nset_greater_than_third(__sk__Q) & (forall SRC:address. nset_member(SRC, __sk__Q) -> vote_msg(SRC, __fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v))) & (forall V:value. !voted(__fml_c_n, __fml_c_orig, __fml_c_r, V))
 
 transition ext_c_deliver(__fml_c_n:address, __fml_c_orig:address, __fml_c_r:round, __fml_c_v:value, __sk__Q:nset)
   modifies output
   (forall V2:round, V3:value, V0:address, V1:address. new(output(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V1 = __fml_c_orig & V2 = __fml_c_r & V3 = __fml_c_v then true else output(V0, V1, V2, V3))) & nset_supermajority(__sk__Q) & (forall SRC:address. nset_member(SRC, __sk__Q) -> vote_msg(SRC, __fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v))
 
-invariant [vote_integrity] forall V:value, SRC:address, DST:address, R:round. !is_byz(SRC) & !is_byz(DST) & voted(DST, SRC, R, V) -> sent(SRC, R) & initial_value(SRC, R, V)
-invariant [output_integrity] forall V:value, SRC:address, DST:address, R:round. !is_byz(SRC) & !is_byz(DST) & output(DST, SRC, R, V) -> sent(SRC, R) & initial_value(SRC, R, V)
-invariant [agreement] forall DST2:address, V2:value, V1:value, R:round, SRC:address, DST1:address. !is_byz(DST1) & !is_byz(DST2) & output(DST1, SRC, R, V1) & output(DST2, SRC, R, V2) -> V1 = V2
+safety [vote_integrity] forall V:value, SRC:address, DST:address, R:round. !is_byz(SRC) & !is_byz(DST) & voted(DST, SRC, R, V) -> sent(SRC, R) & initial_value(SRC, R, V)
+safety [output_integrity] forall V:value, SRC:address, DST:address, R:round. !is_byz(SRC) & !is_byz(DST) & output(DST, SRC, R, V) -> sent(SRC, R) & initial_value(SRC, R, V)
+safety [agreement] forall DST2:address, V2:value, V1:value, R:round, SRC:address, DST1:address. !is_byz(DST1) & !is_byz(DST2) & output(DST1, SRC, R, V1) & output(DST2, SRC, R, V2) -> V1 = V2
+
 invariant [sent_iff_initial] forall SRC:address, R:round. !is_byz(SRC) -> (sent(SRC, R) <-> (exists V:value. initial_value(SRC, R, V)))
 invariant [echoed_iff_echo] forall R:round, DST:address, ORIG:address, V:value, N:address. echoed(N, ORIG, R, V) <-> echo_msg(N, DST, ORIG, R, V)
 invariant [echoed_requires_initial] forall V:value, N:address, ORIG:address, R:round. echoed(N, ORIG, R, V) -> initial_msg(ORIG, N, R, V)
@@ -56,3 +57,41 @@ invariant [voted_requires_echo_quorum_or_vote_quorum] forall V:value, N:address,
 invariant [output_requires_vote_quorum] forall V:value, N:address, ORIG:address, R:round. output(N, ORIG, R, V) -> (exists Q:nset. nset_supermajority(Q) & (forall SRC:address. nset_member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)))
 invariant [initial_value_iff_initial_msg] forall V:value, SRC:address, DST:address, R:round. initial_value(SRC, R, V) <-> initial_msg(SRC, DST, R, V)
 invariant [honest_non_conflicting_initial_msg] forall DST2:address, V2:value, V1:value, R:round, SRC:address, DST1:address. !is_byz(SRC) -> initial_msg(SRC, DST1, R, V1) & initial_msg(SRC, DST2, R, V2) -> V1 = V2
+
+invariant [honest_non_conflicting_echoes]
+    forall SRC:address, ORIG:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        (!is_byz(SRC)) -> (echo_msg(SRC, DST1, ORIG, R, V1) & echo_msg(SRC, DST2, ORIG, R, V2) -> V1 = V2)
+
+invariant [honest_non_conflicting_votes]
+    forall SRC:address, ORIG:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        (!is_byz(SRC)) -> (vote_msg(SRC, DST1, ORIG, R, V1) & vote_msg(SRC, DST2, ORIG, R, V2) -> V1 = V2)
+
+sat trace {}
+
+unsat trace {
+  ext_c_echo
+}
+
+sat trace {
+  ext_c_start_round
+  ext_c_echo
+}
+
+sat trace {
+  ext_c_start_round
+  ext_c_echo
+  ext_c_echo
+  ext_c_echo
+  ext_c_vote
+}
+
+sat trace {
+  ext_c_start_round
+  ext_c_echo
+  ext_c_echo
+  ext_c_echo
+  ext_c_vote
+  ext_c_vote
+  ext_c_vote
+  ext_c_deliver
+} 
