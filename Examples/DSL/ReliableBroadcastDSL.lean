@@ -24,21 +24,32 @@ section ReliableBroadcast
     - `vote4output` -- `2f + 1` nodes that have voted for the same value to output
 -/
 
+class NodeSet (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) :=
+  member (a : node) (s : nset) : Prop
+  is_empty (s : nset) : Prop
 
-/-- Byzantine quorums (2f + 1 nodes) intersect in at least one honest member. -/
-class ByzantineQuorum (node : Type) (quorum : outParam Type) :=
-  is_byz (a : node) : Prop
-  member (a : node) (q : quorum) : Prop
-  quorum_intersection :
-    ∀ (q1 q2 : quorum), ∃ (a : node), member a q1 ∧ member a q2 ∧ ¬ is_byz a
+  greater_than_third (s : nset) : Prop  -- f + 1 nodes
+  supermajority (s : nset) : Prop       -- 2f + 1 nodes
 
-type quorum
+  supermajorities_intersect_in_honest :
+    ∀ (s1 s2 : nset), ∃ (a : node), member a s1 ∧ member a s2 ∧ ¬ is_byz a
+  greater_than_third_one_honest :
+    ∀ (s : nset), greater_than_third s → ∃ (a : node), member a s ∧ ¬ is_byz a
+  supermajority_greater_than_third :
+    ∀ (s : nset), supermajority s → greater_than_third s
+  greater_than_third_nonempty :
+    ∀ (s : nset), greater_than_third s → ¬ is_empty s
+
+type nodeset
 type address
 type round
 type value
 
-instantiate q : ByzantineQuorum address quorum
-open ByzantineQuorum -- so we can write `is_byz` instead of `q.is_byz`
+-- FIXME: immutable relation?
+variable (is_byz : address → Prop)
+
+instantiate nset : NodeSet address is_byz nodeset
+open NodeSet
 
 -- TODO: we might want to replace the second condition in `vote` to use this
 -- /-- A fraction of nodes (f + 1) with at least one honest member. -/
@@ -91,18 +102,20 @@ action echo (n : address) (originator : address) (r : round) (v : value) = {
 }
 
 action vote (n : address) (originator : address) (r : round) (v : value) = {
-  -- received a quorum of echo messages OR a vote message from an honest node
-  require (∃ (q : quorum), ∀ (src : address), member src q → echo_msg src n originator r v) ∨
-          -- in practice, this is triggered when a node receives f + 1 vote messages
-          (∃ (src : address), ¬ is_byz src ∧ vote_msg src n originator r v);
+  -- received 2f + 1 echo messages OR f + 1 vote messages
+  require (∃ (q : nodeset), nset.supermajority q ∧
+              ∀ (src : address), nset.member src q → echo_msg src n originator r v) ∨
+          (∃ (q : nodeset), nset.greater_than_third q ∧
+              ∀ (src : address), nset.member src q → vote_msg src n originator r v);
   require ¬ voted n originator r v;
   voted n originator r v := True;
   vote_msg n DST originator r v := True
 }
 
 action deliver (n : address) (originator : address) (r : round) (v : value) = {
-  -- received a quorum of votes
-  require (∃ (q : quorum), ∀ (src : address), member src q → vote_msg src n originator r v);
+  -- received 2f + 1 votes
+  require (∃ (q : nodeset), nset.supermajority q ∧
+              ∀ (src : address), nset.member src q → vote_msg src n originator r v);
   output n originator r v := True
 }
 
@@ -143,18 +156,22 @@ invariant [voted_iff_vote]
   ∀ (n dst originator : address) (r : round) (v : value),
     voted n originator r v ↔ vote_msg n dst originator r v
 
--- not in the decidable fragment due to edge from `address` to `quorum`:
--- invariant [voted_requires_echo_quorum]
+-- not in the decidable fragment due to edge from `address` to `nodeset`:
+-- invariant [voted_requires_echo_quorum_or_vote_quorum]
 --   ∀ (n originator : address) (r : round) (v : value),
 --     voted n originator r v →
---       ∃ (q : quorum), ∀ (src : address), member src q → echo_msg src n originator r v
+--       (∃ (q : nodeset), nset.supermajority q ∧
+--         ∀ (src : address), member src q → echo_msg src n originator r v) ∨
+--       (∃ (q : nodeset), nset.greater_than_third q ∧
+--         ∀ (src : address), member src q → vote_msg src n originator r v)
 
 -- deliver
--- not in the decidable fragment due to edge from `address` to `quorum`
+-- not in the decidable fragment due to edge from `address` to `nodeset`
 -- invariant [output_requires_vote]
 --   ∀ (n originator : address) (r : round) (v : value),
 --     output n originator r v →
---       ∃ (q : quorum), ∀ (src : address), member src q → vote_msg src n originator r v
+--       ∃ (q : nodeset), nset.supermajority q ∧
+--         ∀ (src : address), member src q → vote_msg src n originator r v
 
 -- these invariants are discovered in the order given, by eliminating CTIs
 
@@ -179,13 +196,13 @@ set_option maxHeartbeats 10000000
 #gen_spec ReliableBroadcast
 #check_invariants
 
-theorem deliver_agreement :
-    ∀ (st st' : State quorum address round value),
-      (ReliableBroadcast quorum address round value).inv st →
-        (deliver quorum address round value) st st' →
-          (agreement quorum address round value) st' := by
-  -- unhygienic intros; solve_clause
-  sorry
+theorem deliver_agreement':
+    ∀ (st st' : State nodeset address round value is_byz),
+      (ReliableBroadcast nodeset address round value is_byz).inv st →
+        (deliver nodeset address round value is_byz) st st' →
+          (agreement nodeset address round value is_byz) st' := by
+  unhygienic intros; solve_clause
+  -- sorry
 
 prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
