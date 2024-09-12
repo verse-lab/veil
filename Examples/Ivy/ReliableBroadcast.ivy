@@ -59,6 +59,22 @@ after init {
     output(N, O, R, V) := false;
 }
 
+export action byz(n:address) = {
+    require is_byz(n);
+    # Byzantine nodes can send any non-forged message BUT cannot "unsend" them
+    # We'd want something like this:
+    # initial_msg(n, DST, R, V) := true if initial_msg(n, DST, R, V) else *;
+    # ... but this doesn't work in Ivy
+    ensure (old initial_msg(n, DST, R, V)) -> initial_msg(n, DST, R, V);
+    ensure (old echo_msg(n, DST, ORIG, R, V)) -> echo_msg(n, DST, ORIG, R, V);
+    ensure (old vote_msg(n, DST, ORIG, R, V)) -> vote_msg(n, DST, ORIG, R, V);
+
+    # I'm not sure this is explicitly needed (I think there is implicit framing)
+    ensure N ~= n -> ((old initial_msg(N, DST, R, V)) <-> initial_msg(N, DST, R, V));
+    ensure N ~= n -> ((old echo_msg(N, DST, ORIG, R, V)) <-> echo_msg(N, DST, ORIG, R, V));
+    ensure N ~= n -> ((old vote_msg(N, DST, ORIG, R, V)) <-> vote_msg(N, DST, ORIG, R, V));
+}
+
 export action start_round(n:address, r:round, v:value) = {
     require ~sent(n, r);
     initial_msg(n, N, r, v) := true;
@@ -114,30 +130,30 @@ invariant [sent_iff_initial]
 
 invariant [echoed_iff_echo]
     forall N:address, DST:address, ORIG:address, R:round, V:value.
-        echoed(N, ORIG, R, V) <-> echo_msg(N, DST, ORIG, R, V)
+       ~is_byz(N) -> (echoed(N, ORIG, R, V) <-> echo_msg(N, DST, ORIG, R, V))
 
 invariant [echoed_requires_initial]
     forall N:address, ORIG:address, R:round, V:value.
-        echoed(N, ORIG, R, V) -> initial_msg(ORIG, N, R, V)
+         ~is_byz(N) -> (echoed(N, ORIG, R, V) -> initial_msg(ORIG, N, R, V))
 
 invariant [voted_iff_vote]
     forall N:address, DST:address, ORIG:address, R:round, V:value.
-        voted(N, ORIG, R, V) <-> vote_msg(N, DST, ORIG, R, V)
+         ~is_byz(N) -> (voted(N, ORIG, R, V) <-> vote_msg(N, DST, ORIG, R, V))
 
 # not in the decidable fragment due to edge from `address` to `nset`
 invariant [voted_requires_echo_quorum_or_vote_quorum]
     forall N:address, ORIG:address, R:round, V:value.
-        voted(N, ORIG, R, V) ->
+         ~is_byz(N) -> (voted(N, ORIG, R, V) ->
             (exists Q:nset. nset.supermajority(Q) &
                 forall SRC:address. nset.member(SRC, Q) -> echo_msg(SRC, N, ORIG, R, V)) |
             (exists Q:nset. nset.greater_than_third(Q) &
-                forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V))
+                forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)))
 
 invariant [output_requires_vote_quorum]
     forall N:address, ORIG:address, R:round, V:value.
-        output(N, ORIG, R, V) ->
+         ~is_byz(N) -> (output(N, ORIG, R, V) ->
             (exists Q:nset. nset.supermajority(Q) &
-                forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V))
+                forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)))
 
 # Looking at CTIs
 
@@ -150,7 +166,7 @@ invariant [output_requires_vote_quorum]
 
 invariant [initial_value_iff_initial_msg]
     forall SRC:address, DST:address, R:round, V:value.
-        initial_value(SRC, R, V) <-> initial_msg(SRC, DST, R, V)
+         ~is_byz(N) -> (initial_value(SRC, R, V) <-> initial_msg(SRC, DST, R, V))
 
 # deliver -> agreement
 
