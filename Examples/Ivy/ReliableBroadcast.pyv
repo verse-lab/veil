@@ -1,0 +1,58 @@
+sort address
+sort round
+sort value
+sort nset
+
+immutable relation is_byz(address)
+immutable relation nset_member(address, nset)
+immutable relation nset_is_empty(nset)
+immutable relation nset_greater_than_third(nset)
+immutable relation nset_supermajority(nset)
+
+mutable relation initial_msg(address, address, round, value)
+mutable relation echo_msg(address, address, address, round, value)
+mutable relation vote_msg(address, address, address, round, value)
+mutable relation sent(address, round)
+mutable relation echoed(address, address, round, value)
+mutable relation voted(address, address, round, value)
+mutable relation output(address, address, round, value)
+
+# axiom [def1] initial_value(N, R, V) <-> (forall DST:address. initial_msg(N, DST, R, V))
+
+derived relation initial_value(address, round, value) :
+  initial_value(N, R, V) <-> (forall DST:address. initial_msg(N, DST, R, V))
+
+axiom forall S2:nset, S1:nset. exists N:address. nset_member(N, S1) & nset_member(N, S2) & !is_byz(N)
+axiom forall S:nset. nset_greater_than_third(S) -> (exists N:address. nset_member(N, S) & !is_byz(N))
+axiom forall S:nset. nset_supermajority(S) -> nset_greater_than_third(S)
+axiom forall S:nset. nset_greater_than_third(S) -> !nset_is_empty(S)
+
+init (forall V2:round, V3:value, V0:address, V1:address. initial_msg(V0, V1, V2, V3) <-> false) & (forall V4:value, V1:address, V3:round, V2:address, V0:address. echo_msg(V0, V1, V2, V3, V4) <-> false) & (forall V4:value, V1:address, V3:round, V2:address, V0:address. vote_msg(V0, V1, V2, V3, V4) <-> false) & (forall V1:round, V0:address. sent(V0, V1) <-> false) & (forall V2:round, V3:value, V0:address, V1:address. echoed(V0, V1, V2, V3) <-> false) & (forall V2:round, V3:value, V0:address, V1:address. voted(V0, V1, V2, V3) <-> false) & (forall V2:round, V3:value, V0:address, V1:address. output(V0, V1, V2, V3) <-> false)
+
+transition ext_c_start_round(__fml_c_n:address, __fml_c_r:round, __fml_c_v:value)
+  modifies initial_msg, sent
+  (forall V2:round, V3:value, V0:address, V1:address. new(initial_msg(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V2 = __fml_c_r & V3 = __fml_c_v then true else initial_msg(V0, V1, V2, V3))) & (forall V1:round, V0:address. new(sent(V0, V1)) <-> (if V0 = __fml_c_n & V1 = __fml_c_r then true else sent(V0, V1))) & !sent(__fml_c_n, __fml_c_r)
+
+transition ext_c_echo(__fml_c_n:address, __fml_c_orig:address, __fml_c_r:round, __fml_c_v:value)
+  modifies echo_msg, echoed
+  (forall V2:round, V3:value, V0:address, V1:address. new(echoed(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V1 = __fml_c_orig & V2 = __fml_c_r & V3 = __fml_c_v then true else echoed(V0, V1, V2, V3))) & (forall V4:value, V1:address, V3:round, V2:address, V0:address. new(echo_msg(V0, V1, V2, V3, V4)) <-> (if V0 = __fml_c_n & V2 = __fml_c_orig & V3 = __fml_c_r & V4 = __fml_c_v then true else echo_msg(V0, V1, V2, V3, V4))) & initial_msg(__fml_c_orig, __fml_c_n, __fml_c_r, __fml_c_v) & !echoed(__fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v)
+
+transition ext_c_vote(__fml_c_n:address, __fml_c_orig:address, __fml_c_r:round, __fml_c_v:value, __sk__Q:nset)
+  modifies vote_msg, voted
+  (forall V2:round, V3:value, V0:address, V1:address. new(voted(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V1 = __fml_c_orig & V2 = __fml_c_r & V3 = __fml_c_v then true else voted(V0, V1, V2, V3))) & (forall V4:value, V1:address, V3:round, V2:address, V0:address. new(vote_msg(V0, V1, V2, V3, V4)) <-> (if V0 = __fml_c_n & V2 = __fml_c_orig & V3 = __fml_c_r & V4 = __fml_c_v then true else vote_msg(V0, V1, V2, V3, V4))) & (nset_supermajority(__sk__Q) & (forall SRC:address. nset_member(SRC, __sk__Q) -> echo_msg(SRC, __fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v)) | nset_greater_than_third(__sk__Q) & (forall SRC:address. nset_member(SRC, __sk__Q) -> vote_msg(SRC, __fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v))) & !voted(__fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v)
+
+transition ext_c_deliver(__fml_c_n:address, __fml_c_orig:address, __fml_c_r:round, __fml_c_v:value, __sk__Q:nset)
+  modifies output
+  (forall V2:round, V3:value, V0:address, V1:address. new(output(V0, V1, V2, V3)) <-> (if V0 = __fml_c_n & V1 = __fml_c_orig & V2 = __fml_c_r & V3 = __fml_c_v then true else output(V0, V1, V2, V3))) & nset_supermajority(__sk__Q) & (forall SRC:address. nset_member(SRC, __sk__Q) -> vote_msg(SRC, __fml_c_n, __fml_c_orig, __fml_c_r, __fml_c_v))
+
+invariant [vote_integrity] forall V:value, SRC:address, DST:address, R:round. !is_byz(SRC) & !is_byz(DST) & voted(DST, SRC, R, V) -> sent(SRC, R) & initial_value(SRC, R, V)
+invariant [output_integrity] forall V:value, SRC:address, DST:address, R:round. !is_byz(SRC) & !is_byz(DST) & output(DST, SRC, R, V) -> sent(SRC, R) & initial_value(SRC, R, V)
+invariant [agreement] forall DST2:address, V2:value, V1:value, R:round, SRC:address, DST1:address. !is_byz(DST1) & !is_byz(DST2) & output(DST1, SRC, R, V1) & output(DST2, SRC, R, V2) -> V1 = V2
+invariant [sent_iff_initial] forall SRC:address, R:round. !is_byz(SRC) -> (sent(SRC, R) <-> (exists V:value. initial_value(SRC, R, V)))
+invariant [echoed_iff_echo] forall R:round, DST:address, ORIG:address, V:value, N:address. echoed(N, ORIG, R, V) <-> echo_msg(N, DST, ORIG, R, V)
+invariant [echoed_requires_initial] forall V:value, N:address, ORIG:address, R:round. echoed(N, ORIG, R, V) -> initial_msg(ORIG, N, R, V)
+invariant [voted_iff_vote] forall R:round, DST:address, ORIG:address, V:value, N:address. voted(N, ORIG, R, V) <-> vote_msg(N, DST, ORIG, R, V)
+invariant [voted_requires_echo_quorum_or_vote_quorum] forall V:value, N:address, ORIG:address, R:round. voted(N, ORIG, R, V) -> (exists Q:nset. nset_supermajority(Q) & (forall SRC:address. nset_member(SRC, Q) -> echo_msg(SRC, N, ORIG, R, V))) | (exists Q:nset. nset_greater_than_third(Q) & (forall SRC:address. nset_member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)))
+invariant [output_requires_vote_quorum] forall V:value, N:address, ORIG:address, R:round. output(N, ORIG, R, V) -> (exists Q:nset. nset_supermajority(Q) & (forall SRC:address. nset_member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)))
+invariant [initial_value_iff_initial_msg] forall V:value, SRC:address, DST:address, R:round. initial_value(SRC, R, V) <-> initial_msg(SRC, DST, R, V)
+invariant [honest_non_conflicting_initial_msg] forall DST2:address, V2:value, V1:value, R:round, SRC:address, DST1:address. !is_byz(SRC) -> initial_msg(SRC, DST1, R, V1) & initial_msg(SRC, DST2, R, V2) -> V1 = V2
