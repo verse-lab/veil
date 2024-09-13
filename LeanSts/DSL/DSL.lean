@@ -156,53 +156,51 @@ elab "after_init" "{" l:lang "}" : command => do
     elabCommand $ <- `(initial $act)
 
 /--
-Transition system action definied via a relation
+Transition defined via a two-state relation.
 -/
-syntax "action" declId (explicitBinders)? "=" term : command
+syntax "transition" declId (explicitBinders)? "=" term : command
 
 /--
-Transition system action definied via a code
-All capital letters in `require` and in assigmnets are implicitly quantified
+Transition defined as an imperative program. We call these "actions".
+All capital letters in `require` and in assignments are implicitly quantified.
 -/
 syntax "action" declId (explicitBinders)? "=" "{" lang "}" : command
 
 /--
-Desugaring of the transition system action definied via a code, into the one
-defined via a relation. Here we just compute the weakest precondition of the
-code and then define the action as a relation.
+Desugaring an imperative code action into a two-state transition. Here we compute
+the weakest precondition of the program and then define the transition relation.
 
-Note: Unlike `after_init` we expand `l` using `[lang| l]` as we want action
-to depend on the prestate.
+Note: Unlike `after_init` we expand `l` using `[lang| l]` as we want the transition
+to refer to both pre-state and post-state.
 -/
 macro_rules
   | `(command| action $nm:declId $br:explicitBinders ? = { $l:lang }) => do
     let (st, st') := (mkIdent `st, mkIdent `st')
     let act <- `(fun $st $st' => @wlp _ (fun $st => $st' = $st) [lang| $l ] $st)
-    `(action $nm $br ? = $act)
+    `(transition $nm $br ? = $act)
 
 /--
 ```lean
-action name binders* = act
+transition name binders* = tr
 ```
-This command defines a transition system action. The action is defined as a relation
-`act`, which is existential quantified over the `binders`.
+This command defines a transition relation, existentially quantified over the `binders`.
 -/
 elab_rules : command
-  | `(command| action $nm:declId $br:explicitBinders ? = $act) => do
+  | `(command| transition $nm:declId $br:explicitBinders ? = $tr) => do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st1, st2) := (mkIdent `st1, mkIdent `st2)
     match br with
     | some br =>
-      let _ <- elabTerm (<-`(term| fun $st1 $st2 => exists $br, $act $st1 $st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
+      let _ <- elabTerm (<-`(term| fun $st1 $st2 => exists $br, $tr $st1 $st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
     | none =>
-      let _ <- elabTerm act (<- mkArrow stateTp (<- mkArrow stateTp prop))
+      let _ <- elabTerm tr (<- mkArrow stateTp (<- mkArrow stateTp prop))
     let stateTp <- PrettyPrinter.delab stateTp
     match br with
     | some br =>                                                            -- TODO: add macro for a beta reduction here
-       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => exists $br, $act $st1 $st2)
+       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => exists $br, $tr $st1 $st2)
     | _ => do
-       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := $act)
+       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := $tr)
 
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do

@@ -8,9 +8,7 @@ open Lean Elab Command Term Meta Lean.Parser
 section WP
 
 variable (σ : Type)
-/--
-Language for defining programs in relational transition systems.
--/
+/-- Imperative language for defining actions. -/
 inductive Lang where
   /-- Pre-condition. All capital variables will be quantified. -/
   | require (rq  : σ -> Prop)
