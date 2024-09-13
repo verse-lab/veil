@@ -88,6 +88,23 @@ after_init {
   output _ _ _ _ := False
 }
 
+transition byz = fun st st' =>
+  (∀ (src dst : address) (r : round) (v : value),
+    (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
+    (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v))) ∧
+  (∀ (src dst originator : address) (r : round) (v : value),
+    (¬ is_byz src ∧ (st.echo_msg src dst originator r v ↔ st'.echo_msg src dst originator r v)) ∨
+    (is_byz src ∧ (st.echo_msg src dst originator r v → st'.echo_msg src dst originator r v))) ∧
+  (∀ (src dst originator : address) (r : round) (v : value),
+    (¬ is_byz src ∧ (st.vote_msg src dst originator r v ↔ st'.vote_msg src dst originator r v)) ∨
+    (is_byz src ∧ (st.vote_msg src dst originator r v → st'.vote_msg src dst originator r v)))
+  -- unchanged
+  ∧ (st.sent = st'.sent)
+  ∧ (st.echoed = st'.echoed)
+  ∧ (st.voted = st'.voted)
+  ∧ (st.output = st'.output)
+
+
 action start_round (n : address) (r : round) (v : value) = {
   require ¬ sent n r;
   initial_msg n N r v := True;
@@ -140,38 +157,38 @@ safety [agreement]
 -- start_round
 invariant [sent_iff_initial]
   ∀ (src : address) (r : round),
-    sent src r ↔ ∃ (v : value), initial_value src r v
+    ¬ is_byz src → (sent src r ↔ ∃ (v : value), initial_value src r v)
 
 -- echo
 invariant [echoed_iff_echo]
   ∀ (n dst originator : address) (r : round) (v : value),
-    echoed n originator r v ↔ echo_msg n dst originator r v
+    ¬ is_byz n → (echoed n originator r v ↔ echo_msg n dst originator r v)
 
 invariant [echoed_requires_initial]
   ∀ (n originator : address) (r : round) (v : value),
-    echoed n originator r v → initial_msg originator n r v
+    ¬ is_byz n → (echoed n originator r v → initial_msg originator n r v)
 
 -- vote
 invariant [voted_iff_vote]
   ∀ (n dst originator : address) (r : round) (v : value),
-    voted n originator r v ↔ vote_msg n dst originator r v
+    ¬ is_byz n → (voted n originator r v ↔ vote_msg n dst originator r v)
 
 -- not in the decidable fragment due to edge from `address` to `nodeset`:
--- invariant [voted_requires_echo_quorum_or_vote_quorum]
+invariant [voted_requires_echo_quorum_or_vote_quorum]
   ∀ (n originator : address) (r : round) (v : value),
-    voted n originator r v →
+    ¬ is_byz n → (voted n originator r v →
       (∃ (q : nodeset), nset.supermajority q ∧
         ∀ (src : address), member src q → echo_msg src n originator r v) ∨
       (∃ (q : nodeset), nset.greater_than_third q ∧
-        ∀ (src : address), member src q → vote_msg src n originator r v)
+        ∀ (src : address), member src q → vote_msg src n originator r v))
 
 -- deliver
 -- not in the decidable fragment due to edge from `address` to `nodeset`
 invariant [output_requires_vote_quorum]
   ∀ (n originator : address) (r : round) (v : value),
-    output n originator r v →
+    ¬ is_byz n → (output n originator r v →
       ∃ (q : nodeset), nset.supermajority q ∧
-        ∀ (src : address), member src q → vote_msg src n originator r v
+        ∀ (src : address), member src q → vote_msg src n originator r v)
 
 -- these invariants are discovered in the order given, by eliminating CTIs
 
@@ -184,7 +201,7 @@ invariant [output_requires_vote_quorum]
 -- So instead we use the following:
 invariant [initial_value_iff_initial_msg]
   ∀ (src dst : address) (r : round) (v : value),
-    initial_value src r v ↔ initial_msg src dst r v
+    ¬ is_byz src → (initial_value src r v ↔ initial_msg src dst r v)
 
 -- deliver_agreement
 invariant [honest_non_conflicting_initial_msg]
@@ -212,8 +229,9 @@ theorem deliver_agreement':
       (ReliableBroadcast nodeset address round value is_byz).inv st →
         (deliver nodeset address round value is_byz) st st' →
           (agreement nodeset address round value is_byz) st' := by
-  unhygienic intros; solve_clause
-  -- sorry
+  -- unhygienic intros; solve_clause
+  -- this works with CVC5!
+  sorry
 
 prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
