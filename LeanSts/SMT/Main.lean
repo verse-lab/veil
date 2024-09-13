@@ -47,7 +47,7 @@ instance : ToString CheckSatResult where
 inductive SmtResult
   | Sat (model : Option FirstOrderStructure)
   | Unsat (unsatCore : Auto.Parser.SMTSexp.Sexp)
-  | Unknown
+  | Unknown (reason : String)
 
 namespace Smt
 open Elab Tactic Qq
@@ -74,10 +74,8 @@ def emitCommandStr (p : SolverProc) (c : String) : MetaM Unit := do
 def emitCommand (p : SolverProc) (c : IR.SMT.Command) : MetaM Unit := do
   emitCommandStr p s!"{c}\n"
 
-def createSolver (name : SolverName) (timeout : Option Nat) : MetaM SolverProc := do
-  let tlim ← match timeout with
-  | none => pure (auto.smt.timeout.get (← getOptions))
-  | some t => pure t
+def createSolver (name : SolverName) (timeout : Nat) : MetaM SolverProc := do
+  let tlim_sec := timeout
   match name with
   | .none => throwError "createSolver :: Unexpected error"
   -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-T:{tlim}"]
@@ -85,9 +83,12 @@ def createSolver (name : SolverName) (timeout : Option Nat) : MetaM SolverProc :
   | .z3   =>
     let solverPath := (System.mkFilePath [s!"{← IO.currentDir}", "z3model.py"]).toString
     trace[sauto.debug] "Z3 wrapper at {solverPath}"
-    createAux solverPath #[s!"--tlimit={tlim}"]
+    createAux solverPath #[s!"--tlimit={tlim_sec}"]
   | .cvc4 => throwError "cvc4 is not supported"
-  | .cvc5 => createAux "cvc5" #[s!"--tlimit={tlim * 1000}", "--produce-models"]
+  | .cvc5 =>
+      let args := #["--lang", "smt", s!"--tlimit={tlim_sec * 1000}",
+        "--finite-model-find", "--enum-inst-interleave", "--nl-ext-tplanes", "--produce-models"]
+      createAux "cvc5" args
 where
   createAux (path : String) (args : Array String) : MetaM SolverProc :=
     IO.Process.spawn {stdin := .piped, stdout := .piped, stderr := .piped,
@@ -125,11 +126,17 @@ def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
 
 def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatResult := do
   withTraceNode `sauto.perf.checkSat (fun _ => return "checkSat") do
-  if sauto.smt.macrofinder.get (← getOptions) then
+  if sauto.smt.macrofinder.get (← getOptions) && solverName == SolverName.z3 then
+    -- only Z3 supports the macro-finder tactic
     emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
   else
     emitCommand solver .checkSat
-  let stdout ← Handle.readLineSkip solver.stdout
+  let stdout ←
+    -- Our Z3 wrapper works differently from the other solvers
+    if solverName == SolverName.z3 then
+      Handle.readLineSkip solver.stdout
+    else
+      solver.stdout.getLine
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
@@ -232,7 +239,7 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
   minimizeModelImpl solver solverName fostruct
 
 open Smt Smt.Tactic Translate in
-def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := true) : MetaM SmtResult := do
+def querySolver (goalQuery : String) (timeout : Nat) (minimize : Bool := true) : MetaM SmtResult := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
   let opts ← getOptions
   let solverName := sauto.smt.solver.get opts
@@ -268,20 +275,27 @@ def querySolver (goalQuery : String) (timeout : Option Nat) (minimize : Bool := 
       trace[sauto.result] "Unsat core: {unsatCore}"
       -- trace[sauto] "stderr:\n{stderr}"
       return .Unsat unsatCore
-  | _ => return .Unknown
+  | .Unknown reason => return .Unknown reason
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
 syntax (name := sauto) "sauto" smtHints smtTimeout : tactic
 
+/- We use our own `parseTimeout` because the one in `lean-smt` has a
+  hard-coded `5` as default if no timeout is specified. -/
+def parseTimeout : TSyntax `smtTimeout → TacticM Nat
+  | `(smtTimeout| (timeout := $n)) => return n.getNat
+  | `(smtTimeout| ) => return (auto.smt.timeout.get (← getOptions))
+  | _ => throwUnsupportedSyntax
+
 @[tactic sauto] def evalSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
   let hs ← Tactic.parseHints ⟨stx[1]⟩
-  let timeout ← Tactic.parseTimeout ⟨stx[2]⟩
+  let timeout ← parseTimeout ⟨stx[2]⟩
   let cmdString ← prepareQuery mv hs
   let res ← querySolver cmdString timeout
   match res with
   | .Sat _ => throwError "the goal is false"
-  | .Unknown => throwError "the solver returned unknown"
+  | .Unknown reason => throwError "the solver returned unknown: {reason}"
   | .Unsat _ => mv.admit (synthetic := false)
 
 open Lean.Meta in
@@ -305,7 +319,7 @@ open Lean.Meta in
 @[tactic admit_if_satisfiable] def evalAdmitIfSat : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
   let hs ← Tactic.parseHints ⟨stx[1]⟩
-  let timeout ← Tactic.parseTimeout ⟨stx[2]⟩
+  let timeout ← parseTimeout ⟨stx[2]⟩
   let cmdString ← prepareQuery mv hs
   let res ← querySolver cmdString timeout
   match res with
@@ -313,7 +327,7 @@ open Lean.Meta in
     trace[sauto.result] "The negation of the goal is satisfiable, hence the goal is valid."
     mv.admit (synthetic := false)
   | .Unsat _ => throwError "the goal is false"
-  | .Unknown => throwError "the solver returned unknown"
+  | .Unknown reason => throwError "the solver returned unknown: {reason}"
 
 
 end Smt

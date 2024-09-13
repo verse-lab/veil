@@ -217,36 +217,28 @@ invariant [honest_non_conflicting_votes]
     (¬ is_byz src) → (vote_msg src dst₁ originator r v₁ ∧ vote_msg src dst₂ originator r v₂ → v₁ = v₂)
 
 set_option maxHeartbeats 10000000
-set_option auto.smt.timeout 10 -- seconds
-set_option sauto.smt.macrofinder true -- Ivy uses this by default
+set_option auto.smt.timeout 15 -- seconds
+-- set_option sauto.smt.macrofinder true -- Ivy uses this by default
 
 #gen_spec ReliableBroadcast
 
 #check_invariants
 
-theorem deliver_agreement':
+-- this works with CVC5!
+set_option sauto.smt.solver "cvc5" in
+@[invProof] theorem deliver_agreement:
     ∀ (st st' : State nodeset address round value is_byz),
       (ReliableBroadcast nodeset address round value is_byz).inv st →
         (deliver nodeset address round value is_byz) st st' →
           (agreement nodeset address round value is_byz) st' := by
-  -- unhygienic intros; solve_clause
-  -- this works with CVC5!
-  sorry
+  unhygienic intros; solve_clause
 
 prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
 
--- set_option trace.sauto.result true
-
 prove_inv_inductive by {
   intro hnext hinv
-  sts_induction <;> sdestruct_goal <;> try already_proven
-  {
-    sdestruct_hyps
-    simplify_all
-    -- sauto_all?
-    sorry
-  }
+  sts_induction <;> sdestruct_goal <;> already_proven
 }
 
 sat trace [initial_state] {} by { bmc_sat }
