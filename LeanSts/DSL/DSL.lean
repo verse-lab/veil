@@ -152,7 +152,7 @@ elab "after_init" "{" l:lang "}" : command => do
    -- doesn't depend on a prestate we can reduce it into `fun _ => Ini(st')`
    -- To get `Ini(st')` we should apply `fun _ => Ini(st')`  to any
    -- state, so we use `st'` as it is the only state we have in the context.
-    let act <- `(fun st' => @wp _ (fun st => st' = st) [lang1| $l ] st')
+    let act <- `(fun st' => @wlp _ (fun st => st' = st) [lang1| $l ] st')
     elabCommand $ <- `(initial $act)
 
 /--
@@ -177,7 +177,7 @@ to depend on the prestate.
 macro_rules
   | `(command| action $nm:declId $br:explicitBinders ? = { $l:lang }) => do
     let (st, st') := (mkIdent `st, mkIdent `st')
-    let act <- `(fun $st $st' => @wp _ (fun $st => $st' = $st) [lang| $l ] $st)
+    let act <- `(fun $st $st' => @wlp _ (fun $st => $st' = $st) [lang| $l ] $st)
     `(action $nm $br ? = $act)
 
 /--

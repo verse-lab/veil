@@ -12,21 +12,36 @@ variable (σ : Type)
 Language for defining programs in relational transition systems.
 -/
 inductive Lang where
-    /-- All capital variables will be quantified -/
+  /-- Pre-condition. All capital variables will be quantified. -/
   | require (rq  : σ -> Prop)
-    /-- this is mostly used for assignments. But we can have a command that arbitrarily changes the state
-         All capital variables will be quantifiedl -/
+  /-- Deterministic actions, although mostly used for assignments. All
+      capital variables will be quantified. -/
   | act     (act : σ -> σ)
+  /-- If-then-else -/
   | ite     (cnd : σ -> Bool) (thn : Lang) (els : Lang)
+  /-- Sequence of actions -/
   | seq     (l1 : Lang) (l2 : Lang)
 
-@[inline] abbrev hprop := σ -> Prop
+/-- One-state formula -/
+@[inline] abbrev sprop := σ -> Prop
+/-- Two-state formula -/
+@[inline] abbrev actprop := σ -> σ -> Prop
 
-@[actSimp] abbrev wp (post : hprop σ) : Lang σ -> hprop σ
+/-- Weakest liberal precondition transformer. It takes a post-condition and
+    a program and returns the weakest pre-condition that guarantees the
+    post-condition IF the program terminates.
+    This defines the axiomatic semantics of our language. -/
+@[actSimp] abbrev wlp (post : sprop σ) : Lang σ -> sprop σ
+  -- `require` enhances the pre-condition, restricting the possible states
+  -- it has the same effect as `assume` in Hoare logic
   | Lang.require rq      => fun s => rq s ∧ post s
+  -- a deterministic `act` transforms the state
   | Lang.act act         => fun s => post (act s)
-  | Lang.ite cnd thn els => fun s => if cnd s then wp post thn s else wp post els s
-  | Lang.seq l1 l2       => wp (wp post l2) l1
+  -- the meaning of `ite` depends on which branch is taken
+  | Lang.ite cnd thn els => fun s => if cnd s then wlp post thn s else wlp post els s
+  -- `seq` is a composition of programs, so we need to compute the wlp of
+  -- the first program, given the wlp of the second
+  | Lang.seq l1 l2       => wlp (wlp post l2) l1
 
 declare_syntax_cat lang
 syntax lang ";" colGe lang : lang
