@@ -238,11 +238,21 @@ def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : Fi
   withTraceNode `sauto.perf.minimizeModel (fun _ => return "minimizeModel") do
   minimizeModelImpl solver solverName fostruct
 
+/-- If the solver returns `Unknown`, we try the other solver. -/
+def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
+  match tried with
+  | SolverName.z3 => SolverName.cvc5
+  | SolverName.cvc5 => SolverName.z3
+  | _ => none
+
 open Smt Smt.Tactic Translate in
-def querySolver (goalQuery : String) (timeout : Nat) (minimize : Bool := true) : MetaM SmtResult := do
+partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (minimize : Bool := true) : MetaM SmtResult := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
   let opts ← getOptions
-  let solverName := sauto.smt.solver.get opts
+  let solverName :=
+    match forceSolver with
+    | some s => s
+    | none => sauto.smt.solver.get opts
   trace[sauto.debug] "solver: {solverName}"
   let solver ← createSolver solverName timeout
   if solverName == SolverName.cvc5 then
@@ -275,7 +285,17 @@ def querySolver (goalQuery : String) (timeout : Nat) (minimize : Bool := true) :
       trace[sauto.result] "Unsat core: {unsatCore}"
       -- trace[sauto] "stderr:\n{stderr}"
       return .Unsat unsatCore
-  | .Unknown reason => return .Unknown reason
+  | .Unknown reason =>
+      trace[sauto.result] "{solverName} says Unknown ({reason})"
+      if retryOnFailure then
+        match solverToTryOnUnknown solverName with
+        | some s => do
+          solver.kill
+          trace[sauto.result] "Retrying the query with {s}"
+          querySolver goalQuery timeout (forceSolver := some s) (retryOnFailure := false) minimize
+        | none => return .Unknown reason
+      else
+        return .Unknown reason
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
 syntax (name := sauto) "sauto" smtHints smtTimeout : tactic
@@ -292,7 +312,7 @@ def parseTimeout : TSyntax `smtTimeout → TacticM Nat
   let hs ← Tactic.parseHints ⟨stx[1]⟩
   let timeout ← parseTimeout ⟨stx[2]⟩
   let cmdString ← prepareQuery mv hs
-  let res ← querySolver cmdString timeout
+  let res ← querySolver cmdString timeout (retryOnFailure := true)
   match res with
   | .Sat _ => throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
@@ -321,7 +341,7 @@ open Lean.Meta in
   let hs ← Tactic.parseHints ⟨stx[1]⟩
   let timeout ← parseTimeout ⟨stx[2]⟩
   let cmdString ← prepareQuery mv hs
-  let res ← querySolver cmdString timeout
+  let res ← querySolver cmdString timeout (retryOnFailure := true)
   match res with
   | .Sat _ =>
     trace[sauto.result] "The negation of the goal is satisfiable, hence the goal is valid."

@@ -224,15 +224,6 @@ set_option auto.smt.timeout 15 -- seconds
 
 #check_invariants
 
--- this works with CVC5!
-set_option sauto.smt.solver "cvc5" in
-@[invProof] theorem deliver_agreement:
-    ∀ (st st' : State nodeset address round value is_byz),
-      (ReliableBroadcast nodeset address round value is_byz).inv st →
-        (deliver nodeset address round value is_byz) st st' →
-          (agreement nodeset address round value is_byz) st' := by
-  unhygienic intros; solve_clause
-
 prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
 
