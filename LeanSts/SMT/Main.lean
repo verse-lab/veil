@@ -15,6 +15,7 @@ initialize
   registerTraceClass `sauto.model
   registerTraceClass `sauto.debug
   -- the following are primarily for performance profiling
+  registerTraceClass `sauto.perf.translate
   registerTraceClass `sauto.perf.query
   registerTraceClass `sauto.perf.checkSat
   registerTraceClass `sauto.perf.getUnsatCore
@@ -54,6 +55,7 @@ open Elab Tactic Qq
 
 open Smt Smt.Tactic Translate in
 def prepareQuery (mv : MVarId) (hs : List Expr) : MetaM String := mv.withContext do
+  withTraceNode `sauto.perf.translate (fun _ => return "prepareQuery") do
   let mv ← Util.rewriteIffMeta mv
   let goalType : Q(Prop) ← mv.getType
   -- 1. Process the hints passed to the tactic.
@@ -324,6 +326,7 @@ open Embedding.Lam Lean.Meta in
   [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126)),
   but produces unreadable queries. -/
 def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM String := do
+  withTraceNode `sauto.perf.translate (fun _ => return "prepareAutoQuery") do
   -- HACK: We operate on a cloned goal, and then reset it to the original.
   let goal := (← mkFreshExprMVar (← mv.getType)).mvarId!
   let (goalBinders, newGoal) ← goal.intros

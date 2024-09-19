@@ -336,7 +336,6 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
     let mut initChecks := #[]
     let mut actChecks := #[]
     let (st, st') := (mkIdent `st, mkIdent `st')
-    let proofScript ← `(by unhygienic intros; solve_clause)
     -- TODO: extract the generic part of this code out
     -- (1) Collect checks that invariants hold in the initial state
     for inv in invs do
@@ -344,6 +343,7 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
       let property ← PrettyPrinter.delab $ mkAppN inv vs
       let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
       let initThName := s!"init_{invName}".toName
+      let proofScript ← `(by unhygienic intros; solve_clause [initSimp])
       let checkTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := $proofScript)
       let failedTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := sorry)
       initChecks := initChecks.push (invName, (initThName, checkTheorem, failedTheorem))
@@ -356,6 +356,8 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
           let act ← PrettyPrinter.delab $ mkAppN actName vs
           let actTpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
           let actThName := s!"{actName}_{invName}".toName
+          let actId := Lean.mkIdent actName.constName!
+          let proofScript ← `(by unhygienic intros; solve_clause [$actId])
           let checkTheorem ← `(@[invProof] theorem $(mkIdent actThName) : $actTpStx := $proofScript)
           let failedTheorem ← `(@[invProof] theorem $(mkIdent actThName) : $actTpStx := sorry)
           checks := checks.push (invName, (actThName, checkTheorem, failedTheorem))
@@ -437,5 +439,6 @@ macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
 
 attribute [initSimp] RelationalTransitionSystem.init
 attribute [invSimp] RelationalTransitionSystem.inv
+attribute [invSimp] RelationalTransitionSystem.safe
 attribute [safeSimp] RelationalTransitionSystem.safe
 attribute [actSimp] RelationalTransitionSystem.next

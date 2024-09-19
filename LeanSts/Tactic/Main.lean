@@ -114,7 +114,14 @@ def getPropsInContext : TacticM (Array Ident) := do
   let idents := (props.toList.eraseDups.map mkIdent).toArray
   return idents
 
-def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := withMainContext do
+/--
+  `simp0` is an optimisation to speed up the simplification process.
+  For instance, if we know that the goal is an `init` goal, we can
+  pass ``#[`initSimp]`` to not waste time simplifying actions.
+-/
+def elabSolveClause (stx : Syntax)
+  (simp0 : Array Name := #[`initSimp, `actSimp])
+  (trace : Bool := false) : TacticM Unit := withMainContext do
   -- (*) Collect executed tactics to generate suggestion
   let mut xtacs := #[]
   -- (1) Identify the type of the state
@@ -132,7 +139,7 @@ def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := wit
   let injEqLemma := stateName ++ `mk ++ `injEq
   -- This is faster than `simp` with all the lemmas, see:
   -- https://github.com/verse-lab/lean-sts/issues/29#issuecomment-2360300222
-  let simp0 := mkSimpLemmas #[`initSimp, `actSimp]
+  let simp0 := mkSimpLemmas simp0
   let simp1 := mkSimpLemmas #[`wlp]
   let simp2 := mkSimpLemmas #[injEqLemma, `invSimp, `smtSimp]
   let simpTac ← `(tactic| try
@@ -152,18 +159,14 @@ def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := wit
     let combined_tactic ← `(tactic| $xtacs;*)
     addSuggestion stx combined_tactic
   evalTactic autoTac
-  where
-    -- FIXME: is there a better way to do this?
-    mkSimpName (n : Name) :=
-     mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n []]
-    namesToLemmas (simpIds : Array (TSyntax `Lean.Parser.Tactic.simpLemma)) : Syntax.TSepArray _ "," := Syntax.TSepArray.ofElems simpIds
-    mkSimpLemmas (simpIds : Array Name) : Syntax.TSepArray _ "," := namesToLemmas (simpIds.map mkSimpName)
 
 syntax (name := solveClause) "solve_clause" : tactic
+syntax (name := solveClauseWith) "solve_clause" "[" ident,* "]" : tactic
 syntax (name := solveClauseTrace) "solve_clause?" : tactic
 elab_rules : tactic
   | `(tactic| solve_clause%$tk) => elabSolveClause tk
-  | `(tactic| solve_clause?%$tk) => elabSolveClause tk true
+  | `(tactic| solve_clause?%$tk) => elabSolveClause tk (trace := true)
+  | `(tactic| solve_clause%$tk [ $[$simp0],* ]) => elabSolveClause tk (simp0.map getNameOfIdent')
 
 /-- Call `sauto` with all the hypotheses in the context. -/
 def elabSautoAll (stx : Syntax) (trace : Bool := false) : TacticM Unit := withMainContext do
@@ -180,7 +183,8 @@ elab_rules : tactic
   | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
 elab "simplify_all" : tactic => withMainContext do
-  let simp_tac ← `(tactic| simp only [initSimp, actSimp, invSimp, safeSimp, smtSimp] at *;)
+  let toSimp := mkSimpLemmas #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp]
+  let simp_tac ← `(tactic| simp only [$toSimp,*] at *;)
   evalTactic simp_tac
 
 /-- Tactic to solve `unsat trace` goals. -/
