@@ -74,7 +74,7 @@ invariant pending L L → le N L
 -- set_option trace.sauto.query true
 -- set_option trace.sauto.result true
 
-prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
+prove_inv_init by { simp_all [initSimp, actSimp, wlp, invSimp] }
 
 prove_inv_safe by {
   sdestruct st;
@@ -89,7 +89,7 @@ prove_inv_inductive by {
 }
 
 sat trace [initial_state] {} by {
-  simp [initSimp, actSimp]
+  simp [initSimp, actSimp, wlp]
   -- exists { leader := fun _ => false, pending := fun _ _ => false }
 }
 

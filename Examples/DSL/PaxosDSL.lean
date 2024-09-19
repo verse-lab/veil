@@ -190,7 +190,7 @@ invariant one_b N R2 ∧ ¬ TotalOrder.le R2 R1 → leftRound N R1
 
 #gen_spec Paxos
 
-prove_inv_init by { simp_all [initSimp, invSimp, actSimp] }
+prove_inv_init by { simp_all [initSimp, invSimp, actSimp, wlp] }
 prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] ; duper }
 
 set_option maxHeartbeats 2000000
@@ -209,7 +209,7 @@ unsat trace {
   phase_2b
 } by {
   sintro st0 st1 st2
-  simp [initSimp, actSimp, State.mk.injEq]
+  simp [initSimp, actSimp, wlp, State.mk.injEq]
   duper
 }
 
