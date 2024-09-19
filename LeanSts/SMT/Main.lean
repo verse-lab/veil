@@ -246,7 +246,7 @@ def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
   | _ => none
 
 open Smt Smt.Tactic Translate in
-partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (minimize : Bool := true) : MetaM SmtResult := do
+partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Bool := true) : MetaM SmtResult := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
   let opts ← getOptions
   let solverName :=
@@ -264,19 +264,23 @@ partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Opti
   match checkSatResponse with
   | .Sat =>
       trace[sauto.result] "{solverName} says Sat"
-      let model ← getModel solver
-      trace[sauto.debug] "Model:\n{model}"
-      -- For Z3, we have model pretty-printing and minimization.
-      if solverName == SolverName.z3 then
-        let mut fostruct ← extractStructure model
-        if minimize then
-          fostruct ← minimizeModel solver solverName fostruct
-        trace[sauto.model] "{fostruct}"
-        return .Sat fostruct
-      -- Non-Z3 solver
+      if getModel? then
+        let model ← getModel solver
+        trace[sauto.debug] "Model:\n{model}"
+        -- For Z3, we have model pretty-printing and minimization.
+        if solverName == SolverName.z3 then
+          let mut fostruct ← extractStructure model
+          if minimize then
+            fostruct ← minimizeModel solver solverName fostruct
+          trace[sauto.model] "{fostruct}"
+          return .Sat fostruct
+        -- Non-Z3 solver
+        else
+          trace[sauto.model] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
+          trace[sauto.model] "Model:\n{model}"
+          solver.kill
+          return .Sat .none
       else
-        trace[sauto.model] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
-        trace[sauto.model] "Model:\n{model}"
         solver.kill
         return .Sat .none
   | .Unsat =>
@@ -371,17 +375,23 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     let queryStr := String.intercalate "\n" (commands.toList.map toString)
     return queryStr
 
-/-- `sauto` generates nice-looking SMT queries. -/
 @[tactic sauto] def evalSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
   let timeout ← parseTimeout ⟨stx[2]⟩
-  -- let hs ← Tactic.parseHints ⟨stx[1]⟩
-  -- let cmdString ← prepareQuery mv hs
+  -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
+  -- we first use `lean-auto` to generate the query, and call `lean-smt` only
+  -- if the query is satisfiable and we want to print a model.
+  -- (1) We first call `lean-auto`
   let hs ← parseAutoHints ⟨stx[1]⟩
   let cmdString ← prepareAutoQuery mv hs
-  let res ← querySolver cmdString timeout (retryOnFailure := true)
+  let res ← querySolver cmdString timeout (getModel? := false) (retryOnFailure := true)
   match res with
-  | .Sat _ => throwError "the goal is false"
+  | .Sat _ =>
+    -- (2) If the query is satisfiable, we call `lean-smt` to get the model.
+    let hs ← Tactic.parseHints ⟨stx[1]⟩
+    let cmdString ← prepareQuery mv hs
+    let _ ← querySolver cmdString timeout
+    throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
   | .Unsat _ => mv.admit (synthetic := false)
 
