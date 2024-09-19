@@ -29,7 +29,7 @@ inductive Lang where
     a program and returns the weakest pre-condition that guarantees the
     post-condition IF the program terminates.
     This defines the axiomatic semantics of our language. -/
-@[actSimp] abbrev wlp (post : sprop σ) : Lang σ -> sprop σ
+abbrev wlp (post : sprop σ) : Lang σ -> sprop σ
   -- `require` enhances the pre-condition, restricting the possible states
   -- it has the same effect as `assume` in Hoare logic
   | Lang.require rq      => fun s => rq s ∧ post s

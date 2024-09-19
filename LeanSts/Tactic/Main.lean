@@ -130,12 +130,13 @@ def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := wit
   -- destruct State structures into their components everywhere (via `injEqLemma`)
   -- We also make simplifications required by `lean-smt`: `funextEq`, `tupleEq`
   let injEqLemma := stateName ++ `mk ++ `injEq
-  let simpIds := #[injEqLemma, `initSimp, `actSimp, `invSimp, `safeSimp, `smtSimp].map
-    -- FIXME: is there a better way to do this?
-    (fun n => mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n []])
-  let simpIds : Syntax.TSepArray _ ",":= Syntax.TSepArray.ofElems simpIds
-  -- dbg_trace "Using injEqLemma: {injEqLemma}"
-  let simpTac ← `(tactic| try simp only [$simpIds,*] at *)
+  -- This is faster than `simp` with all the lemmas, see:
+  -- https://github.com/verse-lab/lean-sts/issues/29#issuecomment-2360300222
+  let simp0 := mkSimpLemmas #[`initSimp, `actSimp]
+  let simp1 := mkSimpLemmas #[`wlp]
+  let simp2 := mkSimpLemmas #[injEqLemma, `invSimp, `smtSimp]
+  let simpTac ← `(tactic| try
+    (try simp only [$simp0,*] at *) ; (try dsimp only [$simp1,*] at *); (try simp only [$simp2,*] at *))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
@@ -151,6 +152,12 @@ def elabSolveClause (stx : Syntax) (trace : Bool := false) : TacticM Unit := wit
     let combined_tactic ← `(tactic| $xtacs;*)
     addSuggestion stx combined_tactic
   evalTactic autoTac
+  where
+    -- FIXME: is there a better way to do this?
+    mkSimpName (n : Name) :=
+     mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n []]
+    namesToLemmas (simpIds : Array (TSyntax `Lean.Parser.Tactic.simpLemma)) : Syntax.TSepArray _ "," := Syntax.TSepArray.ofElems simpIds
+    mkSimpLemmas (simpIds : Array Name) : Syntax.TSepArray _ "," := namesToLemmas (simpIds.map mkSimpName)
 
 syntax (name := solveClause) "solve_clause" : tactic
 syntax (name := solveClauseTrace) "solve_clause?" : tactic
