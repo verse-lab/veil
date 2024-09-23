@@ -73,31 +73,35 @@ def Array.vertexAtRound (dag : DAG) (v : Vertex) (r : Nat) : Prop :=
 
 /- Check if `p` is a (backwards) path consisting of strong and weak
    vertices from `v` to `u` in the DAG. -/
-def DAG.isPath (dag : DAG) (p : Array Vertex) (v u : Vertex) : Prop :=
+def Array.isPath (p : Array Vertex) (v u : Vertex) : Prop :=
   (0 < p.size ∧ p[0]! = v ∧ p[p.size - 1]! = u) ∧
   (∀ i,
     i ∈ [1 : p.size - 1] →
     let vᵢ := p[i]!
     let vₚ := p[i - 1]!
-    vᵢ ∈ dag ∧ (vᵢ ∈ (vₚ.weakEdges ∪ vₚ.strongEdges)))
-
-def DAG.path' (dag : DAG) (v u : Vertex) : Prop :=
-  ∃ p, DAG.isPath dag p v u
+    vᵢ ∈ (vₚ.weakEdges ∪ vₚ.strongEdges))
 
 /- Check if `p` is a (backwards) path consisting of only strong vertices
    from `v` to `u` in the DAG. -/
-def DAG.isStrongPath (dag : DAG) (p : Array Vertex) (v u : Vertex) : Prop :=
+def Array.isStrongPath (p : Array Vertex) (v u : Vertex) : Prop :=
   (0 < p.size ∧ p[0]! = v ∧ p[p.size - 1]! = u) ∧
   (∀ i,
     i ∈ [1 : p.size - 1] →
     let vᵢ := p[i]!
     let vₚ := p[i - 1]!
-    vᵢ ∈ dag ∧ (vᵢ ∈ vₚ.strongEdges))
+    vᵢ ∈ vₚ.strongEdges)
 
-def DAG.strongPath' (dag : DAG) (v u : Vertex) : Prop :=
-  ∃ p, DAG.isStrongPath dag p v u
+/-- Are all the given `vs` in `dag`? -/
+def Array.containsAll (dag : DAG) (vs : Array Vertex) : Bool :=
+  vs.all (dag.allVertices.contains)
 
-partial def DAG.DFS (startAt : Vertex) (strongOnly : Bool := true) : Set Vertex :=
+def Array.path (dag : DAG) (v u : Vertex) : Prop :=
+  ∃ p, p.isPath v u ∧ dag.containsAll p
+
+def Array.strongPath (dag : DAG) (v u : Vertex) : Prop :=
+  ∃ p, p.isStrongPath v u ∧ dag.containsAll p
+
+partial def DFS (startAt : Vertex) (strongOnly : Bool := true) : Set Vertex :=
   let rec DFS (visited : Set Vertex) (node : Vertex) : Set Vertex :=
     if visited.contains node then
       visited
@@ -109,8 +113,8 @@ partial def DAG.DFS (startAt : Vertex) (strongOnly : Bool := true) : Set Vertex 
       List.foldl DFS newVisited toVisit
   DFS [] startAt
 
-def DAG.path (v u : Vertex) : Bool :=
-  (DAG.DFS v (strongOnly := false)).contains u
+def DAG.path' (v u : Vertex) : Bool :=
+  (DFS v (strongOnly := false)).contains u
 
-def DAG.strongPath (v u : Vertex) : Bool :=
-  (DAG.DFS v).contains u
+def DAG.strongPath' (v u : Vertex) : Bool :=
+  (DFS v).contains u
