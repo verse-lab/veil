@@ -51,6 +51,7 @@ def Vertex.weakEdges : Vertex → Set Vertex
 --   /-- `a ∪ b` is the union of`a` and `b`. -/
 --   union : α → α → α
 instance : Union (Set Vertex) where
+  -- TODO: make this behave like set union
   union := List.union
 
 /-- A DAG consists of the vertices at each round. We represent rounds by
@@ -60,7 +61,7 @@ notation "DAG" => Array (Set Vertex)
 def Array.numRounds (dag : DAG) : Nat := dag.size
 
 def Array.allVertices (dag : DAG) : Set Vertex :=
-  dag.foldl (· ++ ·) []
+  dag.foldl (· ∪ ·) []
 
 /- v ∈ ⋃_{r + 1} DAG[r] -/
 instance : Membership Vertex DAG where
@@ -80,7 +81,7 @@ def DAG.isPath (dag : DAG) (p : Array Vertex) (v u : Vertex) : Prop :=
     let vₚ := p[i - 1]!
     vᵢ ∈ dag ∧ (vᵢ ∈ (vₚ.weakEdges ∪ vₚ.strongEdges)))
 
-def DAG.path (dag : DAG) (v u : Vertex) : Prop :=
+def DAG.path' (dag : DAG) (v u : Vertex) : Prop :=
   ∃ p, DAG.isPath dag p v u
 
 /- Check if `p` is a (backwards) path consisting of only strong vertices
@@ -93,5 +94,23 @@ def DAG.isStrongPath (dag : DAG) (p : Array Vertex) (v u : Vertex) : Prop :=
     let vₚ := p[i - 1]!
     vᵢ ∈ dag ∧ (vᵢ ∈ vₚ.strongEdges))
 
-def DAG.strongPath (dag : DAG) (v u : Vertex) : Prop :=
+def DAG.strongPath' (dag : DAG) (v u : Vertex) : Prop :=
   ∃ p, DAG.isStrongPath dag p v u
+
+partial def DAG.DFS (startAt : Vertex) (strongOnly : Bool := true) : Set Vertex :=
+  let rec DFS (visited : Set Vertex) (node : Vertex) : Set Vertex :=
+    if visited.contains node then
+      visited
+    else
+      let newVisited := node :: visited
+      let toVisit := if strongOnly then node.strongEdges else node.weakEdges ∪ node.strongEdges
+      /- Run DFS from each node in `toVisit`, progressively enhancing
+      `visited` after each DFS. -/
+      List.foldl DFS newVisited toVisit
+  DFS [] startAt
+
+def DAG.path (v u : Vertex) : Bool :=
+  (DAG.DFS v (strongOnly := false)).contains u
+
+def DAG.strongPath (v u : Vertex) : Bool :=
+  (DAG.DFS v).contains u
