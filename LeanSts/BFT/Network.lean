@@ -26,11 +26,13 @@ class NetworkProtocol {NetAddr Message LocalState InternalTransition : Type} :=
   procInternal : LocalState → InternalTransition → LocalState × List (Packet NetAddr Message)
   procMessage : LocalState → NetAddr /- sender -/ → Message → LocalState × List (Packet NetAddr Message)
 
+abbrev Network {NetAddr : Type} := List NetAddr
+
 /-- A network consists of the packet soup and the local states of nodes.
   Informally, this is called a "World". -/
 structure NetworkState {NetAddr Packet LocalState : Type} :=
   /-- The set of all nodes in the network. -/
-  nodes: List NetAddr
+  nodes: @Network NetAddr
   /-- The respective local state of nodes. -/
   localState : NetAddr → LocalState
   /-- The set of sent messages. -/
