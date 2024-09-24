@@ -24,12 +24,6 @@ local notation "InputEvent" => @InputEvent NodeID Value
 local notation "OutputEvent" => @OutputEvent NodeID Value
 local notation "InternalEvent" => @InternalEvent NodeID Value
 
-inductive SelfEvent where
-  | input (i : InputEvent)
-  | internal (i : InternalEvent)
-
-local notation "SelfEvent" => @SelfEvent NodeID Value
-
 inductive Message where
   /-- Message to indicate the initiation of a broadcast. -/
   | initMsg (inst : InstanceID) (v : Value)
@@ -86,14 +80,17 @@ def thresVote4Vote (net : Network) : ℕ := numNodes net - 2 * byzThres net
 /-- `n - f ≥ 2f + 1`-/
 def thresVote4Deliver (net : Network) : ℕ := numNodes net - byzThres net
 
-def procInt (net : Network) (st : NodeState) (t : SelfEvent) : NodeState × List Packet × List SelfEvent × List OutputEvent :=
+def procInp (net : Network) (st : NodeState) (t : InputEvent) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
   match t with
-  | .input $ .broadcast (src, r) v =>
+  | .broadcast (src, r) v =>
     if st.haveBroadcast r || src != st.id then (st, [], [], []) else
     let st' := { st with haveBroadcast := st.haveBroadcast[r ↦ true]};
     let msg := Message.initMsg (src, r) v;
     (st', Packet.broadcast st.id net msg, [], [])
-  | .internal $ .checkCounters inst v =>
+
+def procInt (net : Network) (st : NodeState) (t : InternalEvent) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
+  match t with
+  | .checkCounters inst v =>
     -- Do we have enough echoes to vote?
     let echoesToVote := (st.seenEcho inst v).length ≥ threshEcho4Vote net;
     -- Do we have enough votes to vote?
@@ -111,7 +108,7 @@ def procInt (net : Network) (st : NodeState) (t : SelfEvent) : NodeState × List
 
     (st', pkts', [], ev')
 
-def procMsg (net : Network) (st : NodeState) (src : NodeID) (msg : Message) : NodeState × List Packet × List SelfEvent × List OutputEvent :=
+def procMsg (net : Network) (st : NodeState) (src : NodeID) (msg : Message) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
   match msg with
   | .initMsg inst v =>
     if let .none := st.haveEchoed inst then
@@ -124,18 +121,19 @@ def procMsg (net : Network) (st : NodeState) (src : NodeID) (msg : Message) : No
     if src ∈ recvFrom then (st, [], [], []) else
     let seenEcho' := src :: (st.seenEcho inst v);
     let st' := { st with seenEcho := st.seenEcho[inst, v ↦ seenEcho'] };
-    (st', [], [.internal $ .checkCounters inst v], [])
+    (st', [], [.checkCounters inst v], [])
   | .voteMsg inst v =>
     let recvFrom := st.seenVote inst v;
     if src ∈ recvFrom then (st, [], [], []) else
     let seenVote' := src :: (st.seenVote inst v);
     let st' := { st with seenVote := st.seenVote[inst, v ↦ seenVote'] };
-    (st', [], [.internal $ .checkCounters inst v], [])
+    (st', [], [.checkCounters inst v], [])
 
 -- TODO: want to prove the correctness of this by refinement of the decidable protocol
 
-instance RB : @NetworkProtocol NodeID NodeState SelfEvent OutputEvent Message := {
+instance RB : @NetworkProtocol NodeID NodeState InputEvent InternalEvent OutputEvent Message := {
   localInit := initLocalState,
+  procInput := procInp,
   procInternal := procInt,
   procMessage := procMsg
 }
