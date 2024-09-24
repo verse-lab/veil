@@ -8,14 +8,27 @@ variable {NodeID Value : Type} [DecidableEq NodeID] [DecidableEq Value]
 abbrev Round := ℕ
 local notation "InstanceID" => (NodeID × Round)
 
--- TODO: should we distinguish between "input" and "output" events?
-
 /- External protocols interact with this one by issuing (`broadcast`)
-and handling (`deliver`) `InternalEvents` of this protocol. -/
-inductive InternalEvent where
+   inputs and handling (`deliver`) outputs of this protocol. -/
+
+inductive InputEvent where
   | broadcast (inst : InstanceID) (v : Value)
-  | checkCounters (inst : InstanceID) (v : Value)
+
+inductive OutputEvent where
   | deliver (inst : InstanceID) (v : Value)
+
+inductive InternalEvent where
+  | checkCounters (inst : InstanceID) (v : Value)
+
+local notation "InputEvent" => @InputEvent NodeID Value
+local notation "OutputEvent" => @OutputEvent NodeID Value
+local notation "InternalEvent" => @InternalEvent NodeID Value
+
+inductive SelfEvent where
+  | input (i : InputEvent)
+  | internal (i : InternalEvent)
+
+local notation "SelfEvent" => @SelfEvent NodeID Value
 
 inductive Message where
   /-- Message to indicate the initiation of a broadcast. -/
@@ -24,7 +37,6 @@ inductive Message where
   | voteMsg (inst : InstanceID) (v : Value)
 deriving DecidableEq
 
-local notation "InternalEvent" => @InternalEvent NodeID Value
 local notation "Message" => @Message NodeID Value
 
 def Message.instanceID : Message → InstanceID
@@ -74,21 +86,20 @@ def thresVote4Vote (net : Network) : ℕ := numNodes net - 2 * byzThres net
 /-- `n - f ≥ 2f + 1`-/
 def thresVote4Deliver (net : Network) : ℕ := numNodes net - byzThres net
 
-def procInt (net : Network) (st : NodeState) (t : InternalEvent) : NodeState × List Packet × List InternalEvent :=
+def procInt (net : Network) (st : NodeState) (t : SelfEvent) : NodeState × List Packet × List SelfEvent × List OutputEvent :=
   match t with
-  | .broadcast (src, r) v =>
-    if st.haveBroadcast r || src != st.id then (st, [], []) else
+  | .input $ .broadcast (src, r) v =>
+    if st.haveBroadcast r || src != st.id then (st, [], [], []) else
     let st' := { st with haveBroadcast := st.haveBroadcast[r ↦ true]};
     let msg := Message.initMsg (src, r) v;
-    (st', Packet.broadcast st.id net msg, [])
-  | .checkCounters inst v =>
+    (st', Packet.broadcast st.id net msg, [], [])
+  | .internal $ .checkCounters inst v =>
     -- Do we have enough echoes to vote?
     let echoesToVote := (st.seenEcho inst v).length ≥ threshEcho4Vote net;
     -- Do we have enough votes to vote?
     let votesToVote := (st.seenVote inst v).length ≥ thresVote4Vote net;
     -- Do we have enough votes to deliver?
     let votesToDeliver := (st.seenVote inst v).length ≥ thresVote4Deliver net;
-
     -- Make the required changes to the state
     let shouldVote := (st.haveVoted inst).isNone && (echoesToVote || votesToVote);
     let st' := if shouldVote then { st with haveVoted := st.haveVoted[inst ↦ v] } else st;
@@ -96,33 +107,37 @@ def procInt (net : Network) (st : NodeState) (t : InternalEvent) : NodeState × 
 
     let shouldDeliver := (st.haveDelivered inst).isNone && votesToDeliver;
     let st' := if shouldDeliver then { st' with haveDelivered := st'.haveDelivered[inst ↦ v] } else st';
-    let ev' := if shouldDeliver then [InternalEvent.deliver inst v] else [];
+    let ev' := if shouldDeliver then [.deliver inst v] else [];
 
-    (st', pkts', ev')
-  | .deliver .. => (st, [], [])
+    (st', pkts', [], ev')
 
-def procMsg (net : Network) (st : NodeState) (src : NodeID) (msg : Message) : NodeState × List Packet × List InternalEvent :=
+def procMsg (net : Network) (st : NodeState) (src : NodeID) (msg : Message) : NodeState × List Packet × List SelfEvent × List OutputEvent :=
   match msg with
   | .initMsg inst v =>
     if let .none := st.haveEchoed inst then
       let st' := { st with haveEchoed := st.haveEchoed[inst ↦ v] };
       let msg := Message.echoMsg inst v;
-      (st', Packet.broadcast st.id net msg, [])
-    else (st, [], [])
+      (st', Packet.broadcast st.id net msg, [], [])
+    else (st, [], [], [])
   | .echoMsg inst v =>
     let recvFrom := st.seenEcho inst v;
-    if src ∈ recvFrom then (st, [], []) else
+    if src ∈ recvFrom then (st, [], [], []) else
     let seenEcho' := src :: (st.seenEcho inst v);
     let st' := { st with seenEcho := st.seenEcho[inst, v ↦ seenEcho'] };
-    (st', [], [.checkCounters inst v])
+    (st', [], [.internal $ .checkCounters inst v], [])
   | .voteMsg inst v =>
     let recvFrom := st.seenVote inst v;
-    if src ∈ recvFrom then (st, [], []) else
+    if src ∈ recvFrom then (st, [], [], []) else
     let seenVote' := src :: (st.seenVote inst v);
     let st' := { st with seenVote := st.seenVote[inst, v ↦ seenVote'] };
-    (st', [], [.checkCounters inst v])
+    (st', [], [.internal $ .checkCounters inst v], [])
 
 -- TODO: want to prove the correctness of this by refinement of the decidable protocol
 
+instance RB : @NetworkProtocol NodeID NodeState SelfEvent OutputEvent Message := {
+  localInit := initLocalState,
+  procInternal := procInt,
+  procMessage := procMsg
+}
 
 end ReliableBroadcast
