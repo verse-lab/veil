@@ -58,9 +58,9 @@ structure NetworkState {NetAddr LocalState InputEvent InternalEvent OutputEvent 
   /-- The set of sent messages. -/
   packetSoup : Multiset Packet
 
-@[simp] def updNS {NetAddr LocalState : Type} [DecidableEq NetAddr]
-  (n : NetAddr) (st : LocalState) (states : NetAddr → LocalState) : NetAddr → LocalState :=
-  λ n' => if n = n' then st else states n'
+/-- Update a map. -/
+@[simp] def updM {K V : Type} [DecidableEq K] (map : K → V) (k' : K) (v : V) : K → V :=
+  λ k => if k = k' then v else map k
 
 namespace AsynchronousNetwork
   abbrev World {NetAddr LocalState InputEvent InternalEvent OutputEvent Packet : Type} := @NetworkState NetAddr LocalState InputEvent InternalEvent OutputEvent Packet
@@ -103,7 +103,7 @@ namespace AsynchronousNetwork
       (_ : p ∈ w.packetSoup)
       (_ : ¬ byz.isByzantine p.dst)
       (_ : let (st', msgs, (_int, _out)) := protocol.procMessage w.nodes (w.localState p.dst) p.src p.msg
-          w' = { w with localState := updNS p.dst st' w.localState,
+          w' = { w with localState := updM w.localState p.dst st',
                         packetSoup := Packet.consume p w.packetSoup + msgs })
 
     /-- Node `proc` executes internal transition `t`. -/
@@ -111,7 +111,7 @@ namespace AsynchronousNetwork
       (_ : s = step.intern proc t)
       (_ : ¬ byz.isByzantine proc)
       (_ : let (st', msgs, _evs) := protocol.procInternal w.nodes (w.localState proc) t
-          w' = { w with localState := updNS proc st' w.localState,
+          w' = { w with localState := updM w.localState proc st',
                         packetSoup := w.packetSoup + msgs })
 
     /-- The Byzantine adversary creates a packet. -/
