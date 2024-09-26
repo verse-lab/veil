@@ -1,4 +1,5 @@
-import Mathlib.Tactic
+import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Finset.Card
 
 /-- `N` number of nodes, with at most `f` faults. -/
 class ByzantineSetting {NetAddr : Type} :=

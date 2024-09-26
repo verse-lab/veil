@@ -1,4 +1,4 @@
-import Mathlib.Tactic
+import Mathlib.Data.Multiset.Basic
 import LeanSts.BFT.Byzantine
 
 /-- Packets over the network. -/
@@ -39,6 +39,9 @@ class NetworkProtocol {NetAddr LocalState InputEvent InternalEvent OutputEvent M
   procInput : @Network NetAddr → LocalState → InputEvent → LocalState × List (Packet NetAddr Message) × List InternalEvent × List OutputEvent
   procInternal : @Network NetAddr → LocalState → InternalEvent → LocalState × List (Packet NetAddr Message) × List InternalEvent × List OutputEvent
   procMessage : @Network NetAddr → LocalState → NetAddr /- sender -/ → Message → LocalState × List (Packet NetAddr Message) × List InternalEvent × List OutputEvent
+
+abbrev NetworkProtocol.InputEvent (_ : @NetworkProtocol NodeID NodeState ie InternalEvent OutputEvent Message) := ie
+abbrev NetworkProtocol.OutputEvent (_ : @NetworkProtocol NodeID NodeState ie InternalEvent oe Message) := oe
 
 /-- A network consists of the packet soup and the local states of nodes.
   Informally, this is called a "World". -/

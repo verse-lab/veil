@@ -1,7 +1,8 @@
 import Batteries.Data.List
 
-
-variable {node bl : Type} [Inhabited node] [BEq node] [Inhabited bl] [BEq bl]
+variable {node bl : Type}
+  [Inhabited node] [BEq node] [dec_node : DecidableEq node]
+  [Inhabited bl] [BEq bl] [dec_block : DecidableEq bl]
 
 local notation "Set" => List
 
@@ -23,9 +24,18 @@ inductive Vertex where
   | V (round : Nat) (source : node) (block : bl) (strongEdges : Set Vertex) (weakEdges : Set Vertex) : Vertex
 deriving BEq, Inhabited
 
--- TODO: look into `elab_by_elim`
+-- TODO: look into `@[elab_as_elim]`
 
 local notation "Vertex" => @Vertex node bl
+
+@[inline] def Vertex.hasDecEq (a b : Vertex) : Decidable (Eq a b) :=
+   match a, b with
+   | .Root a, .Root b => by rw [Vertex.Root.injEq]; apply (dec_node a b)
+   | .V r s b se we, .V r' s' b' se' we' => sorry
+   | .Root _, .V .. => isFalse (by rintro ⟨⟩)
+   | .V .., .Root _ => isFalse (by rintro ⟨⟩)
+
+instance : DecidableEq Vertex := Vertex.hasDecEq
 
 def Vertex.round : Vertex → Nat
   | Vertex.Root _ => 0
@@ -56,7 +66,7 @@ instance : Union (Set Vertex) where
 
 /-- A DAG consists of the vertices at each round. We represent rounds by
     indices in the array. -/
-notation "DAG" => Array (Set Vertex)
+local notation "DAG" => Array (Set Vertex)
 
 def Array.numRounds (dag : DAG) : Nat := dag.size
 
@@ -70,6 +80,22 @@ instance : Membership Vertex DAG where
 /-- Is the given vertex `v` at round `r` in the DAG? -/
 def Array.vertexAtRound (dag : DAG) (v : Vertex) (r : Nat) : Prop :=
   r < dag.numRounds ∧ v ∈ dag[r]!
+
+/-- Ensure `a` has at least size `sz`, filling empty space with default `α`. -/
+def Array.ensureCapacity [Inhabited α] (a : Array α) (sz : Nat) : Array α :=
+  if sz < a.size then a else
+    let diff := sz - a.size
+    let suffix := Array.mkArray diff default
+    a.append suffix
+
+/-- Add the given vertex to the DAG at the round indicated by `v.round`,
+    extending the array if necessary. -/
+def Array.addVertex (dag : DAG) (v : Vertex) : DAG :=
+  let r := v.round;
+  let newV := match dag.get? r with
+    | none => [v]
+    | some vs => v :: vs
+  (dag.ensureCapacity r).setD r newV
 
 /- Check if `p` is a (backwards) path consisting of strong and weak
    vertices from `v` to `u` in the DAG. -/
@@ -113,8 +139,8 @@ partial def DFS (startAt : Vertex) (strongOnly : Bool := true) : Set Vertex :=
       List.foldl DFS newVisited toVisit
   DFS [] startAt
 
-def DAG.path' (v u : Vertex) : Bool :=
+def DAG.path (v u : Vertex) : Bool :=
   (DFS v (strongOnly := false)).contains u
 
-def DAG.strongPath' (v u : Vertex) : Bool :=
+def DAG.strongPath (v u : Vertex) : Bool :=
   (DFS v).contains u

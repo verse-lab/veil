@@ -5,7 +5,7 @@ namespace ReliableBroadcast
 
 variable {NodeID Value : Type} [DecidableEq NodeID] [DecidableEq Value]
 
-abbrev Round := ℕ
+abbrev Round := Nat
 local notation "InstanceID" => (NodeID × Round)
 
 /- External protocols interact with this one by issuing (`broadcast`)
