@@ -4,7 +4,7 @@ import Examples.DAG.ReliableBroadcast
 /- Algorithm 2 in the "All You Need is DAG" (DAG Rider) paper.-/
 namespace DAGConstruction
 
-variable (NodeID Block : Type) [DecidableEq NodeID] [Inhabited NodeID] [DecidableEq Block] [Inhabited Block]
+variable {NodeID Block : Type} [DecidableEq NodeID] [Inhabited NodeID] [DecidableEq Block] [Inhabited Block]
 local notation "Vertex" => @Vertex NodeID Block
 local notation "Set" => List
 local notation "DAG" => Array (Set Vertex)
@@ -26,7 +26,7 @@ inductive Output where
 
 def OutputEvent := NetworkProtocol.InputEvent RB ⊕ Output
 
-local notation "InputEvent" => @InputEvent
+local notation "InputEvent" => @InputEvent NodeID Block _
 local notation "OutputEvent" => @OutputEvent NodeID Block _
 local notation "InternalEvent" => @InternalEvent
 
@@ -66,16 +66,14 @@ def initLocalState (id : NodeID) : NodeState := {
 
 /-- `n - f ≥ 2f + 1`-/
 abbrev numNodes (net : Network) : ℕ := net.length
-abbrev byzThres (net : Network) : ℕ := (numNodes _ net) / 3
+abbrev byzThres (net : Network) : ℕ := (numNodes net) / 3
 /-- `n - f ≥ 2f + 1`-/
-def threshVerticesToAdvance (net : Network) : ℕ := numNodes _ net - byzThres _ net
-local notation "threshVerticesToAdvance" => @threshVerticesToAdvance NodeID
+def threshVerticesToAdvance (net : Network) : ℕ := numNodes net - byzThres net
 
 /-- We have all of `v`'s predecessors when all of its strong and weak
 edges are in the DAG. L7 in Algorithm 2.-/
 @[inline] def havePredecessors (st : NodeState) (v : Vertex) : Bool :=
   (v.strongEdges ∪ v.weakEdges).all st.dag.allVertices.contains
-local notation "havePredecessors" => @havePredecessors NodeID Block _ _
 
 /-- Add complete buffer vertices up to round `r` to the dag. L6-9 in
     Algorithm 2.-/
@@ -83,12 +81,22 @@ def addBufferVerticesToDag (st : NodeState) (r : Round): NodeState :=
   let (vertices, buffer') := st.buffer.partition (fun v => v.round ≤ r && havePredecessors st v)
   let dag' := vertices.foldl (λ dag v => dag.addVertex v) st.dag
   { st with dag := dag', buffer := buffer' }
-local notation "addBufferVerticesToDag" => @addBufferVerticesToDag NodeID Block _ _
 
 /-- Add weak eges to all unconnected vertices in the past. -/
 def setWeakEdges (st : NodeState) (v : Vertex) (r : Round) : Set Vertex :=
   st.dag.allVertices.filter (λ u => 0 < u.round && u.round < r - 1 && !(DAG.path v u))
 local notation "setWeakEdges" => @setWeakEdges NodeID Block _ _
+
+def procInp (net : Network) (st : NodeState) (t : InputEvent) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
+  match t with
+  -- upon `r_deliver`
+  | .deliver (_src, _r) v =>
+    if v.strongEdges.length > threshVerticesToAdvance net then
+      -- FIXME: check that `v.source = src` and `v.round = r`?
+      let st := { st with buffer := v :: st.buffer }
+      (st, [], [], [])
+    else
+      (st, [], [], [])
 
 -- TODO: need a way to indicate initial InternalEvent queue when setting up a protocol
 def procInt (net : Network) (st : NodeState) (t : InternalEvent) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
@@ -114,5 +122,15 @@ def procInt (net : Network) (st : NodeState) (t : InternalEvent) : NodeState × 
         let v := .V r st.id bl weakEdges strongEdges
         let st := { st with blocksToPropose := blocksToPropose' }
         (st, [], [.runMainLoop], [Sum.inl $ .broadcast (st.id, r) v])
+
+def procMsg (_net : Network) (st : NodeState) (_src : NodeID) (_msg : Message) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
+  (st, [], [], [])
+
+instance DAGConstruct : @NetworkProtocol NodeID NodeState InputEvent InternalEvent OutputEvent Message := {
+  localInit := initLocalState,
+  procInput := procInp,
+  procInternal := procInt,
+  procMessage := procMsg
+}
 
 end DAGConstruction
