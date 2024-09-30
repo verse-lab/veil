@@ -125,7 +125,7 @@ def procInt (net : Network) (st : NodeState) (t : InternalEvent) : NodeState × 
 def procMsg (_net : Network) (st : NodeState) (_src : NodeID) (_msg : Message) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
   (st, [], [], [])
 
-instance DAGConstruct : @NetworkProtocol NodeID NodeState InputEvent InternalEvent OutputEvent Message := {
+instance DAGConstructionProto : @NetworkProtocol NodeID NodeState InputEvent InternalEvent OutputEvent Message := {
   localInit := initLocalState,
   procInput := procInp,
   procInternal := procInt,

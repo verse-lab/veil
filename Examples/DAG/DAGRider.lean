@@ -6,7 +6,7 @@ variable {NodeID Block : Type} [DecidableEq NodeID] [Inhabited NodeID] [Decidabl
 local notation "Vertex" => @Vertex NodeID Block
 abbrev Round := DAGConstruction.Round
 local notation "InstanceID" => (NodeID × Round)
-
+local notation "RB" => @ReliableBroadcast.RB NodeID Vertex _ _
 /- Global perfect coin -/
 variable {chooseLeader : Round → NodeID}
 
@@ -23,6 +23,12 @@ structure NodeState :=
   -- leadersStack : List Vertex
 local notation "NodeState" => @NodeState NodeID Block
 
+def initLocalState (id : NodeID) : NodeState := {
+  dagState := DAGConstruction.initLocalState id,
+  decidedWave := 0,
+  deliveredVertices := []
+}
+
 -- local notation "DAGConstruct" => @DAGConstruction.DAGConstruct NodeID Block _ _
 -- FIXME: we are implicitly assuming FIFO channels, which is probably what we want in any case
 
@@ -30,18 +36,25 @@ inductive Input where
   | atomicBroadcast (r : Round) (bl : Block)
 local notation "Input" => @Input Block
 
-abbrev InputEvent := Input ⊕ DAGConstruction.Output
+abbrev InputEvent := Input
 
-abbrev InternalEvent := Unit
+/- All DAGConstruction events become InternalEvents for DAGRider, since the construction protocol is embedded. -/
+abbrev InternalEvent :=
+  (@DAGConstruction.InputEvent NodeID Block _) ⊕
+  DAGConstruction.InternalEvent ⊕
+  (@DAGConstruction.OutputEvent NodeID Block _)
 
-inductive OutputEvent where
+inductive Output where
   | atomicDeliver (inst : InstanceID) (b : Block)
+local notation "Output" => @Output NodeID Block
+
+abbrev OutputEvent := Output ⊕ NetworkProtocol.InputEvent RB
 
 local notation "InputEvent" => @InputEvent Block
-local notation "InternalEvent" => @InternalEvent
-local notation "OutputEvent" => @OutputEvent NodeID Block
+local notation "InternalEvent" => @InternalEvent NodeID Block _
+local notation "OutputEvent" => @OutputEvent NodeID Block _
 
-def Message := Unit
+def Message := DAGConstruction.Message
 
 local notation "Message" => @Message
 local notation "Packet" => @Packet NodeID Message
@@ -75,10 +88,17 @@ def orderVertices (st : NodeState) (leaderStack : List Vertex) : List Vertex :=
 def procInp (net : Network) (st : NodeState) (t : InputEvent) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
   match t with
   -- "upon `a_bcast`"
-  | .inl $ .atomicBroadcast r bl =>
+  | .atomicBroadcast r bl =>
     let st := { st with dagState.blocksToPropose := st.dagState.blocksToPropose.enqueue bl }
     (st, [], [], [])
-  | .inr $ .waveReady w =>
+
+/- This function is cumbersome here because it does not describe just
+DAGRider, but in fact DAGRider + DAGConstruction, and `procInt` handles
+hooking together all the communication channels. -/
+def procInt (net : Network) (st : NodeState) (t : InternalEvent) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
+  match t with
+  -- DAG Rider logic: handle `waveReady` event from DAGConstruction
+  | .inr $ .inr $ .inr (.waveReady w) =>
     match getWaveVertexLeader st w with
     | none => (st, [], [], []) -- return
     | some v =>
@@ -95,7 +115,44 @@ def procInp (net : Network) (st : NodeState) (t : InputEvent) : NodeState × Lis
         ) ([v], v)
         let toDeliver := orderVertices st leadersStack
         let st := { st with decidedWave := w, deliveredVertices := st.deliveredVertices ∪ toDeliver }
-        let deliverEvents := toDeliver.map (fun v => OutputEvent.atomicDeliver (v.source, v.round) v.block.get!)
+        let deliverEvents := toDeliver.map (fun v => .inl $ .atomicDeliver (v.source, v.round) v.block.get!)
         (st, [], [], deliverEvents)
+
+  -- Glue: input into DAGConstruction, i.e. `RB_deliver`
+  -- (Sum.inl (@ReliableBroadcast.OutputEvent.deliver (Prod.mk _ _) _))
+  | .inl $ rbDeliver =>
+    let (dagState', pkts, int, out) := DAGConstruction.procInp net st.dagState rbDeliver
+    let int := int.map (fun e => (.inr $ .inl e : InternalEvent))
+    let out := out.map (fun e => (.inr $ .inr e : InternalEvent))
+    let st := { st with dagState := dagState' }
+    -- NOTE: `broadcast` output from DAGConstr to RB becomes an internal event here
+    (st, pkts, int ++ out, [])
+
+  -- Glue: internal events of DAGConstruction
+  -- (Sum.inr (Sum.inl DAGConstruction.InternalEvent.createNewVertex))
+  -- (Sum.inr (Sum.inl DAGConstruction.InternalEvent.runMainLoop))
+  | .inr $ .inl dagConstrInternal =>
+    let (dagState', pkts, int, out) := DAGConstruction.procInt net st.dagState dagConstrInternal
+    let int := int.map (fun e => (.inr $ .inl e : InternalEvent))
+    let out := out.map (fun e => (.inr $ .inr e : InternalEvent))
+    let st := { st with dagState := dagState' }
+    (st, pkts, int ++ out, [])
+
+  -- Glue: output from DAGConstruction, i.e. `RB_broadcast` (which is then fed as input into RB)
+  -- (Sum.inr (Sum.inr (Sum.inl (@ReliableBroadcast.InputEvent.broadcast (Prod.mk _ _) _))))
+  | .inr $ .inr $ .inl rbBroadcast =>
+    -- We don't process this again, but output it ourselves
+    (st, [], [], [.inr rbBroadcast])
+
+
+def procMsg (net : Network) (st : NodeState) (src : NodeID) (msg : Message) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
+  (st, [], [], [])
+
+instance DAGRiderProto : @NetworkProtocol NodeID NodeState InputEvent InternalEvent OutputEvent Message := {
+  localInit := initLocalState,
+  procInput := procInp,
+  procInternal := @procInt _ _ _ _ _ chooseLeader,
+  procMessage := procMsg
+}
 
 end DAGRider
