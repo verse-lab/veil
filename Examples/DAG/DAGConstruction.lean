@@ -13,11 +13,7 @@ abbrev Round := ReliableBroadcast.Round
 local notation "RB" => @ReliableBroadcast.RB NodeID Vertex _ _
 -- TODO: need some way to feed input into this protocol instance
 
-inductive Input where
-  | enqueueBlock (bl : Block)
-local notation "Input" => @Input Block
-
-abbrev InputEvent := Input ⊕ NetworkProtocol.OutputEvent RB
+abbrev InputEvent := NetworkProtocol.OutputEvent RB
 
 inductive InternalEvent where
   /-- Run a loop beginning at L6 and ending at L13 (inclusive) -/
@@ -93,11 +89,7 @@ local notation "setWeakEdges" => @setWeakEdges NodeID Block _ _
 
 def procInp (net : Network) (st : NodeState) (t : InputEvent) : NodeState × List Packet × List InternalEvent × List OutputEvent :=
   match t with
-  | .inl $ .enqueueBlock bl =>
-    let st := { st with blocksToPropose := st.blocksToPropose.enqueue bl }
-    (st, [], [], [])
-  -- upon `r_deliver`
-  | .inr $ .deliver (_src, _r) v =>
+  | .deliver (_src, _r) v =>
     if v.strongEdges.length > threshVerticesToAdvance net then
       -- FIXME: check that `v.source = src` and `v.round = r`?
       let st := { st with buffer := v :: st.buffer }
