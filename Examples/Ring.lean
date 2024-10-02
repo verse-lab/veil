@@ -32,26 +32,26 @@ variable [DecidableEq node] [tot : TotalOrder node] [DecidableRel tot.le] [Betwe
 open Between TotalOrder
 
 theorem btw_irreflexive : ∀ (n m : node),  ¬ btw m n n := by
-  duper [btw_side] {portfolioInstance := 1}
+  duper [btw_side] {portfolioInstance := 7}
 
 theorem btw_irreflexive' : ∀ (n m : node), ¬ btw m m n := by
-  duper [btw_ring, btw_side] {portfolioInstance := 1}
+  duper [btw_ring, btw_side] {portfolioInstance := 7}
 
 theorem btw_arg : ∀ (a b c : node), btw a b c →
   ¬ a = b ∧ ¬ a = c ∧ ¬ b = c := by
-  duper [btw_ring, btw_trans, btw_side, Between.btw_total] {portfolioInstance := 1}
+  duper [btw_ring, btw_trans, btw_side, Between.btw_total] {portfolioInstance := 7}
 
 theorem btw_next :
   (∀ (z : node), n ≠ next ∧ ((z ≠ n ∧ z ≠ next) → btw n next z)) →
   (∀ (z : node), ¬ btw n z next) := by
-  duper [btw_ring, btw_trans, btw_side, Between.btw_total] {portfolioInstance := 1}
+  duper [btw_ring, btw_trans, btw_side, Between.btw_total]
 
 theorem btw_opposite
   (Hn : ∀ (z : node), ¬ btw n z next)
   (h1 : btw sender N next)
   (h2 : btw sender n N) :
   False := by
-  duper [Hn, h1, h2, btw_ring, btw_trans] {portfolioInstance := 1}
+  duper [Hn, h1, h2, btw_ring, btw_trans] {portfolioInstance := 7}
 
 structure Structure :=
   leader (n : node) : Prop

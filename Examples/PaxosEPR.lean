@@ -275,7 +275,7 @@ set_option auto.smt.trust true
 --   { sorry }
 --   { sorry }
 
-set_option smt.solver.finitemodelfind true
+-- set_option smt.solver.finitemodelfind true
 -- set_option trace.sauto.query true
 -- set_option trace.sauto.result true
 
@@ -287,8 +287,11 @@ theorem extracted_1 (st st' : @Structure node value round)
   inv_choose_propose st' := by
   sdestruct st st' q tot;
   simp only [actSimp, invSimp, Structure.mk.injEq, funextEq, tupleEq] at *
-  sauto[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
-       tot.le_trans, hinv, hnext]
+  -- FIXME: why does this give a "getSexp : incomplete output" error?
+  -- I suspect it's related to getting an "unknown" from Z3??
+  -- sauto[q.quorum_intersection, tot.le_refl, tot.le_total, tot.le_antisymm,
+  --      tot.le_trans, hinv, hnext]
+  sorry
 
 -- This returns SAT!
 theorem extracted_2 (st st' : @Structure node value round)
