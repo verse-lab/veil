@@ -159,13 +159,13 @@ elab "after_init" "{" l:lang "}" : command => do
 /--
 Transition defined via a two-state relation.
 -/
-syntax "transition" declId (explicitBinders)? "=" term : command
+syntax "transition" ident (explicitBinders)? "=" term : command
 
 /--
 Transition defined as an imperative program. We call these "actions".
 All capital letters in `require` and in assignments are implicitly quantified.
 -/
-syntax "action" declId (explicitBinders)? "=" "{" lang "}" : command
+syntax "action" ident (explicitBinders)? "=" "{" lang "}" : command
 
 /--
 Desugaring an imperative code action into a two-state transition. Here we compute
@@ -175,19 +175,28 @@ Note: Unlike `after_init` we expand `l` using `[lang| l]` as we want the transit
 to refer to both pre-state and post-state.
 -/
 macro_rules
-  | `(command| action $nm:declId $br:explicitBinders ? = { $l:lang }) => do
+  | `(command| action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
     let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
     let act <- `(fun $st $st' => @wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
     `(transition $nm $br ? = $act)
+
+/-- We have two versions of actions: `act` and `act.fn`. The former has
+existentially quantified arguments (and is thus a transition), whereas
+the latter has universally quantified arguments (and is thus a function
+that returns a transition for specific argument instances). -/
+def toFnName (id : Ident) : Ident :=
+  mkIdent (id.getId ++ `fn)
 
 /--
 ```lean
 transition name binders* = tr
 ```
-This command defines a transition relation, existentially quantified over the `binders`.
+This command defines:
+- `act`: a transition relation, existentially quantified over the `binders`.
+- `act.fn` : a function that returns a transition relation for specific arguments `binders`.
 -/
 elab_rules : command
-  | `(command| transition $nm:declId $br:explicitBinders ? = $tr) => do
+  | `(command| transition $nm:ident $br:explicitBinders ? = $tr) => do
   let cmds ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st1, st2) := (mkIdent `st1, mkIdent `st2)
@@ -201,11 +210,16 @@ elab_rules : command
     let stateTp <- PrettyPrinter.delab stateTp
     match br with
     | some br =>
-      let br ← toBracketedBinderArray br
       -- TODO: add macro for a beta reduction here
-      return [← `(@[actDef, actSimp] def $nm $br* : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => $tr $st1 $st2)]
+      let quantifiedAction ← `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => exists $br, $tr $st1 $st2)
+      let br ← toBracketedBinderArray br
+      let nm := toFnName nm
+      let callableAction ← `(def $nm $br* : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => $tr $st1 $st2)
+      return [quantifiedAction, callableAction]
     | _ => do
-      return [← `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := $tr)]
+      let names := [nm, toFnName nm]
+      let cmds ← names.mapM (fun nm => `(@[actDef, actSimp] def $nm:ident : $stateTp -> $stateTp -> Prop := $tr))
+      return cmds
   for cmd in cmds do
     elabCommand cmd
 
