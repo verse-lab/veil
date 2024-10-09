@@ -188,20 +188,26 @@ This command defines a transition relation, existentially quantified over the `b
 -/
 elab_rules : command
   | `(command| transition $nm:declId $br:explicitBinders ? = $tr) => do
-  elabCommand $ <- Command.runTermElabM fun vs => do
+  let cmds ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st1, st2) := (mkIdent `st1, mkIdent `st2)
+    -- IMPORTANT: we elaborate the term here so we get an error if it doesn't type check
     match br with
     | some br =>
       let _ <- elabTerm (<-`(term| fun $st1 $st2 => exists $br, $tr $st1 $st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
     | none =>
       let _ <- elabTerm tr (<- mkArrow stateTp (<- mkArrow stateTp prop))
+    -- The actual command (not term) elaboration happens here
     let stateTp <- PrettyPrinter.delab stateTp
     match br with
-    | some br =>                                                            -- TODO: add macro for a beta reduction here
-       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => exists $br, $tr $st1 $st2)
+    | some br =>
+      let br ← toBracketedBinderArray br
+      -- TODO: add macro for a beta reduction here
+      return [← `(@[actDef, actSimp] def $nm $br* : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => $tr $st1 $st2)]
     | _ => do
-       `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := $tr)
+      return [← `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := $tr)]
+  for cmd in cmds do
+    elabCommand cmd
 
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do

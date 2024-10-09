@@ -10,6 +10,8 @@ section WP
 variable (σ : Type)
 /-- Imperative language for defining actions. -/
 inductive Lang.{u} : Type u → Type (u + 1) where
+  /-- Value -/
+  | val     {ρ : Type u} (v : ρ) : Lang ρ
   /-- Pre-condition. All capital variables will be quantified. -/
   | require (rq  : σ -> Prop) : Lang PUnit
   /-- Deterministic actions, although mostly used for assignments. All
@@ -34,6 +36,7 @@ inductive Lang.{u} : Type u → Type (u + 1) where
     post-condition IF the program terminates.
     This defines the axiomatic semantics of our language. -/
 abbrev wlp (post : rprop σ ρ) : Lang σ ρ -> sprop σ
+  | Lang.val v            => fun s => post v s
   -- `require` enhances the pre-condition, restricting the possible states
   -- it has the same effect as `assume` in Hoare logic
   | Lang.require rq       => fun s => rq s ∧ post () s

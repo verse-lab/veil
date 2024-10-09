@@ -6,6 +6,31 @@ open Lean
 def toBinderIdent (i : Ident) : TSyntax ``binderIdent := Unhygienic.run <|
   withRef i `(binderIdent| $i:ident)
 
+def toIdent (bi : TSyntax ``binderIdent) : Ident :=
+  match bi with
+  | `(binderIdent|$i:ident) => i
+  | _ => unreachable!
+
+def toBracketedBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
+  let mut binders := #[]
+  match stx with
+  | `(explicitBinders|$bs*) => do
+    binders := binders.append (← bs.mapM helper)
+  | _ => throwError "unexpected syntax in explicit binder: {stx}"
+  return binders.flatten
+  where
+  helper (stx : TSyntax `Lean.bracketedExplicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
+    let mut binders := #[]
+    match stx with
+    | `(bracketedExplicitBinders|($bis* : $tp)) => do
+      for bi in bis do
+        let id := toIdent bi
+        let fb ← `(bracketedBinder| ($id : $tp:term))
+        binders := binders.push fb
+      pure ()
+    | _ => throwError "unexpected syntax in explicit binder: {stx}"
+    return binders
+
 def createExistsBinders (vars : Array (Ident × Name)) : MetaM (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
   let binders ← vars.mapM fun (var, sort) => do
     let bi := toBinderIdent var
