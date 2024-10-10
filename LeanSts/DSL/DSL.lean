@@ -181,15 +181,21 @@ def stateType (tp : Expr) := match tp with
     | _ => panic! s!"Expect a product, got {prod} instead!"
   | _ => panic! s!"Expected a function type of the form `σ → (σ × ρ) → Prop`, got {tp}"
 
+-- TODO FIXME: implement!
+def langRetType (l : TSyntax `lang) : TermElabM Expr := do
+  return (mkConst `Unit)
+
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
-def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (act : TSyntax `term) : CommandElabM Unit := do
+def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `lang) : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
+    let (ret, ret', st, st') := (mkIdent `ret, mkIdent `ret', mkIdent `st, mkIdent `st')
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-    let retTp ← PrettyPrinter.delab $ stateType $ ← Meta.inferType $ ← elabTermAndSynthesize act .none
-    dbg_trace "retTp: {retTp}"
+    let retTp ← PrettyPrinter.delab $ ← langRetType l
+    -- `σ → (σ × ρ) → Prop`, with binders universally quantified
+    let act <- `(fun ($st : $stateTp) (($st', $ret') : $stateTp × $retTp) =>
+      @wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st ∧ $ret = $ret') [lang| $l ] $st)
     let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
-    dbg_trace "tp: {tp}"
     let (st1, st2) := (mkIdent `st1, mkIdent `st2)
     match br with
     | some br =>
@@ -208,13 +214,11 @@ to refer to both pre-state and post-state.
 -/
 elab_rules : command
   | `(command| action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
-    let (ret, ret', st, st') := (mkIdent `ret, mkIdent `ret', mkIdent `st, mkIdent `st')
+    let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
     -- `σ → σ → Prop`, with binders existentially qunatified
     let tr <- `(fun $st $st' => @wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
     elabCommand $ ← `(transition $nm $br ? = $tr)
-    -- `σ → (σ × ρ) → Prop`, with binders universally quantified
-    let act <- `(fun $st ($st', $ret') => @wlp _ _ (fun $ret $st => $st' = $st ∧ $ret = $ret') [lang| $l ] $st)
-    elabCallableFn nm br act
+    elabCallableFn nm br l
 
 /--
 ```lean
