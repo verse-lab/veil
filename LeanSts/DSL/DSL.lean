@@ -181,29 +181,33 @@ def stateType (tp : Expr) := match tp with
     | _ => panic! s!"Expect a product, got {prod} instead!"
   | _ => panic! s!"Expected a function type of the form `σ → (σ × ρ) → Prop`, got {tp}"
 
--- TODO FIXME: implement!
 def langRetType (l : TSyntax `lang) : TermElabM Expr := do
-  return (mkConst `Unit)
+  let e ← elabTermAndSynthesize (← `([lang| $l])) .none
+  let tp ← inferType e
+  dbg_trace s!"{tp}"
+  match_expr tp with
+  | Lang _σ ρ => return ρ
+  | _ => throwError s!"Expected a lang type, got {tp} instead!"
 
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
 def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `lang) : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let (ret, ret', st, st') := (mkIdent `ret, mkIdent `ret', mkIdent `st, mkIdent `st')
+    let (ret, st, stret) := (mkIdent `ret', mkIdent `st, mkIdent `stret)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-    let retTp ← PrettyPrinter.delab $ ← langRetType l
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
-    let act <- `(fun ($st : $stateTp) (($st', $ret') : $stateTp × $retTp) =>
-      @wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st ∧ $ret = $ret') [lang| $l ] $st)
-    let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
+    -- $stret = ($st', $ret')
+    let act <- `(fun ($st : $stateTp) $stret =>
+      @wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [lang| $l ] $st)
+    -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st1, st2) := (mkIdent `st1, mkIdent `st2)
     match br with
     | some br =>
       let br ← toBracketedBinderArray br
       let nm := toFnName nm
-      `(def $nm $br* : $tp := fun $st1 $st2 => $act $st1 $st2)
+      `(def $nm $br* := fun $st1 $st2 => $act $st1 $st2)
     | _ => do
-      `(@[actDef, actSimp] def $nm:ident : $tp := $act)
+      `(@[actDef, actSimp] def $nm:ident := $act)
 
 /--
 Desugaring an imperative code action into a two-state transition. Here we compute
