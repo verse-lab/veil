@@ -167,19 +167,6 @@ All capital letters in `require` and in assignments are implicitly quantified.
 -/
 syntax "action" ident (explicitBinders)? "=" "{" lang "}" : command
 
-/--
-Desugaring an imperative code action into a two-state transition. Here we compute
-the weakest precondition of the program and then define the transition relation.
-
-Note: Unlike `after_init` we expand `l` using `[lang| l]` as we want the transition
-to refer to both pre-state and post-state.
--/
-macro_rules
-  | `(command| action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
-    let (ret, st, st', ret') := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `ret')
-    let act <- `(fun $st ($st', $ret') => @wlp _ _ (fun $ret $st => $st' = $st ∧ $ret = $ret') [lang| $l ] $st)
-    `(transition $nm $br ? = $act)
-
 /-- We have two versions of actions: `act` and `act.fn`. The former has
 existentially quantified arguments (and is thus a transition), whereas
 the latter has universally quantified arguments (and is thus a function
@@ -187,17 +174,57 @@ that returns a transition for specific argument instances). -/
 def toFnName (id : Ident) : Ident :=
   mkIdent (id.getId ++ `fn)
 
+/-- Given `σ → (σ × ρ) → Prop`, return `ρ`. -/
+def stateType (tp : Expr) := match tp with
+  | Expr.forallE _ _ (Expr.forallE _ prod _ _) _ => match_expr prod with
+    | Prod _ ρ => ρ
+    | _ => panic! s!"Expect a product, got {prod} instead!"
+  | _ => panic! s!"Expected a function type of the form `σ → (σ × ρ) → Prop`, got {tp}"
+
+/-- `act.fn` : a function that returns a transition relation with return
+  value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
+def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (act : TSyntax `term) : CommandElabM Unit := do
+  elabCommand $ ← Command.runTermElabM fun vs => do
+    let stateTp ← PrettyPrinter.delab $ ← stateTp vs
+    let retTp ← PrettyPrinter.delab $ stateType $ ← Meta.inferType $ ← elabTermAndSynthesize act .none
+    dbg_trace "retTp: {retTp}"
+    let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
+    dbg_trace "tp: {tp}"
+    let (st1, st2) := (mkIdent `st1, mkIdent `st2)
+    match br with
+    | some br =>
+      let br ← toBracketedBinderArray br
+      let nm := toFnName nm
+      `(def $nm $br* : $tp := fun $st1 $st2 => $act $st1 $st2)
+    | _ => do
+      `(@[actDef, actSimp] def $nm:ident : $tp := $act)
+
+/--
+Desugaring an imperative code action into a two-state transition. Here we compute
+the weakest precondition of the program and then define the transition relation.
+
+Note: Unlike `after_init` we expand `l` using `[lang| l]` as we want the transition
+to refer to both pre-state and post-state.
+-/
+elab_rules : command
+  | `(command| action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
+    let (ret, ret', st, st') := (mkIdent `ret, mkIdent `ret', mkIdent `st, mkIdent `st')
+    -- `σ → σ → Prop`, with binders existentially qunatified
+    let tr <- `(fun $st $st' => @wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
+    elabCommand $ ← `(transition $nm $br ? = $tr)
+    -- `σ → (σ × ρ) → Prop`, with binders universally quantified
+    let act <- `(fun $st ($st', $ret') => @wlp _ _ (fun $ret $st => $st' = $st ∧ $ret = $ret') [lang| $l ] $st)
+    elabCallableFn nm br act
+
 /--
 ```lean
 transition name binders* = tr
 ```
 This command defines:
-- `act`: a transition relation, existentially quantified over the `binders`.
-- `act.fn` : a function that returns a transition relation for specific arguments `binders`.
--/
+- `act`: a transition relation `σ → σ → Prop`, existentially quantified over the `binders`.-/
 elab_rules : command
   | `(command| transition $nm:ident $br:explicitBinders ? = $tr) => do
-  let cmds ← Command.runTermElabM fun vs => do
+ elabCommand $ ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st1, st2) := (mkIdent `st1, mkIdent `st2)
     -- IMPORTANT: we elaborate the term here so we get an error if it doesn't type check
@@ -211,17 +238,9 @@ elab_rules : command
     match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
-      let quantifiedAction ← `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => exists $br, $tr $st1 $st2)
-      let br ← toBracketedBinderArray br
-      let nm := toFnName nm
-      let callableAction ← `(def $nm $br* : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => $tr $st1 $st2)
-      return [quantifiedAction, callableAction]
+      `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => exists $br, $tr $st1 $st2)
     | _ => do
-      let names := [nm, toFnName nm]
-      let cmds ← names.mapM (fun nm => `(@[actDef, actSimp] def $nm:ident : $stateTp -> $stateTp -> Prop := $tr))
-      return cmds
-  for cmd in cmds do
-    elabCommand cmd
+      `(@[actDef, actSimp] def $nm:ident : $stateTp -> $stateTp -> Prop := $tr)
 
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
