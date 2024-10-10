@@ -176,8 +176,8 @@ to refer to both pre-state and post-state.
 -/
 macro_rules
   | `(command| action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
-    let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
-    let act <- `(fun $st $st' => @wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
+    let (ret, st, st', ret') := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `ret')
+    let act <- `(fun $st ($st', $ret') => @wlp _ _ (fun $ret $st => $st' = $st ∧ $ret = $ret') [lang| $l ] $st)
     `(transition $nm $br ? = $act)
 
 /-- We have two versions of actions: `act` and `act.fn`. The former has

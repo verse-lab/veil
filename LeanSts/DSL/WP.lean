@@ -12,18 +12,19 @@ variable (σ : Type)
 inductive Lang.{u} : Type u → Type (u + 1) where
   /-- Pre-condition. All capital variables will be quantified. -/
   | require (rq  : σ -> Prop) : Lang PUnit
-  | bind       {ρ ρ' : Type u} (act : Lang ρ') (act' : ρ' -> Lang ρ) : Lang ρ
+  | bind    {ρ ρ' : Type u} (act : Lang ρ') (act' : ρ' -> Lang ρ) : Lang ρ
   /-- Deterministic changes to the state, although mostly used for assignments. All
       capital variables will be quantified. -/
   | det     {ρ' : Type u} (act : σ -> σ × ρ') : Lang ρ'
   /-- Non-deterministic changes to the state. -/
   | nondet  {ρ' : Type u} (act :  σ -> σ × ρ' -> Prop) : Lang ρ'
   -- τ is a first order type, so it can be quantified in FOL
-  | actNondetVal {τ : Type} {ρ' : Type u} (act : τ -> σ -> σ × ρ') : Lang ρ'
+  | nondetVal {τ : Type} {ρ' : Type u} (act : τ -> σ -> σ × ρ') : Lang ρ'
   /-- If-then-else. `open Classical` to allow propositions in the condition. -/
   | ite     {ρ : Type u} (cnd : σ -> Bool) (thn : Lang ρ) (els : Lang ρ) : Lang ρ
   /-- Sequence -/
   | seq     {ρ ρ' : Type u} (l1 : Lang ρ') (l2 : Lang ρ) : Lang ρ
+  | ret     {ρ : Type u} (ret : ρ) : Lang ρ
 
 /-- One-state formula -/
 @[inline] abbrev sprop := σ -> Prop
@@ -46,16 +47,16 @@ abbrev wlp (post : rprop σ ρ) : Lang σ ρ -> sprop σ
   | Lang.det act          => fun s => let (s', ret) := act s ; post ret s'
   -- a non-deterministic `nondet`
   | Lang.nondet act       => fun s =>  ∀ s' ret, act s (s', ret) → post ret s'
-  | nondetVal act    => fun s => ∃ t, let (s', ret) := act t s ; post ret s'
+  | Lang.nondetVal act    => fun s => ∃ t, let (s', ret) := act t s ; post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
   -- `seq` is a composition of programs, so we need to compute the wlp of
   -- the first program, given the wlp of the second
   | Lang.seq l1 l2        =>
-    let l2_wlp := wlp post l2
-    -- the return value is not used in the pre-condition
-    let l2_post := fun _ret s => l2_wlp s
-    wlp l2_post l1
+    wlp (fun _ => wlp post l2) l1
+  | Lang.ret ret    => post ret
+  | Lang.bind l1 l2 =>
+    wlp (fun ret => wlp post (l2 ret)) l1
 
 declare_syntax_cat lang
 syntax lang ";" colGe lang : lang
@@ -69,6 +70,9 @@ syntax "if" term:max "then\n" lang "else\n" lang : lang
 syntax Term.structInstLVal ":=" term    : lang
 /-- syntax for assigment, e.g. `pending n s := true` -/
 syntax Term.structInstLVal (term:max)+ ":=" (term <|> nondetVal)    : lang
+syntax ident "<-" lang "in" lang : lang
+syntax "return" term : lang
+syntax "call" term : lang
 /-- Syntax to trigger the expantion into a code which may
     depend on the prestate -/
 syntax "[lang|" lang "]" : term
@@ -128,6 +132,11 @@ macro_rules
   | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
     let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
     `([lang| $id:structInstLVal := $stx])
+  | `([lang| $id:ident <- $l1:lang in $l2:lang]) => do
+      `(@Lang.bind _ _ _ [lang|$l1] (fun $id => [lang|$l2]))
+  | `([lang|return $t:term]) => `(@Lang.ret _ _ $t)
+  | `([lang|call $t:term]) => `(@Lang.nondet _ _ $t)
+
 
 /- TODO: avoid code duplication -/
 /-- Same expansion as above but, intead of `funcases` we use `funclear` to
