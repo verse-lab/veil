@@ -10,16 +10,19 @@ section WP
 variable (σ : Type)
 /-- Imperative language for defining actions. -/
 inductive Lang.{u} : Type u → Type (u + 1) where
-  /-- Value -/
-  | val     {ρ : Type u} (v : ρ) : Lang ρ
   /-- Pre-condition. All capital variables will be quantified. -/
   | require (rq  : σ -> Prop) : Lang PUnit
-  /-- Deterministic actions, although mostly used for assignments. All
+  | bind       {ρ ρ' : Type u} (act : Lang ρ') (act' : ρ' -> Lang ρ) : Lang ρ
+  /-- Deterministic changes to the state, although mostly used for assignments. All
       capital variables will be quantified. -/
-  | act     {ρ' : Type u} (act : σ -> σ × ρ') : Lang ρ'
+  | det     {ρ' : Type u} (act : σ -> σ × ρ') : Lang ρ'
+  /-- Non-deterministic changes to the state. -/
+  | nondet  {ρ' : Type u} (act :  σ -> σ × ρ' -> Prop) : Lang ρ'
+  -- τ is a first order type, so it can be quantified in FOL
+  | actNondetVal {τ : Type} {ρ' : Type u} (act : τ -> σ -> σ × ρ') : Lang ρ'
   /-- If-then-else. `open Classical` to allow propositions in the condition. -/
   | ite     {ρ : Type u} (cnd : σ -> Bool) (thn : Lang ρ) (els : Lang ρ) : Lang ρ
-  /-- Sequence of actions -/
+  /-- Sequence -/
   | seq     {ρ ρ' : Type u} (l1 : Lang ρ') (l2 : Lang ρ) : Lang ρ
 
 /-- One-state formula -/
@@ -36,12 +39,14 @@ inductive Lang.{u} : Type u → Type (u + 1) where
     post-condition IF the program terminates.
     This defines the axiomatic semantics of our language. -/
 abbrev wlp (post : rprop σ ρ) : Lang σ ρ -> sprop σ
-  | Lang.val v            => fun s => post v s
   -- `require` enhances the pre-condition, restricting the possible states
   -- it has the same effect as `assume` in Hoare logic
   | Lang.require rq       => fun s => rq s ∧ post () s
   -- a deterministic `act` transforms the state
-  | Lang.act act          => fun s => let (s', ret) := act s ; post ret s'
+  | Lang.det act          => fun s => let (s', ret) := act s ; post ret s'
+  -- a non-deterministic `nondet`
+  | Lang.nondet act       => fun s =>  ∀ s' ret, act s (s', ret) → post ret s'
+  | nondetVal act    => fun s => ∃ t, let (s', ret) := act t s ; post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
   -- `seq` is a composition of programs, so we need to compute the wlp of
@@ -55,14 +60,15 @@ abbrev wlp (post : rprop σ ρ) : Lang σ ρ -> sprop σ
 declare_syntax_cat lang
 syntax lang ";" colGe lang : lang
 syntax "skip"              : lang
+/-- Non-deterministic value. -/
+syntax (name := nondetVal) "*" : lang
 syntax "require" term      : lang
 syntax "do" term           : lang
 syntax "if" term:max "then\n" lang "else\n" lang : lang
-/-- intermediate syntax for assigment. The actual syntax is
-    `pending := pending[n, s ↦ true]` -/
+/-- intermediate syntax for assigment, e.g. `pending := pending[n, s ↦ true]` -/
 syntax Term.structInstLVal ":=" term    : lang
-/-- syntax for assigment -/
-syntax Term.structInstLVal (term:max)+ ":=" term    : lang
+/-- syntax for assigment, e.g. `pending n s := true` -/
+syntax Term.structInstLVal (term:max)+ ":=" (term <|> nondetVal)    : lang
 /-- Syntax to trigger the expantion into a code which may
     depend on the prestate -/
 syntax "[lang|" lang "]" : term
@@ -89,7 +95,7 @@ def closeCapitals (s : Term) : MacroM Term :=
 
 
 macro_rules
-  | `([lang|skip]) => `(@Lang.act _ _ (fun st => (st, ())))
+  | `([lang|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
   | `([lang|$l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang|$l1] [lang|$l2])
   | `([lang|require $t:term]) => do
     let t' <- closeCapitals t
@@ -101,14 +107,22 @@ macro_rules
     -- condition might depend on the state as well
     let cnd <- withRef cnd `(funcases ($cnd' : Bool))
     `(@Lang.ite _ _ ($cnd: term) [lang|$thn] [lang|$els])
-  | `([lang| do $t:term ]) => `(@Lang.act _ _ $t)
+  | `([lang| do $t:term ]) => `(@Lang.det _ _ $t)
     -- expansion of the intermediate syntax for assigment
     -- for instance `pending := pending[n, s ↦ true]` will get
-    -- expanded to `Lang.act (fun st => { st with pending := st.pending[n, s ↦ true] })`
+    -- expanded to `Lang.det (fun st => { st with pending := st.pending[n, s ↦ true] })`
   | `([lang| $id:structInstLVal := $t:term ]) => do
-    `(@Lang.act _ _ (fun st =>
+    `(@Lang.det _ _ (fun st =>
       ({ st with $id := (by unhygienic cases st; exact $t)}, ())))
-    -- expansion of the actual syntax for assigment
+  -- for instance `pending n s := *` will get
+  -- | `([lang| $id:structInstLVal $ts: term * := * ]) => do
+  --   `(@Lang.nondet _ _ (fun st (st', ()) =>
+  --     (∃ v, st' = { st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))})))
+  | `([lang| $id:structInstLVal $ts: term * := * ]) => do
+    `(@Lang.actNondet _ _ _ (fun v st =>
+      ({ st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))}, ())))
+
+  --   -- expansion of the actual syntax for assigment
     -- for instance `pending n s := true` will get
     -- expanded to `pending := pending[n, s ↦ true]`
   | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
@@ -119,7 +133,7 @@ macro_rules
 /-- Same expansion as above but, intead of `funcases` we use `funclear` to
     prevent the generated code from depending on the prestate -/
 macro_rules
-  | `([lang1|skip]) => `(@Lang.act _ _ (fun st => (st, ())))
+  | `([lang1|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
   | `([lang1| $l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang1|$l1] [lang1|$l2])
   | `([lang1|require $t:term]) => do
       withRef t $
@@ -128,9 +142,11 @@ macro_rules
     let cnd <- withRef cnd `(funclear ($cnd : Bool))
     `(@Lang.ite _ _ ($cnd: term) [lang1|$thn] [lang1|$els])
   | `([lang1| $id:structInstLVal := $t:term ]) =>
-    `(@Lang.act _ _ (fun st => ({ st with $id := (by clear st; exact $t)}, ())))
+    `(@Lang.det _ _ (fun st => ({ st with $id := (by clear st; exact $t)}, ())))
   | `([lang1| $id:structInstLVal $ts: ident * := $t:term ]) =>
     `([lang1| $id:structInstLVal := fun $ts * => $t])
-
+  -- | `([lang1| $id:structInstLVal $ts: term * := * ]) => do
+  --   `(@Lang.nondet _ _ (fun st (st', ret) =>
+  --     (∃ v, st' = { st with $id := ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ])}, ())))
 
 end WP

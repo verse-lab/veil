@@ -44,10 +44,15 @@ after_init {
   pending _ _ := False
 }
 
+set_option pp.rawOnError true
+set_option trace.Elab.command true
+
 action send (n next : node) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
   pending n next := True
 }
+
+#check send.fn
 
 action recv (sender n next : node) (havoc : Prop) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
@@ -85,7 +90,10 @@ prove_inv_safe by {
 
 prove_inv_inductive by {
   intro hnext hinv
-  sts_induction <;> sdestruct_all <;> solve_clause
+  sts_induction <;> sdestruct_all
+  {
+    simplify_all
+  }
 }
 
 sat trace [initial_state] {} by {
