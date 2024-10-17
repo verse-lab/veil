@@ -11,7 +11,8 @@ variable (σ : Type)
 /-- Imperative language for defining actions. -/
 inductive Lang.{u} : Type u → Type (u + 1) where
   /-- Pre-condition. All capital variables will be quantified. -/
-  | require (rq  : σ -> Prop) : Lang PUnit
+  | require (rq : σ -> Prop) : Lang PUnit
+  | assume  (as : σ -> Prop) : Lang PUnit
   | bind    {ρ ρ' : Type u} (act : Lang ρ') (act' : ρ' -> Lang ρ) : Lang ρ
   /-- Deterministic changes to the state, although mostly used for assignments. All
       capital variables will be quantified. -/
@@ -43,10 +44,11 @@ abbrev wlp (post : rprop σ ρ) : Lang σ ρ -> sprop σ
   -- `require` enhances the pre-condition, restricting the possible states
   -- it has the same effect as `assume` in Hoare logic
   | Lang.require rq       => fun s => rq s ∧ post () s
+  | Lang.assume  as       => fun s => as s → post () s
   -- a deterministic `act` transforms the state
   | Lang.det act          => fun s => let (s', ret) := act s ; post ret s'
   -- a non-deterministic `nondet`
-  | Lang.nondet act       => fun s =>  ∀ s' ret, act s (s', ret) → post ret s'
+  | Lang.nondet act       => fun s => ∀ s' ret, act s (s', ret) → post ret s'
   | Lang.nondetVal act    => fun s => ∃ t, let (s', ret) := act t s ; post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
@@ -64,6 +66,7 @@ syntax "skip"              : lang
 /-- Non-deterministic value. -/
 syntax (name := nondetVal) "*" : lang
 syntax "require" term      : lang
+syntax "assume" term       : lang
 syntax "do" term           : lang
 syntax "if" term:max "then\n" lang "else\n" lang : lang
 /-- intermediate syntax for assigment, e.g. `pending := pending[n, s ↦ true]` -/
@@ -106,6 +109,9 @@ macro_rules
     withRef t $
       -- require a proposition on the state
      `(@Lang.require _ (funcases ($t' : Prop) : $(mkIdent `State) .. -> Prop))
+  | `([lang|assume $t:term]) => do
+    let t' <- closeCapitals t
+    withRef t $ `(@Lang.assume _ (funcases ($t' : Prop) : $(mkIdent `State) .. -> Prop))
   | `([lang|if $cnd:term then $thn:lang else $els:lang]) => do
     let cnd' <- closeCapitals cnd
     -- condition might depend on the state as well
@@ -123,9 +129,8 @@ macro_rules
   --   `(@Lang.nondet _ _ (fun st (st', ()) =>
   --     (∃ v, st' = { st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))})))
   | `([lang| $id:structInstLVal $ts: term * := * ]) => do
-    `(@Lang.actNondet _ _ _ (fun v st =>
+    `(@Lang.nondetVal _ _ _ (fun v st =>
       ({ st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))}, ())))
-
   --   -- expansion of the actual syntax for assigment
     -- for instance `pending n s := true` will get
     -- expanded to `pending := pending[n, s ↦ true]`
@@ -145,8 +150,9 @@ macro_rules
   | `([lang1|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
   | `([lang1| $l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang1|$l1] [lang1|$l2])
   | `([lang1|require $t:term]) => do
-      withRef t $
-        `(@Lang.require _ _ (funclear ($t : Prop) : $(mkIdent `State) .. -> Prop))
+      withRef t $ `(@Lang.require _ _ (funclear ($t : Prop) : $(mkIdent `State) .. -> Prop))
+  | `([lang1|assume $t:term]) => do
+      withRef t $ `(@Lang.assume _ _ (funclear ($t : Prop) : $(mkIdent `State) .. -> Prop))
   | `([lang1|if $cnd:term then $thn:lang else $els:lang]) => do
     let cnd <- withRef cnd `(funclear ($cnd : Bool))
     `(@Lang.ite _ _ ($cnd: term) [lang1|$thn] [lang1|$els])

@@ -140,7 +140,8 @@ def elabSolveClause (stx : Syntax)
   -- This is faster than `simp` with all the lemmas, see:
   -- https://github.com/verse-lab/lean-sts/issues/29#issuecomment-2360300222
   let simp0 := mkSimpLemmas simp0
-  let simp1 := mkSimpLemmas #[`wlp]
+  -- the `actSimp here is used for function calls under wlp
+  let simp1 := mkSimpLemmas #[`wlp, `actSimp]
   let simp2 := mkSimpLemmas #[injEqLemma, `invSimp, `smtSimp]
   let simpTac ← `(tactic| try
     (try simp only [$simp0,*] at *) ; (try dsimp only [$simp1,*] at *); (try simp only [$simp2,*] at *))

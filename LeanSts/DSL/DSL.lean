@@ -192,6 +192,7 @@ def langRetType (l : TSyntax `lang) : TermElabM Expr := do
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
 def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `lang) : CommandElabM Unit := do
+  let nm := toFnName nm
   elabCommand $ ← Command.runTermElabM fun vs => do
     let (ret, st, stret) := (mkIdent `ret', mkIdent `st, mkIdent `stret)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
@@ -204,10 +205,9 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     match br with
     | some br =>
       let br ← toBracketedBinderArray br
-      let nm := toFnName nm
-      `(def $nm $br* := fun $st1 $st2 => $act $st1 $st2)
+      `(@[actSimp] def $nm $br* := fun $st1 $st2 => $act $st1 $st2)
     | _ => do
-      `(@[actDef, actSimp] def $nm:ident := $act)
+      `(@[actSimp] def $nm:ident := $act)
 
 /--
 Desugaring an imperative code action into a two-state transition. Here we compute
