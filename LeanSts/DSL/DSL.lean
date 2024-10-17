@@ -124,13 +124,24 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
 assembles all declared `relation` predicates into a single `State` -/
 def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun _ => do
+  Command.runTermElabM fun vs => do
     let nms := (<- stsExt.get).sig
     let sdef ← `(@[stateDef] structure $(mkIdent `State) $[$vd]* where $(mkIdent `mk):ident :: $[$nms]*)
     let injEqLemma := (mkIdent $ `State ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
     liftCommandElabM $ elabCommand $ sdef
     liftCommandElabM $ elabCommand $ smtAttr
+    -- Generate a theorem to "push down" higher-order quantification over
+    -- state as far as possible, such that hopefully it ends up to
+    -- something like `∀ (s' : State), s' = { ... }`, from which `s'` can
+    -- be eliminated altogether. (So we can send something FO to SMT.)
+    -- For more details, see:
+    -- https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869
+    let stateTp := mkAppN (<- stsExt.get).typ vs
+    let stateTp ← PrettyPrinter.delab stateTp
+    let stateThm ← `(@[smtSimp] theorem $(mkIdent `State_forall_comm) $[$vd]* {p : $stateTp → $(mkIdent `β) → Prop} : (∀ a b, p a b) ↔ (∀ b a, p a b) := forall_comm)
+    trace[dsl] "{stateThm}"
+    liftCommandElabM $ elabCommand $ stateThm
 
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState
