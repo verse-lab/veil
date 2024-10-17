@@ -93,3 +93,15 @@ elab "rename_binders" : tactic => do
 attribute [smtSimp] decide_eq_true_eq
 attribute [smtSimp] decide_not
 attribute [smtSimp] not_decide_eq_true
+
+-- TODO: are these sufficient or do we need more lemmas (in general)?
+-- These are from `SimpLemmas.lean` and `PropLemmas.lean`, but with
+-- `smtSimp` attribute They are used to enable "eliminating" higher-order
+-- quantification over state, as explained in:
+--  (1) https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2418792775
+--  (2) https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869
+attribute [smtSimp] and_imp
+attribute [smtSimp] not_and
+attribute [smtSimp] forall_const
+attribute [smtSimp] forall_eq_apply_imp_iff
+attribute [smtSimp] forall_exists_index
