@@ -184,8 +184,10 @@ elab_rules : tactic
   | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
 elab "simplify_all" : tactic => withMainContext do
-  let toSimp := mkSimpLemmas #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp]
-  let simp_tac ← `(tactic| simp only [$toSimp,*] at *;)
+  -- FIXME: why does `simp only [actSimp, wlp]` loop?
+  let toDsimp := mkSimpLemmas #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp]
+  let toSimp := mkSimpLemmas #[`smtSimp]
+  let simp_tac ← `(tactic| dsimp only [$toDsimp,*] at * ; simp only [$toSimp,*];)
   evalTactic simp_tac
 
 /-- Tactic to solve `unsat trace` goals. -/

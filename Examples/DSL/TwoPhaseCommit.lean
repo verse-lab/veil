@@ -83,7 +83,7 @@ safety (decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes 
 
 #gen_spec TPC
 
-sat trace [initial_state] {} by { simp [initSimp, actSimp, wlp] }
+sat trace [initial_state] {} by { dsimp only [initSimp, wlp] ; simp }
 
 sat trace { } by { bmc_sat }
 
