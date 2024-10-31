@@ -219,7 +219,10 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
       `(@[actSimp] def $nm $br* := fun $st1 $st2 => $act $st1 $st2)
     | _ => do
       `(@[actSimp] def $nm:ident := $act)
-
+  elabCommand $ ← Command.runTermElabM fun vs => do
+    let args ← vs.mapM (fun _ => `(term|_))
+    let strName ← `(Lean.Parser.Command.notationItem|$(Lean.quote nm.getId.toString):str)
+    `(local notation (priority := default) $strName => @$nm $args*)
 /--
 Desugaring an imperative code action into a two-state transition. Here we compute
 the weakest precondition of the program and then define the transition relation.
