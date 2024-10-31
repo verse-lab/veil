@@ -141,8 +141,8 @@ macro_rules
     `([lang| $id:structInstLVal := $stx])
   | `([lang| $id:ident <- $l1:lang in $l2:lang]) => do
       `(@Lang.bind _ _ _ [lang|$l1] (fun $id => [lang|$l2]))
-  | `([lang|return $t:term]) => `(@Lang.ret _ _ $t)
-  | `([lang|call $t:term]) => `(@Lang.nondet _ _ $t)
+  | `([lang|return $t:term]) => `(@Lang.ret _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
+  | `([lang|call $t:term]) => `(@Lang.nondet _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
 
 
 /- TODO: avoid code duplication -/
