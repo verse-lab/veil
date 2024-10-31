@@ -144,7 +144,7 @@ def elabSolveClause (stx : Syntax)
   let simp1 := mkSimpLemmas #[`wlp, `actSimp]
   let simp2 := mkSimpLemmas #[injEqLemma, `invSimp, `smtSimp]
   let simpTac ← `(tactic| try
-    (try simp only [$simp0,*] at *) ; (try dsimp only [$simp1,*] at *); (try simp only [$simp2,*] at *))
+    (try dsimp only [$simp0,*] at *) ; (try dsimp only [$simp1,*] at *); (try simp only [$simp2,*] at *))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
