@@ -68,7 +68,8 @@ syntax (name := nondetVal) "*" : lang
 syntax "require" term      : lang
 syntax "assume" term       : lang
 syntax "do" term           : lang
-syntax "if" term:max "then\n" lang "else\n" lang : lang
+syntax (priority := high) "if" term:max "{" lang "}" "else\n" "{" lang "}" : lang
+syntax (priority := low) "if" term:max "{" lang "}" : lang
 /-- intermediate syntax for assigment, e.g. `pending := pending[n, s ↦ true]` -/
 syntax Term.structInstLVal ":=" term    : lang
 /-- syntax for assigment, e.g. `pending n s := true` -/
@@ -112,7 +113,8 @@ macro_rules
   | `([lang|assume $t:term]) => do
     let t' <- closeCapitals t
     withRef t $ `(@Lang.assume _ (funcases ($t' : Prop) : $(mkIdent `State) .. -> Prop))
-  | `([lang|if $cnd:term then $thn:lang else $els:lang]) => do
+  | `([lang|if $cnd:term { $thn:lang }]) => `([lang|if $cnd { $thn } else { skip }])
+  | `([lang|if $cnd:term { $thn:lang } else { $els:lang }]) => do
     let cnd' <- closeCapitals cnd
     -- condition might depend on the state as well
     let cnd <- withRef cnd `(funcases ($cnd' : Bool))
@@ -153,7 +155,8 @@ macro_rules
       withRef t $ `(@Lang.require _ _ (funclear ($t : Prop) : $(mkIdent `State) .. -> Prop))
   | `([lang1|assume $t:term]) => do
       withRef t $ `(@Lang.assume _ _ (funclear ($t : Prop) : $(mkIdent `State) .. -> Prop))
-  | `([lang1|if $cnd:term then $thn:lang else $els:lang]) => do
+  | `([lang1|if $cnd:term { $thn:lang }]) => `([lang1|if $cnd { $thn } else { skip }])
+  | `([lang1|if $cnd:term { $thn:lang } else { $els:lang }]) => do
     let cnd <- withRef cnd `(funclear ($cnd : Bool))
     `(@Lang.ite _ _ ($cnd: term) [lang1|$thn] [lang1|$els])
   | `([lang1| $id:structInstLVal := $t:term ]) =>

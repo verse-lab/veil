@@ -27,7 +27,8 @@ open ByzQuorum
 
 type node
 type quorum
-type round
+-- type round
+abbrev round := Nat
 type vertex
 type block
 
@@ -35,7 +36,7 @@ type block
 variable (is_byz : node → Prop)
 instantiate q : ByzQuorum node is_byz quorum
 variable [DecidableBinaryRel q.member]
-instantiate tot : TotalOrderWithZero round
+-- instantiate tot : TotalOrderWithZero round
 
 -- TODO: what's the proper way to respresent structs?
 -- Vertex struct
@@ -65,7 +66,7 @@ after_init {
 
     dag _ _     := False;
     buffer _    := False;
-    r           := tot.zero
+    r           := 0
 }
 
 -- Data invariants
@@ -80,6 +81,9 @@ invariant [vertexBlock_coherence] ∀ v b b', vertexBlock v b → vertexBlock v 
 invariant [dag_coherence]
     ∀ r v v' n n', dag r v → dag r v' → vertexSource v n → vertexSource v' n' → n = n'
 
+-- FIXME: To add `Decidable` instances for all propositions
+open Classical
+
 action mainLoop = {
     -- Add to the DAG all vertices in the buffer that have all their predecessors in the DAG
     dag R V := dag R V ∨
@@ -89,13 +93,16 @@ action mainLoop = {
     -- If it'S in the DAG, remove it from the buffer
     buffer V := buffer V ∧ ¬ ∃ r, dag r V;
     -- There is a quorum of vertices in `dag[r]`
-    if (∃ q, ∀ n, member n q → (∃ v, dag r v ∧ vertexSource v n)) then
-        -- How to model calling wave_ready?
+    if (∃ q, ∀ n, member n q → (∃ v, dag r v ∧ vertexSource v n)) {
+        if (r % 4 = 0) {
+            -- How to model calling wave_ready?
+            skip
+        };
+        r := r + 1;
         skip
-    else
-
-    skip
+    }
 }
+
 
 
 end DAGRider

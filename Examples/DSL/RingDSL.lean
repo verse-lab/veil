@@ -60,14 +60,15 @@ action recv (sender n next : node) (havoc : Prop) = {
   -- message may or may not be removed
   -- this models that multiple messages might be in flight
   pending sender n := havoc;
-  if (sender = n) then
+  if (sender = n) {
     leader n := True
-  else
+  }
+  else {
     -- pass message to next node
-    if (le n sender) then
+    if (le n sender) {
       pending sender next := True
-    else
-      skip
+    }
+  }
 }
 
 safety [single_leader] leader L → le N L
@@ -78,6 +79,8 @@ invariant pending L L → le N L
 
 -- set_option trace.sauto.query true
 -- set_option trace.sauto.result true
+
+#check_invariants
 
 prove_inv_init by { simp_all [initSimp, actSimp, wlp, invSimp] }
 
@@ -90,10 +93,7 @@ prove_inv_safe by {
 
 prove_inv_inductive by {
   intro hnext hinv
-  sts_induction <;> sdestruct_all
-  {
-    simplify_all
-  }
+  sts_induction <;> sdestruct_goal <;> solve_clause
 }
 
 sat trace [initial_state] {} by {
