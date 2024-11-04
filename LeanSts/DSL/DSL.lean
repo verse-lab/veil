@@ -146,11 +146,23 @@ def assembleState : CommandElabM Unit := do
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState
 
+/-- We use this to evaluate `wlp` inside function bodies at definition time.
+  Otherwise it has to be evaluated in the kernel during proofs, which is very slow. -/
+def simplifyTerm (t : TSyntax `term) (expectedType : Option Expr) : TermElabM (TSyntax `term) := do
+  let expr ← elabTermAndSynthesize t expectedType
+  -- Reduce the body of the function
+  trace[dsl] "Term: {t}"
+  -- FIXME: Use native evaluation instead of `Meta.reduce`; check what `#eval` does
+  let reduce ← forallTelescope expr (fun xs b => return ← mkArrowN xs (← Meta.reduceAll b))
+  let t' ← PrettyPrinter.delab reduce
+  trace[dsl] "Simplified: {t'}"
+  return t'
+
 /-- Declaring the initial state predicate -/
 elab "initial" ini:term : command => do
   elabCommand <| <- Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
-    let _ <- elabTerm ini (<- mkArrow stateTp prop)
+    let ini <- simplifyTerm ini (<- mkArrow stateTp prop)
     let stateTp <- PrettyPrinter.delab stateTp
     `(@[initDef, initSimp] def $(mkIdent `initialState?) : $stateTp -> Prop := $ini)
 
@@ -184,21 +196,6 @@ the latter has universally quantified arguments (and is thus a function
 that returns a transition for specific argument instances). -/
 def toFnName (id : Ident) : Ident :=
   mkIdent (id.getId ++ `fn)
-
-/-- Given `σ → (σ × ρ) → Prop`, return `ρ`. -/
-def stateType (tp : Expr) := match tp with
-  | Expr.forallE _ _ (Expr.forallE _ prod _ _) _ => match_expr prod with
-    | Prod _ ρ => ρ
-    | _ => panic! s!"Expect a product, got {prod} instead!"
-  | _ => panic! s!"Expected a function type of the form `σ → (σ × ρ) → Prop`, got {tp}"
-
-def langRetType (l : TSyntax `lang) : TermElabM Expr := do
-  let e ← elabTermAndSynthesize (← `([lang| $l])) .none
-  let tp ← inferType e
-  dbg_trace s!"{tp}"
-  match_expr tp with
-  | Lang _σ ρ => return ρ
-  | _ => throwError s!"Expected a lang type, got {tp} instead!"
 
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
@@ -249,20 +246,22 @@ elab_rules : command
  elabCommand $ ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st1, st2) := (mkIdent `st1, mkIdent `st2)
+    let expectedType ← mkArrow stateTp (← mkArrow stateTp prop)
     -- IMPORTANT: we elaborate the term here so we get an error if it doesn't type check
     match br with
     | some br =>
-      let _ <- elabTerm (<-`(term| fun $st1 $st2 => exists $br, $tr $st1 $st2)) (<- mkArrow stateTp (<- mkArrow stateTp prop))
+      let _ <- elabTerm (<-`(term| fun $st1 $st2 => exists $br, $tr $st1 $st2)) expectedType
     | none =>
-      let _ <- elabTerm tr (<- mkArrow stateTp (<- mkArrow stateTp prop))
+      let _ <- elabTerm tr expectedType
     -- The actual command (not term) elaboration happens here
-    let stateTp <- PrettyPrinter.delab stateTp
+    let stateTpT <- PrettyPrinter.delab stateTp
     match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
-      `(@[actDef, actSimp] def $nm : $stateTp -> $stateTp -> Prop := fun $st1 $st2 => exists $br, $tr $st1 $st2)
+      `(@[actDef, actSimp] def $nm : $stateTpT -> $stateTpT -> Prop := fun $st1 $st2 => exists $br, $tr $st1 $st2)
     | _ => do
-      `(@[actDef, actSimp] def $nm:ident : $stateTp -> $stateTp -> Prop := $tr)
+      let tr ← simplifyTerm tr expectedType
+      `(@[actDef, actSimp] def $nm:ident : $stateTpT -> $stateTpT -> Prop := $tr)
 
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
