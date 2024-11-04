@@ -315,13 +315,13 @@ elab "invariant" name:(propertyName)? inv:term : command => do
       let e <- my_delab e
       `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
 
-/-- Assembles all declared invariants (including safety properties) into a single `Inv` predicate -/
+/-- Assembles all declared invariants (including safety properties) into a single `Invariant` predicate -/
 def assembleInvariant : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let invs <- combineLemmas ``And ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties) vs "invariants"
     let invs <- PrettyPrinter.delab invs
-    `(@[invSimp] def $(mkIdent `Inv) : $stateTp -> Prop := $invs)
+    `(@[invSimp] def $(mkIdent `Invariant) : $stateTp -> Prop := $invs)
 
 /-- Assembles all declared safety properties into a single `Safety` predicate -/
 def assembleSafeties : CommandElabM Unit := do
@@ -350,7 +350,7 @@ def instantiateSystem (name : Name): CommandElabM Unit := do
     let nextTrans <- PrettyPrinter.delab nextTrans
     let safe      := mkAppN (<- mkConst `Safety) vs
     let safe      <- PrettyPrinter.delab safe
-    let inv       := mkAppN (<- mkConst `Inv) vs
+    let inv       := mkAppN (<- mkConst `Invariant) vs
     let inv       <- PrettyPrinter.delab inv
     let stx       <-
       `(instance (priority := low) $(mkIdent name) $[$vd]* : RelationalTransitionSystem $stateTp where
