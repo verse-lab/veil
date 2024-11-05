@@ -166,8 +166,10 @@ elab tk:"conv! " conv:conv " => " e:term : term => do
 def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
   -- Reduce the body of the function
   let t' ← `(term| by
-    let t := conv! dsimp only [$(mkIdent ``wlp):ident] => $t;
-    exact t)
+    -- Try simplifying first, but this might fail if there's no `wlp` in the
+    -- definition, e.g. for transitions that are not actions.
+    -- If that fails, we try to evaluate the term as is.
+    first | (let t := conv! simp only [$(mkIdent ``wlp):ident, $(mkIdent `actSimp):ident, $(mkIdent `smtSimp):ident] => $t; exact t) | exact $t)
   return t'
 
 /-- Declaring the initial state predicate -/
