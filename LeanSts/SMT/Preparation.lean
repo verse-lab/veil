@@ -89,19 +89,43 @@ elab "rename_binders" : tactic => do
   { intro h ; injection h ; constructor <;> assumption }
   { rintro ⟨h1, h2⟩ ; rw [h1, h2] }
 
-/- These something show up in goals: https://github.com/verse-lab/lean-sts/issues/3#issuecomment-2244192371 -/
-attribute [smtSimp] decide_eq_true_eq
-attribute [smtSimp] decide_not
-attribute [smtSimp] not_decide_eq_true
-
--- TODO: are these sufficient or do we need more lemmas (in general)?
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`, but with
 -- `smtSimp` attribute They are used to enable "eliminating" higher-order
 -- quantification over state, as explained in:
 --  (1) https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2418792775
 --  (2) https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869
-attribute [smtSimp] and_imp
-attribute [smtSimp] not_and
-attribute [smtSimp] forall_const
-attribute [smtSimp] forall_eq_apply_imp_iff
-attribute [smtSimp] forall_exists_index
+-- Also: https://github.com/verse-lab/lean-sts/issues/3#issuecomment-2244192371
+-- Things are quite a bit faster than the whole `simp` set this way.
+/-
+```bash
+cat /home/dranov/.elan/toolchains/leanprover--lean4---v4.11.0/src/lean/Init/PropLemmas.lean /home/dranov/.elan/toolchains/leanprover--lean4---v4.11.0/src/lean/Init/SimpLemmas.lean | grep "@\[simp\] theorem" | cut -d ' ' -f 3 | tr '\n' ' '
+```
+-/
+attribute [smtSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
+  not_or dite_not ite_not ite_true_same ite_false_same forall_exists_index
+  exists_const exists_true_left not_exists exists_false forall_const
+  forall_eq forall_eq' exists_eq exists_eq' exists_eq_left exists_eq_right
+  exists_and_left exists_and_right exists_eq_left' exists_eq_right'
+  forall_eq_or_imp exists_eq_or_imp exists_eq_right_right
+  exists_eq_right_right' exists_or_eq_left exists_or_eq_right
+  exists_or_eq_left' exists_or_eq_right' exists_prop exists_apply_eq_apply
+  forall_apply_eq_imp_iff forall_eq_apply_imp_iff forall_apply_eq_imp_iff₂
+  Decidable.not_not decide_eq_decide Decidable.not_imp_self
+  ite_true_decide_same ite_false_decide_same eq_self ne_eq ite_true
+  ite_false dite_true dite_false ite_self and_true true_and and_false
+  false_and and_self and_not_self not_and_self and_imp not_and or_self
+  or_true true_or or_false false_or iff_self iff_true true_iff iff_false
+  false_iff false_implies forall_false implies_true true_implies
+  not_false_eq_true not_true_eq_false not_iff_self and_self_left
+  and_self_right and_congr_right_iff and_congr_left_iff
+  and_iff_left_iff_imp and_iff_right_iff_imp iff_self_and iff_and_self
+  or_self_left or_self_right or_iff_left_iff_imp or_iff_right_iff_imp
+  iff_self_or iff_or_self Bool.or_false Bool.or_true Bool.false_or
+  Bool.true_or Bool.or_self Bool.or_eq_true Bool.and_false Bool.and_true
+  Bool.false_and Bool.true_and Bool.and_self Bool.and_eq_true Bool.not_not
+  Bool.not_true Bool.not_false beq_true beq_false Bool.not_eq_true'
+  Bool.not_eq_false' Bool.not_eq_true Bool.not_eq_false decide_eq_true_eq
+  decide_eq_false_iff_not decide_not not_decide_eq_true heq_eq_eq
+  cond_true cond_false beq_self_eq_true bne_self_eq_false decide_False
+  decide_True bne_iff_ne beq_eq_false_iff_ne bne_eq_false_iff_eq
+  Nat.le_zero_eq
