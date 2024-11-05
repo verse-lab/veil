@@ -146,25 +146,37 @@ def assembleState : CommandElabM Unit := do
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState
 
+open Tactic in
+elab tk:"conv! " conv:conv " => " e:term : term => do
+  let e ← Elab.Term.elabTermAndSynthesize e none
+  let (rhs, g) ← Conv.mkConvGoalFor e
+  _ ← Tactic.run g.mvarId! (do
+    evalTactic conv
+    for mvarId in (← getGoals) do
+      liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
+    pruneSolvedGoals
+    let e' ← instantiateMVars rhs
+    trace[dsl] "{e'}"
+  )
+  return rhs
+
 /-- We use this to evaluate `wlp` inside function bodies at definition time.
-  Otherwise it has to be evaluated in the kernel during proofs, which is very slow. -/
-def simplifyTerm (t : TSyntax `term) (expectedType : Option Expr) : TermElabM (TSyntax `term) := do
-  let expr ← elabTermAndSynthesize t expectedType
+  Otherwise it has to be evaluated in the kernel during proofs, which is very slow.
+  `conv!` applies a tactic to a term. -/
+def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
   -- Reduce the body of the function
-  trace[dsl] "Term: {t}"
-  -- FIXME: Use native evaluation instead of `Meta.reduce`; check what `#eval` does
-  let reduce ← forallTelescope expr (fun xs b => return ← mkArrowN xs (← Meta.reduceAll b))
-  let t' ← PrettyPrinter.delab reduce
-  trace[dsl] "Simplified: {t'}"
+  let t' ← `(term| by
+    let t := conv! dsimp only [$(mkIdent ``wlp):ident] => $t;
+    exact t)
   return t'
 
 /-- Declaring the initial state predicate -/
 elab "initial" ini:term : command => do
   elabCommand <| <- Command.runTermElabM fun vs => do
-    let stateTp <- stateTp vs
-    let ini <- simplifyTerm ini (<- mkArrow stateTp prop)
-    let stateTp <- PrettyPrinter.delab stateTp
-    `(@[initDef, initSimp] def $(mkIdent `initialState?) : $stateTp -> Prop := $ini)
+    let stateTp ← PrettyPrinter.delab $ ← stateTp vs
+    let expectedType ← `($stateTp → Prop)
+    let ini ←  simplifyTerm ini
+    `(@[initDef, initSimp] def $(mkIdent `initialState?) : $expectedType := $ini)
 
 /-- Declaring the initial state predicate in the form of a code -/
 elab "after_init" "{" l:lang "}" : command => do
@@ -175,9 +187,12 @@ elab "after_init" "{" l:lang "}" : command => do
    -- doesn't depend on a prestate we can reduce it into `fun _ => Ini(st')`
    -- To get `Ini(st')` we should apply `fun _ => Ini(st')`  to any
    -- state, so we use `st'` as it is the only state we have in the context.
-    let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
-    let act <- `(fun $st' => @wlp _ _ (fun $ret $st => $st' = $st) [lang1| $l ] $st')
-    elabCommand $ <- `(initial $act)
+    let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
+    let act ← Command.runTermElabM fun vs => (do
+      let stateTp ← PrettyPrinter.delab $ ← stateTp vs
+      `(fun ($st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang1| $l ] $st')
+    )
+    elabCommand $ ← `(initial $act)
 
 /--
 Transition defined via a two-state relation.
@@ -202,12 +217,12 @@ def toFnName (id : Ident) : Ident :=
 def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `lang) : CommandElabM Unit := do
   let nm := toFnName nm
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let (ret, st, stret) := (mkIdent `ret', mkIdent `st, mkIdent `stret)
+    let (ret, st, stret, wlp) := (mkIdent `ret', mkIdent `st, mkIdent `stret, mkIdent ``wlp)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $stret = ($st', $ret')
     let act <- `(fun ($st : $stateTp) $stret =>
-      @wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [lang| $l ] $st)
+      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [lang| $l ] $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st1, st2) := (mkIdent `st1, mkIdent `st2)
     match br with
@@ -229,9 +244,12 @@ to refer to both pre-state and post-state.
 -/
 elab_rules : command
   | `(command| action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
-    let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
+    let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
     -- `σ → σ → Prop`, with binders existentially qunatified
-    let tr <- `(fun $st $st' => @wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
+    let tr ← Command.runTermElabM fun vs => (do
+      let stateTp ← PrettyPrinter.delab $ ← stateTp vs
+      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
+    )
     elabCommand $ ← `(transition $nm $br ? = $tr)
     elabCallableFn nm br l
 
@@ -255,13 +273,14 @@ elab_rules : command
       let _ <- elabTerm tr expectedType
     -- The actual command (not term) elaboration happens here
     let stateTpT <- PrettyPrinter.delab stateTp
+    let expectedType <- `($stateTpT -> $stateTpT -> Prop)
     match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
-      `(@[actDef, actSimp] def $nm : $stateTpT -> $stateTpT -> Prop := fun $st1 $st2 => exists $br, $tr $st1 $st2)
+      `(@[actDef, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st1 $st2 => exists $br, $tr $st1 $st2)))
     | _ => do
-      let tr ← simplifyTerm tr expectedType
-      `(@[actDef, actSimp] def $nm:ident : $stateTpT -> $stateTpT -> Prop := $tr)
+      let tr ← simplifyTerm tr
+      `(@[actDef, actSimp] def $nm:ident : $expectedType := $tr)
 
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
