@@ -28,6 +28,28 @@ register_option sauto.smt.solver : SolverName := {
   descr := "SMT solver to use"
 }
 
+inductive Translator
+  | leanSmt
+  | leanAuto
+  deriving BEq, Hashable, Inhabited
+
+instance : ToString Translator where
+  toString : Translator → String
+  | .leanSmt  => "lean-smt"
+  | .leanAuto => "lean-auto"
+
+instance : Lean.KVMap.Value Translator where
+  toDataValue n := toString n
+  ofDataValue?
+  | "lean-smt"  => some .leanSmt
+  | "lean-auto" => some .leanAuto
+  | _           => none
+
+register_option sauto.smt.translator : Translator := {
+  defValue := Translator.leanAuto
+  descr := "Which package to use for translating Lean to SMT (`lean-auto` or `lean-smt`)"
+}
+
 register_option sauto.smt.macrofinder : Bool := {
   defValue := False
   descr := "Whether to use Z3's macro-finder tactic"
@@ -414,17 +436,22 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
   let timeout ← parseTimeout ⟨stx[2]⟩
   -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
   -- we first use `lean-auto` to generate the query, and call `lean-smt` only
-  -- if the query is satisfiable and we want to print a model.
-  -- (1) We first call `lean-auto`
-  let hs ← parseAutoHints ⟨stx[1]⟩
-  let cmdString ← prepareAutoQuery mv hs
-  let res ← querySolver cmdString timeout (getModel? := false) (retryOnFailure := true)
+  -- if the query is satisfiable and we want to print a model,
+  -- UNLESS the `sauto.smt.translator` option overrides this behaviour.
+  let translatorToUse := sauto.smt.translator.get (← getOptions)
+  let cmdString ←
+    match translatorToUse with
+    | Translator.leanAuto => prepareAutoQuery mv (← parseAutoHints ⟨stx[1]⟩)
+    | Translator.leanSmt => prepareQuery mv (← Tactic.parseHints ⟨stx[1]⟩)
+  let getModel? := translatorToUse == Translator.leanSmt
+  let res ← querySolver cmdString timeout (getModel? := getModel?) (retryOnFailure := true)
   match res with
   | .Sat _ =>
-    -- (2) If the query is satisfiable, we call `lean-smt` to get the model.
-    let hs ← Tactic.parseHints ⟨stx[1]⟩
-    let cmdString ← prepareQuery mv hs
-    let _ ← querySolver cmdString timeout
+    -- If we called `lean-auto`, we need to call `lean-smt` to get the model.
+    if translatorToUse == Translator.leanAuto then
+      let hs ← Tactic.parseHints ⟨stx[1]⟩
+      let cmdString ← prepareQuery mv hs
+      let _ ← querySolver cmdString timeout
     throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
   | .Unsat _ => mv.admit (synthetic := false)
