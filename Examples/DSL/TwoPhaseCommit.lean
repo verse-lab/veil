@@ -80,8 +80,18 @@ action abort(n: node) = {
 }
 
 safety (decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes N2) ∧ (decide_abort N → abort_flag)
+invariant [manual_1] ¬((¬(alive N) ∧ ¬(abort_flag)))
+invariant [manual_2] ¬((¬(abort_flag) ∧ vote_no N))
+invariant [manual_3] ¬((¬(abort_flag) ∧ go_abort N))
+invariant [manual_4] ¬((¬(go_abort N) ∧ decide_abort N ∧ vote_yes N))
+invariant [manual_5] ¬((¬(go_commit N) ∧ decide_commit N))
+invariant [manual_6] (N0 ≠ N1) -> ¬((¬(go_commit N0) ∧ go_commit N1))
+invariant [manual_7] ¬((¬(vote_yes N) ∧ go_commit N))
+invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 
 #gen_spec TPC
+
+#check_invariants
 
 sat trace [initial_state] {} by { dsimp only [initSimp, wlp] ; simp }
 
