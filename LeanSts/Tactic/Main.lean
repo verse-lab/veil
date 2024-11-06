@@ -154,12 +154,16 @@ def elabSolveClause (stx : Syntax)
   let idents ← getPropsInContext
   -- (5) Call `sauto` using these propositions
   let autoTac ← `(tactic| sauto [$[$idents:ident],*])
-  let mut xtacs := xtacs.push autoTac
+  let mut xtacs := xtacs
+  -- Sometimes the simplification solves the goal, and we don't need to `sauto`
+  if (← getUnsolvedGoals).length != 0 then
+    xtacs := xtacs.push autoTac
   if trace then
     -- FIXME: the indentation is wrong for the `sauto` tactic
     let combined_tactic ← `(tactic| $xtacs;*)
     addSuggestion stx combined_tactic
-  evalTactic autoTac
+  if (← getUnsolvedGoals).length != 0 then
+    evalTactic autoTac
 
 syntax (name := solveClause) "solve_clause" : tactic
 syntax (name := solveClauseWith) "solve_clause" "[" ident,* "]" : tactic
