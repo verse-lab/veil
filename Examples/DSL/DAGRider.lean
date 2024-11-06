@@ -1,4 +1,5 @@
 import LeanSts.DSL
+-- import Mathlib.Tactic
 
 section DAGRider
 
@@ -27,8 +28,8 @@ open ByzQuorum
 
 type node
 type quorum
--- type round
-abbrev round := Nat
+-- type roundNum
+abbrev roundNum := Nat
 type vertex
 type block
 
@@ -36,11 +37,11 @@ type block
 variable (is_byz : node → Prop)
 instantiate q : ByzQuorum node is_byz quorum
 variable [DecidableBinaryRel q.member]
--- instantiate tot : TotalOrderWithZero round
+-- instantiate tot : TotalOrderWithZero roundNum
 
 -- TODO: what's the proper way to respresent structs?
 -- Vertex struct
-relation vertexRound (v : vertex) (r : round)
+relation vertexRound (v : vertex) (r : roundNum)
 relation vertexSource (v : vertex) (n : node)
 relation vertexBlock (v : vertex) (b : block)
 -- set of vertices in `strongEdges`
@@ -50,9 +51,9 @@ relation vertexWeakEdge (v : vertex) (we : vertex)
 
 
 -- State (for a single node); TODO: add node ID to state??
--- DAG: set of vertices at each round
-relation dag (r : round) (v : vertex)
-individual r : round
+-- DAG: set of vertices at each roundNum
+relation dag (r : roundNum) (v : vertex)
+individual r : roundNum
 relation buffer (v : vertex)
 
 #gen_state
@@ -75,15 +76,21 @@ invariant [vertexRound_coherence] ∀ v r r', vertexRound v r → vertexRound v 
 invariant [vertexSource_coherence] ∀ v n n', vertexSource v n → vertexSource v n' → n = n'
 invariant [vertexBlock_coherence] ∀ v b b', vertexBlock v b → vertexBlock v b' → b = b'
 
--- Data invariant: the DAG has at most one vertex per round from each source node
+-- Data invariant: the DAG has at most one vertex per roundNum from each source node
 -- We use this to relate vertices in the DAG to the quorum properties of nodes
 -- (so as to avoid counting the vertices directly)
 invariant [dag_coherence]
     ∀ r v v' n n', dag r v → dag r v' → vertexSource v n → vertexSource v' n' → n = n'
 
--- FIXME: To add `Decidable` instances for all propositions
-open Classical
 
+-- TODO: if we're modelling DAG construction, should this be an external
+-- action? (i.e. one with no implementation?)
+action wave_ready (r : roundNum) = {
+    skip
+}
+
+-- FIXME: To add `Decidable` instances for all propositions
+open Classical in
 action mainLoop = {
     -- Add to the DAG all vertices in the buffer that have all their predecessors in the DAG
     dag R V := dag R V ∨
@@ -95,14 +102,24 @@ action mainLoop = {
     -- There is a quorum of vertices in `dag[r]`
     if (∃ q, ∀ n, member n q → (∃ v, dag r v ∧ vertexSource v n)) {
         if (r % 4 = 0) {
-            -- How to model calling wave_ready?
-            skip
+            -- TODO: how to properly model signalling wave_ready?
+            -- FIXME: this doesn't inline the `forall s'`
+            call wave_ready.fn r
         };
         r := r + 1;
         skip
     }
 }
 
+-- #print mainLoop
+
+safety [Trivial] True ∧ True
+
+#gen_spec DAGRider
+prove_inv_init by { solve_clause }
+prove_inv_safe by { solve_clause }
+
+#check_invariants
 
 
 end DAGRider
