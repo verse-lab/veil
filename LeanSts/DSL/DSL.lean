@@ -227,11 +227,11 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     let act <- `(fun ($st : $stateTp) $stret =>
       @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [lang| $l ] $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
-    let (st1, st2) := (mkIdent `st1, mkIdent `st2)
+    let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
     | some br =>
       let br ← toBracketedBinderArray br
-      `(@[actSimp] def $nm $br* := fun $st1 $st2 => $act $st1 $st2)
+      `(@[actSimp] def $nm $br* := fun $st $st' => $act $st $st')
     | _ => do
       `(@[actSimp] def $nm:ident := $act)
   elabCommand $ ← Command.runTermElabM fun vs => do
@@ -266,12 +266,12 @@ elab_rules : command
   | `(command| transition $nm:ident $br:explicitBinders ? = $tr) => do
  elabCommand $ ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
-    let (st1, st2) := (mkIdent `st1, mkIdent `st2)
+    let (st, st') := (mkIdent `st, mkIdent `st')
     let expectedType ← mkArrow stateTp (← mkArrow stateTp prop)
     -- IMPORTANT: we elaborate the term here so we get an error if it doesn't type check
     match br with
     | some br =>
-      let _ <- elabTerm (<-`(term| fun $st1 $st2 => exists $br, $tr $st1 $st2)) expectedType
+      let _ <- elabTerm (<-`(term| fun $st $st' => exists $br, $tr $st $st')) expectedType
     | none =>
       let _ <- elabTerm tr expectedType
     -- The actual command (not term) elaboration happens here
@@ -280,7 +280,7 @@ elab_rules : command
     match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
-      `(@[actDef, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st1 $st2 => exists $br, $tr $st1 $st2)))
+      `(@[actDef, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st $st' => exists $br, $tr $st $st')))
     | _ => do
       let tr ← simplifyTerm tr
       `(@[actDef, actSimp] def $nm:ident : $expectedType := $tr)
@@ -510,7 +510,7 @@ elab "prove_inv_inductive" proof:term : command => do
     let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
     `(theorem $(mkIdent `inv_inductive) : invInductive (σ := $stateTp) :=
       by unfold invInductive;
-         intros $(mkIdent `st1) $(mkIdent `st2)
+         intros $(mkIdent `st) $(mkIdent `st')
         --  simp only [actSimp, invSimp, safeSimp]
          exact $proof)
 
