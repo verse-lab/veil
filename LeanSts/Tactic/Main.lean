@@ -143,8 +143,7 @@ def elabSolveClause (stx : Syntax)
   -- the `actSimp here is used for function calls under wlp
   let simp1 := mkSimpLemmas #[`wlp, `actSimp]
   let simp2 := mkSimpLemmas #[injEqLemma, `invSimp, `smtSimp]
-  let simpTac ← `(tactic| try
-    (try dsimp only [$simp0,*] at *) ; (try dsimp only [$simp1,*] at *); (try simp only [$simp2,*] at *))
+  let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
