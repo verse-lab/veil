@@ -14,13 +14,13 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   | require (rq : σ -> Prop) : Lang PUnit
   | assume  (as : σ -> Prop) : Lang PUnit
   | bind    {ρ ρ' : Type u} (act : Lang ρ') (act' : ρ' -> Lang ρ) : Lang ρ
+  -- τ is a first order type, so it can be quantified in FOL
+  | fresh   {τ : Type u} {ρ : Type u} (act : τ -> Lang ρ) : Lang ρ
   /-- Deterministic changes to the state, although mostly used for assignments. All
       capital variables will be quantified. -/
   | det     {ρ' : Type u} (act : σ -> σ × ρ') : Lang ρ'
   /-- Non-deterministic changes to the state. -/
   | nondet  {ρ' : Type u} (act :  σ -> σ × ρ' -> Prop) : Lang ρ'
-  -- τ is a first order type, so it can be quantified in FOL
-  | nondetVal {τ : Type} {ρ' : Type u} (act : τ -> σ -> σ × ρ') : Lang ρ'
   /-- If-then-else. `open Classical` to allow propositions in the condition. -/
   | ite     {ρ : Type u} (cnd : σ -> Bool) (thn : Lang ρ) (els : Lang ρ) : Lang ρ
   /-- Sequence -/
@@ -49,7 +49,6 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   | Lang.det act          => fun s => let (s', ret) := act s ; post ret s'
   -- a non-deterministic `nondet`
   | Lang.nondet act       => fun s => ∀ s' ret, act s (s', ret) → post ret s'
-  | Lang.nondetVal act    => fun s => ∃ t, let (s', ret) := act t s ; post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
   -- `seq` is a composition of programs, so we need to compute the wlp of
@@ -59,6 +58,7 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   | Lang.ret ret    => post ret
   | Lang.bind l1 l2 =>
     wlp (fun ret => wlp post (l2 ret)) l1
+  | Lang.fresh act => fun s => ∃ t, wlp post (act t) s
 
 declare_syntax_cat lang
 syntax lang ";" colGe lang : lang
@@ -75,6 +75,7 @@ syntax Term.structInstLVal ":=" term    : lang
 /-- syntax for assigment, e.g. `pending n s := true` -/
 syntax Term.structInstLVal (term:max)+ ":=" (term <|> nondetVal)    : lang
 syntax ident "<-" lang "in" lang : lang
+syntax "fresh" ident ":" term "in" lang : lang
 syntax "return" term : lang
 syntax "call" term : lang
 /-- Syntax to trigger the expantion into a code which may
@@ -131,8 +132,8 @@ macro_rules
   --   `(@Lang.nondet _ _ (fun st (st', ()) =>
   --     (∃ v, st' = { st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))})))
   | `([lang| $id:structInstLVal $ts: term * := * ]) => do
-    `(@Lang.nondetVal _ _ _ (fun v st =>
-      ({ st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))}, ())))
+    `(@Lang.fresh _ _ _ (fun v => @Lang.nondet _ _ _ (fun st =>
+      ({ st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))}, ()))))
   --   -- expansion of the actual syntax for assigment
     -- for instance `pending n s := true` will get
     -- expanded to `pending := pending[n, s ↦ true]`
@@ -141,6 +142,8 @@ macro_rules
     `([lang| $id:structInstLVal := $stx])
   | `([lang| $id:ident <- $l1:lang in $l2:lang]) => do
       `(@Lang.bind _ _ _ [lang|$l1] (fun $id => [lang|$l2]))
+  | `([lang|fresh $id:ident : $t in $l2:lang]) =>
+      `(@Lang.fresh _ _ _ (fun $id : $t => [lang|$l2]))
   | `([lang|return $t:term]) => `(@Lang.ret _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
   | `([lang|call $t:term]) => `(@Lang.nondet _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
 
