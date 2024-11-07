@@ -72,6 +72,13 @@ inductive SmtResult
   | Unsat (unsatCore : Auto.Parser.SMTSexp.Sexp)
   | Unknown (reason : String)
 
+instance : ToString SmtResult where
+  toString
+    | SmtResult.Sat none => "sat"
+    | SmtResult.Sat (some m) => s!"sat\n{m}"
+    | SmtResult.Unsat c => s!"unsat\n{c}"
+    | SmtResult.Unknown r => s!"unknown ({r})"
+
 namespace Smt.Util
 theorem iff_eq_eq : (p ↔ q) = (p = q) := propext ⟨propext, (· ▸ ⟨(·), (·)⟩)⟩
 
@@ -451,8 +458,11 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     if translatorToUse == Translator.leanAuto then
       let hs ← Tactic.parseHints ⟨stx[1]⟩
       let cmdString ← prepareQuery mv hs
-      let _ ← querySolver cmdString timeout
-    throwError "the goal is false"
+      let res ← querySolver cmdString timeout
+      if let .Sat fostruct := res then
+        throwError "the goal is false: {fostruct.get!}"
+      else
+        throwError s!"the goal is false, but second SMT query asking for a model returned {res}"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
   | .Unsat _ => mv.admit (synthetic := false)
 
