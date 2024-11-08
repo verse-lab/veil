@@ -208,17 +208,20 @@ All capital letters in `require` and in assignments are implicitly quantified.
 -/
 syntax "action" ident (explicitBinders)? "=" "{" lang "}" : command
 
-/-- We have two versions of actions: `act` and `act.fn`. The former has
+/-- We have two versions of actions: `act.tr` and `act.fn`. The former has
 existentially quantified arguments (and is thus a transition), whereas
 the latter has universally quantified arguments (and is thus a function
 that returns a transition for specific argument instances). -/
+def toTrName (id : Ident) : Ident :=
+  mkIdent (id.getId ++ `tr)
+
 def toFnName (id : Ident) : Ident :=
   mkIdent (id.getId ++ `fn)
 
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
 def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `lang) : CommandElabM Unit := do
-  let nm := toFnName nm
+  let (originalName, nm) := (nm, toFnName nm)
   elabCommand $ ← Command.runTermElabM fun vs => do
     let (ret, st, stret, wlp) := (mkIdent `ret', mkIdent `st, mkIdent `stret, mkIdent ``wlp)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
@@ -234,10 +237,16 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
       `(@[actSimp] def $nm $br* := fun $st $st' => $act $st $st')
     | _ => do
       `(@[actSimp] def $nm:ident := $act)
+  -- Introduce notation to automatically provide the section arguments
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let args ← vs.mapM (fun _ => `(term|_))
-    let strName ← `(Lean.Parser.Command.notationItem|$(Lean.quote nm.getId.toString):str)
+    let args ← vs.mapM (fun v => do
+      let t ← PrettyPrinter.delab v
+      let isHygienicName := (extractMacroScopes t.raw.getId).scopes.length > 0
+      if isHygienicName then return ← `(term|_) else return t
+    )
+    let strName ← `(Lean.Parser.Command.notationItem|$(Lean.quote originalName.getId.toString):str)
     `(local notation (priority := default) $strName => @$nm $args*)
+
 /--
 Desugaring an imperative code action into a two-state transition. Here we compute
 the weakest precondition of the program and then define the transition relation.
@@ -253,7 +262,7 @@ elab_rules : command
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
     )
-    elabCommand $ ← `(transition $nm $br ? = $tr)
+    elabCommand $ ← `(transition $(toTrName nm) $br ? = $tr)
     elabCallableFn nm br l
 
 /--
