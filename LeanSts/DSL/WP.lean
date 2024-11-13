@@ -102,7 +102,6 @@ def closeCapitals (s : Term) : MacroM Term :=
   let caps := getCapitals s
   `(forall $[$caps]*, $s)
 
-
 macro_rules
   | `([lang|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
   | `([lang|$l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang|$l1] [lang|$l2])

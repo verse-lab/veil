@@ -228,3 +228,20 @@ elab_rules : command
     for cmd in cmds do
       elabCommand cmd
 def constructCommands (thms : Array (TSyntax `command)) : CoreM (TSyntax `commands) := `(commands| $[$thms]*)
+
+/-- We have two versions of actions: `act.tr` and `act.fn`. The former has
+existentially quantified arguments (and is thus a transition), whereas
+the latter has universally quantified arguments (and is thus a function
+that returns a transition for specific argument instances). -/
+def toTrName (n : Name) : Name :=
+  n ++ `tr
+
+/-- See docstring on `toTrName`. -/
+def toTrIdent (id : Ident) : Ident := mkIdent $ toTrName id.getId
+
+/-- See docstring on `toTrName`. -/
+def toFnName (n : Name) : Name :=
+  n ++ `fn
+
+/-- See docstring on `toTrName`. -/
+def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId

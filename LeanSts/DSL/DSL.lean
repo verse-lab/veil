@@ -208,20 +208,10 @@ All capital letters in `require` and in assignments are implicitly quantified.
 -/
 syntax "action" ident (explicitBinders)? "=" "{" lang "}" : command
 
-/-- We have two versions of actions: `act.tr` and `act.fn`. The former has
-existentially quantified arguments (and is thus a transition), whereas
-the latter has universally quantified arguments (and is thus a function
-that returns a transition for specific argument instances). -/
-def toTrName (id : Ident) : Ident :=
-  mkIdent (id.getId ++ `tr)
-
-def toFnName (id : Ident) : Ident :=
-  mkIdent (id.getId ++ `fn)
-
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
 def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `lang) : CommandElabM Unit := do
-  let (originalName, nm) := (nm, toFnName nm)
+  let (originalName, nm) := (nm, toFnIdent nm)
   elabCommand $ ← Command.runTermElabM fun vs => do
     let (ret, st, stret, wlp) := (mkIdent `ret', mkIdent `st, mkIdent `stret, mkIdent ``wlp)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
@@ -244,7 +234,7 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
       let isHygienicName := (extractMacroScopes t.raw.getId).scopes.length > 0
       if isHygienicName then return ← `(term|_) else return t
     )
-    let strName ← `(Lean.Parser.Command.notationItem|$(Lean.quote originalName.getId.toString):str)
+    let strName ← `(Lean.Parser.Command.notationItem|$(Lean.quote ("!" ++ originalName.getId.toString)):str)
     `(local notation (priority := default) $strName => @$nm $args*)
 
 /--
@@ -262,7 +252,7 @@ elab_rules : command
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
     )
-    elabCommand $ ← `(transition $(toTrName nm) $br ? = $tr)
+    elabCommand $ ← `(transition $(toTrIdent nm) $br ? = $tr)
     elabCallableFn nm br l
 
 /--
