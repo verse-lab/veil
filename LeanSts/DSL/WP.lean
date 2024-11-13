@@ -12,7 +12,6 @@ variable (σ : Type)
 inductive Lang.{u} : Type u → Type (u + 1) where
   /-- Pre-condition. All capital variables will be quantified. -/
   | require (rq : σ -> Prop) : Lang PUnit
-  | assume  (as : σ -> Prop) : Lang PUnit
   | bind    {ρ ρ' : Type u} (act : Lang ρ') (act' : ρ' -> Lang ρ) : Lang ρ
   -- τ is a first order type, so it can be quantified in FOL
   | fresh   {τ : Type u} {ρ : Type u} (act : τ -> Lang ρ) : Lang ρ
@@ -44,7 +43,7 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   -- `require` enhances the pre-condition, restricting the possible states
   -- it has the same effect as `assume` in Hoare logic
   | Lang.require rq       => fun s => rq s ∧ post () s
-  | Lang.assume  as       => fun s => as s → post () s
+  -- | Lang.assume  as       => fun s => as s → post () s
   -- a deterministic `act` transforms the state
   | Lang.det act          => fun s => let (s', ret) := act s ; post ret s'
   -- a non-deterministic `nondet`
@@ -66,7 +65,6 @@ syntax "skip"              : lang
 /-- Non-deterministic value. -/
 syntax (name := nondetVal) "*" : lang
 syntax "require" term      : lang
-syntax "assume" term       : lang
 syntax "do" term           : lang
 syntax (priority := high) "if" term:max "{" lang "}" "else\n" "{" lang "}" : lang
 syntax (priority := low) "if" term:max "{" lang "}" : lang
@@ -110,9 +108,6 @@ macro_rules
     withRef t $
       -- require a proposition on the state
      `(@Lang.require _ (funcases ($t' : Prop) : $(mkIdent `State) .. -> Prop))
-  | `([lang|assume $t:term]) => do
-    let t' <- closeCapitals t
-    withRef t $ `(@Lang.assume _ (funcases ($t' : Prop) : $(mkIdent `State) .. -> Prop))
   | `([lang|if $cnd:term { $thn:lang }]) => `([lang|if $cnd { $thn } else { skip }])
   | `([lang|if $cnd:term { $thn:lang } else { $els:lang }]) => do
     let cnd' <- closeCapitals cnd
@@ -155,8 +150,6 @@ macro_rules
   | `([lang1| $l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang1|$l1] [lang1|$l2])
   | `([lang1|require $t:term]) => do
       withRef t $ `(@Lang.require _ (funcases ($t : Prop) : $(mkIdent `State) .. -> Prop))
-  | `([lang1|assume $t:term]) => do
-      withRef t $ `(@Lang.assume _ (funcases ($t : Prop) : $(mkIdent `State) .. -> Prop))
   | `([lang1|if $cnd:term { $thn:lang }]) => `([lang1|if $cnd { $thn } else { skip }])
   | `([lang1|if $cnd:term { $thn:lang } else { $els:lang }]) => do
     let cnd <- withRef cnd `(funclear ($cnd : Bool))
