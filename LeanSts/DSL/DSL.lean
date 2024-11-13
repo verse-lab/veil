@@ -224,9 +224,10 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     match br with
     | some br =>
       let br ← toBracketedBinderArray br
-      `(@[actSimp] def $nm $br* := fun $st $st' => $act $st $st')
+      -- $(← simplifyTerm $ ← `(fun $st $st' => exists $br, $tr $st $st'))
+      `(@[actSimp] def $nm $br* := $(← simplifyTerm $ ← `(fun $st $st' => $act $st $st')))
     | _ => do
-      `(@[actSimp] def $nm:ident := $act)
+      `(@[actSimp] def $nm:ident := $(← simplifyTerm act))
   -- Introduce notation to automatically provide the section arguments
   elabCommand $ ← Command.runTermElabM fun vs => do
     let args ← vs.mapM (fun v => do
@@ -281,8 +282,7 @@ elab_rules : command
       -- TODO: add macro for a beta reduction here
       `(@[actDef, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st $st' => exists $br, $tr $st $st')))
     | _ => do
-      let tr ← simplifyTerm tr
-      `(@[actDef, actSimp] def $nm:ident : $expectedType := $tr)
+      `(@[actDef, actSimp] def $nm:ident : $expectedType := $(← simplifyTerm tr))
 
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
