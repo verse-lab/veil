@@ -84,10 +84,23 @@ elab "rename_binders" : tactic => do
 /-- Tuples are not supported in SMT-LIB, so we destruct tuple equalities. -/
 @[smtSimp] theorem tupleEq [DecidableEq t1] [DecidableEq t2] (a c : t1) (b d : t2):
   ((a, b) = (c, d)) = (a = c ∧ b = d) := by
-  apply propext
-  constructor
+  apply propext; constructor
   { intro h ; injection h ; constructor <;> assumption }
   { rintro ⟨h1, h2⟩ ; rw [h1, h2] }
+
+/-- Tuples are not supported in SMT-LIB, so we destruct quantifiers over tuples. -/
+@[smtSimp] theorem tupleForall {P : α × β → Prop}:
+  (∀ (x : α × β), P x) = (∀ (a: α) (b : β), P (a, b)) := by
+  apply propext; constructor
+  { rintro h a b ; exact h (a, b) }
+  { rintro h ⟨a, b⟩ ; exact h a b }
+
+/-- Tuples are not supported in SMT-LIB, so we destruct quantifiers over tuples. -/
+@[smtSimp] theorem tupleExists {P : α × β → Prop}:
+  (∃ (x : α × β), P x) = (∃ (a: α) (b : β), P (a, b)) := by
+  apply propext; constructor
+  { rintro ⟨⟨a, b⟩, h⟩ ; exact ⟨a, b, h⟩ }
+  { rintro ⟨a, b, h⟩ ; exact ⟨⟨a, b⟩, h⟩ }
 
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`, but with
 -- `smtSimp` attribute They are used to enable "eliminating" higher-order
