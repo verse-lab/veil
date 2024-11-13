@@ -46,8 +46,11 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   -- | Lang.assume  as       => fun s => as s → post () s
   -- a deterministic `act` transforms the state
   | Lang.det act          => fun s => let (s', ret) := act s ; post ret s'
-  -- a non-deterministic `nondet`
-  | Lang.nondet act       => fun s => ∀ s' ret, act s (s', ret) → post ret s'
+  -- A non-deterministic action satisfies the post-condition if there is
+  -- _some_ possible post-state that satisfies the post-condition.
+  -- This corresponds to the semantics in Ivy and matches the intuition that
+  -- a call to an action is morally equivalent to inlining that action.
+  | Lang.nondet act       => fun s => ∃ s' ret, act s (s', ret) ∧ post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
   -- `seq` is a composition of programs, so we need to compute the wlp of
