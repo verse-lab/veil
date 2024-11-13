@@ -62,6 +62,10 @@ inductive Lang.{u} : Type u → Type (u + 1) where
     wlp (fun ret => wlp post (l2 ret)) l1
   | Lang.fresh act => fun s => ∃ t, wlp post (act t) s
 
+declare_syntax_cat left_arrow
+syntax "<-" : left_arrow
+syntax "←" : left_arrow
+
 declare_syntax_cat lang
 syntax lang ";" colGe lang : lang
 syntax "skip"              : lang
@@ -75,7 +79,7 @@ syntax (priority := low) "if" term:max "{" lang "}" : lang
 syntax Term.structInstLVal ":=" term    : lang
 /-- syntax for assigment, e.g. `pending n s := true` -/
 syntax Term.structInstLVal (term:max)+ ":=" (term <|> nondetVal)    : lang
-syntax ident "<-" lang "in" lang : lang
+syntax term (":" term)? left_arrow lang "in" lang : lang
 syntax "fresh" ident ":" term "in" lang : lang
 syntax "return" term : lang
 syntax "call" term : lang
@@ -137,8 +141,12 @@ macro_rules
   | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
     let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
     `([lang| $id:structInstLVal := $stx])
-  | `([lang| $id:ident <- $l1:lang in $l2:lang]) => do
+  -- NOTE: the following two cases describe the same construct
+  -- there's probably a way to unify them
+  | `([lang| $id:term $_:left_arrow $l1:lang in $l2:lang]) => do
       `(@Lang.bind _ _ _ [lang|$l1] (fun $id => [lang|$l2]))
+  | `([lang| $id:term : $t:term $_:left_arrow $l1:lang in $l2:lang]) => do
+      `(@Lang.bind _ _ _ [lang|$l1] (fun ($id : $t) => [lang|$l2]))
   | `([lang|fresh $id:ident : $t in $l2:lang]) =>
       `(@Lang.fresh _ _ _ (fun $id : $t => [lang|$l2]))
   | `([lang|return $t:term]) => `(@Lang.ret _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
