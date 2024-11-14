@@ -139,9 +139,15 @@ def assembleState : CommandElabM Unit := do
     -- https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869
     let stateTp := mkAppN (<- stsExt.get).typ vs
     let stateTp ← PrettyPrinter.delab stateTp
-    let stateThm ← `(@[smtSimp] theorem $(mkIdent `State_forall_comm) $[$vd]* {p : $stateTp → $(mkIdent `β) → Prop} : (∀ a b, p a b) ↔ (∀ b a, p a b) := forall_comm)
-    trace[dsl] "{stateThm}"
-    liftCommandElabM $ elabCommand $ stateThm
+    -- These two theorems "push down" quantification over state to be the last quantifier
+    let forallComm ← `(@[smtSimp] theorem $(mkIdent `State_forall_comm) $[$vd]* {p : $stateTp → $(mkIdent `β) → Prop} : (∀ a b, p a b) ↔ (∀ b a, p a b) := forall_comm)
+    let existsComm ← `(@[smtSimp] theorem $(mkIdent `State_exists_comm) $[$vd]* {p : $stateTp → $(mkIdent `β) → Prop} : (∃ a b, p a b) ↔ (∃ b a, p a b) := exists_comm)
+    -- This pushes equalities over state e.g. `st' = ...` to be the last
+    let eqPush ← `(@[smtSimp] theorem $(mkIdent `State_eq_and_push_right) $[$vd]* {p : Prop} {s s' : $stateTp} : (s = s' ∧ p) ↔ (p ∧ s = s') := by constructor <;> (rintro ⟨_, _⟩; constructor <;> assumption))
+    liftCommandElabM $ do
+      elabCommand forallComm
+      elabCommand existsComm
+      elabCommand eqPush
 
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState
@@ -170,7 +176,8 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
     -- Try simplifying first, but this might fail if there's no `wlp` in the
     -- definition, e.g. for transitions that are not actions.
     -- If that fails, we try to evaluate the term as is.
-    first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident]) => $t; exact t) | exact $t)
+    -- We do `simp only [and_assoc]` at the end to normalize conjunctions.
+    first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident]; simp only [and_assoc]) => $t; exact t) | exact $t)
   return t'
 
 /-- Declaring the initial state predicate -/
