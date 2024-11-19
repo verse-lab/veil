@@ -97,6 +97,8 @@ action dequeue (q0 : queue) = {
     return (b, q')
 }
 
+#print dequeue.fn
+
 -- Data invariants
 -- FIXME: `partial function` keyword to define these automatically
 invariant [vertexRound_coherence] ∀ v r r', vertexRound v r → vertexRound v r' → r = r'
@@ -114,12 +116,32 @@ invariant [dag_coherence]
 action waveReady (r : Nat) = { skip }
 action r_bcast (v : vertex) (r : Nat) = { skip }
 
-action createNewVertex (r : Nat) = {
-    -- "wait until ¬ blocksToPropose.empty"
-    b <- call !dequeue blocksToPropose in
-    skip
-    -- require st'.blocksToPropose = q.dequeue blocksToPropose
+
+action setWeakEdges (v : vertex) (r : Nat) = {
+  -- `v.weakEdges ← {}`
+  require (¬ ∃ we, vertexWeakEdge v we)
+  -- NOTE: we cannot express the `path` predicate in the DSL
+  -- or in FOL generally; see `Array.path` in `DAG.lean` to
+  -- see how we express it in HOL (it quantifies over lists of vertices)
+}
+
+action createNewVertex = {
+    -- FIXME: "wait until ¬ blocksToPropose.empty"
+    -- `v.block ← blocksToPropose.dequeue()`
+    (b, q') : block × queue ← call !dequeue blocksToPropose in
+    blocksToPropose := q';
+    fresh v : vertex in
+    -- this is a new, really "fresh", vertex
+    require (¬ ∃ b, vertexBlock v b) ∧ (¬ ∃ n, vertexSource v n) ∧ (¬ ∃ r, vertexRound v r)
+      ∧ (¬ ∃ se, vertexStrongEdge v se) ∧ (¬ ∃ we, vertexWeakEdge v we);
+    vertexBlock v b := True;
+    -- `v.strongEdges ← DAG[round - 1]`
+    vertexStrongEdge v SE := dag (r - 1) SE;
+    call !setWeakEdges v r;
+    return v
  }
+
+#print createNewVertex.tr
 
 -- FIXME: To add `Decidable` instances for all propositions
 open Classical in
@@ -143,28 +165,17 @@ action mainLoop = {
     }
 }
 
+#print mainLoop.fn
+
 safety [Trivial] True ∧ True
 
 #gen_spec DAGRider
 prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
 
-
-set_option sauto.smt.translator "lean-smt"
+-- set_option sauto.smt.translator "lean-smt"
 -- set_option trace.sauto.query true
 
-#check_invariants
-
-
-@[invProof]
-theorem createNewVertex.tr_vertexRound_coherence :
-    ∀ (st st' : State node quorum vertex block queue is_byz),
-      (DAGRider node quorum vertex block queue is_byz).inv st →
-        (createNewVertex.tr node quorum vertex block queue is_byz) st st' →
-          (vertexRound_coherence node quorum vertex block queue is_byz) st' := by
-  unhygienic intros; solve_clause[actSimp]
-  sorry
-
-
+#check_invariants?
 
 end DAGRider
