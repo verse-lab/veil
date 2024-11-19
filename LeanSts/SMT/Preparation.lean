@@ -158,6 +158,16 @@ def pushEqLeftTactic (id : Option (TSyntax `ident)) : TacticM Unit := withMainCo
   | some id => `(tactic| rw [$(mkIdent hname):ident] at $id:ident; clear $(mkIdent hname):ident)
   evalTactic tactic
 
+open Lean.Elab.Tactic.Conv in
+/--`conv` version of the above tactic, since we use `conv!` to simplify
+    action `wlp`s -/
+elab "pushEqLeft" : conv => do
+  let e ← getLhs
+  let rhs ← getRhs
+  let e' ← pushEqLeft e
+  rhs.mvarId!.assign e'
+  evalTactic $ ← `(tactic|ac_rfl)
+
 elab "pushEqLeft" "at" id:ident : tactic => pushEqLeftTactic (some id)
 elab "pushEqLeft" "at" "⊢" : tactic => pushEqLeftTactic none
 elab "pushEqLeft" : tactic => pushEqLeftTactic none
