@@ -8,6 +8,7 @@ import LeanSts.DSL.Util
 import LeanSts.DSL.WP
 import LeanSts.DSL.Tactic
 import LeanSts.DSL.Trace
+import LeanSts.SMT.Preparation
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis RelationalTransitionSystem
 
@@ -143,11 +144,9 @@ def assembleState : CommandElabM Unit := do
     let forallComm ← `(@[smtSimp] theorem $(mkIdent `State_forall_comm) $[$vd]* {p : $stateTp → $(mkIdent `β) → Prop} : (∀ a b, p a b) ↔ (∀ b a, p a b) := forall_comm)
     let existsComm ← `(@[smtSimp] theorem $(mkIdent `State_exists_comm) $[$vd]* {p : $stateTp → $(mkIdent `β) → Prop} : (∃ a b, p a b) ↔ (∃ b a, p a b) := exists_comm)
     -- This pushes equalities over state e.g. `st' = ...` to be the last
-    let eqPush ← `(@[smtSimp] theorem $(mkIdent `State_eq_and_push_right) $[$vd]* {p : Prop} {s s' : $stateTp} : (s = s' ∧ p) ↔ (p ∧ s = s') := by constructor <;> (rintro ⟨_, _⟩; constructor <;> assumption))
     liftCommandElabM $ do
       elabCommand forallComm
       elabCommand existsComm
-      elabCommand eqPush
 
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState
@@ -177,7 +176,7 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
     -- definition, e.g. for transitions that are not actions.
     -- If that fails, we try to evaluate the term as is.
     -- We do `simp only [and_assoc]` at the end to normalize conjunctions.
-    first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident]; simp only [and_assoc]) => $t; exact t) | exact $t)
+    first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident]; simp only [and_assoc]; repeat (pushEqLeft; simp only [smtSimp])) => $t; exact t) | exact $t)
   return t'
 
 /-- Declaring the initial state predicate -/

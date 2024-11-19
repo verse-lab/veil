@@ -163,10 +163,12 @@ open Lean.Elab.Tactic.Conv in
     action `wlp`s -/
 elab "pushEqLeft" : conv => do
   let e ← getLhs
-  let rhs ← getRhs
   let e' ← pushEqLeft e
-  rhs.mvarId!.assign e'
-  evalTactic $ ← `(tactic|ac_rfl)
+  let heq ← mkFreshExprMVar (← Meta.mkEq e e')
+  let mid := heq.mvarId!
+  mid.withContext do
+    let _ ← Tactic.run mid $ (evalTactic $ ← `(tactic|ac_rfl))
+  updateLhs e' heq
 
 elab "pushEqLeft" "at" id:ident : tactic => pushEqLeftTactic (some id)
 elab "pushEqLeft" "at" "⊢" : tactic => pushEqLeftTactic none
