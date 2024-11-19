@@ -144,6 +144,8 @@ def pushEqLeftTactic (id : Option (TSyntax `ident)) : TacticM Unit := withMainCo
       return hyp.type
   )
   let e' ← pushEqLeft e
+  if e == e' then
+    throwError "no equality to push left"
   -- trace[dsl] "{e} => {e'}"
   let goal ← getMainGoal
   let heq ← mkFreshExprMVar (← Meta.mkEq e e')
@@ -164,6 +166,8 @@ open Lean.Elab.Tactic.Conv in
 elab "pushEqLeft" : conv => do
   let e ← getLhs
   let e' ← pushEqLeft e
+  if e == e' then
+    throwError "no equality to push left"
   let heq ← mkFreshExprMVar (← Meta.mkEq e e')
   let mid := heq.mvarId!
   mid.withContext do
