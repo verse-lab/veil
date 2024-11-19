@@ -4,7 +4,7 @@ import Batteries.Lean.Meta.UnusedNames
 import LeanSts.Basic
 import LeanSts.DSL.Util
 
-open Lean Meta
+open Lean Meta Elab Tactic
 
 /-- Used to generate unique names for binders. -/
 structure SmtState where
@@ -101,6 +101,68 @@ elab "rename_binders" : tactic => do
   apply propext; constructor
   { rintro ⟨⟨a, b⟩, h⟩ ; exact ⟨a, b, h⟩ }
   { rintro ⟨a, b, h⟩ ; exact ⟨⟨a, b⟩, h⟩ }
+
+/-- When calling actions, we get goals that quantify over the post-state,
+    e.g. `∃ st', preconditions ∧ st' = ... ∧ ...`. We can eliminate these
+    quantifers by replacing st' in the body of the existential with the RHS
+    of the equality. This function helps do that by pushing equalities
+    involving the inner-most existential `bvar 0` to the left.
+    `exists_eq_left` (in `smtSimp`) will then eliminate the quantifier.-/
+partial def pushEqLeft (e : Expr) : MetaM Expr := do
+  -- go under existential quantifiers
+  match_expr e with
+  | Exists t body => return mkAppN e.getAppFn #[t, (← pushEqLeft body)]
+  | _ =>
+  match e with
+  -- go inside function bodies (the body of an `∃` is a lambda)
+  | .lam bn bt body bi => return .lam bn bt (← pushEqLeft body) bi
+  | _ =>
+    -- (?lhs ∧ ?rhs)
+    let_expr And lhs rhs := e | return e
+    let rhs' ← pushEqLeft rhs -- recursively transform RHS
+    let (rhs, e) := (rhs', mkAnd lhs rhs') -- update RHS and the whole expression
+    match_expr rhs with
+    -- (?lhs ∧ ?a = ?b) => (?a = ?b ∧ ?lhs)
+    | Eq a b =>
+        -- trace[dsl] "(?lhs ∧ ?a = ?b) => (?a = ?b ∧ ?lhs)"
+        if isInnerMost a || isInnerMost b then return mkAnd rhs lhs else return e
+    -- (?lhs ∧ (?top ∧ ?bottom))
+    | And top bottom  =>
+        let_expr Eq _ a b := top | return e
+        -- trace[dsl] "(?lhs ∧ ({top} ∧ ?bottom))"
+        if isInnerMost a || isInnerMost b then return mkAnd top (mkAnd lhs bottom) else return e
+    | _ => return e
+    where isInnerMost (e : Expr) : Bool := e == .bvar 0
+
+def pushEqLeftTactic (id : Option (TSyntax `ident)) : TacticM Unit := withMainContext do
+  let e ← (match id with
+  | none => return ← getMainTarget
+  | some id => do
+      let ctx ← getLCtx
+      let .some hyp := ctx.findFromUserName? id.getId
+        | throwError "unknown identifier '{id}'"
+      return hyp.type
+  )
+  let e' ← pushEqLeft e
+  -- trace[dsl] "{e} => {e'}"
+  let goal ← getMainGoal
+  let heq ← mkFreshExprMVar (← Meta.mkEq e e')
+  let hname ← mkFreshUserName `heq
+  let goal' ← MVarId.assert goal hname (← heq.mvarId!.getType) heq
+  let (_h, goal') ← goal'.intro1P
+  setGoals [heq.mvarId!, goal']
+  heq.mvarId!.withContext do
+    evalTactic $ ← `(tactic|ac_rfl)
+  let tactic ← match id with
+  | none => `(tactic| rw [$(mkIdent hname):ident]; clear $(mkIdent hname):ident)
+  | some id => `(tactic| rw [$(mkIdent hname):ident] at $id:ident; clear $(mkIdent hname):ident)
+  evalTactic tactic
+
+elab "pushEqLeft" "at" id:ident : tactic => pushEqLeftTactic (some id)
+elab "pushEqLeft" "at" "⊢" : tactic => pushEqLeftTactic none
+elab "pushEqLeft" : tactic => pushEqLeftTactic none
+
+-- TODO: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`, but with
 -- `smtSimp` attribute They are used to enable "eliminating" higher-order
