@@ -57,3 +57,7 @@ end FunctionalTransitionSystem
 
 /-- Simplifiers to prepare a goal for SMT. See `SMT/Preparation.lean` -/
 register_simp_attr smtSimp
+/-- We specifically identify lemmas for quantifier elimination, since we run
+  these in a loop and `smtSimp` is too large/expensive a set to run in a loop.
+  See `SMT/Preparation.lean` -/
+register_simp_attr quantifierElim

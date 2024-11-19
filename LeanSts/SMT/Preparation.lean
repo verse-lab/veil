@@ -222,6 +222,11 @@ attribute [smtSimp] exists_eq_left' exists_eq_right' forall_eq_or_imp
   exists_or_eq_right' exists_prop exists_apply_eq_apply
   forall_apply_eq_imp_iff forall_eq_apply_imp_iff forall_apply_eq_imp_iff₂
 
+/-! quantifier elimination -/
+attribute [quantifierElim] forall_eq' exists_eq exists_eq'
+  exists_eq_left exists_eq_right exists_and_left' exists_and_right'
+  exists_eq_left' exists_eq_right_right exists_eq_right_right'
+
 /-! ## decidable -/
 attribute [smtSimp] Decidable.not_not decide_eq_decide
   Decidable.not_imp_self decide_implies decide_ite ite_true_decide_same
