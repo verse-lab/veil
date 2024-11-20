@@ -132,21 +132,6 @@ def assembleState : CommandElabM Unit := do
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
     liftCommandElabM $ elabCommand $ sdef
     liftCommandElabM $ elabCommand $ smtAttr
-    -- Generate a theorem to "push down" higher-order quantification over
-    -- state as far as possible, such that hopefully it ends up to
-    -- something like `∀ (s' : State), s' = { ... }`, from which `s'` can
-    -- be eliminated altogether. (So we can send something FO to SMT.)
-    -- For more details, see:
-    -- https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869
-    let stateTp := mkAppN (<- stsExt.get).typ vs
-    let stateTp ← PrettyPrinter.delab stateTp
-    -- These two theorems "push down" quantification over state to be the last quantifier
-    let forallComm ← `(@[smtSimp] theorem $(mkIdent `State_forall_comm) $[$vd]* {p : $stateTp → $(mkIdent `β) → Prop} : (∀ a b, p a b) ↔ (∀ b a, p a b) := forall_comm)
-    let existsComm ← `(@[smtSimp] theorem $(mkIdent `State_exists_comm) $[$vd]* {p : $stateTp → $(mkIdent `β) → Prop} : (∃ a b, p a b) ↔ (∃ b a, p a b) := exists_comm)
-    -- This pushes equalities over state e.g. `st' = ...` to be the last
-    liftCommandElabM $ do
-      elabCommand forallComm
-      elabCommand existsComm
 
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState

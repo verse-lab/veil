@@ -102,6 +102,36 @@ elab "rename_binders" : tactic => do
   { rintro ⟨⟨a, b⟩, h⟩ ; exact ⟨a, b, h⟩ }
   { rintro ⟨a, b, h⟩ ; exact ⟨⟨a, b⟩, h⟩ }
 
+theorem exists_comm_eq {p : α → β → Prop} : (∃ a b, p a b) = (∃ b a, p a b) := by rw [exists_comm]
+
+/- Pushes existential quantifiers over `State` to the right,
+   e.g. `∃ (s : State ..), x` becomes `∃ x, s`. For details, see:
+   https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869 -/
+simproc State_exists_comm (∃ _ _, _) := fun e => do
+  let_expr Exists t eBody := e | return .continue
+  if !(t.isAppOf `State) then
+    return .continue
+  -- the body of an `∃` is a lambda
+  let step ← lambdaTelescope eBody (fun ks lBody => do
+      let_expr Exists t' eBody' := lBody | return .continue
+      let step ← lambdaTelescope eBody' (fun ks' lBody' => do
+        if ← isDefEq t t' then
+          return .continue
+        else
+          -- swap the quantifiers
+          let innerExists := mkAppN e.getAppFn #[t, ← mkLambdaFVars ks lBody']
+          let outerExists := mkAppN lBody.getAppFn #[t', ← mkLambdaFVars ks' innerExists]
+          let body ← mkLambdaFVars (ks ++ ks') lBody'
+          let proof ← mkAppOptM ``exists_comm_eq #[t, t', body]
+          return .done { expr := outerExists, proof? := proof }
+      )
+      return step
+  )
+  return step
+attribute [smtSimp] State_exists_comm
+
+-- TODO ∀: do we need to do the same for `∀` quantification?
+
 /-- When calling actions, we get goals that quantify over the post-state,
     e.g. `∃ st', preconditions ∧ st' = ... ∧ ...`. We can eliminate these
     quantifers by replacing st' in the body of the existential with the RHS
@@ -178,7 +208,7 @@ elab "pushEqLeft" "at" id:ident : tactic => pushEqLeftTactic (some id)
 elab "pushEqLeft" "at" "⊢" : tactic => pushEqLeftTactic none
 elab "pushEqLeft" : tactic => pushEqLeftTactic none
 
--- TODO: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
+-- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`, but with
 -- `smtSimp` attribute They are used to enable "eliminating" higher-order
