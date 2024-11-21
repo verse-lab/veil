@@ -378,7 +378,6 @@ def setOptionPrintModel : CommandElabM Unit := do
 @[inherit_doc instantiateSystem]
 elab "#gen_spec" name:ident : command => do
   instantiateSystem name.getId
-  setOptionPrintModel
 
 def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Bool := do
   withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do
