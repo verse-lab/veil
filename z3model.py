@@ -209,7 +209,7 @@ class Model:
             if any(z3decl.domain(i).name() not in self.sorts for i in range(z3decl.arity())):
                 assert False, f"decl {z3decl} has unknown sort"
 
-            print(f"Processing decl {z3decl}", file=sys.stderr)
+            # print(f"Processing decl {z3decl}", file=sys.stderr)
             name: DeclName = z3decl.name()
             dom = tuple(z3decl.domain(i).name() for i in range(z3decl.arity()))
             rng = z3decl.range().name()
@@ -225,8 +225,7 @@ class Model:
             # these to the universe of the `Int` sort.
             if isinstance(decl, RelationDecl) and any(d == IntSort for d in dom):
                 dtype = " -> ".join(dom)
-                print(
-                    f"  Getting Int domain for {z3decl} : {dtype}", file=sys.stderr)
+                # print(f"  Getting Int domain for {z3decl} : {dtype}", file=sys.stderr)
                 int_domain = get_int_domain(z3decl, z3model)
                 int_domain = {SortElement(z3.IntVal(i), i) for i in int_domain}
                 self.sorts[IntSort] = set(self.sorts[IntSort]) | int_domain
@@ -257,16 +256,16 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
     exist arguments that make the relation true."""
     assert z3decl.range().name(
     ) == BoolSort, f"expected relation, but {z3decl} has range {z3decl.range().name()}"
-    print(z3model[z3decl], file=sys.stderr)
+    # print(z3model[z3decl], file=sys.stderr)
 
     args = [z3.Const(f"x{i}", z3decl.domain(i)) for i in range(z3decl.arity())]
     sorts = [arg.sort().name() for arg in args]
     int_args = [arg for arg in args if arg.sort().name() == IntSort]
-    print(f"{z3decl} | args: {args} | sort:s {sorts}", file=sys.stderr)
+    # print(f"{z3decl} | args: {args} | sort:s {sorts}", file=sys.stderr)
 
     interp = z3model.eval(z3.Lambda(args, z3decl(*args)),
                           model_completion=True)
-    print(f"interp: {interp}", file=sys.stderr)
+    # print(f"interp: {interp}", file=sys.stderr)
     vp = z3.simplify(interp[*args])
     solver = z3.Solver()
     solver.add(vp)
