@@ -302,7 +302,8 @@ if __name__ == '__main__':
     z3.set_param("model", True)
     z3.set_param("model_validate", True)
     z3.set_param("model.completion", True)
-
+    z3.Context.__del__ = lambda self: None
+    z3.Solver.__del__ = lambda self: None
     cfg = z3.Z3_mk_config()
     ctx = z3.Z3_mk_context(cfg)
 
