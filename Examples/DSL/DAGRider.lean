@@ -3,6 +3,7 @@ import LeanSts.DSL
 
 section DAGRider
 
+-- set_option trace.dsl true
 -- set_option trace.profiler true
 -- set_option maxHeartbeats 2000000
 -- set_option trace.Elab.command true
@@ -97,7 +98,7 @@ action dequeue (q0 : queue) = {
     return (b, q')
 }
 
-#print dequeue.fn
+-- #print dequeue.fn
 
 -- Data invariants
 -- FIXME: `partial function` keyword to define these automatically
@@ -105,17 +106,16 @@ invariant [vertexRound_coherence] ∀ v r r', vertexRound v r → vertexRound v 
 invariant [vertexSource_coherence] ∀ v n n', vertexSource v n → vertexSource v n' → n = n'
 invariant [vertexBlock_coherence] ∀ v b b', vertexBlock v b → vertexBlock v b' → b = b'
 
--- Data invariant: the DAG has at most one vertex per Nat from each source node
+-- Data invariant: the DAG has at most one vertex per round from each source node
 -- We use this to relate vertices in the DAG to the quorum properties of nodes
 -- (so as to avoid counting the vertices directly)
 invariant [dag_coherence]
-    ∀ r v v' n n', dag r v → dag r v' → vertexSource v n → vertexSource v' n' → n = n'
+    ∀ r v v' n, dag r v → dag r v' → vertexSource v n → vertexSource v' n → v = v'
 
 -- TODO: if we're modelling DAG construction, should this be an external
 -- action? (i.e. one with no implementation?)
 action waveReady (r : Nat) = { skip }
 action r_bcast (v : vertex) (r : Nat) = { skip }
-
 
 action setWeakEdges (v : vertex) (r : Nat) = {
   -- `v.weakEdges ← {}`
@@ -125,7 +125,7 @@ action setWeakEdges (v : vertex) (r : Nat) = {
   -- see how we express it in HOL (it quantifies over lists of vertices)
 }
 
-action createNewVertex = {
+action createNewVertex (r : Nat) = {
     -- FIXME: "wait until ¬ blocksToPropose.empty"
     -- `v.block ← blocksToPropose.dequeue()`
     (b, q') : block × queue ← call !dequeue blocksToPropose in
@@ -149,8 +149,8 @@ action mainLoop = {
     -- Add to the DAG all vertices in the buffer that have all their predecessors in the DAG
     dag R V := dag R V ∨
         (buffer V ∧ vertexRound V R ∧
-        (∀ V', vertexStrongEdge V V' → dag R V') ∧
-        (∀ V', vertexWeakEdge V V' → dag R V'));
+        (∀ V', vertexStrongEdge V V' → ∃ r, dag r V') ∧
+        (∀ V', vertexWeakEdge V V' → ∃ r, dag r V'));
     -- If it'S in the DAG, remove it from the buffer
     buffer V := buffer V ∧ ¬ ∃ r, dag r V;
     -- There is a quorum of vertices in `dag[r]`
@@ -160,12 +160,12 @@ action mainLoop = {
             call !waveReady r
         };
         r := r + 1;
-        -- r_bcast(v, r)
-        skip
+        v : vertex ← call !createNewVertex r in
+        call !r_bcast v r
     }
 }
 
-#print mainLoop.fn
+-- #print mainLoop.tr
 
 safety [Trivial] True ∧ True
 
@@ -173,9 +173,20 @@ safety [Trivial] True ∧ True
 prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
 
--- set_option sauto.smt.translator "lean-smt"
+set_option sauto.smt.translator "lean-smt"
 -- set_option trace.sauto.query true
 
-#check_invariants?
+@[invProof]
+theorem mainLoop.tr_dag_coherence :
+    ∀ (st st' : State node quorum vertex block queue is_byz),
+      (DAGRider node quorum vertex block queue is_byz).inv st →
+        (mainLoop.tr node quorum vertex block queue is_byz) st st' →
+          (dag_coherence node quorum vertex block queue is_byz) st' :=
+  by
+  unhygienic intros
+  solve_clause[mainLoop.tr]
+
+
+#print mainLoop.tr_dag_coherence
 
 end DAGRider
