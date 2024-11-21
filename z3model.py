@@ -261,6 +261,7 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
 
     args = [z3.Const(f"x{i}", z3decl.domain(i)) for i in range(z3decl.arity())]
     sorts = [arg.sort().name() for arg in args]
+    int_args = [arg for arg in args if arg.sort().name() == IntSort]
     print(f"{z3decl} | args: {args} | sort:s {sorts}", file=sys.stderr)
 
     interp = z3model.eval(z3.Lambda(args, z3decl(*args)),
@@ -275,12 +276,10 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
         m = solver.model()
         # print(f"Blocking model {m}", file=sys.stderr)
         # Collect the integer values that make the relation true
-        for arg in args:
-            if arg.sort().name() == IntSort:
-                int_domain.add(m.eval(arg).as_long())
-        # Add constraint that the current model is not a solution
-        for arg in args:
-            solver.add(arg != m.eval(arg))
+        for arg in int_args:
+            int_domain.add(m.eval(arg).as_long())
+        # Ignore this tuple of integers
+        solver.add(z3.And(*[arg != m.eval(arg) for arg in int_args]))
 
     return int_domain
 
