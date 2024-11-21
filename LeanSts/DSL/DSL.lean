@@ -398,7 +398,7 @@ def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Boo
 /--
   Prints output similar to that of the `ivy_check` command.
 -/
-def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElabM Unit := do
+def checkInvariants (stx : Syntax) (printTheorems : Bool := false): CommandElabM Unit := do
   -- Generate theorems to check in the initial state and after each action
   let (initChecks, invChecks) ← Command.runTermElabM fun vs => do
     let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).name) vs
@@ -415,7 +415,7 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
       let property ← PrettyPrinter.delab $ mkAppN inv vs
       let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
       let initThName := s!"init_{invName}".toName
-      let proofScript ← `(by unhygienic intros; solve_clause [initSimp])
+      let proofScript ← `(by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
       let checkTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := $proofScript)
       let failedTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := sorry)
       initChecks := initChecks.push (invName, (initThName, checkTheorem, failedTheorem))
@@ -437,29 +437,33 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false) : CommandElab
     pure (initChecks, actChecks)
 
   let mut theorems := #[] -- collect Lean expression to report for `#check_invariants?`
-  let mut msgs := #[]
-  msgs := msgs.push "Initialization must establish the invariant:"
-  for (invName, (thName, thCmd, sorryThm)) in initChecks do
-    let success ← checkTheorem thName thCmd
-    msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
-    let thm := if success then thCmd else sorryThm
-    theorems := theorems.push thm
-  msgs := msgs.push "The following set of actions must preserve the invariant:"
-  for (actName, actChecks) in invChecks do
-    msgs := msgs.push s!"  {actName}"
-    for (invName, (thName, thCmd, sorryThm)) in actChecks do
-      let success ← checkTheorem thName thCmd
-      msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
-      let thm := if success then thCmd else sorryThm
-      theorems := theorems.push thm
-  let msg := String.intercalate "\n" msgs.toList
-  if !printTheorems then
-    dbg_trace msg
-  else
+  if printTheorems then
+    let actInvChecks := Array.flatten $ invChecks.map (fun (_, actChecks) => actChecks)
+    for (_, (_, thCmd, _)) in (initChecks ++ actInvChecks) do
+      theorems := theorems.push thCmd
     Command.liftTermElabM do
       let cmd ← constructCommands theorems
-      let suggestion : Suggestion := { suggestion := cmd, preInfo? := msg ++ "\n", toCodeActionTitle? := .some (fun _ => "Replace with explicit proofs.")}
+      let suggestion : Suggestion := { suggestion := cmd, toCodeActionTitle? := .some (fun _ => "Replace with explicit proofs.")}
       addSuggestion stx suggestion (header := "")
+  else
+    let mut msgs := #[]
+    msgs := msgs.push "Initialization must establish the invariant:"
+    for (invName, (thName, thCmd, sorryThm)) in initChecks do
+      let success ← checkTheorem thName thCmd
+      msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
+      let thm := if success then thCmd else sorryThm
+      theorems := theorems.push thm
+    msgs := msgs.push "The following set of actions must preserve the invariant:"
+    for (actName, actChecks) in invChecks do
+      msgs := msgs.push s!"  {actName}"
+      for (invName, (thName, thCmd, sorryThm)) in actChecks do
+        let success ← checkTheorem thName thCmd
+        msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
+        let thm := if success then thCmd else sorryThm
+        theorems := theorems.push thm
+    let msg := String.intercalate "\n" msgs.toList
+    dbg_trace msg
+
 
 syntax "#check_invariants" : command
 syntax "#check_invariants?" : command

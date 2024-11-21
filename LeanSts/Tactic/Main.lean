@@ -120,7 +120,7 @@ def getPropsInContext : TacticM (Array Ident) := do
   pass ``#[`initSimp]`` to not waste time simplifying actions.
 -/
 def elabSolveClause (stx : Syntax)
-  (simp0 : Array Name := #[`initSimp, `actSimp])
+  (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent)
   (trace : Bool := false) : TacticM Unit := withMainContext do
   -- (*) Collect executed tactics to generate suggestion
   let mut xtacs := #[]
@@ -141,8 +141,8 @@ def elabSolveClause (stx : Syntax)
   -- https://github.com/verse-lab/lean-sts/issues/29#issuecomment-2360300222
   let simp0 := mkSimpLemmas simp0
   -- the `actSimp here is used for function calls under wlp
-  let simp1 := mkSimpLemmas #[`wlp, `actSimp]
-  let simp2 := mkSimpLemmas #[injEqLemma, `invSimp, `smtSimp]
+  let simp1 := mkSimpLemmas $ #[`wlp, `actSimp].map mkIdent
+  let simp2 := mkSimpLemmas $ #[injEqLemma, `invSimp, `smtSimp].map mkIdent
   let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
@@ -170,7 +170,7 @@ syntax (name := solveClauseTrace) "solve_clause?" : tactic
 elab_rules : tactic
   | `(tactic| solve_clause%$tk) => elabSolveClause tk
   | `(tactic| solve_clause?%$tk) => elabSolveClause tk (trace := true)
-  | `(tactic| solve_clause%$tk [ $[$simp0],* ]) => elabSolveClause tk (simp0.map getNameOfIdent')
+  | `(tactic| solve_clause%$tk [ $[$simp0],* ]) => elabSolveClause tk simp0
 
 /-- Call `sauto` with all the hypotheses in the context. -/
 def elabSautoAll (stx : Syntax) (trace : Bool := false) : TacticM Unit := withMainContext do
@@ -188,8 +188,8 @@ elab_rules : tactic
 
 elab "simplify_all" : tactic => withMainContext do
   -- FIXME: why does `simp only [actSimp, wlp]` loop?
-  let toDsimp := mkSimpLemmas #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp]
-  let toSimp := mkSimpLemmas #[`smtSimp]
+  let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp].map mkIdent
+  let toSimp := mkSimpLemmas $ #[`smtSimp].map mkIdent
   let simp_tac ← `(tactic| dsimp only [$toDsimp,*] at * ; simp only [$toSimp,*];)
   evalTactic simp_tac
 

@@ -97,7 +97,7 @@ def collectPropertiesFromHyp (hyp : LocalDecl) : TacticM (Array Name) := do
   return props
 
 -- FIXME: is there a better way to do this?
-def mkSimpName (n : Name) :=
-     mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n []]
+def mkSimpName (n : Ident) :=
+     mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n.getId []]
 def namesToLemmas (simpIds : Array (TSyntax `Lean.Parser.Tactic.simpLemma)) : Syntax.TSepArray `Lean.Parser.Tactic.simpLemma "," := Syntax.TSepArray.ofElems simpIds
-def mkSimpLemmas (simpIds : Array Name) : Syntax.TSepArray `Lean.Parser.Tactic.simpLemma "," := namesToLemmas (simpIds.map mkSimpName)
+def mkSimpLemmas (simpIds : Array Ident) : Syntax.TSepArray `Lean.Parser.Tactic.simpLemma "," := namesToLemmas (simpIds.map mkSimpName)
