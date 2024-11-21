@@ -277,7 +277,12 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
         # print(f"Blocking model {m}", file=sys.stderr)
         # Collect the integer values that make the relation true
         for arg in int_args:
-            int_domain.add(m.eval(arg).as_long())
+            v = m.eval(arg)
+            if isinstance(v, z3.IntNumRef):
+                int_domain.add(v.as_long())
+            else:
+                # George: I think this means the relation is true for all arguments?
+                print(f"expected to get integer from m.eval({arg}), got {v} (of type {type(v)})", file=sys.stderr)
         # Ignore this tuple of integers
         solver.add(z3.And(*[arg != m.eval(arg) for arg in int_args]))
 
