@@ -29,7 +29,7 @@ register_option sauto.smt.solver : SolverName := {
 }
 
 register_option sauto.model.minimize : Bool := {
-  defValue := true
+  defValue := false
   descr := "Should models be minimized before being displayed?"
 }
 
