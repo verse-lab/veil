@@ -93,7 +93,7 @@ def FirstOrderSort.cardinalityConstraint (n : Nat) : FirstOrderSort → MetaM (O
     for i in [:n] do
       let varI := mkIdent (Name.mkSimple s!"card_{s.name}_{i}")
       let disj ← `(term|($varN = $varI))
-      existentials := existentials.push (varI, s.name)
+      existentials := existentials.push (varI, .some s.name)
       disjs := disjs.push disj
     let body ← `(term|forall $varN, $(← repeatedOr disjs))
     let stx ← repeatedExists existentials body
@@ -206,23 +206,33 @@ def Declaration.cardinalityConstraint (decl : Declaration) (n : Nat) :  Lean.Met
     --   )
     -- there are `arity * n` existentials, `arity` univeralsand `n` disjunctions
     -- e.g. #[c11, c21, c31, c12, c22, c32] (with respective sorts)
-    let mut existentials : Array (Lean.Ident × SortName) := #[]
+    let mut existentials : Array (Lean.Ident × Option SortName) := #[]
     -- stores each argument instance, e.g. #[[c11, c21, c31], [c12, c22, c32]]
     let mut relInstances : Array (Array Lean.Ident) := #[]
     -- e.g. #[x1, x2, x3] (with respective sorts)
-    let mut universals : Array (Lean.Ident × SortName) := #[]
+    let mut universals : Array (Lean.Ident × Option SortName) := #[]
     -- generate `arity` universal variables
     for j in [0 : decl.arity] do
       let sortName := (decl.domain[j]!).name
       let varJ := Lean.mkIdent (Lean.Name.mkSimple s!"x_{decl.name}_{j}")
-      universals := universals.push (varJ, sortName)
+      -- NOTE: `Nat` gets represented as `Int` in the model, so we let
+      -- type inference figure out the correct type in this case
+      if sortName == `Int then
+        universals := universals.push (varJ, none)
+      else
+        universals := universals.push (varJ, sortName)
     -- generate `n` instances of the relation
     for i in [0 : n] do
       let mut relInstanceArgs := #[]
       for j in [0 : decl.arity] do
         let sortName := (decl.domain[j]!).name
         let varI := Lean.mkIdent (Lean.Name.mkSimple s!"card_{decl.name}_{i}_{j}")
-        existentials := existentials.push (varI, sortName)
+        -- NOTE: `Nat` gets represented as `Int` in the model, so we let
+        -- type inference figure out the correct type in this case
+        if sortName == `Int then
+          existentials := existentials.push (varI, none)
+        else
+          existentials := existentials.push (varI, sortName)
         relInstanceArgs := relInstanceArgs.push varI
       relInstances := relInstances.push relInstanceArgs
     let universalVars := universals.map Prod.fst

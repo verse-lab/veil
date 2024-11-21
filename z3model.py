@@ -3,7 +3,7 @@ import argparse
 import itertools
 import sys
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Tuple, TypeAlias, Union
+from typing import Any, Callable, Dict, List, Set, Tuple, TypeAlias, Union
 
 import sexpdata
 import z3
@@ -96,7 +96,7 @@ class UninterpretedValue:
 @dataclass(eq=True, frozen=True)
 class SortElement:
     z3expr: z3.ExprRef
-    val: Union[bool, UninterpretedValue]
+    val: Union[bool, int, UninterpretedValue]
 
     def __to_lisp_as__(self) -> str:
         return f"{sexp(self.val)}"
@@ -157,8 +157,7 @@ class Model:
                     z3sorts.append(z3sort)
                     z3sort_names.add(sortname)
 
-        # print(f"z3sorts: {z3sorts}")
-
+        # print(f"z3sorts: {z3sorts}", file=sys.stderr)
         for z3sort in sorted(z3sorts, key=str):
             sortname = z3sort.name()
             assert sortname not in self.sorts, f"duplicate sort name {sortname}"
@@ -209,6 +208,8 @@ class Model:
         for z3decl in sorted(z3model.decls(), key=str):
             if any(z3decl.domain(i).name() not in self.sorts for i in range(z3decl.arity())):
                 assert False, f"decl {z3decl} has unknown sort"
+
+            print(f"Processing decl {z3decl}", file=sys.stderr)
             name: DeclName = z3decl.name()
             dom = tuple(z3decl.domain(i).name() for i in range(z3decl.arity()))
             rng = z3decl.range().name()
@@ -219,6 +220,17 @@ class Model:
             else:
                 decl = FunctionDecl(name, dom, rng)
 
+            # For relations with arguments of type `Int`, we use the following
+            # to identify which integers the relation is true for, and we add
+            # these to the universe of the `Int` sort.
+            if isinstance(decl, RelationDecl) and any(d == IntSort for d in dom):
+                dtype = " -> ".join(dom)
+                print(
+                    f"  Getting Int domain for {z3decl} : {dtype}", file=sys.stderr)
+                int_domain = get_int_domain(z3decl, z3model)
+                int_domain = {SortElement(z3.IntVal(i), i) for i in int_domain}
+                self.sorts[IntSort] = set(self.sorts[IntSort]) | int_domain
+
             _eval: Callable[[z3.ExprRef], Union[bool, int, SortElement]]
             if rng == BoolSort:
                 _eval = _eval_bool
@@ -228,7 +240,7 @@ class Model:
                 _eval = _eval_elem(rng)
 
             domains = [self.sorts[d] for d in dom]
-            # print(f"domains for {z3decl}: {domains}")
+            # print(f"domains for {z3decl}: {domains}", file=sys.stderr)
             # Evaluate the const/rel/function on all possible inputs
             fi: Dict[Tuple, Union[bool, int, SortElement]] = {
                 row: _eval(z3decl(*(e.z3expr for e in row)))
@@ -239,12 +251,47 @@ class Model:
             self.interps[name] = Interpretation(decl, fi)
 
 
+def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
+    """Given a Z3 function declaration with range Bool (i.e. a
+    relation), returns the set of integer arguments for which there
+    exist arguments that make the relation true."""
+    assert z3decl.range().name(
+    ) == BoolSort, f"expected relation, but {z3decl} has range {z3decl.range().name()}"
+    print(z3model[z3decl], file=sys.stderr)
+
+    args = [z3.Const(f"x{i}", z3decl.domain(i)) for i in range(z3decl.arity())]
+    sorts = [arg.sort().name() for arg in args]
+    print(f"{z3decl} | args: {args} | sort:s {sorts}", file=sys.stderr)
+
+    interp = z3model.eval(z3.Lambda(args, z3decl(*args)),
+                          model_completion=True)
+    print(f"interp: {interp}", file=sys.stderr)
+    vp = z3.simplify(interp[*args])
+    solver = z3.Solver()
+    solver.add(vp)
+
+    int_domain = set()
+    while solver.check() == z3.sat:
+        m = solver.model()
+        # print(f"Blocking model {m}", file=sys.stderr)
+        # Collect the integer values that make the relation true
+        for arg in args:
+            if arg.sort().name() == IntSort:
+                int_domain.add(m.eval(arg).as_long())
+        # Add constraint that the current model is not a solution
+        for arg in args:
+            solver.add(arg != m.eval(arg))
+
+    return int_domain
+
+
 def get_model(passedLines: List[str]) -> Model:
     s = z3.Solver()
     s.from_string("\n".join(passedLines))
     res = s.check()
-    assert res == z3.sat, f"Expected sat, got {res}"
+    assert res == z3.sat, f"Expected sat, got {res} (reason: {s.reason_unknown()})"
     m = s.model()
+    print(f"Model: {m}", file=sys.stderr)
     return Model(m)
 
 

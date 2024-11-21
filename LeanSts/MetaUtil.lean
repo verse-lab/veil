@@ -31,25 +31,27 @@ def toBracketedBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSynta
     | _ => throwError "unexpected syntax in explicit binder: {stx}"
     return binders
 
-def createExistsBinders (vars : Array (Ident × Name)) : MetaM (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
+def createExistsBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
   let binders ← vars.mapM fun (var, sort) => do
     let bi := toBinderIdent var
-    let sn := mkIdent sort
-    return ← `(bracketedExplicitBinders|($bi : $sn))
+    match sort with
+    | none => return ← `(bracketedExplicitBinders|($bi : _))
+    | some sort => return ← `(bracketedExplicitBinders|($bi : $(mkIdent sort)))
   return binders
 
-def repeatedExists (vars : Array (Ident × Name)) (body : TSyntax `term) : MetaM (TSyntax `term) := do
+def repeatedExists (vars : Array (Ident × Option Name)) (body : TSyntax `term) : MetaM (TSyntax `term) := do
   let binders ← createExistsBinders vars
   if binders.size == 0 then return body
   else `(term|∃ $binders*, $body)
 
-def createForallBinders (vars : Array (Ident × Name)) : MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def createForallBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let binders ← vars.mapM fun (var, sort) => do
-    let sn := mkIdent sort
-    return ← `(bracketedBinder|($var : $sn))
+    match sort with
+    | none => return ← `(bracketedBinder|($var))
+    | some sort => return ← `(bracketedBinder|($var : $(mkIdent sort)))
   return binders
 
-def repeatedForall (vars : Array (Ident × Name)) (body : TSyntax `term) : MetaM (TSyntax `term) := do
+def repeatedForall (vars : Array (Ident × Option Name)) (body : TSyntax `term) : MetaM (TSyntax `term) := do
   let binders ← createForallBinders vars
   if binders.size == 0 then return body
   else `(term|∀ $binders*, $body)
