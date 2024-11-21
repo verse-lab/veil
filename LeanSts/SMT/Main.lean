@@ -28,6 +28,11 @@ register_option sauto.smt.solver : SolverName := {
   descr := "SMT solver to use"
 }
 
+register_option sauto.model.minimize : Bool := {
+  defValue := true
+  descr := "Should models be minimized before being displayed?"
+}
+
 inductive Translator
   | leanSmt
   | leanAuto
@@ -308,9 +313,10 @@ def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
   | _ => none
 
 open Smt Smt.Tactic Translate in
-partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Bool := true) : MetaM SmtResult := do
+partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
   let opts ← getOptions
+  let minimize := minimize.getD (sauto.model.minimize.get opts)
   let solverName :=
     match forceSolver with
     | some s => s
