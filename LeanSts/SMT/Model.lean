@@ -192,6 +192,10 @@ def Declaration.range : Declaration → FirstOrderSort
   | Declaration.Relation _ => boolSort
   | Declaration.Function f => f.range
 
+/-- We want to sort declarations by name, even if they are of different types. -/
+instance (priority := high) : Ord Declaration where
+  compare x y := compare x.name y.name |>.then (compare x y)
+
 /-- Create a SMT constraint that the number of elements in the relation to be *at most* n. -/
 def Declaration.cardinalityConstraint (decl : Declaration) (n : Nat) :  Lean.MetaM (Option Lean.Expr) :=
   match decl with
