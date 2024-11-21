@@ -453,16 +453,21 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
   let getModel? := translatorToUse == Translator.leanSmt
   let res ← querySolver cmdString timeout (getModel? := getModel?) (retryOnFailure := true)
   match res with
-  | .Sat _ =>
-    -- If we called `lean-auto`, we need to call `lean-smt` to get the model.
+  -- if we have a model, we can print it
+  | .Sat (.some fostruct) => throwError "the goal is false: {fostruct}"
+  | .Sat none =>
+    -- If we don't, we probably called `lean-auto`, so we need to call
+    -- `lean-smt` to get the model.
     if translatorToUse == Translator.leanAuto then
       let hs ← Tactic.parseHints ⟨stx[1]⟩
       let cmdString ← prepareQuery mv hs
       let res ← querySolver cmdString timeout
-      if let .Sat fostruct := res then
-        throwError "the goal is false: {fostruct.get!}"
+      if let .Sat (.some fostruct) := res then
+        throwError "the goal is false: {fostruct}"
       else
         throwError s!"the goal is false, but second SMT query asking for a model returned {res}"
+    else
+      throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
   | .Unsat _ => mv.admit (synthetic := false)
 
