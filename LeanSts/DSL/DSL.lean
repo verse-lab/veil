@@ -445,24 +445,33 @@ def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM 
   return (invName, (thName, checkTheorem, failedTheorem))
 
 /--  Generate theorems to check in the initial state and after each action -/
-def getAllChecks : CommandElabM (ActionCheckType × ActChecksType) := do
+def getAllChecks : CommandElabM (InitCheckType × ActChecksType) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
-    let acts := (<- stsExt.get).actions
+    let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
+    let actNames := ((<- stsExt.get).actions).map Expr.constName!
     let mut initChecks := #[]
     let mut actChecks := #[]
     -- (1) Collect checks that invariants hold in the initial state
-    for inv in invs do
-      let invName := inv.constName!
+    for invName in invNames do
       initChecks := initChecks.push (← getCheckFor invName CheckType.init vs)
     -- (2) Collect checks that invariants hold after each action
-    for act in acts do
-        let actName := act.constName!
+    for actName in actNames do
         let mut checks := #[]
-        for inv in invs do
-          let invName := inv.constName!
+        for invName in invNames do
           checks := checks.push (← getCheckFor invName (CheckType.action actName) vs)
         actChecks := actChecks.push (actName, checks)
+    pure (initChecks, actChecks)
+  return (initChecks, actChecks)
+
+/-- Generate theorems to check the given invariant clause in the initial
+state and after each action. -/
+def getChecksForInvariant (invName : Name) : CommandElabM (InitCheckType × ActChecksType) := do
+  let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
+    let actNames := ((<- stsExt.get).actions).toArray.map Expr.constName!
+    let initChecks := #[← getCheckFor invName CheckType.init vs]
+    let actChecks ← actNames.mapM fun actName => do
+      let checks := #[← getCheckFor invName (CheckType.action actName) vs]
+      return (actName, checks)
     pure (initChecks, actChecks)
   return (initChecks, actChecks)
 
@@ -515,6 +524,7 @@ def checkTheorems (stx : Syntax) (initChecks : ActionCheckType) (actChecks : Act
     }
     addSuggestion stx suggestion (header := "")
 
+/- ## `#check_invariants` -/
 /-- Check all invariants and print result of each check. -/
 syntax "#check_invariants" : command
 /-- Suggest theorems to check all invariants. -/
@@ -533,6 +543,22 @@ elab_rules : command
   | `(command| #check_invariants%$tk) => checkInvariants tk (behaviour := .checkTheorems)
   | `(command| #check_invariants?%$tk) => checkInvariants tk (behaviour := .printTheorems)
   | `(command| #check_invariants!%$tk) => checkInvariants tk (behaviour := .printAndCheckTheorems)
+
+
+/- ## `#check_invariant` -/
+syntax "#check_invariant" ident : command
+syntax "#check_invariant?" ident : command
+syntax "#check_invariant!" ident : command
+
+/-- Prints output similar to that of Ivy's `ivy_check` command limited to a single invariant. -/
+def checkInvariant (stx : Syntax) (invName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
+  let (initChecks, actChecks) ← getChecksForInvariant invName.getId
+  checkTheorems stx initChecks actChecks behaviour
+
+elab_rules : command
+  | `(command| #check_invariant%$tk $invName) => checkInvariant tk invName (behaviour := .checkTheorems)
+  | `(command| #check_invariant?%$tk $invName) => checkInvariant tk invName (behaviour := .printTheorems)
+  | `(command| #check_invariant!%$tk $invName) => checkInvariant tk invName (behaviour := .printAndCheckTheorems)
 
 open Tactic in
 /-- Try to solve the goal using one of the already proven invariant clauses,
