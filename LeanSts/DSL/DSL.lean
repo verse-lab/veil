@@ -409,13 +409,13 @@ inductive CheckType
 deriving BEq
 
 /-- `(invName, theoremName, checkTheorem, failedTheorem)` -/
-abbrev SingleCheckType  := (Name × Name × TSyntax `command × TSyntax `command)
-abbrev InitCheckType    := Array SingleCheckType
-abbrev ActionCheckType  := InitCheckType
-abbrev ActChecksType    := Array (Name × ActionCheckType)
+abbrev SingleCheckT   := (Name × Name × TSyntax `command × TSyntax `command)
+abbrev InitChecksT    := Array SingleCheckT
+abbrev ActionChecksT  := InitChecksT
+abbrev ActionsChecksT := Array (Name × ActionChecksT)
 
 /-- Generate the check theorem for the given invariant an `CheckType` (either `init` or `action`) -/
-def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM SingleCheckType := do
+def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM SingleCheckT := do
   let env ← getEnv
   let .some _ := env.find? invName
     | throwError s!"Invariant {invName} not found"
@@ -445,7 +445,7 @@ def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM 
   return (invName, (thName, checkTheorem, failedTheorem))
 
 /--  Generate theorems to check in the initial state and after each action -/
-def getAllChecks : CommandElabM (InitCheckType × ActChecksType) := do
+def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
     let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
     let actNames := ((<- stsExt.get).actions).map Expr.constName!
@@ -465,7 +465,7 @@ def getAllChecks : CommandElabM (InitCheckType × ActChecksType) := do
 
 /-- Generate theorems to check the given invariant clause in the initial
 state and after each action. -/
-def getChecksForInvariant (invName : Name) : CommandElabM (InitCheckType × ActChecksType) := do
+def getChecksForInvariant (invName : Name) : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
     let actNames := ((<- stsExt.get).actions).toArray.map Expr.constName!
     let initChecks := #[← getCheckFor invName CheckType.init vs]
@@ -473,6 +473,14 @@ def getChecksForInvariant (invName : Name) : CommandElabM (InitCheckType × ActC
       let checks := #[← getCheckFor invName (CheckType.action actName) vs]
       return (actName, checks)
     pure (initChecks, actChecks)
+  return (initChecks, actChecks)
+
+/-- Generate therems to check all invariants after the given action. -/
+def getChecksForAction (actName : Name) : CommandElabM (InitChecksT × ActionsChecksT) := do
+  let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
+    let invNames := ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties).toArray.map Expr.constName!
+    let invChecks ← invNames.mapM (fun invName => do return (← getCheckFor invName (CheckType.action actName) vs))
+    pure (#[], #[(actName, invChecks)])
   return (initChecks, actChecks)
 
 inductive CheckInvariantsBehaviour
@@ -483,7 +491,7 @@ inductive CheckInvariantsBehaviour
   /-- `#check_invariants!` -/
   | printAndCheckTheorems
 
-def checkTheorems (stx : Syntax) (initChecks : ActionCheckType) (actChecks : ActChecksType) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
+def checkTheorems (stx : Syntax) (initChecks : ActionChecksT) (actChecks : ActionsChecksT) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
   let mut theorems := #[] -- collect Lean expression to report for `#check_invariants?` and `#check_invariants!`
   match behaviour with
   | .printTheorems =>
@@ -559,6 +567,21 @@ elab_rules : command
   | `(command| #check_invariant%$tk $invName) => checkInvariant tk invName (behaviour := .checkTheorems)
   | `(command| #check_invariant?%$tk $invName) => checkInvariant tk invName (behaviour := .printTheorems)
   | `(command| #check_invariant!%$tk $invName) => checkInvariant tk invName (behaviour := .printAndCheckTheorems)
+
+/- ## `#check_action` -/
+syntax "#check_action" ident : command
+syntax "#check_action?" ident : command
+syntax "#check_action!" ident : command
+
+/-- Prints output similar to that of Ivy's `ivy_check` command limited to a single action. -/
+def checkAction (stx : Syntax) (actName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
+  let (initChecks, actChecks) ← getChecksForAction (toTrIdent actName).getId
+  checkTheorems stx initChecks actChecks behaviour
+
+elab_rules : command
+  | `(command| #check_action%$tk $actName) => checkAction tk actName (behaviour := .checkTheorems)
+  | `(command| #check_action?%$tk $actName) => checkAction tk actName (behaviour := .printTheorems)
+  | `(command| #check_action!%$tk $actName) => checkAction tk actName (behaviour := .printAndCheckTheorems)
 
 open Tactic in
 /-- Try to solve the goal using one of the already proven invariant clauses,
