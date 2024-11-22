@@ -300,7 +300,7 @@ def get_model(passedLines: List[str]) -> Model:
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    z3.set_param('timeout', args.tlimit * 1000)
+    z3.set_param('timeout', args.tlimit)
     z3.set_param("unsat_core", True)
     z3.set_param("model", True)
     z3.set_param("model_validate", True)

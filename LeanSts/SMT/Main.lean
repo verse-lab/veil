@@ -149,15 +149,16 @@ def createSolver (name : SolverName) (timeout : Nat) : MetaM SolverProc := do
   -- We wrap Z3 with a Python script that prints models in a more usable format.
   | .z3   =>
     let solverPath := (System.mkFilePath [s!"{← IO.currentDir}", "z3model.py"]).toString
-    trace[sauto.debug] "Z3 wrapper at {solverPath}"
-    createAux solverPath #[s!"--tlimit={tlim_sec}"]
+    let args := #[s!"--tlimit={tlim_sec * 1000}"]
+    createAux solverPath args
   | .cvc4 => throwError "cvc4 is not supported"
   | .cvc5 =>
       let args := #["--lang", "smt", s!"--tlimit={tlim_sec * 1000}",
         "--finite-model-find", "--enum-inst-interleave", "--nl-ext-tplanes", "--produce-models"]
       createAux "cvc5" args
 where
-  createAux (path : String) (args : Array String) : MetaM SolverProc :=
+  createAux (path : String) (args : Array String) : MetaM SolverProc := do
+    trace[sauto.debug] "invoking {path} {args}"
     IO.Process.spawn {stdin := .piped, stdout := .piped, stderr := .piped,
                       cmd := path, args := args}
 
@@ -339,6 +340,7 @@ partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Opti
         if solverName == SolverName.z3 then
           let mut fostruct ← extractStructure model
           if minimize then
+            -- `solver.kill` is called inside `minimizeModelImpl`
             fostruct ← minimizeModel solver solverName fostruct
           trace[sauto.model] "{fostruct}"
           return .Sat fostruct
@@ -353,6 +355,7 @@ partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Opti
         return .Sat .none
   | .Unsat =>
       trace[sauto.result] "{solverName} says Unsat"
+      -- `solver.kill` is called in `getUnsatCore`; there is a hang if that's removed (waitiing for a pipe?)
       let unsatCore ← getUnsatCore solver
       trace[sauto.result] "Unsat core: {unsatCore}"
       -- trace[sauto] "stderr:\n{stderr}"
@@ -365,8 +368,11 @@ partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Opti
           solver.kill
           trace[sauto.result] "Retrying the query with {s}"
           querySolver goalQuery timeout (forceSolver := some s) (retryOnFailure := false) minimize
-        | none => return .Unknown reason
+        | none =>
+          solver.kill
+          return .Unknown reason
       else
+        solver.kill
         return .Unknown reason
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
