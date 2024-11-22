@@ -395,44 +395,71 @@ def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Boo
     setEnv env
   return isProven
 
+def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
+  let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).name) vs
+  return systemTp
+
+def getStateTpStx (vs : Array Expr) : TermElabM Term := do
+  let stateTp ← PrettyPrinter.delab (← stateTp vs)
+  return stateTp
+
+inductive CheckType
+  | init
+  | action (actName : Name)
+deriving BEq
+
+/-- Generate the check theorem for the given invariant an `CheckType` (either `init` or `action`) -/
+def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM (Name × Name × TSyntax `command × TSyntax `command) := do
+  let env ← getEnv
+  let .some _ := env.find? invName
+    | throwError s!"Invariant {invName} not found"
+  let inv ← Term.mkConst invName
+
+  let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
+  let property ← PrettyPrinter.delab $ mkAppN inv vs
+
+  let (tpStx, thName, proofScript) ← match ct with
+  | .init => do
+      let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
+      let initThmName := s!"init_{invName}".toName
+      let proofScript ← `(by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
+      pure (initTpStx, initThmName, proofScript)
+  | .action actName => do
+      let .some _ := (← getEnv).find? actName
+        | throwError s!"action {actName} not found"
+      let act ← Term.mkConst actName
+      let actStx ← PrettyPrinter.delab $ mkAppN act vs
+      let actTpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $property $st')
+      let actThName := s!"{actName}_{invName}".toName
+      let actId := Lean.mkIdent actName
+      let proofScript ← `(by unhygienic intros; solve_clause [$actId])
+      pure (actTpStx, actThName, proofScript)
+  let checkTheorem ← `(@[invProof] theorem $(mkIdent thName) : $tpStx := $proofScript)
+  let failedTheorem ← `(@[invProof] theorem $(mkIdent thName) : $tpStx := sorry)
+  return (invName, (thName, checkTheorem, failedTheorem))
+
 /--
   Prints output similar to that of the `ivy_check` command.
 -/
 def checkInvariants (stx : Syntax) (printTheorems : Bool := false): CommandElabM Unit := do
   -- Generate theorems to check in the initial state and after each action
   let (initChecks, invChecks) ← Command.runTermElabM fun vs => do
-    let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).name) vs
-    let stateTp ← PrettyPrinter.delab (← stateTp vs)
     let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
     let acts := (<- stsExt.get).actions
     let mut initChecks := #[]
     let mut actChecks := #[]
-    let (st, st') := (mkIdent `st, mkIdent `st')
     -- TODO: extract the generic part of this code out
     -- (1) Collect checks that invariants hold in the initial state
     for inv in invs do
       let invName := inv.constName!
-      let property ← PrettyPrinter.delab $ mkAppN inv vs
-      let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `init)  $st → $property $st)
-      let initThName := s!"init_{invName}".toName
-      let proofScript ← `(by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
-      let checkTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := $proofScript)
-      let failedTheorem ← `(@[invProof] theorem $(mkIdent initThName) : $initTpStx := sorry)
-      initChecks := initChecks.push (invName, (initThName, checkTheorem, failedTheorem))
+      initChecks := initChecks.push (← getCheckFor invName CheckType.init vs)
     -- (2) Collect checks that invariants hold after each action
-    for actName in acts do
+    for act in acts do
+        let actName := act.constName!
         let mut checks := #[]
         for inv in invs do
           let invName := inv.constName!
-          let property ← PrettyPrinter.delab $ mkAppN inv vs
-          let act ← PrettyPrinter.delab $ mkAppN actName vs
-          let actTpStx ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $act $st $st' → $property $st')
-          let actThName := s!"{actName}_{invName}".toName
-          let actId := Lean.mkIdent actName.constName!
-          let proofScript ← `(by unhygienic intros; solve_clause [$actId])
-          let checkTheorem ← `(@[invProof] theorem $(mkIdent actThName) : $actTpStx := $proofScript)
-          let failedTheorem ← `(@[invProof] theorem $(mkIdent actThName) : $actTpStx := sorry)
-          checks := checks.push (invName, (actThName, checkTheorem, failedTheorem))
+          checks := checks.push (← getCheckFor invName (CheckType.action actName) vs)
         actChecks := actChecks.push (actName, checks)
     pure (initChecks, actChecks)
 
