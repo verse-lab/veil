@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import time
 import multiprocessing
 
-from typing import Any, Callable, Dict, List, Set, Tuple, TypeAlias, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, TypeAlias, Union
 
 import sexpdata
 import z3
@@ -43,6 +43,9 @@ DeclName: TypeAlias = str
 BoolSort: SortName = 'Bool'
 IntSort: SortName = 'Int'
 
+# We give up enumerating integer in the domain of a relation after this
+# many, and simply display the AST of the interpretation.
+MAXIMUM_DOMAIN_INTEGERS_TO_ENUMERATE=20
 
 def sexp(x: Any) -> str:
     return sexpdata.dumps(x, true_as='true', false_as='false', str_as='symbol')
@@ -95,7 +98,6 @@ class UninterpretedValue:
     def __repr__(self) -> str:
         return self.__to_lisp_as__()
 
-
 @dataclass(eq=True, frozen=True)
 class SortElement:
     z3expr: z3.ExprRef
@@ -114,13 +116,17 @@ class SortElement:
 @dataclass(eq=True, frozen=True)
 class Interpretation:
     decl: Union[ConstantDecl, RelationDecl, FunctionDecl]
-    interp: Dict[Tuple, Union[bool, int, SortElement]]
+    explicitInterpretation: Dict[Tuple, Union[bool, int, SortElement]]
+    symbolicInterpretation: Optional[str] = None
 
     def __to_lisp_as__(self) -> str:
         strs = []
         strs.append(f"{sexp(self.decl)}")
-        for k, v in self.interp.items():
-            strs.append(f"(interpret |{self.decl.name}| {sexp(k)} {sexp(v)})")
+        if self.symbolicInterpretation is not None:
+            strs.append(f"(symbolic |{self.decl.name}| |{sexp(self.symbolicInterpretation)}|)")
+        else:
+            for k, v in self.explicitInterpretation.items():
+                strs.append(f"(interpret |{self.decl.name}| {sexp(k)} {sexp(v)})")
         return "\n".join(strs)
 
     def __repr__(self) -> str:
@@ -139,8 +145,16 @@ class Model:
     def __repr__(self) -> str:
         return self.__to_lisp_as__()
 
+    def translateASTString(self, ast: str) -> str:
+        """Applies the translations in `self.fromZ3ElemToSortElemName`
+        to the given AST string"""
+        for z3elem, elemname in self.fromZ3ElemToSortElemName.items():
+            ast = ast.replace(str(z3elem), elemname)
+        return ast
+
     def __init__(self, z3model: z3.ModelRef):
-        # This code almost entirely copy-pasted from mypyvy's `model_to_first_order_structure``
+        self.fromZ3ElemToSortElemName: Dict[z3.ExprRef, str] = {}
+        # This code largely copy-pasted from mypyvy's `model_to_first_order_structure``
         self.sorts: Dict[str, Any] = {
             BoolSort: [SortElement(z3.BoolVal(True), True), SortElement(z3.BoolVal(False), False)],
             # IntSort: []
@@ -173,7 +187,9 @@ class Model:
             if univ is not None:
                 z3elems = sorted(univ, key=str)
                 for i, z3e in enumerate(z3elems):
-                    e = UninterpretedValue(f'{sortname}{i}')
+                    elemname = f'{sortname}{i}'
+                    self.fromZ3ElemToSortElemName[z3e] = elemname
+                    e = UninterpretedValue(elemname)
                     self.sorts[sortname].append(SortElement(z3e, e))
 
         # Create mapping from (sort, z3expr) to SortElement
@@ -223,34 +239,42 @@ class Model:
             else:
                 decl = FunctionDecl(name, dom, rng)
 
+            symbolicInterpretation = None
             # For relations with arguments of type `Int`, we use the following
             # to identify which integers the relation is true for, and we add
             # these to the universe of the `Int` sort.
             if isinstance(decl, RelationDecl) and any(d == IntSort for d in dom):
                 dtype = " -> ".join(dom)
                 # print(f"  Getting Int domain for {z3decl} : {dtype}", file=sys.stderr)
-                int_domain = get_int_domain(z3decl, z3model)
-                int_domain = {SortElement(z3.IntVal(i), i) for i in int_domain}
-                self.sorts[IntSort] = set(self.sorts[IntSort]) | int_domain
+                (int_domain, ast) = get_int_domain(z3decl, z3model)
+                # A finite (< MAXIMUM_DOMAIN_INTEGERS_TO_ENUMERATE) domain is returned as a set of integers
+                if ast is None:
+                    int_domain = {SortElement(z3.IntVal(i), i) for i in int_domain}
+                    self.sorts[IntSort] = set(self.sorts[IntSort]) | int_domain
+                else:
+                    symbolicInterpretation = self.translateASTString(str(ast))
 
-            _eval: Callable[[z3.ExprRef], Union[bool, int, SortElement]]
-            if rng == BoolSort:
-                _eval = _eval_bool
-            elif rng == IntSort:
-                _eval = _eval_int
-            else:  # uninterpreted sort
-                _eval = _eval_elem(rng)
+            if symbolicInterpretation is not None:
+                self.interps[name] = Interpretation(decl, {}, symbolicInterpretation)
+            else:
+                _eval: Callable[[z3.ExprRef], Union[bool, int, SortElement]]
+                if rng == BoolSort:
+                    _eval = _eval_bool
+                elif rng == IntSort:
+                    _eval = _eval_int
+                else:  # uninterpreted sort
+                    _eval = _eval_elem(rng)
 
-            domains = [self.sorts[d] for d in dom]
-            # print(f"domains for {z3decl}: {domains}", file=sys.stderr)
-            # Evaluate the const/rel/function on all possible inputs
-            fi: Dict[Tuple, Union[bool, int, SortElement]] = {
-                row: _eval(z3decl(*(e.z3expr for e in row)))
-                for row in itertools.product(*domains)
-            }
-            # NOTE: mypyvy has some assertions about `fi` here, which we elide
-            # print(f"fi for {z3decl}: {fi}")
-            self.interps[name] = Interpretation(decl, fi)
+                domains = [self.sorts[d] for d in dom]
+                # print(f"domains for {z3decl}: {domains}", file=sys.stderr)
+                # Evaluate the const/rel/function on all possible inputs
+                fi: Dict[Tuple, Union[bool, int, SortElement]] = {
+                    row: _eval(z3decl(*(e.z3expr for e in row)))
+                    for row in itertools.product(*domains)
+                }
+                # NOTE: mypyvy has some assertions about `fi` here, which we elide
+                # print(f"fi for {z3decl}: {fi}")
+                self.interps[name] = Interpretation(decl, fi, None)
 
 
 def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
@@ -259,9 +283,7 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
     exist arguments that make the relation true."""
     assert z3decl.range().name(
     ) == BoolSort, f"expected relation, but {z3decl} has range {z3decl.range().name()}"
-    # print(z3model[z3decl], file=sys.stderr)
-
-    args = [z3.Const(f"x{i}", z3decl.domain(i)) for i in range(z3decl.arity())]
+    args = [z3.Const(f"arg{i}", z3decl.domain(i)) for i in range(z3decl.arity())]
     sorts = [arg.sort().name() for arg in args]
     int_args = [arg for arg in args if arg.sort().name() == IntSort]
     # print(f"{z3decl} | args: {args} | sort:s {sorts}", file=sys.stderr)
@@ -274,8 +296,10 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
     solver.add(vp)
 
     int_domain = set()
-    while solver.check() == z3.sat:
+    num_iterations = 0
+    while solver.check() == z3.sat and num_iterations < MAXIMUM_DOMAIN_INTEGERS_TO_ENUMERATE:
         m = solver.model()
+        num_iterations += 1
         # print(f"Blocking model {m}", file=sys.stderr)
         # Collect the integer values that make the relation true
         for arg in int_args:
@@ -288,7 +312,11 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
         # Ignore this tuple of integers
         solver.add(z3.And(*[arg != m.eval(arg) for arg in int_args]))
 
-    return int_domain
+    if num_iterations >= MAXIMUM_DOMAIN_INTEGERS_TO_ENUMERATE:
+        print(f"Warning: too many integers in domain of {z3decl}, returning AST of interpretation:\n{interp}", file=sys.stderr)
+        return int_domain, interp
+    else:
+        return int_domain, None
 
 
 def get_model(passedLines: List[str]) -> Model:

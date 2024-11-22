@@ -264,9 +264,11 @@ private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (f
         -- we don't want to build on top of it
         emitCommandStr solver "(pop)"
         continue
-  -- Minimize number of positive elements in each relation
+  -- Minimize number of positive elements in each relation interpreted as a finite enumeration
   let mut relConstraints : Array (Declaration × Nat × Expr) := #[]
   for decl in fostruct.signature.declarations do
+    if !fostruct.isInterpretedByFiniteEnumeration decl then
+      continue
     let currentSize ← fostruct.numTrueInstances decl
     trace[sauto.debug] "trying to minimize relation {decl.name} at sizes [0 : {currentSize}]"
     for relSize in [0 : currentSize] do

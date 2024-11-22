@@ -270,7 +270,32 @@ def Signature.declarations (sig : Signature) : Array Declaration :=
   sig.functions.map Declaration.Function
 
 abbrev InputOutputPair := (Array FirstOrderValue) × FirstOrderValue
-abbrev ExplicitInterpretation := Lean.HashMap Declaration (Array InputOutputPair)
+
+inductive Interpretation
+  | Enumeration (iopairs : Array InputOutputPair)
+  | Symbolic    (expr : String)
+deriving Ord, Inhabited
+
+def Interpretation.toString (interp : Interpretation) (decl : Declaration) : Id String := do
+  let mut out := ""
+  match interp with
+  | .Enumeration iopairs =>
+    for (args, val) in iopairs.qsortOrd do
+      match decl with
+      | Declaration.Constant c => out := out ++ s!"{c.name} = {val}\n"
+      | Declaration.Relation r =>
+          -- out := out ++ s!"{r.name}{args.funcArgsString} = {val}\n"
+          if val.isTrue then out := out ++ s!"{r.name}{args.funcArgsString} = true\n"
+      | Declaration.Function f => out := out ++ s!"{f.name}{args.funcArgsString} = {val}\n"
+  | .Symbolic str => out := out ++ s!"{decl.name} = {str}\n"
+  return out
+
+def Interpretation.push (i : Interpretation) (iop : InputOutputPair) : Interpretation :=
+  match i with
+  | Interpretation.Enumeration iopairs => Interpretation.Enumeration (iopairs.push iop)
+  | _ => panic! s!"tried to push an input-output pair to symbolic interpretation"
+
+abbrev ExplicitInterpretation := Lean.HashMap Declaration Interpretation
 
 instance : Ord ExplicitInterpretation where
   compare x y := compare x.toArray y.toArray
@@ -290,14 +315,8 @@ instance : ToString FirstOrderStructure where
     let mut out := s!"\n"
     for dom in s.domains do
       out := out ++ s!"{dom}\n"
-    for (decl, iopairs) in s.interp.toArray.qsortOrd do
-      for (args, val) in iopairs.qsortOrd do
-      match decl with
-      | Declaration.Constant c => out := out ++ s!"{c.name} = {val}\n"
-      | Declaration.Relation r =>
-          -- out := out ++ s!"{r.name}{args.funcArgsString} = {val}\n"
-          if val.isTrue then out := out ++ s!"{r.name}{args.funcArgsString} = true\n"
-      | Declaration.Function f => out := out ++ s!"{f.name}{args.funcArgsString} = {val}\n"
+    for (decl, interp) in s.interp.toArray.qsortOrd do
+      out := out ++ (← interp.toString decl)
     return out)
 
 def FirstOrderStructure.findSort (s : FirstOrderStructure) (name : Lean.Name) : MetaM FirstOrderSort :=
@@ -314,12 +333,18 @@ def FirstOrderStructure.findDecl (s : FirstOrderStructure) (name : Lean.Name) : 
       | some f => return Declaration.Function f
       | none => throwError s!"{name} provided an interpretation for, but not previously declared!"
 
+def FirstOrderStructure.isInterpretedByFiniteEnumeration (s : FirstOrderStructure) (decl : Declaration) : Bool :=
+  match s.interp.find? decl with
+  | some (Interpretation.Enumeration _) => true
+  | _ => false
+
 /-- On how many argument vectors is this constant/relation/function `True`? -/
 def FirstOrderStructure.numTrueInstances (s : FirstOrderStructure) (decl : Declaration) : MetaM Nat := do
   match s.interp.find? decl with
   | none => return 0
-  | some iopairs =>
+  | some (.Enumeration iopairs) =>
       return iopairs.foldl (init := 0) fun c (_, res) => if res.isTrue then c + 1 else c
+  | _ => throwError s!"cannot call `FirstOrderStructure.numTrueInstances` on a symbolic interpretation!"
 
 instance : Inhabited FirstOrderStructure := ⟨{ domains := #[], signature := default, interp := default }⟩
 
@@ -428,9 +453,18 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let args ← getValueArray args decl.domain
     let val ← getValueOfSort val decl.range
     trace[sauto.debug] s!"interpret {declName} {args} {val}"
-    let iopairs := struct.interp.findD decl #[]
-    let iopairs' := iopairs.push (args, val)
-    struct := { struct with interp := struct.interp.insert decl iopairs' }
+    let interp := struct.interp.findD decl (Interpretation.Enumeration #[])
+    let interp' := interp.push (args, val)
+    struct := { struct with interp := struct.interp.insert decl interp' }
+
+  -- (|symbolic| |st.delivered| |Lambda([arg0, arg1, arg2], ...)|)
+  | .app #[(.atom (.symb "symbolic")), (.atom (.symb declName)), (.atom (.symb interp))] => do
+    let declName := declName.toName
+    let decl ← struct.findDecl declName
+    trace[sauto.debug] s!"symbolic {declName} {interp}"
+    let interp := struct.interp.findD decl (Interpretation.Symbolic interp)
+    struct := { struct with interp := struct.interp.insert decl interp }
+
   | _ => throwError s!"(parseInstruction) malformed instruction: {inst}"
   return struct
 
