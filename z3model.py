@@ -3,6 +3,9 @@ import argparse
 import itertools
 import sys
 from dataclasses import dataclass
+import time
+import multiprocessing
+
 from typing import Any, Callable, Dict, List, Set, Tuple, TypeAlias, Union
 
 import sexpdata
@@ -19,7 +22,7 @@ import z3
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    '--tlimit', help='time limit in seconds', type=int, default=10)
+    '--tlimit', help='time limit in milliseconds', type=int, default=10000)
 
 # # https://stackoverflow.com/questions/51286748/make-the-python-json-encoder-support-pythons-new-dataclasses
 # class EnhancedJSONEncoder(json.JSONEncoder):
@@ -298,8 +301,7 @@ def get_model(passedLines: List[str]) -> Model:
     return Model(m)
 
 
-if __name__ == '__main__':
-    args = parser.parse_args()
+def run(args):
     z3.set_param('timeout', args.tlimit)
     z3.set_param("unsat_core", True)
     z3.set_param("model", True)
@@ -325,4 +327,23 @@ if __name__ == '__main__':
             if len(res) != 0:
                 print(res, flush=True)
 
-    sys.exit(1)
+    sys.exit(0)
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    def f():
+        sys.stdin = open(0)
+        run(args)
+    p = multiprocessing.Process(target=f)
+    start = time.monotonic()
+    p.start()
+
+    # Kill after `args.tlimit` seconds
+    tlimit_s = args.tlimit / 1000
+    p.join(tlimit_s)
+
+    if p.is_alive():
+        print(f"Timeout after {time.monotonic() - start:.2f} seconds!", file=sys.stderr)
+        p.kill()
+        p.join()
+        sys.exit(1)
