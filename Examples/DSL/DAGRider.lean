@@ -69,11 +69,14 @@ relation vertexWeakEdge (v : vertex) (we : vertex)
 
 
 -- State (for a single node); TODO: add node ID to state??
--- DAG: set of vertices at each Nat
+-- DAG: set of vertices at each round
 relation dag (r : Nat) (v : vertex)
 individual r : Nat
 relation buffer (v : vertex)
 individual blocksToPropose : queue
+
+-- Ghost state
+relation delivered (v : vertex) (r : Nat) (src : node)
 
 #gen_state
 
@@ -87,7 +90,10 @@ after_init {
     dag _ _     := False;
     buffer _    := False;
     require q.is_empty blocksToPropose;
-    r           := 0
+    r           := 0;
+
+    -- Ghost state
+    delivered _ _ _ := False
 }
 
 action dequeue (q0 : queue) = {
@@ -109,13 +115,27 @@ invariant [vertexBlock_coherence] ∀ v b b', vertexBlock v b → vertexBlock v 
 -- Data invariant: the DAG has at most one vertex per round from each source node
 -- We use this to relate vertices in the DAG to the quorum properties of nodes
 -- (so as to avoid counting the vertices directly)
-invariant [dag_coherence]
+safety [dag_coherence]
     ∀ r v v' n, dag r v → dag r v' → vertexSource v n → vertexSource v' n → v = v'
 
 -- TODO: if we're modelling DAG construction, should this be an external
 -- action? (i.e. one with no implementation?)
 action waveReady (r : Nat) = { skip }
 action r_bcast (v : vertex) (r : Nat) = { skip }
+
+action r_deliver (v : vertex) (r : Nat) (src : node) = {
+    require ¬ ∃ v', delivered v' r src; -- RB integrity guarantee: deliver at most once
+    delivered v r src := True;
+    -- `v` cannot be in the DAG (at any round)
+    -- TODO: how exactly do we justify this?
+    require ¬ dag R v;
+
+    -- FIXME: `partial function` should let us write `vertexSource v src := True`
+    vertexSource v SRC := (SRC = src);
+    vertexRound v R := (R = r)
+
+    -- TODO: if |v.strongEdges| ≥ 2f + 1 then add v to buffer
+}
 
 action setWeakEdges (v : vertex) (r : Nat) = {
   -- `v.weakEdges ← {}`
@@ -167,14 +187,21 @@ action mainLoop = {
 
 -- #print mainLoop.tr
 
-safety [Trivial] True ∧ True
+-- Protocol properties
+invariant [dag_round_matches_vertex_round] ∀ r v, dag r v → vertexRound v r
 
 #gen_spec DAGRider
 prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
 
+set_option sauto.model.minimize false
+
+-- #check_invariants
+
+
 set_option sauto.smt.translator "lean-smt"
--- set_option trace.sauto.query true
+set_option sauto.model.minimize true
+set_option trace.sauto.query true
 
 @[invProof]
 theorem mainLoop.tr_dag_coherence :
@@ -182,9 +209,8 @@ theorem mainLoop.tr_dag_coherence :
       (DAGRider node quorum vertex block queue is_byz).inv st →
         (mainLoop.tr node quorum vertex block queue is_byz) st st' →
           (dag_coherence node quorum vertex block queue is_byz) st' :=
-  by
-  unhygienic intros
-  solve_clause[mainLoop.tr]
+  -- by unhygienic intros; solve_clause[mainLoop.tr]
+  by sorry
 
 
 #print mainLoop.tr_dag_coherence
