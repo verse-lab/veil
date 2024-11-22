@@ -438,10 +438,18 @@ def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM 
   let failedTheorem ← `(@[invProof] theorem $(mkIdent thName) : $tpStx := sorry)
   return (invName, (thName, checkTheorem, failedTheorem))
 
+inductive CheckInvariantsBehaviour
+  /-- `#check_invariants` -/
+  | checkTheorems
+  /-- `#check_invariants?` -/
+  | printTheorems
+  /-- `#check_invariants!` -/
+  | printAndCheckTheorems
+
 /--
   Prints output similar to that of the `ivy_check` command.
 -/
-def checkInvariants (stx : Syntax) (printTheorems : Bool := false): CommandElabM Unit := do
+def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
   -- Generate theorems to check in the initial state and after each action
   let (initChecks, invChecks) ← Command.runTermElabM fun vs => do
     let invs := ((← stsExt.get).invariants ++ (← stsExt.get).safeties)
@@ -463,16 +471,14 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false): CommandElabM
         actChecks := actChecks.push (actName, checks)
     pure (initChecks, actChecks)
 
-  let mut theorems := #[] -- collect Lean expression to report for `#check_invariants?`
-  if printTheorems then
+  let mut theorems := #[] -- collect Lean expression to report for `#check_invariants?` and `#check_invariants!`
+  match behaviour with
+  | .printTheorems =>
     let actInvChecks := Array.flatten $ invChecks.map (fun (_, actChecks) => actChecks)
     for (_, (_, thCmd, _)) in (initChecks ++ actInvChecks) do
       theorems := theorems.push thCmd
-    Command.liftTermElabM do
-      let cmd ← constructCommands theorems
-      let suggestion : Suggestion := { suggestion := cmd, toCodeActionTitle? := .some (fun _ => "Replace with explicit proofs.")}
-      addSuggestion stx suggestion (header := "")
-  else
+    displaySuggestion stx theorems
+  | .checkTheorems | .printAndCheckTheorems =>
     let mut msgs := #[]
     msgs := msgs.push "Initialization must establish the invariant:"
     for (invName, (thName, thCmd, sorryThm)) in initChecks do
@@ -488,15 +494,33 @@ def checkInvariants (stx : Syntax) (printTheorems : Bool := false): CommandElabM
         msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
         let thm := if success then thCmd else sorryThm
         theorems := theorems.push thm
-    let msg := String.intercalate "\n" msgs.toList
-    dbg_trace msg
+    let msg := (String.intercalate "\n" msgs.toList) ++ "\n"
+    match behaviour with
+    | .checkTheorems => dbg_trace msg
+    | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
+    | _ => unreachable!
+  where displaySuggestion (stx : Syntax) (theorems : Array (TSyntax `command)) (preMsg : Option String := none) := do
+    Command.liftTermElabM do
+    let cmd ← constructCommands theorems
+    let suggestion : Suggestion := {
+      suggestion := cmd
+      preInfo? := preMsg
+      toCodeActionTitle? := .some (fun _ => "Replace with explicit proofs.")
+    }
+    addSuggestion stx suggestion (header := "")
 
-
+/-- Check all invariants and print result of each check. -/
 syntax "#check_invariants" : command
+/-- Suggest theorems to check all invariants. -/
 syntax "#check_invariants?" : command
+/-- Check all invariants, print the result of each check, and suggest
+theorems corresponding to the result of these checks. Theorems that
+could not be proven have their proofs replaced with `sorry`. -/
+syntax "#check_invariants!" : command
 elab_rules : command
-  | `(command| #check_invariants%$tk) => checkInvariants tk
-  | `(command| #check_invariants?%$tk) => checkInvariants tk (printTheorems := true)
+  | `(command| #check_invariants%$tk) => checkInvariants tk (behaviour := .checkTheorems)
+  | `(command| #check_invariants?%$tk) => checkInvariants tk (behaviour := .printTheorems)
+  | `(command| #check_invariants!%$tk) => checkInvariants tk (behaviour := .printAndCheckTheorems)
 
 open Tactic in
 /-- Try to solve the goal using one of the already proven invariant clauses,
