@@ -130,9 +130,6 @@ action r_deliver (v : vertex) (r : Int) (src : node) = {
     -- We ignore vertices that have been delivered in the past
     require ¬ ∃ r' src', delivered v r' src';
     delivered v r src := True;
-    -- `v` cannot be in the DAG (at any round)
-    -- TODO: how exactly do we justify this?
-    require ¬ dag R v;
     -- FIXME: `partial function` should let us write `vertexSource v src := True`
     vertexSource v SRC := (SRC = src);
     vertexRound v R := (R = r);
