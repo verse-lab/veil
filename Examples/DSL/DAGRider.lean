@@ -44,8 +44,8 @@ open ByzQuorum
 
 type node
 type quorum
--- type Nat
--- abbrev round := Nat
+-- type round
+-- abbrev round := Int
 type vertex
 type block
 type queue
@@ -54,12 +54,12 @@ type queue
 variable (is_byz : node → Prop)
 instantiate bq : ByzQuorum node is_byz quorum
 variable [DecidableBinaryRel bq.member]
--- instantiate tot : TotalOrderWithZero Nat
+-- instantiate tot : TotalOrderWithZero round
 instantiate q : Queue block queue
 
 -- TODO: what's the proper way to respresent structs?
 -- Vertex struct
-relation vertexRound (v : vertex) (r : Nat)
+relation vertexRound (v : vertex) (r : Int)
 relation vertexSource (v : vertex) (n : node)
 relation vertexBlock (v : vertex) (b : block)
 -- set of vertices in `strongEdges`
@@ -70,13 +70,13 @@ relation vertexWeakEdge (v : vertex) (we : vertex)
 
 -- State (for a single node); TODO: add node ID to state??
 -- DAG: set of vertices at each round
-relation dag (r : Nat) (v : vertex)
-individual r : Nat
+relation dag (r : Int) (v : vertex)
+individual r : Int
 relation buffer (v : vertex)
 individual blocksToPropose : queue
 
 -- Ghost state
-relation delivered (v : vertex) (r : Nat) (src : node)
+relation delivered (v : vertex) (r : Int) (src : node)
 
 #gen_state
 
@@ -112,32 +112,37 @@ invariant [vertexRound_coherence] ∀ v r r', vertexRound v r → vertexRound v 
 invariant [vertexSource_coherence] ∀ v n n', vertexSource v n → vertexSource v n' → n = n'
 invariant [vertexBlock_coherence] ∀ v b b', vertexBlock v b → vertexBlock v b' → b = b'
 
--- Data invariant: the DAG has at most one vertex per round from each source node
--- We use this to relate vertices in the DAG to the quorum properties of nodes
--- (so as to avoid counting the vertices directly)
-safety [dag_coherence]
-    ∀ r v v' n, dag r v → dag r v' → vertexSource v n → vertexSource v' n → v = v'
+-- FIXME: round numbers are actually natural numbers
+invariant [vertexRound_nonneg] ∀ v r, vertexRound v r → r ≥ 0
+invariant [round_nonneg] r ≥ 0
+invariant [dag_nonneg] ∀ r v, dag r v → r ≥ 0
 
 -- TODO: if we're modelling DAG construction, should this be an external
 -- action? (i.e. one with no implementation?)
-action waveReady (r : Nat) = { skip }
-action r_bcast (v : vertex) (r : Nat) = { skip }
+action waveReady (r : Int) = { skip }
+action r_bcast (v : vertex) (r : Int) = { skip }
 
-action r_deliver (v : vertex) (r : Nat) (src : node) = {
-    require ¬ ∃ v', delivered v' r src; -- RB integrity guarantee: deliver at most once
+open Classical in
+action r_deliver (v : vertex) (r : Int) (src : node) = {
+    -- RB integrity guarantee: deliver at most once per round per source
+    require ¬ ∃ v', delivered v' r src;
+    -- We ignore vertices that have been delivered in the past
+    -- (without this, `delivered_round_is_vertex_round` wouldn't hold)
+    require ¬ ∃ r' src', delivered v r' src';
     delivered v r src := True;
     -- `v` cannot be in the DAG (at any round)
     -- TODO: how exactly do we justify this?
     require ¬ dag R v;
-
     -- FIXME: `partial function` should let us write `vertexSource v src := True`
     vertexSource v SRC := (SRC = src);
-    vertexRound v R := (R = r)
-
-    -- TODO: if |v.strongEdges| ≥ 2f + 1 then add v to buffer
+    vertexRound v R := (R = r);
+    -- if |v.strongEdges| ≥ 2f + 1 then add v to buffer
+    if (∃ q, ∀ n, member n q → (∃ v', vertexSource v' n ∧ vertexStrongEdge v v')) {
+        buffer v := True
+    }
 }
 
-action setWeakEdges (v : vertex) (r : Nat) = {
+action setWeakEdges (v : vertex) (r : Int) = {
   -- `v.weakEdges ← {}`
   require (¬ ∃ we, vertexWeakEdge v we)
   -- NOTE: we cannot express the `path` predicate in the DSL
@@ -145,7 +150,7 @@ action setWeakEdges (v : vertex) (r : Nat) = {
   -- see how we express it in HOL (it quantifies over lists of vertices)
 }
 
-action createNewVertex (r : Nat) = {
+action createNewVertex (r : Int) = {
     -- FIXME: "wait until ¬ blocksToPropose.empty"
     -- `v.block ← blocksToPropose.dequeue()`
     (b, q') : block × queue ← call !dequeue blocksToPropose in
@@ -161,7 +166,7 @@ action createNewVertex (r : Nat) = {
     return v
  }
 
-#print createNewVertex.tr
+-- #print createNewVertex.tr
 
 -- FIXME: To add `Decidable` instances for all propositions
 open Classical in
@@ -174,7 +179,7 @@ action mainLoop = {
     -- If it'S in the DAG, remove it from the buffer
     buffer V := buffer V ∧ ¬ ∃ r, dag r V;
     -- There is a quorum of vertices in `dag[r]`
-    if (∃ q, ∀ n, member n q → (∃ v, dag r v ∧ vertexSource v n)) {
+    if (∃ q, ∀ n, member n q → (∃ v, vertexSource v n ∧ dag r v)) {
         if (r % 4 = 0) {
             -- TODO: how to properly model signalling wave_ready?
             call !waveReady r
@@ -187,21 +192,39 @@ action mainLoop = {
 
 -- #print mainLoop.tr
 
+-- Invariant: the DAG has at most one vertex per round from each source node
+-- We use this to relate vertices in the DAG to the quorum properties of nodes
+-- (so as to avoid counting the vertices directly)
+safety [dag_coherence]
+    ∀ r v v' n, dag r v → dag r v' → vertexSource v n → vertexSource v' n → v = v'
+
 -- Protocol properties
+
+/- Sort stratification
+  `vertex`
+  `round`
+  `node`
+-/
+
+-- inferred from `r_deliver`
+invariant [buffer_implies_delivered] ∀ v, buffer v → ∃ r src, delivered v r src
+invariant [delivered_round_is_vertex_round] ∀ v r src, delivered v r src → vertexRound v r
+-- invariant [source_implies_delivered] ∀ v src, vertexSource v src → ∃ r, delivered v r src
+
+-- Messes up the quantifier stratification:
+-- invariant [buffer_implies_quorum_strong_edges]
+--     ∀ v, buffer v → ∃ q, ∀ n, member n q → (∃ v', vertexSource v' n ∧ vertexStrongEdge v v')
+
+-- The below is NOT true, since we can receive the same vertex from multiple nodes
+-- invariant [delivered_implies_source] ∀ v r src, delivered v r src → vertexSource v src
+
+-- inferred from `mainLoop`
 invariant [dag_round_matches_vertex_round] ∀ r v, dag r v → vertexRound v r
 
 #gen_spec DAGRider
-prove_inv_init by { solve_clause }
-prove_inv_safe by { solve_clause }
 
-set_option sauto.model.minimize false
-
--- #check_invariants
-
-
-set_option sauto.smt.translator "lean-smt"
 set_option sauto.model.minimize true
-set_option trace.sauto.query true
+set_option auto.smt.timeout 5
 
 @[invProof]
 theorem mainLoop.tr_dag_coherence :
@@ -209,10 +232,9 @@ theorem mainLoop.tr_dag_coherence :
       (DAGRider node quorum vertex block queue is_byz).inv st →
         (mainLoop.tr node quorum vertex block queue is_byz) st st' →
           (dag_coherence node quorum vertex block queue is_byz) st' :=
-  -- by unhygienic intros; solve_clause[mainLoop.tr]
-  by sorry
-
-
-#print mainLoop.tr_dag_coherence
+  by
+  intros st st' hinv hnext
+  simp only [actSimp] at hnext
+  solve_clause[mainLoop.tr]
 
 end DAGRider
