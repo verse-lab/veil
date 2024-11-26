@@ -372,6 +372,7 @@ if __name__ == '__main__':
 
     if p.is_alive():
         print(f"Timeout after {time.monotonic() - start:.2f} seconds!", file=sys.stderr)
+        print("unknown", flush=True)
         p.kill()
         p.join()
         sys.exit(1)

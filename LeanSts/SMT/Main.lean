@@ -194,6 +194,7 @@ def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
 
 def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatResult := do
   withTraceNode `sauto.perf.checkSat (fun _ => return "checkSat") do
+  try
   if sauto.smt.macrofinder.get (← getOptions) && solverName == SolverName.z3 then
     -- only Z3 supports the macro-finder tactic
     emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
@@ -214,16 +215,24 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
     trace[sauto.debug] "{solverName} says Unsat"
     return CheckSatResult.Unsat
   | e => return CheckSatResult.Unknown s!"{e}"
+  catch e =>
+    let exMsg ← e.toMessageData.toString
+    throwError s!"check-sat failed (z3model.py likely timed out)"
 
 def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   withTraceNode `sauto.perf.getModel (fun _ => return "getModel") do
+  try
   emitCommand solver .getModel
   let stdout ← Handle.readUntil solver.stdout ")\n"
   let (model, _) ← getSexp stdout
   return model
+  catch e =>
+    let exMsg ← e.toMessageData.toString
+    throwError s!"get-model failed (z3model.py likely timed out)"
 
 def getUnsatCore (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   withTraceNode `sauto.perf.getUnsatCore (fun _ => return "getUnsatCore") do
+  try
   emitCommand solver .getUnsatCore
   -- FIXME: probably shouldn't kill the solver here
   let (_, solver) ← solver.takeStdin
@@ -231,6 +240,9 @@ def getUnsatCore (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   solver.kill
   let (unsatCore, _proof) ← getSexp stdout
   return unsatCore
+  catch e =>
+    let exMsg ← e.toMessageData.toString
+    throwError s!"get-unsat-core failed (z3model.py likely timed out)"
 
 /-- Check if the constraint is satisfiable in the current frame. -/
 def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM Bool := do
@@ -246,17 +258,19 @@ def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (con
 
 private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
+  try
   -- Minimize sorts
   let mut sortConstraints : Array (FirstOrderSort × Nat × Expr) := #[]
   for sort in fostruct.domains do
     for sortSize in [1 : sort.size] do
-      let constraint ← sort.cardinalityConstraint sortSize
+      let .some constraint ← sort.cardinalityConstraint sortSize
+        | trace[sauto.debug] "no constraint for sort {sort} at size {sortSize}"; continue
       -- we check each constraint in a separate frame
       emitCommandStr solver s!"(push)"
       let isSat ← constraintIsSatisfiable solver solverName constraint
       match isSat with
       | true =>
-          sortConstraints := sortConstraints.push (sort, sortSize, constraint.get!)
+          sortConstraints := sortConstraints.push (sort, sortSize, constraint)
           trace[sauto.debug] "minimized sort {sort} to size {sortSize}"
           break -- break out of the `sortSize in [1 : sort.size]` loop
       | false =>
@@ -267,18 +281,18 @@ private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (f
   -- Minimize number of positive elements in each relation interpreted as a finite enumeration
   let mut relConstraints : Array (Declaration × Nat × Expr) := #[]
   for decl in fostruct.signature.declarations do
-    if !fostruct.isInterpretedByFiniteEnumeration decl then
-      continue
-    let currentSize ← fostruct.numTrueInstances decl
-    trace[sauto.debug] "trying to minimize relation {decl.name} at sizes [0 : {currentSize}]"
+    -- We try to minimize symbolic interpretations of relations to zero size
+    let currentSize ← if fostruct.isInterpretedByFiniteEnumeration decl then fostruct.numTrueInstances decl else pure 1
+    trace[sauto.debug] "trying to minimize relation {decl.name} at sizes [0 : {currentSize})"
     for relSize in [0 : currentSize] do
-      let constraint ← decl.cardinalityConstraint relSize
+      let .some constraint ← decl.cardinalityConstraint relSize
+        | trace[sauto.debug] "no constraint for relation {decl.name} at size {relSize}"; continue
       -- we check each constraint in a separate frame
       emitCommandStr solver "(push)"
       let isSat ← constraintIsSatisfiable solver solverName constraint
       match isSat with
       | true =>
-          relConstraints := relConstraints.push (decl, relSize, constraint.get!)
+          relConstraints := relConstraints.push (decl, relSize, constraint)
           trace[sauto.debug] "minimized relation {decl.name} to size {relSize}"
           break -- break out of the `relSize in [0 : ← fostruct.numTrueInstances decl]` loop
       | false =>
@@ -302,6 +316,9 @@ private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (f
   trace[sauto.debug] "Model:\n{model}"
   let fostruct ← extractStructure model
   return fostruct
+  catch e =>
+    let exMsg ← e.toMessageData.toString
+    throwError s!"Minimization failed: {exMsg}"
 
 /- FIXME: for whatever reason, if I add `withTraceNode` directly inside `minimizeModelImpl`, it hangs. -/
 def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
@@ -318,6 +335,7 @@ def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
 open Smt Smt.Tactic Translate in
 partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
+  try
   let opts ← getOptions
   let minimize := minimize.getD (sauto.model.minimize.get opts)
   let solverName :=
@@ -376,6 +394,9 @@ partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Opti
       else
         solver.kill
         return .Unknown reason
+  catch e =>
+    let exMsg ← e.toMessageData.toString
+    return .Unknown s!"{exMsg}"
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
 syntax (name := sauto) "sauto" smtHints smtTimeout : tactic
