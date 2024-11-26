@@ -124,10 +124,10 @@ action r_bcast (v : vertex) (r : Int) = { skip }
 
 open Classical in
 action r_deliver (v : vertex) (r : Int) (src : node) = {
+    require r ≥ 0;
     -- RB integrity guarantee: deliver at most once per round per source
     require ¬ ∃ v', delivered v' r src;
     -- We ignore vertices that have been delivered in the past
-    -- (without this, `delivered_round_is_vertex_round` wouldn't hold)
     require ¬ ∃ r' src', delivered v r' src';
     delivered v r src := True;
     -- `v` cannot be in the DAG (at any round)
@@ -143,6 +143,7 @@ action r_deliver (v : vertex) (r : Int) (src : node) = {
 }
 
 action setWeakEdges (v : vertex) (r : Int) = {
+  require r ≥ 0;
   -- `v.weakEdges ← {}`
   require (¬ ∃ we, vertexWeakEdge v we)
   -- NOTE: we cannot express the `path` predicate in the DSL
@@ -151,6 +152,7 @@ action setWeakEdges (v : vertex) (r : Int) = {
 }
 
 action createNewVertex (r : Int) = {
+    require r ≥ 0;
     -- FIXME: "wait until ¬ blocksToPropose.empty"
     -- `v.block ← blocksToPropose.dequeue()`
     (b, q') : block × queue ← call !dequeue blocksToPropose in
@@ -209,14 +211,14 @@ safety [dag_coherence]
 -- inferred from `r_deliver`
 invariant [buffer_implies_delivered] ∀ v, buffer v → ∃ r src, delivered v r src
 invariant [delivered_round_is_vertex_round] ∀ v r src, delivered v r src → vertexRound v r
--- invariant [source_implies_delivered] ∀ v src, vertexSource v src → ∃ r, delivered v r src
+invariant [delivered_source_is_vertex_source] ∀ v r src, delivered v r src → vertexSource v src
+invariant [vertex_round_implies_delivered] ∀ v r, vertexRound v r → ∃ src, delivered v r src
+invariant [vertex_source_implies_delivered] ∀ v src, vertexSource v src → ∃ r, delivered v r src
+invariant [one_vertex_per_round_per_source] ∀ r v v' src, delivered v r src → delivered v' r src → v = v'
 
 -- Messes up the quantifier stratification:
 -- invariant [buffer_implies_quorum_strong_edges]
 --     ∀ v, buffer v → ∃ q, ∀ n, member n q → (∃ v', vertexSource v' n ∧ vertexStrongEdge v v')
-
--- The below is NOT true, since we can receive the same vertex from multiple nodes
--- invariant [delivered_implies_source] ∀ v r src, delivered v r src → vertexSource v src
 
 -- inferred from `mainLoop`
 invariant [dag_round_matches_vertex_round] ∀ r v, dag r v → vertexRound v r
@@ -224,17 +226,7 @@ invariant [dag_round_matches_vertex_round] ∀ r v, dag r v → vertexRound v r
 #gen_spec DAGRider
 
 set_option sauto.model.minimize true
-set_option auto.smt.timeout 5
 
-@[invProof]
-theorem mainLoop.tr_dag_coherence :
-    ∀ (st st' : State node quorum vertex block queue is_byz),
-      (DAGRider node quorum vertex block queue is_byz).inv st →
-        (mainLoop.tr node quorum vertex block queue is_byz) st st' →
-          (dag_coherence node quorum vertex block queue is_byz) st' :=
-  by
-  intros st st' hinv hnext
-  simp only [actSimp] at hnext
-  solve_clause[mainLoop.tr]
+#check_invariants
 
 end DAGRider
