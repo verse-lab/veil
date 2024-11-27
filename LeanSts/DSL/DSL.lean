@@ -28,11 +28,6 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
   | some stx => stx.getPropertyName
   | none => default
 
-elab "state" "=" fs:Command.structFields : command => do
-  let vd := (<- getScope).varDecls
-  elabCommand $ <-
-    `(@[state] structure $(mkIdent `State) $[$vd]* where mk :: $fs)
-
 /-- Defines a constant, relation, or function, validating its type before adding it. -/
 def defineStateComponent
   (sig: TSyntax `Lean.Parser.Command.structSimpleBinder)
@@ -78,13 +73,13 @@ elab "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
   let rel ← `(relation $nm:ident : $typeStx)
   elabCommand rel
 
-/-- `individual` command saves a `State` structure field declaration -/
+/-- `individual` command saves a State structure field declaration -/
 elab "individual" sig:Command.structSimpleBinder : command => do
   defineStateComponent sig
     (fun (tp : Expr) => return !tp.isArrow)
     (fun sig => throwErrorAt sig "Invalid type: constants must not be arrow types")
 
-/-- `function` command saves a `State` structure field declaration -/
+/-- `function` command saves a State structure field declaration -/
 elab "function" sig:Command.structSimpleBinder : command => do
   defineStateComponent sig
     (fun (tp : Expr) => do return tp.isArrow)
@@ -122,19 +117,23 @@ elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
       `(@[actSimp, invSimp] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
 
 /--
-assembles all declared `relation` predicates into a single `State` -/
-def assembleState : CommandElabM Unit := do
+assembles all declared `relation` predicates into a single State -/
+def assembleState (name : Name) : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   Command.runTermElabM fun vs => do
+  -- set the name
     let nms := (<- stsExt.get).sig
-    let sdef ← `(@[stateDef] structure $(mkIdent `State) $[$vd]* where $(mkIdent `mk):ident :: $[$nms]*)
-    let injEqLemma := (mkIdent $ `State ++ `mk ++ `injEq)
+    let stName := name ++ `State
+    -- record the state name
+    stsExt.modify (fun s => { s with stateName := stName })
+    let sdef ← `(@[stateDef] structure $(mkIdent stName) $[$vd]* where $(mkIdent `mk):ident :: $[$nms]*)
+    let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
     liftCommandElabM $ elabCommand $ sdef
     liftCommandElabM $ elabCommand $ smtAttr
 
 @[inherit_doc assembleState]
-elab "#gen_state" : command => assembleState
+elab "#gen_state" name:ident : command => assembleState name.getId
 
 open Tactic in
 elab tk:"conv! " conv:conv " => " e:term : term => do
@@ -345,14 +344,14 @@ def assembleSafeties : CommandElabM Unit := do
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
 -/
-def instantiateSystem (name : Name): CommandElabM Unit := do
+def instantiateSystem (name : Name) : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   assembleActions
   assembleInvariant
   assembleSafeties
   Command.runTermElabM fun vs => do
     -- set the name
-    stsExt.modify (fun s => { s with name := name })
+    stsExt.modify (fun s => { s with specName := name })
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
     let initSt    := mkAppN (<- mkConst `initialState?) vs
@@ -396,7 +395,7 @@ def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Boo
   return isProven
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
-  let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).name) vs
+  let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).specName) vs
   return systemTp
 
 def getStateTpStx (vs : Array Expr) : TermElabM Term := do

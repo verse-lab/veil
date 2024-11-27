@@ -109,7 +109,8 @@ theorem exists_comm_eq {p : α → β → Prop} : (∃ a b, p a b) = (∃ b a, p
    https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869 -/
 simproc State_exists_comm (∃ _ _, _) := fun e => do
   let_expr Exists t eBody := e | return .continue
-  if !(t.isAppOf `State) then
+  let stateName := (← stsExt.get).stateName
+  if !(t.isAppOf stateName) then
     return .continue
   -- the body of an `∃` is a lambda
   let step ← lambdaTelescope eBody (fun ks lBody => do

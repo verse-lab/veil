@@ -37,7 +37,7 @@ open Between TotalOrder
 relation leader : node -> Prop
 relation pending : node -> node -> Prop
 
-#gen_state
+#gen_state Ring
 
 after_init {
   leader _ := False;

@@ -16,7 +16,7 @@ relation decide_abort : node -> Prop
 
 individual abort_flag : Prop
 
-#gen_state
+#gen_state TPC
 
 after_init {
   vote_yes _ := False;

@@ -72,7 +72,7 @@ relation echoed (n : address) (originator : address) (in_round : round) (v : val
 relation voted (n : address) (originator : address) (in_round : round) (v : value)
 relation output (n : address) (originator : address) (in_round : round) (v : value)
 
-#gen_state
+#gen_state ReliableBroadcast
 
 -- Ghost relations
 relation initial_value (n : address) (r : round) (v : value) := ∀ dst, initial_msg n dst r v

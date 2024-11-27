@@ -1,5 +1,6 @@
 import Lean.Elab.Tactic
 import Batteries.Lean.Meta.UnusedNames
+import LeanSts.DSL.Util
 
 open Lean Lean.Elab.Tactic
 
@@ -55,7 +56,7 @@ def allGoals [Inhabited α]
 
 
 /-- Iterate over hypotheses to identify the type of the state `Structure`.
-    If the state is not found, return `State` as the default. -/
+    If the state is not found, return the DSL state as the default. -/
 def findStateType (ctx : LocalContext) : TacticM Expr := do
   for hyp in ctx do
     if (hyp.type.isAppOf `RelationalTransitionSystem.init) ||
@@ -65,7 +66,8 @@ def findStateType (ctx : LocalContext) : TacticM Expr := do
     then
       return hyp.type.getAppArgs[0]!
   -- TODO: inspect the goal as well, not just the hypotheses
-  return (mkConst `State)
+  let stateName := (← stsExt.get).stateName
+  return (mkConst stateName)
 
 /-- Is the given hypothesis a `class` instance (or a `structure`)? -/
 def hypIsClass (hyp : LocalDecl) : TacticM Bool := do

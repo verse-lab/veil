@@ -10,6 +10,7 @@ open Lean Lean.Elab.Tactic
   state term using the field hypotheses and close the goal.
 -/
 elab "exact_state" : tactic => do
+  let stateName := (<- stsExt.get).stateName
   let stateTp := (<- stsExt.get).typ
   let .some sn := stateTp.constName?
     | throwError "{stateTp} is not a constant"
@@ -17,5 +18,5 @@ elab "exact_state" : tactic => do
     | throwError "{stateTp} is not a structure"
   let fns := _sinfo.fieldNames.map mkIdent
   -- fileds' names should be the same as ones in the local context
-  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent `State) ..))
+  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent stateName) ..))
   evalTactic $ ← `(tactic| exact $constr)

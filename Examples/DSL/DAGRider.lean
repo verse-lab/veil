@@ -78,7 +78,7 @@ individual blocksToPropose : queue
 -- Ghost state
 relation delivered (v : vertex) (r : Int) (src : node)
 
-#gen_state
+#gen_state DAGRider
 
 after_init {
     vertexRound _ _         := False;

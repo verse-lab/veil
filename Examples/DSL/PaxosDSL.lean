@@ -62,7 +62,7 @@ relation leftRound : node -> round -> Prop
   -- (ghost) relation one_b(N:node, R:round) # := exists RMAX, V. one_b_max_vote(N,R,RMAX,V)
 relation one_b : node -> round -> Prop
 
-#gen_state
+#gen_state Paxos
 
 relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr = TotalOrder.none ∧
@@ -144,7 +144,7 @@ action decision_ (n : node) (r : round) (v : value) = {
   decision n r v := True
 }
 
-safety (decision N1 R1 V1 ∧ decision N2 R2 V2) → R1 = R2 ∧ V1 = V2
+safety [agreement] (decision N1 R1 V1 ∧ decision N2 R2 V2) → R1 = R2 ∧ V1 = V2
 
 invariant proposal R V1 ∧ proposal R V2 → V1 = V2
 
@@ -209,7 +209,7 @@ unsat trace {
   phase_2b
 } by {
   sintro st0 st1 st2
-  simp [initSimp, actSimp, wlp, State.mk.injEq]
+  simp [initSimp, actSimp, wlp, Paxos.State.mk.injEq]
   duper
 }
 
