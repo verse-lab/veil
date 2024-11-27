@@ -66,7 +66,7 @@ def findStateType (ctx : LocalContext) : TacticM Expr := do
     then
       return hyp.type.getAppArgs[0]!
   -- TODO: inspect the goal as well, not just the hypotheses
-  let stateName := (← stsExt.get).stateName
+  let stateName ← getStateName
   return (mkConst stateName)
 
 /-- Is the given hypothesis a `class` instance (or a `structure`)? -/

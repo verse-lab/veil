@@ -30,8 +30,8 @@ def freshIdentifier (suggestion : String) : CoreM Lean.Syntax.Ident := do
 structure StsState where
   /-- name of the system/specification; set when `#gen_spec` runs -/
   specName: Name
-  /-- name of the state type; set when `#gen_state` runs -/
-  stateName: Name
+  /-- base name of the State type; set when `#gen_state` runs -/
+  stateBaseName: Name
   /-- type of the transition system state -/
   typ        : Expr
   /-- signatures of all constants, relations, and functions -/
@@ -135,11 +135,17 @@ macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
 
 /-- Retrieves the current State structure and applies it to
     section variables `vs` -/
-def stateTp (vs : Array Expr) : MetaM Expr := do
+def stateTp (vs : Array Expr) : AttrM Expr := do
   let stateTp := (<- stsExt.get).typ
   unless stateTp != default do throwError "State has not been declared so far"
   return mkAppN stateTp vs
 
+/-- Retrieves the name passed to `#gen_state` -/
+def getPrefixedName (name : Name): AttrM Name := do
+  let stateName := (← stsExt.get).stateBaseName
+  return stateName ++ name
+
+def getStateName : AttrM Name := getPrefixedName `State
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -188,7 +194,7 @@ def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let .some _sinfo := getStructureInfo? (<- getEnv) sn
     | throwError "{stateTp} is not a structure"
   let fns := _sinfo.fieldNames.map Lean.mkIdent
-  let stateName := (← stsExt.get).stateName
+  let stateName ← getStateName
   let casesOn <- mkConst $ (stateName ++ `casesOn)
   let casesOn <- PrettyPrinter.delab casesOn
   let stateTp <- PrettyPrinter.delab stateTp

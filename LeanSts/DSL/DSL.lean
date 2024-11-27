@@ -123,9 +123,9 @@ def assembleState (name : Name) : CommandElabM Unit := do
   Command.runTermElabM fun vs => do
   -- set the name
     let nms := (<- stsExt.get).sig
-    let stName := name ++ `State
     -- record the state name
-    stsExt.modify (fun s => { s with stateName := stName })
+    stsExt.modify (fun s => { s with stateBaseName := name })
+    let stName ← getPrefixedName `State
     let sdef ← `(@[stateDef] structure $(mkIdent stName) $[$vd]* where $(mkIdent `mk):ident :: $[$nms]*)
     let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
@@ -169,7 +169,8 @@ elab "initial" ini:term : command => do
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
     let expectedType ← `($stateTp → Prop)
     let ini ←  simplifyTerm ini
-    `(@[initDef, initSimp] def $(mkIdent `initialState?) : $expectedType := $ini)
+    let name ← getPrefixedName `initialState?
+    `(@[initDef, initSimp] def $(mkIdent name) : $expectedType := $ini)
 
 /-- Declaring the initial state predicate in the form of a code -/
 elab "after_init" "{" l:lang "}" : command => do
@@ -295,7 +296,7 @@ def assembleActions : CommandElabM Unit := do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let acts <- combineLemmas ``Or (<- stsExt.get).actions vs "transitions"
     let acts <- PrettyPrinter.delab acts
-    `(@[actSimp] def $(mkIdent `Next) : $stateTp -> $stateTp -> Prop := $acts)
+    `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $acts)
 
 /-- Safety property. All capital variables are implicitly quantified -/
 elab "safety" name:(propertyName)? safe:term : command => do
@@ -331,7 +332,7 @@ def assembleInvariant : CommandElabM Unit := do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let invs <- combineLemmas ``And ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties) vs "invariants"
     let invs <- PrettyPrinter.delab invs
-    `(@[invSimp] def $(mkIdent `Invariant) : $stateTp -> Prop := $invs)
+    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Invariant) : $stateTp -> Prop := $invs)
 
 /-- Assembles all declared safety properties into a single `Safety` predicate -/
 def assembleSafeties : CommandElabM Unit := do
@@ -339,7 +340,7 @@ def assembleSafeties : CommandElabM Unit := do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let safeties <- combineLemmas ``And (<- stsExt.get).safeties vs "safeties"
     let safeties <- PrettyPrinter.delab safeties
-    `(@[invSimp] def $(mkIdent `Safety) : $stateTp -> Prop := $safeties)
+    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) : $stateTp -> Prop := $safeties)
 
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
@@ -354,13 +355,13 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
     stsExt.modify (fun s => { s with specName := name })
     let stateTp   := mkAppN (<- stsExt.get).typ vs
     let stateTp   <- PrettyPrinter.delab stateTp
-    let initSt    := mkAppN (<- mkConst `initialState?) vs
+    let initSt    := mkAppN (<- mkConst $ ← getPrefixedName `initialState?) vs
     let initSt    <- PrettyPrinter.delab initSt
-    let nextTrans := mkAppN (<- mkConst `Next) vs
+    let nextTrans := mkAppN (<- mkConst $ ← getPrefixedName `Next) vs
     let nextTrans <- PrettyPrinter.delab nextTrans
-    let safe      := mkAppN (<- mkConst `Safety) vs
+    let safe      := mkAppN (<- mkConst $ ← getPrefixedName `Safety) vs
     let safe      <- PrettyPrinter.delab safe
-    let inv       := mkAppN (<- mkConst `Invariant) vs
+    let inv       := mkAppN (<- mkConst $ ← getPrefixedName `Invariant) vs
     let inv       <- PrettyPrinter.delab inv
     let stx       <-
       `(instance (priority := low) $(mkIdent name) $[$vd]* : RelationalTransitionSystem $stateTp where

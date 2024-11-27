@@ -10,7 +10,7 @@ open Lean Lean.Elab.Tactic
   state term using the field hypotheses and close the goal.
 -/
 elab "exact_state" : tactic => do
-  let stateName := (<- stsExt.get).stateName
+  let stateName ← getStateName
   let stateTp := (<- stsExt.get).typ
   let .some sn := stateTp.constName?
     | throwError "{stateTp} is not a constant"
