@@ -34,27 +34,6 @@ abbrev DecidableBinaryRel {α β : Sort u} (r : α → β → Prop) :=
 abbrev DecidableTernaryRel {α β γ : Sort u} (r : α → β → γ → Prop) :=
   (a : α) → (b : β) → (c : γ) → Decidable (r a b c)
 
-namespace FunctionalTransitionSystem
-
-/-- The type of an execution. -/
-def exec := RelationalTransitionSystem.exec
-/-- The type of predicates on executions -/
-def pred := RelationalTransitionSystem.pred
-
-/-- The type of a predicate on states -/
-def state_pred {σ : Type} := @RelationalTransitionSystem.state_pred σ
-notation "⌜" p "⌝" => state_pred p
-
-/-- The type of actions.
-    NOTE: this is a function, not a relation. -/
-def action {σ : Type} := σ → σ
-/-- The type of a predicate on actions -/
-def action_pred {σ : Type} (a : @action σ) : pred σ :=
-  λ e => a (e 0) = (e 1)
-notation "⟨" a "⟩" => action_pred a
-
-end FunctionalTransitionSystem
-
 /-- Simplifiers to prepare a goal for SMT. See `SMT/Preparation.lean` -/
 register_simp_attr smtSimp
 /-- We specifically identify lemmas for quantifier elimination, since we run

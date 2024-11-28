@@ -39,12 +39,3 @@ def invSafe [RelationalTransitionSystem σ] :=
 
 def invInductive [RelationalTransitionSystem σ] :=
   ∀ (s1 s2 : σ), next s1 s2 -> inv s1 -> inv s2
-
-
-class FunctionalTransitionSystem (σ : Type) extends
-  TransitionSystem σ
-  FunctionalTransitionSystem.action
-  (FunctionalTransitionSystem.exec σ)
-  (FunctionalTransitionSystem.pred σ)
-  FunctionalTransitionSystem.state_pred
-  FunctionalTransitionSystem.action_pred
