@@ -16,12 +16,12 @@ section ReliableBroadcast
       votes if it sees `f + 1` votes for the same value
 
   The `deliver` action is triggered when a node sees `2f + 1` votes for
-  the same value, and outputs that value.
+  the same value, and outputs (delivers) that value.
 
   The protocol has three separate quorum thresholds:
     - `echo4vote` -- `2f + 1` nodes that have echoed the same value to vote
     - `vote4vote` -- `f + 1` nodes that have voted for the same value to vote
-    - `vote4output` -- `2f + 1` nodes that have voted for the same value to output
+    - `vote4output` -- `2f + 1` nodes that have voted for the same value to output/deliver
 -/
 
 class NodeSet (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) :=
@@ -70,7 +70,7 @@ relation vote_msg (src : address) (dst : address) (originator : address) (r : ro
 relation sent (n : address) (r : round)
 relation echoed (n : address) (originator : address) (in_round : round) (v : value)
 relation voted (n : address) (originator : address) (in_round : round) (v : value)
-relation output (n : address) (originator : address) (in_round : round) (v : value)
+relation delivered (n : address) (originator : address) (in_round : round) (v : value)
 
 #gen_state ReliableBroadcast
 
@@ -85,10 +85,10 @@ after_init {
   sent _ _ := False;
   echoed _ _ _ _ := False;
   voted _ _ _ _ := False;
-  output _ _ _ _ := False
+  delivered _ _ _ _ := False
 }
 
-transition byz = fun st st' =>
+internal transition byz = fun st st' =>
   (∀ (src dst : address) (r : round) (v : value),
     (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
     (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v))) ∧
@@ -102,7 +102,7 @@ transition byz = fun st st' =>
   ∧ (st.sent = st'.sent)
   ∧ (st.echoed = st'.echoed)
   ∧ (st.voted = st'.voted)
-  ∧ (st.output = st'.output)
+  ∧ (st.delivered = st'.delivered)
 
 
 action start_round (n : address) (r : round) (v : value) = {
@@ -133,7 +133,7 @@ action deliver (n : address) (originator : address) (r : round) (v : value) = {
   -- received 2f + 1 votes
   require (∃ (q : nodeset), nset.supermajority q ∧
               ∀ (src : address), nset.member src q → vote_msg src n originator r v);
-  output n originator r v := True
+  delivered n originator r v := True
 }
 
 /- If a value is voted for, it is the value that was initially proposed by the originator. -/
@@ -141,15 +141,15 @@ safety [vote_integrity]
   ∀ (src dst : address) (r : round) (v : value),
      ¬ is_byz src ∧ ¬ is_byz dst ∧ voted dst src r v → (sent src r ∧ initial_value src r v)
 
-/- If a value is output, it is the value that was initially proposed by the originator. -/
-safety [output_integrity]
+/- If a value is delivered, it is the value that was initially proposed by the originator. -/
+safety [deliver_integrity]
   ∀ (src dst : address) (r : round) (v : value),
-     ¬ is_byz src ∧ ¬ is_byz dst ∧ output dst src r v → (sent src r ∧ initial_value src r v)
+     ¬ is_byz src ∧ ¬ is_byz dst ∧ delivered dst src r v → (sent src r ∧ initial_value src r v)
 
-/- Also known as "output uniqueness". -/
+/- Also known as "delivered uniqueness". -/
 safety [agreement]
   ∀ (src dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
-    ¬ is_byz dst₁ ∧ ¬ is_byz dst₂ ∧ output dst₁ src r v₁ ∧ output dst₂ src r v₂ → v₁ = v₂
+    ¬ is_byz dst₁ ∧ ¬ is_byz dst₂ ∧ delivered dst₁ src r v₁ ∧ delivered dst₂ src r v₂ → v₁ = v₂
 
 -- These invariants are discovered in the order given, by inspecting the code
 -- of the actions one by one.
@@ -184,9 +184,9 @@ invariant [voted_requires_echo_quorum_or_vote_quorum]
 
 -- deliver
 -- not in the decidable fragment due to edge from `address` to `nodeset`
-invariant [output_requires_vote_quorum]
+invariant [delivered_requires_vote_quorum]
   ∀ (n originator : address) (r : round) (v : value),
-    ¬ is_byz n → (output n originator r v →
+    ¬ is_byz n → (delivered n originator r v →
       ∃ (q : nodeset), nset.supermajority q ∧
         ∀ (src : address), member src q → vote_msg src n originator r v)
 

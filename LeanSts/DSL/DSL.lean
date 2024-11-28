@@ -188,16 +188,25 @@ elab "after_init" "{" l:lang "}" : command => do
     )
     elabCommand $ ← `(initial $act)
 
+declare_syntax_cat actionType
+syntax (name := inputAction) "input" : actionType
+syntax (name := internalAction) "internal" : actionType
+syntax (name := outputAction) "output" : actionType
+
 /--
 Transition defined via a two-state relation.
 -/
-syntax "transition" ident (explicitBinders)? "=" term : command
+syntax (actionType)? "transition" ident (explicitBinders)? "=" term : command
 
 /--
 Transition defined as an imperative program. We call these "actions".
 All capital letters in `require` and in assignments are implicitly quantified.
 -/
-syntax "action" ident (explicitBinders)? "=" "{" lang "}" : command
+syntax (actionType)? "action" ident (explicitBinders)? "=" "{" lang "}" : command
+
+/-- `action foo` means `internal action foo` -/
+def toActionType (stx : Option (TSyntax `actionType)) : CommandElabM (TSyntax `actionType) := do
+  return stx.getD $ ← `(actionType|internal)
 
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
@@ -236,15 +245,17 @@ the weakest precondition of the program and then define the transition relation.
 Note: Unlike `after_init` we expand `l` using `[lang| l]` as we want the transition
 to refer to both pre-state and post-state.
 -/
-elab_rules : command
-  | `(command| action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
+-- elab_rules : command
+-- | `(command|$actT:actionType  action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
+elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "}" : command => do
+    let actT ← toActionType actT
     let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
     -- `σ → σ → Prop`, with binders existentially qunatified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
     )
-    elabCommand $ ← `(transition $(toTrIdent nm) $br ? = $tr)
+    elabCommand $ ← `($actT:actionType transition $(toTrIdent nm) $br ? = $tr)
     elabCallableFn nm br l
 
 /--
@@ -254,8 +265,8 @@ transition name binders* = tr
 This command defines:
 - `act`: a transition relation `σ → σ → Prop`, existentially quantified over the `binders`.-/
 elab_rules : command
-  | `(command| transition $nm:ident $br:explicitBinders ? = $tr) => do
- elabCommand $ ← Command.runTermElabM fun vs => do
+  | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
+  elabCommand $ ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st, st') := (mkIdent `st, mkIdent `st')
     let expectedType ← mkArrow stateTp (← mkArrow stateTp prop)
