@@ -625,8 +625,8 @@ elab "prove_inv_inductive" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
     `(theorem $(mkIdent `inv_inductive) : invInductive (σ := $stateTp) :=
-      by unfold invInductive;
-         intros $(mkIdent `st) $(mkIdent `st')
+      by unfold invInductive invInit invConsecution;
+        --  intros $(mkIdent `st) $(mkIdent `st')
         --  simp only [actSimp, invSimp, safeSimp]
          exact $proof)
 

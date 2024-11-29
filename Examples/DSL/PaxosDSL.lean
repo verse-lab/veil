@@ -196,7 +196,9 @@ prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] ; duper }
 set_option maxHeartbeats 2000000
 
 prove_inv_inductive by {
-  intro hnext hinv
+  constructor
+  . apply inv_init
+  intro st st' hnext hinv
   sts_induction <;> sdestruct_goal <;> sorry -- try solve_clause
   -- { sorry }
   -- { sorry }

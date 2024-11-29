@@ -87,7 +87,9 @@ prove_inv_safe by {
 }
 
 prove_inv_inductive by {
-  intro hnext hinv
+  constructor
+  . apply inv_init
+  intro st st' hnext hinv
   sts_induction <;> sdestruct_goal <;> solve_clause
 }
 

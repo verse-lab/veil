@@ -119,11 +119,11 @@ invariant [dag_nonneg] ∀ r v, dag r v → r ≥ 0
 
 -- TODO: if we're modelling DAG construction, should this be an external
 -- action? (i.e. one with no implementation?)
-action waveReady (r : Int) = { skip }
-action r_bcast (v : vertex) (r : Int) = { skip }
+output action waveReady (r : Int) = { skip }
+output action r_bcast (v : vertex) (r : Int) = { skip }
 
 open Classical in
-action r_deliver (v : vertex) (r : Int) (src : node) = {
+input action r_deliver (v : vertex) (r : Int) (src : node) = {
     require r ≥ 0;
     -- RB integrity guarantee: deliver at most once per round per source
     require ¬ ∃ v', delivered v' r src;

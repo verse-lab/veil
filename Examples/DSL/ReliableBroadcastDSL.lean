@@ -105,7 +105,7 @@ internal transition byz = fun st st' =>
   ∧ (st.delivered = st'.delivered)
 
 
-action start_round (n : address) (r : round) (v : value) = {
+input action broadcast (n : address) (r : round) (v : value) = {
   require ¬ sent n r;
   initial_msg n N r v := True;
   sent n r := True
@@ -129,7 +129,7 @@ action vote (n : address) (originator : address) (r : round) (v : value) = {
   vote_msg n DST originator r v := True
 }
 
-action deliver (n : address) (originator : address) (r : round) (v : value) = {
+output action deliver (n : address) (originator : address) (r : round) (v : value) = {
   -- received 2f + 1 votes
   require (∃ (q : nodeset), nset.supermajority q ∧
               ∀ (src : address), nset.member src q → vote_msg src n originator r v);
@@ -154,7 +154,7 @@ safety [agreement]
 -- These invariants are discovered in the order given, by inspecting the code
 -- of the actions one by one.
 
--- start_round
+-- broadcast
 invariant [sent_iff_initial]
   ∀ (src : address) (r : round),
     ¬ is_byz src → (sent src r ↔ ∃ (v : value), initial_value src r v)
@@ -228,7 +228,9 @@ prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
 
 prove_inv_inductive by {
-  intro hnext hinv
+  constructor
+  . apply inv_init
+  intro st st' hnext hinv
   sts_induction <;> sdestruct_goal <;> already_proven
 }
 
@@ -239,12 +241,12 @@ unsat trace [cannot_echo_without_init] {
 } by { bmc }
 
 sat trace [can_echo] {
-  start_round
+  broadcast
   echo
 } by { bmc_sat }
 
 sat trace [can_vote] {
-  start_round
+  broadcast
   echo
   echo
   echo
@@ -253,7 +255,7 @@ sat trace [can_vote] {
 
 /-
 sat trace [succesful_delivery] {
-  start_round
+  broadcast
   echo
   echo
   echo
