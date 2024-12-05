@@ -3,6 +3,7 @@ import Lean.Parser
 import Lean.Meta.Tactic.TryThis
 
 import LeanSts.TransitionSystem
+import LeanSts.IOAutomata
 import LeanSts.Tactic
 import LeanSts.DSL.Util
 import LeanSts.DSL.WP
@@ -193,6 +194,24 @@ syntax (name := inputAction) "input" : actionType
 syntax (name := internalAction) "internal" : actionType
 syntax (name := outputAction) "output" : actionType
 
+def toActionType (stx : TSyntax `actionType) : IOAutomata.ActionType :=
+  match stx with
+  | `(actionType|input) => IOAutomata.ActionType.input
+  | `(actionType|internal) => IOAutomata.ActionType.internal
+  | `(actionType|output) => IOAutomata.ActionType.output
+  | _ => unreachable!
+
+def toActionTypeIdent (stx : TSyntax `actionType) : Ident :=
+  mkIdent $ match stx with
+  | `(actionType|input) => ``IOAutomata.ActionType.input
+  | `(actionType|internal) => ``IOAutomata.ActionType.internal
+  | `(actionType|output) => ``IOAutomata.ActionType.output
+  | _ => unreachable!
+
+/-- `action foo` means `internal action foo` -/
+def parseActionTypeStx (stx : Option (TSyntax `actionType)) : CommandElabM (TSyntax `actionType) := do
+  return stx.getD $ ← `(actionType|internal)
+
 /--
 Transition defined via a two-state relation.
 -/
@@ -204,9 +223,6 @@ All capital letters in `require` and in assignments are implicitly quantified.
 -/
 syntax (actionType)? "action" ident (explicitBinders)? "=" "{" lang "}" : command
 
-/-- `action foo` means `internal action foo` -/
-def toActionType (stx : Option (TSyntax `actionType)) : CommandElabM (TSyntax `actionType) := do
-  return stx.getD $ ← `(actionType|internal)
 
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
@@ -238,6 +254,20 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     let strName ← `(Lean.Parser.Command.notationItem|$(Lean.quote ("!" ++ originalName.getId.toString)):str)
     `(local notation (priority := default) $strName => @$nm $args*)
 
+def elabIOAction (actT : TSyntax `actionType) (nm : TSyntax `ident) : CommandElabM Unit := do
+  let vd := (<- getScope).varDecls
+  Command.runTermElabM fun vs => do
+    let (originalName, io) := (nm, toIOActionIdent nm)
+    let name := originalName.getId
+    let act ← PrettyPrinter.delab $ ← mkAppOptM name (vs.map Option.some)
+    let stateTp ← PrettyPrinter.delab $ ← stateTp vs
+    let stx ← `(def $io:ident $[$vd]* : $(mkIdent ``IOAutomata.Action) $stateTp $(mkIdent ``Name) := {
+      next := $act
+      label := $(mkIdent ``IOAutomata.ActionLabel.mk) $(toActionTypeIdent actT) $(quote name)
+    })
+    trace[dsl] "{stx}"
+    liftCommandElabM $ elabCommand stx
+
 /--
 Desugaring an imperative code action into a two-state transition. Here we compute
 the weakest precondition of the program and then define the transition relation.
@@ -248,7 +278,7 @@ to refer to both pre-state and post-state.
 -- elab_rules : command
 -- | `(command|$actT:actionType  action $nm:ident $br:explicitBinders ? = { $l:lang }) => do
 elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "}" : command => do
-    let actT ← toActionType actT
+    let actT ← parseActionTypeStx actT
     let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
     -- `σ → σ → Prop`, with binders existentially qunatified
     let tr ← Command.runTermElabM fun vs => (do
@@ -266,6 +296,7 @@ This command defines:
 - `act`: a transition relation `σ → σ → Prop`, existentially quantified over the `binders`.-/
 elab_rules : command
   | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
+  -- Elab the transition
   elabCommand $ ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st, st') := (mkIdent `st, mkIdent `st')
@@ -279,35 +310,15 @@ elab_rules : command
     -- The actual command (not term) elaboration happens here
     let stateTpT <- PrettyPrinter.delab stateTp
     let expectedType <- `($stateTpT -> $stateTpT -> Prop)
+    let attr ← toActionAttribute (toActionType actT)
     match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
-      `(@[actDef, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st $st' => exists $br, $tr $st $st')))
+      `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st $st' => exists $br, $tr $st $st')))
     | _ => do
-      `(@[actDef, actSimp] def $nm:ident : $expectedType := $(← simplifyTerm tr))
-
-
-def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
-    let exp0 :: exprs := exps
-      | throwError ("There are no " ++ name ++ " defined")
-    let exp0 <- etaExpand exp0
-    let exps <- lambdaTelescope exp0 fun args exp0 => do
-      let mut exps := exp0
-      for exp in exprs do
-        let exp := mkAppN exp args
-        exps <- mkAppM op #[exp, exps]
-      mkLambdaFVars args exps
-    instantiateLambda exps vs
-
-/--
-Assembles all declared actions into a `Next` transition relation
--/
-def assembleActions : CommandElabM Unit := do
-  elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let acts <- combineLemmas ``Or (<- stsExt.get).actions vs "transitions"
-    let acts <- PrettyPrinter.delab acts
-    `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $acts)
+      `(@[$attr, actSimp] def $nm:ident : $expectedType := $(← simplifyTerm tr))
+  -- "Declare" the transition as an IO action
+  elabIOAction actT nm
 
 /-- Safety property. All capital variables are implicitly quantified -/
 elab "safety" name:(propertyName)? safe:term : command => do
@@ -337,6 +348,42 @@ elab "invariant" name:(propertyName)? inv:term : command => do
       let e <- my_delab e
       `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
 
+def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
+    let exp0 :: exprs := exps
+      | throwError ("There are no " ++ name ++ " defined")
+    let exp0 <- etaExpand exp0
+    let exps <- lambdaTelescope exp0 fun args exp0 => do
+      let mut exps := exp0
+      for exp in exprs do
+        let exp := mkAppN exp args
+        exps <- mkAppM op #[exp, exps]
+      mkLambdaFVars args exps
+    instantiateLambda exps vs
+
+/--
+Assembles all declared actions into a `Next` transition relation.
+-/
+def assembleActions : CommandElabM Unit := do
+  elabCommand $ ← Command.runTermElabM fun vs => do
+    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let acts := (<- stsExt.get).actions.map Prod.snd
+    let next <- combineLemmas ``Or acts vs "transitions"
+    let next <- PrettyPrinter.delab next
+    `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $next)
+
+/-- Assembles the IOAutomata `ActionMap` for this specification. This is
+a bit strange, since it constructs a term (syntax) to build a value. -/
+def assembleActionMap : CommandElabM Unit := do
+  elabCommand $ ← Command.runTermElabM fun vs => do
+    let ioStx ← (← stsExt.get).actions.toArray.mapM fun (label, _act) => do
+      let ioActName := toIOActionName label.name
+      let act ← PrettyPrinter.delab $ ← mkAppOptM ioActName (vs.map Option.some)
+      `(($(quote label.name), $act))
+    let actMapStx ← `(IOAutomata.ActionMap.ofList [$[$ioStx],*])
+    let actMapStx ← `(def $(mkIdent $ ← getPrefixedName `actionMap) := $actMapStx)
+    trace[dsl] "{actMapStx}"
+    return actMapStx
+
 /-- Assembles all declared invariants (including safety properties) into a single `Invariant` predicate -/
 def assembleInvariant : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
@@ -359,29 +406,39 @@ Instantiates the `RelationalTransitionSystem` type class with the declared actio
 def instantiateSystem (name : Name) : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   assembleActions
+  assembleActionMap
   assembleInvariant
   assembleSafeties
   Command.runTermElabM fun vs => do
     -- set the name
     stsExt.modify (fun s => { s with specName := name })
     let stateTp   := mkAppN (<- stsExt.get).typ vs
-    let stateTp   <- PrettyPrinter.delab stateTp
+    let stateTpStx   <- PrettyPrinter.delab stateTp
     let initSt    := mkAppN (<- mkConst $ ← getPrefixedName `initialState?) vs
-    let initSt    <- PrettyPrinter.delab initSt
+    let initStx    <- PrettyPrinter.delab initSt
     let nextTrans := mkAppN (<- mkConst $ ← getPrefixedName `Next) vs
-    let nextTrans <- PrettyPrinter.delab nextTrans
+    let nextTransStx <- PrettyPrinter.delab nextTrans
     let safe      := mkAppN (<- mkConst $ ← getPrefixedName `Safety) vs
-    let safe      <- PrettyPrinter.delab safe
+    let safeStx      <- PrettyPrinter.delab safe
     let inv       := mkAppN (<- mkConst $ ← getPrefixedName `Invariant) vs
-    let inv       <- PrettyPrinter.delab inv
-    let stx       <-
-      `(instance (priority := low) $(mkIdent name) $[$vd]* : RelationalTransitionSystem $stateTp where
-          safe := $safe
-          init := $initSt
-          next := $nextTrans
-          inv  := $inv
+    let invStx       <- PrettyPrinter.delab inv
+    let rtsStx       <-
+      `(instance (priority := low) $(mkIdent name) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
+          init := $initStx
+          next := $nextTransStx
+          safe := $safeStx
+          inv  := $invStx
           )
-    liftCommandElabM $ elabCommand $ stx
+    trace[dsl] "{rtsStx}"
+    liftCommandElabM $ elabCommand $ rtsStx
+    let am ← mkAppOptM (← getPrefixedName `actionMap) (vs.map Option.some)
+    let amStx ← PrettyPrinter.delab am
+    let ioStx ← `(instance (priority := low) $(mkIdent $ name ++ `IO) $[$vd]* : $(mkIdent ``IOAutomaton) $stateTpStx $(mkIdent ``Name) where
+      init := $initStx
+      acts := $amStx
+    )
+    trace[dsl] "{ioStx}"
+    liftCommandElabM $ elabCommand $ ioStx
 
 def setOptionPrintModel : CommandElabM Unit := do
   elabCommand (← `(command|set_option $(mkIdent "trace.sauto.model".toName) true))
@@ -459,7 +516,7 @@ def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM 
 def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
     let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
-    let actNames := ((<- stsExt.get).actions).map Expr.constName!
+    let actNames := ((<- stsExt.get).actions).map (Expr.constName! ∘ Prod.snd)
     let mut initChecks := #[]
     let mut actChecks := #[]
     -- (1) Collect checks that invariants hold in the initial state
@@ -478,7 +535,7 @@ def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
 state and after each action. -/
 def getChecksForInvariant (invName : Name) : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let actNames := ((<- stsExt.get).actions).toArray.map Expr.constName!
+    let actNames := ((<- stsExt.get).actions).toArray.map (Expr.constName! ∘ Prod.snd)
     let initChecks := #[← getCheckFor invName CheckType.init vs]
     let actChecks ← actNames.mapM fun actName => do
       let checks := #[← getCheckFor invName (CheckType.action actName) vs]

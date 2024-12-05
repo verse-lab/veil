@@ -1,6 +1,8 @@
 
 import LeanSts.Basic
 
+/- ## Generic transition systems
+  These can be either IO Automata or TLA-style relational transition systems. -/
 class TransitionSystem
   /- Types of states and actions -/
   (σ : Type)
@@ -13,6 +15,27 @@ class TransitionSystem
   (pred : Type)
   (state_pred : (f : σ → Prop) → pred)
   (action_pred :  (a : action) → pred)
+
+/- ## TLA-style transition systems -/
+namespace RelationalTransitionSystem
+/-- The type of an execution.
+    Executions are known as "behaviours" in TLA. -/
+def exec (σ : Type) := Nat → σ
+/-- The type of predicates on executions -/
+def pred (σ : Type) := exec σ → Prop
+
+/-- The type of a predicate on states -/
+def state_pred {σ : Type} (f : σ → Prop) : pred σ :=
+  λ e => f (e 0)
+notation "⌜" p "⌝" => state_pred p
+
+/-- The type of TLA-style actions -/
+def action (σ : Type) := σ → σ → Prop
+/-- The type of a predicate on TLA-style actions -/
+def action_pred {σ : Type} (a : action σ) : pred σ :=
+  λ e => a (e 0) (e 1)
+notation "⟨" a "⟩" => action_pred a
+end RelationalTransitionSystem
 
 -- NOTE: if you change this, make sure you also change
 -- `findStateType` in `Tactic/Util.lean`
@@ -70,6 +93,8 @@ theorem valid_execution_in_inductive_inv [sys : RelationalTransitionSystem σ] (
     . rw [stutter] at ih; apply ih
   }
 
+/-- The inductive invariant is an over-approximation of the set of
+reachable states. -/
 theorem reachable_in_inductive_inv [sys : RelationalTransitionSystem σ] :
   @invInductive σ sys → ∀ (s : σ), reachableStates s → inv s := by
   intro hinv s ⟨exec, ⟨valid, ⟨i, hs⟩⟩⟩; subst s

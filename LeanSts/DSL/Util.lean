@@ -4,6 +4,7 @@ import Lean.Meta
 import Lean.Parser
 import LeanSts.State
 import Batteries.Lean.Meta.UnusedNames
+import LeanSts.IOAutomata
 
 open Lean Meta Elab Lean.Parser
 -- open Lean Elab Command Term Meta Tactic
@@ -39,7 +40,7 @@ structure StsState where
   /-- initial state predicate -/
   init       : Expr
   /-- list of transitions -/
-  actions    : List Expr
+  actions    : List (IOAutomata.ActionLabel Name × Expr)
   /-- safety properties -/
   safeties     : List Expr
   /-- list of invariants -/
@@ -80,13 +81,37 @@ initialize registerBuiltinAttribute {
     stsExt.modify ({ · with init := init })
 }
 
-syntax (name:= action) "actDef" : attr
+syntax (name:= internalActDef) "internalActDef" : attr
+syntax (name:= inputActDef) "inputActDef" : attr
+syntax (name:= outputActDef) "outputActDef" : attr
+
+open Lean.Parser.Term in
+def toActionAttribute (type : IOAutomata.ActionType) : AttrM (TSyntax `Lean.Parser.Term.attrInstance) :=
+  match type with
+  | .internal => `(attrInstance|internalActDef)
+  | .input => `(attrInstance|inputActDef)
+  | .output => `(attrInstance|outputActDef)
+
+def addAction (type : IOAutomata.ActionType) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
+  fun _ _ => do
+    let label := IOAutomata.ActionLabel.mk type declName
+    stsExt.modify (fun s => { s with actions := s.actions ++ [(label, mkConst declName)] })
 
 initialize registerBuiltinAttribute {
-  name := `action
-  descr := "Marks as a state stransition"
-  add := fun declName _ _ => do
-    stsExt.modify (fun s => { s with actions := s.actions ++ [mkConst declName]})
+  name := `internalActDef
+  descr := "Marks as an (internal) transition"
+  add := addAction .internal
+}
+initialize registerBuiltinAttribute {
+  name := `inputActDef
+  descr := "Marks as an input transition"
+  add := addAction .input
+}
+
+initialize registerBuiltinAttribute {
+  name := `outputActDef
+  descr := "Marks as an output transition"
+  add := addAction .output
 }
 
 syntax (name:= safe) "safeDef" : attr
@@ -254,3 +279,6 @@ def toFnName (n : Name) : Name :=
 
 /-- See docstring on `toTrName`. -/
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
+
+def toIOActionName (n : Name) : Name := n ++ `io
+def toIOActionIdent (id : Ident) : Ident := mkIdent $ toIOActionName id.getId
