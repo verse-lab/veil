@@ -287,7 +287,7 @@ elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "
     -- `σ → σ → Prop`, with binders existentially qunatified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st)
+      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [lang| $l ] $st)
     )
     elabCommand $ ← `($actT:actionType transition $(toTrIdent nm) $br ? = $tr)
     elabCallableFn nm br l
@@ -309,28 +309,29 @@ elab_rules : command
     let stateTp <- stateTp vs
     let (st, st') := (mkIdent `st, mkIdent `st')
     let expectedType ← mkArrow stateTp (← mkArrow stateTp prop)
+    let stateTpT <- PrettyPrinter.delab stateTp
     -- IMPORTANT: we elaborate the term here so we get an error if it doesn't type check
     match br with
     | some br =>
-      let _ <- elabTerm (<-`(term| fun $st $st' => exists $br, $tr $st $st')) expectedType
+      let _ <- elabTerm (<-`(term| fun ($st $st' : $stateTpT) => exists $br, $tr $st $st')) expectedType
     | none =>
       let _ <- elabTerm tr expectedType
     -- The actual command (not term) elaboration happens here
-    let stateTpT <- PrettyPrinter.delab stateTp
     let expectedType <- `($stateTpT -> $stateTpT -> Prop)
     let attr ← toActionAttribute (toActionType actT)
     let trfnName := toFnIdent nm
-    let trfn ← match br with
+    let (trfn, simplifiedTr) ← match br with
     | some br =>
-      `(@[actSimp] def $trfnName $(← toBracketedBinderArray br)* := $(← simplifyTerm $ ← `(fun $st $st' => $tr $st $st')))
+      pure (← `(@[actSimp] def $trfnName $(← toBracketedBinderArray br)* := $(← simplifyTerm $ ← `(fun ($st $st' : $stateTpT) => $tr $st $st'))), ← `(term|True))
     | _ => do
-      `(@[actSimp] def $trfnName := $(← simplifyTerm tr))
+      let simplifiedTr ← simplifyTerm tr
+      pure (← `(@[actSimp] def $trfnName : $expectedType := $simplifiedTr), simplifiedTr)
     let tr ← match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
-      `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st $st' => exists $br, @$trfnName $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st')))
+      `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun ($st $st' : $stateTpT) => exists $br, @$trfnName $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st')))
     | _ => do
-      `(@[$attr, actSimp] def $nm:ident : $expectedType := $trfnName)
+      `(@[$attr, actSimp] def $nm:ident : $expectedType := $simplifiedTr)
     return (trfn, tr)
   -- Declare `.tr.fn` and `.tr`
   elabCommand trfn
