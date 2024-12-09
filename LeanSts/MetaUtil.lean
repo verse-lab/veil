@@ -11,6 +11,7 @@ def toIdent (bi : TSyntax ``binderIdent) : Ident :=
   | `(binderIdent|$i:ident) => i
   | _ => unreachable!
 
+/-- Convert existential binders into definition binders. -/
 def toBracketedBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
   let mut binders := #[]
   match stx with
@@ -30,6 +31,43 @@ def toBracketedBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSynta
       pure ()
     | _ => throwError "unexpected syntax in explicit binder: {stx}"
     return binders
+
+/-- Convert existential binders into function binders. -/
+def toFunBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.funBinder) := do
+  let mut binders := #[]
+  match stx with
+  | `(explicitBinders|$bs*) => do
+    binders := binders.append (← bs.mapM helper)
+  | _ => throwError "unexpected syntax in explicit binder: {stx}"
+  return binders.flatten
+  where
+  helper (stx : TSyntax `Lean.bracketedExplicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.funBinder) := do
+    let mut binders := #[]
+    match stx with
+    | `(bracketedExplicitBinders|($bis* : $tp)) => do
+      for bi in bis do
+        let id := toIdent bi
+        let fb ← `(Lean.Parser.Term.funBinder| ($id : $tp:term))
+        binders := binders.push fb
+      pure ()
+    | _ => throwError "unexpected syntax in explicit binder: {stx}"
+    return binders
+
+/-- Convert existential binders (with explicit types) into terms (including only the identifiers). -/
+def existentialIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `term) := do
+  let mut vars := #[]
+  match stx with
+  | `(explicitBinders|$bs*) => do
+    for b in bs do
+      match b with
+      | `(bracketedExplicitBinders|($bis* : $tp)) => do
+        for bi in bis do
+          let id := toIdent bi
+          vars := vars.push id
+      | _ => throwError "unexpected syntax in explicit binder: {b}"
+  | _ => throwError "unexpected syntax in explicit binder: {stx}"
+  return vars
+
 
 def createExistsBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
   let binders ← vars.mapM fun (var, sort) => do

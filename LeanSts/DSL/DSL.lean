@@ -224,6 +224,14 @@ All capital letters in `require` and in assignments are implicitly quantified.
 syntax (actionType)? "action" ident (explicitBinders)? "=" "{" lang "}" : command
 
 
+def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
+  let args ← vs.mapM (fun v => do
+    let t ← PrettyPrinter.delab v
+    let isHygienicName := (extractMacroScopes t.raw.getId).scopes.length > 0
+    if isHygienicName then return ← `(term|_) else return t
+  )
+  return args
+
 /-- `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
 def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `lang) : CommandElabM Unit := do
@@ -246,11 +254,7 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
       `(@[actSimp] def $nm:ident := $(← simplifyTerm act))
   -- Introduce notation to automatically provide the section arguments
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let args ← vs.mapM (fun v => do
-      let t ← PrettyPrinter.delab v
-      let isHygienicName := (extractMacroScopes t.raw.getId).scopes.length > 0
-      if isHygienicName then return ← `(term|_) else return t
-    )
+    let args ← getSectionArgumentsStx vs
     let strName ← `(Lean.Parser.Command.notationItem|$(Lean.quote ("!" ++ originalName.getId.toString)):str)
     `(local notation (priority := default) $strName => @$nm $args*)
 
@@ -293,11 +297,15 @@ elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "
 transition name binders* = tr
 ```
 This command defines:
-- `act`: a transition relation `σ → σ → Prop`, existentially quantified over the `binders`.-/
+- `act.tr` : a transition relation `σ → σ → Prop`, existentially quantified over the `binders`.
+- `act.tr.fn` : a function that returns the transition relation for given
+  arguments. Unlike `act.fn` defined by `elabCallableFn`, this does not
+  have a return value
+-/
 elab_rules : command
   | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
   -- Elab the transition
-  elabCommand $ ← Command.runTermElabM fun vs => do
+  let (trfn, tr) ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st, st') := (mkIdent `st, mkIdent `st')
     let expectedType ← mkArrow stateTp (← mkArrow stateTp prop)
@@ -311,13 +319,23 @@ elab_rules : command
     let stateTpT <- PrettyPrinter.delab stateTp
     let expectedType <- `($stateTpT -> $stateTpT -> Prop)
     let attr ← toActionAttribute (toActionType actT)
-    match br with
+    let trfnName := toFnIdent nm
+    let trfn ← match br with
+    | some br =>
+      `(@[actSimp] def $trfnName $(← toBracketedBinderArray br)* := $(← simplifyTerm $ ← `(fun $st $st' => $tr $st $st')))
+    | _ => do
+      `(@[actSimp] def $trfnName := $(← simplifyTerm tr))
+    let tr ← match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
-      `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st $st' => exists $br, $tr $st $st')))
+      `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun $st $st' => exists $br, @$trfnName $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st')))
     | _ => do
-      `(@[$attr, actSimp] def $nm:ident : $expectedType := $(← simplifyTerm tr))
-  -- "Declare" the transition as an IO action
+      `(@[$attr, actSimp] def $nm:ident : $expectedType := $trfnName)
+    return (trfn, tr)
+  -- Declare `.tr.fn` and `.tr`
+  elabCommand trfn
+  elabCommand tr
+  -- "Declare" the transition as an IO action `.tr.io`
   elabIOAction actT nm
 
 /-- Safety property. All capital variables are implicitly quantified -/

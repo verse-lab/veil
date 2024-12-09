@@ -263,20 +263,22 @@ elab_rules : command
       elabCommand cmd
 def constructCommands (thms : Array (TSyntax `command)) : CoreM (TSyntax `commands) := `(commands| $[$thms]*)
 
-/-- We have two versions of actions: `act.tr` and `act.fn`. The former has
-existentially quantified arguments (and is thus a transition), whereas
-the latter has universally quantified arguments (and is thus a function
-that returns a transition for specific argument instances). -/
-def toTrName (n : Name) : Name :=
-  n ++ `tr
-
+/--
+We have three versions of actions: `act.tr`, `act.fn`, and `act.trfn`.
+- `act.tr` has existentially quantified arguments (and is thus a
+  transition)
+- `act.fn` has universally quantified arguments (and is thus a function
+  that returns a transition WITH a return value for specific argument
+  instances)
+- `act.tr.fn` returns `act.tr` instantiated for specific argument
+  instances (with NO return value)
+ -/
+def toTrName (n : Name) : Name := n ++ `tr
 /-- See docstring on `toTrName`. -/
 def toTrIdent (id : Ident) : Ident := mkIdent $ toTrName id.getId
 
 /-- See docstring on `toTrName`. -/
-def toFnName (n : Name) : Name :=
-  n ++ `fn
-
+def toFnName (n : Name) : Name := n ++ `fn
 /-- See docstring on `toTrName`. -/
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
 
