@@ -1,4 +1,6 @@
 import LeanSts.DSL
+-- import Examples.DSL.ReliableBroadcastDSL
+import Examples.DSL.RingDSL
 -- import Mathlib.Tactic
 
 section DAGRider
@@ -220,10 +222,17 @@ invariant [one_vertex_per_round_per_source] ∀ r v v' src, delivered v r src �
 -- inferred from `mainLoop`
 invariant [dag_round_matches_vertex_round] ∀ r v, dag r v → vertexRound v r
 
+set_option trace.dsl true
+
 #gen_spec DAGRider
 
 set_option sauto.model.minimize true
 
-#check_invariants
+#print Ring.Label
+#print DAGRider.Label
+#merge_labels DAGRider Ring into DAG.Label
+
+
+-- #check_invariants
 
 end DAGRider

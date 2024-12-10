@@ -401,18 +401,21 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
     let ctors ← (← stsExt.get).transitions.toArray.mapM fun ((label, actDecl), _) => do match actDecl with
       | none => throwError "DSL: missing IOAutomata.ActionDeclaration for action {label.name}"
       | some actDecl => pure actDecl.ctor
+    trace[dsl] "storing constructors for {name}"
     stsStateGlobalExt.modify (fun s => s.insert name ctors)
     `(inductive $labelTypeName where $[$ctors]*)
-
 
 def mergeLabelType (n m nm : Name) : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun _ => do
     let stss <- stsStateGlobalExt.get
+    trace[dsl] "{stss.toList}"
     let .some nctrs := stss.find? n | throwError "DSL: missing type {n}"
     let .some mctrs := stss.find? m | throwError "DSL: missing type {m}"
     let ctors := (nctrs ++ mctrs).toList.eraseDups.toArray
     `(inductive $(mkIdent nm) where $[$ctors]*)
 
+elab "#merge_labels" n:ident m:ident "into" nm:ident : command => do
+  mergeLabelType n.getId m.getId nm.getId
 
 /-- Assembles the IOAutomata `ActionMap` for this specification. This is
 a bit strange, since it constructs a term (syntax) to build a value. -/
