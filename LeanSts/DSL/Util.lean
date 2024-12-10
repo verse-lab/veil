@@ -27,6 +27,14 @@ def freshIdentifier (suggestion : String) : CoreM Lean.Syntax.Ident := do
   let name ← mkFreshUserName (Name.mkSimple suggestion)
   return Lean.mkIdent name
 
+-- SimpleScopedEnvExtension
+
+def _root_.Lean.SimpleScopedEnvExtension.modify [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) (s : σ -> σ) : AttrM Unit := do
+  Lean.modifyEnv (ext.modifyState · s)
+
+def _root_.Lean.SimpleScopedEnvExtension.get [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) : AttrM σ := do
+  return ext.getState (<- getEnv)
+
 /-- Auxiliary structure to store the transition system objects -/
 structure StsState where
   /-- name of the system/specification; set when `#gen_spec` runs -/
@@ -47,7 +55,18 @@ structure StsState where
   invariants : List Expr
   /-- established invariant clauses; set on `@[invProof]` label -/
   establishedClauses : List Name := []
-  deriving Inhabited
+deriving Inhabited
+
+abbrev Transitions :=  Array (TSyntax `Lean.Parser.Command.ctor)
+abbrev StsStateGlobal := HashMap Name Transitions
+
+initialize stsStateGlobalExt :
+    SimpleScopedEnvExtension (Name × Transitions) StsStateGlobal <-
+  registerSimpleScopedEnvExtension {
+    name := `state_global
+    initial := ∅
+    addEntry := fun s (n, thm) => s.insert n thm
+  }
 
 open StsState
 
@@ -66,6 +85,8 @@ initialize registerBuiltinAttribute {
     let ty := mkConst declName
     stsExt.modify ({ · with typ := ty })
 }
+
+
 
 syntax (name:= initial) "initDef" : attr
 

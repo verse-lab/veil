@@ -395,15 +395,24 @@ def assembleActions : CommandElabM Unit := do
     `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $next)
 
 
-def assembleLabelType : CommandElabM Unit := do
+def assembleLabelType (name : Name) : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun _ => do
     let labelTypeName := mkIdent $ ← getPrefixedName `Label
     let ctors ← (← stsExt.get).transitions.toArray.mapM fun ((label, actDecl), _) => do match actDecl with
       | none => throwError "DSL: missing IOAutomata.ActionDeclaration for action {label.name}"
       | some actDecl => pure actDecl.ctor
-    let stx ← `(inductive $labelTypeName where $[$ctors]*)
-    trace[dsl] "{stx}"
-    return stx
+    stsStateGlobalExt.modify (fun s => s.insert name ctors)
+    `(inductive $labelTypeName where $[$ctors]*)
+
+
+def mergeLabelType (n m nm : Name) : CommandElabM Unit := do
+  elabCommand $ ← Command.runTermElabM fun _ => do
+    let stss <- stsStateGlobalExt.get
+    let .some nctrs := stss.find? n | throwError "DSL: missing type {n}"
+    let .some mctrs := stss.find? m | throwError "DSL: missing type {m}"
+    let ctors := (nctrs ++ mctrs).toList.eraseDups.toArray
+    `(inductive $(mkIdent nm) where $[$ctors]*)
+
 
 /-- Assembles the IOAutomata `ActionMap` for this specification. This is
 a bit strange, since it constructs a term (syntax) to build a value. -/
@@ -442,7 +451,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleActions
   assembleInvariant
   assembleSafeties
-  assembleLabelType
+  assembleLabelType name
   Command.runTermElabM fun vs => do
     -- set the name
     stsExt.modify (fun s => { s with specName := name })
