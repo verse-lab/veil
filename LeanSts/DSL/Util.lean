@@ -40,7 +40,7 @@ structure StsState where
   /-- initial state predicate -/
   init       : Expr
   /-- list of transitions -/
-  actions    : List (IOAutomata.ActionLabel Name × Expr)
+  transitions    : List ((IOAutomata.ActionLabel Name × Option IOAutomata.ActionDeclaration) ×Expr)
   /-- safety properties -/
   safeties     : List Expr
   /-- list of invariants -/
@@ -95,7 +95,7 @@ def toActionAttribute (type : IOAutomata.ActionType) : AttrM (TSyntax `Lean.Pars
 def addAction (type : IOAutomata.ActionType) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
   fun _ _ => do
     let label := IOAutomata.ActionLabel.mk type declName
-    stsExt.modify (fun s => { s with actions := s.actions ++ [(label, mkConst declName)] })
+    stsExt.modify (fun s => { s with transitions := s.transitions ++ [((label, .none), mkConst declName)] })
 
 initialize registerBuiltinAttribute {
   name := `internalActDef
@@ -282,5 +282,5 @@ def toFnName (n : Name) : Name := n ++ `fn
 /-- See docstring on `toTrName`. -/
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
 
-def toIOActionName (n : Name) : Name := n ++ `io
-def toIOActionIdent (id : Ident) : Ident := mkIdent $ toIOActionName id.getId
+def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
+def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId

@@ -1,4 +1,5 @@
 import LeanSts.TransitionSystem
+open Lean
 
 /- ## IO Automata -/
 namespace IOAutomata
@@ -14,6 +15,12 @@ deriving BEq, Hashable
 
 instance : Inhabited ActionType where
   default := ActionType.internal
+
+instance : ToString ActionType where
+  toString
+    | .internal => "internal"
+    | .input => "input"
+    | .output => "output"
 
 inductive ActionLabel (ℓ : Type) [Label ℓ] where
   | internal (label : ℓ)
@@ -43,10 +50,19 @@ def ActionLabel.mk {ℓ : Type} [Label ℓ] (t : ActionType) (l : ℓ) : ActionL
   | .input => .input l
   | .output => .output l
 
+structure ActionDeclaration where
+  type: ActionType
+  name: Lean.Name
+  ctor : TSyntax `Lean.Parser.Command.ctor
+deriving BEq, Inhabited
+
+instance : ToString ActionDeclaration where
+  toString a := s!"{a.type} {a.name} with ctor {a.ctor}"
+
 /-- TLA-style actions with labels -/
 structure Action (σ : Type) (ℓ : Type) [Label ℓ] where
-  /-- TLA-style two-state transition for this action -/
-  next : σ → σ → Prop
+  /- TLA-style two-state transition for this action -/
+  -- next : σ → σ → Prop
   /-- The label of the action. -/
   label : ActionLabel ℓ
 deriving Inhabited
@@ -54,24 +70,24 @@ deriving Inhabited
 instance [Label ℓ] : ToString (Action σ ℓ) where
   toString a := toString a.label
 
-/-- A lifting of a (single) action into an IO Automata-style transition.
+/- A lifting of a (single) action into an IO Automata-style transition.
   IO Automata transitions are always enabled, i.e. for a given source
   state and label, there is always a post-state in the transition. -/
-def Action.tr [Label ℓ] (a : Action σ ℓ) : σ → ActionLabel ℓ → σ → Prop := fun s l s' =>
-  if l == a.label then a.next s s' else s = s'
+-- def Action.tr [Label ℓ] (a : Action σ ℓ) : σ → ActionLabel ℓ → σ → Prop := fun s l s' =>
+  -- if l == a.label then a.next s s' else s = s'
 
 def Action.liftStateR [Label ℓ] (a₁ : Action σ₁ ℓ) : Action (σ₁ × σ₂) ℓ := {
-  next := fun (s₁, s₂) (s₁', s₂') => a₁.next s₁ s₁' ∧ s₂ = s₂',
+  -- next := fun (s₁, s₂) (s₁', s₂') => a₁.next s₁ s₁' ∧ s₂ = s₂',
   label := a₁.label
 }
 
 def Action.liftStateL [Label ℓ] (a₂ : Action σ₂ ℓ) : Action (σ₁ × σ₂) ℓ := {
-  next := fun (s₁, s₂) (s₁', s₂') => s₁ = s₁' ∧ a₂.next s₂ s₂',
+  -- next := fun (s₁, s₂) (s₁', s₂') => s₁ = s₁' ∧ a₂.next s₂ s₂',
   label := a₂.label
 }
 
 def Action.compose [Label ℓ] (a₁ : Action σ₁ ℓ) (a₂ : Action σ₂ ℓ) : Option (Action (σ₁ × σ₂) ℓ) :=
-  let next := fun (s₁, s₂) (s₁', s₂') => a₁.next s₁ s₁' ∧ a₂.next s₂ s₂'
+  -- let next := fun (s₁, s₂) (s₁', s₂') => a₁.next s₁ s₁' ∧ a₂.next s₂ s₂'
   match (a₁.label, a₂.label) with
   -- internal actions cannot be composed; they are supposed to be disjoint with all other actions
   | (ActionLabel.internal _, _) | (_, ActionLabel.internal _) => none
@@ -79,10 +95,10 @@ def Action.compose [Label ℓ] (a₁ : Action σ₁ ℓ) (a₂ : Action σ₂ �
   | (ActionLabel.output _, ActionLabel.output _) => none
   -- input actions can be composed and their composition is an input action
   | (ActionLabel.input l₁, ActionLabel.input l₂) => if l₁ != l₂ then none else some
-    { next := next, label := ActionLabel.input l₁ }
+    { label := ActionLabel.input l₁ }
   -- the composition of an output action with an input action is an output action
   | (ActionLabel.input l₁, ActionLabel.output l₂) | (ActionLabel.output l₁, ActionLabel.input l₂) => if l₁ != l₂ then none else some
-    { next := next, label := ActionLabel.output l₁ }
+    { label := ActionLabel.output l₁ }
 
 def Action.compose' [Label ℓ] (a₁ : Option (Action σ₁ ℓ)) (a₂ : Option (Action σ₂ ℓ)) : Option (Action (σ₁ × σ₂) ℓ) :=
   match (a₁, a₂) with
@@ -113,12 +129,12 @@ def ActionMap.ofListWith {σ : Type} {ℓ : Type} [Label ℓ] (l : List (ℓ × 
 def ActionMap.sig {σ : Type} {ℓ : Type} [Label ℓ](acts : ActionMap σ ℓ) : ActionSignature ℓ :=
   Lean.HashMap.ofList $ acts.toList.map (fun (l, a) => (l, a.label))
 
-def ActionMap.tr {σ : Type} {ℓ : Type} [Label ℓ] (acts : ActionMap σ ℓ) : σ → ActionLabel ℓ → σ → Prop :=
-  fun s l s' =>
-  match acts.find? l.name with
-  | some a => a.tr s l s'
-  -- In the absence of an action with this name, the transition does not exist
-  | none => False
+-- def ActionMap.tr {σ : Type} {ℓ : Type} [Label ℓ] (acts : ActionMap σ ℓ) : σ → ActionLabel ℓ → σ → Prop :=
+--   fun s l s' =>
+--   match acts.find? l.name with
+--   | some a => a.tr s l s'
+--   -- In the absence of an action with this name, the transition does not exist
+--   | none => False
 
 def ActionMap.actions {σ : Type} {ℓ : Type} [Label ℓ] (acts : ActionMap σ ℓ) : List ℓ := acts.toList.map (fun (l, a) => l)
 
@@ -144,8 +160,8 @@ instance [Label ℓ] : ToString (IOAutomaton σ ℓ) where
 
 /-- The action signature of the automaton -/
 def IOAutomaton.sig {ℓ : Type} [Label ℓ] [sys : IOAutomaton σ ℓ] := sys.acts.sig
-/-- The transition relation of the automaton -/
-def IOAutomaton.tr {ℓ : Type} [Label ℓ] [sys : IOAutomaton σ ℓ] := sys.acts.tr
+/- The transition relation of the automaton -/
+-- def IOAutomaton.tr {ℓ : Type} [Label ℓ] [sys : IOAutomaton σ ℓ] := sys.acts.tr
 
 section Composition
 
