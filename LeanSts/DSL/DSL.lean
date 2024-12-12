@@ -463,13 +463,15 @@ def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
     pure (initChecks, actChecks)
   return (initChecks, actChecks)
 
-def getAllChecks' : CommandElabM (Array (Name × Name)) := Command.runTermElabM fun vs => do
+def getAllChecks' : CommandElabM (Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun vs => do
     let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
     let actNames := ((← stsExt.get).actions).map Expr.constName!
+    let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{name}"))
+    let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{name}"))
     let mut ret := #[]
-    for invName in invNames do
-       for actName in actNames do
-         ret := ret.push (invName, actName)
+    for act in invNamesInds do
+       for inv in actNamesInds do
+         ret := ret.push (act, inv)
     return ret
 
 /-- Generate theorems to check the given invariant clause in the initial
@@ -513,13 +515,11 @@ def getCtxNames (ctx : LocalContext) : TacticM (Array Name) := do
     hyps := hyps.push hyp.userName
   return hyps
 
-def checkTheorems' (stx : Syntax) (checks: Array (Name × Name)) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
+def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := Command.runTermElabM fun vs => do
   let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
-  let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
-  let actNames := ((← stsExt.get).actions).map Expr.constName!
-  let actIndicators := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{name}"))
-  let invIndicators := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{name}"))
+  let actIndicators := (checks.map (fun ((act_name, ind_name), _) => (act_name, ind_name))).toList
+  let invIndicators := (checks.map (fun (_, (inv_name, ind_name)) => (inv_name, ind_name))).toList
   let ge ← getEnv
   let actStxList ← actIndicators.mapM (fun (actName, indName) => do
     let .some _ := ge.find? actName
@@ -572,12 +572,6 @@ def checkTheorems' (stx : Syntax) (checks: Array (Name × Name)) (behaviour : Ch
     let cmds ← Smt.prepareSmtQuery [] tp
     let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
     trace[sauto.debug] "goal:\n{cmdString}"
-
-
-
-
-
-
 
   -- trace[sauto] "query:\n{cmdString}"
   -- return cmdString

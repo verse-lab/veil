@@ -230,14 +230,15 @@ def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
     let exMsg ← e.toMessageData.toString
     throwError s!"get-model failed (z3model.py likely timed out)"
 
-def getUnsatCore (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
+def getUnsatCore (solver : SolverProc) (kill: Bool := true) : MetaM Parser.SMTSexp.Sexp := do
   withTraceNode `sauto.perf.getUnsatCore (fun _ => return "getUnsatCore") do
   try
   emitCommand solver .getUnsatCore
   -- FIXME: probably shouldn't kill the solver here
   let (_, solver) ← solver.takeStdin
   let stdout ← solver.stdout.readToEnd
-  solver.kill
+  if kill then
+    solver.kill
   let (unsatCore, _proof) ← getSexp stdout
   return unsatCore
   catch e =>
@@ -256,7 +257,7 @@ def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (con
   | .Unsat => return false
   | .Unknown e => throwError s!"Unexpected response from solver: {e}"
 
-private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
+private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill: Bool) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
   try
   -- Minimize sorts
@@ -309,7 +310,8 @@ private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (f
   let (_, solver) ← solver.takeStdin
   let stdout ← solver.stdout.readToEnd
   let stderr ← solver.stderr.readToEnd
-  solver.kill
+  if kill then
+    solver.kill
   trace[sauto.debug] "(get-model) {stdout.length}: {stdout}"
   trace[sauto.debug] "(stderr) {stderr}"
   let (model, _) ← getSexp stdout
@@ -321,9 +323,9 @@ private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (f
     throwError s!"Minimization failed: {exMsg}"
 
 /- FIXME: for whatever reason, if I add `withTraceNode` directly inside `minimizeModelImpl`, it hangs. -/
-def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
+def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill : Bool := true): MetaM FirstOrderStructure := do
   withTraceNode `sauto.perf.minimizeModel (fun _ => return "minimizeModel") do
-  minimizeModelImpl solver solverName fostruct
+  minimizeModelImpl solver solverName fostruct kill
 
 /-- If the solver returns `Unknown`, we try the other solver. -/
 def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
