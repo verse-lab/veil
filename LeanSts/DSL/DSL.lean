@@ -500,6 +500,18 @@ inductive CheckInvariantsBehaviour
   /-- `#check_invariants!` -/
   | printAndCheckTheorems
 
+open Tactic
+def run (t: TacticM Syntax): TacticM Unit := Tactic.withMainContext do
+    evalTactic (<- t)
+
+def tryGoal (t: TacticM Unit): TacticM Unit := do
+  t <|> return ()
+
+def getCtxNames (ctx : LocalContext) : TacticM (Array Name) := do
+  let mut hyps := #[]
+  for hyp in ctx do
+    hyps := hyps.push hyp.userName
+  return hyps
 
 def checkTheorems' (stx : Syntax) (checks: Array (Name × Name)) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := Command.runTermElabM fun vs => do
@@ -523,30 +535,48 @@ def checkTheorems' (stx : Syntax) (checks: Array (Name × Name)) (behaviour : Ch
   )
   let _actions ← PrettyPrinter.delab $ mkOrN actStxList
   let invariants ← PrettyPrinter.delab $ Lean.mkAndN invStxList
+  let indicators := List.append invIndicators actIndicators
   let params ← Array.mapM (fun (_, e) => do
     return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
-  ) $ (List.append invIndicators actIndicators).toArray
-  let actTpStx ← `(∀ ($st $st' : $stateTp), ∀ $[$params]*, ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
+  ) $ indicators.toArray
+  let actTpStx ← `(∀ $[$params]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
   let actThName := s!"all_check".toName
 
   let expr ← elabTerm actTpStx none
-  trace[sauto.debug] "goal:\n{expr}"
+  -- trace[sauto.debug] "goal:\n{expr}"
   let g ← mkFreshExprMVar expr
-  _ ← Tactic.run g.mvarId! (do
-    Tactic.evalTactic (← `(tactic|intros))
-    let _ ← elabSimplifyClause
+
+  let [l] ← Tactic.run g.mvarId! (do
+    -- let hyps ← getLCtx
+    Tactic.evalTactic (← `(tactic|unhygienic intros))
+    let (idents, _) ← elabSimplifyClause
+    trace[sauto.debug] "{idents}"
     for mvarId in (← Tactic.getGoals) do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     Tactic.pruneSolvedGoals
+    withMainContext do
+      let hypsNew <- getLCtx
+      for hyp in hypsNew.decls.toArray.reverse do
+        if hyp.isSome then
+          let hyp := hyp.get!
+          trace[sauto.debug] "{hyp.userName} ← {hyp.binderInfo.hash}"
+          unless hyp.type.isType do -- || (indicators.map (fun (_, e) => e.constName!)).contains hyp.userName do
+          -- if goodhypnames.contains hyp.userName then
+            tryGoal $ run `(tactic| revert $(mkIdent hyp.userName):ident)
+      -- let type ← Tactic.getMainTarget
+      -- trace[sauto.debug] "{type}\n{← getCtxNames $ hypsNew}\n{← getCtxNames $ hyps}"
   )
+    | throwError "Expected exactly one goal"
+  let goalType ← l.getType
+  -- let cmds ← Meta.forallTelescopeBounde TODO
+
+  Smt.prepareSmtQuery [] (← l.getType)
+  trace[sauto.debug] "goal:\n{← l.getType}"
 
 
-  trace[sauto.debug] "goal:\n{g}\n{← instantiateMVars g}"
-
-
-  let cmds ← Smt.prepareSmtQuery [] expr
+  let cmds ← Smt.prepareSmtQuery [] (← l.getType)
   let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
-  trace[sauto.debug] "goal:\n{expr}\n{cmdString}"
+  trace[sauto.debug] "goal:\n{cmdString}"
 
 
   -- trace[sauto] "query:\n{cmdString}"
@@ -692,7 +722,7 @@ elab "prove_inv_inductive" proof:term : command => do
 
 /- This is a bit stupid, but we place these here so `type` doesn't interfere with
   the `Declaration` definition in `checkTheorem` above. -/
-macro "type" id:ident : command => `(variable ($id : Type) [DecidableEq $id])
+macro "type" id:ident : command => `(variable ($id : Type))
 macro "instantiate" t:term : command => `(variable [$t])
 macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
 
