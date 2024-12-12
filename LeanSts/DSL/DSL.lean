@@ -565,18 +565,18 @@ def checkTheorems' (stx : Syntax) (checks: Array (Name × Name)) (behaviour : Ch
             tryGoal $ run `(tactic| revert $(mkIdent hyp.userName):ident)
       -- let type ← Tactic.getMainTarget
       -- trace[sauto.debug] "{type}\n{← getCtxNames $ hypsNew}\n{← getCtxNames $ hyps}"
-  )
-    | throwError "Expected exactly one goal"
-  let goalType ← l.getType
-  -- let cmds ← Meta.forallTelescopeBounde TODO
+   ) | throwError "Expected exactly one goal"
+  let _ <- forallBoundedTelescope (<- l.getType) (maxFVars? := params.size)
+    fun _ tp => do
+    trace[sauto.debug] "goal:\n{tp}"
+    let cmds ← Smt.prepareSmtQuery [] tp
+    let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
+    trace[sauto.debug] "goal:\n{cmdString}"
 
-  Smt.prepareSmtQuery [] (← l.getType)
-  trace[sauto.debug] "goal:\n{← l.getType}"
 
 
-  let cmds ← Smt.prepareSmtQuery [] (← l.getType)
-  let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
-  trace[sauto.debug] "goal:\n{cmdString}"
+
+
 
 
   -- trace[sauto] "query:\n{cmdString}"
