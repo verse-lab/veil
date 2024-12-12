@@ -6,7 +6,7 @@ import LeanSts.TransitionSystem
 import LeanSts.IOAutomata
 import LeanSts.Tactic
 import LeanSts.DSL.Util
-import LeanSts.DSL.WP
+import LeanSts.DSL.Lang
 import LeanSts.DSL.Tactic
 import LeanSts.DSL.Trace
 import LeanSts.SMT.Preparation

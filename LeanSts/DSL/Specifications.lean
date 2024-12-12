@@ -1,6 +1,6 @@
 import Lean
 import LeanSts.MetaUtil
--- import LeanSts.DSL.WP
+import LeanSts.DSL.Lang
 
 open Lean Parser
 

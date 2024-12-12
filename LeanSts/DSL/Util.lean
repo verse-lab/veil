@@ -8,13 +8,6 @@ import LeanSts.IOAutomata
 import LeanSts.DSL.Specifications
 
 open Lean Meta Elab Lean.Parser
--- open Lean Elab Command Term Meta Tactic
-
-initialize
-  registerTraceClass `dsl
-  registerTraceClass `dsl.debug
-  -- the following are primarily for performance profiling
-  registerTraceClass `dsl.perf.checkInvariants
 
 def _root_.Lean.EnvExtension.set [Inhabited σ] (ext : EnvExtension σ) (s : σ) : AttrM Unit := do
   Lean.setEnv $ ext.setState (<- getEnv) s
@@ -158,11 +151,6 @@ initialize registerBuiltinAttribute {
     stsExt.modify (fun s => { s with invariants := s.invariants ++ [mkConst declName]})
 }
 
-register_simp_attr invSimp
-register_simp_attr actSimp
-register_simp_attr initSimp
-register_simp_attr safeSimp
-
 /-- For `solve_by_elim` -/
 -- register_label_attr invProof
 syntax (name := invProof) "invProof" : attr
@@ -173,15 +161,6 @@ initialize registerBuiltinAttribute {
   add := fun declName _ _ => do
     stsExt.modify (fun s => { s with establishedClauses := s.establishedClauses ++ [declName]})
 }
-
-/-- This is used in `require` were we define a predicate over a state.
-    Instead of writing `fun st => Pred` this command will pattern match over
-    `st` making all its fileds accessible for `Pred` -/
-macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
-
-/-- This is used wherener we want to define a predicate over a state
-    which should not depend on the state (for instance in `after_init`). -/
-macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
 
 /-- Retrieves the current State structure and applies it to
     section variables `vs` -/

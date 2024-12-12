@@ -1,13 +1,7 @@
 import Lean.Elab.Tactic
-import Batteries.Lean.Meta.UnusedNames
 import LeanSts.DSL.Util
 
 open Lean Lean.Elab.Tactic
-
--- Creates a fresh variable with the suggested name.
-def fresh [Monad m] [Lean.MonadLCtx m] (suggestion : Lean.Name) : m Lean.Syntax.Ident := do
-  let name ← Meta.getUnusedUserName suggestion
-  return Lean.mkIdent name
 
 /-- Is `hyp` an application of `n`, after normalisation? -/
 def normalisedIsAppOf (hyp : LocalDecl) (n : Name) : TacticM Bool := do

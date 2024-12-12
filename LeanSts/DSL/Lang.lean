@@ -1,13 +1,14 @@
 import Lean
 import Lean.Parser
 import LeanSts.State
-import LeanSts.DSL.Util
+import LeanSts.DSL.Base
 
 open Lean Elab Command Term Meta Lean.Parser
 
-section WP
-
+section Lang
+/- Our language is parametric over the state type. -/
 variable (σ : Type)
+
 /-- Imperative language for defining actions. -/
 inductive Lang.{u} : Type u → Type (u + 1) where
   /-- Pre-condition. All capital variables will be quantified. -/
@@ -107,6 +108,15 @@ def closeCapitals (s : Term) : MacroM Term :=
   let caps := getCapitals s
   `(forall $[$caps]*, $s)
 
+/-- This is used in `require` were we define a predicate over a state.
+    Instead of writing `fun st => Pred` this command will pattern match over
+    `st` making all its fileds accessible for `Pred` -/
+macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
+
+/-- This is used wherener we want to define a predicate over a state
+    which should not depend on the state (for instance in `after_init`). -/
+macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
+
 macro_rules
   | `([lang|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
   | `([lang|$l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang|$l1] [lang|$l2])
@@ -173,4 +183,4 @@ macro_rules
   --   `(@Lang.nondet _ _ (fun st (st', ret) =>
   --     (∃ v, st' = { st with $id := ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ])}, ())))
 
-end WP
+end Lang
