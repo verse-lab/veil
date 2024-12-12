@@ -89,8 +89,8 @@ def complexBinderToSimpleBinder (nm : TSyntax `ident) (br : TSyntaxArray `Lean.P
 
 /-- Given `nm : _ `, return `nm` -/
 def getSimpleBinderName: (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) → Name
-  | `(Lean.Parser.Command.structSimpleBinder| $nm:ident : _) => nm.getId
-  | _ => unreachable!
+  | `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $_:term) => nm.getId
+  | sig => panic s!"getSimpleBinderName: don't know how to handle {sig}"
 
 def createExistsBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
   let binders ← vars.mapM fun (var, sort) => do
