@@ -46,12 +46,32 @@ def StateComponent.getSimpleBinder (sc : StateComponent) : CoreM (TSyntax ``Comm
 
 def StateComponent.stx (sc : StateComponent) : CoreM Syntax := sc.getSimpleBinder
 
+structure StatePredicate where
+  name : Name
+  /-- DSL expression for this predicate -/
+  lang : Option (TSyntax `lang)
+  /-- Lean `Expr` for this predicate; this is usually a constant in the
+  environment, *without* having applied the section variables. -/
+  expr : Expr
+deriving Inhabited, BEq
+
+instance : ToString StatePredicate where
+  toString sp := match sp.lang with
+    | some lang => s!"{sp.name} : {lang}"
+    | none => s!"{sp.name} : {sp.expr}"
+
 /-- A cleaned-up version of `StsState`, this gets generated on `#gen_spec` and stored in the global state. -/
 structure DSLSpecification where
   /-- Name of the specification -/
   name        : Name
-  /-- Type of the transition system state, *without* having applied the section variables. -/
+  /-- Expression representing the type of the transition system state,
+  *without* having applied the section variables. -/
   stateType   : Expr
   /-- Signatures of all constants, relations, and functions that compose
   the state. This basically defines a FOL signature. -/
   signature  : Array StateComponent
+  /-- Initial state predicate -/
+  init       : StatePredicate
+deriving Inhabited
+
+#check DSLSpecification

@@ -18,12 +18,6 @@ def _root_.Lean.EnvExtension.modify [Inhabited σ] (ext : EnvExtension σ) (s : 
 def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ) : AttrM σ := do
   return ext.getState (<- getEnv)
 
-def freshIdentifier (suggestion : String) : CoreM Lean.Syntax.Ident := do
-  let name ← mkFreshUserName (Name.mkSimple suggestion)
-  return Lean.mkIdent name
-
--- SimpleScopedEnvExtension
-
 def _root_.Lean.SimpleScopedEnvExtension.modify [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) (s : σ -> σ) : AttrM Unit := do
   Lean.modifyEnv (ext.modifyState · s)
 
@@ -42,7 +36,7 @@ structure StsState where
   /-- signatures of all constants, relations, and functions -/
   sig    : Array StateComponent
   /-- initial state predicate -/
-  init       : Expr
+  init       : StatePredicate
   /-- list of transitions -/
   transitions    : List ((IOAutomata.ActionLabel Name × Option IOAutomata.ActionDeclaration) × Expr)
   /-- safety properties -/
@@ -95,7 +89,7 @@ initialize registerBuiltinAttribute {
     let intTp := (<- stsExt.get).init
     unless intTp == default do
       throwError "Inital state predicate has already been declared"
-    let init := mkConst declName
+    let init := { name := declName, lang := none, expr := mkConst declName }
     stsExt.modify ({ · with init := init })
 }
 

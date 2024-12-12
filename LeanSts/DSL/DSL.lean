@@ -169,6 +169,7 @@ elab "initial" ini:term : command => do
     let expectedType ← `($stateTp → Prop)
     let ini ←  simplifyTerm ini
     let name ← getPrefixedName `initialState?
+    -- because of `initDef`, this sets `stsExt.init` with `lang := none`
     `(@[initDef, initSimp] def $(mkIdent name) : $expectedType := $ini)
 
 /-- Declaring the initial state predicate in the form of a code -/
@@ -185,7 +186,12 @@ elab "after_init" "{" l:lang "}" : command => do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       `(fun ($st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang1| $l ] $st')
     )
+    -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $act)
+    -- we modify it to store the `lang`
+    liftTermElabM do stsExt.modify (fun s => {s with init := {s.init with lang := .some l} })
+    let sp ←  liftTermElabM $ return (← stsExt.get).init
+    trace[dsl.debug] s!"{sp}"
 
 declare_syntax_cat actionType
 syntax (name := inputAction) "input" : actionType
