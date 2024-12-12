@@ -74,6 +74,8 @@ invariant pending L L → le N L
 
 -- set_option trace.sauto.query true
 -- set_option trace.sauto.result true
+-- set_option trace.sauto.debug true
+
 
 #check_invariants
 
