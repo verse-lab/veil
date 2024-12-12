@@ -31,19 +31,27 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
 
 /-- Defines a constant, relation, or function, validating its type before adding it. -/
 def defineStateComponent
-  (sig: TSyntax `Lean.Parser.Command.structSimpleBinder)
+  (comp : StateComponent)
   (validateTp : Expr → CommandElabM Bool := fun _ => pure true)
-  (failureMsg : TSyntax `Lean.Parser.Command.structSimpleBinder → CommandElabM Unit := fun _ => throwErrorAt sig s!"{sig} is not of the expected type")
+  (failureMsg : StateComponent → CoreM Unit := fun _ => do throwErrorAt (← comp.stx) s!"{comp} is not of the expected type")
    : CommandElabM Unit := do
+  let sig ← liftCoreM $ comp.getSimpleBinder
   let tp ← do match sig with
     /- e.g. `relation initial_msg : address → address → round → value → Prop` -/
   | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
     runTermElabM fun _ => elabTerm tp none
   | _ => throwErrorAt sig "Unsupported syntax {sig}"
   if ← validateTp tp then
-    liftTermElabM do stsExt.modify (fun s => { s with sig := s.sig.push sig })
+    liftTermElabM do stsExt.modify (fun s => { s with sig := s.sig.push comp })
   else
-    failureMsg sig
+    liftCoreM $ failureMsg comp
+
+def defineRelation (comp : StateComponent) : CommandElabM Unit :=
+  defineStateComponent comp
+     (fun (tp : Expr) => do
+      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
+      return tp.isArrow && returnsProp)
+    (fun comp => do throwErrorAt (← comp.stx) "Invalid type: relations must return Prop")
 
 /-- Declare a relation, giving only the type. Example:
   ```lean
@@ -51,13 +59,8 @@ def defineStateComponent
   ```
 -/
 elab "relation" sig:Command.structSimpleBinder : command => do
-  defineStateComponent sig
-    (fun (tp : Expr) => do
-      -- If you need to debug the forallTelescope:
-      -- let _ ← Array.mapM (fun x => return s!"{← ppExpr x}")
-      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
-      return tp.isArrow && returnsProp)
-    (fun sig => throwErrorAt sig "Invalid type: relations must return Prop")
+  let rel := StateComponent.mk .relation (getSimpleBinderName sig) (.simple sig)
+  defineRelation rel
 
 /-- Declare a relation, giving names to the arguments. Example:
   ```lean
@@ -65,26 +68,25 @@ elab "relation" sig:Command.structSimpleBinder : command => do
   ```
 -/
 elab "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
-  let types ← br.mapM fun m => match m with
-    | `(bracketedBinder| ($_arg:ident : $tp:term)) => return (mkIdent tp.raw.getId)
-    | _ => throwError "Invalid syntax"
-  -- I'd want this to work, but it doesn't:
-  -- let typesStx ← `(term| $[$types]→* → Prop)
-  let typeStx ← mkArrowStx types.toList (← `(Prop))
-  let rel ← `(relation $nm:ident : $typeStx)
-  elabCommand rel
+  let rel := StateComponent.mk .relation nm.getId (.complex br (← `(Prop)))
+  defineRelation rel
 
 /-- `individual` command saves a State structure field declaration -/
 elab "individual" sig:Command.structSimpleBinder : command => do
-  defineStateComponent sig
+  let comp := StateComponent.mk .individual (getSimpleBinderName sig) (.simple sig)
+  defineStateComponent comp
     (fun (tp : Expr) => return !tp.isArrow)
-    (fun sig => throwErrorAt sig "Invalid type: constants must not be arrow types")
+    (fun comp => do throwErrorAt (← comp.stx) "Invalid type: constants must not be arrow types")
+
+def defineFunction (comp : StateComponent) : CommandElabM Unit :=
+  defineStateComponent comp
+    (fun (tp : Expr) => do return tp.isArrow)
+    (fun comp => do throwErrorAt (← comp.stx) "Invalid type: functions must have arrow type")
 
 /-- `function` command saves a State structure field declaration -/
 elab "function" sig:Command.structSimpleBinder : command => do
-  defineStateComponent sig
-    (fun (tp : Expr) => do return tp.isArrow)
-    (fun sig => throwErrorAt sig "Invalid type: functions must have arrow type")
+  let func := StateComponent.mk .function (getSimpleBinderName sig) (.simple sig)
+  defineFunction func
 
 /-- Declare a function, giving names to the arguments. Example:
   ```lean
@@ -92,12 +94,8 @@ elab "function" sig:Command.structSimpleBinder : command => do
   ```
 -/
 elab "function" nm:ident br:(bracketedBinder)* ":" dom:term: command => do
-  let types ← br.mapM fun m => match m with
-    | `(bracketedBinder| ($_arg:ident : $tp:term)) => return (mkIdent tp.raw.getId)
-    | _ => throwError "Invalid syntax"
-  let typeStx ← mkArrowStx types.toList dom
-  let rel ← `(function $nm:ident : $typeStx)
-  elabCommand rel
+  let func := StateComponent.mk .relation nm.getId (.complex br dom)
+  defineFunction func
 
 /-- Declare a ghost relation, i.e. a predicate over state. Example:
   ```lean
@@ -123,11 +121,11 @@ def assembleState (name : Name) : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   Command.runTermElabM fun vs => do
   -- set the name
-    let nms := (<- stsExt.get).sig
+    let components ← liftCommandElabM $ liftCoreM $ ((<- stsExt.get).sig).mapM StateComponent.getSimpleBinder
     -- record the state name
     stsExt.modify (fun s => { s with stateBaseName := name })
     let stName ← getPrefixedName `State
-    let sdef ← `(@[stateDef] structure $(mkIdent stName) $[$vd]* where $(mkIdent `mk):ident :: $[$nms]*)
+    let sdef ← `(@[stateDef] structure $(mkIdent stName) $[$vd]* where $(mkIdent `mk):ident :: $[$components]*)
     let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
     liftCommandElabM $ elabCommand $ sdef

@@ -5,12 +5,14 @@ import Lean.Parser
 import LeanSts.State
 import Batteries.Lean.Meta.UnusedNames
 import LeanSts.IOAutomata
+import LeanSts.DSL.Specifications
 
 open Lean Meta Elab Lean.Parser
 -- open Lean Elab Command Term Meta Tactic
 
 initialize
   registerTraceClass `dsl
+  registerTraceClass `dsl.debug
   -- the following are primarily for performance profiling
   registerTraceClass `dsl.perf.checkInvariants
 
@@ -35,7 +37,8 @@ def _root_.Lean.SimpleScopedEnvExtension.modify [Inhabited σ] (ext : SimpleScop
 def _root_.Lean.SimpleScopedEnvExtension.get [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) : AttrM σ := do
   return ext.getState (<- getEnv)
 
-/-- Auxiliary structure to store the transition system objects -/
+/-- Auxiliary structure to store the transition system objects. This is
+per-file temporary state. -/
 structure StsState where
   /-- name of the system/specification; set when `#gen_spec` runs -/
   specName: Name
@@ -44,11 +47,11 @@ structure StsState where
   /-- type of the transition system state -/
   typ        : Expr
   /-- signatures of all constants, relations, and functions -/
-  sig    : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)
+  sig    : Array StateComponent
   /-- initial state predicate -/
   init       : Expr
   /-- list of transitions -/
-  transitions    : List ((IOAutomata.ActionLabel Name × Option IOAutomata.ActionDeclaration) ×Expr)
+  transitions    : List ((IOAutomata.ActionLabel Name × Option IOAutomata.ActionDeclaration) × Expr)
   /-- safety properties -/
   safeties     : List Expr
   /-- list of invariants -/
@@ -56,6 +59,7 @@ structure StsState where
   /-- established invariant clauses; set on `@[invProof]` label -/
   establishedClauses : List Name := []
 deriving Inhabited
+
 
 abbrev Transitions :=  Array (TSyntax `Lean.Parser.Command.ctor)
 abbrev StsStateGlobal := HashMap Name Transitions
@@ -263,17 +267,6 @@ def elabBindersAndCapitals
         k vars e
 
 def my_delab :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
-
-/-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
-def mkArrowStx (tps : List Ident) (terminator : Option $ TSyntax `term := none) : CommandElabM (TSyntax `term) := do
-  match tps with
-  | [] => if let some t := terminator then return t else throwError "empty list of types and no terminator"
-  | [a] => match terminator with
-    | none => `(term| $a)
-    | some t => `(term| $a -> $t)
-  | a :: as =>
-    let cont ← mkArrowStx as terminator
-    `(term| $a -> $cont)
 
 /-- Hack for generating lists of commands. Used by `checkInvariants` -/
 declare_syntax_cat commands

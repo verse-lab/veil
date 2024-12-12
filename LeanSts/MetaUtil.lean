@@ -1,6 +1,6 @@
 import Lean
 
-open Lean
+open Lean Elab Command
 
 /- From: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/binderIdent.20vs.20Ident -/
 def toBinderIdent (i : Ident) : TSyntax ``binderIdent := Unhygienic.run <|
@@ -68,6 +68,29 @@ def existentialIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArra
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
   return vars
 
+/-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
+def mkArrowStx (tps : List Ident) (terminator : Option $ TSyntax `term := none) : CoreM (TSyntax `term) := do
+  match tps with
+  | [] => if let some t := terminator then return t else throwError "empty list of types and no terminator"
+  | [a] => match terminator with
+    | none => `(term| $a)
+    | some t => `(term| $a -> $t)
+  | a :: as =>
+    let cont ← mkArrowStx as terminator
+    `(term| $a -> $cont)
+
+def complexBinderToSimpleBinder (nm : TSyntax `ident) (br : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (domT : TSyntax `term) : CoreM (TSyntax `Lean.Parser.Command.structSimpleBinder) := do
+  let types ← br.mapM fun m => match m with
+    | `(bracketedBinder| ($_arg:ident : $tp:term)) => return (mkIdent tp.raw.getId)
+    | _ => throwError "Invalid binder syntax {br}"
+  let typeStx ← mkArrowStx types.toList domT
+  let simple ← `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $typeStx)
+  return simple
+
+/-- Given `nm : _ `, return `nm` -/
+def getSimpleBinderName: (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) → Name
+  | `(Lean.Parser.Command.structSimpleBinder| $nm:ident : _) => nm.getId
+  | _ => unreachable!
 
 def createExistsBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
   let binders ← vars.mapM fun (var, sort) => do
