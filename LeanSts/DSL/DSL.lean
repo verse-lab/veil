@@ -470,8 +470,8 @@ def getAllChecks' : CommandElabM (Array ((Name × Expr) × (Name × Expr))) := C
     let actNames := ((← stsExt.get).actions).map Expr.constName!
     trace[sauto.debug] "invNames: {invNames}"
     trace[sauto.debug] "actNames: {actNames}"
-    let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{name}"))
-    let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{name}"))
+    let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName name}"))
+    let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{mkPrintableName name}"))
     trace[sauto.debug] "invNamesInds: {invNamesInds}"
     trace[sauto.debug] "actNamesInds: {actNamesInds}"
     let mut ret := #[]

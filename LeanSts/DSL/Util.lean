@@ -254,3 +254,8 @@ def toFnName (n : Name) : Name :=
 
 /-- See docstring on `toTrName`. -/
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
+
+/-- The DSL sometimes generates names including `.tr`, and we can't
+print these to SMT. -/
+def mkPrintableName (n : Name) : Name :=
+  Name.mkSimple $ "_".intercalate (n.components.map toString)
