@@ -411,7 +411,7 @@ def parseAutoHints : TSyntax `smtHints → TacticM (TSyntax `Auto.hints)
 
 /- We use our own `parseTimeout` because the one in `lean-smt` has a
   hard-coded `5` as default if no timeout is specified. -/
-def parseTimeout : TSyntax `smtTimeout → TacticM Nat
+def parseTimeout : TSyntax `smtTimeout → CoreM Nat
   | `(smtTimeout| (timeout := $n)) => return n.getNat
   | `(smtTimeout| ) => return (auto.smt.timeout.get (← getOptions))
   | _ => throwUnsupportedSyntax

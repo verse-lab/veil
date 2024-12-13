@@ -2,6 +2,10 @@ import Smt
 import Lean
 import LeanSts.SMT.Main
 import Auto.Solver.SMT
+import Auto
+
+open Lean hiding Command Declaration
+
 
 open Smt Smt.Tactic Translate Lean Lean.Meta Auto.Solver.SMT in
 def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Array ((Name × Expr) × (Name × Expr))) (forceSolver : Option SolverName := none)
@@ -22,11 +26,13 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
       emitCommand solver (.setOption (.produceUnsatCores true))
     emitCommandStr solver goalQuery
     let mut ret := []
-    for ((act, actInd), (inv, invInd)) in checks do
+    for ((inv, invInd), (act, actInd)) in checks do
       emitCommandStr solver "(push)"
       emitCommandStr solver s!"(assert {actInd})"
       emitCommandStr solver s!"(assert {invInd})"
+      trace[sauto.debug] "Now running solver"
       let result ← getSolverResult solver solverName minimize false (if retryOnFailure then 1 else 0)
+      trace[sauto.debug] "Test result: {result}"
       ret := ret ++ [((act, inv, result))]
       emitCommandStr solver "(pop)"
     solver.kill
@@ -34,13 +40,15 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
   catch e =>
     let exMsg ← e.toMessageData.toString
     let mut ret := []
-    for ((act, actInd), (inv, invInd)) in checks do
+    for ((inv, invInd), (act, actInd)) in checks do
       ret := ret ++ [(act, inv, .Unknown s!"{exMsg}")]
     return ret
 
 where getSolverResult (solver: SolverProc) (solverName: SolverName) (minimize: Bool) (kill: Bool) (retries: Nat) : MetaM SmtResult := do
   -- TODO: querySolver should use this version of the function.
+  trace[sauto.debug] "Now checking sat"
   let checkSatResponse ← checkSat solver solverName
+  trace[sauto.debug] "After check sat"
     match checkSatResponse with
     | .Sat =>
         trace[sauto.result] "{solverName} says Sat"
@@ -79,7 +87,6 @@ where getSolverResult (solver: SolverProc) (solverName: SolverName) (minimize: B
             if kill then
               solver.kill
             trace[sauto.result] "Retrying the query with {s}"
-            -- querySolver goalQuery timeout (forceSolver := some s) (retryOnFailure := false) minimize
             getSolverResult solver s minimize kill (retries - 1)
           | none =>
             if kill then

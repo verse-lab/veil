@@ -342,8 +342,10 @@ def run(args):
 
     # lines we've passed to Z3 thus far
     passedLines = []
-
+    f = open("log.smt", "a")
+    f.write(f"Running with args: {args}\n")
     for line in sys.stdin:
+        f.write(line, flush=True)
         # Overwrite the behaviour of `(get-model)` to print the model in a more readable format
         if "(get-model)" in line:
             m = get_model(passedLines)
@@ -354,7 +356,7 @@ def run(args):
             passedLines.append(line)
             if len(res) != 0:
                 print(res, flush=True)
-
+    f.close()
     sys.exit(0)
 
 if __name__ == '__main__':

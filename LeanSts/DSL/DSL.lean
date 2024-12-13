@@ -9,6 +9,8 @@ import LeanSts.DSL.WP
 import LeanSts.DSL.Tactic
 import LeanSts.DSL.Trace
 import LeanSts.SMT.Preparation
+import LeanSts.DSL.SMTUtil
+import LeanSts.SMT.Main
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis RelationalTransitionSystem
 
@@ -515,11 +517,39 @@ def getCtxNames (ctx : LocalContext) : TacticM (Array Name) := do
     hyps := hyps.push hyp.userName
   return hyps
 
+def displaySuggestion (stx : Syntax) (theorems : Array (TSyntax `command)) (preMsg : Option String := none) := do
+    Command.liftTermElabM do
+    let cmd ← constructCommands theorems
+    let suggestion : Suggestion := {
+      suggestion := cmd
+      preInfo? := preMsg
+      toCodeActionTitle? := .some (fun _ => "Replace with explicit proofs.")
+    }
+    addSuggestion stx suggestion (header := "")
+
+def getActCheckResultMessages (res: List (Name × Name × Bool)) : (Array String) := Id.run do
+  let mut msgs := #[]
+  if !res.isEmpty then
+    msgs := msgs.push "The following set of actions must preserve the invariant:"
+    for (actName, invResults) in group res do
+      msgs := msgs.push s!"  {actName}"
+      for (invName, success) in invResults do
+        msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
+  pure msgs
+where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
+  xs.foldl (fun acc (key, val) =>
+    match acc.find? (fun (k, _) => k = key) with
+    | some (k, vs) =>
+          acc.filter (fun (k', _) => k' ≠ key) ++ [(k, vs ++ [val])]
+    | none =>
+      acc ++ [(key, [val])]) []
+
 def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := Command.runTermElabM fun vs => do
+  -- TODO: Init checks
   let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
-  let actIndicators := (checks.map (fun ((act_name, ind_name), _) => (act_name, ind_name))).toList
-  let invIndicators := (checks.map (fun (_, (inv_name, ind_name)) => (inv_name, ind_name))).toList
+  let actIndicators := (checks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList
+  let invIndicators := (checks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList
   let ge ← getEnv
   let actStxList ← actIndicators.mapM (fun (actName, indName) => do
     let .some _ := ge.find? actName
@@ -540,17 +570,13 @@ def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Exp
     return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
   ) $ indicators.toArray
   let actTpStx ← `(∀ $[$params]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
-  let actThName := s!"all_check".toName
+  trace[sauto.debug] "{actTpStx}"
 
   let expr ← elabTerm actTpStx none
-  -- trace[sauto.debug] "goal:\n{expr}"
   let g ← mkFreshExprMVar expr
-
   let [l] ← Tactic.run g.mvarId! (do
-    -- let hyps ← getLCtx
     Tactic.evalTactic (← `(tactic|unhygienic intros))
-    let (idents, _) ← elabSimplifyClause
-    trace[sauto.debug] "{idents}"
+    let _ ← elabSimplifyClause
     for mvarId in (← Tactic.getGoals) do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     Tactic.pruneSolvedGoals
@@ -559,30 +585,27 @@ def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Exp
       for hyp in hypsNew.decls.toArray.reverse do
         if hyp.isSome then
           let hyp := hyp.get!
-          trace[sauto.debug] "{hyp.userName} ← {hyp.binderInfo.hash}"
-          unless hyp.type.isType do -- || (indicators.map (fun (_, e) => e.constName!)).contains hyp.userName do
-          -- if goodhypnames.contains hyp.userName then
+          unless hyp.type.isType do
             tryGoal $ run `(tactic| revert $(mkIdent hyp.userName):ident)
-      -- let type ← Tactic.getMainTarget
-      -- trace[sauto.debug] "{type}\n{← getCtxNames $ hypsNew}\n{← getCtxNames $ hyps}"
    ) | throwError "Expected exactly one goal"
-  let _ <- forallBoundedTelescope (<- l.getType) (maxFVars? := params.size)
+  let cmd ← forallBoundedTelescope (<- l.getType) (maxFVars? := params.size)
     fun _ tp => do
     trace[sauto.debug] "goal:\n{tp}"
     let cmds ← Smt.prepareSmtQuery [] tp
     let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
     trace[sauto.debug] "goal:\n{cmdString}"
+    pure cmdString
+  let timeout := auto.smt.timeout.get (← getOptions)
+  let res ← querySolverWithIndicators cmd timeout checks (getModel? := true) (retryOnFailure := true)
+  let msgs := getActCheckResultMessages $ res.map (fun (actName, invName, res) => (actName, invName, match res with
+    | .Unsat _ => true
+    | _ => false))
+  let msg := (String.intercalate "\n" msgs.toList) ++ "\n"
+  match behaviour with
+    | .checkTheorems => dbg_trace msg
+    | .printAndCheckTheorems => liftCommandElabM $ displaySuggestion stx #[] (preMsg := msg) -- TODO theorems
+    | _ => unreachable!
 
-  -- trace[sauto] "query:\n{cmdString}"
-  -- return cmdString
-  -- let query := Smt.prepareQuery mv #[]  -- Using LeanSMT
-
-  -- let params ← Array.mapM (fun e => do
-  --   return ← `(bracketedBinder| ($(mkIdent e.constName!) : Bool))
-  -- ) $ (List.append invIndicators actIndicators).toArray
-  -- let checkTheorem ← `(@[invProof] theorem $(mkIdent actThName) $params* : $actTpStx := $proofScript)
-  -- let failedTheorem ← `(@[invProof] theorem $(mkIdent actThName) $params* : $actTpStx := sorry)
-  -- return (actThName, checkTheorem, failedTheorem, some actsAndIndicators)
 
 def checkTheorems (stx : Syntax) (initChecks : ActionChecksT) (actChecks : ActionsChecksT) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
   let mut theorems := #[] -- collect Lean expression to report for `#check_invariants?` and `#check_invariants!`
@@ -601,29 +624,20 @@ def checkTheorems (stx : Syntax) (initChecks : ActionChecksT) (actChecks : Actio
       msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
       let thm := if success then thCmd else sorryThm
       theorems := theorems.push thm
-    if !actChecks.isEmpty then
-      msgs := msgs.push "The following set of actions must preserve the invariant:"
+    let mut actResults := []
     for (actName, invChecks) in actChecks do
-      msgs := msgs.push s!"  {actName}"
       for (invName, (thName, thCmd, sorryThm)) in invChecks do
         let success ← checkTheorem thName thCmd
-        msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
+        actResults := actResults ++ [(actName, invName, success)]
         let thm := if success then thCmd else sorryThm
         theorems := theorems.push thm
+    let resMsgs := getActCheckResultMessages actResults
+    msgs := msgs.append resMsgs
     let msg := (String.intercalate "\n" msgs.toList) ++ "\n"
     match behaviour with
     | .checkTheorems => dbg_trace msg
     | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
     | _ => unreachable!
-  where displaySuggestion (stx : Syntax) (theorems : Array (TSyntax `command)) (preMsg : Option String := none) := do
-    Command.liftTermElabM do
-    let cmd ← constructCommands theorems
-    let suggestion : Suggestion := {
-      suggestion := cmd
-      preInfo? := preMsg
-      toCodeActionTitle? := .some (fun _ => "Replace with explicit proofs.")
-    }
-    addSuggestion stx suggestion (header := "")
 
 
 /- ## `#check_invariants` -/
@@ -640,7 +654,6 @@ syntax "#check_invariants!" : command
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
   let checks ← getAllChecks'
   checkTheorems' stx checks behaviour
-  -- checkTheorems stx initChecks actChecks behaviour
 
 elab_rules : command
   | `(command| #check_invariants%$tk) => checkInvariants tk (behaviour := .checkTheorems)
