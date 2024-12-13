@@ -404,8 +404,7 @@ def assembleActions : CommandElabM Unit := do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let acts := (<- stsExt.get).transitions.map (fun s => s.expr)
     let _ ← (← stsExt.get).transitions.mapM (fun t => do trace[dsl.debug] s!"{t}")
-    let next <- combineLemmas ``Or acts.toList vs "transitions"
-    let next <- PrettyPrinter.delab next
+    let next ← if acts.isEmpty then `(fun s s' => s = s') else PrettyPrinter.delab $ ← combineLemmas ``Or acts.toList vs "transitions"
     `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $next)
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do
@@ -450,8 +449,7 @@ def assembleInvariant : CommandElabM Unit := do
     let allClauses := (<- stsExt.get).invariants
     let exprs := allClauses.toList.map (fun p => p.expr)
     let _ ← allClauses.mapM (fun t => do trace[dsl.debug] s!"{t}")
-    let invs <- combineLemmas ``And exprs vs "invariants"
-    let invs <- PrettyPrinter.delab invs
+    let invs ← if allClauses.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
     `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Invariant) : $stateTp -> Prop := $invs)
 
 /-- Assembles all declared safety properties into a single `Safety` predicate -/
@@ -459,8 +457,7 @@ def assembleSafeties : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let exprs := (<- stsExt.get).invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
-    let safeties <- combineLemmas ``And exprs vs "safeties"
-    let safeties <- PrettyPrinter.delab safeties
+    let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
     `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) : $stateTp -> Prop := $safeties)
 
 /--
