@@ -47,7 +47,7 @@ def StateComponent.getSimpleBinder (sc : StateComponent) : CoreM (TSyntax ``Comm
 
 def StateComponent.stx (sc : StateComponent) : CoreM Syntax := sc.getSimpleBinder
 
-structure StatePredicate where
+structure StateSpecification where
   name : Name
   /-- DSL expression for this predicate -/
   lang : Option (TSyntax `lang)
@@ -56,7 +56,7 @@ structure StatePredicate where
   expr : Expr
 deriving Inhabited, BEq
 
-instance : ToString StatePredicate where
+instance : ToString StateSpecification where
   toString sp := match sp.lang with
     | some lang => s!"{sp.name} : {lang}"
     | none => s!"{sp.name} : {sp.expr}"
@@ -89,6 +89,37 @@ def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax `la
 def ActionSpecification.name (a : ActionSpecification) : Name := a.decl.name
 def ActionSpecification.label (a : ActionSpecification) : IOAutomata.ActionLabel Name := a.decl.label
 
+/-- These mean the same thing, but `safety` is as a convention used to
+denote the main, top-level properties of the system, whereas `invariant`
+clauses are supporting the main safety property. -/
+inductive StateAssertionKind
+  | invariant
+  | safety
+deriving BEq
+
+instance : Inhabited StateAssertionKind where
+  default := StateAssertionKind.invariant
+
+instance : ToString StateAssertionKind where
+  toString
+    | StateAssertionKind.invariant => "invariant"
+    | StateAssertionKind.safety => "safety"
+
+structure StateAssertion where
+  kind : StateAssertionKind
+  name : Name
+  /-- Lean term for this predicate -/
+  term : Option (TSyntax `term)
+  /-- Lean `Expr` for this predicate; this is usually a constant in the
+  environment, *without* having applied the section variables. -/
+  expr : Expr
+deriving Inhabited, BEq
+
+instance : ToString StateAssertion where
+  toString sa := match sa.term with
+    | some term => s!"{sa.kind} [{sa.name}] {term}"
+    | none => s!"{sa.kind} [{sa.name}] {sa.expr}"
+
 /-- A cleaned-up version of `StsState`, this gets generated on `#gen_spec` and stored in the global state. -/
 structure DSLSpecification where
   /-- Name of the specification -/
@@ -100,7 +131,7 @@ structure DSLSpecification where
   the state. This basically defines a FOL signature. -/
   signature  : Array StateComponent
   /-- Initial state predicate -/
-  init        : StatePredicate
+  init        : StateSpecification
   /-- Transitions of the system -/
   transitions : Array ActionSpecification
 

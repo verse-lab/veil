@@ -36,13 +36,13 @@ structure StsState where
   /-- signatures of all constants, relations, and functions -/
   sig    : Array StateComponent
   /-- initial state predicate -/
-  init       : StatePredicate
+  init       : StateSpecification
   /-- list of transitions -/
   transitions    : Array ActionSpecification
   /-- safety properties -/
-  safeties     : List Expr
+  safeties     : Array StateAssertion
   /-- list of invariants -/
-  invariants : List Expr
+  invariants : Array StateAssertion
   /-- established invariant clauses; set on `@[invProof]` label -/
   establishedClauses : List Name := []
 deriving Inhabited
@@ -130,7 +130,8 @@ initialize registerBuiltinAttribute {
   name := `safe
   descr := "Marks as a safety property"
   add := fun declName _ _ => do
-    stsExt.modify (fun s => { s with safeties := s.safeties ++ [mkConst declName]})
+    let prop := { kind := .safety, name := declName, term := none, expr := mkConst declName }
+    stsExt.modify (fun s => { s with safeties := s.safeties.push prop})
 }
 
 
@@ -140,7 +141,8 @@ initialize registerBuiltinAttribute {
   name := `inv
   descr := "Marks as an invariant clause"
   add := fun declName _ _ => do
-    stsExt.modify (fun s => { s with invariants := s.invariants ++ [mkConst declName]})
+    let prop := { kind := .invariant, name := declName, term := none, expr := mkConst declName }
+    stsExt.modify (fun s => { s with invariants := s.invariants.push prop})
 }
 
 /-- For `solve_by_elim` -/

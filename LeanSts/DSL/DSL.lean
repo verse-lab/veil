@@ -355,33 +355,39 @@ elab_rules : command
   -- add constructor for label type
   addIOActionDecl actT nm br
 
-/-- Safety property. All capital variables are implicitly quantified -/
-elab "safety" name:(propertyName)? safe:term : command => do
-  elabCommand $ <- Command.runTermElabM fun vs => do
+def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
+  let (name, cmd) ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
-    -- let safe <- liftMacroM $ closeCapitals safe
     let stateTp <- PrettyPrinter.delab stateTp
-    let stx <- funcasesM safe vs
-    let defaultName := Name.mkSimple $ s!"safety_{(<- stsExt.get).safeties.length}"
+    let stx <- funcasesM t vs
+    let defaultName := Name.mkSimple $ (← do if isSafety
+      then pure s!"safety_{(<- stsExt.get).safeties.size}" else pure s!"inv_{(<- stsExt.get).invariants.size}")
     let name := getPropertyNameD name defaultName
-    elabBindersAndCapitals #[] vs stx fun _ e => do
+    let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- my_delab e
-      `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      if isSafety then
+        `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      else
+        `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+    -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
+    -- (I think because of how `elabBindersAndCapitals` works)
+    return (name, cmd)
+  -- Do the elaboration to populate the `stsExt` state
+  elabCommand cmd
+  Command.runTermElabM fun vs => do
+  -- Record the term syntax in the `stsExt` state
+    if isSafety then
+      stsExt.modify (fun s => { s with
+        safeties := s.safeties.map (fun x => if x.name == name then { x with term := t } else x) })
+    else
+      stsExt.modify (fun s => { s with
+        invariants := s.invariants.map (fun x => if x.name == name then { x with term := t } else x) })
 
-/-- Invariant of the transition system.
-    All capital variables are implicitly quantified -/
-elab "invariant" name:(propertyName)? inv:term : command => do
-  elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- stateTp vs
-    -- let inv <- liftMacroM $ closeCapitals inv
-    let stx <- funcasesM inv vs
-    let _ <- elabByTactic stx (<- mkArrow stateTp prop)
-    let stateTp <- PrettyPrinter.delab stateTp
-    let defaultName := Name.mkSimple $ s!"inv_{(<- stsExt.get).invariants.length}"
-    let name := getPropertyNameD name defaultName
-    elabBindersAndCapitals #[] vs stx fun _ e => do
-      let e <- my_delab e
-      `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+/-- Safety property. All capital variables are implicitly quantified -/
+elab "safety" name:(propertyName)? safe:term : command => defineAssertion (isSafety := true) name safe
+
+/-- Invariant of the transition system. All capital variables are implicitly quantified -/
+elab "invariant" name:(propertyName)? inv:term : command => defineAssertion (isSafety := false) name inv
 
 def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
     let exp0 :: exprs := exps
@@ -446,7 +452,10 @@ def assembleActionMap : CommandElabM Unit := do
 def assembleInvariant : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let invs <- combineLemmas ``And ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties) vs "invariants"
+    let allClauses := (<- stsExt.get).invariants ++ (<- stsExt.get).safeties
+    let exprs := allClauses.toList.map (fun p => p.expr)
+    let _ ← allClauses.mapM (fun t => do trace[dsl.debug] s!"{t}")
+    let invs <- combineLemmas ``And exprs vs "invariants"
     let invs <- PrettyPrinter.delab invs
     `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Invariant) : $stateTp -> Prop := $invs)
 
@@ -454,7 +463,8 @@ def assembleInvariant : CommandElabM Unit := do
 def assembleSafeties : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let safeties <- combineLemmas ``And (<- stsExt.get).safeties vs "safeties"
+    let exprs := (<- stsExt.get).safeties.toList.map (fun p => p.expr)
+    let safeties <- combineLemmas ``And exprs vs "safeties"
     let safeties <- PrettyPrinter.delab safeties
     `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) : $stateTp -> Prop := $safeties)
 
@@ -573,7 +583,7 @@ def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM 
 /--  Generate theorems to check in the initial state and after each action -/
 def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
+    let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map StateAssertion.name
     let actNames := ((<- stsExt.get).transitions).map (fun s => s.name)
     let mut initChecks := #[]
     let mut actChecks := #[]
@@ -604,7 +614,7 @@ def getChecksForInvariant (invName : Name) : CommandElabM (InitChecksT × Action
 /-- Generate therems to check all invariants after the given action. -/
 def getChecksForAction (actName : Name) : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let invNames := ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties).toArray.map Expr.constName!
+    let invNames := ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties).map StateAssertion.name
     let invChecks ← invNames.mapM (fun invName => do return (← getCheckFor invName (CheckType.action actName) vs))
     pure (#[], #[(actName, invChecks)])
   return (initChecks, actChecks)
