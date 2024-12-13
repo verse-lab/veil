@@ -134,8 +134,6 @@ structure DSLSpecification where
   init        : StateSpecification
   /-- Transitions of the system -/
   transitions : Array ActionSpecification
-
-
+  /-- Invariants -/
+  invariants  : Array StateAssertion
 deriving Inhabited
-
-#check DSLSpecification

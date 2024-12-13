@@ -27,24 +27,12 @@ def _root_.Lean.SimpleScopedEnvExtension.get [Inhabited σ] (ext : SimpleScopedE
 /-- Auxiliary structure to store the transition system objects. This is
 per-file temporary state. -/
 structure StsState where
-  /-- name of the system/specification; set when `#gen_spec` runs -/
-  specName: Name
+  spec : DSLSpecification
   /-- base name of the State type; set when `#gen_state` runs -/
   stateBaseName: Name
-  /-- type of the transition system state -/
-  typ        : Expr
-  /-- signatures of all constants, relations, and functions -/
-  sig    : Array StateComponent
-  /-- initial state predicate -/
-  init       : StateSpecification
-  /-- list of transitions -/
-  transitions    : Array ActionSpecification
-  /-- list of invariants clauses -/
-  invariants : Array StateAssertion
   /-- established invariant clauses; set on `@[invProof]` label -/
   establishedClauses : List Name := []
 deriving Inhabited
-
 
 abbrev Transitions :=  Array (TSyntax `Lean.Parser.Command.ctor)
 abbrev StsStateGlobal := HashMap Name Transitions
@@ -68,11 +56,11 @@ initialize registerBuiltinAttribute {
   name := `state
   descr := "Marks as an state type"
   add := fun declName _ _ => do
-    let stsTp := (<- stsExt.get).typ
+    let stsTp := (<- stsExt.get).spec.stateType
     unless stsTp == default do
       throwError "State type has already been declared: {stsTp}"
     let ty := mkConst declName
-    stsExt.modify ({ · with typ := ty })
+    stsExt.modify (fun s => { s with spec := {s.spec with stateType := ty }})
 }
 
 syntax (name:= initial) "initDef" : attr
@@ -82,11 +70,11 @@ initialize registerBuiltinAttribute {
   descr := "Marks as an initial state"
   add := fun declName _ _ => do
     -- Check if the initial state has already been declared
-    let intTp := (<- stsExt.get).init
+    let intTp := (<- stsExt.get).spec.init
     unless intTp == default do
       throwError "Inital state predicate has already been declared"
     let init := { name := declName, lang := none, expr := mkConst declName }
-    stsExt.modify ({ · with init := init })
+    stsExt.modify (fun s => { s with spec := {s.spec with init := init }})
 }
 
 syntax (name:= internalActDef) "internalActDef" : attr
@@ -103,7 +91,7 @@ def toActionAttribute (type : IOAutomata.ActionType) : AttrM (TSyntax `Lean.Pars
 def addAction (type : IOAutomata.ActionType) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
   fun _ _ => do
     let spec := ActionSpecification.mkPlain type declName (mkConst declName)
-    stsExt.modify (fun s => { s with transitions := s.transitions.push spec })
+    stsExt.modify (fun s => { s with spec := {s.spec with transitions := s.spec.transitions.push spec }})
 
 initialize registerBuiltinAttribute {
   name := `internalActDef
@@ -129,7 +117,7 @@ initialize registerBuiltinAttribute {
   descr := "Marks as a safety property"
   add := fun declName _ _ => do
     let prop := { kind := .safety, name := declName, term := none, expr := mkConst declName }
-    stsExt.modify (fun s => { s with invariants := s.invariants.push prop})
+    stsExt.modify (fun s => { s with spec := {s.spec with invariants := s.spec.invariants.push prop}})
 }
 
 
@@ -140,7 +128,7 @@ initialize registerBuiltinAttribute {
   descr := "Marks as an invariant clause"
   add := fun declName _ _ => do
     let prop := { kind := .invariant, name := declName, term := none, expr := mkConst declName }
-    stsExt.modify (fun s => { s with invariants := s.invariants.push prop})
+    stsExt.modify (fun s => { s with spec := {s.spec with invariants := s.spec.invariants.push prop}})
 }
 
 /-- For `solve_by_elim` -/
@@ -157,7 +145,7 @@ initialize registerBuiltinAttribute {
 /-- Retrieves the current State structure and applies it to
     section variables `vs` -/
 def stateTp (vs : Array Expr) : AttrM Expr := do
-  let stateTp := (<- stsExt.get).typ
+  let stateTp := (<- stsExt.get).spec.stateType
   unless stateTp != default do throwError "State has not been declared so far"
   return mkAppN stateTp vs
 

@@ -11,7 +11,7 @@ open Lean Lean.Elab.Tactic
 -/
 elab "exact_state" : tactic => do
   let stateName ← getStateName
-  let stateTp := (<- stsExt.get).typ
+  let stateTp := (<- stsExt.get).spec.stateType
   let .some sn := stateTp.constName?
     | throwError "{stateTp} is not a constant"
   let .some _sinfo := getStructureInfo? (<- getEnv) sn

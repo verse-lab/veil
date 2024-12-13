@@ -42,7 +42,7 @@ def defineStateComponent
     runTermElabM fun _ => elabTerm tp none
   | _ => throwErrorAt sig "Unsupported syntax {sig}"
   if ← validateTp tp then
-    liftTermElabM do stsExt.modify (fun s => { s with sig := s.sig.push comp })
+    liftTermElabM do stsExt.modify (fun s => { s with spec := {s.spec with signature := s.spec.signature.push comp }})
   else
     liftCoreM $ failureMsg comp
 
@@ -121,7 +121,7 @@ def assembleState (name : Name) : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   Command.runTermElabM fun vs => do
   -- set the name
-    let components ← liftCommandElabM $ liftCoreM $ ((<- stsExt.get).sig).mapM StateComponent.getSimpleBinder
+    let components ← liftCommandElabM $ liftCoreM $ ((<- stsExt.get).spec.signature).mapM StateComponent.getSimpleBinder
     -- record the state name
     stsExt.modify (fun s => { s with stateBaseName := name })
     let stName ← getPrefixedName `State
@@ -189,8 +189,8 @@ elab "after_init" "{" l:lang "}" : command => do
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $act)
     -- we modify it to store the `lang`
-    liftTermElabM do stsExt.modify (fun s => {s with init := {s.init with lang := .some l} })
-    let sp ←  liftTermElabM $ return (← stsExt.get).init
+    liftTermElabM do stsExt.modify (fun s => { s with spec := {s.spec with init := {s.spec.init with lang := .some l}}})
+    let sp ←  liftTermElabM $ return (← stsExt.get).spec.init
     trace[dsl.debug] s!"{sp}"
 
 declare_syntax_cat actionType
@@ -230,8 +230,8 @@ def addIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opt
     to it Note that this DOES NOT add the `lang` representing the DSL
     code We do that by a further modification in the relevant elaborator
     (see [add_action_lang]) -/
-    stsExt.modify (fun s => { s with
-      transitions := s.transitions.map (fun t => if t.name == name then { t with decl := actdecl } else t) })
+    stsExt.modify (fun s => { s with spec := {s.spec with
+      transitions := s.spec.transitions.map (fun t => if t.name == name then { t with decl := actdecl } else t) }})
 
 /-- `action foo` means `internal action foo` -/
 def parseActionTypeStx (stx : Option (TSyntax `actionType)) : CommandElabM (TSyntax `actionType) := do
@@ -304,8 +304,8 @@ elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "
     elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)
     Command.runTermElabM fun _ => do
       -- [add_action_lang] find the appropriate transition and add the `lang` declaration to it
-      stsExt.modify (fun s => { s with
-        transitions := s.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l } else t) })
+      stsExt.modify (fun s => { s with spec := {s.spec with
+        transitions := s.spec.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l } else t)}})
     elabCallableFn nm br l
 
 /--
@@ -360,7 +360,7 @@ def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t
     let stateTp <- stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
     let stx <- funcasesM t vs
-    let defaultName := Name.mkSimple s!"inv_{(<- stsExt.get).invariants.size}"
+    let defaultName := Name.mkSimple s!"inv_{(<- stsExt.get).spec.invariants.size}"
     let name := getPropertyNameD name defaultName
     let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- my_delab e
@@ -375,8 +375,8 @@ def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t
   elabCommand cmd
   Command.runTermElabM fun _vs => do
     -- Record the term syntax in the `stsExt` state
-    stsExt.modify (fun s => { s with
-      invariants := s.invariants.map (fun x => if x.name == name then { x with term := t } else x) })
+    stsExt.modify (fun s => { s with spec := {s.spec with
+      invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t } else x) }})
 
 /-- Safety property. All capital variables are implicitly quantified -/
 elab "safety" name:(propertyName)? safe:term : command => defineAssertion (isSafety := true) name safe
@@ -402,15 +402,15 @@ Assembles all declared actions into a `Next` transition relation.
 def assembleActions : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let acts := (<- stsExt.get).transitions.map (fun s => s.expr)
-    let _ ← (← stsExt.get).transitions.mapM (fun t => do trace[dsl.debug] s!"{t}")
+    let acts := (<- stsExt.get).spec.transitions.map (fun s => s.expr)
+    let _ ← (← stsExt.get).spec.transitions.mapM (fun t => do trace[dsl.debug] s!"{t}")
     let next ← if acts.isEmpty then `(fun s s' => s = s') else PrettyPrinter.delab $ ← combineLemmas ``Or acts.toList vs "transitions"
     `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $next)
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun _ => do
     let labelTypeName := mkIdent $ ← getPrefixedName `Label
-    let ctors ← (<- stsExt.get).transitions.mapM (fun s => do match s.decl.ctor with
+    let ctors ← (<- stsExt.get).spec.transitions.mapM (fun s => do match s.decl.ctor with
       | none => throwError "DSL: missing label constructor for action {s.name}"
       | some ctor => pure ctor)
     trace[dsl] "storing constructors for {name}"
@@ -433,7 +433,7 @@ elab "#merge_labels" n:ident m:ident "into" nm:ident : command => do
 a bit strange, since it constructs a term (syntax) to build a value. -/
 def assembleActionMap : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let ioStx ← (← stsExt.get).transitions.mapM fun decl => do
+    let ioStx ← (← stsExt.get).spec.transitions.mapM fun decl => do
       let ioActName := toIOActionDeclName decl.label.name
       let act ← PrettyPrinter.delab $ ← mkAppOptM ioActName (vs.map Option.some)
       `(($(quote decl.label.name), $act))
@@ -446,7 +446,7 @@ def assembleActionMap : CommandElabM Unit := do
 def assembleInvariant : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let allClauses := (<- stsExt.get).invariants
+    let allClauses := (<- stsExt.get).spec.invariants
     let exprs := allClauses.toList.map (fun p => p.expr)
     let _ ← allClauses.mapM (fun t => do trace[dsl.debug] s!"{t}")
     let invs ← if allClauses.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
@@ -456,7 +456,7 @@ def assembleInvariant : CommandElabM Unit := do
 def assembleSafeties : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let exprs := (<- stsExt.get).invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
+    let exprs := (<- stsExt.get).spec.invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
     let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
     `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) : $stateTp -> Prop := $safeties)
 
@@ -471,8 +471,8 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleLabelType name
   Command.runTermElabM fun vs => do
     -- set the name
-    stsExt.modify (fun s => { s with specName := name })
-    let stateTp   := mkAppN (<- stsExt.get).typ vs
+    stsExt.modify (fun s => { s with spec := {s.spec with name := name }})
+    let stateTp   := mkAppN (<- stsExt.get).spec.stateType vs
     let stateTpStx   <- PrettyPrinter.delab stateTp
     let initSt    := mkAppN (<- mkConst $ ← getPrefixedName `initialState?) vs
     let initStx    <- PrettyPrinter.delab initSt
@@ -524,7 +524,7 @@ def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Boo
   return isProven
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
-  let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).specName) vs
+  let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← stsExt.get).spec.name) vs
   return systemTp
 
 def getStateTpStx (vs : Array Expr) : TermElabM Term := do
@@ -575,8 +575,8 @@ def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM 
 /--  Generate theorems to check in the initial state and after each action -/
 def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let invNames := (← stsExt.get).invariants.map StateAssertion.name
-    let actNames := ((<- stsExt.get).transitions).map (fun s => s.name)
+    let invNames := (← stsExt.get).spec.invariants.map StateAssertion.name
+    let actNames := ((<- stsExt.get).spec.transitions).map (fun s => s.name)
     let mut initChecks := #[]
     let mut actChecks := #[]
     -- (1) Collect checks that invariants hold in the initial state
@@ -595,7 +595,7 @@ def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
 state and after each action. -/
 def getChecksForInvariant (invName : Name) : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let actNames := ((<- stsExt.get).transitions).map (fun s => s.name)
+    let actNames := ((<- stsExt.get).spec.transitions).map (fun s => s.name)
     let initChecks := #[← getCheckFor invName CheckType.init vs]
     let actChecks ← actNames.mapM fun actName => do
       let checks := #[← getCheckFor invName (CheckType.action actName) vs]
@@ -606,7 +606,7 @@ def getChecksForInvariant (invName : Name) : CommandElabM (InitChecksT × Action
 /-- Generate therems to check all invariants after the given action. -/
 def getChecksForAction (actName : Name) : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let invNames := (← stsExt.get).invariants.map StateAssertion.name
+    let invNames := (← stsExt.get).spec.invariants.map StateAssertion.name
     let invChecks ← invNames.mapM (fun invName => do return (← getCheckFor invName (CheckType.action actName) vs))
     pure (#[], #[(actName, invChecks)])
   return (initChecks, actChecks)
