@@ -38,7 +38,7 @@ structure StsState where
   /-- initial state predicate -/
   init       : StatePredicate
   /-- list of transitions -/
-  transitions    : List ((IOAutomata.ActionLabel Name × Option IOAutomata.ActionDeclaration) × Expr)
+  transitions    : Array ActionSpecification
   /-- safety properties -/
   safeties     : List Expr
   /-- list of invariants -/
@@ -77,8 +77,6 @@ initialize registerBuiltinAttribute {
     stsExt.modify ({ · with typ := ty })
 }
 
-
-
 syntax (name:= initial) "initDef" : attr
 
 initialize registerBuiltinAttribute {
@@ -106,8 +104,8 @@ def toActionAttribute (type : IOAutomata.ActionType) : AttrM (TSyntax `Lean.Pars
 
 def addAction (type : IOAutomata.ActionType) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
   fun _ _ => do
-    let label := IOAutomata.ActionLabel.mk type declName
-    stsExt.modify (fun s => { s with transitions := s.transitions ++ [((label, .none), mkConst declName)] })
+    let spec := ActionSpecification.mkPlain type declName (mkConst declName)
+    stsExt.modify (fun s => { s with transitions := s.transitions.push spec })
 
 initialize registerBuiltinAttribute {
   name := `internalActDef

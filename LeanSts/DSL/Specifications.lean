@@ -1,6 +1,7 @@
 import Lean
-import LeanSts.MetaUtil
+import LeanSts.IOAutomata
 import LeanSts.DSL.Lang
+import LeanSts.MetaUtil
 
 open Lean Parser
 
@@ -60,6 +61,34 @@ instance : ToString StatePredicate where
     | some lang => s!"{sp.name} : {lang}"
     | none => s!"{sp.name} : {sp.expr}"
 
+structure ActionSpecification where
+  decl : IOAutomata.ActionDeclaration
+  /-- DSL expression for this action -/
+  lang : Option (TSyntax `lang)
+  /-- Lean `Expr` for this predicate; this is usually a constant in the
+  environment, *without* having applied the section variables. -/
+  expr : Expr
+deriving Inhabited, BEq
+
+instance : ToString ActionSpecification where
+  toString a := match a.lang with
+    | some lang => s!"{a.decl.type} {a.decl.name} [defined via lang] {lang}"
+    | none => s!"{a.decl.type} {a.decl.name} [defined via expr] {a.expr}"
+
+/-- Make an action specification without any DSL-specific information. -/
+def ActionSpecification.mkPlain (type : IOAutomata.ActionType) (name : Name) (expr : Expr) : ActionSpecification := {
+  decl := { type := type, name := name, ctor := none },
+  lang := none,
+  expr := expr
+}
+
+/-- Enhance a given `ActionSpecification` with DSL-specific information. -/
+def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax `lang) (ctor : TSyntax `Lean.Parser.Command.ctor) : ActionSpecification :=
+  { a with lang := some lang, decl := { a.decl with ctor := some ctor } }
+
+def ActionSpecification.name (a : ActionSpecification) : Name := a.decl.name
+def ActionSpecification.label (a : ActionSpecification) : IOAutomata.ActionLabel Name := a.decl.label
+
 /-- A cleaned-up version of `StsState`, this gets generated on `#gen_spec` and stored in the global state. -/
 structure DSLSpecification where
   /-- Name of the specification -/
@@ -71,7 +100,11 @@ structure DSLSpecification where
   the state. This basically defines a FOL signature. -/
   signature  : Array StateComponent
   /-- Initial state predicate -/
-  init       : StatePredicate
+  init        : StatePredicate
+  /-- Transitions of the system -/
+  transitions : Array ActionSpecification
+
+
 deriving Inhabited
 
 #check DSLSpecification

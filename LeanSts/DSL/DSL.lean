@@ -226,9 +226,12 @@ def addIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opt
       name := name,
       ctor := ctor
     }
-    -- Find the appropriate transition and add the ActionDecl to it
+    /- Find the appropriate transition and add the `ActionDeclaration`
+    to it Note that this DOES NOT add the `lang` representing the DSL
+    code We do that by a further modification in the relevant elaborator
+    (see [add_action_lang]) -/
     stsExt.modify (fun s => { s with
-      transitions := s.transitions.map (fun ((label, decl), act) => if label.name == name && decl.isNone then ((label, actdecl), act) else ((label, decl), act)) })
+      transitions := s.transitions.map (fun t => if t.name == name then { t with decl := actdecl } else t) })
 
 /-- `action foo` means `internal action foo` -/
 def parseActionTypeStx (stx : Option (TSyntax `actionType)) : CommandElabM (TSyntax `actionType) := do
@@ -297,7 +300,12 @@ elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [lang| $l ] $st)
     )
-    elabCommand $ ← `($actT:actionType transition $(toTrIdent nm) $br ? = $tr)
+    let trIdent := toTrIdent nm
+    elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)
+    Command.runTermElabM fun _ => do
+      -- [add_action_lang] find the appropriate transition and add the `lang` declaration to it
+      stsExt.modify (fun s => { s with
+        transitions := s.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l } else t) })
     elabCallableFn nm br l
 
 /--
@@ -344,7 +352,7 @@ elab_rules : command
   -- Declare `.tr.fn` and `.tr`
   elabCommand trfn
   elabCommand tr
-  -- Declare the transition as an IO action `.iodecl`
+  -- add constructor for label type
   addIOActionDecl actT nm br
 
 /-- Safety property. All capital variables are implicitly quantified -/
@@ -393,18 +401,18 @@ Assembles all declared actions into a `Next` transition relation.
 def assembleActions : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let acts := (<- stsExt.get).transitions.map Prod.snd
-    let next <- combineLemmas ``Or acts vs "transitions"
+    let acts := (<- stsExt.get).transitions.map (fun s => s.expr)
+    let _ ← (← stsExt.get).transitions.mapM (fun t => do trace[dsl.debug] s!"{t}")
+    let next <- combineLemmas ``Or acts.toList vs "transitions"
     let next <- PrettyPrinter.delab next
     `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $next)
-
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun _ => do
     let labelTypeName := mkIdent $ ← getPrefixedName `Label
-    let ctors ← (← stsExt.get).transitions.toArray.mapM fun ((label, actDecl), _) => do match actDecl with
-      | none => throwError "DSL: missing IOAutomata.ActionDeclaration for action {label.name}"
-      | some actDecl => pure actDecl.ctor
+    let ctors ← (<- stsExt.get).transitions.mapM (fun s => do match s.decl.ctor with
+      | none => throwError "DSL: missing label constructor for action {s.name}"
+      | some ctor => pure ctor)
     trace[dsl] "storing constructors for {name}"
     stsStateGlobalExt.modify (fun s => s.insert name ctors)
     `(inductive $labelTypeName where $[$ctors]*)
@@ -425,10 +433,10 @@ elab "#merge_labels" n:ident m:ident "into" nm:ident : command => do
 a bit strange, since it constructs a term (syntax) to build a value. -/
 def assembleActionMap : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let ioStx ← (← stsExt.get).transitions.toArray.mapM fun ((label, _actDecl), _act) => do
-      let ioActName := toIOActionDeclName label.name
+    let ioStx ← (← stsExt.get).transitions.mapM fun decl => do
+      let ioActName := toIOActionDeclName decl.label.name
       let act ← PrettyPrinter.delab $ ← mkAppOptM ioActName (vs.map Option.some)
-      `(($(quote label.name), $act))
+      `(($(quote decl.label.name), $act))
     let actMapStx ← `(IOAutomata.ActionMap.ofList [$[$ioStx],*])
     let actMapStx ← `(def $(mkIdent $ ← getPrefixedName `actionMap) := $actMapStx)
     trace[dsl] "{actMapStx}"
@@ -566,7 +574,7 @@ def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM 
 def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
     let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
-    let actNames := ((<- stsExt.get).transitions).map (Expr.constName! ∘ Prod.snd)
+    let actNames := ((<- stsExt.get).transitions).map (fun s => s.name)
     let mut initChecks := #[]
     let mut actChecks := #[]
     -- (1) Collect checks that invariants hold in the initial state
@@ -585,7 +593,7 @@ def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
 state and after each action. -/
 def getChecksForInvariant (invName : Name) : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let actNames := ((<- stsExt.get).transitions).toArray.map (Expr.constName! ∘ Prod.snd)
+    let actNames := ((<- stsExt.get).transitions).map (fun s => s.name)
     let initChecks := #[← getCheckFor invName CheckType.init vs]
     let actChecks ← actNames.mapM fun actName => do
       let checks := #[← getCheckFor invName (CheckType.action actName) vs]

@@ -53,7 +53,7 @@ def ActionLabel.mk {ℓ : Type} [Label ℓ] (t : ActionType) (l : ℓ) : ActionL
 structure ActionDeclaration where
   type: ActionType
   name: Lean.Name
-  ctor : TSyntax `Lean.Parser.Command.ctor
+  ctor : Option (TSyntax `Lean.Parser.Command.ctor)
 deriving BEq, Inhabited
 
 def ActionDeclaration.label (a : ActionDeclaration) : ActionLabel Name :=
