@@ -228,9 +228,9 @@ set_option trace.dsl true
 
 set_option sauto.model.minimize true
 
-#print Ring.Label
-#print DAGRider.Label
-#merge_labels DAGRider Ring into DAG.Label
+-- #print Ring.Label
+-- #print DAGRider.Label
+-- #merge_labels DAGRider Ring into DAG.Label
 
 
 -- #check_invariants

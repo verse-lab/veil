@@ -82,8 +82,6 @@ prove_inv_init by { simp_all [initSimp, actSimp, wlp, invSimp] }
 prove_inv_safe by {
   sdestruct st;
   simp [invSimp]
-  rintro S _ _
-  assumption
 }
 
 prove_inv_inductive by {
