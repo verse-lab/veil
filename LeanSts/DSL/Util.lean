@@ -39,9 +39,7 @@ structure StsState where
   init       : StateSpecification
   /-- list of transitions -/
   transitions    : Array ActionSpecification
-  /-- safety properties -/
-  safeties     : Array StateAssertion
-  /-- list of invariants -/
+  /-- list of invariants clauses -/
   invariants : Array StateAssertion
   /-- established invariant clauses; set on `@[invProof]` label -/
   establishedClauses : List Name := []
@@ -131,7 +129,7 @@ initialize registerBuiltinAttribute {
   descr := "Marks as a safety property"
   add := fun declName _ _ => do
     let prop := { kind := .safety, name := declName, term := none, expr := mkConst declName }
-    stsExt.modify (fun s => { s with safeties := s.safeties.push prop})
+    stsExt.modify (fun s => { s with invariants := s.invariants.push prop})
 }
 
 

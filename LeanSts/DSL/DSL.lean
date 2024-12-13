@@ -360,8 +360,7 @@ def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t
     let stateTp <- stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
     let stx <- funcasesM t vs
-    let defaultName := Name.mkSimple $ (← do if isSafety
-      then pure s!"safety_{(<- stsExt.get).safeties.size}" else pure s!"inv_{(<- stsExt.get).invariants.size}")
+    let defaultName := Name.mkSimple s!"inv_{(<- stsExt.get).invariants.size}"
     let name := getPropertyNameD name defaultName
     let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- my_delab e
@@ -374,14 +373,10 @@ def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t
     return (name, cmd)
   -- Do the elaboration to populate the `stsExt` state
   elabCommand cmd
-  Command.runTermElabM fun vs => do
-  -- Record the term syntax in the `stsExt` state
-    if isSafety then
-      stsExt.modify (fun s => { s with
-        safeties := s.safeties.map (fun x => if x.name == name then { x with term := t } else x) })
-    else
-      stsExt.modify (fun s => { s with
-        invariants := s.invariants.map (fun x => if x.name == name then { x with term := t } else x) })
+  Command.runTermElabM fun _vs => do
+    -- Record the term syntax in the `stsExt` state
+    stsExt.modify (fun s => { s with
+      invariants := s.invariants.map (fun x => if x.name == name then { x with term := t } else x) })
 
 /-- Safety property. All capital variables are implicitly quantified -/
 elab "safety" name:(propertyName)? safe:term : command => defineAssertion (isSafety := true) name safe
@@ -452,7 +447,7 @@ def assembleActionMap : CommandElabM Unit := do
 def assembleInvariant : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let allClauses := (<- stsExt.get).invariants ++ (<- stsExt.get).safeties
+    let allClauses := (<- stsExt.get).invariants
     let exprs := allClauses.toList.map (fun p => p.expr)
     let _ ← allClauses.mapM (fun t => do trace[dsl.debug] s!"{t}")
     let invs <- combineLemmas ``And exprs vs "invariants"
@@ -463,7 +458,7 @@ def assembleInvariant : CommandElabM Unit := do
 def assembleSafeties : CommandElabM Unit := do
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
-    let exprs := (<- stsExt.get).safeties.toList.map (fun p => p.expr)
+    let exprs := (<- stsExt.get).invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
     let safeties <- combineLemmas ``And exprs vs "safeties"
     let safeties <- PrettyPrinter.delab safeties
     `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) : $stateTp -> Prop := $safeties)
@@ -583,7 +578,7 @@ def getCheckFor (invName : Name) (ct : CheckType) (vs : Array Expr) : TermElabM 
 /--  Generate theorems to check in the initial state and after each action -/
 def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map StateAssertion.name
+    let invNames := (← stsExt.get).invariants.map StateAssertion.name
     let actNames := ((<- stsExt.get).transitions).map (fun s => s.name)
     let mut initChecks := #[]
     let mut actChecks := #[]
@@ -614,7 +609,7 @@ def getChecksForInvariant (invName : Name) : CommandElabM (InitChecksT × Action
 /-- Generate therems to check all invariants after the given action. -/
 def getChecksForAction (actName : Name) : CommandElabM (InitChecksT × ActionsChecksT) := do
   let (initChecks, actChecks) ← Command.runTermElabM fun vs => do
-    let invNames := ((<- stsExt.get).invariants ++ (<- stsExt.get).safeties).map StateAssertion.name
+    let invNames := (← stsExt.get).invariants.map StateAssertion.name
     let invChecks ← invNames.mapM (fun invName => do return (← getCheckFor invName (CheckType.action actName) vs))
     pure (#[], #[(actName, invChecks)])
   return (initChecks, actChecks)
