@@ -10,7 +10,7 @@ open Lean hiding Command Declaration
 open Smt Smt.Tactic Translate Lean Lean.Meta Auto.Solver.SMT in
 def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Array ((Name × Expr) × (Name × Expr))) (forceSolver : Option SolverName := none)
   (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM (List (Name × Name × SmtResult)) := do
-  withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
+  withTraceNode `sauto.perf.query (fun _ => return "querySolverWithIndicators") do
   let opts ← getOptions
     let minimize := minimize.getD (sauto.model.minimize.get opts)
     let solverName :=

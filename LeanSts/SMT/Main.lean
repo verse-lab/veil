@@ -257,7 +257,7 @@ def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (con
   | .Unsat => return false
   | .Unknown e => throwError s!"Unexpected response from solver: {e}"
 
-private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill: Bool) : MetaM FirstOrderStructure := do
+private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill: Bool := true) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
   try
   -- Minimize sorts
@@ -378,10 +378,20 @@ partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Opti
   | .Unsat =>
       trace[sauto.result] "{solverName} says Unsat"
       -- `solver.kill` is called in `getUnsatCore`; there is a hang if that's removed (waitiing for a pipe?)
-      let unsatCore ← getUnsatCore solver
-      trace[sauto.result] "Unsat core: {unsatCore}"
-      -- trace[sauto] "stderr:\n{stderr}"
-      return .Unsat unsatCore
+      -- let unsatCore ← getUnsatCore solver
+      try
+        emitCommand solver .getUnsatCore
+        -- FIXME: probably shouldn't kill the solver here
+        let (_, solver) ← solver.takeStdin
+        let stdout ← solver.stdout.readToEnd
+        solver.kill
+        let (unsatCore, _proof) ← getSexp stdout
+        trace[sauto.result] "Unsat core: {unsatCore}"
+        -- trace[sauto] "stderr:\n{stderr}"
+        return .Unsat unsatCore
+      catch e =>
+        let exMsg ← e.toMessageData.toString
+        throwError s!"get-unsat-core failed (z3model.py likely timed out)"
   | .Unknown reason =>
       trace[sauto.result] "{solverName} says Unknown ({reason})"
       if retryOnFailure then

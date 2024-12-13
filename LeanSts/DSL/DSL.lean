@@ -468,12 +468,17 @@ def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
 def getAllChecks' : CommandElabM (Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun vs => do
     let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
     let actNames := ((← stsExt.get).actions).map Expr.constName!
+    trace[sauto.debug] "invNames: {invNames}"
+    trace[sauto.debug] "actNames: {actNames}"
     let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{name}"))
     let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{name}"))
+    trace[sauto.debug] "invNamesInds: {invNamesInds}"
+    trace[sauto.debug] "actNamesInds: {actNamesInds}"
     let mut ret := #[]
     for act in invNamesInds do
        for inv in actNamesInds do
          ret := ret.push (act, inv)
+    trace[sauto.debug] "ret: {ret}"
     return ret
 
 /-- Generate theorems to check the given invariant clause in the initial
@@ -544,12 +549,16 @@ where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
     | none =>
       acc ++ [(key, [val])]) []
 
+def List.removeDuplicates [BEq α] (xs : List α) : List α :=
+  xs.foldl (init := []) fun acc x =>
+    if acc.contains x then acc else x :: acc
+
 def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := Command.runTermElabM fun vs => do
   -- TODO: Init checks
   let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
-  let actIndicators := (checks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList
-  let invIndicators := (checks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList
+  let actIndicators := (checks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
+  let invIndicators := (checks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
   let ge ← getEnv
   let actStxList ← actIndicators.mapM (fun (actName, indName) => do
     let .some _ := ge.find? actName
@@ -570,16 +579,16 @@ def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Exp
     return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
   ) $ indicators.toArray
   let actTpStx ← `(∀ $[$params]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
-  trace[sauto.debug] "{actTpStx}"
-
   let expr ← elabTerm actTpStx none
   let g ← mkFreshExprMVar expr
   let [l] ← Tactic.run g.mvarId! (do
     Tactic.evalTactic (← `(tactic|unhygienic intros))
-    let _ ← elabSimplifyClause
+    let (props, _) ← elabSimplifyClause
+    trace[sauto.debug] "props: {props}"
     for mvarId in (← Tactic.getGoals) do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     Tactic.pruneSolvedGoals
+    -- Reverts everything that is not `Type`
     withMainContext do
       let hypsNew <- getLCtx
       for hyp in hypsNew.decls.toArray.reverse do
@@ -588,12 +597,15 @@ def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Exp
           unless hyp.type.isType do
             tryGoal $ run `(tactic| revert $(mkIdent hyp.userName):ident)
    ) | throwError "Expected exactly one goal"
-  let cmd ← forallBoundedTelescope (<- l.getType) (maxFVars? := params.size)
-    fun _ tp => do
-    trace[sauto.debug] "goal:\n{tp}"
-    let cmds ← Smt.prepareSmtQuery [] tp
+  trace[sauto.debug] "{<- l.getType}"
+  let cmd ← forallTelescope (<- l.getType)
+    fun ks tp => do
+    trace[sauto.debug] "to translate:\n{tp}"
+    let props ← ks.filterM (fun k => return ← Meta.isProp (← inferType k))
+    trace[sauto.debug] "props: {props}"
+    let cmds ← Smt.prepareSmtQuery props.toList tp
     let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
-    trace[sauto.debug] "goal:\n{cmdString}"
+    trace[sauto.debug] "translated:\n{cmdString}"
     pure cmdString
   let timeout := auto.smt.timeout.get (← getOptions)
   let res ← querySolverWithIndicators cmd timeout checks (getModel? := true) (retryOnFailure := true)
