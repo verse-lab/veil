@@ -414,20 +414,7 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
       | none => throwError "DSL: missing label constructor for action {s.name}"
       | some ctor => pure ctor)
     trace[dsl] "storing constructors for {name}"
-    stsStateGlobalExt.modify (fun s => s.insert name ctors)
     `(inductive $labelTypeName where $[$ctors]*)
-
-def mergeLabelType (n m nm : Name) : CommandElabM Unit := do
-  elabCommand $ ← Command.runTermElabM fun _ => do
-    let stss <- stsStateGlobalExt.get
-    trace[dsl] "{stss.toList}"
-    let .some nctrs := stss.find? n | throwError "DSL: missing type {n}"
-    let .some mctrs := stss.find? m | throwError "DSL: missing type {m}"
-    let ctors := (nctrs ++ mctrs).toList.eraseDups.toArray
-    `(inductive $(mkIdent nm) where $[$ctors]*)
-
-elab "#merge_labels" n:ident m:ident "into" nm:ident : command => do
-  mergeLabelType n.getId m.getId nm.getId
 
 /-- Assembles the IOAutomata `ActionMap` for this specification. This is
 a bit strange, since it constructs a term (syntax) to build a value. -/
@@ -506,6 +493,7 @@ def setOptionPrintModel : CommandElabM Unit := do
 @[inherit_doc instantiateSystem]
 elab "#gen_spec" name:ident : command => do
   instantiateSystem name.getId
+  Command.runTermElabM fun _ => do registerDSLSpecification (← stsExt.get).spec
 
 def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Bool := do
   withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do

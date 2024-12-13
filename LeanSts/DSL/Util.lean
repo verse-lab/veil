@@ -34,16 +34,22 @@ structure StsState where
   establishedClauses : List Name := []
 deriving Inhabited
 
-abbrev Transitions :=  Array (TSyntax `Lean.Parser.Command.ctor)
-abbrev StsStateGlobal := HashMap Name Transitions
+abbrev StsStateGlobal := HashMap Name DSLSpecification
 
 initialize stsStateGlobalExt :
-    SimpleScopedEnvExtension (Name × Transitions) StsStateGlobal <-
+  SimpleScopedEnvExtension (Name × DSLSpecification) StsStateGlobal <-
   registerSimpleScopedEnvExtension {
     name := `state_global
     initial := ∅
     addEntry := fun s (n, thm) => s.insert n thm
   }
+
+def registerDSLSpecification (spec : DSLSpecification) : AttrM Unit := do
+  let n := spec.name
+  if (← stsStateGlobalExt.get).contains n then
+    throwError "Specification {n} has already been declared"
+  trace[dsl] "Globally declaring specification {n}"
+  stsStateGlobalExt.modify (fun s => s.insert n spec)
 
 open StsState
 
