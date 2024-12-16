@@ -468,17 +468,12 @@ def getAllChecks : CommandElabM (InitChecksT × ActionsChecksT) := do
 def getAllChecks' : CommandElabM (Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun vs => do
     let invNames := ((← stsExt.get).invariants ++ (← stsExt.get).safeties).map Expr.constName!
     let actNames := ((← stsExt.get).actions).map Expr.constName!
-    trace[sauto.debug] "invNames: {invNames}"
-    trace[sauto.debug] "actNames: {actNames}"
     let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName name}"))
     let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{mkPrintableName name}"))
-    trace[sauto.debug] "invNamesInds: {invNamesInds}"
-    trace[sauto.debug] "actNamesInds: {actNamesInds}"
     let mut ret := #[]
     for act in invNamesInds do
        for inv in actNamesInds do
          ret := ret.push (act, inv)
-    trace[sauto.debug] "ret: {ret}"
     return ret
 
 /-- Generate theorems to check the given invariant clause in the initial
@@ -549,9 +544,6 @@ where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
     | none =>
       acc ++ [(key, [val])]) []
 
-def List.removeDuplicates [BEq α] (xs : List α) : List α :=
-  xs.foldl (init := []) fun acc x =>
-    if acc.contains x then acc else x :: acc
 
 def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := Command.runTermElabM fun vs => do
@@ -584,7 +576,6 @@ def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Exp
   let [l] ← Tactic.run g.mvarId! (do
     Tactic.evalTactic (← `(tactic|unhygienic intros))
     let (props, _) ← elabSimplifyClause
-    trace[sauto.debug] "props: {props}"
     for mvarId in (← Tactic.getGoals) do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     Tactic.pruneSolvedGoals
@@ -597,15 +588,11 @@ def checkTheorems' (stx : Syntax) (checks: Array ((Name × Expr) × (Name × Exp
           unless hyp.type.isType do
             tryGoal $ run `(tactic| revert $(mkIdent hyp.userName):ident)
    ) | throwError "Expected exactly one goal"
-  trace[sauto.debug] "{<- l.getType}"
   let cmd ← forallTelescope (<- l.getType)
     fun ks tp => do
-    trace[sauto.debug] "to translate:\n{tp}"
     let props ← ks.filterM (fun k => return ← Meta.isProp (← inferType k))
-    trace[sauto.debug] "props: {props}"
     let cmds ← Smt.prepareSmtQuery props.toList tp
     let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
-    trace[sauto.debug] "translated:\n{cmdString}"
     pure cmdString
   let timeout := auto.smt.timeout.get (← getOptions)
   let res ← querySolverWithIndicators cmd timeout checks (getModel? := true) (retryOnFailure := true)

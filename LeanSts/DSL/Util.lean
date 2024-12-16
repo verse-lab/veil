@@ -259,3 +259,7 @@ def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
 print these to SMT. -/
 def mkPrintableName (n : Name) : Name :=
   Name.mkSimple $ "_".intercalate (n.components.map toString)
+
+def List.removeDuplicates [BEq α] (xs : List α) : List α :=
+  xs.foldl (init := []) fun acc x =>
+    if acc.contains x then acc else x :: acc

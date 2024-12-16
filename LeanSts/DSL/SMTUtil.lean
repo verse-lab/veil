@@ -26,15 +26,26 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
       emitCommand solver (.setOption (.produceUnsatCores true))
     emitCommandStr solver goalQuery
     let mut ret := []
-    for ((inv, invInd), (act, actInd)) in checks do
-      emitCommandStr solver "(push)"
-      emitCommandStr solver s!"(assert {actInd})"
-      emitCommandStr solver s!"(assert {invInd})"
+
+    let actIndicators := (checks.map (fun (_, (_, ind_name)) => ind_name.constName!)).toList.removeDuplicates
+    let invIndicators := (checks.map (fun ((_, ind_name), _) => ind_name.constName!)).toList.removeDuplicates
+    let indicatorNames := actIndicators ++ invIndicators
+
+    for check in checks do
+      let ((inv, invInd), (act, actInd)) := check
       trace[sauto.debug] "Now running solver"
-      let result ← getSolverResult solver solverName minimize false (if retryOnFailure then 1 else 0)
-      trace[sauto.debug] "Test result: {result}"
-      ret := ret ++ [((act, inv, result))]
-      emitCommandStr solver "(pop)"
+      let expression := indicatorNames.foldl (fun acc new => if new == actInd.constName || new == invInd.constName then s!"{mkPrintableName new} {acc}" else s!"(not {mkPrintableName new}) {acc}") ""
+      emitCommandStr solver s!"(check-sat-assuming (and {expression}))\n"
+      let stdout ← Handle.readLineSkip solver.stdout
+      let (checkSatResponse, _) ← getSexp stdout
+      let checkSatResponse: SmtResult := match checkSatResponse with
+        | .atom (.symb "sat") => SmtResult.Sat none
+        | .atom (.symb "unsat") => SmtResult.Unsat (.app #[])
+        | e => SmtResult.Unknown s!"{e}"
+
+      trace[sauto.debug] "Test result: {checkSatResponse}"
+      ret := ret ++ [((act, inv, checkSatResponse))]
+    trace[sauto.debug] "Results for all actions and invariants: {ret}"
     solver.kill
     return ret
   catch e =>
