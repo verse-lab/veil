@@ -18,8 +18,8 @@ def _root_.Lean.EnvExtension.modify [Inhabited σ] (ext : EnvExtension σ) (s : 
 def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ) : AttrM σ := do
   return ext.getState (<- getEnv)
 
-def _root_.Lean.SimpleScopedEnvExtension.modify [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) (s : σ -> σ) : AttrM Unit := do
-  Lean.modifyEnv (ext.modifyState · s)
+-- def _root_.Lean.SimpleScopedEnvExtension.add [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) (k : Name) (v : DSLSpecification) : AttrM Unit := do
+--   ext.add (k, v)
 
 def _root_.Lean.SimpleScopedEnvExtension.get [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) : AttrM σ := do
   return ext.getState (<- getEnv)
@@ -34,8 +34,10 @@ structure StsState where
   establishedClauses : List Name := []
 deriving Inhabited
 
-abbrev StsStateGlobal := HashMap Name DSLSpecification
+initialize stsExt : EnvExtension StsState ←
+  registerEnvExtension (pure default)
 
+abbrev StsStateGlobal := HashMap Name DSLSpecification
 initialize stsStateGlobalExt :
   SimpleScopedEnvExtension (Name × DSLSpecification) StsStateGlobal <-
   registerSimpleScopedEnvExtension {
@@ -49,12 +51,8 @@ def registerDSLSpecification (spec : DSLSpecification) : AttrM Unit := do
   if (← stsStateGlobalExt.get).contains n then
     throwError "Specification {n} has already been declared"
   trace[dsl] "Globally declaring specification {n}"
-  stsStateGlobalExt.modify (fun s => s.insert n spec)
-
-open StsState
-
-initialize stsExt : EnvExtension StsState ←
-  registerEnvExtension (pure default)
+  -- stsStateGlobalExt.modify (fun s => s.insert n spec)
+  stsStateGlobalExt.add (n, spec)
 
 syntax (name:= state) "stateDef" : attr
 
