@@ -24,7 +24,7 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
       emitCommand solver (.setLogic "ALL")
       emitCommand solver (.setOption (.produceProofs true))
       emitCommand solver (.setOption (.produceUnsatCores true))
-    emitCommandStr solver goalQuery
+    emitCommandStr solver s!"{goalQuery}\n"
     let mut ret := []
 
     let actIndicators := (checks.map (fun (_, (_, ind_name)) => ind_name.constName!)).toList.removeDuplicates

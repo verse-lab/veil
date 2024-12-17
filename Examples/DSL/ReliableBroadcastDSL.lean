@@ -1,7 +1,7 @@
 import LeanSts.DSL
 
 section ReliableBroadcast
-
+open Classical
 /-
   Reliable Broadcast is a Byzantine fault-tolerant broadcast protocol
   that ensures that all honest nodes deliver the same message, as long

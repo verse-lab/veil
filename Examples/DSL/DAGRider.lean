@@ -1,4 +1,5 @@
 import LeanSts.DSL
+open Classical
 -- import Mathlib.Tactic
 
 section DAGRider
