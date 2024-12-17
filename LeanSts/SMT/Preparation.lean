@@ -80,6 +80,7 @@ elab "rename_binders" : tactic => do
   let goal' ← goal.replaceTargetDefEq' goalType'
   setGoals [goal']
 
+@[smtSimp] theorem iff_eq_eq : (p ↔ q) = (p = q) := propext ⟨propext, (· ▸ ⟨(·), (·)⟩)⟩
 
 /-- Tuples are not supported in SMT-LIB, so we destruct tuple equalities. -/
 @[smtSimp] theorem tupleEq [DecidableEq t1] [DecidableEq t2] (a c : t1) (b d : t2):
