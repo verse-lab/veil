@@ -4,7 +4,7 @@ import itertools
 import sys
 from dataclasses import dataclass
 import time
-import multiprocessing
+import multiprocessing as mp
 
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, TypeAlias, Union
 
@@ -23,6 +23,8 @@ import z3
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '--tlimit', help='time limit in milliseconds', type=int, default=10000)
+parser.add_argument(
+    '--log', help='SMT query log file', type=argparse.FileType('a'), default=None)
 
 # # https://stackoverflow.com/questions/51286748/make-the-python-json-encoder-support-pythons-new-dataclasses
 # class EnhancedJSONEncoder(json.JSONEncoder):
@@ -328,6 +330,11 @@ def get_model(passedLines: List[str]) -> Model:
     print(f"Model: {m}", file=sys.stderr)
     return Model(m)
 
+def log_query(query: str):
+    if args.log is not None:
+        args.log.write(query)
+        args.log.write("\n")
+
 
 def run(args):
     z3.set_param('timeout', args.tlimit)
@@ -340,41 +347,36 @@ def run(args):
     cfg = z3.Z3_mk_config()
     ctx = z3.Z3_mk_context(cfg)
 
+    log_query("% ---")
     # lines we've passed to Z3 thus far
     passedLines = []
-    f = open("log.smt", "a")
-    f.write(f"Running with args: {args}\n")
     for line in sys.stdin:
-        f.write(line, flush=True)
+        log_query(line)
         # Overwrite the behaviour of `(get-model)` to print the model in a more readable format
         if "(get-model)" in line:
-            m = get_model(passedLines)
-            print(m, flush=True)
+            def print_model(passedLines):
+                m = get_model(passedLines)
+                print(m, flush=True)
+            p = mp.Process(target=print_model)
+            start = time.monotonic()
+            p.start()
+            # Kill after `args.tlimit` seconds
+            tlimit_s = args.tlimit / 1000
+            p.join(tlimit_s)
+            if p.is_alive():
+                print(f"Timeout in model generation after {time.monotonic() - start:.2f} seconds!", file=sys.stderr)
+                print("unknown", flush=True)
+                p.kill()
+                p.join()
+                sys.exit(1)
         # Execute all other commands as usual
         else:
             res = z3.Z3_eval_smtlib2_string(ctx, line)
             passedLines.append(line)
             if len(res) != 0:
                 print(res, flush=True)
-    f.close()
-    sys.exit(0)
+
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    def f():
-        sys.stdin = open(0)
-        run(args)
-    p = multiprocessing.Process(target=f)
-    start = time.monotonic()
-    p.start()
-
-    # Kill after `args.tlimit` seconds
-    tlimit_s = args.tlimit / 1000
-    p.join(tlimit_s)
-
-    if p.is_alive():
-        print(f"Timeout after {time.monotonic() - start:.2f} seconds!", file=sys.stderr)
-        print("unknown", flush=True)
-        p.kill()
-        p.join()
-        sys.exit(1)
+    run(args)
