@@ -460,60 +460,87 @@ inductive CheckInvariantsBehaviour
   | printAndCheckTheorems
 
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
-  CommandElabM Unit := Command.runTermElabM fun vs => do
-  let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
+  CommandElabM Unit := do
+
   let ge ← getEnv
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
-  let actStxList ← actIndicators.mapM (fun (actName, indName) => do
-    let .some _ := ge.find? actName
-      | throwError s!"action {actName} not found"
-    let act ← mkConst actName
-    pure (mkAnd (mkApp2 (mkAppN act vs) (mkConst st.getId) (mkConst st'.getId)) indName)
-    )
-  let invStxList ← invIndicators.mapM (fun (invName, indName) => do
-    let .some _ := ge.find? invName
-      | throwError s!"invariant {invName} not found"
-    let inv ← mkConst invName
-    pure (mkOr (mkApp (mkAppN inv vs) (mkConst st'.getId)) (mkNot indName))
-  )
-  let _actions ← PrettyPrinter.delab $ mkOrN actStxList
-  let invariants ← PrettyPrinter.delab $ Lean.mkAndN invStxList
-  let allIndicators := List.append invIndicators actIndicators
-  let timeout := auto.smt.timeout.get (← getOptions)
-
-  -- Init checks
-  let initParams ← Array.mapM (fun (_, e) => do
-    return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
-  ) $ invIndicators.toArray
-  -- EK: We're using `st'` and not st because `invariants` is already phrased in terms of `st'`.
-  let initTpStx ← `(∀ $[$initParams]* ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invariants)
-  let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
-  let initRes ← querySolverWithIndicators initCmd timeout (initChecks.map (fun a => #[a])) (getModel? := true) (retryOnFailure := true)
-  let initMsgs := getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
-    | [invName] => (invName, match res with
-      | .Unsat _ => true
-      | _ => false)
-    | _ => unreachable!)
-
-  -- Action checks
-  let actParams ← Array.mapM (fun (_, e) => do
-    return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
-  ) $ allIndicators.toArray
-  let actTpStx ← `(∀ $[$actParams]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
-  let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
-  let actRes ← querySolverWithIndicators actCmd timeout (invChecks.map (fun (a, b) => #[a, b])) (getModel? := true) (retryOnFailure := true)
-  let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
-    | [actName, invName] => (actName, invName, match res with
-      | .Unsat _ => true
-      | _ => false)
-    | _ => unreachable!)
-
-  let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList)
   match behaviour with
-    | .checkTheorems => dbg_trace msg
-    | .printAndCheckTheorems => liftCommandElabM $ displaySuggestion stx #[] (preMsg := msg) -- TODO theorems
-    | _ => unreachable!
+  | .printTheorems =>
+    let theorems ← Command.runTermElabM fun vs => do
+      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
+      let mut theorems := #[]
+      for (invName, _) in invIndicators do
+        let .some _ := ge.find? invName
+          | throwError s!"invariant {invName} not found"
+        let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
+        let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invStx $st')
+        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := sorry)
+        theorems := theorems.push thm
+        for (actName, _) in actIndicators do
+          let .some _ := ge.find? actName
+            | throwError s!"action {actName} not found"
+          let actStx ← PrettyPrinter.delab $ mkAppN (mkConst actName) vs
+          let actTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $invStx $st')
+          let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := sorry)
+          theorems := theorems.push thm
+      pure theorems
+    -- for thm in theorems do
+    --   trace[sauto.debug] thm
+    displaySuggestion stx theorems
+  | .checkTheorems | .printAndCheckTheorems =>
+    let msg ← Command.runTermElabM fun vs => do
+      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
+      let actStxList ← actIndicators.mapM (fun (actName, indName) => do
+        let .some _ := ge.find? actName
+          | throwError s!"action {actName} not found"
+        let act ← mkConst actName
+        pure (mkAnd (mkApp2 (mkAppN act vs) (mkConst st.getId) (mkConst st'.getId)) indName)
+        )
+      let invStxList ← invIndicators.mapM (fun (invName, indName) => do
+        let .some _ := ge.find? invName
+          | throwError s!"invariant {invName} not found"
+        let inv ← mkConst invName
+        pure (mkOr (mkApp (mkAppN inv vs) (mkConst st'.getId)) (mkNot indName))
+      )
+      let _actions ← PrettyPrinter.delab $ mkOrN actStxList
+      let invariants ← PrettyPrinter.delab $ Lean.mkAndN invStxList
+      let allIndicators := List.append invIndicators actIndicators
+      let timeout := auto.smt.timeout.get (← getOptions)
+
+      -- Init checks
+      let initParams ← Array.mapM (fun (_, e) => do
+        return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
+      ) $ invIndicators.toArray
+      -- EK: We're using `st'` and not st because `invariants` is already phrased in terms of `st'`.
+      let initTpStx ← `(∀ $[$initParams]* ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invariants)
+      let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
+      let initRes ← querySolverWithIndicators initCmd timeout (initChecks.map (fun a => #[a])) (getModel? := true) (retryOnFailure := true)
+      let initMsgs := getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
+        | [invName] => (invName, match res with
+          | .Unsat _ => true
+          | _ => false)
+        | _ => unreachable!)
+
+      -- Action checks
+      let actParams ← Array.mapM (fun (_, e) => do
+        return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
+      ) $ allIndicators.toArray
+      let actTpStx ← `(∀ $[$actParams]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
+      let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
+      let actRes ← querySolverWithIndicators actCmd timeout (invChecks.map (fun (a, b) => #[a, b])) (getModel? := true) (retryOnFailure := true)
+      let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
+        | [actName, invName] => (actName, invName, match res with
+          | .Unsat _ => true
+          | _ => false)
+        | _ => unreachable!)
+
+      let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList)
+      pure msg
+    match behaviour with
+      | .checkTheorems => dbg_trace msg
+      | .printAndCheckTheorems => displaySuggestion stx #[] (preMsg := msg) -- TODO theorems
+      | _ => unreachable!
 
 
 /- ## `#check_invariants` -/
