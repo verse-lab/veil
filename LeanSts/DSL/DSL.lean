@@ -459,35 +459,35 @@ inductive CheckInvariantsBehaviour
   /-- `#check_invariants!` -/
   | printAndCheckTheorems
 
+def theoremSuggestionsForIndicators (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
+  Command.runTermElabM fun vs => do
+    let ge ← getEnv
+    let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
+    let mut theorems := #[]
+    for (invName, _) in invIndicators do
+      let .some _ := ge.find? invName
+        | throwError s!"invariant {invName} not found"
+      let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
+      let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invStx $st')
+      let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
+      theorems := theorems.push thm
+      for (actName, _) in actIndicators do
+        let .some _ := ge.find? actName
+          | throwError s!"action {actName} not found"
+        let actStx ← PrettyPrinter.delab $ mkAppN (mkConst actName) vs
+        let actTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $invStx $st')
+        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := by unhygienic intros; solve_clause [$(mkIdent actName)])
+        theorems := theorems.push thm
+    return theorems
+
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := do
-
   let ge ← getEnv
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
+  let mut theorems ← theoremSuggestionsForIndicators actIndicators invIndicators
   match behaviour with
-  | .printTheorems =>
-    let theorems ← Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
-      let mut theorems := #[]
-      for (invName, _) in invIndicators do
-        let .some _ := ge.find? invName
-          | throwError s!"invariant {invName} not found"
-        let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
-        let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invStx $st')
-        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
-        theorems := theorems.push thm
-        for (actName, _) in actIndicators do
-          let .some _ := ge.find? actName
-            | throwError s!"action {actName} not found"
-          let actStx ← PrettyPrinter.delab $ mkAppN (mkConst actName) vs
-          let actTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $invStx $st')
-          let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := by unhygienic intros; solve_clause [$(mkIdent actName)])
-          theorems := theorems.push thm
-      pure theorems
-    -- for thm in theorems do
-    --   trace[sauto.debug] thm
-    displaySuggestion stx theorems
+  | .printTheorems => displaySuggestion stx theorems
   | .checkTheorems | .printAndCheckTheorems =>
     let msg ← Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
@@ -535,11 +535,11 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
           | _ => false)
         | _ => unreachable!)
 
-      let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList)
+      let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList) ++ "\n"
       pure msg
     match behaviour with
       | .checkTheorems => dbg_trace msg
-      | .printAndCheckTheorems => displaySuggestion stx #[] (preMsg := msg) -- TODO theorems
+      | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
       | _ => unreachable!
 
 
