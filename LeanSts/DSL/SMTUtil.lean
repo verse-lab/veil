@@ -36,10 +36,9 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
 
 open Smt Smt.Tactic Translate Lean Lean.Meta Auto.Solver.SMT in
 def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Array (Array (Name × Expr))) (forceSolver : Option SolverName := none)
-  (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM (List ((List Name) × SmtResult)) := do
+  : MetaM (List ((List Name) × SmtResult)) := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolverWithIndicators") do
   let opts ← getOptions
-    let minimize := minimize.getD (sauto.model.minimize.get opts)
     let solverName :=
       match forceSolver with
       | some s => s
@@ -84,57 +83,3 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
       let lefts := (l.map (fun (a, _) => a)).toList
       ret := ret ++ [(lefts, (.Unknown s!"{exMsg}"))]
     return ret
-
-where getSolverResult (solver: SolverProc) (solverName: SolverName) (minimize: Bool) (kill: Bool) (retries: Nat) : MetaM SmtResult := do
-  -- TODO: querySolver should use this version of the function.
-  trace[sauto.debug] "Now checking sat"
-  let checkSatResponse ← checkSat solver solverName
-  trace[sauto.debug] "After check sat"
-    match checkSatResponse with
-    | .Sat =>
-        trace[sauto.result] "{solverName} says Sat"
-        if getModel? then
-          let model ← getModel solver
-          trace[sauto.debug] "Model:\n{model}"
-          -- For Z3, we have model pretty-printing and minimization.
-          if solverName == SolverName.z3 then
-            let mut fostruct ← extractStructure model
-            if minimize then
-              fostruct ← minimizeModel solver solverName fostruct (kill := kill)
-            trace[sauto.model] "{fostruct}"
-            return .Sat fostruct
-          -- Non-Z3 solver
-          else
-            trace[sauto.model] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
-            trace[sauto.model] "Model:\n{model}"
-            if kill then
-              solver.kill
-            return .Sat .none
-        else
-          if kill then
-              solver.kill
-          return .Sat .none
-    | .Unsat =>
-        trace[sauto.result] "{solverName} says Unsat"
-        let unsatCore ← getUnsatCore solver (kill := kill)
-        trace[sauto.result] "Unsat core: {unsatCore}"
-        -- trace[sauto] "stderr:\n{stderr}"
-        return .Unsat unsatCore
-    | .Unknown reason =>
-        trace[sauto.result] "{solverName} says Unknown ({reason})"
-        if retries > 0 then
-          match solverToTryOnUnknown solverName with
-          | some s => do
-            if kill then
-              solver.kill
-            trace[sauto.result] "Retrying the query with {s}"
-            getSolverResult solver s minimize kill (retries - 1)
-          | none =>
-            if kill then
-              solver.kill
-            return .Unknown reason
-        else
-          if kill then
-            solver.kill
-          return .Unknown reason
-termination_by retries
