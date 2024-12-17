@@ -1,15 +1,42 @@
 import Smt
 import Lean
 import LeanSts.SMT.Main
+import LeanSts.DSL.TacticUtil
+import LeanSts.Tactic.Main
 import Auto.Solver.SMT
 import Auto
 
 open Lean hiding Command Declaration
 
+open Lean Elab Command Term Meta Tactic in
+def translateExprToSmt (expr: Expr) : TermElabM String := do
+  let g ← mkFreshExprMVar expr
+  let [l] ← Tactic.run g.mvarId! (do
+    Tactic.evalTactic (← `(tactic|unhygienic intros))
+    let _ ← elabSimplifyClause
+    for mvarId in (← Tactic.getGoals) do
+      liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
+    Tactic.pruneSolvedGoals
+    -- Reverts everything that is not `Type`
+    withMainContext do
+      let hypsNew <- getLCtx
+      for hyp in hypsNew.decls.toArray.reverse do
+        if hyp.isSome then
+          let hyp := hyp.get!
+          unless hyp.type.isType do
+            tryGoal $ run `(tactic| revert $(mkIdent hyp.userName):ident)
+   ) | throwError "Expected exactly one goal"
+  let cmd ← forallTelescope (<- l.getType)
+    fun ks tp => do
+    let props ← ks.filterM (fun k => return ← Meta.isProp (← inferType k))
+    let cmds ← Smt.prepareSmtQuery props.toList tp
+    let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
+    pure cmdString
+  return cmd
 
 open Smt Smt.Tactic Translate Lean Lean.Meta Auto.Solver.SMT in
-def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Array ((Name × Expr) × (Name × Expr))) (forceSolver : Option SolverName := none)
-  (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM (List (Name × Name × SmtResult)) := do
+def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Array (Array (Name × Expr))) (forceSolver : Option SolverName := none)
+  (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM (List ((List Name) × SmtResult)) := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolverWithIndicators") do
   let opts ← getOptions
     let minimize := minimize.getD (sauto.model.minimize.get opts)
@@ -27,14 +54,16 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
     emitCommandStr solver s!"{goalQuery}\n"
     let mut ret := []
 
-    let actIndicators := (checks.map (fun (_, (_, ind_name)) => ind_name.constName!)).toList.removeDuplicates
-    let invIndicators := (checks.map (fun ((_, ind_name), _) => ind_name.constName!)).toList.removeDuplicates
-    let indicatorNames := actIndicators ++ invIndicators
+    let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).join
 
     for check in checks do
-      let ((inv, invInd), (act, actInd)) := check
       trace[sauto.debug] "Now running solver"
-      let expression := indicatorNames.foldl (fun acc new => if new == actInd.constName || new == invInd.constName then s!"{mkPrintableName new} {acc}" else s!"(not {mkPrintableName new}) {acc}") ""
+      let variablesInCheck := (check.map (fun (act, _) => act)).toList
+      let indicatorsInCheck := check.map (fun (_, ind) => ind.constName!)
+      let expression := indicatorNames.foldl (fun acc new =>
+        if indicatorsInCheck.contains new then
+          s!"{mkPrintableName new} {acc}"
+        else s!"(not {mkPrintableName new}) {acc}") ""
       emitCommandStr solver s!"(check-sat-assuming (and {expression}))\n"
       let stdout ← Handle.readLineSkip solver.stdout
       let (checkSatResponse, _) ← getSexp stdout
@@ -44,15 +73,16 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
         | e => SmtResult.Unknown s!"{e}"
 
       trace[sauto.debug] "Test result: {checkSatResponse}"
-      ret := ret ++ [((act, inv, checkSatResponse))]
+      ret := ret ++ [((variablesInCheck, checkSatResponse))]
     trace[sauto.debug] "Results for all actions and invariants: {ret}"
     solver.kill
     return ret
   catch e =>
     let exMsg ← e.toMessageData.toString
     let mut ret := []
-    for ((inv, invInd), (act, actInd)) in checks do
-      ret := ret ++ [(act, inv, .Unknown s!"{exMsg}")]
+    for l in checks do
+      let lefts := (l.map (fun (a, _) => a)).toList
+      ret := ret ++ [(lefts, (.Unknown s!"{exMsg}"))]
     return ret
 
 where getSolverResult (solver: SolverProc) (solverName: SolverName) (minimize: Bool) (kill: Bool) (retries: Nat) : MetaM SmtResult := do
