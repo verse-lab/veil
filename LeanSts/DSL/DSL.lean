@@ -475,14 +475,14 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
           | throwError s!"invariant {invName} not found"
         let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
         let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invStx $st')
-        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := sorry)
+        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
         theorems := theorems.push thm
         for (actName, _) in actIndicators do
           let .some _ := ge.find? actName
             | throwError s!"action {actName} not found"
           let actStx ← PrettyPrinter.delab $ mkAppN (mkConst actName) vs
           let actTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $invStx $st')
-          let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := sorry)
+          let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := by unhygienic intros; solve_clause [$(mkIdent actName)])
           theorems := theorems.push thm
       pure theorems
     -- for thm in theorems do
