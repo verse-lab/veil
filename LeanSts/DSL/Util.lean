@@ -1,168 +1,32 @@
 import Lean
-import Lean.Elab.Tactic
-import Lean.Meta
-import Lean.Parser
-import LeanSts.State
-import Batteries.Lean.Meta.UnusedNames
-import LeanSts.IOAutomata
-import LeanSts.DSL.Specifications
+import LeanSts.DSL.StateExtensions
 
-open Lean Meta Elab Lean.Parser
-
-def _root_.Lean.EnvExtension.set [Inhabited σ] (ext : EnvExtension σ) (s : σ) : AttrM Unit := do
-  Lean.setEnv $ ext.setState (<- getEnv) s
-
-def _root_.Lean.EnvExtension.modify [Inhabited σ] (ext : EnvExtension σ) (s : σ -> σ) : AttrM Unit := do
-  Lean.modifyEnv (ext.modifyState · s)
-
-def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ) : AttrM σ := do
-  return ext.getState (<- getEnv)
-
--- def _root_.Lean.SimpleScopedEnvExtension.add [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) (k : Name) (v : DSLSpecification) : AttrM Unit := do
---   ext.add (k, v)
-
-def _root_.Lean.SimpleScopedEnvExtension.get [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) : AttrM σ := do
-  return ext.getState (<- getEnv)
-
-/-- Auxiliary structure to store the transition system objects. This is
-per-file temporary state. -/
-structure StsState where
-  spec : DSLSpecification
-  /-- base name of the State type; set when `#gen_state` runs -/
-  stateBaseName: Name
-  /-- established invariant clauses; set on `@[invProof]` label -/
-  establishedClauses : List Name := []
-deriving Inhabited
-
-initialize stsExt : EnvExtension StsState ←
-  registerEnvExtension (pure default)
-
-abbrev StsStateGlobal := HashMap Name DSLSpecification
-initialize stsStateGlobalExt :
-  SimpleScopedEnvExtension (Name × DSLSpecification) StsStateGlobal <-
-  registerSimpleScopedEnvExtension {
-    name := `state_global
-    initial := ∅
-    addEntry := fun s (n, thm) => s.insert n thm
-  }
-
-def registerDSLSpecification (spec : DSLSpecification) : AttrM Unit := do
-  let n := spec.name
-  if (← stsStateGlobalExt.get).contains n then
-    throwError "Specification {n} has already been declared"
-  trace[dsl] "Globally declaring specification {n}"
-  -- stsStateGlobalExt.modify (fun s => s.insert n spec)
-  stsStateGlobalExt.add (n, spec)
-
-syntax (name:= state) "stateDef" : attr
-
-initialize registerBuiltinAttribute {
-  name := `state
-  descr := "Marks as an state type"
-  add := fun declName _ _ => do
-    let stsTp := (<- stsExt.get).spec.stateType
-    unless stsTp == default do
-      throwError "State type has already been declared: {stsTp}"
-    let ty := mkConst declName
-    stsExt.modify (fun s => { s with spec := {s.spec with stateType := ty }})
-}
-
-syntax (name:= initial) "initDef" : attr
-
-initialize registerBuiltinAttribute {
-  name := `initial
-  descr := "Marks as an initial state"
-  add := fun declName _ _ => do
-    -- Check if the initial state has already been declared
-    let intTp := (<- stsExt.get).spec.init
-    unless intTp == default do
-      throwError "Inital state predicate has already been declared"
-    let init := { name := declName, lang := none, expr := mkConst declName }
-    stsExt.modify (fun s => { s with spec := {s.spec with init := init }})
-}
-
-syntax (name:= internalActDef) "internalActDef" : attr
-syntax (name:= inputActDef) "inputActDef" : attr
-syntax (name:= outputActDef) "outputActDef" : attr
-
-open Lean.Parser.Term in
-def toActionAttribute (type : IOAutomata.ActionType) : AttrM (TSyntax `Lean.Parser.Term.attrInstance) :=
-  match type with
-  | .internal => `(attrInstance|internalActDef)
-  | .input => `(attrInstance|inputActDef)
-  | .output => `(attrInstance|outputActDef)
-
-def addAction (type : IOAutomata.ActionType) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
-  fun _ _ => do
-    let spec := ActionSpecification.mkPlain type declName (mkConst declName)
-    stsExt.modify (fun s => { s with spec := {s.spec with transitions := s.spec.transitions.push spec }})
-
-initialize registerBuiltinAttribute {
-  name := `internalActDef
-  descr := "Marks as an (internal) transition"
-  add := addAction .internal
-}
-initialize registerBuiltinAttribute {
-  name := `inputActDef
-  descr := "Marks as an input transition"
-  add := addAction .input
-}
-
-initialize registerBuiltinAttribute {
-  name := `outputActDef
-  descr := "Marks as an output transition"
-  add := addAction .output
-}
-
-syntax (name:= safe) "safeDef" : attr
-
-initialize registerBuiltinAttribute {
-  name := `safe
-  descr := "Marks as a safety property"
-  add := fun declName _ _ => do
-    let prop := { kind := .safety, name := declName, term := none, expr := mkConst declName }
-    stsExt.modify (fun s => { s with spec := {s.spec with invariants := s.spec.invariants.push prop}})
-}
-
-
-syntax (name:= inv) "invDef" : attr
-
-initialize registerBuiltinAttribute {
-  name := `inv
-  descr := "Marks as an invariant clause"
-  add := fun declName _ _ => do
-    let prop := { kind := .invariant, name := declName, term := none, expr := mkConst declName }
-    stsExt.modify (fun s => { s with spec := {s.spec with invariants := s.spec.invariants.push prop}})
-}
-
-/-- For `solve_by_elim` -/
--- register_label_attr invProof
-syntax (name := invProof) "invProof" : attr
-
-initialize registerBuiltinAttribute {
-  name := `invProof
-  descr := "Marks this theorem as the proof of an invariant clause"
-  add := fun declName _ _ => do
-    stsExt.modify (fun s => { s with establishedClauses := s.establishedClauses ++ [declName]})
-}
+open Lean Elab Command Term Meta Lean.Parser
 
 /-- Retrieves the current State structure and applies it to
     section variables `vs` -/
 def stateTp (vs : Array Expr) : AttrM Expr := do
-  let stateTp := (<- stsExt.get).spec.stateType
+  let stateTp := (<- localSpecCtx.get).spec.stateType
   unless stateTp != default do throwError "State has not been declared so far"
   return mkAppN stateTp vs
 
 /-- Retrieves the name passed to `#gen_state` -/
 def getPrefixedName (name : Name): AttrM Name := do
-  let stateName := (← stsExt.get).stateBaseName
+  let stateName := (← localSpecCtx.get).stateBaseName
   return stateName ++ name
 
 def getStateName : AttrM Name := getPrefixedName `State
 
-open Lean Elab Command Term Meta Lean.Parser
+def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
+  let args ← vs.mapM (fun v => do
+    let t ← PrettyPrinter.delab v
+    let isHygienicName := (extractMacroScopes t.raw.getId).scopes.length > 0
+    if isHygienicName then return ← `(term|_) else return t
+  )
+  return args
 
-def prop := (Lean.Expr.sort (Lean.Level.zero))
+/-- A `Lean.Expr` denoting the `Prop` type. -/
+def mkProp := (Lean.Expr.sort (Lean.Level.zero))
 
 def Term.explicitBinderF := Term.explicitBinder (requireType := false)
 def Term.implicitBinderF := Term.implicitBinder (requireType := false)
@@ -229,7 +93,8 @@ def elabBindersAndCapitals
         let e <- mkForallFVars vars e
         k vars e
 
-def my_delab :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
+/-- Elaborator with motives. -/
+def elabWithMotives :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
 
 /-- Hack for generating lists of commands. Used by `checkInvariants` -/
 declare_syntax_cat commands

@@ -1,6 +1,6 @@
 import Lean
 import LeanSts.IOAutomata
-import LeanSts.DSL.Lang
+import LeanSts.DSL.ActionLang
 import LeanSts.MetaUtil
 
 open Lean Parser
@@ -121,7 +121,7 @@ instance : ToString StateAssertion where
     | none => s!"{sa.kind} [{sa.name}] {sa.expr}"
 
 /-- A cleaned-up version of `StsState`, this gets generated on `#gen_spec` and stored in the global state. -/
-structure DSLSpecification where
+structure ModuleSpecification where
   /-- Name of the specification -/
   name        : Name
   /-- Expression representing the type of the transition system state,
@@ -141,10 +141,10 @@ deriving Inhabited
 /-- Every DSL-specified transition gets a 'constructor' that corresponds
 to the transition's signature. This is used to build up a `Label` type
 for this specification, which encodes its IO Automata signature. -/
-def DSLSpecification.transitionCtors (spec : DSLSpecification) : CoreM (Array (TSyntax `Lean.Parser.Command.ctor)) := do
+def ModuleSpecification.transitionCtors (spec : ModuleSpecification) : CoreM (Array (TSyntax `Lean.Parser.Command.ctor)) := do
   spec.transitions.mapM (fun t => do match t.decl.ctor with
     | some ctor => return ctor
     | none => throwError "DSL: missing constructor for transition {t.decl.name}")
 
-instance : ToString DSLSpecification where
-  toString spec := s!"DSLSpecification {spec.name}"
+instance : ToString ModuleSpecification where
+  toString spec := s!"ModuleSpecification {spec.name}"

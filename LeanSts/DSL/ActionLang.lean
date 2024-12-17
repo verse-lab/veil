@@ -5,8 +5,15 @@ import LeanSts.DSL.Base
 
 open Lean Elab Command Term Meta Lean.Parser
 
+/-!
+  # Action Language
+
+  This file defines the syntax and semantics for the imperative language
+  we use to define initializers and actions.
+-/
+
 section Lang
-/- Our language is parametric over the state type. -/
+/-! Our language is parametric over the state type. -/
 variable (σ : Type)
 
 /-- Imperative language for defining actions. -/
