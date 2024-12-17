@@ -459,7 +459,7 @@ inductive CheckInvariantsBehaviour
   /-- `#check_invariants!` -/
   | printAndCheckTheorems
 
-def theoremSuggestionsForIndicators (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
+def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
   Command.runTermElabM fun vs => do
     let ge ← getEnv
     let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
@@ -468,9 +468,10 @@ def theoremSuggestionsForIndicators (actIndicators invIndicators : List (Name ×
       let .some _ := ge.find? invName
         | throwError s!"invariant {invName} not found"
       let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
-      let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invStx $st')
-      let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
-      theorems := theorems.push thm
+      if generateInitThms then
+        let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invStx $st')
+        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
+        theorems := theorems.push thm
       for (actName, _) in actIndicators do
         let .some _ := ge.find? actName
           | throwError s!"action {actName} not found"
@@ -485,7 +486,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   let ge ← getEnv
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
-  let mut theorems ← theoremSuggestionsForIndicators actIndicators invIndicators
+  let mut theorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators
   match behaviour with
   | .printTheorems => displaySuggestion stx theorems
   | .checkTheorems | .printAndCheckTheorems =>
