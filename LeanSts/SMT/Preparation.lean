@@ -80,6 +80,9 @@ elab "rename_binders" : tactic => do
   let goal' ← goal.replaceTargetDefEq' goalType'
   setGoals [goal']
 
+/-- Workaround for
+[lean-smt#121](https://github.com/ufmg-smite/lean-smt/issues/121). The
+fix implemented there seems unreliable. -/
 @[smtSimp] theorem iff_eq_eq : (p ↔ q) = (p = q) := propext ⟨propext, (· ▸ ⟨(·), (·)⟩)⟩
 
 /-- Tuples are not supported in SMT-LIB, so we destruct tuple equalities. -/
