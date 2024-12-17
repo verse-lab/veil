@@ -6,6 +6,7 @@ import LeanSts.DSL
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
 section Ring
+open Classical
 
 class TotalOrder (t : Type) :=
   -- relation: total order
@@ -28,7 +29,7 @@ class Between (node : Type) :=
 
 type node
 instantiate tot : TotalOrder node
-instantiate dec_le : DecidableBinaryRel tot.le
+-- instantiate dec_le : DecidableBinaryRel tot.le
 instantiate btwn : Between node
 
 
@@ -72,8 +73,11 @@ invariant pending L L → le N L
 
 #gen_spec Ring
 
--- set_option trace.sauto.query true
+set_option trace.sauto.query true
+set_option sauto.smt.translator "lean-smt"
 -- set_option trace.sauto.result true
+set_option trace.sauto.debug true
+
 
 #check_invariants
 

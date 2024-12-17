@@ -9,6 +9,8 @@ import LeanSts.DSL
 -- See also: https://github.com/aman-goel/ivybench/blob/master/paxos/ivy/oopsla17_paxos.ivy
 
 section PaxosFOL
+open Classical
+
 class TotalOrder (t : Type) :=
   -- relation: total order
   le (x y : t) : Prop

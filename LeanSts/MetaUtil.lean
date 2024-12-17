@@ -68,3 +68,8 @@ def repeatedAnd (operands : Array (TSyntax `term)) : MetaM (TSyntax `term) := do
 
 def repeatedOr (operands : Array (TSyntax `term)) : MetaM (TSyntax `term) := do
   repeatedOp `Or (default := ← `(term|$(mkIdent `False))) operands
+
+def mkOrN : List Expr → Expr
+  | [] => mkConst ``True
+  | [p] => p
+  | p :: ps => mkOr p (mkOrN ps)

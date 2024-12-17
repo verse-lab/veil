@@ -2,6 +2,7 @@ import LeanSts.DSL
 -- import Mathlib.Tactic
 
 section DAGRider
+open Classical
 
 -- set_option trace.dsl true
 -- set_option trace.profiler true

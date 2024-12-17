@@ -3,6 +3,7 @@ import LeanSts.DSL
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/two_phase_commit.ivy
 
 section TwoPhaseCommit
+open Classical
 
 type node
 

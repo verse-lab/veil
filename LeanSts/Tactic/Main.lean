@@ -114,14 +114,7 @@ def getPropsInContext : TacticM (Array Ident) := do
   let idents := (props.toList.eraseDups.map mkIdent).toArray
   return idents
 
-/--
-  `simp0` is an optimisation to speed up the simplification process.
-  For instance, if we know that the goal is an `init` goal, we can
-  pass ``#[`initSimp]`` to not waste time simplifying actions.
--/
-def elabSolveClause (stx : Syntax)
-  (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent)
-  (trace : Bool := false) : TacticM Unit := withMainContext do
+def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent) : TacticM (Array Ident × Array (TSyntax `tactic)) := withMainContext do
   -- (*) Collect executed tactics to generate suggestion
   let mut xtacs := #[]
   -- (1) Identify the type of the state
@@ -140,8 +133,6 @@ def elabSolveClause (stx : Syntax)
   -- This is faster than `simp` with all the lemmas, see:
   -- https://github.com/verse-lab/lean-sts/issues/29#issuecomment-2360300222
   let simp0 := mkSimpLemmas simp0
-  -- the `actSimp here is used for function calls under wlp
-  let simp1 := mkSimpLemmas $ #[`wlp, `actSimp].map mkIdent
   let simp2 := mkSimpLemmas $ #[injEqLemma, `invSimp, `smtSimp].map mkIdent
   let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *))
   let mut xtacs := xtacs.push simpTac
@@ -151,7 +142,13 @@ def elabSolveClause (stx : Syntax)
   --   (a) all propositions in the context
   --   (b) all propositions within typeclasses in the context
   let idents ← getPropsInContext
-  -- (5) Call `sauto` using these propositions
+  return (idents, xtacs)
+
+  def elabSolveClause (stx : Syntax)
+  (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent)
+  (trace : Bool := false) : TacticM Unit := withMainContext do
+  let (idents, xtacs) ← elabSimplifyClause simp0
+  withMainContext do
   let autoTac ← `(tactic| sauto [$[$idents:ident],*])
   let mut xtacs := xtacs
   -- Sometimes the simplification solves the goal, and we don't need to `sauto`
