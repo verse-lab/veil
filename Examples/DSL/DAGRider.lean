@@ -1,9 +1,11 @@
 import LeanSts.DSL
+import LeanSts.Util
 -- import Examples.DSL.ReliableBroadcastDSL
 import Examples.DSL.RingDSL
 -- import Mathlib.Tactic
 
 section DAGRider
+open Classical
 
 -- set_option trace.dsl true
 -- set_option trace.profiler true
@@ -234,7 +236,7 @@ open Lean Elab Command Term Meta in
 def mergeLabelType (n m nm : Name) : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   elabCommand $ ← Command.runTermElabM fun _ => do
-    let stss <- stsStateGlobalExt.get
+    let stss <- globalSpecificationCtx.get
     trace[dsl] "Registered specifications: {stss.toList}"
     let .some spec₁ := stss.find? n | throwError "DSL: missing specification {n}"
     let .some spec₂ := stss.find? m | throwError "DSL: missing specification {m}"

@@ -10,6 +10,14 @@ def stateTp (vs : Array Expr) : AttrM Expr := do
   unless stateTp != default do throwError "State has not been declared so far"
   return mkAppN stateTp vs
 
+def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
+  let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← localSpecCtx.get).spec.name) vs
+  return systemTp
+
+def getStateTpStx (vs : Array Expr) : TermElabM Term := do
+  let stateTp ← PrettyPrinter.delab (← stateTp vs)
+  return stateTp
+
 /-- Retrieves the name passed to `#gen_state` -/
 def getPrefixedName (name : Name): AttrM Name := do
   let stateName := (← localSpecCtx.get).stateBaseName
@@ -126,3 +134,12 @@ def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
 
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId
+
+/-- The DSL sometimes generates names including `.tr`, and we can't
+print these to SMT. -/
+def mkPrintableName (n : Name) : Name :=
+  Name.mkSimple $ "_".intercalate (n.components.map toString)
+
+def List.removeDuplicates [BEq α] (xs : List α) : List α :=
+  xs.foldl (init := []) fun acc x =>
+    if acc.contains x then acc else x :: acc

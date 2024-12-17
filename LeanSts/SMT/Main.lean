@@ -230,14 +230,15 @@ def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
     let exMsg ← e.toMessageData.toString
     throwError s!"get-model failed (z3model.py likely timed out)"
 
-def getUnsatCore (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
+def getUnsatCore (solver : SolverProc) (kill: Bool := true) : MetaM Parser.SMTSexp.Sexp := do
   withTraceNode `sauto.perf.getUnsatCore (fun _ => return "getUnsatCore") do
   try
   emitCommand solver .getUnsatCore
   -- FIXME: probably shouldn't kill the solver here
   let (_, solver) ← solver.takeStdin
   let stdout ← solver.stdout.readToEnd
-  solver.kill
+  if kill then
+    solver.kill
   let (unsatCore, _proof) ← getSexp stdout
   return unsatCore
   catch e =>
@@ -256,7 +257,7 @@ def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (con
   | .Unsat => return false
   | .Unknown e => throwError s!"Unexpected response from solver: {e}"
 
-private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
+private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill: Bool := true) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
   try
   -- Minimize sorts
@@ -309,7 +310,8 @@ private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (f
   let (_, solver) ← solver.takeStdin
   let stdout ← solver.stdout.readToEnd
   let stderr ← solver.stderr.readToEnd
-  solver.kill
+  if kill then
+    solver.kill
   trace[sauto.debug] "(get-model) {stdout.length}: {stdout}"
   trace[sauto.debug] "(stderr) {stderr}"
   let (model, _) ← getSexp stdout
@@ -321,9 +323,9 @@ private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (f
     throwError s!"Minimization failed: {exMsg}"
 
 /- FIXME: for whatever reason, if I add `withTraceNode` directly inside `minimizeModelImpl`, it hangs. -/
-def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) : MetaM FirstOrderStructure := do
+def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill : Bool := true): MetaM FirstOrderStructure := do
   withTraceNode `sauto.perf.minimizeModel (fun _ => return "minimizeModel") do
-  minimizeModelImpl solver solverName fostruct
+  minimizeModelImpl solver solverName fostruct kill
 
 /-- If the solver returns `Unknown`, we try the other solver. -/
 def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
@@ -331,6 +333,56 @@ def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
   | SolverName.z3 => SolverName.cvc5
   | SolverName.cvc5 => SolverName.z3
   | _ => none
+
+partial def getSolverResult (solver: SolverProc) (solverName: SolverName) (kill: Bool := true) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Bool := false) : MetaM SmtResult := do
+  let checkSatResponse ← checkSat solver solverName
+  match checkSatResponse with
+  | .Sat =>
+      trace[sauto.result] "{solverName} says Sat"
+      if getModel? then
+        let model ← getModel solver
+        trace[sauto.debug] "Model:\n{model}"
+        -- For Z3, we have model pretty-printing and minimization.
+        if solverName == SolverName.z3 then
+          let mut fostruct ← extractStructure model
+          if minimize then
+            fostruct ← minimizeModel solver solverName fostruct (kill := kill)
+          trace[sauto.model] "{fostruct}"
+          return .Sat fostruct
+        -- Non-Z3 solver
+        else
+          trace[sauto.model] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
+          trace[sauto.model] "Model:\n{model}"
+          if kill then
+            solver.kill
+          return .Sat .none
+      else
+        if kill then
+            solver.kill
+        return .Sat .none
+  | .Unsat =>
+      trace[sauto.result] "{solverName} says Unsat"
+      let unsatCore ← getUnsatCore solver (kill := kill)
+      trace[sauto.result] "Unsat core: {unsatCore}"
+      -- trace[sauto] "stderr:\n{stderr}"
+      return .Unsat unsatCore
+  | .Unknown reason =>
+      trace[sauto.result] "{solverName} says Unknown ({reason})"
+      if retryOnFailure then
+        match solverToTryOnUnknown solverName with
+        | some s => do
+          if kill then
+            solver.kill
+          trace[sauto.result] "Retrying the query with {s}"
+          getSolverResult solver s kill retryOnFailure getModel? minimize
+        | none =>
+          if kill then
+            solver.kill
+          return .Unknown reason
+      else
+        if kill then
+          solver.kill
+        return .Unknown reason
 
 open Smt Smt.Tactic Translate in
 partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
@@ -349,51 +401,8 @@ partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Opti
     emitCommand solver (.setOption (.produceProofs true))
     emitCommand solver (.setOption (.produceUnsatCores true))
   emitCommandStr solver goalQuery
-  let checkSatResponse ← checkSat solver solverName
-  match checkSatResponse with
-  | .Sat =>
-      trace[sauto.result] "{solverName} says Sat"
-      if getModel? then
-        let model ← getModel solver
-        trace[sauto.debug] "Model:\n{model}"
-        -- For Z3, we have model pretty-printing and minimization.
-        if solverName == SolverName.z3 then
-          let mut fostruct ← extractStructure model
-          if minimize then
-            -- `solver.kill` is called inside `minimizeModelImpl`
-            fostruct ← minimizeModel solver solverName fostruct
-          trace[sauto.model] "{fostruct}"
-          return .Sat fostruct
-        -- Non-Z3 solver
-        else
-          trace[sauto.model] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
-          trace[sauto.model] "Model:\n{model}"
-          solver.kill
-          return .Sat .none
-      else
-        solver.kill
-        return .Sat .none
-  | .Unsat =>
-      trace[sauto.result] "{solverName} says Unsat"
-      -- `solver.kill` is called in `getUnsatCore`; there is a hang if that's removed (waitiing for a pipe?)
-      let unsatCore ← getUnsatCore solver
-      trace[sauto.result] "Unsat core: {unsatCore}"
-      -- trace[sauto] "stderr:\n{stderr}"
-      return .Unsat unsatCore
-  | .Unknown reason =>
-      trace[sauto.result] "{solverName} says Unknown ({reason})"
-      if retryOnFailure then
-        match solverToTryOnUnknown solverName with
-        | some s => do
-          solver.kill
-          trace[sauto.result] "Retrying the query with {s}"
-          querySolver goalQuery timeout (forceSolver := some s) (retryOnFailure := false) minimize
-        | none =>
-          solver.kill
-          return .Unknown reason
-      else
-        solver.kill
-        return .Unknown reason
+  let res ← getSolverResult solver solverName (kill := true) retryOnFailure getModel? minimize
+  return res
   catch e =>
     let exMsg ← e.toMessageData.toString
     return .Unknown s!"{exMsg}"
@@ -409,7 +418,7 @@ def parseAutoHints : TSyntax `smtHints → TacticM (TSyntax `Auto.hints)
 
 /- We use our own `parseTimeout` because the one in `lean-smt` has a
   hard-coded `5` as default if no timeout is specified. -/
-def parseTimeout : TSyntax `smtTimeout → TacticM Nat
+def parseTimeout : TSyntax `smtTimeout → CoreM Nat
   | `(smtTimeout| (timeout := $n)) => return n.getNat
   | `(smtTimeout| ) => return (auto.smt.timeout.get (← getOptions))
   | _ => throwUnsupportedSyntax
