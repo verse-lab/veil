@@ -43,7 +43,7 @@ def defineRelation (comp : StateComponent) : CommandElabM Unit :=
   defineStateComponent comp
      (fun (tp : Expr) => do
       let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
-      return tp.isArrow && returnsProp)
+      return returnsProp)
     (fun comp => do throwErrorAt (← comp.stx) "Invalid type: relations must return Prop")
 
 /-- Define a `function`. -/
