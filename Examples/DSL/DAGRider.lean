@@ -1,5 +1,5 @@
 import LeanSts.DSL
-import LeanSts.Util
+import LeanSts.DSL.Util
 -- import Examples.DSL.ReliableBroadcastDSL
 import Examples.DSL.RingDSL
 -- import Mathlib.Tactic

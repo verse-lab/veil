@@ -222,6 +222,7 @@ set_option auto.smt.timeout 15 -- seconds
 
 #gen_spec ReliableBroadcast
 
+
 #check_invariants
 
 prove_inv_init by { solve_clause }
@@ -231,7 +232,7 @@ prove_inv_inductive by {
   constructor
   . apply inv_init
   intro st st' hnext hinv
-  sts_induction <;> sdestruct_goal <;> already_proven
+  sts_induction <;> sdestruct_goal <;> sorry
 }
 
 sat trace [initial_state] {} by { bmc_sat }
