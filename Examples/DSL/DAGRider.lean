@@ -1,5 +1,4 @@
 import LeanSts.DSL
-import LeanSts.DSL.Util
 -- import Examples.DSL.ReliableBroadcastDSL
 import Examples.DSL.RingDSL
 -- import Mathlib.Tactic
@@ -224,36 +223,9 @@ invariant [one_vertex_per_round_per_source] ∀ r v v' src, delivered v r src �
 -- inferred from `mainLoop`
 invariant [dag_round_matches_vertex_round] ∀ r v, dag r v → vertexRound v r
 
-set_option trace.dsl true
 
 #gen_spec DAGRider
 
-set_option sauto.model.minimize true
-
-open Lean Elab Command Term Meta in
-/-- Create a label type named `nm` by joining the label types of DSLSpec
-`n` and DSLSpec `m` -/
-def mergeLabelType (n m nm : Name) : CommandElabM Unit := do
-  let vd := (<- getScope).varDecls
-  elabCommand $ ← Command.runTermElabM fun _ => do
-    let stss <- globalSpecificationCtx.get
-    trace[dsl] "Registered specifications: {stss.toList}"
-    let .some spec₁ := stss.find? n | throwError "DSL: missing specification {n}"
-    let .some spec₂ := stss.find? m | throwError "DSL: missing specification {m}"
-    let nctrs ← spec₁.transitionCtors
-    let mctrs ← spec₂.transitionCtors
-    let ctors := (nctrs ++ mctrs).toList.eraseDups.toArray
-    trace[dsl] "Merged constructors: {ctors}"
-    `(inductive $(mkIdent nm) $[$vd]* where $[$ctors]*)
-
-elab "#merge_labels" n:ident m:ident "into" nm:ident : command => do
-  mergeLabelType n.getId m.getId nm.getId
-
-#print Ring.Label
-#print DAGRider.Label
-#merge_labels DAGRider Ring into DAG.Label
-
-
--- #check_invariants
+#check_invariants
 
 end DAGRider

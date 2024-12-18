@@ -73,11 +73,10 @@ invariant pending L L → le N L
 
 #gen_spec Ring
 
-set_option trace.sauto.query true
-set_option sauto.smt.translator "lean-smt"
+-- set_option trace.sauto.query true
+-- set_option sauto.smt.translator "lean-smt"
 -- set_option trace.sauto.result true
-set_option trace.sauto.debug true
-
+-- set_option trace.sauto.debug true
 
 #check_invariants
 
