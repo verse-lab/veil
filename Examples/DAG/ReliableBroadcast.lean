@@ -1,5 +1,5 @@
-import LeanSts.State
-import LeanSts.BFT.Network
+import Veil.State
+import Veil.BFT.Network
 
 namespace ReliableBroadcast
 

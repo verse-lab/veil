@@ -1,6 +1,6 @@
-import LeanSts.DSL.SpecLang
-import LeanSts.DSL.Check
-import LeanSts.DSL.Trace
+import Veil.DSL.SpecLang
+import Veil.DSL.Check
+import Veil.DSL.Trace
 
 attribute [initSimp] RelationalTransitionSystem.init
 attribute [invSimp] RelationalTransitionSystem.inv

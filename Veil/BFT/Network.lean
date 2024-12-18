@@ -1,5 +1,5 @@
 import Mathlib.Data.Multiset.Basic
-import LeanSts.BFT.Byzantine
+import Veil.BFT.Byzantine
 
 /-- Packets over the network. -/
 structure NetworkPacket {NetAddr Message : Type} :=

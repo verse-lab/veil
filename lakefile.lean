@@ -14,7 +14,7 @@ package «lean-sts» where
     else #["-L/usr/lib/x86_64-linux-gnu", "/usr/lib/x86_64-linux-gnu/libstdc++.so.6"]
 
 @[default_target]
-lean_lib «LeanSts» where
+lean_lib «Veil» where
   -- add library configuration options here
 
 @[default_target]

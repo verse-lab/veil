@@ -1,8 +1,8 @@
 import Smt
 import Lean
-import LeanSts.SMT.Main
-import LeanSts.DSL.TacticUtil
-import LeanSts.Tactic.Main
+import Veil.SMT.Main
+import Veil.DSL.TacticUtil
+import Veil.Tactic.Main
 import Auto.Solver.SMT
 import Auto
 

@@ -1,5 +1,5 @@
 import Lean
-import LeanSts.DSL.Util
+import Veil.DSL.Util
 
 open Lean Elab Meta Tactic TryThis
 

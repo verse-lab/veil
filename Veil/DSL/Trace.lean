@@ -1,8 +1,8 @@
 import Lean
 import Lean.Parser
-import LeanSts.MetaUtil
-import LeanSts.DSL.Util
-import LeanSts.TransitionSystem
+import Veil.MetaUtil
+import Veil.DSL.Util
+import Veil.TransitionSystem
 
 declare_syntax_cat expected_smt_result
 syntax (name := expected_sat) "sat" : expected_smt_result

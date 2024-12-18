@@ -1,7 +1,7 @@
 import Lean
-import LeanSts.IOAutomata
-import LeanSts.DSL.ActionLang
-import LeanSts.MetaUtil
+import Veil.IOAutomata
+import Veil.DSL.ActionLang
+import Veil.MetaUtil
 
 open Lean Parser
 

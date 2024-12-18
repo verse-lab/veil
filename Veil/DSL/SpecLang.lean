@@ -1,11 +1,11 @@
 import Lean
 import Lean.Parser
-import LeanSts.DSL.Base
-import LeanSts.DSL.Attributes
-import LeanSts.DSL.StateExtensions
-import LeanSts.DSL.ActionLang
-import LeanSts.DSL.Tactic
-import LeanSts.DSL.Util
+import Veil.DSL.Base
+import Veil.DSL.Attributes
+import Veil.DSL.StateExtensions
+import Veil.DSL.ActionLang
+import Veil.DSL.Tactic
+import Veil.DSL.Util
 
 open Lean Elab Command Term Meta Lean.Parser
 

@@ -1,6 +1,6 @@
 import Lean
 import Lean.Parser
-import LeanSts.Tactic
+import Veil.Tactic
 open Lean Elab
 
 open Tactic

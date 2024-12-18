@@ -1,6 +1,6 @@
 import Lean
 import Auto
-import LeanSts.MetaUtil
+import Veil.MetaUtil
 import Batteries.Data.Array.Basic
 
 abbrev SortName := Lean.Name

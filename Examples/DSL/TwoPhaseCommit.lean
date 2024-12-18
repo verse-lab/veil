@@ -1,4 +1,4 @@
-import LeanSts.DSL
+import Veil.DSL
 
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/two_phase_commit.ivy
 

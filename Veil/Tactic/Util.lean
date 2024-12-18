@@ -1,5 +1,5 @@
 import Lean.Elab.Tactic
-import LeanSts.DSL.Util
+import Veil.DSL.Util
 
 open Lean Lean.Elab.Tactic
 

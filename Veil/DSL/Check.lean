@@ -1,10 +1,10 @@
 import Lean
-import LeanSts.Tactic
-import LeanSts.DSL.Attributes
-import LeanSts.DSL.StateExtensions
-import LeanSts.DSL.Util
-import LeanSts.DSL.DisplayUtil
-import LeanSts.DSL.SMTUtil
+import Veil.Tactic
+import Veil.DSL.Attributes
+import Veil.DSL.StateExtensions
+import Veil.DSL.Util
+import Veil.DSL.DisplayUtil
+import Veil.DSL.SMTUtil
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis
 

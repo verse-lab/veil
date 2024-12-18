@@ -1,5 +1,5 @@
 
-import LeanSts.Basic
+import Veil.Basic
 
 /- ## Generic transition systems
   These can be either IO Automata or TLA-style relational transition systems. -/

@@ -1,4 +1,4 @@
-import LeanSts.DSL
+import Veil.DSL
 -- import Examples.DSL.ReliableBroadcastDSL
 import Examples.DSL.RingDSL
 -- import Mathlib.Tactic

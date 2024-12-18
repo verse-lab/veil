@@ -1,10 +1,10 @@
 import Lean.Elab.Tactic
-import LeanSts.Tactic.Util
-import LeanSts.TransitionSystem
+import Veil.Tactic.Util
+import Veil.TransitionSystem
 import Lean.Meta.Tactic.TryThis
 
 -- For automation
-import LeanSts.SMT.Main
+import Veil.SMT.Main
 import Duper
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis

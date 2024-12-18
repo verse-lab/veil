@@ -1,7 +1,7 @@
-import LeanSts.State
-import LeanSts.TransitionSystem
-import LeanSts.Tactic
-import LeanSts.DSL
+import Veil.State
+import Veil.TransitionSystem
+import Veil.Tactic
+import Veil.DSL
 
 -- Based on: https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_epr.ivy
 -- See also: https://github.com/aman-goel/ivybench/blob/master/paxos/ivy/Paxos.ivy

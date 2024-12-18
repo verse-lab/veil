@@ -1,4 +1,4 @@
-import LeanSts.TransitionSystem
+import Veil.TransitionSystem
 open Lean
 
 /- ## IO Automata -/

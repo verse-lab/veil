@@ -1,5 +1,5 @@
 import Lean
-import LeanSts.DSL.Specifications
+import Veil.DSL.Specifications
 
 open Lean
 

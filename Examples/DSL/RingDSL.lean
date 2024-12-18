@@ -1,7 +1,7 @@
-import LeanSts.State
-import LeanSts.TransitionSystem
-import LeanSts.Tactic
-import LeanSts.DSL
+import Veil.State
+import Veil.TransitionSystem
+import Veil.Tactic
+import Veil.DSL
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 

@@ -1,8 +1,8 @@
 import Lean
 import Batteries.Lean.Meta.UnusedNames
 
-import LeanSts.Basic
-import LeanSts.DSL.Util
+import Veil.Basic
+import Veil.DSL.Util
 
 open Lean Meta Elab Tactic
 
