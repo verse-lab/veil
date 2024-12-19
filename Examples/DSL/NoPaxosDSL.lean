@@ -2,7 +2,6 @@ import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
 import Veil.DSL
--- import Examples.DSL.RingDSL
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/nopaxos.ivy
 
 section NoPaxos
@@ -87,8 +86,7 @@ after_init {
 
     r_log_len R I := I = seq.zero;
     r_log R I V := False;
-    r_sess_msg_num R S := False;
-    r_sess_msg_num R one := True;
+    r_sess_msg_num R S := S = one';
     r_gap_commit_reps R P := False;
     r_current_gap_slot R I := I = seq.zero;
     r_replica_status R S := S = r_state.st_normal;
@@ -100,8 +98,6 @@ after_init {
     m_gap_commit D SMN := False;
     m_gap_commit_rep D S SN := False
 }
-
-#print NoPaxos.initialState?
 
 -- action replace_item (r: replica) (i : seq_t) (v : value) = {
 --     require r ≠ TotalOrder.none;
@@ -118,7 +114,7 @@ after_init {
 action replace_item (r : replica) (i : seq_t) (v : value) = {
     -- todo
     -- r_log R I V := r_log R I V
-    if len in (r_log_len r len) {
+    if len where (r_log_len r len) {
         r_log_len r len := False
     } else {
         r_log_len r i := False
