@@ -148,7 +148,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
       let actRes ← querySolverWithIndicators actCmd timeout (invChecks.map (fun (a, b) => #[a, b]))
       let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
-        | [actName, invName] => (actName, invName, match res with
+        | [actName, invName] => (invName, actName, match res with
           | .Unsat _ => true
           | _ => false)
         | _ => unreachable!)
