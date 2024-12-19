@@ -335,8 +335,8 @@ def log_query(query: str):
         args.log.write(query)
         args.log.write("\n")
 
-def execute_with_timeout(f: Callable, args) -> Any:
-    p = mp.Process(target=f)
+def execute_with_timeout(f: Callable, passedLines, args) -> Any:
+    p = mp.Process(target=f, args=[passedLines])
     start = time.monotonic()
     p.start()
     # Kill after `args.tlimit` seconds
@@ -348,6 +348,12 @@ def execute_with_timeout(f: Callable, args) -> Any:
         p.kill()
         p.join()
         sys.exit(1)
+
+def print_model(passedLines):
+    # https://stackoverflow.com/questions/30134297/python-multiprocessing-stdin-input
+    sys.stdin = open(0)
+    m = get_model(passedLines)
+    print(m, flush=True)
 
 def run(args):
     z3.set_param('timeout', args.tlimit)
@@ -367,12 +373,7 @@ def run(args):
         log_query(line)
         # Overwrite the behaviour of `(get-model)` to print the model in a more readable format
         if "(get-model)" in line:
-            def print_model():
-                # https://stackoverflow.com/questions/30134297/python-multiprocessing-stdin-input
-                sys.stdin = open(0)
-                m = get_model(passedLines)
-                print(m, flush=True)
-            execute_with_timeout(print_model, args)
+            execute_with_timeout(print_model, passedLines, args)
         # Execute all other commands as usual
         else:
             res = z3.Z3_eval_smtlib2_string(ctx, line)

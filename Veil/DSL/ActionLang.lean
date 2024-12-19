@@ -1,7 +1,10 @@
 import Lean
 import Lean.Parser
 import Veil.State
+import Veil.DSL.Util
 import Veil.DSL.Base
+import Veil.DSL.StateExtensions
+
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -59,6 +62,7 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   -- This corresponds to the semantics in Ivy and matches the intuition that
   -- a call to an action is morally equivalent to inlining that action.
   | Lang.nondet act       => fun s => ∃ s' ret, act s (s', ret) ∧ post ret s'
+--| Lang.ensure p         => fun s => ∃ s' ret, p s s' ∧ post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
   -- `seq` is a composition of programs, so we need to compute the wlp of
@@ -91,6 +95,14 @@ syntax term (":" term)? left_arrow lang "in" lang : lang
 syntax "fresh" ident ":" term "in" lang : lang
 syntax "return" term : lang
 syntax "call" term : lang
+
+declare_syntax_cat unchanged
+syntax "with unchanged" "[" ident,* "]" : unchanged
+
+syntax "ensure" rcasesPat  "," term unchanged ? : lang
+syntax "ensure" term unchanged ? : lang
+syntax "[unchanged|" ident* "]" : term
+
 /-- Syntax to trigger the expantion into a code which may
     depend on the prestate -/
 syntax "[lang|" lang "]" : term
@@ -120,9 +132,49 @@ def closeCapitals (s : Term) : MacroM Term :=
     `st` making all its fileds accessible for `Pred` -/
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
 
+open Tactic in
+/-- ```with_rename_old t``` runs tactic `t` and if it introduces any names with `_1` suffix,
+    changes this suffix to `_old` -/
+elab "with_rename_old" t:tactic : tactic => withMainContext do
+  let hyps <- getLCtx
+  withMainContext $ evalTactic t
+  withMainContext do
+    let hypNews <- getLCtx
+    for hyp in hypNews.decls.toArray.reverse do
+      if hyp.isSome then
+        let hyp := hyp.get!
+        unless hyps.findFromUserName? hyp.userName |> Option.isSome do
+          let nms := (hyp.userName.toString.splitOn "_")
+          let new_name := String.intercalate "_" nms.dropLast ++ "_old" |>.toName
+          evalTactic $ <- `(tactic| (revert $(mkIdent hyp.userName):ident; intros $(mkIdent new_name):ident))
+
+
 /-- This is used wherener we want to define a predicate over a state
     which should not depend on the state (for instance in `after_init`). -/
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
+
+macro_rules
+  | `([unchanged| $id:ident]) =>
+    let id_old := id.getId.toString ++ "_old" |>.toName
+    `($id = $(mkIdent id_old))
+  | `([unchanged| $id $ids*]) => `([unchanged| $id] ∧ [unchanged| $ids*])
+  | `([unchanged|]) => `(True)
+
+elab_rules : term
+  | `([lang|ensure $r, $t:term]) => do
+    let fields : Array Name := (<- localSpecCtx.get).spec.signature.map (·.name)
+    let mut unchangedFields := #[]
+    for f in fields do
+      unless t.raw.find? (·.getId == f) |>.isSome do
+        unchangedFields := unchangedFields.push $ mkIdent f
+    elabTerm (<- `(term| [lang|ensure $r, $t:term with unchanged[$[$unchangedFields],*]])) none
+  | `([lang|ensure $r, $t:term with unchanged[$ids,*]]) => do
+    withRef t $
+    elabTerm (<- `(term| @Lang.nondet _ _ (
+      by rintro st ⟨st', $r⟩;
+         unhygienic cases st';
+         with_rename_old unhygienic cases st;
+         exact $t ∧ [unchanged|$ids*]))) none
 
 macro_rules
   | `([lang|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
@@ -132,6 +184,8 @@ macro_rules
     withRef t $
       -- require a proposition on the state
      `(@Lang.require _ (funcases ($t' : Prop) : _ -> Prop))
+  | `([lang|ensure $t:term $un:unchanged ?] ) =>
+    `([lang|ensure (_ : Unit), $t:term $un:unchanged ?])
   | `([lang|if $cnd:term { $thn:lang }]) => `([lang|if $cnd { $thn } else { skip }])
   | `([lang|if $cnd:term { $thn:lang } else { $els:lang }]) => do
     let cnd' <- closeCapitals cnd

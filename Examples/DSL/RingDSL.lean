@@ -50,6 +50,15 @@ action send (n next : node) = {
   pending n next := True
 }
 
+-- requries/ensures example:
+-- action send_axiomatic (n next : node) = {
+--   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
+--   ensure
+--     pending n next = True ∧
+--     ∀ n' next', n' ≠ n -> next' ≠ next ->
+--       pending n next = pending_old n next
+-- }
+
 action recv (sender n next : node) (havoc : Prop) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
   require pending sender n;
@@ -77,7 +86,7 @@ invariant pending L L → le N L
 -- set_option sauto.smt.translator "lean-smt"
 -- set_option trace.sauto.result true
 -- set_option trace.sauto.debug true
-
+#exit
 #check_invariants
 
 prove_inv_init by { simp_all [initSimp, actSimp, wlp, invSimp] }

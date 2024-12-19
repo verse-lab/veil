@@ -1,6 +1,5 @@
 import Lean
 import Veil.IOAutomata
-import Veil.DSL.ActionLang
 import Veil.MetaUtil
 
 open Lean Parser
