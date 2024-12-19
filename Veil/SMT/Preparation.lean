@@ -30,8 +30,8 @@ open Lean Expr Lean.Meta in
 simproc ↓ funextEq (_ = _) :=
   fun e => do
   let_expr Eq _ lhs rhs := e | return .continue
-  let (lhsT, rhsT) := (← inferType lhs, ← inferType rhs)
-  if lhsT.isArrow && rhsT.isArrow then
+  let lhsT ← inferType lhs
+  if lhsT.isArrow && (← inferType rhs).isArrow then
     -- NOTE: this cannot be `anonymous` because it is used in the SMT-LIB
     -- translation, which gets confused in the presence of multiple anonymous
     -- binders. TODO: generate a more informative name.
@@ -133,7 +133,7 @@ simproc State_exists_comm (∃ _ _, _) := fun e => do
       return step
   )
   return step
-attribute [smtSimp] State_exists_comm
+attribute [logicSimp] State_exists_comm
 
 -- TODO ∀: do we need to do the same for `∀` quantification?
 
@@ -142,7 +142,7 @@ attribute [smtSimp] State_exists_comm
     quantifers by replacing st' in the body of the existential with the RHS
     of the equality. This function helps do that by pushing equalities
     involving the inner-most existential `bvar 0` to the left.
-    `exists_eq_left` (in `smtSimp`) will then eliminate the quantifier.-/
+    `exists_eq_left` (in `logicSimp`) will then eliminate the quantifier.-/
 partial def pushEqLeft (e : Expr) : MetaM Expr := do
   -- go under existential quantifiers
   match_expr e with
@@ -216,7 +216,7 @@ elab "pushEqLeft" : tactic => pushEqLeftTactic none
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`, but with
--- `smtSimp` attribute They are used to enable "eliminating" higher-order
+-- `logicSimp` attribute They are used to enable "eliminating" higher-order
 -- quantification over state, as explained in:
 --  (1) https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2418792775
 --  (2) https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869
@@ -229,18 +229,18 @@ cat /home/dranov/.elan/toolchains/leanprover--lean4---v4.11.0/src/lean/Init/Prop
 Note: the above misses some lemmas that have `@[simp]` above the line with `theorem`.
 -/
 /-! ## cast and equality -/
-attribute [smtSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
+attribute [logicSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
 
 /-! ## distributivity -/
-attribute [smtSimp] not_or
+attribute [logicSimp] not_or
 
 /-! ## Ite -/
-attribute [smtSimp] if_false_left if_false_right
-attribute [smtSimp low] if_true_left if_true_right
-attribute [smtSimp] dite_not ite_not ite_true_same ite_false_same
+attribute [logicSimp] if_false_left if_false_right
+attribute [logicSimp low] if_true_left if_true_right
+attribute [logicSimp] dite_not ite_not ite_true_same ite_false_same
 
 /-! ## exists and forall -/
-attribute [smtSimp] forall_exists_index exists_const exists_true_left
+attribute [logicSimp] forall_exists_index exists_const exists_true_left
   not_exists exists_false forall_const forall_eq forall_eq' exists_eq
   exists_eq' exists_eq_left exists_eq_right
 
@@ -252,10 +252,10 @@ variable {p q : α → Prop} {b : Prop}
 theorem exists_and_left' : b ∧ (∃ x, p x) ↔ (∃ x, b ∧ p x) := by rw [exists_and_left]
 theorem exists_and_right' : (∃ x, p x) ∧ b ↔ (∃ x, p x ∧ b) := by rw [exists_and_right]
 end quantifiers
-attribute [smtSimp] exists_and_left' exists_and_right'
+attribute [logicSimp] exists_and_left' exists_and_right'
 
 -- TODO: do we correctly hoist `∀`?
-attribute [smtSimp] exists_eq_left' exists_eq_right' forall_eq_or_imp
+attribute [logicSimp] exists_eq_left' exists_eq_right' forall_eq_or_imp
   exists_eq_or_imp exists_eq_right_right exists_eq_right_right'
   exists_or_eq_left exists_or_eq_right exists_or_eq_left'
   exists_or_eq_right' exists_prop exists_apply_eq_apply
@@ -267,12 +267,12 @@ attribute [quantifierElim] forall_eq' exists_eq exists_eq'
   exists_eq_left' exists_eq_right_right exists_eq_right_right'
 
 /-! ## decidable -/
-attribute [smtSimp] Decidable.not_not decide_eq_decide
+attribute [logicSimp] Decidable.not_not decide_eq_decide
   Decidable.not_imp_self decide_implies decide_ite ite_true_decide_same
   ite_false_decide_same
 
 /-! From `SimpLemmas.Lean`-/
-attribute [smtSimp] eq_self ne_eq ite_true ite_false dite_true
+attribute [logicSimp] eq_self ne_eq ite_true ite_false dite_true
   dite_false ite_self and_true true_and and_false false_and and_self
   and_not_self not_and_self and_imp not_and or_self or_true true_or
   or_false false_or iff_self iff_true true_iff iff_false false_iff

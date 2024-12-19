@@ -114,7 +114,7 @@ def getPropsInContext : TacticM (Array Ident) := do
   let idents := (props.toList.eraseDups.map mkIdent).toArray
   return idents
 
-def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent) : TacticM (Array Ident × Array (TSyntax `tactic)) := withMainContext do
+def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent) (thorough :  Bool := true) (traceAt : Option Syntax := none): TacticM (Array Ident × Array (TSyntax `tactic)) := withMainContext do
   -- (*) Collect executed tactics to generate suggestion
   let mut xtacs := #[]
   -- (1) Identify the type of the state
@@ -127,13 +127,18 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   evalTactic destructTac
   withMainContext do
   -- (3) Simplify all invariants and transitions, as well as
-  -- destruct State structures into their components everywhere (via `injEqLemma`)
+  -- destruct State structures into their components everywhere
+  -- (for DSL-defined state, `injEqLemma` is included in `smtSimp`)
   -- We also make simplifications required by `lean-smt`: `funextEq`, `tupleEq`
   let injEqLemma := stateName ++ `mk ++ `injEq
   -- This is faster than `simp` with all the lemmas, see:
   -- https://github.com/verse-lab/lean-sts/issues/29#issuecomment-2360300222
   let simp0 := mkSimpLemmas simp0
-  let simp2 := mkSimpLemmas $ #[injEqLemma, `invSimp, `smtSimp].map mkIdent
+  -- Doing a `thoroughSimp` is not needed when the actions have already been
+  -- simplified, which is the case for DSL-defined actions
+  let thoroughSimp := mkSimpLemmas $ #[injEqLemma, `invSimp, `smtSimp, `logicSimp].map mkIdent
+  let fastSimp := mkSimpLemmas $ #[`invSimp, `smtSimp].map mkIdent
+  let simp2 := if thorough then thoroughSimp else fastSimp
   let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
@@ -142,9 +147,23 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   --   (a) all propositions in the context
   --   (b) all propositions within typeclasses in the context
   let idents ← getPropsInContext
+  if let some stx := traceAt then
+    let combined_tactic ← `(tactic| $xtacs;*)
+    addSuggestion stx combined_tactic
   return (idents, xtacs)
 
-  def elabSolveClause (stx : Syntax)
+syntax (name := simplifyClause) "simplify_clause" : tactic
+syntax (name := simplifyClauseTrace) "simplify_clause?" : tactic
+syntax (name := fastSimplifyClause) "fast_simplify_clause" : tactic
+syntax (name := fastSimplifyClauseTrace) "fast_simplify_clause?" : tactic
+
+elab_rules : tactic
+  | `(tactic| simplify_clause%$_tk) => do _ ← elabSimplifyClause
+  | `(tactic| simplify_clause?%$tk) => do _ ← elabSimplifyClause (traceAt := tk)
+  | `(tactic| fast_simplify_clause%$_tk) => do _ ← elabSimplifyClause (thorough := false)
+  | `(tactic| fast_simplify_clause?%$tk) => do _ ← elabSimplifyClause (thorough := false) (traceAt := tk)
+
+def elabSolveClause (stx : Syntax)
   (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent)
   (trace : Bool := false) : TacticM Unit := withMainContext do
   let (idents, xtacs) ← elabSimplifyClause simp0
@@ -184,9 +203,8 @@ elab_rules : tactic
   | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
 elab "simplify_all" : tactic => withMainContext do
-  -- FIXME: why does `simp only [actSimp, wlp]` loop?
-  let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp].map mkIdent
-  let toSimp := mkSimpLemmas $ #[`smtSimp].map mkIdent
+  let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
+  let toSimp := mkSimpLemmas $ #[`smtSimp, `logicSimp].map mkIdent
   let simp_tac ← `(tactic| dsimp only [$toDsimp,*] at * ; simp only [$toSimp,*];)
   evalTactic simp_tac
 
