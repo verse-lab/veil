@@ -30,6 +30,9 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   | nondet  {ρ' : Type u} (act :  σ -> σ × ρ' -> Prop) : Lang ρ'
   /-- If-then-else. `open Classical` to allow propositions in the condition. -/
   | ite     {ρ : Type u} (cnd : σ -> Bool) (thn : Lang ρ) (els : Lang ρ) : Lang ρ
+  /-- If-then-else. `open Classical` to allow propositions in the condition. -/
+  | iteSome {ρ : Type u} {ρ' : Type} (cnd : ρ' -> σ -> Bool) (thn : ρ' -> Lang ρ) (els : Lang ρ) : Lang ρ
+
   /-- Sequence -/
   | seq     {ρ ρ' : Type u} (l1 : Lang ρ') (l2 : Lang ρ) : Lang ρ
   | ret     {ρ : Type u} (ret : ρ) : Lang ρ
@@ -61,6 +64,9 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   | Lang.nondet act       => fun s => ∃ s' ret, act s (s', ret) ∧ post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
+  | Lang.iteSome cnd thn els  =>
+    fun s =>
+    (∃ r, cnd r s ∧ wlp post (thn r) s) ∨ (∀ r, ¬ cnd r s) ∧ wlp post els s
   -- `seq` is a composition of programs, so we need to compute the wlp of
   -- the first program, given the wlp of the second
   | Lang.seq l1 l2        =>
@@ -74,6 +80,7 @@ declare_syntax_cat left_arrow
 syntax "<-" : left_arrow
 syntax "←" : left_arrow
 
+
 declare_syntax_cat lang
 syntax lang ";" colGe lang : lang
 syntax "skip"              : lang
@@ -81,8 +88,14 @@ syntax "skip"              : lang
 syntax (name := nondetVal) "*" : lang
 syntax "require" term      : lang
 syntax "do" term           : lang
-syntax (priority := high) "if" term:max "{" lang "}" "else\n" "{" lang "}" : lang
-syntax (priority := low) "if" term:max "{" lang "}" : lang
+
+declare_syntax_cat some_if
+syntax ident "where" : some_if
+
+syntax (priority := high) "if" (some_if)? term:max "{" lang "}" "else\n" "{" lang "}" : lang
+syntax (priority := low) "if" (some_if)? term:max "{" lang "}" : lang
+
+
 /-- intermediate syntax for assigment, e.g. `pending := pending[n, s ↦ true]` -/
 syntax Term.structInstLVal ":=" term    : lang
 /-- syntax for assigment, e.g. `pending n s := true` -/
@@ -132,12 +145,17 @@ macro_rules
     withRef t $
       -- require a proposition on the state
      `(@Lang.require _ (funcases ($t' : Prop) : _ -> Prop))
-  | `([lang|if $cnd:term { $thn:lang }]) => `([lang|if $cnd { $thn } else { skip }])
+  | `([lang|if $some_if ? $cnd:term { $thn:lang }]) => `([lang|if $some_if ? $cnd { $thn } else { skip }])
   | `([lang|if $cnd:term { $thn:lang } else { $els:lang }]) => do
     let cnd' <- closeCapitals cnd
     -- condition might depend on the state as well
     let cnd <- withRef cnd `(funcases ($cnd' : Bool))
     `(@Lang.ite _ _ ($cnd: term) [lang|$thn] [lang|$els])
+  | `([lang|if $x:ident where $cnd:term { $thn:lang } else { $els:lang }]) => do
+    let cnd' <- closeCapitals cnd
+    -- condition might depend on the state as well
+    let cnd <- withRef cnd `(funcases ($cnd' : Bool))
+    `(@Lang.iteSome _ _ _ (fun $x:ident => $cnd:term) (fun $x => [lang|$thn]) [lang|$els])
   | `([lang| do $t:term ]) => `(@Lang.det _ _ $t)
     -- expansion of the intermediate syntax for assigment
     -- for instance `pending := pending[n, s ↦ true]` will get
@@ -178,7 +196,7 @@ macro_rules
   | `([lang1| $l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang1|$l1] [lang1|$l2])
   | `([lang1|require $t:term]) => do
       withRef t $ `(@Lang.require _ (funcases ($t : Prop) : _ -> Prop))
-  | `([lang1|if $cnd:term { $thn:lang }]) => `([lang1|if $cnd { $thn } else { skip }])
+  | `([lang1|if $s:some_if ? $cnd:term { $thn:lang }]) => `([lang1|if $s:some_if ? $cnd { $thn } else { skip }])
   | `([lang1|if $cnd:term { $thn:lang } else { $els:lang }]) => do
     let cnd <- withRef cnd `(funclear ($cnd : Bool))
     `(@Lang.ite _ _ ($cnd: term) [lang1|$thn] [lang1|$els])

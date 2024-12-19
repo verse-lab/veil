@@ -118,8 +118,8 @@ after_init {
 action replace_item (r : replica) (i : seq_t) (v : value) = {
     -- todo
     -- r_log R I V := r_log R I V
-    if (∃ (len : seq_t), r_log_len r len ∧ seq.le i (seq.next len)) {
-        r_log_len r i := False
+    if len in (r_log_len r len) {
+        r_log_len r len := False
     } else {
         r_log_len r i := False
     }
