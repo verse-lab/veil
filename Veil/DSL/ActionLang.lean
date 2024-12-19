@@ -186,6 +186,8 @@ macro_rules
     `(@Lang.det _ _ (fun st => ({ st with $id := (by clear st; exact $t)}, ())))
   | `([lang1| $id:structInstLVal $ts: ident * := $t:term ]) =>
     `([lang1| $id:structInstLVal := fun $ts * => $t])
+  | `([lang1|fresh $id:ident : $t in $l2:lang]) =>
+      `(@Lang.fresh _ _ _ (fun $id : $t => [lang1|$l2]))
   -- | `([lang1| $id:structInstLVal $ts: term * := * ]) => do
   --   `(@Lang.nondet _ _ (fun st (st', ret) =>
   --     (∃ v, st' = { st with $id := ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ])}, ())))

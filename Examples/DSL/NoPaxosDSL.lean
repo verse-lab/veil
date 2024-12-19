@@ -2,7 +2,7 @@ import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
 import Veil.DSL
-import Examples.DSL.RingDSL
+-- import Examples.DSL.RingDSL
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/nopaxos.ivy
 
 section NoPaxos
@@ -76,15 +76,18 @@ instantiate seq : TotalOrderWithMinimum seq_t
 after_init {
     require seq.next seq.zero one; -- axiom [val_one]
     require ∀ (q₁: quorum) (q₂: quorum), ∃ (r: replica), member r q₁ ∧ member r q₂; -- axiom [quorum_intersection]
-    require ∀ (R: replica), leader R ↔ R = lead; -- axiom [single_leader]
-    -- fresh seq' in
+    require ∀ (R : replica), leader R ↔ R = lead; -- axiom [single_leader]
+    fresh seq' : seq_t in
+    fresh one' : seq_t in
 
-    s_seq_msg_num _ _ := False;
-    s_seq_msg_num sequencer one := True; -- := S = sequencer ∧ I = one;
+    sequencer := seq';
+    one := one';
+
+    s_seq_msg_num S I := S = seq' ∧ I = one';
 
     r_log_len R I := I = seq.zero;
     r_log R I V := False;
-    r_sess_msg_num _ _ := False;
+    r_sess_msg_num R S := False;
     r_sess_msg_num R one := True;
     r_gap_commit_reps R P := False;
     r_current_gap_slot R I := I = seq.zero;
