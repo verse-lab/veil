@@ -39,12 +39,12 @@ elab _tk:"conv! " conv:conv " => " e:term : term => do
   Otherwise it has to be evaluated in the kernel during proofs, which is very slow.
   `conv!` applies a tactic to a term. -/
 def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
-  let (actSimp, smtSimp) := (mkIdent `actSimp, mkIdent `smtSimp)
+  let (actSimp, smtSimp, logicSimp) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp)
   -- Reduce the body of the function
   let t' ← `(term| by
     -- Try simplifying first, but this might fail if there's no `wlp` in the
     -- definition, e.g. for transitions that are not actions.
     -- If that fails, we try to evaluate the term as is.
     -- We do `simp only [and_assoc]` at the end to normalize conjunctions.
-    first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident]; simp only [and_assoc]; repeat (pushEqLeft; simp only [quantifierElim])) => $t; exact t) | exact $t)
+    first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident, $logicSimp:ident]; simp only [and_assoc]; repeat (pushEqLeft; simp only [quantifierElim])) => $t; exact t) | exact $t)
   return t'

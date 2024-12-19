@@ -13,7 +13,7 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
   let g ← mkFreshExprMVar expr
   let [l] ← Tactic.run g.mvarId! (do
     Tactic.evalTactic (← `(tactic|unhygienic intros))
-    let _ ← elabSimplifyClause
+    let _ ← elabSimplifyClause (thorough := false)
     for mvarId in (← Tactic.getGoals) do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     Tactic.pruneSolvedGoals
