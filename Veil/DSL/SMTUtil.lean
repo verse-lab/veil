@@ -9,11 +9,12 @@ import Auto
 open Lean hiding Command Declaration
 
 open Lean Elab Command Term Meta Tactic in
+/-- This performs the same simplifications as `fast_simplify_clause` on
+the given expression and then passes it to the SMT translator.-/
 def translateExprToSmt (expr: Expr) : TermElabM String := do
   let g ← mkFreshExprMVar expr
   let [l] ← Tactic.run g.mvarId! (do
-    Tactic.evalTactic (← `(tactic|unhygienic intros))
-    let _ ← elabSimplifyClause (thorough := false)
+    tryGoal $ run `(tactic|unhygienic intros; fast_simplify_clause)
     for mvarId in (← Tactic.getGoals) do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     Tactic.pruneSolvedGoals
@@ -25,7 +26,7 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
           let hyp := hyp.get!
           unless hyp.type.isType do
             tryGoal $ run `(tactic| revert $(mkIdent hyp.userName):ident)
-   ) | throwError "Expected exactly one goal"
+   ) | throwError "[translateExprToSmt] expected exactly one goal after simplification"
   let cmd ← forallTelescope (<- l.getType)
     fun ks tp => do
     let props ← ks.filterM (fun k => return ← Meta.isProp (← inferType k))
