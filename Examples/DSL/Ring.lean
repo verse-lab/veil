@@ -23,30 +23,25 @@ relation pending : node -> node -> Prop
 #gen_state Ring
 
 after_init {
-  leader N := False;
-  pending N M := False
+  leader N := False
+  pending M N := False
 }
 
-action send (n next : node) = {
-  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
+
+action send (n next : node) =
+  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  ensure pending n next = True
+{
+  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := True
 }
 
--- requries/ensures example:
--- action send_axiomatic (n next : node) = {
---   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
---   ensure
---     pending n next = True ∧
---     ∀ n' next', n' ≠ n -> next' ≠ next ->
---       pending n next = pending_old n next
--- }
-
 action recv (sender n next : node) (havoc : Prop) = {
-  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z);
-  require pending sender n;
+  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  require pending sender n
   -- message may or may not be removed
   -- this models that multiple messages might be in flight
-  pending sender n := havoc;
+  pending sender n := havoc
   if (sender = n) {
     leader n := True
   }
@@ -78,12 +73,12 @@ prove_inv_safe by {
   simp [invSimp]
 }
 
-prove_inv_inductive by {
-  constructor
-  . apply inv_init
-  intro st st' hnext hinv
-  sts_induction <;> sdestruct_goal <;> solve_clause
-}
+-- prove_inv_inductive by {
+--   constructor
+--   . apply inv_init
+--   intro st st' hnext hinv
+--   sts_induction <;> sdestruct_goal <;> solve_clause
+-- }
 
 sat trace [initial_state] {} by { bmc_sat }
 

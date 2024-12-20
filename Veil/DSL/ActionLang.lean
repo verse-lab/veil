@@ -84,9 +84,13 @@ declare_syntax_cat left_arrow
 syntax "<-" : left_arrow
 syntax "←" : left_arrow
 
-
+declare_syntax_cat langSeq
 declare_syntax_cat lang
-syntax lang ";" colGe lang : lang
+
+syntax sepByIndentSemicolon(lang) : langSeq
+
+-- syntax lang ";" colGe lang : lang
+-- syntax lang : lang
 syntax "skip"              : lang
 /-- Non-deterministic value. -/
 syntax (name := nondetVal) "*" : lang
@@ -95,17 +99,14 @@ syntax "do" term           : lang
 
 declare_syntax_cat some_if
 syntax ident "where" : some_if
-
-syntax (priority := high) "if" (some_if)? term:max "{" lang "}" "else\n" "{" lang "}" : lang
-syntax (priority := low) "if" (some_if)? term:max "{" lang "}" : lang
-
-
+syntax (priority := high) "if" (some_if)? term:max "{" langSeq "}" "else\n" "{" langSeq "}" : lang
+syntax (priority := low) "if" (some_if)? term:max "{" langSeq "}" : lang
 /-- intermediate syntax for assigment, e.g. `pending := pending[n, s ↦ true]` -/
 syntax Term.structInstLVal ":=" term    : lang
 /-- syntax for assigment, e.g. `pending n s := true` -/
 syntax Term.structInstLVal (term:max)+ ":=" (term <|> nondetVal)    : lang
-syntax term (":" term)? left_arrow lang "in" lang : lang
-syntax "fresh" ident ":" term "in" lang : lang
+syntax term (":" term)? left_arrow lang "in" langSeq : lang
+syntax "fresh" ident ":" term "in" langSeq : lang
 syntax "return" term : lang
 syntax "call" term : lang
 
@@ -116,10 +117,11 @@ syntax "ensure" rcasesPat  "," term unchanged ? : lang
 syntax "ensure" term unchanged ? : lang
 syntax "[unchanged|" ident* "]" : term
 
-/-- Syntax to trigger expansion of a Veil imperative fragment into a
-two-state transition with the state type `term`. -/
+/-- Syntax to trigger the expantion into a code which may
+    depend on the prestate -/
+syntax "[langSeq|" langSeq "]" : term
 syntax "[lang|" lang "]" : term
-syntax "[veil|" lang "]" : term
+
 
 partial def getCapitals (s : Syntax) :=
   let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
@@ -240,32 +242,57 @@ elab_rules : term
     elabTerm (<- `([lang| $id:structInstLVal := $stx])) none
 
 macro_rules
-  | `([lang|$l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang|$l1] [lang|$l2])
+  | `([lang|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
+  | `([langSeq| ]) => `(@Lang.det _ _ (fun st => (st, ())))
+  | `([langSeq| $l1:lang*]) => `(@Lang.seq _ _ _ [lang|$(l1.getElems[0]!)] [langSeq| $[$(l1.getElems[1:])]*])
   | `([lang|require $t:term]) => do
     let t' <- closeCapitals t
     withRef t $
       -- require a proposition on the state
      `(@Lang.require _ (funcases ($t' : Prop) : _ -> Prop))
-  | `([lang|if $some_if ? $cnd:term { $thn:lang }]) => `([lang|if $some_if ? $cnd { $thn } else { skip }])
-  | `([lang|if $cnd:term { $thn:lang } else { $els:lang }]) => do
+  --
+  | `([lang|if $some_if ? $cnd:term { $thn:langSeq }]) => `([lang|if $some_if ? $cnd { $thn } else { skip }])
+  | `([lang|if $cnd:term { $thn:langSeq } else { $els:langSeq }]) => do
     let cnd' <- closeCapitals cnd
     -- condition might depend on the state as well
     let cnd <- withRef cnd `(funcases ($cnd' : Bool))
-    `(@Lang.ite _ _ ($cnd: term) [lang|$thn] [lang|$els])
-  | `([lang|if $x:ident where $cnd:term { $thn:lang } else { $els:lang }]) => do
+    `(@Lang.ite _ _ ($cnd: term) [langSeq|$thn] [langSeq|$els])
+  | `([lang|if $x:ident where $cnd:term { $thn:langSeq } else { $els:langSeq }]) => do
     let cnd' <- closeCapitals cnd
     -- condition might depend on the state as well
     let cnd <- withRef cnd `(funcases ($cnd' : Bool))
-    `(@Lang.iteSome _ _ _ (fun $x:ident => $cnd:term) (fun $x => [lang|$thn]) [lang|$els])
-  | `([lang| do $t:term]) => `(@Lang.det _ _ $t)
+    `(@Lang.iteSome _ _ _ (fun $x:ident => $cnd:term) (fun $x => [langSeq|$thn]) [langSeq|$els])
+  --
+  | `([lang|ensure $t:term $un:unchanged ?] ) =>
+    `([lang|ensure (_ : Unit), $t:term $un:unchanged ?])
+  | `([lang| do $t:term ]) => `(@Lang.det _ _ $t)
+    -- expansion of the intermediate syntax for assigment
+    -- for instance `pending := pending[n, s ↦ true]` will get
+    -- expanded to `Lang.det (fun st => { st with pending := st.pending[n, s ↦ true] })`
+  | `([lang| $id:structInstLVal := $t:term ]) => do
+    `(@Lang.det _ _ (fun st =>
+      ({ st with $id := (by unhygienic cases st; exact $t)}, ())))
+  -- for instance `pending n s := *` will get
+  -- | `([lang| $id:structInstLVal $ts: term * := * ]) => do
+  --   `(@Lang.nondet _ _ (fun st (st', ()) =>
+  --     (∃ v, st' = { st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))})))
+  | `([lang| $id:structInstLVal $ts: term * := * ]) => do
+    `(@Lang.fresh _ _ _ (fun v => @Lang.nondet _ _ _ (fun st =>
+      ({ st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))}, ()))))
+  --   -- expansion of the actual syntax for assigment
+    -- for instance `pending n s := true` will get
+    -- expanded to `pending := pending[n, s ↦ true]`
+  | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
+    let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
+    `([lang| $id:structInstLVal := $stx])
   -- NOTE: the following two cases describe the same construct
   -- there's probably a way to unify them
-  | `([lang| $id:term $_:left_arrow $l1:lang in $l2:lang]) => do
-      `(@Lang.bind _ _ _ [lang|$l1] (fun $id => [lang|$l2]))
-  | `([lang| $id:term : $t:term $_:left_arrow $l1:lang in $l2:lang]) => do
-      `(@Lang.bind _ _ _ [lang|$l1] (fun ($id : $t) => [lang|$l2]))
-  | `([lang|fresh $id:ident : $t in $l2:lang]) =>
-      `(@Lang.fresh _ _ _ (fun $id : $t => [lang|$l2]))
+  | `([lang| $id:term $_:left_arrow $l1:lang in $l2:langSeq]) => do
+      `(@Lang.bind _ _ _ [lang|$l1] (fun $id => [langSeq|$l2]))
+  | `([lang| $id:term : $t:term $_:left_arrow $l1:lang in $l2:langSeq]) => do
+      `(@Lang.bind _ _ _ [lang|$l1] (fun ($id : $t) => [langSeq|$l2]))
+  | `([lang|fresh $id:ident : $t in $l2:langSeq]) =>
+      `(@Lang.fresh _ _ _ (fun $id : $t => [langSeq|$l2]))
   | `([lang|return $t:term]) => `(@Lang.ret _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
   | `([lang|call $t:term]) => `(@Lang.nondet _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
 

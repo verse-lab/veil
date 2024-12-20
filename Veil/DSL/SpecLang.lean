@@ -158,7 +158,7 @@ elab "initial" ini:term : command => do
 
 /-- Declare the initial state predicate as an imperative program in
 `ActionLang`. -/
-elab "after_init" "{" l:lang "}" : command => do
+elab "after_init" "{" l:langSeq "}" : command => do
    -- Here we want to compute `WP[l]{st, st' = st} : State -> Prop`
    -- where `st'` is a final state. We expand `l` using `[lang1| l]`
    -- where `lang1` syntax will make sure that `WP` doesn't depend
@@ -170,7 +170,7 @@ elab "after_init" "{" l:lang "}" : command => do
     let act ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       localSpecCtx.modify ({· with spec.stateStx := stateTp})
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), @$wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), @$wlp _ _ (fun $ret $st => $st' = $st) [langSeq| $l ] $st))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $act)
     -- we modify it to store the `lang`
@@ -228,7 +228,7 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
 /-- Defines `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
 
-def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `lang) : CommandElabM Unit := do
+def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `langSeq) : CommandElabM Unit := do
   let (originalName, nm) := (nm, toFnIdent nm)
   elabCommand $ ← Command.runTermElabM fun vs => do
     let (ret, st, stret, wlp) := (mkIdent `ret', mkIdent `st, mkIdent `stret, mkIdent ``wlp)
@@ -237,7 +237,7 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $stret = ($st', $ret')
     let act <- `(fun ($st : $stateTp) $stret =>
-      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [lang| $l ] $st)
+      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [langSeq| $l ] $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
@@ -315,22 +315,31 @@ precondition of the program and then define the transition relation.
 Note: Unlike `after_init` we expand `l` using `[lang| l]` (as opposed to
 `[lang1| l]`) as we want the transition to refer to both pre-state and
 post-state.-/
-elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "}" : command => do
+
+syntax (actionType)? "action" ident (explicitBinders)? "=" langSeq "{" langSeq "}" : command
+syntax (actionType)? "action" ident (explicitBinders)? "=" "{" langSeq "}" : command
+
+def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
+  (spec : Option (TSyntax `langSeq)) (l : TSyntax `langSeq) : CommandElabM Unit := do
     let actT ← parseActionTypeStx actT
     let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
     -- `σ → σ → Prop`, with binders existentially quantified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       localSpecCtx.modify ({· with spec.stateStx := stateTp})
-      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [lang| $l ] $st)
+      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [langSeq| $l ] $st)
     )
     let trIdent := toTrIdent nm
     elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)
     Command.runTermElabM fun _ => do
       -- [add_action_lang] find the appropriate transition and add the `lang` declaration to it
       localSpecCtx.modify (fun s => { s with spec := {s.spec with
-        transitions := s.spec.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l } else t)}})
+        transitions := s.spec.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l, spec := spec } else t)}})
     elabCallableFn nm br l
+
+elab_rules : command
+  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:langSeq}) => elabAction actT nm br none l
+  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = $spec {$l:langSeq}) => elabAction actT nm br (some spec) l
 
 /-! ## Assertions -/
 
