@@ -5,6 +5,7 @@ import Veil.DSL.Attributes
 import Veil.DSL.StateExtensions
 import Veil.DSL.ActionLang
 import Veil.DSL.Tactic
+import Veil.Tactic.Main
 import Veil.DSL.Util
 
 open Lean Elab Command Term Meta Lean.Parser
@@ -228,8 +229,8 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
 /-- Defines `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
 
-def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `langSeq) : CommandElabM Unit := do
-  let (originalName, nm) := (nm, toFnIdent nm)
+def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `langSeq) (nmt : Ident -> Ident := toFnIdent) : CommandElabM Unit := do
+  let (originalName, nm) := (nm, nmt nm)
   elabCommand $ ← Command.runTermElabM fun vs => do
     let (ret, st, stret, wlp) := (mkIdent `ret', mkIdent `st, mkIdent `stret, mkIdent ``wlp)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
@@ -319,6 +320,25 @@ post-state.-/
 syntax (actionType)? "action" ident (explicitBinders)? "=" langSeq "{" langSeq "}" : command
 syntax (actionType)? "action" ident (explicitBinders)? "=" "{" langSeq "}" : command
 
+def checkSpec (nm : Ident) (nmImpl nmSpec : Ident) (br : Option (TSyntax `Lean.explicitBinders)) : CommandElabM Unit := do
+  elabCommand $ ← Command.runTermElabM fun vs => do
+    let (st, st') := (mkIdent `st, mkIdent `st')
+    let thmName := mkIdent $ nm.getId ++ `spec_correct
+    match br with
+    | some br =>
+      let br' <- toBracketedBinderArray br
+      `(theorem $thmName :
+        ∀ $br'*, ∀ $st:ident $st':ident,
+          @$nmImpl $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st' ->
+          @$nmSpec $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st' := by
+          solve_clause)
+    | none =>
+      `(theorem $thmName :
+        ∀ $st:ident $st':ident,
+          @$nmImpl $(← getSectionArgumentsStx vs)* $st $st' ->
+          @$nmSpec $(← getSectionArgumentsStx vs)* $st $st' := by solve_clause)
+
+
 def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
   (spec : Option (TSyntax `langSeq)) (l : TSyntax `langSeq) : CommandElabM Unit := do
     let actT ← parseActionTypeStx actT
@@ -330,12 +350,16 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
       `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [langSeq| $l ] $st)
     )
     let trIdent := toTrIdent nm
+    let spec' := if spec.isSome then spec else l
     elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)
     Command.runTermElabM fun _ => do
       -- [add_action_lang] find the appropriate transition and add the `lang` declaration to it
       localSpecCtx.modify (fun s => { s with spec := {s.spec with
-        transitions := s.spec.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l, spec := spec } else t)}})
+        transitions := s.spec.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l, spec := spec' } else t)}})
     elabCallableFn nm br l
+    unless spec.isNone do
+      elabCallableFn nm br l (nmt := toSpecIdent)
+      checkSpec nm (toFnIdent nm) (toSpecIdent nm) br
 
 elab_rules : command
   | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:langSeq}) => elabAction actT nm br none l

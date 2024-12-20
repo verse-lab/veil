@@ -160,6 +160,7 @@ def toTrIdent (id : Ident) : Ident := mkIdent $ toTrName id.getId
 def toFnName (n : Name) : Name := n ++ `fn
 /-- See docstring on `toTrName`. -/
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
+def toSpecIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `spec
 
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId
