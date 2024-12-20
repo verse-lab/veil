@@ -163,22 +163,26 @@ elab_rules : tactic
   | `(tactic| fast_simplify_clause%$_tk) => do _ ← elabSimplifyClause (thorough := false)
   | `(tactic| fast_simplify_clause?%$tk) => do _ ← elabSimplifyClause (thorough := false) (traceAt := tk)
 
+def showTacticTraceAt (stx : Syntax) (xtacs : Array (TSyntax `tactic)) : TacticM Unit := do
+  let combined_tactic ← `(tactic| $xtacs;*)
+  addSuggestion stx combined_tactic
+
 def elabSolveClause (stx : Syntax)
   (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent)
   (trace : Bool := false) : TacticM Unit := withMainContext do
   let (idents, xtacs) ← elabSimplifyClause simp0
-  withMainContext do
-  let autoTac ← `(tactic| sauto [$[$idents:ident],*])
-  let mut xtacs := xtacs
-  -- Sometimes the simplification solves the goal, and we don't need to `sauto`
+  -- Sometimes the simplification solves the goal, and we don't need to
+  -- `sauto`; this check needs to be before `withMainContext`, since that
+  -- calls `throwNoGoalsToBeSolved` if there are no goals.
   if (← getUnsolvedGoals).length != 0 then
-    xtacs := xtacs.push autoTac
-  if trace then
-    -- FIXME: the indentation is wrong for the `sauto` tactic
-    let combined_tactic ← `(tactic| $xtacs;*)
-    addSuggestion stx combined_tactic
-  if (← getUnsolvedGoals).length != 0 then
-    evalTactic autoTac
+    withMainContext do
+      let autoTac ← `(tactic| sauto [$[$idents:ident],*])
+      if trace then
+        showTacticTraceAt stx (xtacs.push autoTac)
+      evalTactic autoTac
+  else
+    if trace then
+      showTacticTraceAt stx xtacs
 
 syntax (name := solveClause) "solve_clause" : tactic
 syntax (name := solveClauseWith) "solve_clause" "[" ident,* "]" : tactic
