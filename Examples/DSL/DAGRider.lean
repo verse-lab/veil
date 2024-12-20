@@ -1,6 +1,6 @@
 import Veil.DSL
 -- import Examples.DSL.ReliableBroadcastDSL
-import Examples.DSL.RingDSL
+import Examples.DSL.Ring
 -- import Mathlib.Tactic
 
 section DAGRider

@@ -4,7 +4,7 @@ import Veil.Tactic
 import Veil.DSL
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/nopaxos.ivy
 
-section NoPaxos
+section NOPaxos
 open Classical
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/total_order.ivy
@@ -70,7 +70,7 @@ individual lead : replica
 
 instantiate seq : TotalOrderWithMinimum seq_t
 
-#gen_state NoPaxos
+#gen_state NOPaxos
 
 after_init {
     require seq.next seq.zero one; -- axiom [val_one]
@@ -268,5 +268,7 @@ safety [consistency] ((∃ (q: quorum), member lead q ∧ ∀ (r : replica), mem
                 (∃ (q: quorum), member lead q ∧ ∀ (r : replica), member r q → m_request_reply r V2 I))
                 → V1 = V2
 
+#gen_spec NOPaxos
+
 -- #check_invariants
-end NoPaxos
+end NOPaxos

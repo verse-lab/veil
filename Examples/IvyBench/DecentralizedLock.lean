@@ -1,5 +1,5 @@
 import Veil.DSL
-import Examples.DSL.PaxosDSL
+import Examples.DSL.Paxos
 -- https://github.com/aman-goel/ivybench/blob/master/ex/ivy/decentralized-lock.ivy
 
 
