@@ -44,19 +44,18 @@ after_init {
   fresh init_node' : node in
   init_node := init_node';
   n_have_privilege N := N = init_node';
-  n_requesting N := False;
+  n_requesting _ := False;
   n_RN _ _ := seq.zero;
   require ∀N, (N = init_node') → (seq.next seq.zero (n_token_seq N));
   require ∀N, (N ≠ init_node') → (n_token_seq N = seq.zero);
-  -- n_token_seq N := if N = init_node' then (succ seq.zero) else seq.zero;
 
   reqs _ _ _ := False;
 
   t_for I N := (seq.next seq.zero I) ∧ N = init_node';
-  t_LN I N := seq.zero;
-  t_q I N := False;
+  t_LN _ _ := seq.zero;
+  t_q _ _ := False;
 
-  crit N := False
+  crit _ := False
 }
 
 
@@ -122,49 +121,6 @@ invariant [no_request_to_self] (reqs N M I) → N ≠ M
 invariant [no_consecutive_privilege] ((t_for I N) ∧ (seq.next J I) ∧ (t_for J M)) → N ≠ M
 invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.le I (n_token_seq N)
 
+#gen_spec SuzukiKasami
 
--- #check_invariant mutex
-@[invProof]
-  theorem init_mutex :
-      ∀ (st' : SuzukiKasami.State node seq_t),
-        ([anonymous] node inst✝ seq_t inst✝¹ seq).init st' → (mutex node seq_t) st' :=
-    by unhygienic intros; solve_clause[initSimp]
-
-  @[invProof]
-  theorem exit.tr_mutex :
-      ∀ (st st' : SuzukiKasami.State node seq_t),
-        ([anonymous] node inst✝ seq_t inst✝¹ seq).inv st →
-          (exit.tr node seq_t) st st' → (mutex node seq_t) st' :=
-    by unhygienic intros; solve_clause[exit.tr]
-
-  @[invProof]
-  theorem rcv_privilege.tr_mutex :
-      ∀ (st st' : SuzukiKasami.State node seq_t),
-        ([anonymous] node inst✝ seq_t inst✝¹ seq).inv st →
-          (rcv_privilege.tr node seq_t) st st' → (mutex node seq_t) st' :=
-    by unhygienic intros; solve_clause[rcv_privilege.tr]
-
-  @[invProof]
-  theorem rcv_request.tr_mutex :
-      ∀ (st st' : SuzukiKasami.State node seq_t),
-        ([anonymous] node inst✝ seq_t inst✝¹ seq).inv st →
-          (rcv_request.tr node seq_t) st st' → (mutex node seq_t) st' :=
-    by unhygienic intros; solve_clause[rcv_request.tr]
-
-  @[invProof]
-  theorem request.tr_mutex :
-      ∀ (st st' : SuzukiKasami.State node seq_t),
-        ([anonymous] node inst✝ seq_t inst✝¹ seq).inv st →
-          (request.tr node seq_t) st st' → (mutex node seq_t) st' :=
-    by unhygienic intros; solve_clause[request.tr]
-
-  @[invProof]
-  theorem succ.tr_mutex :
-      ∀ (st st' : SuzukiKasami.State node seq_t),
-        ([anonymous] node inst✝ seq_t inst✝¹ seq).inv st →
-          (succ.tr node seq_t) st st' → (mutex node seq_t) st' :=
-    by unhygienic intros; solve_clause[succ.tr]
-
-   mutex
-
-#check_invariants
+end SuzukiKasami
