@@ -31,7 +31,7 @@ elab _tk:"conv! " conv:conv " => " e:term : term => do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     pruneSolvedGoals
     let e' ← instantiateMVars rhs
-    trace[dsl] "{e'}"
+    trace[dsl.debug] "[conv!] {e}\nsimplifies to\n{e'}"
   )
   return rhs
 
