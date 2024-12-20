@@ -132,7 +132,9 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       ) $ invIndicators.toArray
       -- EK: We're using `st'` and not st because `invariants` is already phrased in terms of `st'`.
       let initTpStx ← `(∀ $[$initParams]* ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invariants)
+      trace[dsl] "init check: {initTpStx}"
       let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
+      trace[dsl.debug] "SMT init check: {initCmd}"
       let initRes ← querySolverWithIndicators initCmd timeout (initChecks.map (fun a => #[a]))
       let initMsgs := getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
         | [invName] => (invName, match res with
@@ -145,7 +147,9 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ allIndicators.toArray
       let actTpStx ← `(∀ $[$actParams]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
+      trace[dsl] "action check: {actTpStx}"
       let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
+      trace[dsl.debug] "SMT action check: {actCmd}"
       let actRes ← querySolverWithIndicators actCmd timeout (invChecks.map (fun (a, b) => #[a, b]))
       let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
         | [actName, invName] => (invName, actName, match res with
