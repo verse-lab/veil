@@ -8,9 +8,9 @@ open Classical
 
 type node
 
-relation requested : node → node → Prop
-relation replied : node → node → Prop
-relation holds : node → Prop
+relation requested (n1 : node) (n2 : node)
+relation replied (n1 : node) (n2 : node)
+relation holds (n : node)
 
 #gen_state RicartAgrawala
 
@@ -32,8 +32,8 @@ action reply (requester: node) (responder: node) = {
     require ¬ replied responder requester;
     require requested requester responder;
     require requester ≠ responder;
-    requested requester responder := false;
-    replied requester responder := true
+    requested requester responder := False;
+    replied requester responder := True
 }
 
 action enter (requester: node) = {
@@ -44,18 +44,15 @@ action enter (requester: node) = {
 action leave (requester : node) = {
   require holds requester;
   holds requester := False;
-  replied requester A := False
+  replied requester N := False
 }
+
+safety [mutual_exclusion] (holds N1 ∧ holds N2) → N1 = N2
+invariant N1 ≠ N2 → ¬(replied N1 N2 ∧ replied N2 N1)
+invariant (N1 ≠ N2 ∧  holds N1) → replied N1 N2
 
 #gen_spec RicartAgrawala
 
-
-safety [million] (holds N1 ∧ holds N2) → N1 = N2
-
-invariant [manually_discovered] True ∧ True --∀ requester responder, replied requester responder → ¬ holds responder --holds A ↔ ∃ B, replied B A
-
 #check_invariants
-
-
 
 end RicartAgrawala
