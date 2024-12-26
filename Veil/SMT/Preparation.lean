@@ -120,6 +120,7 @@ simproc State_exists_comm (∃ _ _, _) := fun e => do
   let step ← lambdaTelescope eBody (fun ks lBody => do
       let_expr Exists t' eBody' := lBody | return .continue
       let step ← lambdaTelescope eBody' (fun ks' lBody' => do
+        -- Do not swap if both quantifiers are of the same type (i.e. `State`)
         if ← isDefEq t t' then
           return .continue
         else
@@ -128,90 +129,80 @@ simproc State_exists_comm (∃ _ _, _) := fun e => do
           let outerExists := mkAppN lBody.getAppFn #[t', ← mkLambdaFVars ks' innerExists]
           let body ← mkLambdaFVars (ks ++ ks') lBody'
           let proof ← mkAppOptM ``exists_comm_eq #[t, t', body]
+          trace[dsl.debug] "[State_exists_comm ({stateName})] {e} ~~> {outerExists}"
           return .done { expr := outerExists, proof? := proof }
       )
       return step
   )
   return step
-attribute [logicSimp] State_exists_comm
+attribute [quantifierElim] State_exists_comm
 
--- TODO ∀: do we need to do the same for `∀` quantification?
-
-/-- When calling actions, we get goals that quantify over the post-state,
-    e.g. `∃ st', preconditions ∧ st' = ... ∧ ...`. We can eliminate these
-    quantifers by replacing st' in the body of the existential with the RHS
-    of the equality. This function helps do that by pushing equalities
-    involving the inner-most existential `bvar 0` to the left.
-    `exists_eq_left` (in `logicSimp`) will then eliminate the quantifier.-/
-partial def pushEqLeft (e : Expr) : MetaM Expr := do
-  -- go under existential quantifiers
-  match_expr e with
-  | Exists t body => return mkAppN e.getAppFn #[t, (← pushEqLeft body)]
-  | _ =>
-  match e with
-  -- go inside function bodies (the body of an `∃` is a lambda)
-  | .lam bn bt body bi => return .lam bn bt (← pushEqLeft body) bi
-  | _ =>
-    -- (?lhs ∧ ?rhs)
-    let_expr And lhs rhs := e | return e
-    let rhs' ← pushEqLeft rhs -- recursively transform RHS
-    let (rhs, e) := (rhs', mkAnd lhs rhs') -- update RHS and the whole expression
-    match_expr rhs with
-    -- (?lhs ∧ ?a = ?b) => (?a = ?b ∧ ?lhs)
-    | Eq a b =>
-        -- trace[dsl] "(?lhs ∧ ?a = ?b) => (?a = ?b ∧ ?lhs)"
-        if isInnerMost a || isInnerMost b then return mkAnd rhs lhs else return e
-    -- (?lhs ∧ (?top ∧ ?bottom))
-    | And top bottom  =>
-        let_expr Eq _ a b := top | return e
-        -- trace[dsl] "(?lhs ∧ ({top} ∧ ?bottom))"
-        if isInnerMost a || isInnerMost b then return mkAnd top (mkAnd lhs bottom) else return e
-    | _ => return e
-    where isInnerMost (e : Expr) : Bool := e == .bvar 0
-
-def pushEqLeftTactic (id : Option (TSyntax `ident)) : TacticM Unit := withMainContext do
-  let e ← (match id with
-  | none => return ← getMainTarget
-  | some id => do
-      let ctx ← getLCtx
-      let .some hyp := ctx.findFromUserName? id.getId
-        | throwError "unknown identifier '{id}'"
-      return hyp.type
+/-- Returns an `Array` of the free variables that are existentially
+quantified `State`. -/
+partial def getExistentialsOverState (e : Expr) : SimpM (Array Name) := do
+  let mut qs := #[]
+  let_expr Exists t eBody ← e | return qs
+  let stateName ← getStateName
+  let innerQuantifiers ← lambdaBoundedTelescope eBody (maxFVars := 1) (fun ks lBody => do
+    let #[k] := ks
+      | throwError "[getExistentialsOverState] Expected exactly one variable in the lambda telescope"
+    if (t.isAppOf stateName) then
+      let decl := (← k.fvarId!.findDecl?).get!
+      return (← getExistentialsOverState lBody).push decl.userName
+    else
+      return ← getExistentialsOverState lBody
   )
-  let e' ← pushEqLeft e
-  if e == e' then
-    throwError "no equality to push left"
-  -- trace[dsl] "{e} => {e'}"
-  let goal ← getMainGoal
-  let heq ← mkFreshExprMVar (← Meta.mkEq e e')
-  let hname ← mkFreshUserName `heq
-  let goal' ← MVarId.assert goal hname (← heq.mvarId!.getType) heq
-  let (_h, goal') ← goal'.intro1P
-  setGoals [heq.mvarId!, goal']
-  heq.mvarId!.withContext do
-    evalTactic $ ← `(tactic|ac_rfl)
-  let tactic ← match id with
-  | none => `(tactic| rw [$(mkIdent hname):ident]; clear $(mkIdent hname):ident)
-  | some id => `(tactic| rw [$(mkIdent hname):ident] at $id:ident; clear $(mkIdent hname):ident)
-  evalTactic tactic
+  qs := qs.append innerQuantifiers
+  return qs
 
-open Lean.Elab.Tactic.Conv in
-/--`conv` version of the above tactic, since we use `conv!` to simplify
-    action `wlp`s -/
-elab "pushEqLeft" : conv => do
-  let e ← getLhs
-  let e' ← pushEqLeft e
-  if e == e' then
-    throwError "no equality to push left"
-  let heq ← mkFreshExprMVar (← Meta.mkEq e e')
-  let mid := heq.mvarId!
-  mid.withContext do
-    let _ ← Tactic.run mid $ (evalTactic $ ← `(tactic|ac_rfl))
-  updateLhs e' heq
+/-- Push all equalities involving the expression `this` left (one step) over `∧` in `e.` -/
+def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
+  -- trace[dsl.debug] "[pushEqInvolvingLeft] {this} in {e}"
+  let_expr And top bottom ← e | return .continue
+  match_expr bottom with
+  -- (?top ∧ (?lhs = ?rhs)) => ((?lhs = ?rhs) ∧ ?top)
+  | Eq _ lhs rhs =>
+      if !((← ematches lhs) || (← ematches rhs)) then
+        return .continue
+      let e' := mkAnd bottom top
+      -- let pf ← mkAppM ``and_comm #[top, bottom]
+      trace[dsl.debug] "[pushEqInvolvingLeft EQ {this}] {e} ~~> {e'})"
+      return .done { expr := e', proof? := .none }
+  -- (?top ∧ (?lhs = ?rhs) ∧ ?bottom) => ((?lhs = ?rhs) ∧ ?top ∧ ?bottom)
+  | And middle bottom =>
+      let_expr Eq _ lhs rhs ← middle | return .continue
+      if !((← ematches lhs) || (← ematches rhs)) then
+        return .continue
+      let e' := mkAnd middle (mkAnd top bottom)
+      trace[dsl.debug] "[pushEqInvolvingLeft AND-EQ {this}] {e} ~~> {e'})"
+      return .done { expr := e', proof? := .none }
+  | _ => return .continue
+  where ematches (e : Expr) := do
+    match e.isFVar with
+    | true => return (← e.fvarId!.findDecl?).get!.userName == this
+    | false => return false
 
-elab "pushEqLeft" "at" id:ident : tactic => pushEqLeftTactic (some id)
-elab "pushEqLeft" "at" "⊢" : tactic => pushEqLeftTactic none
-elab "pushEqLeft" : tactic => pushEqLeftTactic none
+/- When calling actions, we get goals that quantify over the post-state,
+e.g. `∃ st', preconditions ∧ st' = ... ∧ ...`. We can eliminate these
+quantifers by replacing `st'` in the body of the existential with the
+RHS of the equality. This `simproc` assumes that (1) existential
+quantifiers have been hoisted and that (2) we have already called
+`simp [and_assoc]`, such that the formula has `a ∧ (b ∧ c)`
+associativity. -/
+simproc State_eq_push_left (∃ _, _) := fun e => do
+  let_expr Exists _ _ ← e | return .continue
+  -- Step 1: identify all variables which quantify over `State`
+  let qs ← getExistentialsOverState e
+  if qs.isEmpty then
+    return .continue
+  let lastQ := qs.back
+  -- FIXME: I think we have to run this in a loop if we have multiple calls
+  -- Run the parametric simp procedure `pushEqInvolvingLeft`
+  let (res, _stats) ← Simp.main e (← Simp.getContext) (methods := { post := pushEqInvolvingLeft lastQ })
+  if res.expr != e then
+    trace[dsl.debug] "[State_eq_push_left {lastQ}] {e} ~~> {res.expr}"
+  return .continue res
+attribute [quantifierElim] State_eq_push_left
 
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
