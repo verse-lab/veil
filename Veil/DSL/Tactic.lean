@@ -46,5 +46,5 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
     -- definition, e.g. for transitions that are not actions.
     -- If that fails, we try to evaluate the term as is.
     -- We do `simp only [and_assoc]` at the end to normalize conjunctions.
-    first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident, $logicSimp:ident]; simp only [and_assoc, $quantifierElim:ident]) => $t; exact t) | exact $t)
+    first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident, $logicSimp:ident]; simp only [and_assoc]; simp only [$quantifierElim:ident]) => $t; exact t) | exact $t)
   return t'

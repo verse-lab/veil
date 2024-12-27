@@ -120,54 +120,27 @@ theorem and_comm_middle {p q r : Prop} : (p ∧ (q ∧ r)) = (q ∧ (p ∧ r)) :
   apply propext
   constructor <;> (intro h; simp only [h, and_self])
 
-/- Pushes existential quantifiers over `State` to the right,
-   e.g. `∃ (s : State ..), x` becomes `∃ x, s`. For details, see:
-   https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869 -/
-simproc State_exists_comm (∃ _ _, _) := fun e => do
-  let_expr Exists t eBody := e | return .continue
-  let stateName ← getStateName
-  if !(t.isAppOf stateName) then
-    return .continue
-  -- the body of an `∃` is a lambda
-  let step ← lambdaTelescope eBody (fun ks lBody => do
-      let_expr Exists t' eBody' := lBody | return .continue
-      let step ← lambdaTelescope eBody' (fun ks' lBody' => do
-        -- Do not swap if both quantifiers are of the same type (i.e. `State`)
-        if ← isDefEq t t' then
-          return .continue
-        else
-          -- swap the quantifiers
-          let innerExists := mkAppN e.getAppFn #[t, ← mkLambdaFVars ks lBody']
-          let outerExists := mkAppN lBody.getAppFn #[t', ← mkLambdaFVars ks' innerExists]
-          let body ← mkLambdaFVars (ks ++ ks') lBody'
-          let proof ← mkAppOptM ``exists_comm_eq #[t, t', body]
-          trace[dsl.debug] "[State_exists_comm ({stateName})] {e} ~~> {outerExists}"
-          return .done { expr := outerExists, proof? := proof }
-      )
-      return step
-  )
-  return step
-attribute [quantifierElim] State_exists_comm
-
 /-- Returns an `Array` of the free variables that are existentially
-quantified `State`. -/
+quantified `State` in `e`. -/
 partial def getExistentialsOverState (e : Expr) : SimpM (Array Name) := do
-  let mut qs := #[]
-  let_expr Exists t eBody ← e | return qs
   let stateName ← getStateName
-  let innerQuantifiers ← lambdaBoundedTelescope eBody (maxFVars := 1) (fun ks lBody => do
-    let #[k] := ks
-      | throwError "[getExistentialsOverState] Expected exactly one variable in the lambda telescope"
-    if (t.isAppOf stateName) then
-      let decl := (← k.fvarId!.findDecl?).get!
-      return (← getExistentialsOverState lBody).push decl.userName
-    else
-      return ← getExistentialsOverState lBody
-  )
-  qs := qs.append innerQuantifiers
-  return qs
+  let rec go (e : Expr) (acc : Array Name) : SimpM (Array Name) := do
+    -- Stop as soon as we find a non-existential quantifier
+    let_expr Exists t eBody ← e | return acc
+    let qs ← ← lambdaBoundedTelescope eBody (maxFVars := 1) (fun ks lBody => do
+        let #[k] := ks
+          | throwError "[getExistentialsOverState::go] Expected exactly one variable in the lambda telescope"
+        if (t.isAppOf stateName) then
+          let decl := (← k.fvarId!.findDecl?).get!
+          return go lBody (acc.push decl.userName)
+        else
+          return go lBody acc
+    )
+    return qs
+  go e #[]
 
-/-- Push all equalities involving the expression `this` left (one step) over `∧` in `e.` -/
+/-- Push all equalities involving the expression `this` left (one step)
+over `∧` in `e.` -/
 def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
   -- trace[dsl.debug] "[pushEqInvolvingLeft] {this} in {e}"
   let_expr And top bottom ← e | return .continue
@@ -178,7 +151,7 @@ def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
         return .continue
       let e' := mkAnd bottom top
       let pf ← mkAppOptM ``and_comm_eq #[top, bottom]
-      trace[dsl.debug] "[pushEqInvolvingLeft EQ {this}] {e} ~~> {e'}"
+      -- trace[dsl.debug] "[pushEqInvolvingLeft EQ {this}] {e} ~~> {e'}"
       return .done { expr := e', proof? := pf }
   -- (?top ∧ (?lhs = ?rhs) ∧ ?bottom) => ((?lhs = ?rhs) ∧ ?top ∧ ?bottom)
   | And middle bottom =>
@@ -187,7 +160,7 @@ def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
         return .continue
       let e' := mkAnd middle (mkAnd top bottom)
       let pf ← mkAppOptM ``and_comm_middle #[top, middle, bottom]
-      trace[dsl.debug] "[pushEqInvolvingLeft AND-EQ {this}] {e} ~~> {e'}"
+      -- trace[dsl.debug] "[pushEqInvolvingLeft AND-EQ {this}] {e} ~~> {e'}"
       return .done { expr := e', proof? := pf }
   | _ => return .continue
   where ematches (e : Expr) := do
@@ -195,27 +168,38 @@ def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
     | true => return (← e.fvarId!.findDecl?).get!.userName == this
     | false => return false
 
-/- When calling actions, we get goals that quantify over the post-state,
-e.g. `∃ st', preconditions ∧ st' = ... ∧ ...`. We can eliminate these
-quantifers by replacing `st'` in the body of the existential with the
-RHS of the equality. This `simproc` assumes that (1) existential
-quantifiers have been hoisted and that (2) we have already called
-`simp [and_assoc]`, such that the formula has `a ∧ (b ∧ c)`
-associativity. -/
-simproc State_eq_push_left (∃ _, _) := fun e => do
-  let_expr Exists _ _ ← e | return .continue
-  -- Step 1: identify all variables which quantify over `State`
-  let qs ← getExistentialsOverState e
-  if qs.isEmpty then
+/-- Pushes existential quantifiers over `State` to the right,
+   e.g. `∃ (s : State ..), x` becomes `∃ x, s`. For details, see:
+   https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869 -/
+def State_exists_push_right (this : Name) : Simp.Simproc := fun e => do
+  let_expr Exists t eBody := e | return .continue
+  let stateName ← getStateName
+  if !(t.isAppOf stateName) then
     return .continue
-  let lastQ := qs.back
-  -- FIXME: I think we have to run this in a loop if we have multiple calls
-  -- Run the parametric simp procedure `pushEqInvolvingLeft`
-  let (res, _stats) ← Simp.main e (← Simp.getContext) (methods := { post := pushEqInvolvingLeft lastQ })
-  if res.expr != e then
-    trace[dsl.debug] "[State_eq_push_left {lastQ}] {e} ~~> {res.expr}"
-  return .continue res
-attribute [quantifierElim] State_eq_push_left
+  -- the body of an `∃` is a lambda
+  let step ← lambdaBoundedTelescope eBody (maxFVars := 1) (fun ks lBody => do
+      -- if this isn't the right binder, we can bail out
+      let #[k] := ks
+        | throwError "[State_exists_push_right] Expected exactly one variable in the lambda telescope"
+      if !(← ematches k) then
+        return .continue
+      let_expr Exists t' eBody' := lBody | return .continue
+      let step ← lambdaBoundedTelescope eBody' (maxFVars := 1) (fun ks' lBody' => do
+        -- swap the quantifiers
+        let innerExists := mkAppN e.getAppFn #[t, ← mkLambdaFVars ks lBody']
+        let outerExists := mkAppN lBody.getAppFn #[t', ← mkLambdaFVars ks' innerExists]
+        let body ← mkLambdaFVars (ks ++ ks') lBody'
+        let proof ← mkAppOptM ``exists_comm_eq #[t, t', body]
+        -- trace[dsl.debug] "[State_exists_comm ({stateName})] {e} ~~> {outerExists}"
+        return .done { expr := outerExists, proof? := proof }
+      )
+      return step
+  )
+  return step
+  where ematches (e : Expr) := do
+    match e.isFVar with
+    | true => return (← e.fvarId!.findDecl?).get!.userName == this
+    | false => return false
 
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
@@ -250,7 +234,9 @@ attribute [logicSimp] forall_exists_index exists_const exists_true_left
 
 /-! The default exists simp lemmas _unhoist_ quantifiers (push them as far in as
   possible), but to enable quantifier elimination, we want to _hoist_ them
-  to the top of the goal, so we run these lemmas in the reverse direction. -/
+  to the top of the goal, so we run these lemmas in the reverse direction.
+  We give these lemmas the `logicSimp` attribute (as opposed to `quantifierElim`)
+  because we want them to run _before_ the `quantifierElim` lemmas. -/
 section quantifiers
 variable {p q : α → Prop} {b : Prop}
 theorem exists_and_left' : b ∧ (∃ x, p x) ↔ (∃ x, b ∧ p x) := by rw [exists_and_left]
@@ -269,6 +255,45 @@ attribute [logicSimp] exists_eq_left' exists_eq_right' forall_eq_or_imp
 attribute [quantifierElim] forall_eq' exists_eq exists_eq'
   exists_eq_left exists_eq_right exists_and_left' exists_and_right'
   exists_eq_left' exists_eq_right_right exists_eq_right_right'
+
+/-- A variant of the above, for use when defining a `Simp.Context` in
+`elim_exists_State`. (I couldn't figure out how to create a list of
+`SimpTheorems` from ). -/
+@[inline] def quantifierElimThms : MetaM SimpTheorems :=
+  quantifierElimThms'.foldlM (·.addConst ·) ({} : SimpTheorems)
+  where quantifierElimThms' : List Name := [``forall_eq', ``exists_eq,
+    ``exists_eq', ``exists_eq_left, ``exists_eq_right, ``exists_and_left',
+    ``exists_and_right', ``exists_eq_left',
+    ``exists_eq_right_right, ``exists_eq_right_right']
+
+/- When calling actions, we get goals that quantify over the post-state,
+e.g. `∃ st', preconditions ∧ st' = ... ∧ ...`. We can eliminate these
+quantifers by replacing `st'` in the body of the existential with the
+RHS of the equality. This `simproc` assumes that (1) existential
+quantifiers have been hoisted and that (2) we have already called
+`simp [and_assoc]`, such that the formula has `a ∧ (b ∧ c)`
+associativity. -/
+simproc elim_exists_State (∃ _, _) := fun e => do
+  let_expr Exists _ _ ← e | return .continue
+  let e ← uniqueBinders e
+  -- Step 1: identify all variables which quantify over `State`
+  let qs ← getExistentialsOverState e
+  if qs.isEmpty then
+    return .continue
+  -- Step 2: get rid of this quantifier
+  -- FIXME: this should run in a loop for all `qs`
+  let lastQ := qs.back
+  let ctx : Simp.Context := {
+    config := {} -- (← Simp.getContext).config
+    simpTheorems := #[(← quantifierElimThms)] -- {}
+    congrTheorems := (← getSimpCongrTheorems)
+  }
+  let method := (pushEqInvolvingLeft lastQ) |> Simp.andThen (State_exists_push_right lastQ)
+  let (res, _stats) ← Simp.main e ctx (methods := { post := method})
+  if !(← isDefEq res.expr e) then
+    trace[dsl.debug] "[State_eq_push_left {qs}] {e} ~~> {res.expr}"
+  return .done res
+attribute [quantifierElim] elim_exists_State
 
 /-! ## decidable -/
 attribute [logicSimp] Decidable.not_not decide_eq_decide
