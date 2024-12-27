@@ -42,6 +42,31 @@ class TotalOrderWithMinimum (t : Type) :=
   zero : t
   zero_lt (x : t) : le zero x
 
+class TotalOrderWithZero (t : Type) :=
+  -- relation: total order
+  le (x y : t) : Prop
+
+  -- zero
+  zero : t
+  zero_le (x : t) : le zero x
+
+  -- axioms
+  le_refl       (x : t) : le x x
+  le_trans  (x y z : t) : le x y → le y z → le x z
+  le_antisymm (x y : t) : le x y → le y x → x = y
+  le_total    (x y : t) : le x y ∨ le y x
+
+
+class Queue (α : Type) (queue : outParam Type) :=
+  member (x : α) (q : queue) : Prop
+
+  is_empty (q : queue) :=
+    ∀ (e : α), ¬ member e q
+  enqueue (x : α) (q q' : queue) :=
+    ∀ (e : α), member e q' ↔ (member e q ∨ e = x)
+  -- FIXME?: this is not a multi-set
+  dequeue (x : α) (q q' : queue) :=
+    ∀ (e : α), member e q' ↔ (member e q ∧ e ≠ x)
 
 /-- Ring topology -/
 class Between (node : Type) :=
@@ -62,6 +87,15 @@ class Quorum (node : Type) (quorum : outParam Type):=
   -- axioms
   quorum_intersection :
     ∀ (q1 q2 : quorum), ∃ (a : node), member a q1 ∧ member a q2
+
+
+class ByzQuorum (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) :=
+  member (a : node) (s : nset) : Prop
+  supermajority (s : nset) : Prop       -- 2f + 1 nodes
+
+  supermajorities_intersect_in_honest :
+    ∀ (s1 s2 : nset), ∃ (a : node), member a s1 ∧ member a s2 ∧ ¬ is_byz a
+
 
 /-- Sets of nodes with `f + 1` and `2f + 1` thresholds. Parametrized by
 an `is_byz` oracle. -/
