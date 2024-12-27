@@ -45,17 +45,21 @@ simproc ↓ funextEq (_ = _) :=
   return .continue
 attribute [smtSimp] funextEq
 
-def uniqueBinder (e : Expr) : MetaM Expr := do
+private def uniqueBinder (e : Expr) : MetaM Expr := do
   match e with
-  | .forallE bn bt body bi =>
+  | .forallE bn bt body bi => return .forallE (← freshBinderName bn) bt body bi
+  | .lam bn bt body bi => return .lam (← freshBinderName bn) bt body bi
+  | .letE n t v b nd => return .letE (← freshBinderName n) t v b nd
+  | _ => return e
+  where freshBinderName (bn : Name) := do
     let ids := (← smtExt.get).binderIds
     let id := ids.findD bn 0
-    let bn' :=  Name.mkSimple s!"{bn}{id}"
+    let bn' := if id == 0 then bn else Name.mkSimple s!"{bn}{id}"
     smtExt.set { binderIds := ids.insert bn (id + 1) }
-    return .forallE (bn') bt body bi
-  | _ => return e
+    return bn'
 
-def renameBinders (e : Expr) : MetaM Expr := do
+/-- Ensure all the binders in `e` have unique names. -/
+def uniqueBinders (e : Expr) : MetaM Expr := do
   smtExt.set { binderIds := default }
   let e' ← Core.transform e (pre := fun e => do
     return TransformStep.continue (← uniqueBinder e))
@@ -76,7 +80,7 @@ open Elab Tactic in
 elab "rename_binders" : tactic => do
   let goal ← getMainGoal
   let goalType ← getMainTarget
-  let goalType' ← renameBinders goalType
+  let goalType' ← uniqueBinders goalType
   let goal' ← goal.replaceTargetDefEq' goalType'
   setGoals [goal']
 
