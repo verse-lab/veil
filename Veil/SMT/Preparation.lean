@@ -155,6 +155,15 @@ partial def getExistentialsOverState (e : Expr) : SimpM (Array Name) := do
   qs := qs.append innerQuantifiers
   return qs
 
+
+/-- Used to provide a proof in `pushEqInvolvingLeft` -/
+theorem and_comm_eq {p q : Prop} : (p ∧ q) = (q ∧ p) := by apply propext; apply and_comm
+
+/-- Used to provide a proof in `pushEqInvolvingLeft` -/
+theorem and_comm_middle {p q r : Prop} : (p ∧ (q ∧ r)) = (q ∧ (p ∧ r)) := by
+  apply propext
+  constructor <;> (intro h; simp only [h, and_self])
+
 /-- Push all equalities involving the expression `this` left (one step) over `∧` in `e.` -/
 def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
   -- trace[dsl.debug] "[pushEqInvolvingLeft] {this} in {e}"
@@ -165,17 +174,18 @@ def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
       if !((← ematches lhs) || (← ematches rhs)) then
         return .continue
       let e' := mkAnd bottom top
-      -- let pf ← mkAppM ``and_comm #[top, bottom]
-      trace[dsl.debug] "[pushEqInvolvingLeft EQ {this}] {e} ~~> {e'})"
-      return .done { expr := e', proof? := .none }
+      let pf ← mkAppOptM ``and_comm_eq #[top, bottom]
+      trace[dsl.debug] "[pushEqInvolvingLeft EQ {this}] {e} ~~> {e'}"
+      return .done { expr := e', proof? := pf }
   -- (?top ∧ (?lhs = ?rhs) ∧ ?bottom) => ((?lhs = ?rhs) ∧ ?top ∧ ?bottom)
   | And middle bottom =>
       let_expr Eq _ lhs rhs ← middle | return .continue
       if !((← ematches lhs) || (← ematches rhs)) then
         return .continue
       let e' := mkAnd middle (mkAnd top bottom)
-      trace[dsl.debug] "[pushEqInvolvingLeft AND-EQ {this}] {e} ~~> {e'})"
-      return .done { expr := e', proof? := .none }
+      let pf ← mkAppOptM ``and_comm_middle #[top, middle, bottom]
+      trace[dsl.debug] "[pushEqInvolvingLeft AND-EQ {this}] {e} ~~> {e'}"
+      return .done { expr := e', proof? := pf }
   | _ => return .continue
   where ematches (e : Expr) := do
     match e.isFVar with
