@@ -2,32 +2,12 @@ import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
 import Veil.DSL
+import Examples.DSL.Std
+
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/nopaxos.ivy
 
 section NOPaxos
 open Classical
-
--- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/total_order.ivy
-class TotalOrderWithMinimum (t : Type) :=
-  -- relation: strict total order
-  le (x y : t) : Prop
-  -- axioms
-  le_refl (x : t) : le x x
-  le_trans (x y z : t) : le x y → le y z → le x z
-  le_antisymm (x y : t) : le x y → le y x → x = y
-  le_total (x y : t) : le x y ∨ le y x
-
-  -- relation: nonstrict total order
-  lt (x y : t) : Prop
-  le_lt (x y : t) : lt x y ↔ (le x y ∧ x ≠ y)
-
-  -- successor
-  next (x y : t) : Prop
-  next_def (x y : t) : next x y ↔ (lt x y ∧ ∀ z, lt x z → le z y)
-
-  zero : t
-  zero_lt (x : t) : le zero x
-
 
 -- type r_state = { st_normal, st_gap_commit, st_view_change }
 inductive r_state where

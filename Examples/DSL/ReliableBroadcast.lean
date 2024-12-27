@@ -1,4 +1,5 @@
 import Veil.DSL
+import Examples.DSL.Std
 
 section ReliableBroadcast
 open Classical
@@ -24,21 +25,6 @@ open Classical
     - `vote4output` -- `2f + 1` nodes that have voted for the same value to output/deliver
 -/
 
-class NodeSet (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) :=
-  member (a : node) (s : nset) : Prop
-  is_empty (s : nset) : Prop
-
-  greater_than_third (s : nset) : Prop  -- f + 1 nodes
-  supermajority (s : nset) : Prop       -- 2f + 1 nodes
-
-  supermajorities_intersect_in_honest :
-    ∀ (s1 s2 : nset), ∃ (a : node), member a s1 ∧ member a s2 ∧ ¬ is_byz a
-  greater_than_third_one_honest :
-    ∀ (s : nset), greater_than_third s → ∃ (a : node), member a s ∧ ¬ is_byz a
-  supermajority_greater_than_third :
-    ∀ (s : nset), supermajority s → greater_than_third s
-  greater_than_third_nonempty :
-    ∀ (s : nset), greater_than_third s → ¬ is_empty s
 
 type nodeset
 type address

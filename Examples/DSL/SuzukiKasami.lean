@@ -2,7 +2,7 @@ import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
 import Veil.DSL
-import Examples.DSL.NOPaxos
+import Examples.DSL.Std
 
 section SuzukiKasami
 open Classical
