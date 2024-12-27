@@ -112,6 +112,14 @@ fix implemented there seems unreliable. -/
 
 theorem exists_comm_eq {p : α → β → Prop} : (∃ a b, p a b) = (∃ b a, p a b) := by rw [exists_comm]
 
+/-- Used to provide a proof in `pushEqInvolvingLeft` -/
+theorem and_comm_eq {p q : Prop} : (p ∧ q) = (q ∧ p) := propext and_comm
+
+/-- Used to provide a proof in `pushEqInvolvingLeft` -/
+theorem and_comm_middle {p q r : Prop} : (p ∧ (q ∧ r)) = (q ∧ (p ∧ r)) := by
+  apply propext
+  constructor <;> (intro h; simp only [h, and_self])
+
 /- Pushes existential quantifiers over `State` to the right,
    e.g. `∃ (s : State ..), x` becomes `∃ x, s`. For details, see:
    https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869 -/
@@ -158,15 +166,6 @@ partial def getExistentialsOverState (e : Expr) : SimpM (Array Name) := do
   )
   qs := qs.append innerQuantifiers
   return qs
-
-
-/-- Used to provide a proof in `pushEqInvolvingLeft` -/
-theorem and_comm_eq {p q : Prop} : (p ∧ q) = (q ∧ p) := by apply propext; apply and_comm
-
-/-- Used to provide a proof in `pushEqInvolvingLeft` -/
-theorem and_comm_middle {p q r : Prop} : (p ∧ (q ∧ r)) = (q ∧ (p ∧ r)) := by
-  apply propext
-  constructor <;> (intro h; simp only [h, and_self])
 
 /-- Push all equalities involving the expression `this` left (one step) over `∧` in `e.` -/
 def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
