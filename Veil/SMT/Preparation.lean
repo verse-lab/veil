@@ -139,38 +139,40 @@ partial def getExistentialsOverState (e : Expr) : SimpM (Array Name) := do
     return qs
   go e #[]
 
-/-- Push all equalities involving the expression `this` left (one step)
-over `∧` in `e.` -/
+/-- Push all equalities having the expression `this` on the LHS left
+(one step) over `∧` in `e.` The goals we generate should only have each
+state on the LHS of an equality ONCE (they might appear on the RHS
+multiple times). -/
 def pushEqInvolvingLeft (this : Name) : Simp.Simproc := fun e => do
   -- trace[dsl.debug] "[pushEqInvolvingLeft] {this} in {e}"
   let_expr And top bottom ← e | return .continue
   match_expr bottom with
   -- (?top ∧ (?lhs = ?rhs)) => ((?lhs = ?rhs) ∧ ?top)
-  | Eq _ lhs rhs =>
-      if !((← ematches lhs) || (← ematches rhs)) then
+  | Eq _ lhs _rhs =>
+      -- We only want to push the equality if `this` is on the LHS
+      if !(← ematches lhs) then
         return .continue
       let e' := mkAnd bottom top
       let pf ← mkAppOptM ``and_comm_eq #[top, bottom]
-      -- trace[dsl.debug] "[pushEqInvolvingLeft EQ {this}] {e} ~~> {e'}"
-      return .done { expr := e', proof? := pf }
+      return .visit { expr := e', proof? := pf }
   -- (?top ∧ (?lhs = ?rhs) ∧ ?bottom) => ((?lhs = ?rhs) ∧ ?top ∧ ?bottom)
   | And middle bottom =>
-      let_expr Eq _ lhs rhs ← middle | return .continue
-      if !((← ematches lhs) || (← ematches rhs)) then
+      let_expr Eq _ lhs _rhs ← middle | return .continue
+      -- We only want to push the equality if `this` is on the LHS
+      if !(← ematches lhs) then
         return .continue
       let e' := mkAnd middle (mkAnd top bottom)
       let pf ← mkAppOptM ``and_comm_middle #[top, middle, bottom]
-      -- trace[dsl.debug] "[pushEqInvolvingLeft AND-EQ {this}] {e} ~~> {e'}"
-      return .done { expr := e', proof? := pf }
+      return .visit { expr := e', proof? := pf }
   | _ => return .continue
   where ematches (e : Expr) := do
     match e.isFVar with
     | true => return (← e.fvarId!.findDecl?).get!.userName == this
     | false => return false
 
-/-- Pushes existential quantifiers over `State` to the right,
-   e.g. `∃ (s : State ..), x` becomes `∃ x, s`. For details, see:
-   https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869 -/
+/-- Pushes existential quantifiers over `State` to the right, e.g.
+`∃ (s : State) x1 x2, P` becomes `∃ x1 x2 s, P`. For details, see:
+https://github.com/verse-lab/lean-sts/issues/32#issuecomment-2419140869 -/
 def State_exists_push_right (this : Name) : Simp.Simproc := fun e => do
   let_expr Exists t eBody := e | return .continue
   let stateName ← getStateName
@@ -191,7 +193,10 @@ def State_exists_push_right (this : Name) : Simp.Simproc := fun e => do
         let body ← mkLambdaFVars (ks ++ ks') lBody'
         let proof ← mkAppOptM ``exists_comm_eq #[t, t', body]
         -- trace[dsl.debug] "[State_exists_comm ({stateName})] {e} ~~> {outerExists}"
-        return .done { expr := outerExists, proof? := proof }
+        /- This needs to be `.visit` rather than `.done` to ensure the
+        quantifier is pushed as far right as possible (on subsequent
+        applications of this rule) -/
+        return .visit { expr := outerExists, proof? := proof }
       )
       return step
   )
