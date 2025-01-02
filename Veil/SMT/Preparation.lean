@@ -316,7 +316,9 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
   -- Step 1: identify all variables which quantify over `State`
   let qs ← getExistentialsOverState e
   if qs.isEmpty then
-    return .continue
+    -- no point visiting sub-expressions (since we assume quantifiers
+    -- have been hoisted already)
+    return .done { expr := e }
   -- Step 2: get rid of this quantifier
   let q := qs.get! 0
   let ctx : Simp.Context := {
@@ -329,7 +331,6 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
                 |> Simp.andThen (exist_eq_left_simproc)
   let (res, _stats) ← Simp.main e ctx (methods := { post := method})
   return .done res
-attribute [quantifierElim] elim_exists_State
 
 /-! ## decidable -/
 attribute [logicSimp] Decidable.not_not decide_eq_decide
