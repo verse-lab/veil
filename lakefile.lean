@@ -6,7 +6,7 @@ def libcpp : String :=
   else if System.Platform.isOSX then "libc++.dylib"
   else "libstdc++.so.6"
 
-package «lean-sts» where
+package «Veil» where
   moreLeanArgs := #[s!"--load-dynlib={libcpp}"]
   moreGlobalServerArgs := #[s!"--load-dynlib={libcpp}"]
   moreLinkArgs :=
