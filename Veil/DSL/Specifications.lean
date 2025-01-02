@@ -107,7 +107,7 @@ def ActionSpecification.label (a : ActionSpecification) : IOAutomata.ActionLabel
 convention used to denote the main, top-level properties of the system,
 whereas `invariant` clauses are supporting the main safety property. -/
 inductive StateAssertionKind
-  | axiom
+  | assumption
   | invariant
   | safety
 deriving BEq
@@ -117,7 +117,7 @@ instance : Inhabited StateAssertionKind where
 
 instance : ToString StateAssertionKind where
   toString
-    | StateAssertionKind.axiom => "axiom"
+    | StateAssertionKind.assumption => "assumption"
     | StateAssertionKind.invariant => "invariant"
     | StateAssertionKind.safety => "safety"
 
@@ -146,9 +146,9 @@ structure ModuleSpecification where
   /-- Signatures of all constants, relations, and functions that compose
   the state. This basically defines a FOL signature. -/
   signature  : Array StateComponent
-  /-- Axioms/assumptions that hold on the signature. Every staste
+  /-- Axioms/assumptions that hold on the signature. Every state
   component mentioned in an axiom must be marked `immutable`. -/
-  axioms      : Array StateAssertion
+  assumptions : Array StateAssertion
   /-- Initial state predicate -/
   init        : StateSpecification
   /-- Transitions of the system -/

@@ -367,13 +367,13 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
   let (name, cmd) ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
-    if kind == .axiom then
+    -- Check that the assumption does not refer to mutable state components
+    if kind == .assumption then
       throwIfRefersToMutable t
-
     let stx <- funcasesM t vs
     let defaultName ← match kind with
       | .safety | .invariant => pure $ Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
-      | .axiom => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.axioms.size}"
+      | .assumption => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.assumptions.size}"
     let name := getPropertyNameD name defaultName
     let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- elabWithMotives e
@@ -382,8 +382,8 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
         `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
       | .invariant =>
         `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
-      | .axiom =>
-        `(@[axiomDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      | .assumption =>
+        `(@[assumptionDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
@@ -395,13 +395,13 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
     (match kind with
     | .safety | .invariant => {s.spec with
         invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t } else x) }
-    | .axiom => {s.spec with
-        axioms := s.spec.axioms.map (fun x => if x.name == name then { x with term := t } else x) })})
+    | .assumption => {s.spec with
+        assumptions := s.spec.assumptions.map (fun x => if x.name == name then { x with term := t } else x) })})
 
 
 /-- Axiom. All state components referred to must be `immutable`. All
 capital variables are implicitly quantified. -/
-elab "assumption" name:(propertyName)? prop:term : command => defineAssertion (kind := .axiom) name prop
+elab "assumption" name:(propertyName)? prop:term : command => defineAssertion (kind := .assumption) name prop
 
 /-- Safety property. All capital variables are implicitly quantified -/
 elab "safety" name:(propertyName)? safe:term : command => defineAssertion (kind := .safety) name safe
@@ -478,6 +478,15 @@ def assembleSafeties : CommandElabM Unit := do
     let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
     `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) : $stateTp -> Prop := $safeties)
 
+/-- Assembles all declared `assumption`s into a single `Assumptions`
+predicate -/
+def assembleAssumptions : CommandElabM Unit := do
+  elabCommand $ <- Command.runTermElabM fun vs => do
+    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
+    let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
+    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Assumptions) : $stateTp -> Prop := $assumptions)
+
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
 -/
@@ -486,6 +495,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleActions
   assembleInvariant
   assembleSafeties
+  assembleAssumptions
   assembleLabelType name
   Command.runTermElabM fun vs => do
     -- set the name
@@ -500,9 +510,12 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
     let safeStx      <- PrettyPrinter.delab safe
     let inv       := mkAppN (<- mkConst $ ← getPrefixedName `Invariant) vs
     let invStx       <- PrettyPrinter.delab inv
+    let axioms    := mkAppN (<- mkConst $ ← getPrefixedName `Safety) vs
+    let axiomsStx    <- PrettyPrinter.delab axioms
     let rtsStx       <-
       `(instance (priority := low) $(mkIdent name) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
           init := $initStx
+          assumptions := $axiomsStx
           next := $nextTransStx
           safe := $safeStx
           inv  := $invStx

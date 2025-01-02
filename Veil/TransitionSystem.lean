@@ -48,6 +48,7 @@ class RelationalTransitionSystem (σ : Type) extends
   RelationalTransitionSystem.action_pred
   where
   init : σ → Prop
+  assumptions : σ → Prop
   next : RelationalTransitionSystem.action σ
   safe : σ → Prop
   inv : σ → Prop
