@@ -206,6 +206,34 @@ def State_exists_push_right (this : Name) : Simp.Simproc := fun e => do
     | true => return (← e.fvarId!.findDecl?).get!.userName == this
     | false => return false
 
+/-- Used to provide a proof in `exist_eq_left_simproc`. -/
+theorem exists_eq_left_propext : ∀ {α : Sort u} {p : α → Prop} {a' : α},
+  (∃ a, a = a' ∧ p a) = p a' := propext exists_eq_left
+
+/-- This is a `simproc` version of `exists_eq_left`, because I couldn't
+figure out how to call `exists_eq_left` from within a `simproc`. See
+[this Zulip thread.](https://leanprover.zulipchat.com/#narrow/channel/239415-metaprogramming-.2F-tactics/topic/How.20to.20call.20a.20simp.20lemma.20within.20a.20simproc.3F/near/491257020)
+-/
+private def exist_eq_left_simproc' : Simp.Simproc := fun e => do
+  let_expr Exists t eBody := e | return .continue
+  let step ← lambdaBoundedTelescope eBody (maxFVars := 1) (fun ks lBody => do
+      let #[k] := ks
+        | throwError "Expected exactly one variable in the lambda telescope"
+      let_expr And l r ← lBody | return .continue
+      let_expr Eq _ lhs rhs ← l | return .continue
+      if ← isDefEq lhs k then
+        let r' ← mkLambdaFVars #[lhs] r
+        let newBody ← Core.betaReduce $ mkAppN r' #[rhs]
+        let proof ← mkAppOptM ``exists_eq_left_propext #[t, r', rhs]
+        return .done { expr := newBody, proof? := proof }
+      else
+        return .continue
+  )
+  return step
+
+/- We have to give the pattern for the simproc to be callable. -/
+simproc_decl exist_eq_left_simproc (∃ _, _) := exist_eq_left_simproc'
+
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`, but with
@@ -270,6 +298,10 @@ attribute [quantifierElim] forall_eq' exists_eq exists_eq'
     ``exists_eq', ``exists_eq_left, ``exists_eq_right, ``exists_and_left',
     ``exists_and_right', ``exists_eq_left',
     ``exists_eq_right_right, ``exists_eq_right_right']
+    /- `and_assoc` ensures these work even in larger cojunctions -/
+    ++ [``and_assoc]
+    /- so we behave similarly to `simp only` -/
+    ++ simpOnlyBuiltins
 
 /- When calling actions, we get goals that quantify over the post-state,
 e.g. `∃ st', preconditions ∧ st' = ... ∧ ...`. We can eliminate these
@@ -278,7 +310,7 @@ RHS of the equality. This `simproc` assumes that (1) existential
 quantifiers have been hoisted and that (2) we have already called
 `simp [and_assoc]`, such that the formula has `a ∧ (b ∧ c)`
 associativity. -/
-simproc elim_exists_State (∃ _, _) := fun e => do
+simproc ↓ elim_exists_State (∃ _, _) := fun e => do
   let_expr Exists _ _ ← e | return .continue
   let e ← uniqueBinders e
   -- Step 1: identify all variables which quantify over `State`
@@ -286,17 +318,16 @@ simproc elim_exists_State (∃ _, _) := fun e => do
   if qs.isEmpty then
     return .continue
   -- Step 2: get rid of this quantifier
-  -- FIXME: this should run in a loop for all `qs`
-  let lastQ := qs.back
+  let q := qs.get! 0
   let ctx : Simp.Context := {
-    config := {} -- (← Simp.getContext).config
-    simpTheorems := #[(← quantifierElimThms)] -- {}
-    congrTheorems := (← getSimpCongrTheorems)
+      config := {(← Simp.getContext).config with singlePass := false}
+      simpTheorems := #[(← quantifierElimThms)] -- includes `and_assoc`
+      congrTheorems := (← getSimpCongrTheorems)
   }
-  let method := (pushEqInvolvingLeft lastQ) |> Simp.andThen (State_exists_push_right lastQ)
+  let method := (pushEqInvolvingLeft q)
+                |> Simp.andThen (State_exists_push_right q)
+                |> Simp.andThen (exist_eq_left_simproc)
   let (res, _stats) ← Simp.main e ctx (methods := { post := method})
-  if !(← isDefEq res.expr e) then
-    trace[dsl.debug] "[State_eq_push_left {qs}] {e} ~~> {res.expr}"
   return .done res
 attribute [quantifierElim] elim_exists_State
 
