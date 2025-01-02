@@ -74,6 +74,15 @@ initialize registerBuiltinAttribute {
   add := addAction .output
 }
 
+syntax (name:= ax) "axiomDef" : attr
+initialize registerBuiltinAttribute {
+  name := `ax
+  descr := "This is an axiom"
+  add := fun declName _ _ => do
+    let prop := { kind := .axiom, name := declName, term := none, expr := mkConst declName }
+    localSpecCtx.modify (fun s => { s with spec := {s.spec with axioms := s.spec.axioms.push prop}})
+}
+
 syntax (name:= inv) "invDef" : attr
 initialize registerBuiltinAttribute {
   name := `inv

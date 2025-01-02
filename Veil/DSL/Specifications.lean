@@ -51,7 +51,7 @@ deriving Inhabited
 instance : ToString StateComponent where
   toString sc := s!"{sc.mutability} {sc.kind} {sc.name} {sc.type}"
 
-def StateCompoenent.isMutable (sc : StateComponent) : Bool := sc.mutability == Mutability.mutable
+def StateComponent.isMutable (sc : StateComponent) : Bool := sc.mutability == Mutability.mutable
 def StateComponent.isImmutable (sc : StateComponent) : Bool := sc.mutability == Mutability.immutable
 
 def StateComponent.getSimpleBinder (sc : StateComponent) : CoreM (TSyntax ``Command.structSimpleBinder) := do
@@ -103,10 +103,11 @@ def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax `la
 def ActionSpecification.name (a : ActionSpecification) : Name := a.decl.name
 def ActionSpecification.label (a : ActionSpecification) : IOAutomata.ActionLabel Name := a.decl.label
 
-/-- These mean the same thing, but `safety` is as a convention used to
-denote the main, top-level properties of the system, whereas `invariant`
-clauses are supporting the main safety property. -/
+/-- `invariant` and `safety` mean the same thing, but `safety` is as a
+convention used to denote the main, top-level properties of the system,
+whereas `invariant` clauses are supporting the main safety property. -/
 inductive StateAssertionKind
+  | axiom
   | invariant
   | safety
 deriving BEq
@@ -116,6 +117,7 @@ instance : Inhabited StateAssertionKind where
 
 instance : ToString StateAssertionKind where
   toString
+    | StateAssertionKind.axiom => "axiom"
     | StateAssertionKind.invariant => "invariant"
     | StateAssertionKind.safety => "safety"
 
@@ -144,6 +146,9 @@ structure ModuleSpecification where
   /-- Signatures of all constants, relations, and functions that compose
   the state. This basically defines a FOL signature. -/
   signature  : Array StateComponent
+  /-- Axioms/assumptions that hold on the signature. Every staste
+  component mentioned in an axiom must be marked `immutable`. -/
+  axioms      : Array StateAssertion
   /-- Initial state predicate -/
   init        : StateSpecification
   /-- Transitions of the system -/
@@ -154,6 +159,12 @@ deriving Inhabited
 
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
   spec.signature.find? (fun sc => sc.name == name)
+
+def ModuleSpecification.immutableComponents (spec : ModuleSpecification) : Array StateComponent :=
+  spec.signature.filter (fun sc => sc.isImmutable)
+
+def ModuleSpecification.mutableComponents (spec : ModuleSpecification) : Array StateComponent :=
+  spec.signature.filter (fun sc => sc.isMutable)
 
 /-- Every DSL-specified transition gets a 'constructor' that corresponds
 to the transition's signature. This is used to build up a `Label` type

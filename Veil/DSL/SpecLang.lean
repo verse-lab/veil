@@ -362,19 +362,28 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
   | some stx => stx.getPropertyName
   | none => default
 
-def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
+
+def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
   let (name, cmd) ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
+    if kind == .axiom then
+      throwIfRefersToMutable t
+
     let stx <- funcasesM t vs
-    let defaultName := Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
+    let defaultName ← match kind with
+      | .safety | .invariant => pure $ Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
+      | .axiom => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.axioms.size}"
     let name := getPropertyNameD name defaultName
     let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- elabWithMotives e
-      if isSafety then
+      match kind with
+      | .safety =>
         `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
-      else
+      | .invariant =>
         `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      | .axiom =>
+        `(@[axiomDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
@@ -382,15 +391,24 @@ def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t
   elabCommand cmd
   Command.runTermElabM fun _vs => do
     -- Record the term syntax in the `stsExt` state
-    localSpecCtx.modify (fun s => { s with spec := {s.spec with
-      invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t } else x) }})
+    localSpecCtx.modify (fun s => { s with spec :=
+    (match kind with
+    | .safety | .invariant => {s.spec with
+        invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t } else x) }
+    | .axiom => {s.spec with
+        axioms := s.spec.axioms.map (fun x => if x.name == name then { x with term := t } else x) })})
 
+
+/-- Axiom. All state components referred to must be `immutable`. All
+capital variables are implicitly quantified. -/
+elab "assumption" name:(propertyName)? prop:term : command => defineAssertion (kind := .axiom) name prop
 
 /-- Safety property. All capital variables are implicitly quantified -/
-elab "safety" name:(propertyName)? safe:term : command => defineAssertion (isSafety := true) name safe
+elab "safety" name:(propertyName)? safe:term : command => defineAssertion (kind := .safety) name safe
 
 /-- Invariant of the transition system. All capital variables are implicitly quantified -/
-elab "invariant" name:(propertyName)? inv:term : command => defineAssertion (isSafety := false) name inv
+elab "invariant" name:(propertyName)? inv:term : command => defineAssertion (kind := .invariant) name inv
+
 
 /-! ## Specification Generation -/
 

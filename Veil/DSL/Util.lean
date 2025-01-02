@@ -47,7 +47,12 @@ def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
     `(Term.bracketedBinderF| {$id:ident : $tp:term})
   | stx => return stx
 
-partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
+/-- Modelled after `Lean.Elab.Term.withAutoBoundImplicit`, but customisable. -/
+partial def withAutoBoundCont
+  (k : TermElabM α)
+  (conditionToBind : Name → TermElabM Bool)
+  (unboundCont : Exception → Name → TermElabM α)
+  : TermElabM α := do
   let flag := autoImplicit.get (← getOptions)
   if flag then
     withReader (fun ctx => { ctx with autoBoundImplicit := flag, autoBoundImplicits := {} }) do
@@ -57,22 +62,38 @@ partial def withAutoBoundExplicit (k : TermElabM α) : TermElabM α := do
         catch
           | ex => match isAutoBoundImplicitLocalException? ex with
             | some n =>
-              if isCapital (Lean.mkIdent n) then
+              if ← conditionToBind n then
               -- Restore state, declare `n`, and try again
                 s.restore
                 withLocalDecl n .default (← mkFreshTypeMVar) fun x =>
                   withReader (fun ctx => { ctx with autoBoundImplicits := ctx.autoBoundImplicits.push x } ) do
                     loop (← saveState)
-              else throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}"
+              else unboundCont ex n
             | none   => throw ex
       loop (← saveState)
   else
     k
 
-/-- This is used wherener we want to define a predicate over a state
-    (for intstance, in `safety`, `invatiant` and `relation`). Instead
+/-- Automatically bound all variables whose names contain only capitals
+(and/or digits). -/
+partial def withAutoBoundCapitals (k : TermElabM α) : TermElabM α := do
+  withAutoBoundCont k (fun n => return isCapital (Lean.mkIdent n)) (fun ex n => do throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}")
+
+/-- Throw an exception if `t` refers to any `mutable` state components.
+We use this to warn if `assumption`s (axioms) refer to mutable state.-/
+def throwIfRefersToMutable (t : Term) : TermElabM Unit :=
+  withAutoBoundCont
+    (do let _ ← elabTerm t .none)
+    (fun n => do
+      let mutable := (← localSpecCtx.get).spec.immutableComponents.map (fun sc => sc.name)
+      return mutable.contains n)
+    (fun ex n => do
+      throwErrorAt ex.getRef "The assumption refers to mutable state component `{n}`!")
+
+/-- This is used wherever we want to define a predicate over a state
+    (for instance, in `safety`, `invariant` and `relation`). Instead
     of writing `fun st => Pred` this command will pattern match over
-    `st` making all its fileds accessible for `Pred` -/
+    `st` making all its fields accessible for `Pred` -/
 def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let stateTp <- stateTp vs
   let .some sn := stateTp.getAppFn.constName?
@@ -87,16 +108,15 @@ def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   `(term| (fun $(mkIdent `st) : $stateTp =>
       $(casesOn) (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
 
-
 def elabBindersAndCapitals
   (br : Array Syntax)
   (vs : Array Expr)
   (e : Syntax)
   (k : Array Expr -> Expr -> TermElabM α)
    : TermElabM α := do
-  withAutoBoundExplicit $ Term.elabBinders br fun brs => do
+  withAutoBoundCapitals $ Term.elabBinders br fun brs => do
     let vars := (← getLCtx).getFVars.filter (fun x => not $ vs.elem x || brs.elem x)
-    trace[dsl] e
+    trace[dsl.debug] "[elabBindersAndCapitals] {e}"
     let e <- elabTermAndSynthesize e none
     lambdaTelescope e fun _ e => do
         let e <- mkForallFVars vars e
