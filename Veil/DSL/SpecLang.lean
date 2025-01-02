@@ -253,7 +253,7 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $stret = ($st', $ret')
     let act <- `(fun ($st : $stateTp) $stret =>
-      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [Veil| $l ] $st)
+      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [Veil|$stateTp| $l ] $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
@@ -337,7 +337,7 @@ elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "
     -- `σ → σ → Prop`, with binders existentially quantified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [Veil| $l ] $st)
+      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [Veil|$stateTp| $l ] $st)
     )
     let trIdent := toTrIdent nm
     elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)
