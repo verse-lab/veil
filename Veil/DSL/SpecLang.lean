@@ -70,9 +70,23 @@ def assembleState (name : Name) : CommandElabM Unit := do
 
 /-! ### Syntax -/
 
+declare_syntax_cat state_mutability
+syntax (name := immutable) "immutable" : state_mutability
+syntax (name := mutable) "mutable" : state_mutability
+
+/-- Fields are `mutable` by default. -/
+private def stxToMut (m : Option (TSyntax `state_mutability)) : Mutability :=
+  if let some stx := m then
+    match stx with
+    | `(state_mutability|immutable) => Mutability.immutable
+    | `(state_mutability|mutable) => Mutability.mutable
+    | _ => unreachable!
+  else
+    Mutability.mutable
+
 /-- Declare an `individual` state component. -/
-elab "individual" sig:Command.structSimpleBinder : command => do
-  let comp := StateComponent.mk .individual (getSimpleBinderName sig) (.simple sig)
+elab m:(state_mutability)? "individual" sig:Command.structSimpleBinder : command => do
+  let comp := StateComponent.mk (stxToMut m) .individual (getSimpleBinderName sig) (.simple sig)
   defineStateComponent comp
     (fun (tp : Expr) => return !tp.isArrow)
     (fun comp => do throwErrorAt (← comp.stx) "Invalid type: constants must not be arrow types")
@@ -82,8 +96,8 @@ elab "individual" sig:Command.structSimpleBinder : command => do
   relation R : address → round → Prop
   ```
 -/
-elab "relation" sig:Command.structSimpleBinder : command => do
-  let rel := StateComponent.mk .relation (getSimpleBinderName sig) (.simple sig)
+elab m:(state_mutability)? "relation" sig:Command.structSimpleBinder : command => do
+  let rel := StateComponent.mk (stxToMut m) .relation (getSimpleBinderName sig) (.simple sig)
   defineRelation rel
 
 /-- Declare a relation, giving names to the arguments, e.g.:
@@ -91,13 +105,13 @@ elab "relation" sig:Command.structSimpleBinder : command => do
   relation sent (n : address) (r : round)
   ```
 -/
-elab "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
-  let rel := StateComponent.mk .relation nm.getId (.complex br (← `(Prop)))
+elab m:(state_mutability)? "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
+  let rel := StateComponent.mk (stxToMut m) .relation nm.getId (.complex br (← `(Prop)))
   defineRelation rel
 
 /-- `function` command saves a State structure field declaration -/
-elab "function" sig:Command.structSimpleBinder : command => do
-  let func := StateComponent.mk .function (getSimpleBinderName sig) (.simple sig)
+elab m:(state_mutability)? "function" sig:Command.structSimpleBinder : command => do
+  let func := StateComponent.mk (stxToMut m) .function (getSimpleBinderName sig) (.simple sig)
   defineFunction func
 
 /-- Declare a function, giving names to the arguments. Example:
@@ -105,8 +119,8 @@ elab "function" sig:Command.structSimpleBinder : command => do
   function currentRound (n : address) : round
   ```
 -/
-elab "function" nm:ident br:(bracketedBinder)* ":" dom:term: command => do
-  let func := StateComponent.mk .relation nm.getId (.complex br dom)
+elab m:(state_mutability)? "function" nm:ident br:(bracketedBinder)* ":" dom:term: command => do
+  let func := StateComponent.mk (stxToMut m) .relation nm.getId (.complex br dom)
   defineFunction func
 
 /-- Declare a ghost relation, i.e. a predicate over state. Example:
@@ -239,7 +253,7 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $stret = ($st', $ret')
     let act <- `(fun ($st : $stateTp) $stret =>
-      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [lang| $l ] $st)
+      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [Veil| $l ] $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
@@ -314,16 +328,16 @@ elab_rules : command
 `transition` relation (as a Lean term). Here we compute the weakest
 precondition of the program and then define the transition relation.
 
-Note: Unlike `after_init` we expand `l` using `[lang| l]` (as opposed to
+Note: Unlike `after_init` we expand `l` using `[Veil| l]` (as opposed to
 `[lang1| l]`) as we want the transition to refer to both pre-state and
 post-state.-/
 elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "}" : command => do
     let actT ← parseActionTypeStx actT
     let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
-    -- `σ → σ → Prop`, with binders existentially qunatified
+    -- `σ → σ → Prop`, with binders existentially quantified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [lang| $l ] $st)
+      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [Veil| $l ] $st)
     )
     let trIdent := toTrIdent nm
     elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)

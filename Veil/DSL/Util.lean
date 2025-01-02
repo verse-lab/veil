@@ -1,4 +1,5 @@
 import Lean
+import Veil.State
 import Veil.DSL.StateExtensions
 
 open Lean Elab Command Term Meta Lean.Parser

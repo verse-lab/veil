@@ -1,6 +1,5 @@
 import Lean
 import Veil.IOAutomata
-import Veil.DSL.ActionLang
 import Veil.MetaUtil
 
 open Lean Parser
@@ -29,7 +28,19 @@ instance : ToString StateComponentType where
     | StateComponentType.simple t => toString t
     | StateComponentType.complex b d  => s!"{b} : {d}"
 
+inductive Mutability
+  | mutable
+  | immutable
+deriving Inhabited, BEq
+
+instance : ToString Mutability where
+  toString
+    | Mutability.mutable => "mutable"
+    | Mutability.immutable => "immutable"
+
 structure StateComponent where
+  /-- Is this state component mutable or immutable? -/
+  mutability : Mutability
   /-- Is this an `individual`, a `relation`, or ` function`?-/
   kind : StateComponentKind
   name : Name
@@ -38,7 +49,10 @@ structure StateComponent where
 deriving Inhabited
 
 instance : ToString StateComponent where
-  toString sc := s!"{sc.kind} {sc.name} {sc.type}"
+  toString sc := s!"{sc.mutability} {sc.kind} {sc.name} {sc.type}"
+
+def StateCompoenent.isMutable (sc : StateComponent) : Bool := sc.mutability == Mutability.mutable
+def StateComponent.isImmutable (sc : StateComponent) : Bool := sc.mutability == Mutability.immutable
 
 def StateComponent.getSimpleBinder (sc : StateComponent) : CoreM (TSyntax ``Command.structSimpleBinder) := do
   match sc.type with
@@ -137,6 +151,9 @@ structure ModuleSpecification where
   /-- Invariants -/
   invariants  : Array StateAssertion
 deriving Inhabited
+
+def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
+  spec.signature.find? (fun sc => sc.name == name)
 
 /-- Every DSL-specified transition gets a 'constructor' that corresponds
 to the transition's signature. This is used to build up a `Label` type
