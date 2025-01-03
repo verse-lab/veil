@@ -169,7 +169,7 @@ elab "after_init" "{" l:lang "}" : command => do
     let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
     let act ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      `(fun ($st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang1| $l ] $st'))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), @$wlp _ _ (fun $ret $st => $st' = $st) [Veil|$stateTp| $l ] $st))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $act)
     -- we modify it to store the `lang`

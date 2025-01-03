@@ -108,9 +108,6 @@ syntax "call" term : lang
 /-- Syntax to trigger expansion of a Veil imperative fragment into a
 two-state transition with the state type `term`. -/
 syntax "[Veil|" term "|" lang "]" : term
-/-- Syntax to trigger the expantion into a code which doesn't
-    depend on the prestate -/
-syntax "[lang1|" lang "]" : term
 
 partial def getCapitals (s : Syntax) :=
   let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
@@ -155,11 +152,11 @@ def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElab
 
 /-- This is used in `require` were we define a predicate over a state.
     Instead of writing `fun st => Pred` this command will pattern match over
-    `st` making all its fileds accessible for `Pred` -/
+    `st` making all its fields accessible for `Pred` -/
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
 
-/-- This is used wherener we want to define a predicate over a state
-    which should not depend on the state (for instance in `after_init`). -/
+/-- This is used when we want to define a predicate over a state
+    which should not depend on the pre-state. -/
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
 
 def elabLang : Syntax → TSyntax `term → TermElabM Expr := adaptExpander' fun stx stateTp => do
@@ -216,27 +213,5 @@ def elabLang : Syntax → TSyntax `term → TermElabM Expr := adaptExpander' fun
 
 elab_rules : term
   | `([Veil|$stateTp:term|$l:lang]) => do elabLang l stateTp
-
-/- TODO: avoid code duplication -/
-/-- Same expansion as above but, intead of `funcases` we use `funclear` to
-    prevent the generated code from depending on the pre-state -/
-macro_rules
-  | `([lang1|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
-  | `([lang1| $l1:lang; $l2:lang]) => `(@Lang.seq _ _ _ [lang1|$l1] [lang1|$l2])
-  | `([lang1|require $t:term]) => do
-      withRef t $ `(@Lang.require _ (funcases ($t : Prop) : _ -> Prop))
-  | `([lang1|if $s:some_if ? $cnd:term { $thn:lang }]) => `([lang1|if $s:some_if ? $cnd { $thn } else { skip }])
-  | `([lang1|if $cnd:term { $thn:lang } else { $els:lang }]) => do
-    let cnd <- withRef cnd `(funclear ($cnd : Bool))
-    `(@Lang.ite _ _ ($cnd: term) [lang1|$thn] [lang1|$els])
-  | `([lang1| $id:structInstLVal := $t:term ]) =>
-    `(@Lang.det _ _ (fun st => ({ st with $id := (by clear st; exact $t)}, ())))
-  | `([lang1| $id:structInstLVal $ts: ident * := $t:term ]) =>
-    `([lang1| $id:structInstLVal := fun $ts * => $t])
-  | `([lang1|fresh $id:ident : $t in $l2:lang]) =>
-      `(@Lang.fresh _ _ _ (fun $id : $t => [lang1|$l2]))
-  -- | `([lang1| $id:structInstLVal $ts: term * := * ]) => do
-  --   `(@Lang.nondet _ _ (fun st (st', ret) =>
-  --     (∃ v, st' = { st with $id := ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ])}, ())))
 
 end Lang

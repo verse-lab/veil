@@ -76,13 +76,13 @@ ghost relation chosenAt (r : round) (v : value) :=
   ∃ (q : quorum), ∀ (n : node), Quorum.member n q → vote n r v
 
 after_init {
-  one_a _                := False;
-  one_b_max_vote _ _ _ _ := False;
-  proposal _ _           := False;
-  vote _ _ _             := False;
-  decision _ _ _         := False;
-  one_b _ _              := False;
-  leftRound _ _          := False
+  one_a R                   := False;
+  one_b_max_vote N R1 R2 V  := False;
+  proposal R V              := False;
+  vote N R V                := False;
+  decision N R V            := False;
+  one_b N R                 := False;
+  leftRound N R             := False
 }
 
 -- a proposer selects a round and sends a message asking nodes to join the round

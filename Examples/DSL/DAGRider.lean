@@ -52,19 +52,19 @@ relation delivered (v : vertex) (r : Int) (src : node)
 #gen_state DAGRider
 
 after_init {
-    vertexRound _ _         := False;
-    vertexSource _ _        := False;
-    vertexBlock _ _         := False;
-    vertexStrongEdge _ _    := False;
-    vertexWeakEdge _ _      := False;
+    vertexRound V R         := False;
+    vertexSource V N        := False;
+    vertexBlock V B         := False;
+    vertexStrongEdge V E    := False;
+    vertexWeakEdge V E      := False;
 
-    dag _ _     := False;
-    buffer _    := False;
+    dag R V     := False;
+    buffer V    := False;
     require q.is_empty blocksToPropose;
     r           := 0;
 
     -- Ghost state
-    delivered _ _ _ := False
+    delivered V R S := False
 }
 
 action dequeue (q0 : queue) = {
@@ -93,7 +93,6 @@ invariant [dag_nonneg] ∀ r v, dag r v → r ≥ 0
 output action waveReady (r : Int) = { skip }
 output action r_bcast (v : vertex) (r : Int) = { skip }
 
-open Classical in
 input action r_deliver (v : vertex) (r : Int) (src : node) = {
     require r ≥ 0;
     -- RB integrity guarantee: deliver at most once per round per source

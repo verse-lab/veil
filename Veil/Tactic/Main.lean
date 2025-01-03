@@ -32,7 +32,8 @@ elab "sdestruct_goal" : tactic => withMainContext do
 
 instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
 
-/-- Destruct all structures in the context into their respective fields, recursively. -/
+/-- Destruct all structures in the context into their respective fields,
+recursively. Also destructs all existentials. -/
 partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) : TacticM Unit := withMainContext do
   let mut ignoreHyps := ignoreHyps
   let hypsToVisit := (← getLCtx).decls.filter Option.isSome
@@ -41,13 +42,19 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
     |> Array.filter (fun hyp => !ignoreHyps.contains hyp)
   for hyp in hypsToVisit do
     ignoreHyps := ignoreHyps.push hyp
+    if hyp.isImplementationDetail then
+      continue
     let isStructure ← match hyp.type.getAppFn.constName? with
     | .none => pure false
     | .some sn => pure (isStructure (<- getEnv) sn)
+    let name := mkIdent hyp.userName
     if isStructure then
-      let name := mkIdent hyp.userName
       let dtac ← `(tactic| sdestruct $name:ident)
       evalTactic dtac
+    else if ← normalisedIsAppOf hyp ``Exists then
+        -- we want the new hypotheses to have fresh names so they're
+        -- not included in the ignore list, hence we don't reuse `$name`
+        evalTactic $ ← `(tactic| unhygienic rcases $name:ident with ⟨_, _⟩)
   -- Recursively call ourselves until the context stops changing
   if recursive && hypsToVisit.size > 0 then
     elabSdestructHyps recursive ignoreHyps
@@ -209,7 +216,7 @@ elab_rules : tactic
 elab "simplify_all" : tactic => withMainContext do
   let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
   let toSimp := mkSimpLemmas $ #[`smtSimp, `logicSimp].map mkIdent
-  let simp_tac ← `(tactic| dsimp only [$toDsimp,*] at * ; simp only [$toSimp,*];)
+  let simp_tac ← `(tactic| (try dsimp only [$toDsimp,*] at *) ; (try simp only [$toSimp,*]);)
   evalTactic simp_tac
 
 /-- Tactic to solve `unsat trace` goals. -/
@@ -226,6 +233,7 @@ elab "bmc" : tactic => withMainContext do
 /-- Tactic to solve `sat_trace` goals. -/
 elab "bmc_sat" : tactic => withMainContext do
   let prep_tac ← `(tactic|
+    simplify_all;
     negate_goal;
     simp only [Classical.exists_elim, Classical.not_not];
     (unhygienic intros);

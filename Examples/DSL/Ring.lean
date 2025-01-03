@@ -23,8 +23,8 @@ relation pending : node -> node -> Prop
 #gen_state Ring
 
 after_init {
-  leader _ := False;
-  pending _ _ := False
+  leader N := False;
+  pending N M := False
 }
 
 action send (n next : node) = {
@@ -76,10 +76,7 @@ prove_inv_inductive by {
   sts_induction <;> sdestruct_goal <;> solve_clause
 }
 
-sat trace [initial_state] {} by {
-  exists { leader := fun _ => false, pending := fun _ _ => false }
-  simp [initSimp, invSimp]
-}
+sat trace [initial_state] {} by { bmc_sat }
 
 sat trace {
   send

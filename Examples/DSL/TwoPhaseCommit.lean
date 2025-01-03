@@ -20,13 +20,13 @@ individual abort_flag : Prop
 #gen_state TPC
 
 after_init {
-  vote_yes _ := False;
-  vote_no _ := False;
-  alive _ := True;
-  go_commit _ := False;
-  go_abort _ := False;
-  decide_commit _ := False;
-  decide_abort _ := False;
+  vote_yes N := False;
+  vote_no N := False;
+  alive N := True;
+  go_commit N := False;
+  go_abort N := False;
+  decide_commit N := False;
+  decide_abort N := False;
   abort_flag := False
 }
 

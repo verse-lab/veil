@@ -64,14 +64,14 @@ relation delivered (n : address) (originator : address) (in_round : round) (v : 
 ghost relation initial_value (n : address) (r : round) (v : value) := ∀ dst, initial_msg n dst r v
 
 after_init {
-  initial_msg _ _ _ _ := False;
-  echo_msg _ _ _ _ _ := False;
-  vote_msg _ _ _ _ _ := False;
+  initial_msg O D R V := False;
+  echo_msg S D O R V  := False;
+  vote_msg S D O R V  := False;
 
-  sent _ _ := False;
-  echoed _ _ _ _ := False;
-  voted _ _ _ _ := False;
-  delivered _ _ _ _ := False
+  sent N R            := False;
+  echoed N O R V      := False;
+  voted N O R V       := False;
+  delivered N O R V   := False
 }
 
 internal transition byz = fun st st' =>
