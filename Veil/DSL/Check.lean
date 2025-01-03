@@ -81,7 +81,8 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
     let ge ← getEnv
     let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
     let mut theorems := #[]
-    for (invName, _) in invIndicators do
+    -- Init checks
+    for (invName, _) in invIndicators.reverse do
       let .some _ := ge.find? invName
         | throwError s!"invariant {invName} not found"
       let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
@@ -89,9 +90,12 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
         let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st' ∧ ($systemTp).$(mkIdent `init) $st' → $invStx $st')
         let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
         theorems := theorems.push thm
-      for (actName, _) in actIndicators do
+    -- Action checks
+    for (actName, _) in actIndicators.reverse do
+      for (invName, _) in invIndicators.reverse do
         let .some _ := ge.find? actName
           | throwError s!"action {actName} not found"
+        let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
         let actStx ← PrettyPrinter.delab $ mkAppN (mkConst actName) vs
         let actTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st ∧ ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $invStx $st')
         let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := by unhygienic intros; solve_clause [$(mkIdent actName)])
