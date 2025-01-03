@@ -57,15 +57,15 @@ open RelationalTransitionSystem
 
 /-- All states in the invariant are safe. -/
 def invSafe [RelationalTransitionSystem σ] :=
-  ∀ (s : σ), inv s -> safe s
+  ∀ (s : σ), assumptions s -> inv s -> safe s
 
 /-- The set of initial states are in the invariant. -/
 def invInit [RelationalTransitionSystem σ] :=
-  ∀ (s : σ), init s -> inv s
+  ∀ (s : σ), assumptions s -> init s -> inv s
 
 /-- The invariant is preserved by transition. -/
 def invConsecution [RelationalTransitionSystem σ] :=
-  ∀ (s1 s2 : σ), next s1 s2 -> inv s1 -> inv s2
+  ∀ (s1 s2 : σ), next s1 s2 -> assumptions s1 -> inv s1 -> inv s2
 
 /-- The invariant is inductive. -/
 def invInductive [sys: RelationalTransitionSystem σ] :=
@@ -83,6 +83,7 @@ theorem init_is_reachable [RelationalTransitionSystem σ] :
   intro s hinit; apply Exists.intro (λ _ => s)
   simp only [validStutteringExecution, or_true, implies_true, and_true, exists_const, hinit]
 
+/-
 theorem valid_execution_in_inductive_inv [sys : RelationalTransitionSystem σ] (e : exec σ) :
   @invInductive σ sys → validStutteringExecution e → ∀ (i : Nat), inv (e i) := by
   intro ⟨h0, hinv⟩ hvalid i
@@ -100,3 +101,4 @@ theorem reachable_in_inductive_inv [sys : RelationalTransitionSystem σ] :
   @invInductive σ sys → ∀ (s : σ), reachableStates s → inv s := by
   intro hinv s ⟨exec, ⟨valid, ⟨i, hs⟩⟩⟩; subst s
   apply valid_execution_in_inductive_inv exec hinv valid i
+-/

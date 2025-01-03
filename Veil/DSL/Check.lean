@@ -86,14 +86,14 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
         | throwError s!"invariant {invName} not found"
       let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
       if generateInitThms then
-        let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invStx $st')
+        let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st' ∧ ($systemTp).$(mkIdent `init) $st' → $invStx $st')
         let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
         theorems := theorems.push thm
       for (actName, _) in actIndicators do
         let .some _ := ge.find? actName
           | throwError s!"action {actName} not found"
         let actStx ← PrettyPrinter.delab $ mkAppN (mkConst actName) vs
-        let actTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $invStx $st')
+        let actTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st ∧ ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $invStx $st')
         let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := by unhygienic intros; solve_clause [$(mkIdent actName)])
         theorems := theorems.push thm
     return theorems
@@ -131,7 +131,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ invIndicators.toArray
       -- EK: We're using `st'` and not st because `invariants` is already phrased in terms of `st'`.
-      let initTpStx ← `(∀ $[$initParams]* ($st' : $stateTp), ($systemTp).$(mkIdent `init) $st' → $invariants)
+      let initTpStx ← `(∀ $[$initParams]* ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st' ∧ ($systemTp).$(mkIdent `init) $st' → $invariants)
       trace[dsl] "init check: {initTpStx}"
       let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
       trace[dsl.debug] "SMT init check: {initCmd}"
@@ -146,7 +146,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let actParams ← Array.mapM (fun (_, e) => do
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ allIndicators.toArray
-      let actTpStx ← `(∀ $[$actParams]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
+      let actTpStx ← `(∀ $[$actParams]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st ∧ ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
       trace[dsl] "action check: {actTpStx}"
       let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
       trace[dsl.debug] "SMT action check: {actCmd}"
