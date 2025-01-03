@@ -94,7 +94,7 @@ invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 
 #check_invariants
 
-sat trace [initial_state] {} by { dsimp only [initSimp, wlp] ; simp }
+sat trace [initial_state] {} by { bmc_sat }
 
 sat trace { } by { bmc_sat }
 
