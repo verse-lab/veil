@@ -1,13 +1,9 @@
 import Veil.DSL
-import Examples.DSL.Paxos
+import Examples.DSL.Std
 -- https://github.com/aman-goel/ivybench/blob/master/distai/ivy/blockchain.ivy
-
 
 section Blockchain
 open Classical
-
-end Blockchain
-
 
 type node
 type block
@@ -16,7 +12,7 @@ type time
 
 instantiate tot : TotalOrder time
 
-relation leader : node → time → Prop
+immutable relation leader : node → time → Prop
 
 relation honest : node → Prop
 relation broadcastable : node → block → time → Prop
@@ -25,12 +21,16 @@ relation broadcasted : node → Prop
 relation block_found : node → block → time → Prop
 relation block_confirmed : node → block → time → Prop
 
-relation transaction_time : transaction → time → Prop
+immutable relation transaction_time : transaction → time → Prop
 
 relation transaction_in_block : transaction → block → Prop
 relation transaction_confirmed : transaction → node → Prop
 
 #gen_state Blockchain
+
+assumption leader N1 T ∧ leader N2 T → N1 = N2
+assumption leader N T1 ∧ leader N T2 → T1 = T2
+assumption transaction_time TR T1 ∧ transaction_time TR T2 → T1 = T2
 
 after_init {
     block_found _ _ _ := False;
@@ -38,10 +38,7 @@ after_init {
     transaction_in_block _ _ := False;
     transaction_confirmed _ _ := False;
     broadcasted _ := False;
-    broadcastable _ _ _ := False;
-    require ∀ T, ∀ (N1 N2 : node), leader N1 T ∧ leader N2 T → N1 = N2; -- axiom
-    require ∀ T1 T2, ∀ (N : node), leader N T1 ∧ leader N T2 → T1 = T2; -- axiom
-    require ∀ T1 T2, ∀ (TR : transaction), transaction_time TR T1 ∧ transaction_time TR T2 → T1 = T2 -- axiom
+    broadcastable _ _ _ := False
 }
 
 action find_block (n : node) (b : block) (t: time) = {
@@ -87,12 +84,27 @@ action sabotage (n: node) = {
     transaction_confirmed TR n := havoc2
 }
 
-safety [million] (honest N1 ∧ honest N2) → (block_confirmed N1 B T ∧ block_confirmed N2 B T) ∨ (¬ block_confirmed N1 B T ∧ ¬ block_confirmed N2 B T)
+safety (honest N1 ∧ honest N2) → (block_confirmed N1 B T ∧ block_confirmed N2 B T) ∨ (¬ block_confirmed N1 B T ∧ ¬ block_confirmed N2 B T)
     ∧ (honest N1 ∧ honest N2) → (transaction_confirmed TR N1 ∧ transaction_confirmed TR N2) ∨ (¬ transaction_confirmed TR N1 ∧ ¬ transaction_confirmed TR N2)
     ∧ (honest N ∧ leader N T2 ∧ transaction_time TR T1 ∧ tot.le T1 T2 ∧ broadcasted N ∧ honest N1) → transaction_confirmed TR N1
 
 
+invariant block_found N1 B1 TI1  ∨ ¬ honest N1  ∨ ¬ broadcastable N1 B1 TI1
+invariant leader N1 TI1  ∨ ¬ honest N1  ∨ ¬ broadcastable N1 B1 TI1
+invariant leader N1 TI1  ∨ ¬ block_found N1 B1 TI1
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ honest N1  ∨ ¬ broadcastable N1 B1 TI2  ∨ ¬ block_found N1 B1 TI1)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ honest N1  ∨ ¬ broadcastable N1 B1 TI1  ∨ ¬ block_found N1 B1 TI2)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ honest N1  ∨ ¬ broadcastable N1 B1 TI1  ∨ ¬ broadcastable N1 B1 TI2)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI2  ∨ ¬ honest N1  ∨ ¬ broadcastable N1 B1 TI1)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI1  ∨ ¬ block_found N1 B1 TI2)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI2  ∨ ¬ block_found N1 B1 TI1)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ block_found N1 B1 TI1  ∨ ¬ block_found N1 B1 TI2)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI1  ∨ ¬ honest N1  ∨ ¬ broadcastable N1 B1 TI2)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI1  ∨ ¬ leader N1 TI2)
+invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ transaction_time TR1 TI1  ∨ ¬ transaction_time TR1 TI2)
+
 #gen_spec Blockchain
 
-
 #check_invariants
+
+end Blockchain
