@@ -510,7 +510,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
     let safeStx      <- PrettyPrinter.delab safe
     let inv       := mkAppN (<- mkConst $ ← getPrefixedName `Invariant) vs
     let invStx       <- PrettyPrinter.delab inv
-    let axioms    := mkAppN (<- mkConst $ ← getPrefixedName `Safety) vs
+    let axioms    := mkAppN (<- mkConst $ ← getPrefixedName `Assumptions) vs
     let axiomsStx    <- PrettyPrinter.delab axioms
     let rtsStx       <-
       `(instance (priority := low) $(mkIdent name) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
