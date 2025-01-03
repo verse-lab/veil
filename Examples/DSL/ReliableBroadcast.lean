@@ -61,7 +61,7 @@ relation delivered (n : address) (originator : address) (in_round : round) (v : 
 #gen_state ReliableBroadcast
 
 -- Ghost relations
-relation initial_value (n : address) (r : round) (v : value) := ∀ dst, initial_msg n dst r v
+ghost relation initial_value (n : address) (r : round) (v : value) := ∀ dst, initial_msg n dst r v
 
 after_init {
   initial_msg _ _ _ _ := False;

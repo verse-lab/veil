@@ -125,28 +125,10 @@ elab m:(state_mutability)? "function" nm:ident br:(bracketedBinder)* ":" dom:ter
 
 /-- Declare a ghost relation, i.e. a predicate over state. Example:
   ```lean
-  relation R : <Type> := [definition]
+  relation R (r : round) (v : value) := [definition]
   ```
 -/
-elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
-  let vd := (<- getScope).varDecls
-  -- As we are going to call this predicate explicitly we want to make all
-  -- section binders implicit
-  let vd' <- vd.mapM (fun x => mkImplicitBinders x)
-  elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- stateTp vs
-    let stateTp <- PrettyPrinter.delab stateTp
-    let stx' <- funcasesM t vs
-    elabBindersAndCapitals br vs stx' fun _ e => do
-      let e <- elabWithMotives e
-      `(@[actSimp, invSimp] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
-
-/-- Declare a ghost relation, i.e. a predicate over state. Example:
-  ```lean
-  relation R : <Type> := [definition]
-  ```
--/
-elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
+elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd := (<- getScope).varDecls
   -- As we are going to call this predicate explicitly we want to make all
   -- section binders implicit

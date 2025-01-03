@@ -48,7 +48,7 @@ relation one_b : node -> round -> Prop
 
 #gen_state Paxos
 
-relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
+ghost relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr = TotalOrderWithNone.none ∧
       (∀ (MAXR : round) (V : value), ¬ (¬ TotalOrderWithNone.le r MAXR ∧ vote n MAXR V))) ∨
     (maxr ≠ TotalOrderWithNone.none ∧ ¬ TotalOrderWithNone.le r maxr ∧ vote n maxr maxv ∧
@@ -56,7 +56,7 @@ relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
 
 
 /- Quorum `q` shows `(r, v)` is safe. -/
-relation showsSafeAt (q : quorum) (r : round) (v : value) :=
+ghost relation showsSafeAt (q : quorum) (r : round) (v : value) :=
     (Quorum.member N q → one_b N r) ∧
   (∃ (maxr : round),
     -- and `(r, v)` is maximal in the quorum
@@ -69,10 +69,10 @@ relation showsSafeAt (q : quorum) (r : round) (v : value) :=
         (Quorum.member N q ∧ one_b_max_vote N r MAXR V ∧ MAXR ≠ TotalOrderWithNone.none) → TotalOrderWithNone.le MAXR maxr)
   )))
 
-relation isSafeAt (r : round) (v : value) :=
+ghost relation isSafeAt (r : round) (v : value) :=
   ∃ (q : quorum), showsSafeAt q r v
 
-relation chosenAt (r : round) (v : value) :=
+ghost relation chosenAt (r : round) (v : value) :=
   ∃ (q : quorum), ∀ (n : node), Quorum.member n q → vote n r v
 
 after_init {
