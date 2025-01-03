@@ -77,18 +77,24 @@ partial def withAutoBoundCont
 /-- Automatically bound all variables whose names contain only capitals
 (and/or digits). -/
 partial def withAutoBoundCapitals (k : TermElabM α) : TermElabM α := do
-  withAutoBoundCont k (fun n => return isCapital (Lean.mkIdent n)) (fun ex n => do throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}")
+  withAutoBoundCont k (fun n => return isCapital (mkIdent n)) (fun ex n => do throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}")
 
 /-- Throw an exception if `t` refers to any `mutable` state components.
 We use this to warn if `assumption`s (axioms) refer to mutable state.-/
 def throwIfRefersToMutable (t : Term) : TermElabM Unit :=
   withAutoBoundCont
     (do let _ ← elabTerm t .none)
+    -- It's good if it's `immutable` or an all-caps identifier (which is
+    -- implicitly `forall` quantified)
     (fun n => do
-      let mutable := (← localSpecCtx.get).spec.immutableComponents.map (fun sc => sc.name)
-      return mutable.contains n)
+      let immutable := (← localSpecCtx.get).spec.immutableComponents.map (fun sc => sc.name)
+      return immutable.contains n || isCapital (mkIdent n))
     (fun ex n => do
-      throwErrorAt ex.getRef "The assumption refers to mutable state component `{n}`!")
+      let mutable := (← localSpecCtx.get).spec.mutableComponents.map (fun sc => sc.name)
+      if mutable.contains n then
+        throwErrorAt ex.getRef "The assumption refers to mutable state component `{n}`!"
+      else
+        throwErrorAt ex.getRef "The assumption refers to unbound variable `{n}`!")
 
 /-- This is used wherever we want to define a predicate over a state
     (for instance, in `safety`, `invariant` and `relation`). Instead
