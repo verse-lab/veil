@@ -77,8 +77,8 @@ prove_inv_inductive by {
 }
 
 sat trace [initial_state] {} by {
-  simp [initSimp, actSimp, wlp]
-  -- exists { leader := fun _ => false, pending := fun _ _ => false }
+  exists { leader := fun _ => false, pending := fun _ _ => false }
+  simp [initSimp, invSimp]
 }
 
 sat trace {
