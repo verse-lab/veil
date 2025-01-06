@@ -14,7 +14,7 @@ variable {chooseLeader : Round → NodeID}
 -- (channels), we merge the state of the two protocols.
 local notation "DAGState" => @DAGConstruction.NodeState NodeID Block
 
-structure NodeState :=
+structure NodeState where
   dagState : DAGState
 
   decidedWave : Nat

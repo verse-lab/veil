@@ -108,27 +108,24 @@ def Action.compose' [Label ℓ] (a₁ : Option (Action σ₁ ℓ)) (a₂ : Optio
   | (none, some a) => some (Action.liftStateL a)
   | (none, none) => none
 
-def ActionSignature := Lean.HashMap Name (ActionLabel Name)
-def ActionMap (σ : Type) (ℓ : Type) [Label ℓ] := Lean.HashMap Name (Action σ ℓ)
+def ActionSignature := Std.HashMap Name (ActionLabel Name)
+def ActionMap (σ : Type) (ℓ : Type) [Label ℓ] := Std.HashMap Name (Action σ ℓ)
 
 instance [Label ℓ] : Inhabited (ActionMap σ ℓ) where
-  default := Lean.HashMap.empty
+  default := Std.HashMap.empty
 
 instance [Label ℓ] : ToString (ActionMap σ ℓ) where
   toString m := toString m.toList
 
 def ActionMap.toList {σ : Type} {ℓ : Type} [Label ℓ] (acts : ActionMap σ ℓ) : List (Name × Action σ ℓ) :=
-  Lean.HashMap.toList acts
+  Std.HashMap.toList acts
 
 def ActionMap.ofList {σ : Type} {ℓ : Type} [Label ℓ] (l : List (Name × Action σ ℓ)) : ActionMap σ ℓ :=
-  Lean.HashMap.ofList l
-
-def ActionMap.ofListWith {σ : Type} {ℓ : Type} [Label ℓ] (l : List (Name × Action σ ℓ)) (f : Action σ ℓ → Action σ ℓ → Action σ ℓ) : ActionMap σ ℓ :=
-  Lean.HashMap.ofListWith l f
+  Std.HashMap.ofList l
 
 /-- The action signature corresponding to this action map -/
 def ActionMap.sig {σ : Type} {ℓ : Type} [Label ℓ] (acts : ActionMap σ ℓ) : ActionSignature :=
-  Lean.HashMap.ofList $ acts.toList.map (fun (l, a) => (l, a.decl.label))
+  Std.HashMap.ofList $ acts.toList.map (fun (l, a) => (l, a.decl.label))
 
 -- def ActionMap.tr {σ : Type} {ℓ : Type} [Label ℓ] (acts : ActionMap σ ℓ) : σ → ActionLabel ℓ → σ → Prop :=
 --   fun s l s' =>
@@ -173,7 +170,7 @@ def ActionMap.compose {σ₁ σ₂ : Type} {ℓ : Type} [Label ℓ] (am₁ : Act
   if !(disjoint_internal && disjoint_output) then none else
     -- All actions with the same name fire in parallel
     let actions : List (Name × Action (σ₁ × σ₂) ℓ) := (am₁.actionNames ++ am₂.actionNames).map (fun action =>
-      match Action.compose' (am₁.find? action) (am₂.find? action) with
+      match Action.compose' (am₁.get? action) (am₂.get? action) with
       | none => panic s!"Action composition of {action} failed! This is a logic bug!"
       | some comp_act => (action, comp_act)
     )

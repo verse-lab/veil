@@ -84,53 +84,28 @@ instance : ToString SmtResult where
     | SmtResult.Unsat c => s!"unsat\n{c}"
     | SmtResult.Unknown r => s!"unknown ({r})"
 
-namespace Smt.Util
-theorem iff_eq_eq : (p ↔ q) = (p = q) := propext ⟨propext, (· ▸ ⟨(·), (·)⟩)⟩
-
-def rewriteIffGoal (mvar : MVarId) : MetaM MVarId :=
-  mvar.withContext do
-    let t ← mvar.getType
-    let r ← mvar.rewrite t (mkConst ``iff_eq_eq)
-    let mvar' ← mvar.replaceTargetEq r.eNew r.eqProof
-    pure mvar'
-
-def rewriteIffDecl (decl : LocalDecl) (mvar : MVarId) : MetaM MVarId :=
-  mvar.withContext do
-    let rwRes ← mvar.rewrite decl.type (mkConst ``iff_eq_eq)
-    let repRes ← mvar.replaceLocalDecl decl.fvarId rwRes.eNew rwRes.eqProof
-    pure repRes.mvarId
-
-partial def fixRewriteIff (mvar : MVarId) (f : MVarId → MetaM MVarId) : MetaM MVarId :=
-  mvar.withContext do
-    try
-      let mvar' ← f mvar
-      fixRewriteIff mvar' f
-    catch _ => return mvar
-
-def rewriteIffMeta (mvar : MVarId) : MetaM MVarId :=
-  mvar.withContext do
-    let mvar' ← fixRewriteIff mvar rewriteIffGoal
-    let lctx ← getLCtx
-    lctx.foldrM
-      (fun decl mvar'' => fixRewriteIff mvar'' (rewriteIffDecl decl)) mvar'
-end Smt.Util
 
 namespace Smt
 open Elab Tactic Qq
 
-open Smt Smt.Tactic Translate in
-def prepareQuery (mv : MVarId) (hs : List Expr) : MetaM String := mv.withContext do
-  withTraceNode `sauto.perf.translate (fun _ => return "prepareQuery") do
-  let mv ← Util.rewriteIffMeta mv
-  let goalType : Q(Prop) ← mv.getType
-  -- 1. Process the hints passed to the tactic.
-  withProcessedHints mv hs fun mv hs => mv.withContext do
-  -- 2. Generate the SMT query.
-  let cmds ← prepareSmtQuery hs (← mv.getType)
-  let cmdString := s!"{Command.cmdsAsQuery cmds}"
-  trace[sauto.debug] "goal:\n{goalType}"
-  -- trace[sauto] "query:\n{cmdString}"
-  return cmdString
+open Smt Smt.Tactic Translate Lean.Meta in
+def prepareQuery (mv' : MVarId) (hs : List Expr) : MetaM String := do
+  -- HACK: We operate on a cloned goal, and then reset it to the original.
+  let mv := (← mkFreshExprMVar (← mv'.getType)).mvarId!
+  mv.withContext do
+    withTraceNode `sauto.perf.translate (fun _ => return "prepareQuery") do
+    withProcessedHints mv hs fun mv hs => mv.withContext do
+    let (hs, mv) ← Preprocess.elimIff mv hs
+    mv.withContext do
+    let goalType : Q(Prop) ← mv.getType
+    -- 2. Generate the SMT query.
+    let (fvNames₁, _fvNames₂) ← genUniqueFVarNames
+    let cmds ← prepareSmtQuery hs goalType fvNames₁
+    let cmds := .setLogic "ALL" :: cmds
+    let cmdString := s!"{Command.cmdsAsQuery cmds}"
+    trace[sauto.debug] "goal:\n{goalType}"
+    trace[sauto] "query:\n{cmdString}"
+    return cmdString
 
 open Auto Auto.Solver.SMT
 def emitCommandStr (p : SolverProc) (c : String) : MetaM Unit := do
@@ -184,7 +159,8 @@ partial def Handle.readUntil (h : IO.FS.Handle) (endString : String) : IO String
 
 def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
   -- prepareSmtQuery negates the expression, so we negate it here.
-  let cmds ← prepareSmtQuery [] (mkNot expr)
+  let (fvNames₁, _fvNames₂) ← genUniqueFVarNames
+  let cmds ← prepareSmtQuery [] (mkNot expr) fvNames₁
   -- Do not declare sorts again, etc. Only add constraints (i.e. assertions).
   let cmds := cmds.filter fun
     | .assert _ => true

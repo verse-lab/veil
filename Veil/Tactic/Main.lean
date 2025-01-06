@@ -150,6 +150,12 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
+  -- FIXME: as a work-around for `lean-smt` seeming to introduce `And.left` and `And.right`,
+  -- we destruct the hypotheses again.
+  withMainContext do
+  let mut xtacs := xtacs.push destructTac
+  evalTactic destructTac
+  withMainContext do
   -- (4) Identify:
   --   (a) all propositions in the context
   --   (b) all propositions within typeclasses in the context
@@ -216,15 +222,18 @@ elab_rules : tactic
 elab "simplify_all" : tactic => withMainContext do
   let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
   let toSimp := mkSimpLemmas $ #[`smtSimp, `logicSimp].map mkIdent
-  let simp_tac ← `(tactic| (try dsimp only [$toDsimp,*] at *) ; (try simp only [$toSimp,*]);)
+  let simp_tac ← `(tactic| (try dsimp only [$toDsimp,*] at *) ; (try simp only [$toSimp,*] at *);)
   evalTactic simp_tac
 
 /-- Tactic to solve `unsat trace` goals. -/
 elab "bmc" : tactic => withMainContext do
   let tac ← `(tactic|
+    simplify_all;
     (unhygienic intros);
     sdestruct_hyps;
     simplify_all;
+    -- FIXME: workaround for `lean-smt` introducing `And.left` and `And.right`
+    sdestruct_hyps;
     sauto_all
   )
   trace[sauto] "{tac}"

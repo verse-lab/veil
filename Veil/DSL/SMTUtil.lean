@@ -30,7 +30,8 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
   let cmd ← forallTelescope (<- l.getType)
     fun ks tp => do
     let props ← ks.filterM (fun k => return ← Meta.isProp (← inferType k))
-    let cmds ← Smt.prepareSmtQuery props.toList tp
+    let (fvNames₁, _) ← Smt.genUniqueFVarNames
+    let cmds ← Smt.prepareSmtQuery props.toList tp fvNames₁
     let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
     pure cmdString
   return cmd
@@ -54,7 +55,7 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
     emitCommandStr solver s!"{goalQuery}\n"
     let mut ret := []
 
-    let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).join
+    let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).flatten
 
     for check in checks do
       trace[sauto.debug] "Now running solver"

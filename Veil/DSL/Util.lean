@@ -111,8 +111,10 @@ def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let casesOn <- mkConst $ (stateName ++ `casesOn)
   let casesOn <- PrettyPrinter.delab casesOn
   let stateTp <- PrettyPrinter.delab stateTp
-  `(term| (fun $(mkIdent `st) : $stateTp =>
-      $(casesOn) (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
+  let term ← `(term| (fun $(mkIdent `st) : $stateTp =>
+      $(casesOn) $(← getSectionArgumentsStx vs)* (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
+  trace[dsl.debug] "funcasesM: {term}"
+  return term
 
 def elabBindersAndCapitals
   (br : Array Syntax)

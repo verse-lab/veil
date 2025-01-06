@@ -27,7 +27,7 @@ structure LocalSpecificationCtx where
   establishedClauses : List Name := []
 deriving Inhabited
 
-abbrev GlobalSpecificationCtx := HashMap Name ModuleSpecification
+abbrev GlobalSpecificationCtx := Std.HashMap Name ModuleSpecification
 
 initialize localSpecCtx : EnvExtension LocalSpecificationCtx ←
  registerEnvExtension (pure default)

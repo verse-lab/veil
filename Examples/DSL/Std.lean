@@ -1,6 +1,6 @@
 /-! # Axiomatizations of various structures -/
 
-class TotalOrder (t : Type) :=
+class TotalOrder (t : Type) where
   -- relation: total order
   le (x y : t) : Prop
   -- axioms
@@ -10,7 +10,7 @@ class TotalOrder (t : Type) :=
   le_total    (x y : t) : le x y ∨ le y x
 
 
-class TotalOrderWithNone (t : Type) :=
+class TotalOrderWithNone (t : Type) where
   -- relation: total order
   le (x y : t) : Prop
   none : t
@@ -22,7 +22,7 @@ class TotalOrderWithNone (t : Type) :=
 
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/total_order.ivy
-class TotalOrderWithMinimum (t : Type) :=
+class TotalOrderWithMinimum (t : Type) where
   -- relation: strict total order
   le (x y : t) : Prop
   -- axioms
@@ -42,7 +42,7 @@ class TotalOrderWithMinimum (t : Type) :=
   zero : t
   zero_lt (x : t) : le zero x
 
-class TotalOrderWithZero (t : Type) :=
+class TotalOrderWithZero (t : Type) where
   -- relation: total order
   le (x y : t) : Prop
 
@@ -57,7 +57,7 @@ class TotalOrderWithZero (t : Type) :=
   le_total    (x y : t) : le x y ∨ le y x
 
 
-class Queue (α : Type) (queue : outParam Type) :=
+class Queue (α : Type) (queue : outParam Type) where
   member (x : α) (q : queue) : Prop
 
   is_empty (q : queue) :=
@@ -69,7 +69,7 @@ class Queue (α : Type) (queue : outParam Type) :=
     ∀ (e : α), member e q' ↔ (member e q ∧ e ≠ x)
 
 /-- Ring topology -/
-class Between (node : Type) :=
+class Between (node : Type) where
   -- relation: btw represents a ring
   -- read: y is between x and z
   btw (x y z : node) : Prop
@@ -81,7 +81,7 @@ class Between (node : Type) :=
 
 
 /-- Quorum with quorum intersection -/
-class Quorum (node : Type) (quorum : outParam Type):=
+class Quorum (node : Type) (quorum : outParam Type) where
   -- relation
   member (a : node) (q : quorum) : Prop
   -- axioms
@@ -89,7 +89,7 @@ class Quorum (node : Type) (quorum : outParam Type):=
     ∀ (q1 q2 : quorum), ∃ (a : node), member a q1 ∧ member a q2
 
 
-class ByzQuorum (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) :=
+class ByzQuorum (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) where
   member (a : node) (s : nset) : Prop
   supermajority (s : nset) : Prop       -- 2f + 1 nodes
 
@@ -99,7 +99,7 @@ class ByzQuorum (node : Type) (is_byz : outParam (node → Prop)) (nset : outPar
 
 /-- Sets of nodes with `f + 1` and `2f + 1` thresholds. Parametrized by
 an `is_byz` oracle. -/
-class NodeSet (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) :=
+class NodeSet (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) where
   member (a : node) (s : nset) : Prop
   is_empty (s : nset) : Prop
 

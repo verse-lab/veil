@@ -2,7 +2,7 @@ import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Finset.Card
 
 /-- `N` number of nodes, with at most `f` faults. -/
-class ByzantineSetting {NetAddr : Type} :=
+class ByzantineSetting {NetAddr : Type} where
   /-- Set of all nodes. -/
   nodes : Finset NetAddr
   /-- Total number of nodes. -/
@@ -16,12 +16,12 @@ class ByzantineSetting {NetAddr : Type} :=
 
 /-- A Byzantine adversary is constrained in terms of the messages it can produce
   in a given NetworkState (which can include history information). -/
-class AdversaryConstraint {Packet NetworkState : Type} :=
+class AdversaryConstraint {Packet NetworkState : Type} where
   canProducePacket : Packet → NetworkState  → Prop
 
 /-- A Byzantine adversary which chooses ahead-of-time which nodes
     are corrupted, i.e. a non-adaptive adversary. -/
-class NonadaptiveByzantineAdversary {NetAddr Packet NetworkState : Type} :=
+class NonadaptiveByzantineAdversary {NetAddr Packet NetworkState : Type} where
   setting : @ByzantineSetting NetAddr
   constraint : @AdversaryConstraint Packet NetworkState
 
