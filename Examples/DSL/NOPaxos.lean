@@ -40,43 +40,38 @@ relation m_gap_commit : replica → seq_t → Prop
 relation m_gap_commit_rep : replica → replica → seq_t → Prop
 
 -- Helpers
-relation member : replica → quorum → Prop
-relation leader : replica → Prop
+immutable relation member : replica → quorum → Prop
+immutable relation leader : replica → Prop
 
 individual no_op : value
-individual one : seq_t
+immutable individual one : seq_t
 individual sequencer : seq_t
-individual lead : replica
+immutable individual lead : replica
 
 instantiate seq : TotalOrderWithMinimum seq_t
 
 #gen_state NOPaxos
 
+assumption seq.next seq.zero one
+assumption ∀ (q₁: quorum) (q₂: quorum), ∃ (r: replica), member r q₁ ∧ member r q₂
+assumption ∀ (R : replica), leader R ↔ R = lead
+
 after_init {
-    require seq.next seq.zero one; -- axiom [val_one]
-    require ∀ (q₁: quorum) (q₂: quorum), ∃ (r: replica), member r q₁ ∧ member r q₂; -- axiom [quorum_intersection]
-    require ∀ (R : replica), leader R ↔ R = lead; -- axiom [single_leader]
-    fresh seq' : seq_t in
-    fresh one' : seq_t in
+    s_seq_msg_num S I := S = sequencer ∧ I = one;
 
-    sequencer := seq';
-    one := one';
+    r_log_len R I := I = seq.zero;
+    r_log R I V := False;
+    r_sess_msg_num R I := I = one;
+    r_gap_commit_reps R P := False;
+    r_current_gap_slot R I := I = seq.zero;
+    r_replica_status R S := S = r_state.st_normal;
 
-    s_seq_msg_num S I := S = seq' ∧ I = one';
-
-    r_log_len _ I := I = seq.zero;
-    r_log _ _ _ := False;
-    r_sess_msg_num _ S := S = one';
-    r_gap_commit_reps _ _ := False;
-    r_current_gap_slot _ I := I = seq.zero;
-    r_replica_status _ S := S = r_state.st_normal;
-
-    m_client_request _ := False;
-    m_marked_client_request _ _ _ := False;
-    m_request_reply _ _ _ := False;
-    m_slot_lookup _ _ _ := False;
-    m_gap_commit _ _ := False;
-    m_gap_commit_rep _ _ _ := False
+    m_client_request V := False;
+    m_marked_client_request D V SMN := False;
+    m_request_reply S V LSN := False;
+    m_slot_lookup D S SMN := False;
+    m_gap_commit D SN := False;
+    m_gap_commit_rep D S SN := False
 }
 
 action _succ (n : seq_t) = {
@@ -250,5 +245,5 @@ safety [consistency] ((∃ (q: quorum), member lead q ∧ ∀ (r : replica), mem
 
 #gen_spec NOPaxos
 
--- #check_invariants
+#check_invariants
 end NOPaxos

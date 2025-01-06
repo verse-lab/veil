@@ -4,12 +4,14 @@ import Veil.Tactic
 import Veil.DSL
 import Examples.DSL.Std
 
+-- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy
+
 section SuzukiKasami
 open Classical
 
 type node
 type seq_t
-individual init_node : node
+immutable individual init_node : node
 
 instantiate seq : TotalOrderWithMinimum seq_t
 
@@ -41,21 +43,20 @@ action succ (n : seq_t) = {
 }
 
 after_init {
-  fresh init_node' : node in
-  init_node := init_node';
-  n_have_privilege N := N = init_node';
-  n_requesting _ := False;
-  n_RN _ _ := seq.zero;
-  require ∀N, (N = init_node') → (seq.next seq.zero (n_token_seq N));
-  require ∀N, (N ≠ init_node') → (n_token_seq N = seq.zero);
+  n_have_privilege N := N = init_node;
+  n_requesting N := False;
+  n_RN N M := seq.zero;
+  fresh one : seq_t in
+  require seq.next seq.zero one;
+  n_token_seq N := if N = init_node then one else seq.zero;
 
-  reqs _ _ _ := False;
+  reqs N M I := False;
 
-  t_for I N := (seq.next seq.zero I) ∧ N = init_node';
-  t_LN _ _ := seq.zero;
-  t_q _ _ := False;
+  t_for I N := (seq.next seq.zero I) ∧ N = init_node;
+  t_LN I N := seq.zero;
+  t_q I N := False;
 
-  crit _ := False
+  crit N := False
 }
 
 
@@ -122,5 +123,7 @@ invariant [no_consecutive_privilege] ((t_for I N) ∧ (seq.next J I) ∧ (t_for 
 invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.le I (n_token_seq N)
 
 #gen_spec SuzukiKasami
+
+#check_invariants
 
 end SuzukiKasami

@@ -1,6 +1,6 @@
 import Veil.DSL
 
--- https://github.com/aman-goel/ivybench/blob/d2c9298fdd099001c71a34bc2e118db6f07d8404/multisig/ivy/multisig-all.ivy
+-- https://github.com/aman-goel/ivybench/blob/d2c9298fdd099001c71a34bc2e118db6f07d8404/multisig/ivy/multisig-majority.ivy
 
 
 section MultiSigMaj
@@ -25,25 +25,23 @@ relation cancelled : validator → destination → value → deadline → Prop
 
 relation expired : deadline → Prop
 
-relation member : signature → quorum → Prop
-relation chosenAt : quorum → validator → destination → value → deadline → Prop
-relation chosen : validator → destination → value → deadline → Prop
+immutable relation member : signature → quorum → Prop
 
 #gen_state MultiSigMaj
+ghost relation chosenAt (Q:quorum) (N:validator) (K:destination) (V:value) (D:deadline) := ∀ S, member S Q -> sig N K V D S
+ghost relation chosen (N:validator) (K:destination) (V:value) (D:deadline) := ∃ q, chosenAt q N K V D
+
+assumption ∀ (q1 q2 : quorum), ∃ (s : signature), member s q1 ∧ member s q2
 
 after_init {
-  require ∀ (q1 q2 : quorum), ∃ (s : signature), member s q1 ∧ member s q2; -- axiom [quorum_intersection]
-  require ∀ (q: quorum) (v: validator) (k: destination) (n: value) (d : deadline), chosenAt q v k n d ↔ (∀ (s: signature), member s q → sig v k n d s); -- axiom [chosenAt]
-  require ∀ (v: validator) (k: destination) (n: value) (d : deadline), chosen v k n d ↔ ∃ (q: quorum), chosenAt q v k n d; -- axiom [chosen]
+  holding N := True;
+  collect N K V D := False;
 
-  holding _ := True;
-  collect _ _ _ _ := False;
+  proposed N K V D := False;
+  paid N K V D := False;
+  cancelled N K V D := False;
 
-  proposed _ _ _ _ := False;
-  paid _ _ _ _ := False;
-  cancelled _ _ _ _ := False;
-
-  sig _ _ _ _ _ := False
+  sig N K V D S := False
 }
 
 action propose (n: validator) (k: destination) (v: value) (d: deadline) = {

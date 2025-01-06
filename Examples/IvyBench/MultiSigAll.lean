@@ -27,14 +27,14 @@ relation expired : deadline → Prop
 #gen_state MultiSigAll
 
 after_init {
-  holding _ := True;
-  collect _ _ _ _ := False;
+  holding N := True;
+  collect N K V D := False;
 
-  proposed _ _ _ _ := False;
-  paid _ _ _ _ := False;
-  cancelled _ _ _ _ := False;
+  proposed N K V D := False;
+  paid N K V D := False;
+  cancelled N K V D := False;
 
-  sig _ _ _ _ _ := False
+  sig N K V D S := False
 }
 
 action propose (n: validator) (k: destination) (v: value) (d: deadline) = {

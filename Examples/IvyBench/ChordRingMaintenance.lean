@@ -25,27 +25,24 @@ relation s2 : node → node → Prop
 relation in_s2 : node → Prop
 relation p : node → node → Prop
 
-individual org : node
-individual other : node
+immutable individual org : node
+immutable individual other : node
 relation reach : node → Prop
 relation error : node → Prop
 
 #gen_state ChordRingMaintenance
 
+assumption other ≠ org
+
 after_init {
-  fresh org' : node in
-  fresh other' : node in
-  org := org';
-  other := other';
-  require other' ≠ org'; -- axiom
-  a X := X = org' ∨ X = other';
-  s1 X Y := (X = org' ∧ Y = other') ∨ (X = other' ∧ Y = org');
-  in_s1 X := X = org' ∨ X = other';
-  s2 _ _ := False;
-  in_s2 _ := False;
-  p X Y := (X = org' ∧ Y = other') ∨ (X = other' ∧ Y = org');
-  reach X := X = org';
-  error _ := False
+  a X := X = org ∨ X = other;
+  s1 X Y := (X = org ∧ Y = other) ∨ (X = other ∧ Y = org);
+  in_s1 X := X = org ∨ X = other;
+  s2 X Y := False;
+  in_s2 X := False;
+  p X Y := (X = org ∧ Y = other) ∨ (X = other ∧ Y = org);
+  reach X := X = org;
+  error X := False
 }
 
 action join (x : node) (y : node) = {
@@ -101,7 +98,7 @@ action remove (x : node) (y : node) (z : node) = {
   in_s2 x := False
 }
 
-action error (x : node) = {
+action fail (x : node) = {
   require a x;
   require x ≠ org;
   require (s1 Y x → in_s2 Y);

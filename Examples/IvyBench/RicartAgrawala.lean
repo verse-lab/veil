@@ -15,9 +15,9 @@ relation holds (n : node)
 #gen_state RicartAgrawala
 
 after_init {
-  requested _ _ := False;
-  replied _ _ := False;
-  holds _ := False
+  requested N1 N2 := False;
+  replied N1 N2 := False;
+  holds N := False
 }
 
 action request (requester: node) (responder : node) = {

@@ -9,33 +9,28 @@ open Classical
 type node
 type time
 
-relation le : time -> time -> Prop
+immutable relation le : time -> time -> Prop
 relation has_lock : node -> Prop
 relation msg : node -> time -> Prop
 function epoch : node -> time
 
-individual first : node
-individual zero : time
-individual max : time
+immutable individual first : node
+immutable individual zero : time
+immutable individual max : time
 
 #gen_state DecentralizedLock
 
+assumption ∀ (x: time), le x X
+assumption ∀ (x y z : time), le x y ∧ le y z → le x z
+assumption ∀ (x y : time), le x y ∧ le y x → x = y
+assumption ∀ (x y : time), le x y ∨ le y x
+assumption ∀ (x : time), le zero x
+assumption ∀ (x : time), le x max
+
 after_init {
-  fresh first' : node in
-  fresh zero' : time in
-  fresh max' : time in
-  first := first';
-  zero := zero';
-  max := max';
-  has_lock X := X = first';
-  msg _ _ := False;
-  epoch _ := zero';
-  require ∀ (X : time), le X X; -- axiom
-  require ∀ (X Y Z : time), le X Y ∧ le Y Z → le X Z; -- axiom
-  require ∀ (X Y : time), le X Y ∧ le Y X → X = Y; -- axiom
-  require ∀ (X Y : time), le X Y ∨ le Y X; -- axiom
-  require ∀ (X : time), le zero' X; -- axiom
-  require ∀ (X : time), le X max' -- axiom
+  has_lock X := X = first;
+  msg Y T := False;
+  epoch X := zero
 }
 
 action take_lock (x : node) (y : node) (t : time) = {

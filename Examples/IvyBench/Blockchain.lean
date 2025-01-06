@@ -33,12 +33,12 @@ assumption leader N T1 ∧ leader N T2 → T1 = T2
 assumption transaction_time TR T1 ∧ transaction_time TR T2 → T1 = T2
 
 after_init {
-    block_found _ _ _ := False;
-    block_confirmed _ _ _ := False;
-    transaction_in_block _ _ := False;
-    transaction_confirmed _ _ := False;
-    broadcasted _ := False;
-    broadcastable _ _ _ := False
+    block_found N B T := False;
+    block_confirmed N B T := False;
+    transaction_in_block TR B := False;
+    transaction_confirmed TR N := False;
+    broadcasted N := False;
+    broadcastable N B T := False
 }
 
 action find_block (n : node) (b : block) (t: time) = {
