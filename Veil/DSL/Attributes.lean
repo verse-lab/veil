@@ -74,6 +74,15 @@ initialize registerBuiltinAttribute {
   add := addAction .output
 }
 
+syntax (name:= assumption) "assumptionDef" : attr
+initialize registerBuiltinAttribute {
+  name := `assumption
+  descr := "This is an assumption clause"
+  add := fun declName _ _ => do
+    let prop := { kind := .assumption, name := declName, term := none, expr := mkConst declName }
+    localSpecCtx.modify (fun s => { s with spec := {s.spec with assumptions := s.spec.assumptions.push prop}})
+}
+
 syntax (name:= inv) "invDef" : attr
 initialize registerBuiltinAttribute {
   name := `inv

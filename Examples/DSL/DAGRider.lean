@@ -1,6 +1,6 @@
 import Veil.DSL
 -- import Examples.DSL.ReliableBroadcastDSL
-import Examples.DSL.RingDSL
+import Examples.DSL.Std
 -- import Mathlib.Tactic
 
 section DAGRider
@@ -10,38 +10,6 @@ open Classical
 -- set_option trace.profiler true
 -- set_option maxHeartbeats 2000000
 -- set_option trace.Elab.command true
-
-class TotalOrderWithZero (t : Type) :=
-  -- relation: total order
-  le (x y : t) : Prop
-
-  -- zero
-  zero : t
-  zero_le (x : t) : le zero x
-
-  -- axioms
-  le_refl       (x : t) : le x x
-  le_trans  (x y z : t) : le x y → le y z → le x z
-  le_antisymm (x y : t) : le x y → le y x → x = y
-  le_total    (x y : t) : le x y ∨ le y x
-
-class Queue (α : Type) (queue : outParam Type) :=
-  member (x : α) (q : queue) : Prop
-
-  is_empty (q : queue) :=
-    ∀ (e : α), ¬ member e q
-  enqueue (x : α) (q q' : queue) :=
-    ∀ (e : α), member e q' ↔ (member e q ∨ e = x)
-  -- FIXME?: this is not a multi-set
-  dequeue (x : α) (q q' : queue) :=
-    ∀ (e : α), member e q' ↔ (member e q ∧ e ≠ x)
-
-class ByzQuorum (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) :=
-  member (a : node) (s : nset) : Prop
-  supermajority (s : nset) : Prop       -- 2f + 1 nodes
-
-  supermajorities_intersect_in_honest :
-    ∀ (s1 s2 : nset), ∃ (a : node), member a s1 ∧ member a s2 ∧ ¬ is_byz a
 
 open ByzQuorum
 
@@ -84,19 +52,19 @@ relation delivered (v : vertex) (r : Int) (src : node)
 #gen_state DAGRider
 
 after_init {
-    vertexRound _ _         := False;
-    vertexSource _ _        := False;
-    vertexBlock _ _         := False;
-    vertexStrongEdge _ _    := False;
-    vertexWeakEdge _ _      := False;
+    vertexRound V R         := False;
+    vertexSource V N        := False;
+    vertexBlock V B         := False;
+    vertexStrongEdge V E    := False;
+    vertexWeakEdge V E      := False;
 
-    dag _ _     := False;
-    buffer _    := False;
+    dag R V     := False;
+    buffer V    := False;
     require q.is_empty blocksToPropose;
     r           := 0;
 
     -- Ghost state
-    delivered _ _ _ := False
+    delivered V R S := False
 }
 
 action dequeue (q0 : queue) = {
@@ -125,7 +93,6 @@ invariant [dag_nonneg] ∀ r v, dag r v → r ≥ 0
 output action waveReady (r : Int) = { skip }
 output action r_bcast (v : vertex) (r : Int) = { skip }
 
-open Classical in
 input action r_deliver (v : vertex) (r : Int) (src : node) = {
     require r ≥ 0;
     -- RB integrity guarantee: deliver at most once per round per source
@@ -171,7 +138,6 @@ action createNewVertex (r : Int) = {
 -- #print createNewVertex.tr
 
 -- FIXME: To add `Decidable` instances for all propositions
-open Classical in
 action mainLoop = {
     -- Add to the DAG all vertices in the buffer that have all their predecessors in the DAG
     dag R V := dag R V ∨

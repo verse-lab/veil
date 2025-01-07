@@ -75,7 +75,7 @@ def Array.allVertices (dag : DAG) : Set Vertex :=
 
 /- v ∈ ⋃_{r + 1} DAG[r] -/
 instance : Membership Vertex DAG where
-  mem v s := v ∈ s.allVertices
+  mem s v := v ∈ Array.allVertices s
 
 /-- Is the given vertex `v` at round `r` in the DAG? -/
 def Array.vertexAtRound (dag : DAG) (v : Vertex) (r : Nat) : Prop :=

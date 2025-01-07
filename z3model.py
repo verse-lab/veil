@@ -4,7 +4,7 @@ import itertools
 import sys
 from dataclasses import dataclass
 import time
-import multiprocessing as mp
+import multiprocess as mp
 
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, TypeAlias, Union
 

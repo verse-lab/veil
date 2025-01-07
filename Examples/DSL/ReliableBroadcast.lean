@@ -1,4 +1,5 @@
 import Veil.DSL
+import Examples.DSL.Std
 
 section ReliableBroadcast
 open Classical
@@ -24,21 +25,6 @@ open Classical
     - `vote4output` -- `2f + 1` nodes that have voted for the same value to output/deliver
 -/
 
-class NodeSet (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam Type) :=
-  member (a : node) (s : nset) : Prop
-  is_empty (s : nset) : Prop
-
-  greater_than_third (s : nset) : Prop  -- f + 1 nodes
-  supermajority (s : nset) : Prop       -- 2f + 1 nodes
-
-  supermajorities_intersect_in_honest :
-    ∀ (s1 s2 : nset), ∃ (a : node), member a s1 ∧ member a s2 ∧ ¬ is_byz a
-  greater_than_third_one_honest :
-    ∀ (s : nset), greater_than_third s → ∃ (a : node), member a s ∧ ¬ is_byz a
-  supermajority_greater_than_third :
-    ∀ (s : nset), supermajority s → greater_than_third s
-  greater_than_third_nonempty :
-    ∀ (s : nset), greater_than_third s → ¬ is_empty s
 
 type nodeset
 type address
@@ -75,17 +61,17 @@ relation delivered (n : address) (originator : address) (in_round : round) (v : 
 #gen_state ReliableBroadcast
 
 -- Ghost relations
-relation initial_value (n : address) (r : round) (v : value) := ∀ dst, initial_msg n dst r v
+ghost relation initial_value (n : address) (r : round) (v : value) := ∀ dst, initial_msg n dst r v
 
 after_init {
-  initial_msg _ _ _ _ := False;
-  echo_msg _ _ _ _ _ := False;
-  vote_msg _ _ _ _ _ := False;
+  initial_msg O D R V := False;
+  echo_msg S D O R V  := False;
+  vote_msg S D O R V  := False;
 
-  sent _ _ := False;
-  echoed _ _ _ _ := False;
-  voted _ _ _ _ := False;
-  delivered _ _ _ _ := False
+  sent N R            := False;
+  echoed N O R V      := False;
+  voted N O R V       := False;
+  delivered N O R V   := False
 }
 
 internal transition byz = fun st st' =>

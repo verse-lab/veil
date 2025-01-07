@@ -70,9 +70,23 @@ def assembleState (name : Name) : CommandElabM Unit := do
 
 /-! ### Syntax -/
 
+declare_syntax_cat state_mutability
+syntax (name := immutable) "immutable" : state_mutability
+syntax (name := mutable) "mutable" : state_mutability
+
+/-- Fields are `mutable` by default. -/
+private def stxToMut (m : Option (TSyntax `state_mutability)) : Mutability :=
+  if let some stx := m then
+    match stx with
+    | `(state_mutability|immutable) => Mutability.immutable
+    | `(state_mutability|mutable) => Mutability.mutable
+    | _ => unreachable!
+  else
+    Mutability.mutable
+
 /-- Declare an `individual` state component. -/
-elab "individual" sig:Command.structSimpleBinder : command => do
-  let comp := StateComponent.mk .individual (getSimpleBinderName sig) (.simple sig)
+elab m:(state_mutability)? "individual" sig:Command.structSimpleBinder : command => do
+  let comp := StateComponent.mk (stxToMut m) .individual (getSimpleBinderName sig) (.simple sig)
   defineStateComponent comp
     (fun (tp : Expr) => return !tp.isArrow)
     (fun comp => do throwErrorAt (← comp.stx) "Invalid type: constants must not be arrow types")
@@ -82,8 +96,8 @@ elab "individual" sig:Command.structSimpleBinder : command => do
   relation R : address → round → Prop
   ```
 -/
-elab "relation" sig:Command.structSimpleBinder : command => do
-  let rel := StateComponent.mk .relation (getSimpleBinderName sig) (.simple sig)
+elab m:(state_mutability)? "relation" sig:Command.structSimpleBinder : command => do
+  let rel := StateComponent.mk (stxToMut m) .relation (getSimpleBinderName sig) (.simple sig)
   defineRelation rel
 
 /-- Declare a relation, giving names to the arguments, e.g.:
@@ -91,13 +105,13 @@ elab "relation" sig:Command.structSimpleBinder : command => do
   relation sent (n : address) (r : round)
   ```
 -/
-elab "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
-  let rel := StateComponent.mk .relation nm.getId (.complex br (← `(Prop)))
+elab m:(state_mutability)? "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
+  let rel := StateComponent.mk (stxToMut m) .relation nm.getId (.complex br (← `(Prop)))
   defineRelation rel
 
 /-- `function` command saves a State structure field declaration -/
-elab "function" sig:Command.structSimpleBinder : command => do
-  let func := StateComponent.mk .function (getSimpleBinderName sig) (.simple sig)
+elab m:(state_mutability)? "function" sig:Command.structSimpleBinder : command => do
+  let func := StateComponent.mk (stxToMut m) .function (getSimpleBinderName sig) (.simple sig)
   defineFunction func
 
 /-- Declare a function, giving names to the arguments. Example:
@@ -105,34 +119,16 @@ elab "function" sig:Command.structSimpleBinder : command => do
   function currentRound (n : address) : round
   ```
 -/
-elab "function" nm:ident br:(bracketedBinder)* ":" dom:term: command => do
-  let func := StateComponent.mk .relation nm.getId (.complex br dom)
+elab m:(state_mutability)? "function" nm:ident br:(bracketedBinder)* ":" dom:term: command => do
+  let func := StateComponent.mk (stxToMut m) .relation nm.getId (.complex br dom)
   defineFunction func
 
 /-- Declare a ghost relation, i.e. a predicate over state. Example:
   ```lean
-  relation R : <Type> := [definition]
+  relation R (r : round) (v : value) := [definition]
   ```
 -/
-elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
-  let vd := (<- getScope).varDecls
-  -- As we are going to call this predicate explicitly we want to make all
-  -- section binders implicit
-  let vd' <- vd.mapM (fun x => mkImplicitBinders x)
-  elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- stateTp vs
-    let stateTp <- PrettyPrinter.delab stateTp
-    let stx' <- funcasesM t vs
-    elabBindersAndCapitals br vs stx' fun _ e => do
-      let e <- elabWithMotives e
-      `(@[actSimp, invSimp] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
-
-/-- Declare a ghost relation, i.e. a predicate over state. Example:
-  ```lean
-  relation R : <Type> := [definition]
-  ```
--/
-elab "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
+elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
   let vd := (<- getScope).varDecls
   -- As we are going to call this predicate explicitly we want to make all
   -- section binders implicit
@@ -173,7 +169,7 @@ elab "after_init" "{" l:lang "}" : command => do
     let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
     let act ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      `(fun ($st' : $stateTp) => @$wlp _ _ (fun $ret $st => $st' = $st) [lang1| $l ] $st'))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), @$wlp _ _ (fun $ret $st => $st' = $st) [Veil|$stateTp| $l ] $st))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $act)
     -- we modify it to store the `lang`
@@ -239,7 +235,7 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $stret = ($st', $ret')
     let act <- `(fun ($st : $stateTp) $stret =>
-      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [lang| $l ] $st)
+      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [Veil|$stateTp| $l ] $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
@@ -314,16 +310,16 @@ elab_rules : command
 `transition` relation (as a Lean term). Here we compute the weakest
 precondition of the program and then define the transition relation.
 
-Note: Unlike `after_init` we expand `l` using `[lang| l]` (as opposed to
+Note: Unlike `after_init` we expand `l` using `[Veil| l]` (as opposed to
 `[lang1| l]`) as we want the transition to refer to both pre-state and
 post-state.-/
 elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "}" : command => do
     let actT ← parseActionTypeStx actT
     let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
-    -- `σ → σ → Prop`, with binders existentially qunatified
+    -- `σ → σ → Prop`, with binders existentially quantified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [lang| $l ] $st)
+      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [Veil|$stateTp| $l ] $st)
     )
     let trIdent := toTrIdent nm
     elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)
@@ -348,19 +344,28 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
   | some stx => stx.getPropertyName
   | none => default
 
-def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
+
+def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
   let (name, cmd) ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let stateTp <- PrettyPrinter.delab stateTp
+    -- Check that the assumption does not refer to mutable state components
+    if kind == .assumption then
+      throwIfRefersToMutable t
     let stx <- funcasesM t vs
-    let defaultName := Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
+    let defaultName ← match kind with
+      | .safety | .invariant => pure $ Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
+      | .assumption => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.assumptions.size}"
     let name := getPropertyNameD name defaultName
     let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- elabWithMotives e
-      if isSafety then
+      match kind with
+      | .safety =>
         `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
-      else
+      | .invariant =>
         `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+      | .assumption =>
+        `(@[assumptionDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
@@ -368,15 +373,24 @@ def defineAssertion (isSafety : Bool) (name : Option (TSyntax `propertyName)) (t
   elabCommand cmd
   Command.runTermElabM fun _vs => do
     -- Record the term syntax in the `stsExt` state
-    localSpecCtx.modify (fun s => { s with spec := {s.spec with
-      invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t } else x) }})
+    localSpecCtx.modify (fun s => { s with spec :=
+    (match kind with
+    | .safety | .invariant => {s.spec with
+        invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t } else x) }
+    | .assumption => {s.spec with
+        assumptions := s.spec.assumptions.map (fun x => if x.name == name then { x with term := t } else x) })})
 
+
+/-- Axiom. All state components referred to must be `immutable`. All
+capital variables are implicitly quantified. -/
+elab "assumption" name:(propertyName)? prop:term : command => defineAssertion (kind := .assumption) name prop
 
 /-- Safety property. All capital variables are implicitly quantified -/
-elab "safety" name:(propertyName)? safe:term : command => defineAssertion (isSafety := true) name safe
+elab "safety" name:(propertyName)? safe:term : command => defineAssertion (kind := .safety) name safe
 
 /-- Invariant of the transition system. All capital variables are implicitly quantified -/
-elab "invariant" name:(propertyName)? inv:term : command => defineAssertion (isSafety := false) name inv
+elab "invariant" name:(propertyName)? inv:term : command => defineAssertion (kind := .invariant) name inv
+
 
 /-! ## Specification Generation -/
 
@@ -446,6 +460,15 @@ def assembleSafeties : CommandElabM Unit := do
     let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
     `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) : $stateTp -> Prop := $safeties)
 
+/-- Assembles all declared `assumption`s into a single `Assumptions`
+predicate -/
+def assembleAssumptions : CommandElabM Unit := do
+  elabCommand $ <- Command.runTermElabM fun vs => do
+    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
+    let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
+    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Assumptions) : $stateTp -> Prop := $assumptions)
+
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
 -/
@@ -454,6 +477,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleActions
   assembleInvariant
   assembleSafeties
+  assembleAssumptions
   assembleLabelType name
   Command.runTermElabM fun vs => do
     -- set the name
@@ -468,9 +492,12 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
     let safeStx      <- PrettyPrinter.delab safe
     let inv       := mkAppN (<- mkConst $ ← getPrefixedName `Invariant) vs
     let invStx       <- PrettyPrinter.delab inv
+    let axioms    := mkAppN (<- mkConst $ ← getPrefixedName `Assumptions) vs
+    let axiomsStx    <- PrettyPrinter.delab axioms
     let rtsStx       <-
       `(instance (priority := low) $(mkIdent name) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
           init := $initStx
+          assumptions := $axiomsStx
           next := $nextTransStx
           safe := $safeStx
           inv  := $invStx

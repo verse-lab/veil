@@ -81,7 +81,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let mut currStateId := 0
     /- Which assertions, including state-transitions, does the spec contain. -/
     let mut assertions : Array (TSyntax `term) := #[]
-    assertions := assertions.push (← `(term|(RelationalTransitionSystem.init $(stateNames[0]!))))
+    assertions := assertions.push (← `(term|(RelationalTransitionSystem.assumptions $(stateNames[0]!) ∧ (RelationalTransitionSystem.init $(stateNames[0]!)))))
     for s in spec do
       let currState := stateNames[currStateId]!
       match s with

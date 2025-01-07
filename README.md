@@ -31,13 +31,13 @@ The `sauto` tactic relies on a Python wrapper around the Z3 SMT solver
 that we have written. Ensure you have Python 3 installed and then either:
 
 ```bash
-pip3 install z3-solver cvc5 sexpdata
+pip3 install z3-solver multiprocess sexpdata
 ```
 
 or (on Ubuntu)
 
 ```bash
-apt-get install python3-z3 python3-cvc5 python3-sexpdata
+apt-get install python3-z3 python3-multiprocess python3-sexpdata
 ```
 
 ### Docker image

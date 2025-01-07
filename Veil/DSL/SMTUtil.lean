@@ -9,11 +9,12 @@ import Auto
 open Lean hiding Command Declaration
 
 open Lean Elab Command Term Meta Tactic in
+/-- This performs the same simplifications as `fast_simplify_clause` on
+the given expression and then passes it to the SMT translator.-/
 def translateExprToSmt (expr: Expr) : TermElabM String := do
   let g ← mkFreshExprMVar expr
   let [l] ← Tactic.run g.mvarId! (do
-    Tactic.evalTactic (← `(tactic|unhygienic intros))
-    let _ ← elabSimplifyClause (thorough := false)
+    tryGoal $ run `(tactic|unhygienic intros; fast_simplify_clause)
     for mvarId in (← Tactic.getGoals) do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     Tactic.pruneSolvedGoals
@@ -25,11 +26,12 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
           let hyp := hyp.get!
           unless hyp.type.isType do
             tryGoal $ run `(tactic| revert $(mkIdent hyp.userName):ident)
-   ) | throwError "Expected exactly one goal"
+   ) | throwError "[translateExprToSmt] expected exactly one goal after simplification"
   let cmd ← forallTelescope (<- l.getType)
     fun ks tp => do
     let props ← ks.filterM (fun k => return ← Meta.isProp (← inferType k))
-    let cmds ← Smt.prepareSmtQuery props.toList tp
+    let (fvNames₁, _) ← Smt.genUniqueFVarNames
+    let cmds ← Smt.prepareSmtQuery props.toList tp fvNames₁
     let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
     pure cmdString
   return cmd
@@ -53,7 +55,7 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
     emitCommandStr solver s!"{goalQuery}\n"
     let mut ret := []
 
-    let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).join
+    let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).flatten
 
     for check in checks do
       trace[sauto.debug] "Now running solver"
