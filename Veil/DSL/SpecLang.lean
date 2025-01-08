@@ -169,7 +169,8 @@ elab "after_init" "{" l:lang "}" : command => do
     let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
     let act ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), @$wlp _ _ (fun $ret $st => $st' = $st) [Veil|$stateTp| $l ] $st))
+      localSpecCtx.modify ({· with spec.stateStx := stateTp})
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), @$wlp _ _ (fun $ret $st => $st' = $st) [lang| $l ] $st))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $act)
     -- we modify it to store the `lang`
@@ -232,10 +233,11 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
   elabCommand $ ← Command.runTermElabM fun vs => do
     let (ret, st, stret, wlp) := (mkIdent `ret', mkIdent `st, mkIdent `stret, mkIdent ``wlp)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
+    localSpecCtx.modify ({· with spec.stateStx := stateTp})
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $stret = ($st', $ret')
     let act <- `(fun ($st : $stateTp) $stret =>
-      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [Veil|$stateTp| $l ] $st)
+      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [lang| $l ] $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
@@ -310,7 +312,7 @@ elab_rules : command
 `transition` relation (as a Lean term). Here we compute the weakest
 precondition of the program and then define the transition relation.
 
-Note: Unlike `after_init` we expand `l` using `[Veil| l]` (as opposed to
+Note: Unlike `after_init` we expand `l` using `[lang| l]` (as opposed to
 `[lang1| l]`) as we want the transition to refer to both pre-state and
 post-state.-/
 elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "}" : command => do
@@ -319,7 +321,8 @@ elab actT:(actionType)? "action" nm:ident br:(explicitBinders)? "=" "{" l:lang "
     -- `σ → σ → Prop`, with binders existentially quantified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [Veil|$stateTp| $l ] $st)
+      localSpecCtx.modify ({· with spec.stateStx := stateTp})
+      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [lang| $l ] $st)
     )
     let trIdent := toTrIdent nm
     elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)

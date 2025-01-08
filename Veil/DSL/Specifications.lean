@@ -143,6 +143,9 @@ structure ModuleSpecification where
   /-- Expression representing the type of the transition system state,
   *without* having applied the section variables. -/
   stateType   : Expr
+  /-- Expression representing the syntax type of the transition system state,
+  *with* having applied the section variables. -/
+  stateStx   : Term
   /-- Signatures of all constants, relations, and functions that compose
   the state. This basically defines a FOL signature. -/
   signature  : Array StateComponent
