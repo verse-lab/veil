@@ -205,6 +205,12 @@ elab_rules : term
   | `([lang|skip]) => do
     let stateTp := (← localSpecCtx.get).spec.stateStx
     elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
+  | `([langSeq| ]) => do
+    let stateTp := (← localSpecCtx.get).spec.stateStx
+    elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
+  | `([langSeq| $l1:lang]) => do elabTerm (<- `([lang|$l1])) none
+  | `([langSeq| $l1:lang*]) => do
+    elabTerm (<- `(@Lang.seq _ _ _ [lang|$(l1.getElems[0]!)] [langSeq| $[$(l1.getElems[1:])]*])) none
   | `([lang|ensure $r, $t:term]) => do
     let fields : Array Name := (<- localSpecCtx.get).spec.signature.map (·.name)
     let mut unchangedFields := #[]
@@ -242,9 +248,8 @@ elab_rules : term
     elabTerm (<- `([lang| $id:structInstLVal := $stx])) none
 
 macro_rules
-  | `([lang|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
-  | `([langSeq| ]) => `(@Lang.det _ _ (fun st => (st, ())))
-  | `([langSeq| $l1:lang*]) => `(@Lang.seq _ _ _ [lang|$(l1.getElems[0]!)] [langSeq| $[$(l1.getElems[1:])]*])
+  -- | `([lang|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
+  -- | `([langSeq| ]) => `(@Lang.det _ _ (fun st => (st, ())))
   | `([lang|require $t:term]) => do
     let t' <- closeCapitals t
     withRef t $
