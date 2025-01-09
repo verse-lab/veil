@@ -1,0 +1,24 @@
+import Veil.DSL
+
+section TwoStateTransitionTest
+open Classical
+
+type address
+variable (is_byz : address → Prop)
+
+relation initial_msg (originator : address) (dst : address) (r : address) (v : address)
+
+#gen_state TwoStateTransitionTest
+
+#guard_msgs in
+internal transition byz = fun st st' =>
+  (∀ (src dst : address) (r : address) (v : address),
+    (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
+    (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v)))
+
+internal transition withargs (n : address) = fun st st' =>
+  (∀ (src dst : address) (r : address) (v : address),
+    (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
+    (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v)))
+
+end TwoStateTransitionTest

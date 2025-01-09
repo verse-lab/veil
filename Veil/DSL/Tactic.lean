@@ -38,13 +38,18 @@ elab _tk:"conv! " conv:conv " => " e:term : term => do
 /-- We use this to evaluate `wlp` inside function bodies at definition time.
   Otherwise it has to be evaluated in the kernel during proofs, which is very slow.
   `conv!` applies a tactic to a term. -/
+def unfoldWlp (t : TSyntax `term) : TermElabM (TSyntax `term) := do
+  let actSimp := mkIdent `actSimp
+  -- We have to do this round-about `let t : = .. ; exact t` because we
+  -- want to delay the evaluation of `t` until types are available to be
+  -- inferred, otherwise `$t` might fail to type-check.
+  let t' ← `(term|by first | let t := conv! (dsimp only [$actSimp:ident]) => $t; exact t | exact $t)
+  return t'
+
+/-- This does `unfoldWlp` followed by some other simplifications. -/
 def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
   let (actSimp, smtSimp, logicSimp, elim_exists_State) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp, mkIdent ``elim_exists_State)
   -- Reduce the body of the function
   let t' ← `(term| by
-    -- Try simplifying first, but this might fail if there's no `wlp` in the
-    -- definition, e.g. for transitions that are not actions.
-    -- If that fails, we try to evaluate the term as is.
-    -- We do `simp only [and_assoc]` at the end to normalize conjunctions.
     first | (let t := conv! (dsimp only [$actSimp:ident]; simp only [$smtSimp:ident, $logicSimp:ident]; simp only [and_assoc]; simp only [↓ $elim_exists_State:ident]) => $t; exact t) | exact $t)
   return t'

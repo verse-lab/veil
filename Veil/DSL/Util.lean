@@ -143,7 +143,7 @@ elab_rules : command
 def constructCommands (thms : Array (TSyntax `command)) : CoreM (TSyntax `commands) := `(commands| $[$thms]*)
 
 /--
-We have three versions of actions: `act.tr`, `act.fn`, and `act.trfn`.
+We have various versions of actions: `act.tr`, `act.fn`, and `act.tr.fn`.
 - `act.tr` has existentially quantified arguments (and is thus a
   transition)
 - `act.fn` has universally quantified arguments (and is thus a function
@@ -151,6 +151,8 @@ We have three versions of actions: `act.tr`, `act.fn`, and `act.trfn`.
   instances)
 - `act.tr.fn` returns `act.tr` instantiated for specific argument
   instances (with NO return value)
+- `act.raw` is `act.tr.fn` with only `wlp` unfolded but with no other
+  simplifications applied. We use this for debugging purposes.
  -/
 def toTrName (n : Name) : Name := n ++ `tr
 /-- See docstring on `toTrName`. -/
@@ -160,6 +162,8 @@ def toTrIdent (id : Ident) : Ident := mkIdent $ toTrName id.getId
 def toFnName (n : Name) : Name := n ++ `fn
 /-- See docstring on `toTrName`. -/
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
+/-- See docstring on `toTrName`. -/
+def toRawIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `raw
 def toSpecIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `spec
 
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl

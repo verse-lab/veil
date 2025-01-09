@@ -275,7 +275,7 @@ This command defines:
 elab_rules : command
   | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
   -- Elab the transition
-  let (trfn, tr) ← Command.runTermElabM fun vs => do
+  let (trraw, trfn, tr) ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
     let (st, st') := (mkIdent `st, mkIdent `st')
     let expectedType ← mkArrow stateTp (← mkArrow stateTp mkProp)
@@ -289,21 +289,34 @@ elab_rules : command
     -- The actual command (not term) elaboration happens here
     let expectedType <- `($stateTpT -> $stateTpT -> Prop)
     let attr ← toActionAttribute (toActionType actT)
-    let trfnName := toFnIdent nm
+    let (rawName, trfnName) := (toRawIdent nm, toFnIdent nm)
+    -- Syntax for `name.raw`
+    let (trraw, unfoldedTr) ← match br with
+    | some br =>
+      pure (← `(@[actSimp] def $rawName $(← toBracketedBinderArray br)* := $(← unfoldWlp $ ← `(fun ($st $st' : $stateTpT) => $tr $st $st'))), ← `(term|True))
+    | _ =>
+      let unfoldedTr ← unfoldWlp tr
+      pure (← `(@[actSimp] def $rawName : $expectedType := $unfoldedTr), unfoldedTr)
+    trace[dsl.debug] "trraw: {trraw}"
+    -- Syntax for `name.tr.fn`; depends on `name.raw`
     let (trfn, simplifiedTr) ← match br with
     | some br =>
-      pure (← `(@[actSimp] def $trfnName $(← toBracketedBinderArray br)* := $(← simplifyTerm $ ← `(fun ($st $st' : $stateTpT) => $tr $st $st'))), ← `(term|True))
+      pure (← `(@[actSimp] def $trfnName $(← toBracketedBinderArray br)* := $(← simplifyTerm $ ← `(fun ($st $st' : $stateTpT) => @$rawName $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st'))), ← `(term|True))
     | _ => do
-      let simplifiedTr ← simplifyTerm tr
+      let simplifiedTr ← simplifyTerm unfoldedTr
       pure (← `(@[actSimp] def $trfnName : $expectedType := $simplifiedTr), simplifiedTr)
+    trace[dsl.debug] "trfn: {trfn}"
+    -- Syntax for `name.tr`; depends on `name.tr.fn`
     let tr ← match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
       `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun ($st $st' : $stateTpT) => exists $br, @$trfnName $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st')))
     | _ => do
       `(@[$attr, actSimp] def $nm:ident : $expectedType := $simplifiedTr)
-    return (trfn, tr)
-  -- Declare `.tr.fn` and `.tr`
+    trace[dsl.debug] "tr: {tr}"
+    return (trraw, trfn, tr)
+  -- Declare `.raw`, `.tr.fn`, and `.tr`
+  elabCommand trraw
   elabCommand trfn
   elabCommand tr
   -- add constructor for label type
