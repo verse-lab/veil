@@ -201,6 +201,33 @@ macro_rules
     which should not depend on the pre-state. -/
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
 
+def getFreshIdents (is : Array Term) [Monad m] [MonadQuotation m] : m (Array Ident) := do
+  let mut x : Array $ Lean.TSyntax `ident := #[]
+  for i in is do
+    if isCapital i then
+      x := x.push ⟨i.raw⟩
+    else
+      x := x.push (<- mkFreshIdent (Lean.mkIdent `x))
+  return x
+
+
+elab_rules : term
+  | `([lang| $id:structInstLVal $ts: term * := *]) => do
+    throwIfImmutable id
+    let `(Lean.Parser.Term.structInstLVal| $id:ident) := id
+      | throwErrorAt id "{id} is not a valid LHS for an assignment"
+    let id_old := mkIdent $ id.getId.toString ++ "_old" |>.toName
+    let ts' <- getFreshIdents ts
+    let tsTup  <- `(term| [tupl| $ts:term *])
+    let ts'Tup <- `(term| [tupl| $ts':ident *] )
+    let stx <- `([lang| ensure ∀ $ts'*, $tsTup:term = $ts'Tup:term ∨ $id:ident $ts'* = $id_old $ts'*] )
+    -- trace[dsl] stx
+    elabTerm stx none
+  | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
+    let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
+    elabTerm (<- `([lang| $id:structInstLVal := $stx])) none
+
+
 elab_rules : term
   | `([lang|skip]) => do
     let stateTp := (← localSpecCtx.get).spec.stateStx
@@ -225,15 +252,9 @@ elab_rules : term
          unhygienic cases st';
          with_rename_old unhygienic cases st;
          exact $t ∧ [unchanged|$ids*]))) none
-  | `([lang| $id:structInstLVal $ts: term * := *]) => do
-    throwIfImmutable id
-    let stateTp := (← localSpecCtx.get).spec.stateStx
-    elabTerm (<- `(@Lang.fresh _ _ _ (fun v => @Lang.nondet _ _ _ (fun (st : $stateTp) =>
-      ({ st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))}, ()))))) none
-  -- non-deterministic assignment
-    -- expansion of the intermediate syntax for assignment
-    -- for instance `pending := pending[n, s ↦ true]` will get
-    -- expanded to `Lang.det (fun st => { st with pending := st.pending[n, s ↦ true] })`
+  -- expansion of the intermediate syntax for assignment
+  -- for instance `pending := pending[n, s ↦ true]` will get
+  -- expanded to `Lang.det (fun st => { st with pending := st.pending[n, s ↦ true] })`
   | `([lang| $id:structInstLVal := $t:term]) => do
     throwIfImmutable id
     let stateTp := (← localSpecCtx.get).spec.stateStx
@@ -242,14 +263,8 @@ elab_rules : term
   -- expansion of the actual syntax for assignment
   -- for instance `pending n s := true` will get
   -- expanded to `pending := pending[n, s ↦ true]`
-  | `([lang| $id:structInstLVal $ts: term * := $t:term]) => do
-    throwIfImmutable id
-    let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
-    elabTerm (<- `([lang| $id:structInstLVal := $stx])) none
 
 macro_rules
-  -- | `([lang|skip]) => `(@Lang.det _ _ (fun st => (st, ())))
-  -- | `([langSeq| ]) => `(@Lang.det _ _ (fun st => (st, ())))
   | `([lang|require $t:term]) => do
     let t' <- closeCapitals t
     withRef t $
@@ -271,12 +286,9 @@ macro_rules
   | `([lang|ensure $t:term $un:unchanged ?] ) =>
     `([lang|ensure (_ : Unit), $t:term $un:unchanged ?])
   | `([lang| do $t:term ]) => `(@Lang.det _ _ $t)
-  --   -- expansion of the actual syntax for assigment
+    -- expansion of the actual syntax for assigment
     -- for instance `pending n s := true` will get
     -- expanded to `pending := pending[n, s ↦ true]`
-  | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
-    let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
-    `([lang| $id:structInstLVal := $stx])
   -- NOTE: the following two cases describe the same construct
   -- there's probably a way to unify them
   | `([lang| $id:term $_:left_arrow $l1:lang in $l2:langSeq]) => do
