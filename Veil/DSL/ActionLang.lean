@@ -14,7 +14,6 @@ open Lean Elab Command Term Meta Lean.Parser
   This file defines the syntax and semantics for the imperative language
   we use to define initializers and actions.
 -/
-
 section Lang
 /-! Our language is parametric over the state type. -/
 variable (σ : Type)
@@ -44,6 +43,142 @@ inductive Lang.{u} : Type u → Type (u + 1) where
 /-- Two-state formula -/
 @[inline] abbrev actprop := σ -> σ -> Prop
 
+
+def Wlp (σ : Type) (ρ : Type) := rprop σ ρ -> sprop σ
+
+section
+
+variable {σ ρ : Type}
+
+def Wlp.pure {σ ρ} (r : ρ) : Wlp σ ρ := fun post s => post r s
+def Wlp.bind {σ ρ} (wp : Wlp σ ρ) (wp_cont : ρ -> Wlp σ ρ') : Wlp σ ρ' :=
+  fun post s => wp (fun r s' => wp_cont r post s') s
+
+instance : Monad (Wlp σ) where
+  pure := Wlp.pure
+  bind := Wlp.bind
+
+def Wlp.require (rq : sprop σ) : Wlp σ PUnit := fun post s => rq s ∧ post () s
+def Wlp.det (act : σ -> σ × ρ) : Wlp σ ρ := fun post s => let (s', ret) := act s ; post ret s'
+def Wlp.nondet (act : σ -> σ × ρ -> Prop) : Wlp σ ρ := fun post s => ∃ s' ret, act s (s', ret) ∧ post ret s'
+def Wlp.ite (cnd : σ -> Bool) (thn : Wlp σ ρ) (els : Wlp σ ρ) : Wlp σ ρ :=
+  fun post s => if cnd s then thn post s else els post s
+def Wlp.iteSome (cnd : ρ -> σ -> Bool) (thn : ρ -> Wlp σ ρ) (els : Wlp σ ρ) : Wlp σ ρ :=
+  fun post s => (∃ r, cnd r s ∧ thn r post s) ∨ (∀ r, ¬ cnd r s) ∧ els post s
+def Wlp.fresh (τ : Type) : Wlp σ τ := fun post s => ∃ t, post t s
+def Wlp.skip : Wlp σ PUnit := Wlp.pure ()
+
+partial def getCapitals (s : Syntax) :=
+  let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
+    if s.isIdent then
+      if isCapital s then
+        acc.push ⟨s⟩
+      else
+        acc
+    else
+      s.getArgs.foldl (init := acc) loop
+  (loop #[] s).toList.eraseDups.toArray
+
+/-- Close the given expression under all capital letters.
+    this is called for `require`, `safety` and `invariant` -/
+def closeCapitals (s : Term) : MacroM Term :=
+  let caps := getCapitals s
+  `(forall $[$caps]*, $s)
+
+/-- Throw an error if the field (which we're trying to assign to) was
+declared immutable. FIXME: make sure elaboration aborts? -/
+def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Unit := do
+  let spec := (← localSpecCtx.get).spec
+  let nm ← getIdFrom lhs
+  let .some comp := spec.getStateComponent nm
+    | throwErrorAt lhs "trying to assign to undeclared state component {nm}"
+  if comp.isImmutable then
+    throwErrorAt lhs "{comp.kind} {comp.name} was declared immutable, but trying to assign to it!"
+  where getIdFrom (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Name :=
+    match lhs with
+    | `(Lean.Parser.Term.structInstLVal|$id:ident) => pure id.getId
+    | _ => throwErrorAt lhs "expected an identifier in the LHS of an assignment, got {repr lhs}"
+
+/-- This is used in `require` were we define a predicate over a state.
+    Instead of writing `fun st => Pred` this command will pattern match over
+    `st` making all its fields accessible for `Pred` -/
+macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
+macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident; exact $t)
+
+/-- `require s` checks if `s` is true on the current state -/
+syntax "require" term      : doElem
+/-- `call s` calls action `s` on a current state -/
+syntax "call" term : doElem
+
+/-- Non-deterministic value. -/
+syntax (name := nondetVal) "*" : term
+/-- syntax for assigment, e.g. `pending n s := true` -/
+syntax atomic(Term.structInstLVal (term:max)* ":==") (term <|> nondetVal)    : doElem
+
+elab "throw_if_immutable" id:Term.structInstLVal t:term : term => do
+  throwIfImmutable id; elabTerm t none
+
+macro_rules
+  | `(doElem| require $t)           => `(doElem| Wlp.require (funcases $t))
+  | `(doElem| call $t)              => `(doElem| @Wlp.nondet _ _ (funcases $t))
+  -- expansion of the intermediate syntax for assigment
+  -- for instance `pending := pending[n, s ↦ true]` will get
+  -- expanded to `Lang.det (fun st => { st with pending := st.pending[n, s ↦ true] })`
+  | `(doElem| $id:structInstLVal :== $t:term) =>
+    `(doElem|
+            /- TODO: uncomment -/
+            -- throw_if_immutable $id
+            @Wlp.det _ _ (fun st => ({ st with $id := (funcases st $t)}, ())))
+  -- expansion of the actual syntax for assignment
+  -- for instance `pending n s := true` will get
+  -- expanded to `pending := pending[n, s ↦ true]`
+  | `(doElem| $id:structInstLVal $ts: term * :== $t:term) => do
+    let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
+    `(doElem| $id:structInstLVal :== $stx)
+
+
+elab_rules : term
+  -- expansion of the intermediate syntax for assigment
+  -- for instance `pending := pending[n, s ↦ true]` will get
+  -- expanded to `Lang.det (fun st => { st with pending := st.pending[n, s ↦ true] })`
+  | `(doElem| $id:structInstLVal :== $t:term) => do
+    throwIfImmutable id
+    elabTerm (<- `(doElem|@Wlp.det _ _ (fun (st : [State]) =>
+      ({ st with $id := (funcases st $t)}, ())))) none
+  -- expansion of the actual syntax for assignment
+  -- for instance `pending n s := true` will get
+  -- expanded to `pending := pending[n, s ↦ true]`
+
+
+structure state where
+  r : Int
+  s : Bool
+  m : Bool -> Bool
+
+
+open Wlp in
+def k : Wlp state Nat := do
+  let x <- fresh Nat
+  let mut y := 0
+  require r = y
+  if true then
+    y := x + 1
+  else y := x + 2
+  m B :== true
+  return y
+
+example {P : _ -> Prop} : P (k (fun r s => r = r' ∧ s = s') s) := by
+  simp [k, Wlp.fresh, bind, Wlp.bind, Wlp.require, pure, Wlp.pure, Wlp.det ]
+
+
+
+
+
+
+
+end
+
+#exit
 -- abbrev triple (t : ρ) (H : sprop σ) (P : rprop σ ρ) := ∀ s, H s → P t s
 
 /-- Weakest liberal precondition transformer. It takes a post-condition and
