@@ -76,6 +76,11 @@ def hypIsClass (hyp : LocalDecl) : TacticM Bool := do
 def collectPropertiesFromHyp (hyp : LocalDecl) : TacticM (Array Name) := do
   let env ← getEnv
   let mut props := #[]
+  -- We do not pass inhabitation facts to SMT, as both `lean-auto` and
+  -- `lean-smt` choke on them, and solvers already assume all types are
+  -- inhabited.
+  if ← normalisedIsAppOf hyp ``Nonempty then
+      return props
   if ← Meta.isProp hyp.type then
     props := props.push hyp.userName
   if ← hypIsClass hyp then

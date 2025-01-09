@@ -552,6 +552,6 @@ elab "#gen_spec" name:ident : command => do
 interfere with the definitions above. For instance, we need to define a
 `structure` with a field named `type` and that gets broken.
 Unfortunately, this means we're breaking all the DSL clients. -/
-macro "type" id:ident : command => `(variable ($id : Type) [DecidableEq $id])
+macro "type" id:ident : command => `(variable ($id : Type) [DecidableEq $id] [Nonempty $id])
 macro "instantiate" t:term : command => `(variable [$t])
 macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
