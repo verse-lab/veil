@@ -150,20 +150,26 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
+  -- Sometimes the simplification solves the goal
+  if (← getUnsolvedGoals).length == 0 then
+    return ← finishWith #[] xtacs
   -- FIXME: as a work-around for `lean-smt` seeming to introduce `And.left` and `And.right`,
   -- we destruct the hypotheses again.
   withMainContext do
   let mut xtacs := xtacs.push destructTac
   evalTactic destructTac
-  withMainContext do
   -- (4) Identify:
   --   (a) all propositions in the context
   --   (b) all propositions within typeclasses in the context
+  withMainContext do
   let idents ← getPropsInContext
-  if let some stx := traceAt then
-    let combined_tactic ← `(tactic| $xtacs;*)
-    addSuggestion stx combined_tactic
-  return (idents, xtacs)
+  return ← finishWith idents xtacs
+  where
+  finishWith (idents : Array Ident) (xtacs : Array (TSyntax `tactic)) : TacticM (Array Ident × Array (TSyntax `tactic)) := do
+    if let some stx := traceAt then
+      let combined_tactic ← `(tactic| $xtacs;*)
+      addSuggestion stx combined_tactic
+    return (idents, xtacs)
 
 syntax (name := simplifyClause) "simplify_clause" : tactic
 syntax (name := simplifyClauseTrace) "simplify_clause?" : tactic
