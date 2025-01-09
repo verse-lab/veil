@@ -27,11 +27,7 @@ after_init {
   pending M N := False
 }
 
-
-action send (n next : node) =
-  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
-  ensure pending n next = True
-{
+action send (n next : node) = {
   require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := True
 }
@@ -58,11 +54,6 @@ invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
 
 #gen_spec Ring
-
--- set_option trace.sauto.query true
--- set_option sauto.smt.translator "lean-smt"
--- set_option trace.sauto.result true
--- set_option trace.sauto.debug true
 
 #check_invariants
 
