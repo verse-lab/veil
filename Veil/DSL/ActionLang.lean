@@ -158,12 +158,11 @@ structure state where
 
 open Wlp in
 def k : Wlp state Nat := do
-  let x <- fresh Nat
   let mut y := 0
   require r = y
   if true then
-    y := x + 1
-  else y := x + 2
+    y := (<- fresh Nat) + 1
+  else y := y + 2
   m B :== true
   return y
 
