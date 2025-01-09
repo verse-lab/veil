@@ -14,8 +14,9 @@ action foo = {
 }
 
 /--
-info: def foo.fn : (node : Type) → [inst : DecidableEq node] → Test.State node → Test.State node × Unit → Prop :=
-fun node [DecidableEq node] =>
+info: def foo.fn : (node : Type) →
+  [inst : DecidableEq node] → [inst_1 : Nonempty node] → Test.State node → Test.State node × Unit → Prop :=
+fun node [DecidableEq node] [Nonempty node] =>
   let t := fun st stret => ∃ t, ∀ (x N : node), t = x ∨ stret.fst.r x N = st.r x N;
   t
 -/
