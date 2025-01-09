@@ -271,19 +271,6 @@ macro_rules
   | `([lang|ensure $t:term $un:unchanged ?] ) =>
     `([lang|ensure (_ : Unit), $t:term $un:unchanged ?])
   | `([lang| do $t:term ]) => `(@Lang.det _ _ $t)
-    -- expansion of the intermediate syntax for assigment
-    -- for instance `pending := pending[n, s ↦ true]` will get
-    -- expanded to `Lang.det (fun st => { st with pending := st.pending[n, s ↦ true] })`
-  | `([lang| $id:structInstLVal := $t:term ]) => do
-    `(@Lang.det _ _ (fun st =>
-      ({ st with $id := (by unhygienic cases st; exact $t)}, ())))
-  -- for instance `pending n s := *` will get
-  -- | `([lang| $id:structInstLVal $ts: term * := * ]) => do
-  --   `(@Lang.nondet _ _ (fun st (st', ()) =>
-  --     (∃ v, st' = { st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))})))
-  | `([lang| $id:structInstLVal $ts: term * := * ]) => do
-    `(@Lang.fresh _ _ _ (fun v => @Lang.nondet _ _ _ (fun st =>
-      ({ st with $id := (by unhygienic cases st; exact ($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ v ]))}, ()))))
   --   -- expansion of the actual syntax for assigment
     -- for instance `pending n s := true` will get
     -- expanded to `pending := pending[n, s ↦ true]`
