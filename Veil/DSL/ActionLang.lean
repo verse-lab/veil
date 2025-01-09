@@ -25,7 +25,7 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   | require (rq : σ -> Prop) : Lang PUnit
   | bind    {ρ ρ' : Type u} (act : Lang ρ') (act' : ρ' -> Lang ρ) : Lang ρ
   -- τ is a first order type, so it can be quantified in FOL
-  | fresh   {τ : Type u} {ρ : Type u} (act : τ -> Lang ρ) : Lang ρ
+  | fresh   (τ : Type u) {ρ : Type u} : Lang ρ
   /-- Deterministic changes to the state, although mostly used for assignments. All
       capital variables will be quantified. -/
   | det     {ρ' : Type u} (act : σ -> σ × ρ') : Lang ρ'
@@ -35,9 +35,6 @@ inductive Lang.{u} : Type u → Type (u + 1) where
   | ite     {ρ : Type u} (cnd : σ -> Bool) (thn : Lang ρ) (els : Lang ρ) : Lang ρ
   /-- If-then-else. `open Classical` to allow propositions in the condition. -/
   | iteSome {ρ : Type u} {ρ' : Type} (cnd : ρ' -> σ -> Bool) (thn : ρ' -> Lang ρ) (els : Lang ρ) : Lang ρ
-
-  /-- Sequence -/
-  | seq     {ρ ρ' : Type u} (l1 : Lang ρ') (l2 : Lang ρ) : Lang ρ
   | ret     {ρ : Type u} (ret : ρ) : Lang ρ
 
 /-- One-state formula -/
@@ -73,21 +70,22 @@ inductive Lang.{u} : Type u → Type (u + 1) where
     (∃ r, cnd r s ∧ wlp post (thn r) s) ∨ (∀ r, ¬ cnd r s) ∧ wlp post els s
   -- `seq` is a composition of programs, so we need to compute the wlp of
   -- the first program, given the wlp of the second
-  | Lang.seq l1 l2        =>
-    wlp (fun _ => wlp post l2) l1
   | Lang.ret ret    => post ret
-  | Lang.bind l1 l2 =>
-    wlp (fun ret => wlp post (l2 ret)) l1
-  | Lang.fresh act => fun s => ∃ t, wlp post (act t) s
+  | Lang.bind l1 l2 => wlp (fun ret => wlp post (l2 ret)) l1
+  | Lang.fresh τ => fun s => ∃ t, post t s
 
 declare_syntax_cat left_arrow
 syntax "<-" : left_arrow
 syntax "←" : left_arrow
 
 declare_syntax_cat langSeq
+declare_syntax_cat langElem
 declare_syntax_cat lang
 
-syntax sepByIndentSemicolon(lang) : langSeq
+syntax lang : langElem
+syntax "let" ident left_arrow lang : langElem
+
+syntax sepByIndentSemicolon(langElem) : langSeq
 
 -- syntax lang ";" colGe lang : lang
 -- syntax lang : lang
@@ -208,9 +206,13 @@ elab_rules : term
   | `([langSeq| ]) => do
     let stateTp := (← localSpecCtx.get).spec.stateStx
     elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
-  | `([langSeq| $l1:lang]) => do elabTerm (<- `([lang|$l1])) none
-  | `([langSeq| $l1:lang*]) => do
-    elabTerm (<- `(@Lang.seq _ _ _ [lang|$(l1.getElems[0]!)] [langSeq| $[$(l1.getElems[1:])]*])) none
+  | `([langSeq| $l:lang]) => do elabTerm (<- `([lang|$l])) none
+  | `([langSeq| $ls:langElem*]) => do
+    let l₁ := ls.getElems[0]!
+    let ls := l1.getElems[1:]
+    match l₁ with
+    | `(langElem| let $id:ident)
+    -- elabTerm (<- `(@Lang.seq _ _ _ [lang|$(l1.getElems[0]!)] [langSeq| $[$(l1.getElems[1:])]*])) none
   | `([lang|ensure $r, $t:term]) => do
     let fields : Array Name := (<- localSpecCtx.get).spec.signature.map (·.name)
     let mut unchangedFields := #[]
