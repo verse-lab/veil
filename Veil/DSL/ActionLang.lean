@@ -199,20 +199,45 @@ macro_rules
     which should not depend on the pre-state. -/
 macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
 
+
+/-====== Macro expansion for [lang] ======-/
+
+syntax "[State]" : term
+
 elab_rules : term
+  | `([State]) => do
+    let stateTp := (← localSpecCtx.get).spec.stateStx
+    elabTerm (<- `(term| $stateTp)) none
+
+/- Fisrt, we handle sequensial composiotin and let-bindings -/
+
+macro_rules
+  | `([langSeq| ]) => `([lang|skip])
   | `([lang|skip]) => do
-    let stateTp := (← localSpecCtx.get).spec.stateStx
-    elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
-  | `([langSeq| ]) => do
-    let stateTp := (← localSpecCtx.get).spec.stateStx
-    elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
-  | `([langSeq| $l:lang]) => do elabTerm (<- `([lang|$l])) none
+    `(term| @Lang.det _ _ (fun (st : [State]) => (st, ())))
+  | `([langSeq|$l:lang]) => `([lang|$l])
   | `([langSeq| $ls:langElem*]) => do
     let l₁ := ls.getElems[0]!
-    let ls := l1.getElems[1:]
+    let ls := ls.getElems[1:]
+    let mut (id, l) := (default, default)
     match l₁ with
-    | `(langElem| let $id:ident)
-    -- elabTerm (<- `(@Lang.seq _ _ _ [lang|$(l1.getElems[0]!)] [langSeq| $[$(l1.getElems[1:])]*])) none
+    | `(langElem| let $i:ident $_:left_arrow $lb:lang) =>
+      id <- `(Term.funBinder| $i); l := lb
+    | `(langElem| $lb:lang) =>
+      id <- `(Term.funBinder| _); l := lb
+    | _ => Macro.throwError "unexpected syntax"
+    `(@Lang.bind _ _ _ [lang|$l] (fun $id => [langSeq|$[$ls]*]))
+
+
+/- Simple statements: `require`, `return` -/
+
+macro_rules
+  | `([lang|return $t:term]) => `(@Lang.ret _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
+  | `([lang|call $t:term]) => `(@Lang.nondet _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
+
+
+
+elab_rules : term
   | `([lang|ensure $r, $t:term]) => do
     let fields : Array Name := (<- localSpecCtx.get).spec.signature.map (·.name)
     let mut unchangedFields := #[]
@@ -300,7 +325,5 @@ macro_rules
       `(@Lang.bind _ _ _ [lang|$l1] (fun ($id : $t) => [langSeq|$l2]))
   | `([lang|fresh $id:ident : $t in $l2:langSeq]) =>
       `(@Lang.fresh _ _ _ (fun $id : $t => [langSeq|$l2]))
-  | `([lang|return $t:term]) => `(@Lang.ret _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
-  | `([lang|call $t:term]) => `(@Lang.nondet _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
 
 end Lang
