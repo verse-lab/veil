@@ -51,7 +51,7 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
     if isStructure then
       let dtac ← `(tactic| sdestruct $name:ident)
       evalTactic dtac
-    else if ← normalisedIsAppOf hyp ``Exists then
+    else if ← normalisedIsAppOf hyp.type ``Exists then
         -- we want the new hypotheses to have fresh names so they're
         -- not included in the ignore list, hence we don't reuse `$name`
         evalTactic $ ← `(tactic| unhygienic rcases $name:ident with ⟨_, _⟩)
@@ -87,7 +87,7 @@ elab "sts_induction" : tactic => withMainContext do
   -- Create as many goals as `hnext` has constructors.
   -- For CIC-style systems, `.next` has the form `∃ (_t: [TransitionType]) True`,
   -- so we first destruct the existential quantifier.
-  if ← normalisedIsAppOf hnext `Exists then
+  if ← normalisedIsAppOf hnext.type `Exists then
     evalTactic $ ←  `(tactic| rcases $hnextName:ident with ⟨$hnextName, _⟩)
   -- NOTE: context has changed, so we need this again
   withMainContext do
@@ -95,7 +95,7 @@ elab "sts_induction" : tactic => withMainContext do
   -- We have two possibilities. Either:
   -- (a) `next` is a sequence of `∨`'ed propositions
   -- (b) `next` is an inductive type, in which case we can use `cases` to destruct it.
-  if ← normalisedIsAppOf hnext `Or then
+  if ← normalisedIsAppOf hnext.type `Or then
     -- FIXME: make sure we only break `Or`s, not other things
     let case_split ← `(tactic| repeat' (rcases $hnextName:ident with $hnextName | $hnextName))
     evalTactic case_split
