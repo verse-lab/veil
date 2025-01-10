@@ -238,7 +238,7 @@ def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBin
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $stret = ($st', $ret')
     let act <- `(fun ($st : $stateTp) $stret =>
-      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [langSeq| $l ] $st)
+      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ (Prod.snd $stret) = $ret) [langSeq| $l ] $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
