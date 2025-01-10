@@ -57,7 +57,6 @@ action call_retval = {
 -- #check and_assoc
 attribute [quantifierElim high] and_assoc elim_exists_State
 def call_retval := conv! (unfold call_retval.tr.raw; simp only [quantifierElim]) => call_retval.tr.raw
-
 /-- info: false -/
 #guard_msgs in
 #eval hasStateHOExist (Lean.mkConst `_call_retval)
@@ -79,7 +78,6 @@ action call_with_if = {
 -- #check ite_push_down_eq
 attribute [quantifierElim] ite_push_down_eq
 def call_with_if := conv! (unfold call_with_if.tr.raw; simp? only [quantifierElim]) => call_with_if.tr.raw
-
 /-- info: false -/
 #guard_msgs in
 #eval hasStateHOExist (Lean.mkConst `call_with_if)
@@ -107,6 +105,35 @@ def call_with_if_fresh := conv! (unfold call_with_if_fresh.tr.raw; simp? only [q
 /-- info: false -/
 #guard_msgs in
 #eval hasStateHOExist (Lean.mkConst `call_with_if_fresh)
+
+
+action with_if_fresh_more = {
+  if (x) {
+    fresh m : node in
+    r N m := False
+    require x
+  } else {
+    skip
+  }
+}
+
+#print with_if_fresh_more.tr
+
+action call_with_if_fresh_more = {
+  call !with_if_fresh_more
+  x := False
+}
+
+-- #print call_with_if_fresh_more.tr.raw
+-- ∃ s',
+--   (if st.x then ∃ t, s' = { r := fun N x => ¬x = t ∧ st.r N x, x := st.x } ∧ st.x else s' = st) ∧
+--     st' = { r := s'.r, x := False }
+attribute [quantifierElim] ite_push_down_eq ite_push_down_eq_and_both ite_push_down_eq_and_left ite_push_down_eq_and_right
+
+def call_with_if_fresh_more := conv! (unfold call_with_if_fresh_more.tr.raw; simp? only [quantifierElim]) => call_with_if_fresh_more.tr.raw
+/-- info: false -/
+#guard_msgs in
+#eval hasStateHOExist (Lean.mkConst `call_with_if_fresh_more)
 
 
 end Test

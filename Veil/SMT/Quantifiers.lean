@@ -226,12 +226,35 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
 
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
-theorem ite_push_down_eq [Decidable p] (x a b : α) : (if p then x = a else x = b) = (x = if p then a else b) := by
-  apply propext; by_cases h : p
-  { simp only [if_pos h] }
-  { simp only [if_neg h] }
+section QuantifierTheorems
+/- Strictly speaking, `[Decidable p]` is sufficient to prove these
+theorems, but we've observed that, if for instance we have
+`individual x : Prop` in our state and then `if (x)` in an action, the
+version of these theorems with `[Decidable p]` does not trigger
+reliably. Basically, we want to rely as little as possible on typeclass
+inference, since it's not always reliable. -/
+open Classical
 
-theorem ite_exists_push_out [Decidable p] [ne : Nonempty α] (r : Prop) (q : α → Prop) : (if p then ∃ t, q t else r) = (∃ t, if p then q t else r) := by
+elab "prove_ite_push_down" p:term : tactic => withMainContext do evalTactic $ ←
+`(tactic|apply propext; by_cases h : $p; { simp [if_pos h] }; { simp [if_neg h] })
+
+theorem ite_push_down_eq (x a b : α) (p : Prop) :
+  (if p then x = a else x = b) = (x = if p then a else b) :=
+  by prove_ite_push_down p
+
+theorem ite_push_down_eq_and_both (x a b : α) (p q r : Prop ) :
+  (if p then (x = a) ∧ q else (x = b) ∧ r) = ((x = if p then a else b) ∧ (if p then q else r)) :=
+  by prove_ite_push_down p
+
+theorem ite_push_down_eq_and_left (x a b : α) (p q : Prop ) :
+  (if p then (x = a) ∧ q else (x = b)) = ((x = if p then a else b) ∧ (if p then q else True)) :=
+  by prove_ite_push_down p
+
+theorem ite_push_down_eq_and_right (x a b : α) (p q : Prop ) :
+  (if p then (x = a) else (x = b) ∧ q) = ((x = if p then a else b) ∧ (if p then True else q)) :=
+  by prove_ite_push_down p
+
+theorem ite_exists_push_out [ne : Nonempty α] (p r : Prop) (q : α → Prop) : (if p then ∃ t, q t else r) = (∃ t, if p then q t else r) := by
   apply propext; by_cases h : p
   { simp only [if_pos h] }
   {
@@ -240,3 +263,5 @@ theorem ite_exists_push_out [Decidable p] [ne : Nonempty α] (r : Prop) (q : α 
     · rcases ne with ⟨t⟩; exists t
     · rintro ⟨t, ht⟩; apply ht
   }
+
+end QuantifierTheorems
