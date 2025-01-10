@@ -262,6 +262,13 @@ these "actions". All capital letters in `require` and in assignments are
 implicitly quantified. -/
 syntax (actionType)? "action" ident (explicitBinders)? "=" "{" lang "}" : command
 
+/-- Show a warning if the given declaration -/
+def warnIfNotFirstOrder (name : Name) : MetaM Unit := do
+  let .some decl := (← getEnv).find? name | throwError s!"{name} not found"
+  let .some val := decl.value? | throwError s!"{name} has no value"
+  if ← hasStateHOExist val then
+    logWarning s!"{name} is not first-order (and cannot be sent to SMT): it existentially quantifies over {← getStateName}!"
+
 /--
 ```lean
 transition name binders* = tr
@@ -321,6 +328,8 @@ elab_rules : command
   elabCommand tr
   -- add constructor for label type
   registerIOActionDecl actT nm br
+  -- warn if this is not first-order
+  Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
 
 /-- Desugar an imperative `action` in `ActionLang` into a two-state
 `transition` relation (as a Lean term). Here we compute the weakest
