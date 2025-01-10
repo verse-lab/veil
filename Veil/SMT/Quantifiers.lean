@@ -190,21 +190,12 @@ end quantifiers
 attribute [logicSimp] exists_and_left' exists_and_right'
 
 
-/-- A variant of the above, for use when defining a `Simp.Context` in
-`elim_exists_State`. (I couldn't figure out how to create a list of
-`SimpTheorems` from ). -/
-@[inline] def quantifierElimThms : MetaM SimpTheorems :=
-  quantifierElimThms'.foldlM (·.addConst ·) ({} : SimpTheorems)
-  where quantifierElimThms' : List Name := [``forall_eq', ``exists_eq,
-    ``exists_eq', ``exists_eq_left, ``exists_eq_right, ``exists_and_left',
-    ``exists_and_right', ``exists_eq_left',
-    ``exists_eq_right_right, ``exists_eq_right_right']
-    /- `and_assoc` ensures these work even in larger cojunctions -/
-    ++ [``and_assoc]
-    /- so we behave similarly to `simp only` -/
-    ++ simpOnlyBuiltins
+@[inline] def mkSimpTheorems (xs : List Name) : MetaM SimpTheorems :=
+  xs.foldlM (·.addConst ·) ({} : SimpTheorems)
 
-/- When calling actions, we get goals that quantify over the post-state,
+@[inline] def simpOnlyTheorems := mkSimpTheorems simpOnlyBuiltins
+
+/-- When calling actions, we get goals that quantify over the post-state,
 e.g. `∃ st', preconditions ∧ st' = ... ∧ ...`. We can eliminate these
 quantifers by replacing `st'` in the body of the existential with the
 RHS of the equality. This `simproc` assumes that (1) existential
@@ -224,7 +215,7 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
   let q := qs.get! 0
   let ctx : Simp.Context := {
       config := {(← Simp.getContext).config with singlePass := false}
-      simpTheorems := #[(← quantifierElimThms)] -- includes `and_assoc`
+      simpTheorems := #[(← simpOnlyTheorems)]
       congrTheorems := (← getSimpCongrTheorems)
   }
   let method := (pushEqInvolvingLeft q)
@@ -235,7 +226,17 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
 
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
-/-! quantifier elimination -/
-attribute [quantifierElim] forall_eq' exists_eq exists_eq'
-  exists_eq_left exists_eq_right exists_and_left' exists_and_right'
-  exists_eq_left' exists_eq_right_right exists_eq_right_right'
+theorem ite_push_down_eq [Decidable p] (x a b : α) : (if p then x = a else x = b) = (x = if p then a else b) := by
+  apply propext; by_cases h : p
+  { simp only [if_pos h] }
+  { simp only [if_neg h] }
+
+theorem ite_exists_push_out [Decidable p] [ne : Nonempty α] (r : Prop) (q : α → Prop) : (if p then ∃ t, q t else r) = (∃ t, if p then q t else r) := by
+  apply propext; by_cases h : p
+  { simp only [if_pos h] }
+  {
+    simp only [if_neg h]; constructor
+    intro hr
+    · rcases ne with ⟨t⟩; exists t
+    · rintro ⟨t, ht⟩; apply ht
+  }

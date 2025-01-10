@@ -110,6 +110,11 @@ fix implemented there seems unreliable. -/
   { rintro ⟨⟨a, b⟩, h⟩ ; exact ⟨a, b, h⟩ }
   { rintro ⟨a, b, h⟩ ; exact ⟨⟨a, b⟩, h⟩ }
 
+/-! ## decidable -/
+attribute [smtSimp] Decidable.not_not decide_eq_decide Decidable.not_imp_self
+  decide_implies decide_ite ite_true_decide_same ite_false_decide_same
+  decide_eq_true_eq decide_eq_false_iff_not decide_not not_decide_eq_true
+  cond_true cond_false decide_False decide_True
 
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`
 /-
