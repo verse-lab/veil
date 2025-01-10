@@ -1,6 +1,6 @@
 import Lean.Elab.Tactic
 import Veil.DSL.Util
-import Veil.SMT.Preparation
+import Veil.SMT.Main
 
 open Lean Lean.Elab
 
