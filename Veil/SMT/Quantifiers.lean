@@ -177,19 +177,6 @@ private def exist_eq_left_simproc' : Simp.Simproc := fun e => do
 simproc_decl exist_eq_left_simproc (∃ _, _) := exist_eq_left_simproc'
 
 
-/-! The default exists simp lemmas _unhoist_ quantifiers (push them as far in as
-  possible), but to enable quantifier elimination, we want to _hoist_ them
-  to the top of the goal, so we run these lemmas in the reverse direction.
-  We give these lemmas the `logicSimp` attribute (as opposed to `quantifierElim`)
-  because we want them to run _before_ the `quantifierElim` lemmas. -/
-section quantifiers
-variable {p q : α → Prop} {b : Prop}
-theorem exists_and_left' : b ∧ (∃ x, p x) ↔ (∃ x, b ∧ p x) := by rw [exists_and_left]
-theorem exists_and_right' : (∃ x, p x) ∧ b ↔ (∃ x, p x ∧ b) := by rw [exists_and_right]
-end quantifiers
-attribute [logicSimp] exists_and_left' exists_and_right'
-
-
 @[inline] def mkSimpTheorems (xs : List Name) : MetaM SimpTheorems :=
   xs.foldlM (·.addConst ·) ({} : SimpTheorems)
 
@@ -225,6 +212,16 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
 section QuantifierTheorems
+/-! The default exists simp lemmas _unhoist_ quantifiers (push them as far in as
+  possible), but to enable quantifier elimination, we want to _hoist_ them
+  to the top of the goal, so we run these lemmas in the reverse direction. -/
+section exists_and
+variable {p q : α → Prop} {b : Prop}
+theorem exists_and_left' : b ∧ (∃ x, p x) ↔ (∃ x, b ∧ p x) := by rw [exists_and_left]
+theorem exists_and_right' : (∃ x, p x) ∧ b ↔ (∃ x, p x ∧ b) := by rw [exists_and_right]
+end exists_and
+attribute [logicSimp] exists_and_left' exists_and_right'
+
 /- Strictly speaking, `[Decidable p]` is sufficient to prove these
 theorems, but we've observed that, if for instance we have
 `individual x : Prop` in our state and then `if (x)` in an action, the
