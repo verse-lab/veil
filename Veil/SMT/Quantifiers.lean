@@ -208,9 +208,7 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
   -- Step 1: identify all variables which quantify over `State`
   let qs ← getExistentialsOverState e
   if qs.isEmpty then
-    -- no point visiting sub-expressions (since we assume quantifiers
-    -- have been hoisted already)
-    return .done { expr := e }
+    return .continue
   -- Step 2: get rid of this quantifier
   let q := qs.get! 0
   let ctx : Simp.Context := {
@@ -222,7 +220,7 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
                 |> Simp.andThen (State_exists_push_right q)
                 |> Simp.andThen (exist_eq_left_simproc)
   let (res, _stats) ← Simp.main e ctx (methods := { post := method})
-  return .done res
+  return .continue res
 
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 

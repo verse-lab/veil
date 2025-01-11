@@ -55,7 +55,8 @@ action call_retval = {
 -- #print call_retval.tr.raw
 -- ∃ s' ret, (s' = st ∧ ret = 42) ∧ st' = s'
 -- #check and_assoc
-attribute [quantifierElim high] and_assoc elim_exists_State
+attribute [quantifierElim high] and_assoc
+attribute [quantifierElim ↓ low] elim_exists_State
 def call_retval := conv! (unfold call_retval.tr.raw; simp only [quantifierElim]) => call_retval.tr.raw
 /-- info: false -/
 #guard_msgs in
@@ -135,5 +136,16 @@ def call_with_if_fresh_more := conv! (unfold call_with_if_fresh_more.tr.raw; sim
 #guard_msgs in
 #eval hasStateHOExist (Lean.mkConst `call_with_if_fresh_more)
 
+
+action nested_call = {
+  call !call_with_if_fresh_more
+  x := False
+}
+
+def nested_call := conv! (unfold nested_call.tr.raw;  simp? only [quantifierElim]) => nested_call.tr.raw
+#print nested_call
+/-- info: false -/
+#guard_msgs in
+#eval hasStateHOExist (Lean.mkConst `nested_call)
 
 end Test
