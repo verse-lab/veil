@@ -118,8 +118,6 @@ action with_if_fresh_more = {
   }
 }
 
-#print with_if_fresh_more.tr
-
 action call_with_if_fresh_more = {
   call !with_if_fresh_more
   x := False
@@ -143,9 +141,39 @@ action nested_call = {
 }
 
 def nested_call := conv! (unfold nested_call.tr.raw;  simp? only [quantifierElim]) => nested_call.tr.raw
-#print nested_call
 /-- info: false -/
 #guard_msgs in
 #eval hasStateHOExist (Lean.mkConst `nested_call)
+
+action callee_with_if_some = {
+  if m where (r m m) {
+    if n where (r n n ∧ n ≠ m) {
+      r n m := True
+      require x
+      x := False
+    }
+  }
+}
+
+def callee_with_if_some := conv! (unfold callee_with_if_some.tr.raw;  simp? only [quantifierElim]) => callee_with_if_some.tr.raw
+/-- info: false -/
+#guard_msgs in
+#eval hasStateHOExist (Lean.mkConst `callee_with_if_some)
+
+action with_if_some_nested = {
+  if m where (r m m) {
+    if n where (r n n ∧ n ≠ m) {
+      r n m := True
+      require x
+      x := False
+      call !callee_with_if_some
+    }
+  }
+}
+
+def with_if_some_nested := conv! (unfold with_if_some_nested.tr.raw; simp? only [quantifierElim]) => with_if_some_nested.tr.raw
+/-- info: false -/
+#guard_msgs in
+#eval hasStateHOExist (Lean.mkConst `with_if_some_nested)
 
 end Test

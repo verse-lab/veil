@@ -49,6 +49,7 @@ inductive Lang.{u} : Type u → Type (u + 1) where
 
 -- abbrev triple (t : ρ) (H : sprop σ) (P : rprop σ ρ) := ∀ s, H s → P t s
 
+open Classical in
 /-- Weakest liberal precondition transformer. It takes a post-condition and
     a program and returns the weakest pre-condition that guarantees the
     post-condition IF the program terminates.
@@ -68,9 +69,13 @@ inductive Lang.{u} : Type u → Type (u + 1) where
 --| Lang.ensure p         => fun s => ∃ s' ret, p s s' ∧ post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
-  | Lang.iteSome cnd thn els  =>
-    fun s =>
-    (∃ r, cnd r s ∧ wlp post (thn r) s) ∨ (∀ r, ¬ cnd r s) ∧ wlp post els s
+  | Lang.iteSome cnd thn els  => fun s =>
+    -- The "natural" meaning would be something like this:
+    -- `(∃ r, cnd r s ∧ wlp post (thn r) s) ∨ ((∀ r, ¬ cnd r s) ∧ wlp post els s)`
+    -- but this requires us to distribute ∧ over ∨ in the goals (in a way that
+    -- requires us to write a custom `simproc` and blows up goal size), so we
+    -- instead use the following form:
+      if ∃ r, cnd r s then ∃ r, cnd r s ∧ wlp post (thn r) s else wlp post els s
   -- `seq` is a composition of programs, so we need to compute the wlp of
   -- the first program, given the wlp of the second
   | Lang.seq l1 l2        =>
