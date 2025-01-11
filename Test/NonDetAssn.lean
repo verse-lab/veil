@@ -23,4 +23,9 @@ fun node [DecidableEq node] [Nonempty node] =>
 #guard_msgs in
 #print foo.fn
 
+#guard_msgs in
+action double_quant = {
+  r N N := *
+}
+
 end Test

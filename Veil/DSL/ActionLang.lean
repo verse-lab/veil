@@ -223,9 +223,11 @@ elab_rules : term
       | throwErrorAt id "{id} is not a valid LHS for an assignment"
     let id_old := mkIdent $ id.getId.toString ++ "_old" |>.toName
     let ts' <- getFreshIdents ts
+    -- We want to support constructs like `r N N` -> `N` is only quantified over once
+    let ts'Undup := ts'.toList.eraseDups.toArray
     let tsTup  <- `(term| [tupl| $ts:term *])
     let ts'Tup <- `(term| [tupl| $ts':ident *] )
-    let stx <- `([lang| ensure ∀ $ts'*, $tsTup:term = $ts'Tup:term ∨ $id:ident $ts'* = $id_old $ts'*] )
+    let stx <- `([lang| ensure ∀ $ts'Undup*, $tsTup:term = $ts'Tup:term ∨ $id:ident $ts'* = $id_old $ts'*] )
     -- trace[dsl] stx
     elabTerm stx none
   | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
