@@ -266,8 +266,15 @@ syntax (actionType)? "action" ident (explicitBinders)? "=" "{" lang "}" : comman
 def warnIfNotFirstOrder (name : Name) : MetaM Unit := do
   let .some decl := (← getEnv).find? name | throwError s!"{name} not found"
   let .some val := decl.value? | throwError s!"{name} has no value"
-  if ← hasStateHOExist val then
-    logWarning s!"{name} is not first-order (and cannot be sent to SMT): it existentially quantifies over {← getStateName}!"
+  let hasExists ← hasStateHOExist val
+  let hasInnerForall ← hasStateHOInnerForall val
+  let reason : Option String := match hasExists, hasInnerForall with
+  | true, false => "it existentially quantifies over {← getStateName}"
+  | false, true => "it has non top-level ∀ quantification over the state type"
+  | true, true => "it has both existential and non top-level ∀ quantification"
+  | _, _ => none
+  if reason.isSome then
+    logWarning s!"{name} is not first-order (and cannot be sent to SMT): {reason.get!}"
 
 /--
 ```lean

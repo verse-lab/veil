@@ -1,16 +1,26 @@
 import Lean
-import Lean.Util.ForEachExpr
 import Batteries.Lean.Meta.UnusedNames
 
 import Veil.Basic
 import Veil.DSL.Util
 import Veil.SMT.Preparation
 
-/- # Quantifier elimination
+/- # Existential quantifier elimination
 
 This file contains the `simproc`s and `simp` lemmas used to eliminate
-higher-order quantification from the Lean goals we generate, in
-preparation for sending them to SMT.
+higher-order existential quantification from the Lean goals we generate,
+in preparation for sending them to SMT. It arose out of a mistake I
+(George) made in the design of the DSL, [where I thought that we should
+have angelic
+non-determinism](https://github.com/verse-lab/veil/issues/41#issuecomment-2473038115),
+which created a need to eliminate existential quantifiers over the
+`State` type. `elim_exists_State` in this file is largely useless but
+I'm leaving it here for posterity, as a reference. The net effect of
+`elim_exists_State` and `ExistentialQuantifierTheorems` is to remove (a
+subset of) angelic (`∃`) "non-determinism" that is actually
+deterministic (it doesn't even remove all such determinism).
+
+Now, `ExistentialQuantifierTheorems` is the useful bit.
 -/
 
 open Lean Meta Elab Tactic
@@ -21,9 +31,7 @@ def hasHOQuantification (e : Expr) (overT : Name) (existentialOnly? : Bool := tr
    match e with
     | Expr.forallE _ t _ _ => !existentialOnly? && isHigherOrder t overT
     | _ => match_expr e with
-      | Exists t _ =>
-
-        isHigherOrder t overT
+      | Exists t _ => isHigherOrder t overT
       | _ => false
   )
   found.isSome
@@ -211,7 +219,10 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
 
 -- TODO ∀: do we need to do the same for `∀` quantification and `→`, with `forall_eq'`?
 
-section QuantifierTheorems
+section ExistentialQuantifierTheorems
+attribute [quantifierElim] exists_const exists_eq exists_eq'
+exists_eq_left exists_eq_left' exists_eq_right exists_eq_right'
+
 /-! The default exists simp lemmas _unhoist_ quantifiers (push them as far in as
   possible), but to enable quantifier elimination, we want to _hoist_ them
   to the top of the goal, so we run these lemmas in the reverse direction. -/
@@ -220,8 +231,23 @@ variable {p q : α → Prop} {b : Prop}
 theorem exists_and_left' : b ∧ (∃ x, p x) ↔ (∃ x, b ∧ p x) := by rw [exists_and_left]
 theorem exists_and_right' : (∃ x, p x) ∧ b ↔ (∃ x, p x ∧ b) := by rw [exists_and_right]
 end exists_and
-attribute [logicSimp] exists_and_left' exists_and_right'
+attribute [quantifierElim] exists_and_right' exists_and_left'
 
+open Classical in
+theorem ite_exists_push_out [ne : Nonempty α] (p r : Prop) (q : α → Prop) : (if p then ∃ t, q t else r) = (∃ t, if p then q t else r) := by
+  apply propext; by_cases h : p
+  { simp only [if_pos h] }
+  {
+    simp only [if_neg h]; constructor
+    intro hr
+    · rcases ne with ⟨t⟩; exists t
+    · rintro ⟨t, ht⟩; apply ht
+  }
+
+attribute [quantifierElim] ite_exists_push_out
+end ExistentialQuantifierTheorems
+
+section ItePushDownTheorems
 /- Strictly speaking, `[Decidable p]` is sufficient to prove these
 theorems, but we've observed that, if for instance we have
 `individual x : Prop` in our state and then `if (x)` in an action, the
@@ -249,14 +275,4 @@ theorem ite_push_down_eq_and_right (x a b : α) (p q : Prop ) :
   (if p then (x = a) else (x = b) ∧ q) = ((x = if p then a else b) ∧ (if p then True else q)) :=
   by prove_ite_push_down p
 
-theorem ite_exists_push_out [ne : Nonempty α] (p r : Prop) (q : α → Prop) : (if p then ∃ t, q t else r) = (∃ t, if p then q t else r) := by
-  apply propext; by_cases h : p
-  { simp only [if_pos h] }
-  {
-    simp only [if_neg h]; constructor
-    intro hr
-    · rcases ne with ⟨t⟩; exists t
-    · rintro ⟨t, ht⟩; apply ht
-  }
-
-end QuantifierTheorems
+end ItePushDownTheorems

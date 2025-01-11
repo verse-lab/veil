@@ -4,7 +4,8 @@ import Smt
 
 /- Not actually used here, but re-exported. -/
 import Veil.SMT.Preparation
-import Veil.SMT.Quantifiers
+import Veil.SMT.UniversalQuantifiers
+import Veil.SMT.ExistentialQuantifiers
 import Veil.SMT.Model
 
 open Lean hiding Command Declaration

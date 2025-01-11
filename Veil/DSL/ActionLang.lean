@@ -61,11 +61,10 @@ open Classical in
   -- | Lang.assume  as       => fun s => as s → post () s
   -- a deterministic `act` transforms the state
   | Lang.det act          => fun s => let (s', ret) := act s ; post ret s'
-  -- A non-deterministic action satisfies the post-condition if there is
-  -- _some_ possible post-state that satisfies the post-condition.
-  -- This corresponds to the semantics in Ivy and matches the intuition that
-  -- a call to an action is morally equivalent to inlining that action.
-  | Lang.nondet act       => fun s => ∃ s' ret, act s (s', ret) ∧ post ret s'
+  -- A non-deterministic action satisfies the post-condition if _all_
+  -- possible post-states satisfy the post-condition. This is demonic
+  -- non-determinism.
+  | Lang.nondet act => fun s => ∀ s' ret, act s (s', ret) ∧ post ret s'
 --| Lang.ensure p         => fun s => ∃ s' ret, p s s' ∧ post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
