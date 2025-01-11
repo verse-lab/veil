@@ -268,11 +268,11 @@ def warnIfNotFirstOrder (name : Name) : MetaM Unit := do
   let .some val := decl.value? | throwError s!"{name} has no value"
   let hasExists ← hasStateHOExist val
   let hasInnerForall ← hasStateHOInnerForall val
-  let reason : Option String := match hasExists, hasInnerForall with
-  | true, false => "it existentially quantifies over {← getStateName}"
-  | false, true => "it has non top-level ∀ quantification over the state type"
-  | true, true => "it has both existential and non top-level ∀ quantification"
-  | _, _ => none
+  let reason ← match hasExists, hasInnerForall with
+  | true, false => pure $ some s!"it existentially quantifies over {← getStateName}"
+  | false, true =>  pure $ some s!"it has non top-level ∀ quantification over the {← getStateName} type"
+  | true, true => pure $ some s!"it has both existential and non top-level ∀ quantification over the {← getStateName} type"
+  | _, _ => pure none
   if reason.isSome then
     logWarning s!"{name} is not first-order (and cannot be sent to SMT): {reason.get!}"
 
