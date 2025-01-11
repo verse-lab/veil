@@ -159,7 +159,7 @@ elab "initial" ini:term : command => do
 
 /-- Declare the initial state predicate as an imperative program in
 `ActionLang`. -/
-elab "after_init" "{" l:langSeq "}" : command => do
+elab "after_init" "{" l:doSeqVeil "}" : command => do
    -- Here we want to compute `WP[l]{st, st' = st} : State -> Prop`
    -- where `st'` is a final state. We expand `l` using `[lang1| l]`
    -- where `lang1` syntax will make sure that `WP` doesn't depend
@@ -167,11 +167,11 @@ elab "after_init" "{" l:langSeq "}" : command => do
    -- doesn't depend on a prestate we can reduce it into `fun _ => Ini(st')`
    -- To get `Ini(st')` we should apply `fun _ => Ini(st')`  to any
    -- state, so we use `st'` as it is the only state we have in the context.
-    let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
+    let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
     let act ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       localSpecCtx.modify ({· with spec.stateStx := stateTp})
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), @$wlp _ _ (fun $ret $st => $st' = $st) [langSeq| $l ] $st))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), (do' $l) (fun $ret $st => $st' = $st) $st))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $act)
     -- we modify it to store the `lang`
@@ -229,16 +229,16 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
 /-- Defines `act.fn` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
 
-def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `langSeq) (nmt : Ident -> Ident := toFnIdent) : CommandElabM Unit := do
+def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `doSeqVeil) (nmt : Ident -> Ident := toFnIdent) : CommandElabM Unit := do
   let (originalName, nm) := (nm, nmt nm)
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let (ret, st, stret, wlp) := (mkIdent `ret', mkIdent `st, mkIdent `stret, mkIdent ``wlp)
+    let (ret, st, stret) := (mkIdent `ret', mkIdent `st, mkIdent `stret)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
     localSpecCtx.modify ({· with spec.stateStx := stateTp})
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $stret = ($st', $ret')
     let act <- `(fun ($st : $stateTp) $stret =>
-      @$wlp _ _ (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret)) [langSeq| $l ] $st)
+      (do' $l) (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret))  $st)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
     let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
@@ -260,7 +260,7 @@ syntax (actionType)? "transition" ident (explicitBinders)? "=" term : command
 /-- Transition defined as an imperative program in `ActionLang`. We call
 these "actions". All capital letters in `require` and in assignments are
 implicitly quantified. -/
-syntax (actionType)? "action" ident (explicitBinders)? "=" "{" lang "}" : command
+syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
 
 /--
 ```lean
@@ -317,8 +317,8 @@ Note: Unlike `after_init` we expand `l` using `[lang| l]` (as opposed to
 `[lang1| l]`) as we want the transition to refer to both pre-state and
 post-state.-/
 
-syntax (actionType)? "action" ident (explicitBinders)? "=" langSeq "{" langSeq "}" : command
-syntax (actionType)? "action" ident (explicitBinders)? "=" "{" langSeq "}" : command
+syntax (actionType)? "action" ident (explicitBinders)? "=" doSeqVeil ? "{" doSeqVeil "}" : command
+-- syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
 
 def checkSpec (nm : Ident) (nmImpl nmSpec : Ident) (br : Option (TSyntax `Lean.explicitBinders)) : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
@@ -339,15 +339,15 @@ def checkSpec (nm : Ident) (nmImpl nmSpec : Ident) (br : Option (TSyntax `Lean.e
           @$nmSpec $(← getSectionArgumentsStx vs)* $st $st' := by solve_clause)
 
 
-def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
-  (spec : Option (TSyntax `langSeq)) (l : TSyntax `langSeq) : CommandElabM Unit := do
+def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
+  (spec : Option (TSyntax `doSeqVeil)) (l : TSyntax `doSeqVeil) : CommandElabM Unit := do
     let actT ← parseActionTypeStx actT
-    let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
+    let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
     -- `σ → σ → Prop`, with binders existentially quantified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       localSpecCtx.modify ({· with spec.stateStx := stateTp})
-      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [langSeq| $l ] $st)
+      `(fun ($st $st' : $stateTp) => (do' $l) (fun $ret ($st : $stateTp) => $st' = $st) $st)
     )
     let trIdent := toTrIdent nm
     let spec' := if spec.isSome then spec else l
@@ -362,8 +362,10 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
       checkSpec nm (toFnIdent nm) (toSpecIdent nm) br
 
 elab_rules : command
-  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:langSeq}) => elabAction actT nm br none l
-  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = $spec {$l:langSeq}) => elabAction actT nm br (some spec) l
+  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeqVeil}) =>
+  elabAction actT nm br none l
+  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = $spec:doSeqVeil {$l:doSeqVeil}) =>
+  elabAction actT nm br spec l
 
 /-! ## Assertions -/
 

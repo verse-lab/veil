@@ -173,3 +173,8 @@ def mkPrintableName (n : Name) : Name :=
 def List.removeDuplicates [BEq α] (xs : List α) : List α :=
   xs.foldl (init := []) fun acc x =>
     if acc.contains x then acc else x :: acc
+
+def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
+  let #[f, args] := stx.raw.getArgs | failure
+  let `(term| $f:ident) := f | failure
+  return (⟨f⟩, args.getArgs.map (⟨·⟩))

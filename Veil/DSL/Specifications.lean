@@ -64,7 +64,7 @@ def StateComponent.stx (sc : StateComponent) : CoreM Syntax := sc.getSimpleBinde
 structure StateSpecification where
   name : Name
   /-- DSL expression for this predicate -/
-  lang : Option (TSyntax `langSeq)
+  lang : Option (TSyntax `doSeqVeil)
   /-- Lean `Expr` for this predicate; this is usually a constant in the
   environment, *without* having applied the section variables. -/
   expr : Expr
@@ -78,9 +78,9 @@ instance : ToString StateSpecification where
 structure ActionSpecification where
   decl : IOAutomata.ActionDeclaration
   /-- DSL expression for this action -/
-  lang : Option (TSyntax `langSeq)
+  lang : Option (TSyntax `doSeqVeil)
   /-- DSL specification of this action -/
-  spec : Option (TSyntax `langSeq) := lang
+  spec : Option (TSyntax `doSeqVeil) := lang
   /-- Lean `Expr` for this predicate; this is usually a constant in the
   environment, *without* having applied the section variables. -/
   expr : Expr
@@ -99,7 +99,7 @@ def ActionSpecification.mkPlain (type : IOAutomata.ActionType) (name : Name) (ex
 }
 
 /-- Enhance a given `ActionSpecification` with DSL-specific information. -/
-def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax `langSeq) (ctor : TSyntax `Lean.Parser.Command.ctor) : ActionSpecification :=
+def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax `doSeqVeil) (ctor : TSyntax `Lean.Parser.Command.ctor) : ActionSpecification :=
   { a with lang := some lang, decl := { a.decl with ctor := some ctor } }
 
 def ActionSpecification.name (a : ActionSpecification) : Name := a.decl.name
