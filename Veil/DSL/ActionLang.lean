@@ -202,12 +202,22 @@ partial def expandDoSeqVeil (stx : TSyntax `doSeqVeil) : TermElabM (TSyntax ``Te
 
 partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `doElem) := do
   match stx with
+  | `(doElemVeil| if $h:ident : $t:term then $thn) =>
+    expandDoElemVeil $ <- `(doElemVeil| if $h:ident : $t:term then $thn else pure ())
+  | `(doElemVeil| if $h:ident : $t:term then $thn:doElemVeil* else $els:doSeqVeil) =>
+    let t' <- `(doElemVeil| require $t)
+    let thn := t' :: thn.getElems.toList |>.toArray
+    expandDoElemVeil $ <-
+      `(doElemVeil|
+        if (∃ $h:ident, $t) then
+          let $h:ident <- fresh; $[$thn]*
+        else $els)
+  | `(doElemVeil| if $t:term then $thn:doSeqVeil) =>
+    expandDoElemVeil $ <- `(doElemVeil| if $t then $thn:doSeqVeil else pure ())
   | `(doElemVeil| if $t:term then $thn:doSeqVeil else $els:doSeqVeil) =>
     let thn <- expandDoSeqVeil thn
     let els <- expandDoSeqVeil els
     `(doElem| if <- Wlp.withState (funcases $t) then $thn else $els)
-  | `(doElemVeil| if $t:term then $thn:doSeqVeil) =>
-    expandDoElemVeil $ <- `(doElemVeil| if $t then $thn:doSeqVeil else pure ())
   | `(doElemVeil| $doE:doElem) =>
     match doE with
     | `(doElem| $id:ident := $t:term) =>
