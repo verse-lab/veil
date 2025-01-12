@@ -45,7 +45,7 @@ instance : Monad (Wlp σ) where
   bind := Wlp.bind
 
 @[actSimp]
-def Wlp.require (rq : sprop σ) : Wlp σ PUnit := fun post s => rq s ∧ post () s
+def Wlp.require (rq : Prop) : Wlp σ PUnit := fun post s => rq ∧ post () s
 @[actSimp]
 def Wlp.det (act : σ -> ρ × σ) : Wlp σ ρ := fun post s => let (ret, s') := act s ; post ret s'
 @[actSimp]
@@ -166,9 +166,9 @@ syntax sepByIndentSemicolon(doElemVeil) : doSeqVeil
 
 def hasRHS? (stx : TSyntax `doElem) : Option (Term × (Term -> TermElabM (TSyntax `doElem))) := do
   match stx with
-  | `(doElem| require $_) => none
+  -- | `(doElem| require $_) => none
   | `(doElem| ensure $_) => none
-  | `(doElem| call $_) => none
+  -- | `(doElem| call $_) => none
   | `(doElem| $t:term) => (t, fun t => (`(doElem| $t:term) : TermElabM _))
   | `(doElem| $id:ident := $t:term) =>
     (t, fun t => (`(doElem| $id:ident := $t) : TermElabM _))
@@ -232,8 +232,8 @@ elab "do'" stx:doSeqVeil : term => do
   elabTerm (<- `(term| ((do $stx) : Wlp [State] _))) none
 
 macro_rules
-  | `(require $t) => `(Wlp.require (funcases $t))
-  | `(call    $t) => `(Wlp.nondet (funcases $t))
+  | `(require $t) => `(Wlp.require $t)
+  | `(call    $t) => `(Wlp.nondet $t)
   | `(fresh   $t) => `(Wlp.fresh $t)
   | `(fresh)      => `(Wlp.fresh _)
 
