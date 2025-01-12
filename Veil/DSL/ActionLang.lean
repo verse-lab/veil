@@ -166,6 +166,7 @@ syntax sepByIndentSemicolon(doElemVeil) : doSeqVeil
 
 def hasRHS? (stx : TSyntax `doElem) : Option (Term × (Term -> TermElabM (TSyntax `doElem))) := do
   match stx with
+  | `(doElem| $t:term) => (t, fun t => (`(doElem| $t:term) : TermElabM _))
   | `(doElem| $id:ident := $t:term) =>
     (t, fun t => (`(doElem| $id:ident := $t) : TermElabM _))
   | `(doElem| let $id:ident := $t:term) =>

@@ -39,9 +39,10 @@ action foo3 (k : Nat) = {
     y := 0
   else
     y := f 1
+  ensure ∀ N, f N = 0
   return y
 }
 
-#print foo3.fn
+-- #print foo3.fn
 
 end Test
