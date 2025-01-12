@@ -14,7 +14,7 @@ function f : Nat -> Nat
 
 
 action foo (k : Nat) = {
-  let x <- fresh node
+  let x := fresh node
   require r x k
 }
 
@@ -29,7 +29,7 @@ action foo2 (k : Nat) = {
 set_option linter.unusedVariables.analyzeTactics true
 
 action foo3 (k : Nat) = {
-  let x <- fresh node
+  let x := fresh node
   n := x
   let mut y := f 0
   let mut z := r x k
