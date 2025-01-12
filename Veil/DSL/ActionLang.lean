@@ -230,7 +230,7 @@ elab_rules : term
   -- `pending := pending[n, s ↦ true]`) and `individual` assignments
   | `([lang| $id:structInstLVal := $t:term]) => do
     throwIfImmutable id
-    let stateTp := (← localSpecCtx.get).spec.stateStx
+    let stateTp ← getStateTpStx
     elabTerm (<- `(@Lang.det _ _ (fun (st : $stateTp) =>
       ({ st with $id := (by unhygienic cases st; exact $t)}, ())))) none
 
@@ -257,10 +257,10 @@ elab_rules : term
 
 elab_rules : term
   | `([lang|skip]) => do
-    let stateTp := (← localSpecCtx.get).spec.stateStx
+    let stateTp ← getStateTpStx
     elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
   | `([langSeq| ]) => do
-    let stateTp := (← localSpecCtx.get).spec.stateStx
+    let stateTp ← getStateTpStx
     elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
   | `([langSeq| $l1:lang]) => do elabTerm (<- `([lang|$l1])) none
   | `([langSeq| $l1:lang*]) => do

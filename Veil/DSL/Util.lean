@@ -4,20 +4,32 @@ import Veil.DSL.StateExtensions
 
 open Lean Elab Command Term Meta Lean.Parser
 
-/-- Retrieves the current State structure and applies it to
-    section variables `vs` -/
-def stateTp (vs : Array Expr) : AttrM Expr := do
-  let stateTp := (<- localSpecCtx.get).spec.stateType
-  unless stateTp != default do throwError "State has not been declared so far"
-  return mkAppN stateTp vs
+def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
+  let args ← vs.mapM (fun v => do
+    let t ← PrettyPrinter.delab v
+    let isHygienicName := (extractMacroScopes t.raw.getId).scopes.length > 0
+    if isHygienicName then return ← `(term|_) else return t
+  )
+  return args
+
+/-- Makes a full application of the `State` type, with the appropriate
+section variables/arguments. -/
+def mkStateTpStx  (vs : Array Expr) : TermElabM Term := do
+  let stateTpExpr := (<- localSpecCtx.get).spec.stateType
+  unless stateTpExpr != default do throwError "State has not been declared so far"
+  let stateTp ← PrettyPrinter.delab stateTpExpr
+  let stx ← `(term|@$stateTp $(← getSectionArgumentsStx vs)*)
+  return stx
+
+/-- Retrieve `stateTp` from the local state.-/
+def getStateTpStx : AttrM Term := do
+  let stateTp := (← localSpecCtx.get).spec.stateStx
+  trace[debug] "[getStateTpStx] {stateTp}"
+  return stateTp
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
   let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← localSpecCtx.get).spec.name) vs
   return systemTp
-
-def getStateTpStx (vs : Array Expr) : TermElabM Term := do
-  let stateTp ← PrettyPrinter.delab (← stateTp vs)
-  return stateTp
 
 /-- Retrieves the name passed to `#gen_state` -/
 def getPrefixedName (name : Name): AttrM Name := do
@@ -26,13 +38,6 @@ def getPrefixedName (name : Name): AttrM Name := do
 
 def getStateName : AttrM Name := getPrefixedName `State
 
-def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
-  let args ← vs.mapM (fun v => do
-    let t ← PrettyPrinter.delab v
-    let isHygienicName := (extractMacroScopes t.raw.getId).scopes.length > 0
-    if isHygienicName then return ← `(term|_) else return t
-  )
-  return args
 
 /-- A `Lean.Expr` denoting the `Prop` type. -/
 def mkProp := (Lean.Expr.sort (Lean.Level.zero))
@@ -101,16 +106,16 @@ def throwIfRefersToMutable (t : Term) : TermElabM Unit :=
     of writing `fun st => Pred` this command will pattern match over
     `st` making all its fields accessible for `Pred` -/
 def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
-  let stateTp <- stateTp vs
-  let .some sn := stateTp.getAppFn.constName?
-    | throwError "{stateTp} is not a constant"
+  let stateTpExpr := (<- localSpecCtx.get).spec.stateType
+  let .some sn := stateTpExpr.getAppFn.constName?
+    | throwError "{stateTpExpr} is not a constant"
   let .some _sinfo := getStructureInfo? (<- getEnv) sn
-    | throwError "{stateTp} is not a structure"
+    | throwError "{stateTpExpr} is not a structure"
   let fns := _sinfo.fieldNames.map Lean.mkIdent
   let stateName ← getStateName
   let casesOn <- mkConst $ (stateName ++ `casesOn)
   let casesOn <- PrettyPrinter.delab casesOn
-  let stateTp <- PrettyPrinter.delab stateTp
+  let stateTp <- getStateTpStx
   let term ← `(term| (fun $(mkIdent `st) : $stateTp =>
       $(casesOn) $(← getSectionArgumentsStx vs)* (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
   trace[dsl.debug] "funcasesM: {term}"

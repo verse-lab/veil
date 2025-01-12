@@ -122,7 +122,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let conjunction ← repeatedAnd assertions
     -- sat trace -> ∃ states, (conjunction of assertions)
     -- unsat trace -> ∀ states, ¬ (conjunction of assertions)
-    let stateTp ← PrettyPrinter.delab (<- stateTp vs)
+    let stateTp ← getStateTpStx
     let binderNames : Array (TSyntax ``Lean.binderIdent) := stateNames.map toBinderIdent
     let assertion ← match r with
     | `(expected_smt_result| unsat) => `(∀ ($[$stateNames]* : $stateTp), ¬ $conjunction)
