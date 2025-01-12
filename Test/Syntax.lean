@@ -8,6 +8,7 @@ type node
 
 relation r : node -> Nat -> Prop
 individual n : node
+function f : Nat -> Nat
 
 #gen_state Test
 
@@ -25,18 +26,22 @@ action foo2 (k : Nat) = {
   else return false
   -- r N k := True
 }
+set_option linter.unusedVariables.analyzeTactics true
 
 action foo3 (k : Nat) = {
   let x <- fresh node
   n := x
-  let mut y := 0
+  let mut y := f 0
+  let mut z := r x k
+  y := f 4
   if r x k then
     r x k := True
     y := 0
   else
-    y := 1
+    y := f 1
   return y
 }
 
+#print foo3.fn
 
 end Test

@@ -49,7 +49,7 @@ def Wlp.require (rq : sprop σ) : Wlp σ PUnit := fun post s => rq s ∧ post ()
 @[actSimp]
 def Wlp.det (act : σ -> ρ × σ) : Wlp σ ρ := fun post s => let (ret, s') := act s ; post ret s'
 @[actSimp]
-def Wlp.nondet (act : σ -> ρ × σ -> Prop) : Wlp σ ρ := fun post s => ∃ s' ret, act s (ret, s') ∧ post ret s'
+def Wlp.nondet (act : σ -> σ × ρ -> Prop) : Wlp σ ρ := fun post s => ∃ s' ret, act s (s', ret) ∧ post ret s'
 @[actSimp]
 def Wlp.ite (cnd : σ -> Bool) (thn : Wlp σ ρ) (els : Wlp σ ρ) : Wlp σ ρ :=
   fun post s => if cnd s then thn post s else els post s
@@ -164,6 +164,30 @@ syntax "[unchanged|" ident* "]" : term
 
 syntax sepByIndentSemicolon(doElemVeil) : doSeqVeil
 
+def hasRHS? (stx : TSyntax `doElem) : Option (Term × (Term -> TermElabM (TSyntax `doElem))) := do
+  match stx with
+  | `(doElem| $id:ident := $t:term) =>
+    (t, fun t => (`(doElem| $id:ident := $t) : TermElabM _))
+  | `(doElem| let $id:ident := $t:term) =>
+    (t, fun t => (`(doElem| let $id:ident := $t) : TermElabM _))
+  | `(doElem| let mut $id:ident := $t:term) =>
+    (t, fun t => (`(doElem| let mut $id:ident := $t) : TermElabM _))
+  | `(doElem| $id:ident <- $t:term) =>
+    (t, fun t => (`(doElem| $id:ident <- $t:term) : TermElabM _))
+  | `(doElem| let $id:ident <- $t:term) =>
+    (t, fun t => (`(doElem| let $id:ident <- $t:term) : TermElabM _))
+  | `(doElem| let mut $id:ident <- $t:term) =>
+    (t, fun t => (`(doElem| let mut $id:ident <- $t:term) : TermElabM _))
+  | _ => none
+
+def withState? (doE : TSyntax `doElem) : TermElabM $ TSyntax `doElem := do
+  let some (t, cont) := hasRHS? doE | return doE
+  let fields : Array Name <- getFields
+  if t.raw.find? (·.getId ∈ fields) |>.isSome then
+    let t <- withRef t `(<- Wlp.withState (funcases $t))
+    cont t
+  else return doE
+
 mutual
 partial def expandDoSeqVeil (stx : TSyntax `doSeqVeil) : TermElabM (TSyntax ``Term.doSeq) :=
   match stx with
@@ -172,30 +196,30 @@ partial def expandDoSeqVeil (stx : TSyntax `doSeqVeil) : TermElabM (TSyntax ``Te
     `(doSeq| $[$doS:doElem]*)
   | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation sequence {stx}"
 
-partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `doElem) :=
+partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `doElem) := do
   match stx with
-  | `(doElemVeil| if $t:term then $thn:doSeqVeil else $els:doSeqVeil) => do
+  | `(doElemVeil| if $t:term then $thn:doSeqVeil else $els:doSeqVeil) =>
     let thn <- expandDoSeqVeil thn
     let els <- expandDoSeqVeil els
     `(doElem| if <- Wlp.withState (funcases $t) then $thn else $els)
-  | `(doElemVeil| if $t:term then $thn:doSeqVeil) => do
+  | `(doElemVeil| if $t:term then $thn:doSeqVeil) =>
     expandDoElemVeil $ <- `(doElemVeil| if $t then $thn:doSeqVeil else pure ())
   | `(doElemVeil| $doE:doElem) =>
     match doE with
-    | `(doElem| $id:ident := $t:term) => do
+    | `(doElem| $id:ident := $t:term) =>
         let id' <- `(Term.structInstLVal| $id:ident)
         let fields <- getFields
         if id.getId ∈ fields then
           throwIfImmutable id'
           `(doElem| @Wlp.det _ _ (fun (st : [State]) => ((), { st with $id' := (funcases st $t)})))
         else
-          `(doElem| $id:ident := $t:term)
-    | `(doElem| $idts:term := $t:term) => do
+          withState? $ <- `(doElem| $id:ident := $t:term)
+    | `(doElem| $idts:term := $t:term) =>
       let some (id, ts) := idts.isApp? | `(doElem| $doE:doElem)
       let stx <- withRef idts `(term| $id[ $[$ts],* ↦ $t:term ])
       let stx <- `(doElemVeil| $id:ident := $stx)
       expandDoElemVeil stx
-    | _ => `(doElem| $doE:doElem)
+    | _ => withState? doE
   | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation {stx}"
 end
 
