@@ -42,7 +42,6 @@ section UniversalQuantifierTheorems
 attribute [quantifierElim] forall_const forall_eq forall_eq
 forall_exists_index
 
-
 section forall_and
 open Classical
 variable [ne : Nonempty α] {p q : α → Prop} {b : Prop}
@@ -58,7 +57,28 @@ theorem forall_and_left : b ∧ (∀ x, p x) ↔ (∀ x, b ∧ p x) := by
   }
 theorem forall_and_right : (∀ x, p x) ∧ b ↔ (∀ x, p x ∧ b) := by
   simp only [and_comm, forall_and_left]
-end forall_and
+
 attribute [quantifierElim] forall_and_left forall_and_right
+end forall_and
+
+section forall_imp
+-- `α : Type` because we don't want this to apply to `α := Prop`
+variable {α : Type} {p : α → Prop} {b : Prop}
+
+theorem forall_imp_left : b → (∀ x, p x) ↔ (∀ x, b → p x) := by
+  constructor
+  { intro h x hb; exact h hb x }
+  { intro h hb x; exact h x hb }
+
+attribute [quantifierElim] forall_imp_left
+end forall_imp
+
+open Classical in
+theorem ite_forall_push_out [ne : Nonempty α] (p r : Prop) (q : α → Prop) : (if p then ∀ t, q t else r) = (∀ t, if p then q t else r) := by
+  apply propext; by_cases h : p
+  { simp only [if_pos h] }
+  { simp only [if_neg h, forall_const] }
+attribute [quantifierElim] ite_forall_push_out
+
 
 end UniversalQuantifierTheorems
