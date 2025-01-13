@@ -4,6 +4,21 @@ import Veil.DSL.StateExtensions
 
 open Lean Elab Command Term Meta Lean.Parser
 
+def isTypeClassBinder : TSyntax `Lean.Parser.Term.bracketedBinder → Bool
+  | `(bracketedBinder| $_:instBinder) => true
+  | _ => false
+
+def Term.explicitBinderF := Term.explicitBinder (requireType := false)
+def Term.implicitBinderF := Term.implicitBinder (requireType := false)
+
+/-- Transforms explicit binder into implicit one -/
+def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
+  CommandElabM (TSyntax `Lean.Parser.Term.bracketedBinder)
+  | `(Term.explicitBinderF| ($id:ident : $tp:term)) => do
+    `(Term.bracketedBinderF| {$id:ident : $tp:term})
+  | stx => return stx
+
+/-- Returns syntax for the given section arguments. -/
 def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
   let args ← vs.mapM (fun v => do
     let t ← PrettyPrinter.delab v
@@ -12,13 +27,34 @@ def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term))
   )
   return args
 
+/- We don't pass typeclass arguments (e.g. `[DecidableEq node]`) to the
+`State` type, since we want to use `deriving Nonempty` on the
+`structure` we create, and it seems it gets confused by them -/
+def getStateParametersBinders (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : Array (TSyntax `Lean.Parser.Term.bracketedBinder) :=
+  vd.filter (fun b => !isTypeClassBinder b)
+
+def getStateArguments (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) : TermElabM (Array Expr) := do
+  if vd.size != vs.size then throwError "Mismatch in number of arguments between {vd} and {vs}"
+  let vs' := (vd.zip vs).filter (fun (b, _) => !isTypeClassBinder b) |> .map Prod.snd
+  return vs'
+
+def getStateArgumentsStx (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
+  let vs' ← getStateArguments vd vs
+  getSectionArgumentsStx vs'
+
+def getActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := return (← getScope).varDecls
+def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
+def getImplicitActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do (← getActionParameters).mapM mkImplicitBinders
+
 /-- Makes a full application of the `State` type, with the appropriate
-section variables/arguments. -/
-def mkStateTpStx  (vs : Array Expr) : TermElabM Term := do
+section variables/arguments. We don't pass typeclass arguments (e.g.
+`[DecidableEq node]`), since we want to use `deriving Nonempty` on the
+`structure` we create, and it seems it gets confused by them. -/
+def mkStateTpStx (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) : TermElabM Term := do
   let stateTpExpr := (<- localSpecCtx.get).spec.stateType
   unless stateTpExpr != default do throwError "State has not been declared so far"
   let stateTp ← PrettyPrinter.delab stateTpExpr
-  let stx ← `(term|@$stateTp $(← getSectionArgumentsStx vs)*)
+  let stx ← `(term|@$stateTp $(← getStateArgumentsStx vd vs)*)
   return stx
 
 /-- Retrieve `stateTp` from the local state.-/
@@ -41,16 +77,6 @@ def getStateName : AttrM Name := getPrefixedName `State
 
 /-- A `Lean.Expr` denoting the `Prop` type. -/
 def mkProp := (Lean.Expr.sort (Lean.Level.zero))
-
-def Term.explicitBinderF := Term.explicitBinder (requireType := false)
-def Term.implicitBinderF := Term.implicitBinder (requireType := false)
-
-/-- Transforms explicit binder into implicit one -/
-def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
-  CommandElabM (TSyntax `Lean.Parser.Term.bracketedBinder)
-  | `(Term.explicitBinderF| ($id:ident : $tp:term)) => do
-    `(Term.bracketedBinderF| {$id:ident : $tp:term})
-  | stx => return stx
 
 /-- Modelled after `Lean.Elab.Term.withAutoBoundImplicit`, but customisable. -/
 partial def withAutoBoundCont

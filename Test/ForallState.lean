@@ -26,7 +26,7 @@ action empty = {
 -- set_option trace.debug true
 
 action call_empty = {
-  call !empty
+  call empty
 }
 
 #print call_empty.tr.raw
@@ -37,7 +37,7 @@ action retval = {
 }
 
 action call_retval = {
-  call !retval
+  call retval
 }
 
 #print call_retval.tr.raw
@@ -50,7 +50,7 @@ action with_if = {
 }
 
 action call_with_if = {
-  call !with_if
+  call with_if
   x := False
 }
 
@@ -62,7 +62,7 @@ action with_if_fresh = {
 }
 
 action call_with_if_fresh = {
-  call !with_if_fresh
+  call with_if_fresh
   x := False
 }
 
@@ -77,12 +77,12 @@ action with_if_fresh_more = {
 }
 
 action call_with_if_fresh_more = {
-  call !with_if_fresh_more
+  call with_if_fresh_more
   x := False
 }
 
 action nested_call = {
-  call !call_with_if_fresh_more
+  call call_with_if_fresh_more
   x := False
 }
 
@@ -104,15 +104,15 @@ action with_if_some_nested = {
       r n m := True
       require x
       x := False
-      call !callee_with_if_some
+      call callee_with_if_some
     }
   }
 }
 
 
 #print with_if_some_nested.tr.raw
-def with_if_some_nested := conv! (unfold with_if_some_nested.tr.raw; simp? only [smtSimp, logicSimp, and_assoc]; simp? only [quantifierElim]) => with_if_some_nested.tr.raw
-#print with_if_some_nested
+def with_if_some_nested' := conv! (unfold with_if_some_nested.tr.raw; simp? only [smtSimp, logicSimp, and_assoc]; simp? only [quantifierElim]) => with_if_some_nested.tr.raw
+#print with_if_some_nested'
 
 -- FIXME: I think we need a `simproc` version of `forall_and_left` and `forall_and_right`, specialised for `State`
 -- variable [ne_axiom : Nonempty (Test.State node)]

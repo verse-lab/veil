@@ -83,7 +83,7 @@ action _succ (n : seq_t) = {
 -- Internal Actions
 action replace_item (r : replica) (i : seq_t) (v : value) = {
     if len where (r_log_len r len) {
-        k ← call !_succ len in
+        k ← call _succ len in
         if (seq.le i k) {
             r_log_len r I := I = i
         };
@@ -95,7 +95,7 @@ action send_gap_commit (r : replica) = {
     if len where (r_log_len r len) {
         -- ensure leader r;
         -- ensure r_replica_status r r_state.st_normal;
-        slot ← call !_succ len in
+        slot ← call _succ len in
         r_replica_status r S := S = r_state.st_gap_commit;
         m_gap_commit r P := True;
         r_current_gap_slot r I := I = slot;
@@ -115,7 +115,7 @@ action handle_client_request (m_value : value) (s: seq_t) = {
     require m_client_request m_value;
     if slot where (s_seq_msg_num s slot) {
         m_marked_client_request R m_value slot := True;
-        k ← call !_succ slot in
+        k ← call _succ slot in
         s_seq_msg_num s I := I = k
     }
 }
@@ -128,13 +128,13 @@ action handle_marked_client_request (r : replica) (m_value : value) (m_sess_msg_
             if (m_sess_msg_num = smn) {
                 r_log_len r I := I = smn;
                 r_log r smn m_value := True;
-                k ← call !_succ smn in
+                k ← call _succ smn in
                 r_sess_msg_num r I := I = k;
                 m_request_reply r m_value smn := True
             };
             if (seq.lt smn m_sess_msg_num) {
                 if (leader r) {
-                    _ ← call !send_gap_commit r in skip
+                    _ ← call send_gap_commit r in skip
                 } else {
                     m_slot_lookup lead r smn := True
                 }
@@ -156,9 +156,9 @@ action handle_slot_lookup (r : replica) (m_sender: replica) (m_sess_msg_num : se
                 skip
             }
         };
-        k ← call !_succ len in
+        k ← call _succ len in
         if (m_sess_msg_num = k) {
-            _ ← call !send_gap_commit r in skip
+            _ ← call send_gap_commit r in skip
         }
     }
 }
@@ -167,12 +167,12 @@ action handle_gap_commit (r: replica) (m_slot_num : seq_t) = {
     require m_gap_commit r m_slot_num;
     if len where (r_log_len r len) {
         if smn where (r_sess_msg_num r smn) {
-            k ← call !_succ len in
+            k ← call _succ len in
             require seq.le m_slot_num k;
             require r_replica_status r r_state.st_normal ∨ r_replica_status r r_state.st_gap_commit;
-            _ ← call !replace_item r m_slot_num no_op in skip;
+            _ ← call replace_item r m_slot_num no_op in skip;
             if (seq.lt len m_slot_num) {
-                m ← call !_succ smn in
+                m ← call _succ smn in
                 r_sess_msg_num r I := I = m
             };
             m_gap_commit_rep lead r m_slot_num := True;
