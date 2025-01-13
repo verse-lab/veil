@@ -371,11 +371,11 @@ def checkSpec (nm : Ident) (nmImpl nmSpec : Ident) (br : Option (TSyntax `Lean.e
 def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
   (spec : Option (TSyntax `langSeq)) (l : TSyntax `langSeq) : CommandElabM Unit := do
     let actT ← parseActionTypeStx actT
-    let (ret, st, st', wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent ``wlp)
+    let (ret, st, st', st_curr, wlp) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `st_end, mkIdent ``wlp)
     -- `σ → σ → Prop`, with binders existentially quantified
     let tr ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st : $stateTp) => $st' = $st) [langSeq| $l ] $st)
+      `(fun ($st $st' : $stateTp) => @$wlp _ _ (fun $ret ($st_curr : $stateTp) => $st' = $st_curr) [langSeq| $l ] $st)
     )
     let trIdent := toTrIdent nm
     let spec' := if spec.isSome then spec else l
