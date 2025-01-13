@@ -64,7 +64,7 @@ open Classical in
   -- A non-deterministic action satisfies the post-condition if _all_
   -- possible post-states satisfy the post-condition. This is demonic
   -- non-determinism.
-  | Lang.nondet act => fun s => ∀ s' ret, act s (s', ret) ∧ post ret s'
+  | Lang.nondet act => fun s => ∀ s' ret, act s (s', ret) → post ret s'
 --| Lang.ensure p         => fun s => ∃ s' ret, p s s' ∧ post ret s'
   -- the meaning of `ite` depends on which branch is taken
   | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
