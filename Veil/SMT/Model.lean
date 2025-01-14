@@ -6,6 +6,11 @@ import Batteries.Data.Array.Basic
 abbrev SortName := Lean.Name
 abbrev UninterpretedValue := Lean.Name
 
+def _root_.String.toSanitizedName (s : String) : Lean.Name :=
+  -- FIXME: this is a hack
+  let s := s.replace "✝" ""
+  s.toSubstring.toName
+
 instance : Ord SortName where
   compare a b := a.cmp b
 instance : Ord UninterpretedValue where
@@ -387,7 +392,7 @@ def findSortsArray (names : Array Sexp) (struct : FirstOrderStructure) : MetaM (
   let mut sorts : Array FirstOrderSort := #[]
   for dom in names do
     match dom with
-    | .atom (.symb domName) => sorts := sorts.push (← findSortWithName domName.toName struct)
+    | .atom (.symb domName) => sorts := sorts.push (← findSortWithName domName.toSanitizedName struct)
     | _ => throwError s!"malformed domain: {dom}"
   return sorts
 
@@ -406,7 +411,7 @@ def getValueOfSort (val : Sexp) (sort : FirstOrderSort) : MetaM FirstOrderValue 
     | _ => throwError s!"unsupported interpreted sort: {s}"
   | FirstOrderSort.Uninterpreted s => do
     match val with
-    | .atom (.symb valName) => return FirstOrderValue.Uninterpreted s valName.toName
+    | .atom (.symb valName) => return FirstOrderValue.Uninterpreted s valName.toSanitizedName
     | _ => throwError s!"expected an uninterpreted value, but got {val}"
 
 def getValueArray (vals : Array Sexp) (sorts : Array FirstOrderSort) : MetaM (Array FirstOrderValue) := do
@@ -421,14 +426,14 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
   -- (|sort| |Bool| (|true| |false|)),
   -- (|sort| |a| (|a0| |a1|)),
   | .app #[(.atom (.symb "sort")), (.atom (.symb sortName)), (.app els)] => do
-    let sortName := sortName.toName
+    let sortName := sortName.toSanitizedName
     let sort: FirstOrderSort ← (match builtinInterpretedSorts.get? sortName with
     | some sortI => return .Interpreted sortI
     | none => do
       let mut elems : Array UninterpretedValue := #[]
       for elem in els do
         match elem with
-        | .atom (.symb elemName) => elems := elems.push elemName.toName
+        | .atom (.symb elemName) => elems := elems.push elemName.toSanitizedName
         | _ => throwError s!"malformed element: {elem}"
       return .Uninterpreted { name := sortName, size := elems.size, elements := elems }
     )
@@ -437,8 +442,8 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
 
   -- (|constant| |s1| |a|),
   | .app #[(.atom (.symb "constant")), (.atom (.symb constName)), (.atom (.symb sortName))] => do
-    let constName := constName.toName
-    let sortName := sortName.toName
+    let constName := constName.toSanitizedName
+    let sortName := sortName.toSanitizedName
     let sort ← findSortWithName sortName struct
     let decl: ConstantDecl := { name := constName, sort := sort }
     trace[sauto.debug] s!"{decl}"
@@ -446,7 +451,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
 
   -- (|relation| |rel| (|a| |a|)),
   | .app #[(.atom (.symb "relation")), (.atom (.symb relName)), (.app doms)] => do
-    let relName := relName.toName
+    let relName := relName.toSanitizedName
     let doms ← findSortsArray doms struct
     let decl: RelationDecl := { name := relName, domain := doms }
     trace[sauto.debug] s!"{decl}"
@@ -454,9 +459,9 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
 
   -- (|function| |f| (|a|) |Int|),
   | .app #[(.atom (.symb "function")), (.atom (.symb funName)), (.app doms), (.atom (.symb range))] => do
-    let funName := funName.toName
+    let funName := funName.toSanitizedName
     let doms ← findSortsArray doms struct
-    let range ← findSortWithName range.toName struct
+    let range ← findSortWithName range.toSanitizedName struct
     let decl: FunctionDecl := { name := funName, domain := doms, range := range }
     trace[sauto.debug] s!"{decl}"
     struct := { struct with signature := { struct.signature with functions := struct.signature.functions.push decl } }
@@ -465,7 +470,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
   -- (|interpret| |f| (|a0|) |-1|)
   -- (|interpret| |f| (|a1|) 0)
   | .app #[(.atom (.symb "interpret")), (.atom (.symb declName)), (.app args), val] => do
-    let declName := declName.toName
+    let declName := declName.toSanitizedName
     let decl ← struct.findDecl declName
     let args ← getValueArray args decl.domain
     let val ← getValueOfSort val decl.range
@@ -476,7 +481,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
 
   -- (|symbolic| |st.delivered| |Lambda([arg0, arg1, arg2], ...)|)
   | .app #[(.atom (.symb "symbolic")), (.atom (.symb declName)), (.atom (.symb interp))] => do
-    let declName := declName.toName
+    let declName := declName.toSanitizedName
     let decl ← struct.findDecl declName
     trace[sauto.debug] s!"symbolic {declName} {interp}"
     let interp := struct.interp.getD decl (Interpretation.Symbolic interp)
