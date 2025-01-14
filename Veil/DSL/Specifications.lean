@@ -17,7 +17,7 @@ instance : ToString StateComponentKind where
     | StateComponentKind.function => "function"
 
 inductive StateComponentType where
-  /-- e.g. `Int -> vertex -> Prop` -/
+  /-- e.g. `name : Int -> vertex -> Prop` -/
   | simple (t : TSyntax ``Command.structSimpleBinder)
   /-- e.g. `(r : Int) (v : vertex)` and `Prop` -/
   | complex (binders : TSyntaxArray ``Term.bracketedBinder) (dom : TSyntax `term)
@@ -27,6 +27,11 @@ instance : ToString StateComponentType where
   toString
     | StateComponentType.simple t => toString t
     | StateComponentType.complex b d  => s!"{b} : {d}"
+
+def StateComponentType.stx (sct : StateComponentType) : CoreM (TSyntax `term) := do
+  match sct with
+  | .simple t => getSimpleBinderType t
+  | .complex b d => getSimpleBinderType $ ← complexBinderToSimpleBinder (mkIdent Name.anonymous) b d
 
 inductive Mutability
   | mutable
@@ -60,6 +65,8 @@ def StateComponent.getSimpleBinder (sc : StateComponent) : CoreM (TSyntax ``Comm
   | .complex b d => return ← complexBinderToSimpleBinder (mkIdent sc.name) b d
 
 def StateComponent.stx (sc : StateComponent) : CoreM Syntax := sc.getSimpleBinder
+
+def StateComponent.typeStx (sc : StateComponent) : CoreM Term := sc.type.stx
 
 structure StateSpecification where
   name : Name
@@ -164,6 +171,11 @@ deriving Inhabited
 
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
   spec.signature.find? (fun sc => sc.name == name)
+
+def ModuleSpecification.getStateComponentTypeStx (spec : ModuleSpecification) (name : Name) : CoreM (Option Term) := do
+  match spec.getStateComponent name with
+  | some sc => return some (← sc.typeStx)
+  | none => return none
 
 def ModuleSpecification.immutableComponents (spec : ModuleSpecification) : Array StateComponent :=
   spec.signature.filter (fun sc => sc.isImmutable)

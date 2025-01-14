@@ -131,13 +131,12 @@ syntax "require" term      : term
 /-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
 syntax "fresh" term ? : term
 
-/-- Non-deterministic value. -/
-syntax (name := nondetVal) "*" : term
-
 declare_syntax_cat doSeqVeil
 declare_syntax_cat doElemVeil
 
 syntax (priority := low) doElem : doElemVeil
+
+syntax (priority := high) term ":=" "*" : doElemVeil
 
 syntax "if" term "then" doSeqVeil colGe "else" doSeqVeil : doElemVeil
 syntax "if" term "then" doSeqVeil : doElemVeil
@@ -188,6 +187,7 @@ partial def expandDoSeqVeil (stx : TSyntax `doSeqVeil) : TermElabM (TSyntax ``Te
   | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation sequence {stx}"
 
 partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `doElem) := do
+  trace[dsl.debug] "[expandDoElemVeil] {stx}"
   match stx with
   | `(doElemVeil| if $h:ident : $t:term then $thn) =>
     expandDoElemVeil $ <- `(doElemVeil| if $h:ident : $t:term then $thn else pure ())
@@ -205,9 +205,21 @@ partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `d
     let thn <- expandDoSeqVeil thn
     let els <- expandDoSeqVeil els
     `(doElem| if <- Wlp.withState (funcases $t) then $thn else $els)
+  | `(doElemVeil| $id:ident := *) =>
+      trace[dsl.debug] "[doElemVeil] id assignment {stx}"
+      let .some typeStx ← localSpecCtx.get >>= fun ctx => ctx.spec.getStateComponentTypeStx (id.getId)
+        | throwErrorAt stx "trying to assign to undeclared state component {id}"
+      expandDoElemVeil $ <- `(doElemVeil|if True then let y <- fresh ($typeStx); $id:ident := y)
+  | `(doElemVeil| $idts:term := *) =>
+      trace[dsl.debug] "[doElemVeil] term assignment {stx}"
+      let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
+      let .some typeStx ← localSpecCtx.get >>= fun ctx => ctx.spec.getStateComponentTypeStx (id.getId)
+        | throwErrorAt stx "trying to assign to undeclared state component {id}"
+      expandDoElemVeil $ <- `(doElemVeil|if True then let y <- fresh ($typeStx); $idts:term := y $ts*)
   | `(doElemVeil| $doE:doElem) =>
     match doE with
     | `(doElem| $id:ident := $t:term) =>
+        trace[dsl.debug] "[doElem] id assignment {doE}"
         let id' <- `(Term.structInstLVal| $id:ident)
         let fields <- getFields
         if id.getId ∈ fields then
@@ -216,6 +228,7 @@ partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `d
         else
           withState? $ <- `(doElem| $id:ident := $t:term)
     | `(doElem| $idts:term := $t:term) =>
+      trace[dsl.debug] "[doElem] term assignment {doE}"
       let some (id, ts) := idts.isApp? | `(doElem| $doE:doElem)
       let stx <- withRef idts `(term| $id[ $[$ts],* ↦ $t:term ])
       let stx <- `(doElemVeil| $id:ident := $stx)
@@ -225,8 +238,9 @@ partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `d
 end
 
 elab "do'" stx:doSeqVeil : term => do
-  let stx <- expandDoSeqVeil stx
-  elabTerm (<- `(term| ((do $stx) : Wlp [State] _))) none
+  let stx' <- expandDoSeqVeil stx
+  trace[dsl.debug] "{stx}\n→\n{stx'}"
+  elabTerm (<- `(term| ((do $stx') : Wlp [State] _))) none
 
 macro_rules
   | `(require $t) => `(Wlp.require $t)

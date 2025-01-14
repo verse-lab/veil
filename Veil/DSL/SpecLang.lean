@@ -92,7 +92,7 @@ private def stxToMut (m : Option (TSyntax `state_mutability)) : Mutability :=
 
 /-- Declare an `individual` state component. -/
 elab m:(state_mutability)? "individual" sig:Command.structSimpleBinder : command => do
-  let comp := StateComponent.mk (stxToMut m) .individual (getSimpleBinderName sig) (.simple sig)
+  let comp := StateComponent.mk (stxToMut m) .individual (← liftCoreM $ getSimpleBinderName sig) (.simple sig)
   defineStateComponent comp
     (fun (tp : Expr) => return !tp.isArrow)
     (fun comp => do throwErrorAt (← comp.stx) "Invalid type: constants must not be arrow types")
@@ -103,7 +103,7 @@ elab m:(state_mutability)? "individual" sig:Command.structSimpleBinder : command
   ```
 -/
 elab m:(state_mutability)? "relation" sig:Command.structSimpleBinder : command => do
-  let rel := StateComponent.mk (stxToMut m) .relation (getSimpleBinderName sig) (.simple sig)
+  let rel := StateComponent.mk (stxToMut m) .relation (← liftCoreM $ getSimpleBinderName sig) (.simple sig)
   defineRelation rel
 
 /-- Declare a relation, giving names to the arguments, e.g.:
@@ -117,7 +117,7 @@ elab m:(state_mutability)? "relation" nm:ident br:(bracketedBinder)* (":" "Prop"
 
 /-- `function` command saves a State structure field declaration -/
 elab m:(state_mutability)? "function" sig:Command.structSimpleBinder : command => do
-  let func := StateComponent.mk (stxToMut m) .function (getSimpleBinderName sig) (.simple sig)
+  let func := StateComponent.mk (stxToMut m) .function (← liftCoreM $ getSimpleBinderName sig) (.simple sig)
   defineFunction func
 
 /-- Declare a function, giving names to the arguments. Example:
