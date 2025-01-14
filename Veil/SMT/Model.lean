@@ -42,8 +42,8 @@ instance : ToString InterpretedSort where
 def boolSortI : InterpretedSort := { name := `Bool }
 def intSortI : InterpretedSort := { name := `Int }
 
-def builtinInterpretedSorts : Lean.HashMap SortName InterpretedSort :=
-  Lean.HashMap.ofList [(`Bool, boolSortI), (`Int, intSortI)]
+def builtinInterpretedSorts : Std.HashMap SortName InterpretedSort :=
+  Std.HashMap.ofList [(`Bool, boolSortI), (`Int, intSortI)]
 
 def InterpretedSort.interpretation (s : InterpretedSort) : Type :=
   match s.name with
@@ -276,10 +276,27 @@ inductive Interpretation
   | Symbolic    (expr : String)
 deriving Ord, Inhabited
 
+def Interpretation.isAlwaysFalse (interp : Interpretation) : Bool := Id.run do
+  match interp with
+  | .Enumeration iopairs =>
+    for (_args, val) in iopairs do
+      if val.isTrue then return false
+    return true
+  | .Symbolic _ => return false
+
+/-- What string to show to the user when this declaration is always false? -/
+def Declaration.alwaysFalseMessage (decl : Declaration) : String :=
+  match decl with
+  | Declaration.Constant c => s!"{c.name} = false"
+  | Declaration.Relation r => s!"{r.name} = ∅"
+  | Declaration.Function f => s!"{f.name} = λ _ → false"
+
 def Interpretation.toString (interp : Interpretation) (decl : Declaration) : Id String := do
   let mut out := ""
   match interp with
   | .Enumeration iopairs =>
+    if interp.isAlwaysFalse then
+      return s!"{decl.alwaysFalseMessage}\n"
     for (args, val) in iopairs.qsortOrd do
       match decl with
       | Declaration.Constant c => out := out ++ s!"{c.name} = {val}\n"
@@ -295,7 +312,7 @@ def Interpretation.push (i : Interpretation) (iop : InputOutputPair) : Interpret
   | Interpretation.Enumeration iopairs => Interpretation.Enumeration (iopairs.push iop)
   | _ => panic! s!"tried to push an input-output pair to symbolic interpretation"
 
-abbrev ExplicitInterpretation := Lean.HashMap Declaration Interpretation
+abbrev ExplicitInterpretation := Std.HashMap Declaration Interpretation
 
 instance : Ord ExplicitInterpretation where
   compare x y := compare x.toArray y.toArray
@@ -334,13 +351,13 @@ def FirstOrderStructure.findDecl (s : FirstOrderStructure) (name : Lean.Name) : 
       | none => throwError s!"{name} provided an interpretation for, but not previously declared!"
 
 def FirstOrderStructure.isInterpretedByFiniteEnumeration (s : FirstOrderStructure) (decl : Declaration) : Bool :=
-  match s.interp.find? decl with
+  match s.interp.get? decl with
   | some (Interpretation.Enumeration _) => true
   | _ => false
 
 /-- On how many argument vectors is this constant/relation/function `True`? -/
 def FirstOrderStructure.numTrueInstances (s : FirstOrderStructure) (decl : Declaration) : MetaM Nat := do
-  match s.interp.find? decl with
+  match s.interp.get? decl with
   | none => return 0
   | some (.Enumeration iopairs) =>
       return iopairs.foldl (init := 0) fun c (_, res) => if res.isTrue then c + 1 else c
@@ -405,7 +422,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
   -- (|sort| |a| (|a0| |a1|)),
   | .app #[(.atom (.symb "sort")), (.atom (.symb sortName)), (.app els)] => do
     let sortName := sortName.toName
-    let sort: FirstOrderSort ← (match builtinInterpretedSorts.find? sortName with
+    let sort: FirstOrderSort ← (match builtinInterpretedSorts.get? sortName with
     | some sortI => return .Interpreted sortI
     | none => do
       let mut elems : Array UninterpretedValue := #[]
@@ -453,7 +470,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let args ← getValueArray args decl.domain
     let val ← getValueOfSort val decl.range
     trace[sauto.debug] s!"interpret {declName} {args} {val}"
-    let interp := struct.interp.findD decl (Interpretation.Enumeration #[])
+    let interp := struct.interp.getD decl (Interpretation.Enumeration #[])
     let interp' := interp.push (args, val)
     struct := { struct with interp := struct.interp.insert decl interp' }
 
@@ -462,7 +479,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let declName := declName.toName
     let decl ← struct.findDecl declName
     trace[sauto.debug] s!"symbolic {declName} {interp}"
-    let interp := struct.interp.findD decl (Interpretation.Symbolic interp)
+    let interp := struct.interp.getD decl (Interpretation.Symbolic interp)
     struct := { struct with interp := struct.interp.insert decl interp }
 
   | _ => throwError s!"(parseInstruction) malformed instruction: {inst}"
