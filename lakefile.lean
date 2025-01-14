@@ -1,15 +1,21 @@
 import Lake
 open Lake DSL
 
-package «lean-sts» where
+package «Veil» where
 
 @[default_target]
-lean_lib «Veil» where
-  -- add library configuration options here
+lean_lib «Veil» {
+  globs := #[.submodules `Veil]
+}
 
 -- @[default_target]
 lean_lib Examples {
   globs := #[.submodules `Examples]
+}
+
+@[default_target]
+lean_lib Test {
+  globs := #[.submodules `Test]
 }
 
 require mathlib from git "https://github.com/leanprover-community/mathlib4.git" @ "v4.14.0"
