@@ -30,6 +30,11 @@ variable (σ : Type)
 /-  Wlp (σ : Type) (ρ : Type) := rprop σ ρ -> sprop σ -/
 abbrev Wlp (σ : Type) (ρ : Type) := σ -> rprop σ ρ -> Prop
 
+/-- Function which transforms any two-state formula into `Wlp` -/
+@[actSimp]
+def Function.toWlp (r : σ -> σ -> Prop) : Wlp σ Unit :=
+  fun s post => ∀ s', r s s' -> post () s'
+
 end Types
 section
 
@@ -66,7 +71,8 @@ macro "unfold_wlp" : conv =>
     Wlp.require
     Wlp.fresh
     Wlp.withState
-    Wlp.spec)
+    Wlp.spec
+    Function.toWlp)
 
 
 instance : MonadStateOf σ (Wlp σ) where
@@ -208,13 +214,13 @@ partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `d
     `(doElem| if <- Wlp.withState (funcases $t) then $thn else $els)
   | `(doElemVeil| $id:ident := *) =>
       trace[dsl.debug] "[doElemVeil] id assignment {stx}"
-      let .some typeStx ← localSpecCtx.get >>= fun ctx => ctx.spec.getStateComponentTypeStx (id.getId)
+      let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
         | throwErrorAt stx "trying to assign to undeclared state component {id}"
       expandDoElemVeil $ <- `(doElemVeil|if True then let y <- fresh ($typeStx); $id:ident := y)
   | `(doElemVeil| $idts:term := *) =>
       trace[dsl.debug] "[doElemVeil] term assignment {stx}"
       let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
-      let .some typeStx ← localSpecCtx.get >>= fun ctx => ctx.spec.getStateComponentTypeStx (id.getId)
+      let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
         | throwErrorAt stx "trying to assign to undeclared state component {id}"
       expandDoElemVeil $ <- `(doElemVeil|if True then let y <- fresh ($typeStx); $idts:term := y $ts*)
   | `(doElemVeil| $doE:doElem) =>

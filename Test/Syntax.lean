@@ -47,6 +47,8 @@ action foo3 (k : Nat) = {
   return y
 }
 
+input transition fooo (n : Nat) = fun st st' => st = st'
+
 action foo4 (k : Nat) (m : node) = {
   let mut y := m
   if x : r x k then

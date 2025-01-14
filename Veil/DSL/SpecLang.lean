@@ -273,57 +273,6 @@ macro "exists?" br:explicitBinders ? "," t:term : term =>
   | some br => `(exists $br, $t)
   | none => `($t)
 
-/--
-```lean
-transition name binders* = tr
-```
-This command defines:
-- `act.tr` : a transition relation `σ → σ → Prop`, existentially quantified over the `binders`.
-- `act.tr.fn` : a function that returns the transition relation for given
-  arguments. Unlike `act.fn` defined by `elabCallableFn`, this does not
-  have a return value
--/
-elab_rules : command
-  | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
-  -- Elab the transition
-  let vd ← getImplicitActionParameters
-  let (unsimplifiedDef, fnDef, /-trDef-/) ← Command.runTermElabM fun vs => do
-    -- Create binders and arguments
-    let sectionArgs ← getSectionArgumentsStx vs
-    let (binders, args) ← match br with
-    | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
-    | none => pure (#[], #[])
-    -- Create types
-    -- The actual command (not term) elaboration happens here
-    let (uName, fnName) := (toUnsimplifiedIdent nm, nm)
-    let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $binders* := $(← unfoldWlp tr))
-    trace[dsl.debug] "{unsimplifiedDef}"
-    let attr ← toActionAttribute (toActionType actT)
-    let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $binders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
-    trace[dsl.debug] "{fnDef}"
-    -- version with `exists` quantified arguments
-    -- let trDef ← do
-    --   let rhs ←  `(fun ($st : $stateTpT) ($post : sprop $stateTpT) => exists? $br ?, @$fnName $sectionArgs* $args* $st $post)
-    --   `(@[$attr, actSimp] def $nm $[$vd]* : $expectedType := $(← simplifyTerm rhs))
-    trace[dsl.debug] "{tr}"
-    return (unsimplifiedDef, fnDef, /-trDef-/)
-  -- Declare `.raw`, `.tr.fn`, and `.tr`
-  elabCommand unsimplifiedDef
-  elabCommand fnDef
-  -- add constructor for label type
-  registerIOActionDecl actT nm br
-  -- warn if this is not first-order
-  Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
-
-/-- Desugar an imperative `action` in `ActionLang` into a two-state
-`transition` relation (as a Lean term). Here we compute the weakest
-precondition of the program and then define the transition relation.
-
-Note: Unlike `after_init` we expand `l` using `[lang| l]` (as opposed to
-`[lang1| l]`) as we want the transition to refer to both pre-state and
-post-state.-/
-
-
 syntax (actionType)? "action" ident (explicitBinders)? "=" doSeqVeil "{" doSeqVeil "}" : command
 -- syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
 
@@ -349,9 +298,38 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
 def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option (TSyntax `doSeqVeil)) (l : TSyntax `doSeqVeil) : CommandElabM Unit := do
     let actT ← parseActionTypeStx actT
-    -- `σ → σ → Prop`, with binders existentially quantified
+      -- Elab the action
+    let tr <- `(do' $l)
+    let vd ← getImplicitActionParameters
+    let (unsimplifiedDef, fnDef, /-trDef-/) ← Command.runTermElabM fun vs => do
+      -- Create binders and arguments
+      let sectionArgs ← getSectionArgumentsStx vs
+      let (binders, args) ← match br with
+      | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
+      | none => pure (#[], #[])
+      -- Create types
+      -- The actual command (not term) elaboration happens here
+      let (uName, fnName) := (toUnsimplifiedIdent nm, nm)
+      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $binders* := $(← unfoldWlp tr))
+      trace[dsl.debug] "{unsimplifiedDef}"
+      let attr ← toActionAttribute (toActionType actT)
+      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $binders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
+      trace[dsl.debug] "{fnDef}"
+      -- version with `exists` quantified arguments
+      -- let trDef ← do
+      --   let rhs ←  `(fun ($st : $stateTpT) ($post : sprop $stateTpT) => exists? $br ?, @$fnName $sectionArgs* $args* $st $post)
+      --   `(@[$attr, actSimp] def $nm $[$vd]* : $expectedType := $(← simplifyTerm rhs))
+      trace[dsl.debug] "{tr}"
+      return (unsimplifiedDef, fnDef, /-trDef-/)
+    -- Declare `.raw`, `.tr.fn`, and `.tr`
+    elabCommand unsimplifiedDef
+    elabCommand fnDef
+    -- add constructor for label type
+    registerIOActionDecl actT nm br
+    -- warn if this is not first-order
+    Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
     let spec' := if spec.isSome then spec else l
-    elabCommand $ ← `($actT:actionType transition $nm $br ? = do' $l)
+    -- elabCommand $ ← `($actT:actionType transition $nm $br ? = do' $l)
     Command.runTermElabM fun _ => do
       -- [add_action_lang] find the appropriate transition and add the `lang` declaration to it
       localSpecCtx.modify (fun s => { s with spec := {s.spec with
@@ -360,6 +338,17 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
       let (pre, binder, post) <- getPrePost spec.get!
     --   elabCallableFn nm br l (nmt := toSpecIdent)
       checkSpec nm br pre post binder
+
+/--
+```lean
+transition name binders* = tr
+```
+This command defines lifts a two-state formula into a `Wlp σ Unit`
+-/
+elab_rules : command
+  | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
+  elabAction actT nm br none (<- `(doSeqVeil| ($tr).toWlp))
+
 
 elab_rules : command
   | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeqVeil}) =>
