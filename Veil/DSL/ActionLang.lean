@@ -27,7 +27,8 @@ variable (σ : Type)
 /-- Two-state formula -/
 @[inline] abbrev actprop := σ -> σ -> Prop
 
-def Wlp (σ : Type) (ρ : Type) := rprop σ ρ -> sprop σ
+/-  Wlp (σ : Type) (ρ : Type) := rprop σ ρ -> sprop σ -/
+def Wlp (σ : Type) (ρ : Type) := σ -> rprop σ ρ -> Prop
 
 end Types
 section
@@ -35,34 +36,34 @@ section
 variable {σ ρ : Type}
 
 @[actSimp]
-def Wlp.pure (r : ρ) : Wlp σ ρ := fun post => post r
+def Wlp.pure (r : ρ) : Wlp σ ρ := fun s post => post r s
 @[actSimp]
 def Wlp.bind (wp : Wlp σ ρ) (wp_cont : ρ -> Wlp σ ρ') : Wlp σ ρ' :=
-  fun post s => wp (fun r s' => wp_cont r post s') s
+  fun s post => wp s (fun r s' => wp_cont r s' post)
 
 instance : Monad (Wlp σ) where
   pure := Wlp.pure
   bind := Wlp.bind
 
 @[actSimp]
-def Wlp.require (rq : Prop) : Wlp σ PUnit := fun post s => rq ∧ post () s
+def Wlp.require (rq : Prop) : Wlp σ PUnit := fun s post => rq ∧ post () s
 @[actSimp]
-def Wlp.det (act : σ -> ρ × σ) : Wlp σ ρ := fun post s => let (ret, s') := act s ; post ret s'
+def Wlp.det (act : σ -> ρ × σ) : Wlp σ ρ := fun s post => let (ret, s') := act s ; post ret s'
 @[actSimp]
-def Wlp.nondet (act : σ -> σ × ρ -> Prop) : Wlp σ ρ := fun post s => ∃ s' ret, act s (s', ret) ∧ post ret s'
+def Wlp.nondet (act : σ -> σ × ρ -> Prop) : Wlp σ ρ :=
+  fun s post => ∀ s' ret, act s (s', ret) -> post ret s'
 @[actSimp]
-def Wlp.ite (cnd : σ -> Bool) (thn : Wlp σ ρ) (els : Wlp σ ρ) : Wlp σ ρ :=
-  fun post s => if cnd s then thn post s else els post s
-@[actSimp]
-def Wlp.iteSome (cnd : ρ -> σ -> Bool) (thn : ρ -> Wlp σ ρ') (els : Wlp σ ρ') : Wlp σ ρ' :=
-  fun post s => (∃ r, cnd r s ∧ thn r post s) ∨ (∀ r, ¬ cnd r s) ∧ els post s
-@[actSimp]
-def Wlp.fresh (τ : Type) : Wlp σ τ := fun post s => ∃ t, post t s
-@[actSimp]
-def Wlp.skip : Wlp σ PUnit := Wlp.pure ()
+def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
+-- @[actSimp]
+-- def BigStep.fresh (τ : Type) : BigStep σ τ := fun s s' _ => s = s'
+
 @[actSimp]
 def Wlp.withState {σ} (r : σ -> ρ) : Wlp σ ρ :=
-  fun post s => post (r s) s
+  fun s post => post (r s) s
+
+@[actSimp]
+def Wlp.prePost (pre : sprop σ) (post : rprop σ ρ) : Wlp σ ρ :=
+  fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post r s)
 
 macro "unfold_wlp" : conv =>
   `(conv| unfold
@@ -70,17 +71,14 @@ macro "unfold_wlp" : conv =>
     Wlp.pure
     Wlp.bind
     Wlp.require
-    Wlp.ite
-    Wlp.iteSome
     Wlp.fresh
-    Wlp.skip
     Wlp.withState
     Wlp.nondet)
 
 
 instance : MonadStateOf σ (Wlp σ) where
-  get := fun post s => post s s
-  set s' := fun post _ => post () s'
+  get := fun s post => post s s
+  set s' := fun _ post => post () s'
   modifyGet := Wlp.det
 
 end
@@ -137,8 +135,6 @@ macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident
 
 /-- `require s` checks if `s` is true on the current state -/
 syntax "require" term      : term
-/-- `call s` calls action `s` on a current state -/
-syntax "call" term : term
 /-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
 syntax "fresh" term ? : term
 
@@ -243,7 +239,6 @@ elab "do'" stx:doSeqVeil : term => do
 
 macro_rules
   | `(require $t) => `(Wlp.require $t)
-  | `(call    $t) => `(Wlp.nondet $t)
   | `(fresh   $t) => `(Wlp.fresh $t)
   | `(fresh)      => `(Wlp.fresh _)
 

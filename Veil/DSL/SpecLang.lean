@@ -232,20 +232,18 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
 def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `doSeqVeil) (nmt : Ident -> Ident := toFnIdent) : CommandElabM Unit := do
   let (originalName, nm) := (nm, nmt nm)
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let (ret, st, stret) := (mkIdent `ret', mkIdent `st, mkIdent `stret)
+    let (st, post) := (mkIdent `st, mkIdent `post)
     let stateTp ← PrettyPrinter.delab $ ← stateTp vs
     localSpecCtx.modify ({· with spec.stateStx := stateTp})
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
-    -- $stret = ($st', $ret')
-    let act <- `(fun ($st : $stateTp) $stret =>
-      (do' $l) (fun $ret ($st : $stateTp) => (Prod.fst $stret) = $st ∧ $ret = (Prod.snd $stret))  $st)
+    -- $post = ($st', $ret')
+    let act <- `(fun ($st : $stateTp) ($post : rprop $stateTp _) => (do' $l) $st $post)
     -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
-    let (st, st') := (mkIdent `st, mkIdent `st')
     match br with
     | some br =>
       let br ← toBracketedBinderArray br
       -- $(← simplifyTerm $ ← `(fun $st $st' => exists $br, $tr $st $st'))
-      `(@[actSimp] def $nm $br* := $(← simplifyTerm $ ← `(fun $st $st' => $act $st $st')))
+      `(@[actSimp] def $nm $br* := $(← simplifyTerm act))
     | _ => do
       `(@[actSimp] def $nm:ident := $(← simplifyTerm act))
   -- Introduce notation to automatically provide the section arguments
@@ -277,29 +275,34 @@ elab_rules : command
   -- Elab the transition
   let (trfn, tr) ← Command.runTermElabM fun vs => do
     let stateTp <- stateTp vs
-    let (st, st') := (mkIdent `st, mkIdent `st')
-    let expectedType ← mkArrow stateTp (← mkArrow stateTp mkProp)
+    let (st, post) := (mkIdent `st, mkIdent `post)
     let stateTpT <- PrettyPrinter.delab stateTp
+    let expectedType ← `($stateTpT -> sprop $stateTpT -> Prop)
     -- IMPORTANT: we elaborate the term here so we get an error if it doesn't type check
     match br with
     | some br =>
-      let _ <- elabTerm (<-`(term| fun ($st $st' : $stateTpT) => exists $br, $tr $st $st')) expectedType
+      let stx <-`(term| ((fun ($st : $stateTpT) ($post : sprop $stateTpT) =>
+                            exists $br, $tr $st $post) : $expectedType))
+      let _ <- elabTerm stx none
     | none =>
-      let _ <- elabTerm tr expectedType
+      let _ <- elabTerm (<- `(($tr : $expectedType))) none
     -- The actual command (not term) elaboration happens here
-    let expectedType <- `($stateTpT -> $stateTpT -> Prop)
     let attr ← toActionAttribute (toActionType actT)
     let trfnName := toFnIdent nm
     let (trfn, simplifiedTr) ← match br with
     | some br =>
-      pure (← `(@[actSimp] def $trfnName $(← toBracketedBinderArray br)* := $(← simplifyTerm $ ← `(fun ($st $st' : $stateTpT) => $tr $st $st'))), ← `(term|True))
+      let stx <- `(fun  ($st : $stateTpT) ($post : sprop $stateTpT) => $tr $st $post)
+      pure (← `(@[actSimp] def $trfnName $(← toBracketedBinderArray br)* :=
+        $(← simplifyTerm stx)), ← `(term|True))
     | _ => do
       let simplifiedTr ← simplifyTerm tr
       pure (← `(@[actSimp] def $trfnName : $expectedType := $simplifiedTr), simplifiedTr)
     let tr ← match br with
     | some br =>
       -- TODO: add macro for a beta reduction here
-      `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm $ ← `(fun ($st $st' : $stateTpT) => exists $br, @$trfnName $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st')))
+      let stx ← `(fun ($st  : $stateTpT) ($post : sprop $stateTpT) =>
+        exists $br, @$trfnName $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $post)
+      `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm stx))
     | _ => do
       `(@[$attr, actSimp] def $nm:ident : $expectedType := $simplifiedTr)
     return (trfn, tr)
@@ -342,12 +345,13 @@ def checkSpec (nm : Ident) (nmImpl nmSpec : Ident) (br : Option (TSyntax `Lean.e
 def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option (TSyntax `doSeqVeil)) (l : TSyntax `doSeqVeil) : CommandElabM Unit := do
     let actT ← parseActionTypeStx actT
-    let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
+    let (ret, st, post) := (mkIdent `ret, mkIdent `st, mkIdent `post)
     -- `σ → σ → Prop`, with binders existentially quantified
     let tr ← Command.runTermElabM fun vs => (do
       let stateTp ← PrettyPrinter.delab $ ← stateTp vs
       localSpecCtx.modify ({· with spec.stateStx := stateTp})
-      `(fun ($st $st' : $stateTp) => (do' $l) (fun $ret ($st : $stateTp) => $st' = $st) $st)
+      `(fun ($st : $stateTp) ($post : sprop $stateTp) =>
+        (do' $l) $st (fun $ret ($st : $stateTp) => $post $st))
     )
     let trIdent := toTrIdent nm
     let spec' := if spec.isSome then spec else l
@@ -357,9 +361,9 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
       localSpecCtx.modify (fun s => { s with spec := {s.spec with
         transitions := s.spec.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l, spec := spec' } else t)}})
     elabCallableFn nm br l
-    unless spec.isNone do
-      elabCallableFn nm br l (nmt := toSpecIdent)
-      checkSpec nm (toFnIdent nm) (toSpecIdent nm) br
+    -- unless spec.isNone do
+    --   elabCallableFn nm br l (nmt := toSpecIdent)
+    --   checkSpec nm (toFnIdent nm) (toSpecIdent nm) br
 
 elab_rules : command
   | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeqVeil}) =>
@@ -453,7 +457,7 @@ def assembleActions : CommandElabM Unit := do
     let stateTp <- PrettyPrinter.delab (<- stateTp vs)
     let acts := (<- localSpecCtx.get).spec.transitions.map (fun s => s.expr)
     let _ ← (← localSpecCtx.get).spec.transitions.mapM (fun t => do trace[dsl.debug] s!"{t}")
-    let next ← if acts.isEmpty then `(fun s s' => s = s') else PrettyPrinter.delab $ ← combineLemmas ``Or acts.toList vs "transitions"
+    let next ← if acts.isEmpty then `(fun post s => post s) else PrettyPrinter.delab $ ← combineLemmas ``Or acts.toList vs "transitions"
     `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $next)
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do

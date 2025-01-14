@@ -14,7 +14,7 @@ class TransitionSystem
   /- Types of predicates over executions, states, and actions -/
   (pred : Type)
   (state_pred : (f : σ → Prop) → pred)
-  (action_pred :  (a : action) → pred)
+  -- (action_pred :  (a : action) → pred)
 
 /- ## TLA-style transition systems -/
 namespace RelationalTransitionSystem
@@ -30,11 +30,13 @@ def state_pred {σ : Type} (f : σ → Prop) : pred σ :=
 notation "⌜" p "⌝" => state_pred p
 
 /-- The type of TLA-style actions -/
-def action (σ : Type) := σ → σ → Prop
-/-- The type of a predicate on TLA-style actions -/
-def action_pred {σ : Type} (a : action σ) : pred σ :=
-  λ e => a (e 0) (e 1)
-notation "⟨" a "⟩" => action_pred a
+def action (σ : Type) := σ -> (σ → Prop) -> Prop
+-- Vova: not sure how to define this
+-- /-- The type of a predicate on TLA-style actions -/
+-- def action_pred {σ : Type} (a : action σ) : pred σ :=
+--   λ e => a (e 0) (e 1)
+-- notation "⟨" a "⟩" => action_pred a
+
 end RelationalTransitionSystem
 
 -- NOTE: if you change this, make sure you also change
@@ -45,7 +47,7 @@ class RelationalTransitionSystem (σ : Type) extends
   (RelationalTransitionSystem.exec σ)
   (RelationalTransitionSystem.pred σ)
   RelationalTransitionSystem.state_pred
-  RelationalTransitionSystem.action_pred
+  -- RelationalTransitionSystem.action_pred
   where
   init : σ → Prop
   assumptions : σ → Prop
@@ -65,23 +67,25 @@ def invInit [RelationalTransitionSystem σ] :=
 
 /-- The invariant is preserved by transition. -/
 def invConsecution [RelationalTransitionSystem σ] :=
-  ∀ (s1 s2 : σ), next s1 s2 -> assumptions s1 -> inv s1 -> inv s2
+  ∀ (s1 : σ), assumptions s1 -> inv s1 -> next s1 inv
 
 /-- The invariant is inductive. -/
 def invInductive [sys: RelationalTransitionSystem σ] :=
   @invInit σ sys ∧ @invConsecution σ sys
 
-def validStutteringExecution [RelationalTransitionSystem σ] (e : exec σ) :=
-  init (e 0) ∧ ∀ (i : Nat), (next (e i) (e (i + 1))) ∨ (e i = e (i + 1))
+-- Vova: fix these definitions
 
-/-- The set of all reachable states of the system. -/
-def reachableStates [RelationalTransitionSystem σ] : σ → Prop :=
-  (λ (s : σ) => ∃ (e : exec σ), validStutteringExecution e ∧ ∃ (step : Nat), s = e step)
+-- def validStutteringExecution [RelationalTransitionSystem σ] (e : exec σ) :=
+--   init (e 0) ∧ ∀ (i : Nat), (next (e i) (e (i + 1))) ∨ (e i = e (i + 1))
 
-theorem init_is_reachable [RelationalTransitionSystem σ] :
-  ∀ (s : σ), init s -> reachableStates s := by
-  intro s hinit; apply Exists.intro (λ _ => s)
-  simp only [validStutteringExecution, or_true, implies_true, and_true, exists_const, hinit]
+-- /-- The set of all reachable states of the system. -/
+-- def reachableStates [RelationalTransitionSystem σ] : σ → Prop :=
+--   (λ (s : σ) => ∃ (e : exec σ), validStutteringExecution e ∧ ∃ (step : Nat), s = e step)
+
+-- theorem init_is_reachable [RelationalTransitionSystem σ] :
+--   ∀ (s : σ), init s -> reachableStates s := by
+--   intro s hinit; apply Exists.intro (λ _ => s)
+--   simp only [validStutteringExecution, or_true, implies_true, and_true, exists_const, hinit]
 
 /-
 theorem valid_execution_in_inductive_inv [sys : RelationalTransitionSystem σ] (e : exec σ) :
