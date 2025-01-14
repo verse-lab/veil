@@ -41,12 +41,11 @@ action foo3 (k : Nat) = {
     y <- foo2 (f k)
   else
     y := f 1 < 5
-  ensure ∀ N, f N = 0
   return y
 }
 
-action foo4 (k : Nat) = {
-  let mut y <- fresh node
+action foo4 (k : Nat) (m : node) = {
+  let mut y := m
   if x : r x k then
     y := x
   else y := y

@@ -130,7 +130,11 @@ attribute [logicSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
 attribute [logicSimp] not_or
 
 /-! ## Ite -/
-attribute [logicSimp] if_false_left if_false_right
+theorem if_app {α β : Type} {_ : Decidable c} (t e : α -> β) (a : α) :
+  (if c then t else e) a =
+  if c then (t a) else (e a) := by
+  by_cases c <;> simp_all
+attribute [logicSimp] if_false_left if_false_right if_app
 attribute [logicSimp low] if_true_left if_true_right
 attribute [logicSimp] dite_not ite_not ite_true_same ite_false_same
 

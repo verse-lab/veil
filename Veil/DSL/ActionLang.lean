@@ -28,7 +28,7 @@ variable (σ : Type)
 @[inline] abbrev actprop := σ -> σ -> Prop
 
 /-  Wlp (σ : Type) (ρ : Type) := rprop σ ρ -> sprop σ -/
-def Wlp (σ : Type) (ρ : Type) := σ -> rprop σ ρ -> Prop
+abbrev Wlp (σ : Type) (ρ : Type) := σ -> rprop σ ρ -> Prop
 
 end Types
 section
@@ -50,17 +50,12 @@ def Wlp.require (rq : Prop) : Wlp σ PUnit := fun s post => rq ∧ post () s
 @[actSimp]
 def Wlp.det (act : σ -> ρ × σ) : Wlp σ ρ := fun s post => let (ret, s') := act s ; post ret s'
 @[actSimp]
-def Wlp.nondet (act : σ -> σ × ρ -> Prop) : Wlp σ ρ :=
-  fun s post => ∀ s' ret, act s (s', ret) -> post ret s'
-@[actSimp]
 def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
-
 @[actSimp]
 def Wlp.withState {σ} (r : σ -> ρ) : Wlp σ ρ :=
   fun s post => post (r s) s
-
 @[actSimp]
-def Wlp.prePost (pre : sprop σ) (post : rprop σ ρ) : Wlp σ ρ :=
+def Wlp.spec (pre : sprop σ) (post : rprop σ ρ) : Wlp σ ρ :=
   fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post r s)
 
 macro "unfold_wlp" : conv =>
@@ -71,7 +66,7 @@ macro "unfold_wlp" : conv =>
     Wlp.require
     Wlp.fresh
     Wlp.withState
-    Wlp.nondet)
+    Wlp.spec)
 
 
 instance : MonadStateOf σ (Wlp σ) where
@@ -151,18 +146,16 @@ syntax "if" ident ":" term "then" doSeqVeil : doElemVeil
 
 
 declare_syntax_cat unchanged
+declare_syntax_cat spec
+syntax "requires" term colGe "ensures" (rcasesPat  ",")? term : spec
 syntax "with unchanged" "[" ident,* "]" : unchanged
-syntax "ensure" rcasesPat  "," term unchanged ? : term
-syntax "ensure" term unchanged ? : term
+syntax spec colGe unchanged ? : term
 syntax "[unchanged|" ident* "]" : term
 
 syntax sepByIndentSemicolon(doElemVeil) : doSeqVeil
 
 def hasRHS? (stx : TSyntax `doElem) : Option (Term × (Term -> TermElabM (TSyntax `doElem))) := do
   match stx with
-  -- | `(doElem| require $_) => none
-  | `(doElem| ensure $_) => none
-  -- | `(doElem| call $_) => none
   | `(doElem| $t:term) => (t, fun t => (`(doElem| $t:term) : TermElabM _))
   | `(doElem| $id:ident := $t:term) =>
     (t, fun t => (`(doElem| $id:ident := $t) : TermElabM _))
@@ -268,27 +261,31 @@ macro_rules
 
 /- One can omit the result variable from [ensures] -/
 macro_rules
-  | `(ensure $t:term $un:unchanged ?) => `(ensure (_ : Unit), $t:term $un:unchanged ?)
+  | `(requires $pre ensures $post:term $un:unchanged ?) => `(requires $pre ensures (_ : Unit), $post:term $un:unchanged ?)
+
+def getPrePost : Term -> (Term × Term)
+  | `(requires $pre ensures $post:term $_:unchanged ?) => (pre, post)
+  | _ => panic! "expected `requires pre ensures post`"
 
 elab_rules : term
   /- if the list of unchanged state fileds is omitted, we can restore it by
      checking witch of them are mentioned in the [ensures] body. By default
      we assume that if the state filed is not mentioned, then it is left
      unchanged  -/
-  | `(ensure $r, $t:term) => do
+  | `(requires $pre ensures $r, $post:term) => do
     let fields : Array Name <- getFields
     let mut unchangedFields := #[]
     for f in fields do
-      unless t.raw.find? (·.getId == f) |>.isSome do
+      unless post.raw.find? (·.getId == f) |>.isSome do
         unchangedFields := unchangedFields.push $ mkIdent f
-    elabTerm (<- `(ensure $r, $t:term with unchanged[$[$unchangedFields],*])) none
-  | `(ensure $r, $t:term with unchanged[$ids,*]) => do
-    withRef t $
-    elabTerm (<- `(term| @Wlp.nondet _ _ (
+    elabTerm (<- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])) none
+  | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
+    -- withRef t $
+    elabTerm (<- `(term| Wlp.spec (funcases $pre) (
       by rintro st ⟨st', $r⟩;
          unhygienic cases st';
          with_rename_old unhygienic cases st;
-         exact $t ∧ [unchanged|$ids*]))) none
+         exact $post ∧ [unchanged|$ids*]))) none
 
 attribute [actSimp] Bind.bind Pure.pure
 
