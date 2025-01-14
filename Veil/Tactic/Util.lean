@@ -3,9 +3,9 @@ import Veil.DSL.Util
 
 open Lean Lean.Elab.Tactic
 
-/-- Is `hyp` an application of `n`, after normalisation? -/
-def normalisedIsAppOf (hyp : LocalDecl) (n : Name) : TacticM Bool := do
-  let norm ← Meta.reduce (hyp.type) (skipTypes := false)
+/-- Is `typ` an application of `n`, after normalisation? -/
+def normalisedIsAppOf (typ : Expr) (n : Name) : MetaM Bool := do
+  let norm ← Meta.reduce typ (skipTypes := false)
   return norm.isAppOf n
 
 /-- Returns the hypotheses in `newCtx` that do not appear in `oldCtx`. -/
@@ -70,13 +70,21 @@ def hypIsClass (hyp : LocalDecl) : TacticM Bool := do
   | some name => return isStructure env name
   | none => return false
 
+/-- Is this type something we should send to the SMT solver? -/
+def isHypToCollect (typ : Expr) : MetaM Bool := do
+  -- We do not pass inhabitation facts to SMT, as both `lean-auto` and
+  -- `lean-smt` choke on them, and solvers already assume all types are
+  -- inhabited.
+  let isInhabitationFact ← normalisedIsAppOf typ ``Nonempty
+  return (← Meta.isProp typ) && !isInhabitationFact
+
 /-- Given a hypothesis, if it's a `Prop`, return its name. If it is
    a `class` or `structure`, return all the names of properties within
    it, e.g. a `TotalOrder` will return `TotalOrder.le_trans`, etc.-/
 def collectPropertiesFromHyp (hyp : LocalDecl) : TacticM (Array Name) := do
   let env ← getEnv
   let mut props := #[]
-  if ← Meta.isProp hyp.type then
+  if ← isHypToCollect hyp.type then
     props := props.push hyp.userName
   if ← hypIsClass hyp then
     let tyctor := hyp.type.getAppFn.constName?.get!
@@ -87,8 +95,7 @@ def collectPropertiesFromHyp (hyp : LocalDecl) : TacticM (Array Name) := do
       if field.subobject?.isSome then
         continue
       let proj := (env.find? field.projFn).get!
-      let isProp ← Meta.isProp proj.type
-      if isProp then
+      if ← isHypToCollect proj.type then
         props := props.push field.projFn
   return props
 

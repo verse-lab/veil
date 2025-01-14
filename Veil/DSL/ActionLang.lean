@@ -54,8 +54,6 @@ def Wlp.nondet (act : σ -> σ × ρ -> Prop) : Wlp σ ρ :=
   fun s post => ∀ s' ret, act s (s', ret) -> post ret s'
 @[actSimp]
 def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
--- @[actSimp]
--- def BigStep.fresh (τ : Type) : BigStep σ τ := fun s s' _ => s = s'
 
 @[actSimp]
 def Wlp.withState {σ} (r : σ -> ρ) : Wlp σ ρ :=

@@ -122,7 +122,7 @@ action createNewVertex (r : Int) = {
     require r ≥ 0;
     -- FIXME: "wait until ¬ blocksToPropose.empty"
     -- `v.block ← blocksToPropose.dequeue()`
-    (b, q') : block × queue ← call !dequeue blocksToPropose in
+    (b, q') : block × queue ← call dequeue blocksToPropose in
     blocksToPropose := q';
     fresh v : vertex in
     -- this is a new, really "fresh", vertex
@@ -131,7 +131,7 @@ action createNewVertex (r : Int) = {
     vertexBlock v b := True;
     -- `v.strongEdges ← DAG[round - 1]`
     vertexStrongEdge v SE := dag (r - 1) SE;
-    call !setWeakEdges v r;
+    call setWeakEdges v r;
     return v
  }
 
@@ -150,11 +150,11 @@ action mainLoop = {
     if (∃ q, ∀ n, member n q → (∃ v, vertexSource v n ∧ dag r v)) {
         if (r % 4 = 0) {
             -- TODO: how to properly model signalling wave_ready?
-            call !waveReady r
+            call waveReady r
         };
         r := r + 1;
-        v : vertex ← call !createNewVertex r in
-        call !r_bcast v r
+        v : vertex ← call createNewVertex r in
+        call r_bcast v r
     }
 }
 

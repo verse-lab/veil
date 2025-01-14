@@ -1,7 +1,7 @@
 import Lean.Elab.Tactic
 import Veil.DSL.Util
-import Veil.SMT.Preparation
-import Veil.DSL.ActionLang
+import Veil.SMT.Main
+import Veil.DSL.ActionLang -- TODO: can we remove this?
 
 open Lean Lean.Elab
 
@@ -39,8 +39,17 @@ elab _tk:"conv! " conv:conv " => " e:term : term => do
 /-- We use this to evaluate `wlp` inside function bodies at definition time.
   Otherwise it has to be evaluated in the kernel during proofs, which is very slow.
   `conv!` applies a tactic to a term. -/
+def unfoldWlp (t : TSyntax `term) : TermElabM (TSyntax `term) := do
+  let actSimp := mkIdent `actSimp
+  -- We have to do this round-about `let t : = .. ; exact t` because we
+  -- want to delay the evaluation of `t` until types are available to be
+  -- inferred, otherwise `$t` might fail to type-check.
+  let t' ← `(term|by first | let t := conv! (dsimp only [$actSimp:ident]; unfold_wlp; dsimp only) => $t; exact t | exact $t)
+  return t'
+
+/-- This does `unfoldWlp` followed by some other simplifications. -/
 def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
-  let (actSimp, smtSimp, logicSimp, elim_exists_State) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp, mkIdent ``elim_exists_State)
+  let (actSimp, smtSimp, logicSimp, quantifierElim) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp, mkIdent `quantifierElim)
   -- Reduce the body of the function
   let t' ← `(term| by
     -- Try simplifying first, but this might fail if there's no `wlp` in the
@@ -51,6 +60,5 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
         dsimp only [$actSimp:ident];
         unfold_wlp; dsimp only;
         simp only [$smtSimp:ident, $logicSimp:ident];
-        simp only [and_assoc];
-        simp only [↓ $elim_exists_State:ident]) => $t; exact t) | exact $t)
+        simp only [$quantifierElim:ident]) => $t; exact t) | exact $t)
   return t'

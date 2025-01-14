@@ -56,18 +56,23 @@ def defineFunction (comp : StateComponent) : CommandElabM Unit :=
 /-- Assembles all declared `relation` predicates into a single `State` type. -/
 def assembleState (name : Name) : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
-  Command.runTermElabM fun _ => do
+  Command.runTermElabM fun vs => do
   -- set the name
     let components ← liftCommandElabM $ liftCoreM $ ((<- localSpecCtx.get).spec.signature).mapM StateComponent.getSimpleBinder
     -- record the state name
     localSpecCtx.modify (fun s => { s with stateBaseName := name })
     let stName ← getPrefixedName `State
-    let sdef ← `(@[stateDef] structure $(mkIdent stName) $[$vd]* where $(mkIdent `mk):ident :: $[$components]*)
+    let sdef ← `(@[stateDef] structure $(mkIdent stName) $(getStateParametersBinders vd)* where $(mkIdent `mk):ident :: $[$components]* deriving $(mkIdent ``Nonempty))
     let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
+    trace[dsl.debug] "{sdef}"
+    -- `@[stateDef]` sets `spec.stateType` (the base constant `stName`)
     liftCommandElabM $ elabCommand $ sdef
+    -- we set `stateStx` ourselves
+    let stateTp ← mkStateTpStx vd vs
+    localSpecCtx.modify ({· with spec.stateStx := stateTp})
+    -- Tag the `injEq` lemma as `smtSimp`
     liftCommandElabM $ elabCommand $ smtAttr
-
 
 /-! ### Syntax -/
 
@@ -135,8 +140,7 @@ elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => 
   -- section binders implicit
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- stateTp vs
-    let stateTp <- PrettyPrinter.delab stateTp
+    let stateTp <- getStateTpStx
     let stx' <- funcasesM t vs
     elabBindersAndCapitals br vs stx' fun _ e => do
       let e <- elabWithMotives e
@@ -149,13 +153,14 @@ elab "#gen_state" name:ident : command => assembleState name.getId
 
 /-- Declare the initial state predicate. -/
 elab "initial" ini:term : command => do
-  elabCommand <| <- Command.runTermElabM fun vs => do
-    let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-    let expectedType ← `($stateTp → Prop)
+  let vd ← getAssertionParameters
+  elabCommand <| <- Command.runTermElabM fun _ => do
+    -- let stateTp ← getStateTpStx
+    -- let expectedType ← `($stateTp → Prop)
     let ini ←  simplifyTerm ini
     let name ← getPrefixedName `initialState?
     -- because of `initDef`, this sets `stsExt.init` with `lang := none`
-    `(@[initDef, initSimp] def $(mkIdent name) : $expectedType := $ini)
+    `(@[initDef, initSimp] def $(mkIdent name) $[$vd]* := $ini)
 
 /-- Declare the initial state predicate as an imperative program in
 `ActionLang`. -/
@@ -167,11 +172,10 @@ elab "after_init" "{" l:doSeqVeil "}" : command => do
    -- doesn't depend on a prestate we can reduce it into `fun _ => Ini(st')`
    -- To get `Ini(st')` we should apply `fun _ => Ini(st')`  to any
    -- state, so we use `st'` as it is the only state we have in the context.
-    let (ret, st, st') := (mkIdent `ret, mkIdent `st, mkIdent `st')
-    let act ← Command.runTermElabM fun vs => (do
-      let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      localSpecCtx.modify ({· with spec.stateStx := stateTp})
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), (do' $l) (fun $ret $st => $st' = $st) $st))
+    let (ret, st, st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st_curr, mkIdent `post)
+    let act ← Command.runTermElabM fun _ => (do
+      let stateTp ← getStateTpStx
+      `(fun ($post : sprop $stateTp) => ∀ ($st : $stateTp), (do' $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $act)
     -- we modify it to store the `lang`
@@ -226,31 +230,21 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
     localSpecCtx.modify (fun s => { s with spec := {s.spec with
       transitions := s.spec.transitions.map (fun t => if t.name == name then { t with decl := actdecl } else t) }})
 
-/-- Defines `act.fn` : a function that returns a transition relation with return
+/-- Defines `act` : a function that returns a transition relation with return
   value (type `σ → (σ × ρ) → Prop`), universally quantified over `binders`. -/
-
-def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `doSeqVeil) (nmt : Ident -> Ident := toFnIdent) : CommandElabM Unit := do
-  let (originalName, nm) := (nm, nmt nm)
-  elabCommand $ ← Command.runTermElabM fun vs => do
+def elabCallableFn (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `doSeqVeil) (nmt : Ident -> Ident := id) : CommandElabM Unit := do
+  let vd ← getImplicitActionParameters
+  let nm := nmt nm
+  elabCommand $ ← Command.runTermElabM fun _ => do
     let (st, post) := (mkIdent `st, mkIdent `post)
-    let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-    localSpecCtx.modify ({· with spec.stateStx := stateTp})
+    let stateTp ← getStateTpStx
     -- `σ → (σ × ρ) → Prop`, with binders universally quantified
     -- $post = ($st', $ret')
     let act <- `(fun ($st : $stateTp) ($post : rprop $stateTp _) => (do' $l) $st $post)
-    -- let tp ← `(term|$stateTp -> ($stateTp × $retTp) -> Prop)
-    match br with
-    | some br =>
-      let br ← toBracketedBinderArray br
-      -- $(← simplifyTerm $ ← `(fun $st $st' => exists $br, $tr $st $st'))
-      `(@[actSimp] def $nm $br* := $(← simplifyTerm act))
-    | _ => do
-      `(@[actSimp] def $nm:ident := $(← simplifyTerm act))
-  -- Introduce notation to automatically provide the section arguments
-  elabCommand $ ← Command.runTermElabM fun vs => do
-    let args ← getSectionArgumentsStx vs
-    let strName ← `(Lean.Parser.Command.notationItem|$(Lean.quote ("!" ++ originalName.getId.toString)):str)
-    `(local notation (priority := default) $strName => @$nm $args*)
+    let binders ← match br with
+    | some br => toBracketedBinderArray br
+    | none => pure #[]
+    `(@[actSimp] def $nm:ident $[$vd]* $binders* := $(← simplifyTerm act))
 
 /-- Transition defined via a two-state relation. -/
 syntax (actionType)? "transition" ident (explicitBinders)? "=" term : command
@@ -259,6 +253,20 @@ syntax (actionType)? "transition" ident (explicitBinders)? "=" term : command
 these "actions". All capital letters in `require` and in assignments are
 implicitly quantified. -/
 syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
+
+/-- Show a warning if the given declaration -/
+def warnIfNotFirstOrder (name : Name) : MetaM Unit := do
+  let .some decl := (← getEnv).find? name | throwError s!"{name} not found"
+  let .some val := decl.value? | throwError s!"{name} has no value"
+  let hasExists ← hasStateHOExist val
+  let hasInnerForall ← hasStateHOInnerForall val
+  let reason ← match hasExists, hasInnerForall with
+  | true, false => pure $ some s!"it existentially quantifies over {← getStateName}"
+  | false, true =>  pure $ some s!"it has non top-level ∀ quantification over the {← getStateName} type"
+  | true, true => pure $ some s!"it has both existential and non top-level ∀ quantification over the {← getStateName} type"
+  | _, _ => pure none
+  if reason.isSome then
+    logWarning s!"{name} is not first-order (and cannot be sent to SMT): {reason.get!}"
 
 /--
 ```lean
@@ -273,10 +281,16 @@ This command defines:
 elab_rules : command
   | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
   -- Elab the transition
-  let (trfn, tr) ← Command.runTermElabM fun vs => do
-    let stateTp <- stateTp vs
+  let vd ← getActionParameters
+  let (unsimplifiedDef, fnDef, trDef) ← Command.runTermElabM fun vs => do
+    -- Create binders and arguments
+    let sectionArgs ← getSectionArgumentsStx vs
+    let (binders, args) ← match br with
+    | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
+    | none => pure (#[], #[])
+    -- Create types
+    let stateTpT <- getStateTpStx
     let (st, post) := (mkIdent `st, mkIdent `post)
-    let stateTpT <- PrettyPrinter.delab stateTp
     let expectedType ← `($stateTpT -> sprop $stateTpT -> Prop)
     -- IMPORTANT: we elaborate the term here so we get an error if it doesn't type check
     match br with
@@ -284,33 +298,30 @@ elab_rules : command
       let stx <-`(term| ((fun ($st : $stateTpT) ($post : sprop $stateTpT) =>
                             exists $br, $tr $st $post) : $expectedType))
       let _ <- elabTerm stx none
-    | none =>
-      let _ <- elabTerm (<- `(($tr : $expectedType))) none
+    | none => let _ <- elabTerm (<- `(($tr : $expectedType))) none
     -- The actual command (not term) elaboration happens here
+    let (uName, fnName) := (toUnsimplifiedIdent nm, toFnIdent nm)
+    let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $binders* : $expectedType := $(← unfoldWlp tr))
+    trace[dsl.debug] "{unsimplifiedDef}"
+    let fnDef ← `(@[actSimp] def $fnName $[$vd]* $binders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
+    trace[dsl.debug] "{fnDef}"
     let attr ← toActionAttribute (toActionType actT)
-    let trfnName := toFnIdent nm
-    let (trfn, simplifiedTr) ← match br with
-    | some br =>
-      let stx <- `(fun  ($st : $stateTpT) ($post : sprop $stateTpT) => $tr $st $post)
-      pure (← `(@[actSimp] def $trfnName $(← toBracketedBinderArray br)* :=
-        $(← simplifyTerm stx)), ← `(term|True))
-    | _ => do
-      let simplifiedTr ← simplifyTerm tr
-      pure (← `(@[actSimp] def $trfnName : $expectedType := $simplifiedTr), simplifiedTr)
-    let tr ← match br with
-    | some br =>
-      -- TODO: add macro for a beta reduction here
-      let stx ← `(fun ($st  : $stateTpT) ($post : sprop $stateTpT) =>
-        exists $br, @$trfnName $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $post)
-      `(@[$attr, actSimp] def $nm : $expectedType := $(← simplifyTerm stx))
-    | _ => do
-      `(@[$attr, actSimp] def $nm:ident : $expectedType := $simplifiedTr)
-    return (trfn, tr)
-  -- Declare `.tr.fn` and `.tr`
-  elabCommand trfn
-  elabCommand tr
+    -- version with `exists` quantified arguments
+    let trDef ← do
+      let rhs ← match br with
+      | some br => `(fun ($st : $stateTpT) ($post : sprop $stateTpT) => exists $br, @$fnName $sectionArgs* $args* $st $post)
+      | none => `(fun ($st : $stateTpT) ($post : sprop $stateTpT) => @$fnName $sectionArgs* $st $post) -- $args = #[] here
+      `(@[$attr, actSimp] def $nm $[$vd]* : $expectedType := $(← simplifyTerm rhs))
+    trace[dsl.debug] "{tr}"
+    return (unsimplifiedDef, fnDef, trDef)
+  -- Declare `.raw`, `.tr.fn`, and `.tr`
+  elabCommand unsimplifiedDef
+  elabCommand fnDef
+  elabCommand trDef
   -- add constructor for label type
   registerIOActionDecl actT nm br
+  -- warn if this is not first-order
+  Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
 
 /-- Desugar an imperative `action` in `ActionLang` into a two-state
 `transition` relation (as a Lean term). Here we compute the weakest
@@ -345,13 +356,12 @@ def checkSpec (nm : Ident) (nmImpl nmSpec : Ident) (br : Option (TSyntax `Lean.e
 def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option (TSyntax `doSeqVeil)) (l : TSyntax `doSeqVeil) : CommandElabM Unit := do
     let actT ← parseActionTypeStx actT
-    let (ret, st, post) := (mkIdent `ret, mkIdent `st, mkIdent `post)
+    let (ret, st, st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st_curr, mkIdent `post)
     -- `σ → σ → Prop`, with binders existentially quantified
-    let tr ← Command.runTermElabM fun vs => (do
-      let stateTp ← PrettyPrinter.delab $ ← stateTp vs
-      localSpecCtx.modify ({· with spec.stateStx := stateTp})
+    let tr ← Command.runTermElabM fun _ => (do
+      let stateTp ← getStateTpStx
       `(fun ($st : $stateTp) ($post : sprop $stateTp) =>
-        (do' $l) $st (fun $ret ($st : $stateTp) => $post $st))
+        (do' $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr))
     )
     let trIdent := toTrIdent nm
     let spec' := if spec.isSome then spec else l
@@ -363,7 +373,7 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
     elabCallableFn nm br l
     -- unless spec.isNone do
     --   elabCallableFn nm br l (nmt := toSpecIdent)
-    --   checkSpec nm (toFnIdent nm) (toSpecIdent nm) br
+    --   checkSpec nm (toFnIdent nm) (toSpecIdent nm) brs
 
 elab_rules : command
   | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeqVeil}) =>
@@ -388,13 +398,13 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
 
 
 def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
+  let vd ← getAssertionParameters
   let (name, cmd) ← Command.runTermElabM fun vs => do
-    let stateTp <- stateTp vs
-    let stateTp <- PrettyPrinter.delab stateTp
+    let stateTp <- getStateTpStx
     -- Check that the assumption does not refer to mutable state components
     if kind == .assumption then
       throwIfRefersToMutable t
-    let stx <- funcasesM t vs
+    let stx <- funcasesM t (← getStateArguments vd vs)
     let defaultName ← match kind with
       | .safety | .invariant => pure $ Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
       | .assumption => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.assumptions.size}"
@@ -403,15 +413,16 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
       let e <- elabWithMotives e
       match kind with
       | .safety =>
-        `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+        `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) $[$vd]*: $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
       | .invariant =>
-        `(@[invDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+        `(@[invDef, invSimp] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
       | .assumption =>
-        `(@[assumptionDef, invSimp] def $(mkIdent name) : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+        `(@[assumptionDef, invSimp] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
   -- Do the elaboration to populate the `stsExt` state
+  trace[dsl.debug] s!"{cmd}"
   elabCommand cmd
   Command.runTermElabM fun _vs => do
     -- Record the term syntax in the `stsExt` state
@@ -453,12 +464,13 @@ def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String
 
 /--Assembles all declared actions into a `Next` transition relation. -/
 def assembleActions : CommandElabM Unit := do
+  let vd ← getActionParameters
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let stateTp <- getStateTpStx
     let acts := (<- localSpecCtx.get).spec.transitions.map (fun s => s.expr)
     let _ ← (← localSpecCtx.get).spec.transitions.mapM (fun t => do trace[dsl.debug] s!"{t}")
     let next ← if acts.isEmpty then `(fun post s => post s) else PrettyPrinter.delab $ ← combineLemmas ``Or acts.toList vs "transitions"
-    `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) : $stateTp -> $stateTp -> Prop := $next)
+    `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) $[$vd]* : $stateTp -> $stateTp -> Prop := $next)
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun _ => do
@@ -485,31 +497,34 @@ def assembleActionMap : CommandElabM Unit := do
 /-- Assembles all declared invariants (including safety properties) into
 a single `Invariant` predicate -/
 def assembleInvariant : CommandElabM Unit := do
+  let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let stateTp <- getStateTpStx
     let allClauses := (<- localSpecCtx.get).spec.invariants
     let exprs := allClauses.toList.map (fun p => p.expr)
     let _ ← allClauses.mapM (fun t => do trace[dsl.debug] s!"{t}")
     let invs ← if allClauses.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Invariant) : $stateTp -> Prop := $invs)
+    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Invariant) $[$vd]* : $stateTp -> Prop := $invs)
 
 /-- Assembles all declared safety properties into a single `Safety`
 predicate -/
 def assembleSafeties : CommandElabM Unit := do
+  let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
     let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) : $stateTp -> Prop := $safeties)
+    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Safety) $[$vd]* : $stateTp -> Prop := $safeties)
 
 /-- Assembles all declared `assumption`s into a single `Assumptions`
 predicate -/
 def assembleAssumptions : CommandElabM Unit := do
+  let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
     let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
-    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Assumptions) : $stateTp -> Prop := $assumptions)
+    `(@[invSimp] def $(mkIdent $ ← getPrefixedName `Assumptions) $[$vd]* : $stateTp -> Prop := $assumptions)
 
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
@@ -524,8 +539,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   Command.runTermElabM fun vs => do
     -- set the name
     localSpecCtx.modify (fun s => { s with spec := {s.spec with name := name }})
-    let stateTp   := mkAppN (<- localSpecCtx.get).spec.stateType vs
-    let stateTpStx   <- PrettyPrinter.delab stateTp
+    let stateTpStx <- getStateTpStx
     let initSt    := mkAppN (<- mkConst $ ← getPrefixedName `initialState?) vs
     let initStx    <- PrettyPrinter.delab initSt
     let nextTrans := mkAppN (<- mkConst $ ← getPrefixedName `Next) vs
@@ -558,6 +572,9 @@ elab "#gen_spec" name:ident : command => do
 interfere with the definitions above. For instance, we need to define a
 `structure` with a field named `type` and that gets broken.
 Unfortunately, this means we're breaking all the DSL clients. -/
-macro "type" id:ident : command => `(variable ($id : Type) [DecidableEq $id])
-macro "instantiate" t:term : command => `(variable [$t])
+macro "type" id:ident : command => do
+  let dec_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_dec")
+  let ne_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_ne")
+  `(variable ($id : Type) [$dec_id : DecidableEq $id] [$ne_id : Nonempty $id])
+-- macro "instantiate" t:term : command => `(variable [$t])
 macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])

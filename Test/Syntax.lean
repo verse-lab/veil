@@ -38,7 +38,7 @@ action foo3 (k : Nat) = {
   y := f 4 > 3
   if r x k then
     r x k := True
-    y <- call !foo2 (f k)
+    y <- foo2 (f k)
   else
     y := f 1 < 5
   ensure ∀ N, f N = 0

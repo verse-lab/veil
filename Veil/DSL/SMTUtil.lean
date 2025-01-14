@@ -29,7 +29,7 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
    ) | throwError "[translateExprToSmt] expected exactly one goal after simplification"
   let cmd ← forallTelescope (<- l.getType)
     fun ks tp => do
-    let props ← ks.filterM (fun k => return ← Meta.isProp (← inferType k))
+    let props ← ks.filterM (fun k => return ← isHypToCollect (← inferType k))
     let (fvNames₁, _) ← Smt.genUniqueFVarNames
     let cmds ← Smt.prepareSmtQuery props.toList tp fvNames₁
     let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"

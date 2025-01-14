@@ -79,7 +79,7 @@ inductive CheckInvariantsBehaviour
 def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
   Command.runTermElabM fun vs => do
     let ge ← getEnv
-    let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
+    let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
     let mut theorems := #[]
     -- Init checks
     for (invName, _) in invIndicators.reverse do
@@ -112,7 +112,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   | .printTheorems => displaySuggestion stx theorems
   | .checkTheorems | .printAndCheckTheorems =>
     let msg ← Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx vs, mkIdent `st, mkIdent `st')
+      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let actStxList ← actIndicators.mapM (fun (actName, indName) => do
         let .some _ := ge.find? actName
           | throwError s!"action {actName} not found"
@@ -231,7 +231,7 @@ elab "already_proven" : tactic => withMainContext do
 
 elab "prove_inv_init" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- PrettyPrinter.delab (<- stateTp vs)
+    let stateTp <- getStateTpStx
     `(theorem $(mkIdent `inv_init) : invInit (σ := $stateTp) :=
        by unfold invInit
           -- simp only [initSimp, invSimp]
@@ -240,7 +240,7 @@ elab "prove_inv_init" proof:term : command => do
 
 elab "prove_inv_safe" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
+    let stateTp   <- getStateTpStx
     `(theorem $(mkIdent `safety_init) : invSafe (σ := $stateTp) :=
        by unfold invSafe;
           -- simp only [initSimp, safeSimp]
@@ -249,7 +249,7 @@ elab "prove_inv_safe" proof:term : command => do
 
 elab "prove_inv_inductive" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   <- PrettyPrinter.delab (<- stateTp vs)
+    let stateTp   <- getStateTpStx
     `(theorem $(mkIdent `inv_inductive) : invInductive (σ := $stateTp) :=
       by unfold invInductive invInit invConsecution;
         --  intros $(mkIdent `st) $(mkIdent `st')
