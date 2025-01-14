@@ -7,7 +7,7 @@ package «lean-sts» where
 lean_lib «Veil» where
   -- add library configuration options here
 
-@[default_target]
+-- @[default_target]
 lean_lib Examples {
   globs := #[.submodules `Examples]
 }
