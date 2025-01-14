@@ -17,12 +17,12 @@ after_init {
 
 #guard_msgs in
 action empty = {
-  skip
+
 }
 
 #guard_msgs in
 action call_empty = {
-  call empty
+  empty
 }
 
 #guard_msgs(drop warning) in
@@ -32,12 +32,12 @@ action f (n : Nat) (x : node) = {
 
 #guard_msgs(drop warning) in
 action call_f (x : node) = {
-  call f 5 x
+  f 5 x
 }
 
 #guard_msgs(drop warning) in
 action nested_call (n : node ) = {
-  call call_f n
+  call_f n
 }
 
 end Test

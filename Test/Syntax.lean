@@ -26,7 +26,6 @@ action foo2 (k : Nat) = {
   if y > 0 then
     return True
   else return False
-  -- r N k := True
 }
 
 
