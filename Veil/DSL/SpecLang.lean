@@ -143,7 +143,7 @@ elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => 
     let stateTp <- getStateTpStx
     let stx' <- funcasesM t vs
     elabBindersAndCapitals br vs stx' fun _ e => do
-      let e <- elabWithMotives e
+      let e <- delabWithMotives e
       `(@[actSimp, invSimp] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
 
 @[inherit_doc assembleState]
@@ -268,6 +268,11 @@ def warnIfNotFirstOrder (name : Name) : MetaM Unit := do
   if reason.isSome then
     logWarning s!"{name} is not first-order (and cannot be sent to SMT): {reason.get!}"
 
+macro "exists?" br:explicitBinders ? "," t:term : term =>
+  match br with
+  | some br => `(exists $br, $t)
+  | none => `($t)
+
 /--
 ```lean
 transition name binders* = tr
@@ -281,43 +286,30 @@ This command defines:
 elab_rules : command
   | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
   -- Elab the transition
-  let vd ← getActionParameters
-  let (unsimplifiedDef, fnDef, trDef) ← Command.runTermElabM fun vs => do
+  let vd ← getImplicitActionParameters
+  let (unsimplifiedDef, fnDef, /-trDef-/) ← Command.runTermElabM fun vs => do
     -- Create binders and arguments
     let sectionArgs ← getSectionArgumentsStx vs
     let (binders, args) ← match br with
     | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
     | none => pure (#[], #[])
     -- Create types
-    let stateTpT <- getStateTpStx
-    let (st, post) := (mkIdent `st, mkIdent `post)
-    let expectedType ← `($stateTpT -> sprop $stateTpT -> Prop)
-    -- IMPORTANT: we elaborate the term here so we get an error if it doesn't type check
-    match br with
-    | some br =>
-      let stx <-`(term| ((fun ($st : $stateTpT) ($post : sprop $stateTpT) =>
-                            exists $br, $tr $st $post) : $expectedType))
-      let _ <- elabTerm stx none
-    | none => let _ <- elabTerm (<- `(($tr : $expectedType))) none
     -- The actual command (not term) elaboration happens here
-    let (uName, fnName) := (toUnsimplifiedIdent nm, toFnIdent nm)
-    let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $binders* : $expectedType := $(← unfoldWlp tr))
+    let (uName, fnName) := (toUnsimplifiedIdent nm, nm)
+    let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $binders* := $(← unfoldWlp tr))
     trace[dsl.debug] "{unsimplifiedDef}"
-    let fnDef ← `(@[actSimp] def $fnName $[$vd]* $binders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
-    trace[dsl.debug] "{fnDef}"
     let attr ← toActionAttribute (toActionType actT)
+    let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $binders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
+    trace[dsl.debug] "{fnDef}"
     -- version with `exists` quantified arguments
-    let trDef ← do
-      let rhs ← match br with
-      | some br => `(fun ($st : $stateTpT) ($post : sprop $stateTpT) => exists $br, @$fnName $sectionArgs* $args* $st $post)
-      | none => `(fun ($st : $stateTpT) ($post : sprop $stateTpT) => @$fnName $sectionArgs* $st $post) -- $args = #[] here
-      `(@[$attr, actSimp] def $nm $[$vd]* : $expectedType := $(← simplifyTerm rhs))
+    -- let trDef ← do
+    --   let rhs ←  `(fun ($st : $stateTpT) ($post : sprop $stateTpT) => exists? $br ?, @$fnName $sectionArgs* $args* $st $post)
+    --   `(@[$attr, actSimp] def $nm $[$vd]* : $expectedType := $(← simplifyTerm rhs))
     trace[dsl.debug] "{tr}"
-    return (unsimplifiedDef, fnDef, trDef)
+    return (unsimplifiedDef, fnDef, /-trDef-/)
   -- Declare `.raw`, `.tr.fn`, and `.tr`
   elabCommand unsimplifiedDef
   elabCommand fnDef
-  elabCommand trDef
   -- add constructor for label type
   registerIOActionDecl actT nm br
   -- warn if this is not first-order
@@ -331,49 +323,43 @@ Note: Unlike `after_init` we expand `l` using `[lang| l]` (as opposed to
 `[lang1| l]`) as we want the transition to refer to both pre-state and
 post-state.-/
 
-syntax (actionType)? "action" ident (explicitBinders)? "=" doSeqVeil ? "{" doSeqVeil "}" : command
+
+syntax (actionType)? "action" ident (explicitBinders)? "=" doSeqVeil "{" doSeqVeil "}" : command
 -- syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
 
-def checkSpec (nm : Ident) (nmImpl nmSpec : Ident) (br : Option (TSyntax `Lean.explicitBinders)) : CommandElabM Unit := do
-  elabCommand $ ← Command.runTermElabM fun vs => do
-    let (st, st') := (mkIdent `st, mkIdent `st')
-    let thmName := mkIdent $ nm.getId ++ `spec_correct
-    match br with
-    | some br =>
-      let br' <- toBracketedBinderArray br
-      `(theorem $thmName :
-        ∀ $br'*, ∀ $st:ident $st':ident,
-          @$nmImpl $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st' ->
-          @$nmSpec $(← getSectionArgumentsStx vs)* $(← existentialIdents br)* $st $st' := by
+def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
+  (pre post : Term) (ret : TSyntax `rcasesPat) : CommandElabM Unit := do
+  try
+    elabCommand $ ← Command.runTermElabM fun vs => do
+      let st := mkIdent `st
+      let thmName := mkIdent $ nm.getId ++ `spec_correct
+      let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
+      let br <- (existentialIdents <$> br) |>.getD (pure #[])
+      let stx <- `(theorem $thmName $br' * : ∀ $st:ident,
+          (fun s => funcases s $pre) $st ->
+          @$nm $(← getSectionArgumentsStx vs)* $br* $st (by rintro $ret; exact (funcases $post)) := by
+          intro
           solve_clause)
-    | none =>
-      `(theorem $thmName :
-        ∀ $st:ident $st':ident,
-          @$nmImpl $(← getSectionArgumentsStx vs)* $st $st' ->
-          @$nmSpec $(← getSectionArgumentsStx vs)* $st $st' := by solve_clause)
+      trace[dsl.debug] "{stx}"
+      return stx
+  catch e =>
+    throwError s!"Error while checking the specification of {nm}:" ++ e.toMessageData
 
 
 def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option (TSyntax `doSeqVeil)) (l : TSyntax `doSeqVeil) : CommandElabM Unit := do
     let actT ← parseActionTypeStx actT
-    let (ret, st, st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st_curr, mkIdent `post)
     -- `σ → σ → Prop`, with binders existentially quantified
-    let tr ← Command.runTermElabM fun _ => (do
-      let stateTp ← getStateTpStx
-      `(fun ($st : $stateTp) ($post : sprop $stateTp) =>
-        (do' $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr))
-    )
-    let trIdent := toTrIdent nm
     let spec' := if spec.isSome then spec else l
-    elabCommand $ ← `($actT:actionType transition $trIdent $br ? = $tr)
+    elabCommand $ ← `($actT:actionType transition $nm $br ? = do' $l)
     Command.runTermElabM fun _ => do
       -- [add_action_lang] find the appropriate transition and add the `lang` declaration to it
       localSpecCtx.modify (fun s => { s with spec := {s.spec with
-        transitions := s.spec.transitions.map (fun t => if t.name == trIdent.getId then { t with lang := l, spec := spec' } else t)}})
-    elabCallableFn nm br l
-    -- unless spec.isNone do
+        transitions := s.spec.transitions.map (fun t => if t.name == nm.getId then { t with lang := l, spec := spec' } else t)}})
+    unless spec.isNone do
+      let (pre, binder, post) <- getPrePost spec.get!
     --   elabCallableFn nm br l (nmt := toSpecIdent)
-    --   checkSpec nm (toFnIdent nm) (toSpecIdent nm) brs
+      checkSpec nm br pre post binder
 
 elab_rules : command
   | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeqVeil}) =>
@@ -410,7 +396,7 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
       | .assumption => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.assumptions.size}"
     let name := getPropertyNameD name defaultName
     let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
-      let e <- elabWithMotives e
+      let e <- delabWithMotives e
       match kind with
       | .safety =>
         `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) $[$vd]*: $stateTp -> Prop := fun $(mkIdent `st) => $e: term)

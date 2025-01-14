@@ -146,9 +146,10 @@ syntax "if" ident ":" term "then" doSeqVeil : doElemVeil
 
 declare_syntax_cat unchanged
 declare_syntax_cat spec
-syntax "requires" term colGe "ensures" (rcasesPat  ",")? term : spec
+syntax "requires" term colGe "ensures" rcasesPat  "," term : spec
+syntax (priority := high) "requires" term colGe "ensures" term : spec
 syntax "with unchanged" "[" ident,* "]" : unchanged
-syntax spec colGe unchanged ? : term
+syntax spec (colGe unchanged)? : term
 syntax "[unchanged|" ident* "]" : term
 
 syntax sepByIndentSemicolon(doElemVeil) : doSeqVeil
@@ -277,9 +278,12 @@ macro_rules
 macro_rules
   | `(requires $pre ensures $post:term $un:unchanged ?) => `(requires $pre ensures (_ : Unit), $post:term $un:unchanged ?)
 
-def getPrePost : Term -> (Term × Term)
-  | `(requires $pre ensures $post:term $_:unchanged ?) => (pre, post)
-  | _ => panic! "expected `requires pre ensures post`"
+def getPrePost (spec : TSyntax `doSeqVeil) [Monad m] [MonadError m] [MonadQuotation m] :
+  m (Term × TSyntax `rcasesPat × Term) := do
+  match spec with
+  | `(doSeqVeil| requires $pre ensures $id, $post:term $_:unchanged ?) => pure (pre, id, post)
+  | `(doSeqVeil| requires $pre ensures $post:term $_:unchanged ?) => pure (pre, <- `(rcasesPat|(_ : Unit)), post)
+  | _ => throwErrorAt spec "Invalid sepcification: expected `requires ... ensures ...`"
 
 elab_rules : term
   /- if the list of unchanged state fileds is omitted, we can restore it by

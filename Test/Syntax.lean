@@ -15,8 +15,12 @@ function f : Nat -> Nat
 set_option linter.unusedVariables.analyzeTactics true
 
 
-action foo (k : Nat) = {
+action foo (k : Nat) =
+  requires ∀ x, r x k
+  ensures True
+{
   let x <- fresh node
+  -- return x
   require r x k
 }
 

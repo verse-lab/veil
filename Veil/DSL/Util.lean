@@ -162,7 +162,7 @@ def elabBindersAndCapitals
         k vars e
 
 /-- Elaborator with motives. -/
-def elabWithMotives :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
+def delabWithMotives :=  (withOptions (·.insert `pp.motives.all true) $ PrettyPrinter.delab ·)
 
 /-- Hack for generating lists of commands. Used by `checkInvariants` -/
 declare_syntax_cat commands

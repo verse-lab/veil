@@ -112,7 +112,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         -- See `elab "invariant"` in `DSL.lean`.
         let stx <- funcasesM t (← getStateArguments vd vs)
         let t ← elabBindersAndCapitals #[] vs stx fun _ e => do
-          let e <- elabWithMotives e
+          let e <- delabWithMotives e
           `(fun $(mkIdent `st) => $e: term)
         let t ← `(term|($t $currState))
         assertions := assertions.push t
