@@ -135,7 +135,7 @@ macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident
 /-- `require s` checks if `s` is true on the current state -/
 syntax "require" term      : term
 /-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
-syntax "fresh" term ? : term
+syntax "fresh" (lineEq term) ? : term
 
 declare_syntax_cat doSeqVeil
 declare_syntax_cat doElemVeil
