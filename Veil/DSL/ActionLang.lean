@@ -60,8 +60,8 @@ def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
 def Wlp.withState {σ} (r : σ -> ρ) : Wlp σ ρ :=
   fun s post => post (r s) s
 @[actSimp]
-def Wlp.spec (pre : sprop σ) (post : rprop σ ρ) : Wlp σ ρ :=
-  fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post r s)
+def Wlp.spec (pre : sprop σ) (post : σ -> rprop σ ρ) : Wlp σ ρ :=
+  fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post s r s')
 
 instance : MonadStateOf σ (Wlp σ) where
   get := fun s post => post s s
@@ -320,8 +320,8 @@ elab_rules : term
     elabTerm (<- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])) none
   | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
     -- withRef t $
-    elabTerm (<- `(term| Wlp.spec (funcases $pre) (
-      by rintro st ⟨st', $r⟩;
+    elabTerm (<- `(term| @Wlp.spec [State] _ (funcases $pre) (
+      by rintro st $r st';
          unhygienic cases st';
          with_rename_old unhygienic cases st;
          exact $post ∧ [unchanged|$ids*]))) none

@@ -14,6 +14,18 @@ function f : Nat -> Nat
 
 #gen_state Test
 
+
+set_option linter.unusedVariables.analyzeTactics true
+
+action foo (k : Nat) =
+  requires ∀ x, r x k
+  ensures True
+{
+  let x <- fresh node
+  -- return x
+  require r x k
+}
+
 #guard_msgs(drop warning) in
 action foo2 (k : Nat) = {
   let mut y := 0

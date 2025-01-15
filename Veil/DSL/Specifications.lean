@@ -86,8 +86,8 @@ structure ActionSpecification where
   decl : IOAutomata.ActionDeclaration
   /-- DSL expression for this action -/
   lang : Option (TSyntax `doSeqVeil)
-  /-- DSL specification of this action -/
-  spec : Option (TSyntax `doSeqVeil) := lang
+  /-- Flag indicating if current action has a specification -/
+  hasSpec : Bool := false
   /-- Lean `Expr` for this predicate; this is usually a constant in the
   environment, *without* having applied the section variables. -/
   expr : Expr
