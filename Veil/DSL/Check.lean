@@ -124,19 +124,20 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
           | throwError s!"action {actName} not found"
         let tr := mkIdent $ toTrName actName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
-        return (fun invStx => `((@$tr $sectionArgs* $st ($invStx)) ∧ $(mkIdent indName)))
+        return (fun invStx => `($(mkIdent indName) → (@$tr $sectionArgs* $st ($invStx))))
         -- pure (mkAnd (mkApp2 (mkAppN act vs) (mkConst st.getId) (mkConst st'.getId)) indName)
       )
       let invStxList : Array Term ← invIndicators.toArray.mapM (fun (invName, indName) => do
         let .some _ := ge.find? invName
           | throwError s!"invariant {invName} not found"
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
-        `((@$(mkIdent invName) $sectionArgs* $st_curr) ∧ (¬ $(mkIdent indName)))
+        `(($(mkIdent indName) → @$(mkIdent invName) $sectionArgs* $st_curr))
         -- pure (mkOr (mkApp (mkAppN inv vs) (mkConst st'.getId)) (mkNot indName))
       )
-      let sprop_invariants ← `(fun ($st_curr : $stateTpT) => $(← repeatedAnd invStxList))
-      let rprop_invariants ← `(fun _ ($st_curr : $stateTpT) => $(← repeatedAnd invStxList))
-      let _actions ← repeatedOr $ ← actStxList.mapM (fun f => f rprop_invariants)
+      let inv ← repeatedAnd invStxList
+      let sprop_invariants ← `(fun ($st_curr : $stateTpT) => $inv)
+      let rprop_invariants ← `(fun _ ($st_curr : $stateTpT) => $inv)
+      let _actions ← repeatedAnd $ ← actStxList.mapM (fun f => f rprop_invariants)
       let allIndicators := List.append invIndicators actIndicators
       let timeout := auto.smt.timeout.get (← getOptions)
 

@@ -73,12 +73,23 @@ theorem forall_imp_left : b → (∀ x, p x) ↔ (∀ x, b → p x) := by
 attribute [quantifierElim] forall_imp_left
 end forall_imp
 
-open Classical in
-theorem ite_forall_push_out [ne : Nonempty α] (p r : Prop) (q : α → Prop) : (if p then ∀ t, q t else r) = (∀ t, if p then q t else r) := by
-  apply propext; by_cases h : p
-  { simp only [if_pos h] }
-  { simp only [if_neg h, forall_const] }
-attribute [quantifierElim] ite_forall_push_out
+section IteForallPushOutTheorems
+open Classical
 
+open Lean Elab Tactic in
+elab "prove_ite_forall_push_out" p:term : tactic => withMainContext do evalTactic $ ←
+`(tactic|apply propext; by_cases h : $p; { simp only [if_pos h, forall_const] }; { simp only [if_neg h, forall_const] })
+
+theorem ite_then_forall_push_out [ne : Nonempty α] (c r : Prop) (q : α → Prop) : (if c then ∀ t, q t else r) = (∀ t, if c then q t else r) := by prove_ite_forall_push_out c
+attribute [quantifierElim] ite_then_forall_push_out
+
+theorem ite_else_forall_push_out [ne : Nonempty α] (c r : Prop) (q : α → Prop) : (if c then r else ∀ t, q t) = (∀ t, if c then r else q t) := by prove_ite_forall_push_out c
+attribute [quantifierElim] ite_else_forall_push_out
+
+-- FIXME George: this doesn't seem to trigger
+theorem ite_both_forall_push_out [ne : Nonempty α] [ne' : Nonempty β] (p : α → Prop) (q : β → Prop) :
+  (if c then ∀ a, p a else ∀ b, q b) = (∀ (a : α) (b : β), if c then p a else q b) := by prove_ite_forall_push_out c
+attribute [quantifierElim] ite_both_forall_push_out
+end IteForallPushOutTheorems
 
 end UniversalQuantifierTheorems

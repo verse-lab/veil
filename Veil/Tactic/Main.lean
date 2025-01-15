@@ -145,8 +145,9 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   -- simplified, which is the case for DSL-defined actions
   let thoroughSimp := mkSimpLemmas $ #[injEqLemma, `invSimp, `smtSimp, `logicSimp].map mkIdent
   let fastSimp := mkSimpLemmas $ #[`invSimp, `smtSimp].map mkIdent
+  let finalGoalSimp := mkSimpLemmas $ #[`quantifierElim].map mkIdent
   let simp2 := if thorough then thoroughSimp else fastSimp
-  let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *))
+  let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *) ; (try simp only [$finalGoalSimp,*]))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac

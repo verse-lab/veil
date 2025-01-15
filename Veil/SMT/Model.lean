@@ -7,8 +7,9 @@ abbrev SortName := Lean.Name
 abbrev UninterpretedValue := Lean.Name
 
 def _root_.String.toSanitizedName (s : String) : Lean.Name :=
-  -- FIXME: this is a hack
-  let s := s.replace "✝" ""
+  -- FIXME: this is a hack to get rid of shadowed names
+  let badChars := #["✝", "⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"]
+  let s := badChars.foldl (init := s) fun s c => s.replace c " "
   s.toSubstring.toName
 
 instance : Ord SortName where

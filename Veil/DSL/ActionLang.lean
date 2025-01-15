@@ -52,7 +52,9 @@ instance : Monad (Wlp σ) where
   bind := Wlp.bind
 
 @[actSimp]
-def Wlp.require (rq : Prop) : Wlp σ PUnit := fun s post => rq ∧ post () s
+def Wlp.assume (rq : Prop) : Wlp σ PUnit := fun s post => rq → post () s
+@[actSimp]
+def Wlp.assert (as : Prop) : Wlp σ PUnit := fun s post => as ∧ post () s
 @[actSimp]
 def Wlp.det (act : σ -> ρ × σ) : Wlp σ ρ := fun s post => let (ret, s') := act s ; post ret s'
 @[actSimp]
@@ -84,7 +86,8 @@ macro "unfold_wlp" : conv =>
     Wlp.det
     Wlp.pure
     Wlp.bind
-    Wlp.require
+    Wlp.assume
+    Wlp.assert
     Wlp.fresh
     Wlp.withState
     -- unfold specifications
@@ -266,7 +269,7 @@ elab "do'" stx:doSeqVeil : term => do
   elabTerm (<- `(term| ((do $stx') : Wlp [State] _))) none
 
 macro_rules
-  | `(require $t) => `(Wlp.require $t)
+  | `(require $t) => `(Wlp.assume $t)
   | `(fresh   $t) => `(Wlp.fresh $t)
   | `(fresh)      => `(Wlp.fresh _)
 
