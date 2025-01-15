@@ -55,7 +55,7 @@ def toActionAttribute (type : IOAutomata.ActionType) : AttrM (TSyntax `Lean.Pars
 def addAction (type : IOAutomata.ActionType) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
   fun _ _ => do
     let spec := ActionSpecification.mkPlain type declName (mkConst declName)
-    localSpecCtx.modify (fun s => { s with spec := {s.spec with transitions := s.spec.transitions.push spec }})
+    localSpecCtx.modify (fun s => { s with spec := {s.spec with actions := s.spec.actions.push spec }})
 
 initialize registerBuiltinAttribute {
   name := `internalActDef

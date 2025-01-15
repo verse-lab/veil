@@ -88,7 +88,7 @@ structure ActionSpecification where
   lang : Option (TSyntax `doSeqVeil)
   /-- Flag indicating if current action has a specification -/
   hasSpec : Bool := false
-  /-- Lean `Expr` for this predicate; this is usually a constant in the
+  /-- Lean `Expr` for this action; this is usually a constant in the
   environment, *without* having applied the section variables. -/
   expr : Expr
 deriving Inhabited, BEq
@@ -163,8 +163,8 @@ structure ModuleSpecification where
   assumptions : Array StateAssertion
   /-- Initial state predicate -/
   init        : StateSpecification
-  /-- Transitions of the system -/
-  transitions : Array ActionSpecification
+  /-- Action of the system -/
+  actions : Array ActionSpecification
   /-- Invariants -/
   invariants  : Array StateAssertion
 deriving Inhabited
@@ -187,7 +187,7 @@ def ModuleSpecification.mutableComponents (spec : ModuleSpecification) : Array S
 to the transition's signature. This is used to build up a `Label` type
 for this specification, which encodes its IO Automata signature. -/
 def ModuleSpecification.transitionCtors (spec : ModuleSpecification) : CoreM (Array (TSyntax `Lean.Parser.Command.ctor)) := do
-  spec.transitions.mapM (fun t => do match t.decl.ctor with
+  spec.actions.mapM (fun t => do match t.decl.ctor with
     | some ctor => return ctor
     | none => throwError "DSL: missing constructor for transition {t.decl.name}")
 

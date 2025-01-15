@@ -36,6 +36,7 @@ def Function.toWlp (r : σ -> σ -> Prop) : Wlp σ Unit :=
   fun s post => ∀ s', r s s' -> post () s'
 
 end Types
+
 section
 
 variable {σ ρ : Type}

@@ -18,7 +18,7 @@ after_init {
 
 /-- info: true -/
 #guard_msgs in
-#eval isElaboratedCorrectly ``Test.initialState?
+#eval isElaboratedCorrectly ``Test.Init
 
 #guard_msgs in
 action empty = {

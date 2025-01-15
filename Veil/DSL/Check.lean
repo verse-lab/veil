@@ -38,7 +38,7 @@ abbrev ActionsChecksT := Array (Name × ActionChecksT)
 /--  Generate theorems to check in the initial state and after each action -/
 def getAllChecks : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun vs => do
     let invNames := (← localSpecCtx.get).spec.invariants.map StateAssertion.name
-    let actNames := ((<- localSpecCtx.get).spec.transitions).map (fun s => s.name)
+    let actNames := ((<- localSpecCtx.get).spec.actions).map (fun s => s.name)
     let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName name}"))
     let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{mkPrintableName name}"))
     let mut actChecks := #[]
@@ -50,7 +50,7 @@ def getAllChecks : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) �
 /-- Generate theorems to check the given invariant clause in the initial
 state and after each action. -/
 def getChecksForInvariant (invName : Name) : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun vs => do
-    let actNames := ((<- localSpecCtx.get).spec.transitions).map (fun s => s.name)
+    let actNames := ((<- localSpecCtx.get).spec.actions).map (fun s => s.name)
     let invNamesInd := (invName, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName invName}")
     let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{mkPrintableName name}"))
     let mut actChecks := #[]
@@ -79,26 +79,29 @@ inductive CheckInvariantsBehaviour
 def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
   Command.runTermElabM fun vs => do
     let ge ← getEnv
-    let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
+    let (systemTp, stateTp, st, st_curr) := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
+    let sectionArgs ← getSectionArgumentsStx vs
+    let stateTpT ← getStateTpStx
     let mut theorems := #[]
     -- Init checks
     for (invName, _) in invIndicators.reverse do
       let .some _ := ge.find? invName
         | throwError s!"invariant {invName} not found"
-      let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
+      let invStx ← `(@$(mkIdent invName) $sectionArgs*)
       if generateInitThms then
-        let initTpStx ← `(∀ ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st' ∧ ($systemTp).$(mkIdent `init) $st' → $invStx $st')
+        let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st $invStx)
         let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
         theorems := theorems.push thm
     -- Action checks
     for (actName, _) in actIndicators.reverse do
+      let trName := toTrName actName
       for (invName, _) in invIndicators.reverse do
         let .some _ := ge.find? actName
           | throwError s!"action {actName} not found"
-        let invStx ← PrettyPrinter.delab $ mkAppN (mkConst invName) vs
-        let actStx ← PrettyPrinter.delab $ mkAppN (mkConst actName) vs
-        let actTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st ∧ ($systemTp).$(mkIdent `inv) $st → $actStx $st $st' → $invStx $st')
-        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := by unhygienic intros; solve_clause [$(mkIdent actName)])
+        let invStx ← `(@$(mkIdent invName) $sectionArgs*)
+        let actStx ← `(@$(mkIdent trName) $sectionArgs*)
+        let actTpSyntax ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st ∧ ($systemTp).$(mkIdent `inv) $st → $actStx $st (fun _ ($st_curr : $stateTpT) => $invStx $st_curr))
+        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $actTpSyntax := by unhygienic intros; solve_clause [$(mkIdent trName)])
         theorems := theorems.push thm
     return theorems
 
@@ -112,21 +115,28 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   | .printTheorems => displaySuggestion stx theorems
   | .checkTheorems | .printAndCheckTheorems =>
     let msg ← Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
-      let actStxList ← actIndicators.mapM (fun (actName, indName) => do
+      let (systemTp, stateTp, st, st_curr) := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st_curr)
+      let sectionArgs ← getSectionArgumentsStx vs
+      let stateTpT ← getStateTpStx
+      -- given the syntax of the invariant, get the syntax of the transition
+      let actStxList : Array (Term → TermElabM Term) ← actIndicators.toArray.mapM (fun (actName, indName) => do
         let .some _ := ge.find? actName
           | throwError s!"action {actName} not found"
-        let act ← mkConst actName
-        pure (mkAnd (mkApp2 (mkAppN act vs) (mkConst st.getId) (mkConst st'.getId)) indName)
-        )
-      let invStxList ← invIndicators.mapM (fun (invName, indName) => do
+        let tr := mkIdent $ toTrName actName
+        let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
+        return (fun invStx => `((@$tr $sectionArgs* $st ($invStx)) ∧ $(mkIdent indName)))
+        -- pure (mkAnd (mkApp2 (mkAppN act vs) (mkConst st.getId) (mkConst st'.getId)) indName)
+      )
+      let invStxList : Array Term ← invIndicators.toArray.mapM (fun (invName, indName) => do
         let .some _ := ge.find? invName
           | throwError s!"invariant {invName} not found"
-        let inv ← mkConst invName
-        pure (mkOr (mkApp (mkAppN inv vs) (mkConst st'.getId)) (mkNot indName))
+        let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
+        `((@$(mkIdent invName) $sectionArgs* $st_curr) ∧ (¬ $(mkIdent indName)))
+        -- pure (mkOr (mkApp (mkAppN inv vs) (mkConst st'.getId)) (mkNot indName))
       )
-      let _actions ← PrettyPrinter.delab $ mkOrN actStxList
-      let invariants ← PrettyPrinter.delab $ Lean.mkAndN invStxList
+      let sprop_invariants ← `(fun ($st_curr : $stateTpT) => $(← repeatedAnd invStxList))
+      let rprop_invariants ← `(fun _ ($st_curr : $stateTpT) => $(← repeatedAnd invStxList))
+      let _actions ← repeatedOr $ ← actStxList.mapM (fun f => f rprop_invariants)
       let allIndicators := List.append invIndicators actIndicators
       let timeout := auto.smt.timeout.get (← getOptions)
 
@@ -134,8 +144,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let initParams ← Array.mapM (fun (_, e) => do
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ invIndicators.toArray
-      -- EK: We're using `st'` and not st because `invariants` is already phrased in terms of `st'`.
-      let initTpStx ← `(∀ $[$initParams]* ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st' ∧ ($systemTp).$(mkIdent `init) $st' → $invariants)
+      let initTpStx ← `(∀ $[$initParams]* ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st $sprop_invariants)
       trace[dsl] "init check: {initTpStx}"
       let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
       trace[dsl.debug] "SMT init check: {initCmd}"
@@ -150,7 +159,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let actParams ← Array.mapM (fun (_, e) => do
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ allIndicators.toArray
-      let actTpStx ← `(∀ $[$actParams]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st ∧ ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
+      let actTpStx ← `(∀ $[$actParams]* ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st ∧ ($systemTp).$(mkIdent `inv) $st → $_actions)
       trace[dsl] "action check: {actTpStx}"
       let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
       trace[dsl.debug] "SMT action check: {actCmd}"
@@ -167,6 +176,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       | .checkTheorems => dbg_trace msg
       | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
       | _ => unreachable!
+
 
 
 /- ## `#check_invariants` -/
@@ -230,28 +240,33 @@ elab "already_proven" : tactic => withMainContext do
   evalTactic attempt
 
 elab "prove_inv_init" proof:term : command => do
-  elabCommand $ <- Command.runTermElabM fun vs => do
+  elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
-    `(theorem $(mkIdent `inv_init) : invInit (σ := $stateTp) :=
-       by unfold invInit
+    let invInit := mkIdent ``AxiomaticTransitionSystem.invInit
+    `(theorem $(mkIdent `inv_init) : $invInit (σ := $stateTp) :=
+       by unfold $invInit
           -- simp only [initSimp, invSimp]
           intros $(mkIdent `st)
           exact $proof)
 
 elab "prove_inv_safe" proof:term : command => do
-  elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   <- getStateTpStx
-    `(theorem $(mkIdent `safety_init) : invSafe (σ := $stateTp) :=
-       by unfold invSafe;
+  elabCommand $ <- Command.runTermElabM fun _ => do
+    let stateTp <- getStateTpStx
+    let invSafe := mkIdent ``AxiomaticTransitionSystem.invSafe
+    `(theorem $(mkIdent `safety_init) : $invSafe (σ := $stateTp) :=
+       by unfold $invSafe;
           -- simp only [initSimp, safeSimp]
           intros $(mkIdent `st);
           exact $proof)
 
 elab "prove_inv_inductive" proof:term : command => do
-  elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp   <- getStateTpStx
-    `(theorem $(mkIdent `inv_inductive) : invInductive (σ := $stateTp) :=
-      by unfold invInductive invInit invConsecution;
+  elabCommand $ <- Command.runTermElabM fun _ => do
+    let stateTp <- getStateTpStx
+    let invInit := mkIdent ``AxiomaticTransitionSystem.invInit
+    let invInductive := mkIdent ``AxiomaticTransitionSystem.invInductive
+    let invConsecution := mkIdent ``AxiomaticTransitionSystem.invConsecution
+    `(theorem $(mkIdent `inv_inductive) : $invInductive (σ := $stateTp) :=
+      by unfold $invInit $invInductive $invConsecution;
         --  intros $(mkIdent `st) $(mkIdent `st')
         --  simp only [actSimp, invSimp, safeSimp]
          exact $proof)
