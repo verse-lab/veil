@@ -124,6 +124,11 @@ instance : Ord FirstOrderValue where
     | .Interpreted .., .Uninterpreted .. => Ordering.lt
     | .Uninterpreted .., .Interpreted .. => Ordering.gt
 
+def FirstOrderValue.isBoolean (val : FirstOrderValue) : Bool :=
+  match val with
+  | FirstOrderValue.Interpreted { name := `Bool } _ => true
+  | _ => false
+
 def FirstOrderValue.isTrue (val : FirstOrderValue) : Bool :=
   match val with
   | FirstOrderValue.Interpreted { name := `Bool } b => b
@@ -285,8 +290,9 @@ def Interpretation.isAlwaysFalse (interp : Interpretation) : Bool := Id.run do
   match interp with
   | .Enumeration iopairs =>
     for (_args, val) in iopairs do
-      if val.isTrue then return false
-    return true
+      if !val.isBoolean then return false -- if it's not a boolean, we can't say it's always false
+      if val.isTrue then return false     -- if it's true, it's not always false
+    return true -- it's always boolean and always false
   | .Symbolic _ => return false
 
 /-- What string to show to the user when this declaration is always false? -/
