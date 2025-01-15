@@ -63,22 +63,37 @@ def Wlp.withState {σ} (r : σ -> ρ) : Wlp σ ρ :=
 def Wlp.spec (pre : sprop σ) (post : rprop σ ρ) : Wlp σ ρ :=
   fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post r s)
 
+instance : MonadStateOf σ (Wlp σ) where
+  get := fun s post => post s s
+  set s' := fun _ post => post () s'
+  modifyGet := Wlp.det
+
+class IsStateExtension (σ : semiOutParam Type) (σ' : Type) where
+  extendWith : σ -> σ' -> σ'
+  restrictTo : σ' -> σ
+
+export IsStateExtension (extendWith restrictTo)
+
+instance [IsStateExtension σ σ'] : MonadLift (Wlp σ) (Wlp σ') where
+  monadLift := fun m s post => m (restrictTo s) (fun r s' => post r (extendWith s' s))
+
 macro "unfold_wlp" : conv =>
   `(conv| unfold
+    -- unfold actions defined via Veil do-notation
     Wlp.det
     Wlp.pure
     Wlp.bind
     Wlp.require
     Wlp.fresh
     Wlp.withState
+    -- unfold specifications
     Wlp.spec
-    Function.toWlp)
-
-
-instance : MonadStateOf σ (Wlp σ) where
-  get := fun s post => post s s
-  set s' := fun _ post => post () s'
-  modifyGet := Wlp.det
+    -- unfold actions defined via two-state relations
+    Function.toWlp
+    -- unfold actions definded via lifting
+    monadLift
+    restrictTo
+    extendWith)
 
 end
 
