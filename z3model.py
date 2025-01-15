@@ -206,7 +206,7 @@ class Model:
             assert z3.is_bool(expr), expr
             ans = z3model.eval(expr, model_completion=True)
             assert z3.is_bool(ans), (expr, ans)
-            return bool(ans)
+            return bool(ans) if z3.is_false(ans) or z3.is_true(ans) else None
 
         def _eval_int(expr: z3.ExprRef) -> int:
             assert z3.is_int(expr), expr
@@ -271,8 +271,9 @@ class Model:
                 # print(f"domains for {z3decl}: {domains}", file=sys.stderr)
                 # Evaluate the const/rel/function on all possible inputs
                 fi: Dict[Tuple, Union[bool, int, SortElement]] = {
-                    row: _eval(z3decl(*(e.z3expr for e in row)))
+                    row: evaluated
                     for row in itertools.product(*domains)
+                    if (evaluated := _eval(z3decl(*(e.z3expr for e in row))))
                 }
                 # NOTE: mypyvy has some assertions about `fi` here, which we elide
                 # print(f"fi for {z3decl}: {fi}")
@@ -293,7 +294,8 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
     interp = z3model.eval(z3.Lambda(args, z3decl(*args)),
                           model_completion=True)
     # print(f"interp: {interp}", file=sys.stderr)
-    vp = z3.simplify(interp.__getitem__(*args))
+    print(args)
+    vp = z3.simplify(interp[*args])
     solver = z3.Solver()
     solver.add(vp)
 
