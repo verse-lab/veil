@@ -16,8 +16,9 @@ internal transition byz = fun st st' =>
     (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
     (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v)))
 
-internal transition withargs (n : address) = fun st st' =>
-  (∀ (src dst : address) (r : address) (v : address),
+#guard_msgs in
+internal transition withargs (r : address) = fun st st' =>
+  (∀ (src dst : address) (v : address),
     (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
     (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v)))
 

@@ -16,9 +16,9 @@ action nondet_individual = {
 
 /--
 info: def nondet_individual : {node : Type} →
-  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Test.State node → rprop (Test.State node) Unit → Prop :=
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wlp (Test.State node) Unit :=
 fun {node} [DecidableEq node] [Nonempty node] =>
-  let t := fun st post => ∀ (t : Prop), post () { x := t, r := st.r };
+  let t := fun s post => ∀ (t : Prop), post () { x := t, r := s.r };
   t
 -/
 #guard_msgs in
@@ -31,11 +31,10 @@ action quantify_fresh (n : node) = {
 
 /--
 info: def quantify_fresh : {node : Type} →
-  [node_dec : DecidableEq node] →
-    [node_ne : Nonempty node] → node → Test.State node → rprop (Test.State node) Unit → Prop :=
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → node → Wlp (Test.State node) Unit :=
 fun {node} [DecidableEq node] [Nonempty node] n =>
-  let t := fun st post =>
-    ∀ (t : node → node → Prop), post () { x := st.x, r := fun x N => if x = n then t n N else st.r x N };
+  let t := fun s post =>
+    ∀ (t : node → node → Prop), post () { x := s.x, r := fun x N => if x = n then t n N else s.r x N };
   t
 -/
 #guard_msgs in
@@ -47,9 +46,9 @@ action double_quant = {
 
 /--
 info: def double_quant : {node : Type} →
-  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Test.State node → rprop (Test.State node) Unit → Prop :=
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wlp (Test.State node) Unit :=
 fun {node} [DecidableEq node] [Nonempty node] =>
-  let t := fun st post => ∀ (t : node → node → Prop), post () { x := st.x, r := fun N N => t N N };
+  let t := fun s post => ∀ (t : node → node → Prop), post () { x := s.x, r := fun N N => t N N };
   t
 -/
 #guard_msgs in
