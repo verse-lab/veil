@@ -28,25 +28,22 @@ after_init {
 }
 
 action send (n next : node) = {
-  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := True
 }
 
-action recv (sender n next : node) (havoc : Prop) = {
-  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+action recv (sender n next : node) = {
+  require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   require pending sender n
   -- message may or may not be removed
   -- this models that multiple messages might be in flight
-  pending sender n := havoc
-  if (sender = n) {
+  pending sender n := *
+  if (sender = n) then
     leader n := True
-  }
-  else {
+  else
     -- pass message to next node
-    if (le n sender) {
+    if (le n sender) then
       pending sender next := True
-    }
-  }
 }
 
 safety [single_leader] leader L → le N L
@@ -57,7 +54,7 @@ invariant pending L L → le N L
 
 #check_invariants
 
-prove_inv_init by { simp_all [initSimp, actSimp, wlp, invSimp] }
+prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
 
 prove_inv_safe by {
   sdestruct st;

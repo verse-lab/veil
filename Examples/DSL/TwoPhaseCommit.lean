@@ -55,15 +55,15 @@ action fail(n: node) = {
 }
 
 action go1 = {
-  require ¬go_commit N;
-  require ¬go_abort N;
-  require vote_yes N;
+  require ∀ N, ¬go_commit N;
+  require ∀ N, ¬go_abort N;
+  require ∀ N, vote_yes N;
   go_commit N := True
 }
 
 action go2 = {
-  require ¬go_commit N;
-  require ¬go_abort N;
+  require ∀ N, ¬go_commit N;
+  require ∀ N, ¬go_abort N;
   require exists n, vote_no n ∨ ¬alive n;
   go_abort N := True
 }
