@@ -89,7 +89,7 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
       let invStx ← `(@$(mkIdent invName) $sectionArgs*)
       if generateInitThms then
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by unhygienic intros; solve_clause [$(mkIdent `initSimp)])
+        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); solve_clause [$(mkIdent `initSimp)])
         theorems := theorems.push thm
     -- Action checks
     for (actName, _) in actIndicators.reverse do
@@ -100,7 +100,7 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let trStx ← `(@$(mkIdent trName) $sectionArgs*)
         let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by unhygienic intros; solve_clause [$(mkIdent trName)])
+        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); solve_clause [$(mkIdent trName)])
         theorems := theorems.push thm
     return theorems
 
