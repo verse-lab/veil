@@ -27,13 +27,21 @@ variable (σ : Type)
 /-- Two-state formula -/
 @[inline] abbrev actprop := σ -> σ -> Prop
 
-/-  Wlp (σ : Type) (ρ : Type) := rprop σ ρ -> sprop σ -/
+/-  Wlp (σ : Type) (ρ : Type)    := rprop σ ρ -> sprop σ -/
+/-  Wlp (σ : Type) (ρ : Type)    := rprop σ ρ -> σ -> Prop -/
 abbrev Wlp (σ : Type) (ρ : Type) := σ -> rprop σ ρ -> Prop
+def BigStep (σ : Type) (ρ : Type) := σ -> ρ -> σ -> Prop
 
 /-- Function which transforms any two-state formula into `Wlp` -/
 @[actSimp]
 def Function.toWlp (r : σ -> σ -> Prop) : Wlp σ Unit :=
   fun s post => ∀ s', r s s' -> post () s'
+
+def Wlp.toBigStep {σ} (act : Wlp σ ρ) : BigStep σ ρ :=
+  fun s r' s' => act s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
+
+def BigStep.toWlp (act : BigStep σ ρ) : Wlp σ ρ :=
+  fun s post => ∀ r s', act s r s' -> post r s'
 
 end Types
 
@@ -65,6 +73,16 @@ def Wlp.withState {σ} (r : σ -> ρ) : Wlp σ ρ :=
 @[actSimp]
 def Wlp.spec (pre : sprop σ) (post : σ -> rprop σ ρ) : Wlp σ ρ :=
   fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post s r s')
+
+def BigStep.choice : BigStep σ ρ -> BigStep σ ρ -> BigStep σ ρ :=
+  fun act act' s r s' => act s r s' ∨ act' s r s'
+
+/- BAD: it duplicates post -/
+-- def Wlp.choice : Wlp σ ρ -> Wlp σ ρ -> Wlp σ ρ :=
+--   fun wp wp' s post => wp s post ∨ wp' s post
+
+def Wlp.choice (wp : Wlp σ ρ) (wp' : Wlp σ ρ) : Wlp σ ρ :=
+  wp.toBigStep.choice wp'.toBigStep |>.toWlp
 
 instance : MonadStateOf σ (Wlp σ) where
   get := fun s post => post s s
