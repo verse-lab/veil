@@ -72,6 +72,16 @@ def errorIfStateNotDefined : CoreM Unit := do
   if stateName.isNone then
      throwError "State has not been declared so far: run `#gen_state [name]`"
 
+def warnIfNoInvariantsDefined : CoreM Unit := do
+  let invariants := (← localSpecCtx.get).spec.invariants
+  if invariants.isEmpty then
+    logWarning "you have not defined any invariants for this specification; did you forget?"
+
+def warnIfNoActionsDefined : CoreM Unit := do
+  let actions := (← localSpecCtx.get).spec.actions
+  if actions.isEmpty then
+    logWarning "you have not defined any actions for this specification; did you forget?"
+
 /-- Retrieves the name passed to `#gen_state` -/
 def getPrefixedName (name : Name): AttrM Name := do
   let stateName := (← localSpecCtx.get).stateBaseName

@@ -542,14 +542,17 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
     liftCommandElabM $ elabCommand $ rtsStx
 
 @[inherit_doc instantiateSystem]
-elab "#gen_spec" name:ident : command => do
-  liftCoreM errorIfStateNotDefined
-  instantiateSystem name.getId
+def genSpec (name : Name) : CommandElabM Unit := do
+  liftCoreM (do errorIfStateNotDefined; warnIfNoInvariantsDefined; warnIfNoActionsDefined)
+  instantiateSystem name
   Command.runTermElabM fun _ => do
     -- set the name of the spec
-    localSpecCtx.modify (fun s => { s with spec := {s.spec with name := name.getId }})
+    localSpecCtx.modify (fun s => { s with spec := {s.spec with name := name }})
     -- globally register the spec, so it can be composed with other modules
     registerModuleSpecification (← localSpecCtx.get).spec
+
+elab "#gen_spec" name:ident : command => do
+  genSpec name.getId
 
 /-! ## Section Variables -/
 
