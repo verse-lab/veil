@@ -233,6 +233,39 @@ theorem exists_and_right' : (∃ x, p x) ∧ b ↔ (∃ x, p x ∧ b) := by rw [
 end exists_and
 attribute [quantifierElim] exists_and_right' exists_and_left'
 
+section exists_or
+variable [ne : Nonempty α] {p q : α → Prop} {b : Prop}
+
+theorem exists_or_left : b ∨ (∃ x, p x) ↔ (∃ x, b ∨ p x) := by
+  constructor
+  {
+    rintro (hb | ⟨x, px⟩)
+    · rcases ne with ⟨x⟩; exists x; exact Or.inl hb
+    · exists x; exact Or.inr px
+  }
+  {
+    rintro ⟨x, hb | px⟩
+    · exact Or.inl hb
+    · exact Or.inr ⟨x, px⟩
+  }
+
+theorem exists_or_right : (∃ x, p x) ∨ b ↔ (∃ x, p x ∨ b) := by
+  constructor
+  {
+    rintro (⟨x, hx⟩ | hb)
+    · exists x; exact Or.inl hx
+    · rcases ne with ⟨x⟩; exists x; exact Or.inr hb
+  }
+  {
+    rintro ⟨x, hx | hb⟩
+    · exact Or.inl ⟨x, hx⟩
+    · exact Or.inr hb
+  }
+
+attribute [quantifierElim] exists_or_left exists_or_right
+end exists_or
+
+
 open Classical in
 theorem ite_exists_push_out [ne : Nonempty α] (p r : Prop) (q : α → Prop) : (if p then ∃ t, q t else r) = (∃ t, if p then q t else r) := by
   apply propext; by_cases h : p
@@ -245,6 +278,19 @@ theorem ite_exists_push_out [ne : Nonempty α] (p r : Prop) (q : α → Prop) : 
   }
 
 attribute [quantifierElim] ite_exists_push_out
+
+-- similar to `forall_imp_left` in `UniversalQuantifiers.lean`
+section not_forall
+-- `α : Type` because we don't want this to apply to `α := Prop`
+variable {α : Type}
+
+theorem not_forall' {p : α → Prop} : (¬∀ x, p x) ↔ ∃ x, ¬p x := Classical.not_forall
+theorem not_forall_not' {p : α → Prop} : (¬∀ x, ¬p x) ↔ ∃ x, p x := Classical.not_forall_not
+theorem not_exists_not' {p : α → Prop} : (¬∃ x, ¬p x) ↔ ∀ x, p x := Classical.not_exists_not
+
+attribute [quantifierElim] not_forall' not_forall_not' not_exists_not'
+end not_forall
+
 end ExistentialQuantifierTheorems
 
 section ItePushDownTheorems

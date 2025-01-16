@@ -42,6 +42,9 @@ section UniversalQuantifierTheorems
 attribute [quantifierElim] forall_const forall_eq forall_eq
 forall_exists_index
 
+-- To enable some of the lemmas below; FIXME: do we need more of these?
+attribute [quantifierElim] and_imp not_and
+
 section forall_and
 open Classical
 variable [ne : Nonempty α] {p q : α → Prop} {b : Prop}

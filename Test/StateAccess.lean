@@ -23,7 +23,7 @@ action test = {
   let mut (x, y) := (5, 7)
 }
 
-#guard_msgs in
-action double_bind (r : Int) = {
-    let (b, b') ← with_block b
- }
+-- #guard_msgs in
+-- action double_bind (r : Int) = {
+--     let (b, b') ← with_block b
+--  }

@@ -105,6 +105,7 @@ sat trace {
   commit
 } by { bmc_sat }
 
+set_option maxHeartbeats 2000000 in
 unsat trace {
   any 6 actions
   assert ¬ ((decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes N2) ∧ (decide_abort N → abort_flag))

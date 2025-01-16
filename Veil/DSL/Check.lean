@@ -260,11 +260,9 @@ elab "prove_inv_safe" proof:term : command => do
 elab "prove_inv_inductive" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
-    let invInit := mkIdent ``RelationalTransitionSystem.invInit
     let invInductive := mkIdent ``RelationalTransitionSystem.invInductive
-    let invConsecution := mkIdent ``RelationalTransitionSystem.invConsecution
     `(theorem $(mkIdent `inv_inductive) : $invInductive (σ := $stateTp) :=
-      by unfold $invInit $invInductive $invConsecution;
+      by unfold $invInductive;
         --  intros $(mkIdent `st) $(mkIdent `st')
         --  simp only [actSimp, invSimp, safeSimp]
          exact $proof)
