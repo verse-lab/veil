@@ -177,7 +177,7 @@ elab "after_init" "{" l:doSeqVeil "}" : command => do
     -- define initial state predicate
     let pred ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st' : $stateTp) => ∀ ($st : $stateTp), Wlp.toActProp (do' $l) $st $st'))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wlp.toActProp (do' $l) $st $st'))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
     -- we modify it to store the `lang`
