@@ -30,36 +30,3 @@ def invInductive [sys: RelationalTransitionSystem σ] :=
   @invInit σ sys ∧ @invConsecution σ sys
 
 end RelationalTransitionSystem
-
-/--
-  `σ` - state type
-  `ρ` - return value of actions
--/
-class AxiomaticTransitionSystem (σ : Type) where
-  init : σ -> (σ → Prop) → Prop
-  next : σ -> (σ → Prop) → Prop
-
-  assumptions : σ → Prop
-  safe : σ → Prop
-  inv : σ → Prop
-
-namespace AxiomaticTransitionSystem
-open AxiomaticTransitionSystem
-
-/-- All states in the invariant are safe. -/
-def invSafe [sys : AxiomaticTransitionSystem σ] :=
-  ∀ (s : σ), sys.assumptions s -> sys.inv s -> sys.safe s
-
-/-- The set of initial states are in the invariant. -/
-def invInit [sys : AxiomaticTransitionSystem σ] :=
-  ∀ (s : σ), sys.assumptions s -> sys.init s sys.inv
-
-/-- The invariant is preserved by transition. -/
-def invConsecution [sys : AxiomaticTransitionSystem σ] :=
-  ∀ (s : σ), sys.assumptions s -> sys.inv s -> sys.next s sys.inv
-
-/-- The invariant is inductive. -/
-def invInductive [sys : AxiomaticTransitionSystem σ] :=
-  @invInit σ sys ∧ @invConsecution σ sys
-
-end AxiomaticTransitionSystem

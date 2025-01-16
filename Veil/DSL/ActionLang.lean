@@ -37,9 +37,15 @@ def BigStep (σ : Type) (ρ : Type) := σ -> ρ -> σ -> Prop
 def Function.toWlp (r : σ -> σ -> Prop) : Wlp σ Unit :=
   fun s post => ∀ s', r s s' -> post () s'
 
+@[actSimp]
 def Wlp.toBigStep {σ} (act : Wlp σ ρ) : BigStep σ ρ :=
-  fun s r' s' => act s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
+  fun s r' s' => ¬ act s (fun r₀ s₀ => ¬ (r' = r₀ ∧ s' = s₀))
 
+@[actSimp]
+def Wlp.toActProp {σ} (act : Wlp σ ρ) : actprop σ :=
+  fun s s' => ¬ act s (fun _ s₀ => s' ≠ s₀)
+
+@[actSimp]
 def BigStep.toWlp (act : BigStep σ ρ) : Wlp σ ρ :=
   fun s post => ∀ r s', act s r s' -> post r s'
 

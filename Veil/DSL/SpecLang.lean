@@ -158,26 +158,28 @@ elab "initial" ini:term : command => do
     -- let stateTp ← getStateTpStx
     -- let expectedType ← `($stateTp → Prop)
     let ini ←  simplifyTerm ini
-    let name ← getPrefixedName `Init
+    let predName ← getPrefixedName `initialState?
     -- because of `initDef`, this sets `stsExt.init` with `lang := none`
-    `(@[initDef, initSimp] def $(mkIdent name) $[$vd]* := $ini)
+    `(@[initDef, initSimp] def $(mkIdent predName) $[$vd]* := $ini)
 
 /-- Declare the initial state predicate as an imperative program in
 `ActionLang`. -/
 elab "after_init" "{" l:doSeqVeil "}" : command => do
-   -- Here we want to compute `WP[l]{st, st' = st} : State -> Prop`
-   -- where `st'` is a final state. We expand `l` using `[lang1| l]`
-   -- where `lang1` syntax will make sure that `WP` doesn't depend
-   -- on the prestate state. As  `WP[l]{st, st' = st} : State -> Prop`
-   -- doesn't depend on a prestate we can reduce it into `fun _ => Ini(st')`
-   -- To get `Ini(st')` we should apply `fun _ => Ini(st')`  to any
-   -- state, so we use `st'` as it is the only state we have in the context.
-    let (ret, st, st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st_curr, mkIdent `post)
+    let (ret, st, st', st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `st_curr, mkIdent `post)
+    let vd ← getAssertionParameters
+    -- define initial state action (`Wlp`)
     let act ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
       `(fun ($st : $stateTp) ($post : sprop $stateTp) => (do' $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
+    elabCommand $ ← Command.runTermElabM fun _ => do
+      let actName ← getPrefixedName `init
+      `(@[initSimp, actSimp] def $(mkIdent actName) $[$vd]* := $act)
+    -- define initial state predicate
+    let pred ← Command.runTermElabM fun _ => (do
+      let stateTp ← getStateTpStx
+      `(fun ($st' : $stateTp) => ∀ ($st : $stateTp), Wlp.toActProp (do' $l) $st $st'))
     -- this sets `stsExt.init` with `lang := none`
-    elabCommand $ ← `(initial $act)
+    elabCommand $ ← `(initial $pred)
     -- we modify it to store the `lang`
     liftTermElabM do localSpecCtx.modify (fun s => { s with spec := {s.spec with init := {s.spec.init with lang := .some l}}})
     let sp ← liftTermElabM $ return (← localSpecCtx.get).spec.init
@@ -237,22 +239,24 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
     let (unsimplifiedDef, fnDef, trDef) ← Command.runTermElabM fun vs => do
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
-      let (binders, args) ← match br with
+      let (univBinders, args) ← match br with
       | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
       | none => pure (#[], #[])
       -- Create types
       -- The actual command (not term) elaboration happens here
       let (uName, fnName, trName) := (toUnsimplifiedIdent nm, nm, toTrIdent nm)
-      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $binders* := $(← unfoldWlp tr))
+      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* := $(← unfoldWlp tr))
       trace[dsl.debug] "{unsimplifiedDef}"
       let attr ← toActionAttribute (toActionType actT)
-      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $binders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
+      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
       trace[dsl.debug] "{fnDef}"
       -- version with `forall` quantified arguments
       let trDef ← do
-        let (st, post) := (mkIdent `st, mkIdent `post)
+        let (st, st') := (mkIdent `st, mkIdent `st')
         let stateTpT ← getStateTpStx
-        let rhs ←  `(fun ($st : $stateTpT) ($post : rprop $stateTpT _) => forall $binders*, @$fnName $sectionArgs* $args* $st $post)
+        let rhs ← match br with
+        | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, Wlp.toActProp (@$fnName $sectionArgs* $args*) $st $st')
+        | none => `(fun ($st $st' : $stateTpT) => Wlp.toActProp (@$fnName $sectionArgs* $args*) $st $st')
         `(@[actSimp] def $trName $[$vd]*  := $(← simplifyTerm rhs))
       trace[dsl.debug] "{tr}"
       return (unsimplifiedDef, fnDef, trDef)
@@ -435,12 +439,13 @@ def assembleNext : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
     let stateTp ← getStateTpStx
     let sectionArgs ← getSectionArgumentsStx vs
-    let (st, ret, st_curr, post) := (mkIdent `st, mkIdent `ret, mkIdent `st_curr, mkIdent `post)
+    let (st, st') := (mkIdent `st, mkIdent `st')
     let trs ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
       let nm := mkIdent $ toTrName s.name
-      `(@$nm $sectionArgs* $st (fun $ret $st_curr => $post $st_curr)))
+      `(@$nm $sectionArgs* $st $st'))
     -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[dsl.debug] s!"{t}")
-    let next ← if trs.isEmpty then `(fun ($st : $stateTp) ($post : sprop $stateTp) => $post $st) else `(fun ($st : $stateTp) ($post : sprop $stateTp) => $(← repeatedOr trs))
+    let next ← if trs.isEmpty then `(fun ($st $st' : $stateTp) => $st = $st') else
+              `(fun ($st $st' : $stateTp) => $(← repeatedOr trs))
     trace[dsl.debug] "[assembleActions] {next}"
     `(@[actSimp] def $(mkIdent $ ← getPrefixedName `Next) $[$vd]* := $next)
 
@@ -510,7 +515,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleLabelType name
   Command.runTermElabM fun vs => do
     let stateTpStx <- getStateTpStx
-    let initSt    := mkAppN (<- mkConst $ ← getPrefixedName `Init) vs
+    let initSt    := mkAppN (<- mkConst $ ← getPrefixedName `initialState?) vs
     let initStx    <- PrettyPrinter.delab initSt
     let nextTrans := mkAppN (<- mkConst $ ← getPrefixedName `Next) vs
     let nextTransStx <- PrettyPrinter.delab nextTrans
@@ -521,7 +526,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
     let axioms    := mkAppN (<- mkConst $ ← getPrefixedName `Assumptions) vs
     let axiomsStx    <- PrettyPrinter.delab axioms
     let rtsStx       <-
-      `(instance (priority := low) $(mkIdent name) $[$vd]* : $(mkIdent ``AxiomaticTransitionSystem) $stateTpStx where
+      `(instance (priority := low) $(mkIdent name) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
           init := $initStx
           assumptions := $axiomsStx
           next := $nextTransStx
