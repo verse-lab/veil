@@ -189,6 +189,7 @@ syntax "#check_invariants!" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
+  liftCoreM errorIfStateNotDefined
   let (initChecks, actChecks) ← getAllChecks
   checkTheorems stx initChecks actChecks behaviour
 
@@ -205,6 +206,7 @@ syntax "#check_invariant!" ident : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command limited to a single invariant. -/
 def checkInvariant (stx : Syntax) (invName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
+  liftCoreM errorIfStateNotDefined
   let (initChecks, actChecks) ← getChecksForInvariant invName.getId
   checkTheorems stx initChecks actChecks behaviour
 
@@ -220,6 +222,7 @@ syntax "#check_action!" ident : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command limited to a single action. -/
 def checkAction (stx : Syntax) (actName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
+  liftCoreM errorIfStateNotDefined
   let (initChecks, actChecks) ← getChecksForAction (toTrIdent actName).getId
   checkTheorems stx initChecks actChecks behaviour
 
@@ -238,6 +241,7 @@ elab "already_proven" : tactic => withMainContext do
   evalTactic attempt
 
 elab "prove_inv_init" proof:term : command => do
+  liftCoreM errorIfStateNotDefined
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
     let invInit := mkIdent ``RelationalTransitionSystem.invInit
@@ -248,6 +252,7 @@ elab "prove_inv_init" proof:term : command => do
           exact $proof)
 
 elab "prove_inv_safe" proof:term : command => do
+  liftCoreM errorIfStateNotDefined
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
     let invSafe := mkIdent ``RelationalTransitionSystem.invSafe
@@ -258,6 +263,7 @@ elab "prove_inv_safe" proof:term : command => do
           exact $proof)
 
 elab "prove_inv_inductive" proof:term : command => do
+  liftCoreM errorIfStateNotDefined
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
     let invInductive := mkIdent ``RelationalTransitionSystem.invInductive

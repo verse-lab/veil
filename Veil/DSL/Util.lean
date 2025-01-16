@@ -67,10 +67,15 @@ def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
   let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← localSpecCtx.get).spec.name) vs
   return systemTp
 
+def errorIfStateNotDefined : CoreM Unit := do
+  let stateName := (← localSpecCtx.get).stateBaseName
+  if stateName.isNone then
+     throwError "State has not been declared so far: run `#gen_state [name]`"
+
 /-- Retrieves the name passed to `#gen_state` -/
 def getPrefixedName (name : Name): AttrM Name := do
   let stateName := (← localSpecCtx.get).stateBaseName
-  return stateName ++ name
+  return (stateName.getD Name.anonymous) ++ name
 
 def getStateName : AttrM Name := getPrefixedName `State
 

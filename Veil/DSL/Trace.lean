@@ -67,6 +67,7 @@ open Lean.Parser.Term in
 
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec) (pf : TSyntax `term)
   : CommandElabM Unit := do
+  liftCoreM errorIfStateNotDefined
   let vd ← getAssertionParameters
   let th ← Command.runTermElabM fun vs => do
     let spec ← parseTraceSpec spec

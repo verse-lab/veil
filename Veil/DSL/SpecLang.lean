@@ -135,6 +135,7 @@ elab m:(state_mutability)? "function" nm:ident br:(bracketedBinder)* ":" dom:ter
   ```
 -/
 elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
+  liftCoreM errorIfStateNotDefined
   let vd := (<- getScope).varDecls
   -- As we are going to call this predicate explicitly we want to make all
   -- section binders implicit
@@ -153,6 +154,7 @@ elab "#gen_state" name:ident : command => assembleState name.getId
 
 /-- Declare the initial state predicate. -/
 elab "initial" ini:term : command => do
+  liftCoreM errorIfStateNotDefined
   let vd ← getAssertionParameters
   elabCommand <| <- Command.runTermElabM fun _ => do
     -- let stateTp ← getStateTpStx
@@ -165,6 +167,7 @@ elab "initial" ini:term : command => do
 /-- Declare the initial state predicate as an imperative program in
 `ActionLang`. -/
 elab "after_init" "{" l:doSeqVeil "}" : command => do
+    liftCoreM errorIfStateNotDefined
     let (ret, st, st', st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `st_curr, mkIdent `post)
     let vd ← getAssertionParameters
     -- define initial state action (`Wlp`)
@@ -316,6 +319,7 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
 
 def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option (TSyntax `doSeqVeil)) (l : TSyntax `doSeqVeil) : CommandElabM Unit := do
+    liftCoreM errorIfStateNotDefined
     let actT ← parseActionTypeStx actT
     -- Elab the action
     elabCallableFn actT nm br l
@@ -369,6 +373,7 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
 
 
 def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
+  liftCoreM errorIfStateNotDefined
   let vd ← getAssertionParameters
   let (name, cmd) ← Command.runTermElabM fun vs => do
     let stateTp <- getStateTpStx
@@ -538,6 +543,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
 
 @[inherit_doc instantiateSystem]
 elab "#gen_spec" name:ident : command => do
+  liftCoreM errorIfStateNotDefined
   instantiateSystem name.getId
   Command.runTermElabM fun _ => do
     -- set the name of the spec
