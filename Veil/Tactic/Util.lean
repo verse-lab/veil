@@ -4,8 +4,8 @@ import Veil.DSL.Util
 open Lean Lean.Elab.Tactic
 
 /-- Is `typ` an application of `n`, after normalisation? -/
-def normalisedIsAppOf (typ : Expr) (n : Name) : MetaM Bool := do
-  let norm ← Meta.reduce typ (skipTypes := false)
+def whnfIsAppOf (typ : Expr) (n : Name) : MetaM Bool := do
+  let norm ← Meta.whnf typ
   return norm.isAppOf n
 
 /-- Returns the hypotheses in `newCtx` that do not appear in `oldCtx`. -/
@@ -75,7 +75,7 @@ def isHypToCollect (typ : Expr) : MetaM Bool := do
   -- We do not pass inhabitation facts to SMT, as both `lean-auto` and
   -- `lean-smt` choke on them, and solvers already assume all types are
   -- inhabited.
-  let isInhabitationFact ← normalisedIsAppOf typ ``Nonempty
+  let isInhabitationFact ← whnfIsAppOf typ ``Nonempty
   return (← Meta.isProp typ) && !isInhabitationFact
 
 /-- Given a hypothesis, if it's a `Prop`, return its name. If it is
