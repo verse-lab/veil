@@ -12,7 +12,7 @@ import sexpdata
 import z3
 
 # Dependencies:
-# pip3 `install z3-solver cvc5 sexpdata` OR `apt-get install python3-z3 python3-cvc5 python3-sexpdata`
+# `pip3 install z3-solver cvc5 sexpdata multiprocess` OR `apt-get install python3-z3 python3-cvc5 python3-sexpdata python3-multiprocess`
 
 # This program is a wrapper around Z3 that behaves (approximately) like `z3 -in`,
 # but overwrites the behaviour of the `(get-model)` command to print the
@@ -23,6 +23,8 @@ import z3
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '--tlimit', help='time limit in milliseconds', type=int, default=10000)
+parser.add_argument(
+    '--seed', help='seed for SMT solver', type=int, default=0xcafe)
 parser.add_argument(
     '--log', help='SMT query log file', type=argparse.FileType('a'), default=None)
 
@@ -359,6 +361,7 @@ def print_model(passedLines):
 
 def run(args):
     z3.set_param('timeout', args.tlimit)
+    z3.set_param("smt.random-seed", args.seed)
     z3.set_param("unsat_core", True)
     z3.set_param("model", True)
     z3.set_param("model_validate", True)
