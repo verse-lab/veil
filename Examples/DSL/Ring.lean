@@ -28,25 +28,22 @@ after_init {
 }
 
 action send (n next : node) = {
-  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := True
 }
 
-action recv (sender n next : node) (havoc : Prop) = {
-  require n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+action recv (sender n next : node) = {
+  require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   require pending sender n
   -- message may or may not be removed
   -- this models that multiple messages might be in flight
-  pending sender n := havoc
-  if (sender = n) {
+  pending sender n := *
+  if (sender = n) then
     leader n := True
-  }
-  else {
+  else
     -- pass message to next node
-    if (le n sender) {
+    if (le n sender) then
       pending sender next := True
-    }
-  }
 }
 
 safety [single_leader] leader L → le N L
@@ -57,19 +54,19 @@ invariant pending L L → le N L
 
 #check_invariants
 
-prove_inv_init by { simp_all [initSimp, actSimp, wlp, invSimp] }
+prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
 
 prove_inv_safe by {
   sdestruct st;
   simp [invSimp]
 }
 
--- prove_inv_inductive by {
---   constructor
---   . apply inv_init
---   intro st st' hnext hinv
---   sts_induction <;> sdestruct_goal <;> solve_clause
--- }
+prove_inv_inductive by {
+  constructor
+  . apply inv_init
+  intro st st' has hinv hnext
+  sts_induction <;> sdestruct_goal <;> solve_clause
+}
 
 sat trace [initial_state] {} by { bmc_sat }
 
@@ -102,6 +99,7 @@ sat trace {
   assert (∃ n next, pending n next)
 } by { bmc_sat }
 
+set_option maxHeartbeats 2000000 in
 unsat trace [trace_any] {
   any 6 actions
   assert ¬ (leader L → le N L)

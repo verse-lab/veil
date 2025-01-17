@@ -5,7 +5,6 @@ import Lean.Meta.Tactic.TryThis
 
 -- For automation
 import Veil.SMT.Main
-import Duper
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis
 
@@ -33,14 +32,20 @@ elab "sdestruct_goal" : tactic => withMainContext do
 instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
 
 /-- Destruct all structures in the context into their respective fields,
-recursively. Also destructs all existentials. -/
+recursively. Also destructs all existentials. VERY IMPORTANT: this DOES NOT
+destruct existentials properly if it is called with `unhygienic`. -/
 partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) : TacticM Unit := withMainContext do
+  let opts ← getOptions
+  if Lean.Meta.tactic.hygienic.get opts == false || Lean.Elab.Term.Quotation.hygiene.get opts == false then
+    throwError "elabSdestructHyps MUST be called with hygiene, but was called `unhygienic`!"
   let mut ignoreHyps := ignoreHyps
-  let hypsToVisit := (← getLCtx).decls.filter Option.isSome
+  let hypsToVisit : (Array LocalDecl → TacticM (Array LocalDecl)) := (fun ignoreHyps => withMainContext do
+    return (← getLCtx).decls.filter Option.isSome
     |> PersistentArray.map Option.get!
     |> PersistentArray.toArray
-    |> Array.filter (fun hyp => !ignoreHyps.contains hyp)
-  for hyp in hypsToVisit do
+    |> Array.filter (fun hyp => !ignoreHyps.contains hyp))
+  trace[debug] "[elabSdestructHyps] visit {(← hypsToVisit ignoreHyps).map (·.userName)}"
+  for hyp in (← hypsToVisit ignoreHyps) do
     ignoreHyps := ignoreHyps.push hyp
     if hyp.isImplementationDetail then
       continue
@@ -51,12 +56,15 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
     if isStructure then
       let dtac ← `(tactic| sdestruct $name:ident)
       evalTactic dtac
-    else if ← normalisedIsAppOf hyp ``Exists then
+    else
+      let isExists ← whnfIsAppOf hyp.type ``Exists
+      if isExists then
         -- we want the new hypotheses to have fresh names so they're
         -- not included in the ignore list, hence we don't reuse `$name`
-        evalTactic $ ← `(tactic| unhygienic rcases $name:ident with ⟨_, _⟩)
+        -- WARNING: this will NOT work if we're called with unhygienic
+        evalTactic $ ← `(tactic| rcases $name:ident with ⟨_, _⟩)
   -- Recursively call ourselves until the context stops changing
-  if recursive && hypsToVisit.size > 0 then
+  if recursive && (← hypsToVisit ignoreHyps).size > 0 then
     elabSdestructHyps recursive ignoreHyps
 
 /-- Recursively destruct hypotheses. -/
@@ -87,7 +95,7 @@ elab "sts_induction" : tactic => withMainContext do
   -- Create as many goals as `hnext` has constructors.
   -- For CIC-style systems, `.next` has the form `∃ (_t: [TransitionType]) True`,
   -- so we first destruct the existential quantifier.
-  if ← normalisedIsAppOf hnext `Exists then
+  if ← whnfIsAppOf hnext.type `Exists then
     evalTactic $ ←  `(tactic| rcases $hnextName:ident with ⟨$hnextName, _⟩)
   -- NOTE: context has changed, so we need this again
   withMainContext do
@@ -95,7 +103,7 @@ elab "sts_induction" : tactic => withMainContext do
   -- We have two possibilities. Either:
   -- (a) `next` is a sequence of `∨`'ed propositions
   -- (b) `next` is an inductive type, in which case we can use `cases` to destruct it.
-  if ← normalisedIsAppOf hnext `Or then
+  if ← whnfIsAppOf hnext.type `Or then
     -- FIXME: make sure we only break `Or`s, not other things
     let case_split ← `(tactic| repeat' (rcases $hnextName:ident with $hnextName | $hnextName))
     evalTactic case_split
@@ -145,25 +153,33 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   -- simplified, which is the case for DSL-defined actions
   let thoroughSimp := mkSimpLemmas $ #[injEqLemma, `invSimp, `smtSimp, `logicSimp].map mkIdent
   let fastSimp := mkSimpLemmas $ #[`invSimp, `smtSimp].map mkIdent
+  let finalSimp := mkSimpLemmas $ #[`quantifierElim].map mkIdent
   let simp2 := if thorough then thoroughSimp else fastSimp
-  let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *))
+  let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *) ; (try simp only [$finalSimp,*] at *))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
-  -- FIXME: as a work-around for `lean-smt` seeming to introduce `And.left` and `And.right`,
-  -- we destruct the hypotheses again.
+  -- Sometimes the simplification solves the goal
+  if (← getUnsolvedGoals).length == 0 then
+    return ← finishWith #[] xtacs
+  -- We destruct hypotheses again to eliminate any top-level `Exists` This also
+  -- works around an issue where `lean-smt` somestimes introduces `And.left` and
+  -- `And.right`.
   withMainContext do
   let mut xtacs := xtacs.push destructTac
   evalTactic destructTac
-  withMainContext do
   -- (4) Identify:
   --   (a) all propositions in the context
   --   (b) all propositions within typeclasses in the context
+  withMainContext do
   let idents ← getPropsInContext
-  if let some stx := traceAt then
-    let combined_tactic ← `(tactic| $xtacs;*)
-    addSuggestion stx combined_tactic
-  return (idents, xtacs)
+  return ← finishWith idents xtacs
+  where
+  finishWith (idents : Array Ident) (xtacs : Array (TSyntax `tactic)) : TacticM (Array Ident × Array (TSyntax `tactic)) := do
+    if let some stx := traceAt then
+      let combined_tactic ← `(tactic| $xtacs;*)
+      addSuggestion stx combined_tactic
+    return (idents, xtacs)
 
 syntax (name := simplifyClause) "simplify_clause" : tactic
 syntax (name := simplifyClauseTrace) "simplify_clause?" : tactic
@@ -220,9 +236,10 @@ elab_rules : tactic
   | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
 elab "simplify_all" : tactic => withMainContext do
-  let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `wlp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
+  let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
   let toSimp := mkSimpLemmas $ #[`smtSimp, `logicSimp].map mkIdent
-  let simp_tac ← `(tactic| (try dsimp only [$toDsimp,*] at *) ; (try simp only [$toSimp,*] at *);)
+  let finalSimp := mkSimpLemmas $ #[`quantifierElim].map mkIdent
+  let simp_tac ← `(tactic| (try dsimp only [$toDsimp,*] at *) ; (try simp only [$toSimp,*] at *); (try simp only [$finalSimp,*] at *))
   evalTactic simp_tac
 
 /-- Tactic to solve `unsat trace` goals. -/
@@ -242,20 +259,22 @@ elab "bmc" : tactic => withMainContext do
 /-- Tactic to solve `sat_trace` goals. -/
 elab "bmc_sat" : tactic => withMainContext do
   let prep_tac ← `(tactic|
-    simplify_all;
-    negate_goal;
-    simp only [Classical.exists_elim, Classical.not_not];
-    (unhygienic intros);
-    sdestruct_hyps;
-    simplify_all;
+    (try simplify_all);
+    (try
+      negate_goal;
+      simp only [Classical.exists_elim, Classical.not_not];
+      (unhygienic intros);
+      sdestruct_hyps);
+    (try simplify_all);
     /- Needed to work around [lean-smt#100](https://github.com/ufmg-smite/lean-smt/issues/100) -/
-    rename_binders
+    (try rename_binders)
   )
   trace[sauto] "{prep_tac}"
   evalTactic prep_tac
-  /- After preparing the context, call `sauto` on it. -/
-  withMainContext do
-  let idents ← getPropsInContext
-  let auto_tac ← `(tactic| admit_if_satisfiable [$[$idents:ident],*])
-  trace[sauto] "{auto_tac}"
-  evalTactic auto_tac
+  if (← getUnsolvedGoals).length != 0 then
+    /- After preparing the context, call `sauto` on it. -/
+    withMainContext do
+    let idents ← getPropsInContext
+    let auto_tac ← `(tactic| admit_if_satisfiable [$[$idents:ident],*])
+    trace[sauto] "{auto_tac}"
+    evalTactic auto_tac

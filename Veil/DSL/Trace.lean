@@ -10,7 +10,7 @@ syntax (name := expected_unsat) "unsat" : expected_smt_result
 
 declare_syntax_cat trace_line
 syntax (name := any_action_star) "*" : trace_line
-syntax (name := any_action) "any action" : trace_line
+syntax (name := any_action) atomic("any" "action") : trace_line
 syntax traceAnyAction := any_action_star <|> any_action
 
 syntax (name := traceAnyNActions) "any " num " actions": trace_line
@@ -67,6 +67,8 @@ open Lean.Parser.Term in
 
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec) (pf : TSyntax `term)
   : CommandElabM Unit := do
+  liftCoreM errorIfStateNotDefined
+  let vd ← getAssertionParameters
   let th ← Command.runTermElabM fun vs => do
     let spec ← parseTraceSpec spec
     let numActions := spec.foldl (fun n s =>
@@ -109,9 +111,9 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       | TraceSpecLine.assertion t => do
         -- Elaborate assertions in the same way we elaborate invariants.
         -- See `elab "invariant"` in `DSL.lean`.
-        let stx <- funcasesM t vs
+        let stx <- funcasesM t (← getStateArguments vd vs)
         let t ← elabBindersAndCapitals #[] vs stx fun _ e => do
-          let e <- elabWithMotives e
+          let e <- delabWithMotives e
           `(fun $(mkIdent `st) => $e: term)
         let t ← `(term|($t $currState))
         assertions := assertions.push t
@@ -122,13 +124,13 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let conjunction ← repeatedAnd assertions
     -- sat trace -> ∃ states, (conjunction of assertions)
     -- unsat trace -> ∀ states, ¬ (conjunction of assertions)
-    let stateTp ← PrettyPrinter.delab (<- stateTp vs)
+    let stateTp ← getStateTpStx
     let binderNames : Array (TSyntax ``Lean.binderIdent) := stateNames.map toBinderIdent
     let assertion ← match r with
     | `(expected_smt_result| unsat) => `(∀ ($[$stateNames]* : $stateTp), ¬ $conjunction)
     | `(expected_smt_result| sat) => `(∃ ($[$binderNames]* : $stateTp), $conjunction)
     | _ => dbg_trace "expected result is neither sat nor unsat!" ; unreachable!
-    `(theorem $th_id : $assertion := by exact $pf)
+    `(theorem $th_id $[$vd]* : $assertion := by exact $pf)
   elabCommand $ th
 
 elab_rules : command

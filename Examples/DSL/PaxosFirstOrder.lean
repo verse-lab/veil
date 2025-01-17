@@ -42,7 +42,7 @@ after_init {
 
 action send_1a = {
   -- a proposer selects a round and sends a message asking nodes to join the round
-  fresh r:round in
+  let r : round ← fresh
   require r ≠ none;
   one_a r := True
 }
@@ -52,7 +52,8 @@ action join_round (n:node) (r:round) = {
     require r ≠ none;
     require one_a r;
     require ¬(∃ (r':round) (rMAX:round) (v:value), one_b_max_vote n r' rMAX v ∧ ¬ tot.le r' r);
-    fresh maxr:round in fresh v:value in
+    let maxr : round ← fresh
+    let v : value ← fresh
       -- find the maximal vote in a round less than r
     require ((maxr = none ∧ ∀ (mAXR:round) (v':value), ¬ (¬ tot.le r mAXR ∧ vote n mAXR v')) ∨
                     (maxr ≠ none ∧ ¬ tot.le r maxr ∧ vote n maxr v ∧
@@ -60,16 +61,15 @@ action join_round (n:node) (r:round) = {
                    ));
     -- send the 1b message
     one_b_max_vote n r maxr v := True
-
-
 }
 
 action propose (r : round) (q: quorum) = {
     -- receive a quorum of 1b's and send a 2a (proposal)
     require r ≠ none;
-    require ¬ proposal r V;
+    require ∀ V, ¬ proposal r V;
     require ∀ (n:node), member n q -> ∃ (r':round) (v:value), one_b_max_vote n r r' v;
-    fresh maxr:round in fresh v:value in
+    let maxr : round ← fresh
+    let v : value ← fresh
     -- find the maximal max_vote in the quorum
     require ((maxr = none ∧ ∀ (n:node) (mAXR:round) (v:value), ¬ (member n q ∧ one_b_max_vote n r mAXR v ∧ mAXR ≠ none)) ∨
                     (maxr ≠ none ∧
@@ -92,7 +92,7 @@ action cast_vote (n:node) (v:value) (r:round) = {
 action decide (n:node) (r:round) (v:value) (q:quorum) = {
     -- get 2b from a quorum
     require r ≠ none;
-    require member N q -> vote N r v;
+    require ∀ N, member N q -> vote N r v;
     decision n r v := True
 }
 
@@ -115,6 +115,9 @@ invariant [none_vote] ¬ vote N none V
 invariant [choosable_proposal] (∀ (R1:round) (R2:round) (V1:value) (V2:value) (Q:quorum), ¬ tot.le R2 R1 ∧ proposal R2 V2 ∧ V1 ≠ V2 →
     (∃ (N:node) (R3:round) (RMAX:round) (V:value), member N Q ∧ ¬ tot.le R3 R1 ∧ one_b_max_vote N R3 RMAX V ∧ ¬ vote N R1 V1))
 
+#gen_spec PaxosFirstOrder
+
+set_option maxHeartbeats 2000000 in
 #check_invariants
 
 end PaxosFirstOrder

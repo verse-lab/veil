@@ -22,7 +22,7 @@ per-file temporary state. -/
 structure LocalSpecificationCtx where
   spec : ModuleSpecification
   /-- base name of the State type; set when `#gen_state` runs -/
-  stateBaseName: Name
+  stateBaseName: Option Name
   /-- established invariant clauses; set on `@[invProof]` label -/
   establishedClauses : List Name := []
 deriving Inhabited

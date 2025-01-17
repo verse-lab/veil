@@ -55,15 +55,15 @@ action fail(n: node) = {
 }
 
 action go1 = {
-  require ¬go_commit N;
-  require ¬go_abort N;
-  require vote_yes N;
+  require ∀ N, ¬go_commit N;
+  require ∀ N, ¬go_abort N;
+  require ∀ N, vote_yes N;
   go_commit N := True
 }
 
 action go2 = {
-  require ¬go_commit N;
-  require ¬go_abort N;
+  require ∀ N, ¬go_commit N;
+  require ∀ N, ¬go_abort N;
   require exists n, vote_no n ∨ ¬alive n;
   go_abort N := True
 }
@@ -105,6 +105,7 @@ sat trace {
   commit
 } by { bmc_sat }
 
+set_option maxHeartbeats 2000000 in
 unsat trace {
   any 6 actions
   assert ¬ ((decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes N2) ∧ (decide_abort N → abort_flag))

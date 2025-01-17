@@ -60,7 +60,7 @@ def existentialIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArra
   | `(explicitBinders|$bs*) => do
     for b in bs do
       match b with
-      | `(bracketedExplicitBinders|($bis* : $tp)) => do
+      | `(bracketedExplicitBinders|($bis* : $_tp)) => do
         for bi in bis do
           let id := toIdent bi
           vars := vars.push id
@@ -88,9 +88,16 @@ def complexBinderToSimpleBinder (nm : TSyntax `ident) (br : TSyntaxArray `Lean.P
   return simple
 
 /-- Given `nm : _ `, return `nm` -/
-def getSimpleBinderName: (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) → Name
-  | `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $_:term) => nm.getId
-  | sig => panic s!"getSimpleBinderName: don't know how to handle {sig}"
+def getSimpleBinderName (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : CoreM Name := do
+  match sig with
+  | `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $_:term) => pure nm.getId
+  | _ => throwError s!"getSimpleBinderName: don't know how to handle {sig}"
+
+/-- Given `nm : type`, return `type` -/
+def getSimpleBinderType (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : CoreM (TSyntax `term) := do
+  match sig with
+  | `(Lean.Parser.Command.structSimpleBinder| $_:ident : $tp:term) => pure tp
+  | _ => throwError s!"getSimpleBinderType: don't know how to handle {sig}"
 
 def createExistsBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
   let binders ← vars.mapM fun (var, sort) => do

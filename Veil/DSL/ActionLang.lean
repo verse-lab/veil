@@ -14,31 +14,11 @@ open Lean Elab Command Term Meta Lean.Parser
   This file defines the syntax and semantics for the imperative language
   we use to define initializers and actions.
 -/
+section Veil
 
-section Lang
+section Types
 /-! Our language is parametric over the state type. -/
 variable (σ : Type)
-
-/-- Imperative language for defining actions. -/
-inductive Lang.{u} : Type u → Type (u + 1) where
-  /-- Pre-condition. All capital variables will be quantified. -/
-  | require (rq : σ -> Prop) : Lang PUnit
-  | bind    {ρ ρ' : Type u} (act : Lang ρ') (act' : ρ' -> Lang ρ) : Lang ρ
-  -- τ is a first order type, so it can be quantified in FOL
-  | fresh   {τ : Type u} {ρ : Type u} (act : τ -> Lang ρ) : Lang ρ
-  /-- Deterministic changes to the state, although mostly used for assignments. All
-      capital variables will be quantified. -/
-  | det     {ρ' : Type u} (act : σ -> σ × ρ') : Lang ρ'
-  /-- Non-deterministic changes to the state. -/
-  | nondet  {ρ' : Type u} (act :  σ -> σ × ρ' -> Prop) : Lang ρ'
-  /-- If-then-else. `open Classical` to allow propositions in the condition. -/
-  | ite     {ρ : Type u} (cnd : σ -> Bool) (thn : Lang ρ) (els : Lang ρ) : Lang ρ
-  /-- If-then-else. `open Classical` to allow propositions in the condition. -/
-  | iteSome {ρ : Type u} {ρ' : Type} (cnd : ρ' -> σ -> Bool) (thn : ρ' -> Lang ρ) (els : Lang ρ) : Lang ρ
-
-  /-- Sequence -/
-  | seq     {ρ ρ' : Type u} (l1 : Lang ρ') (l2 : Lang ρ) : Lang ρ
-  | ret     {ρ : Type u} (ret : ρ) : Lang ρ
 
 /-- One-state formula -/
 @[inline] abbrev sprop := σ -> Prop
@@ -47,81 +27,103 @@ inductive Lang.{u} : Type u → Type (u + 1) where
 /-- Two-state formula -/
 @[inline] abbrev actprop := σ -> σ -> Prop
 
--- abbrev triple (t : ρ) (H : sprop σ) (P : rprop σ ρ) := ∀ s, H s → P t s
+/-  Wlp (σ : Type) (ρ : Type)    := rprop σ ρ -> sprop σ -/
+/-  Wlp (σ : Type) (ρ : Type)    := rprop σ ρ -> σ -> Prop -/
+abbrev Wlp (σ : Type) (ρ : Type) := σ -> rprop σ ρ -> Prop
+def BigStep (σ : Type) (ρ : Type) := σ -> ρ -> σ -> Prop
 
-/-- Weakest liberal precondition transformer. It takes a post-condition and
-    a program and returns the weakest pre-condition that guarantees the
-    post-condition IF the program terminates.
-    This defines the axiomatic semantics of our language. -/
-@[actSimp] def wlp (post : rprop σ ρ) : Lang σ ρ -> sprop σ
-  -- `require` enhances the pre-condition, restricting the possible states
-  -- it has the same effect as `assume` in Hoare logic
-  | Lang.require rq       => fun s => rq s ∧ post () s
-  -- | Lang.assume  as       => fun s => as s → post () s
-  -- a deterministic `act` transforms the state
-  | Lang.det act          => fun s => let (s', ret) := act s ; post ret s'
-  -- A non-deterministic action satisfies the post-condition if there is
-  -- _some_ possible post-state that satisfies the post-condition.
-  -- This corresponds to the semantics in Ivy and matches the intuition that
-  -- a call to an action is morally equivalent to inlining that action.
-  | Lang.nondet act       => fun s => ∃ s' ret, act s (s', ret) ∧ post ret s'
---| Lang.ensure p         => fun s => ∃ s' ret, p s s' ∧ post ret s'
-  -- the meaning of `ite` depends on which branch is taken
-  | Lang.ite cnd thn els  => fun s => if cnd s then wlp post thn s else wlp post els s
-  | Lang.iteSome cnd thn els  =>
-    fun s =>
-    (∃ r, cnd r s ∧ wlp post (thn r) s) ∨ (∀ r, ¬ cnd r s) ∧ wlp post els s
-  -- `seq` is a composition of programs, so we need to compute the wlp of
-  -- the first program, given the wlp of the second
-  | Lang.seq l1 l2        =>
-    wlp (fun _ => wlp post l2) l1
-  | Lang.ret ret    => post ret
-  | Lang.bind l1 l2 =>
-    wlp (fun ret => wlp post (l2 ret)) l1
-  | Lang.fresh act => fun s => ∃ t, wlp post (act t) s
+/-- Function which transforms any two-state formula into `Wlp` -/
+@[actSimp]
+def Function.toWlp (r : σ -> σ -> Prop) : Wlp σ Unit :=
+  fun s post => ∀ s', r s s' -> post () s'
 
-declare_syntax_cat left_arrow
-syntax "<-" : left_arrow
-syntax "←" : left_arrow
+@[actSimp]
+def Wlp.toBigStep {σ} (act : Wlp σ ρ) : BigStep σ ρ :=
+  fun s r' s' => ¬ act s (fun r₀ s₀ => ¬ (r' = r₀ ∧ s' = s₀))
 
-declare_syntax_cat langSeq
-declare_syntax_cat lang
+@[actSimp]
+def Wlp.toActProp {σ} (act : Wlp σ ρ) : actprop σ :=
+  fun s s' => ¬ act s (fun _ s₀ => s' ≠ s₀)
 
-syntax sepByIndentSemicolon(lang) : langSeq
+@[actSimp]
+def BigStep.toWlp (act : BigStep σ ρ) : Wlp σ ρ :=
+  fun s post => ∀ r s', act s r s' -> post r s'
 
--- syntax lang ";" colGe lang : lang
--- syntax lang : lang
-syntax "skip"              : lang
-/-- Non-deterministic value. -/
-syntax (name := nondetVal) "*" : lang
-syntax "require" term      : lang
-syntax "do" term           : lang
+end Types
 
-declare_syntax_cat some_if
-syntax ident "where" : some_if
-syntax (priority := high) "if" (some_if)? term:max "{" langSeq "}" "else\n" "{" langSeq "}" : lang
-syntax (priority := low) "if" (some_if)? term:max "{" langSeq "}" : lang
-/-- intermediate syntax for assigment, e.g. `pending := pending[n, s ↦ true]` -/
-syntax Term.structInstLVal ":=" term    : lang
-/-- syntax for assigment, e.g. `pending n s := true` -/
-syntax Term.structInstLVal (term:max)+ ":=" (term <|> nondetVal)    : lang
-syntax term (":" term)? left_arrow lang "in" langSeq : lang
-syntax "fresh" ident ":" term "in" langSeq : lang
-syntax "return" term : lang
-syntax "call" term : lang
+section
 
-declare_syntax_cat unchanged
-syntax "with unchanged" "[" ident,* "]" : unchanged
+variable {σ ρ : Type}
 
-syntax "ensure" rcasesPat  "," term unchanged ? : lang
-syntax "ensure" term unchanged ? : lang
-syntax "[unchanged|" ident* "]" : term
+@[actSimp]
+def Wlp.pure (r : ρ) : Wlp σ ρ := fun s post => post r s
+@[actSimp]
+def Wlp.bind (wp : Wlp σ ρ) (wp_cont : ρ -> Wlp σ ρ') : Wlp σ ρ' :=
+  fun s post => wp s (fun r s' => wp_cont r s' post)
 
-/-- Syntax to trigger the expantion into a code which may
-    depend on the prestate -/
-syntax "[langSeq|" langSeq "]" : term
-syntax "[lang|" lang "]" : term
+instance : Monad (Wlp σ) where
+  pure := Wlp.pure
+  bind := Wlp.bind
 
+@[actSimp]
+def Wlp.assume (rq : Prop) : Wlp σ PUnit := fun s post => rq → post () s
+@[actSimp]
+def Wlp.assert (as : Prop) : Wlp σ PUnit := fun s post => as ∧ post () s
+@[actSimp]
+def Wlp.det (act : σ -> ρ × σ) : Wlp σ ρ := fun s post => let (ret, s') := act s ; post ret s'
+@[actSimp]
+def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
+@[actSimp]
+def Wlp.withState {σ} (r : σ -> ρ) : Wlp σ ρ :=
+  fun s post => post (r s) s
+@[actSimp]
+def Wlp.spec (pre : sprop σ) (post : σ -> rprop σ ρ) : Wlp σ ρ :=
+  fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post s r s')
+
+def BigStep.choice : BigStep σ ρ -> BigStep σ ρ -> BigStep σ ρ :=
+  fun act act' s r s' => act s r s' ∨ act' s r s'
+
+/- BAD: it duplicates post -/
+-- def Wlp.choice : Wlp σ ρ -> Wlp σ ρ -> Wlp σ ρ :=
+--   fun wp wp' s post => wp s post ∨ wp' s post
+
+def Wlp.choice (wp : Wlp σ ρ) (wp' : Wlp σ ρ) : Wlp σ ρ :=
+  wp.toBigStep.choice wp'.toBigStep |>.toWlp
+
+instance : MonadStateOf σ (Wlp σ) where
+  get := fun s post => post s s
+  set s' := fun _ post => post () s'
+  modifyGet := Wlp.det
+
+class IsStateExtension (σ : semiOutParam Type) (σ' : Type) where
+  extendWith : σ -> σ' -> σ'
+  restrictTo : σ' -> σ
+
+export IsStateExtension (extendWith restrictTo)
+
+instance [IsStateExtension σ σ'] : MonadLift (Wlp σ) (Wlp σ') where
+  monadLift := fun m s post => m (restrictTo s) (fun r s' => post r (extendWith s' s))
+
+macro "unfold_wlp" : conv =>
+  `(conv| unfold
+    -- unfold actions defined via Veil do-notation
+    Wlp.det
+    Wlp.pure
+    Wlp.bind
+    Wlp.assume
+    Wlp.assert
+    Wlp.fresh
+    Wlp.withState
+    -- unfold specifications
+    Wlp.spec
+    -- unfold actions defined via two-state relations
+    Function.toWlp
+    -- unfold actions definded via lifting
+    monadLift
+    restrictTo
+    extendWith)
+
+end
 
 partial def getCapitals (s : Syntax) :=
   let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
@@ -140,16 +142,6 @@ def closeCapitals (s : Term) : MacroM Term :=
   let caps := getCapitals s
   `(forall $[$caps]*, $s)
 
-/-- Alternate version of `Term.adaptExpander`, which gives an extra
-`TSyntax term` argument to `exp`. We use this to provide type
-annotations to the state type in the expansion of the imperative DSL.
-(Without this, when type inference fails, the user sees a cryptic
-"expected structure" error.) For action return values, we rely on Lean's
-type inference. -/
-def adaptExpander' (exp : Syntax → TSyntax `term → TermElabM Syntax) : Syntax → TSyntax `term → TermElabM Expr := fun stx expectedType => do
-  let stx' ← exp stx expectedType
-  withMacroExpansion stx stx' <| elabTerm stx' .none
-
 /-- Throw an error if the field (which we're trying to assign to) was
 declared immutable. FIXME: make sure elaboration aborts? -/
 def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Unit := do
@@ -164,10 +156,148 @@ def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElab
     | `(Lean.Parser.Term.structInstLVal|$id:ident) => pure id.getId
     | _ => throwErrorAt lhs "expected an identifier in the LHS of an assignment, got {repr lhs}"
 
+def getFields : TermElabM (Array Name) := do
+  let spec := (← localSpecCtx.get).spec
+  pure $ spec.signature.map (·.name)
+
+/-- In some cases, during the macro expansion, we need to annotate certain
+    arguments with the state type. To get the state type, we need an access to an
+    eviorment with we don't have at the macro-expansion stage. To overcome this, we
+    introduce the following notation, witch gets resolved to a current state type
+    during the elaboration stage  -/
+elab "[State]" : term => do
+    let stateTp := (← localSpecCtx.get).spec.stateStx
+    elabTerm (<- `(term| $stateTp)) none
+
 /-- This is used in `require` were we define a predicate over a state.
     Instead of writing `fun st => Pred` this command will pattern match over
     `st` making all its fields accessible for `Pred` -/
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
+macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident; exact $t)
+
+/-- `require s` checks if `s` is true on the current state -/
+syntax "require" term      : term
+/-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
+syntax "fresh" (lineEq term) ? : term
+
+declare_syntax_cat doSeqVeil
+declare_syntax_cat doElemVeil
+
+syntax (priority := low) doElem : doElemVeil
+
+syntax (priority := high) term ":=" "*" : doElemVeil
+
+syntax "if" term "then" doSeqVeil colGe "else" doSeqVeil : doElemVeil
+syntax "if" term "then" doSeqVeil : doElemVeil
+syntax "if" ident ":" term "then" doSeqVeil colGe "else" doSeqVeil : doElemVeil
+syntax "if" ident ":" term "then" doSeqVeil : doElemVeil
+
+
+declare_syntax_cat unchanged_decl
+declare_syntax_cat spec
+syntax "requires" term colGe "ensures" rcasesPat  "," term : spec
+syntax (priority := high) "requires" term colGe "ensures" term : spec
+syntax "with" "unchanged" "[" ident,* "]" : unchanged_decl
+syntax spec (colGe unchanged_decl)? : term
+syntax "[unchanged|" ident* "]" : term
+
+syntax sepByIndentSemicolon(doElemVeil) : doSeqVeil
+
+def hasRHS? (stx : TSyntax `doElem) : Option (Term × (Term -> TermElabM (TSyntax `doElem))) := do
+  match stx with
+  | `(doElem| $t:term) => (t, fun t => (`(doElem| $t:term) : TermElabM _))
+  | `(doElem| $id:ident := $t:term) =>
+    (t, fun t => (`(doElem| $id:ident := $t) : TermElabM _))
+  | `(doElem| let $id:ident := $t:term) =>
+    (t, fun t => (`(doElem| let $id:ident := $t) : TermElabM _))
+  | `(doElem| let mut $id:ident := $t:term) =>
+    (t, fun t => (`(doElem| let mut $id:ident := $t) : TermElabM _))
+  | `(doElem| $id:ident <- $t:term) =>
+    (t, fun t => (`(doElem| $id:ident <- $t:term) : TermElabM _))
+  | `(doElem| let $id:ident <- $t:term) =>
+    (t, fun t => (`(doElem| let $id:ident <- $t:term) : TermElabM _))
+  | `(doElem| let mut $id:ident <- $t:term) =>
+    (t, fun t => (`(doElem| let mut $id:ident <- $t:term) : TermElabM _))
+  | _ => none
+
+def withState? (doE : TSyntax `doElem) : TermElabM $ TSyntax `doElem := do
+  let some (t, cont) := hasRHS? doE | return doE
+  let fields : Array Name <- getFields
+  if t.raw.find? (·.getId ∈ fields) |>.isSome then
+    let t <- withRef t `(<- Wlp.withState (funcases $t))
+    cont t
+  else return doE
+
+mutual
+partial def expandDoSeqVeil (stx : TSyntax `doSeqVeil) : TermElabM (TSyntax ``Term.doSeq) :=
+  match stx with
+  | `(doSeqVeil| $doS:doElemVeil*) => do
+    let doS <- doS.getElems.mapM expandDoElemVeil
+    `(doSeq| $[$doS:doElem]*)
+  | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation sequence {stx}"
+
+partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `doElem) := do
+  trace[dsl.debug] "[expandDoElemVeil] {stx}"
+  match stx with
+  | `(doElemVeil| if $h:ident : $t:term then $thn) =>
+    expandDoElemVeil $ <- `(doElemVeil| if $h:ident : $t:term then $thn else pure ())
+  | `(doElemVeil| if $h:ident : $t:term then $thn:doElemVeil* else $els:doSeqVeil) =>
+    let t' <- `(doElemVeil| require $t)
+    let thn := t' :: thn.getElems.toList |>.toArray
+    expandDoElemVeil $ <-
+      `(doElemVeil|
+        if (∃ $h:ident, $t) then
+          let $h:ident <- fresh; $[$thn]*
+        else $els)
+  | `(doElemVeil| if $t:term then $thn:doSeqVeil) =>
+    expandDoElemVeil $ <- `(doElemVeil| if $t then $thn:doSeqVeil else pure ())
+  | `(doElemVeil| if $t:term then $thn:doSeqVeil else $els:doSeqVeil) =>
+    let thn <- expandDoSeqVeil thn
+    let els <- expandDoSeqVeil els
+    `(doElem| if <- Wlp.withState (funcases $t) then $thn else $els)
+  | `(doElemVeil| $id:ident := *) =>
+      trace[dsl.debug] "[doElemVeil] id assignment {stx}"
+      let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
+        | throwErrorAt stx "trying to assign to undeclared state component {id}"
+      expandDoElemVeil $ <- `(doElemVeil|if True then let y <- fresh ($typeStx); $id:ident := y)
+  | `(doElemVeil| $idts:term := *) =>
+      trace[dsl.debug] "[doElemVeil] term assignment {stx}"
+      let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
+      let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
+        | throwErrorAt stx "trying to assign to undeclared state component {id}"
+      expandDoElemVeil $ <- `(doElemVeil|if True then let y <- fresh ($typeStx); $idts:term := y $ts*)
+  | `(doElemVeil| $doE:doElem) =>
+    match doE with
+    | `(doElem| $id:ident := $t:term) =>
+        trace[dsl.debug] "[doElem] id assignment {doE}"
+        let id' <- `(Term.structInstLVal| $id:ident)
+        let fields <- getFields
+        if id.getId ∈ fields then
+          throwIfImmutable id'
+          `(doElem| @Wlp.det _ _ (fun (st : [State]) => ((), { st with $id' := (funcases st $t)})))
+        else
+          withState? $ <- `(doElem| $id:ident := $t:term)
+    | `(doElem| $idts:term := $t:term) =>
+      trace[dsl.debug] "[doElem] term assignment {doE}"
+      let some (id, ts) := idts.isApp? | `(doElem| $doE:doElem)
+      let stx <- withRef idts `(term| $id[ $[$ts],* ↦ $t:term ])
+      let stx <- `(doElemVeil| $id:ident := $stx)
+      expandDoElemVeil stx
+    | _ => withState? doE
+  | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation {stx}"
+end
+
+elab "do'" stx:doSeqVeil : term => do
+  let stx' <- expandDoSeqVeil stx
+  trace[dsl.debug] "{stx}\n→\n{stx'}"
+  elabTerm (<- `(term| ((do $stx') : Wlp [State] _))) none
+
+macro_rules
+  | `(require $t) => `(Wlp.assume $t)
+  | `(fresh   $t) => `(Wlp.fresh $t)
+  | `(fresh)      => `(Wlp.fresh _)
+
+/- Ensures statement -/
 
 open Tactic in
 /-- ```with_rename_old t``` runs tactic `t` and if it introduces any names with `_1` suffix,
@@ -185,11 +315,7 @@ elab "with_rename_old" t:tactic : tactic => withMainContext do
           let new_name := String.intercalate "_" nms.dropLast ++ "_old" |>.toName
           evalTactic $ <- `(tactic| (revert $(mkIdent hyp.userName):ident; intros $(mkIdent new_name):ident))
 
-
-/-- This is used wherener we want to define a predicate over a state
-    which should not depend on the state (for instance in `after_init`). -/
-macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
-
+/- Expanding `unchanged` statement -/
 macro_rules
   | `([unchanged| $id:ident]) =>
     let id_old := id.getId.toString ++ "_old" |>.toName
@@ -197,107 +323,37 @@ macro_rules
   | `([unchanged| $id $ids*]) => `([unchanged| $id] ∧ [unchanged| $ids*])
   | `([unchanged|]) => `(True)
 
-/-- This is used when we want to define a predicate over a state
-    which should not depend on the pre-state. -/
-macro "funclear" t:term : term => `(term| by intros st; clear st; exact $t)
+/- One can omit the result variable from [ensures] -/
+macro_rules
+  | `(requires $pre ensures $post:term $un:unchanged_decl ?) => `(requires $pre ensures (_ : Unit), $post:term $un:unchanged_decl ?)
 
-def getFreshIdents (is : Array Term) [Monad m] [MonadQuotation m] : m (Array Ident) := do
-  let mut x : Array $ Lean.TSyntax `ident := #[]
-  for i in is do
-    if isCapital i then
-      x := x.push ⟨i.raw⟩
-    else
-      x := x.push (<- mkFreshIdent (Lean.mkIdent `x))
-  return x
-
+def getPrePost (spec : TSyntax `doSeqVeil) [Monad m] [MonadError m] [MonadQuotation m] :
+  m (Term × TSyntax `rcasesPat × Term) := do
+  match spec with
+  | `(doSeqVeil| requires $pre ensures $id, $post:term $_:unchanged_decl ?) => pure (pre, id, post)
+  | `(doSeqVeil| requires $pre ensures $post:term $_:unchanged_decl ?) => pure (pre, <- `(rcasesPat|(_ : Unit)), post)
+  | _ => throwErrorAt spec "Invalid sepcification: expected `requires ... ensures ...`"
 
 elab_rules : term
-  | `([lang| $id:structInstLVal $ts: term * := *]) => do
-    throwIfImmutable id
-    let `(Lean.Parser.Term.structInstLVal| $id:ident) := id
-      | throwErrorAt id "{id} is not a valid LHS for an assignment"
-    let id_old := mkIdent $ id.getId.toString ++ "_old" |>.toName
-    let ts' <- getFreshIdents ts
-    let tsTup  <- `(term| [tupl| $ts:term *])
-    let ts'Tup <- `(term| [tupl| $ts':ident *] )
-    let stx <- `([lang| ensure ∀ $ts'*, $tsTup:term = $ts'Tup:term ∨ $id:ident $ts'* = $id_old $ts'*] )
-    -- trace[dsl] stx
-    elabTerm stx none
-  | `([lang| $id:structInstLVal $ts: term * := $t:term ]) => do
-    let stx <- withRef id `($(⟨id.raw.getHead?.get!⟩)[ $[$ts],* ↦ $t:term ])
-    elabTerm (<- `([lang| $id:structInstLVal := $stx])) none
-
-
-elab_rules : term
-  | `([lang|skip]) => do
-    let stateTp := (← localSpecCtx.get).spec.stateStx
-    elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
-  | `([langSeq| ]) => do
-    let stateTp := (← localSpecCtx.get).spec.stateStx
-    elabTerm (<- `(term| @Lang.det _ _ (fun (st : $stateTp) => (st, ())))) none
-  | `([langSeq| $l1:lang]) => do elabTerm (<- `([lang|$l1])) none
-  | `([langSeq| $l1:lang*]) => do
-    elabTerm (<- `(@Lang.seq _ _ _ [lang|$(l1.getElems[0]!)] [langSeq| $[$(l1.getElems[1:])]*])) none
-  | `([lang|ensure $r, $t:term]) => do
-    let fields : Array Name := (<- localSpecCtx.get).spec.signature.map (·.name)
+  /- if the list of unchanged state fileds is omitted, we can restore it by
+     checking witch of them are mentioned in the [ensures] body. By default
+     we assume that if the state filed is not mentioned, then it is left
+     unchanged  -/
+  | `(requires $pre ensures $r, $post:term) => do
+    let fields : Array Name <- getFields
     let mut unchangedFields := #[]
     for f in fields do
-      unless t.raw.find? (·.getId == f) |>.isSome do
+      unless post.raw.find? (·.getId == f) |>.isSome do
         unchangedFields := unchangedFields.push $ mkIdent f
-    elabTerm (<- `(term| [lang|ensure $r, $t:term with unchanged[$[$unchangedFields],*]])) none
-  | `([lang|ensure $r, $t:term with unchanged[$ids,*]]) => do
-    withRef t $
-    elabTerm (<- `(term| @Lang.nondet _ _ (
-      by rintro st ⟨st', $r⟩;
+    elabTerm (<- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])) none
+  | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
+    -- withRef t $
+    elabTerm (<- `(term| @Wlp.spec [State] _ (funcases $pre) (
+      by rintro st $r st';
          unhygienic cases st';
          with_rename_old unhygienic cases st;
-         exact $t ∧ [unchanged|$ids*]))) none
-  -- expansion of the intermediate syntax for assignment
-  -- for instance `pending := pending[n, s ↦ true]` will get
-  -- expanded to `Lang.det (fun st => { st with pending := st.pending[n, s ↦ true] })`
-  | `([lang| $id:structInstLVal := $t:term]) => do
-    throwIfImmutable id
-    let stateTp := (← localSpecCtx.get).spec.stateStx
-    elabTerm (<- `(@Lang.det _ _ (fun (st : $stateTp) =>
-      ({ st with $id := (by unhygienic cases st; exact $t)}, ())))) none
-  -- expansion of the actual syntax for assignment
-  -- for instance `pending n s := true` will get
-  -- expanded to `pending := pending[n, s ↦ true]`
+         exact $post ∧ [unchanged|$ids*]))) none
 
-macro_rules
-  | `([lang|require $t:term]) => do
-    let t' <- closeCapitals t
-    withRef t $
-      -- require a proposition on the state
-     `(@Lang.require _ (funcases ($t' : Prop) : _ -> Prop))
-  --
-  | `([lang|if $some_if ? $cnd:term { $thn:langSeq }]) => `([lang|if $some_if ? $cnd { $thn } else { skip }])
-  | `([lang|if $cnd:term { $thn:langSeq } else { $els:langSeq }]) => do
-    let cnd' <- closeCapitals cnd
-    -- condition might depend on the state as well
-    let cnd <- withRef cnd `(funcases ($cnd' : Bool))
-    `(@Lang.ite _ _ ($cnd: term) [langSeq|$thn] [langSeq|$els])
-  | `([lang|if $x:ident where $cnd:term { $thn:langSeq } else { $els:langSeq }]) => do
-    let cnd' <- closeCapitals cnd
-    -- condition might depend on the state as well
-    let cnd <- withRef cnd `(funcases ($cnd' : Bool))
-    `(@Lang.iteSome _ _ _ (fun $x:ident => $cnd:term) (fun $x => [langSeq|$thn]) [langSeq|$els])
-  --
-  | `([lang|ensure $t:term $un:unchanged ?] ) =>
-    `([lang|ensure (_ : Unit), $t:term $un:unchanged ?])
-  | `([lang| do $t:term ]) => `(@Lang.det _ _ $t)
-    -- expansion of the actual syntax for assigment
-    -- for instance `pending n s := true` will get
-    -- expanded to `pending := pending[n, s ↦ true]`
-  -- NOTE: the following two cases describe the same construct
-  -- there's probably a way to unify them
-  | `([lang| $id:term $_:left_arrow $l1:lang in $l2:langSeq]) => do
-      `(@Lang.bind _ _ _ [lang|$l1] (fun $id => [langSeq|$l2]))
-  | `([lang| $id:term : $t:term $_:left_arrow $l1:lang in $l2:langSeq]) => do
-      `(@Lang.bind _ _ _ [lang|$l1] (fun ($id : $t) => [langSeq|$l2]))
-  | `([lang|fresh $id:ident : $t in $l2:langSeq]) =>
-      `(@Lang.fresh _ _ _ (fun $id : $t => [langSeq|$l2]))
-  | `([lang|return $t:term]) => `(@Lang.ret _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
-  | `([lang|call $t:term]) => `(@Lang.nondet _ _ (by unhygienic cases $(mkIdent `st):ident; exact $t))
+attribute [actSimp] Bind.bind Pure.pure
 
-end Lang
+end Veil

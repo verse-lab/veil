@@ -65,7 +65,7 @@ action request (n : node) = {
   require ¬ n_requesting n;
   n_requesting n := True;
   if (¬ n_have_privilege n) {
-    k : seq_t ← call !succ (n_RN n n) in
+    k : seq_t ← call succ (n_RN n n) in
     n_RN n n := k;
     reqs N n (n_RN n n) := N ≠ n
   }
@@ -76,7 +76,7 @@ action rcv_request (n : node) (m : node) (r : seq_t) = {
   n_RN n m := if seq.le r (n_RN n m) then n_RN n m else r;
   if (n_have_privilege n ∧ ¬ n_requesting n ∧ seq.next (t_LN (n_token_seq n) m) (n_RN n m)) {
     n_have_privilege n := False;
-    k : seq_t ← call !succ (n_token_seq n) in
+    k : seq_t ← call succ (n_token_seq n) in
     t_for k m := True;
     t_LN k N := t_LN (n_token_seq n) N;
     t_q k N := t_q (n_token_seq n) N
@@ -99,7 +99,7 @@ action exit (n : node) = {
   if m where (t_q (n_token_seq n) m) {
     t_q (n_token_seq n) m := False;
     n_have_privilege n := False;
-    k : seq_t ← call !succ (n_token_seq n) in
+    k : seq_t ← call succ (n_token_seq n) in
     t_for k m := True;
     t_LN k N := t_LN (n_token_seq n) N;
     t_q k N := t_q (n_token_seq n) N

@@ -17,7 +17,7 @@ instance : ToString StateComponentKind where
     | StateComponentKind.function => "function"
 
 inductive StateComponentType where
-  /-- e.g. `Int -> vertex -> Prop` -/
+  /-- e.g. `name : Int -> vertex -> Prop` -/
   | simple (t : TSyntax ``Command.structSimpleBinder)
   /-- e.g. `(r : Int) (v : vertex)` and `Prop` -/
   | complex (binders : TSyntaxArray ``Term.bracketedBinder) (dom : TSyntax `term)
@@ -27,6 +27,11 @@ instance : ToString StateComponentType where
   toString
     | StateComponentType.simple t => toString t
     | StateComponentType.complex b d  => s!"{b} : {d}"
+
+def StateComponentType.stx (sct : StateComponentType) : CoreM (TSyntax `term) := do
+  match sct with
+  | .simple t => getSimpleBinderType t
+  | .complex b d => getSimpleBinderType $ ← complexBinderToSimpleBinder (mkIdent Name.anonymous) b d
 
 inductive Mutability
   | mutable
@@ -61,10 +66,12 @@ def StateComponent.getSimpleBinder (sc : StateComponent) : CoreM (TSyntax ``Comm
 
 def StateComponent.stx (sc : StateComponent) : CoreM Syntax := sc.getSimpleBinder
 
+def StateComponent.typeStx (sc : StateComponent) : CoreM Term := sc.type.stx
+
 structure StateSpecification where
   name : Name
   /-- DSL expression for this predicate -/
-  lang : Option (TSyntax `langSeq)
+  lang : Option (TSyntax `doSeqVeil)
   /-- Lean `Expr` for this predicate; this is usually a constant in the
   environment, *without* having applied the section variables. -/
   expr : Expr
@@ -78,10 +85,10 @@ instance : ToString StateSpecification where
 structure ActionSpecification where
   decl : IOAutomata.ActionDeclaration
   /-- DSL expression for this action -/
-  lang : Option (TSyntax `langSeq)
-  /-- DSL specification of this action -/
-  spec : Option (TSyntax `langSeq) := lang
-  /-- Lean `Expr` for this predicate; this is usually a constant in the
+  lang : Option (TSyntax `doSeqVeil)
+  /-- Flag indicating if current action has a specification -/
+  hasSpec : Bool := false
+  /-- Lean `Expr` for this action; this is usually a constant in the
   environment, *without* having applied the section variables. -/
   expr : Expr
 deriving Inhabited, BEq
@@ -99,7 +106,7 @@ def ActionSpecification.mkPlain (type : IOAutomata.ActionType) (name : Name) (ex
 }
 
 /-- Enhance a given `ActionSpecification` with DSL-specific information. -/
-def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax `langSeq) (ctor : TSyntax `Lean.Parser.Command.ctor) : ActionSpecification :=
+def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax `doSeqVeil) (ctor : TSyntax `Lean.Parser.Command.ctor) : ActionSpecification :=
   { a with lang := some lang, decl := { a.decl with ctor := some ctor } }
 
 def ActionSpecification.name (a : ActionSpecification) : Name := a.decl.name
@@ -156,14 +163,19 @@ structure ModuleSpecification where
   assumptions : Array StateAssertion
   /-- Initial state predicate -/
   init        : StateSpecification
-  /-- Transitions of the system -/
-  transitions : Array ActionSpecification
+  /-- Action of the system -/
+  actions : Array ActionSpecification
   /-- Invariants -/
   invariants  : Array StateAssertion
 deriving Inhabited
 
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
   spec.signature.find? (fun sc => sc.name == name)
+
+def ModuleSpecification.getStateComponentTypeStx (spec : ModuleSpecification) (name : Name) : CoreM (Option Term) := do
+  match spec.getStateComponent name with
+  | some sc => return some (← sc.typeStx)
+  | none => return none
 
 def ModuleSpecification.immutableComponents (spec : ModuleSpecification) : Array StateComponent :=
   spec.signature.filter (fun sc => sc.isImmutable)
@@ -175,7 +187,7 @@ def ModuleSpecification.mutableComponents (spec : ModuleSpecification) : Array S
 to the transition's signature. This is used to build up a `Label` type
 for this specification, which encodes its IO Automata signature. -/
 def ModuleSpecification.transitionCtors (spec : ModuleSpecification) : CoreM (Array (TSyntax `Lean.Parser.Command.ctor)) := do
-  spec.transitions.mapM (fun t => do match t.decl.ctor with
+  spec.actions.mapM (fun t => do match t.decl.ctor with
     | some ctor => return ctor
     | none => throwError "DSL: missing constructor for transition {t.decl.name}")
 

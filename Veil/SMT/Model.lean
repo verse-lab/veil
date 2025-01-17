@@ -6,6 +6,12 @@ import Batteries.Data.Array.Basic
 abbrev SortName := Lean.Name
 abbrev UninterpretedValue := Lean.Name
 
+def _root_.String.toSanitizedName (s : String) : Lean.Name :=
+  -- FIXME: this is a hack to get rid of shadowed names
+  let badChars := #["✝", "⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"]
+  let s := badChars.foldl (init := s) fun s c => s.replace c " "
+  s.toSubstring.toName
+
 instance : Ord SortName where
   compare a b := a.cmp b
 instance : Ord UninterpretedValue where
@@ -42,8 +48,8 @@ instance : ToString InterpretedSort where
 def boolSortI : InterpretedSort := { name := `Bool }
 def intSortI : InterpretedSort := { name := `Int }
 
-def builtinInterpretedSorts : Lean.HashMap SortName InterpretedSort :=
-  Lean.HashMap.ofList [(`Bool, boolSortI), (`Int, intSortI)]
+def builtinInterpretedSorts : Std.HashMap SortName InterpretedSort :=
+  Std.HashMap.ofList [(`Bool, boolSortI), (`Int, intSortI)]
 
 def InterpretedSort.interpretation (s : InterpretedSort) : Type :=
   match s.name with
@@ -118,6 +124,11 @@ instance : Ord FirstOrderValue where
       | o => o
     | .Interpreted .., .Uninterpreted .. => Ordering.lt
     | .Uninterpreted .., .Interpreted .. => Ordering.gt
+
+def FirstOrderValue.isBoolean (val : FirstOrderValue) : Bool :=
+  match val with
+  | FirstOrderValue.Interpreted { name := `Bool } _ => true
+  | _ => false
 
 def FirstOrderValue.isTrue (val : FirstOrderValue) : Bool :=
   match val with
@@ -276,10 +287,28 @@ inductive Interpretation
   | Symbolic    (expr : String)
 deriving Ord, Inhabited
 
+def Interpretation.isAlwaysFalse (interp : Interpretation) : Bool := Id.run do
+  match interp with
+  | .Enumeration iopairs =>
+    for (_args, val) in iopairs do
+      if !val.isBoolean then return false -- if it's not a boolean, we can't say it's always false
+      if val.isTrue then return false     -- if it's true, it's not always false
+    return true -- it's always boolean and always false
+  | .Symbolic _ => return false
+
+/-- What string to show to the user when this declaration is always false? -/
+def Declaration.alwaysFalseMessage (decl : Declaration) : String :=
+  match decl with
+  | Declaration.Constant c => s!"{c.name} = false"
+  | Declaration.Relation r => s!"{r.name} = ∅"
+  | Declaration.Function f => s!"{f.name} = λ _ → false"
+
 def Interpretation.toString (interp : Interpretation) (decl : Declaration) : Id String := do
   let mut out := ""
   match interp with
   | .Enumeration iopairs =>
+    if interp.isAlwaysFalse then
+      return s!"{decl.alwaysFalseMessage}\n"
     for (args, val) in iopairs.qsortOrd do
       match decl with
       | Declaration.Constant c => out := out ++ s!"{c.name} = {val}\n"
@@ -295,7 +324,7 @@ def Interpretation.push (i : Interpretation) (iop : InputOutputPair) : Interpret
   | Interpretation.Enumeration iopairs => Interpretation.Enumeration (iopairs.push iop)
   | _ => panic! s!"tried to push an input-output pair to symbolic interpretation"
 
-abbrev ExplicitInterpretation := Lean.HashMap Declaration Interpretation
+abbrev ExplicitInterpretation := Std.HashMap Declaration Interpretation
 
 instance : Ord ExplicitInterpretation where
   compare x y := compare x.toArray y.toArray
@@ -334,13 +363,13 @@ def FirstOrderStructure.findDecl (s : FirstOrderStructure) (name : Lean.Name) : 
       | none => throwError s!"{name} provided an interpretation for, but not previously declared!"
 
 def FirstOrderStructure.isInterpretedByFiniteEnumeration (s : FirstOrderStructure) (decl : Declaration) : Bool :=
-  match s.interp.find? decl with
+  match s.interp.get? decl with
   | some (Interpretation.Enumeration _) => true
   | _ => false
 
 /-- On how many argument vectors is this constant/relation/function `True`? -/
 def FirstOrderStructure.numTrueInstances (s : FirstOrderStructure) (decl : Declaration) : MetaM Nat := do
-  match s.interp.find? decl with
+  match s.interp.get? decl with
   | none => return 0
   | some (.Enumeration iopairs) =>
       return iopairs.foldl (init := 0) fun c (_, res) => if res.isTrue then c + 1 else c
@@ -370,7 +399,7 @@ def findSortsArray (names : Array Sexp) (struct : FirstOrderStructure) : MetaM (
   let mut sorts : Array FirstOrderSort := #[]
   for dom in names do
     match dom with
-    | .atom (.symb domName) => sorts := sorts.push (← findSortWithName domName.toName struct)
+    | .atom (.symb domName) => sorts := sorts.push (← findSortWithName domName.toSanitizedName struct)
     | _ => throwError s!"malformed domain: {dom}"
   return sorts
 
@@ -389,7 +418,7 @@ def getValueOfSort (val : Sexp) (sort : FirstOrderSort) : MetaM FirstOrderValue 
     | _ => throwError s!"unsupported interpreted sort: {s}"
   | FirstOrderSort.Uninterpreted s => do
     match val with
-    | .atom (.symb valName) => return FirstOrderValue.Uninterpreted s valName.toName
+    | .atom (.symb valName) => return FirstOrderValue.Uninterpreted s valName.toSanitizedName
     | _ => throwError s!"expected an uninterpreted value, but got {val}"
 
 def getValueArray (vals : Array Sexp) (sorts : Array FirstOrderSort) : MetaM (Array FirstOrderValue) := do
@@ -404,14 +433,14 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
   -- (|sort| |Bool| (|true| |false|)),
   -- (|sort| |a| (|a0| |a1|)),
   | .app #[(.atom (.symb "sort")), (.atom (.symb sortName)), (.app els)] => do
-    let sortName := sortName.toName
-    let sort: FirstOrderSort ← (match builtinInterpretedSorts.find? sortName with
+    let sortName := sortName.toSanitizedName
+    let sort: FirstOrderSort ← (match builtinInterpretedSorts.get? sortName with
     | some sortI => return .Interpreted sortI
     | none => do
       let mut elems : Array UninterpretedValue := #[]
       for elem in els do
         match elem with
-        | .atom (.symb elemName) => elems := elems.push elemName.toName
+        | .atom (.symb elemName) => elems := elems.push elemName.toSanitizedName
         | _ => throwError s!"malformed element: {elem}"
       return .Uninterpreted { name := sortName, size := elems.size, elements := elems }
     )
@@ -420,8 +449,8 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
 
   -- (|constant| |s1| |a|),
   | .app #[(.atom (.symb "constant")), (.atom (.symb constName)), (.atom (.symb sortName))] => do
-    let constName := constName.toName
-    let sortName := sortName.toName
+    let constName := constName.toSanitizedName
+    let sortName := sortName.toSanitizedName
     let sort ← findSortWithName sortName struct
     let decl: ConstantDecl := { name := constName, sort := sort }
     trace[sauto.debug] s!"{decl}"
@@ -429,7 +458,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
 
   -- (|relation| |rel| (|a| |a|)),
   | .app #[(.atom (.symb "relation")), (.atom (.symb relName)), (.app doms)] => do
-    let relName := relName.toName
+    let relName := relName.toSanitizedName
     let doms ← findSortsArray doms struct
     let decl: RelationDecl := { name := relName, domain := doms }
     trace[sauto.debug] s!"{decl}"
@@ -437,9 +466,9 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
 
   -- (|function| |f| (|a|) |Int|),
   | .app #[(.atom (.symb "function")), (.atom (.symb funName)), (.app doms), (.atom (.symb range))] => do
-    let funName := funName.toName
+    let funName := funName.toSanitizedName
     let doms ← findSortsArray doms struct
-    let range ← findSortWithName range.toName struct
+    let range ← findSortWithName range.toSanitizedName struct
     let decl: FunctionDecl := { name := funName, domain := doms, range := range }
     trace[sauto.debug] s!"{decl}"
     struct := { struct with signature := { struct.signature with functions := struct.signature.functions.push decl } }
@@ -448,21 +477,21 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
   -- (|interpret| |f| (|a0|) |-1|)
   -- (|interpret| |f| (|a1|) 0)
   | .app #[(.atom (.symb "interpret")), (.atom (.symb declName)), (.app args), val] => do
-    let declName := declName.toName
+    let declName := declName.toSanitizedName
     let decl ← struct.findDecl declName
     let args ← getValueArray args decl.domain
     let val ← getValueOfSort val decl.range
     trace[sauto.debug] s!"interpret {declName} {args} {val}"
-    let interp := struct.interp.findD decl (Interpretation.Enumeration #[])
+    let interp := struct.interp.getD decl (Interpretation.Enumeration #[])
     let interp' := interp.push (args, val)
     struct := { struct with interp := struct.interp.insert decl interp' }
 
   -- (|symbolic| |st.delivered| |Lambda([arg0, arg1, arg2], ...)|)
   | .app #[(.atom (.symb "symbolic")), (.atom (.symb declName)), (.atom (.symb interp))] => do
-    let declName := declName.toName
+    let declName := declName.toSanitizedName
     let decl ← struct.findDecl declName
     trace[sauto.debug] s!"symbolic {declName} {interp}"
-    let interp := struct.interp.findD decl (Interpretation.Symbolic interp)
+    let interp := struct.interp.getD decl (Interpretation.Symbolic interp)
     struct := { struct with interp := struct.interp.insert decl interp }
 
   | _ => throwError s!"(parseInstruction) malformed instruction: {inst}"
