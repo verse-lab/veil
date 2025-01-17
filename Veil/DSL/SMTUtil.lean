@@ -37,7 +37,7 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
   return cmd
 
 open Smt Smt.Tactic Translate Lean Lean.Meta Auto.Solver.SMT in
-def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Array (Array (Name × Expr))) (forceSolver : Option SolverName := none)
+def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: Array (Array (Name × Expr))) (forceSolver : Option SolverName := none)
   : MetaM (List ((List Name) × SmtResult)) := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolverWithIndicators") do
   let opts ← getOptions
@@ -47,7 +47,7 @@ def querySolverWithIndicators (goalQuery : String) (timeout : Nat) (checks: Arra
       | none => sauto.smt.solver.get opts
     trace[sauto.debug] "solver: {solverName}"
   try
-    let solver ← createSolver solverName timeout
+    let solver ← createSolver solverName withTimeout
     if solverName == SolverName.cvc5 then
       emitCommand solver (.setLogic "ALL")
       emitCommand solver (.setOption (.produceProofs true))

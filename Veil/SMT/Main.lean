@@ -118,8 +118,8 @@ def emitCommandStr (p : SolverProc) (c : String) : MetaM Unit := do
 def emitCommand (p : SolverProc) (c : IR.SMT.Command) : MetaM Unit := do
   emitCommandStr p s!"{c}\n"
 
-def createSolver (name : SolverName) (timeout : Nat) : MetaM SolverProc := do
-  let tlim_sec := timeout
+def createSolver (name : SolverName) (withTimeout : Nat) : MetaM SolverProc := do
+  let tlim_sec := withTimeout
   match name with
   | .none => throwError "createSolver :: Unexpected error"
   -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-T:{tlim}"]
@@ -194,7 +194,7 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
     return CheckSatResult.Unsat
   | e => return CheckSatResult.Unknown s!"{e}"
   catch e =>
-    let exMsg ← e.toMessageData.toString
+    let _exMsg ← e.toMessageData.toString
     throwError s!"check-sat failed (z3model.py likely timed out)"
 
 def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
@@ -205,7 +205,7 @@ def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   let (model, _) ← getSexp stdout
   return model
   catch e =>
-    let exMsg ← e.toMessageData.toString
+    let _exMsg ← e.toMessageData.toString
     throwError s!"get-model failed (z3model.py likely timed out)"
 
 def getUnsatCore (solver : SolverProc) (kill: Bool := true) : MetaM Parser.SMTSexp.Sexp := do
@@ -220,7 +220,7 @@ def getUnsatCore (solver : SolverProc) (kill: Bool := true) : MetaM Parser.SMTSe
   let (unsatCore, _proof) ← getSexp stdout
   return unsatCore
   catch e =>
-    let exMsg ← e.toMessageData.toString
+    let _exMsg ← e.toMessageData.toString
     throwError s!"get-unsat-core failed (z3model.py likely timed out)"
 
 /-- Check if the constraint is satisfiable in the current frame. -/
@@ -363,7 +363,7 @@ partial def getSolverResult (solver: SolverProc) (solverName: SolverName) (kill:
         return .Unknown reason
 
 open Smt Smt.Tactic Translate in
-partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
+partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
   try
   let opts ← getOptions
@@ -373,7 +373,7 @@ partial def querySolver (goalQuery : String) (timeout : Nat) (forceSolver : Opti
     | some s => s
     | none => sauto.smt.solver.get opts
   trace[sauto.debug] "solver: {solverName}"
-  let solver ← createSolver solverName timeout
+  let solver ← createSolver solverName withTimeout
   if solverName == SolverName.cvc5 then
     emitCommand solver (.setLogic "ALL")
     emitCommand solver (.setOption (.produceProofs true))
@@ -462,7 +462,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
 
 @[tactic sauto] def evalSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
-  let timeout ← parseTimeout ⟨stx[2]⟩
+  let withTimeout ← parseTimeout ⟨stx[2]⟩
   -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
   -- we first use `lean-auto` to generate the query, and call `lean-smt` only
   -- if the query is satisfiable and we want to print a model,
@@ -473,7 +473,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     | Translator.leanAuto => prepareAutoQuery mv (← parseAutoHints ⟨stx[1]⟩)
     | Translator.leanSmt => prepareQuery mv (← Tactic.parseHints ⟨stx[1]⟩)
   let getModel? := translatorToUse == Translator.leanSmt
-  let res ← querySolver cmdString timeout (getModel? := getModel?) (retryOnFailure := true)
+  let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnFailure := true)
   match res with
   -- if we have a model, we can print it
   | .Sat (.some fostruct) => throwError "the goal is false: {fostruct}"
@@ -483,7 +483,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     if translatorToUse == Translator.leanAuto then
       let hs ← Tactic.parseHints ⟨stx[1]⟩
       let cmdString ← prepareQuery mv hs
-      let res ← querySolver cmdString timeout
+      let res ← querySolver cmdString withTimeout
       if let .Sat (.some fostruct) := res then
         throwError "the goal is false: {fostruct}"
       else
@@ -514,9 +514,9 @@ open Lean.Meta in
 @[tactic admit_if_satisfiable] def evalAdmitIfSat : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
   let hs ← Tactic.parseHints ⟨stx[1]⟩
-  let timeout ← parseTimeout ⟨stx[2]⟩
+  let withTimeout ← parseTimeout ⟨stx[2]⟩
   let cmdString ← prepareQuery mv hs
-  let res ← querySolver cmdString timeout (retryOnFailure := true)
+  let res ← querySolver cmdString withTimeout (retryOnFailure := true)
   match res with
   | .Sat _ =>
     trace[sauto.result] "The negation of the goal is satisfiable, hence the goal is valid."

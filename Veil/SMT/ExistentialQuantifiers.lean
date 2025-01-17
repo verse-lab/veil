@@ -206,11 +206,10 @@ simproc ↓ elim_exists_State (∃ _, _) := fun e => do
     return .continue
   -- Step 2: get rid of this quantifier
   let q := qs.get! 0
-  let ctx : Simp.Context := {
-      config := {(← Simp.getContext).config with singlePass := false}
-      simpTheorems := #[(← simpOnlyTheorems)]
-      congrTheorems := (← getSimpCongrTheorems)
-  }
+  let ctx ← Simp.mkContext
+      (config := {(← Simp.getContext).config with singlePass := false})
+      (simpTheorems := #[(← simpOnlyTheorems)])
+      (congrTheorems := (← getSimpCongrTheorems))
   let method := (pushEqInvolvingLeft q)
                 |> Simp.andThen (State_exists_push_right q)
                 |> Simp.andThen (exist_eq_left_simproc)

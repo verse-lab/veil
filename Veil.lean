@@ -3,3 +3,4 @@
 import «Veil».Basic
 import «Veil».State
 import «Veil».TransitionSystem
+import «Veil».DSL

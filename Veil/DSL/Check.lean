@@ -36,7 +36,7 @@ abbrev ActionChecksT  := InitChecksT
 abbrev ActionsChecksT := Array (Name × ActionChecksT)
 
 /--  Generate theorems to check in the initial state and after each action -/
-def getAllChecks : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun vs => do
+def getAllChecks : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
     let invNames := (← localSpecCtx.get).spec.invariants.map StateAssertion.name
     let actNames := ((<- localSpecCtx.get).spec.actions).map (fun s => s.name)
     let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName name}"))
@@ -49,7 +49,7 @@ def getAllChecks : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) �
 
 /-- Generate theorems to check the given invariant clause in the initial
 state and after each action. -/
-def getChecksForInvariant (invName : Name) : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun vs => do
+def getChecksForInvariant (invName : Name) : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
     let actNames := ((<- localSpecCtx.get).spec.actions).map (fun s => s.name)
     let invNamesInd := (invName, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName invName}")
     let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{mkPrintableName name}"))
@@ -59,7 +59,7 @@ def getChecksForInvariant (invName : Name) : CommandElabM (Array (Name × Expr) 
     return (#[invNamesInd], actChecks)
 
 /-- Generate therems to check all invariants after the given action. -/
-def getChecksForAction (actName : Name) : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun vs => do
+def getChecksForAction (actName : Name) : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
     let invNames := (← localSpecCtx.get).spec.invariants.map StateAssertion.name
     let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName name}"))
     let actNamesInd := (actName, Lean.mkConst $ Name.mkSimple s!"actInd_{mkPrintableName actName}")
@@ -116,7 +116,6 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let msg ← Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let sectionArgs ← getSectionArgumentsStx vs
-      let stateTpT ← getStateTpStx
       -- get the syntax of the transitions
       let actStxList : Array Term ← actIndicators.toArray.mapM (fun (actName, indName) => do
         let .some _ := ge.find? actName
@@ -136,7 +135,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let invariants ← repeatedAnd invStxList
       let _actions ← repeatedOr actStxList
       let allIndicators := List.append invIndicators actIndicators
-      let timeout := auto.smt.timeout.get (← getOptions)
+      let withTimeout := auto.smt.timeout.get (← getOptions)
 
       -- Init checks
       let initParams ← Array.mapM (fun (_, e) => do
@@ -146,7 +145,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       trace[dsl] "init check: {initTpStx}"
       let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
       trace[dsl.debug] "SMT init check: {initCmd}"
-      let initRes ← querySolverWithIndicators initCmd timeout (initChecks.map (fun a => #[a]))
+      let initRes ← querySolverWithIndicators initCmd withTimeout (initChecks.map (fun a => #[a]))
       let initMsgs := getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
         | [invName] => (invName, match res with
           | .Unsat _ => true
@@ -161,7 +160,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       trace[dsl] "action check: {actTpStx}"
       let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
       trace[dsl.debug] "SMT action check: {actCmd}"
-      let actRes ← querySolverWithIndicators actCmd timeout (invChecks.map (fun (a, b) => #[a, b]))
+      let actRes ← querySolverWithIndicators actCmd withTimeout (invChecks.map (fun (a, b) => #[a, b]))
       let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
         | [actName, invName] => (invName, actName, match res with
           | .Unsat _ => true

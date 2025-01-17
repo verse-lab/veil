@@ -10,7 +10,7 @@ syntax (name := expected_unsat) "unsat" : expected_smt_result
 
 declare_syntax_cat trace_line
 syntax (name := any_action_star) "*" : trace_line
-syntax (name := any_action) "any action" : trace_line
+syntax (name := any_action) atomic("any" "action") : trace_line
 syntax traceAnyAction := any_action_star <|> any_action
 
 syntax (name := traceAnyNActions) "any " num " actions": trace_line

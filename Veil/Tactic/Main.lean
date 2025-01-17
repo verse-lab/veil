@@ -5,7 +5,6 @@ import Lean.Meta.Tactic.TryThis
 
 -- For automation
 import Veil.SMT.Main
-import Duper
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis
 

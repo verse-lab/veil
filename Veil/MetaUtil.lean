@@ -60,7 +60,7 @@ def existentialIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArra
   | `(explicitBinders|$bs*) => do
     for b in bs do
       match b with
-      | `(bracketedExplicitBinders|($bis* : $tp)) => do
+      | `(bracketedExplicitBinders|($bis* : $_tp)) => do
         for bi in bis do
           let id := toIdent bi
           vars := vars.push id
