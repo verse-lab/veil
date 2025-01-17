@@ -362,9 +362,7 @@ def print_model(passedLines):
 def run(args):
     z3.set_param('timeout', args.tlimit)
     z3.set_param("smt.random-seed", args.seed)
-    z3.set_param("unsat_core", True)
     z3.set_param("model", True)
-    z3.set_param("model_validate", True)
     z3.set_param("model.completion", True)
     z3.Context.__del__ = lambda self: None
     z3.Solver.__del__ = lambda self: None
