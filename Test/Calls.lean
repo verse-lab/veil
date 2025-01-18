@@ -26,7 +26,7 @@ after_init {
 
 #guard_msgs in
 action empty = {
-
+  pure ()
 }
 
 /-- info: true -/
@@ -52,8 +52,8 @@ action f (n : Nat) (x : node) = {
 #eval isElaboratedCorrectly ``f
 
 #guard_msgs(drop warning) in
-action call_f (x : node) = {
-  f 5 x
+action call_f (z : node) = {
+  f 5 z
 }
 
 /-- info: true -/

@@ -70,12 +70,7 @@ def Wlp.assume (rq : Prop) : Wlp σ PUnit := fun s post => rq → post () s
 @[actSimp]
 def Wlp.assert (as : Prop) : Wlp σ PUnit := fun s post => as ∧ post () s
 @[actSimp]
-def Wlp.det (act : σ -> ρ × σ) : Wlp σ ρ := fun s post => let (ret, s') := act s ; post ret s'
-@[actSimp]
 def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
-@[actSimp]
-def Wlp.withState {σ} (r : σ -> ρ) : Wlp σ ρ :=
-  fun s post => post (r s) s
 @[actSimp]
 def Wlp.spec (pre : sprop σ) (post : σ -> rprop σ ρ) : Wlp σ ρ :=
   fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post s r s')
@@ -93,7 +88,7 @@ def Wlp.choice (wp : Wlp σ ρ) (wp' : Wlp σ ρ) : Wlp σ ρ :=
 instance : MonadStateOf σ (Wlp σ) where
   get := fun s post => post s s
   set s' := fun _ post => post () s'
-  modifyGet := Wlp.det
+  modifyGet := fun act s post => let (ret, s') := act s ; post ret s'
 
 class IsStateExtension (σ : semiOutParam Type) (σ' : Type) where
   extendWith : σ -> σ' -> σ'
@@ -107,13 +102,22 @@ instance [IsStateExtension σ σ'] : MonadLift (Wlp σ) (Wlp σ') where
 macro "unfold_wlp" : conv =>
   `(conv| unfold
     -- unfold actions defined via Veil do-notation
-    Wlp.det
     Wlp.pure
     Wlp.bind
     Wlp.assume
     Wlp.assert
     Wlp.fresh
-    Wlp.withState
+    -- unfold state monad actions
+    set
+    modify
+    modifyGet
+    get
+    instMonadStateOfMonadStateOf
+    getThe
+    MonadStateOf.modifyGet
+    MonadStateOf.get
+    MonadStateOf.set
+    instMonadStateOfWlp
     -- unfold specifications
     Wlp.spec
     -- unfold actions defined via two-state relations
@@ -180,17 +184,17 @@ syntax "require" term      : term
 /-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
 syntax "fresh" (lineEq term) ? : term
 
-declare_syntax_cat doSeqVeil
-declare_syntax_cat doElemVeil
+-- declare_syntax_cat doSeq
+-- declare_syntax_cat doSeqItem
 
-syntax (priority := low) doElem : doElemVeil
+-- syntax (priority := low) doElem : doSeqItem
 
-syntax (priority := high) term ":=" "*" : doElemVeil
+syntax (priority := high) atomic(term ":=" "*") : doElem
 
-syntax "if" term "then" doSeqVeil colGe "else" doSeqVeil : doElemVeil
-syntax "if" term "then" doSeqVeil : doElemVeil
-syntax "if" ident ":" term "then" doSeqVeil colGe "else" doSeqVeil : doElemVeil
-syntax "if" ident ":" term "then" doSeqVeil : doElemVeil
+-- syntax "if" term "then" doSeq colGe "else" doSeq : doSeqItem
+-- syntax "if" term "then" doSeq : doSeqItem
+-- syntax "if" ident ":" term "then" doSeq colGe "else" doSeq : doSeqItem
+-- syntax "if" ident ":" term "then" doSeq : doSeqItem
 
 
 declare_syntax_cat unchanged_decl
@@ -201,94 +205,82 @@ syntax "with" "unchanged" "[" ident,* "]" : unchanged_decl
 syntax spec (colGe unchanged_decl)? : term
 syntax "[unchanged|" ident* "]" : term
 
-syntax sepByIndentSemicolon(doElemVeil) : doSeqVeil
-
-def hasRHS? (stx : TSyntax `doElem) : Option (Term × (Term -> TermElabM (TSyntax `doElem))) := do
-  match stx with
-  | `(doElem| $t:term) => (t, fun t => (`(doElem| $t:term) : TermElabM _))
-  | `(doElem| $id:ident := $t:term) =>
-    (t, fun t => (`(doElem| $id:ident := $t) : TermElabM _))
-  | `(doElem| let $id:ident := $t:term) =>
-    (t, fun t => (`(doElem| let $id:ident := $t) : TermElabM _))
-  | `(doElem| let mut $id:ident := $t:term) =>
-    (t, fun t => (`(doElem| let mut $id:ident := $t) : TermElabM _))
-  | `(doElem| $id:ident <- $t:term) =>
-    (t, fun t => (`(doElem| $id:ident <- $t:term) : TermElabM _))
-  | `(doElem| let $id:ident <- $t:term) =>
-    (t, fun t => (`(doElem| let $id:ident <- $t:term) : TermElabM _))
-  | `(doElem| let mut $id:ident <- $t:term) =>
-    (t, fun t => (`(doElem| let mut $id:ident <- $t:term) : TermElabM _))
-  | _ => none
-
-def withState? (doE : TSyntax `doElem) : TermElabM $ TSyntax `doElem := do
-  let some (t, cont) := hasRHS? doE | return doE
-  let fields : Array Name <- getFields
-  if t.raw.find? (·.getId ∈ fields) |>.isSome then
-    let t <- withRef t `(<- Wlp.withState (funcases $t))
-    cont t
-  else return doE
+abbrev doSeq := TSyntax ``Term.doSeq
+abbrev doSeqItem := TSyntax ``Term.doSeqItem
 
 mutual
-partial def expandDoSeqVeil (stx : TSyntax `doSeqVeil) : TermElabM (TSyntax ``Term.doSeq) :=
+partial def expandDoSeqVeil (stx : doSeq) : TermElabM (TSyntax ``Term.doSeq) :=
   match stx with
-  | `(doSeqVeil| $doS:doElemVeil*) => do
-    let doS <- doS.getElems.mapM expandDoElemVeil
-    `(doSeq| $[$doS:doElem]*)
+  | `(doSeq| $doS:doSeqItem*) => do
+    let doS <- doS.mapM expandDoElemVeil
+    `(doSeq| $[$doS]*)
   | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation sequence {stx}"
 
-partial def expandDoElemVeil (stx : TSyntax `doElemVeil) : TermElabM (TSyntax `doElem) := do
-  trace[dsl.debug] "[expandDoElemVeil] {stx}"
+partial def expandDoElemVeil (stx : doSeqItem) : TermElabM doSeqItem := do
+  trace[dsl.debug] "[expand doElem] {stx}"
   match stx with
-  | `(doElemVeil| if $h:ident : $t:term then $thn) =>
-    expandDoElemVeil $ <- `(doElemVeil| if $h:ident : $t:term then $thn else pure ())
-  | `(doElemVeil| if $h:ident : $t:term then $thn:doElemVeil* else $els:doSeqVeil) =>
-    let t' <- `(doElemVeil| require $t)
-    let thn := t' :: thn.getElems.toList |>.toArray
+  | `(Term.doSeqItem| $stx ;) => expandDoElemVeil $ <- `(Term.doSeqItem| $stx:doElem)
+  -- Expand `if` statements
+  | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
+    let fs <- `(Term.doSeqItem| let $h:ident <- fresh)
+    let t' <- `(Term.doSeqItem| require $t)
+    let thn := fs :: t' :: thn.toList |>.toArray
     expandDoElemVeil $ <-
-      `(doElemVeil|
-        if (∃ $h:ident, $t) then
-          let $h:ident <- fresh; $[$thn]*
-        else $els)
-  | `(doElemVeil| if $t:term then $thn:doSeqVeil) =>
-    expandDoElemVeil $ <- `(doElemVeil| if $t then $thn:doSeqVeil else pure ())
-  | `(doElemVeil| if $t:term then $thn:doSeqVeil else $els:doSeqVeil) =>
+      `(Term.doSeqItem| if (∃ $h:ident, $t) then $thn* else $els)
+  | `(Term.doSeqItem| if $t:term then $thn:doSeq) =>
+    expandDoElemVeil $ <- `(Term.doSeqItem| if $t then $thn:doSeq else pure ())
+  -- Expand `if-some` statements
+  | `(Term.doSeqItem| if $h:ident : $t:term then $thn) =>
+    expandDoElemVeil $ <- `(Term.doSeqItem| if $h:ident : $t:term then $thn else pure ())
+  | `(Term.doSeqItem| if $t:term then $thn:doSeq else $els:doSeq) =>
     let thn <- expandDoSeqVeil thn
     let els <- expandDoSeqVeil els
-    `(doElem| if <- Wlp.withState (funcases $t) then $thn else $els)
-  | `(doElemVeil| $id:ident := *) =>
-      trace[dsl.debug] "[doElemVeil] id assignment {stx}"
-      let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
-        | throwErrorAt stx "trying to assign to undeclared state component {id}"
-      expandDoElemVeil $ <- `(doElemVeil|if True then let y <- fresh ($typeStx); $id:ident := y)
-  | `(doElemVeil| $idts:term := *) =>
-      trace[dsl.debug] "[doElemVeil] term assignment {stx}"
-      let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
-      let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
-        | throwErrorAt stx "trying to assign to undeclared state component {id}"
-      expandDoElemVeil $ <- `(doElemVeil|if True then let y <- fresh ($typeStx); $idts:term := y $ts*)
-  | `(doElemVeil| $doE:doElem) =>
-    match doE with
-    | `(doElem| $id:ident := $t:term) =>
-        trace[dsl.debug] "[doElem] id assignment {doE}"
-        let id' <- `(Term.structInstLVal| $id:ident)
-        let fields <- getFields
-        if id.getId ∈ fields then
-          throwIfImmutable id'
-          `(doElem| @Wlp.det _ _ (fun (st : [State]) => ((), { st with $id' := (funcases st $t)})))
-        else
-          withState? $ <- `(doElem| $id:ident := $t:term)
-    | `(doElem| $idts:term := $t:term) =>
-      trace[dsl.debug] "[doElem] term assignment {doE}"
-      let some (id, ts) := idts.isApp? | `(doElem| $doE:doElem)
-      let stx <- withRef idts `(term| $id[ $[$ts],* ↦ $t:term ])
-      let stx <- `(doElemVeil| $id:ident := $stx)
-      expandDoElemVeil stx
-    | _ => withState? doE
-  | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation {stx}"
+    `(Term.doSeqItem| if $t then $thn else $els)
+  -- Expand non-determenistic assigments statements
+  | `(Term.doSeqItem| $id:ident := *) =>
+    let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
+      | throwErrorAt stx "trying to assign to undeclared state component {id}"
+    expandDoElemVeil $ <- `(Term.doSeqItem|if True then let y <- fresh ($typeStx); $id:ident := y)
+  | `(Term.doSeqItem| $idts:term := *) =>
+    let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
+    let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
+      | throwErrorAt stx "trying to assign to undeclared state component {id}"
+    expandDoElemVeil $ <- `(Term.doSeqItem|if True then let y <- fresh ($typeStx); $idts:term := y $ts*)
+  -- Expand determenistic assigments statements
+  | `(Term.doSeqItem| $id:ident := $t:term) =>
+    trace[dsl.debug] "[expand assignmet with args] {stx}"
+    let id' <- `(Term.structInstLVal| $id:ident)
+    let fields <- getFields
+    if id.getId ∈ fields then
+      throwIfImmutable id'
+      `(Term.doSeqItem| if True then
+        modify (fun st => {st with $id:ident := $t })
+        $id:ident := (<- get).$id)
+    else
+      `(Term.doSeqItem| $id:ident := $t:term)
+  | `(Term.doSeqItem| $idts:term := $t:term) =>
+    trace[dsl.debug] "[expand assignmet with args] {stx}"
+    let some (id, ts) := idts.isApp? | return stx
+    let stx' <- `(term| $id[ $[$ts],* ↦ $t:term ])
+    let stx <- withRef stx `(Term.doSeqItem| $id:ident := $stx')
+    expandDoElemVeil stx
+  | doE =>
+    trace[dsl.debug] "[expand just a doElem] {stx}"
+    return doE
 end
 
-elab "do'" stx:doSeqVeil : term => do
-  let stx' <- expandDoSeqVeil stx
+
+elab "do'" stx:doSeq : term => do
+  let mut stateAssns : Array doSeqItem := #[]
+  let doS := match stx with
+  | `(doSeq| $doE*) => doE
+  | `(doSeq| { $doE* }) => doE
+  | _ => unreachable!
+  let fs := (<- getFields).map Lean.mkIdent
+  for f in fs do
+    stateAssns := stateAssns.push <| ← `(Term.doSeqItem| let mut $f:ident := (<- get).$f)
+  let doS := stateAssns.append doS
+  let stx' <- expandDoSeqVeil (<- `(doSeq| $doS*))
   trace[dsl.debug] "{stx}\n→\n{stx'}"
   elabTerm (<- `(term| ((do $stx') : Wlp [State] _))) none
 
@@ -327,11 +319,11 @@ macro_rules
 macro_rules
   | `(requires $pre ensures $post:term $un:unchanged_decl ?) => `(requires $pre ensures (_ : Unit), $post:term $un:unchanged_decl ?)
 
-def getPrePost (spec : TSyntax `doSeqVeil) [Monad m] [MonadError m] [MonadQuotation m] :
+def getPrePost (spec : doSeq) [Monad m] [MonadError m] [MonadQuotation m] :
   m (Term × TSyntax `rcasesPat × Term) := do
   match spec with
-  | `(doSeqVeil| requires $pre ensures $id, $post:term $_:unchanged_decl ?) => pure (pre, id, post)
-  | `(doSeqVeil| requires $pre ensures $post:term $_:unchanged_decl ?) => pure (pre, <- `(rcasesPat|(_ : Unit)), post)
+  | `(doSeq| requires $pre ensures $id, $post:term $_:unchanged_decl ?) => pure (pre, id, post)
+  | `(doSeq| requires $pre ensures $post:term $_:unchanged_decl ?) => pure (pre, <- `(rcasesPat|(_ : Unit)), post)
   | _ => throwErrorAt spec "Invalid sepcification: expected `requires ... ensures ...`"
 
 elab_rules : term

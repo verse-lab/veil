@@ -166,7 +166,7 @@ elab "initial" ini:term : command => do
 
 /-- Declare the initial state predicate as an imperative program in
 `ActionLang`. -/
-elab "after_init" "{" l:doSeqVeil "}" : command => do
+elab "after_init" "{" l:doSeq "}" : command => do
     liftCoreM errorIfStateNotDefined
     let (ret, st, st', st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `st_curr, mkIdent `post)
     let vd ← getAssertionParameters
@@ -236,7 +236,7 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
       actions := s.spec.actions.map (fun t => if t.name == name then { t with decl := actdecl } else t) }})
 
 /-- Defines `act` : `Wlp σ ρ` monad computation, parametrised over `br`. -/
-def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : TSyntax `doSeqVeil) : CommandElabM Unit := do
+def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
     let tr <- `(do' $l)
     let vd ← getImplicitActionParameters
     let (unsimplifiedDef, fnDef, trDef) ← Command.runTermElabM fun vs => do
@@ -274,7 +274,7 @@ syntax (actionType)? "transition" ident (explicitBinders)? "=" term : command
 /-- Transition defined as an imperative program in `ActionLang`. We call
 these "actions". All capital letters in `require` and in assignments are
 implicitly quantified. -/
-syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
+syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeq "}" : command
 
 /-- Show a warning if the given declaration -/
 def warnIfNotFirstOrder (name : Name) : MetaM Unit := do
@@ -295,7 +295,7 @@ macro "exists?" br:explicitBinders ? "," t:term : term =>
   | some br => `(exists $br, $t)
   | none => `($t)
 
-syntax (actionType)? "action" ident (explicitBinders)? "=" doSeqVeil "{" doSeqVeil "}" : command
+syntax (actionType)? "action" ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
 -- syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
 
 def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
@@ -318,7 +318,7 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
 
 
 def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
-  (spec : Option (TSyntax `doSeqVeil)) (l : TSyntax `doSeqVeil) : CommandElabM Unit := do
+  (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
     liftCoreM errorIfStateNotDefined
     let actT ← parseActionTypeStx actT
     -- Elab the action
@@ -347,13 +347,13 @@ This command defines lifts a two-state formula into a `Wlp σ Unit`
 -/
 elab_rules : command
   | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
-  elabAction actT nm br none (<- `(doSeqVeil| ($tr).toWlp))
+  elabAction actT nm br none (<- `(doSeq| ($tr).toWlp))
 
 
 elab_rules : command
-  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeqVeil}) =>
+  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeq}) =>
   elabAction actT nm br none l
-  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = $spec:doSeqVeil {$l:doSeqVeil}) =>
+  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) =>
   elabAction actT nm br spec l
 
 /-! ## Assertions -/

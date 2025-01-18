@@ -22,13 +22,13 @@ action with_block (b : block) = {
 }
 
 action test = {
-  let mut (x, y) := (5, 7)
+  let mut (z, y) := (5, 7)
 }
 
 -- FIXME Vova: this is a BROKEN test
-#guard_msgs(drop error) in
+-- #guard_msgs(drop error) in
 action double_bind (r : Int) = {
-    let (b, b') ← with_block b
+    let (bb, b') ← with_block b
  }
 
 #guard_msgs in

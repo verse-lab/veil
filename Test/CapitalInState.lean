@@ -18,7 +18,7 @@ individual X : Prop
 
 #gen_state Test
 
-after_init { }
+after_init { pure () }
 
 #guard_msgs in
 action set_n_RR (n : node) (s : seq_t) = {

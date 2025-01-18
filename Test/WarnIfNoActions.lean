@@ -7,7 +7,7 @@ individual x : Prop
 
 #gen_state Test
 
-after_init { }
+after_init { pure () }
 
 invariant True
 

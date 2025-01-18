@@ -18,7 +18,7 @@ after_init {
 }
 
 #guard_msgs in
-action empty = { }
+action empty = { pure () }
 
 #guard_msgs in
 action call_empty = {
@@ -55,7 +55,7 @@ action with_if_fresh = {
 }
 
 #guard_msgs in
-action call_with_if_fresh = {
+action ff = {
   with_if_fresh
   x := False
 }

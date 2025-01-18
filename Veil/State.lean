@@ -21,10 +21,10 @@ macro_rules
   | `(term| $f[$is:term,* ↦ $b ]) => do
     let mut x : Array $ Lean.TSyntax `ident := #[]
     for i in is.getElems do
-      if isCapital i then
+      if isCapital i && x.all (· != ⟨i.raw⟩) then
         x := x.push ⟨i.raw⟩
       else
-        x := x.push (<- Lean.Elab.Term.mkFreshIdent (Lean.mkIdent `x))
+        x := x.push (<- Lean.Elab.Term.mkFreshIdent i)
     let tuple1 <- `(term| [tupl| $is: term *])
     let tuple2 <- `(term| [tupl| $[$x: ident] * ] )
     let stx <- `(fun $[$x:ident]* => if $tuple2 = $tuple1 then $b else $f:term $x *)

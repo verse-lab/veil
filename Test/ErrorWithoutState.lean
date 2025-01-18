@@ -9,11 +9,11 @@ individual x : Prop
 
 /-- error: State has not been declared so far: run `#gen_state [name]` -/
 #guard_msgs in
-after_init { }
+after_init { pure () }
 
 /-- error: State has not been declared so far: run `#gen_state [name]` -/
 #guard_msgs in
-action foo = { }
+action foo = { pure () }
 
 /-- error: State has not been declared so far: run `#gen_state [name]` -/
 #guard_msgs in
