@@ -63,6 +63,18 @@ def Wlp.assume (rq : Prop) : Wlp σ PUnit := fun s post => rq → post () s
 -- def Wlp.assert (as : Prop) : Wlp σ PUnit := fun s post => as ∧ post () s
 @[actSimp]
 def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
+
+/-- `Wlp.spec req ens` is the weakest precondition for a function with
+  precondition `req` and postcondition `ens`.
+  The intuition begind this definition is:
+  - if `req s` holds in a current state `s`, then we it is equivalent to
+    `∀ r' s', ens s r' s' -> post r' s'`, meaning that, we have to prove
+    `post`, assuming that `ens` holds.
+  - if `req s` does not hold, then we do not know anything about the behiavor
+    of the function i.e. it can execute to any post-state `s'` and return any
+    value `r'`. Hence we have to show `post` for all possible return values.
+    `Wlp.spec` in this case is equivalent to `∀ r' s', post r' s'`.
+-/
 @[actSimp]
 def Wlp.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : Wlp σ ρ :=
   fun s post => ∀ r' s', (req s -> ens s r' s') -> post r' s'
