@@ -43,8 +43,8 @@ def defineStateComponent
 def defineRelation (comp : StateComponent) : CommandElabM Unit :=
   defineStateComponent comp
      (fun (tp : Expr) => do
-      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
-      return returnsProp)
+      let returnSProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
+      return returnSProp)
     (fun comp => do throwErrorAt (← comp.stx) "Invalid type: relations must return Prop")
 
 /-- Define a `function`. -/
@@ -173,7 +173,7 @@ elab "after_init" "{" l:doSeq "}" : command => do
     -- define initial state action (`Wlp`)
     let act ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st : $stateTp) ($post : sprop $stateTp) => (do' $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
+      `(fun ($st : $stateTp) ($post : SProp $stateTp) => (do' $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
     elabCommand $ ← Command.runTermElabM fun _ => do
       let actName ← getPrefixedName `init
       `(@[initSimp, actSimp] def $(mkIdent actName) $[$vd]* := $act)

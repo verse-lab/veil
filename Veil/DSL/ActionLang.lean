@@ -4,6 +4,7 @@ import Veil.State
 import Veil.DSL.Util
 import Veil.DSL.Base
 import Veil.DSL.StateExtensions
+import Veil.DSL.ActionTheory
 
 
 open Lean Elab Command Term Meta Lean.Parser
@@ -16,88 +17,9 @@ open Lean Elab Command Term Meta Lean.Parser
 -/
 section Veil
 
-section Types
-/-! Our language is parametric over the state type. -/
-variable (σ : Type)
-
-/-- One-state formula -/
-@[inline] abbrev sprop := σ -> Prop
-/-- One-state formula that also talks about the return value. -/
-@[inline] abbrev rprop (ρ : Type u) := ρ → sprop σ
-/-- Two-state formula -/
-@[inline] abbrev actprop := σ -> σ -> Prop
-
-/-  Wlp (σ : Type) (ρ : Type)    := rprop σ ρ -> sprop σ -/
-/-  Wlp (σ : Type) (ρ : Type)    := rprop σ ρ -> σ -> Prop -/
-abbrev Wlp (σ : Type) (ρ : Type) := σ -> rprop σ ρ -> Prop
-def BigStep (σ : Type) (ρ : Type) := σ -> ρ -> σ -> Prop
-
-/-- Function which transforms any two-state formula into `Wlp` -/
-@[actSimp]
-def Function.toWlp (r : σ -> σ -> Prop) : Wlp σ Unit :=
-  fun s post => ∀ s', r s s' -> post () s'
-
-@[actSimp]
-def Wlp.toBigStep {σ} (act : Wlp σ ρ) : BigStep σ ρ :=
-  fun s r' s' => ¬ act s (fun r₀ s₀ => ¬ (r' = r₀ ∧ s' = s₀))
-
-@[actSimp]
-def Wlp.toActProp {σ} (act : Wlp σ ρ) : actprop σ :=
-  fun s s' => ¬ act s (fun _ s₀ => s' ≠ s₀)
-
-@[actSimp]
-def BigStep.toWlp (act : BigStep σ ρ) : Wlp σ ρ :=
-  fun s post => ∀ r s', act s r s' -> post r s'
-
-end Types
-
-section
-
-variable {σ ρ : Type}
-
-@[actSimp]
-def Wlp.pure (r : ρ) : Wlp σ ρ := fun s post => post r s
-@[actSimp]
-def Wlp.bind (wp : Wlp σ ρ) (wp_cont : ρ -> Wlp σ ρ') : Wlp σ ρ' :=
-  fun s post => wp s (fun r s' => wp_cont r s' post)
-
-instance : Monad (Wlp σ) where
-  pure := Wlp.pure
-  bind := Wlp.bind
-
-@[actSimp]
-def Wlp.assume (rq : Prop) : Wlp σ PUnit := fun s post => rq → post () s
-@[actSimp]
-def Wlp.assert (as : Prop) : Wlp σ PUnit := fun s post => as ∧ post () s
-@[actSimp]
-def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
-@[actSimp]
-def Wlp.spec (pre : sprop σ) (post : σ -> rprop σ ρ) : Wlp σ ρ :=
-  fun s post' => ∀ s' r, pre s ∧ (post' r s' -> post s r s')
-
-def BigStep.choice : BigStep σ ρ -> BigStep σ ρ -> BigStep σ ρ :=
-  fun act act' s r s' => act s r s' ∨ act' s r s'
-
-/- BAD: it duplicates post -/
--- def Wlp.choice : Wlp σ ρ -> Wlp σ ρ -> Wlp σ ρ :=
---   fun wp wp' s post => wp s post ∨ wp' s post
-
-def Wlp.choice (wp : Wlp σ ρ) (wp' : Wlp σ ρ) : Wlp σ ρ :=
-  wp.toBigStep.choice wp'.toBigStep |>.toWlp
-
-instance : MonadStateOf σ (Wlp σ) where
-  get := fun s post => post s s
-  set s' := fun _ post => post () s'
-  modifyGet := fun act s post => let (ret, s') := act s ; post ret s'
-
-class IsStateExtension (σ : semiOutParam Type) (σ' : Type) where
-  extendWith : σ -> σ' -> σ'
-  restrictTo : σ' -> σ
-
-export IsStateExtension (extendWith restrictTo)
-
-instance [IsStateExtension σ σ'] : MonadLift (Wlp σ) (Wlp σ') where
-  monadLift := fun m s post => m (restrictTo s) (fun r s' => post r (extendWith s' s))
+attribute [actSimp] modify modifyGet MonadStateOf.modifyGet get
+  getThe MonadStateOf.get MonadStateOf.set instMonadStateOfMonadStateOf
+  instMonadStateOfWlp
 
 macro "unfold_wlp" : conv =>
   `(conv| unfold
@@ -105,7 +27,6 @@ macro "unfold_wlp" : conv =>
     Wlp.pure
     Wlp.bind
     Wlp.assume
-    Wlp.assert
     Wlp.fresh
     -- unfold state monad actions
     set
@@ -126,8 +47,6 @@ macro "unfold_wlp" : conv =>
     monadLift
     restrictTo
     extendWith)
-
-end
 
 partial def getCapitals (s : Syntax) :=
   let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
