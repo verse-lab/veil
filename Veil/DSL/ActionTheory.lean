@@ -8,9 +8,10 @@ import Veil.DSL.Base
 -/
 section Veil
 
+/-! ## Types  -/
 section Types
-/-! Our language is parametric over the state type. -/
-variable (σ : Type)
+/-! Our language is parametric over the state and return type. -/
+variable (σ ρ : Type)
 
 /-- One-state formula -/
 @[inline] abbrev SProp := σ -> Prop
@@ -19,43 +20,74 @@ variable (σ : Type)
 /-- Two-state formula -/
 @[inline] abbrev ActProp := σ -> σ -> Prop
 
-/-  Wlp (σ : Type) (ρ : Type)    := RProp σ ρ -> SProp σ -/
-/-  Wlp (σ : Type) (ρ : Type)    := RProp σ ρ -> σ -> Prop -/
-abbrev Wlp (σ : Type) (ρ : Type) := σ -> RProp σ ρ -> Prop
-abbrev BigStep (σ : Type) (ρ : Type) := σ -> ρ -> σ -> Prop
+/- In Veil we will be using two different types of semantics:
+  - [Wlp]: Omni semantics, which relates a state `s : σ` to set of the
+    possible program outcomes `post : RProp σ`
+  - [BigStep]: Standard big-step semantics, which relates a state `s : σ`
+    to a return value `r : ρ` and a post-state `s' : σ`
+-/
+
+/-- Omni semantics, which relates a state `s : σ` to set of the possible program outcomes `post : RProp σ` -/
+abbrev Wlp     := σ -> RProp σ ρ -> Prop
+/-- [BigStep]: Standard big-step semantics, which relates a state `s : σ` to a return value `r : ρ` and a post-state `s' : σ` -/
+abbrev BigStep := σ -> ρ -> σ -> Prop
+
+end Types
+
+/-! ## Theory  -/
+section Theory
+
+variable {σ ρ : Type}
+
+/-! ### Relation between `BigStep` and `Wlp`  -/
+
+/-- `Wlp.toBigStep` converts Omni semantics to a Big-step one. Note that, it only
+  makes sence is `act` terminates, in other words, the following holds
+
+  ```∀ s, ∃ Q, act s Q```
+
+  If the statement above does not hold, then ```act s Q``` should be false for all `Q`.
+  In this case, `act.toBigStep s r' s'` will be true for all `r'` and `s'`, which is
+  not what we not.
+
+  In theory we could add  ```∀ s, ∃ Q, act s Q``` condition to this definition, but
+  this will duplicate the body of `act` twice, increasing the formula which we eventually
+  send to the solver.
+
+  Instead, we will add this condition to the `Sound` class, which will allow us to prove
+  the soundness of the `Wlp.toBigStep` conversion for all `Sound` actions. And then we
+  show that all actions we are using in our framework are `Sound`.
+   -/
+@[actSimp]
+def Wlp.toBigStep {σ} (act : Wlp σ ρ) : BigStep σ ρ :=
+  fun s r' s' => ¬ act s (fun r₀ s₀ => ¬ (r' = r₀ ∧ s' = s₀))
+
+/-- [BigStep.toWlp] converts Big-step semantics to Omni one.
+
+  Ideally, here we should also assert termination of `act`, but this will be handled
+  via `Sound` condition later. -/
+@[actSimp]
+def BigStep.toWlp {σ} (act : BigStep σ ρ) : Wlp σ ρ :=
+  fun s post => ∀ r s', act s r s' -> post r s'
+
 
 /-- Function which transforms any two-state formula into `Wlp` -/
 @[actSimp]
 def Function.toWlp (r : σ -> σ -> Prop) : Wlp σ Unit :=
   fun s post => ∀ s', r s s' -> post () s'
 
-@[actSimp]
-def Wlp.toBigStep {σ} (act : Wlp σ ρ) : BigStep σ ρ :=
-  fun s r' s' => ¬ act s (fun r₀ s₀ => ¬ (r' = r₀ ∧ s' = s₀))
-
+/-- Function which transforms any `Wlp` into a two-state formula -/
 @[actSimp]
 def Wlp.toActProp {σ} (act : Wlp σ ρ) : ActProp σ :=
   fun s s' => ¬ act s (fun _ s₀ => s' ≠ s₀)
 
-@[actSimp]
-def BigStep.toWlp {σ} (act : BigStep σ ρ) : Wlp σ ρ :=
-  fun s post => ∀ r s', act s r s' -> post r s'
-
-end Types
-
-section
-
-variable {σ ρ : Type}
+/-! ### Languge statements -/
 
 @[actSimp]
 def Wlp.pure (r : ρ) : Wlp σ ρ := fun s post => post r s
 @[actSimp]
 def Wlp.bind (wp : Wlp σ ρ) (wp_cont : ρ -> Wlp σ ρ') : Wlp σ ρ' :=
   fun s post => wp s (fun r s' => wp_cont r s' post)
-
-instance : Monad (Wlp σ) where
-  pure := Wlp.pure
-  bind := Wlp.bind
 
 @[actSimp]
 def Wlp.assume (rq : Prop) : Wlp σ PUnit := fun s post => rq → post () s
@@ -79,20 +111,6 @@ def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
 def Wlp.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : Wlp σ ρ :=
   fun s post => ∀ r' s', (req s -> ens s r' s') -> post r' s'
 
-
-/- alternative definition of Wlp.spec -/
--- @[actSimp]
--- def Wlp.spec' (req : SProp σ) (ens : σ -> RProp σ ρ) : Wlp σ ρ :=
---   fun s post => req s ∧ (∀ r' s', ens s r' s' -> post r' s') ∨ (∀ r' s', post r' s')
-
--- theorem check_spec_sound' [Sound act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
---   (∀ s, req s -> act s (ens s)) ->
---   (∀ s post, Wlp.spec' req ens s post -> act s post) := by
---   intro triple s post; unfold Wlp.spec'
---   rintro (⟨hreq, hens⟩ | hpost)
---   { apply Sound.impl <;> solve_by_elim }
---   apply sound_tauto; assumption
-
 def BigStep.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : BigStep σ ρ :=
   fun s r s' => req s -> ens s r s'
 
@@ -106,6 +124,12 @@ def BigStep.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : BigStep σ ρ :=
 -- def Wlp.choice (wp : Wlp σ ρ) (wp' : Wlp σ ρ) : Wlp σ ρ :=
 --   wp.toBigStep.choice wp'.toBigStep |>.toWlp
 
+/-! ### Monad Instances -/
+
+instance : Monad (Wlp σ) where
+  pure := Wlp.pure
+  bind := Wlp.bind
+
 instance : MonadStateOf σ (Wlp σ) where
   get := fun s post => post s s
   set s' := fun _ post => post () s'
@@ -116,10 +140,28 @@ class IsStateExtension (σ : semiOutParam Type) (σ' : Type) where
   restrictTo : σ' -> σ
 
 export IsStateExtension (extendWith restrictTo)
-
 instance [IsStateExtension σ σ'] : MonadLift (Wlp σ) (Wlp σ') where
   monadLift := fun m s post => m (restrictTo s) (fun r s' => post r (extendWith s' s))
 
+/-! ### Soundness proof -/
+
+/-- `Sound act` states the set of minimal conditions on `act` that are required
+  to prove the soundness of the `Wlp.toBigStep` conversion.
+  - first condition `inter` is a generalization of the following statement:
+    ```lean
+      ∀ s post post', act s post -> act s post' ->
+        act s fun r s => post r s ∧ post' r s
+    ```
+    In other words, if both `post` and `post'` overapproximate the behavior of `act`,
+    then their intersection also overapproximates the behavior of `act`. `Sound.inter`
+    states that for the intersection of an arbitrary (possibly infinite) collection of
+    predicates `post`
+  - second condition `impl`, states that we can always weaken the postcondition of `act`
+    by adding some of the possible outcomes.
+
+  Note that, as captured by `sound_terminates`, the `Sound act` ensures that `act`
+  terminates.
+-/
 class Sound {σ ρ : Type} (act : Wlp σ ρ) where
   inter {τ : Type} (post : τ -> RProp σ ρ) :
     ∀ s : σ, (∀ t : τ, act s (post t)) -> act s (∀ t, post t · ·)
@@ -134,7 +176,7 @@ theorem sound_and (act : Wlp σ ρ) [Sound act] :
     unfold Post; simp
   rw [<-post_eq]; apply Sound.inter <;> simp [*, Post]
 
-theorem sound_tauto [Sound act] : (∀ r s, post r s) -> act s post := by
+theorem sound_terminates [Sound act] : (∀ r s, post r s) -> act s post := by
   intro hpost
   have post_eq : post = (fun _ _ => Empty -> True) := by ext; simp_all
   rw [post_eq]; apply Sound.inter; rintro ⟨⟩
@@ -152,7 +194,7 @@ theorem wlp_sound (act : Wlp σ ρ) [Sound act] :
     apply Sound.inter; intro r'
     apply Sound.inter; intro s'
     by_cases postrs : post r' s'
-    { apply sound_tauto; simp_all }
+    { apply sound_terminates; simp_all }
     apply Sound.impl (post := fun r₀ s₀ => r' = r₀ → ¬s' = s₀) <;> simp_all
     false_or_by_contra
     specialize hact _ _ ‹_›; contradiction }
@@ -161,20 +203,21 @@ theorem wlp_sound (act : Wlp σ ρ) [Sound act] :
   { intros; intro _; simp_all }
   assumption
 
-theorem wlp_spec_to_big_step :
-  (Wlp.spec ens req).toBigStep = BigStep.spec ens req := by
-  ext s r' s'; unfold Wlp.spec BigStep.spec Wlp.toBigStep; simp
-
-theorem check_spec_sound [Sound act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
-  (∀ s, req s -> act s (ens s)) ->
-  (∀ s post, Wlp.spec req ens s post -> act s post) := by
-  intro triple s post hspec
-  apply Sound.impl; apply hspec
-  have: ∀ r' s', ({t : Unit // req s} → ens s r' s') ->  (req s → ens s r' s') := by
-    intro r' s' h hreq; apply h; exact ⟨(), hreq⟩
-  apply Sound.impl; apply this
-  apply Sound.inter; rintro ⟨_, hreq⟩
-  solve_by_elim
+theorem triple_sound [Sound act] (req : SProp σ) (ens : SProp σ) :
+  (∀ s s', req s -> act.toActProp s s' -> ens s') ->
+  ∀ s, req s -> act s (fun _ => ens) := by
+  intro htriple s hreq
+  have ens_impl : ∀ s, (∀ s', ¬ ens s' -> ¬ (s' = s)) -> ens s := by
+    intro s impl
+    false_or_by_contra
+    specialize impl s; apply impl <;> simp_all
+  apply Sound.impl; intro _; apply ens_impl
+  apply Sound.inter; intro s'
+  by_cases hens : ens s'
+  { apply sound_terminates; simp_all }
+  apply Sound.impl (post := fun r₀ s₀ => ¬s' = s₀) <;> (intros; try simp_all)
+  false_or_by_contra
+  specialize htriple _ _ ‹_› ‹_›; contradiction
 
 instance : Sound (Wlp.pure (σ := σ) r) where
   inter := by simp [actSimp]
@@ -227,4 +270,21 @@ instance (act : Wlp σ ρ) [IsStateExtension σ σ'] [Sound act] :
     intros; simp_all [monadLift, MonadLift.monadLift]
     solve_by_elim [Sound.impl]
 
-end
+/-! ### Correctness of `checkSpec` -/
+
+theorem wlp_spec_to_big_step :
+  (Wlp.spec ens req).toBigStep = BigStep.spec ens req := by
+  ext s r' s'; unfold Wlp.spec BigStep.spec Wlp.toBigStep; simp
+
+theorem check_spec_sound [Sound act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
+  (∀ s, req s -> act s (ens s)) ->
+  (∀ s post, Wlp.spec req ens s post -> act s post) := by
+  intro triple s post hspec
+  apply Sound.impl; apply hspec
+  have: ∀ r' s', ({t : Unit // req s} → ens s r' s') ->  (req s → ens s r' s') := by
+    intro r' s' h hreq; apply h; exact ⟨(), hreq⟩
+  apply Sound.impl; apply this
+  apply Sound.inter; rintro ⟨_, hreq⟩
+  solve_by_elim
+
+end Theory
