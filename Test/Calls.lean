@@ -2,14 +2,14 @@ import Veil.DSL
 import Veil.TestUtil
 open Classical
 
-section Test
+namespace Test
 
 type node
 
 relation r (n : node) (m : node)
 individual x : Prop
 
-#gen_state Test
+#gen_state
 
 after_init {
   r N M := False

@@ -89,8 +89,8 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       match s with
       | TraceSpecLine.action n => do
         let nextState := stateNames[currStateId + 1]!
-        let actApp := mkAppN (Expr.const (toTrName n) []) vs
-        let stx ← PrettyPrinter.delab actApp
+        let vs <- getSectionArgumentsStx vs
+        let stx <- `(@$(mkIdent $ toTrName n) $vs*)
         -- FIXME: make a correct application, i.e. providing the `vd` names
         let t ← `(term|($stx $currState $nextState))
         assertions := assertions.push t

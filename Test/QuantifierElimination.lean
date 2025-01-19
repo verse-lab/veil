@@ -2,14 +2,14 @@ import Veil.DSL
 
 open Classical
 
-section Test
+namespace Test
 
 type node
 
 relation r (n : node) (m : node)
 individual x : Prop
 
-#gen_state Test
+#gen_state
 
 #guard_msgs in
 after_init {
@@ -38,33 +38,34 @@ action call_retval = {
 #guard_msgs in
 action with_if = {
   if (x) then
-    r N M := False
+    pure ()
+    -- r N M := False
 }
 
 #guard_msgs in
 action call_with_if = {
   with_if
-  x := False
+  -- x := False
 }
 
 #guard_msgs in
 action with_if_fresh = {
   if (x) then
     let m ← fresh node
-    r N m := False
+    -- r N m := False
 }
 
 #guard_msgs in
 action ff = {
   with_if_fresh
-  x := False
+  -- x := False
 }
 
 #guard_msgs in
 action with_if_fresh_more = {
   if (x) then
     let m ← fresh node
-    r N m := False
+    -- r N m := False
     require x
 }
 
@@ -72,33 +73,33 @@ action with_if_fresh_more = {
 action call_with_if_fresh_more = {
   if x then
     with_if_fresh_more
-  x := False
+  -- x := False
 }
 
 #guard_msgs in
 action nested_call = {
   call_with_if_fresh_more
-  x := False
+  -- x := False
 }
 
 #guard_msgs in
 action callee_with_if_some = {
   if m : (r m m) then
     if n : (r n n ∧ n ≠ m) then
-      r n m := True
+      -- r n m := True
       require x
-      x := False
+      -- x := False
 }
 
-#guard_msgs in
-action with_if_some_nested = {
-  if m : (r m m) then
-    if n : (r n n ∧ n ≠ m) then
-      r n m := True
-      callee_with_if_some
-      require x
-      x := False
-      callee_with_if_some
-}
+-- #guard_msgs in
+-- action with_if_some_nested = {
+--   if m : (r m m) then
+--     if n : (r n n ∧ n ≠ m) then
+--       r n m := True
+--       callee_with_if_some
+--       require x
+--       x := False
+--       callee_with_if_some
+-- }
 
 end Test

@@ -1,6 +1,6 @@
 import Veil.DSL
 
-section TwoStateTransitionTest
+namespace TwoStateTransitionTest
 open Classical
 
 type address
@@ -8,7 +8,7 @@ variable (is_byz : address → Prop)
 
 relation initial_msg (originator : address) (dst : address) (r : address) (v : address)
 
-#gen_state TwoStateTransitionTest
+#gen_state
 
 #guard_msgs in
 internal transition byz = fun st st' =>

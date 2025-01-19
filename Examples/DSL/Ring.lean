@@ -6,7 +6,7 @@ import Examples.DSL.Std
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
-section Ring
+namespace Ring
 open Classical
 
 type node
@@ -20,17 +20,21 @@ open Between TotalOrder
 relation leader : node -> Prop
 relation pending : node -> node -> Prop
 
-#gen_state Ring
+#gen_state
 
 after_init {
   leader N := False
   pending M N := False
 }
 
+set_option trace.dsl.info true
+
 action send (n next : node) = {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := True
 }
+
+#print send.tr
 
 action recv (sender n next : node) = {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
@@ -50,7 +54,9 @@ safety [single_leader] leader L → le N L
 invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
 
-#gen_spec Ring
+set_option trace.dsl true
+
+#gen_spec
 
 #check_invariants
 
@@ -106,3 +112,5 @@ unsat trace [trace_any] {
 } by { bmc }
 
 end Ring
+
+#eval do return (← localSpecCtx.get).stateBaseName

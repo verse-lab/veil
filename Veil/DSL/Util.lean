@@ -65,8 +65,8 @@ def getStateTpStx : AttrM Term := do
   return stateTp
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
-  let systemTp ← PrettyPrinter.delab $ mkAppN (mkConst (← localSpecCtx.get).spec.name) vs
-  return systemTp
+  let sectionArgs ← getSectionArgumentsStx vs
+  `(@$(mkIdent `System) $sectionArgs:term*)
 
 def errorIfStateNotDefined : CoreM Unit := do
   let stateName := (← localSpecCtx.get).stateBaseName
@@ -157,7 +157,7 @@ def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let .some _sinfo := getStructureInfo? (<- getEnv) sn
     | throwError "{stateTpExpr} is not a structure"
   let fns := _sinfo.fieldNames.map Lean.mkIdent
-  let stateName ← getStateName
+  let stateName := `State
   let casesOn <- mkConst $ (stateName ++ `casesOn)
   let casesOn <- PrettyPrinter.delab casesOn
   let stateTp <- getStateTpStx

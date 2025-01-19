@@ -5,17 +5,26 @@ open Lean
 
 /-! # DSL Environment Extensions -/
 
-def _root_.Lean.EnvExtension.set [Inhabited σ] (ext : EnvExtension σ) (s : σ) : AttrM Unit := do
+def _root_.Lean.EnvExtension.set (ext : EnvExtension σ) (s : σ)
+  [Monad m] [MonadEnv m] : m Unit := do
   Lean.setEnv $ ext.setState (<- getEnv) s
 
-def _root_.Lean.EnvExtension.modify [Inhabited σ] (ext : EnvExtension σ) (s : σ -> σ) : AttrM Unit := do
+def _root_.Lean.EnvExtension.modify (ext : EnvExtension σ) (s : σ -> σ)
+  [Monad m] [MonadEnv m] : m Unit := do
   Lean.modifyEnv (ext.modifyState · s)
 
-def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ) : AttrM σ := do
+def _root_.Lean.EnvExtension.get [Inhabited σ] (ext : EnvExtension σ)
+  [Monad m] [MonadEnv m] : m σ := do
   return ext.getState (<- getEnv)
 
-def _root_.Lean.SimpleScopedEnvExtension.get [Inhabited σ] (ext : SimpleScopedEnvExtension α σ) : AttrM σ := do
+def _root_.Lean.SimpleScopedEnvExtension.get [Inhabited σ] (ext : SimpleScopedEnvExtension α σ)
+  [Monad m] [MonadEnv m] : m σ := do
   return ext.getState (<- getEnv)
+
+def _root_.Lean.SimpleScopedEnvExtension.modify
+  (ext : SimpleScopedEnvExtension σ σ) (s : σ -> σ)
+  [Monad m] [MonadEnv m] : m Unit := do
+  Lean.modifyEnv (ext.modifyState · s)
 
 /-- Auxiliary structure to store the transition system objects. This is
 per-file temporary state. -/
@@ -29,8 +38,12 @@ deriving Inhabited
 
 abbrev GlobalSpecificationCtx := Std.HashMap Name ModuleSpecification
 
-initialize localSpecCtx : EnvExtension LocalSpecificationCtx ←
- registerEnvExtension (pure default)
+initialize localSpecCtx : SimpleScopedEnvExtension LocalSpecificationCtx LocalSpecificationCtx ←
+  registerSimpleScopedEnvExtension {
+    initial := default
+    addEntry := fun _ s' => s'
+  }
+
 
 initialize globalSpecCtx :
   SimpleScopedEnvExtension (Name × ModuleSpecification) GlobalSpecificationCtx <-

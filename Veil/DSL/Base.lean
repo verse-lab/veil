@@ -9,5 +9,6 @@ register_simp_attr safeSimp
 initialize
   registerTraceClass `dsl
   registerTraceClass `dsl.debug
+  registerTraceClass `dsl.info
   -- the following are primarily for performance profiling
   registerTraceClass `dsl.perf.checkInvariants

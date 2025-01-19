@@ -4,14 +4,14 @@ import Veil.TestUtil
 open Classical
 set_option linter.unusedVariables false
 
-section Test
+namespace Test
 type block
 type queue
 
 individual x : Prop
 relation r : block -> block -> Prop
 
-#gen_state Test
+#gen_state
 
 #guard_msgs in
 action fresh_with_type = {

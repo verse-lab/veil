@@ -4,13 +4,13 @@ import Veil.TestUtil
 open Classical
 set_option linter.unusedVariables false
 
-section Test
+namespace Test
 type block
 type queue
 
 individual x : Prop
 
-#gen_state Test
+#gen_state
 
 after_init {
   x := True
@@ -18,7 +18,7 @@ after_init {
 
 invariant True
 
-#gen_spec Test
+#gen_spec
 
 #guard_msgs(drop warning) in
-sat trace [init] { } by { bmc_sat }
+sat trace [ini] { } by { bmc_sat }

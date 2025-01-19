@@ -78,13 +78,14 @@ inductive CheckInvariantsBehaviour
 
 def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
   Command.runTermElabM fun vs => do
+    let moduleName <- getCurrNamespace
     let ge ← getEnv
     let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
     let sectionArgs ← getSectionArgumentsStx vs
     let mut theorems := #[]
     -- Init checks
     for (invName, _) in invIndicators.reverse do
-      let .some _ := ge.find? invName
+      let .some _ := ge.find? (invName)
         | throwError s!"invariant {invName} not found"
       let invStx ← `(@$(mkIdent invName) $sectionArgs*)
       if generateInitThms then
@@ -95,7 +96,7 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
     for (actName, _) in actIndicators.reverse do
       let trName := toTrName actName
       for (invName, _) in invIndicators.reverse do
-        let .some _ := ge.find? actName
+        let .some _ := ge.find? (moduleName ++ actName)
           | throwError s!"action {actName} not found"
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let trStx ← `(@$(mkIdent trName) $sectionArgs*)
@@ -106,6 +107,7 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
 
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := do
+  let moduleName <- getCurrNamespace
   let ge ← getEnv
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
@@ -118,7 +120,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let sectionArgs ← getSectionArgumentsStx vs
       -- get the syntax of the transitions
       let actStxList : Array Term ← actIndicators.toArray.mapM (fun (actName, indName) => do
-        let .some _ := ge.find? actName
+        let .some _ := ge.find? (moduleName ++ actName)
           | throwError s!"action {actName} not found"
         let tr := mkIdent $ toTrName actName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"

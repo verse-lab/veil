@@ -3,7 +3,7 @@ import Veil.TestUtil
 
 open Classical
 
-section Test
+namespace Test
 
 individual x : Prop
 
@@ -21,7 +21,7 @@ invariant [inv] True
 
 /-- error: State has not been declared so far: run `#gen_state [name]` -/
 #guard_msgs in
-#gen_spec Test
+#gen_spec
 
 /-- error: State has not been declared so far: run `#gen_state [name]` -/
 #guard_msgs in

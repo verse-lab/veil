@@ -1,6 +1,6 @@
 import Veil.DSL
 
-section Test
+namespace Test
 open Classical
 
 type node
@@ -8,15 +8,15 @@ type node
 individual x : Prop
 relation r : node -> node -> Prop
 
-#gen_state Test
+#gen_state
 
 action nondet_individual = {
   x := *
 }
 
 /--
-info: def nondet_individual : {node : Type} →
-  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wlp (Test.State node) PUnit :=
+info: def Test.nondet_individual : {node : Type} →
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wlp (State node) PUnit :=
 fun {node} [DecidableEq node] [Nonempty node] =>
   let t := fun s post => ∀ (t : Prop), post PUnit.unit { x := t, r := s.r };
   t
@@ -30,8 +30,8 @@ action quantify_fresh (n : node) = {
 }
 
 /--
-info: def quantify_fresh : {node : Type} →
-  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → node → Wlp (Test.State node) PUnit :=
+info: def Test.quantify_fresh : {node : Type} →
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → node → Wlp (State node) PUnit :=
 fun {node} [DecidableEq node] [Nonempty node] n =>
   let t := fun s post =>
     ∀ (t : node → node → Prop), post PUnit.unit { x := s.x, r := fun x N => if x = n then t n N else s.r x N };
@@ -45,8 +45,8 @@ action double_quant = {
 }
 
 /--
-info: def double_quant : {node : Type} →
-  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wlp (Test.State node) PUnit :=
+info: def Test.double_quant : {node : Type} →
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wlp (State node) PUnit :=
 fun {node} [DecidableEq node] [Nonempty node] =>
   let t := fun s post =>
     ∀ (t : node → node → Prop), post PUnit.unit { x := s.x, r := fun N x => if x = N then t N N else s.r N x };

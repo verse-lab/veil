@@ -5,18 +5,19 @@ open Classical
 set_option linter.unusedVariables.analyzeTactics true
 set_option sauto.smt.translator "lean-smt"
 
-section Test
+namespace Test
 type node
 
 relation r : node -> Nat -> Prop
 individual n : node
 function f : Nat -> Nat
 
-#gen_state Test
+#gen_state
 
 
 set_option linter.unusedVariables.analyzeTactics true
 
+#guard_msgs(drop warning) in
 action foo (k : Nat) =
   requires ∀ x, r x k
   ensures True

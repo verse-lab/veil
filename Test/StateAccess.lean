@@ -4,7 +4,7 @@ import Veil.TestUtil
 open Classical
 set_option linter.unusedVariables false
 
-section Test
+namespace Test
 type block
 type node
 type queue
@@ -14,7 +14,7 @@ individual b : block
 relation r : block -> block -> Prop
 relation n_have_privilege : node → Prop
 
-#gen_state Test
+#gen_state
 
 action with_block (b : block) = {
   let b' ← fresh block

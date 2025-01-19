@@ -4,7 +4,7 @@ import Veil.TestUtil
 open Classical
 set_option linter.unusedVariables false
 
-section Test
+namespace Test
 type seq_t
 type node
 type block
@@ -16,7 +16,7 @@ function n_RR : node → seq_t
 function n_RN : node → node → seq_t
 individual X : Prop
 
-#gen_state Test
+#gen_state
 
 after_init { pure () }
 

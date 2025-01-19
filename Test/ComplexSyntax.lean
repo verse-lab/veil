@@ -5,7 +5,7 @@ import Examples.DSL.Std
 open Classical
 set_option linter.unusedVariables false
 
-section Test
+namespace Test
 type seq_t
 type node
 type block
@@ -18,7 +18,7 @@ individual init_node : node
 
 instantiate seq : TotalOrderWithMinimum seq_t
 
-#gen_state Test
+#gen_state
 
 after_init {
   x := False;
@@ -76,4 +76,4 @@ action call_in_capital_assign = {
 
 invariant True
 
-#gen_spec Test
+#gen_spec
