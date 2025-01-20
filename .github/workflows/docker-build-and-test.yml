@@ -3,7 +3,7 @@ name: Build and Test Docker Image
 on:
   push:
     branches:
-      - ci
+      - main
   pull_request:
 
 jobs:
