@@ -172,9 +172,10 @@ partial def expandDoElemVeil (stx : doSeqItem) : TermElabM doSeqItem := do
     let fields <- getFields
     if id.getId ∈ fields then
       throwIfImmutable id'
-      `(Term.doSeqItem| if True then
-        modify (fun st => {st with $id:ident := $t })
-        $id:ident := (<- get).$id)
+      -- NOTE: It is very important that we return a single `doSeqItem`;
+      -- otherwise syntax highlighting gets broken very badly
+      let modifyGetState ← `(Term.doSeqItem| $id:ident ← modifyGet (fun st => (let val := $t; (val, {st with $id:ident := val}))))
+      return modifyGetState
     else
       `(Term.doSeqItem| $id:ident := $t:term)
   | `(Term.doSeqItem| $idts:term := $t:term) =>
