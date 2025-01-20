@@ -147,9 +147,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       trace[dsl.debug] "SMT init check: {initCmd}"
       let initRes ← querySolverWithIndicators initCmd withTimeout (initChecks.map (fun a => #[a]))
       let initMsgs := getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
-        | [invName] => (invName, match res with
-          | .Unsat => true
-          | _ => false)
+        | [invName] => (invName, res)
         | _ => unreachable!)
 
       -- Action checks
@@ -162,9 +160,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       trace[dsl.debug] "SMT action check: {actCmd}"
       let actRes ← querySolverWithIndicators actCmd withTimeout (invChecks.map (fun (a, b) => #[a, b]))
       let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
-        | [actName, invName] => (invName, actName, match res with
-          | .Unsat => true
-          | _ => false)
+        | [actName, invName] => (invName, actName, res)
         | _ => unreachable!)
 
       let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList) ++ "\n"

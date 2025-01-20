@@ -77,6 +77,7 @@ inductive SmtResult
   | Sat (model : Option FirstOrderStructure)
   | Unsat
   | Unknown (reason : String)
+deriving Inhabited
 
 instance : ToString SmtResult where
   toString

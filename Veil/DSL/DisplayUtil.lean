@@ -1,5 +1,6 @@
 import Lean
 import Veil.DSL.Util
+import Veil.SMT.Main
 
 open Lean Elab Meta Tactic TryThis
 
@@ -13,22 +14,28 @@ def displaySuggestion (stx : Syntax) (theorems : Array (TSyntax `command)) (preM
     }
     addSuggestion stx suggestion (header := "")
 
-def getInitCheckResultMessages (res: List (Name × Bool)) : (Array String) := Id.run do
+def emoji (res : SmtResult) : String :=
+  match res with
+  | .Unsat => "✅"
+  | .Sat _ => "❌"
+  | .Unknown _ => "❓"
+
+def getInitCheckResultMessages (res: List (Name × SmtResult)) : (Array String) := Id.run do
   let mut msgs := #[]
   if !res.isEmpty then
     msgs := msgs.push "Initialization must establish the invariant:"
-    for (invName, success) in res do
-      msgs := msgs.push s!"  {invName} ... {if success then "✅" else "❌"}"
+    for (invName, r) in res do
+      msgs := msgs.push s!"  {invName} ... {emoji r}"
   pure msgs
 
-def getActCheckResultMessages (res: List (Name × Name × Bool)) : (Array String) := Id.run do
+def getActCheckResultMessages (res: List (Name × Name × SmtResult)) : (Array String) := Id.run do
   let mut msgs := #[]
   if !res.isEmpty then
     msgs := msgs.push "The following set of actions must preserve the invariant:"
     for (actName, invResults) in group res do
       msgs := msgs.push s!"  {actName}"
-      for (invName, success) in invResults do
-        msgs := msgs.push s!"    {invName} ... {if success then "✅" else "❌"}"
+      for (invName, r) in invResults do
+        msgs := msgs.push s!"    {invName} ... {emoji r}"
   pure msgs
 where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
   xs.foldl (fun acc (key, val) =>
