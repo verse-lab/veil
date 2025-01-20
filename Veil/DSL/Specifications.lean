@@ -148,25 +148,27 @@ instance : ToString StateAssertion where
 /-- A cleaned-up version of `StsState`, this gets generated on `#gen_spec` and stored in the global state. -/
 structure ModuleSpecification where
   /-- Name of the specification -/
-  name        : Name
+  name         : Name
   /-- Expression representing the type of the transition system state,
   *without* having applied the section variables. -/
-  stateType   : Expr
+  stateType    : Expr
   /-- Expression representing the syntax type of the transition system state,
   *with* having applied the section variables. -/
-  stateStx   : Term
+  stateStx     : Term
   /-- Signatures of all constants, relations, and functions that compose
   the state. This basically defines a FOL signature. -/
-  signature  : Array StateComponent
+  signature    : Array StateComponent
   /-- Axioms/assumptions that hold on the signature. Every state
   component mentioned in an axiom must be marked `immutable`. -/
-  assumptions : Array StateAssertion
+  assumptions  : Array StateAssertion
   /-- Initial state predicate -/
-  init        : StateSpecification
+  init         : StateSpecification
   /-- Action of the system -/
-  actions : Array ActionSpecification
+  actions      : Array ActionSpecification
   /-- Invariants -/
-  invariants  : Array StateAssertion
+  invariants   : Array StateAssertion
+  /-- Names of modules which the current one depends on -/
+  dependencies : Array Name
 deriving Inhabited
 
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
