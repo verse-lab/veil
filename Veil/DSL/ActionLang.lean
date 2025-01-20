@@ -189,8 +189,7 @@ partial def expandDoElemVeil (stx : doSeqItem) : TermElabM doSeqItem := do
     return doE
 end
 
-
-elab "do'" stx:doSeq : term => do
+elab (name := VeilDo) "do'" stx:doSeq : term => do
   let mut stateAssns : Array doSeqItem := #[]
   let doS := match stx with
   | `(doSeq| $doE*) => doE

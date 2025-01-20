@@ -53,6 +53,22 @@ def defineFunction (comp : StateComponent) : CommandElabM Unit :=
     (fun (tp : Expr) => do return tp.isArrow)
     (fun comp => do throwErrorAt (← comp.stx) "Invalid type: functions must have arrow type")
 
+def isActionSyntax (stack : Syntax.Stack) : Bool :=
+  stack.any (fun (s, _) => s.isOfKind `VeilInit || s.isOfKind `VeilAction)
+
+/-- Instruct the linter to not mark state variables as unused in our
+`after_init` and `action` definitions. -/
+def generateIgnoreFn : CommandElabM Unit := do
+  let cmd ← Command.runTermElabM fun _ => do
+    let fieldNames ← getFields
+    let fnIdents ← fieldNames.mapM (fun n => `($(quote n)))
+    let namesArrStx ← `(#[$[$fnIdents],*])
+    let fnStx ← `(fun id stack _ => ($namesArrStx).contains id.getId && isActionSyntax stack)
+    let nm := mkIdent $ ← getPrefixedName `ignoreStateFields
+    let ignoreFnStx ← `(@[unused_variables_ignore_fn] def $nm : Lean.Linter.IgnoreFunction := $fnStx)
+    return ignoreFnStx
+  elabCommand cmd
+
 /-- Assembles all declared `relation` predicates into a single `State` type. -/
 def assembleState (name : Name) : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
@@ -73,6 +89,9 @@ def assembleState (name : Name) : CommandElabM Unit := do
     localSpecCtx.modify ({· with spec.stateStx := stateTp})
     -- Tag the `injEq` lemma as `smtSimp`
     liftCommandElabM $ elabCommand $ smtAttr
+    -- Do not show unused variable warnings for field names
+    liftCommandElabM $ generateIgnoreFn
+
 
 /-! ### Syntax -/
 
@@ -166,7 +185,7 @@ elab "initial" ini:term : command => do
 
 /-- Declare the initial state predicate as an imperative program in
 `ActionLang`. -/
-elab "after_init" "{" l:doSeq "}" : command => do
+elab (name := VeilInit) "after_init" "{" l:doSeq "}" : command => do
     liftCoreM errorIfStateNotDefined
     let (ret, st, st', st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `st_curr, mkIdent `post)
     let vd ← getAssertionParameters
@@ -269,12 +288,12 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
     elabCommand trDef
 
 /-- Transition defined via a two-state relation. -/
-syntax (actionType)? "transition" ident (explicitBinders)? "=" term : command
+syntax (name := VeilTransition) (actionType)? "transition" ident (explicitBinders)? "=" term : command
 
 /-- Transition defined as an imperative program in `ActionLang`. We call
 these "actions". All capital letters in `require` and in assignments are
 implicitly quantified. -/
-syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeq "}" : command
+syntax (name := VeilAction) (actionType)? "action" ident (explicitBinders)? "=" "{" doSeq "}" : command
 
 /-- Show a warning if the given declaration -/
 def warnIfNotFirstOrder (name : Name) : MetaM Unit := do
