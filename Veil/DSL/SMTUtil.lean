@@ -51,7 +51,6 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
     if solverName == SolverName.cvc5 then
       emitCommand solver (.setLogic "ALL")
       emitCommand solver (.setOption (.produceProofs true))
-      emitCommand solver (.setOption (.produceUnsatCores true))
     emitCommandStr solver s!"{goalQuery}\n"
     let mut ret := []
 
@@ -70,7 +69,7 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
       let (checkSatResponse, _) ← getSexp stdout
       let checkSatResponse: SmtResult := match checkSatResponse with
         | .atom (.symb "sat") => SmtResult.Sat none
-        | .atom (.symb "unsat") => SmtResult.Unsat (.app #[])
+        | .atom (.symb "unsat") => SmtResult.Unsat
         | e => SmtResult.Unknown s!"{e}"
 
       trace[sauto.debug] "Test result: {checkSatResponse}"

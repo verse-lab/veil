@@ -20,7 +20,6 @@ initialize
   registerTraceClass `sauto.perf.translate
   registerTraceClass `sauto.perf.query
   registerTraceClass `sauto.perf.checkSat
-  registerTraceClass `sauto.perf.getUnsatCore
   registerTraceClass `sauto.perf.getModel
   registerTraceClass `sauto.perf.minimizeModel
 
@@ -76,14 +75,14 @@ instance : ToString CheckSatResult where
 
 inductive SmtResult
   | Sat (model : Option FirstOrderStructure)
-  | Unsat (unsatCore : Auto.Parser.SMTSexp.Sexp)
+  | Unsat
   | Unknown (reason : String)
 
 instance : ToString SmtResult where
   toString
     | SmtResult.Sat none => "sat"
     | SmtResult.Sat (some m) => s!"sat\n{m}"
-    | SmtResult.Unsat c => s!"unsat\n{c}"
+    | SmtResult.Unsat => s!"unsat"
     | SmtResult.Unknown r => s!"unknown ({r})"
 
 
@@ -208,21 +207,6 @@ def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
     let _exMsg ← e.toMessageData.toString
     throwError s!"get-model failed (z3model.py likely timed out)"
 
-def getUnsatCore (solver : SolverProc) (kill: Bool := true) : MetaM Parser.SMTSexp.Sexp := do
-  withTraceNode `sauto.perf.getUnsatCore (fun _ => return "getUnsatCore") do
-  try
-  emitCommand solver .getUnsatCore
-  -- FIXME: probably shouldn't kill the solver here
-  let (_, solver) ← solver.takeStdin
-  let stdout ← solver.stdout.readToEnd
-  if kill then
-    solver.kill
-  let (unsatCore, _proof) ← getSexp stdout
-  return unsatCore
-  catch e =>
-    let _exMsg ← e.toMessageData.toString
-    throwError s!"get-unsat-core failed (z3model.py likely timed out)"
-
 /-- Check if the constraint is satisfiable in the current frame. -/
 def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM Bool := do
   match constr with
@@ -340,10 +324,7 @@ partial def getSolverResult (solver: SolverProc) (solverName: SolverName) (kill:
         return .Sat .none
   | .Unsat =>
       trace[sauto.result] "{solverName} says Unsat"
-      let unsatCore ← getUnsatCore solver (kill := kill)
-      trace[sauto.result] "Unsat core: {unsatCore}"
-      -- trace[sauto] "stderr:\n{stderr}"
-      return .Unsat unsatCore
+      return .Unsat
   | .Unknown reason =>
       trace[sauto.result] "{solverName} says Unknown ({reason})"
       if retryOnFailure then
@@ -377,7 +358,6 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
   if solverName == SolverName.cvc5 then
     emitCommand solver (.setLogic "ALL")
     emitCommand solver (.setOption (.produceProofs true))
-    emitCommand solver (.setOption (.produceUnsatCores true))
   emitCommandStr solver goalQuery
   let res ← getSolverResult solver solverName (kill := true) retryOnFailure getModel? minimize
   return res
@@ -491,7 +471,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     else
       throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
-  | .Unsat _ => mv.admit (synthetic := false)
+  | .Unsat => mv.admit (synthetic := false)
 
 open Lean.Meta in
 /-- UNSAFE: Switches the goal with its negation!
@@ -521,7 +501,7 @@ open Lean.Meta in
   | .Sat _ =>
     trace[sauto.result] "The negation of the goal is satisfiable, hence the goal is valid."
     mv.admit (synthetic := false)
-  | .Unsat _ => throwError "the goal is false"
+  | .Unsat => throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
 
 

@@ -148,7 +148,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let initRes ← querySolverWithIndicators initCmd withTimeout (initChecks.map (fun a => #[a]))
       let initMsgs := getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
         | [invName] => (invName, match res with
-          | .Unsat _ => true
+          | .Unsat => true
           | _ => false)
         | _ => unreachable!)
 
@@ -163,7 +163,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let actRes ← querySolverWithIndicators actCmd withTimeout (invChecks.map (fun (a, b) => #[a, b]))
       let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
         | [actName, invName] => (invName, actName, match res with
-          | .Unsat _ => true
+          | .Unsat => true
           | _ => false)
         | _ => unreachable!)
 
