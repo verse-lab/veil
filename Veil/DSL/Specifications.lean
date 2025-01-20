@@ -47,10 +47,12 @@ structure StateComponent where
   /-- Is this state component mutable or immutable? -/
   mutability : Mutability
   /-- Is this an `individual`, a `relation`, or ` function`?-/
-  kind : StateComponentKind
-  name : Name
+  kind       : StateComponentKind
+  name       : Name
   /-- The Lean syntax that declares the type of this state component -/
-  type : StateComponentType
+  type       : StateComponentType
+  /-- If it is an inherited module, the name of this module -/
+  moduleName : Option Name := none
 deriving Inhabited
 
 instance : ToString StateComponent where
@@ -86,8 +88,10 @@ structure ActionSpecification where
   decl : IOAutomata.ActionDeclaration
   /-- DSL expression for this action -/
   lang : Option (TSyntax ``Term.doSeq)
-  /-- Flag indicating if current action has a specification -/
+  /-- DSL expression for the specificarion of this action -/
   hasSpec : Bool := false
+  /-- Arguments of the current action -/
+  br   : Option (TSyntax ``Lean.explicitBinders) := none
   /-- Lean `Expr` for this action; this is usually a constant in the
   environment, *without* having applied the section variables. -/
   expr : Expr
@@ -167,8 +171,11 @@ structure ModuleSpecification where
   actions      : Array ActionSpecification
   /-- Invariants -/
   invariants   : Array StateAssertion
-  /-- Names of modules which the current one depends on -/
-  dependencies : Array Name
+  /-- Number of type class variables -/
+  typeClassNum : Nat
+  /-- Names of modules which the current one depends on with their type variables
+     instances and aliases in a current module -/
+  dependencies : Array (Name × Array Term × Name)
 deriving Inhabited
 
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=

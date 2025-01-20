@@ -46,7 +46,11 @@ macro "unfold_wlp" : conv =>
     -- unfold actions definded via lifting
     monadLift
     restrictTo
-    extendWith)
+    extendWith
+    instMonadLiftTOfMonadLift
+    MonadLift.monadLift
+    instMonadLiftWlpOfIsStateExtension
+    instMonadLiftT)
 
 partial def getCapitals (s : Syntax) :=
   let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
@@ -82,6 +86,23 @@ def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElab
 def getFields : TermElabM (Array Name) := do
   let spec := (← localSpecCtx.get).spec
   pure $ spec.signature.map (·.name)
+
+def getSubActions : TermElabM (Array (Ident × Term)) := do
+  /- FIXME: principled way to fix this would be to iterate
+    over all already defined actions in `(← localSpecCtx.get).spec.actions`
+    but at this point it is some how empty. -/
+  let mut names := #[]
+  for (depName, ts, al) in (← localSpecCtx.get).spec.dependencies do
+    let spec := (← globalSpecCtx.get)[depName]!
+    for act in spec.actions do
+      let actArgs := List.replicate spec.typeClassNum (<- `(_)) |>.toArray
+      let actName := mkIdent <| al ++ act.name
+      let actTerm <- `(@$actName $ts* $actArgs*)
+      let currMod := (← localSpecCtx.get).stateBaseName.get!
+      if (<- getEnv).find? (currMod ++ actName.getId) |>.isSome then
+        names := names.push (actName, actTerm)
+  pure names
+
 
 /-- In some cases, during the macro expansion, we need to annotate certain
     arguments with the state type. To get the state type, we need an access to an
@@ -135,6 +156,8 @@ partial def expandDoSeqVeil (stx : doSeq) : TermElabM (TSyntax ``Term.doSeq) :=
     `(doSeq| $[$doS]*)
   | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation sequence {stx}"
 
+
+
 partial def expandDoElemVeil (stx : doSeqItem) : TermElabM doSeqItem := do
   trace[dsl.debug] "[expand doElem] {stx}"
   match stx with
@@ -168,16 +191,22 @@ partial def expandDoElemVeil (stx : doSeqItem) : TermElabM doSeqItem := do
   -- Expand determenistic assigments statements
   | `(Term.doSeqItem| $id:ident := $t:term) =>
     trace[dsl.debug] "[expand assignmet with args] {stx}"
-    let id' <- `(Term.structInstLVal| $id:ident)
-    let fields <- getFields
-    if id.getId ∈ fields then
-      throwIfImmutable id'
-      -- NOTE: It is very important that we return a single `doSeqItem`;
-      -- otherwise syntax highlighting gets broken very badly
-      let modifyGetState ← `(Term.doSeqItem| $id:ident ← modifyGet (fun st => (let val := $t; (val, {st with $id:ident := val}))))
-      return modifyGetState
+    let name := id.getId
+    if name.isAtomic then
+      let id' <- `(Term.structInstLVal| $id:ident)
+      let fields <- getFields
+      if id.getId ∈ fields then
+        throwIfImmutable id'
+        -- NOTE: It is very important that we return a single `doSeqItem`;
+        -- otherwise syntax highlighting gets broken very badly
+        `(Term.doSeqItem| $id:ident ← modifyGet
+            (fun st => (let val := $t; (val, {st with $id:ident := val}))))
+      else
+        `(Term.doSeqItem| $id:ident := $t:term)
     else
-      `(Term.doSeqItem| $id:ident := $t:term)
+      let base := mkIdent name.getPrefix
+      let suff := mkIdent $ name.updatePrefix default
+      expandDoElemVeil $ <- `(Term.doSeqItem| $base:ident := { $base with $suff:ident := $t })
   | `(Term.doSeqItem| $idts:term := $t:term) =>
     trace[dsl.debug] "[expand assignmet with args] {stx}"
     let some (id, ts) := idts.isApp? | return stx
@@ -195,6 +224,9 @@ elab (name := VeilDo) "do'" stx:doSeq : term => do
   | `(doSeq| $doE*) => doE
   | `(doSeq| { $doE* }) => doE
   | _ => unreachable!
+  let as := (<- getSubActions)
+  for a in as do
+    stateAssns := stateAssns.push <| ← `(Term.doSeqItem| let $(a.1):ident := $(a.2))
   let fs := (<- getFields).map Lean.mkIdent
   for f in fs do
     stateAssns := stateAssns.push <| ← `(Term.doSeqItem| let mut $f:ident := (<- get).$f)
