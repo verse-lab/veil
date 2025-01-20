@@ -222,7 +222,7 @@ syntax "#check_action!" ident : command
 /-- Prints output similar to that of Ivy's `ivy_check` command limited to a single action. -/
 def checkAction (stx : Syntax) (actName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
   liftCoreM errorIfStateNotDefined
-  let (initChecks, actChecks) ← getChecksForAction (toTrIdent actName).getId
+  let (initChecks, actChecks) ← getChecksForAction actName.getId
   checkTheorems stx initChecks actChecks behaviour
 
 elab_rules : command
