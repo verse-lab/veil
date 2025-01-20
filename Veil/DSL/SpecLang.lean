@@ -311,9 +311,9 @@ def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
         let rhs ← match br with
         | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, @$uName $sectionArgs* $args* $st $st')
         | none => `(fun ($st $st' : $stateTpT) => @$uName $sectionArgs* $args* $st $st')
-        `(@[actSimp] def $trName $[$vd]* : $trType := $(← simplifyTerm rhs))
+        `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWlp rhs))
       let attr ← toActionAttribute (toActionType actT)
-      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← simplifyTerm $ ← `((@$uName $sectionArgs* $args*).toWlp)))
+      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← unfoldWlp $ ← `((@$uName $sectionArgs* $args*).toWlp)))
       trace[dsl.debug] "{fnDef}"
       return (unsimplifiedDef, trDef, fnDef)
     -- Declare `nm.unsimplified` and `nm`
