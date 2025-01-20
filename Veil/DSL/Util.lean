@@ -33,6 +33,7 @@ def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term))
 def getStateParametersBinders (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : Array (TSyntax `Lean.Parser.Term.bracketedBinder) :=
   vd.filter (fun b => !isTypeClassBinder b)
 
+/-- Get the arguments which we have to pass to the `State` type to instantiate it. -/
 def getStateArguments (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) : TermElabM (Array Expr) := do
   if vd.size != vs.size then throwError "Mismatch in number of arguments between {vd} and {vs}"
   let vs' := (vd.zip vs).filter (fun (b, _) => !isTypeClassBinder b) |> .map Prod.snd
@@ -145,7 +146,10 @@ def throwIfRefersToMutable (t : Term) : TermElabM Unit :=
 /-- This is used wherever we want to define a predicate over a state
     (for instance, in `safety`, `invariant` and `relation`). Instead
     of writing `fun st => Pred` this command will pattern match over
-    `st` making all its fields accessible for `Pred` -/
+    `st` making all its fields accessible for `Pred`.
+    IMPORTANT: You should NOT pass all of `vs`, but only those returned
+    by `(← getStateArguments vd vs)`!
+    -/
 def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let stateTpExpr := (<- localSpecCtx.get).spec.stateType
   let .some sn := stateTpExpr.getAppFn.constName?

@@ -161,10 +161,12 @@ elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => 
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- getStateTpStx
-    let stx' <- funcasesM t vs
+    let stx' <- funcasesM t (← getStateArguments vd vs)
     elabBindersAndCapitals br vs stx' fun _ e => do
       let e <- delabWithMotives e
-      `(@[actSimp, invSimp] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
+      let stx ← `(@[actSimp, invSimp] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
+      trace[dsl.debug] "{stx}"
+      return stx
 
 @[inherit_doc assembleState]
 elab "#gen_state" name:ident : command => assembleState name.getId
