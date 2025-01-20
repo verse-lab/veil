@@ -90,7 +90,8 @@ def getFields : TermElabM (Array Name) := do
 def getSubActions : TermElabM (Array (Ident × Term)) := do
   /- FIXME: principled way to fix this would be to iterate
     over all already defined actions in `(← localSpecCtx.get).spec.actions`
-    but at this point it is some how empty. -/
+    but at this point it is somehow empty (it should contain actions from
+    dependent modules). -/
   let mut names := #[]
   for (depName, ts, al) in (← localSpecCtx.get).spec.dependencies do
     let spec := (← globalSpecCtx.get)[depName]!
