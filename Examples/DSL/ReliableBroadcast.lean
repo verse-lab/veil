@@ -99,7 +99,7 @@ input action broadcast (n : address) (r : round) (v : value) = {
 
 action echo (n : address) (originator : address) (r : round) (v : value) = {
   require initial_msg originator n r v;
-  require ¬ echoed n originator r V;
+  require ∀ V, ¬ echoed n originator r V;
   echoed n originator r v := True;
   echo_msg n DST originator r v := True
 }
@@ -110,7 +110,7 @@ action vote (n : address) (originator : address) (r : round) (v : value) = {
               ∀ (src : address), nset.member src q → echo_msg src n originator r v) ∨
           (∃ (q : nodeset), nset.greater_than_third q ∧
               ∀ (src : address), nset.member src q → vote_msg src n originator r v);
-  require ¬ voted n originator r V;
+  require ∀ V, ¬ voted n originator r V;
   voted n originator r v := True;
   vote_msg n DST originator r v := True
 }
@@ -217,7 +217,7 @@ prove_inv_safe by { solve_clause }
 prove_inv_inductive by {
   constructor
   . apply inv_init
-  intro st st' hnext hinv
+  intro st st' has hinv hnext
   sts_induction <;> sdestruct_goal <;> sorry
 }
 
