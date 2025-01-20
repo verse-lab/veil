@@ -37,7 +37,7 @@ relation crit : node → Prop
 #gen_state SuzukiKasami
 
 action succ (n : seq_t) = {
-    fresh k : seq_t in
+    let k : seq_t ← fresh
     require seq.next k n;
     return k
 }
@@ -46,8 +46,7 @@ after_init {
   n_have_privilege N := N = init_node;
   n_requesting N := False;
   n_RN N M := seq.zero;
-  fresh one : seq_t in
-  require seq.next seq.zero one;
+  let one : seq_t ← succ seq.zero;
   n_token_seq N := if N = init_node then one else seq.zero;
 
   reqs N M I := False;
@@ -59,28 +58,24 @@ after_init {
   crit N := False
 }
 
-
-
 action request (n : node) = {
   require ¬ n_requesting n;
   n_requesting n := True;
-  if (¬ n_have_privilege n) {
-    k : seq_t ← call succ (n_RN n n) in
+  if (¬ n_have_privilege n) then
+    let k ← succ (n_RN n n)
     n_RN n n := k;
     reqs N n (n_RN n n) := N ≠ n
-  }
 }
 
 action rcv_request (n : node) (m : node) (r : seq_t) = {
   require reqs n m r;
   n_RN n m := if seq.le r (n_RN n m) then n_RN n m else r;
-  if (n_have_privilege n ∧ ¬ n_requesting n ∧ seq.next (t_LN (n_token_seq n) m) (n_RN n m)) {
+  if (n_have_privilege n ∧ ¬ n_requesting n ∧ seq.next (t_LN (n_token_seq n) m) (n_RN n m)) then
     n_have_privilege n := False;
-    k : seq_t ← call succ (n_token_seq n) in
+    let k : seq_t ← succ (n_token_seq n)
     t_for k m := True;
     t_LN k N := t_LN (n_token_seq n) N;
     t_q k N := t_q (n_token_seq n) N
-  }
 }
 
 action rcv_privilege (n: node) (t: seq_t) = {
@@ -96,14 +91,13 @@ action exit (n : node) = {
   n_requesting n := False;
   t_LN (n_token_seq n) n := n_RN n n;
   t_q (n_token_seq n) N := seq.next (t_LN (n_token_seq n) N) (n_RN n N);
-  if m where (t_q (n_token_seq n) m) {
+  if m : (t_q (n_token_seq n) m) then
     t_q (n_token_seq n) m := False;
     n_have_privilege n := False;
-    k : seq_t ← call succ (n_token_seq n) in
+    let k : seq_t ← succ (n_token_seq n)
     t_for k m := True;
     t_LN k N := t_LN (n_token_seq n) N;
     t_q k N := t_q (n_token_seq n) N
-  }
 }
 
 -- Invariants
