@@ -79,7 +79,7 @@ def Function.toWlp (r : σ -> σ -> Prop) : Wlp σ Unit :=
 /-- Function which transforms any `Wlp` into a two-state formula -/
 @[actSimp]
 def Wlp.toActProp {σ} (act : Wlp σ ρ) : ActProp σ :=
-  fun s s' => ¬ act s (fun _ s₀ => s' ≠ s₀)
+  fun s s' => ¬ act s (fun _ s₀ => ¬ (s' = s₀))
 
 /-! ### Languge statements -/
 

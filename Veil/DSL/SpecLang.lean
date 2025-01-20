@@ -237,6 +237,7 @@ def parseActionTypeStx (stx : Option (TSyntax `actionType)) : CommandElabM (TSyn
 open Command Term in
 /-- Record the action type and signature of this action in the `localSpecificationCtx`.  -/
 def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
+  trace[dsl.debug] s!"registering action {actT} {nm}"
   Command.runTermElabM fun _ => do
     let name := nm.getId
     let labelTypeName := mkIdent $ ← getPrefixedName `Label
@@ -288,6 +289,37 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
     elabCommand unsimplifiedDef
     elabCommand fnDef
     elabCommand trDef
+
+/-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
+def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
+    let vd ← getImplicitActionParameters
+    let (unsimplifiedDef, trDef, fnDef) ← Command.runTermElabM fun vs => do
+      let stateTpT ← getStateTpStx
+      let trType <- `($stateTpT -> $stateTpT -> Prop)
+      -- Create binders and arguments
+      let sectionArgs ← getSectionArgumentsStx vs
+      let (univBinders, args) ← match br with
+      | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
+      | none => pure (#[], #[])
+      -- `nm.unsimplified`
+      let (uName, fnName, trName) := (toUnsimplifiedIdent nm, nm, toTrIdent nm)
+      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* : $trType := $tr)
+      trace[dsl.debug] "{unsimplifiedDef}"
+      -- `nm.tr`, with existentially quantified arguments
+      let trDef ← do
+        let (st, st') := (mkIdent `st, mkIdent `st')
+        let rhs ← match br with
+        | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, @$uName $sectionArgs* $args* $st $st')
+        | none => `(fun ($st $st' : $stateTpT) => @$uName $sectionArgs* $args* $st $st')
+        `(@[actSimp] def $trName $[$vd]* : $trType := $(← simplifyTerm rhs))
+      let attr ← toActionAttribute (toActionType actT)
+      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← simplifyTerm $ ← `((@$uName $sectionArgs* $args*).toWlp)))
+      trace[dsl.debug] "{fnDef}"
+      return (unsimplifiedDef, trDef, fnDef)
+    -- Declare `nm.unsimplified` and `nm`
+    elabCommand unsimplifiedDef
+    elabCommand trDef
+    elabCommand fnDef
 
 /-- Transition defined via a two-state relation. -/
 syntax (name := VeilTransition) (actionType)? "transition" ident (explicitBinders)? "=" term : command
@@ -360,6 +392,14 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
       elabCallableFn actT (nm.getId ++ `spec |> mkIdent) br spec.get!
       checkSpec nm br pre post binder
 
+def elabTransition (actT : TSyntax `actionType) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
+    liftCoreM errorIfStateNotDefined
+    elabCallableTr actT nm br tr
+    -- warn if this is not first-order
+    Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
+    -- add constructor for label type
+    registerIOActionDecl actT nm br
+
 /--
 ```lean
 transition name binders* = tr
@@ -368,8 +408,7 @@ This command defines lifts a two-state formula into a `Wlp σ Unit`
 -/
 elab_rules : command
   | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
-  elabAction actT nm br none (<- `(doSeq| ($tr).toWlp))
-
+  elabTransition actT nm br tr
 
 elab_rules : command
   | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeq}) =>
