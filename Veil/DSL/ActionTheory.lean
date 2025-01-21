@@ -91,8 +91,8 @@ def Wlp.bind (wp : Wlp σ ρ) (wp_cont : ρ -> Wlp σ ρ') : Wlp σ ρ' :=
 
 @[actSimp]
 def Wlp.assume (rq : Prop) : Wlp σ PUnit := fun s post => rq → post () s
--- @[actSimp]
--- def Wlp.assert (as : Prop) : Wlp σ PUnit := fun s post => as ∧ post () s
+@[actSimp]
+def Wlp.assert (as : Prop) : Wlp σ PUnit := fun s post => ∀ s', (as -> s = s') -> post () s'
 @[actSimp]
 def Wlp.fresh (τ : Type) : Wlp σ τ := fun s post => ∀ t, post t s
 
@@ -236,6 +236,10 @@ instance [Sound act] [∀ r, Sound (act' r)] : Sound (Wlp.bind act act') where
 instance : Sound (Wlp.assume (σ := σ) rq) where
   inter := by intros; simp_all [actSimp]
   impl := by intros; simp_all [actSimp]
+
+instance : Sound (Wlp.assert (σ := σ) rq) where
+  inter := by intros; simp_all [actSimp]
+  impl := by intros; simp_all [actSimp] <;> solve_by_elim
 
 instance : Sound (Wlp.fresh (σ := σ) τ) where
   inter := by intros; simp_all [actSimp]

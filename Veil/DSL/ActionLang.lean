@@ -120,8 +120,10 @@ elab "[State]" : term => do
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
 macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident; exact $t)
 
-/-- `require s` checks if `s` is true on the current state -/
+/-- `require s` admits fact `s`   -/
 syntax "require" term      : term
+/-- `assert s` checks if `s` is true on the current state -/
+syntax "assert" term      : term
 /-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
 syntax "fresh" (lineEq term) ? : term
 
@@ -238,8 +240,9 @@ elab (name := VeilDo) "do'" stx:doSeq : term => do
 
 macro_rules
   | `(require $t) => `(Wlp.assume $t)
-  | `(fresh   $t) => `(Wlp.fresh $t)
-  | `(fresh)      => `(Wlp.fresh _)
+  | `(assert  $t) => `(Wlp.assert $t)
+  | `(fresh   $t) => `(Wlp.fresh  $t)
+  | `(fresh)      => `(Wlp.fresh  _)
 
 /- Ensures statement -/
 
