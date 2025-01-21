@@ -2,7 +2,7 @@ import Veil.DSL
 import Examples.DSL.Std
 -- https://github.com/aman-goel/ivybench/blob/master/distai/ivy/blockchain.ivy
 
-section Blockchain
+namespace Blockchain
 open Classical
 
 type node
@@ -26,7 +26,7 @@ immutable relation transaction_time : transaction → time → Prop
 relation transaction_in_block : transaction → block → Prop
 relation transaction_confirmed : transaction → node → Prop
 
-#gen_state Blockchain
+#gen_state
 
 assumption leader N1 T ∧ leader N2 T → N1 = N2
 assumption leader N T1 ∧ leader N T2 → T1 = T2
@@ -62,25 +62,25 @@ action begin_broadcast_adversary (n : node) (b : block) (t : time) = {
 
 action byzantine_broadcast (n : node) (b : block) (t : time) = {
   require broadcastable n b t;
-  require honest n ∧ transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n → transaction_in_block TR b;
-  require honest n ∧ transaction_in_block TR b → transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n;
+  require ∀ TR T, honest n ∧ transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n → transaction_in_block TR b;
+  require ∀ TR T, honest n ∧ transaction_in_block TR b → transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n;
   -- FIXME: why doesn't `block_confirmed N B t := *` work here?
-  fresh havoc : Prop in
-  block_confirmed N B t := havoc;
+  let havoc <- fresh
+  block_confirmed N B t := havoc
   broadcasted n := True;
   broadcastable n b t := False;
   transaction_confirmed TR N := transaction_confirmed TR N ∨ ((transaction_in_block TR b ∧ honest n) ∨ (¬ honest n ∧ transaction_confirmed TR N))
   -- FIXME:
-  -- assume honest N → ¬ (B1 ≠ B2 ∧ block_confirmed N B1 t ∧ block_confirmed N B2 t);
-  -- assume honest N1 ∧ honest N2 → (block_confirmed N1 b t ∧ block_confirmed N2 b t) ∨ (¬ block_confirmed N1 B t ∧ ¬ block_confirmed N2 B t);
-  -- assume honest n ∧ honest N → block_confirmed N b t
+  -- require ∀ N B1 B2, honest N → ¬ (B1 ≠ B2 ∧ block_confirmed N B1 t ∧ block_confirmed N B2 t);
+  -- require ∀ N1 N2 B, honest N1 ∧ honest N2 → (block_confirmed N1 b t ∧ block_confirmed N2 b t) ∨ (¬ block_confirmed N1 B t ∧ ¬ block_confirmed N2 B t);
+  -- require ∀ N, honest n ∧ honest N → block_confirmed N b t
 }
 
 action sabotage (n: node) = {
     require ¬ honest n;
-    fresh havoc1 : Prop in
+    let havoc1 <- fresh Prop
     block_confirmed n B T := havoc1;
-    fresh havoc2 : Prop in
+    let havoc2 <- fresh Prop
     transaction_confirmed TR n := havoc2
 }
 
@@ -103,8 +103,28 @@ invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI1  ∨ ¬ honest 
 invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI1  ∨ ¬ leader N1 TI2)
 invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ transaction_time TR1 TI1  ∨ ¬ transaction_time TR1 TI2)
 
-#gen_spec Blockchain
+#gen_spec
 
-#check_invariants
+
+set_option trace.sauto.query true
+set_option sauto.smt.translator "lean-smt"
+
+  @[invProof]
+  theorem byzantine_broadcast_Blockchain.inv_0 :
+      ∀ (st st' : @State node block transaction time),
+        (@System node node_dec node_ne block block_dec block_ne transaction transaction_dec
+                transaction_ne time time_dec time_ne tot).assumptions
+            st →
+          (@System node node_dec node_ne block block_dec block_ne transaction transaction_dec
+                  transaction_ne time time_dec time_ne tot).inv
+              st →
+            (@byzantine_broadcast.tr node node_dec node_ne block block_dec block_ne transaction
+                  transaction_dec transaction_ne time time_dec time_ne tot)
+                st st' →
+              (@Blockchain.inv_0 node node_dec node_ne block block_dec block_ne transaction
+                  transaction_dec transaction_ne time time_dec time_ne tot)
+                st' :=
+    by (unhygienic intros); solve_clause[byzantine_broadcast.tr]
+
 
 end Blockchain
