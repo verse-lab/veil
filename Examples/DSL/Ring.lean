@@ -27,8 +27,6 @@ after_init {
   pending M N := False
 }
 
-set_option trace.dsl.info true
-
 action send (n next : node) = {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := True
@@ -112,5 +110,3 @@ unsat trace [trace_any] {
 } by { bmc }
 
 end Ring
-
-#eval do return (← localSpecCtx.get).stateBaseName
