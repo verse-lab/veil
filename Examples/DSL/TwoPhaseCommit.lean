@@ -2,7 +2,7 @@ import Veil.DSL
 
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/two_phase_commit.ivy
 
-section TwoPhaseCommit
+namespace TwoPhaseCommit
 open Classical
 
 type node
@@ -17,7 +17,7 @@ relation decide_abort : node -> Prop
 
 individual abort_flag : Prop
 
-#gen_state TPC
+#gen_state
 
 after_init {
   vote_yes N := False;
@@ -90,7 +90,7 @@ invariant [manual_6] (N0 ≠ N1) -> ¬((¬(go_commit N0) ∧ go_commit N1))
 invariant [manual_7] ¬((¬(vote_yes N) ∧ go_commit N))
 invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 
-#gen_spec TPC
+#gen_spec
 
 #check_invariants
 
