@@ -168,7 +168,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList) ++ "\n"
       pure msg
     match behaviour with
-      | .checkTheorems => dbg_trace msg
+      | .checkTheorems => logInfo msg
       | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
       | _ => unreachable!
 
@@ -191,9 +191,9 @@ def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := .che
   checkTheorems stx initChecks actChecks behaviour
 
 elab_rules : command
-  | `(command| #check_invariants%$tk) => checkInvariants tk (behaviour := .checkTheorems)
-  | `(command| #check_invariants?%$tk) => checkInvariants tk (behaviour := .printTheorems)
-  | `(command| #check_invariants!%$tk) => checkInvariants tk (behaviour := .printAndCheckTheorems)
+  | `(command| #check_invariants)  => do checkInvariants (← getRef) (behaviour := .checkTheorems)
+  | `(command| #check_invariants?) => do checkInvariants (← getRef) (behaviour := .printTheorems)
+  | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .printAndCheckTheorems)
 
 
 /- ## `#check_invariant` -/
@@ -208,9 +208,9 @@ def checkInvariant (stx : Syntax) (invName : TSyntax `ident) (behaviour : CheckI
   checkTheorems stx initChecks actChecks behaviour
 
 elab_rules : command
-  | `(command| #check_invariant%$tk $invName) => checkInvariant tk invName (behaviour := .checkTheorems)
-  | `(command| #check_invariant?%$tk $invName) => checkInvariant tk invName (behaviour := .printTheorems)
-  | `(command| #check_invariant!%$tk $invName) => checkInvariant tk invName (behaviour := .printAndCheckTheorems)
+  | `(command| #check_invariant $invName)  => do checkInvariant (← getRef) invName (behaviour := .checkTheorems)
+  | `(command| #check_invariant? $invName) => do checkInvariant (← getRef) invName (behaviour := .printTheorems)
+  | `(command| #check_invariant! $invName) => do checkInvariant (← getRef) invName (behaviour := .printAndCheckTheorems)
 
 /- ## `#check_action` -/
 syntax "#check_action" ident : command
@@ -224,9 +224,9 @@ def checkAction (stx : Syntax) (actName : TSyntax `ident) (behaviour : CheckInva
   checkTheorems stx initChecks actChecks behaviour
 
 elab_rules : command
-  | `(command| #check_action%$tk $actName) => checkAction tk actName (behaviour := .checkTheorems)
-  | `(command| #check_action?%$tk $actName) => checkAction tk actName (behaviour := .printTheorems)
-  | `(command| #check_action!%$tk $actName) => checkAction tk actName (behaviour := .printAndCheckTheorems)
+  | `(command| #check_action $actName)  => do checkAction (← getRef) actName (behaviour := .checkTheorems)
+  | `(command| #check_action? $actName) => do checkAction (← getRef) actName (behaviour := .printTheorems)
+  | `(command| #check_action! $actName) => do checkAction (← getRef) actName (behaviour := .printAndCheckTheorems)
 
 open Tactic in
 /-- Try to solve the goal using one of the already proven invariant clauses,
