@@ -180,14 +180,20 @@ action receive_accept_commit (na nb : node) (b : ballot) (v : value) = {
     accepted_committed na b v := True
 }
 
-action byzantine_step = {
-  pure 42     -- FIXME: well, what can we do now? either directly express such a transition or use the `old` notation
-  -- this does not work:
-  -- let r : (node → ballot → value → Prop) ← fresh
-  -- require ∀ A B C, r A B C = voted_prepared A B C
-  -- voted_prepared A B C := *
-  -- require ∀ A B C, well_behaved A → r A B C = voted_prepared A B C
-}
+internal transition byzantine_step = fun st st' =>
+  (∀ N B X, st.well_behaved N → st.voted_prepared N B X = st'.voted_prepared N B X) ∧
+  (∀ N B X, st.well_behaved N → st.accepted_prepared N B X = st'.accepted_prepared N B X) ∧
+  (∀ N B X, st.well_behaved N → st.voted_committed N B X = st'.voted_committed N B X) ∧
+  (∀ N B X, st.well_behaved N → st.accepted_committed N B X = st'.accepted_committed N B X) ∧
+  (∀ N B X, st.well_behaved N → st.confirmed_prepared N B X = st'.confirmed_prepared N B X) ∧
+  (∀ N B X, st.well_behaved N → st.confirmed_committed N B X = st'.confirmed_committed N B X) ∧
+  (∀ N X, st.well_behaved N → st.nomination_output N X = st'.nomination_output N X) ∧
+  (∀ N B, st.well_behaved N → st.started N B = st'.started N B) ∧
+  (∀ N B, st.well_behaved N → st.left_ballot N B = st'.left_ballot N B) ∧
+  (∀ N1 N2 B X, st.well_behaved N1 → st.received_vote_prepare N1 N2 B X = st'.received_vote_prepare N1 N2 B X) ∧
+  (∀ N1 N2 B X, st.well_behaved N1 → st.received_accept_prepare N1 N2 B X = st'.received_accept_prepare N1 N2 B X) ∧
+  (∀ N1 N2 B X, st.well_behaved N1 → st.received_vote_commit N1 N2 B X = st'.received_vote_commit N1 N2 B X) ∧
+  (∀ N1 N2 B X, st.well_behaved N1 → st.received_accept_commit N1 N2 B X = st'.received_accept_commit N1 N2 B X)
 
 -- the main safety
 safety [intertwined_safe]
