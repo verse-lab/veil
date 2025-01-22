@@ -55,7 +55,7 @@ fun {node} [DecidableEq node] [Nonempty node] =>
 #guard_msgs in
 #print double_quant
 
-def top_level (n : node) := doAssume
+def top_level (n : node) := do' .external in
   require x
   if x then
     r N N := *
@@ -63,7 +63,7 @@ def top_level (n : node) := doAssume
     r n n := *
   return r
 
-def top_level' (n : node) := doAssume
+def top_level' (n : node) := do' .external in
   let freshR <- fresh node -> node -> Prop
   let freshR' <- fresh node -> node -> Prop
   require x

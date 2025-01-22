@@ -351,7 +351,10 @@ macro "exists?" br:explicitBinders ? "," t:term : term =>
   | some br => `(exists $br, $t)
   | none => `($t)
 
-/-- Defines `act` : `Wlp σ ρ` monad computation, parametrised over `br`. -/
+/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`.
+  More specifically it defines 4 things
+  - `act.unsimplified : ∀ m, Wlp m σ ρ`: unsimplified version of `act`, which
+    incorporates  -/
 def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
     -- let lInternal <- `(doAssert $l)
     -- let lExternal <- `(doAssume $l)
@@ -377,7 +380,7 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       let trDef ← do
         let (st, st') := (mkIdent `st, mkIdent `st')
         let stateTpT ← getStateTpStx
-        let tr <- `(@$genName $sectionArgs* $args* .internal)
+        let tr <- `(@$genName $sectionArgs* $args* .external)
         let rhs ← `(fun ($st $st' : $stateTpT) => exists? $br ?, Wlp.toActProp $tr $st $st')
         `(@[actSimp] def $trName $[$vd]*  := $(← simplifyTerm rhs))
       trace[dsl.debug] "{trDef}"
