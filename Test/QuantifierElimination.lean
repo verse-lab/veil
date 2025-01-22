@@ -91,15 +91,43 @@ action callee_with_if_some = {
       -- x := False
 }
 
--- #guard_msgs in
--- action with_if_some_nested = {
---   if m : (r m m) then
---     if n : (r n n ∧ n ≠ m) then
---       r n m := True
---       callee_with_if_some
---       require x
---       x := False
---       callee_with_if_some
--- }
+#guard_msgs in
+action with_if_some_nested = {
+  if m : (r m m) then
+    if n : (r n n ∧ n ≠ m) then
+      r n m := True
+      callee_with_if_some
+      require x
+      x := False
+      callee_with_if_some
+}
+
+#guard_msgs in
+action nondet_assgn (m : node) = {
+  if x then
+    r N m := *
+    x := *
+}
+
+#guard_msgs in
+action call_nondet_assgn = {
+  let m ← fresh node;
+  if x then
+      nondet_assgn m;
+  else
+    r N M := *;
+}
+
+#guard_msgs in
+action call_nondet_assgn' = {
+  let m ← fresh node;
+  if x then
+    nondet_assgn m;
+    call_nondet_assgn
+  else
+    let n ← fresh node;
+    nondet_assgn n
+    r N M := *;
+}
 
 end Test

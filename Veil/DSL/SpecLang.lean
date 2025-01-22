@@ -351,7 +351,10 @@ macro "exists?" br:explicitBinders ? "," t:term : term =>
   | some br => `(exists $br, $t)
   | none => `($t)
 
-/-- Defines `act` : `Wlp σ ρ` monad computation, parametrised over `br`. -/
+/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`.
+  More specifically it defines 4 things
+  - `act.unsimplified : ∀ m, Wlp m σ ρ`: unsimplified version of `act`, which
+    incorporates  -/
 def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
     -- let lInternal <- `(doAssert $l)
     -- let lExternal <- `(doAssume $l)
@@ -377,7 +380,7 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       let trDef ← do
         let (st, st') := (mkIdent `st, mkIdent `st')
         let stateTpT ← getStateTpStx
-        let tr <- `(@$genName $sectionArgs* $args* .internal)
+        let tr <- `(@$genName $sectionArgs* $args* .external)
         let rhs ← `(fun ($st $st' : $stateTpT) => exists? $br ?, Wlp.toActProp $tr $st $st')
         `(@[actSimp] def $trName $[$vd]*  := $(← simplifyTerm rhs))
       trace[dsl.debug] "{trDef}"
@@ -426,20 +429,14 @@ def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
     elabCommand fnDef
     trace[dsl.info] "{trName} is defined"
 
-/-- Show a warning if the given declaration -/
+/-- Show a warning if the given declaration has higher-order quantification -/
 def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
   let module <- getCurrNamespace
   let .some decl := (← getEnv).find? (module ++ name) | throwError s!"{name} not found"
   let .some val := decl.value? | throwError s!"{name} has no value"
-  let hasExists ← hasStateHOExist val
-  let hasInnerForall ← hasStateHOInnerForall val
-  let reason ← match hasExists, hasInnerForall with
-  | true, false => pure $ some s!"it existentially quantifies over {← getStateName}"
-  | false, true =>  pure $ some s!"it has non top-level ∀ quantification over the {← getStateName} type"
-  | true, true => pure $ some s!"it has both existential and non top-level ∀ quantification over the {← getStateName} type"
-  | _, _ => pure none
-  if reason.isSome then
-    logWarning s!"{name} is not first-order (and cannot be sent to SMT): {reason.get!}"
+  let isFirstOrderUniv ← allHOQuantIsTopLevelForAll val
+  if !isFirstOrderUniv then
+    logWarning s!"{name} is not first-order (and cannot be sent to SMT)"
 
 syntax (actionType)? "action" ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
 -- syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
