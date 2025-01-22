@@ -27,6 +27,8 @@ macro "unfold_wlp" : conv =>
     Wlp.pure
     Wlp.bind
     Wlp.assume
+    Wlp.assert
+    Wlp.require
     Wlp.fresh
     -- unfold state monad actions
     set
@@ -124,6 +126,8 @@ macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident
 syntax "require" term      : term
 /-- `assert s` checks if `s` is true on the current state -/
 syntax "assert" term      : term
+/-- `assume s` checks if `s` is true on the current state -/
+syntax "assume" term      : term
 /-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
 syntax "fresh" (lineEq term) ? : term
 
@@ -221,12 +225,18 @@ partial def expandDoElemVeil (stx : doSeqItem) : TermElabM doSeqItem := do
     return doE
 end
 
-elab (name := VeilDo) "do'" stx:doSeq : term => do
+syntax doVeil := "doAssume" <|> "doAssert"
+
+elab (name := VeilDo) dov:doVeil stx:doSeq : term => do
+  let mode <- match dov with
+    | `(doVeil| doAssume) => `($(mkIdent ``Mode.external))
+    | `(doVeil| doAssert) => `($(mkIdent ``Mode.internal))
+    | _ => throwErrorAt stx "unexpected veil mode {dov}"
   let mut stateAssns : Array doSeqItem := #[]
-  let doS := match stx with
-  | `(doSeq| $doE*) => doE
-  | `(doSeq| { $doE* }) => doE
-  | _ => unreachable!
+  let doS <- match stx with
+  | `(doSeq| $doE*) => pure doE
+  | `(doSeq| { $doE* }) => pure doE
+  | _ => throwErrorAt stx "unexpected syntax of Veil `do`-notation sequence {stx}"
   let as := (<- getSubActions)
   for a in as do
     stateAssns := stateAssns.push <| ← `(Term.doSeqItem| let $(a.1):ident := $(a.2))
@@ -236,11 +246,12 @@ elab (name := VeilDo) "do'" stx:doSeq : term => do
   let doS := stateAssns.append doS
   let stx' <- expandDoSeqVeil (<- `(doSeq| $doS*))
   trace[dsl.debug] "{stx}\n→\n{stx'}"
-  elabTerm (<- `(term| ((do $stx') : Wlp [State] _))) none
+  elabTerm (<- `(term| ((do $stx') : Wlp $mode [State] _))) none
 
 macro_rules
-  | `(require $t) => `(Wlp.assume $t)
+  | `(require $t) => `(Wlp.require $t)
   | `(assert  $t) => `(Wlp.assert $t)
+  | `(assume  $t) => `(Wlp.assume $t)
   | `(fresh   $t) => `(Wlp.fresh  $t)
   | `(fresh)      => `(Wlp.fresh  _)
 
@@ -295,7 +306,7 @@ elab_rules : term
     elabTerm (<- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])) none
   | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
     -- withRef t $
-    elabTerm (<- `(term| @Wlp.spec [State] _ (funcases $pre) (
+    elabTerm (<- `(term| @Wlp.spec [State] _ _ (funcases $pre) (
       by rintro st $r st';
          unhygienic cases st';
          with_rename_old unhygienic cases st;

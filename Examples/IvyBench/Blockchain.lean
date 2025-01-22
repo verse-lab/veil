@@ -65,28 +65,27 @@ action byzantine_broadcast (n : node) (b : block) (t : time) = {
   require ∀ TR T, honest n ∧ transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n → transaction_in_block TR b;
   require ∀ TR T, honest n ∧ transaction_in_block TR b → transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n;
   -- FIXME: why doesn't `block_confirmed N B t := *` work here?
-  let havoc <- fresh
-  block_confirmed N B t := havoc
+  -- let havoc <- fresh
+  block_confirmed N B t := *
   broadcasted n := True;
   broadcastable n b t := False;
   transaction_confirmed TR N := transaction_confirmed TR N ∨ ((transaction_in_block TR b ∧ honest n) ∨ (¬ honest n ∧ transaction_confirmed TR N))
   -- FIXME:
-  -- require ∀ N B1 B2, honest N → ¬ (B1 ≠ B2 ∧ block_confirmed N B1 t ∧ block_confirmed N B2 t);
-  -- require ∀ N1 N2 B, honest N1 ∧ honest N2 → (block_confirmed N1 b t ∧ block_confirmed N2 b t) ∨ (¬ block_confirmed N1 B t ∧ ¬ block_confirmed N2 B t);
-  -- require ∀ N, honest n ∧ honest N → block_confirmed N b t
+  require ∀ N B1 B2, honest N → ¬ (B1 ≠ B2 ∧ block_confirmed N B1 t ∧ block_confirmed N B2 t);
+  require ∀ N1 N2 B, honest N1 ∧ honest N2 → (block_confirmed N1 b t ∧ block_confirmed N2 b t) ∨ (¬ block_confirmed N1 B t ∧ ¬ block_confirmed N2 B t);
+  require ∀ N, honest n ∧ honest N → block_confirmed N b t
 }
 
 action sabotage (n: node) = {
     require ¬ honest n;
-    let havoc1 <- fresh Prop
-    block_confirmed n B T := havoc1;
-    let havoc2 <- fresh Prop
-    transaction_confirmed TR n := havoc2
+    block_confirmed n B T := *;
+    transaction_confirmed TR n := *
 }
 
-safety (honest N1 ∧ honest N2) → (block_confirmed N1 B T ∧ block_confirmed N2 B T) ∨ (¬ block_confirmed N1 B T ∧ ¬ block_confirmed N2 B T)
-    ∧ (honest N1 ∧ honest N2) → (transaction_confirmed TR N1 ∧ transaction_confirmed TR N2) ∨ (¬ transaction_confirmed TR N1 ∧ ¬ transaction_confirmed TR N2)
-    ∧ (honest N ∧ leader N T2 ∧ transaction_time TR T1 ∧ tot.le T1 T2 ∧ broadcasted N ∧ honest N1) → transaction_confirmed TR N1
+safety
+      ((honest N1 ∧ honest N2) → (block_confirmed N1 B T ∧ block_confirmed N2 B T) ∨ (¬ block_confirmed N1 B T ∧ ¬ block_confirmed N2 B T))
+    ∧ ((honest N1 ∧ honest N2) → (transaction_confirmed TR N1 ∧ transaction_confirmed TR N2) ∨ (¬ transaction_confirmed TR N1 ∧ ¬ transaction_confirmed TR N2))
+    ∧ ((honest N ∧ leader N T2 ∧ transaction_time TR T1 ∧ tot.le T1 T2 ∧ broadcasted N ∧ honest N1) → transaction_confirmed TR N1)
 
 
 invariant block_found N1 B1 TI1  ∨ ¬ honest N1  ∨ ¬ broadcastable N1 B1 TI1
@@ -104,7 +103,6 @@ invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI1  ∨ ¬ leader 
 invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ transaction_time TR1 TI1  ∨ ¬ transaction_time TR1 TI2)
 
 #gen_spec
-
 
 set_option trace.sauto.query true
 set_option sauto.smt.translator "lean-smt"
