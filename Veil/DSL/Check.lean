@@ -78,7 +78,7 @@ inductive CheckInvariantsBehaviour
   /-- `#check_invariants!?` -/
   | printUnverifiedTheorems
 
-  def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) : CommandElabM (Array (TSyntax `command)) := do
+  def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (sorry_body: Bool := true): CommandElabM (Array (TSyntax `command)) := do
     Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let sectionArgs ← getSectionArgumentsStx vs
@@ -87,7 +87,9 @@ inductive CheckInvariantsBehaviour
       for invName in initIndicators.reverse do
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); exact sorry)
+
+        let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); exact sorry)
+        else `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); solve_clause [$(mkIdent `initSimp)])
         theorems := theorems.push thm
       -- Action checks
       for (actName, invName) in actIndicators.reverse do
@@ -95,7 +97,8 @@ inductive CheckInvariantsBehaviour
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let trStx ← `(@$(mkIdent trName) $sectionArgs*)
         let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); exact sorry)
+        let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); exact sorry)
+        else `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); solve_clause [$(mkIdent trName)])
         theorems := theorems.push thm
       return theorems
 
@@ -109,7 +112,7 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
       for invName in initIndicators do
         acts := acts.push (actName, invName)
     return (initIndicators, acts)
-  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList
+  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList (sorry_body := False)
 
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := do
