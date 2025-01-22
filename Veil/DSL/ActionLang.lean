@@ -155,17 +155,21 @@ syntax "[unchanged|" ident* "]" : term
 abbrev doSeq := TSyntax ``Term.doSeq
 abbrev doSeqItem := TSyntax ``Term.doSeqItem
 
+structure Vars where
+  name : Ident
+  type : Term
+
+abbrev VeilM := StateT (Array Vars) TermElabM
+
 mutual
-partial def expandDoSeqVeil (stx : doSeq) : TermElabM (TSyntax ``Term.doSeq) :=
+partial def expandDoSeqVeil (stx : doSeq) : VeilM (Array doSeqItem) :=
   match stx with
-  | `(doSeq| $doS:doSeqItem*) => do
-    let doS <- doS.mapM expandDoElemVeil
-    `(doSeq| $[$doS]*)
+  | `(doSeq| $doS:doSeqItem*) => doS.mapM expandDoElemVeil
   | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation sequence {stx}"
 
 
 
-partial def expandDoElemVeil (stx : doSeqItem) : TermElabM doSeqItem := do
+partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
   trace[dsl.debug] "[expand doElem] {stx}"
   match stx with
   | `(Term.doSeqItem| $stx ;) => expandDoElemVeil $ <- `(Term.doSeqItem| $stx:doElem)
@@ -184,17 +188,21 @@ partial def expandDoElemVeil (stx : doSeqItem) : TermElabM doSeqItem := do
   | `(Term.doSeqItem| if $t:term then $thn:doSeq else $els:doSeq) =>
     let thn <- expandDoSeqVeil thn
     let els <- expandDoSeqVeil els
-    `(Term.doSeqItem| if $t then $thn else $els)
+    `(Term.doSeqItem| if $t then $thn* else $els*)
   -- Expand non-determenistic assigments statements
   | `(Term.doSeqItem| $id:ident := *) =>
     let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
       | throwErrorAt stx "trying to assign to undeclared state component {id}"
-    expandDoElemVeil $ <- `(Term.doSeqItem|if True then let y <- fresh ($typeStx); $id:ident := y)
+    let fr := mkIdent <| <- mkFreshUserName `fresh
+    modify (·.push ⟨fr, typeStx⟩)
+    expandDoElemVeil $ <- `(Term.doSeqItem|$id:ident := $fr)
   | `(Term.doSeqItem| $idts:term := *) =>
     let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
     let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
       | throwErrorAt stx "trying to assign to undeclared state component {id}"
-    expandDoElemVeil $ <- `(Term.doSeqItem|if True then let y <- fresh ($typeStx); $idts:term := y $ts*)
+    let fr := mkIdent <| <- mkFreshUserName `fresh
+    modify (·.push ⟨fr, typeStx⟩)
+    expandDoElemVeil $ <- `(Term.doSeqItem|$idts:term := $fr:ident $ts*)
   -- Expand determenistic assigments statements
   | `(Term.doSeqItem| $id:ident := $t:term) =>
     trace[dsl.debug] "[expand assignmet with args] {stx}"
@@ -232,21 +240,35 @@ elab (name := VeilDo) dov:doVeil stx:doSeq : term => do
     | `(doVeil| doAssume) => `($(mkIdent ``Mode.external))
     | `(doVeil| doAssert) => `($(mkIdent ``Mode.internal))
     | _ => throwErrorAt stx "unexpected veil mode {dov}"
-  let mut stateAssns : Array doSeqItem := #[]
+  /- Array containing all auxilary let-bingings to be inserted in the
+    beginning of the `do`-block. It consists of
+    - `let mut feild := (<- get). field` for each field of the protocol state. We do this
+      to be able to access and modify the state fields without the need to use
+      `get` and `modify` functions
+    - [HACK] `let submodule.act := submodule.act` for each action `act` inherited from
+      submodules. As for each submodule, the previous step defines a local variable
+      `submodule`, `submodule.act` will be treated as an access to `submodule`'s filed `act`,
+      rather than an action `act` operation on `submodule`
+    - `let freshName <- fresh` for each non-determenistic assigment. We hoist all fresh
+      variables to make all the quantifiers top level -/
+  let mut preludeAssn : Array doSeqItem := #[]
   let doS <- match stx with
   | `(doSeq| $doE*) => pure doE
   | `(doSeq| { $doE* }) => pure doE
   | _ => throwErrorAt stx "unexpected syntax of Veil `do`-notation sequence {stx}"
+  let (doS, vars) <- (expandDoSeqVeil (<- `(doSeq| $doS*))).run #[]
+
   let as := (<- getSubActions)
   for a in as do
-    stateAssns := stateAssns.push <| ← `(Term.doSeqItem| let $(a.1):ident := $(a.2))
+    preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $(a.1):ident := $(a.snd))
   let fs := (<- getFields).map Lean.mkIdent
   for f in fs do
-    stateAssns := stateAssns.push <| ← `(Term.doSeqItem| let mut $f:ident := (<- get).$f)
-  let doS := stateAssns.append doS
-  let stx' <- expandDoSeqVeil (<- `(doSeq| $doS*))
-  trace[dsl.debug] "{stx}\n→\n{stx'}"
-  elabTerm (<- `(term| ((do $stx') : Wlp $mode [State] _))) none
+    preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let mut $f:ident := (<- get).$f)
+  for v in vars do
+    preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- fresh $v.type)
+  let doS := preludeAssn.append doS
+  trace[dsl.debug] "{stx}\n→\n{doS}"
+  elabTerm (<- `(term| ((do $doS*) : Wlp $mode [State] _))) none
 
 macro_rules
   | `(require $t) => `(Wlp.require $t)

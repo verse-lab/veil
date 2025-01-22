@@ -55,4 +55,24 @@ fun {node} [DecidableEq node] [Nonempty node] =>
 #guard_msgs in
 #print double_quant
 
+def top_level (n : node) := doAssume
+  require x
+  if x then
+    r N N := *
+  else
+    r n n := *
+  return r
+
+def top_level' (n : node) := doAssume
+  let freshR <- fresh node -> node -> Prop
+  let freshR' <- fresh node -> node -> Prop
+  require x
+  if x then
+    r N N := freshR N N
+  else
+    r n n := freshR' n n
+  return r
+
+example : top_level = top_level' := rfl
+
 end Test
