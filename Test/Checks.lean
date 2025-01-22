@@ -81,4 +81,16 @@ The following set of actions must preserve the invariant:
 #guard_msgs in
 #check_action send
 
+/-- info:
+Initialization must establish the invariant:
+  single_leader ... ✅
+The following set of actions must preserve the invariant:
+  send
+    single_leader ... ✅
+  recv
+    single_leader ... ✅
+-/
+#guard_msgs in
+#check_invariant single_leader
+
 end Ring

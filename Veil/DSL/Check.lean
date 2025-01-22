@@ -78,15 +78,12 @@ inductive CheckInvariantsBehaviour
 
 def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
   Command.runTermElabM fun vs => do
-    let moduleName <- getCurrNamespace
-    let ge ← getEnv
     let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
     let sectionArgs ← getSectionArgumentsStx vs
     let mut theorems := #[]
     -- Init checks
     for (invName, _) in invIndicators.reverse do
-      let .some _ := ge.find? (invName)
-        | throwError s!"invariant {invName} not found"
+      let invName ← resolveGlobalConstNoOverloadCore invName
       let invStx ← `(@$(mkIdent invName) $sectionArgs*)
       if generateInitThms then
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
@@ -95,9 +92,9 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
     -- Action checks
     for (actName, _) in actIndicators.reverse do
       let trName := toTrName actName
+      let actName ← resolveGlobalConstNoOverloadCore actName
       for (invName, _) in invIndicators.reverse do
-        let .some _ := ge.find? (moduleName ++ actName)
-          | throwError s!"action {actName} not found"
+        let invName ← resolveGlobalConstNoOverloadCore invName
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let trStx ← `(@$(mkIdent trName) $sectionArgs*)
         let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
@@ -107,8 +104,6 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
 
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := do
-  let moduleName <- getCurrNamespace
-  let ge ← getEnv
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
   let mut theorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators
@@ -120,16 +115,14 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let sectionArgs ← getSectionArgumentsStx vs
       -- get the syntax of the transitions
       let actStxList : Array Term ← actIndicators.toArray.mapM (fun (actName, indName) => do
-        let .some _ := ge.find? (moduleName ++ actName)
-          | throwError s!"action {actName} not found"
+        let actName ← resolveGlobalConstNoOverloadCore actName
         let tr := mkIdent $ toTrName actName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
         `($(mkIdent indName) ∧ (@$tr $sectionArgs* $st $st'))
         -- pure (mkAnd (mkApp2 (mkAppN act vs) (mkConst st.getId) (mkConst st'.getId)) indName)
       )
       let invStxList : Array Term ← invIndicators.toArray.mapM (fun (invName, indName) => do
-        let .some _ := ge.find? invName
-          | throwError s!"invariant {invName} not found"
+        let invName ← resolveGlobalConstNoOverloadCore invName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
         `(($(mkIdent indName) → @$(mkIdent invName) $sectionArgs* $st'))
         -- pure (mkOr (mkApp (mkAppN inv vs) (mkConst st'.getId)) (mkNot indName))
