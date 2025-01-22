@@ -9,8 +9,10 @@ abbrev UninterpretedValue := Lean.Name
 def _root_.String.toSanitizedName (s : String) : Lean.Name :=
   -- FIXME: this is a hack to get rid of shadowed names
   let badChars := #["✝", "⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"]
-  let s := badChars.foldl (init := s) fun s c => s.replace c " "
-  s.toSubstring.toName
+  let goodChars := #["_", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+  let mapping := badChars.zip goodChars
+  let s' := mapping.foldl (init := s) fun s (f, r) => s.replace f r
+  s'.toSubstring.toName
 
 instance : Ord SortName where
   compare a b := a.cmp b
