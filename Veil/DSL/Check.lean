@@ -172,6 +172,18 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
 
       let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList) ++ "\n"
       return (msg, initRes, actRes)
+
+    -- Admit proven theorems
+    let provenInit := (initRes.filter (fun (_, res) => match res with
+       | .Unsat => true
+       | _ => false)).map (fun (l, _) => match l with | [invName] => invName | _ => unreachable!)
+    let provenActs := (actRes.filter (fun (_, res) => match res with
+        | .Unsat => true
+        | _ => false)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
+    let verifiedTheorems ← theoremSuggestionsForChecks provenInit provenActs
+    for cmd in verifiedTheorems do
+      elabCommand (← `(#guard_msgs(drop all) in $(cmd)))
+
     match behaviour with
       | .checkTheorems => logInfo msg
       | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
@@ -182,7 +194,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         let neededActs := (actRes.filter (fun (_, res) => match res with
           | .Unsat => false
           | _ => true)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
-        let mut unverifiedTheorems ← theoremSuggestionsForChecks neededInit neededActs
+        let unverifiedTheorems ← theoremSuggestionsForChecks neededInit neededActs
         displaySuggestion stx unverifiedTheorems (preMsg := msg)
       | _ => unreachable!
 

@@ -48,7 +48,8 @@ invariant [indv_true] indv
 
 #gen_spec
 
-/-- info:
+/--
+info:
 @[invProof]
   theorem init_Ring.indv_true :
       ∀ (st : @State node),

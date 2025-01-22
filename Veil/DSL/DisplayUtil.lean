@@ -20,12 +20,14 @@ def emoji (res : SmtResult) : String :=
   | .Sat _ => "❌"
   | .Unknown _ => "❓"
 
+def getBaseNameForDisplay (n : Name) : Name := n.updatePrefix Name.anonymous
+
 def getInitCheckResultMessages (res: List (Name × SmtResult)) : (Array String) := Id.run do
   let mut msgs := #[]
   if !res.isEmpty then
     msgs := msgs.push "Initialization must establish the invariant:"
     for (invName, r) in res do
-      msgs := msgs.push s!"  {invName} ... {emoji r}"
+      msgs := msgs.push s!"  {getBaseNameForDisplay invName} ... {emoji r}"
   pure msgs
 
 def getActCheckResultMessages (res: List (Name × Name × SmtResult)) : (Array String) := Id.run do
@@ -35,7 +37,7 @@ def getActCheckResultMessages (res: List (Name × Name × SmtResult)) : (Array S
     for (actName, invResults) in group res do
       msgs := msgs.push s!"  {actName}"
       for (invName, r) in invResults do
-        msgs := msgs.push s!"    {invName} ... {emoji r}"
+        msgs := msgs.push s!"    {getBaseNameForDisplay invName} ... {emoji r}"
   pure msgs
 where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
   xs.foldl (fun acc (key, val) =>

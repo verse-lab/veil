@@ -45,18 +45,18 @@ invariant pending L L → le N L
 
 /-- info:
 Initialization must establish the invariant:
-  Ring.single_leader ... ✅
-  Ring.inv_1 ... ✅
-  Ring.inv_2 ... ✅
+  single_leader ... ✅
+  inv_1 ... ✅
+  inv_2 ... ✅
 The following set of actions must preserve the invariant:
   send
-    Ring.single_leader ... ✅
-    Ring.inv_1 ... ✅
-    Ring.inv_2 ... ✅
+    single_leader ... ✅
+    inv_1 ... ✅
+    inv_2 ... ✅
   recv
-    Ring.single_leader ... ✅
-    Ring.inv_1 ... ✅
-    Ring.inv_2 ... ✅
+    single_leader ... ✅
+    inv_1 ... ✅
+    inv_2 ... ✅
 -/
 #guard_msgs in
 #check_invariants
@@ -64,9 +64,9 @@ The following set of actions must preserve the invariant:
 /-- info:
 The following set of actions must preserve the invariant:
   recv
-    Ring.single_leader ... ✅
-    Ring.inv_1 ... ✅
-    Ring.inv_2 ... ✅
+    single_leader ... ✅
+    inv_1 ... ✅
+    inv_2 ... ✅
 -/
 #guard_msgs in
 #check_action recv
@@ -74,9 +74,9 @@ The following set of actions must preserve the invariant:
 /-- info:
 The following set of actions must preserve the invariant:
   send
-    Ring.single_leader ... ✅
-    Ring.inv_1 ... ✅
-    Ring.inv_2 ... ✅
+    single_leader ... ✅
+    inv_1 ... ✅
+    inv_2 ... ✅
 -/
 #guard_msgs in
 #check_action send
