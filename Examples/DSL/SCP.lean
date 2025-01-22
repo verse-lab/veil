@@ -193,7 +193,14 @@ internal transition byzantine_step = fun st st' =>
   (∀ N1 N2 B X, st.well_behaved N1 → st.received_vote_prepare N1 N2 B X = st'.received_vote_prepare N1 N2 B X) ∧
   (∀ N1 N2 B X, st.well_behaved N1 → st.received_accept_prepare N1 N2 B X = st'.received_accept_prepare N1 N2 B X) ∧
   (∀ N1 N2 B X, st.well_behaved N1 → st.received_vote_commit N1 N2 B X = st'.received_vote_commit N1 N2 B X) ∧
-  (∀ N1 N2 B X, st.well_behaved N1 → st.received_accept_commit N1 N2 B X = st'.received_accept_commit N1 N2 B X)
+  (∀ N1 N2 B X, st.well_behaved N1 → st.received_accept_commit N1 N2 B X = st'.received_accept_commit N1 N2 B X) ∧
+  -- coherence; guess need to add them; FIXME: can they be added automatically, as they are `immutable`?
+  (∀ N, st.well_behaved N = st'.well_behaved N) ∧
+  (∀ N, st.intertwined N = st'.intertwined N) ∧
+  (∀ N, st.intact N = st'.intact N) ∧
+  (∀ N Q, st.member N Q = st'.member N Q) ∧
+  (∀ Q, st.is_quorum Q = st'.is_quorum Q) ∧
+  (∀ S N, st.blocks_slices S N = st'.blocks_slices S N)
 
 -- the main safety
 safety [intertwined_safe]
