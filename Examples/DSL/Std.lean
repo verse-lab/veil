@@ -37,7 +37,7 @@ class TotalOrderWithMinimum (t : Type) where
 
   -- successor
   next (x y : t) : Prop
-  next_def (x y : t) : next x y ↔ (lt x y ∧ ∀ z, lt x z → le z y)
+  next_def (x y : t) : next x y ↔ (lt x y ∧ ∀ z, lt x z → le y z)
 
   zero : t
   zero_lt (x : t) : le zero x
