@@ -219,7 +219,7 @@ def checkInvariant (stx : Syntax) (invName : TSyntax `ident) (behaviour : CheckI
 elab_rules : command
   | `(command| #check_invariant $invName)  => do checkInvariant (← getRef) invName (behaviour := .checkTheorems)
   | `(command| #check_invariant? $invName) => do checkInvariant (← getRef) invName (behaviour := .printTheorems)
-  | `(command| #check_invariant! $invName) => do checkInvariant (← getRef) invName (behaviour := .printAndCheckTheorems)
+  | `(command| #check_invariant! $invName) => do checkInvariant (← getRef) invName (behaviour := .printUnverifiedTheorems)
 
 /- ## `#check_action` -/
 syntax "#check_action" ident : command
@@ -235,7 +235,7 @@ def checkAction (stx : Syntax) (actName : TSyntax `ident) (behaviour : CheckInva
 elab_rules : command
   | `(command| #check_action $actName)  => do checkAction (← getRef) actName (behaviour := .checkTheorems)
   | `(command| #check_action? $actName) => do checkAction (← getRef) actName (behaviour := .printTheorems)
-  | `(command| #check_action! $actName) => do checkAction (← getRef) actName (behaviour := .printAndCheckTheorems)
+  | `(command| #check_action! $actName) => do checkAction (← getRef) actName (behaviour := .printUnverifiedTheorems)
 
 open Tactic in
 /-- Try to solve the goal using one of the already proven invariant clauses,
