@@ -85,15 +85,12 @@ inductive CheckInvariantsBehaviour
       let mut theorems := #[]
       -- Init checks
       for invName in initIndicators.reverse do
-        let invName ← resolveGlobalConstNoOverloadCore invName
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
         let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); exact sorry)
         theorems := theorems.push thm
       -- Action checks
-      for (invName, actName) in actIndicators.reverse do
-        let actName ← resolveGlobalConstNoOverloadCore actName
-        let invName ← resolveGlobalConstNoOverloadCore invName
+      for (actName, invName) in actIndicators.reverse do
         let trName := toTrName actName
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let trStx ← `(@$(mkIdent trName) $sectionArgs*)
@@ -105,8 +102,8 @@ inductive CheckInvariantsBehaviour
 def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
     Command.runTermElabM fun vs => do
     -- prevent code duplication
-    let initIndicators := invIndicators.map (fun (invName, _) => invName)
-    let actIndicators := actIndicators.map (fun (actName, _) => actName)
+    let initIndicators ← invIndicators.mapM (fun (invName, _) => resolveGlobalConstNoOverloadCore invName)
+    let actIndicators ← actIndicators.mapM (fun (actName, _) => resolveGlobalConstNoOverloadCore actName)
     let mut acts := #[]
     for actName in actIndicators do
       for invName in initIndicators do
@@ -192,13 +189,9 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
 syntax "#check_invariants" : command
 /-- Suggest theorems to check all invariants. -/
 syntax "#check_invariants?" : command
-/-- Check all invariants, print the result of each check, and suggest
-theorems corresponding to the result of these checks. Theorems that
-could not be proven have their proofs replaced with `sorry`. -/
-syntax "#check_invariants!" : command
 /-- Check all invariants and suggest only theorems that
 were not proved automatically. -/
-syntax "#check_invariants!?" : command
+syntax "#check_invariants!" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
@@ -209,8 +202,7 @@ def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := .che
 elab_rules : command
   | `(command| #check_invariants)  => do checkInvariants (← getRef) (behaviour := .checkTheorems)
   | `(command| #check_invariants?) => do checkInvariants (← getRef) (behaviour := .printTheorems)
-  | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .printAndCheckTheorems)
-  | `(command| #check_invariants!?%$tk) => do checkInvariants (← getRef) (behaviour := .printUnverifiedTheorems)
+  | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .printUnverifiedTheorems)
 
 
 /- ## `#check_invariant` -/
