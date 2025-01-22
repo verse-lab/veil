@@ -181,7 +181,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
          | _ => true)).map (fun (l, _) => match l with | [invName] => invName | _ => unreachable!)
         let neededActs := (actRes.filter (fun (_, res) => match res with
           | .Unsat => false
-          | _ => true)).map (fun (l, _) => match l with | [actName, invName] => (actName, invName) | _ => unreachable!)
+          | _ => true)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
         let mut unverifiedTheorems ← theoremSuggestionsForChecks neededInit neededActs
         displaySuggestion stx unverifiedTheorems (preMsg := msg)
       | _ => unreachable!

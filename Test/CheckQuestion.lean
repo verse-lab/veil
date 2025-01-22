@@ -48,7 +48,7 @@ invariant pending L L → le N L
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).init st →
             (@Ring.single_leader node node_dec node_ne tot btwn) st :=
-    by (unhygienic intros); exact sorry
+    by (unhygienic intros); solve_clause[initSimp]
 
 @[invProof] theorem Ring.send_Ring.single_leader :
       ∀ (st st' : @State node),
@@ -56,7 +56,7 @@ invariant pending L L → le N L
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.send.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); exact sorry
+    by (unhygienic intros); solve_clause[Ring.send.tr]
 
 @[invProof] theorem Ring.recv_Ring.single_leader :
       ∀ (st st' : @State node),
@@ -64,7 +64,7 @@ invariant pending L L → le N L
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); exact sorry
+    by (unhygienic intros); solve_clause[Ring.recv.tr]
 -/
 #guard_msgs(whitespace := lax) in
 #check_invariant? single_leader
@@ -77,7 +77,7 @@ invariant pending L L → le N L
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); exact sorry
+    by (unhygienic intros); solve_clause[Ring.recv.tr]
 
 @[invProof] theorem Ring.recv_Ring.inv_1 :
       ∀ (st st' : @State node),
@@ -85,7 +85,7 @@ invariant pending L L → le N L
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.inv_1 node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); exact sorry
+    by (unhygienic intros); solve_clause[Ring.recv.tr]
 
 @[invProof] theorem Ring.recv_Ring.inv_2 :
       ∀ (st st' : @State node),
@@ -93,7 +93,7 @@ invariant pending L L → le N L
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.inv_2 node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); exact sorry
+    by (unhygienic intros); solve_clause[Ring.recv.tr]
 -/
 #guard_msgs(whitespace := lax) in
 #check_action? recv
