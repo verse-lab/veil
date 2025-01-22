@@ -6,7 +6,7 @@ import Examples.DSL.Std
 
 -- https://www.wisdom.weizmann.ac.il/~padon/paxos-made-epr-examples.zip /paxos/paxos_fol.ivy
 
-section PaxosFirstOrder
+namespace PaxosFirstOrder
 open Classical
 
 type node
@@ -27,7 +27,7 @@ relation vote (N:node) (R:round) (V:value) -- 2b
 relation decision (N:node) (R:round) (V:value) -- got 2b from a quorum
 
 
-#gen_state PaxosFirstOrder
+#gen_state
 assumption ∀ (Q1:quorum) (Q2:quorum), ∃ (N:node), member N Q1 ∧ member N Q2
 
 
@@ -115,7 +115,7 @@ invariant [none_vote] ¬ vote N none V
 invariant [choosable_proposal] (∀ (R1:round) (R2:round) (V1:value) (V2:value) (Q:quorum), ¬ tot.le R2 R1 ∧ proposal R2 V2 ∧ V1 ≠ V2 →
     (∃ (N:node) (R3:round) (RMAX:round) (V:value), member N Q ∧ ¬ tot.le R3 R1 ∧ one_b_max_vote N R3 RMAX V ∧ ¬ vote N R1 V1))
 
-#gen_spec PaxosFirstOrder
+#gen_spec
 
 set_option maxHeartbeats 2000000 in
 #check_invariants

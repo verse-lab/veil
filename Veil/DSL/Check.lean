@@ -75,35 +75,40 @@ inductive CheckInvariantsBehaviour
   | printTheorems
   /-- `#check_invariants!` -/
   | printAndCheckTheorems
+  /-- `#check_invariants!?` -/
+  | printUnverifiedTheorems
 
-def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
-  Command.runTermElabM fun vs => do
-    let moduleName <- getCurrNamespace
-    let ge ← getEnv
-    let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
-    let sectionArgs ← getSectionArgumentsStx vs
-    let mut theorems := #[]
-    -- Init checks
-    for (invName, _) in invIndicators.reverse do
-      let .some _ := ge.find? (invName)
-        | throwError s!"invariant {invName} not found"
-      let invStx ← `(@$(mkIdent invName) $sectionArgs*)
-      if generateInitThms then
+  def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) : CommandElabM (Array (TSyntax `command)) := do
+    Command.runTermElabM fun vs => do
+      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
+      let sectionArgs ← getSectionArgumentsStx vs
+      let mut theorems := #[]
+      -- Init checks
+      for invName in initIndicators.reverse do
+        let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); solve_clause [$(mkIdent `initSimp)])
+        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); exact sorry)
         theorems := theorems.push thm
-    -- Action checks
-    for (actName, _) in actIndicators.reverse do
-      let trName := toTrName actName
-      for (invName, _) in invIndicators.reverse do
-        let .some _ := ge.find? (moduleName ++ actName)
-          | throwError s!"action {actName} not found"
+      -- Action checks
+      for (invName, actName) in actIndicators.reverse do
+        let trName := toTrName actName
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let trStx ← `(@$(mkIdent trName) $sectionArgs*)
         let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); solve_clause [$(mkIdent trName)])
+        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); exact sorry)
         theorems := theorems.push thm
-    return theorems
+      return theorems
+
+def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
+    Command.runTermElabM fun vs => do
+    -- prevent code duplication
+    let initIndicators := invIndicators.map (fun (invName, _) => invName)
+    let actIndicators := actIndicators.map (fun (actName, _) => actName)
+    let mut acts := #[]
+    for actName in actIndicators do
+      for invName in initIndicators do
+        acts := acts.push (actName, invName)
+    liftCommandElabM $ theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList
 
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := do
@@ -114,8 +119,8 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   let mut theorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators
   match behaviour with
   | .printTheorems => displaySuggestion stx theorems
-  | .checkTheorems | .printAndCheckTheorems =>
-    let msg ← Command.runTermElabM fun vs => do
+  | .checkTheorems | .printAndCheckTheorems | .printUnverifiedTheorems =>
+    let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let sectionArgs ← getSectionArgumentsStx vs
       -- get the syntax of the transitions
@@ -166,10 +171,19 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         | _ => unreachable!)
 
       let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList) ++ "\n"
-      pure msg
+      return (msg, initRes, actRes)
     match behaviour with
       | .checkTheorems => dbg_trace msg
       | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
+      | .printUnverifiedTheorems =>
+        let neededInit := (initRes.filter (fun (_, res) => match res with
+         | .Unsat => false
+         | _ => true)).map (fun (l, _) => match l with | [invName] => invName | _ => unreachable!)
+        let neededActs := (actRes.filter (fun (_, res) => match res with
+          | .Unsat => false
+          | _ => true)).map (fun (l, _) => match l with | [actName, invName] => (actName, invName) | _ => unreachable!)
+        let mut unverifiedTheorems ← theoremSuggestionsForChecks neededInit neededActs
+        displaySuggestion stx unverifiedTheorems (preMsg := msg)
       | _ => unreachable!
 
 
@@ -183,6 +197,9 @@ syntax "#check_invariants?" : command
 theorems corresponding to the result of these checks. Theorems that
 could not be proven have their proofs replaced with `sorry`. -/
 syntax "#check_invariants!" : command
+/-- Check all invariants and suggest only theorems that
+were not proved automatically. -/
+syntax "#check_invariants!?" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
@@ -194,6 +211,7 @@ elab_rules : command
   | `(command| #check_invariants%$tk) => checkInvariants tk (behaviour := .checkTheorems)
   | `(command| #check_invariants?%$tk) => checkInvariants tk (behaviour := .printTheorems)
   | `(command| #check_invariants!%$tk) => checkInvariants tk (behaviour := .printAndCheckTheorems)
+  | `(command| #check_invariants!?%$tk) => checkInvariants tk (behaviour := .printUnverifiedTheorems)
 
 
 /- ## `#check_invariant` -/
