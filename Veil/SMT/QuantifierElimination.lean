@@ -253,7 +253,7 @@ def HO_forall_push_left_impl : Simp.Simproc := fun e => do
 simproc HO_forall_push_left (∀_ _, _) := HO_forall_push_left_impl
 attribute [quantifierElim] HO_forall_push_left
 
-attribute [quantifierElim] forall_const forall_eq forall_eq forall_exists_index
+attribute [quantifierElim] forall_const forall_eq forall_eq
 
 -- To enable some of the lemmas below; FIXME: do we need more of these?
 -- attribute [quantifierElim] and_imp not_and
