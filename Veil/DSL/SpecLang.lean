@@ -429,7 +429,7 @@ def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
     elabCommand fnDef
     trace[dsl.info] "{trName} is defined"
 
-/-- Show a warning if the given declaration -/
+/-- Show a warning if the given declaration has higher-order quantification -/
 def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
   let module <- getCurrNamespace
   let .some decl := (← getEnv).find? (module ++ name) | throwError s!"{name} not found"
