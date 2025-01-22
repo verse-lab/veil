@@ -85,12 +85,15 @@ inductive CheckInvariantsBehaviour
       let mut theorems := #[]
       -- Init checks
       for invName in initIndicators.reverse do
+        let invName ← resolveGlobalConstNoOverloadCore invName
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
         let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); exact sorry)
         theorems := theorems.push thm
       -- Action checks
       for (invName, actName) in actIndicators.reverse do
+        let actName ← resolveGlobalConstNoOverloadCore actName
+        let invName ← resolveGlobalConstNoOverloadCore invName
         let trName := toTrName actName
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let trStx ← `(@$(mkIdent trName) $sectionArgs*)
@@ -112,8 +115,6 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
 
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := do
-  let moduleName <- getCurrNamespace
-  let ge ← getEnv
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
   let mut theorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators
@@ -125,16 +126,14 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let sectionArgs ← getSectionArgumentsStx vs
       -- get the syntax of the transitions
       let actStxList : Array Term ← actIndicators.toArray.mapM (fun (actName, indName) => do
-        let .some _ := ge.find? (moduleName ++ actName)
-          | throwError s!"action {actName} not found"
+        let actName ← resolveGlobalConstNoOverloadCore actName
         let tr := mkIdent $ toTrName actName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
         `($(mkIdent indName) ∧ (@$tr $sectionArgs* $st $st'))
         -- pure (mkAnd (mkApp2 (mkAppN act vs) (mkConst st.getId) (mkConst st'.getId)) indName)
       )
       let invStxList : Array Term ← invIndicators.toArray.mapM (fun (invName, indName) => do
-        let .some _ := ge.find? invName
-          | throwError s!"invariant {invName} not found"
+        let invName ← resolveGlobalConstNoOverloadCore invName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
         `(($(mkIdent indName) → @$(mkIdent invName) $sectionArgs* $st'))
         -- pure (mkOr (mkApp (mkAppN inv vs) (mkConst st'.getId)) (mkNot indName))
