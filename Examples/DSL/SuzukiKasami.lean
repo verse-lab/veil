@@ -6,7 +6,7 @@ import Examples.DSL.Std
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy
 
-section SuzukiKasami
+namespace SuzukiKasami
 open Classical
 
 type node
@@ -34,7 +34,7 @@ relation t_q : seq_t → node → Prop
 --- Critical section
 relation crit : node → Prop
 
-#gen_state SuzukiKasami
+#gen_state
 
 action succ (n : seq_t) = {
     let k : seq_t ← fresh
@@ -116,7 +116,7 @@ invariant [no_request_to_self] (reqs N M I) → N ≠ M
 invariant [no_consecutive_privilege] ((t_for I N) ∧ (seq.next J I) ∧ (t_for J M)) → N ≠ M
 invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.le I (n_token_seq N)
 
-#gen_spec SuzukiKasami
+#gen_spec
 
 #check_invariants
 

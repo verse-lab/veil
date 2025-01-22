@@ -3,7 +3,7 @@ import Veil.DSL
 import Examples.DSL.Std
 -- import Mathlib.Tactic
 
-section DAGRider
+namespace DAGRider
 open Classical
 
 -- set_option trace.dsl true
@@ -49,7 +49,7 @@ individual blocksToPropose : queue
 -- Ghost state
 relation delivered (v : vertex) (r : Int) (src : node)
 
-#gen_state DAGRider
+#gen_state
 
 after_init {
     vertexRound V R         := False;
@@ -69,8 +69,8 @@ after_init {
 
 action dequeue (q0 : queue) = {
     require ¬ q.is_empty q0;
-    fresh b : block in
-    fresh q' : queue in
+    let b <- fresh block
+    let q' <- fresh queue
     require q.dequeue b q0 q';
     return (b, q')
 }
@@ -90,8 +90,8 @@ invariant [dag_nonneg] ∀ r v, dag r v → r ≥ 0
 
 -- TODO: if we're modelling DAG construction, should this be an external
 -- action? (i.e. one with no implementation?)
-output action waveReady (r : Int) = { skip }
-output action r_bcast (v : vertex) (r : Int) = { skip }
+output action waveReady (r : Int) = { pure () }
+output action r_bcast (v : vertex) (r : Int) = { pure () }
 
 input action r_deliver (v : vertex) (r : Int) (src : node) = {
     require r ≥ 0;
@@ -104,9 +104,9 @@ input action r_deliver (v : vertex) (r : Int) (src : node) = {
     vertexSource v SRC := (SRC = src);
     vertexRound v R := (R = r);
     -- if |v.strongEdges| ≥ 2f + 1 then add v to buffer
-    if (∃ q, ∀ n, member n q → (∃ v', vertexSource v' n ∧ vertexStrongEdge v v')) {
+    if (∃ q, ∀ n, member n q → (∃ v', vertexSource v' n ∧ vertexStrongEdge v v')) then
         buffer v := True
-    }
+
 }
 
 action setWeakEdges (v : vertex) (r : Int) = {
@@ -122,16 +122,16 @@ action createNewVertex (r : Int) = {
     require r ≥ 0;
     -- FIXME: "wait until ¬ blocksToPropose.empty"
     -- `v.block ← blocksToPropose.dequeue()`
-    (b, q') : block × queue ← call dequeue blocksToPropose in
+    let (b, q') ← dequeue blocksToPropose
     blocksToPropose := q';
-    fresh v : vertex in
+    let v <- fresh vertex
     -- this is a new, really "fresh", vertex
     require (¬ ∃ b, vertexBlock v b) ∧ (¬ ∃ n, vertexSource v n) ∧ (¬ ∃ r, vertexRound v r)
       ∧ (¬ ∃ se, vertexStrongEdge v se) ∧ (¬ ∃ we, vertexWeakEdge v we);
     vertexBlock v b := True;
     -- `v.strongEdges ← DAG[round - 1]`
     vertexStrongEdge v SE := dag (r - 1) SE;
-    call setWeakEdges v r;
+    setWeakEdges v r;
     return v
  }
 
@@ -147,15 +147,13 @@ action mainLoop = {
     -- If it'S in the DAG, remove it from the buffer
     buffer V := buffer V ∧ ¬ ∃ r, dag r V;
     -- There is a quorum of vertices in `dag[r]`
-    if (∃ q, ∀ n, member n q → (∃ v, vertexSource v n ∧ dag r v)) {
-        if (r % 4 = 0) {
+    if ∃ q, ∀ n, member n q → (∃ v, vertexSource v n ∧ dag r v) then
+        if r % 4 = 0 then
             -- TODO: how to properly model signalling wave_ready?
-            call waveReady r
-        };
+            waveReady r
         r := r + 1;
-        v : vertex ← call createNewVertex r in
-        call r_bcast v r
-    }
+        let v ← createNewVertex r
+        r_bcast v r
 }
 
 -- #print mainLoop.tr
@@ -190,7 +188,7 @@ invariant [one_vertex_per_round_per_source] ∀ r v v' src, delivered v r src �
 invariant [dag_round_matches_vertex_round] ∀ r v, dag r v → vertexRound v r
 
 
-#gen_spec DAGRider
+#gen_spec
 
 #check_invariants
 

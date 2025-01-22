@@ -1,7 +1,7 @@
 import Veil.DSL
 import Examples.DSL.Std
 
-section ReliableBroadcast
+namespace ReliableBroadcast
 open Classical
 /-
   Reliable Broadcast is a Byzantine fault-tolerant broadcast protocol
@@ -58,7 +58,7 @@ relation echoed (n : address) (originator : address) (in_round : round) (v : val
 relation voted (n : address) (originator : address) (in_round : round) (v : value)
 relation delivered (n : address) (originator : address) (in_round : round) (v : value)
 
-#gen_state ReliableBroadcast
+#gen_state
 
 -- Ghost relations
 ghost relation initial_value (n : address) (r : round) (v : value) := ∀ dst, initial_msg n dst r v
@@ -206,7 +206,7 @@ set_option maxHeartbeats 10000000
 set_option auto.smt.timeout 15 -- seconds
 -- set_option sauto.smt.macrofinder true -- Ivy uses this by default
 
-#gen_spec ReliableBroadcast
+#gen_spec
 
 
 #check_invariants
