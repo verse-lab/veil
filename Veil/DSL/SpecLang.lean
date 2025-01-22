@@ -283,14 +283,14 @@ elab (name := VeilInit) "after_init" "{" l:doSeq "}" : command => do
     -- define initial state action (`Wlp`)
     let act ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st : $stateTp) ($post : SProp $stateTp) => (do' $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
+      `(fun ($st : $stateTp) ($post : SProp $stateTp) => (doAssume $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
     elabCommand $ ← Command.runTermElabM fun _ => do
       let actName := `init
       `(@[initSimp, actSimp] def $(mkIdent actName) $[$vd]* := $act)
     -- define initial state predicate
     let pred ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wlp.toActProp (do' $l) $st $st'))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wlp.toActProp (doAssume $l) $st $st'))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
     -- we modify it to store the `lang`
@@ -353,7 +353,8 @@ macro "exists?" br:explicitBinders ? "," t:term : term =>
 
 /-- Defines `act` : `Wlp σ ρ` monad computation, parametrised over `br`. -/
 def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
-    let tr <- `(do' $l)
+    let lInternal <- `(doAssert $l)
+    let lExternal <- `(doAssume $l)
     let (uName, fnName, trName) := (toUnsimplifiedIdent nm, nm, toTrIdent nm)
     let vd ← getImplicitActionParameters
     let (unsimplifiedDef, fnDef, trDef) ← Command.runTermElabM fun vs => do
@@ -364,7 +365,7 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       | none => pure (#[], #[])
       -- Create types
       -- The actual command (not term) elaboration happens here
-      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* := $(← unfoldWlp tr))
+      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* := $(← unfoldWlp lInternal))
       trace[dsl.debug] "{unsimplifiedDef}"
       let attr ← toActionAttribute (toActionType actT)
       let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
@@ -373,9 +374,10 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       let trDef ← do
         let (st, st') := (mkIdent `st, mkIdent `st')
         let stateTpT ← getStateTpStx
-        let rhs ← `(fun ($st $st' : $stateTpT) => exists? $br ?, Wlp.toActProp (@$fnName $sectionArgs* $args*) $st $st')
+        let lExternal <- unfoldWlp lExternal
+        let rhs ← `(fun ($st $st' : $stateTpT) => exists? $br ?, Wlp.toActProp $lExternal $st $st')
         `(@[actSimp] def $trName $[$vd]*  := $(← simplifyTerm rhs))
-      trace[dsl.debug] "{tr}"
+      trace[dsl.debug] "{lInternal}"
       return (unsimplifiedDef, fnDef, trDef)
     -- Declare `nm.unsimplified` and `nm`
     elabCommand unsimplifiedDef
@@ -495,7 +497,7 @@ def elabTransition (actT : TSyntax `actionType) (nm : Ident) (br : Option (TSynt
 ```lean
 transition name binders* = tr
 ```
-This command defines lifts a two-state formula into a `Wlp σ Unit`
+This command defines lifts a two-state formula into a `Wlp .internal σ Unit`
 -/
 elab_rules : command
   | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do

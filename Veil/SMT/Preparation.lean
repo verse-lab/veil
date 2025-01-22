@@ -126,8 +126,14 @@ Note: the above misses some lemmas that have `@[simp]` above the line with `theo
 /-! ## cast and equality -/
 attribute [logicSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
 
+/-! ## Ite -/
+theorem not_if {_ : Decidable c} :
+  ¬ (if c then t else e) =
+  if c then ¬ t else ¬ e := by
+  by_cases c <;> simp_all
+
 /-! ## distributivity -/
-attribute [logicSimp] not_or
+attribute [logicSimp] not_or not_imp not_and not_if
 
 /-! ## Ite -/
 theorem if_app {α β : Type} {_ : Decidable c} (t e : α -> β) (a : α) :
@@ -160,7 +166,7 @@ attribute [logicSimp] Decidable.not_not decide_eq_decide
 /-! From `SimpLemmas.Lean`-/
 attribute [logicSimp] eq_self ne_eq ite_true ite_false dite_true
   dite_false ite_self and_true true_and and_false false_and and_self
-  and_not_self not_and_self and_imp not_and or_self or_true true_or
+  and_not_self not_and_self and_imp or_self or_true true_or
   or_false false_or iff_self iff_true true_iff iff_false false_iff
   false_implies forall_false implies_true true_implies not_false_eq_true
   not_true_eq_false not_iff_self and_self_left and_self_right
