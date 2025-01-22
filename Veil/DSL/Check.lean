@@ -100,7 +100,7 @@ inductive CheckInvariantsBehaviour
       return theorems
 
 def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
-    Command.runTermElabM fun vs => do
+  let (initIndicators, acts) ← Command.runTermElabM fun vs => do
     -- prevent code duplication
     let initIndicators ← invIndicators.mapM (fun (invName, _) => resolveGlobalConstNoOverloadCore invName)
     let actIndicators ← actIndicators.mapM (fun (actName, _) => resolveGlobalConstNoOverloadCore actName)
@@ -108,7 +108,8 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
     for actName in actIndicators do
       for invName in initIndicators do
         acts := acts.push (actName, invName)
-    liftCommandElabM $ theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList
+    return (initIndicators, acts)
+  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList
 
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := do
