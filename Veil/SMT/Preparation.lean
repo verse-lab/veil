@@ -133,7 +133,7 @@ theorem not_if {_ : Decidable c} :
   by_cases c <;> simp_all
 
 /-! ## distributivity -/
-attribute [logicSimp] not_or not_imp not_and not_if Classical.not_forall
+attribute [logicSimp] not_or not_imp not_and not_if -- Classical.not_forall
 /-! ## Ite -/
 theorem if_app {α β : Type} {_ : Decidable c} (t e : α -> β) (a : α) :
   (if c then t else e) a =
@@ -145,17 +145,23 @@ attribute [logicSimp] if_false_left if_false_right if_app
 attribute [logicSimp low] if_true_left if_true_right
 attribute [logicSimp] dite_not ite_not ite_true_same ite_false_same
 
+/-
+
+These change quantifier structure, so can make decidable queries undecidable.
+We keep them commented out, since we want explicit control, which we get
+via the `quantifierElim` attribute.
+
 /-! ## exists and forall -/
 attribute [logicSimp] forall_exists_index exists_const exists_true_left
   not_exists exists_false forall_const forall_eq forall_eq' exists_eq
   exists_eq' exists_eq_left exists_eq_right
 
--- TODO: do we correctly hoist `∀`?
 attribute [logicSimp] exists_eq_left' exists_eq_right' forall_eq_or_imp
   exists_eq_or_imp exists_eq_right_right exists_eq_right_right'
   exists_or_eq_left exists_or_eq_right exists_or_eq_left'
   exists_or_eq_right' exists_prop exists_apply_eq_apply
   forall_apply_eq_imp_iff forall_eq_apply_imp_iff forall_apply_eq_imp_iff₂
+-/
 
 /-! ## decidable -/
 attribute [logicSimp] Decidable.not_not decide_eq_decide
