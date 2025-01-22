@@ -3,7 +3,7 @@ import Examples.DSL.Std
 -- https://github.com/aman-goel/ivybench/blob/master/paxos/ivy/oopsla17_flexible_paxos.ivy
 
 
-section FlexiblePaxos
+namespace FlexiblePaxos
 open Classical
 
 type round
@@ -30,7 +30,7 @@ relation decision : node -> round -> value -> Prop
 
 relation isSafeAtPaxos : round → value → Prop
 
-#gen_state FlexiblePaxos
+#gen_state
 
 ghost relation chosenAt (R : round) (V : value) := ∃ q, ∀ n, member_2 n q → vote n R V
 ghost relation showsSafeAtPaxos (Qin : quorum_1) (Rin : round) (Vin : value) := (∀ n, member_1 n Qin → one_b n Rin) ∧
@@ -54,19 +54,19 @@ after_init {
 }
 
 action send_1a = {
-  fresh r : round in
+  let r <- fresh
   require r ≠ negone;
   one_a r := True
 }
 
 action join_round = {
-  fresh n : node in
-  fresh r : round in
+  let n <- fresh node
+  let r <- fresh round
   require r ≠ negone;
   require one_a r;
   require ¬ left_rnd n r;
-  fresh max_r : round in
-  fresh v : value in
+  let max_r <- fresh round
+  let v <- fresh value
   require ((max_r = negone ∧ ∀ maxR v, ¬ (¬ (tot.le r maxR) ∧ vote n maxR v)) ∨
     (max_r ≠ negone ∧ ¬ tot.le r max_r ∧ vote n max_r v ∧ (∀ maxR v, (¬ tot.le r maxR ∧ vote n maxR v) → tot.le maxR max_r)));
   one_b_max_vote n r max_r v := True;
@@ -75,18 +75,18 @@ action join_round = {
 }
 
 action propose = {
-  fresh r : round in
-  fresh v : value in
+  let r <- fresh round
+  let v <- fresh value
   require r ≠ negone;
-  require ¬ proposal r V;
-  require isSafeAtPaxos r V;
+  require ∀ V, ¬ proposal r V;
+  require ∀ V, isSafeAtPaxos r V;
   proposal r v := True
 }
 
 action cast_vote = {
-  fresh n : node in
-  fresh v : value in
-  fresh r : round in
+  let n <- fresh node
+  let v <- fresh value
+  let r <- fresh round
   require r ≠ negone;
   require ¬ left_rnd n r;
   require proposal r v;
@@ -94,9 +94,9 @@ action cast_vote = {
 }
 
 action decide = {
-  fresh n : node in
-  fresh r : round in
-  fresh v : value in
+  let n <- fresh node
+  let r <- fresh round
+  let v <- fresh value
   require r ≠ negone;
   require chosenAt r v;
   decision n r v := True
@@ -121,7 +121,7 @@ invariant [ic3po_other10] ∀ R1 V1 V2, V1 = V2 ∨ ¬ proposal R1 V1 ∨ ¬ pro
 -- invariant [one_b_max_vote_implies_no_vote_other] one_b_max_vote N R RMAX V ∧ ¬ tot.le R ROTHER ∧ ¬ tot.le ROTHER RMAX -> ¬ vote N ROTHER VOTHER
 
 
-#gen_spec FlexiblePaxos
+#gen_spec
 
 #check_invariants
 

@@ -3,7 +3,7 @@ import Veil.DSL
 -- https://github.com/aman-goel/ivybench/blob/d2c9298fdd099001c71a34bc2e118db6f07d8404/multisig/ivy/multisig-all.ivy
 
 
-section MultiSigAll
+namespace MultiSigAll
 open Classical
 
 type validator
@@ -24,7 +24,7 @@ relation cancelled : validator → destination → value → deadline → Prop
 
 relation expired : deadline → Prop
 
-#gen_state MultiSigAll
+#gen_state
 
 after_init {
   holding N := True;
@@ -56,7 +56,7 @@ action add_sig (n: validator) (k: destination) (v: value) (d: deadline) (s: sign
 action pay (n: validator) (k: destination) (v: value) (d: deadline) = {
   require collect n k v d;
   require ¬ expired d;
-  require sig n k v d S;
+  require ∀ S, sig n k v d S;
   paid n k v d := True;
   holding n := True;
   collect n k v d := False
@@ -80,6 +80,6 @@ safety [paid] paid N K V D → proposed N K V D
 
 invariant [ic3po_global2] collect V1 D1 V2 D2 → proposed V1 D1 V2 D2
 invariant [ic3po_global3] sig V1 D1 V2 D2 S1 → sig_auth S1
-#gen_spec MultiSigAll
+#gen_spec
 
 #check_invariants

@@ -214,18 +214,18 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
         throwIfImmutable id'
         -- NOTE: It is very important that we return a single `doSeqItem`;
         -- otherwise syntax highlighting gets broken very badly
-        `(Term.doSeqItem| $id:ident ← modifyGet
-            (fun st => (let val := $t; (val, {st with $id:ident := val}))))
+        withRef stx `(Term.doSeqItem| $id:ident ← modifyGet
+            (fun st => (($t, {st with $id:ident := $t}))))
       else
         `(Term.doSeqItem| $id:ident := $t:term)
     else
       let base := mkIdent name.getPrefix
       let suff := mkIdent $ name.updatePrefix default
-      expandDoElemVeil $ <- `(Term.doSeqItem| $base:ident := { $base with $suff:ident := $t })
+      expandDoElemVeil $ <- withRef stx `(Term.doSeqItem| $base:ident := { $base with $suff:ident := $t })
   | `(Term.doSeqItem| $idts:term := $t:term) =>
     trace[dsl.debug] "[expand assignmet with args] {stx}"
     let some (id, ts) := idts.isApp? | return stx
-    let stx' <- `(term| $id[ $[$ts],* ↦ $t:term ])
+    let stx' <- withRef t `(term| $id[ $[$ts],* ↦ $t:term ])
     let stx <- withRef stx `(Term.doSeqItem| $id:ident := $stx')
     expandDoElemVeil stx
   | doE =>
