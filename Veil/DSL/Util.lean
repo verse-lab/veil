@@ -216,6 +216,7 @@ def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
 /-- See docstring on `toTrName`. -/
 def toUnsimplifiedIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `unsimplified
 def toSpecIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `spec
+def toGenIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `gen
 
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId

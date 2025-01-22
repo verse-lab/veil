@@ -47,6 +47,11 @@ def unfoldWlp (t : TSyntax `term) : TermElabM (TSyntax `term) := do
   let t' ← `(term|by first | let t := conv! (dsimp only [$actSimp:ident]; unfold_wlp; dsimp only) => $t; exact t | exact $t)
   return t'
 
+def dsimpOnly (t : TSyntax `term) (classes : Array Name := #[]) : TermElabM (TSyntax `term) := do
+  let classes := classes.map mkIdent
+  let t' ← `(term|by first | let t := conv! (dsimp only [$[$classes:ident],*]) => $t; exact t | exact $t)
+  return t'
+
 /-- This does `unfoldWlp` followed by some other simplifications. -/
 def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
   let (actSimp, smtSimp, logicSimp, quantifierElim) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp, mkIdent `quantifierElim)
@@ -58,7 +63,8 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
     -- We do `simp only [and_assoc]` at the end to normalize conjunctions.
     first | (let t := conv! (
         dsimp only [$actSimp:ident];
-        unfold_wlp; dsimp only;
+        -- for two-state version of the cation
+        unfold_wlp
         simp only [$smtSimp:ident, $logicSimp:ident];
         simp only [$quantifierElim:ident]) => $t; exact t) | exact $t)
   return t'

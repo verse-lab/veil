@@ -283,14 +283,14 @@ elab (name := VeilInit) "after_init" "{" l:doSeq "}" : command => do
     -- define initial state action (`Wlp`)
     let act ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st : $stateTp) ($post : SProp $stateTp) => (doAssume $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
+      `(fun ($st : $stateTp) ($post : SProp $stateTp) => (do' .external in $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
     elabCommand $ ← Command.runTermElabM fun _ => do
       let actName := `init
       `(@[initSimp, actSimp] def $(mkIdent actName) $[$vd]* := $act)
     -- define initial state predicate
     let pred ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wlp.toActProp (doAssume $l) $st $st'))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wlp.toActProp (do' .external in $l) $st $st'))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
     -- we modify it to store the `lang`
@@ -353,11 +353,11 @@ macro "exists?" br:explicitBinders ? "," t:term : term =>
 
 /-- Defines `act` : `Wlp σ ρ` monad computation, parametrised over `br`. -/
 def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
-    let lInternal <- `(doAssert $l)
-    let lExternal <- `(doAssume $l)
-    let (uName, fnName, trName) := (toUnsimplifiedIdent nm, nm, toTrIdent nm)
+    -- let lInternal <- `(doAssert $l)
+    -- let lExternal <- `(doAssume $l)
+    let (genName, uName, fnName, trName) := (toGenIdent nm, toUnsimplifiedIdent nm, nm, toTrIdent nm)
     let vd ← getImplicitActionParameters
-    let (unsimplifiedDef, fnDef, trDef) ← Command.runTermElabM fun vs => do
+    let (unsimplifiedDef, genDef, fnDef, trDef) ← Command.runTermElabM fun vs => do
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
       let (univBinders, args) ← match br with
@@ -365,23 +365,28 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       | none => pure (#[], #[])
       -- Create types
       -- The actual command (not term) elaboration happens here
-      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* := $(← unfoldWlp lInternal))
+      let genl <- `(fun m => do' m in $l)
+      let unsimplifiedDef <- `(@[actSimp] def $uName $[$vd]* $univBinders* := $(← unfoldWlp genl))
+      let genDef ← `(@[genSimp, actSimp] abbrev $genName $[$vd]* $univBinders* := $(← simplifyTerm $ <- `(@$uName $sectionArgs* $args*)))
       trace[dsl.debug] "{unsimplifiedDef}"
       let attr ← toActionAttribute (toActionType actT)
-      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← simplifyTerm $ ← `(@$uName $sectionArgs* $args*)))
+      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* :=
+        $(← dsimpOnly (← `(@$genName $sectionArgs* $args* .internal)) #[`genSimp]))
       trace[dsl.debug] "{fnDef}"
       -- version with `forall` quantified arguments
       let trDef ← do
         let (st, st') := (mkIdent `st, mkIdent `st')
         let stateTpT ← getStateTpStx
-        let lExternal <- unfoldWlp lExternal
-        let rhs ← `(fun ($st $st' : $stateTpT) => exists? $br ?, Wlp.toActProp $lExternal $st $st')
+        let tr <- `(@$genName $sectionArgs* $args* .internal)
+        let rhs ← `(fun ($st $st' : $stateTpT) => exists? $br ?, Wlp.toActProp $tr $st $st')
         `(@[actSimp] def $trName $[$vd]*  := $(← simplifyTerm rhs))
-      trace[dsl.debug] "{lInternal}"
-      return (unsimplifiedDef, fnDef, trDef)
+      trace[dsl.debug] "{trDef}"
+      return (unsimplifiedDef, genDef, fnDef, trDef)
     -- Declare `nm.unsimplified` and `nm`
     elabCommand unsimplifiedDef
     trace[dsl.info] "{uName} is defined"
+    elabCommand genDef
+    trace[dsl.info] "{genName} is defined"
     elabCommand fnDef
     trace[dsl.info] "{fnName} is defined"
     elabCommand trDef

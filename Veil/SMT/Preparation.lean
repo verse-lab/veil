@@ -133,8 +133,7 @@ theorem not_if {_ : Decidable c} :
   by_cases c <;> simp_all
 
 /-! ## distributivity -/
-attribute [logicSimp] not_or not_imp not_and not_if
-
+attribute [logicSimp] not_or not_imp not_and not_if Classical.not_forall
 /-! ## Ite -/
 theorem if_app {α β : Type} {_ : Decidable c} (t e : α -> β) (a : α) :
   (if c then t else e) a =

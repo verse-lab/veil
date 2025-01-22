@@ -5,6 +5,7 @@ register_simp_attr invSimp
 register_simp_attr actSimp
 register_simp_attr initSimp
 register_simp_attr safeSimp
+register_simp_attr genSimp
 
 initialize
   registerTraceClass `dsl

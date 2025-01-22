@@ -233,13 +233,7 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
     return doE
 end
 
-syntax doVeil := "doAssume" <|> "doAssert"
-
-elab (name := VeilDo) dov:doVeil stx:doSeq : term => do
-  let mode <- match dov with
-    | `(doVeil| doAssume) => `($(mkIdent ``Mode.external))
-    | `(doVeil| doAssert) => `($(mkIdent ``Mode.internal))
-    | _ => throwErrorAt stx "unexpected veil mode {dov}"
+elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
   /- Array containing all auxilary let-bingings to be inserted in the
     beginning of the `do`-block. It consists of
     - `let mut feild := (<- get). field` for each field of the protocol state. We do this
