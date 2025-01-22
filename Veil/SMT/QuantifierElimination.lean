@@ -7,7 +7,47 @@ import Veil.Basic
 import Veil.DSL.Util
 import Veil.SMT.Preparation
 
+import Lean.Util.MonadCache
+import Lean.Meta.Basic
+
+import Lean.Util.MonadCache
+import Lean.Meta.Basic
+
+namespace Lean.Meta
+
+variable {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
+
+partial def forEachExprSane'
+  (input : Expr)
+  (fn : Expr → m Bool)
+  : m Unit := do
+  let _ : STWorld IO.RealWorld m := ⟨⟩
+  let _ : MonadLiftT (ST IO.RealWorld) m := { monadLift := fun x => liftM (m := MetaM) (liftM (m := ST IO.RealWorld) x) }
+  let rec visit (e : Expr) : MonadCacheT Expr Unit m Unit :=
+    checkCache e fun _ => do
+      if (← liftM (fn e)) then
+        match e with
+        | .forallE n d b c  => do visit d; withLocalDecl n c d (fun x => visit $ b.instantiate1 x)
+        | .lam n d b c      => do visit d; withLocalDecl n c d (fun x => visit $ b.instantiate1 x)
+        | .letE n d v b _   => do visit d; visit v; withLetDecl n d v (fun x => visit $ b.instantiate1 x)
+        | .app f a      => visit f; visit a
+        | .mdata _ b    => visit b
+        | .proj _ _ b   => visit b
+        | _             => return ()
+  visit input |>.run
+
+/-- Similar to `Expr.forEach`, but creates free variables whenever going inside
+of a binder. Unlike `Meta.forEachExpr`, this doesn't use the strange
+`visitForall` function which behaves unintuitively. -/
+def forEachExprSane (e : Expr) (f : Expr → m Unit) : m Unit :=
+  forEachExprSane' e fun e => do
+    f e
+    return true
+end Lean.Meta
+
 open Lean Meta Elab Tactic
+
+#check Meta.forEachExpr
 
 /-- Typeclass that gets inferred if a type is Higher Order. -/
 class IsHigherOrder.{u} (t : Sort u)
@@ -28,8 +68,9 @@ def isHigherOrder (e : Expr) : MetaM Bool := do
   let isHO := !t.isProp && (e.isArrow || e.isAppOf (← getStateName))
   return isHO
 
+
 private def higherOrderQuantifiedTypes' (e : Expr) (existentialOnly? : Bool := false) : QuantElimM (Array Expr) := do
-  let _ ← Meta.forEachExpr e (fun e =>
+  let _ ← Meta.forEachExprSane e (fun e => do
     match e with
     | Expr.forallE _ t _ _ => if !existentialOnly? then recordTypeIfHigherOrder t else pure ()
     | _ => match_expr e with
@@ -67,60 +108,23 @@ partial def getTopLevelHOExists (e : Expr) : SimpM (Array Name) := do
     return qs
   go e #[]
 
-/-- Check if the given `Expr` quantifies over type with name `overT`. -/
-def hasQuantificationOver (e : Expr) (overT : Name) (existentialOnly? : Bool := false) : Bool :=
-  let found := e.find? (fun e =>
-   match e with
-    | Expr.forallE _ t _ _ => !existentialOnly? && isHigherOrder t overT
-    | _ => match_expr e with
-      | Exists t _ => isHigherOrder t overT
-      | _ => false
-  )
-  found.isSome
-  where
-  isHigherOrder (t : Expr) (overT : Name) :=
-    t.isAppOf overT
+partial def forallLambdaLetTelescope (type : Expr) (k : Array Expr → Expr → MetaM α) (cleanupAnnotations : Bool) : MetaM α := do
+  let rec go (type : Expr) (acc : Array Expr) : MetaM α := do
+    match type with
+    | Expr.forallE .. => forallTelescope type (fun xs body => go body (acc ++ xs)) cleanupAnnotations
+    | Expr.lam ..  | Expr.letE .. => lambdaLetTelescope type (fun xs body => go body (acc ++ xs)) cleanupAnnotations
+    | _ => k acc type
+  go type #[]
 
-/-- Check if the given `Expr` quantifies (∀ or ∃) over the state type. -/
-def hasStateHOQuant (e : Expr) (existentialOnly? : Bool := false) : MetaM Bool := do
-  let stateName ← getStateName
-  return hasQuantificationOver (← Meta.reduceAll e) stateName existentialOnly?
-
-/-- Check if the given `Expr` existentially quantifies over the state type. -/
-def hasStateHOExist (e : Expr) : MetaM Bool := hasStateHOQuant e (existentialOnly? := true)
-
-private def skipTopLevel [MonadControlT MetaM n] [Monad n] {α : Type} (type : Expr) (k : Array Expr → Expr → n α) (cleanupAnnotations : Bool := false) := do
-  match type with
-  | Expr.forallE _ _ b _   => do skipTopLevel b k cleanupAnnotations
-  | Expr.lam _ _ b _       => do skipTopLevel b k cleanupAnnotations
-  | Expr.letE _ _ _ b _    => do skipTopLevel b k cleanupAnnotations
-  | _                      => k #[] type
-
-/-- Check if the given type `t` has ALL `∀` quantification over type with
-name `overT` at the top-level (and none in the body). -/
-def hasOnlyTopLevelForAll (t : Expr) (overT : Name) : MetaM Bool := do
+def allHOQuantIsTopLevelForAll (t : Expr) : MetaM Bool := do
   let t ← Meta.reduceAll t
-  -- Meta.forallTelescopeReducing t fun _ body => do
-  skipTopLevel t fun _ body => do
-    trace[debug] "[hasOnlyTopLevelForAll] body: {body}"
-    let found := findForAll body
-    if found.isSome then
-      trace[debug] "[hasOnlyTopLevelForAll] found: {found}"
-    return !found.isSome
-  where
-  findForAll (e : Expr) : Option Expr :=
-    e.find? (fun e =>
-      match e with
-        | Expr.forallE _ t _ _ => t.isAppOf overT
-        | _ => false)
+  forallLambdaLetTelescope t (fun _ body => do return !(← body.hasHigherOrderQuantification)) true
 
-/-- Check if the given type `t` has non top-level ∀ quantification over
-the state type. (This means we cannot send the type/goal to SMT.) -/
-def hasStateHOInnerForall (e : Expr) : MetaM Bool := do
-  let stateName ← getStateName
-  return !(← hasOnlyTopLevelForAll (← Meta.reduceAll e) stateName)
+/-! ## Existential Quantifiers
 
-/-- ## Existential Quantifiers-/
+These simprocs & theorems hoist higher-order existential quantification to the
+top of the goal. They also remove trivial quantification. -/
+section ExistentialQuantifierTheorems
 
 /- Shift HO quantifiers left (ensuring you don't go into loops, i.e. if both quantifiers are HO) -/
 theorem exists_comm_eq {p : α → β → Prop} : (∃ a b, p a b) = (∃ b a, p a b) := by rw [exists_comm]
@@ -220,3 +224,91 @@ theorem ite_exists_push_out [IsHigherOrder α] [ne : Nonempty α] (p r : Prop) (
   }
 
 attribute [quantifierElim] ite_exists_push_out
+
+end ExistentialQuantifierTheorems
+
+/-! ## Forall Quantifiers -/
+
+section UniversalQuantifierTheorems
+
+/- Shift HO quantifiers left (ensuring you don't go into loops, i.e. if both quantifiers are HO) -/
+theorem forall_comm_eq {p : α → β → Prop} : (∀ a b, p a b) = (∀ b a, p a b) := by rw [forall_comm]
+
+/- `∀ a b, p a b` => `∀ b a, p a b` _iff_ `b` is HO and `a` is NOT -/
+def HO_forall_push_left_impl : Simp.Simproc := fun e => do
+  match e with
+  | Expr.forallE _ t (Expr.forallE _ t' _ .default) .default =>
+    if (← isHigherOrder t') && !(← isHigherOrder t) then
+      let step ← forallBoundedTelescope e (maxFVars? := some 2) (fun ks body' => do
+        let e' ← mkForallFVars ks.reverse body'
+        let body ← mkLambdaFVars ks body'
+        let proof ← mkAppOptM ``forall_comm_eq #[t, t', body]
+        return .visit { expr := e', proof? := proof }
+      )
+      return step
+    else
+      return .continue
+  | _ => return .continue
+
+simproc HO_forall_push_left (∀_ _, _) := HO_forall_push_left_impl
+attribute [quantifierElim] HO_forall_push_left
+
+attribute [quantifierElim] forall_const forall_eq forall_eq forall_exists_index
+
+-- To enable some of the lemmas below; FIXME: do we need more of these?
+-- attribute [quantifierElim] and_imp not_and
+
+section forall_and
+set_option linter.unusedSectionVars false
+open Classical
+variable [IsHigherOrder α] [ne : Nonempty α] {p q : α → Prop} {b : Prop}
+
+/-! Hoist `∀` quantifiers to the top of the goal. -/
+theorem forall_and_left : b ∧ (∀ x, p x) ↔ (∀ x, b ∧ p x) := by
+  constructor
+  { simp_all only [and_self, implies_true] }
+  {
+    simp_all only [implies_true, and_true]
+    intro h; rcases h (Classical.choice ne) with ⟨hb, _⟩
+    assumption
+  }
+
+theorem forall_and_right : (∀ x, p x) ∧ b ↔ (∀ x, p x ∧ b) := by
+  simp only [and_comm, forall_and_left]
+
+attribute [quantifierElim] forall_and_left forall_and_right
+end forall_and
+
+section forall_imp
+set_option linter.unusedSectionVars false
+-- `α : Type` because we don't want this to apply to `α := Prop`
+variable {α : Type} [IsHigherOrder α] {p : α → Prop} {b : Prop}
+
+theorem forall_imp_left : b → (∀ x, p x) ↔ (∀ x, b → p x) := by
+  constructor
+  { intro h x hb; exact h hb x }
+  { intro h hb x; exact h x hb }
+
+attribute [quantifierElim] forall_imp_left
+end forall_imp
+
+section IteForallPushOutTheorems
+open Classical
+
+open Lean Elab Tactic in
+elab "prove_ite_forall_push_out" p:term : tactic => withMainContext do evalTactic $ ←
+`(tactic|apply propext; by_cases h : $p; { simp only [if_pos h, forall_const] }; { simp only [if_neg h, forall_const] })
+
+theorem ite_then_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) (q : α → Prop) : (if c then ∀ t, q t else r) = (∀ t, if c then q t else r) := by prove_ite_forall_push_out c
+attribute [quantifierElim] ite_then_forall_push_out
+
+theorem ite_else_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) (q : α → Prop) : (if c then r else ∀ t, q t) = (∀ t, if c then r else q t) := by prove_ite_forall_push_out c
+attribute [quantifierElim] ite_else_forall_push_out
+
+-- FIXME George: does this trigger?
+theorem ite_both_forall_push_out [IsHigherOrder α] [ne : Nonempty α] [ne' : Nonempty β] (p : α → Prop) (q : β → Prop) :
+  (if c then ∀ a, p a else ∀ b, q b) = (∀ (a : α) (b : β), if c then p a else q b) := by prove_ite_forall_push_out c
+attribute [quantifierElim] ite_both_forall_push_out
+end IteForallPushOutTheorems
+
+end UniversalQuantifierTheorems
