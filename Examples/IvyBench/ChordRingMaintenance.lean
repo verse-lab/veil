@@ -6,7 +6,7 @@ import Examples.DSL.Std
 namespace ChordRing
 open Classical
 
-class RingTopology (t : Type) :=
+class RingTopology (t : Type) where
   -- relation
   btw (a b c : t) : Prop
   trans : ∀ (a b c : t), btw a b c ∧ btw a c d → btw a b d
