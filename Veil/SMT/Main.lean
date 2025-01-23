@@ -102,7 +102,6 @@ def prepareLeanSmtQuery (mv' : MVarId) (hs : List Expr) : MetaM String := do
     -- 2. Generate the SMT query.
     let (fvNames₁, _fvNames₂) ← genUniqueFVarNames
     let cmds ← prepareSmtQuery hs goalType fvNames₁
-    let cmds := .setLogic "ALL" :: cmds
     let cmdString := s!"{Command.cmdsAsQuery cmds}"
     trace[sauto.debug] "goal:\n{goalType}"
     trace[sauto] "query:\n{cmdString}"
