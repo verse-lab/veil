@@ -182,8 +182,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         | _ => false)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
     let verifiedTheorems ← theoremSuggestionsForChecks provenInit provenActs
     for cmd in verifiedTheorems do
-      elabCommand (← `(#guard_msgs(drop all) in $(cmd)))
-
+      elabCommand (← `(#guard_msgs(drop warning, drop error) in $(cmd)))
     match behaviour with
       | .checkTheorems => logInfo msg
       | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
