@@ -90,7 +90,7 @@ namespace Smt
 open Elab Tactic Qq
 
 open Smt Smt.Tactic Translate Lean.Meta in
-def prepareQuery (mv' : MVarId) (hs : List Expr) : MetaM String := do
+def prepareLeanSmtQuery (mv' : MVarId) (hs : List Expr) : MetaM String := do
   -- HACK: We operate on a cloned goal, and then reset it to the original.
   let mv := (← mkFreshExprMVar (← mv'.getType)).mvarId!
   mv.withContext do
@@ -437,6 +437,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     let sni : SMT.SMTNamingInfo :=
       {tyVal := (← LamReif.getTyVal), varVal := (← LamReif.getVarVal), lamEVarTy := (← LamReif.getLamEVarTy)}
     let ((commands, _validFacts), _state) ← (lamFOL2SMT sni lamVarTy lamEVarTy exportLamTerms exportInds).run
+    trace[debug] "{_state.h2lMap.toArray}"
     let queryStr := String.intercalate "\n" (commands.toList.map toString)
     return queryStr
 
@@ -451,7 +452,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
   let cmdString ←
     match translatorToUse with
     | Translator.leanAuto => prepareAutoQuery mv (← parseAutoHints ⟨stx[1]⟩)
-    | Translator.leanSmt => prepareQuery mv (← Tactic.parseHints ⟨stx[1]⟩)
+    | Translator.leanSmt => prepareLeanSmtQuery mv (← Tactic.parseHints ⟨stx[1]⟩)
   let getModel? := translatorToUse == Translator.leanSmt
   let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnFailure := true)
   match res with
@@ -462,7 +463,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     -- `lean-smt` to get the model.
     if translatorToUse == Translator.leanAuto then
       let hs ← Tactic.parseHints ⟨stx[1]⟩
-      let cmdString ← prepareQuery mv hs
+      let cmdString ← prepareLeanSmtQuery mv hs
       let res ← querySolver cmdString withTimeout
       if let .Sat (.some fostruct) := res then
         throwError "the goal is false: {fostruct}"
@@ -495,7 +496,7 @@ open Lean.Meta in
   let mv ← Tactic.getMainGoal
   let hs ← Tactic.parseHints ⟨stx[1]⟩
   let withTimeout ← parseTimeout ⟨stx[2]⟩
-  let cmdString ← prepareQuery mv hs
+  let cmdString ← prepareLeanSmtQuery mv hs
   let res ← querySolver cmdString withTimeout (retryOnFailure := true)
   match res with
   | .Sat _ =>
