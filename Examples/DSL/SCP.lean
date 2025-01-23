@@ -2,8 +2,6 @@ import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
 import Veil.DSL
-import Examples.DSL.Std
-
 -- adapted from [SCP.ivy](https://github.com/stellar/scp-proofs/blob/3e0428acc78e598a227a866b99fe0b3ad4582914/SCP.ivy)
 -- CHECK only for safety proof?
 
@@ -19,14 +17,6 @@ class UnboundedSequence (t : Type) where
   -- relation: nonstrict total order
   lt (x y : t) : Prop
   le_lt (x y : t) : lt x y ↔ (le x y ∧ x ≠ y)
-
-  -- successor
-  next (x y : t) : Prop
-  next_def (x y : t) : next x y ↔ (lt x y ∧ ∀ z, lt x z → le y z)
-
-  -- predecessor
-  prev (x y : t) : Prop
-  prev_def (x y : t) : lt zero x → (prev x y ↔ (lt y x ∧ ∀ z, lt y z → le x z))
 
   zero : t
   zero_lt (x : t) : le zero x
@@ -224,9 +214,7 @@ invariant ∀ N B V1 V2, well_behaved N ∧ accepted_prepared N B V1 ∧ accepte
 
 #gen_spec
 
-set_option maxHeartbeats 8000000
-set_option auto.smt.timeout 600
-
+set_option sauto.smt.translator "lean-smt" in
 #check_invariants
 
 end SCP
