@@ -121,7 +121,7 @@ def createSolver (name : SolverName) (withTimeout : Nat) : MetaM SolverProc := d
   let tlim_sec := withTimeout
   match name with
   | .none => throwError "createSolver :: Unexpected error"
-  -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-T:{tlim}"]
+  -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}"]
   -- We wrap Z3 with a Python script that prints models in a more usable format.
   | .z3   =>
     let solverPath := (System.mkFilePath [s!"{← IO.currentDir}", "z3model.py"]).toString
@@ -129,8 +129,8 @@ def createSolver (name : SolverName) (withTimeout : Nat) : MetaM SolverProc := d
     createAux solverPath args
   | .cvc4 => throwError "cvc4 is not supported"
   | .cvc5 =>
-      let args := #["--lang", "smt", s!"--tlimit={tlim_sec * 1000}",
-        "--finite-model-find", "--enum-inst-interleave", "--nl-ext-tplanes", "--produce-models"]
+      let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}",
+        "--finite-model-find", "--enum-inst-interleave", "--nl-ext-tplanes", "--produce-models", "--incremental"]
       createAux "cvc5" args
 where
   createAux (path : String) (args : Array String) : MetaM SolverProc := do
