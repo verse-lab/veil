@@ -32,12 +32,8 @@ elab "sdestruct_goal" : tactic => withMainContext do
 instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
 
 /-- Destruct all structures in the context into their respective fields,
-recursively. Also destructs all existentials. VERY IMPORTANT: this DOES NOT
-destruct existentials properly if it is called with `unhygienic`. -/
+recursively. Also destructs all existentials. -/
 partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) : TacticM Unit := withMainContext do
-  let opts ← getOptions
-  if Lean.Meta.tactic.hygienic.get opts == false || Lean.Elab.Term.Quotation.hygiene.get opts == false then
-    throwError "elabSdestructHyps MUST be called with hygiene, but was called `unhygienic`!"
   let mut ignoreHyps := ignoreHyps
   let hypsToVisit : (Array LocalDecl → TacticM (Array LocalDecl)) := (fun ignoreHyps => withMainContext do
     return (← getLCtx).decls.filter Option.isSome
@@ -59,10 +55,12 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
     else
       let isExists ← whnfIsAppOf hyp.type ``Exists
       if isExists then
+        let lctx ← getLCtx
         -- we want the new hypotheses to have fresh names so they're
         -- not included in the ignore list, hence we don't reuse `$name`
-        -- WARNING: this will NOT work if we're called with unhygienic
-        evalTactic $ ← `(tactic| rcases $name:ident with ⟨_, _⟩)
+        let x := mkIdent $ lctx.getUnusedName `x
+        let name' := mkIdent $ lctx.getUnusedName name.getId
+        evalTactic $ ← `(tactic| rcases $name:ident with ⟨$x, $name'⟩)
   -- Recursively call ourselves until the context stops changing
   if recursive && (← hypsToVisit ignoreHyps).size > 0 then
     elabSdestructHyps recursive ignoreHyps
