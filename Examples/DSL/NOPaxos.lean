@@ -77,7 +77,7 @@ after_init {
 
 action _succ (n : seq_t) = {
     let k <- fresh seq_t
-    require seq.next k n;
+    assume seq.next n k;
     return k
 }
 
