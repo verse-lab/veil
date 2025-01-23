@@ -38,12 +38,10 @@ relation crit : node → Prop
 #gen_state
 
 action succ (n : seq_t) = {
-    let k : seq_t ← fresh
-    assume seq.next n k;
-    return k
+  let k : seq_t ← fresh
+  assume seq.next n k;
+  return k
 }
-
-#print succ
 
 after_init {
   n_have_privilege N := N = init_node;
@@ -77,13 +75,10 @@ action rcv_request (n : node) (m : node) (r : seq_t) = {
   if (n_have_privilege n ∧ ¬ n_requesting n ∧ seq.next (t_LN (n_token_seq n) m) (n_RN n m)) then
     n_have_privilege n := False;
     let k : seq_t ← succ (n_token_seq n)
-    -- assert seq.le k (n_token_seq n)
     t_for k m := True;
     t_LN k N := t_LN (n_token_seq n) N;
     t_q k N := t_q (n_token_seq n) N
 }
-
-#print rcv_request.tr
 
 action rcv_privilege (n: node) (t: seq_t) = {
   require t_for t n;
@@ -125,72 +120,6 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.
 
 #gen_spec
 
-
-set_option sauto.smt.macrofinder true
-
-set_option sauto.smt.translator "lean-smt"
-
-set_option auto.smt.timeout 3
-
-#check_invariants!
-
--- set_option trace.sauto.query true
-
--- #check_invariants!
-
--- #check_invariant unique_tokens
-
-
--- #check_invariants
--- set_option trace.sauto.query true
-
-  -- @[invProof]
-  -- theorem SuzukiKasami.rcv_request_SuzukiKasami.unique_tokens :
-  --     ∀ (st : @State node seq_t),
-  --       (@System node node_dec node_ne seq_t seq_t_dec seq_t_ne seq).assumptions st →
-  --         (@System node node_dec node_ne seq_t seq_t_dec seq_t_ne seq).inv st →
-  --           (@SuzukiKasami.rcv_request node node_dec node_ne seq_t seq_t_dec seq_t_ne seq) st
-  --             (@SuzukiKasami.unique_tokens node node_dec node_ne seq_t seq_t_dec seq_t_ne seq)
-  --               st' :=
-
--- #print rcv_request.tr
-
--- set_option sauto.smt.solver "cvc5"
-
-  @[invProof]
-  theorem SuzukiKasami.rcv_request_SuzukiKasami.unique_tokens :
-      ∀ (st st' : @State node seq_t),
-        (@System node node_dec node_ne seq_t seq_t_dec seq_t_ne seq).assumptions st →
-          (@System node node_dec node_ne seq_t seq_t_dec seq_t_ne seq).inv st →
-            (@SuzukiKasami.rcv_request.tr node node_dec node_ne seq_t seq_t_dec seq_t_ne seq) st
-                st' →
-              (@SuzukiKasami.unique_tokens node node_dec node_ne seq_t seq_t_dec seq_t_ne seq)
-                st' :=
-    by
-    (unhygienic intros)
-    sdestruct_hyps;
-    try (try dsimp? only [initSimp, actSimp] at *);
-    (try simp? only [SuzukiKasami.State.mk.injEq, invSimp, smtSimp, logicSimp] at *);
-    -- (try simp? only [quantifierElim] at *);
-    sdestruct_hyps;
-    sauto[seq.le_refl, seq.le_trans, seq.le_antisymm, seq.le_total, seq.le_lt, seq.next_def,
-      seq.zero_lt, a, a_2_1_1_1.left, a_2_1_1_1.right, a_1.left, a_1.right.left,
-      a_1.right.right.left, a_1.right.right.right.left, a_1.right.right.right.right.left,
-      a_1.right.right.right.right.right.left, a_1.right.right.right.right.right.right.left,
-      a_1.right.right.right.right.right.right.right.left,
-      a_1.right.right.right.right.right.right.right.right.left,
-      a_1.right.right.right.right.right.right.right.right.right]
-
-  @[invProof]
-  theorem SuzukiKasami.exit_SuzukiKasami.unique_tokens :
-      ∀ (st st' : @State node seq_t),
-        (@System node node_dec node_ne seq_t seq_t_dec seq_t_ne seq).assumptions st →
-          (@System node node_dec node_ne seq_t seq_t_dec seq_t_ne seq).inv st →
-            (@SuzukiKasami.exit.tr node node_dec node_ne seq_t seq_t_dec seq_t_ne seq) st st' →
-              (@SuzukiKasami.unique_tokens node node_dec node_ne seq_t seq_t_dec seq_t_ne seq)
-                st' :=
-    by (unhygienic intros); solve_clause[SuzukiKasami.exit.tr]
-
-
+#check_invariants
 
 end SuzukiKasami
