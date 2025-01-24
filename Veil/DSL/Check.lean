@@ -68,17 +68,19 @@ def getChecksForAction (actName : Name) : CommandElabM (Array (Name × Expr) × 
         invChecks := invChecks.push (inv, actNamesInd)
     return (#[], invChecks)
 
+
 inductive CheckInvariantsBehaviour
   /-- `#check_invariants` -/
   | checkTheorems
   /-- `#check_invariants?` -/
   | printTheorems
+  | printTheoremsWithWlp
   /-- `#check_invariants!` -/
   | printAndCheckTheorems
   /-- `#check_invariants!?` -/
   | printUnverifiedTheorems
 
-  def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (sorry_body: Bool := true): CommandElabM (Array (TSyntax `command)) := do
+def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (sorry_body: Bool := true): CommandElabM (Array (TSyntax `command)) := do
     Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let sectionArgs ← getSectionArgumentsStx vs
@@ -102,7 +104,31 @@ inductive CheckInvariantsBehaviour
         theorems := theorems.push thm
       return theorems
 
-def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TSyntax `command)) := do
+def theoremSuggestionsForChecksWithWlp (initIndicators : List Name) (actIndicators : List (Name × Name)) (sorry_body: Bool := true): CommandElabM (Array (TSyntax `command)) := do
+  Command.runTermElabM fun vs => do
+    let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
+    let sectionArgs ← getSectionArgumentsStx vs
+    let mut theorems := #[]
+    -- Init checks
+    for invName in initIndicators.reverse do
+      let invStx ← `(@$(mkIdent invName) $sectionArgs*)
+      let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
+
+      let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); exact sorry)
+      else `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); solve_clause [$(mkIdent `initSimp)])
+      theorems := theorems.push thm
+    -- Action checks
+    for (actName, invName) in actIndicators.reverse do
+      let extName := toExtName actName
+      let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs* $st')
+      let trStx ← `(@$(mkIdent extName) $sectionArgs*)
+      let trTpSyntax ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $invStx)
+      let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); exact sorry)
+      else `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); solve_clause [$(mkIdent extName)])
+      theorems := theorems.push thm
+    return theorems
+
+def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (withWlp : Bool := false) : CommandElabM (Array (TSyntax `command)) := do
   let (initIndicators, acts) ← Command.runTermElabM fun vs => do
     -- prevent code duplication
     let initIndicators ← invIndicators.mapM (fun (invName, _) => resolveGlobalConstNoOverloadCore invName)
@@ -112,7 +138,10 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
       for invName in initIndicators do
         acts := acts.push (actName, invName)
     return (initIndicators, acts)
-  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList (sorry_body := False)
+  if withWlp then
+    theoremSuggestionsForChecksWithWlp (if generateInitThms then initIndicators else []) acts.toList (sorry_body := False)
+  else
+    theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList (sorry_body := False)
 
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
   CommandElabM Unit := do
@@ -120,7 +149,8 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
   let mut theorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators
   match behaviour with
-  | .printTheorems => displaySuggestion stx theorems
+  | .printTheorems =>  displaySuggestion stx theorems
+  | .printTheoremsWithWlp => displaySuggestion stx (← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators (withWlp := true))
   | .checkTheorems | .printAndCheckTheorems | .printUnverifiedTheorems =>
     let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
@@ -208,6 +238,8 @@ syntax "#check_invariants?" : command
 were not proved automatically. -/
 syntax "#check_invariants!" : command
 
+syntax "#check_invariants$wlp" : command
+
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := .checkTheorems) : CommandElabM Unit := do
   liftCoreM errorIfStateNotDefined
@@ -218,6 +250,7 @@ elab_rules : command
   | `(command| #check_invariants)  => do checkInvariants (← getRef) (behaviour := .checkTheorems)
   | `(command| #check_invariants?) => do checkInvariants (← getRef) (behaviour := .printTheorems)
   | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .printUnverifiedTheorems)
+  | `(command| #check_invariants$wlp) => do checkInvariants (← getRef) (behaviour := .printTheoremsWithWlp)
 
 
 /- ## `#check_invariant` -/
