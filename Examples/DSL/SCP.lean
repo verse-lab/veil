@@ -170,27 +170,21 @@ action receive_accept_commit (na nb : node) (b : ballot) (v : value) = {
     accepted_committed na b v := True
 }
 
-internal transition byzantine_step = fun st st' =>
-  (∀ N B X, st.well_behaved N → st.voted_prepared N B X = st'.voted_prepared N B X) ∧
-  (∀ N B X, st.well_behaved N → st.accepted_prepared N B X = st'.accepted_prepared N B X) ∧
-  (∀ N B X, st.well_behaved N → st.voted_committed N B X = st'.voted_committed N B X) ∧
-  (∀ N B X, st.well_behaved N → st.accepted_committed N B X = st'.accepted_committed N B X) ∧
-  (∀ N B X, st.well_behaved N → st.confirmed_prepared N B X = st'.confirmed_prepared N B X) ∧
-  (∀ N B X, st.well_behaved N → st.confirmed_committed N B X = st'.confirmed_committed N B X) ∧
-  (∀ N X, st.well_behaved N → st.nomination_output N X = st'.nomination_output N X) ∧
-  (∀ N B, st.well_behaved N → st.started N B = st'.started N B) ∧
-  (∀ N B, st.well_behaved N → st.left_ballot N B = st'.left_ballot N B) ∧
-  (∀ N1 N2 B X, st.well_behaved N1 → st.received_vote_prepare N1 N2 B X = st'.received_vote_prepare N1 N2 B X) ∧
-  (∀ N1 N2 B X, st.well_behaved N1 → st.received_accept_prepare N1 N2 B X = st'.received_accept_prepare N1 N2 B X) ∧
-  (∀ N1 N2 B X, st.well_behaved N1 → st.received_vote_commit N1 N2 B X = st'.received_vote_commit N1 N2 B X) ∧
-  (∀ N1 N2 B X, st.well_behaved N1 → st.received_accept_commit N1 N2 B X = st'.received_accept_commit N1 N2 B X) ∧
-  -- coherence; guess need to add them; FIXME: can they be added automatically, as they are `immutable`?
-  (∀ N, st.well_behaved N = st'.well_behaved N) ∧
-  (∀ N, st.intertwined N = st'.intertwined N) ∧
-  (∀ N, st.intact N = st'.intact N) ∧
-  (∀ N Q, st.member N Q = st'.member N Q) ∧
-  (∀ Q, st.is_quorum Q = st'.is_quorum Q) ∧
-  (∀ S N, st.blocks_slices S N = st'.blocks_slices S N)
+internal transition byzantine_step = {
+  (∀ N B X, well_behaved N → voted_prepared N B X = voted_prepared' N B X) ∧
+  (∀ N B X, well_behaved N → accepted_prepared N B X = accepted_prepared' N B X) ∧
+  (∀ N B X, well_behaved N → voted_committed N B X = voted_committed' N B X) ∧
+  (∀ N B X, well_behaved N → accepted_committed N B X = accepted_committed' N B X) ∧
+  (∀ N B X, well_behaved N → confirmed_prepared N B X = confirmed_prepared' N B X) ∧
+  (∀ N B X, well_behaved N → confirmed_committed N B X = confirmed_committed' N B X) ∧
+  (∀ N X, well_behaved N → nomination_output N X = nomination_output' N X) ∧
+  (∀ N B, well_behaved N → started N B = started' N B) ∧
+  (∀ N B, well_behaved N → left_ballot N B = left_ballot' N B) ∧
+  (∀ N1 N2 B X, well_behaved N1 → received_vote_prepare N1 N2 B X = received_vote_prepare' N1 N2 B X) ∧
+  (∀ N1 N2 B X, well_behaved N1 → received_accept_prepare N1 N2 B X = received_accept_prepare' N1 N2 B X) ∧
+  (∀ N1 N2 B X, well_behaved N1 → received_vote_commit N1 N2 B X = received_vote_commit' N1 N2 B X) ∧
+  (∀ N1 N2 B X, well_behaved N1 → received_accept_commit N1 N2 B X = received_accept_commit' N1 N2 B X)
+}
 
 #print byzantine_step.ext
 

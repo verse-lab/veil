@@ -104,6 +104,22 @@ syntax (name := outputAction) "output" : actionType
 /-- Transition defined via a two-state relation. -/
 syntax (actionType)? "transition" ident (explicitBinders)? "=" term : command
 
+-- /-- Transition defined via a two-state relation. -/
+-- syntax (priority := high) (actionType)? "transition" ident (explicitBinders)? "=" "{" term "}" : command
+
+elab actT:(actionType)? "transition" nm:ident br:explicitBinders ? "=" "{" t:term "}" : command => do
+  let fields : Array Name <- getFields
+  let mut unchangedFields := #[]
+  for f in fields do
+    unless t.raw.find? (·.getId.toString == f.toString ++ "'") |>.isSome do
+      unchangedFields := unchangedFields.push $ mkIdent f
+  elabCommand $ <- `($actT:actionType ? transition $nm $br ? = by
+    intros st st'
+    unhygienic cases st
+    with_rename "'" unhygienic cases st'
+    exact [unchanged|"'"| $unchangedFields*] ∧ ($t))
+
+
 /-- Transition defined as an imperative program in `ActionLang`. We call
 these "actions". All capital letters in `require` and in assignments are
 implicitly quantified. -/

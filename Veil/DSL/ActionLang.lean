@@ -85,7 +85,7 @@ def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElab
     | `(Lean.Parser.Term.structInstLVal|$id:ident) => pure id.getId
     | _ => throwErrorAt lhs "expected an identifier in the LHS of an assignment, got {repr lhs}"
 
-def getFields : TermElabM (Array Name) := do
+def getFields [Monad m] [MonadEnv m] : m (Array Name) := do
   let spec := (← localSpecCtx.get).spec
   pure $ spec.signature.map (·.name)
 
@@ -143,14 +143,13 @@ syntax (priority := high) atomic(term ":=" "*") : doElem
 -- syntax "if" ident ":" term "then" doSeq colGe "else" doSeq : doSeqItem
 -- syntax "if" ident ":" term "then" doSeq : doSeqItem
 
-
 declare_syntax_cat unchanged_decl
 declare_syntax_cat spec
 syntax "requires" term colGe "ensures" rcasesPat  "," term : spec
 syntax (priority := high) "requires" term colGe "ensures" term : spec
 syntax "with" "unchanged" "[" ident,* "]" : unchanged_decl
 syntax spec (colGe unchanged_decl)? : term
-syntax "[unchanged|" ident* "]" : term
+syntax "[unchanged|" str "|" ident* "]" : term
 
 abbrev doSeq := TSyntax ``Term.doSeq
 abbrev doSeqItem := TSyntax ``Term.doSeqItem
@@ -276,7 +275,7 @@ macro_rules
 open Tactic in
 /-- ```with_rename_old t``` runs tactic `t` and if it introduces any names with `_1` suffix,
     changes this suffix to `_old` -/
-elab "with_rename_old" t:tactic : tactic => withMainContext do
+elab "with_rename" s:str t:tactic : tactic => withMainContext do
   let hyps <- getLCtx
   withMainContext $ evalTactic t
   withMainContext do
@@ -286,16 +285,16 @@ elab "with_rename_old" t:tactic : tactic => withMainContext do
         let hyp := hyp.get!
         unless hyps.findFromUserName? hyp.userName |> Option.isSome do
           let nms := (hyp.userName.toString.splitOn "_")
-          let new_name := String.intercalate "_" nms.dropLast ++ "_old" |>.toName
+          let new_name := String.intercalate "_" nms.dropLast ++ s.getString |>.toName
           evalTactic $ <- `(tactic| (revert $(mkIdent hyp.userName):ident; intros $(mkIdent new_name):ident))
 
 /- Expanding `unchanged` statement -/
 macro_rules
-  | `([unchanged| $id:ident]) =>
-    let id_old := id.getId.toString ++ "_old" |>.toName
+  | `([unchanged|$s:str| $id:ident]) =>
+    let id_old := id.getId.toString ++ s.getString |>.toName
     `($id = $(mkIdent id_old))
-  | `([unchanged| $id $ids*]) => `([unchanged| $id] ∧ [unchanged| $ids*])
-  | `([unchanged|]) => `(True)
+  | `([unchanged|$s| $id $ids*]) => `([unchanged|$s| $id] ∧ [unchanged|$s| $ids*])
+  | `([unchanged|$_|]) => `(True)
 
 /- One can omit the result variable from [ensures] -/
 macro_rules
@@ -325,8 +324,8 @@ elab_rules : term
     elabTerm (<- `(term| @Wlp.spec [State] _ _ (funcases $pre) (
       by rintro st $r st';
          unhygienic cases st';
-         with_rename_old unhygienic cases st;
-         exact $post ∧ [unchanged|$ids*]))) none
+         with_rename "_old" unhygienic cases st;
+         exact $post ∧ [unchanged|"_old"|$ids*]))) none
 
 attribute [actSimp] Bind.bind Pure.pure
 
