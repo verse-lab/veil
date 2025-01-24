@@ -123,8 +123,8 @@ def theoremSuggestionsForChecksWithWlp (initIndicators : List Name) (actIndicato
       let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs* $st')
       let trStx ← `(@$(mkIdent extName) $sectionArgs*)
       let trTpSyntax ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $invStx)
-      let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); exact sorry)
-      else `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); solve_clause [$(mkIdent extName)])
+      let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by exact sorry)
+      else `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by solve_wlp_clause $(mkIdent extName):ident)
       theorems := theorems.push thm
     return theorems
 
@@ -150,7 +150,12 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   let mut theorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators
   match behaviour with
   | .printTheorems =>  displaySuggestion stx theorems
-  | .printTheoremsWithWlp => displaySuggestion stx (← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators (withWlp := true))
+  | .printTheoremsWithWlp =>
+    let theorems' ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators (withWlp := true)
+    -- displaySuggestion stx theorems'
+    for cmd in theorems' do
+      elabCommand cmd
+
   | .checkTheorems | .printAndCheckTheorems | .printUnverifiedTheorems =>
     let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
