@@ -140,7 +140,9 @@ where
 partial def Handle.readLineSkip (h : IO.FS.Handle) (skipLine : String := "\n") : IO String := do
   let rec loop := do
     let line ← h.getLine
-    if line.isEmpty || line == skipLine then
+    if line.isEmpty then
+      return line
+    if line == skipLine then
       loop
     else
       return line
@@ -193,7 +195,8 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
   | e => return CheckSatResult.Unknown s!"{e}"
   catch e =>
     let _exMsg ← e.toMessageData.toString
-    throwError s!"check-sat failed (z3model.py likely timed out)"
+    let stderr ← solver.stderr.readToEnd
+    throwError s!"check-sat failed ({stderr})"
 
 def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   withTraceNode `sauto.perf.getModel (fun _ => return "getModel") do
@@ -204,7 +207,8 @@ def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   return model
   catch e =>
     let _exMsg ← e.toMessageData.toString
-    throwError s!"get-model failed (z3model.py likely timed out)"
+    let stderr ← solver.stderr.readToEnd
+    throwError s!"get-model failed ({stderr})"
 
 /-- Check if the constraint is satisfiable in the current frame. -/
 def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM Bool := do
