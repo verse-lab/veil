@@ -118,7 +118,7 @@ action phase_rnd1 (n : node) (p : phase) (q : set_majority) = {
 action phase_rnd2 (n : node) (p psucc : phase) (q : set_majority) = {
   require in_phase n p
   require ∃ V : state_value, vote_rnd2 n p V
-  require ∀ (N : node), member_maj N q → ∃ V, vote_rnd1 N p V
+  require ∀ (N : node), member_maj N q → ∃ V, vote_rnd2 N p V
   require next p psucc
 
   if v : (v ≠ vquestion ∧
@@ -151,7 +151,7 @@ invariant propose N V1 ∧ propose N V2 → V1 = V2
 invariant [decision_full_val_inv] decision_full_val N P V → decision_bc N P v1
 invariant decision_full_val N P V →
   ∃ Q : set_majority, ∀ N : node, member_maj N Q → propose N V
-invariant [decision_full_val_validity] decision_full_val N P V → ∃ N : node, propose N V
+invariant [decision_full_val_validity] decision_full_val N P V → ∃ N0 : node, propose N0 V
 invariant [decision_full_val_agree] decision_full_val N1 P1 V1 ∧ decision_full_val N2 P2 V2 → V1 = V2
 invariant [decision_full_noval_inv] decision_full_noval N P → decision_bc N P v0
 
@@ -178,7 +178,7 @@ invariant ¬ coin P vquestion
 invariant ¬ (coin P v0 ∧ coin P v1)
 -- CHECK the following one does not seem to make sense? comment out for now
 -- invariant decision_bc N P V ∧ vote_rnd2 N2 P V2 → V2 ≠ vquestion ∨ V2 = V2
-invariant ∀ Q, coin P V → ∃ N:node, member_fp1 N Q ∧ vote_rnd2 N P vquestion
+invariant ∀ Q, coin P V → ∃ N : node, member_fp1 N Q ∧ vote_rnd2 N P vquestion
 invariant decision_bc N P V → ¬ coin P V2
 
 invariant coin P V → ∃ Q : set_majority, ∀ N : node, member_maj N Q → ∃ V, vote_rnd2 N P V
