@@ -4,7 +4,7 @@ import Smt
 
 /- Not actually used here, but re-exported. -/
 import Veil.SMT.Preparation
-import Veil.SMT.QuantifierElimination
+import Veil.SMT.Quantifiers.Elimination
 import Veil.SMT.Model
 
 open Lean hiding Command Declaration
@@ -64,6 +64,7 @@ inductive CheckSatResult
   | Sat
   | Unsat
   | Unknown (reason : String)
+  | Failure (reason : String)
 deriving BEq, Inhabited
 
 instance : ToString CheckSatResult where
@@ -71,11 +72,13 @@ instance : ToString CheckSatResult where
     | CheckSatResult.Sat => "sat"
     | CheckSatResult.Unsat => "unsat"
     | CheckSatResult.Unknown r => s!"unknown ({r})"
+    | CheckSatResult.Failure r => s!"failure ({r})"
 
 inductive SmtResult
   | Sat (model : Option FirstOrderStructure)
   | Unsat
   | Unknown (reason : String)
+  | Failure (reason : String)
 deriving Inhabited
 
 instance : ToString SmtResult where
@@ -84,6 +87,7 @@ instance : ToString SmtResult where
     | SmtResult.Sat (some m) => s!"sat\n{m}"
     | SmtResult.Unsat => s!"unsat"
     | SmtResult.Unknown r => s!"unknown ({r})"
+    | SmtResult.Failure r => s!"failure ({r})"
 
 
 namespace Smt
@@ -140,7 +144,9 @@ where
 partial def Handle.readLineSkip (h : IO.FS.Handle) (skipLine : String := "\n") : IO String := do
   let rec loop := do
     let line ← h.getLine
-    if line.isEmpty || line == skipLine then
+    if line.isEmpty then
+      return line
+    if line == skipLine then
       loop
     else
       return line
@@ -182,6 +188,7 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
       Handle.readLineSkip solver.stdout
     else
       solver.stdout.getLine
+  trace[sauto.debug] "[checkSat] stdout: {stdout}"
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
@@ -190,10 +197,16 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
   | .atom (.symb "unsat") =>
     trace[sauto.debug] "{solverName} says Unsat"
     return CheckSatResult.Unsat
-  | e => return CheckSatResult.Unknown s!"{e}"
+  | .atom (.symb "unknown") =>
+    trace[sauto.debug] "{solverName} says Unknown"
+    return CheckSatResult.Unknown ""
+  | _ => throwError s!"Unexpected response from solver: {checkSatResponse}"
   catch e =>
     let _exMsg ← e.toMessageData.toString
-    throwError s!"check-sat failed (z3model.py likely timed out)"
+    let stderr ← solver.stderr.readToEnd
+    let stderr := if stderr.isEmpty then "" else s!": \n{stderr}"
+    trace[sauto.debug] "check-sat failed ({_exMsg}) {stderr}"
+    throwError s!"check-sat failed ({_exMsg}) {stderr}"
 
 def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   withTraceNode `sauto.perf.getModel (fun _ => return "getModel") do
@@ -204,7 +217,10 @@ def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   return model
   catch e =>
     let _exMsg ← e.toMessageData.toString
-    throwError s!"get-model failed (z3model.py likely timed out)"
+    let stderr ← solver.stderr.readToEnd
+    let stderr := if stderr.isEmpty then "" else s!": \n{stderr}"
+    trace[sauto.debug] "get-model failed ({_exMsg}) {stderr}"
+    throwError s!"get-model failed{stderr}"
 
 /-- Check if the constraint is satisfiable in the current frame. -/
 def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM Bool := do
@@ -216,7 +232,8 @@ def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (con
   match res with
   | .Sat => return true
   | .Unsat => return false
-  | .Unknown e => throwError s!"Unexpected response from solver: {e}"
+  | .Unknown e => throwError s!"Unexpected unknown from solver: {e}"
+  | .Failure e => throwError s!"failure from solver: {e}"
 
 private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill: Bool := true) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
@@ -295,7 +312,7 @@ def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
   | SolverName.cvc5 => SolverName.z3
   | _ => none
 
-partial def getSolverResult (solver: SolverProc) (solverName: SolverName) (kill: Bool := true) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Bool := false) : MetaM SmtResult := do
+partial def getSolverResult (solver: SolverProc) (solverName: SolverName) (kill: Bool := true) (getModel? : Bool := true) (minimize : Bool := false) : MetaM SmtResult := do
   let checkSatResponse ← checkSat solver solverName
   match checkSatResponse with
   | .Sat =>
@@ -326,24 +343,13 @@ partial def getSolverResult (solver: SolverProc) (solverName: SolverName) (kill:
       return .Unsat
   | .Unknown reason =>
       trace[sauto.result] "{solverName} says Unknown ({reason})"
-      if retryOnFailure then
-        match solverToTryOnUnknown solverName with
-        | some s => do
-          if kill then
-            solver.kill
-          trace[sauto.result] "Retrying the query with {s}"
-          getSolverResult solver s kill retryOnFailure getModel? minimize
-        | none =>
-          if kill then
-            solver.kill
-          return .Unknown reason
-      else
-        if kill then
-          solver.kill
-        return .Unknown reason
+      if kill then
+        solver.kill
+      return .Unknown reason
+  | .Failure reason => return .Failure reason
 
 open Smt Smt.Tactic Translate in
-partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
+partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SolverName := none) (retryOnUnknown : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
   withTraceNode `sauto.perf.query (fun _ => return "querySolver") do
   try
   let opts ← getOptions
@@ -358,11 +364,19 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     emitCommand solver (.setLogic "ALL")
     emitCommand solver (.setOption (.produceProofs true))
   emitCommandStr solver goalQuery
-  let res ← getSolverResult solver solverName (kill := true) retryOnFailure getModel? minimize
-  return res
+  let res ← getSolverResult solver solverName (kill := true) getModel? minimize
+  let res : SmtResult ← match res with
+  | .Unknown _=> do
+    if retryOnUnknown then
+      let .some newSolver := solverToTryOnUnknown solverName | return res
+      trace[sauto.debug] "Retrying with {newSolver}"
+      querySolver goalQuery withTimeout (forceSolver := .some newSolver) (retryOnUnknown := false) getModel? minimize
+    else
+      return res
+  | _ => return res
   catch e =>
     let exMsg ← e.toMessageData.toString
-    return .Unknown s!"{exMsg}"
+    return .Failure s!"{exMsg}"
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
 syntax (name := sauto) "sauto" smtHints smtTimeout : tactic
@@ -453,7 +467,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     | Translator.leanAuto => prepareAutoQuery mv (← parseAutoHints ⟨stx[1]⟩)
     | Translator.leanSmt => prepareLeanSmtQuery mv (← Tactic.parseHints ⟨stx[1]⟩)
   let getModel? := translatorToUse == Translator.leanSmt
-  let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnFailure := true)
+  let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
   match res with
   -- if we have a model, we can print it
   | .Sat (.some fostruct) => throwError "the goal is false: {fostruct}"
@@ -471,6 +485,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     else
       throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
+  | .Failure reason => throwError "solver invocation failed: {reason}"
   | .Unsat => mv.admit (synthetic := false)
 
 open Lean.Meta in
@@ -496,13 +511,14 @@ open Lean.Meta in
   let hs ← Tactic.parseHints ⟨stx[1]⟩
   let withTimeout ← parseTimeout ⟨stx[2]⟩
   let cmdString ← prepareLeanSmtQuery mv hs
-  let res ← querySolver cmdString withTimeout (retryOnFailure := true)
+  let res ← querySolver cmdString withTimeout (retryOnUnknown := true)
   match res with
   | .Sat _ =>
     trace[sauto.result] "The negation of the goal is satisfiable, hence the goal is valid."
     mv.admit (synthetic := false)
   | .Unsat => throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
+  | .Failure reason => throwError "solver invocation failed: {reason}"
 
 
 end Smt
