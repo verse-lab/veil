@@ -103,25 +103,23 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
       | some s => s
       | none => sauto.smt.solver.get opts
     trace[sauto.debug] "solver: {solverName}"
-  try
-    let solver ← createSolver solverName withTimeout
-    if solverName == SolverName.cvc5 then
-      emitCommand solver (.setLogic "ALL")
-      emitCommand solver (.setOption (.produceProofs true))
-    emitCommandStr solver s!"{goalQuery}\n"
-    let mut ret := []
-
-    let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).flatten
-
-    for check in checks do
-      trace[sauto.debug] "Now running solver"
-      let variablesInCheck := (check.map (fun (act, _) => act)).toList
-      let indicatorsInCheck := check.map (fun (_, ind) => ind.constName!)
-      let checkName := indicatorsInCheck.foldl (fun acc new => s!"{mkPrintableName new}_{acc}") "_checkSatIndicator_"
-      let expression ← indicatorNames.foldlM (fun acc new => do
-        if indicatorsInCheck.contains new then
-          return s!"{← indicatorVariableName new} {acc}"
-        else return s!"(not {← indicatorVariableName new}) {acc}") ""
+  let solver ← createSolver solverName withTimeout
+  if solverName == SolverName.cvc5 then
+    emitCommand solver (.setLogic "ALL")
+    emitCommand solver (.setOption (.produceProofs true))
+  emitCommandStr solver s!"{goalQuery}\n"
+  let mut ret := []
+  let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).flatten
+  for check in checks do
+    trace[sauto.debug] "Now running solver"
+    let variablesInCheck := (check.map (fun (act, _) => act)).toList
+    let indicatorsInCheck := check.map (fun (_, ind) => ind.constName!)
+    let checkName := indicatorsInCheck.foldl (fun acc new => s!"{mkPrintableName new}_{acc}") "_checkSatIndicator_"
+    let expression ← indicatorNames.foldlM (fun acc new => do
+      if indicatorsInCheck.contains new then
+        return s!"{← indicatorVariableName new} {acc}"
+      else return s!"(not {← indicatorVariableName new}) {acc}") ""
+    try
       emitCommandStr solver s!"(define-fun {checkName} () Bool (and {expression}))\n"
       emitCommandStr solver s!"(check-sat-assuming ({checkName}))\n"
       let stdout ← Handle.readLineSkip solver.stdout
@@ -129,17 +127,17 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
       let checkSatResponse: SmtResult := match checkSatResponse with
         | .atom (.symb "sat") => SmtResult.Sat none
         | .atom (.symb "unsat") => SmtResult.Unsat
-        | e => SmtResult.Unknown s!"{e}"
-
+        | .atom (.symb "unknown") => SmtResult.Unknown ""
+        | e => SmtResult.Failure s!"{e}"
       trace[sauto.debug] "Test result: {checkSatResponse}"
       ret := ret ++ [((variablesInCheck, checkSatResponse))]
-    trace[sauto.debug] "Results for all actions and invariants: {ret}"
-    solver.kill
-    return ret
-  catch e =>
-    let exMsg ← e.toMessageData.toString
-    let mut ret := []
-    for l in checks do
-      let lefts := (l.map (fun (a, _) => a)).toList
-      ret := ret ++ [(lefts, (.Unknown s!"{exMsg}"))]
-    return ret
+    catch e =>
+      let exMsg ← e.toMessageData.toString
+      let stderr ← solver.stderr.readToEnd
+      let stderr := if stderr.isEmpty then "" else s!"{stderr.trim}"
+      trace[sauto.debug] "exception: {exMsg} | stderr: {stderr}"
+      ret := ret ++ [((variablesInCheck, .Failure s!"{stderr}"))]
+
+  trace[sauto.debug] "Results for all actions and invariants: {ret}"
+  solver.kill
+  return ret

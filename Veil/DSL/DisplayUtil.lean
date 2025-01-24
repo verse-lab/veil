@@ -18,7 +18,8 @@ def emoji (res : SmtResult) : String :=
   match res with
   | .Unsat => "✅"
   | .Sat _ => "❌"
-  | .Unknown _ => "❓"
+  | .Unknown _ => s!"❓"
+  | .Failure reason => s!"💥 {reason}"
 
 def getBaseNameForDisplay (n : Name) : Name := n.updatePrefix Name.anonymous
 

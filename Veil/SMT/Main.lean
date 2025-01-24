@@ -64,6 +64,7 @@ inductive CheckSatResult
   | Sat
   | Unsat
   | Unknown (reason : String)
+  | Failure (reason : String)
 deriving BEq, Inhabited
 
 instance : ToString CheckSatResult where
@@ -71,11 +72,13 @@ instance : ToString CheckSatResult where
     | CheckSatResult.Sat => "sat"
     | CheckSatResult.Unsat => "unsat"
     | CheckSatResult.Unknown r => s!"unknown ({r})"
+    | CheckSatResult.Failure r => s!"failure ({r})"
 
 inductive SmtResult
   | Sat (model : Option FirstOrderStructure)
   | Unsat
   | Unknown (reason : String)
+  | Failure (reason : String)
 deriving Inhabited
 
 instance : ToString SmtResult where
@@ -84,6 +87,7 @@ instance : ToString SmtResult where
     | SmtResult.Sat (some m) => s!"sat\n{m}"
     | SmtResult.Unsat => s!"unsat"
     | SmtResult.Unknown r => s!"unknown ({r})"
+    | SmtResult.Failure r => s!"failure ({r})"
 
 
 namespace Smt
@@ -184,6 +188,7 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
       Handle.readLineSkip solver.stdout
     else
       solver.stdout.getLine
+  trace[sauto.debug] "[checkSat] stdout: {stdout}"
   let (checkSatResponse, _) ← getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
@@ -192,11 +197,16 @@ def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatRes
   | .atom (.symb "unsat") =>
     trace[sauto.debug] "{solverName} says Unsat"
     return CheckSatResult.Unsat
-  | e => return CheckSatResult.Unknown s!"{e}"
+  | .atom (.symb "unknown") =>
+    trace[sauto.debug] "{solverName} says Unknown"
+    return CheckSatResult.Unknown ""
+  | _ => throwError s!"Unexpected response from solver: {checkSatResponse}"
   catch e =>
     let _exMsg ← e.toMessageData.toString
     let stderr ← solver.stderr.readToEnd
-    throwError s!"check-sat failed ({stderr})"
+    let stderr := if stderr.isEmpty then "" else s!": \n{stderr}"
+    trace[sauto.debug] "check-sat failed ({_exMsg}) {stderr}"
+    throwError s!"check-sat failed ({_exMsg}) {stderr}"
 
 def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   withTraceNode `sauto.perf.getModel (fun _ => return "getModel") do
@@ -208,7 +218,9 @@ def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
   catch e =>
     let _exMsg ← e.toMessageData.toString
     let stderr ← solver.stderr.readToEnd
-    throwError s!"get-model failed ({stderr})"
+    let stderr := if stderr.isEmpty then "" else s!": \n{stderr}"
+    trace[sauto.debug] "get-model failed ({_exMsg}) {stderr}"
+    throwError s!"get-model failed{stderr}"
 
 /-- Check if the constraint is satisfiable in the current frame. -/
 def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM Bool := do
@@ -220,7 +232,8 @@ def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (con
   match res with
   | .Sat => return true
   | .Unsat => return false
-  | .Unknown e => throwError s!"Unexpected response from solver: {e}"
+  | .Unknown e => throwError s!"Unexpected unknown from solver: {e}"
+  | .Failure e => throwError s!"failure from solver: {e}"
 
 private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill: Bool := true) : MetaM FirstOrderStructure := do
   -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
@@ -345,6 +358,7 @@ partial def getSolverResult (solver: SolverProc) (solverName: SolverName) (kill:
         if kill then
           solver.kill
         return .Unknown reason
+  | .Failure reason => return .Failure reason
 
 open Smt Smt.Tactic Translate in
 partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SolverName := none) (retryOnFailure : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
@@ -366,7 +380,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
   return res
   catch e =>
     let exMsg ← e.toMessageData.toString
-    return .Unknown s!"{exMsg}"
+    return .Failure s!"{exMsg}"
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
 syntax (name := sauto) "sauto" smtHints smtTimeout : tactic
@@ -475,6 +489,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     else
       throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
+  | .Failure reason => throwError "solver invocation failed: {reason}"
   | .Unsat => mv.admit (synthetic := false)
 
 open Lean.Meta in
@@ -507,6 +522,7 @@ open Lean.Meta in
     mv.admit (synthetic := false)
   | .Unsat => throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
+  | .Failure reason => throwError "solver invocation failed: {reason}"
 
 
 end Smt
