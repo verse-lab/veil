@@ -103,7 +103,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs* $st')
           let extStx ← `(@$(mkIdent extName) $sectionArgs*)
           let extTpSyntax ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
-          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by (unhygienic intros); solve_clause [$(mkIdent extName)])
+          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wlp_clause $(mkIdent extName))
           pure (extTpSyntax, body)
         let thmName := mkTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
@@ -245,7 +245,8 @@ syntax "#check_invariants?" : command
 were not proved automatically. -/
 syntax "#check_invariants!" : command
 
-syntax "#check_invariants$wlp" : command
+syntax "#check_invariants_wlp" : command
+syntax "#check_invariants_wlp?" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
@@ -257,8 +258,8 @@ elab_rules : command
   | `(command| #check_invariants)  => do checkInvariants (← getRef) (behaviour := .default)
   | `(command| #check_invariants?) => do checkInvariants (← getRef) (behaviour := .question)
   | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .exclamation)
-  | `(command| #check_invariants$wlp) => do checkInvariants (← getRef) (behaviour := (.wlp, .checkTheoremsIndividually, .doNotPrint))
-
+  | `(command| #check_invariants_wlp) => do checkInvariants (← getRef) (behaviour := (.wlp, .checkTheoremsIndividually, .doNotPrint))
+  | `(command| #check_invariants_wlp?) => do checkInvariants (← getRef) (behaviour := (.wlp, .noCheck, .printAllTheorems))
 
 /- ## `#check_invariant` -/
 syntax "#check_invariant" ident : command
