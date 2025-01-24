@@ -190,6 +190,16 @@ elab_rules : tactic
   | `(tactic| fast_simplify_clause%$_tk) => do _ ← elabSimplifyClause (thorough := false)
   | `(tactic| fast_simplify_clause?%$tk) => do _ ← elabSimplifyClause (thorough := false) (traceAt := tk)
 
+elab "solve_wlp_clause" i:ident : tactic => Lean.Elab.Tactic.withMainContext do
+  let prepare <- `(tactic|
+    (dsimp only [$(Lean.mkIdent `invSimp):ident, $i:ident];
+     intros $(Lean.mkIdent `st); sdestruct_hyps; dsimp only))
+  Lean.Elab.Tactic.evalTactic prepare
+  Lean.Elab.Tactic.withMainContext do
+    let idents <- getPropsInContext
+    Lean.Elab.Tactic.evalTactic $ <- `(tactic| sauto[$idents,*])
+
+
 def showTacticTraceAt (stx : Syntax) (xtacs : Array (TSyntax `tactic)) : TacticM Unit := do
   let combined_tactic ← `(tactic| $xtacs;*)
   addSuggestion stx combined_tactic
