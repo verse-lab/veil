@@ -47,7 +47,18 @@ end Lean.Meta
 
 open Lean Meta Elab Tactic
 
-#check Meta.forEachExpr
+open Lean.Parser.Tactic in
+/-- [DEBUG] For debugging purposes, we add a conv `simp?` conv tactic. -/
+syntax (name := conv_simp_debug) "simp?" optConfig (discharger)? (&" only")?
+  (" [" withoutPosition((simpStar <|> simpErase <|> simpLemma),*) "]")? : conv
+
+open Lean Meta  Elab.Tactic Conv  in
+@[tactic conv_simp_debug] def evalSimp : Tactic := fun stx => withMainContext do
+  let { ctx, simprocs, dischargeWrapper, .. } ← mkSimpContext stx (eraseLocal := false)
+  let lhs ← getLhs
+  let (result, stats) ← dischargeWrapper.with fun d? => simp lhs ctx (simprocs := simprocs) (discharge? := d?)
+  applySimpResult result
+  traceSimpCall stx stats.usedTheorems
 
 /-- Typeclass that gets inferred if a type is Higher Order. -/
 class IsHigherOrder.{u} (t : Sort u)

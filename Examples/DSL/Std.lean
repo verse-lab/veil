@@ -1,3 +1,4 @@
+import Veil.DSL
 /-! # Axiomatizations of various structures -/
 
 class TotalOrder (t : Type) where
@@ -41,6 +42,9 @@ class TotalOrderWithMinimum (t : Type) where
 
   zero : t
   zero_lt (x : t) : le zero x
+
+-- @[actSimp, invSimp] def TotalOrderWithMinimum.lt [tot : TotalOrderWithMinimum t] (x y : t) : Prop := (tot.le x y ∧ x ≠ y)
+-- @[actSimp, invSimp] def TotalOrderWithMinimum.next [tot : TotalOrderWithMinimum t] (x y : t) : Prop := (tot.lt x y ∧ ∀ z, tot.lt x z → tot.le y z)
 
 class TotalOrderWithZero (t : Type) where
   -- relation: total order

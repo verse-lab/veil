@@ -6,7 +6,7 @@ import Examples.DSL.Std
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy
 
-section SuzukiKasami
+namespace SuzukiKasami
 open Classical
 
 type node
@@ -21,6 +21,7 @@ instantiate seq : TotalOrderWithMinimum seq_t
 relation n_have_privilege : node → Prop
 relation n_requesting : node → Prop
 function n_RN : node → node → seq_t
+-- the sequence number of the most recently granted request by `node`
 function n_token_seq : node → seq_t
 
 --- Requests
@@ -34,12 +35,12 @@ relation t_q : seq_t → node → Prop
 --- Critical section
 relation crit : node → Prop
 
-#gen_state SuzukiKasami
+#gen_state
 
 action succ (n : seq_t) = {
-    let k : seq_t ← fresh
-    require seq.next k n;
-    return k
+  let k : seq_t ← fresh
+  assume seq.next n k;
+  return k
 }
 
 after_init {
@@ -67,6 +68,7 @@ action request (n : node) = {
     reqs N n (n_RN n n) := N ≠ n
 }
 
+-- node `n` receiving a request from `m` with sequence number `r`
 action rcv_request (n : node) (m : node) (r : seq_t) = {
   require reqs n m r;
   n_RN n m := if seq.le r (n_RN n m) then n_RN n m else r;
@@ -103,20 +105,20 @@ action exit (n : node) = {
 -- Invariants
 invariant [mutex] (crit N ∧ crit M) → N = M
 invariant [single_privilege] (n_have_privilege N ∧ n_have_privilege M) → N = M
-invariant [allowed_in_crit] (crit N) → n_have_privilege N ∧ n_requesting N
+invariant [allowed_in_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 invariant [unique_tokens] ((t_for I N) ∧ (t_for I M)) → N = M
 invariant [corresponding_tokens] ((n_token_seq N) ≠ seq.zero) → t_for (n_token_seq N) N
 invariant [current_privilege_latest_token_1] ((n_have_privilege N) ∧ N ≠ M) → seq.lt (n_token_seq M) (n_token_seq N)
 invariant [current_privilege_latest_token_2] ((n_have_privilege N) ∧ (t_for I M)) → seq.le I (n_token_seq N)
-invariant [current_privilege_latest_token_3] (∀ n, ¬ n_have_privilege n) → (∃ i m, t_for i m ∧ ∀ w, seq.lt (n_token_seq w) i)
-invariant [current_privilege_latest_token_4] ((t_for I N) ∧ (∀ w, seq.lt (n_token_seq w) I)
-    ∧ (t_for J M) ∧ (∀ w, seq.lt (n_token_seq w) J))
-    → (I = J ∧ N = M)
+-- invariant [current_privilege_latest_token_3] (∀ n, ¬ n_have_privilege n) → (∃ i m, t_for i m ∧ ∀ w, seq.lt (n_token_seq w) i)
+-- invariant [current_privilege_latest_token_4] ((t_for I N) ∧ (∀ w, seq.lt (n_token_seq w) I)
+--     ∧ (t_for J M) ∧ (∀ w, seq.lt (n_token_seq w) J))
+--     → (I = J ∧ N = M)
 invariant [no_request_to_self] (reqs N M I) → N ≠ M
 invariant [no_consecutive_privilege] ((t_for I N) ∧ (seq.next J I) ∧ (t_for J M)) → N ≠ M
 invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.le I (n_token_seq N)
 
-#gen_spec SuzukiKasami
+#gen_spec
 
 #check_invariants
 

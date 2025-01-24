@@ -3,7 +3,7 @@ import Veil.DSL
 -- https://github.com/aman-goel/ivybench/blob/d2c9298fdd099001c71a34bc2e118db6f07d8404/multisig/ivy/multisig-majority.ivy
 
 
-section MultiSigMaj
+namespace MultiSigMaj
 open Classical
 
 type validator
@@ -27,7 +27,7 @@ relation expired : deadline → Prop
 
 immutable relation member : signature → quorum → Prop
 
-#gen_state MultiSigMaj
+#gen_state
 ghost relation chosenAt (Q:quorum) (N:validator) (K:destination) (V:value) (D:deadline) := ∀ S, member S Q -> sig N K V D S
 ghost relation chosen (N:validator) (K:destination) (V:value) (D:deadline) := ∃ q, chosenAt q N K V D
 
@@ -90,6 +90,8 @@ safety [paid] paid N K V D → proposed N K V D
 
 invariant [ic3po_global2] collect V1 D1 V2 D2 → proposed V1 D1 V2 D2
 invariant [ic3po_global3] sig V1 D1 V2 D2 S1 → sig_auth S1
-#gen_spec MultiSigMaj
+#gen_spec
 
 #check_invariants
+
+end MultiSigMaj

@@ -12,7 +12,7 @@
 import Veil.DSL
 import Veil.DSL.Util
 
-section BlockCacheSystem
+namespace BlockCacheSystem
 open Classical
 
 type node
@@ -54,26 +54,26 @@ relation outstanding_block_writes : req_id -> ref -> location -> Prop
 relation outstanding_block_reads : req_id -> ref -> Prop
 
 
-#gen_state BlockCacheSystem
+#gen_state
 
 after_init {
-  spec_ephemeral _ _ := False;
-  spec_frozen _ _ := False;
-  spec_persistent _ _ := False;
+  spec_ephemeral X Y := False;
+  spec_frozen X Y := False;
+  spec_persistent X Y := False;
   spec_sync_in_progress := False;
 
-  disk_indirection_tables _ _ _ := False;
-  disk_nodes _ _ := False;
-  disk_req_write_indirection_tables _ _ := False;
-  disk_req_write_nodes _ _ := False;
-  disk_req_read_nodes _ _ := False;
+  disk_indirection_tables X Y Z := False;
+  disk_nodes X Y := False;
+  disk_req_write_indirection_tables X Y := False;
+  disk_req_write_nodes X Y := False;
+  disk_req_read_nodes X Y := False;
 
-  cache _ _ := False;
-  ephemeral_clean _ _ := False;
-  ephemeral_dirty _ := False;
-  persistent _ _ := False;
-  frozen_dirty _ := False;
-  frozen_clean _ _ := False;
+  cache  _ := False;
+  ephemeral_clean  _ := False;
+  ephemeral_dirt _ := False;
+  persistent  _ := False;
+  frozen_dirt _ := False;
+  frozen_clean  _ := False;
   frozen_indirection_table_loc_some := False;
   outstanding_indirection_table_write _ := False;
   outstanding_block_writes _ _ _ := False;

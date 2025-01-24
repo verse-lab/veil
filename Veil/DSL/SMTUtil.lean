@@ -117,11 +117,13 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
       trace[sauto.debug] "Now running solver"
       let variablesInCheck := (check.map (fun (act, _) => act)).toList
       let indicatorsInCheck := check.map (fun (_, ind) => ind.constName!)
+      let checkName := indicatorsInCheck.foldl (fun acc new => s!"{mkPrintableName new}_{acc}") "_checkSatIndicator_"
       let expression ← indicatorNames.foldlM (fun acc new => do
         if indicatorsInCheck.contains new then
           return s!"{← indicatorVariableName new} {acc}"
         else return s!"(not {← indicatorVariableName new}) {acc}") ""
-      emitCommandStr solver s!"(check-sat-assuming (and {expression}))\n"
+      emitCommandStr solver s!"(define-fun {checkName} () Bool (and {expression}))\n"
+      emitCommandStr solver s!"(check-sat-assuming ({checkName}))\n"
       let stdout ← Handle.readLineSkip solver.stdout
       let (checkSatResponse, _) ← getSexp stdout
       let checkSatResponse: SmtResult := match checkSatResponse with

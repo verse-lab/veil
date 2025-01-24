@@ -1,12 +1,12 @@
 import Veil.DSL
-import Examples.DSL.Paxos
+import Examples.DSL.Std
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/chord_ring_maintenance.ivy
 
 
-section ChordRing
+namespace ChordRing
 open Classical
 
-class RingTopology (t : Type) :=
+class RingTopology (t : Type) where
   -- relation
   btw (a b c : t) : Prop
   trans : ∀ (a b c : t), btw a b c ∧ btw a c d → btw a b d
@@ -30,7 +30,7 @@ immutable individual other : node
 relation reach : node → Prop
 relation error : node → Prop
 
-#gen_state ChordRingMaintenance
+#gen_state
 
 assumption other ≠ org
 
@@ -47,7 +47,7 @@ after_init {
 
 action join (x : node) (y : node) = {
   require ¬ a x;
-  require a Y;
+  require ∀ Y, a Y;
   require ¬ ring.btw x org y;
   a x := True;
   s1 x Y := y = Y;
@@ -73,7 +73,7 @@ action notify (x : node) (y : node) (z : node) = {
   require a x;
   require s1 x y;
   require a y;
-  require p y z ∨ ¬ p y X;
+  require ∀ X, p y z ∨ ¬ p y X;
   require ring.btw z x y;
   p y X := X = x
 }
@@ -101,9 +101,9 @@ action remove (x : node) (y : node) (z : node) = {
 action fail (x : node) = {
   require a x;
   require x ≠ org;
-  require (s1 Y x → in_s2 Y);
-  require s1 Y x ∧ s2 Y Z → a Z;
-  require s1 X Y ∧ s2 X x → (Y ≠ x ∧ a Y);
+  require ∀ Y, (s1 Y x → in_s2 Y);
+  require ∀ Y Z, s1 Y x ∧ s2 Y Z → a Z;
+  require ∀ X Y, s1 X Y ∧ s2 X x → (Y ≠ x ∧ a Y);
   a x := False;
   p x Y := False;
   s1 x Y := False;
@@ -121,15 +121,15 @@ action remove_org (x : node) (y : node) (z : node) = {
   require x ≠ org;
   require s1 x y;
   require ¬ a y ∨ ¬ reach y;
-  require (¬ a y) → (¬ s2 x Z ∨ s2 x z);
+  require ∀ Z, (¬ a y) → (¬ s2 x Z ∨ s2 x z);
   require (¬ a y ∧ s2 x z) → (¬ a z ∨ ¬ reach z);
   reach x := False
 }
 
 action test (x : node) = {
-  require (s1 X Y ∧ a Y ∧ reach Y) → reach X;
-  require (s1 X Y ∧ ¬ a Y ∧ s2 X Z ∧ a Z ∧ reach Z) → reach X;
-  require (ring.btw x Y org ∧ a Y) → reach x;
+  require ∀ X Y, (s1 X Y ∧ a Y ∧ reach Y) → reach X;
+  require ∀ X Y Z, (s1 X Y ∧ ¬ a Y ∧ s2 X Z ∧ a Z ∧ reach Z) → reach X;
+  require ∀ Y, (ring.btw x Y org ∧ a Y) → reach x;
   require a x;
   require ¬ reach x;
   require in_s1 x → ∃ y, s1 x y;
@@ -139,7 +139,7 @@ action test (x : node) = {
 
 safety ¬ error N
 
-#gen_spec ChordRingMaintenance
+#gen_spec
 
 #check_invariants
 

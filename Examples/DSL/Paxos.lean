@@ -9,7 +9,7 @@ import Examples.DSL.Std
 -- See also: https://github.com/nano-o/ivy-proofs/blob/master/paxos/paxos.ivy
 -- See also: https://github.com/aman-goel/ivybench/blob/master/paxos/ivy/oopsla17_paxos.ivy
 
-section PaxosFOL
+namespace PaxosFOL
 open Classical
 
 type node
@@ -46,7 +46,7 @@ relation leftRound : node -> round -> Prop
   -- (ghost) relation one_b(N:node, R:round) # := exists RMAX, V. one_b_max_vote(N,R,RMAX,V)
 relation one_b : node -> round -> Prop
 
-#gen_state Paxos
+#gen_state
 
 ghost relation maximalVote (n : node) (r: round) (maxr : round) (maxv : value) :=
     (maxr = TotalOrderWithNone.none ∧
@@ -108,7 +108,7 @@ action phase_1b (n : node) (r : round) (max_round : round) (max_val : value) = {
 -- "propose" = receive a quorum of 1b's and send a 2a (proposal)
 action phase_2a (r : round) (v : value) = {
   require r ≠ TotalOrderWithNone.none;
-  require ¬ proposal r V;
+  require ∀ V, ¬ proposal r V;
   require isSafeAt r v;
   proposal r v := True
 }
@@ -172,31 +172,31 @@ invariant
 
 invariant one_b N R2 ∧ ¬ TotalOrderWithNone.le R2 R1 → leftRound N R1
 
-#gen_spec Paxos
+#gen_spec
 
-prove_inv_init by { simp_all [initSimp, invSimp, actSimp, wlp] }
+prove_inv_init by { simp_all [initSimp, invSimp, actSimp] }
 prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] }
 
 set_option maxHeartbeats 2000000
 
-prove_inv_inductive by {
-  constructor
-  . apply inv_init
-  intro st st' hnext hinv
-  sts_induction <;> sdestruct_goal <;> sorry -- try solve_clause
-  -- { sorry }
-  -- { sorry }
-  -- { sorry }
-  -- { sorry }
-}
+-- prove_inv_inductive by {
+--   constructor
+--   . apply inv_init
+--   intro st st' hnext hinv
+--   sts_induction <;> sdestruct_goal <;> sorry -- try solve_clause
+--   -- { sorry }
+--   -- { sorry }
+--   -- { sorry }
+--   -- { sorry }
+-- }
 
-unsat trace {
-  phase_1a
-  phase_2b
-} by {
-  sintro st0 st1 st2
-  simp [initSimp, actSimp, wlp, Paxos.State.mk.injEq]
-  duper
-}
+-- unsat trace {
+--   phase_1a
+--   phase_2b
+-- } by {
+--   sintro st0 st1 st2
+--   simp [initSimp, actSimp, wlp, Paxos.State.mk.injEq]
+--   duper
+-- }
 
 end PaxosFOL

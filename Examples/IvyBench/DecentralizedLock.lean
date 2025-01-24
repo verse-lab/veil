@@ -1,9 +1,9 @@
 import Veil.DSL
-import Examples.DSL.Paxos
+import Examples.DSL.Std
 -- https://github.com/aman-goel/ivybench/blob/master/ex/ivy/decentralized-lock.ivy
 
 
-section DecentralizedLock
+namespace DecentralizedLock
 open Classical
 
 type node
@@ -18,7 +18,7 @@ immutable individual first : node
 immutable individual zero : time
 immutable individual max : time
 
-#gen_state DecentralizedLock
+#gen_state
 
 assumption ∀ (x: time), le x X
 assumption ∀ (x y z : time), le x y ∧ le y z → le x z
@@ -53,7 +53,7 @@ invariant [manual_1] ¬ (X ≠ Y ∧ (has_lock X ∨ (msg X T ∧ ¬ le T (epoch
 invariant [manual_2] ¬ (has_lock X ∧ (msg X T ∧ ¬ le T (epoch X)))
 invariant [manual_3] ¬ (S ≠ T ∧ msg Y S ∧ msg Y T ∧ ¬ le T (epoch Y) ∧ ¬ le S (epoch Y))
 
-#gen_spec DecentralizedLock
+#gen_spec
 
 #check_invariants
 
