@@ -8,26 +8,34 @@ import Veil.DSL.SMTUtil
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis
 
-def checkTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Bool := do
-  withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do
-  let env ← getEnv
-  -- FIXME: I think we want to run `elabCommand` without `withLogging`
-  elabCommand cmd
-  -- Check the `Expr` for the given theorem
-  let th ← getConstInfo theoremName
-  let isProven ← match th with
-    | ConstantInfo.thmInfo attempt => pure <| !attempt.value.hasSyntheticSorry
-    | _ => throwError s!"checkTheorem: expected {theoremName} to be a theorem"
-  -- We only add the theorem to the environment if it successfully type-checks
-  -- i.e. we restore the original environment if the theorem is not proven
-  if !isProven then
-    setEnv env
-  return isProven
+/-- We support two styles of verification condition generation:
+  - `wlp`, which is what Ivy does
+  - `transition`, which is what mypyvy does
 
-inductive CheckType
-  | init
-  | action (actName : Name)
-deriving BEq
+  The `transition` style is more general, but `wlp` generates smaller, usually
+  better queries.
+-/
+inductive VCGenStyle
+  | wlp
+  | transition
+
+inductive CheckStyle
+  /-- Do not check any theorems. Used to only print suggestions. -/
+  | noCheck
+  /-- Check all theorems in one big check with indicator variables. -/
+  | checkTheoremsWithIndicators
+  /-- Check theorems individually. -/
+  | checkTheoremsIndividually
+
+inductive PrintStyle
+  /-- Do not offer suggestions -/
+  | doNotPrint
+  /-- Suggest theorem statements for all theorems. -/
+  | printAllTheorems
+  /-- Suggests only theorems that were not proved automatically. -/
+  | printUnverifiedTheorems
+
+def CheckInvariantsBehaviour := VCGenStyle × CheckStyle × PrintStyle
 
 /-- `(invName, theoremName, checkTheorem, failedTheorem)` -/
 abbrev SingleCheckT   := (Name × Name × TSyntax `command × TSyntax `command)
@@ -68,19 +76,7 @@ def getChecksForAction (actName : Name) : CommandElabM (Array (Name × Expr) × 
         invChecks := invChecks.push (inv, actNamesInd)
     return (#[], invChecks)
 
-
-inductive CheckInvariantsBehaviour
-  /-- `#check_invariants` -/
-  | checkTheorems
-  /-- `#check_invariants?` -/
-  | printTheorems
-  | printTheoremsWithWlp
-  /-- `#check_invariants!` -/
-  | printAndCheckTheorems
-  /-- `#check_invariants!?` -/
-  | printUnverifiedTheorems
-
-def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (sorry_body: Bool := true): CommandElabM (Array (TSyntax `command)) := do
+def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TSyntax `command)) := do
     Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let sectionArgs ← getSectionArgumentsStx vs
@@ -89,47 +85,32 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
       for invName in initIndicators.reverse do
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-
-        let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); exact sorry)
-        else `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); solve_clause [$(mkIdent `initSimp)])
+        let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by (unhygienic intros); solve_clause [$(mkIdent `initSimp)])
+        let thm ← `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := $body)
         theorems := theorems.push thm
       -- Action checks
       for (actName, invName) in actIndicators.reverse do
-        let trName := toTrName actName
-        let invStx ← `(@$(mkIdent invName) $sectionArgs*)
-        let trStx ← `(@$(mkIdent trName) $sectionArgs*)
-        let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-        let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); exact sorry)
-        else `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by (unhygienic intros); solve_clause [$(mkIdent trName)])
+        let (tp, body) ← match vcStyle with
+        | .transition =>
+          let trName := toTrName actName
+          let invStx ← `(@$(mkIdent invName) $sectionArgs*)
+          let trStx ← `(@$(mkIdent trName) $sectionArgs*)
+          let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
+          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by (unhygienic intros); solve_clause [$(mkIdent trName)])
+          pure (trTpSyntax, body)
+        | .wlp =>
+          let extName := toExtName actName
+          let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs* $st')
+          let extStx ← `(@$(mkIdent extName) $sectionArgs*)
+          let extTpSyntax ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
+          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by (unhygienic intros); solve_clause [$(mkIdent extName)])
+          pure (extTpSyntax, body)
+        let thm ← `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $tp := $body)
         theorems := theorems.push thm
       return theorems
 
-def theoremSuggestionsForChecksWithWlp (initIndicators : List Name) (actIndicators : List (Name × Name)) (sorry_body: Bool := true): CommandElabM (Array (TSyntax `command)) := do
-  Command.runTermElabM fun vs => do
-    let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
-    let sectionArgs ← getSectionArgumentsStx vs
-    let mut theorems := #[]
-    -- Init checks
-    for invName in initIndicators.reverse do
-      let invStx ← `(@$(mkIdent invName) $sectionArgs*)
-      let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-
-      let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); exact sorry)
-      else `(@[invProof] theorem $(mkIdent s!"init_{invName}".toName) : $initTpStx := by (unhygienic intros); solve_clause [$(mkIdent `initSimp)])
-      theorems := theorems.push thm
-    -- Action checks
-    for (actName, invName) in actIndicators.reverse do
-      let extName := toExtName actName
-      let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs* $st')
-      let trStx ← `(@$(mkIdent extName) $sectionArgs*)
-      let trTpSyntax ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $invStx)
-      let thm ← if sorry_body then `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by exact sorry)
-      else `(@[invProof] theorem $(mkIdent s!"{actName}_{invName}".toName) : $trTpSyntax := by solve_wlp_clause $(mkIdent extName):ident)
-      theorems := theorems.push thm
-    return theorems
-
-def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (withWlp : Bool := false) : CommandElabM (Array (TSyntax `command)) := do
-  let (initIndicators, acts) ← Command.runTermElabM fun vs => do
+def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (vcStyle : VCGenStyle) : CommandElabM (Array (TSyntax `command)) := do
+  let (initIndicators, acts) ← Command.runTermElabM fun _ => do
     -- prevent code duplication
     let initIndicators ← invIndicators.mapM (fun (invName, _) => resolveGlobalConstNoOverloadCore invName)
     let actIndicators ← actIndicators.mapM (fun (actName, _) => resolveGlobalConstNoOverloadCore actName)
@@ -138,25 +119,44 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
       for invName in initIndicators do
         acts := acts.push (actName, invName)
     return (initIndicators, acts)
-  if withWlp then
-    theoremSuggestionsForChecksWithWlp (if generateInitThms then initIndicators else []) acts.toList (sorry_body := False)
-  else
-    theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList (sorry_body := False)
+  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList vcStyle (sorry_body := False)
 
-def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := .checkTheorems) :
+def checkIndividualTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Bool := do
+  withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do
+  let env ← getEnv
+  -- FIXME: I think we want to run `elabCommand` without `withLogging`
+  elabCommand cmd
+  -- Check the `Expr` for the given theorem
+  let th ← getConstInfo theoremName
+  let isProven ← match th with
+    | ConstantInfo.thmInfo attempt => pure <| !attempt.value.hasSyntheticSorry
+    | _ => throwError s!"checkTheorem: expected {theoremName} to be a theorem"
+  -- We only add the theorem to the environment if it successfully type-checks
+  -- i.e. we restore the original environment if the theorem is not proven
+  if !isProven then
+    setEnv env
+  return isProven
+
+def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := (.transition, .checkTheoremsWithIndicators, .doNotPrint)) :
   CommandElabM Unit := do
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
-  let mut theorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators
+  let (vcStyle, checkStyle, printStyle) := behaviour
+  let mut allTheorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle
   match behaviour with
-  | .printTheorems =>  displaySuggestion stx theorems
-  | .printTheoremsWithWlp =>
-    let theorems' ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators (withWlp := true)
-    -- displaySuggestion stx theorems'
-    for cmd in theorems' do
+  | (_, .noCheck, .doNotPrint) => pure ()
+  | (_, .noCheck, .printUnverifiedTheorems) => throwError "[checkTheorems] Cannot print unverified theorems without checking"
+  | (_, .noCheck, .printAllTheorems) => displaySuggestion stx allTheorems
+  | (_, .checkTheoremsIndividually, _) =>
+    for cmd in allTheorems do
       elabCommand cmd
+    match printStyle with
+    | .doNotPrint => pure ()
+    | .printAllTheorems => displaySuggestion stx allTheorems
+    | .printUnverifiedTheorems => pure ()
 
-  | .checkTheorems | .printAndCheckTheorems | .printUnverifiedTheorems =>
+  | (.wlp, .checkTheoremsWithIndicators, _) => throwError "[checkTheorems] wlp style is not supported for checkTheoremsWithIndicators"
+  | (.transition, .checkTheoremsWithIndicators, _) =>
     let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let sectionArgs ← getSectionArgumentsStx vs
@@ -166,13 +166,11 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         let tr := mkIdent $ toTrName actName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
         `($(mkIdent indName) ∧ (@$tr $sectionArgs* $st $st'))
-        -- pure (mkAnd (mkApp2 (mkAppN act vs) (mkConst st.getId) (mkConst st'.getId)) indName)
       )
       let invStxList : Array Term ← invIndicators.toArray.mapM (fun (invName, indName) => do
         let invName ← resolveGlobalConstNoOverloadCore invName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
         `(($(mkIdent indName) → @$(mkIdent invName) $sectionArgs* $st'))
-        -- pure (mkOr (mkApp (mkAppN inv vs) (mkConst st'.getId)) (mkNot indName))
       )
       let invariants ← repeatedAnd invStxList
       let _actions ← repeatedOr actStxList
@@ -215,24 +213,23 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let provenActs := (actRes.filter (fun (_, res) => match res with
         | .Unsat => true
         | _ => false)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
-    let verifiedTheorems ← theoremSuggestionsForChecks provenInit provenActs
+    let verifiedTheorems ← theoremSuggestionsForChecks provenInit provenActs vcStyle
     for cmd in verifiedTheorems do
       elabCommand (← `(#guard_msgs(drop warning, drop error) in $(cmd)))
-    match behaviour with
-      | .checkTheorems => logInfo msg
-      | .printAndCheckTheorems => displaySuggestion stx theorems (preMsg := msg)
-      | .printUnverifiedTheorems =>
+
+    -- Display if needed
+    match printStyle with
+    | .doNotPrint => pure ()
+    | .printAllTheorems => displaySuggestion stx allTheorems
+    | .printUnverifiedTheorems =>
         let neededInit := (initRes.filter (fun (_, res) => match res with
          | .Unsat => false
          | _ => true)).map (fun (l, _) => match l with | [invName] => invName | _ => unreachable!)
         let neededActs := (actRes.filter (fun (_, res) => match res with
           | .Unsat => false
           | _ => true)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
-        let unverifiedTheorems ← theoremSuggestionsForChecks neededInit neededActs
+        let unverifiedTheorems ← theoremSuggestionsForChecks neededInit neededActs vcStyle
         displaySuggestion stx unverifiedTheorems (preMsg := msg)
-      | _ => unreachable!
-
-
 
 /- ## `#check_invariants` -/
 /-- Check all invariants and print result of each check. -/
