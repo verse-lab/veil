@@ -729,3 +729,8 @@ macro "type" id:ident : command => do
   `(variable ($id : Type) [$dec_id : DecidableEq $id] [$ne_id : Nonempty $id])
 -- macro "instantiate" t:term : command => `(variable [$t])
 macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
+
+/-- Declaring a Veil module -/
+macro atomic("veil" "module") i:ident : command => do
+  `(namespace $i:ident
+    open Classical)
