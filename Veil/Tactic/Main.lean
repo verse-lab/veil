@@ -232,15 +232,27 @@ elab tk:solveWlp i:ident : tactic => withMainContext do
       addSuggestion tk solve
     else evalTactic solve
 
-elab tk:"solve_wlp_clause?" i:ident : tactic => Lean.Elab.Tactic.withMainContext do
-  let prepare <- `(tactic|
-    (dsimp only [$(Lean.mkIdent `invSimp):ident, $i:ident];
-     intros $(Lean.mkIdent `st); sdestruct_hyps; dsimp only))
+elab tk:solveWlp i:ident : tactic => withMainContext do
+  let stateTpT ← getStateTpStx
+  let (invSimp, st, st', ass, inv, ifSimp) := (mkIdent `invSimp, mkIdent `st, mkIdent `st', mkIdent `ass_, mkIdent `inv_, mkIdent `ifSimp)
+  let prepare <- `(tacticSeq|
+    dsimp only [$invSimp:ident, $i:ident]; intros $st:ident; sdestruct_hyps
+    first
+      | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
+        unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
+      | dsimp only; (unhygienic intros); try simp only [$ifSimp:ident])
   Lean.Elab.Tactic.evalTactic prepare
   Lean.Elab.Tactic.withMainContext do
     let idents <- getPropsInContext
     let solve <- `(tactic| sauto[$idents,*])
-    addSuggestion tk $ <- `(tactic| $prepare; $solve)
+    if let `(solveWlp| solve_wlp_clause?) := tk then
+      addSuggestion tk $ <- `(tacticSeq|
+    dsimp only [$invSimp:ident, $i:ident]; intros $st:ident; sdestruct_hyps
+    first
+      | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
+        unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
+      | dsimp only; (unhygienic intros); try simp only [$ifSimp:ident]
+    sauto[$idents,*])
     Lean.Elab.Tactic.evalTactic solve
 
 
