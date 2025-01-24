@@ -358,11 +358,12 @@ macro "exists?" br:explicitBinders ? "," t:term : term =>
 def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
     -- let lInternal <- `(doAssert $l)
     -- let lExternal <- `(doAssume $l)
-    let (genName, uName, fnName, trName) := (toGenIdent nm, toUnsimplifiedIdent nm, nm, toTrIdent nm)
+    let (genName, uName, fnName, extName, trName) := (toGenIdent nm, toUnsimplifiedIdent nm, nm, toExtIdent nm, toTrIdent nm)
     let vd ← getImplicitActionParameters
-    let (unsimplifiedDef, genDef, fnDef, trDef) ← Command.runTermElabM fun vs => do
+    let (unsimplifiedDef, genDef, fnDef, extDef, trDef) ← Command.runTermElabM fun vs => do
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
+      let stateTpT ← getStateTpStx
       let (univBinders, args) ← match br with
       | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
       | none => pure (#[], #[])
@@ -377,14 +378,16 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
         $(← dsimpOnly (← `(@$genName $sectionArgs* $args* .internal)) #[`genSimp]))
       trace[dsl.debug] "{fnDef}"
       -- version with `forall` quantified arguments
+      let extDef ← `(@[actSimp] def $extName $[$vd]* :=
+        $(← dsimpOnly (← `(fun (st : $stateTpT) post => ∀ $univBinders*, @$genName $sectionArgs* $args* .external st post)) #[`genSimp]))
+      trace[dsl.debug] "{extDef}"
       let trDef ← do
         let (st, st') := (mkIdent `st, mkIdent `st')
-        let stateTpT ← getStateTpStx
         let tr <- `(@$genName $sectionArgs* $args* .external)
         let rhs ← `(fun ($st $st' : $stateTpT) => exists? $br ?, Wlp.toActProp $tr $st $st')
         `(@[actSimp] def $trName $[$vd]*  := $(← simplifyTerm rhs))
       trace[dsl.debug] "{trDef}"
-      return (unsimplifiedDef, genDef, fnDef, trDef)
+      return (unsimplifiedDef, genDef, fnDef, extDef, trDef)
     -- Declare `nm.unsimplified` and `nm`
     elabCommand unsimplifiedDef
     trace[dsl.info] "{uName} is defined"
@@ -392,6 +395,8 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
     trace[dsl.info] "{genName} is defined"
     elabCommand fnDef
     trace[dsl.info] "{fnName} is defined"
+    elabCommand extDef
+    trace[dsl.info] "{extName} is defined"
     elabCommand trDef
     trace[dsl.info] "{trName} is defined"
 

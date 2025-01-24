@@ -213,10 +213,19 @@ def toTrIdent (id : Ident) : Ident := mkIdent $ toTrName id.getId
 def toFnName (n : Name) : Name := n ++ `fn
 /-- See docstring on `toTrName`. -/
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
+
 /-- See docstring on `toTrName`. -/
-def toUnsimplifiedIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `unsimplified
-def toSpecIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `spec
-def toGenIdent (id : Ident) : Ident := mkIdent $ id.getId ++ `gen
+def toUnsimplifiedName (n : Name) : Name := n ++ `unsimplified
+def toUnsimplifiedIdent (id : Ident) : Ident := mkIdent $ toUnsimplifiedName id.getId
+
+def toSpecName (n : Name) : Name := n ++ `spec
+def toSpecIdent (id : Ident) : Ident := mkIdent $ toSpecName id.getId
+
+def toGenName (n : Name) : Name := n ++ `gen
+def toGenIdent (id : Ident) : Ident := mkIdent $ toGenName id.getId
+
+def toExtName (n : Name) : Name := n ++ `ext
+def toExtIdent (id : Ident) : Ident := mkIdent $ toExtName id.getId
 
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId
