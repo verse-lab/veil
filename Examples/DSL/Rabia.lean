@@ -65,36 +65,41 @@ after_init {
   coin P V := False
 }
 
--- CHECK the original Ivy proof heavily uses the `local ... assume` structure in writing the actions,
--- which should be equivalent to parameterized action with `require`s;
--- nevertheless, we might want to certify that
-
-action initial_proposal (n : node) (v : proposal_value) = {
-  require ¬ ∃ V : proposal_value, propose n V
-  require ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
-  require ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
-  require ∀ P, ¬ ∃ V : state_value, decision_bc n P V
-  require ∀ P, ¬ in_phase n P
+action initial_proposal = {
+  let n : node ← fresh
+  let v : proposal_value ← fresh
+  assume ¬ ∃ V : proposal_value, propose n V
+  assume ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
+  assume ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
+  assume ∀ P, ¬ ∃ V : state_value, decision_bc n P V
+  assume ∀ P, ¬ in_phase n P
   propose n v := True
 }
 
-action decide_bc_decide_full_val (n : node) (p : phase) (q : set_majority) = {
-  require decision_bc n p v1
+action decide_bc_decide_full_val = {
+  let n : node ← fresh
+  let p : phase ← fresh
+  let q : set_majority ← fresh
+  assume decision_bc n p v1
   if v : (∀ (N : node), member_maj N q → propose N v) then
     decision_full_val n p v := True
 }
 
-action decide_bc_decide_full_noval (n : node) (p : phase) = {
-  require decision_bc n p v0
+action decide_bc_decide_full_noval = {
+  let n : node ← fresh
+  let p : phase ← fresh
+  assume decision_bc n p v0
   decision_full_noval n p := True
 }
 
-action initial_vote1 (n : node) (q : set_majority) = {
-  require ∃ V : proposal_value, propose n V
-  require ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
-  require ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
-  require ∀ P, ¬ ∃ V : state_value, decision_bc n P V
-  require ∀ P, ¬ in_phase n P
+action initial_vote1 = {
+  let n : node ← fresh
+  let q : set_majority ← fresh
+  assume ∃ V : proposal_value, propose n V
+  assume ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
+  assume ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
+  assume ∀ P, ¬ ∃ V : state_value, decision_bc n P V
+  assume ∀ P, ¬ in_phase n P
 
   if v : (∀ (N : node), member_maj N q → propose N v) then
     vote_rnd1 n zero v1 := True
@@ -104,10 +109,13 @@ action initial_vote1 (n : node) (q : set_majority) = {
     in_phase n zero := True
 }
 
-action phase_rnd1 (n : node) (p : phase) (q : set_majority) = {
-  require in_phase n p
-  require ¬ ∃ V : state_value, vote_rnd2 n p V
-  require ∀ (N : node), member_maj N q → ∃ V, vote_rnd1 N p V
+action phase_rnd1 = {
+  let n : node ← fresh
+  let p : phase ← fresh
+  let q : set_majority ← fresh
+  assume in_phase n p
+  assume ¬ ∃ V : state_value, vote_rnd2 n p V
+  assume ∀ (N : node), member_maj N q → ∃ V, vote_rnd1 N p V
 
   if v : (∀ (N : node), member_maj N q → vote_rnd1 N p v) then
     vote_rnd2 n p v := True
@@ -115,11 +123,15 @@ action phase_rnd1 (n : node) (p : phase) (q : set_majority) = {
     vote_rnd2 n p vquestion := True
 }
 
-action phase_rnd2 (n : node) (p psucc : phase) (q : set_majority) = {
-  require in_phase n p
-  require ∃ V : state_value, vote_rnd2 n p V
-  require ∀ (N : node), member_maj N q → ∃ V, vote_rnd2 N p V
-  require next p psucc
+action phase_rnd2 = {
+  let n : node ← fresh
+  let p : phase ← fresh
+  let psucc : phase ← fresh
+  let q : set_majority ← fresh
+  assume in_phase n p
+  assume ∃ V : state_value, vote_rnd2 n p V
+  assume ∀ (N : node), member_maj N q → ∃ V, vote_rnd2 N p V
+  assume next p psucc
 
   if v : (v ≠ vquestion ∧
       (∃ N0 Q, member_fp1 N0 Q ∧ (∀ N, member_fp1 N Q → member_maj N q ∧ vote_rnd2 N p v)))
