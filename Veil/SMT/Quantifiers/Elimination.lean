@@ -6,59 +6,13 @@ import Lean.Util.ForEachExpr
 import Veil.Basic
 import Veil.DSL.Util
 import Veil.SMT.Preparation
+import Veil.SMT.Quantifiers.Check
 
 import Lean.Util.MonadCache
 import Lean.Meta.Basic
-
-import Lean.Util.MonadCache
-import Lean.Meta.Basic
-
-namespace Lean.Meta
-
-variable {m} [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
-
-partial def forEachExprSane'
-  (input : Expr)
-  (fn : Expr → m Bool)
-  : m Unit := do
-  let _ : STWorld IO.RealWorld m := ⟨⟩
-  let _ : MonadLiftT (ST IO.RealWorld) m := { monadLift := fun x => liftM (m := MetaM) (liftM (m := ST IO.RealWorld) x) }
-  let rec visit (e : Expr) : MonadCacheT Expr Unit m Unit :=
-    checkCache e fun _ => do
-      if (← liftM (fn e)) then
-        match e with
-        | .forallE n d b c  => do visit d; withLocalDecl n c d (fun x => visit $ b.instantiate1 x)
-        | .lam n d b c      => do visit d; withLocalDecl n c d (fun x => visit $ b.instantiate1 x)
-        | .letE n d v b _   => do visit d; visit v; withLetDecl n d v (fun x => visit $ b.instantiate1 x)
-        | .app f a      => visit f; visit a
-        | .mdata _ b    => visit b
-        | .proj _ _ b   => visit b
-        | _             => return ()
-  visit input |>.run
-
-/-- Similar to `Expr.forEach`, but creates free variables whenever going inside
-of a binder. Unlike `Meta.forEachExpr`, this doesn't use the strange
-`visitForall` function which behaves unintuitively. -/
-def forEachExprSane (e : Expr) (f : Expr → m Unit) : m Unit :=
-  forEachExprSane' e fun e => do
-    f e
-    return true
-end Lean.Meta
 
 open Lean Meta Elab Tactic
 
-open Lean.Parser.Tactic in
-/-- [DEBUG] For debugging purposes, we add a conv `simp?` conv tactic. -/
-syntax (name := conv_simp_debug) "simp?" optConfig (discharger)? (&" only")?
-  (" [" withoutPosition((simpStar <|> simpErase <|> simpLemma),*) "]")? : conv
-
-open Lean Meta  Elab.Tactic Conv  in
-@[tactic conv_simp_debug] def evalSimp : Tactic := fun stx => withMainContext do
-  let { ctx, simprocs, dischargeWrapper, .. } ← mkSimpContext stx (eraseLocal := false)
-  let lhs ← getLhs
-  let (result, stats) ← dischargeWrapper.with fun d? => simp lhs ctx (simprocs := simprocs) (discharge? := d?)
-  applySimpResult result
-  traceSimpCall stx stats.usedTheorems
 
 /-- Typeclass that gets inferred if a type is Higher Order. -/
 class IsHigherOrder.{u} (t : Sort u)
@@ -68,38 +22,7 @@ instance (t₁ : Type) (t₂ : Prop) : IsHigherOrder (t₁ -> t₂) := ⟨⟩
 
 /- Identify if an expression has higher-order quantification (arrow types or `State`). -/
 
-structure QEState where
-  quantifiedTypes : Std.HashSet Expr
-deriving Inhabited
 
-abbrev QuantElimM := StateT QEState MetaM
-
-def isHigherOrder (e : Expr) : MetaM Bool := do
-  let t ← inferType e
-  let isHO := !t.isProp && (e.isArrow || e.isAppOf (← getStateName))
-  return isHO
-
-
-private def higherOrderQuantifiedTypes' (e : Expr) (existentialOnly? : Bool := false) : QuantElimM (Array Expr) := do
-  let _ ← Meta.forEachExprSane e (fun e => do
-    match e with
-    | Expr.forallE _ t _ _ => if !existentialOnly? then recordTypeIfHigherOrder t else pure ()
-    | _ => match_expr e with
-      | Exists t _ => recordTypeIfHigherOrder t
-      | _ => pure ()
-  )
-  let res := (← get).quantifiedTypes.toArray
-  return res
-  where recordTypeIfHigherOrder (e : Expr) : QuantElimM Unit := do
-    if ← isHigherOrder e then
-      modify (fun s => { s with quantifiedTypes := s.quantifiedTypes.insert e })
-
-def Lean.Expr.higherOrderQuantifiers (e : Expr) (existentialOnly? : Bool := false) : MetaM (Array Expr) := do
-  let (types, _st) ← (higherOrderQuantifiedTypes' e existentialOnly?).run default
-  return types
-
-def Lean.Expr.hasHigherOrderQuantification (e : Expr) (existentialOnly? : Bool := false) : MetaM Bool := do
-  return (← e.higherOrderQuantifiers existentialOnly?).size > 0
 
 /-- Returns an `Array` of the top-level higher-order existentially quantified
 variables in `e`. -/
