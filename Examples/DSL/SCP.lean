@@ -214,7 +214,16 @@ invariant ∀ N B V1 V2, well_behaved N ∧ accepted_prepared N B V1 ∧ accepte
 
 #gen_spec
 
+set_option sauto.smt.solver "z3"
+
+namespace Auto
+#time #check_invariants$wlp
+#time #check_invariants
+end Auto
 set_option sauto.smt.translator "lean-smt" in
-#check_invariants
+#time #check_invariants$wlp
+set_option sauto.smt.translator "lean-smt" in
+#time #check_invariants
+
 
 end SCP
