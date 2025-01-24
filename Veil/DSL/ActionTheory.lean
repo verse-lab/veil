@@ -80,7 +80,7 @@ def BigStep.toWlp {σ} (act : BigStep σ ρ) : Wlp .internal σ ρ :=
 
 /-- Function which transforms any two-state formula into `Wlp` -/
 @[actSimp]
-def Function.toWlp (r : σ -> σ -> Prop) : Wlp .internal σ Unit :=
+def Function.toWlp (m : Mode) (r : σ -> σ -> Prop) : Wlp m σ Unit :=
   fun s post => ∀ s', r s s' -> post () s'
 
 /-- Function which transforms any `Wlp` into a two-state formula -/
@@ -299,7 +299,7 @@ instance : Sound (Wlp.spec (m := ·) req ens) where
     solve_by_elim
   call := by intros _; simp_all [actSimp]
 
-instance (r : σ -> σ -> Prop) : Sound (fun _ => r.toWlp) where
+instance (r : σ -> σ -> Prop) : Sound (r.toWlp (m := ·)) where
   inter := by intros; simp_all [actSimp]
   impl := by intros; simp_all [actSimp]
   call := by solve_by_elim

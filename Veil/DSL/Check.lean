@@ -152,7 +152,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   | .printTheorems =>  displaySuggestion stx theorems
   | .printTheoremsWithWlp =>
     let theorems' ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators (withWlp := true)
-    displaySuggestion stx theorems'
+    -- displaySuggestion stx theorems'
     for cmd in theorems' do
       elabCommand cmd
 
