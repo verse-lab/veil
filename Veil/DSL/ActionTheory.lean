@@ -343,5 +343,4 @@ theorem check_spec_sound [Sound act] (req : SProp σ) (ens : σ -> RProp σ ρ) 
   intro triple s post; simp [actSimp]; intros hreq hens
   solve_by_elim [Sound.impl]
 
-
 end Theory

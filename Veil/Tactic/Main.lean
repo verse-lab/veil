@@ -193,11 +193,22 @@ elab_rules : tactic
 elab "solve_wlp_clause" i:ident : tactic => Lean.Elab.Tactic.withMainContext do
   let prepare <- `(tactic|
     (dsimp only [$(Lean.mkIdent `invSimp):ident, $i:ident];
-     intros $(Lean.mkIdent `st); sdestruct_hyps; dsimp only))
+     intros $(Lean.mkIdent `st); sdestruct_hyps; simp only [ifSimp]))
   Lean.Elab.Tactic.evalTactic prepare
   Lean.Elab.Tactic.withMainContext do
     let idents <- getPropsInContext
     Lean.Elab.Tactic.evalTactic $ <- `(tactic| sauto[$idents,*])
+
+elab tk:"solve_wlp_clause?" i:ident : tactic => Lean.Elab.Tactic.withMainContext do
+  let prepare <- `(tactic|
+    (dsimp only [$(Lean.mkIdent `invSimp):ident, $i:ident];
+     intros $(Lean.mkIdent `st); sdestruct_hyps; dsimp only))
+  Lean.Elab.Tactic.evalTactic prepare
+  Lean.Elab.Tactic.withMainContext do
+    let idents <- getPropsInContext
+    let solve <- `(tactic| sauto[$idents,*])
+    addSuggestion tk $ <- `(tactic| $prepare; $solve)
+    Lean.Elab.Tactic.evalTactic solve
 
 
 def showTacticTraceAt (stx : Syntax) (xtacs : Array (TSyntax `tactic)) : TacticM Unit := do
