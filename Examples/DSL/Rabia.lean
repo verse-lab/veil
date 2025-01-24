@@ -152,7 +152,7 @@ action phase_rnd2 = {
         in_phase n p := False
       else
         let v : state_value ← fresh
-        require v ≠ vquestion
+        assume v ≠ vquestion
         coin p v := True
         vote_rnd1 n psucc v := True
         in_phase n psucc := True
