@@ -259,7 +259,7 @@ set_option maxHeartbeats 8000000
 set_option auto.smt.timeout 60
 
 set_option sauto.smt.solver "cvc5"
-set_option sauto.smt.translator "lean-smt"
+set_option sauto.smt.translator "lean-auto"
 
 @[invProof]
   theorem Rabia.phase_rnd2_Rabia.inv_17_might_fail :
@@ -288,32 +288,6 @@ set_option sauto.smt.translator "lean-smt"
     by solve_wlp_clause Rabia.phase_rnd2.ext
 
 @[invProof]
-  theorem Rabia.phase_rnd2_Rabia.inv_17 :
-      ∀ (st st' : @State node set_majority set_f_plus_1 phase proposal_value state_value),
-        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                tv).assumptions
-            st →
-          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                  set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                  tv).inv
-              st →
-            (@Rabia.phase_rnd2.tr node node_dec node_ne set_majority set_majority_dec
-                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec
-                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
-                  state_value_dec state_value_ne tv)
-                st st' →
-              (@Rabia.inv_17 node node_dec node_ne set_majority set_majority_dec set_majority_ne
-                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot
-                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
-                  state_value_ne tv)
-                st' :=
-    by (unhygienic intros); solve_clause[Rabia.phase_rnd2.tr]
-
-
-@[invProof]
   theorem Rabia.phase_rnd2_Rabia.inv_33_might_fail :
       ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
         (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
@@ -338,32 +312,6 @@ set_option sauto.smt.translator "lean-smt"
                 proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
                 state_value_ne tv st' :=
     by solve_wlp_clause Rabia.phase_rnd2.ext
-
-  @[invProof]
-  theorem Rabia.phase_rnd2_Rabia.inv_33 :
-      ∀ (st st' : @State node set_majority set_f_plus_1 phase proposal_value state_value),
-        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                tv).assumptions
-            st →
-          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                  set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                  tv).inv
-              st →
-            (@Rabia.phase_rnd2.tr node node_dec node_ne set_majority set_majority_dec
-                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec
-                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
-                  state_value_dec state_value_ne tv)
-                st st' →
-              (@Rabia.inv_33 node node_dec node_ne set_majority set_majority_dec set_majority_ne
-                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot
-                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
-                  state_value_ne tv)
-                st' :=
-    by (unhygienic intros); solve_clause[Rabia.phase_rnd2.tr]
-
 
 @[invProof]
   theorem Rabia.phase_rnd2_Rabia.inv_34_might_fail :
@@ -392,32 +340,6 @@ set_option sauto.smt.translator "lean-smt"
     by solve_wlp_clause Rabia.phase_rnd2.ext
 
 
-  @[invProof]
-  theorem Rabia.phase_rnd2_Rabia.inv_34 :
-      ∀ (st st' : @State node set_majority set_f_plus_1 phase proposal_value state_value),
-        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                tv).assumptions
-            st →
-          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                  set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                  tv).inv
-              st →
-            (@Rabia.phase_rnd2.tr node node_dec node_ne set_majority set_majority_dec
-                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec
-                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
-                  state_value_dec state_value_ne tv)
-                st st' →
-              (@Rabia.inv_34 node node_dec node_ne set_majority set_majority_dec set_majority_ne
-                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot
-                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
-                  state_value_ne tv)
-                st' :=
-    by (unhygienic intros); solve_clause[Rabia.phase_rnd2.tr]
-
-
     @[invProof]
   theorem Rabia.decide_bc_decide_full_val_Rabia.inv_21 :
       ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
@@ -443,31 +365,6 @@ set_option sauto.smt.translator "lean-smt"
                 proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
                 state_value_ne tv st' :=
     by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext
-
-  @[invProof]
-  theorem Rabia.decide_bc_decide_full_val_Rabia.inv_21_might_fail :
-      ∀ (st st' : @State node set_majority set_f_plus_1 phase proposal_value state_value),
-        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                tv).assumptions
-            st →
-          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                  set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                  tv).inv
-              st →
-            (@Rabia.decide_bc_decide_full_val.tr node node_dec node_ne set_majority set_majority_dec
-                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec
-                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
-                  state_value_dec state_value_ne tv)
-                st st' →
-              (@Rabia.inv_21 node node_dec node_ne set_majority set_majority_dec set_majority_ne
-                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot
-                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
-                  state_value_ne tv)
-                st' :=
-    by (unhygienic intros); solve_clause[Rabia.decide_bc_decide_full_val.tr]
 
 
 @[invProof]
@@ -496,31 +393,6 @@ set_option sauto.smt.translator "lean-smt"
                 state_value_ne tv st' :=
     by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext
 
-  @[invProof]
-  theorem Rabia.decide_bc_decide_full_val_Rabia.vl_decision_bc_agree_might_fail :
-      ∀ (st st' : @State node set_majority set_f_plus_1 phase proposal_value state_value),
-        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                tv).assumptions
-            st →
-          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                  set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                  tv).inv
-              st →
-            (@Rabia.decide_bc_decide_full_val.tr node node_dec node_ne set_majority set_majority_dec
-                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec
-                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
-                  state_value_dec state_value_ne tv)
-                st st' →
-              (@Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
-                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec
-                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
-                  state_value_dec state_value_ne tv)
-                st' :=
-    by (unhygienic intros); solve_clause[Rabia.decide_bc_decide_full_val.tr]
-
 @[invProof]
   theorem Rabia.decide_bc_decide_full_noval_Rabia.vl_decision_bc_agree :
       ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
@@ -546,30 +418,5 @@ set_option sauto.smt.translator "lean-smt"
                 proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
                 state_value_ne tv st' :=
     by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext
-
-  @[invProof]
-  theorem Rabia.decide_bc_decide_full_noval_Rabia.vl_decision_bc_agree_might_fail :
-      ∀ (st st' : @State node set_majority set_f_plus_1 phase proposal_value state_value),
-        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                tv).assumptions
-            st →
-          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
-                  set_f_plus_1_dec set_f_plus_1_ne phase phase_dec phase_ne tot proposal_value
-                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
-                  tv).inv
-              st →
-            (@Rabia.decide_bc_decide_full_noval.tr node node_dec node_ne set_majority
-                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne
-                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
-                  state_value state_value_dec state_value_ne tv)
-                st st' →
-              (@Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
-                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne phase phase_dec
-                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
-                  state_value_dec state_value_ne tv)
-                st' :=
-    by (unhygienic intros); solve_clause[Rabia.decide_bc_decide_full_noval.tr]
 
 end Rabia
