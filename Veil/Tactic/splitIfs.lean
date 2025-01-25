@@ -99,14 +99,18 @@ private def reduceIfsAt (loc : Location) : TacticM Unit := do
   let _ ← simpLocation ctx (← ({} : Simp.SimprocsArray).add `reduceCtorEq false) discharge? loc
   pure ()
 
+
+
 /-- Splits a single if-then-else expression and then reduces the resulting goals.
 Has a similar effect as `SplitIf.splitIfTarget?` or `SplitIf.splitIfLocalDecl?` from
 core Lean 4. We opt not to use those library functions so that we can better mimic
 the behavior of mathlib3's `split_ifs`.
 -/
-private def splitIf1 (cond : Expr) (hName : Name) (loc : Location) : TacticM Unit := do
+private def splitIf1 (cond : Expr) (simps : Array Ident) (hName : Name) (loc : Location) : TacticM Unit := do
   let splitCases :=
-    evalTactic (← `(tactic| by_cases $(mkIdent hName) : $(← Elab.Term.exprToSyntax cond)))
+    evalTactic (← `(tactic|
+      (by_cases $(mkIdent hName) : $(← Elab.Term.exprToSyntax cond)) <;>
+       simp only [$[$simps:ident],*] at $(mkIdent hName):ident))
   andThenOnSubgoals splitCases (reduceIfsAt loc)
 
 /-- Pops off the front of the list of names, or generates a fresh name if the
@@ -135,7 +139,9 @@ Stops if it encounters a condition in the passed-in `List Expr`.
 -/
 private partial def splitIfsCore
     (loc : Location)
-    (hNames : IO.Ref (List (TSyntax `Lean.binderIdent))) :
+    (simps : Array Ident)
+    (hNames : IO.Ref (List (TSyntax `Lean.binderIdent)))
+    (hNamesOut : IO.Ref (List Name)) :
     List Expr → TacticM Unit := fun done ↦ withMainContext do
   let some (_,cond) ← findIfCondAt loc
       | Meta.throwTacticEx `split_ifs (← getMainGoal) "no if-then-else conditions to split"
@@ -146,10 +152,11 @@ private partial def splitIfsCore
   if done.contains cond then return ()
   let no_split ← valueKnown cond
   if no_split then
-    andThenOnSubgoals (reduceIfsAt loc) (splitIfsCore loc hNames (cond::done) <|> pure ())
+    andThenOnSubgoals (reduceIfsAt loc) (splitIfsCore loc simps hNames hNamesOut (cond::done) <|> pure ())
   else do
     let hName ← getNextName hNames
-    andThenOnSubgoals (splitIf1 cond hName loc) ((splitIfsCore loc hNames (cond::done)) <|>
+    hNamesOut.modify (hName :: ·)
+    andThenOnSubgoals (splitIf1 cond simps hName loc) ((splitIfsCore loc simps hNames hNamesOut (cond::done)) <|>
       pure ())
 
 open Parser.Tactic
@@ -163,20 +170,18 @@ ite-expression.
 `split_ifs at *` splits all ite-expressions in all hypotheses as well as the goal.
 `split_ifs with h₁ h₂ h₃` overrides the default names for the hypotheses.
 -/
-syntax (name := splitIfs) "split_ifs" (location)? (" with" (ppSpace colGt binderIdent)+)? : tactic
+syntax (name := splitIfs) "split_ifs" (location)? (" with" ident,+)? : tactic
 
 elab_rules : tactic
-| `(tactic| split_ifs $[$loc:location]? $[with $withArg*]?) =>
+| `(tactic| split_ifs $[$loc:location]? $[with $is,*]?) =>
   let loc := match loc with
   | none => Location.targets #[] true
   | some loc => expandLocation loc
-  let names := match withArg with
-  | none => []
-  | some args => args.toList
   withMainContext do
-    let names ← IO.mkRef names
-    splitIfsCore loc names []
-    for name in ← names.get do
-      logWarningAt name m!"unused name: {name}"
+    let names <- IO.mkRef []
+    let namesOut <- IO.mkRef []
+    splitIfsCore loc (is.getD ⟨#[]⟩) names namesOut []
+    -- for name in ← names.get do
+    --   logWarningAt name m!"unused name: {name}"
 
 end Mathlib.Tactic

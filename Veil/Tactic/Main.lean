@@ -209,20 +209,25 @@ syntax solveWlp := "solve_wlp_clause" <|> "solve_wlp_clause?"
 
 elab tk:solveWlp i:ident : tactic => withMainContext do
   let stateTpT ← getStateTpStx
-  let (invSimp, st, st', ass, inv, ifSimp) := (mkIdent `invSimp, mkIdent `st, mkIdent `st', mkIdent `ass_, mkIdent `inv_, mkIdent `ifSimp)
+  let (invSimp, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
+      (mkIdent `invSimp,
+       mkIdent `st, mkIdent `st',
+       mkIdent `ass_, mkIdent `inv_,
+       mkIdent `ifSimp,
+       mkIdent `exists_imp,
+       mkIdent `and_imp)
   let solve <- `(tacticSeq|
     dsimp only [$invSimp:ident, $i:ident]; intros $st:ident; sdestruct_hyps
     first
       | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
         unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
-      | dsimp only; (unhygienic intros); try simp only [$ifSimp:ident]
-    sdestruct_hyps -- We can optimise it by only destructing assumbtions and invariant
-                   -- Or maybe instead of destructing we can just run simp only [and_imp] in advance
+      | dsimp only;
+        simp only [$and_imp:ident, $exists_imp:ident];
+        unhygienic intros
+        try simp only [$ifSimp:ident]
     first
-      | sauto_all
-      | split_ifs <;>
-        simp only [logicSimp] at * <;> -- again we only need to do it for introduced `if` conditions
-        sauto_all )
+      -- | sauto_all
+      | (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWlp| solve_wlp_clause?) := tk then
       addSuggestion tk solve
     else evalTactic solve
