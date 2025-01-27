@@ -41,48 +41,47 @@ after_init {
 
 assumption ∀ (Q1:quorum) (Q2:quorum), ∃ (N:node), member N Q1 ∧ member N Q2
 
-action send_1a (R : round) = {
+action send_1a (r : round) = {
   -- a proposer selects a round and sends a message asking nodes to join the round
-  require R ≠ none
-  one_a R := True
+  require r ≠ none
+  one_a r := True
 }
 
-action join_round (N:node) (R:round) = {
+action join_round (n:node) (r:round) = {
     -- receive 1a and answer with 1b
-    require R ≠ none
-    require one_a R
-    require ¬ left_rnd N R
-    require ¬ (∃ (R':round) (RMAX:round) (V:value), one_b_max_vote N R' RMAX V ∧ ¬ tot.le R' R)
+    require r ≠ none
+    require one_a r
+    require ¬ left_rnd n r
     let maxr : round ← fresh
     let v : value ← fresh
       -- find the maximal vote in a round less than r
-    require (maxr = none ∧ ∀ (mAXR:round) (v':value), ¬ (¬ tot.le R mAXR ∧ vote N mAXR v')) ∨
-                    (maxr ≠ none ∧ ¬ tot.le R maxr ∧ vote N maxr v ∧
-                    (∀ (mAXR:round) (v':value), (¬ tot.le R mAXR ∧ vote N mAXR v') -> tot.le mAXR maxr))
+    require (maxr = none ∧ ∀ (mAXR:round) (v':value), ¬ (¬ tot.le r mAXR ∧ vote n mAXR v')) ∨
+                    (maxr ≠ none ∧ ¬ tot.le r maxr ∧ vote n maxr v ∧
+                    (∀ (mAXR:round) (v':value), (¬ tot.le r mAXR ∧ vote n mAXR v') -> tot.le mAXR maxr))
     one_b_max_vote N R maxr v := True
     one_b N R := True
-    left_rnd N K := left_rnd N K ∨ (¬ tot.le R K)
+    left_rnd N K := left_rnd N K ∨ (¬ tot.le r K)
 }
 
-action propose (R : round) (Q : quorum) = {
-  require R ≠ none
-  require ∀ V, ¬ proposal R V
-  require ∀ (N:node), member N Q -> one_b N R
+action propose (r : round) (q : quorum) = {
+  require r ≠ none
+  require ∀ V, ¬ proposal r V
+  require ∀ (N:node), member N q -> one_b N r
   let maxr : round ← fresh
   let v : value ← fresh
       -- find the maximal vote in a round less than r
-  require ∀ N, (maxr = none ∧ ∀ (n : node) (mAXR:round) (v':value), ¬ (member n Q ∧ ¬ tot.le R mAXR ∧ vote n mAXR v')) ∨
+  require ∀ N, (maxr = none ∧ ∀ (n : node) (mAXR:round) (v':value), ¬ (member n q ∧ ¬ tot.le r mAXR ∧ vote n mAXR v')) ∨
                     (maxr ≠ none ∧
-                    (∃ (n : node), member n Q ∧ ¬ tot.le R maxr ∧ vote n maxr v) ∧
-                    (∀ (n : node) (mAXR:round) (v':value), (member n Q ∧ ¬ tot.le R mAXR ∧ vote N mAXR v') -> tot.le mAXR maxr))
+                    (∃ (n : node), member n q ∧ ¬ tot.le r maxr ∧ vote n maxr v) ∧
+                    (∀ (n : node) (mAXR:round) (v':value), (member n q ∧ ¬ tot.le r mAXR ∧ vote N mAXR v') -> tot.le mAXR maxr))
   proposal R v := True
 }
 
-action cast_vote (N:node) (V:value) (R:round) = {
-  require R ≠ none
-  require ¬ left_rnd N R
-  require proposal R V
-  vote N R V := True
+action cast_vote (n:node) (v:value) (r:round) = {
+  require r ≠ none
+  require ¬ left_rnd n r
+  require proposal r v
+  vote n r v := True
 }
 
 action decide (n:node) (r:round) (v:value) (q : quorum) = {
