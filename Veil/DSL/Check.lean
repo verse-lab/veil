@@ -138,6 +138,7 @@ def checkIndividualTheorem (theoremName : Name) (cmd : TSyntax `command): Comman
     setEnv env
   return isProven
 
+#guard_msgs(drop warning) in
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) :
   CommandElabM Unit := do
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
@@ -149,9 +150,26 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   | (_, .noCheck, .printUnverifiedTheorems) => throwError "[checkTheorems] Cannot print unverified theorems without checking"
   | (_, .noCheck, .printAllTheorems) => displaySuggestion stx (allTheorems.map Prod.snd)
   | (_, .checkTheoremsIndividually, _) =>
+    let mut initIdAndResults := #[]
+    let mut thmIdAndResults := #[]
     for (thmId, cmd) in allTheorems do
-      -- `drop warning` to not show the sorry warning; `drop error` in case it's been defined before
-      elabCommand (← `(#guard_msgs(drop warning, drop error) in $(cmd)))
+      elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
+      let msgs := (<- get).messages
+      if msgs.hasErrors then
+        let ms1 <- msgs.unreported[0]!.toString
+        if thmId.actName.isNone then
+          initIdAndResults := initIdAndResults.push (thmId, SmtResult.Failure ("\n" ++ ms1))
+        else
+          thmIdAndResults := thmIdAndResults.push (thmId, SmtResult.Failure ("\n" ++ ms1))
+      else
+        if thmId.actName.isNone then
+          initIdAndResults := initIdAndResults.push (thmId, SmtResult.Unsat)
+        else
+          thmIdAndResults := thmIdAndResults.push (thmId, SmtResult.Unsat)
+    let initMsgs := getInitCheckResultMessages initIdAndResults.toList
+    let msgs := getActCheckResultMessages thmIdAndResults.toList
+    let msgs := initMsgs ++ msgs
+    logInfo ("\n".intercalate msgs.toList)
     match suggestionStyle with
     | .doNotPrint => pure ()
     | .printAllTheorems => displaySuggestion stx (allTheorems.map Prod.snd)
@@ -217,7 +235,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let provenActs := (actRes.filter (fun (_, res) => match res with
         | .Unsat => true
         | _ => false)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
-    let verifiedTheorems ← theoremSuggestionsForChecks provenInit provenActs vcStyle
+    let verifiedTheorems := (← theoremSuggestionsForChecks provenInit provenActs vcStyle)
     for (name, cmd) in verifiedTheorems do
       -- `drop warning` to not show the sorry warning; `drop error` in case it's been defined before
       elabCommand (← `(#guard_msgs(drop warning, drop error) in $(cmd)))

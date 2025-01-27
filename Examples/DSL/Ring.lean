@@ -54,7 +54,8 @@ set_option trace.dsl true
 
 #gen_spec
 
-#check_invariants
+#check_invariants_wlp
+
 
 prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
 
