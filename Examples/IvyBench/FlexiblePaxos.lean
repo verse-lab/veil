@@ -28,8 +28,6 @@ relation proposal : round -> value -> Prop
 relation vote : node -> round -> value -> Prop
 relation decision : node -> round -> value -> Prop
 
-relation isSafeAtPaxos : round → value → Prop
-
 #gen_state
 
 ghost relation chosenAt (R : round) (V : value) := ∃ q, ∀ n, member_2 n q → vote n R V
@@ -39,6 +37,7 @@ ghost relation showsSafeAtPaxos (Qin : quorum_1) (Rin : round) (Vin : value) := 
                 (maxRin ≠ negone ∧ (∃ (n : node), member_1 n Qin ∧ ¬ tot.le Rin maxRin ∧ vote n maxRin Vin) ∧
                                    (∀ (n : node) (maxR : round) (v : value), (member_1 n Qin ∧ ¬ tot.le Rin maxR ∧ vote n maxR v) → tot.le maxR maxRin))
     )
+ghost relation isSafeAtPaxos (R : round) (V : value) := ∃ q, showsSafeAtPaxos q R V
 assumption ∀ (x : round), tot.le negone x
 assumption ∀ (x : round), tot.le x max_
 assumption ∀ (q₁ : quorum_1) (q₂ : quorum_2), ∃ (n : node), member_1 n q₁ ∧ member_2 n q₂
