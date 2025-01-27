@@ -186,8 +186,6 @@ internal transition byzantine_step = {
   (∀ N1 N2 B X, well_behaved N1 → received_accept_commit N1 N2 B X = received_accept_commit' N1 N2 B X)
 }
 
-#print byzantine_step.ext
-
 -- the main safety
 safety [intertwined_safe]
   ∀ (n1 n2 : node) (b1 b2 : ballot) (v1 v2 : value),

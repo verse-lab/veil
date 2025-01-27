@@ -179,6 +179,10 @@ prove_inv_safe by { sdestruct st ; simp [invSimp, safeSimp] }
 
 set_option maxHeartbeats 2000000
 
+set_option sauto.smt.solver "cvc5"
+
+#time #check_invariants_wlp
+
 -- prove_inv_inductive by {
 --   constructor
 --   . apply inv_init
