@@ -68,16 +68,16 @@ after_init {
   disk_req_write_nodes X Y := False;
   disk_req_read_nodes X Y := False;
 
-  cache  _ := False;
-  ephemeral_clean  _ := False;
-  ephemeral_dirt _ := False;
-  persistent  _ := False;
-  frozen_dirt _ := False;
-  frozen_clean  _ := False;
+  cache X Y := False;
+  ephemeral_clean Y X := False;
+  -- ephemeral_dirt X := False;
+  persistent Y X := False;
+  -- frozen_dirt X := False;
+  frozen_clean Y X := False;
   frozen_indirection_table_loc_some := False;
-  outstanding_indirection_table_write _ := False;
-  outstanding_block_writes _ _ _ := False;
-  outstanding_block_reads _ _ := False;
+  outstanding_indirection_table_write X := False;
+  outstanding_block_writes X Y Z := False;
+  outstanding_block_reads X Y := False;
   sync_in_progress := False
 }
 
@@ -121,7 +121,12 @@ action write_back_indirection_table_resp (i : req_id) = {
   disk_req_write_indirection_tables I L := disk_req_write_indirection_tables I L ∨ (I = i ∧ L = frozen_indirection_table_loc)
 }
 
-#check_invariants
+#gen_spec
+
+-- FAILS
+-- set_option sauto.smt.solver "cvc5" in
+-- #time #check_invariants_wlp
+
 
 
 

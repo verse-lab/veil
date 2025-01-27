@@ -118,6 +118,6 @@ invariant [choosable_proposal] (∀ (R1:round) (R2:round) (V1:value) (V2:value) 
 #gen_spec
 
 set_option maxHeartbeats 2000000 in
-#check_invariants_wlp
+#time #check_invariants_wlp
 
 end PaxosFirstOrder

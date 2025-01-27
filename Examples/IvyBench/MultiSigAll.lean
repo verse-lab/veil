@@ -82,6 +82,8 @@ invariant [ic3po_global2] collect V1 D1 V2 D2 → proposed V1 D1 V2 D2
 invariant [ic3po_global3] sig V1 D1 V2 D2 S1 → sig_auth S1
 #gen_spec
 
-#check_invariants
+set_option sauto.smt.solver "cvc5" in
+#time #check_invariants_wlp
+
 
 end MultiSigAll

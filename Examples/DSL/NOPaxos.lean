@@ -236,4 +236,8 @@ safety [consistency] ((∃ (q: quorum), member lead q ∧ ∀ (r : replica), mem
 
 #gen_spec
 
+-- FAILS
+-- set_option sauto.smt.solver "cvc5" in
+-- #time #check_invariants_wlp
+
 end NOPaxos

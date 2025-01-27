@@ -48,7 +48,9 @@ invariant pending L L → le N L
 
 #gen_spec
 
-#check_invariants_wlp
+set_option sauto.smt.solver "cvc5" in
+#time #check_invariants_wlp?
+
 
 
 prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }

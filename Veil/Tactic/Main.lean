@@ -221,8 +221,8 @@ elab tk:solveWlp i:ident : tactic => withMainContext do
     first
       | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
         unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
-      | dsimp only;
-        simp only [$and_imp:ident, $exists_imp:ident];
+      | try dsimp only
+        try simp only [$and_imp:ident, $exists_imp:ident]
         unhygienic intros
         try simp only [$ifSimp:ident]
     first

@@ -105,6 +105,8 @@ invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ transaction_time TR1 TI1  ∨
 
 #gen_spec
 
-#check_invariants
+set_option sauto.smt.solver "cvc5" in
+#time #check_invariants_wlp
+
 
 end Blockchain
