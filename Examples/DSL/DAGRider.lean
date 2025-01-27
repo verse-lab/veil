@@ -190,6 +190,9 @@ invariant [dag_round_matches_vertex_round] ∀ r v, dag r v → vertexRound v r
 
 #gen_spec
 
-#check_invariants
+-- set_option sauto.smt.solver "cvc5" in
+--#time #check_invariants
+--set_option sauto.smt.solver "cvc5" in
+--#time #check_invariants_wlp
 
 end DAGRider

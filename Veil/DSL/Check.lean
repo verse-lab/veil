@@ -154,7 +154,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let mut thmIdAndResults := #[]
     for (thmId, cmd) in allTheorems do
       elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
-      let msgs := (← get).messages
+      let msgs := (<- get).messages
       if msgs.hasErrors then
         let ms1 <- msgs.unreported[0]!.toString
         if thmId.actName.isNone then
