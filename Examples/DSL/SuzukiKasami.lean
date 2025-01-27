@@ -120,6 +120,15 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.
 
 #gen_spec
 
+set_option sauto.smt.solver "cvc5"
+
+namespace Auto
+
+#time #check_invariants_wlp
+#time #check_invariants
+end Auto
+-- set_option sauto.smt.translator "lean-smt" in
+-- #time #check_invariants$wlp
 set_option sauto.smt.translator "lean-smt" in
 #check_invariants
 

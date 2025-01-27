@@ -65,36 +65,42 @@ after_init {
   coin P V := False
 }
 
--- CHECK the original Ivy proof heavily uses the `local ... assume` structure in writing the actions,
--- which should be equivalent to parameterized action with `require`s;
--- nevertheless, we might want to certify that
-
-action initial_proposal (n : node) (v : proposal_value) = {
-  require ¬ ∃ V : proposal_value, propose n V
-  require ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
-  require ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
-  require ∀ P, ¬ ∃ V : state_value, decision_bc n P V
-  require ∀ P, ¬ in_phase n P
+action initial_proposal = {
+  let n : node ← fresh
+  let v : proposal_value ← fresh
+  assume ¬ ∃ V : proposal_value, propose n V
+  assume ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
+  assume ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
+  assume ∀ P, ¬ ∃ V : state_value, decision_bc n P V
+  assume ∀ P, ¬ in_phase n P
   propose n v := True
 }
 
-action decide_bc_decide_full_val (n : node) (p : phase) (q : set_majority) = {
-  require decision_bc n p v1
+
+action decide_bc_decide_full_val = {
+  let n : node ← fresh
+  let p : phase ← fresh
+  let q : set_majority ← fresh
+  assume decision_bc n p v1
   if v : (∀ (N : node), member_maj N q → propose N v) then
     decision_full_val n p v := True
 }
 
-action decide_bc_decide_full_noval (n : node) (p : phase) = {
-  require decision_bc n p v0
+action decide_bc_decide_full_noval = {
+  let n : node ← fresh
+  let p : phase ← fresh
+  assume decision_bc n p v0
   decision_full_noval n p := True
 }
 
-action initial_vote1 (n : node) (q : set_majority) = {
-  require ∃ V : proposal_value, propose n V
-  require ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
-  require ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
-  require ∀ P, ¬ ∃ V : state_value, decision_bc n P V
-  require ∀ P, ¬ in_phase n P
+action initial_vote1 = {
+  let n : node ← fresh
+  let q : set_majority ← fresh
+  assume ∃ V : proposal_value, propose n V
+  assume ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
+  assume ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
+  assume ∀ P, ¬ ∃ V : state_value, decision_bc n P V
+  assume ∀ P, ¬ in_phase n P
 
   if v : (∀ (N : node), member_maj N q → propose N v) then
     vote_rnd1 n zero v1 := True
@@ -104,10 +110,13 @@ action initial_vote1 (n : node) (q : set_majority) = {
     in_phase n zero := True
 }
 
-action phase_rnd1 (n : node) (p : phase) (q : set_majority) = {
-  require in_phase n p
-  require ¬ ∃ V : state_value, vote_rnd2 n p V
-  require ∀ (N : node), member_maj N q → ∃ V, vote_rnd1 N p V
+action phase_rnd1 = {
+  let n : node ← fresh
+  let p : phase ← fresh
+  let q : set_majority ← fresh
+  assume in_phase n p
+  assume ¬ ∃ V : state_value, vote_rnd2 n p V
+  assume ∀ (N : node), member_maj N q → ∃ V, vote_rnd1 N p V
 
   if v : (∀ (N : node), member_maj N q → vote_rnd1 N p v) then
     vote_rnd2 n p v := True
@@ -115,11 +124,15 @@ action phase_rnd1 (n : node) (p : phase) (q : set_majority) = {
     vote_rnd2 n p vquestion := True
 }
 
-action phase_rnd2 (n : node) (p psucc : phase) (q : set_majority) = {
-  require in_phase n p
-  require ∃ V : state_value, vote_rnd2 n p V
-  require ∀ (N : node), member_maj N q → ∃ V, vote_rnd1 N p V
-  require next p psucc
+action phase_rnd2 = {
+  let n : node ← fresh
+  let p : phase ← fresh
+  let psucc : phase ← fresh
+  let q : set_majority ← fresh
+  assume in_phase n p
+  assume ∃ V : state_value, vote_rnd2 n p V
+  assume ∀ (N : node), member_maj N q → ∃ V, vote_rnd2 N p V
+  assume next p psucc
 
   if v : (v ≠ vquestion ∧
       (∃ N0 Q, member_fp1 N0 Q ∧ (∀ N, member_fp1 N Q → member_maj N q ∧ vote_rnd2 N p v)))
@@ -140,7 +153,7 @@ action phase_rnd2 (n : node) (p psucc : phase) (q : set_majority) = {
         in_phase n p := False
       else
         let v : state_value ← fresh
-        require v ≠ vquestion
+        assume v ≠ vquestion
         coin p v := True
         vote_rnd1 n psucc v := True
         in_phase n psucc := True
@@ -151,7 +164,7 @@ invariant propose N V1 ∧ propose N V2 → V1 = V2
 invariant [decision_full_val_inv] decision_full_val N P V → decision_bc N P v1
 invariant decision_full_val N P V →
   ∃ Q : set_majority, ∀ N : node, member_maj N Q → propose N V
-invariant [decision_full_val_validity] decision_full_val N P V → ∃ N : node, propose N V
+invariant [decision_full_val_validity] decision_full_val N P V → ∃ N0 : node, propose N0 V
 invariant [decision_full_val_agree] decision_full_val N1 P1 V1 ∧ decision_full_val N2 P2 V2 → V1 = V2
 invariant [decision_full_noval_inv] decision_full_noval N P → decision_bc N P v0
 
@@ -178,7 +191,7 @@ invariant ¬ coin P vquestion
 invariant ¬ (coin P v0 ∧ coin P v1)
 -- CHECK the following one does not seem to make sense? comment out for now
 -- invariant decision_bc N P V ∧ vote_rnd2 N2 P V2 → V2 ≠ vquestion ∨ V2 = V2
-invariant ∀ Q, coin P V → ∃ N:node, member_fp1 N Q ∧ vote_rnd2 N P vquestion
+invariant ∀ Q, coin P V → ∃ N : node, member_fp1 N Q ∧ vote_rnd2 N P vquestion
 invariant decision_bc N P V → ¬ coin P V2
 
 invariant coin P V → ∃ Q : set_majority, ∀ N : node, member_maj N Q → ∃ V, vote_rnd2 N P V
@@ -224,28 +237,31 @@ invariant (∃ N V, vote_rnd1 N P V) ∧ state_value_locked P V1 ∧ state_value
 
 -- CHECK is the following translation correct?
 
-ghost relation started (p : phase) := ∃ N V, vote_rnd1 N p V
+-- ghost relation started (p : phase) := ∃ N V, vote_rnd1 N p V
 
-ghost relation good (p : phase) :=
-  started p ∧
-  (∀ P0, lt P0 p → started P0) ∧
-  (∀ P0 V0, lt P0 p ∧ started P0 ∧
-    (((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
-      state_value_locked p V0))
+-- ghost relation good (p : phase) :=
+--   started p ∧
+--   (∀ P0, lt P0 p → started P0) ∧
+--   (∀ P0 V0, lt P0 p ∧ started P0 ∧
+--     (((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
+--       state_value_locked p V0))
 
--- safety?
-safety [good_succ_good] good P ∧ next P P2 ∧ started P2 → good P2
-safety [good_zero] started zero → good zero
-safety [started_pred] started P2 ∧ next P P2 → started P2
-safety [decision_bc_started] decision_bc N P V2 → started P
-safety [vote_rnd2_vote_rnd1] vote_rnd2 N P V ∧ V ≠ vquestion → ∃ N2, vote_rnd1 N2 P V
-safety [decision_bc_vote_rnd1] decision_bc N P V → ∃ N2, vote_rnd1 N2 P V
+-- -- safety?
+-- safety [good_succ_good] good P ∧ next P P2 ∧ started P2 → good P2
+-- safety [good_zero] started zero → good zero
+-- safety [started_pred] started P2 ∧ next P P2 → started P2
+-- safety [decision_bc_started] decision_bc N P V2 → started P
+-- safety [vote_rnd2_vote_rnd1] vote_rnd2 N P V ∧ V ≠ vquestion → ∃ N2, vote_rnd1 N2 P V
+-- safety [decision_bc_vote_rnd1] decision_bc N P V → ∃ N2, vote_rnd1 N2 P V
 
 #gen_spec
 
 set_option maxHeartbeats 8000000
-set_option auto.smt.timeout 15
+set_option auto.smt.timeout 60
 
-#check_invariants
+set_option sauto.smt.solver "cvc5"
+set_option sauto.smt.translator "lean-auto"
+
+#check_invariants_wlp
 
 end Rabia

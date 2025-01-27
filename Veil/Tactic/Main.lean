@@ -1,5 +1,6 @@
 import Lean.Elab.Tactic
 import Veil.Tactic.Util
+import Veil.Tactic.splitIfs
 import Veil.TransitionSystem
 import Lean.Meta.Tactic.TryThis
 
@@ -190,30 +191,46 @@ elab_rules : tactic
   | `(tactic| fast_simplify_clause%$_tk) => do _ ← elabSimplifyClause (thorough := false)
   | `(tactic| fast_simplify_clause?%$tk) => do _ ← elabSimplifyClause (thorough := false) (traceAt := tk)
 
+/-- Call `sauto` with all the hypotheses in the context. -/
+def elabSautoAll (stx : Syntax) (trace : Bool := false) : TacticM Unit := withMainContext do
+  let idents ← getPropsInContext
+  let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
+  if trace then
+    addSuggestion stx auto_tac
+  evalTactic auto_tac
+
+syntax (name := sautoAll) "sauto_all" : tactic
+syntax (name := sautoAllTrace) "sauto_all?" : tactic
+elab_rules : tactic
+  | `(tactic| sauto_all%$tk) => elabSautoAll tk
+  | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
+
 syntax solveWlp := "solve_wlp_clause" <|> "solve_wlp_clause?"
 
 elab tk:solveWlp i:ident : tactic => withMainContext do
   let stateTpT ← getStateTpStx
-  let (invSimp, st, st', ass, inv, ifSimp) := (mkIdent `invSimp, mkIdent `st, mkIdent `st', mkIdent `ass_, mkIdent `inv_, mkIdent `ifSimp)
-  let prepare <- `(tacticSeq|
+  let (invSimp, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
+      (mkIdent `invSimp,
+       mkIdent `st, mkIdent `st',
+       mkIdent `ass_, mkIdent `inv_,
+       mkIdent `ifSimp,
+       mkIdent `exists_imp,
+       mkIdent `and_imp)
+  let solve <- `(tacticSeq|
     dsimp only [$invSimp:ident, $i:ident]; intros $st:ident; sdestruct_hyps
     first
       | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
         unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
-      | dsimp only; (unhygienic intros); try simp only [$ifSimp:ident])
-  Lean.Elab.Tactic.evalTactic prepare
-  Lean.Elab.Tactic.withMainContext do
-    let idents <- getPropsInContext
-    let solve <- `(tactic| sauto[$idents,*])
+      | dsimp only;
+        simp only [$and_imp:ident, $exists_imp:ident];
+        unhygienic intros
+        try simp only [$ifSimp:ident]
+    first
+      -- | sauto_all
+      | (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWlp| solve_wlp_clause?) := tk then
-      addSuggestion tk $ <- `(tacticSeq|
-    dsimp only [$invSimp:ident, $i:ident]; intros $st:ident; sdestruct_hyps
-    first
-      | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
-        unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
-      | dsimp only; (unhygienic intros); try simp only [$ifSimp:ident]
-    sauto[$idents,*])
-    Lean.Elab.Tactic.evalTactic solve
+      addSuggestion tk solve
+    else evalTactic solve
 
 
 def showTacticTraceAt (stx : Syntax) (xtacs : Array (TSyntax `tactic)) : TacticM Unit := do
@@ -245,19 +262,7 @@ elab_rules : tactic
   | `(tactic| solve_clause?%$tk) => elabSolveClause tk (trace := true)
   | `(tactic| solve_clause%$tk [ $[$simp0],* ]) => elabSolveClause tk simp0
 
-/-- Call `sauto` with all the hypotheses in the context. -/
-def elabSautoAll (stx : Syntax) (trace : Bool := false) : TacticM Unit := withMainContext do
-  let idents ← getPropsInContext
-  let auto_tac ← `(tactic| sauto [$[$idents:ident],*])
-  if trace then
-    addSuggestion stx auto_tac
-  evalTactic auto_tac
 
-syntax (name := sautoAll) "sauto_all" : tactic
-syntax (name := sautoAllTrace) "sauto_all?" : tactic
-elab_rules : tactic
-  | `(tactic| sauto_all%$tk) => elabSautoAll tk
-  | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
 elab "simplify_all" : tactic => withMainContext do
   let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
