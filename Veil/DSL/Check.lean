@@ -6,7 +6,7 @@ import Veil.DSL.Util
 import Veil.DSL.DisplayUtil
 import Veil.DSL.SMTUtil
 
-open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis
+open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
 /-- We support two styles of verification condition generation:
   - `wlp`, which is what Ivy does
@@ -154,7 +154,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let mut thmIdAndResults := #[]
     for (thmId, cmd) in allTheorems do
       elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
-      let msgs := (<- get).messages
+      let msgs ← liftCoreM Lean.Core.getAndEmptyMessageLog
       if msgs.hasErrors then
         let ms1 <- msgs.unreported[0]!.toString
         if thmId.actName.isNone then
@@ -173,7 +173,12 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     match suggestionStyle with
     | .doNotPrint => pure ()
     | .printAllTheorems => displaySuggestion stx (allTheorems.map Prod.snd)
-    | .printUnverifiedTheorems => pure ()
+    | .printUnverifiedTheorems =>
+      let unverifiedTheoremIds := (thmIdAndResults.filter (fun res => match res with
+        | (_, .Unsat) => false
+        | _ => true)).map (fun (id, _) => id)
+      let unverifiedTheorems := (allTheorems.filter (fun (id, _) => unverifiedTheoremIds.any (fun id' => id == id'))).map Prod.snd
+      displaySuggestion stx unverifiedTheorems
   | (.wlp, .checkTheoremsWithIndicators, _) => throwError "[checkTheorems] wlp style is not supported for checkTheoremsWithIndicators"
   | (.transition, .checkTheoremsWithIndicators, _) =>
     let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
@@ -265,6 +270,7 @@ syntax "#check_invariants!" : command
 
 syntax "#check_invariants_wlp" : command
 syntax "#check_invariants_wlp?" : command
+syntax "#check_invariants_wlp!" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
@@ -278,6 +284,7 @@ elab_rules : command
   | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .exclamation)
   | `(command| #check_invariants_wlp) => do checkInvariants (← getRef) (behaviour := (.wlp, .checkTheoremsIndividually, .doNotPrint))
   | `(command| #check_invariants_wlp?) => do checkInvariants (← getRef) (behaviour := (.wlp, .noCheck, .printAllTheorems))
+  | `(command| #check_invariants_wlp!) => do checkInvariants (← getRef) (behaviour := (.wlp, .checkTheoremsIndividually, .printUnverifiedTheorems))
 
 /- ## `#check_invariant` -/
 syntax "#check_invariant" ident : command

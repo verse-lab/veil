@@ -118,7 +118,7 @@ action decide (n : node) (r : round) (c : config) (v : value) (q : quorum) = {
   complete_msg r := True
 }
 
-safety (decision N1 R1 V1 ∧ decision N2 R2 V2) → V1 = V2
+safety [coherence] (decision N1 R1 V1 ∧ decision N2 R2 V2) → V1 = V2
 
 invariant [unique_config] configure_round_msg R C1 ∧ configure_round_msg R C2 → C1 = C2
 
@@ -135,7 +135,8 @@ invariant [complete_prev_configured] complete_msg R2 ∧ tot.le R1 R2 → ∃ c,
 -- conjecture forall R:round, V:value. (exists N:node. decision(N,R,V)) -> exists C:config, Q:quorum. configure_round_msg(R,C) & quorumin(Q,C) & (forall N:node. member(N, Q) -> vote(N,R,V))
 invariant [decisions_from_quorums] (∃ n, decision n R V) → ∃ c q, configure_round_msg R c ∧ quorumin q c ∧ (∀ n, member n q → vote n R V)
 
-invariant [choosable_proposal] ¬ tot.le R2 R1 ∧ proposal R2 V2 ∧ V1 ≠ V2 ∧ configure_round_msg R1 C ∧ quorumin Q C → ∃ n r3 rp, member n Q ∧ ¬ tot.le r3 R1 ∧ join_ack_msg n R3 rp V1 ∧ ¬ vote n R1 V1
+invariant [choosable_proposal] ¬ tot.le R2 R1 ∧ proposal R2 V2 ∧ V1 ≠ V2 ∧
+  configure_round_msg R1 C ∧ quorumin Q C → ∃ n r3 rp v, member n Q ∧ ¬ tot.le r3 R1 ∧ join_ack_msg n R3 rp v ∧ ¬ vote n R1 V1
 
 invariant [configure_round_msg] configure_round_msg R C → tot.le (complete_of C) R ∧ tot.le (complete_of C) master_complete
 
@@ -155,6 +156,6 @@ invariant [join_ack_msg_property3] join_ack_msg N R RP V ∧ V ≠ none → vote
 
 set_option sauto.smt.solver "cvc5"  -- for its determinism
 
-#time #check_invariants_wlp
+#time #check_invariants_wlp!
 
 end VerticalPaxosFirstOrder

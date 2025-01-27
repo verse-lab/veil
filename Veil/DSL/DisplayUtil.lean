@@ -28,7 +28,7 @@ structure TheoremIdentifier where
   /-- If it's `none`, it's the initial action. -/
   actName : Option Name
   theoremName : Name
-deriving Inhabited
+deriving Inhabited, BEq
 
 def getInitCheckResultMessages' (res: List (Name × SmtResult)) : (Array String) := Id.run do
   let mut msgs := #[]
