@@ -208,9 +208,6 @@ set_option auto.smt.timeout 15 -- seconds
 
 #gen_spec
 
-
-#check_invariants
-
 prove_inv_init by { solve_clause }
 prove_inv_safe by { solve_clause }
 
@@ -218,8 +215,10 @@ prove_inv_inductive by {
   constructor
   . apply inv_init
   intro st st' has hinv hnext
-  sts_induction <;> sdestruct_goal <;> sorry
+  sts_induction <;> sdestruct_goal <;> solve_clause
 }
+
+#check_invariants
 
 sat trace [initial_state] {} by { bmc_sat }
 
