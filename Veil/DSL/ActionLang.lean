@@ -190,17 +190,15 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
     `(Term.doSeqItem| if $t then $thn* else $els*)
   -- Expand non-determenistic assigments statements
   | `(Term.doSeqItem| $id:ident := *) =>
-    let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
-      | throwErrorAt stx "trying to assign to undeclared state component {id}"
+    let typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
     let fr := mkIdent <| <- mkFreshUserName `fresh
-    modify (·.push ⟨fr, typeStx⟩)
+    modify (·.push ⟨fr, typeStx.getD (<- `(_))⟩)
     expandDoElemVeil $ <- `(Term.doSeqItem|$id:ident := $fr)
   | `(Term.doSeqItem| $idts:term := *) =>
     let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
-    let .some typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
-      | throwErrorAt stx "trying to assign to undeclared state component {id}"
+    let typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
     let fr := mkIdent <| <- mkFreshUserName `fresh
-    modify (·.push ⟨fr, typeStx⟩)
+    modify (·.push ⟨fr, typeStx.getD (<- `(_))⟩)
     expandDoElemVeil $ <- `(Term.doSeqItem|$idts:term := $fr:ident $ts*)
   -- Expand determenistic assigments statements
   | `(Term.doSeqItem| $id:ident := $t:term) =>
