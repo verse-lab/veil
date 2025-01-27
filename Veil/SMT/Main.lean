@@ -477,7 +477,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
   let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
   match res with
   -- if we have a model, we can print it
-  | .Sat (.some fostruct) => throwError "the goal is false: {fostruct}"
+  | .Sat (.some fostruct) => throwError s!"the goal is false: {fostruct}"
   | .Sat none =>
     -- If we don't, we probably called `lean-auto`, so we need to call
     -- `lean-smt` to get the model.
@@ -485,10 +485,10 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
       let hs ← Tactic.parseHints ⟨stx[1]⟩
       let cmdString ← prepareLeanSmtQuery mv hs
       let res ← querySolver cmdString withTimeout
-      if let .Sat (.some fostruct) := res then
-        throwError "the goal is false: {fostruct}"
-      else
-        throwError s!"the goal is false, but second SMT query asking for a model returned {res}"
+      match res with
+      | .Sat (.some fostruct) => throwError s!"the goal is false: {fostruct}"
+      | .Sat none => throwError "the goal is false (print the model with `set_option trace.sauto.model true`)"
+      | .Unknown _ | .Failure _ | .Unsat => throwError s!"the goal is false, but second SMT query asking for a model returned {res}"
     else
       throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
