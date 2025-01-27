@@ -49,15 +49,31 @@ invariant [indv_true] indv
 #gen_spec
 
 /--
-info:
-@[invProof]
+info: Initialization must establish the invariant:
+  single_leader ... ✅
+  inv_1 ... ✅
+  indv_true ... ❌
+The following set of actions must preserve the invariant:
+  send
+    single_leader ... ✅
+    inv_1 ... ✅
+    indv_true ... ✅
+  recv
+    single_leader ... ❌
+    inv_1 ... ✅
+    indv_true ... ✅
+  ruin_inv
+    single_leader ... ✅
+    inv_1 ... ✅
+    indv_true ... ❌
+---
+info: @[invProof]
   theorem init_Ring.indv_true :
       ∀ (st : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
-          (@System node node_dec node_ne tot btwn).init st →
-            (@Ring.indv_true node node_dec node_ne tot btwn) st :=
+          (@System node node_dec node_ne tot btwn).init st → (@Ring.indv_true node node_dec node_ne tot btwn) st :=
     by (unhygienic intros); exact sorry
-
+  ⏎
   @[invProof]
   theorem ruin_inv_Ring.indv_true :
       ∀ (st st' : @State node),
@@ -66,7 +82,7 @@ info:
             (@ruin_inv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.indv_true node node_dec node_ne tot btwn) st' :=
     by (unhygienic intros); exact sorry
-
+  ⏎
   @[invProof]
   theorem recv_Ring.single_leader :
       ∀ (st st' : @State node),

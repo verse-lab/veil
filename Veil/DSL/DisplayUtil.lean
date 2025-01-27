@@ -23,7 +23,14 @@ def emoji (res : SmtResult) : String :=
 
 def getBaseNameForDisplay (n : Name) : Name := n.updatePrefix Name.anonymous
 
-def getInitCheckResultMessages (res: List (Name × SmtResult)) : (Array String) := Id.run do
+structure TheoremIdentifier where
+  invName : Name
+  /-- If it's `none`, it's the initial action. -/
+  actName : Option Name
+  theoremName : Name
+deriving Inhabited
+
+def getInitCheckResultMessages' (res: List (Name × SmtResult)) : (Array String) := Id.run do
   let mut msgs := #[]
   if !res.isEmpty then
     msgs := msgs.push "Initialization must establish the invariant:"
@@ -31,7 +38,10 @@ def getInitCheckResultMessages (res: List (Name × SmtResult)) : (Array String) 
       msgs := msgs.push s!"  {getBaseNameForDisplay invName} ... {emoji r}"
   pure msgs
 
-def getActCheckResultMessages (res: List (Name × Name × SmtResult)) : (Array String) := Id.run do
+def getInitCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := getInitCheckResultMessages' (res.map (fun (id, r) => (id.invName, r)))
+
+/-- `(invName, actName, result)` -/
+def getActCheckResultMessages' (res: List (Name × Name × SmtResult)) : (Array String) := Id.run do
   let mut msgs := #[]
   if !res.isEmpty then
     msgs := msgs.push "The following set of actions must preserve the invariant:"
@@ -47,3 +57,5 @@ where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
           acc.filter (fun (k', _) => k' ≠ key) ++ [(k, vs ++ [val])]
     | none =>
       acc ++ [(key, [val])]) []
+
+def getActCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := getActCheckResultMessages' (res.map (fun (id, r) => (id.invName, id.actName.get!, r)))

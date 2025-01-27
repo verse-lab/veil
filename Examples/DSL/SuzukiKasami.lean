@@ -120,6 +120,7 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.
 
 #gen_spec
 
+set_option sauto.smt.translator "lean-smt" in
 #check_invariants
 
 end SuzukiKasami

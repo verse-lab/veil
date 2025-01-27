@@ -186,6 +186,8 @@ internal transition byzantine_step = {
   (∀ N1 N2 B X, well_behaved N1 → received_accept_commit N1 N2 B X = received_accept_commit' N1 N2 B X)
 }
 
+#print byzantine_step.ext
+
 -- the main safety
 safety [intertwined_safe]
   ∀ (n1 n2 : node) (b1 b2 : ballot) (v1 v2 : value),
@@ -208,7 +210,16 @@ invariant ∀ N B V1 V2, well_behaved N ∧ accepted_prepared N B V1 ∧ accepte
 
 #gen_spec
 
+set_option sauto.smt.solver "z3"
+
+namespace Auto
+#time #check_invariants$wlp
+-- #time #check_invariants
+end Auto
+-- set_option sauto.smt.translator "lean-smt" in
+-- #time #check_invariants$wlp
 set_option sauto.smt.translator "lean-smt" in
-#check_invariants
+#time #check_invariants
+
 
 end SCP

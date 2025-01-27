@@ -367,6 +367,13 @@ macro "exists?" br:explicitBinders ? "," t:term : term =>
   | some br => `(exists $br, $t)
   | none => `($t)
 
+macro "forall?" br:bracketedBinder* "," t:term : term =>
+  if br.size > 0 then
+    `(∀ $br*, $t)
+  else
+    `($t)
+
+
 /-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`.
   More specifically it defines 4 things
   - `act.unsimplified : ∀ m, Wlp m σ ρ`: unsimplified version of `act`, which
@@ -395,7 +402,7 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       trace[dsl.debug] "{fnDef}"
       -- version with `forall` quantified arguments
       let extDef ← `(@[actSimp] def $extName $[$vd]* :=
-        $(← dsimpOnly (← `(fun (st : $stateTpT) post => ∀ $univBinders*, @$genName $sectionArgs* $args* .external st post)) #[`genSimp]))
+        $(← dsimpOnly (← `(fun (st : $stateTpT) post => forall? $univBinders*, @$genName $sectionArgs* $args* .external st post)) #[`genSimp]))
       trace[dsl.debug] "{extDef}"
       let trDef ← do
         let (st, st') := (mkIdent `st, mkIdent `st')
@@ -420,8 +427,8 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
 def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
     let vd ← getImplicitActionParameters
     -- `nm.unsimplified`
-    let (uName, fnName, trName) := (toUnsimplifiedIdent nm, nm, toTrIdent nm)
-    let (unsimplifiedDef, trDef, fnDef) ← Command.runTermElabM fun vs => do
+    let (uName, fnName, extName, trName) := (toUnsimplifiedIdent nm, nm, toExtIdent nm, toTrIdent nm)
+    let (unsimplifiedDef, trDef, extDef, fnDef) ← Command.runTermElabM fun vs => do
       let stateTpT ← getStateTpStx
       let trType <- `($stateTpT -> $stateTpT -> Prop)
       -- Create binders and arguments
@@ -439,9 +446,11 @@ def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
         | none => `(fun ($st $st' : $stateTpT) => @$uName $sectionArgs* $args* $st $st')
         `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWlp rhs))
       let attr ← toActionAttribute (toActionType actT)
-      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← unfoldWlp $ ← `((@$uName $sectionArgs* $args*).toWlp)))
+      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← unfoldWlp $ ← `((@$uName $sectionArgs* $args*).toWlp .internal)))
+      let extTerm ← `(fun (st : $stateTpT) post => forall? $univBinders*, (@$uName $sectionArgs* $args*).toWlp .external st post)
+      let extDef ← `(@[$attr, actSimp] def $extName $[$vd]* :=  $(<- unfoldWlp extTerm) )
       trace[dsl.debug] "{fnDef}"
-      return (unsimplifiedDef, trDef, fnDef)
+      return (unsimplifiedDef, trDef, extDef, fnDef)
     -- Declare `nm.unsimplified` and `nm`
     elabCommand unsimplifiedDef
     trace[dsl.info] "{uName} is defined"
@@ -449,6 +458,9 @@ def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
     trace[dsl.info] "{fnName} is defined"
     elabCommand fnDef
     trace[dsl.info] "{trName} is defined"
+    elabCommand extDef
+    trace[dsl.info] "{extName} is defined"
+
 
 /-- Show a warning if the given declaration has higher-order quantification -/
 def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
