@@ -1,6 +1,3 @@
-import Veil.State
-import Veil.TransitionSystem
-import Veil.Tactic
 import Veil.DSL
 import Examples.DSL.Std
 
@@ -11,7 +8,6 @@ open Classical
 
 type node
 instantiate tot : TotalOrder node
--- instantiate dec_le : DecidableBinaryRel tot.le
 instantiate btwn : Between node
 
 
@@ -49,8 +45,6 @@ action recv (sender n next : node) = {
 safety [single_leader] leader L → le N L
 invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
-
-set_option trace.dsl true
 
 #gen_spec
 
