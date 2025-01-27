@@ -58,9 +58,9 @@ action join_round (n:node) (r:round) = {
     require (maxr = none ∧ ∀ (mAXR:round) (v':value), ¬ (¬ tot.le r mAXR ∧ vote n mAXR v')) ∨
                     (maxr ≠ none ∧ ¬ tot.le r maxr ∧ vote n maxr v ∧
                     (∀ (mAXR:round) (v':value), (¬ tot.le r mAXR ∧ vote n mAXR v') -> tot.le mAXR maxr))
-    one_b_max_vote N R maxr v := True
-    one_b N R := True
-    left_rnd N K := left_rnd N K ∨ (¬ tot.le r K)
+    one_b_max_vote n r maxr v := True
+    one_b n r := True
+    left_rnd n R := left_rnd n R ∨ (¬ tot.le r R)
 }
 
 action propose (r : round) (q : quorum) = {
@@ -74,7 +74,7 @@ action propose (r : round) (q : quorum) = {
                     (maxr ≠ none ∧
                     (∃ (n : node), member n q ∧ ¬ tot.le r maxr ∧ vote n maxr v) ∧
                     (∀ (n : node) (mAXR:round) (v':value), (member n q ∧ ¬ tot.le r mAXR ∧ vote N mAXR v') -> tot.le mAXR maxr))
-  proposal R v := True
+  proposal r v := True
 }
 
 action cast_vote (n:node) (v:value) (r:round) = {
