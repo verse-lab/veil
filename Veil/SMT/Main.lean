@@ -28,6 +28,11 @@ register_option sauto.smt.solver : SolverName := {
   descr := "SMT solver to use"
 }
 
+register_option sauto.smt.seed : Nat := {
+  defValue := 0xcafe
+  descr := "SMT seed to use"
+}
+
 register_option sauto.model.minimize : Bool := {
   defValue := false
   descr := "Should models be minimized before being displayed?"
@@ -122,19 +127,24 @@ def emitCommand (p : SolverProc) (c : IR.SMT.Command) : MetaM Unit := do
 
 def createSolver (name : SolverName) (withTimeout : Nat) : MetaM SolverProc := do
   let tlim_sec := withTimeout
+  let seed := sauto.smt.seed.get $ ← getOptions
   match name with
   | .none => throwError "createSolver :: Unexpected error"
   -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}"]
   -- We wrap Z3 with a Python script that prints models in a more usable format.
   | .z3   =>
     let solverPath := (System.mkFilePath [s!"{← IO.currentDir}", "z3model.py"]).toString
-    let args := #[s!"--tlimit={tlim_sec * 1000}"]
+    let args := #[s!"--tlimit={tlim_sec * 1000}", s!"--seed", s!"{seed}"]
     createAux solverPath args
   | .cvc4 => throwError "cvc4 is not supported"
   | .cvc5 =>
-      let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}",
+      let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}", "--seed", s!"{seed}",
         "--finite-model-find", "--enum-inst-interleave", "--nl-ext-tplanes", "--produce-models", "--incremental"]
-      createAux "cvc5" args
+      let proc ← createAux "cvc5" args
+      if name == SolverName.cvc5 then
+        emitCommand proc (.setLogic "ALL")
+        emitCommand proc (.setOption (.produceProofs true))
+      pure proc
 where
   createAux (path : String) (args : Array String) : MetaM SolverProc := do
     trace[sauto.debug] "invoking {path} {args}"
@@ -360,9 +370,6 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     | none => sauto.smt.solver.get opts
   trace[sauto.debug] "solver: {solverName}"
   let solver ← createSolver solverName withTimeout
-  if solverName == SolverName.cvc5 then
-    emitCommand solver (.setLogic "ALL")
-    emitCommand solver (.setOption (.produceProofs true))
   emitCommandStr solver goalQuery
   let res ← getSolverResult solver solverName (kill := true) getModel? minimize
   let res : SmtResult ← match res with

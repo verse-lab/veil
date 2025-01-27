@@ -104,9 +104,6 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
       | none => sauto.smt.solver.get opts
     trace[sauto.debug] "solver: {solverName}"
   let solver ← createSolver solverName withTimeout
-  if solverName == SolverName.cvc5 then
-    emitCommand solver (.setLogic "ALL")
-    emitCommand solver (.setOption (.produceProofs true))
   emitCommandStr solver s!"{goalQuery}\n"
   let mut ret := []
   let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).flatten
