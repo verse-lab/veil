@@ -67,7 +67,7 @@ def findStateType (ctx : LocalContext) : TacticM Expr := do
 def hypIsClass (hyp : LocalDecl) : TacticM Bool := do
   let env ← getEnv
   match hyp.type.getAppFn.constName? with
-  | some name => return isStructure env name
+  | some name => return name ≠ ``And ∧ isStructure env name
   | none => return false
 
 /-- Is this type something we should send to the SMT solver? -/
