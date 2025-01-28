@@ -7,7 +7,7 @@ namespace SuzukiKasamiInts
 open Classical
 
 type node
-abbrev seq_t : Type := Int
+notation "seq_t" => Int
 immutable individual init_node : node
 @[actSimp] abbrev next : seq_t → seq_t → Prop := λ x y => x + 1 = y
 
@@ -111,6 +111,234 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ I < J) → I ≤ (n_
 #gen_spec
 
 set_option sauto.smt.solver "cvc5"
-set_option sauto.smt.translator "lean-auto"
+set_option sauto.smt.translator "lean-smt"
+
+set_option trace.sauto.query true
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_request_SuzukiKasamiInts.no_consecutive_privilege :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_request.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.no_consecutive_privilege node node_dec node_ne st' :=
+    by
+      dsimp only [invSimp, SuzukiKasamiInts.rcv_request.ext]; intros st; sdestruct_hyps
+      first
+      | intro ass_ inv_; intro (st' : @State node);
+        unhygienic cases st'; revert ass_ inv_; dsimp only
+      | try dsimp only
+        try simp only [exists_imp, and_imp]
+        unhygienic intros
+        try simp only [ifSimp]
+      first
+      | (try split_ifs with exists_imp, and_imp)
+      { simp [actSimp] at *
+        sauto_all
+        }
+
+#exit
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_request_SuzukiKasamiInts.token_relation :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_request.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.token_relation node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_request.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.mutex :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) => @SuzukiKasamiInts.mutex node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.single_privilege :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.single_privilege node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.allowed_in_crit :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.allowed_in_crit node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.unique_tokens :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.unique_tokens node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.corresponding_tokens :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.corresponding_tokens node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.current_privilege_latest_token_1 :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.current_privilege_latest_token_1 node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.current_privilege_latest_token_2 :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.current_privilege_latest_token_2 node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.no_request_to_self :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.no_request_to_self node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.no_consecutive_privilege :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.no_consecutive_privilege node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.rcv_privilege_SuzukiKasamiInts.token_relation :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.rcv_privilege.ext node node_dec node_ne) st
+              fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.token_relation node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.rcv_privilege.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.mutex :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.mutex node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.single_privilege :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.single_privilege node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.allowed_in_crit :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.allowed_in_crit node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.unique_tokens :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.unique_tokens node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.corresponding_tokens :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.corresponding_tokens node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.current_privilege_latest_token_1 :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.current_privilege_latest_token_1 node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.current_privilege_latest_token_2 :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.current_privilege_latest_token_2 node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.no_request_to_self :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.no_request_to_self node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.no_consecutive_privilege :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.no_consecutive_privilege node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+  @[invProof]
+  theorem SuzukiKasamiInts.exit_SuzukiKasamiInts.token_relation :
+      ∀ (st : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiInts.exit.ext node node_dec node_ne) st fun _ (st' : @State node) =>
+              @SuzukiKasamiInts.token_relation node node_dec node_ne st' :=
+    by solve_wlp_clause SuzukiKasamiInts.exit.ext
+
+
 
 end SuzukiKasamiInts
