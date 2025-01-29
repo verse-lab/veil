@@ -52,6 +52,14 @@ def toActionAttribute (type : IOAutomata.ActionType) : AttrM (TSyntax `Lean.Pars
   | .input => `(attrInstance|inputActDef)
   | .output => `(attrInstance|outputActDef)
 
+open Lean.Parser.Term in
+def toActionAttribute' (type : IOAutomata.ActionType) : Lean.Elab.Attribute :=
+  match type with
+  | .internal => {name := `internalActDef}
+  | .input => {name := `inputActDef}
+  | .output => {name := `outputActDef}
+
+
 def addAction (type : IOAutomata.ActionType) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
   fun _ _ => do
     let spec := ActionSpecification.mkPlain type declName (mkConst declName)

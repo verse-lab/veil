@@ -30,6 +30,7 @@ macro "unfold_wlp" : conv =>
     Wlp.assert
     Wlp.require
     Wlp.fresh
+    Wlp.get
     -- unfold state monad actions
     set
     modify

@@ -67,7 +67,7 @@ def generateIgnoreFn : CommandElabM Unit := do
     let fieldNames ← getFields
     let fnIdents ← fieldNames.mapM (fun n => `($(quote n)))
     let namesArrStx ← `(#[$[$fnIdents],*])
-    let fnStx ← `(fun id stack _ => ($namesArrStx).contains id.getId && isActionSyntax stack)
+    let fnStx ← `(fun id stack _ => ($namesArrStx).contains id.getId /-&& isActionSyntax stack-/)
     let nm := mkIdent $ ← getPrefixedName `ignoreStateFields
     let ignoreFnStx ← `(@[unused_variables_ignore_fn] def $nm : Lean.Linter.IgnoreFunction := $fnStx)
     return ignoreFnStx
@@ -373,55 +373,121 @@ macro "forall?" br:bracketedBinder* "," t:term : term =>
   else
     `($t)
 
+def wlpUnfold := [``Wlp.bind, ``Wlp.pure, ``Wlp.get, ``Wlp.set, ``Wlp.modifyGet,
+  ``Wlp.assert, ``Wlp.assume, ``Wlp.require, ``Wlp.spec, ``Wlp.lift]
+
+def simpleAddDefn (n : Name) (e : Expr)
+  (red := Lean.ReducibilityHints.regular 0)
+  (attr : Array Attribute := #[])
+  (type : Option Expr := none) : TermElabM Unit := do
+  addDecl <|
+    Declaration.defnDecl <|
+      mkDefinitionValEx n [] (type.getD <| ← inferType e) e red
+      (DefinitionSafety.safe) []
+  applyAttributes n attr
+
+def simpleAddThm (n : Name) (tp : Expr) (tac : TermElabM (TSyntax `Lean.Parser.Tactic.tacticSeq))
+  (attr : Array Attribute := #[]) : TermElabM Unit := do
+  addDecl <|
+    Declaration.thmDecl <|
+      mkTheoremValEx n [] tp (<- elabTermAndSynthesize (<- `(by $(<- tac))) tp) []
+  applyAttributes n attr
+
+def mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) : TermElabM Expr := do
+  let e <- mkLambdaFVars vs e
+  return go vs.size e
+  where go (cnt : Nat) (e : Expr) : Expr :=
+    match cnt, e with
+    | 0, _ => e
+    | _, Expr.lam n d b .default =>
+      let b := go (cnt-1) b
+      Expr.lam n d b .implicit
+    | _, Expr.lam n d b bi =>
+      let b := go (cnt-1) b
+      Expr.lam n d b bi
+    | _, _ => e
 
 /-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`.
   More specifically it defines 4 things
   - `act.unsimplified : ∀ m, Wlp m σ ρ`: unsimplified version of `act`, which
     incorporates  -/
 def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
-    -- let lInternal <- `(doAssert $l)
-    -- let lExternal <- `(doAssume $l)
-    let (genName, uName, fnName, extName, trName) := (toGenIdent nm, toUnsimplifiedIdent nm, nm, toExtIdent nm, toTrIdent nm)
     let vd ← getImplicitActionParameters
-    let (unsimplifiedDef, genDef, fnDef, extDef, trDef) ← Command.runTermElabM fun vs => do
+    Command.runTermElabM fun vs => do
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
-      let stateTpT ← getStateTpStx
-      let (univBinders, args) ← match br with
-      | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
-      | none => pure (#[], #[])
+      -- let stateTpT ← getStateTpStx
+      let (univBinders, args, funNinders) ← match br with
+      | some br => pure (← toBracketedBinderArray br, ← existentialIdents br, <- toFunBinderArray br)
+      | none => pure (#[], #[], #[])
       -- Create types
+      let moduleName <- getCurrNamespace
+      let genEName := moduleName ++ nm.getId ++ `genE
+      let genIName := moduleName ++ nm.getId ++ `genI
       -- The actual command (not term) elaboration happens here
-      let genl <- `(fun m => do' m in $l)
-      let unsimplifiedDef <- `(@[actSimp] def $uName $[$vd]* $univBinders* := $(← unfoldWlp genl))
-      let genDef ← `(@[genSimp, actSimp] abbrev $genName $[$vd]* $univBinders* := $(← simplifyTerm $ <- `(@$uName $sectionArgs* $args*)))
-      trace[dsl.debug] "{unsimplifiedDef}"
-      let attr ← toActionAttribute (toActionType actT)
-      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* :=
-        $(← dsimpOnly (← `(@$genName $sectionArgs* $args* .internal)) #[`genSimp]))
-      trace[dsl.debug] "{fnDef}"
-      -- version with `forall` quantified arguments
-      let extDef ← `(@[actSimp] def $extName $[$vd]* :=
-        $(← dsimpOnly (← `(fun (st : $stateTpT) post => forall? $univBinders*, @$genName $sectionArgs* $args* .external st post)) #[`genSimp]))
-      trace[dsl.debug] "{extDef}"
-      let trDef ← do
-        let (st, st') := (mkIdent `st, mkIdent `st')
-        let tr <- `(@$genName $sectionArgs* $args* .external)
-        let rhs ← `(fun ($st $st' : $stateTpT) => exists? $br ?, Wlp.toActProp $tr $st $st')
-        `(@[actSimp] def $trName $[$vd]*  := $(← simplifyTerm rhs))
-      trace[dsl.debug] "{trDef}"
-      return (unsimplifiedDef, genDef, fnDef, extDef, trDef)
-    -- Declare `nm.unsimplified` and `nm`
-    elabCommand unsimplifiedDef
-    trace[dsl.info] "{uName} is defined"
-    elabCommand genDef
-    trace[dsl.info] "{genName} is defined"
-    elabCommand fnDef
-    trace[dsl.info] "{fnName} is defined"
-    elabCommand extDef
-    trace[dsl.info] "{extName} is defined"
-    elabCommand trDef
-    trace[dsl.info] "{trName} is defined"
+      let genlI <- `(fun $funNinders* => do' .internal in $l)
+      let genlE <- `(fun $funNinders* => do' .external in $l)
+
+      let genExpI <- withDeclName genIName do elabTermAndSynthesize genlI none
+      let genExpE <- withDeclName genEName do elabTermAndSynthesize genlE none
+      let wlpSimp := mkIdent `wlpSimp
+      let ⟨genExpE, _, _⟩ <- genExpE.runSimp `(tactic| simp only [$wlpSimp:ident])
+      let ⟨genExpI, _, _⟩ <- genExpI.runSimp `(tactic| simp only [$wlpSimp:ident])
+      let genExpE <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExpE
+      let genExpI <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExpI
+      simpleAddDefn genEName genExpE (attr := #[{name := `actSimp}, {name := `reducible}])
+      simpleAddDefn genIName genExpI (attr := #[{name := `actSimp}, {name := `reducible}])
+
+      let actE <- Lean.mkConst genEName |>.runUnfold (genEName :: wlpUnfold)
+      let actI <- Lean.mkConst genIName |>.runUnfold (genIName :: wlpUnfold)
+      let ⟨actE, actEPf, _⟩ <- actE.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierElim])
+      let ⟨actI, actIPf, _⟩ <- actI.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierElim])
+      let actEName := moduleName ++ nm.getId ++ `ext
+      let actIName := moduleName ++ nm.getId
+      let attr := toActionAttribute' (toActionType actT)
+      simpleAddDefn actEName actE (attr := #[{name := `actSimp}]) (type := <- inferType genExpE)
+      simpleAddDefn actIName actI (attr := #[{name := `actSimp}, attr]) (type := <- inferType genExpI)
+
+
+      let actTr <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
+      let actTr <- elabTermAndSynthesize actTr none
+      let actTr <- mkLambdaFVarsImplicit vs actTr
+      let ⟨actTr, _, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierElim])
+      let actTr <- instantiateMVars actTr
+      let actTrName := moduleName ++ nm.getId ++ `tr
+      simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
+
+      if veil.gen_sound.get <| <- getOptions then
+        let instETp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genEName):ident $sectionArgs* $args*))
+        let instETp <- elabTermAndSynthesize instETp none
+        let instITp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genIName):ident $sectionArgs* $args*))
+        let instITp <- elabTermAndSynthesize instITp none
+
+        simpleAddThm (moduleName ++ nm.getId ++ `genEInst) instETp `(tacticSeq| infer_instance) (attr := #[{name := `instance}])
+        simpleAddThm (moduleName ++ nm.getId ++ `genIInst) instITp `(tacticSeq| infer_instance) (attr := #[{name := `instance}])
+        let eqETp <- `(@$(mkIdent genEName) = @$(mkIdent actEName))
+        let eqITp <- `(@$(mkIdent genIName) = @$(mkIdent actIName))
+        let eqETp <- elabTermAndSynthesize eqETp none
+        let eqITp <- elabTermAndSynthesize eqITp none
+        let eqE <- ensureHasType eqETp <| actEPf.getD <| <- mkAppM ``Eq.refl #[mkConst actEName]
+        let eqI <- ensureHasType eqITp <| actIPf.getD <| <- mkAppM ``Eq.refl #[mkConst actIName]
+        let eqE <- Term.exprToSyntax eqE
+        let eqI <- Term.exprToSyntax eqI
+
+        let instETp <- `(forall? $[$vd]* $univBinders*, Sound (m := .external) (@$(mkIdent actEName):ident $sectionArgs* $args*))
+        let instETp <- elabTermAndSynthesize instETp none
+        let instITp <- `(forall? $[$vd]* $univBinders*, Sound (m := .internal) (@$(mkIdent actIName):ident $sectionArgs* $args*))
+        let instITp <- elabTermAndSynthesize instITp none
+
+        simpleAddThm (moduleName ++ nm.getId ++ `instExt) instETp
+          `(tacticSeq|
+            have h : @$(mkIdent genEName) = @$(mkIdent actEName) := $eqE
+            rw [<-h]; infer_instance) (attr := #[{name := `instance}])
+        simpleAddThm (moduleName ++ nm.getId ++ `inst) instITp
+          `(tacticSeq|
+            have h : @$(mkIdent genIName) = @$(mkIdent actIName) := $eqI
+            rw [<-h]; infer_instance) (attr := #[{name := `instance}])
+
 
 /-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
 def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do

@@ -17,9 +17,7 @@ action nondet_individual = {
 /--
 info: def Test.nondet_individual : {node : Type} →
   [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wlp Mode.internal (State node) PUnit :=
-fun {node} [DecidableEq node] [Nonempty node] =>
-  let t := fun s post => ∀ (t : Prop), post PUnit.unit { x := t, r := s.r };
-  t
+fun {node} [DecidableEq node] [Nonempty node] s post => ∀ (t : Prop), post PUnit.unit { x := t, r := s.r }
 -/
 #guard_msgs in
 #print nondet_individual
@@ -32,10 +30,8 @@ action quantify_fresh (n : node) = {
 /--
 info: def Test.quantify_fresh : {node : Type} →
   [node_dec : DecidableEq node] → [node_ne : Nonempty node] → node → Wlp Mode.internal (State node) PUnit :=
-fun {node} [DecidableEq node] [Nonempty node] n =>
-  let t := fun s post =>
-    ∀ (t : node → node → Prop), post PUnit.unit { x := s.x, r := fun x N => if x = n then t n N else s.r x N };
-  t
+fun {node} [DecidableEq node] [Nonempty node] n s post =>
+  ∀ (t : node → node → Prop), post PUnit.unit { x := s.x, r := fun x N => if x = n then t n N else s.r x N }
 -/
 #guard_msgs in
 #print quantify_fresh
@@ -47,10 +43,8 @@ action double_quant = {
 /--
 info: def Test.double_quant : {node : Type} →
   [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wlp Mode.internal (State node) PUnit :=
-fun {node} [DecidableEq node] [Nonempty node] =>
-  let t := fun s post =>
-    ∀ (t : node → node → Prop), post PUnit.unit { x := s.x, r := fun N x => if x = N then t N N else s.r N x };
-  t
+fun {node} [DecidableEq node] [Nonempty node] s post =>
+  ∀ (t : node → node → Prop), post PUnit.unit { x := s.x, r := fun N x => if x = N then t N N else s.r N x }
 -/
 #guard_msgs in
 #print double_quant

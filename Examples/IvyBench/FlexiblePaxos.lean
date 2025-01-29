@@ -123,7 +123,7 @@ invariant [ic3po_other10] ∀ R1 V1 V2, V1 = V2 ∨ ¬ proposal R1 V1 ∨ ¬ pro
 #gen_spec
 
 -- FAILS
--- set_option sauto.smt.solver "cvc5" in
--- #time #check_invariants_wlp
+set_option sauto.smt.solver "cvc5" in
+#time #check_invariants_wlp
 
 end FlexiblePaxos

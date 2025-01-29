@@ -20,6 +20,9 @@ class ThreeValuedType (t : Type) where
 namespace Rabia
 open Classical
 
+set_option veil.gen_sound true
+set_option synthInstance.maxSize 1000000
+
 type node
 type set_majority
 type set_f_plus_1
@@ -75,6 +78,10 @@ action initial_proposal = {
   assume ∀ P, ¬ in_phase n P
   propose n v := True
 }
+
+instance : Sound (initial_proposal.genE (node := node) (proposal_value := proposal_value) (state_value := state_value) (phase := phase) (set_majority := set_majority) (set_f_plus_1 := set_f_plus_1)) :=
+  by infer_instance
+
 
 
 action decide_bc_decide_full_val = {

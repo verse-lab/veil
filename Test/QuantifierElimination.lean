@@ -52,7 +52,7 @@ action call_with_if = {
 action with_if_fresh = {
   if (x) then
     let m ← fresh node
-    -- r N m := False
+    r N m := False
 }
 
 #guard_msgs in
@@ -65,7 +65,7 @@ action ff = {
 action with_if_fresh_more = {
   if (x) then
     let m ← fresh node
-    -- r N m := False
+    r N m := False
     require x
 }
 

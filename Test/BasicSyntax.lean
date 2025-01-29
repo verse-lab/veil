@@ -11,7 +11,7 @@ individual n : node
 function f : Nat -> Nat
 
 #gen_state
-
+set_option veil.gen_sound true in
 #guard_msgs(drop warning) in
 action foo (k : Nat) =
   requires ∀ x, r x k
@@ -22,6 +22,8 @@ action foo (k : Nat) =
   require r x k
 }
 
+#guard_msgs(drop info) in
+#check foo.instExt
 
 #guard_msgs(drop warning) in
 action foo2 (k : Nat) = {
@@ -35,7 +37,6 @@ action foo2 (k : Nat) = {
 /-- info: true -/
 #guard_msgs in
 #eval isElaboratedCorrectly ``foo2
-
 
 #guard_msgs(drop warning) in
 action foo3 (k : Nat) = {
