@@ -12,7 +12,7 @@ import Lean.Elab.Tactic.Simp
 Tactic to split if-then-else expressions.
 -/
 
-namespace Mathlib.Tactic
+namespace Veil.FromMathlib.Tactic
 
 open Lean Elab.Tactic Lean.Meta
 
@@ -184,4 +184,4 @@ elab_rules : tactic
     -- for name in ← names.get do
     --   logWarningAt name m!"unused name: {name}"
 
-end Mathlib.Tactic
+end Veil.FromMathlib.Tactic

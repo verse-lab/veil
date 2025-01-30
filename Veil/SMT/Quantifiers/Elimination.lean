@@ -198,7 +198,7 @@ open Classical
 variable [IsHigherOrder α] [ne : Nonempty α] {p q : α → Prop} {b : Prop}
 
 /-! Hoist `∀` quantifiers to the top of the goal. -/
-theorem forall_and_left : b ∧ (∀ x, p x) ↔ (∀ x, b ∧ p x) := by
+theorem forall_and_on_the_left : b ∧ (∀ x, p x) ↔ (∀ x, b ∧ p x) := by
   constructor
   { simp_all only [and_self, implies_true] }
   {
@@ -207,10 +207,10 @@ theorem forall_and_left : b ∧ (∀ x, p x) ↔ (∀ x, b ∧ p x) := by
     assumption
   }
 
-theorem forall_and_right : (∀ x, p x) ∧ b ↔ (∀ x, p x ∧ b) := by
-  simp only [and_comm, forall_and_left]
+theorem forall_and_on_the_right : (∀ x, p x) ∧ b ↔ (∀ x, p x ∧ b) := by
+  simp only [and_comm, forall_and_on_the_left]
 
-attribute [quantifierElim] forall_and_left forall_and_right
+attribute [quantifierElim] forall_and_on_the_left forall_and_on_the_right
 end forall_and
 
 section forall_imp
