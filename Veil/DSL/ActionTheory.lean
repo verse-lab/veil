@@ -269,6 +269,29 @@ theorem triple_sound [Sound act] (req : SProp σ) (ens : SProp σ) :
   false_or_by_contra
   specialize htriple _ _ ‹_› ‹_›; contradiction
 
+theorem triple_sound' [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
+  act.triple req ens → act.toActProp.triple req (∃ r, ens r ·) := by
+  intro htriple s s' hreq hact
+  unfold Wlp.toActProp at hact ; unfold Wlp.triple at htriple
+  specialize htriple _ hreq
+  false_or_by_contra ; rename_i h ; simp at h
+  apply hact ; apply Sound.impl (post := ens) <;> try assumption
+  intro r s hh heq ; subst_eqs ; apply h ; apply hh
+
+theorem exists_over_PUnit (p : PUnit → Prop) : (∃ (u : PUnit), p u) = p () := by
+  simp ; constructor ; intro ⟨⟨⟩, h⟩ ; assumption ; intro h ; exists PUnit.unit
+
+theorem triple_sound'_ret_unit [Sound act] (req : SProp σ) (ens : RProp σ PUnit) :
+  act.triple req ens → act.toActProp.triple req (ens () ·) := by
+  have heq : (ens () ·) = (∃ r, ens r ·) := by ext ; rw [exists_over_PUnit]
+  rw [heq] ; apply triple_sound'
+
+theorem triple_sound'_ret_unit' [Sound act] {st : σ} (ens : RProp σ PUnit) :
+  act st ens → (∀ st', act.toActProp st st' → ens () st') := by
+  have h := triple_sound'_ret_unit (act := act) (fun stt => stt = st) ens
+  unfold Wlp.triple ActProp.triple at h ; simp at h
+  intro hq st' ; specialize h hq st st' rfl ; exact h
+
 instance pure_sound : Sound (Wlp.pure (σ := σ) (m := m) r) where
   inter := by simp [pure, actSimp]
   impl  := by intros; simp_all [pure, actSimp]
