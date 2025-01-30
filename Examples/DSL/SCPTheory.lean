@@ -17,19 +17,19 @@ namespace FBA
 def project {α β : Type} (slices : β → Set (Set α)) (S : Set α) : β → Set (Set α) :=
   fun n => { Sl ∩ S | Sl ∈ slices n }
 
-class System where
-  Node : Type
+class System (Node : Type) where
   /-- The set of well-behaved nodes. -/
   W : Set Node
   slices : Node → Set (Set Node)
   /-- The set of slices of a well-behaved node is not empty. -/
   slices_ne : ∀ p ∈ W, slices p ≠ ∅
 
+variable {Node : Type}
+
 /-- Restrict all slices in `sys` to only include nodes from `I`.
     See how it is used in the definition of `intertwined`. -/
-def System.project (sys : System) (I : Set sys.Node) : System :=
-  { Node := sys.Node
-    W := sys.W
+def System.project (sys : System Node) (I : Set Node) : System Node :=
+  { W := sys.W
     slices := FBA.project sys.slices I
     slices_ne := by
       intro p hin
@@ -37,12 +37,20 @@ def System.project (sys : System) (I : Set sys.Node) : System :=
       have h := sys.slices_ne _ hin
       rw [Set.ne_empty_iff_exists_mem] at h ⊢ ; aesop }
 
-variable [inst : System]
+variable [inst : System Node]
 open System
 
 /-- A quorum is a set whose well-behaved members have at least one slice
     included in the set. -/
 def quorum (Q : Set Node) : Prop := ∀ p ∈ Q ∩ W, ∃ Sl ∈ slices p, Sl ⊆ Q
+
+-- `System.project` allows more quorums
+theorem quorum_after_proj (Q S : Set Node) : quorum (inst := inst) Q → quorum (inst := inst.project S) Q := by
+  rcases inst with ⟨W, slices, slices_ne⟩
+  unfold quorum System.project FBA.project ; simp
+  intro hq p h1 h2 ; specialize hq _ h1 h2 ; rcases hq with ⟨Sl, hq1, hq2⟩
+  exists Sl ; apply And.intro ; assumption
+  rw [Set.subset_def] at hq2 ⊢ ; simp ; aesop
 
 /-- A set `S` is a slice-blocking set for a node `p` when every slice of
     `p` intersects `S`. -/
@@ -70,16 +78,16 @@ structure intact (I : Set Node) extends intertwined I where
   /-- The quorum availability property: `I` itself is a quorum. -/
   q_avail : quorum (inst := inst) I
 
-theorem intact_implies_intertwined : ∀ I, intact I → intertwined I := by
+theorem intact_implies_intertwined : ∀ I, intact (inst := inst) I → intertwined I := by
   intro I h ; cases h ; assumption
 
-theorem intertwined_node_is_well_behaved : ∀ n S, intertwined S → n ∈ S → n ∈ W := by
+theorem intertwined_node_is_well_behaved : ∀ n S, intertwined (inst := inst) S → n ∈ S → n ∈ W := by
   intro n S ⟨h, _⟩ ; aesop
 
-theorem intact_node_is_well_behaved : ∀ n I, intact I → n ∈ I → n ∈ W := by
+theorem intact_node_is_well_behaved : ∀ n I, intact (inst := inst) I → n ∈ I → n ∈ W := by
   intro n S h ; apply intertwined_node_is_well_behaved ; apply intact_implies_intertwined _ h
 
-theorem slice_blocks_ne : ∀ n S I, intact I → n ∈ I → blocks_slices S n →
+theorem slice_blocks_ne : ∀ n S I, intact (inst := inst) I → n ∈ I → blocks_slices S n →
     S ∩ I ≠ ∅ := by
   intro n S I hI hin hblock
   unfold blocks_slices at hblock

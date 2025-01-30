@@ -12,6 +12,48 @@ import Examples.DSL.SCPTheory
   adapt the proof for `intertwined_safe`.
 -/
 
+class SCP.Background (node : outParam Type) (nset : outParam Type) where
+  well_behaved : node → Prop
+  intertwined : node → Prop
+  intact : node → Prop
+  member : node → nset → Prop
+  is_quorum : nset → Prop
+  blocks_slices : nset → node → Prop
+
+  axiom_0 : ∀ (n : node), intact n → intertwined n
+  axiom_1 : ∀ (n : node), intertwined n → well_behaved n
+  qi_intertwined : ∀ (q1 q2 : nset),
+    (∃ (n1 : node), intertwined n1 ∧ is_quorum q1 ∧ member n1 q1) ∧
+    (∃ (n2 : node), intertwined n2 ∧ is_quorum q2 ∧ member n2 q2) →
+    ∃ (n3 : node), well_behaved n3 ∧ member n3 q1 ∧ member n3 q2
+
+def one_such_Background (node : Type) [fba : FBA.System node]
+    (I : Set node) (hI : FBA.intact (inst := fba) I)
+    (S : Set node) (hS : FBA.intertwined (inst := fba) S)
+    (hIS : I ⊆ S) : SCP.Background node (Set node) where
+  well_behaved n := n ∈ fba.W
+  intertwined n := n ∈ S
+  intact n := n ∈ I
+  member n s := n ∈ s
+  is_quorum := FBA.quorum (inst := fba)
+  blocks_slices := FBA.blocks_slices (inst := fba)
+
+  axiom_0 := by simp ; assumption
+  axiom_1 := by intro n ; simp ; apply FBA.intertwined_node_is_well_behaved ; assumption
+  qi_intertwined := by
+    simp ; intro q1 q2
+    have hinter := hS.q_inter q1 q2
+    repeat rw [Set.ne_empty_iff_exists_mem] at hinter
+    simp at hinter
+    intro n hin hq1 hinq1 n' hin' hq2 hinq2
+    specialize hinter
+      (FBA.quorum_after_proj (inst := { W := fba.W, slices := fba.slices, slices_ne := fba.slices_ne }) _ _ hq1)
+      (FBA.quorum_after_proj (inst := { W := fba.W, slices := fba.slices, slices_ne := fba.slices_ne }) _ _ hq2)
+      _ hinq1 hin _ hinq2 hin'
+    rcases hinter with ⟨nn, h11, h22⟩ ; exists nn ; apply And.intro
+    next => apply FBA.intertwined_node_is_well_behaved <;> assumption
+    next => assumption
+
 namespace SCP
 open Classical
 
@@ -24,17 +66,9 @@ type ballot
    but neither `next` nor `prev` appears in the protocol or any invariant.
    So here we model `ballot` as simply a `TotalOrderWithMinimum`. -/
 instantiate tot : TotalOrderWithMinimum ballot
+instantiate bg : Background node nset
 
-open TotalOrderWithMinimum
-
--- immutable parts
-immutable relation well_behaved : node → Prop
-immutable relation intertwined : node → Prop
-immutable relation intact : node → Prop
-
-immutable relation member : node → nset → Prop
-immutable relation is_quorum : nset → Prop
-immutable relation blocks_slices : nset → node → Prop
+open TotalOrderWithMinimum Background
 
 -- parts for the protocol
 relation voted_prepared : node → ballot → value → Prop
@@ -53,17 +87,6 @@ relation received_vote_commit : node → node → ballot → value → Prop
 relation received_accept_commit : node → node → ballot → value → Prop
 
 #gen_state
-
--- node properties
-assumption ∀ (n : node), intact n → intertwined n
-assumption ∀ (n : node), intertwined n → well_behaved n
-
--- quorum properties
-assumption [qi_intertwined]
-  ∀ (q1 q2 : nset),
-    (∃ (n1 : node), intertwined n1 ∧ is_quorum q1 ∧ member n1 q1) ∧
-    (∃ (n2 : node), intertwined n2 ∧ is_quorum q2 ∧ member n2 q2) →
-    ∃ (n3 : node), well_behaved n3 ∧ member n3 q1 ∧ member n3 q2
 
 -- NOTE: the following seem to be unnecessary for proving the safety
 /-
