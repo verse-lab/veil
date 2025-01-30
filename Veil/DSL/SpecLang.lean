@@ -438,15 +438,35 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       simpleAddDefn actIName actI (attr := #[{name := `actSimp}, attr]) (type := <- inferType genExpI)
 
 
-      let actTr <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
-      let actTr <- elabTermAndSynthesize actTr none
+      let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
+      let actTr <- elabTermAndSynthesize actTrStx none
       let actTr <- mkLambdaFVarsImplicit vs actTr
-      let ⟨actTr, _, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierElim])
+      let ⟨actTr, actTrPf, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierElim])
       let actTr <- instantiateMVars actTr
       let actTrName := moduleName ++ nm.getId ++ `tr
       simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
 
       if veil.gen_sound.get <| <- getOptions then
+        let trActThmStatement ← `(forall? $[$vd]* , ($actTrStx) = (@$(mkIdent actTrName) $sectionArgs*))
+        let trActThm ← elabTermAndSynthesize trActThmStatement (.some <| .sort .zero)
+        let actTrPf := actTrPf.get!
+        let tytemp ← inferType actTrPf
+        -- the type of `actTrPf` is `fun xs ys => ... = fun xs ys' => ...`
+        -- need to transform it into `forall xs, fun ys ... => ... = fun ys' ... => ...`
+        if let .some (ty, lhs, rhs) := tytemp.eq? then
+          -- here the proof term is hardcoded
+          let proof ← lambdaBoundedTelescope lhs vs.size fun xs _ => do
+            let rhsApplied := mkAppN rhs xs
+            let eq1 ← withLocalDeclD `_a ty fun va => do
+              let vaApplied := mkAppN va xs
+              let eq1 ← mkEq vaApplied rhsApplied
+              mkLambdaFVars #[va] eq1
+            let congrArgUse ← mkAppM ``congrArg #[eq1, actTrPf]
+            let eq2 ← mkEqRefl rhsApplied
+            let proofBody ← mkAppM ``Eq.mpr #[congrArgUse, eq2]
+            mkLambdaFVars xs proofBody
+          addDecl <| Declaration.thmDecl <| mkTheoremValEx (moduleName ++ nm.getId ++ `act_tr_eq) [] trActThm proof []
+
         let instETp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genEName):ident $sectionArgs* $args*))
         let instETp <- elabTermAndSynthesize instETp none
         let instITp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genIName):ident $sectionArgs* $args*))
