@@ -452,8 +452,8 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
         let instITp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genIName):ident $sectionArgs* $args*))
         let instITp <- elabTermAndSynthesize instITp none
 
-        simpleAddThm (moduleName ++ nm.getId ++ `genEInst) instETp `(tacticSeq| infer_instance) (attr := #[{name := `instance}])
-        simpleAddThm (moduleName ++ nm.getId ++ `genIInst) instITp `(tacticSeq| infer_instance) (attr := #[{name := `instance}])
+        simpleAddThm (moduleName ++ nm.getId ++ `genEInst) instETp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
+        simpleAddThm (moduleName ++ nm.getId ++ `genIInst) instITp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
         let eqETp <- `(@$(mkIdent genEName) = @$(mkIdent actEName))
         let eqITp <- `(@$(mkIdent genIName) = @$(mkIdent actIName))
         let eqETp <- elabTermAndSynthesize eqETp none
@@ -471,11 +471,11 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
         simpleAddThm (moduleName ++ nm.getId ++ `instExt) instETp
           `(tacticSeq|
             have h : @$(mkIdent genEName) = @$(mkIdent actEName) := $eqE
-            rw [<-h]; infer_instance) (attr := #[{name := `instance}])
+            rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
         simpleAddThm (moduleName ++ nm.getId ++ `inst) instITp
           `(tacticSeq|
             have h : @$(mkIdent genIName) = @$(mkIdent actIName) := $eqI
-            rw [<-h]; infer_instance) (attr := #[{name := `instance}])
+            rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
 
 
 /-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/

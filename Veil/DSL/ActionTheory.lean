@@ -274,7 +274,7 @@ instance pure_sound : Sound (Wlp.pure (σ := σ) (m := m) r) where
   impl  := by intros; simp_all [pure, actSimp]
   -- call  := by solve_by_elim
 
-instance bind_sound (act' : ρ -> Wlp m σ ρ') [Sound act] [∀ r, Sound (act' r)] : Sound (Wlp.bind act act') where
+instance bind_sound (act : Wlp m' σ ρ) (act' : ρ -> Wlp m σ ρ') [Sound act] [∀ r, Sound (act' r)] : Sound (Wlp.bind (m := m) act act') where
   inter := by
     unfold Wlp.bind
     intros τ _ post s hbind
@@ -283,6 +283,11 @@ instance bind_sound (act' : ρ -> Wlp m σ ρ') [Sound act] [∀ r, Sound (act' 
     unfold Wlp.bind
     intros post post' s hpost hbind
     apply Sound.impl (act' · · <| post) <;> (intros; solve_by_elim [Sound.impl])
+
+instance (priority := low) internal_sound (act : Wlp m σ ρ) [inst : Sound (m := .internal) act] : Sound (m := .external) act where
+  inter := inst.inter
+  impl := inst.impl
+
   -- call := by
   --   unfold Wlp.bind
   --   intros s post hbind
