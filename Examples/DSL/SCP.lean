@@ -2,24 +2,15 @@ import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
 import Veil.DSL
+import Examples.DSL.Std
+import Examples.DSL.SCPTheory
+
 -- adapted from [SCP.ivy](https://github.com/stellar/scp-proofs/blob/3e0428acc78e598a227a866b99fe0b3ad4582914/SCP.ivy)
--- CHECK only for safety proof?
 
-class UnboundedSequence (t : Type) where
-  -- relation: strict total order
-  le (x y : t) : Prop
-  -- axioms
-  le_refl (x : t) : le x x
-  le_trans (x y z : t) : le x y → le y z → le x z
-  le_antisymm (x y : t) : le x y → le y x → x = y
-  le_total (x y : t) : le x y ∨ le y x
-
-  -- relation: nonstrict total order
-  lt (x y : t) : Prop
-  le_lt (x y : t) : lt x y ↔ (le x y ∧ x ≠ y)
-
-  zero : t
-  zero_lt (x : t) : le zero x
+/-
+  NOTE: For now we do not prove liveness property in Veil, so we only
+  adapt the proof for `intertwined_safe`.
+-/
 
 namespace SCP
 open Classical
@@ -28,9 +19,13 @@ type value
 type node
 type nset
 type ballot
-instantiate tot : UnboundedSequence ballot
 
-open UnboundedSequence
+/- NOTE: In `SCP.ivy`, `ballot` is modelled as an unbounded sequence,
+   but neither `next` nor `prev` appears in the protocol or any invariant.
+   So here we model `ballot` as simply a `TotalOrderWithMinimum`. -/
+instantiate tot : TotalOrderWithMinimum ballot
+
+open TotalOrderWithMinimum
 
 -- immutable parts
 immutable relation well_behaved : node → Prop
