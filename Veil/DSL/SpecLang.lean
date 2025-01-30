@@ -362,19 +362,8 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
             { t with decl := actdecl }
           else t})
 
-macro "exists?" br:explicitBinders ? "," t:term : term =>
-  match br with
-  | some br => `(exists $br, $t)
-  | none => `($t)
-
-macro "forall?" br:bracketedBinder* "," t:term : term =>
-  if br.size > 0 then
-    `(∀ $br*, $t)
-  else
-    `($t)
-
 def wlpUnfold := [``Wlp.bind, ``Wlp.pure, ``Wlp.get, ``Wlp.set, ``Wlp.modifyGet,
-  ``Wlp.assert, ``Wlp.assume, ``Wlp.require, ``Wlp.spec, ``Wlp.lift]
+  ``Wlp.assert, ``Wlp.assume, ``Wlp.require, ``Wlp.spec, ``Wlp.lift, ``Wlp.toActProp]
 
 def simpleAddDefn (n : Name) (e : Expr)
   (red := Lean.ReducibilityHints.regular 0)

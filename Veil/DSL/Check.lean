@@ -100,9 +100,15 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           pure (trTpSyntax, body)
         | .wlp =>
           let extName := toExtName actName
-          let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs* $st')
-          let extStx ← `(@$(mkIdent extName) $sectionArgs*)
-          let extTpSyntax ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
+          let moduleName <- getCurrNamespace
+          let some args := (<- localSpecCtx.get).spec.actions.find? (moduleName ++ ·.name == actName)
+            | throwError s!"action {actName} not found"
+          let (univBinders, args) ← match args.br with
+          | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
+          | none => pure (#[], #[])
+          let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs*  $st')
+          let extStx ← `(@$(mkIdent extName) $sectionArgs* $args*)
+          let extTpSyntax ← `(∀ ($st : $stateTp), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
           let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wlp_clause $(mkIdent extName))
           pure (extTpSyntax, body)
         let thmName := mkTheoremName actName invName

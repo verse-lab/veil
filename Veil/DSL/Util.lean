@@ -243,3 +243,15 @@ def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
   let #[f, args] := stx.raw.getArgs | failure
   let `(term| $f:ident) := f | failure
   return (⟨f⟩, args.getArgs.map (⟨·⟩))
+
+
+macro "exists?" br:explicitBinders ? "," t:term : term =>
+  match br with
+  | some br => `(exists $br, $t)
+  | none => `($t)
+
+macro "forall?" br:bracketedBinder* "," t:term : term =>
+  if br.size > 0 then
+    `(∀ $br*, $t)
+  else
+    `($t)
