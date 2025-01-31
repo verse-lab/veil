@@ -245,8 +245,8 @@ ghost relation good (p : phase) :=
   started p ∧
   (∀ P0, lt P0 p → started P0) ∧
   (∀ P0 V0, lt P0 p ∧ started P0 ∧
-    (((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
-      state_value_locked p V0))
+    ((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
+      state_value_locked p V0)
 
 invariant [good_succ_good] good P ∧ next P P2 ∧ started P2 → good P2
 invariant [good_zero] started zero → good zero
