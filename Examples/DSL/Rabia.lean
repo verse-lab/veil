@@ -4,6 +4,8 @@ import Veil.Tactic
 import Veil.DSL
 import Examples.DSL.Std
 
+import Veil.DSL.InvariantManipulation
+
 -- adapted from [weak_mvc.ivy](https://github.com/haochenpan/rabia/blob/88013ca8369a7ae3adfed44e3c226c8d97f11209/proofs/ivy/weak_mvc.ivy)
 
 class ThreeValuedType (t : Type) where
@@ -17,6 +19,12 @@ class ThreeValuedType (t : Type) where
   ax3 : v1 ≠ vquestion
   ax4 : ∀ (x : t), x = v0 ∨ x = v1 ∨ x = vquestion
 
+class Rabia.Background (node set_majority set_f_plus_1 : outParam Type) where
+  member_maj : node → set_majority → Prop
+  member_fp1 : node → set_f_plus_1 → Prop
+
+  ax0 : ∀ (Q1 Q2 : set_majority), ∃ (N : node), member_maj N Q1 ∧ member_maj N Q2
+  ax1 : ∀ (Q1 : set_majority) (Q2 : set_f_plus_1), ∃ (N : node), member_maj N Q1 ∧ member_fp1 N Q2
 namespace Rabia
 open Classical
 
@@ -26,10 +34,7 @@ set_option synthInstance.maxSize 1000000
 type node
 type set_majority
 type set_f_plus_1
-
--- NOTE: might also be made as typeclass
-immutable relation member_maj : node → set_majority → Prop
-immutable relation member_fp1 : node → set_f_plus_1 → Prop
+instantiate bg : Background node set_majority set_f_plus_1
 
 type phase
 instantiate tot : TotalOrderWithMinimum phase
@@ -41,7 +46,7 @@ type state_value
 -- poor man's enum type
 instantiate tv : ThreeValuedType state_value
 
-open ThreeValuedType TotalOrderWithMinimum
+open ThreeValuedType TotalOrderWithMinimum Background
 
 relation propose : node → proposal_value → Prop
 relation vote_rnd1 : node → phase → state_value → Prop
@@ -53,9 +58,6 @@ relation decision_full_noval : node → phase → Prop
 relation coin : phase → state_value → Prop
 
 #gen_state
-
-assumption ∀ (Q1 Q2 : set_majority), ∃ (N : node), member_maj N Q1 ∧ member_maj N Q2
-assumption ∀ (Q1 : set_majority) (Q2 : set_f_plus_1), ∃ (N : node), member_maj N Q1 ∧ member_fp1 N Q2
 
 after_init {
   in_phase N P := False;
@@ -78,11 +80,6 @@ action initial_proposal = {
   assume ∀ P, ¬ in_phase n P
   propose n v := True
 }
-
-instance : Sound (initial_proposal.genE (node := node) (proposal_value := proposal_value) (state_value := state_value) (phase := phase) (set_majority := set_majority) (set_f_plus_1 := set_f_plus_1)) :=
-  by infer_instance
-
-
 
 action decide_bc_decide_full_val = {
   let n : node ← fresh
@@ -242,33 +239,40 @@ invariant [decision_bc_same_round_agree] decision_bc N1 P V1 ∧ decision_bc N2 
 
 invariant (∃ N V, vote_rnd1 N P V) ∧ state_value_locked P V1 ∧ state_value_locked P V2 → V1 = V2
 
--- CHECK is the following translation correct?
+ghost relation started (p : phase) := ∃ N V, vote_rnd1 N p V
 
--- ghost relation started (p : phase) := ∃ N V, vote_rnd1 N p V
+ghost relation good (p : phase) :=
+  started p ∧
+  (∀ P0, lt P0 p → started P0) ∧
+  (∀ P0 V0, lt P0 p ∧ started P0 ∧
+    (((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
+      state_value_locked p V0))
 
--- ghost relation good (p : phase) :=
---   started p ∧
---   (∀ P0, lt P0 p → started P0) ∧
---   (∀ P0 V0, lt P0 p ∧ started P0 ∧
---     (((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
---       state_value_locked p V0))
-
--- -- safety?
--- safety [good_succ_good] good P ∧ next P P2 ∧ started P2 → good P2
--- safety [good_zero] started zero → good zero
--- safety [started_pred] started P2 ∧ next P P2 → started P2
--- safety [decision_bc_started] decision_bc N P V2 → started P
--- safety [vote_rnd2_vote_rnd1] vote_rnd2 N P V ∧ V ≠ vquestion → ∃ N2, vote_rnd1 N2 P V
--- safety [decision_bc_vote_rnd1] decision_bc N P V → ∃ N2, vote_rnd1 N2 P V
+invariant [good_succ_good] good P ∧ next P P2 ∧ started P2 → good P2
+invariant [good_zero] started zero → good zero
+invariant [started_pred] started P2 ∧ next P P2 → started P2
+invariant [decision_bc_started] decision_bc N P V2 → started P
+invariant [vote_rnd2_vote_rnd1] vote_rnd2 N P V ∧ V ≠ vquestion → ∃ N2, vote_rnd1 N2 P V
+invariant [decision_bc_vote_rnd1] decision_bc N P V → ∃ N2, vote_rnd1 N2 P V
 
 #gen_spec
 
 set_option maxHeartbeats 8000000
-set_option auto.smt.timeout 60
+set_option auto.smt.timeout 600
 
 set_option sauto.smt.solver "cvc5"
 set_option sauto.smt.translator "lean-auto"
 
-#check_invariants_wlp
+#time #check_invariants_wlp
+
+#time #recover_invariants_in_tr
+
+prove_inv_inductive by {
+  constructor
+  . intro st has hinit
+    sdestruct_goal <;> already_proven_init
+  · intro st st' has hinv hnext
+    sts_induction <;> sdestruct_goal <;> already_proven_next_tr
+}
 
 end Rabia
