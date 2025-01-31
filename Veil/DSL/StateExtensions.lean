@@ -38,6 +38,12 @@ deriving Inhabited
 
 abbrev GlobalSpecificationCtx := Std.HashMap Name ModuleSpecification
 
+initialize localIsolates : SimpleScopedEnvExtension IsolatesInfo IsolatesInfo <-
+  registerSimpleScopedEnvExtension {
+    initial := default
+    addEntry := fun s _ => s
+  }
+
 initialize localSpecCtx : SimpleScopedEnvExtension LocalSpecificationCtx LocalSpecificationCtx ←
   registerSimpleScopedEnvExtension {
     initial := default

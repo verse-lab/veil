@@ -73,7 +73,7 @@ def getChecksForAction (actName : Name) : CommandElabM (Array (Name × Expr) × 
         invChecks := invChecks.push (inv, actNamesInd)
     return (#[], invChecks)
 
-def mkTheoremName (actName : Name) (invName : Name) : Name := s!"{actName}_{invName}".toName
+def mkTheoremName (actName : Name) (invName : Name) : Name := s!"{actName}_{invName.components.getLast!}".toName
 
 def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
@@ -109,7 +109,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs*  $st')
           let extStx ← `(@$(mkIdent extName) $sectionArgs* $args*)
           let extTpSyntax ← `(∀ ($st : $stateTp), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
-          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wlp_clause $(mkIdent extName))
+          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wlp_clause $(mkIdent extName) $(mkIdent invName))
           pure (extTpSyntax, body)
         let thmName := mkTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)

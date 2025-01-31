@@ -164,6 +164,8 @@ action phase_rnd2 = {
         in_phase n p := False
 }
 
+open_isolate protocol
+
 invariant propose N V1 ∧ propose N V2 → V1 = V2
 invariant [decision_full_val_inv] decision_full_val N P V → decision_bc N P v1
 invariant decision_full_val N P V →
@@ -239,6 +241,8 @@ invariant [decision_bc_same_round_agree] decision_bc N1 P V1 ∧ decision_bc N2 
 
 invariant (∃ N V, vote_rnd1 N P V) ∧ state_value_locked P V1 ∧ state_value_locked P V2 → V1 = V2
 
+close_isolate
+
 ghost relation started (p : phase) := ∃ N V, vote_rnd1 N p V
 
 ghost relation good (p : phase) :=
@@ -248,17 +252,31 @@ ghost relation good (p : phase) :=
     ((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
       state_value_locked p V0)
 
+open_isolate wrapper1 with protocol
 invariant [good_succ_good] good P ∧ next P P2 ∧ started P2 → good P2
+close_isolate
+
+open_isolate wrapper2 with wrapper1
 invariant [good_zero] started zero → good zero
+close_isolate
+
+open_isolate wrapper3 with wrapper2
 invariant [started_pred] started P2 ∧ next P P2 → started P2
+close_isolate
+
+open_isolate wrapper4 with protocol
 invariant [decision_bc_started] decision_bc N P V2 → started P
+close_isolate
+
+open_isolate wrapper5 with protocol
 invariant [vote_rnd2_vote_rnd1] vote_rnd2 N P V ∧ V ≠ vquestion → ∃ N2, vote_rnd1 N2 P V
 invariant [decision_bc_vote_rnd1] decision_bc N P V → ∃ N2, vote_rnd1 N2 P V
+close_isolate
 
 #gen_spec
 
 set_option maxHeartbeats 8000000
-set_option auto.smt.timeout 600
+set_option auto.smt.timeout 120
 
 set_option sauto.smt.solver "cvc5"
 set_option sauto.smt.translator "lean-auto"

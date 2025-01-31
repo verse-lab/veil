@@ -123,7 +123,7 @@ inductive StateAssertionKind
   | assumption
   | invariant
   | safety
-deriving BEq
+deriving BEq, Hashable
 
 instance : Inhabited StateAssertionKind where
   default := StateAssertionKind.invariant
@@ -137,6 +137,8 @@ instance : ToString StateAssertionKind where
 structure StateAssertion where
   kind : StateAssertionKind
   name : Name
+  /-- Set of isolates where this invariant is contained -/
+  isolates : List Name := []
   /-- Lean term for this predicate -/
   term : Option (TSyntax `term)
   /-- Lean `Expr` for this predicate; this is usually a constant in the
@@ -144,13 +146,20 @@ structure StateAssertion where
   expr : Expr
 deriving Inhabited, BEq
 
+structure IsolatesInfo where
+  /-- Set of isolates opened at the moment -/
+  openIsolates : List Name
+  /-- Mapping from isolates to their invariants -/
+  isolateStore : Std.HashMap Name (Std.HashSet Name)
+deriving Inhabited
+
 instance : ToString StateAssertion where
   toString sa := match sa.term with
     | some term => s!"{sa.kind} [{sa.name}] {term}"
     | none => s!"{sa.kind} [{sa.name}] {sa.expr}"
 
 /-- A cleaned-up version of `StsState`, this gets generated on `#gen_spec` and stored in the global state. -/
-structure ModuleSpecification where
+structure ModuleSpecification : Type where
   /-- Name of the specification -/
   name         : Name
   /-- Expression representing the type of the transition system state,
