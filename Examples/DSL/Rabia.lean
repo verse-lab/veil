@@ -275,4 +275,6 @@ prove_inv_inductive by {
     sts_induction <;> sdestruct_goal <;> already_proven_next_tr
 }
 
+#time #split_invariants
+
 end Rabia

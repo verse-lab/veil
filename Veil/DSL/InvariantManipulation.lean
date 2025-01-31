@@ -93,3 +93,55 @@ elab "already_proven_next_tr" : tactic => withMainContext do
   let tr := ld.type.getAppFn'
   let .some (trName, _) := tr.const? | throwError "hnext is not a premise about .tr? got {tr}, expect it to be a .tr"
   elabAlreadyProven trName
+
+-- NOTE: when run this, the user must (1) have proven `inv_inductive` using `prove_inv_inductive`
+-- and (2) ensure that the assumptions of the protocol are trivial (e.g., by putting assumptions into a typeclass)
+elab "#split_invariants" : command => do
+  let allClauses := (← localSpecCtx.get).spec.invariants
+  if allClauses.isEmpty then return
+
+  let (tempvars, thmType, subThmTypes) ← Command.runTermElabM fun vs => do
+    let allClauses := (← localSpecCtx.get).spec.invariants
+    let allClauses := allClauses.toList
+    let invExprs := allClauses.map (fun x => mkAppN x.expr vs)
+    let invNames := allClauses.map StateAssertion.name
+    -- need to reverse. kind of weird
+    let invExprs := invExprs.reverse
+    let invNames := invNames.reverse
+    let invExprs ← invExprs.mapM (fun x => mkAppM ``RelationalTransitionSystem.isInvariant #[x])
+    let invConj := mkAndN invExprs
+    let thmType ← mkForallFVars vs invConj
+    let subThmTypes ← invExprs.mapM (fun x => mkForallFVars vs x)
+    -- need to instantiate mvar
+    let thmType ← instantiateMVars thmType
+    let subThmTypes ← subThmTypes.mapM instantiateMVars
+    let tempvars ← vs.mapM (fun x => x.fvarId!.getUserName)
+    pure (tempvars, thmType, invNames.zip subThmTypes)
+
+  let moduleName ← getCurrNamespace
+
+  -- prove the conjunction first
+  let conjunctionThmName := moduleName ++ `inv_split_base
+  Command.liftTermElabM do
+    let thmName1 := ``RelationalTransitionSystem.invariant_merge
+    let thmName2 := ``RelationalTransitionSystem.invInductive_to_isInvariant
+    let thmName3 := `inv_inductive
+    simpleAddThm conjunctionThmName thmType
+      `(tacticSeq|
+        intros ; repeat rw [@$(mkIdent thmName1):ident]
+        apply $(mkIdent thmName2)
+        next => intro _ _ ; simp [invSimp]
+        next => apply $(mkIdent thmName3))
+
+  -- then prove all sub invariants
+  for (invName, subThmType) in subThmTypes do
+    let subThmName := moduleName ++ invName ++ `is_inv
+    Command.liftTermElabM do
+      -- FIXME: better solution?
+      let tempvars := tempvars.map Lean.mkIdent
+      let thmName1 := `inv_split_base
+      simpleAddThm subThmName subThmType
+        `(tacticSeq|
+          intro $tempvars* ; have hh := @$(mkIdent thmName1) $tempvars*
+          revert hh ; simp only [and_imp] ; intros ; assumption
+        )     -- avoid having a tactic spliting at hyp
