@@ -254,7 +254,7 @@ elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => 
     let stx' <- funcasesM t (← getStateArguments vd vs)
     elabBindersAndCapitals br vs stx' fun _ e => do
       let e <- delabWithMotives e
-      let stx ← `(@[actSimp, invSimp] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
+      let stx ← `(@[actSimp, invSimp, invSimpLite] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
       trace[dsl.debug] "{stx}"
       return stx
 
@@ -634,6 +634,32 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
   | some stx => stx.getPropertyName
   | none => default
 
+syntax "open_isolate" ident ("with" ident+)? : command
+syntax "close_isolate" : command
+
+elab_rules : command
+  | `(command|open_isolate $is:ident $[with $iss:ident*]? ) => do
+    let isStore := (<- localIsolates.get).isolateStore
+    let mut invsFromIss : Std.HashSet Name := isStore[is.getId]?.getD ∅
+    unless iss.isNone do
+      for is in iss.get! do
+        invsFromIss := invsFromIss.union <| isStore[is.getId]?.getD ∅
+    localIsolates.modify fun ⟨openIs, _⟩ =>
+      ⟨is.getId :: openIs, isStore.insert is.getId invsFromIss⟩
+  | `(command|close_isolate) => do
+    let _ :: openIs := (<- localIsolates.get).openIsolates
+      | throwError "No open isolates to close"
+    localIsolates.modify ({· with openIsolates := openIs})
+
+def addInvariantToIsolate [Monad m] [MonadEnv m] (inv : Name) : m (List Name) := do
+  let ⟨openIs, isStore⟩ := (<- localIsolates.get)
+  for is in openIs do
+    let invs := (isStore[is]?.getD ∅).insert inv
+    localIsolates.modify ({ · with isolateStore := isStore.insert is invs })
+  return openIs
+  -- localSpecCtx.modify fun s =>
+  -- { s with spec.invariants :=
+  --   s.spec.invariants.map (fun x => if x.name == inv then { x with isolates := openIs } else x) }
 
 def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
   liftCoreM errorIfStateNotDefined
@@ -652,11 +678,12 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
       let e <- delabWithMotives e
       match kind with
       | .safety =>
+
         `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) $[$vd]*: $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
       | .invariant =>
         `(@[invDef, invSimp] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
       | .assumption =>
-        `(@[assumptionDef, invSimp] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+        `(@[assumptionDef, invSimp, invSimpLite] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
@@ -664,12 +691,14 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
   trace[dsl.debug] s!"{cmd}"
   elabCommand cmd
   trace[dsl.info] s!"invariant {name} is defined"
+  let iss <- addInvariantToIsolate name
+  let name <- resolveGlobalConstNoOverloadCore name
   Command.runTermElabM fun _vs => do
     -- Record the term syntax in the `stsExt` state
     localSpecCtx.modify (fun s => { s with spec :=
     (match kind with
     | .safety | .invariant => {s.spec with
-        invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t } else x) }
+        invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t, isolates := iss } else x) }
     | .assumption => {s.spec with
         assumptions := s.spec.assumptions.map (fun x => if x.name == name then { x with term := t } else x) })})
 
@@ -752,7 +781,7 @@ def assembleInvariant : CommandElabM Unit := do
     let exprs := allClauses.toList.map (fun p => p.expr)
     let _ ← allClauses.mapM (fun t => do trace[dsl.debug] s!"{t}")
     let invs ← if allClauses.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp] def $(mkIdent `Invariant) $[$vd]* : $stateTp -> Prop := $invs)
+    `(@[invSimp, invSimpLite] def $(mkIdent `Invariant) $[$vd]* : $stateTp -> Prop := $invs)
   trace[dsl.info] "Invariant assembled"
 
 /-- Assembles all declared safety properties into a single `Safety`
@@ -763,7 +792,7 @@ def assembleSafeties : CommandElabM Unit := do
     let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
     let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp] def $(mkIdent `Safety) $[$vd]* : $stateTp -> Prop := $safeties)
+    `(@[invSimp, invSimpLite] def $(mkIdent `Safety) $[$vd]* : $stateTp -> Prop := $safeties)
   trace[dsl.info] "Safety assembled"
 
 /-- Assembles all declared `assumption`s into a single `Assumptions`
@@ -774,7 +803,7 @@ def assembleAssumptions : CommandElabM Unit := do
     let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
     let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
-    `(@[invSimp] def $(mkIdent `Assumptions) $[$vd]* : $stateTp -> Prop := $assumptions)
+    `(@[invSimp, invSimpLite] def $(mkIdent `Assumptions) $[$vd]* : $stateTp -> Prop := $assumptions)
   trace[dsl.info] "Assumptions assembled"
 
 /--

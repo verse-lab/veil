@@ -2,6 +2,7 @@ import Lean
 open Lean
 
 register_simp_attr invSimp
+register_simp_attr invSimpLite
 register_simp_attr ifSimp
 register_simp_attr actSimp
 register_simp_attr wlpSimp

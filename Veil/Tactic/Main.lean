@@ -1,8 +1,11 @@
 import Lean.Elab.Tactic
+import Lean.Meta.Tactic.TryThis
+
+-- import Veil.DSL.InvariantManipulation
 import Veil.Tactic.Util
 import Veil.Tactic.splitIfs
 import Veil.TransitionSystem
-import Lean.Meta.Tactic.TryThis
+
 
 -- For automation
 import Veil.SMT.Main
@@ -205,31 +208,52 @@ elab_rules : tactic
   | `(tactic| sauto_all%$tk) => elabSautoAll tk
   | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
-syntax solveWlp := "solve_wlp_clause" <|> "solve_wlp_clause?"
+elab "clear_invariants" : tactic => withMainContext do
+  let g := (<- localSpecCtx.get).spec.invariants.map (·.name)
+  let hyps <- getLCtx
+  for hyp in hyps do
+    if g.contains hyp.type.getAppFn'.constName? then
+      evalTactic <| <- `(tactic| try clear $(mkIdent hyp.userName):ident)
 
-elab tk:solveWlp i:ident : tactic => withMainContext do
-  let stateTpT ← getStateTpStx
-  let (invSimp, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
+syntax solveWlp := "solve_wlp_clause" <|> "solve_wlp_clause?"
+elab tk:solveWlp act:ident inv:ident : tactic => withMainContext do
+  let some invInfo := (<- localSpecCtx.get).spec.invariants.find? (·.name == inv.getId)
+    | throwError "Invariant {inv.getId} not found"
+  let (invSimp, invSimpLite, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
       (mkIdent `invSimp,
+       mkIdent `invSimpLite,
        mkIdent `st, mkIdent `st',
        mkIdent `ass_, mkIdent `inv_,
        mkIdent `ifSimp,
        mkIdent `exists_imp,
        mkIdent `and_imp)
+  let mut invSimpTac <- `(tactic| dsimp only [$invSimp:ident])
+  let mut clearInvs  <- `(tactic| skip)
+  let mut invsToUnfold := #[invSimpLite]
+  let isStore := (<- localIsolates.get).isolateStore
+  unless invInfo.isolates.isEmpty do
+    for is in invInfo.isolates do
+      invsToUnfold := invsToUnfold.append <| isStore[is]!.toArray.map mkIdent
+    clearInvs <- `(tactic| clear_invariants)
+    invSimpTac <- `(tactic| dsimp only [$[$invsToUnfold:ident],*])
+  let stateTpT ← getStateTpStx
   let solve <- `(tacticSeq|
-    dsimp only [$invSimp:ident, $i:ident]; intros $st:ident; sdestruct_hyps
+    dsimp only [$act:ident]
+    $invSimpTac:tactic
+    intros $st:ident; sdestruct_hyps
     first
       | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
         unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
       | try dsimp only
         try simp only [$and_imp:ident, $exists_imp:ident]
         unhygienic intros
+        $clearInvs:tactic
         try simp only [$ifSimp:ident]
     first
       -- | sauto_all
       | (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWlp| solve_wlp_clause?) := tk then
-      addSuggestion tk solve
+      addSuggestion (<- getRef) solve
     else evalTactic solve
 
 

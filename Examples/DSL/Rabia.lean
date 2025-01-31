@@ -164,6 +164,8 @@ action phase_rnd2 = {
         in_phase n p := False
 }
 
+open_isolate protocol
+
 invariant propose N V1 ∧ propose N V2 → V1 = V2
 invariant [decision_full_val_inv] decision_full_val N P V → decision_bc N P v1
 invariant decision_full_val N P V →
@@ -239,31 +241,8524 @@ invariant [decision_bc_same_round_agree] decision_bc N1 P V1 ∧ decision_bc N2 
 
 invariant (∃ N V, vote_rnd1 N P V) ∧ state_value_locked P V1 ∧ state_value_locked P V2 → V1 = V2
 
+close_isolate
+
 ghost relation started (p : phase) := ∃ N V, vote_rnd1 N p V
 
 ghost relation good (p : phase) :=
   started p ∧
   (∀ P0, lt P0 p → started P0) ∧
   (∀ P0 V0, lt P0 p ∧ started P0 ∧
-    (((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
-      state_value_locked p V0))
+    ((∃ N, decision_bc N P0 V0) ∨ state_value_locked P0 V0) →
+      state_value_locked p V0)
 
+open_isolate wrapper1 with protocol
 invariant [good_succ_good] good P ∧ next P P2 ∧ started P2 → good P2
+close_isolate
+
+open_isolate wrapper2 with wrapper1
 invariant [good_zero] started zero → good zero
+close_isolate
+
+open_isolate wrapper3 with wrapper2
 invariant [started_pred] started P2 ∧ next P P2 → started P2
+close_isolate
+
+open_isolate wrapper4 with protocol
 invariant [decision_bc_started] decision_bc N P V2 → started P
+close_isolate
+
+open_isolate wrapper5 with protocol
 invariant [vote_rnd2_vote_rnd1] vote_rnd2 N P V ∧ V ≠ vquestion → ∃ N2, vote_rnd1 N2 P V
 invariant [decision_bc_vote_rnd1] decision_bc N P V → ∃ N2, vote_rnd1 N2 P V
+close_isolate
 
 #gen_spec
 
 set_option maxHeartbeats 8000000
-set_option auto.smt.timeout 600
+set_option auto.smt.timeout 120
 
 set_option sauto.smt.solver "cvc5"
 set_option sauto.smt.translator "lean-auto"
 
-#time #check_invariants_wlp
+#check Lean.Syntax
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_good_succ_good :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_succ_good node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by
+      dsimp only [Rabia.phase_rnd2.ext]
+      dsimp only [invSimpLite, inv_28, inv_35, inv_34, inv_8, inv_14, inv_6, inv_9, inv_11, inv_32,
+        inv_10, decision_full_val_validity, inv_37, inv_31, inv_16, vote_rnd1_pred_rnd,
+        decision_full_val_agree, inv_19, inv_33, good_succ_good, inv_26, inv_7, inv_15, inv_23,
+        inv_39, inv_36, inv_17, inv_22, inv_20, inv_2, decision_full_val_inv, inv_12,
+        decision_bc_same_round_agree, inv_0, inv_13, decision_full_noval_inv, inv_41, inv_21,
+        inv_24, inv_18, inv_27, inv_30, inv_25, vl_decision_bc_agree]
+      intros st; sdestruct_hyps
+      first
+      | intro ass_ inv_;
+        intro (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value);
+        unhygienic cases st'; revert ass_ inv_; dsimp only
+      | try dsimp only
+        try simp only [exists_imp, and_imp]
+        unhygienic intros
+        clear_invariants
+        try simp only [ifSimp]
+      split_ifs with exists_imp, and_imp
+      · sauto_all
+      · sauto_all
+      · sauto_all
+      · sauto_all
+
+
+
+#exit
+
+#time @[invProof]
+  theorem init_inv_0 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_0 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_decision_full_val_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.decision_full_val_inv node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_2 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_2 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_decision_full_val_validity :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.decision_full_val_validity node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_decision_full_val_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.decision_full_val_agree node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_decision_full_noval_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.decision_full_noval_inv node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_6 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_6 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_7 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_7 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_8 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_8 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_9 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_9 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_10 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_10 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_11 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_11 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_12 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_12 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_13 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_13 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_14 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_14 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_15 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_15 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_16 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_16 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_17 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_17 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_18 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_18 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_19 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_19 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_20 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_20 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_21 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_21 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_22 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_22 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_23 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_23 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_24 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_24 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_25 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_25 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_26 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_26 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_27 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_27 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_28 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_28 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_vote_rnd1_pred_rnd :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.vote_rnd1_pred_rnd node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_30 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_30 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_31 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_31 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_32 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_32 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_33 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_33 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_34 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_34 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_35 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_35 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_36 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_36 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_37 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_37 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_vl_decision_bc_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_39 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_39 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_decision_bc_same_round_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.decision_bc_same_round_agree node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_inv_41 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.inv_41 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_good_succ_good :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.good_succ_good node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_good_zero :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.good_zero node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_started_pred :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.started_pred node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_decision_bc_started :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.decision_bc_started node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_vote_rnd2_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.vote_rnd2_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem init_decision_bc_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).assumptions
+            st →
+          (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                  set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                  proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                  tv).init
+              st →
+            (@Rabia.decision_bc_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st :=
+    by (unhygienic intros); solve_clause[initSimp]
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_0 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_0 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_0
+
+  @[invProof]
+  theorem Rabia.initial_proposal_decision_full_val_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.decision_full_val_inv
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_2 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_2 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_2
+
+  @[invProof]
+  theorem Rabia.initial_proposal_decision_full_val_validity :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_validity node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.decision_full_val_validity
+
+  @[invProof]
+  theorem Rabia.initial_proposal_decision_full_val_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.decision_full_val_agree
+
+  @[invProof]
+  theorem Rabia.initial_proposal_decision_full_noval_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_noval_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.decision_full_noval_inv
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_6 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_6 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_6
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_7 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_7 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_7
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_8 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_8 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_8
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_9 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_9 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_9
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_10 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_10 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_10
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_11 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_11 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_11
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_12 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_12 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_12
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_13 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_13 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_13
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_14 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_14 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_14
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_15 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_15 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_15
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_16 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_16 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_16
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_17 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_17 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_17
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_18 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_18 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_18
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_19 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_19 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_19
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_20 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_20 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_20
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_21 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_21 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_21
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_22 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_22 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_22
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_23 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_23 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_23
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_24 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_24 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_24
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_25 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_25 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_25
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_26 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_26 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_26
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_27 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_27 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_27
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_28 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_28 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_28
+
+  @[invProof]
+  theorem Rabia.initial_proposal_vote_rnd1_pred_rnd :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd1_pred_rnd node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.vote_rnd1_pred_rnd
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_30 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_30 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_30
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_31 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_31 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_31
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_32 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_32 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_32
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_33 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_33 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_33
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_34 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_34 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_34
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_35 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_35 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_35
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_36 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_36 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_36
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_37 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_37 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_37
+
+  @[invProof]
+  theorem Rabia.initial_proposal_vl_decision_bc_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.vl_decision_bc_agree
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_39 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_39 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_39
+
+  @[invProof]
+  theorem Rabia.initial_proposal_decision_bc_same_round_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_same_round_agree node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.decision_bc_same_round_agree
+
+  @[invProof]
+  theorem Rabia.initial_proposal_inv_41 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_41 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.inv_41
+
+  @[invProof]
+  theorem Rabia.initial_proposal_good_succ_good :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_succ_good node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.good_succ_good
+
+  @[invProof]
+  theorem Rabia.initial_proposal_good_zero :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_zero node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.good_zero
+
+  @[invProof]
+  theorem Rabia.initial_proposal_started_pred :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.started_pred node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.started_pred
+
+  @[invProof]
+  theorem Rabia.initial_proposal_decision_bc_started :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_started node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.decision_bc_started
+
+  @[invProof]
+  theorem Rabia.initial_proposal_vote_rnd2_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd2_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.vote_rnd2_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.initial_proposal_decision_bc_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_proposal.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_proposal.ext Rabia.decision_bc_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_0 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_0 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_0
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_decision_full_val_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.decision_full_val_inv
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_2 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_2 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_2
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_decision_full_val_validity :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_validity node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.decision_full_val_validity
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_decision_full_val_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.decision_full_val_agree
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_decision_full_noval_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_noval_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.decision_full_noval_inv
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_6 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_6 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_6
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_7 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_7 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_7
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_8 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_8 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_8
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_9 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_9 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_9
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_10 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_10 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_10
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_11 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_11 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_11
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_12 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_12 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_12
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_13 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_13 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_13
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_14 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_14 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_14
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_15 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_15 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_15
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_16 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_16 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_16
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_17 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_17 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_17
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_18 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_18 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_18
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_19 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_19 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_19
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_20 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_20 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_20
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_21 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_21 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_21
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_22 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_22 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_22
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_23 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_23 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_23
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_24 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_24 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_24
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_25 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_25 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_25
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_26 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_26 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_26
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_27 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_27 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_27
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_28 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_28 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_28
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_vote_rnd1_pred_rnd :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd1_pred_rnd node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.vote_rnd1_pred_rnd
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_30 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_30 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_30
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_31 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_31 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_31
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_32 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_32 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_32
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_33 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_33 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_33
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_34 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_34 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_34
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_35 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_35 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_35
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_36 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_36 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_36
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_37 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_37 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_37
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_vl_decision_bc_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.vl_decision_bc_agree
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_39 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_39 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_39
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_decision_bc_same_round_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_same_round_agree node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.decision_bc_same_round_agree
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_inv_41 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_41 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.inv_41
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_good_succ_good :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_succ_good node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.good_succ_good
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_good_zero :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_zero node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.good_zero
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_started_pred :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.started_pred node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.started_pred
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_decision_bc_started :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_started node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.decision_bc_started
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_vote_rnd2_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd2_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.vote_rnd2_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_val_decision_bc_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_val.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_val.ext Rabia.decision_bc_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_0 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_0 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_0
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_decision_full_val_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.decision_full_val_inv
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_2 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_2 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_2
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_decision_full_val_validity :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_validity node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.decision_full_val_validity
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_decision_full_val_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.decision_full_val_agree
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_decision_full_noval_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_noval_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.decision_full_noval_inv
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_6 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_6 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_6
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_7 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_7 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_7
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_8 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_8 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_8
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_9 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_9 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_9
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_10 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_10 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_10
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_11 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_11 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_11
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_12 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_12 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_12
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_13 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_13 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_13
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_14 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_14 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_14
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_15 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_15 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_15
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_16 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_16 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_16
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_17 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_17 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_17
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_18 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_18 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_18
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_19 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_19 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_19
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_20 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_20 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_20
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_21 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_21 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_21
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_22 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_22 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_22
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_23 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_23 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_23
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_24 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_24 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_24
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_25 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_25 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_25
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_26 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_26 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_26
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_27 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_27 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_27
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_28 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_28 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_28
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_vote_rnd1_pred_rnd :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd1_pred_rnd node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.vote_rnd1_pred_rnd
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_30 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_30 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_30
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_31 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_31 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_31
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_32 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_32 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_32
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_33 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_33 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_33
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_34 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_34 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_34
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_35 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_35 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_35
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_36 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_36 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_36
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_37 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_37 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_37
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_vl_decision_bc_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.vl_decision_bc_agree
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_39 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_39 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_39
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_decision_bc_same_round_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_same_round_agree node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.decision_bc_same_round_agree
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_inv_41 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_41 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.inv_41
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_good_succ_good :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_succ_good node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.good_succ_good
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_good_zero :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_zero node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.good_zero
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_started_pred :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.started_pred node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.started_pred
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_decision_bc_started :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_started node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.decision_bc_started
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_vote_rnd2_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd2_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.vote_rnd2_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.decide_bc_decide_full_noval_decision_bc_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.decide_bc_decide_full_noval.ext node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.decide_bc_decide_full_noval.ext Rabia.decision_bc_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_0 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_0 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_0
+
+  @[invProof]
+  theorem Rabia.initial_vote1_decision_full_val_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.decision_full_val_inv
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_2 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_2 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_2
+
+  @[invProof]
+  theorem Rabia.initial_vote1_decision_full_val_validity :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_validity node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.decision_full_val_validity
+
+  @[invProof]
+  theorem Rabia.initial_vote1_decision_full_val_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.decision_full_val_agree
+
+  @[invProof]
+  theorem Rabia.initial_vote1_decision_full_noval_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_noval_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.decision_full_noval_inv
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_6 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_6 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_6
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_7 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_7 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_7
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_8 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_8 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_8
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_9 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_9 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_9
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_10 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_10 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_10
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_11 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_11 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_11
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_12 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_12 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_12
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_13 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_13 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_13
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_14 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_14 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_14
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_15 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_15 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_15
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_16 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_16 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_16
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_17 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_17 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_17
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_18 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_18 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_18
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_19 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_19 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_19
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_20 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_20 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_20
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_21 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_21 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_21
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_22 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_22 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_22
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_23 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_23 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_23
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_24 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_24 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_24
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_25 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_25 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_25
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_26 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_26 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_26
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_27 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_27 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_27
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_28 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_28 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_28
+
+  @[invProof]
+  theorem Rabia.initial_vote1_vote_rnd1_pred_rnd :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd1_pred_rnd node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.vote_rnd1_pred_rnd
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_30 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_30 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_30
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_31 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_31 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_31
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_32 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_32 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_32
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_33 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_33 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_33
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_34 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_34 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_34
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_35 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_35 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_35
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_36 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_36 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_36
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_37 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_37 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_37
+
+  @[invProof]
+  theorem Rabia.initial_vote1_vl_decision_bc_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.vl_decision_bc_agree
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_39 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_39 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_39
+
+  @[invProof]
+  theorem Rabia.initial_vote1_decision_bc_same_round_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_same_round_agree node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.decision_bc_same_round_agree
+
+  @[invProof]
+  theorem Rabia.initial_vote1_inv_41 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_41 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.inv_41
+
+  @[invProof]
+  theorem Rabia.initial_vote1_good_succ_good :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_succ_good node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.good_succ_good
+
+  @[invProof]
+  theorem Rabia.initial_vote1_good_zero :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_zero node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.good_zero
+
+  @[invProof]
+  theorem Rabia.initial_vote1_started_pred :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.started_pred node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.started_pred
+
+  @[invProof]
+  theorem Rabia.initial_vote1_decision_bc_started :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_started node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.decision_bc_started
+
+  @[invProof]
+  theorem Rabia.initial_vote1_vote_rnd2_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd2_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.vote_rnd2_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.initial_vote1_decision_bc_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.initial_vote1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.initial_vote1.ext Rabia.decision_bc_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_0 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_0 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_0
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_decision_full_val_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.decision_full_val_inv
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_2 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_2 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_2
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_decision_full_val_validity :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_validity node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.decision_full_val_validity
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_decision_full_val_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.decision_full_val_agree
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_decision_full_noval_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_noval_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.decision_full_noval_inv
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_6 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_6 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_6
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_7 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_7 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_7
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_8 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_8 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_8
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_9 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_9 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_9
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_10 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_10 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_10
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_11 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_11 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_11
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_12 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_12 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_12
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_13 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_13 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_13
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_14 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_14 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_14
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_15 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_15 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_15
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_16 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_16 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_16
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_17 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_17 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_17
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_18 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_18 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_18
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_19 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_19 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_19
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_20 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_20 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_20
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_21 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_21 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_21
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_22 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_22 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_22
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_23 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_23 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_23
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_24 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_24 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_24
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_25 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_25 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_25
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_26 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_26 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_26
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_27 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_27 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_27
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_28 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_28 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_28
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_vote_rnd1_pred_rnd :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd1_pred_rnd node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.vote_rnd1_pred_rnd
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_30 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_30 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_30
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_31 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_31 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_31
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_32 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_32 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_32
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_33 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_33 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_33
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_34 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_34 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_34
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_35 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_35 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_35
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_36 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_36 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_36
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_37 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_37 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_37
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_vl_decision_bc_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.vl_decision_bc_agree
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_39 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_39 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_39
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_decision_bc_same_round_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_same_round_agree node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.decision_bc_same_round_agree
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_inv_41 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_41 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.inv_41
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_good_succ_good :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_succ_good node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.good_succ_good
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_good_zero :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_zero node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.good_zero
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_started_pred :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.started_pred node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.started_pred
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_decision_bc_started :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_started node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.decision_bc_started
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_vote_rnd2_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd2_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.vote_rnd2_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.phase_rnd1_decision_bc_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd1.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd1.ext Rabia.decision_bc_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_0 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_0 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_0
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_decision_full_val_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.decision_full_val_inv
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_2 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_2 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_2
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_decision_full_val_validity :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_validity node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.decision_full_val_validity
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_decision_full_val_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_val_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.decision_full_val_agree
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_decision_full_noval_inv :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_full_noval_inv node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.decision_full_noval_inv
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_6 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_6 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_6
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_7 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_7 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_7
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_8 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_8 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_8
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_9 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_9 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_9
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_10 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_10 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_10
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_11 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_11 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_11
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_12 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_12 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_12
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_13 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_13 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_13
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_14 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_14 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_14
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_15 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_15 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_15
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_16 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_16 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_16
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_17 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_17 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_17
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_18 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_18 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_18
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_19 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_19 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_19
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_20 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_20 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_20
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_21 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_21 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_21
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_22 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_22 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_22
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_23 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_23 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_23
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_24 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_24 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_24
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_25 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_25 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_25
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_26 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_26 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_26
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_27 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_27 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_27
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_28 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_28 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_28
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_vote_rnd1_pred_rnd :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd1_pred_rnd node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.vote_rnd1_pred_rnd
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_30 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_30 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_30
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_31 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_31 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_31
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_32 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_32 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_32
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_33 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_33 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_33
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_34 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_34 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_34
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_35 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_35 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_35
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_36 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_36 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_36
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_37 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_37 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_37
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_vl_decision_bc_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vl_decision_bc_agree node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.vl_decision_bc_agree
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_39 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_39 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_39
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_decision_bc_same_round_agree :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_same_round_agree node node_dec node_ne set_majority
+                  set_majority_dec set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg
+                  phase phase_dec phase_ne tot proposal_value proposal_value_dec proposal_value_ne
+                  state_value state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.decision_bc_same_round_agree
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_inv_41 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.inv_41 node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.inv_41
+
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_good_zero :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.good_zero node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.good_zero
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_started_pred :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.started_pred node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.started_pred
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_decision_bc_started :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_started node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.decision_bc_started
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_vote_rnd2_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.vote_rnd2_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.vote_rnd2_vote_rnd1
+
+  @[invProof]
+  theorem Rabia.phase_rnd2_decision_bc_vote_rnd1 :
+      ∀ (st : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+        forall?,(@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                  set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                  proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                  state_value_ne tv).assumptions
+              st →
+            (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne
+                    set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot
+                    proposal_value proposal_value_dec proposal_value_ne state_value state_value_dec
+                    state_value_ne tv).inv
+                st →
+              (@Rabia.phase_rnd2.ext node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv)
+                st
+                fun _
+                  (st' : @State node set_majority set_f_plus_1 phase proposal_value state_value) =>
+                @Rabia.decision_bc_vote_rnd1 node node_dec node_ne set_majority set_majority_dec
+                  set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                  phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                  state_value_dec state_value_ne tv st' :=
+    by solve_wlp_clause Rabia.phase_rnd2.ext Rabia.decision_bc_vote_rnd1
+
+
 
 #time #recover_invariants_in_tr
 
