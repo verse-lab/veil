@@ -244,6 +244,12 @@ def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
   let `(term| $f:ident) := f | failure
   return (⟨f⟩, args.getArgs.map (⟨·⟩))
 
+def simpleAddThm (n : Name) (tp : Expr) (tac : TermElabM (TSyntax `Lean.Parser.Tactic.tacticSeq))
+  (attr : Array Attribute := #[]) : TermElabM Unit := do
+  addDecl <|
+    Declaration.thmDecl <|
+      mkTheoremValEx n [] tp (<- elabTermAndSynthesize (<- `(by $(<- tac))) tp) []
+  applyAttributes n attr
 
 macro "exists?" br:explicitBinders ? "," t:term : term =>
   match br with

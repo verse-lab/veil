@@ -375,13 +375,6 @@ def simpleAddDefn (n : Name) (e : Expr)
       (DefinitionSafety.safe) []
   applyAttributes n attr
 
-def simpleAddThm (n : Name) (tp : Expr) (tac : TermElabM (TSyntax `Lean.Parser.Tactic.tacticSeq))
-  (attr : Array Attribute := #[]) : TermElabM Unit := do
-  addDecl <|
-    Declaration.thmDecl <|
-      mkTheoremValEx n [] tp (<- elabTermAndSynthesize (<- `(by $(<- tac))) tp) []
-  applyAttributes n attr
-
 def mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) : TermElabM Expr := do
   let e <- mkLambdaFVars vs e
   return go vs.size e
