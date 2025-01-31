@@ -261,7 +261,7 @@ invariant [good_zero] started zero → good zero
 close_isolate
 
 open_isolate wrapper3 with wrapper2
-invariant [started_pred] started P2 ∧ next P P2 → started P2
+invariant [started_pred] started P2 ∧ next P P2 → started P
 close_isolate
 
 open_isolate wrapper4 with protocol
