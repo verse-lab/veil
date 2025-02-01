@@ -10,6 +10,24 @@ verification for transition systems and their properties expressed
 decidable fragments of first-order logic, with the full power of a
 modern higher-order proof assistant for when automation falls short.
 
+## Project Structure 
+
+The project consists of three major folders: `Veil/` with Veil implementation, `Test/` with artificial test cases for main Veil features and `Exmaples` with the set of case studies. 
+
+### `Veil/` components
+- `DSL/`: Veil DSL
+  - `ActionTheory.lean`: meta-theory of action DSL with the soundness proof
+  - `ActionLang.lean`: implementation of action DSL expansion
+  - `SpecLang.lean`: implementation of protocol declaration commands
+- `SMT/`: tactics for interactions with SMT 
+- `Tactic/`: auxiliary tactics for proof automation
+### Case Studies implemented in `Examples/` 
+- `FO/`: non-EPR protocols
+- `IvyBench/`: benchmarks [translated from Ivy](https://github.com/aman-goel/ivybench)
+- `Rabia/`: [Rabia protocol](https://github.com/haochenpan/rabia?tab=readme-ov-file)
+- `StellarConsensus/`: [Stellar Consensus Protocol](https://github.com/stellar/scp-proofs/tree/3e0428acc78e598a227a866b99fe0b3ad4582914)
+- `SuzukiKasami/`: [Suzuki Kasami protocol](https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy)
+
 ## Build
 
 The `sauto` tactic relies on a Python wrapper around the Z3 SMT solver
