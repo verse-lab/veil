@@ -68,14 +68,14 @@ The following set of actions must preserve the invariant:
     indv_true ... ❌
 ---
 info: @[invProof]
-  theorem init_Ring.indv_true :
+  theorem init_indv_true :
       ∀ (st : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).init st → (@Ring.indv_true node node_dec node_ne tot btwn) st :=
     by (unhygienic intros); exact sorry
   ⏎
   @[invProof]
-  theorem ruin_inv_Ring.indv_true :
+  theorem ruin_inv_indv_true :
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
@@ -84,7 +84,7 @@ info: @[invProof]
     by (unhygienic intros); exact sorry
   ⏎
   @[invProof]
-  theorem recv_Ring.single_leader :
+  theorem recv_single_leader :
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
