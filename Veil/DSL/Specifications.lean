@@ -1,5 +1,5 @@
 import Lean
-import Veil.IOAutomata
+import Veil.ActionDecl
 import Veil.MetaUtil
 
 open Lean Parser
@@ -85,7 +85,7 @@ instance : ToString StateSpecification where
     | none => s!"{sp.name} : {sp.expr}"
 
 structure ActionSpecification where
-  decl : IOAutomata.ActionDeclaration
+  decl : ActionDeclaration
   /-- DSL expression for this action -/
   lang : Option (TSyntax ``Term.doSeq)
   /-- DSL expression for the specificarion of this action -/
@@ -103,7 +103,7 @@ instance : ToString ActionSpecification where
     | none => s!"{a.decl.type} {a.decl.name} [defined via expr] {a.expr}"
 
 /-- Make an action specification without any DSL-specific information. -/
-def ActionSpecification.mkPlain (type : IOAutomata.ActionType) (name : Name) (expr : Expr) : ActionSpecification := {
+def ActionSpecification.mkPlain (type : ActionType) (name : Name) (expr : Expr) : ActionSpecification := {
   decl := { type := type, name := name, ctor := none },
   lang := none,
   expr := expr
@@ -114,7 +114,7 @@ def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax ``T
   { a with lang := some lang, decl := { a.decl with ctor := some ctor } }
 
 def ActionSpecification.name (a : ActionSpecification) : Name := a.decl.name
-def ActionSpecification.label (a : ActionSpecification) : IOAutomata.ActionLabel Name := a.decl.label
+def ActionSpecification.label (a : ActionSpecification) : ActionLabel Name := a.decl.label
 
 /-- `invariant` and `safety` mean the same thing, but `safety` is as a
 convention used to denote the main, top-level properties of the system,
