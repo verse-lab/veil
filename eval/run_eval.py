@@ -108,7 +108,7 @@ def create_graph(res : dict[str, dict[str, float]], output_file : str):
     ax_high.tick_params(axis='x', top=False, bottom=False, labelbottom=False)
     plt.xticks(rotation=30, ha='right')
     ax_low.set_xticklabels(list(categories.values()))
-    ax_low.set_ylabel("Normalised time")
+    ax_low.set_ylabel("Time (s)")
     ax_high.legend(prop={'size': 14}, loc=1, ncol=2)
 
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
