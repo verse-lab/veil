@@ -121,7 +121,9 @@ invariant [oneb_leftrnd] one_b N R2 ∧ ¬tot.le R2 R1 -> left_rnd N R1
 
 #gen_spec
 
-#check_invariants
+set_option trace.profiler true
+set_option sauto.smt.solver "cvc5" in
+#check_invariants_wlp
 
 
 end PaxosEPR

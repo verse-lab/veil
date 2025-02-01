@@ -280,8 +280,9 @@ set_option auto.smt.timeout 120
 
 set_option sauto.smt.solver "cvc5"
 set_option sauto.smt.translator "lean-auto"
+set_option trace.profiler true
 
-#time #check_invariants_wlp
+#check_invariants_wlp
 
 #time #recover_invariants_in_tr
 

@@ -156,7 +156,8 @@ invariant [join_ack_msg_property3] join_ack_msg N R RP V ∧ V ≠ none → vote
 #gen_spec
 
 set_option sauto.smt.solver "cvc5"  -- for its determinism
+set_option trace.profiler true
 
-#time #check_invariants_wlp
+#check_invariants_wlp
 
 end VerticalPaxosFirstOrder

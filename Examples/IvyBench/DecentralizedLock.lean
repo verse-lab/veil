@@ -55,8 +55,9 @@ invariant [manual_3] ¬ (S ≠ T ∧ msg Y S ∧ msg Y T ∧ ¬ le T (epoch Y) �
 
 #gen_spec
 
+set_option trace.profiler true
 set_option sauto.smt.solver "cvc5" in
-#time #check_invariants_wlp
+#check_invariants_wlp
 
 
 

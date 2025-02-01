@@ -226,8 +226,9 @@ invariant ∀ N B V1 V2, well_behaved N ∧ accepted_prepared N B V1 ∧ accepte
 
 #gen_spec
 
+set_option trace.profiler true
 set_option sauto.smt.solver "cvc5"
 
-#time #check_invariants_wlp
+#check_invariants_wlp
 
 end SCP

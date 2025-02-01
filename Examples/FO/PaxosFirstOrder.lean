@@ -114,7 +114,9 @@ invariant [choosable_proposal] (∀ (R1:round) (R2:round) (V1:value) (V2:value) 
 
 #gen_spec
 
+set_option trace.profiler true
+set_option sauto.smt.solver "cvc5"
 set_option maxHeartbeats 2000000 in
-#time #check_invariants_wlp
+#check_invariants_wlp
 
 end PaxosFirstOrder

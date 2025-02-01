@@ -116,9 +116,10 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ Nat.lt I J) → Nat.
 set_option sauto.smt.solver "cvc5"
 set_option sauto.smt.translator "lean-auto"
 
+set_option trace.profiler true
 set_option trace.sauto.query true
 
--- #check_invariants_wlp
+#check_invariants_wlp
 
 
 end SuzukiKasamiNats

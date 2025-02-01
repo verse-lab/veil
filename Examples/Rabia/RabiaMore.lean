@@ -1,3 +1,4 @@
+-- skip eval
 import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
