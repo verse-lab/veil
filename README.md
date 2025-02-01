@@ -30,18 +30,40 @@ The project consists of three major folders: `Veil/` with Veil implementation, `
 
 ## Build
 
-The `sauto` tactic relies on a Python wrapper around the Z3 SMT solver
-that we have written. Ensure you have Python 3 installed and then either:
+1. Install Python. The latest version of Python can be downloaded from [here](https://www.python.org).
+2. Install Lean. Detailed instructions on Lean installations can be found [here](https://leanprover-community.github.io/get_started.html).
+3. Install `Z3`. 
+  - For Ubuntu run 
+    ```bash
+    sudo apt update
+    sudo apt install z3
+    ```
+  - For Mac
+    ```bash
+    brew install z3
+    ```
+4. Install `cvc5`. 
+  - Detailed instructions on `cvc5` installation can be found [here](https://github.com/cvc5/cvc5/blob/main/INSTALL.rst)
+  - If you install `cvc5` by getting the binary make sure to add it to your PATH by running
+    On Ubuntu/MacOS
+    ```bash
+    echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
+    source ~/.bashrc
+    ```
+    For Zsh
+    ```bash
+    echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.zshrc
+    source ~/.zshrc
+    ```
+5. Finally, you will need to install dependencies for our  Python wrapper around the Z3 SMT solver. Run and then either:
+    ```bash
+    pip3 install z3-solver multiprocess sexpdata
+    ```
+    or (on Ubuntu)
 
-```bash
-pip3 install z3-solver multiprocess sexpdata
-```
-
-or (on Ubuntu)
-
-```bash
-apt-get install python3-z3 python3-multiprocess python3-sexpdata
-```
+    ```bash
+    apt-get install python3-z3 python3-multiprocess python3-sexpdata
+    ```
 
 ### Docker image
 
@@ -61,3 +83,7 @@ most of the prerequisites on the created image. This can take up to 10 minutes.
 5. **On the container**, install the [Lean 4](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4) VS Code plugin. This needs to be done once per container.
 6. Initially, Veil will be placed in `/root/veil`. You can move it, or open that folder directly from VS Code.
 7. Test Veil: Go to any of Veil's example files and run the `Lean 4: Server: Restart File` action from the Command Palette. This may take a while on the first run, as it has to rebuild all of Veil. 
+
+## Getting Started
+To build Veil run `lake build`. This will build the whole project with tests in `Tests/` but without case studies. 
+To build case studies run `lake build Examples`.
