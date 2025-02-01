@@ -12,7 +12,10 @@ modern higher-order proof assistant for when automation falls short.
 
 ## Project Structure 
 
-The project consists of three major folders: `Veil/` with Veil implementation, `Test/` with artificial test cases for main Veil features and `Exmaples` with the set of case studies. 
+The project consists of three major folders: 
+- `Veil/`: the implementation of Veil,
+- `Test/`: Veil's artificial test cases for main Veil features,
+- `Examples/`: Veil's benchmarks, consisting of realistic specifications of distributed protocols
 
 ### `Veil/` components
 - `DSL/`: Veil DSL
@@ -64,6 +67,23 @@ The project consists of three major folders: `Veil/` with Veil implementation, `
     ```bash
     apt-get install python3-z3 python3-multiprocess python3-sexpdata
     ```
+
+### Evaluation
+
+After installing Veil's dependencies, you can
+run Veil on all benchmarks and generate
+a graph using the `eval/run_eval.py` script.
+This script accepts the following parameters:
+- Input file name or directory: for a file name, it runs Veil
+on that file and prints the time taken split
+into simplification time, translation time and solving time.
+For a directory, run Veil on all files in the directory recursively.
+- `--repeat N` (optional, default 1) - run Veil the specified number of times and 
+report an average result.
+- `--output-file <filename>` (optional) - if set and the input is
+a directory, output a graph showing Veil's run times to the specified file.
+The file extension may be `pdf` or `png`. 
+
 
 ### Docker image
 
