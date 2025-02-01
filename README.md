@@ -1,29 +1,14 @@
-# State Transition Systems in Lean
+# Veil: A Framework for Automated and Interactive Verification of Transition Systems
 
-We aim to build a _foundational_ framework for (1) specifying, (2) implementing,
-(3) testing, and (4) proving safety and liveness properties of state transition
-systems, with a focus on distributed protocols.
+Veil is a _foundational_ framework for (1) specifying, (2)
+implementing, (3) testing, and (4) proving safety (and, in the future,
+liveness) properties of state transition systems, with a focus on
+distributed protocols.
 
-**Pay-as-you-go.** Recognising that interactive proofs are too labourious for
-most projects, we aim to support a _progressive verification_ methodology, where
-one can build assurance in the specified (and implemented) system in a gradual
-fashion, via testing, model checking, automated verification (of a subset of
-desired properties), and finally interactive verification.
-
-**Automated reasoning.** The vision for this project is to become a suitable
-substrate for many kinds of automated reasoning tasks related to state
-transition systems, including but not limited to:
-
-- invariant and temporal property inference
-- model checking
-- symbolic verification
-- synthesis and repair
-- compilation to executable code
-
-**A better TLA+.** We aim to replace TLA+ as the language of choice for
-modelling distributed systems. To enable this practically, we ought to be able
-to represent all TLA+ specifications within our framework and support both
-model-checking (akin to TLC) and proving them (akin to TLAPS).
+Veil is embedded in the [Lean 4 proof assistant](https://lean-lang.org/) and provides push-button
+verification for transition systems and their properties expressed
+decidable fragments of first-order logic, with the full power of a
+modern higher-order proof assistant for when automation falls short.
 
 ## Build
 
@@ -41,13 +26,13 @@ apt-get install python3-z3 python3-multiprocess python3-sexpdata
 ```
 
 ### Docker image
-We supply a script that creates
-a Docker image that can be used for developing and running Veil
-projects.
-This Docker image is based on x86-64 Linux,
-but can be used on ARM computers with any OS
-that can run Docker.
-To use it with Visual Studio Code, follow these instructions:
+
+We supply a script that creates a Docker image that can be used for
+developing and running Veil projects. This Docker image is based on
+x86-64 Linux, but can be used on ARM computers with any OS that can
+run Docker. To use it with Visual Studio Code, follow these
+instructions:
+
 1. Make sure Docker is running. Run `./create_docker_image.sh`. 
 This will automatically download Veil and install
 most of the prerequisites on the created image. This can take up to 10 minutes.
