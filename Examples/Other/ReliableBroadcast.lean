@@ -91,7 +91,7 @@ internal transition byz = fun st st' =>
   ∧ (st.delivered = st'.delivered)
 
 
-input action broadcast (n : address) (r : round) (v : value) = {
+action broadcast (n : address) (r : round) (v : value) = {
   require ¬ sent n r;
   initial_msg n N r v := True;
   sent n r := True
@@ -115,7 +115,7 @@ action vote (n : address) (originator : address) (r : round) (v : value) = {
   vote_msg n DST originator r v := True
 }
 
-output action deliver (n : address) (originator : address) (r : round) (v : value) = {
+action deliver (n : address) (originator : address) (r : round) (v : value) = {
   -- received 2f + 1 votes
   require (∃ (q : nodeset), nset.supermajority q ∧
               ∀ (src : address), nset.member src q → vote_msg src n originator r v);
