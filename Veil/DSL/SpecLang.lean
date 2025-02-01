@@ -146,7 +146,7 @@ def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   let typeClassNum := vd.filter isTypeClassBinder |>.size
   let name <- getCurrNamespace
-  let (sdef, smtAttr) <- Command.runTermElabM fun _ => do
+  let (sdef, isHOInst, smtAttr) <- Command.runTermElabM fun vs => do
   -- set the name
     let components ← liftCommandElabM $ liftCoreM $ ((<- localSpecCtx.get).spec.signature).mapM StateComponent.getSimpleBinder
     -- record the state name
@@ -159,11 +159,15 @@ def assembleState : CommandElabM Unit := do
       deriving $(mkIdent ``Nonempty))
     let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
+    let isHOInst ← `(instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stName}_ho") $(getStateParametersBinders vd)* : IsHigherOrder (@$(mkIdent stName) $(← getStateArgumentsStx vd vs)*) := ⟨⟩)
     trace[dsl.debug] "{sdef}"
+    trace[dsl.debug] "{isHOInst}"
     -- Tag the `injEq` lemma as `smtSimp`
-    return (sdef, smtAttr)
+    return (sdef, isHOInst, smtAttr)
   -- `@[stateDef]` sets `spec.stateType` (the base constant `stName`)
   elabCommand sdef
+  -- Tag `State` as a higher-order type
+  elabCommand isHOInst
   -- Tag the `injEq` lemma as `smtSimp`
   elabCommand smtAttr
   -- Do not show unused variable warnings for field names

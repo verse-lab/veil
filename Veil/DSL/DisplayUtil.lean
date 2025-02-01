@@ -58,4 +58,4 @@ where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
     | none =>
       acc ++ [(key, [val])]) []
 
-def getActCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := getActCheckResultMessages' (res.map (fun (id, r) => (id.invName, id.actName.get!, r)))
+def getActCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := getActCheckResultMessages' (res.map (fun (id, r) => (id.actName.get!, id.invName, r)))

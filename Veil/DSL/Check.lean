@@ -230,7 +230,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       trace[dsl.debug] "SMT action check: {actCmd}"
       let actRes ← querySolverWithIndicators actCmd withTimeout (invChecks.map (fun (a, b) => #[a, b]))
       let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
-      | [actName, invName] => (⟨invName, actName, mkTheoremName actName invName⟩, res)
+      | [actName, invName] => (⟨actName, invName, mkTheoremName actName invName⟩, res)
       | _ => unreachable!)
 
       let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList) ++ "\n"
