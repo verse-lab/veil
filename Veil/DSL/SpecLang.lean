@@ -320,18 +320,18 @@ elab (name := VeilInit) "after_init" "{" l:doSeq "}" : command => do
 
 /-! ## Actions -/
 
-def toActionType (stx : TSyntax `actionType) : IOAutomata.ActionType :=
+def toActionType (stx : TSyntax `actionType) : ActionType :=
   match stx with
-  | `(actionType|input) => IOAutomata.ActionType.input
-  | `(actionType|internal) => IOAutomata.ActionType.internal
-  | `(actionType|output) => IOAutomata.ActionType.output
+  | `(actionType|input) => ActionType.input
+  | `(actionType|internal) => ActionType.internal
+  | `(actionType|output) => ActionType.output
   | _ => unreachable!
 
 def toActionTypeIdent (stx : TSyntax `actionType) : Ident :=
   mkIdent $ match stx with
-  | `(actionType|input) => ``IOAutomata.ActionType.input
-  | `(actionType|internal) => ``IOAutomata.ActionType.internal
-  | `(actionType|output) => ``IOAutomata.ActionType.output
+  | `(actionType|input) => ``ActionType.input
+  | `(actionType|internal) => ``ActionType.internal
+  | `(actionType|output) => ``ActionType.output
   | _ => unreachable!
 
 /-- `action foo` means `internal action foo` -/
@@ -350,7 +350,7 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
     | some br => toBracketedBinderArray br
     | none => pure $ TSyntaxArray.mk #[]
     let ctor ← `(ctor| | $nm:ident $br* : $labelTypeName)
-    let actdecl : IOAutomata.ActionDeclaration := {
+    let actdecl : ActionDeclaration := {
       type := toActionType actT,
       name := name,
       ctor := ctor
