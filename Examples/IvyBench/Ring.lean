@@ -1,5 +1,5 @@
 import Veil.DSL
-import Examples.DSL.Std
+import Library.Std
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 

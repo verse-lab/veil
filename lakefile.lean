@@ -8,7 +8,7 @@ package veil
 
 @[default_target]
 lean_lib «Veil» {
-  globs := #[.submodules `Veil, .submodules `Test]
+  globs := #[.submodules `Veil, .submodules `Test, .submodules `Library]
 }
 
 lean_lib Examples {

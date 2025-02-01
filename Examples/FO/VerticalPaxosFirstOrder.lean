@@ -1,5 +1,5 @@
 import Veil.DSL
-import Examples.DSL.Std
+import Library.Std
 
 -- https://www.wisdom.weizmann.ac.il/~padon/paxos-made-epr-examples.zip /vertical_paxos/vertical_paxos_fol.ivy
 

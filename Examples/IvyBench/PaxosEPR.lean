@@ -2,7 +2,7 @@ import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
 import Veil.DSL
-import Examples.DSL.Std
+import Library.Std
 
 -- https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_epr.ivy
 

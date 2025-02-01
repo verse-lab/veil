@@ -1,6 +1,6 @@
 import Veil.DSL
 import Veil.TestUtil
-import Examples.DSL.Std
+import Library.Std
 
 open Classical
 set_option linter.unusedVariables false

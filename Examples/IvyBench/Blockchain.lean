@@ -1,5 +1,5 @@
 import Veil.DSL
-import Examples.DSL.Std
+import Library.Std
 -- https://github.com/aman-goel/ivybench/blob/master/distai/ivy/blockchain.ivy
 
 namespace Blockchain
