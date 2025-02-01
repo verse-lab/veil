@@ -42,7 +42,7 @@ namespace Rabia
 open Classical
 
 -- all implicit, required by the invariant definition
--- FIXME: make more precise? maybe `type [implicit] node`?
+--  make more precise? maybe `type [implicit] node`?
 variable {node : Type} [node_dec : DecidableEq node] [node_ne : Nonempty node]
   {set_majority : Type} [set_majority_dec : DecidableEq set_majority] [set_majority_ne : Nonempty set_majority]
   {set_f_plus_1 : Type} [set_f_plus_1_dec : DecidableEq set_f_plus_1] [set_f_plus_1_ne : Nonempty set_f_plus_1]
@@ -54,12 +54,12 @@ abbrev phase := Nat
 -- we cannot make everything implicit ... at least they need to be explicit somewhere
 abbrev State' node set_majority set_f_plus_1 proposal_value := State node set_majority set_f_plus_1 phase proposal_value state_value
 
--- FIXME: the weird namespace issue
--- FIXME: why ghost relation places the state argument at the end?
+--  the weird namespace issue
+--  why ghost relation places the state argument at the end?
 def started_good (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
   ∀ (p : phase), started p s → good p s
 
--- FIXME: automatically change the implicit level of the previous `.is_inv`
+--  automatically change the implicit level of the previous `.is_inv`
 theorem started_good.is_inv : RelationalTransitionSystem.isInvariant
   (σ := State' node set_majority set_f_plus_1 proposal_value) started_good := by
   intro s hr
@@ -128,7 +128,7 @@ theorem agreement_bc.is_inv : RelationalTransitionSystem.isInvariant
     have hlt : p1 < p2 := by unfold phase at * ; omega
     clear hle hneq
     have hh : state_value_locked p2 vv1 s := by
-      -- FIXME: change these into something like `whnf`?
+      --  change these into something like `whnf`?
       dsimp [decision_bc_started] at hdstarted
       have hgood P hh := hstarted P hh |>.right |>.right
       dsimp only [started] at hgood ; simp only [and_imp] at hgood

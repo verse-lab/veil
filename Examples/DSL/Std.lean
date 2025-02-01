@@ -68,7 +68,7 @@ class Queue (α : Type) (queue : outParam Type) where
     ∀ (e : α), ¬ member e q
   enqueue (x : α) (q q' : queue) :=
     ∀ (e : α), member e q' ↔ (member e q ∨ e = x)
-  -- FIXME?: this is not a multi-set
+  --  this is not a multi-set
   dequeue (x : α) (q q' : queue) :=
     ∀ (e : α), member e q' ↔ (member e q ∧ e ≠ x)
 

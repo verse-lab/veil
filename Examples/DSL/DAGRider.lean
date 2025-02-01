@@ -21,7 +21,7 @@ type vertex
 type block
 type queue
 
--- FIXME: immutable relation?
+--  immutable relation?
 variable (is_byz : node → Prop)
 instantiate bq : ByzQuorum node is_byz quorum
 variable [DecidableBinaryRel bq.member]
@@ -78,12 +78,12 @@ action dequeue (q0 : queue) = {
 -- #print dequeue.fn
 
 -- Data invariants
--- FIXME: `partial function` keyword to define these automatically
+--  `partial function` keyword to define these automatically
 invariant [vertexRound_coherence] ∀ v r r', vertexRound v r → vertexRound v r' → r = r'
 invariant [vertexSource_coherence] ∀ v n n', vertexSource v n → vertexSource v n' → n = n'
 invariant [vertexBlock_coherence] ∀ v b b', vertexBlock v b → vertexBlock v b' → b = b'
 
--- FIXME: round numbers are actually natural numbers
+--  round numbers are actually natural numbers
 invariant [vertexRound_nonneg] ∀ v r, vertexRound v r → r ≥ 0
 invariant [round_nonneg] r ≥ 0
 invariant [dag_nonneg] ∀ r v, dag r v → r ≥ 0
@@ -100,7 +100,7 @@ input action r_deliver (v : vertex) (r : Int) (src : node) = {
     -- We ignore vertices that have been delivered in the past
     require ¬ ∃ r' src', delivered v r' src';
     delivered v r src := True;
-    -- FIXME: `partial function` should let us write `vertexSource v src := True`
+    --  `partial function` should let us write `vertexSource v src := True`
     vertexSource v SRC := (SRC = src);
     vertexRound v R := (R = r);
     -- if |v.strongEdges| ≥ 2f + 1 then add v to buffer
@@ -120,7 +120,7 @@ action setWeakEdges (v : vertex) (r : Int) = {
 
 action createNewVertex (r : Int) = {
     require r ≥ 0;
-    -- FIXME: "wait until ¬ blocksToPropose.empty"
+    --  "wait until ¬ blocksToPropose.empty"
     -- `v.block ← blocksToPropose.dequeue()`
     let (b, q') ← dequeue blocksToPropose
     blocksToPropose := q';
@@ -137,7 +137,7 @@ action createNewVertex (r : Int) = {
 
 -- #print createNewVertex.tr
 
--- FIXME: To add `Decidable` instances for all propositions
+--  To add `Decidable` instances for all propositions
 action mainLoop = {
     -- Add to the DAG all vertices in the buffer that have all their predecessors in the DAG
     dag R V := dag R V ∨

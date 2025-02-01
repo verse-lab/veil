@@ -31,7 +31,7 @@ type address
 type round
 type value
 
--- FIXME: immutable relation?
+--  immutable relation?
 variable (is_byz : address → Prop)
 
 instantiate nset : NodeSet address is_byz nodeset
