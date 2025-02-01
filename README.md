@@ -36,37 +36,37 @@ The project consists of three major folders:
 1. Install Python. The latest version of Python can be downloaded from [here](https://www.python.org).
 2. Install Lean. Detailed instructions on Lean installations can be found [here](https://leanprover-community.github.io/get_started.html).
 3. Install `Z3`. 
-  - For Ubuntu run 
-    ```bash
-    sudo apt update
-    sudo apt install z3
-    ```
-  - For Mac
-    ```bash
-    brew install z3
-    ```
+   - For Ubuntu run 
+     ```bash
+     sudo apt update
+     sudo apt install z3
+     ```
+   - For Mac
+     ```bash
+     brew install z3
+     ```
 4. Install `cvc5`. 
-  - Detailed instructions on `cvc5` installation can be found [here](https://github.com/cvc5/cvc5/blob/main/INSTALL.rst)
-  - If you install `cvc5` by getting the binary make sure to add it to your PATH by running
-    On Ubuntu/MacOS
-    ```bash
-    echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
-    source ~/.bashrc
-    ```
-    For Zsh
-    ```bash
-    echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.zshrc
-    source ~/.zshrc
-    ```
+   - Detailed instructions on `cvc5` installation can be found [here](https://github.com/cvc5/cvc5/blob/main/INSTALL.rst)
+   - If you install `cvc5` by getting the binary make sure to add it to your PATH by running
+     On Ubuntu/MacOS
+     ```bash
+     echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
+     source ~/.bashrc
+     ```
+     For Zsh
+     ```bash
+     echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.zshrc
+     source ~/.zshrc
+     ```
 5. Finally, you will need to install dependencies for our  Python wrapper around the Z3 SMT solver. Run and then either:
-    ```bash
-    pip3 install z3-solver multiprocess sexpdata
-    ```
-    or (on Ubuntu)
+   ```bash
+   pip3 install z3-solver multiprocess sexpdata
+   ```
+   or (on Ubuntu)
 
-    ```bash
-    apt-get install python3-z3 python3-multiprocess python3-sexpdata
-    ```
+   ```bash
+   apt-get install python3-z3 python3-multiprocess python3-sexpdata
+   ```
 
 ### Evaluation
 
