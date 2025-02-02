@@ -80,6 +80,13 @@ action rcv_privilege (n: node) (t: seq_t) = {
   n_token_seq n := t
 }
 
+action enter (n : node) = {
+    require n_have_privilege n
+    require n_requesting n
+    -- Add n to crit
+    crit n := True
+}
+
 action exit (n : node) = {
   require crit n;
   crit n := False;
@@ -96,20 +103,16 @@ action exit (n : node) = {
 }
 
 -- Invariants
-invariant [mutex] (crit N ∧ crit M) → N = M
-invariant [single_privilege] (n_have_privilege N ∧ n_have_privilege M) → N = M
-invariant [allowed_in_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
+safety [mutex] (crit N ∧ crit M) → N = M
 invariant [unique_tokens] ((t_for I N) ∧ (t_for I M)) → N = M
-invariant [corresponding_tokens] ((n_token_seq N) ≠ 0) → t_for (n_token_seq N) N
-invariant [current_privilege_latest_token_1] ((n_have_privilege N) ∧ N ≠ M) → Nat.lt (n_token_seq M) (n_token_seq N)
-invariant [current_privilege_latest_token_2] ((n_have_privilege N) ∧ (t_for I M)) → Nat.le I (n_token_seq N)
--- invariant [current_privilege_latest_token_3] (∀ n, ¬ n_have_privilege n) → (∃ i m, t_for i m ∧ ∀ w, seq.lt (n_token_seq w) i)
--- invariant [current_privilege_latest_token_4] ((t_for I N) ∧ (∀ w, seq.lt (n_token_seq w) I)
---     ∧ (t_for J M) ∧ (∀ w, seq.lt (n_token_seq w) J))
---     → (I = J ∧ N = M)
+invariant ((n_token_seq N) ≠ 0) → t_for (n_token_seq N) N
+invariant [curr_priv1] ((n_have_privilege N) ∧ N ≠ M) → (n_token_seq M) < (n_token_seq N)
+invariant [curr_priv2] ((n_have_privilege N) ∧ (t_for I M)) → I ≤ (n_token_seq N)
 invariant [no_request_to_self] (reqs N M I) → N ≠ M
-invariant [no_consecutive_privilege] ((t_for I N) ∧ (next J I) ∧ (t_for J M)) → N ≠ M
-invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ Nat.lt I J) → Nat.le I (n_token_seq N)
+invariant ((t_for I N) ∧ ((J + 1) = I) ∧ (t_for J M)) → N ≠ M
+invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ I < J) → I ≤ (n_token_seq N)
+invariant [one_priv] (n_have_privilege N ∧ n_have_privilege M) → N = M
+invariant [allowed_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 
 #gen_spec
 
@@ -121,5 +124,20 @@ set_option trace.sauto.query true
 
 #check_invariants_wlp
 
+
+@[invProof]
+  theorem enter_mutex :
+      ∀ (st : @State node) (st' : @State node),
+        (@System node node_dec node_ne).assumptions st →
+          (@System node node_dec node_ne).inv st →
+            (@SuzukiKasamiNats.enter.tr node node_dec node_ne) st st' ->
+              @SuzukiKasamiNats.mutex node node_dec node_ne st' := by
+  intros st st' _ inv
+  simp[enter.tr, invSimp] at *
+  rcases inv with ⟨allowed_crit, one_priv, _⟩
+  rintro n priv req ⟨⟩ N M act1 act2; simp at *
+  apply one_priv
+  . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, act1]
+  . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, act2]
 
 end SuzukiKasamiNats

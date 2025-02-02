@@ -84,6 +84,13 @@ action rcv_privilege (n: node) (t: seq_t) = {
   n_token_seq n := t
 }
 
+action enter (n : node) = {
+    require n_have_privilege n
+    require n_requesting n
+    -- Add n to crit
+    crit n := True
+}
+
 action exit (n : node) = {
   require crit n;
   crit n := False;
