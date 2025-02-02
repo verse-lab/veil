@@ -22,14 +22,6 @@ jobs:
         mkdir .veil.tmp && cp -r * .veil.tmp 
         zip -r veil.zip .veil.tmp && docker build --platform=linux/amd64 -t veil/latest .
         docker image save veil/latest | gzip > veil.tar.gz
-
-    - name: Upload Docker image as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        retention-days: 7
-        overwrite: true
-        name: veil_docker.tar.gz
-        path: veil.tar.gz
         
     - name: List Docker images
       run: docker images
