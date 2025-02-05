@@ -2,7 +2,7 @@ import Veil.State
 import Veil.TransitionSystem
 import Veil.Tactic
 import Veil.DSL
-import Library.Std
+import Veil.Std
 
 import Veil.DSL.InvariantManipulation
 

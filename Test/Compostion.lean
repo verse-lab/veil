@@ -1,6 +1,6 @@
 import Veil.DSL
 import Veil.TestUtil
-import Library.Std
+import Veil.Std
 
 namespace Test₁
 open Classical

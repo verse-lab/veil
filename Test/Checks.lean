@@ -1,5 +1,5 @@
 import Veil.DSL
-import Library.Std
+import Veil.Std
 
 namespace Ring
 open Classical

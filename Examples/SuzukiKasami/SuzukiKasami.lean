@@ -1,5 +1,5 @@
 import Veil.DSL
-import Library.Std
+import Veil.Std
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy
 

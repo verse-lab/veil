@@ -1,5 +1,5 @@
 import Veil.DSL
-import Library.Std
+import Veil.Std
 -- https://github.com/aman-goel/ivybench/blob/master/ex/ivy/decentralized-lock.ivy
 
 
