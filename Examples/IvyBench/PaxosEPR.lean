@@ -1,8 +1,4 @@
-import Veil.State
-import Veil.TransitionSystem
-import Veil.Tactic
-import Veil.DSL
-import Veil.Std
+import Veil
 
 -- https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_epr.ivy
 

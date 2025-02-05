@@ -1,9 +1,5 @@
 -- skip eval
-import Veil.State
-import Veil.TransitionSystem
-import Veil.Tactic
-import Veil.DSL
-import Examples.Rabia.Rabia
+import Veil
 
 -- adapted from [weak_mvc.v](https://github.com/haochenpan/rabia/blob/88013ca8369a7ae3adfed44e3c226c8d97f11209/proofs/coq/weak_mvc.v)
 

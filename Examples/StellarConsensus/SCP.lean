@@ -1,8 +1,4 @@
-import Veil.State
-import Veil.TransitionSystem
-import Veil.Tactic
-import Veil.DSL
-import Veil.Std
+import Veil
 import Examples.StellarConsensus.SCPTheory
 
 -- adapted from [SCP.ivy](https://github.com/stellar/scp-proofs/blob/3e0428acc78e598a227a866b99fe0b3ad4582914/SCP.ivy)

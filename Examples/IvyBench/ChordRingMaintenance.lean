@@ -1,5 +1,4 @@
-import Veil.DSL
-import Veil.Std
+import Veil
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/chord_ring_maintenance.ivy
 
 

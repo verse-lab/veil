@@ -1,5 +1,4 @@
-import Veil.DSL
-import Veil.Std
+import Veil
 
 namespace ReliableBroadcast
 open Classical

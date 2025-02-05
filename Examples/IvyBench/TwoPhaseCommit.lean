@@ -1,4 +1,4 @@
-import Veil.DSL
+import Veil
 
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/two_phase_commit.ivy
 
