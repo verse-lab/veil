@@ -125,6 +125,16 @@ def emitCommandStr (p : SolverProc) (c : String) : MetaM Unit := do
 def emitCommand (p : SolverProc) (c : IR.SMT.Command) : MetaM Unit := do
   emitCommandStr p s!"{c}\n"
 
+-- Based on https://github.com/leanprover-community/mathlib4/blob/de715a348f421a70c608a4cfa6a5c107944c914a/Mathlib/Tactic/Core.lean#L249C1-L256C72
+/-- Returns the root directory which contains the package root file, e.g. `Veil.lean`. -/
+def getPackageDir (pkg : String) : IO System.FilePath := do
+  let sp ← initSrcSearchPath
+  let root? ← sp.findM? fun p =>
+    (p / pkg).isDir <||> ((p / pkg).withExtension "lean").pathExists
+  match root? with
+  | .some root => return root
+  | .none => IO.currentDir
+
 def createSolver (name : SolverName) (withTimeout : Nat) : MetaM SolverProc := do
   let tlim_sec := withTimeout
   let seed := sauto.smt.seed.get $ ← getOptions
@@ -133,9 +143,11 @@ def createSolver (name : SolverName) (withTimeout : Nat) : MetaM SolverProc := d
   -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}"]
   -- We wrap Z3 with a Python script that prints models in a more usable format.
   | .z3   =>
-    let solverPath := (System.mkFilePath [s!"{← IO.currentDir}", "z3model.py"]).toString
+    let veilDir ← getPackageDir "Veil"
+    let wrapperDir := System.mkFilePath [s!"{veilDir}", "Veil", "SMT"]
+    let wrapperPath := (System.mkFilePath [s!"{wrapperDir}", "z3model.py"]).toString
     let args := #[s!"--tlimit={tlim_sec * 1000}", s!"--seed", s!"{seed}"]
-    createAux solverPath args
+    createAux wrapperPath args
   | .cvc4 => throwError "cvc4 is not supported"
   | .cvc5 =>
       let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}", "--seed", s!"{seed}",
