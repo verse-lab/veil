@@ -2,6 +2,19 @@ import Lean
 
 open Lean Elab Command
 
+/-- The directory of the file being currently compiled. -/
+syntax (name := currentDirectory) "currentDirectory!" : term
+
+open Lean Elab Elab.Term in
+@[term_elab currentDirectory] def elabCurrentFilePath : TermElab
+  | `(currentDirectory!), _ => do
+    let ctx ← readThe Lean.Core.Context
+    let srcPath := System.FilePath.mk ctx.fileName
+    let some srcDir := srcPath.parent
+      | throwError "cannot compute parent directory of '{srcPath}'"
+    return mkStrLit s!"{srcDir}"
+  | _, _ => throwUnsupportedSyntax
+
 /- From: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/binderIdent.20vs.20Ident -/
 def toBinderIdent (i : Ident) : TSyntax ``binderIdent := Unhygienic.run <|
   withRef i `(binderIdent| $i:ident)
