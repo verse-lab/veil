@@ -47,10 +47,8 @@ invariant pending L L → le N L
 
 #gen_spec
 
-set_option trace.profiler true
 set_option sauto.smt.solver "cvc5" in
 #check_invariants_wlp
-
 
 
 prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
@@ -98,7 +96,6 @@ sat trace {
   assert (∃ n next, pending n next)
 } by { bmc_sat }
 
-set_option maxHeartbeats 2000000 in
 unsat trace [trace_any] {
   any 6 actions
   assert ¬ (leader L → le N L)

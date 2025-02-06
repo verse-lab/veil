@@ -118,9 +118,6 @@ invariant [allowed_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 set_option sauto.smt.solver "cvc5"
 set_option sauto.smt.translator "lean-auto"
 
-set_option trace.profiler true
-set_option trace.sauto.query true
-
 #check_invariants_wlp
 
 

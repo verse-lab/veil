@@ -92,7 +92,6 @@ invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 
 #gen_spec
 
-set_option trace.profiler true
 set_option sauto.smt.solver "cvc5" in
 #check_invariants_wlp
 
@@ -107,7 +106,6 @@ sat trace {
   commit
 } by { bmc_sat }
 
-set_option maxHeartbeats 2000000 in
 unsat trace {
   any 6 actions
   assert ¬ ((decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes N2) ∧ (decide_abort N → abort_flag))

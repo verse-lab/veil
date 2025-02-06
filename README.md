@@ -153,23 +153,3 @@ most of the prerequisites on the created image. This can take up to 10 minutes.
 7. Test Veil: Go to any of Veil's example files and run the `Lean 4: Server: Restart File` action from the Command Palette. This may take a while on the first run, as it has to rebuild all of Veil. 
 
 </details>
-
-<details close>
-<summary><strong>Evaluation instructions</strong></summary>
-
-After installing Veil's dependencies, you can run Veil on all
-benchmarks and generate a graph using the `eval/run_eval.py` script.
-This script accepts the following parameters:
-
-- Input file name or directory: for a file name, it runs Veil on that
-file and prints the time taken split into simplification time,
-translation time and solving time. For a directory, run Veil on all
-files in the directory recursively.
-
-- `--repeat N` (optional, default 1) - run Veil the specified number of
-times and report an average result.
-
-- `--output-file <filename>` (optional) - if set and the input is a
-directory, output a graph showing Veil's run times to the specified
-file. The file extension may be `pdf` or `png`.
-</details>
