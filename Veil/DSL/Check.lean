@@ -73,7 +73,7 @@ def getChecksForAction (actName : Name) : CommandElabM (Array (Name × Expr) × 
         invChecks := invChecks.push (inv, actNamesInd)
     return (#[], invChecks)
 
-def mkTheoremName (actName : Name) (invName : Name) : Name := s!"{actName}_{invName.components.getLast!}".toName
+def mkTheoremName (actName : Name) (invName : Name) : Name := s!"{actName.components.getLast!}_{invName.components.getLast!}".toName
 
 def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
@@ -196,7 +196,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     | .doNotPrint => pure ()
     | .printAllTheorems => displaySuggestion stx (allTheorems.map Prod.snd)
     | .printUnverifiedTheorems =>
-      let unverifiedTheoremIds := (thmIdAndResults.filter (fun res => match res with
+      let unverifiedTheoremIds := ((initIdAndResults ++ thmIdAndResults).filter (fun res => match res with
         | (_, .Unsat) => false
         | _ => true)).map (fun (id, _) => id)
       let unverifiedTheorems := (allTheorems.filter (fun (id, _) => unverifiedTheoremIds.any (fun id' => id == id'))).map Prod.snd

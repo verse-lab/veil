@@ -72,28 +72,27 @@ info: @[invProof]
       ∀ (st : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).init st → (@Ring.indv_true node node_dec node_ne tot btwn) st :=
-    by (unhygienic intros); exact sorry
-  ⏎
-  @[invProof]
-  theorem ruin_inv_indv_true :
-      ∀ (st st' : @State node),
-        (@System node node_dec node_ne tot btwn).assumptions st →
-          (@System node node_dec node_ne tot btwn).inv st →
-            (@ruin_inv.tr node node_dec node_ne tot btwn) st st' →
-              (@Ring.indv_true node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); exact sorry
+    by (unhygienic intros); solve_clause[initSimp]
   ⏎
   @[invProof]
   theorem recv_single_leader :
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
-            (@recv.tr node node_dec node_ne tot btwn) st st' →
+            (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); exact sorry
+    by (unhygienic intros); solve_clause[Ring.recv.tr]
+  ⏎
+  @[invProof]
+  theorem ruin_inv_indv_true :
+      ∀ (st st' : @State node),
+        (@System node node_dec node_ne tot btwn).assumptions st →
+          (@System node node_dec node_ne tot btwn).inv st →
+            (@Ring.ruin_inv.tr node node_dec node_ne tot btwn) st st' →
+              (@Ring.indv_true node node_dec node_ne tot btwn) st' :=
+    by (unhygienic intros); solve_clause[Ring.ruin_inv.tr]
 -/
 #guard_msgs(whitespace := lax) in
-#check_invariants!
-
+#check_invariants_tr!
 
 end Ring

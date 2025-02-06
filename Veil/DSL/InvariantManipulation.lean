@@ -4,6 +4,9 @@ import Veil.DSL.Check
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
+def mkTheoremFullActionName (actName : Name) (invName : Name) : Name := s!"{actName}_{invName.components.getLast!}".toName
+def mkTrTheoremName (actName : Name) (invName : Name) : Name := s!"{actName.components.getLast!}.tr_{invName.components.getLast!}".toName
+
 -- adapted from `theoremSuggestionsForChecks`
 def theoremSuggestionsForChecks' (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
@@ -40,8 +43,9 @@ def theoremSuggestionsForChecks' (initIndicators : List Name) (actIndicators : L
               have hthis := $(mkIdent name4):ident _ h
               apply hthis)
           pure (trTpSyntax, body)
-        let thmName := mkTheoremName (toTrName actName) invName
+        let thmName := mkTrTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := by $body)
+        trace[dsl.debug] "{thm}"
         theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
       return theorems
 
@@ -80,7 +84,7 @@ def elabAlreadyProven (trName : Name) : TacticM Unit := withMainContext do
   let ty ← instantiateMVars ty      -- this is usually required
   let inv := ty.getAppFn'
   let .some (invName, _) := inv.const? | throwError "the goal {ty} is not about an invariant clause? got {inv}, expect it to be a const"
-  let thmName := mkTheoremName trName invName
+  let thmName := if trName == `init then mkTheoremName trName invName else mkTheoremFullActionName trName invName
   let attempt ← `(tactic| (apply $(mkIdent thmName) <;> assumption) )
   evalTactic attempt
 
