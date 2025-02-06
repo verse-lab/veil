@@ -149,6 +149,9 @@ def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) 
     setEnv env
   return isProven
 
+def Lean.MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
+  msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
+
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) :
   CommandElabM Unit := do
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
@@ -163,20 +166,28 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let mut initIdAndResults := #[]
     let mut thmIdAndResults := #[]
     for (thmId, cmd) in allTheorems do
+      -- save messages before elaboration
+      let origMsgs := (<- get).messages
       let isProven ← checkIndividualTheorem thmId (← `(#guard_msgs(drop warning) in $(cmd)))
-      let msgs := (<- get).messages
-      let hasSat ← msgs.unreported.anyM (fun msg => do
-        let msgText ← msg.data.toString
-        pure $ msg.severity == MessageSeverity.error && String.isSubStrOf Smt.falseGoalStr msgText)
-      let result ← if msgs.hasErrors then
-        let msgs := String.intercalate "\n" (← msgs.unreported.toList.mapM (fun msg => msg.toString))
-        let res : SmtResult := if hasSat then SmtResult.Sat .none else SmtResult.Failure msgs
-        pure res
-        else pure SmtResult.Unsat
+      let msgs := (← get).messages
+      let result ← if isProven then pure SmtResult.Unsat else
+        -- The theorem is not proven; we need to figure out why:
+        -- either solver returned `sat`, `unknown`, or there was an error
+        let msgsTxt := String.intercalate "\n" (← msgs.toList.mapM (fun msg => msg.toString))
+        let (hasSat, hasUnknown, hasFailure) := (← msgs.containsSubStr Smt.satGoalStr, ← msgs.containsSubStr Smt.unknownGoalStr, ← msgs.containsSubStr Smt.failureGoalStr)
+        pure $ match hasSat, hasUnknown, hasFailure with
+        | true, false, false => SmtResult.Sat .none
+        | false, true, false => SmtResult.Unknown msgsTxt
+        | false, false, true => SmtResult.Failure msgsTxt
+        | _, _, _ =>
+          dbg_trace s!"[{thmId.theoremName}] (isProven: {isProven}, hasSat: {hasSat}, hasUnknown: {hasUnknown}, hasFailure: {hasFailure}) Unexpected messages: {msgsTxt}"
+          unreachable!
       if thmId.actName.isNone then
         initIdAndResults := initIdAndResults.push (thmId, result)
       else
         thmIdAndResults := thmIdAndResults.push (thmId, result)
+      -- restore messages (similar to `#guard_msgs`)
+      modify fun st => { st with messages := origMsgs }
     let initMsgs := getInitCheckResultMessages initIdAndResults.toList
     let msgs := getActCheckResultMessages thmIdAndResults.toList
     let msgs := initMsgs ++ msgs

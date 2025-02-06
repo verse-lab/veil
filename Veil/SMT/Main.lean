@@ -467,7 +467,9 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
 /-- A string to print when the solver returns `sat`. Factored out here
 because it's used by `checkTheorems` in `Check.lean` to distinguish
 between failures and `sat` from the solver .-/
-def falseGoalStr : String := "the goal is false"
+def satGoalStr : String := "the goal is false"
+def unknownGoalStr : String := "the solver returned unknown"
+def failureGoalStr : String := "solver invocation failed"
 
 @[tactic sauto] def evalSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
@@ -485,7 +487,7 @@ def falseGoalStr : String := "the goal is false"
   let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
   match res with
   -- if we have a model, we can print it
-  | .Sat (.some fostruct) => throwError s!"{falseGoalStr}: {fostruct}"
+  | .Sat (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
   | .Sat none =>
     -- If we don't, we probably called `lean-auto`, so we need to call
     -- `lean-smt` to get the model.
@@ -494,13 +496,13 @@ def falseGoalStr : String := "the goal is false"
       let cmdString ← prepareLeanSmtQuery mv hs
       let res ← querySolver cmdString withTimeout
       match res with
-      | .Sat (.some fostruct) => throwError s!"{falseGoalStr}: {fostruct}"
-      | .Sat none => throwError "{falseGoalStr} (print the model with `set_option trace.sauto.model true`)"
-      | .Unknown _ | .Failure _ | .Unsat => throwError s!"{falseGoalStr}, but second SMT query asking for a model returned {res}"
+      | .Sat (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
+      | .Sat none => throwError "{satGoalStr} (print the model with `set_option trace.sauto.model true`)"
+      | .Unknown _ | .Failure _ | .Unsat => throwError s!"{satGoalStr}, but second SMT query asking for a model returned {res}"
     else
-      throwError "{falseGoalStr}"
-  | .Unknown reason => throwError "the solver returned unknown: {reason}"
-  | .Failure reason => throwError "solver invocation failed: {reason}"
+      throwError "{satGoalStr}"
+  | .Unknown reason => throwError "{unknownGoalStr}: {reason}"
+  | .Failure reason => throwError "{failureGoalStr}: {reason}"
   | .Unsat => mv.admit (synthetic := false)
 
 open Lean.Meta in
