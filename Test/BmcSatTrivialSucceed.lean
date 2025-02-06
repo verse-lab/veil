@@ -16,6 +16,10 @@ after_init {
   x := True
 }
 
+action empty = {
+  pure ()
+}
+
 invariant True
 
 #gen_spec
