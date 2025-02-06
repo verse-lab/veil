@@ -125,6 +125,6 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.
 
 set_option sauto.smt.solver "cvc5"
 
-#check_invariants_wlp
+#check_invariants
 
 end SuzukiKasami

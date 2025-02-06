@@ -1,4 +1,8 @@
 import Veil
+import Veil.DSL.InvariantManipulation
+
+set_option veil.gen_sound true
+set_option synthInstance.maxSize 1000000
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
@@ -48,8 +52,7 @@ invariant pending L L → le N L
 #gen_spec
 
 set_option sauto.smt.solver "cvc5" in
-#check_invariants_wlp
-
+#check_invariants
 
 prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
 

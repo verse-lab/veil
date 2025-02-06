@@ -54,7 +54,7 @@ invariant (N1 ≠ N2 ∧  holds N1) → replied N1 N2
 #gen_spec
 
 set_option sauto.smt.solver "cvc5" in
-#check_invariants_wlp
+#check_invariants
 
 
 end RicartAgrawala

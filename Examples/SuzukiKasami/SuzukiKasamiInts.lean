@@ -118,11 +118,11 @@ invariant [allowed_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 set_option sauto.smt.solver "cvc5"
 set_option sauto.smt.translator "lean-auto"
 
-#check_invariants_wlp
+#check_invariants
 
 
 @[invProof]
-  theorem enter_mutex :
+  theorem enter_mutex_manual :
       ∀ (st : @State node) (st' : @State node),
         (@System node node_dec node_ne).assumptions st →
           (@System node node_dec node_ne).inv st →

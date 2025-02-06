@@ -208,7 +208,7 @@ set_option auto.smt.timeout 15 -- seconds
 #gen_spec
 
 set_option sauto.smt.solver "cvc5"
-#check_invariants_wlp
+#check_invariants
 
 sat trace [initial_state] {} by { bmc_sat }
 

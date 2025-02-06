@@ -83,7 +83,7 @@ invariant [ic3po_global3] sig V1 D1 V2 D2 S1 → sig_auth S1
 #gen_spec
 
 set_option sauto.smt.solver "cvc5" in
-#check_invariants_wlp
+#check_invariants
 
 
 end MultiSigAll
