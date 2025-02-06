@@ -36,9 +36,9 @@ inductive TheoremSuggestionStyle
   | printUnverifiedTheorems
 
 def CheckInvariantsBehaviour := VCGenStyle × CheckStyle × TheoremSuggestionStyle
-def CheckInvariantsBehaviour.default : CheckInvariantsBehaviour := (.transition, .checkTheoremsWithIndicators, .doNotPrint)
-def CheckInvariantsBehaviour.question : CheckInvariantsBehaviour := (.transition, .noCheck, .printAllTheorems)
-def CheckInvariantsBehaviour.exclamation : CheckInvariantsBehaviour := (.transition, .checkTheoremsWithIndicators, .printUnverifiedTheorems)
+def CheckInvariantsBehaviour.default (style : VCGenStyle := .wlp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .doNotPrint)
+def CheckInvariantsBehaviour.question (style : VCGenStyle := .wlp) : CheckInvariantsBehaviour := (style, .noCheck, .printAllTheorems)
+def CheckInvariantsBehaviour.exclamation (style : VCGenStyle := .wlp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .printUnverifiedTheorems)
 
 /--  Generate theorems to check in the initial state and after each action -/
 def getAllChecks : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
@@ -128,23 +128,27 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
     return (initIndicators, acts)
   theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList vcStyle (sorry_body := False)
 
-def checkIndividualTheorem (theoremName : Name) (cmd : TSyntax `command): CommandElabM Bool := do
-  withTraceNode `dsl.perf.checkInvariants (fun _ => return m!"elab {theoremName} definition") do
+def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) : CommandElabM Bool := do
   let env ← getEnv
-  -- FIXME: I think we want to run `elabCommand` without `withLogging`
-  elabCommand cmd
+  -- If the theorem has been defined already, reuse the existing
+  -- definition to figure out whether it's proven
+  if (← resolveGlobalName thmId.theoremName).isEmpty then
+    trace[dsl.debug] "Checking theorem {thmId.theoremName} for the first time"
+    elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
+  else
+    trace[dsl.debug] "Theorem {thmId.theoremName} has been checked before; reusing result"
   -- Check the `Expr` for the given theorem
-  let th ← getConstInfo theoremName
+  let thFullName ← resolveGlobalConstNoOverloadCore thmId.theoremName
+  let th ← getConstInfo thFullName
   let isProven ← match th with
     | ConstantInfo.thmInfo attempt => pure <| !attempt.value.hasSyntheticSorry
-    | _ => throwError s!"checkTheorem: expected {theoremName} to be a theorem"
+    | _ => throwError s!"checkTheorem: expected {thmId.theoremName} to be a theorem"
   -- We only add the theorem to the environment if it successfully type-checks
   -- i.e. we restore the original environment if the theorem is not proven
   if !isProven then
     setEnv env
   return isProven
 
-#guard_msgs(drop warning) in
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) :
   CommandElabM Unit := do
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
@@ -159,19 +163,20 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let mut initIdAndResults := #[]
     let mut thmIdAndResults := #[]
     for (thmId, cmd) in allTheorems do
-      elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
+      let isProven ← checkIndividualTheorem thmId (← `(#guard_msgs(drop warning) in $(cmd)))
       let msgs := (<- get).messages
-      if msgs.hasErrors then
-        let ms1 <- msgs.unreported[0]!.toString
-        if thmId.actName.isNone then
-          initIdAndResults := initIdAndResults.push (thmId, SmtResult.Failure ("\n" ++ ms1))
-        else
-          thmIdAndResults := thmIdAndResults.push (thmId, SmtResult.Failure ("\n" ++ ms1))
+      let hasSat ← msgs.unreported.anyM (fun msg => do
+        let msgText ← msg.data.toString
+        pure $ msg.severity == MessageSeverity.error && String.isSubStrOf Smt.falseGoalStr msgText)
+      let result ← if msgs.hasErrors then
+        let msgs := String.intercalate "\n" (← msgs.unreported.toList.mapM (fun msg => msg.toString))
+        let res : SmtResult := if hasSat then SmtResult.Sat .none else SmtResult.Failure msgs
+        pure res
+        else pure SmtResult.Unsat
+      if thmId.actName.isNone then
+        initIdAndResults := initIdAndResults.push (thmId, result)
       else
-        if thmId.actName.isNone then
-          initIdAndResults := initIdAndResults.push (thmId, SmtResult.Unsat)
-        else
-          thmIdAndResults := thmIdAndResults.push (thmId, SmtResult.Unsat)
+        thmIdAndResults := thmIdAndResults.push (thmId, result)
     let initMsgs := getInitCheckResultMessages initIdAndResults.toList
     let msgs := getActCheckResultMessages thmIdAndResults.toList
     let msgs := initMsgs ++ msgs
@@ -266,17 +271,29 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         displaySuggestion stx (unverifiedTheorems.map Prod.snd) (preMsg := msg)
 
 /- ## `#check_invariants` -/
-/-- Check all invariants and print result of each check. -/
+
+/-- Check all invariants and print result of each check. Uses `wlp` VC
+style. -/
 syntax "#check_invariants" : command
-/-- Suggest theorems to check all invariants. -/
+/-- Suggest theorems to check all invariants. Uses `wlp` VC style. -/
 syntax "#check_invariants?" : command
 /-- Check all invariants and suggest only theorems that
-were not proved automatically. -/
+were not proved automatically. Uses `wlp` VC style. -/
 syntax "#check_invariants!" : command
 
-syntax "#check_invariants_wlp" : command
-syntax "#check_invariants_wlp?" : command
-syntax "#check_invariants_wlp!" : command
+/-- Check all invariants and print result of each check. Uses `tr` VC
+style. -/
+syntax "#check_invariants_tr" : command
+/-- Suggest theorems to check all invariants. Uses `tr` VC style. -/
+syntax "#check_invariants_tr?" : command
+/-- Check all invariants and suggest only theorems that
+were not proved automatically. Uses `tr` VC style. -/
+syntax "#check_invariants_tr!" : command
+
+/-- Legacy code: generates a mega-query with indicator variables and
+checks each action-invariant pair with a separate `check-sat-assuming`
+query. -/
+syntax "#check_invariants_indicators" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
@@ -288,9 +305,10 @@ elab_rules : command
   | `(command| #check_invariants)  => do checkInvariants (← getRef) (behaviour := .default)
   | `(command| #check_invariants?) => do checkInvariants (← getRef) (behaviour := .question)
   | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .exclamation)
-  | `(command| #check_invariants_wlp) => do checkInvariants (← getRef) (behaviour := (.wlp, .checkTheoremsIndividually, .doNotPrint))
-  | `(command| #check_invariants_wlp?) => do checkInvariants (← getRef) (behaviour := (.wlp, .noCheck, .printAllTheorems))
-  | `(command| #check_invariants_wlp!) => do checkInvariants (← getRef) (behaviour := (.wlp, .checkTheoremsIndividually, .printUnverifiedTheorems))
+  | `(command| #check_invariants_tr)  => do checkInvariants (← getRef) (behaviour := .default .transition)
+  | `(command| #check_invariants_tr?) => do checkInvariants (← getRef) (behaviour := .question .transition)
+  | `(command| #check_invariants_tr!) => do checkInvariants (← getRef) (behaviour := .exclamation .transition)
+  | `(command| #check_invariants_indicators) => do checkInvariants (← getRef) (behaviour := (.transition, .checkTheoremsWithIndicators, .doNotPrint))
 
 /- ## `#check_invariant` -/
 syntax "#check_invariant" ident : command

@@ -46,7 +46,7 @@ def getActCheckResultMessages' (res: List (Name × Name × SmtResult)) : (Array 
   if !res.isEmpty then
     msgs := msgs.push "The following set of actions must preserve the invariant:"
     for (actName, invResults) in group res do
-      msgs := msgs.push s!"  {actName}"
+      msgs := msgs.push s!"  {getBaseNameForDisplay actName}"
       for (invName, r) in invResults do
         msgs := msgs.push s!"    {getBaseNameForDisplay invName} ... {emoji r}"
   pure msgs

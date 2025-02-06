@@ -464,6 +464,11 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
     let queryStr := String.intercalate "\n" (commands.toList.map toString)
     return queryStr
 
+/-- A string to print when the solver returns `sat`. Factored out here
+because it's used by `checkTheorems` in `Check.lean` to distinguish
+between failures and `sat` from the solver .-/
+def falseGoalStr : String := "the goal is false"
+
 @[tactic sauto] def evalSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
   let withTimeout ← parseTimeout ⟨stx[2]⟩
@@ -480,7 +485,7 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
   let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
   match res with
   -- if we have a model, we can print it
-  | .Sat (.some fostruct) => throwError s!"the goal is false: {fostruct}"
+  | .Sat (.some fostruct) => throwError s!"{falseGoalStr}: {fostruct}"
   | .Sat none =>
     -- If we don't, we probably called `lean-auto`, so we need to call
     -- `lean-smt` to get the model.
@@ -489,11 +494,11 @@ def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM Strin
       let cmdString ← prepareLeanSmtQuery mv hs
       let res ← querySolver cmdString withTimeout
       match res with
-      | .Sat (.some fostruct) => throwError s!"the goal is false: {fostruct}"
-      | .Sat none => throwError "the goal is false (print the model with `set_option trace.sauto.model true`)"
-      | .Unknown _ | .Failure _ | .Unsat => throwError s!"the goal is false, but second SMT query asking for a model returned {res}"
+      | .Sat (.some fostruct) => throwError s!"{falseGoalStr}: {fostruct}"
+      | .Sat none => throwError "{falseGoalStr} (print the model with `set_option trace.sauto.model true`)"
+      | .Unknown _ | .Failure _ | .Unsat => throwError s!"{falseGoalStr}, but second SMT query asking for a model returned {res}"
     else
-      throwError "the goal is false"
+      throwError "{falseGoalStr}"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
   | .Failure reason => throwError "solver invocation failed: {reason}"
   | .Unsat => mv.admit (synthetic := false)
