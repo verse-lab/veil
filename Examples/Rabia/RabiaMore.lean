@@ -1,6 +1,6 @@
 -- skip eval
 import Veil
-import Veil.TransitionSystem
+import Veil.Model.TransitionSystem
 import Examples.Rabia.Rabia
 
 -- adapted from [weak_mvc.v](https://github.com/haochenpan/rabia/blob/88013ca8369a7ae3adfed44e3c226c8d97f11209/proofs/coq/weak_mvc.v)

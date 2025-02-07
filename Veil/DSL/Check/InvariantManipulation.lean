@@ -1,6 +1,6 @@
 import Lean
-import Veil.Tactic
-import Veil.DSL.Check
+import Veil.Tactic.Main
+import Veil.DSL.Check.Main
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
@@ -45,7 +45,7 @@ def theoremSuggestionsForChecks' (initIndicators : List Name) (actIndicators : L
           pure (trTpSyntax, body)
         let thmName := mkTrTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := by $body)
-        trace[dsl.debug] "{thm}"
+        trace[veil.debug] "{thm}"
         theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
       return theorems
 

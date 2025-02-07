@@ -98,32 +98,32 @@ The following set of actions must preserve the invariant:
 #check_invariant $(Lean.mkIdent `single_leader))
 
 
-set_option sauto.smt.translator "lean-smt"
-set_option sauto.smt.solver "z3"
+set_option veil.smt.translator "lean-smt"
+set_option veil.smt.solver "z3"
 
 test_check_invariants
 test_check_action_recv
 test_check_action_send
 test_check_invariant_single_leader
 
-set_option sauto.smt.translator "lean-smt"
-set_option sauto.smt.solver "cvc5"
+set_option veil.smt.translator "lean-smt"
+set_option veil.smt.solver "cvc5"
 
 test_check_invariants
 test_check_action_recv
 test_check_action_send
 test_check_invariant_single_leader
 
-set_option sauto.smt.translator "lean-auto"
-set_option sauto.smt.solver "z3"
+set_option veil.smt.translator "lean-auto"
+set_option veil.smt.solver "z3"
 
 test_check_invariants
 test_check_action_recv
 test_check_action_send
 test_check_invariant_single_leader
 
-set_option sauto.smt.translator "lean-auto"
-set_option sauto.smt.solver "cvc5"
+set_option veil.smt.translator "lean-auto"
+set_option veil.smt.solver "cvc5"
 
 test_check_invariants
 test_check_action_recv

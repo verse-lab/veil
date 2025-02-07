@@ -1,6 +1,4 @@
 
-import Veil.Basic
-
 -- NOTE: if you change this, make sure you also change
 -- `findStateType` in `Tactic/Util.lean`
 class RelationalTransitionSystem (σ : Type) where

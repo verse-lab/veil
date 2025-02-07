@@ -1,8 +1,8 @@
 import Lean.Elab.Tactic
-import Veil.Tactic.Util
-import Veil.Tactic.splitIfs
-import Veil.TransitionSystem
 import Lean.Meta.Tactic.TryThis
+import Veil.Util.Tactic
+import Veil.Tactic.SplitIfs
+import Veil.Model.TransitionSystem
 
 -- For automation
 import Veil.SMT.Main
@@ -152,7 +152,7 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   -- simplified, which is the case for DSL-defined actions
   let thoroughSimp := mkSimpLemmas $ #[injEqLemma, `invSimp, `smtSimp, `logicSimp].map mkIdent
   let fastSimp := mkSimpLemmas $ #[`invSimp, `smtSimp].map mkIdent
-  let finalSimp := mkSimpLemmas $ #[`quantifierElim].map mkIdent
+  let finalSimp := mkSimpLemmas $ #[`quantifierSimp].map mkIdent
   let simp2 := if thorough then thoroughSimp else fastSimp
   let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *) ; (try simp only [$finalSimp,*] at *))
   let mut xtacs := xtacs.push simpTac
@@ -216,9 +216,9 @@ syntax solveWlp := "solve_wlp_clause" <|> "solve_wlp_clause?"
 elab tk:solveWlp act:ident inv:ident : tactic => withMainContext do
   let some invInfo := (<- localSpecCtx.get).spec.invariants.find? (·.name == inv.getId)
     | throwError "Invariant {inv.getId} not found"
-  let (invSimp, invSimpLite, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
+  let (invSimp, invSimpTopLevel, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
       (mkIdent `invSimp,
-       mkIdent `invSimpLite,
+       mkIdent `invSimpTopLevel,
        mkIdent `st, mkIdent `st',
        mkIdent `ass_, mkIdent `inv_,
        mkIdent `ifSimp,
@@ -226,7 +226,7 @@ elab tk:solveWlp act:ident inv:ident : tactic => withMainContext do
        mkIdent `and_imp)
   let mut invSimpTac <- `(tactic| dsimp only [$invSimp:ident])
   let mut clearInvs  <- `(tactic| skip)
-  let mut invsToUnfold := #[invSimpLite]
+  let mut invsToUnfold := #[invSimpTopLevel]
   let isStore := (<- localIsolates.get).isolateStore
   unless invInfo.isolates.isEmpty do
     for is in invInfo.isolates do
@@ -288,7 +288,7 @@ elab_rules : tactic
 elab "simplify_all" : tactic => withMainContext do
   let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
   let toSimp := mkSimpLemmas $ #[`smtSimp, `logicSimp].map mkIdent
-  let finalSimp := mkSimpLemmas $ #[`quantifierElim].map mkIdent
+  let finalSimp := mkSimpLemmas $ #[`quantifierSimp].map mkIdent
   let simp_tac ← `(tactic| (try dsimp only [$toDsimp,*] at *) ; (try simp only [$toSimp,*] at *); (try simp only [$finalSimp,*] at *))
   evalTactic simp_tac
 
@@ -303,7 +303,7 @@ elab "bmc" : tactic => withMainContext do
     sdestruct_hyps;
     sauto_all
   )
-  trace[sauto] "{tac}"
+  trace[veil.smt] "{tac}"
   evalTactic $ tac
 
 /-- Tactic to solve `sat_trace` goals. -/
@@ -319,12 +319,12 @@ elab "bmc_sat" : tactic => withMainContext do
     /- Needed to work around [lean-smt#100](https://github.com/ufmg-smite/lean-smt/issues/100) -/
     (try rename_binders)
   )
-  trace[sauto] "{prep_tac}"
+  trace[veil.smt] "{prep_tac}"
   evalTactic prep_tac
   if (← getUnsolvedGoals).length != 0 then
     /- After preparing the context, call `sauto` on it. -/
     withMainContext do
     let idents ← getPropsInContext
     let auto_tac ← `(tactic| admit_if_satisfiable [$[$idents:ident],*])
-    trace[sauto] "{auto_tac}"
+    trace[veil.smt] "{auto_tac}"
     evalTactic auto_tac

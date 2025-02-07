@@ -154,7 +154,7 @@ invariant [join_ack_msg_property3] join_ack_msg N R RP V ∧ V ≠ none → vote
 
 #gen_spec
 
-set_option sauto.smt.solver "cvc5" in
+set_option veil.smt.solver "cvc5" in
 #check_invariants
 
 end VerticalPaxosFirstOrder

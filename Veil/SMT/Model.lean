@@ -1,6 +1,6 @@
 import Lean
 import Auto
-import Veil.MetaUtil
+import Veil.Util.Meta
 import Batteries.Data.Array.Basic
 
 abbrev SortName := Lean.Name
@@ -446,7 +446,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
         | _ => throwError s!"malformed element: {elem}"
       return .Uninterpreted { name := sortName, size := elems.size, elements := elems }
     )
-    trace[sauto.debug] s!"{sort}"
+    trace[veil.smt.debug] s!"{sort}"
     struct := { struct with domains := struct.domains.push sort }
 
   -- (|constant| |s1| |a|),
@@ -455,7 +455,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let sortName := sortName.toSanitizedName
     let sort ← findSortWithName sortName struct
     let decl: ConstantDecl := { name := constName, sort := sort }
-    trace[sauto.debug] s!"{decl}"
+    trace[veil.smt.debug] s!"{decl}"
     struct := { struct with signature := { struct.signature with constants := struct.signature.constants.push decl } }
 
   -- (|relation| |rel| (|a| |a|)),
@@ -463,7 +463,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let relName := relName.toSanitizedName
     let doms ← findSortsArray doms struct
     let decl: RelationDecl := { name := relName, domain := doms }
-    trace[sauto.debug] s!"{decl}"
+    trace[veil.smt.debug] s!"{decl}"
     struct := { struct with signature := { struct.signature with relations := struct.signature.relations.push decl } }
 
   -- (|function| |f| (|a|) |Int|),
@@ -472,7 +472,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let doms ← findSortsArray doms struct
     let range ← findSortWithName range.toSanitizedName struct
     let decl: FunctionDecl := { name := funName, domain := doms, range := range }
-    trace[sauto.debug] s!"{decl}"
+    trace[veil.smt.debug] s!"{decl}"
     struct := { struct with signature := { struct.signature with functions := struct.signature.functions.push decl } }
 
   -- (|interpret| |rel| (|a0| |a0|) |false|)
@@ -483,7 +483,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let decl ← struct.findDecl declName
     let args ← getValueArray args decl.domain
     let val ← getValueOfSort val decl.range
-    trace[sauto.debug] s!"interpret {declName} {args} {val}"
+    trace[veil.smt.debug] s!"interpret {declName} {args} {val}"
     let interp := struct.interp.getD decl (Interpretation.Enumeration #[])
     let interp' := interp.push (args, val)
     struct := { struct with interp := struct.interp.insert decl interp' }
@@ -492,7 +492,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
   | .app #[(.atom (.symb "symbolic")), (.atom (.symb declName)), (.atom (.symb interp))] => do
     let declName := declName.toSanitizedName
     let decl ← struct.findDecl declName
-    trace[sauto.debug] s!"symbolic {declName} {interp}"
+    trace[veil.smt.debug] s!"symbolic {declName} {interp}"
     let interp := struct.interp.getD decl (Interpretation.Symbolic interp)
     struct := { struct with interp := struct.interp.insert decl interp }
 
@@ -502,7 +502,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
 def extractStructure (model : Sexpr) : MetaM FirstOrderStructure := do
   let mut struct : FirstOrderStructure := default
   let instructions ← extractInstructions model
-  trace[sauto.debug] "instructions: {instructions}"
+  trace[veil.smt.debug] "instructions: {instructions}"
   for inst in instructions do
     struct := (← parseInstruction inst struct)
   return struct

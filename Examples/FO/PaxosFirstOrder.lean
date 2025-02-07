@@ -113,7 +113,7 @@ invariant [choosable_proposal] (∀ (R1:round) (R2:round) (V1:value) (V2:value) 
 
 #gen_spec
 
-set_option sauto.smt.solver "cvc5" in
+set_option veil.smt.solver "cvc5" in
 #check_invariants
 
 end PaxosFirstOrder

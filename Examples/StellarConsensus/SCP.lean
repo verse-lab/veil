@@ -222,7 +222,7 @@ invariant ∀ N B V1 V2, well_behaved N ∧ accepted_prepared N B V1 ∧ accepte
 
 #gen_spec
 
-set_option sauto.smt.solver "cvc5"
+set_option veil.smt.solver "cvc5"
 
 #check_invariants
 

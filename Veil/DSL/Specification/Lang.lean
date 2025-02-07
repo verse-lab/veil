@@ -1,12 +1,12 @@
 import Lean
 import Lean.Parser
 import Veil.DSL.Base
-import Veil.DSL.Attributes
-import Veil.DSL.StateExtensions
-import Veil.DSL.ActionLang
+import Veil.DSL.Internals.Attributes
+import Veil.DSL.Internals.StateExtensions
+import Veil.DSL.Action.Lang
 import Veil.DSL.Tactic
 import Veil.Tactic.Main
-import Veil.DSL.Util
+import Veil.Util.DSL
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -92,9 +92,9 @@ def genStateExtInstances : CommandElabM Unit := do
       insts := insts.push inst
     return insts
   for inst in insts do
-    trace[dsl.debug] "Generating state extension instance {inst}"
+    trace[veil.debug] "Generating state extension instance {inst}"
     elabCommand inst
-    trace[dsl.info] "State extension instance is defined"
+    trace[veil.info] "State extension instance is defined"
 
 declare_syntax_cat actionType
 syntax (name := inputAction) "input" : actionType
@@ -138,7 +138,7 @@ def defineDepsActions : CommandElabM Unit := do
       let typeClassInsts := List.replicate ctx.typeClassNum (<- `(_)) |>.toArray
       let actArgs := typeClassInsts.append actArgs
       let stx <- `(action $currName:ident $(act.br)? = { monadLift <| @$(mkIdent $ actName) $ts* $actArgs* })
-      trace[dsl.debug] stx
+      trace[veil.debug] stx
       elabCommand stx
 
 /-- Assembles all declared `relation` predicates into a single `State` type. -/
@@ -160,8 +160,8 @@ def assembleState : CommandElabM Unit := do
     let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
     let isHOInst ← `(instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stName}_ho") $(getStateParametersBinders vd)* : IsHigherOrder (@$(mkIdent stName) $(← getStateArgumentsStx vd vs)*) := ⟨⟩)
-    trace[dsl.debug] "{sdef}"
-    trace[dsl.debug] "{isHOInst}"
+    trace[veil.debug] "{sdef}"
+    trace[veil.debug] "{isHOInst}"
     -- Tag the `injEq` lemma as `smtSimp`
     return (sdef, isHOInst, smtAttr)
   -- `@[stateDef]` sets `spec.stateType` (the base constant `stName`)
@@ -258,8 +258,8 @@ elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => 
     let stx' <- funcasesM t (← getStateArguments vd vs)
     elabBindersAndCapitals br vs stx' fun _ e => do
       let e <- delabWithMotives e
-      let stx ← `(@[actSimp, invSimp, invSimpLite] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
-      trace[dsl.debug] "{stx}"
+      let stx ← `(@[actSimp, invSimp, invSimpTopLevel] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
+      trace[veil.debug] "{stx}"
       return stx
 
 syntax moduleAbbrev := ("as" ident)?
@@ -316,7 +316,7 @@ elab (name := VeilInit) "after_init" "{" l:doSeq "}" : command => do
     -- we modify it to store the `lang`
     liftTermElabM do localSpecCtx.modify (fun s => { s with spec := {s.spec with init := {s.spec.init with lang := .some l}}})
     let sp ← liftTermElabM $ return (← localSpecCtx.get).spec.init
-    trace[dsl.debug] s!"{sp}"
+    trace[veil.debug] s!"{sp}"
 
 /-! ## Actions -/
 
@@ -341,7 +341,7 @@ def parseActionTypeStx (stx : Option (TSyntax `actionType)) : CommandElabM (TSyn
 open Command Term in
 /-- Record the action type and signature of this action in the `localSpecificationCtx`.  -/
 def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
-  trace[dsl.debug] s!"registering action {actT} {nm}"
+  trace[veil.debug] s!"registering action {actT} {nm}"
   let moduleName <- getCurrNamespace
   Command.runTermElabM fun _ => do
     let name := nm.getId
@@ -426,8 +426,8 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
 
       let actE <- Lean.mkConst genEName |>.runUnfold (genEName :: wlpUnfold)
       let actI <- Lean.mkConst genIName |>.runUnfold (genIName :: wlpUnfold)
-      let ⟨actE, actEPf, _⟩ <- actE.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierElim])
-      let ⟨actI, actIPf, _⟩ <- actI.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierElim])
+      let ⟨actE, actEPf, _⟩ <- actE.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+      let ⟨actI, actIPf, _⟩ <- actI.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
       let actEName := moduleName ++ nm.getId ++ `ext
       let actIName := moduleName ++ nm.getId
       let attr := toActionAttribute' (toActionType actT)
@@ -438,7 +438,7 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
       let actTr <- elabTermAndSynthesize actTrStx none
       let actTr <- mkLambdaFVarsImplicit vs actTr
-      let ⟨actTr, actTrPf, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierElim])
+      let ⟨actTr, actTrPf, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
       let actTr <- instantiateMVars actTr
       let actTrName := moduleName ++ nm.getId ++ `tr
       simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
@@ -509,7 +509,7 @@ def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
       | none => pure (#[], #[])
       let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* : $trType := $tr)
-      trace[dsl.debug] "{unsimplifiedDef}"
+      trace[veil.debug] "{unsimplifiedDef}"
       -- `nm.tr`, with existentially quantified arguments
       let trDef ← do
         let (st, st') := (mkIdent `st, mkIdent `st')
@@ -521,17 +521,17 @@ def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← unfoldWlp $ ← `((@$uName $sectionArgs* $args*).toWlp .internal)))
       let extTerm ← `(fun (st : $stateTpT) post => forall? $univBinders*, (@$uName $sectionArgs* $args*).toWlp .external st post)
       let extDef ← `(@[$attr, actSimp] def $extName $[$vd]* :=  $(<- unfoldWlp extTerm) )
-      trace[dsl.debug] "{fnDef}"
+      trace[veil.debug] "{fnDef}"
       return (unsimplifiedDef, trDef, extDef, fnDef)
     -- Declare `nm.unsimplified` and `nm`
     elabCommand unsimplifiedDef
-    trace[dsl.info] "{uName} is defined"
+    trace[veil.info] "{uName} is defined"
     elabCommand trDef
-    trace[dsl.info] "{fnName} is defined"
+    trace[veil.info] "{fnName} is defined"
     elabCommand fnDef
-    trace[dsl.info] "{trName} is defined"
+    trace[veil.info] "{trName} is defined"
     elabCommand extDef
-    trace[dsl.info] "{extName} is defined"
+    trace[veil.info] "{extName} is defined"
 
 
 /-- Show a warning if the given declaration has higher-order quantification -/
@@ -559,9 +559,9 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
           @$nm $(← getSectionArgumentsStx vs)* $br* $st (by rintro $ret; exact (funcases $post)) := by
           intro
           solve_clause)
-      trace[dsl.debug] "{stx}"
+      trace[veil.debug] "{stx}"
       return stx
-    trace[dsl.info] "{nm} specification is verified"
+    trace[veil.info] "{nm} specification is verified"
   catch e =>
     throwError s!"Error while checking the specification of {nm}:" ++ e.toMessageData
 
@@ -574,7 +574,7 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
     elabCallableFn actT nm br l
     -- warn if this is not first-order
     Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
-    trace[dsl.info] s!"{nm} has no higher-order quantification"
+    trace[veil.info] s!"{nm} has no higher-order quantification"
     -- add constructor for label type
     registerIOActionDecl actT nm br
     Command.runTermElabM fun _ => do
@@ -679,14 +679,14 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
       | .invariant =>
         `(@[invDef, invSimp] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
       | .assumption =>
-        `(@[assumptionDef, invSimp, invSimpLite] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+        `(@[assumptionDef, invSimp, invSimpTopLevel] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
   -- Do the elaboration to populate the `stsExt` state
-  trace[dsl.debug] s!"{cmd}"
+  trace[veil.debug] s!"{cmd}"
   elabCommand cmd
-  trace[dsl.info] s!"invariant {name} is defined"
+  trace[veil.info] s!"invariant {name} is defined"
   let iss <- addInvariantToIsolate name
   let name <- resolveGlobalConstNoOverloadCore name
   Command.runTermElabM fun _vs => do
@@ -737,12 +737,12 @@ def assembleNext : CommandElabM Unit := do
     let trs ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
       let nm := mkIdent $ toTrName s.name
       `(@$nm $sectionArgs* $st $st'))
-    -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[dsl.debug] s!"{t}")
+    -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[veil.debug] s!"{t}")
     let next ← if trs.isEmpty then `(fun ($st $st' : $stateTp) => $st = $st') else
               `(fun ($st $st' : $stateTp) => $(← repeatedOr trs))
-    trace[dsl.debug] "[assembleActions] {next}"
+    trace[veil.debug] "[assembleActions] {next}"
     `(@[actSimp] def $(mkIdent $ `Next) $[$vd]* := $next)
-  trace[dsl.info] "Next transition assembled"
+  trace[veil.info] "Next transition assembled"
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do
   let labelTypeName := mkIdent `Label
@@ -750,9 +750,9 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
     let ctors ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do match s.decl.ctor with
       | none => throwError "DSL: missing label constructor for action {s.name}"
       | some ctor => pure ctor)
-    trace[dsl] "storing constructors for {name}"
+    trace[veil] "storing constructors for {name}"
     `(inductive $labelTypeName where $[$ctors]*)
-  trace[dsl.info] "Label {labelTypeName} type is defined"
+  trace[veil.info] "Label {labelTypeName} type is defined"
 
 /-- Assembles the IOAutomata `ActionMap` for this specification. This is
 a bit strange, since it constructs a term (syntax) to build a value. -/
@@ -764,7 +764,7 @@ def assembleActionMap : CommandElabM Unit := do
       `(($(quote decl.label.name), $act))
     let actMapStx ← `(IOAutomata.ActionMap.ofList [$[$ioStx],*])
     let actMapStx ← `(def $(mkIdent `actionMap) := $actMapStx)
-    trace[dsl] "{actMapStx}"
+    trace[veil] "{actMapStx}"
     return actMapStx
 
 /-- Assembles all declared invariants (including safety properties) into
@@ -775,10 +775,10 @@ def assembleInvariant : CommandElabM Unit := do
     let stateTp <- getStateTpStx
     let allClauses := (<- localSpecCtx.get).spec.invariants
     let exprs := allClauses.toList.map (fun p => p.expr)
-    let _ ← allClauses.mapM (fun t => do trace[dsl.debug] s!"{t}")
+    let _ ← allClauses.mapM (fun t => do trace[veil.debug] s!"{t}")
     let invs ← if allClauses.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp, invSimpLite] def $(mkIdent `Invariant) $[$vd]* : $stateTp -> Prop := $invs)
-  trace[dsl.info] "Invariant assembled"
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Invariant) $[$vd]* : $stateTp -> Prop := $invs)
+  trace[veil.info] "Invariant assembled"
 
 /-- Assembles all declared safety properties into a single `Safety`
 predicate -/
@@ -788,8 +788,8 @@ def assembleSafeties : CommandElabM Unit := do
     let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
     let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp, invSimpLite] def $(mkIdent `Safety) $[$vd]* : $stateTp -> Prop := $safeties)
-  trace[dsl.info] "Safety assembled"
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Safety) $[$vd]* : $stateTp -> Prop := $safeties)
+  trace[veil.info] "Safety assembled"
 
 /-- Assembles all declared `assumption`s into a single `Assumptions`
 predicate -/
@@ -799,8 +799,8 @@ def assembleAssumptions : CommandElabM Unit := do
     let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
     let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
-    `(@[invSimp, invSimpLite] def $(mkIdent `Assumptions) $[$vd]* : $stateTp -> Prop := $assumptions)
-  trace[dsl.info] "Assumptions assembled"
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $stateTp -> Prop := $assumptions)
+  trace[veil.info] "Assumptions assembled"
 
 /--
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
@@ -825,16 +825,16 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
         safe := @$Safety $sectionArgs*
         inv  := @$Invariant $sectionArgs*
         )
-  trace[dsl] "{rtsStx}"
+  trace[veil] "{rtsStx}"
   elabCommand rtsStx
-  trace[dsl.info] "RelationalTransitionSystem instance instantiated"
+  trace[veil.info] "RelationalTransitionSystem instance instantiated"
 
 @[inherit_doc instantiateSystem]
 def genSpec : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; warnIfNoInvariantsDefined; warnIfNoActionsDefined)
   let some name := (← localSpecCtx.get).stateBaseName
     | throwError "Command is run outside of a module declaration"
-  trace[dsl.info] "State, invariants and actions are defined"
+  trace[veil.info] "State, invariants and actions are defined"
   instantiateSystem name
   Command.runTermElabM fun _ => do
     -- set the name of the spec

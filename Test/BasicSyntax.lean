@@ -1,7 +1,7 @@
 import Veil.DSL
-import Veil.TestUtil
+import Test.TestUtil
 
-set_option sauto.smt.translator "lean-smt"
+set_option veil.smt.translator "lean-smt"
 
 veil module Test
 type node

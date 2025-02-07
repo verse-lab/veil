@@ -1,6 +1,6 @@
 import Veil
 
-import Veil.DSL.InvariantManipulation
+import Veil.DSL.Check.InvariantManipulation
 
 -- adapted from [weak_mvc.ivy](https://github.com/haochenpan/rabia/blob/88013ca8369a7ae3adfed44e3c226c8d97f11209/proofs/ivy/weak_mvc.ivy)
 
@@ -274,8 +274,8 @@ close_isolate
 set_option maxHeartbeats 8000000
 set_option auto.smt.timeout 120
 
-set_option sauto.smt.solver "cvc5"
-set_option sauto.smt.translator "lean-auto"
+set_option veil.smt.solver "cvc5"
+set_option veil.smt.translator "lean-auto"
 
 #check_invariants
 

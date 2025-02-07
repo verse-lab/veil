@@ -1,5 +1,5 @@
 import Lean
-import Veil.DSL.Specifications
+import Veil.Model.Specifications
 
 open Lean
 
@@ -63,6 +63,6 @@ def registerModuleSpecification (spec : ModuleSpecification) : AttrM Unit := do
   let n := spec.name
   if (← globalSpecCtx.get).contains n then
     throwError "Specification {n} has already been declared"
-  trace[dsl] "Globally declaring specification {n}"
+  trace[veil] "Globally declaring specification {n}"
   -- stsStateGlobalExt.modify (fun s => s.insert n spec)
   globalSpecCtx.add (n, spec)

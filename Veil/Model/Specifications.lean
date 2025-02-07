@@ -1,6 +1,6 @@
 import Lean
-import Veil.ActionDecl
-import Veil.MetaUtil
+import Veil.Model.ActionDecl
+import Veil.Util.Meta
 
 open Lean Parser
 

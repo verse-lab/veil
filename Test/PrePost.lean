@@ -1,9 +1,9 @@
 import Veil.DSL
-import Veil.TestUtil
+import Test.TestUtil
 
 open Classical
 set_option linter.unusedVariables.analyzeTactics true
-set_option sauto.smt.translator "lean-smt"
+set_option veil.smt.translator "lean-smt"
 
 namespace Test
 type node

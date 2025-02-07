@@ -115,8 +115,8 @@ invariant [allowed_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 
 #gen_spec
 
-set_option sauto.smt.solver "cvc5"
-set_option sauto.smt.translator "lean-auto"
+set_option veil.smt.solver "cvc5"
+set_option veil.smt.translator "lean-auto"
 
 #check_invariants
 

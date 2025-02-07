@@ -1,7 +1,7 @@
 import Smt
 import Lean
 import Veil.SMT.Main
-import Veil.DSL.TacticUtil
+import Veil.Util.Tactic
 import Veil.Tactic.Main
 import Auto.Solver.SMT
 import Auto
@@ -61,9 +61,9 @@ def getLeanAutoNameFor (name : String) : CoreM String := do
       c.isAlphanum || allowedSet.contains c.val
 
 def indicatorVariableName (name : Name) : CoreM String := do
-  let smtName ← match sauto.smt.translator.get (← getOptions) with
-  | Translator.leanAuto => getLeanAutoNameFor name.toString
-  | Translator.leanSmt => pure name.toString
+  let smtName ← match veil.smt.translator.get (← getOptions) with
+  | .leanAuto => getLeanAutoNameFor name.toString
+  | .leanSmt => pure name.toString
   return smtName
 
 open Lean Elab Command Term Meta Tactic in
@@ -71,11 +71,11 @@ def getQueryForGoal : TacticM String := withMainContext do
   let idents ← getPropsInContext
   let stx := ( ← `(Smt.sauto| sauto [$[$idents:ident],*])).raw
   let mv ← Tactic.getMainGoal
-  let translatorToUse := sauto.smt.translator.get (← getOptions)
+  let translatorToUse := veil.smt.translator.get (← getOptions)
   let cmdString ←
     match translatorToUse with
-    | Translator.leanAuto => Smt.prepareAutoQuery mv (← Smt.parseAutoHints ⟨stx[1]⟩)
-    | Translator.leanSmt => Smt.prepareLeanSmtQuery mv (← Smt.Tactic.parseHints ⟨stx[1]⟩)
+    | .leanAuto => Smt.prepareAutoQuery mv (← Smt.parseAutoHints ⟨stx[1]⟩)
+    | .leanSmt => Smt.prepareLeanSmtQuery mv (← Smt.Tactic.parseHints ⟨stx[1]⟩)
   return cmdString
 
 open Lean Elab Command Term Meta Tactic
@@ -96,19 +96,19 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
 open Smt Smt.Tactic Translate Lean Lean.Meta Auto.Solver.SMT in
 def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: Array (Array (Name × Expr))) (forceSolver : Option SolverName := none)
   : MetaM (List ((List Name) × SmtResult)) := do
-  withTraceNode `sauto.perf.query (fun _ => return "querySolverWithIndicators") do
+  withTraceNode `veil.smt.perf.query (fun _ => return "querySolverWithIndicators") do
   let opts ← getOptions
     let solverName :=
       match forceSolver with
       | some s => s
-      | none => sauto.smt.solver.get opts
-    trace[sauto.debug] "solver: {solverName}"
+      | none => veil.smt.solver.get opts
+    trace[veil.smt.debug] "solver: {solverName}"
   let solver ← createSolver solverName withTimeout
   emitCommandStr solver s!"{goalQuery}\n"
   let mut ret := []
   let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).flatten
   for check in checks do
-    trace[sauto.debug] "Now running solver"
+    trace[veil.smt.debug] "Now running solver"
     let variablesInCheck := (check.map (fun (act, _) => act)).toList
     let indicatorsInCheck := check.map (fun (_, ind) => ind.constName!)
     let checkName := indicatorsInCheck.foldl (fun acc new => s!"{mkPrintableName new}_{acc}") "_checkSatIndicator_"
@@ -126,15 +126,15 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
         | .atom (.symb "unsat") => SmtResult.Unsat
         | .atom (.symb "unknown") => SmtResult.Unknown ""
         | e => SmtResult.Failure s!"{e}"
-      trace[sauto.debug] "Test result: {checkSatResponse}"
+      trace[veil.smt.debug] "Test result: {checkSatResponse}"
       ret := ret ++ [((variablesInCheck, checkSatResponse))]
     catch e =>
       let exMsg ← e.toMessageData.toString
       let stderr ← solver.stderr.readToEnd
       let stderr := if stderr.isEmpty then "" else s!"{stderr.trim}"
-      trace[sauto.debug] "exception: {exMsg} | stderr: {stderr}"
+      trace[veil.smt.debug] "exception: {exMsg} | stderr: {stderr}"
       ret := ret ++ [((variablesInCheck, .Failure s!"{stderr}"))]
 
-  trace[sauto.debug] "Results for all actions and invariants: {ret}"
+  trace[veil.smt.debug] "Results for all actions and invariants: {ret}"
   solver.kill
   return ret

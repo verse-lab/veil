@@ -1,5 +1,5 @@
 import Lean.Elab.Tactic
-import Veil.DSL.Util
+import Veil.Util.DSL
 
 open Lean Lean.Elab.Tactic
 
@@ -16,6 +16,18 @@ def newHypotheses (oldCtx : LocalContext) (newCtx : LocalContext) : TacticM (Arr
        !hyp.isImplementationDetail then
       newHyps := newHyps.push hyp
   return newHyps
+
+def run (t: TacticM Syntax): TacticM Unit := Lean.Elab.Tactic.withMainContext do
+    evalTactic (<- t)
+
+def tryGoal (t: TacticM Unit): TacticM Unit := do
+  t <|> return ()
+
+def getCtxNames (ctx : LocalContext) : TacticM (Array Name) := do
+  let mut hyps := #[]
+  for hyp in ctx do
+    hyps := hyps.push hyp.userName
+  return hyps
 
 /-- Run the given tactic in all goals. -/
 def allGoals [Inhabited α]

@@ -1,5 +1,5 @@
 import Veil.DSL
-import Veil.TestUtil
+import Test.TestUtil
 
 namespace Test
 open Classical

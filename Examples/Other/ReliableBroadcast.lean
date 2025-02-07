@@ -203,11 +203,11 @@ invariant [honest_non_conflicting_votes]
 
 set_option maxHeartbeats 10000000
 set_option auto.smt.timeout 15 -- seconds
--- set_option sauto.smt.macrofinder true -- Ivy uses this by default
+-- set_option veil.smt.macrofinder true -- Ivy uses this by default
 
 #gen_spec
 
-set_option sauto.smt.solver "cvc5"
+set_option veil.smt.solver "cvc5"
 #check_invariants
 
 sat trace [initial_state] {} by { bmc_sat }

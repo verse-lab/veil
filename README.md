@@ -114,10 +114,10 @@ The project consists of three major folders:
 ### `Veil/` components
 
 - `DSL/`: Veil DSL
-  - `ActionTheory.lean`: meta-theory of action DSL with the soundness proof
-  - `ActionLang.lean`: implementation of action DSL expansion
-  - `SpecLang.lean`: implementation of protocol declaration commands
-- `SMT/`: tactics for interactions with SMT
+  - `Action/Theory.lean`: meta-theory of action DSL with the soundness proof
+  - `Action/Lang.lean`: implementation of action DSL expansion
+  - `Specification/Lang.lean`: implementation of protocol declaration commands
+- `SMT/`: tactics for interaction with SMT
 - `Tactic/`: auxiliary tactics for proof automation
 
 ### Case Studies implemented in `Examples/`

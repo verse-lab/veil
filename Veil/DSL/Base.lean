@@ -1,23 +1,13 @@
-import Lean
-open Lean
+import Veil.Base
+import Veil.Model.TransitionSystem
 
-register_simp_attr invSimp
-register_simp_attr invSimpLite
-register_simp_attr ifSimp
-register_simp_attr actSimp
-register_simp_attr wlpSimp
-register_simp_attr initSimp
-register_simp_attr safeSimp
-register_simp_attr genSimp
+attribute [initSimp, actSimp] RelationalTransitionSystem.init
+attribute [initSimp, invSimp, invSimpTopLevel] RelationalTransitionSystem.assumptions
+attribute [invSimp, invSimpTopLevel] RelationalTransitionSystem.inv
+attribute [invSimp, safeSimp, invSimpTopLevel] RelationalTransitionSystem.safe
+attribute [actSimp] RelationalTransitionSystem.next
 
-initialize
-  registerTraceClass `dsl
-  registerTraceClass `dsl.debug
-  registerTraceClass `dsl.info
-  -- the following are primarily for performance profiling
-  registerTraceClass `dsl.perf.checkInvariants
-
-register_option veil.gen_sound : Bool := {
-  defValue := false
-  descr := "generate soundness instances for actions"
-}
+attribute [invSimp, safeSimp, initSimp, actSimp, invSimpTopLevel]
+  RelationalTransitionSystem.invSafe RelationalTransitionSystem.invInit
+  RelationalTransitionSystem.invConsecution
+  RelationalTransitionSystem.invInductive

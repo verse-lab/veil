@@ -1,5 +1,4 @@
 import Veil
-import Veil.DSL.InvariantManipulation
 
 set_option veil.gen_sound true
 set_option synthInstance.maxSize 1000000
@@ -51,7 +50,7 @@ invariant pending L L → le N L
 
 #gen_spec
 
-set_option sauto.smt.solver "cvc5" in
+set_option veil.smt.solver "cvc5" in
 #check_invariants
 
 prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }

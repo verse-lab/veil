@@ -92,7 +92,7 @@ invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 
 #gen_spec
 
-set_option sauto.smt.solver "cvc5" in
+set_option veil.smt.solver "cvc5" in
 #check_invariants
 
 sat trace [initial_state] {} by { bmc_sat }

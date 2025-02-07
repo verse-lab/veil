@@ -1,20 +1,19 @@
 import Lean
 import Lean.Parser
-import Veil.State
-import Veil.DSL.Util
+import Veil.Model.State
+import Veil.Util.DSL
 import Veil.DSL.Base
-import Veil.DSL.StateExtensions
-import Veil.DSL.ActionTheory
-
+import Veil.DSL.Internals.StateExtensions
+import Veil.DSL.Action.Theory
 
 open Lean Elab Command Term Meta Lean.Parser
 
-/-!
-  # Action Language
+/-! # Action Language
 
-  This file defines the syntax and semantics for the imperative language
-  we use to define initializers and actions.
+This file defines the syntax for the imperative language we use to
+define initializers and actions.
 -/
+
 section Veil
 
 attribute [actSimp] modify modifyGet MonadStateOf.modifyGet get
@@ -170,7 +169,7 @@ partial def expandDoSeqVeil (stx : doSeq) : VeilM (Array doSeqItem) :=
 
 
 partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
-  trace[dsl.debug] "[expand doElem] {stx}"
+  trace[veil.debug] "[expand doElem] {stx}"
   match stx with
   | `(Term.doSeqItem| $stx ;) => expandDoElemVeil $ <- `(Term.doSeqItem| $stx:doElem)
   -- Expand `if` statements
@@ -189,7 +188,7 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
     let thn <- expandDoSeqVeil thn
     let els <- expandDoSeqVeil els
     `(Term.doSeqItem| if $t then $thn* else $els*)
-  -- Expand non-determenistic assigments statements
+  -- Expand non-deterministic assignments statements
   | `(Term.doSeqItem| $id:ident := *) =>
     let typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
     let fr := mkIdent <| <- mkFreshUserName `fresh
@@ -201,9 +200,9 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
     let fr := mkIdent <| <- mkFreshUserName `fresh
     modify (·.push ⟨fr, typeStx.getD (<- `(_))⟩)
     expandDoElemVeil $ <- `(Term.doSeqItem|$idts:term := $fr:ident $ts*)
-  -- Expand determenistic assigments statements
+  -- Expand deterministic assignments statements
   | `(Term.doSeqItem| $id:ident := $t:term) =>
-    trace[dsl.debug] "[expand assignmet with args] {stx}"
+    trace[veil.debug] "[expand assignment with args] {stx}"
     let name := id.getId
     if name.isAtomic then
       let id' <- `(Term.structInstLVal| $id:ident)
@@ -221,13 +220,13 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
       let suff := mkIdent $ name.updatePrefix default
       expandDoElemVeil $ <- withRef stx `(Term.doSeqItem| $base:ident := { $base with $suff:ident := $t })
   | `(Term.doSeqItem| $idts:term := $t:term) =>
-    trace[dsl.debug] "[expand assignmet with args] {stx}"
+    trace[veil.debug] "[expand assignment with args] {stx}"
     let some (id, ts) := idts.isApp? | return stx
     let stx' <- withRef t `(term| $id[ $[$ts],* ↦ $t:term ])
     let stx <- withRef stx `(Term.doSeqItem| $id:ident := $stx')
     expandDoElemVeil stx
   | doE =>
-    trace[dsl.debug] "[expand just a doElem] {stx}"
+    trace[veil.debug] "[expand just a doElem] {stx}"
     return doE
 end
 
@@ -241,7 +240,7 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
       submodules. As for each submodule, the previous step defines a local variable
       `submodule`, `submodule.act` will be treated as an access to `submodule`'s filed `act`,
       rather than an action `act` operation on `submodule`
-    - `let freshName <- fresh` for each non-determenistic assigment. We hoist all fresh
+    - `let freshName <- fresh` for each non-deterministic assigment. We hoist all fresh
       variables to make all the quantifiers top level -/
   let mut preludeAssn : Array doSeqItem := #[]
   let doS <- match stx with
@@ -259,7 +258,7 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
   for v in vars do
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- fresh $v.type)
   let doS := preludeAssn.append doS
-  trace[dsl.debug] "{stx}\n→\n{doS}"
+  trace[veil.debug] "{stx}\n→\n{doS}"
   elabTerm (<- `(term| ((do $doS*) : Wlp $mode [State] _))) none
 
 macro_rules
@@ -304,10 +303,10 @@ def getPrePost (spec : doSeq) [Monad m] [MonadError m] [MonadQuotation m] :
   match spec with
   | `(doSeq| requires $pre ensures $id, $post:term $_:unchanged_decl ?) => pure (pre, id, post)
   | `(doSeq| requires $pre ensures $post:term $_:unchanged_decl ?) => pure (pre, <- `(rcasesPat|(_ : Unit)), post)
-  | _ => throwErrorAt spec "Invalid sepcification: expected `requires ... ensures ...`"
+  | _ => throwErrorAt spec "Invalid specification: expected `requires ... ensures ...`"
 
 elab_rules : term
-  /- if the list of unchanged state fileds is omitted, we can restore it by
+  /- if the list of unchanged state fields is omitted, we can restore it by
      checking witch of them are mentioned in the [ensures] body. By default
      we assume that if the state filed is not mentioned, then it is left
      unchanged  -/

@@ -1,4 +1,5 @@
-import Veil.TransitionSystem
+import Lean
+import Veil.Model.TransitionSystem
 open Lean
 
 class Label (ℓ : Type) extends BEq ℓ, Hashable ℓ, ToString ℓ, Inhabited ℓ

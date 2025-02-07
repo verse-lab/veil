@@ -1,8 +1,8 @@
 import Lean
 import Batteries.Lean.Meta.UnusedNames
 
-import Veil.Basic
-import Veil.DSL.Util
+import Veil.Base
+import Veil.Util.DSL
 
 open Lean Meta Elab Tactic
 
@@ -149,7 +149,7 @@ attribute [logicSimp] dite_not ite_not ite_true_same ite_false_same
 
 These change quantifier structure, so can make decidable queries undecidable.
 We keep them commented out, since we want explicit control, which we get
-via the `quantifierElim` attribute.
+via the `quantifierSimp` attribute.
 
 /-! ## exists and forall -/
 attribute [logicSimp] forall_exists_index exists_const exists_true_left

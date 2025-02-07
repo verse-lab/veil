@@ -3,8 +3,8 @@ import Lean
 import Batteries.Lean.Meta.UnusedNames
 import Lean.Util.ForEachExpr
 
-import Veil.Basic
-import Veil.DSL.Util
+import Veil.Base
+import Veil.Util.DSL
 import Veil.SMT.Preparation
 import Veil.SMT.Quantifiers.Check
 
@@ -84,9 +84,9 @@ def HO_exists_push_left_impl : Simp.Simproc := fun e => do
   return step
 
 simproc HO_exists_push_left (∃ _ _, _) := HO_exists_push_left_impl
-attribute [quantifierElim] HO_exists_push_left
+attribute [quantifierSimp] HO_exists_push_left
 
-attribute [quantifierElim] exists_const exists_eq exists_eq'
+attribute [quantifierSimp] exists_const exists_eq exists_eq'
 exists_eq_left exists_eq_left' exists_eq_right exists_eq_right'
 
 /-! The default exists simp lemmas _unhoist_ quantifiers (push them as far in as
@@ -98,7 +98,7 @@ variable [IsHigherOrder α] {p q : α → Prop} {b : Prop}
 theorem exists_and_left'_eq : (b ∧ (∃ x, p x)) = (∃ x, b ∧ p x) := by rw [exists_and_left]
 theorem exists_and_right'_eq : ((∃ x, p x) ∧ b) = (∃ x, p x ∧ b) := by rw [exists_and_right]
 end exists_and
-attribute [quantifierElim] exists_and_left'_eq exists_and_right'_eq
+attribute [quantifierSimp] exists_and_left'_eq exists_and_right'_eq
 
 section not_forall
 -- `α : Type` because we don't want this to apply to `α := Prop`
@@ -109,8 +109,8 @@ theorem not_forall' {p : α → Prop} : (¬∀ x, p x) ↔ ∃ x, ¬p x := Class
 theorem not_forall_not' {p : α → Prop} : (¬∀ x, ¬p x) ↔ ∃ x, p x := Classical.not_forall_not
 theorem not_exists_not' {p : α → Prop} : (¬∃ x, ¬p x) ↔ ∀ x, p x := Classical.not_exists_not
 
-attribute [quantifierElim] not_forall' not_forall_not'
-attribute [quantifierElim low] not_exists_not'
+attribute [quantifierSimp] not_forall' not_forall_not'
+attribute [quantifierSimp low] not_exists_not'
 end not_forall
 
 section exists_or
@@ -142,7 +142,7 @@ theorem exists_or_right : (∃ x, p x) ∨ b ↔ (∃ x, p x ∨ b) := by
     · exact Or.inl ⟨x, hx⟩
     · exact Or.inr hb
   }
-attribute [quantifierElim] exists_or_left exists_or_right
+attribute [quantifierSimp] exists_or_left exists_or_right
 end exists_or
 
 
@@ -157,7 +157,7 @@ theorem ite_exists_push_out [IsHigherOrder α] [ne : Nonempty α] (p r : Prop) (
     · rintro ⟨t, ht⟩; apply ht
   }
 
-attribute [quantifierElim] ite_exists_push_out
+attribute [quantifierSimp] ite_exists_push_out
 
 end ExistentialQuantifierTheorems
 
@@ -185,12 +185,12 @@ def HO_forall_push_left_impl : Simp.Simproc := fun e => do
   | _ => return .continue
 
 simproc HO_forall_push_left (∀_ _, _) := HO_forall_push_left_impl
-attribute [quantifierElim] HO_forall_push_left
+attribute [quantifierSimp] HO_forall_push_left
 
-attribute [quantifierElim] forall_const forall_eq forall_eq
+attribute [quantifierSimp] forall_const forall_eq forall_eq
 
 -- To enable some of the lemmas below; FIXME: do we need more of these?
--- attribute [quantifierElim] and_imp not_and
+-- attribute [quantifierSimp] and_imp not_and
 
 section forall_and
 set_option linter.unusedSectionVars false
@@ -210,7 +210,7 @@ theorem forall_and_on_the_left : b ∧ (∀ x, p x) ↔ (∀ x, b ∧ p x) := by
 theorem forall_and_on_the_right : (∀ x, p x) ∧ b ↔ (∀ x, p x ∧ b) := by
   simp only [and_comm, forall_and_on_the_left]
 
-attribute [quantifierElim] forall_and_on_the_left forall_and_on_the_right
+attribute [quantifierSimp] forall_and_on_the_left forall_and_on_the_right
 end forall_and
 
 section forall_imp
@@ -223,7 +223,7 @@ theorem forall_imp_left : b → (∀ x, p x) ↔ (∀ x, b → p x) := by
   { intro h x hb; exact h hb x }
   { intro h hb x; exact h x hb }
 
-attribute [quantifierElim] forall_imp_left
+attribute [quantifierSimp] forall_imp_left
 end forall_imp
 
 section IteForallPushOutTheorems
@@ -234,15 +234,15 @@ elab "prove_ite_forall_push_out" p:term : tactic => withMainContext do evalTacti
 `(tactic|apply propext; by_cases h : $p; { simp only [if_pos h, forall_const] }; { simp only [if_neg h, forall_const] })
 
 theorem ite_then_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) (q : α → Prop) : (if c then ∀ t, q t else r) = (∀ t, if c then q t else r) := by prove_ite_forall_push_out c
-attribute [quantifierElim] ite_then_forall_push_out
+attribute [quantifierSimp] ite_then_forall_push_out
 
 theorem ite_else_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) (q : α → Prop) : (if c then r else ∀ t, q t) = (∀ t, if c then r else q t) := by prove_ite_forall_push_out c
-attribute [quantifierElim] ite_else_forall_push_out
+attribute [quantifierSimp] ite_else_forall_push_out
 
 -- FIXME George: does this trigger?
 theorem ite_both_forall_push_out [IsHigherOrder α] [ne : Nonempty α] [ne' : Nonempty β] (p : α → Prop) (q : β → Prop) :
   (if c then ∀ a, p a else ∀ b, q b) = (∀ (a : α) (b : β), if c then p a else q b) := by prove_ite_forall_push_out c
-attribute [quantifierElim] ite_both_forall_push_out
+attribute [quantifierSimp] ite_both_forall_push_out
 end IteForallPushOutTheorems
 
 end UniversalQuantifierTheorems

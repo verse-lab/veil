@@ -1,4 +1,3 @@
-import Veil.DSL
 /-! # Axiomatizations of various structures -/
 
 class TotalOrder (t : Type) where

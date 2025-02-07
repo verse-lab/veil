@@ -2,10 +2,10 @@ import Lean
 import Batteries.Lean.Meta.UnusedNames
 import Lean.Util.ForEachExpr
 
-import Veil.Basic
-import Veil.DSL.Util
+import Veil.Base
+import Veil.Util.DSL
 import Veil.SMT.Preparation
-import Veil.SMT.Quantifiers.Util
+import Veil.Util.Quantifiers
 
 open Lean Meta Elab Tactic
 

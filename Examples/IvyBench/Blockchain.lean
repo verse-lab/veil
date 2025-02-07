@@ -104,7 +104,7 @@ invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ transaction_time TR1 TI1  ∨
 
 #gen_spec
 
-set_option sauto.smt.solver "cvc5" in
+set_option veil.smt.solver "cvc5" in
 #check_invariants
 
 

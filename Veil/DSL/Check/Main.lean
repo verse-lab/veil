@@ -1,10 +1,10 @@
 import Lean
-import Veil.Tactic
-import Veil.DSL.Attributes
-import Veil.DSL.StateExtensions
-import Veil.DSL.Util
-import Veil.DSL.DisplayUtil
-import Veil.DSL.SMTUtil
+import Veil.Tactic.Main
+import Veil.DSL.Internals.Attributes
+import Veil.DSL.Internals.StateExtensions
+import Veil.Util.DSL
+import Veil.Util.Display
+import Veil.Util.SMT
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
@@ -133,10 +133,10 @@ def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) 
   -- If the theorem has been defined already, reuse the existing
   -- definition to figure out whether it's proven
   if (← resolveGlobalName thmId.theoremName).isEmpty then
-    trace[dsl.debug] "Checking theorem {thmId.theoremName} for the first time"
+    trace[veil.debug] "Checking theorem {thmId.theoremName} for the first time"
     elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
   else
-    trace[dsl.debug] "Theorem {thmId.theoremName} has been checked before; reusing result"
+    trace[veil.debug] "Theorem {thmId.theoremName} has been checked before; reusing result"
   -- Check the `Expr` for the given theorem
   let thFullName ← resolveGlobalConstNoOverloadCore thmId.theoremName
   let th ← getConstInfo thFullName
@@ -228,9 +228,9 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ invIndicators.toArray
       let initTpStx ← `(∀ $[$initParams]* ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st' → ($systemTp).$(mkIdent `init) $st' → $invariants)
-      trace[dsl] "init check: {initTpStx}"
+      trace[veil] "init check: {initTpStx}"
       let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
-      trace[dsl.debug] "SMT init check: {initCmd}"
+      trace[veil.debug] "SMT init check: {initCmd}"
       let initRes ← querySolverWithIndicators initCmd withTimeout (initChecks.map (fun a => #[a]))
       let initMsgs := getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
       | [invName] => (⟨invName, .none, mkTheoremName `init invName⟩, res)
@@ -241,9 +241,9 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ allIndicators.toArray
       let actTpStx ← `(∀ $[$actParams]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
-      trace[dsl] "action check: {actTpStx}"
+      trace[veil] "action check: {actTpStx}"
       let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
-      trace[dsl.debug] "SMT action check: {actCmd}"
+      trace[veil.debug] "SMT action check: {actCmd}"
       let actRes ← querySolverWithIndicators actCmd withTimeout (invChecks.map (fun (a, b) => #[a, b]))
       let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
       | [actName, invName] => (⟨actName, invName, mkTheoremName actName invName⟩, res)

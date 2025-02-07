@@ -1,7 +1,7 @@
 import Lean.Elab.Tactic
-import Veil.DSL.Util
+import Veil.Util.DSL
 import Veil.SMT.Main
-import Veil.DSL.ActionLang -- TODO: can we remove this?
+import Veil.DSL.Action.Lang -- TODO: can we remove this?
 
 open Lean Lean.Elab
 
@@ -32,7 +32,7 @@ elab _tk:"conv! " conv:conv " => " e:term : term => do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()
     pruneSolvedGoals
     let e' ← instantiateMVars rhs
-    trace[dsl.debug] "[conv!] {e}\nsimplifies to\n{e'}"
+    trace[veil.debug] "[conv!] {e}\nsimplifies to\n{e'}"
   )
   return rhs
 
@@ -54,7 +54,7 @@ def dsimpOnly (t : TSyntax `term) (classes : Array Name := #[]) : TermElabM (TSy
 
 /-- This does `unfoldWlp` followed by some other simplifications. -/
 def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
-  let (actSimp, smtSimp, logicSimp, quantifierElim) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp, mkIdent `quantifierElim)
+  let (actSimp, smtSimp, logicSimp, quantifierSimp) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp, mkIdent `quantifierSimp)
   -- Reduce the body of the function
   let t' ← `(term| by
     -- Try simplifying first, but this might fail if there's no `wlp` in the
@@ -66,7 +66,7 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
         -- for two-state version of the cation
         unfold_wlp
         simp only [$smtSimp:ident, $logicSimp:ident];
-        simp only [$quantifierElim:ident]) => $t; exact t) | exact $t)
+        simp only [$quantifierSimp:ident]) => $t; exact t) | exact $t)
   return t'
 
 open Tactic Lean.Meta

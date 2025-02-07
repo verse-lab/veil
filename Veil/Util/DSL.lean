@@ -1,6 +1,6 @@
 import Lean
-import Veil.State
-import Veil.DSL.StateExtensions
+import Veil.Model.State
+import Veil.DSL.Internals.StateExtensions
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -164,7 +164,7 @@ def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let stateTp <- getStateTpStx
   let term ← `(term| (fun $(mkIdent `st) : $stateTp =>
       $(casesOn) $(← getSectionArgumentsStx vs)* (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
-  trace[dsl.debug] "funcasesM: {term}"
+  trace[veil.debug] "funcasesM: {term}"
   return term
 
 def elabBindersAndCapitals
@@ -175,7 +175,7 @@ def elabBindersAndCapitals
    : TermElabM α := do
   withAutoBoundCapitals $ Term.elabBinders br fun brs => do
     let vars := (← getLCtx).getFVars.filter (fun x => not $ vs.elem x || brs.elem x)
-    trace[dsl.debug] "[elabBindersAndCapitals] {e}"
+    trace[veil.debug] "[elabBindersAndCapitals] {e}"
     let e <- elabTermAndSynthesize e none
     lambdaTelescope e fun _ e => do
         let e <- mkForallFVars vars e
