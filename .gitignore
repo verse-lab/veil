@@ -1,5 +1,5 @@
-/.lake
-/.vscode
+.lake
+.vscode
 # Docker temp files
 veil.zip
 .veil.tmp/
