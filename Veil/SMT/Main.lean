@@ -403,36 +403,45 @@ def failureGoalStr : String := "solver invocation failed"
 @[tactic sauto] def evalSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
   let withTimeout ← parseTimeout ⟨stx[2]⟩
-  -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
-  -- we first use `lean-auto` to generate the query, and call `lean-smt` only
-  -- if the query is satisfiable and we want to print a model,
-  -- UNLESS the `veil.smt.translator` option overrides this behaviour.
-  let translatorToUse := veil.smt.translator.get (← getOptions)
-  let cmdString ←
-    match translatorToUse with
-    | .leanAuto => prepareAutoQuery mv (← parseAutoHints ⟨stx[1]⟩)
-    | .leanSmt => prepareLeanSmtQuery mv (← Tactic.parseHints ⟨stx[1]⟩)
-  let getModel? := translatorToUse == .leanSmt
-  let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
-  match res with
-  -- if we have a model, we can print it
-  | .Sat (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
-  | .Sat none =>
-    -- If we don't, we probably called `lean-auto`, so we need to call
-    -- `lean-smt` to get the model.
-    if translatorToUse == .leanAuto then
-      let hs ← Tactic.parseHints ⟨stx[1]⟩
-      let cmdString ← prepareLeanSmtQuery mv hs
-      let res ← querySolver cmdString withTimeout
-      match res with
-      | .Sat (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
-      | .Sat none => throwError "{satGoalStr} (print the model with `set_option trace.veil.smt.model true`)"
-      | .Unknown _ | .Failure _ | .Unsat => throwError s!"{satGoalStr}, but second SMT query asking for a model returned {res}"
-    else
-      throwError "{satGoalStr}"
-  | .Unknown reason => throwError "{unknownGoalStr}: {reason}"
-  | .Failure reason => throwError "{failureGoalStr}: {reason}"
-  | .Unsat => mv.admit (synthetic := false)
+  -- If the user wants proof reconstruction, we simply call the `smt`
+  -- tactic provided by `lean-smt`.
+  let opts ← getOptions
+  if veil.smt.reconstructProofs.get opts then
+    let chosenTranslator := veil.smt.translator.get opts
+    if chosenTranslator != .leanSmt then
+      logInfo s!"Proof reconstruction is only supported with `lean-smt`, but `veil.smt.translator = {chosenTranslator}`. Falling back to `lean-smt`."
+    evalSmt stx
+  else
+    -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
+    -- we first use `lean-auto` to generate the query, and call `lean-smt` only
+    -- if the query is satisfiable and we want to print a model,
+    -- UNLESS the `veil.smt.translator` option overrides this behaviour.
+    let translatorToUse := veil.smt.translator.get opts
+    let cmdString ←
+      match translatorToUse with
+      | .leanAuto => prepareAutoQuery mv (← parseAutoHints ⟨stx[1]⟩)
+      | .leanSmt => prepareLeanSmtQuery mv (← Tactic.parseHints ⟨stx[1]⟩)
+    let getModel? := translatorToUse == .leanSmt
+    let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
+    match res with
+    -- if we have a model, we can print it
+    | .Sat (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
+    | .Sat none =>
+      -- If we don't, we probably called `lean-auto`, so we need to call
+      -- `lean-smt` to get the model.
+      if translatorToUse == .leanAuto then
+        let hs ← Tactic.parseHints ⟨stx[1]⟩
+        let cmdString ← prepareLeanSmtQuery mv hs
+        let res ← querySolver cmdString withTimeout
+        match res with
+        | .Sat (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
+        | .Sat none => throwError "{satGoalStr} (print the model with `set_option trace.veil.smt.model true`)"
+        | .Unknown _ | .Failure _ | .Unsat => throwError s!"{satGoalStr}, but second SMT query asking for a model returned {res}"
+      else
+        throwError "{satGoalStr}"
+    | .Unknown reason => throwError "{unknownGoalStr}: {reason}"
+    | .Failure reason => throwError "{failureGoalStr}: {reason}"
+    | .Unsat => mv.admit (synthetic := false)
 
 open Lean.Meta in
 /-- UNSAFE: Switches the goal with its negation!

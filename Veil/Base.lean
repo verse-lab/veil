@@ -71,6 +71,11 @@ register_option veil.smt.translator : SmtTranslator := {
   descr := "Which package to use for translating Lean to SMT (`lean-auto` or `lean-smt`)"
 }
 
+register_option veil.smt.reconstructProofs : Bool := {
+  defValue := false
+  descr := "Whether to use Lean SMT's proof reconstruction"
+}
+
 register_option veil.smt.macrofinder : Bool := {
   defValue := false
   descr := "Whether to use Z3's macro-finder tactic"
