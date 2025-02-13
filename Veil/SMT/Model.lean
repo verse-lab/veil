@@ -384,7 +384,7 @@ abbrev Sexpr := Auto.Parser.SMTSexp.Sexp
 
 partial def extractInstructions (e : Sexpr) (depth : Int := 0): MetaM (List Sexpr) := do
   match e with
-  | .atom _ => throwError s!"malformed model: unexpected atom at depth {depth}"
+  | .atom _ => throwError s!"malformed model: unexpected atom at depth {depth} in {e}"
   | .app xs =>
       let mut instructions : List Sexpr:= if depth == 1 then [e] else []
       if depth == 0 then
