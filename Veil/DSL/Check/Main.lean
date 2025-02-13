@@ -165,6 +165,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   | (_, .checkTheoremsIndividually, _) =>
     let mut initIdAndResults := #[]
     let mut thmIdAndResults := #[]
+    let mut modelStrs := #[]
     for (thmId, cmd) in allTheorems do
       -- save messages before elaboration
       let origMsgs := (<- get).messages
@@ -175,6 +176,8 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         -- either solver returned `sat`, `unknown`, or there was an error
         let msgsTxt := String.intercalate "\n" (← msgs.toList.mapM (fun msg => msg.toString))
         let (hasSat, hasUnknown, hasFailure) := (← msgs.containsSubStr Smt.satGoalStr, ← msgs.containsSubStr Smt.unknownGoalStr, ← msgs.containsSubStr Smt.failureGoalStr)
+        if hasSat then
+          modelStrs := modelStrs.push (s!"{thmId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n")
         pure $ match hasSat, hasUnknown, hasFailure with
         | true, false, false => SmtResult.Sat .none
         | false, true, false => SmtResult.Unknown msgsTxt
@@ -189,9 +192,11 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       -- restore messages (similar to `#guard_msgs`)
       modify fun st => { st with messages := origMsgs }
     let initMsgs := getInitCheckResultMessages initIdAndResults.toList
-    let msgs := getActCheckResultMessages thmIdAndResults.toList
-    let msgs := initMsgs ++ msgs
-    logInfo ("\n".intercalate msgs.toList)
+    let actMsgs := getActCheckResultMessages thmIdAndResults.toList
+    let checkMsgs := initMsgs ++ actMsgs
+    let modelMsgs := if modelStrs.isEmpty || (!veil.printCounterexamples.get (← getOptions)) then [] else ["\nCounter-examples", "================\n"] ++ modelStrs.toList
+    let msg := ("\n".intercalate (checkMsgs.toList ++ modelMsgs))
+    logInfo msg
     match suggestionStyle with
     | .doNotPrint => pure ()
     | .printAllTheorems => displaySuggestion stx (allTheorems.map Prod.snd)

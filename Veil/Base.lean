@@ -50,6 +50,11 @@ register_option veil.gen_sound : Bool := {
   descr := "Generate soundness instances for actions."
 }
 
+register_option veil.printCounterexamples : Bool := {
+  defValue := false
+  descr := "Print counterexamples (models) when they are found in `#check_invariants`."
+}
+
 open Auto.Solver.SMT in
 register_option veil.smt.solver : SolverName := {
   defValue := SolverName.z3

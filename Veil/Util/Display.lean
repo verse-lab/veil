@@ -59,3 +59,21 @@ where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
       acc ++ [(key, [val])]) []
 
 def getActCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := getActCheckResultMessages' (res.map (fun (id, r) => (id.actName.get!, id.invName, r)))
+
+def getModelStr (msg : String) : String :=
+  let resWithErr := match msg.splitOn Smt.satGoalStr with
+    | [_, model] => model
+    /- multiple models can be returned, e.g. due to the `split_ifs` in `solve_clause_wlp` -/
+    | _ :: model :: _rest => model
+    | _ => msg
+  /- at this point, the message string looks like this:
+  ```
+  interpreted sort Bool
+  sort processor = #[processor0, processor1]
+
+  /Users/dranov/src/veil/Examples/Spec.lean:315:0: error:
+  ```
+  We get rid of the last part by splitting on the last newline and taking the first part. -/
+  match resWithErr.splitOn "\n\n" with
+  | [model, _] => model
+  | _ => resWithErr
