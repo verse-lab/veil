@@ -438,7 +438,7 @@ def failureGoalStr : String := "solver invocation failed"
         | .Sat none => throwError "{satGoalStr} (print the model with `set_option trace.veil.smt.model true`)"
         | .Unknown _ | .Failure _ | .Unsat => throwError s!"{satGoalStr}, but second SMT query asking for a model returned {res}"
       else
-        throwError "{satGoalStr}"
+        throwError "{satGoalStr} (print the model with `set_option trace.veil.smt.model true`)"
     | .Unknown reason => throwError "{unknownGoalStr}: {reason}"
     | .Failure reason => throwError "{failureGoalStr}: {reason}"
     | .Unsat => mv.admit (synthetic := false)
