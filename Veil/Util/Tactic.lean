@@ -8,6 +8,12 @@ def whnfIsAppOf (typ : Expr) (n : Name) : MetaM Bool := do
   let norm ← Meta.whnf typ
   return norm.isAppOf n
 
+def existsBinderName (typ : Expr) : MetaM Name := do
+  let norm ← Meta.whnf typ
+  match_expr norm with
+  | Exists _ body => return body.bindingName!
+  | _ => throwError "Expected an existential quantifier, got {norm}"
+
 /-- Returns the hypotheses in `newCtx` that do not appear in `oldCtx`. -/
 def newHypotheses (oldCtx : LocalContext) (newCtx : LocalContext) : TacticM (Array LocalDecl) := do
   let mut newHyps := #[]

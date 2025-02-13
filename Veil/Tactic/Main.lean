@@ -59,7 +59,7 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
         let lctx ← getLCtx
         -- we want the new hypotheses to have fresh names so they're
         -- not included in the ignore list, hence we don't reuse `$name`
-        let x := mkIdent $ lctx.getUnusedName `x
+        let x := mkIdent $ lctx.getUnusedName (← existsBinderName hyp.type)
         let name' := mkIdent $ lctx.getUnusedName name.getId
         evalTactic $ ← `(tactic| rcases $name:ident with ⟨$x, $name'⟩)
   -- Recursively call ourselves until the context stops changing
