@@ -669,7 +669,7 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
     let stx <- funcasesM t (← getStateArguments vd vs)
     let defaultName ← match kind with
       | .safety | .invariant => pure $ Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
-      | .assumption => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.assumptions.size}"
+      | .assumption | .trustedInvariant => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.assumptions.size}"
     let name := getPropertyNameD name defaultName
     let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- delabWithMotives e
@@ -678,7 +678,7 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
         `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) $[$vd]*: $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
       | .invariant =>
         `(@[invDef, invSimp] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
-      | .assumption =>
+      | .assumption | .trustedInvariant =>
         `(@[assumptionDef, invSimp, invSimpTopLevel] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
@@ -695,13 +695,17 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
     (match kind with
     | .safety | .invariant => {s.spec with
         invariants := s.spec.invariants.map (fun x => if x.name == name then { x with term := t, isolates := iss } else x) }
-    | .assumption => {s.spec with
+    | .assumption | .trustedInvariant => {s.spec with
         assumptions := s.spec.assumptions.map (fun x => if x.name == name then { x with term := t } else x) })})
 
 
 /-- Axiom. All state components referred to must be `immutable`. All
 capital variables are implicitly quantified. -/
 elab "assumption" name:(propertyName)? prop:term : command => defineAssertion (kind := .assumption) name prop
+
+/-- Invariant that is assumed. State components referred to can be `mutable`. All
+capital variables are implicitly quantified. -/
+elab "trusted" "invariant" name:(propertyName)? prop:term : command => defineAssertion (kind := .trustedInvariant) name prop
 
 /-- Safety property. All capital variables are implicitly quantified -/
 elab "safety" name:(propertyName)? safe:term : command => defineAssertion (kind := .safety) name safe

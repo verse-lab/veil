@@ -122,6 +122,10 @@ whereas `invariant` clauses are supporting the main safety property. -/
 inductive StateAssertionKind
   | assumption
   | invariant
+  /-- An invariant is different from an assumption in that it can refer
+  to `mutable` state. It still gets collected into the `assumptions`
+  definitions, however. -/
+  | trustedInvariant
   | safety
 deriving BEq, Hashable
 
@@ -132,6 +136,7 @@ instance : ToString StateAssertionKind where
   toString
     | StateAssertionKind.assumption => "assumption"
     | StateAssertionKind.invariant => "invariant"
+    | StateAssertionKind.trustedInvariant => "trusted invariant"
     | StateAssertionKind.safety => "safety"
 
 structure StateAssertion where
