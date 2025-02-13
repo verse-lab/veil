@@ -330,6 +330,9 @@ elab_rules : command
 syntax "#check_invariant" ident : command
 syntax "#check_invariant?" ident : command
 syntax "#check_invariant!" ident : command
+syntax "#check_invariant_tr" ident : command
+syntax "#check_invariant_tr?" ident : command
+syntax "#check_invariant_tr!" ident : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command limited to a single invariant. -/
 def checkInvariant (stx : Syntax) (invName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
@@ -341,11 +344,17 @@ elab_rules : command
   | `(command| #check_invariant $invName)  => do checkInvariant (← getRef) invName (behaviour := .default)
   | `(command| #check_invariant? $invName) => do checkInvariant (← getRef) invName (behaviour := .question)
   | `(command| #check_invariant! $invName) => do checkInvariant (← getRef) invName (behaviour := .exclamation)
+  | `(command| #check_invariant_tr $invName)  => do checkInvariant (← getRef) invName (behaviour := .default .transition)
+  | `(command| #check_invariant_tr? $invName) => do checkInvariant (← getRef) invName (behaviour := .question .transition)
+  | `(command| #check_invariant_tr! $invName) => do checkInvariant (← getRef) invName (behaviour := .exclamation .transition)
 
 /- ## `#check_action` -/
 syntax "#check_action" ident : command
 syntax "#check_action?" ident : command
 syntax "#check_action!" ident : command
+syntax "#check_action_tr" ident : command
+syntax "#check_action_tr?" ident : command
+syntax "#check_action_tr!" ident : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command limited to a single action. -/
 def checkAction (stx : Syntax) (actName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
@@ -357,6 +366,9 @@ elab_rules : command
   | `(command| #check_action $actName)  => do checkAction (← getRef) actName (behaviour := .default)
   | `(command| #check_action? $actName) => do checkAction (← getRef) actName (behaviour := .question)
   | `(command| #check_action! $actName) => do checkAction (← getRef) actName (behaviour := .exclamation)
+  | `(command| #check_action_tr $actName)  => do checkAction (← getRef) actName (behaviour := .default .transition)
+  | `(command| #check_action_tr? $actName) => do checkAction (← getRef) actName (behaviour := .question .transition)
+  | `(command| #check_action_tr! $actName) => do checkAction (← getRef) actName (behaviour := .exclamation .transition)
 
 open Tactic in
 /-- Try to solve the goal using one of the already proven invariant clauses,
