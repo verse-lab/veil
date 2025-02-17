@@ -1,4 +1,4 @@
-#! python3
+#! /usr/bin/env python3
 import argparse
 import itertools
 import sys
@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, TypeAlias, U
 
 import sexpdata
 import z3
+import cvc5.pythonic as cvc5
 
 # Dependencies:
 # `pip3 install z3-solver cvc5 sexpdata multiprocess` OR `apt-get install python3-z3 python3-cvc5 python3-sexpdata python3-multiprocess`
@@ -21,6 +22,8 @@ import z3
 # implement proper Lean bindings for Z3.
 
 parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--minimize', help='minimize the model', action='store_true')
 parser.add_argument(
     '--tlimit', help='time limit in milliseconds', type=int, default=10000)
 parser.add_argument(
@@ -297,6 +300,7 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
                           model_completion=True)
     # print(f"interp: {interp}", file=sys.stderr)
     print(args)
+    # vp = z3.simplify(interp.__getitem__(*args))
     vp = z3.simplify(interp[*args])
     solver = z3.Solver()
     solver.add(vp)
@@ -359,7 +363,7 @@ def print_model(passedLines):
     m = get_model(passedLines)
     print(m, flush=True)
 
-def run(args):
+def run_z3(args, queryLines):
     z3.set_param('timeout', args.tlimit)
     z3.set_param("smt.random-seed", args.seed)
     z3.set_param("model", True)
@@ -368,7 +372,9 @@ def run(args):
     z3.Solver.__del__ = lambda self: None
     cfg = z3.Z3_mk_config()
     ctx = z3.Z3_mk_context(cfg)
-
+    execute_with_timeout(print_model, queryLines, args)
+   
+def get_query():
     log_query("% ---")
     # lines we've passed to Z3 thus far
     passedLines = []
@@ -376,15 +382,13 @@ def run(args):
         log_query(line)
         # Overwrite the behaviour of `(get-model)` to print the model in a more readable format
         if "(get-model)" in line:
-            execute_with_timeout(print_model, passedLines, args)
+            return passedLines
         # Execute all other commands as usual
         else:
-            res = z3.Z3_eval_smtlib2_string(ctx, line)
             passedLines.append(line)
-            if len(res) != 0:
-                print(res, flush=True)
-
+    raise Exception("No (get-model) was issued!")
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    run(args)
+    queryLines = get_query()    
+    run_z3(args, queryLines)

@@ -12,17 +12,6 @@ partial def Handle.readLineSkip (h : IO.FS.Handle) (skipLine : String := "\n") :
       return line
   loop
 
-partial def Handle.readUntil (h : IO.FS.Handle) (endString : String) : IO String := do
-  let rec loop (s : String) := do
-    let line ← h.getLine
-    if line.isEmpty then
-      return s
-    else if line == endString then
-      return (s ++ line)
-    else
-      loop (s ++ line)
-  loop ""
-
 namespace Veil.SMT
 
 open Lean hiding Command Declaration
@@ -32,8 +21,15 @@ def emitCommandStr (p : SolverProc) (c : String) : MetaM Unit := do
   p.stdin.putStr c
   p.stdin.flush
 
+def commandStr (c : Auto.IR.SMT.Command) : String := s!"{c}\n"
+
 def emitCommand (p : SolverProc) (c : Auto.IR.SMT.Command) : MetaM Unit := do
-  emitCommandStr p s!"{c}\n"
+  emitCommandStr p (commandStr c)
+
+private def createAux (path : String) (args : Array String) : MetaM SolverProc := do
+    trace[veil.smt.debug] "invoking {path} {args}"
+    IO.Process.spawn {stdin := .piped, stdout := .piped, stderr := .piped,
+                      cmd := path, args := args}
 
 def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
   let tlim_sec := withTimeout
@@ -46,11 +42,35 @@ def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
       let proc ← createAux "cvc5" args
       emitCommand proc (.setLogic "ALL")
       pure proc
-where
-  createAux (path : String) (args : Array String) : MetaM SolverProc := do
-    trace[veil.smt.debug] "invoking {path} {args}"
-    IO.Process.spawn {stdin := .piped, stdout := .piped, stderr := .piped,
-                      cmd := path, args := args}
+
+inductive ModelGenerator where
+  | z3Model
+
+def createModelGenerator (name : ModelGenerator) (withTimeout : Nat) (minimize : Bool) : MetaM SolverProc := do
+  let tlim_sec := withTimeout
+  let seed := veil.smt.seed.get $ ← getOptions
+  match name with
+  | .z3Model   =>
+    let wrapperDir := currentDirectory!
+    let wrapperPath := (System.mkFilePath [wrapperDir, "z3model.py"]).toString
+    let mut args := #[s!"--tlimit={tlim_sec * 1000}", s!"--seed", s!"{seed}"]
+    if minimize then
+      args := args.push "--minimize"
+    createAux wrapperPath args
+
+def getFOStructure (queryStr : String) (withTimeout : Nat) (minimize : Bool) : MetaM (Option FirstOrderStructure) := do
+  try
+    let mg ← createModelGenerator .z3Model withTimeout minimize
+    emitCommandStr mg queryStr
+    let (_, mg) ← mg.takeStdin
+    let stdout ← mg.stdout.readToEnd
+    let stderr ← mg.stderr.readToEnd
+    trace[veil.smt.debug] "stdout: {stdout}"
+    trace[veil.smt.debug] "stderr: {stderr}"
+    mg.kill
+    let (model, _) ← Auto.Solver.SMT.getSexp stdout
+    extractStructure model
+  catch _ex => pure none
 
 open Smt Smt.Tactic Translate in
 partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SmtSolver := none) (retryOnUnknown : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
@@ -80,7 +100,9 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     trace[veil.smt.debug] "stderr: {stderr}"
     let (model, _) ← Auto.Solver.SMT.getSexp stdout
     solver.kill
-    return SmtResult.Sat s!"{model}" .none
+    let queryStr := goalQuery ++ ("\n".intercalate $ [.checkSat, .getModel].map commandStr)
+    let fostruct ← getFOStructure queryStr withTimeout minimize
+    return SmtResult.Sat s!"{model}" fostruct
 
   | .atom (.symb "unsat") =>
     trace[veil.smt.result] "{solverName} says Unsat"
