@@ -1,12 +1,13 @@
 #! /usr/bin/env python3
 import argparse
+from contextlib import contextmanager
 import itertools
 import sys
 from dataclasses import dataclass
 import time
 import multiprocess as mp
 
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, TypeAlias, Union
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Set, Tuple, TypeAlias, Union, cast
 
 import sexpdata
 import z3
@@ -49,6 +50,8 @@ DeclName: TypeAlias = str
 
 BoolSort: SortName = 'Bool'
 IntSort: SortName = 'Int'
+
+CARDINALITY_VAR_PREFIX = "_card$_"
 
 # We give up enumerating integer in the domain of a relation after this
 # many, and simply display the AST of the interpretation.
@@ -126,6 +129,9 @@ class Interpretation:
     explicitInterpretation: Dict[Tuple, Union[bool, int, SortElement]]
     symbolicInterpretation: Optional[str] = None
 
+    def is_cardinality_related(self) -> bool:
+        return CARDINALITY_VAR_PREFIX in self.decl.name
+
     def __to_lisp_as__(self) -> str:
         strs = []
         strs.append(f"{sexp(self.decl)}")
@@ -145,7 +151,8 @@ class Model:
         strs = []
         for sortname, elems in self.sorts.items():
             strs.append(f"(sort |{sortname}| {sexp(elems)})")
-        for _declname, interp in self.interps.items():
+        real_interps = filter(lambda x: not x[1].is_cardinality_related(), self.interps.items())
+        for _declname, interp in real_interps:
             strs.append(f"{sexp(interp)}")
         return "(\n" + "\n".join(strs) + "\n)"
 
@@ -329,12 +336,71 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
         return int_domain, None
 
 
+def _cardinality_constraint(x: Union[z3.SortRef, z3.FuncDeclRef], n: int) -> z3.ExprRef:
+    if isinstance(x, z3.SortRef):
+        return _sort_cardinality_constraint(x, n)
+    else:
+        return _relational_cardinality_constraint(x, n)
+
+def _sort_cardinality_constraint(s: z3.SortRef, n: int) -> z3.ExprRef:
+    x = z3.Const(f'{CARDINALITY_VAR_PREFIX}x$', s)
+    disjs = []
+    for i in range(n):
+        c = z3.Const(f'{CARDINALITY_VAR_PREFIX}{s.name()}_{i}', s)
+        disjs.append(x == c)
+
+    return z3.ForAll(x, z3.Or(*disjs))
+
+def _relational_cardinality_constraint(relation: z3.FuncDeclRef, n: int) -> z3.ExprRef:
+    if relation.arity() == 0:
+        return z3.BoolVal(True)
+
+    consts = [[z3.Const(f'{CARDINALITY_VAR_PREFIX}{relation}_{i}_{j}', relation.domain(j))
+                for j in range(relation.arity())]
+                for i in range(n)]
+
+    vs = [z3.Const(f'{CARDINALITY_VAR_PREFIX}x$_{relation}_{j}', relation.domain(j)) for j in range(relation.arity())]
+
+    result = z3.ForAll(vs, z3.Implies(relation(*vs), z3.Or(*(
+        z3.And(*(
+            c == v for c, v in zip(cs, vs)
+        ))
+        for cs in consts
+    ))))
+    return result
+
+@contextmanager
+def new_frame(s : z3.Solver) -> Iterator[None]:
+    s.push()
+    yield None
+    s.pop()
+
+def _minimal_model(s : z3.Solver, sorts_to_minimize: Iterable[z3.SortRef], relations_to_minimize: Iterable[z3.FuncDeclRef],) -> z3.ModelRef:
+    with new_frame(s):
+        for x in itertools.chain(
+                cast(Iterable[Union[z3.SortRef, z3.FuncDeclRef]], sorts_to_minimize),
+                relations_to_minimize):
+            for n in itertools.count(start=1):
+                with new_frame(s):
+                    s.add(_cardinality_constraint(x, n))
+                    res = s.check()
+                    assert res in (z3.sat, z3.unsat), res
+                    if res == z3.sat:
+                        break
+            s.add(_cardinality_constraint(x, n))
+
+        assert s.check() == z3.sat
+        return s.model()
+
+
 def get_model(passedLines: List[str]) -> Model:
     s = z3.Solver()
     s.from_string("\n".join(passedLines))
     res = s.check()
     assert res == z3.sat, f"Expected sat, got {res} (reason: {s.reason_unknown()})"
     m = s.model()
+    if args.minimize:
+        m = _minimal_model(s, m.sorts(), m.decls())
     print(f"Model: {m}", file=sys.stderr)
     return Model(m)
 
