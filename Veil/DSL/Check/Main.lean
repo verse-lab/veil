@@ -175,11 +175,11 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         -- The theorem is not proven; we need to figure out why:
         -- either solver returned `sat`, `unknown`, or there was an error
         let msgsTxt := String.intercalate "\n" (← msgs.toList.mapM (fun msg => msg.toString))
-        let (hasSat, hasUnknown, hasFailure) := (← msgs.containsSubStr Smt.satGoalStr, ← msgs.containsSubStr Smt.unknownGoalStr, ← msgs.containsSubStr Smt.failureGoalStr)
+        let (hasSat, hasUnknown, hasFailure) := (← msgs.containsSubStr Veil.SMT.satGoalStr, ← msgs.containsSubStr Veil.SMT.unknownGoalStr, ← msgs.containsSubStr Veil.SMT.failureGoalStr)
         if hasSat then
           modelStrs := modelStrs.push (s!"{thmId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n")
         pure $ match hasSat, hasUnknown, hasFailure with
-        | true, false, false => SmtResult.Sat .none
+        | true, false, false => SmtResult.Sat .none .none
         | false, true, false => SmtResult.Unknown msgsTxt
         | false, false, true => SmtResult.Failure msgsTxt
         | _, _, _ =>

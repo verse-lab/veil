@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#! python3
 import argparse
 import itertools
 import sys

@@ -17,7 +17,7 @@ def displaySuggestion (stx : Syntax) (theorems : Array (TSyntax `command)) (preM
 def emoji (res : SmtResult) : String :=
   match res with
   | .Unsat => "✅"
-  | .Sat _ => "❌"
+  | .Sat _ _ => "❌"
   | .Unknown _ => s!"❓"
   | .Failure reason => s!"💥 {reason}"
 
@@ -61,7 +61,7 @@ where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
 def getActCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := getActCheckResultMessages' (res.map (fun (id, r) => (id.actName.get!, id.invName, r)))
 
 def getModelStr (msg : String) : String :=
-  let resWithErr := match msg.splitOn Smt.satGoalStr with
+  let resWithErr := match msg.splitOn Veil.SMT.satGoalStr with
     | [_, model] => model
     /- multiple models can be returned, e.g. due to the `split_ifs` in `solve_clause_wlp` -/
     | _ :: model :: _rest => model

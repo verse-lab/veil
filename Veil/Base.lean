@@ -55,9 +55,8 @@ register_option veil.printCounterexamples : Bool := {
   descr := "Print counterexamples (models) when they are found in `#check_invariants`."
 }
 
-open Auto.Solver.SMT in
-register_option veil.smt.solver : SolverName := {
-  defValue := SolverName.z3
+register_option veil.smt.solver : SmtSolver := {
+  defValue := SmtSolver.z3
   descr := "SMT solver to use"
 }
 

@@ -69,13 +69,13 @@ def indicatorVariableName (name : Name) : CoreM String := do
 open Lean Elab Command Term Meta Tactic in
 def getQueryForGoal : TacticM String := withMainContext do
   let idents ← getPropsInContext
-  let stx := ( ← `(Smt.sauto| sauto [$[$idents:ident],*])).raw
+  let stx := ( ← `(Veil.SMT.sauto| sauto [$[$idents:ident],*])).raw
   let mv ← Tactic.getMainGoal
   let translatorToUse := veil.smt.translator.get (← getOptions)
   let cmdString ←
     match translatorToUse with
-    | .leanAuto => Smt.prepareAutoQuery mv (← Smt.parseAutoHints ⟨stx[1]⟩)
-    | .leanSmt => Smt.prepareLeanSmtQuery mv (← Smt.Tactic.parseHints ⟨stx[1]⟩)
+    | .leanAuto => Veil.SMT.prepareLeanAutoQuery mv (← Veil.SMT.parseAutoHints ⟨stx[1]⟩)
+    | .leanSmt => Veil.SMT.prepareLeanSmtQuery mv (← Smt.Tactic.parseHints ⟨stx[1]⟩)
   return cmdString
 
 open Lean Elab Command Term Meta Tactic
@@ -93,8 +93,7 @@ def translateExprToSmt (expr: Expr) : TermElabM String := do
    ) | throwError "[translateExprToSmt] expected exactly one goal after simplification"
   return cmdString
 
-open Smt Smt.Tactic Translate Lean Lean.Meta Auto.Solver.SMT in
-def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: Array (Array (Name × Expr))) (forceSolver : Option SolverName := none)
+def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: Array (Array (Name × Expr))) (forceSolver : Option SmtSolver := none)
   : MetaM (List ((List Name) × SmtResult)) := do
   withTraceNode `veil.smt.perf.query (fun _ => return "querySolverWithIndicators") do
   let opts ← getOptions
@@ -103,8 +102,8 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
       | some s => s
       | none => veil.smt.solver.get opts
     trace[veil.smt.debug] "solver: {solverName}"
-  let solver ← createSolver solverName withTimeout
-  emitCommandStr solver s!"{goalQuery}\n"
+  let solver ← Veil.SMT.createSolver solverName withTimeout
+  Veil.SMT.emitCommandStr solver s!"{goalQuery}\n"
   let mut ret := []
   let indicatorNames := (checks.map (fun arr => arr.map (fun (_, ind) => ind.constName!))).flatten
   for check in checks do
@@ -117,12 +116,12 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
         return s!"{← indicatorVariableName new} {acc}"
       else return s!"(not {← indicatorVariableName new}) {acc}") ""
     try
-      emitCommandStr solver s!"(define-fun {checkName} () Bool (and {expression}))\n"
-      emitCommandStr solver s!"(check-sat-assuming ({checkName}))\n"
+      Veil.SMT.emitCommandStr solver s!"(define-fun {checkName} () Bool (and {expression}))\n"
+      Veil.SMT.emitCommandStr solver s!"(check-sat-assuming ({checkName}))\n"
       let stdout ← Handle.readLineSkip solver.stdout
-      let (checkSatResponse, _) ← getSexp stdout
+      let (checkSatResponse, _) ← Auto.Solver.SMT.getSexp stdout
       let checkSatResponse: SmtResult := match checkSatResponse with
-        | .atom (.symb "sat") => SmtResult.Sat none
+        | .atom (.symb "sat") => SmtResult.Sat none none
         | .atom (.symb "unsat") => SmtResult.Unsat
         | .atom (.symb "unknown") => SmtResult.Unknown ""
         | e => SmtResult.Failure s!"{e}"

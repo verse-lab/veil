@@ -1,10 +1,11 @@
 import Lean
+import Veil.SMT.Model
 
 /-- Package to use for translating Lean goals to SMT-LIB queries. -/
 inductive SmtTranslator
   | leanSmt
   | leanAuto
-  deriving BEq, Hashable, Inhabited
+deriving BEq, Hashable, Inhabited
 
 instance : ToString SmtTranslator where
   toString : SmtTranslator → String
@@ -18,18 +19,55 @@ instance : Lean.KVMap.Value SmtTranslator where
   | "lean-auto" => some .leanAuto
   | _           => none
 
-/- FIXME: we really should merge `CheckSatResult` and `SmtResult` -/
+inductive SmtSolver where
+  | z3
+  | cvc5
+deriving BEq, Hashable, Inhabited
 
-inductive CheckSatResult
-  | Sat
-  | Unsat
-  | Unknown (reason : String)
-  | Failure (reason : String)
-deriving BEq, Inhabited
-
-instance : ToString CheckSatResult where
+instance : ToString SmtSolver where
   toString
-    | CheckSatResult.Sat => "sat"
-    | CheckSatResult.Unsat => "unsat"
-    | CheckSatResult.Unknown r => s!"unknown ({r})"
-    | CheckSatResult.Failure r => s!"failure ({r})"
+    | SmtSolver.z3  => "z3"
+    | SmtSolver.cvc5 => "cvc5"
+
+instance : Lean.KVMap.Value SmtSolver where
+  toDataValue n := toString n
+  ofDataValue?
+  | "z3"  => some .z3
+  | "cvc5" => some .cvc5
+  | _     => none
+
+/-- If the solver returns `Unknown`, we try the other solver. -/
+def solverToTryOnUnknown (tried : SmtSolver) : SmtSolver :=
+  match tried with
+  | .z3 => SmtSolver.cvc5
+  | .cvc5 => SmtSolver.z3
+
+abbrev SolverProc := IO.Process.Child ⟨.piped, .piped, .piped⟩
+
+inductive SmtResult
+  /-- `model` contains the raw string returned by the solver.
+  `fostruct` is an interpreted version of it that we can manipulate in
+  Lean. -/
+  | Sat (model : Option String) (fostruct : Option FirstOrderStructure)
+  | Unsat
+  | Unknown (reason : Option String)
+  | Failure (reason : Option String)
+deriving Inhabited
+
+instance : ToString SmtResult where
+  toString
+    | SmtResult.Sat none none => "sat"
+    | SmtResult.Sat _ (some m) => s!"sat\n{m}"
+    | SmtResult.Sat (some m) none => s!"sat\n{m}"
+    | SmtResult.Unsat => s!"unsat"
+    | SmtResult.Unknown none => s!"unknown"
+    | SmtResult.Unknown (some r) => s!"unknown ({r})"
+    | SmtResult.Failure none => "failure"
+    | SmtResult.Failure (some r) => s!"failure ({r})"
+
+abbrev SExpression := Auto.Parser.SMTSexp.Sexp
+
+structure SmtQuery where
+  queryString : String
+  translatedUsing : SmtTranslator
+  result : Std.HashMap SmtSolver SmtResult

@@ -2,6 +2,9 @@ import Lean
 import Auto
 import Smt
 
+import Veil.SMT.Base
+import Veil.SMT.Translation
+import Veil.SMT.Solver
 import Veil.Util.Meta
 
 /- Not actually used here, but re-exported. -/
@@ -9,389 +12,25 @@ import Veil.SMT.Preparation
 import Veil.SMT.Quantifiers.Elimination
 import Veil.SMT.Model
 
-open Lean hiding Command Declaration
-
-inductive SmtResult
-  | Sat (model : Option FirstOrderStructure)
-  | Unsat
-  | Unknown (reason : String)
-  | Failure (reason : String)
-deriving Inhabited
-
-instance : ToString SmtResult where
-  toString
-    | SmtResult.Sat none => "sat"
-    | SmtResult.Sat (some m) => s!"sat\n{m}"
-    | SmtResult.Unsat => s!"unsat"
-    | SmtResult.Unknown r => s!"unknown ({r})"
-    | SmtResult.Failure r => s!"failure ({r})"
-
-namespace Smt
-open Elab Tactic Qq
-
-open Smt Smt.Tactic Translate Lean.Meta in
-def prepareLeanSmtQuery (mv' : MVarId) (hs : List Expr) : MetaM String := do
-  -- HACK: We operate on a cloned goal, and then reset it to the original.
-  let mv := (← mkFreshExprMVar (← mv'.getType)).mvarId!
-  mv.withContext do
-    withTraceNode `veil.smt.perf.translate (fun _ => return "prepareQuery") do
-    withProcessedHints mv hs fun mv hs => mv.withContext do
-    let (hs, mv) ← Preprocess.elimIff mv hs
-    mv.withContext do
-    let goalType : Q(Prop) ← mv.getType
-    -- 2. Generate the SMT query.
-    let (fvNames₁, _fvNames₂) ← genUniqueFVarNames
-    let cmds ← prepareSmtQuery hs goalType fvNames₁
-    let cmdString := s!"{Command.cmdsAsQuery cmds}"
-    trace[veil.smt.debug] "goal:\n{goalType}"
-    trace[veil.smt] "query:\n{cmdString}"
-    return cmdString
-
-open Auto Auto.Solver.SMT
-def emitCommandStr (p : SolverProc) (c : String) : MetaM Unit := do
-  trace[veil.smt.query] "{c}"
-  p.stdin.putStr c
-  p.stdin.flush
-
-def emitCommand (p : SolverProc) (c : IR.SMT.Command) : MetaM Unit := do
-  emitCommandStr p s!"{c}\n"
-
-def createSolver (name : SolverName) (withTimeout : Nat) : MetaM SolverProc := do
-  let tlim_sec := withTimeout
-  let seed := veil.smt.seed.get $ ← getOptions
-  match name with
-  | .none => throwError "createSolver :: Unexpected error"
-  -- | .z3   => createAux "z3" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}"]
-  -- We wrap Z3 with a Python script that prints models in a more usable format.
-  | .z3   =>
-    let wrapperDir := currentDirectory!
-    let wrapperPath := (System.mkFilePath [wrapperDir, "z3model.py"]).toString
-    let args := #[s!"--tlimit={tlim_sec * 1000}", s!"--seed", s!"{seed}"]
-    createAux wrapperPath args
-  | .cvc4 => throwError "cvc4 is not supported"
-  | .cvc5 =>
-      let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}", "--seed", s!"{seed}",
-        "--finite-model-find", "--enum-inst-interleave", "--nl-ext-tplanes", "--produce-models", "--incremental"]
-      let proc ← createAux "cvc5" args
-      if name == SolverName.cvc5 then
-        emitCommand proc (.setLogic "ALL")
-        emitCommand proc (.setOption (.produceProofs true))
-      pure proc
-where
-  createAux (path : String) (args : Array String) : MetaM SolverProc := do
-    trace[veil.smt.debug] "invoking {path} {args}"
-    IO.Process.spawn {stdin := .piped, stdout := .piped, stderr := .piped,
-                      cmd := path, args := args}
-
-partial def Handle.readLineSkip (h : IO.FS.Handle) (skipLine : String := "\n") : IO String := do
-  let rec loop := do
-    let line ← h.getLine
-    if line.isEmpty then
-      return line
-    if line == skipLine then
-      loop
-    else
-      return line
-  loop
-
-partial def Handle.readUntil (h : IO.FS.Handle) (endString : String) : IO String := do
-  let rec loop (s : String) := do
-    let line ← h.getLine
-    if line.isEmpty then
-      return s
-    else if line == endString then
-      return (s ++ line)
-    else
-      loop (s ++ line)
-  loop ""
-
-def addConstraint (solver : SolverProc) (expr : Expr) : MetaM Unit := do
-  -- prepareSmtQuery negates the expression, so we negate it here.
-  let (fvNames₁, _fvNames₂) ← genUniqueFVarNames
-  let cmds ← prepareSmtQuery [] (mkNot expr) fvNames₁
-  -- Do not declare sorts again, etc. Only add constraints (i.e. assertions).
-  let cmds := cmds.filter fun
-    | .assert _ => true
-    | _ => false
-  let cmd := Smt.Translate.Command.cmdsAsQuery cmds
-  emitCommandStr solver cmd
-
-def checkSat (solver : SolverProc) (solverName : SolverName) : MetaM CheckSatResult := do
-  withTraceNode `veil.smt.perf.checkSat (fun _ => return "checkSat") do
-  try
-  if veil.smt.macrofinder.get (← getOptions) && solverName == SolverName.z3 then
-    -- only Z3 supports the macro-finder tactic
-    emitCommandStr solver "(check-sat-using (then macro-finder smt))\n"
-  else
-    emitCommand solver .checkSat
-  let stdout ←
-    -- Our Z3 wrapper works differently from the other solvers
-    if solverName == SolverName.z3 then
-      Handle.readLineSkip solver.stdout
-    else
-      solver.stdout.getLine
-  trace[veil.smt.debug] "[checkSat] stdout: {stdout}"
-  let (checkSatResponse, _) ← getSexp stdout
-  match checkSatResponse with
-  | .atom (.symb "sat") =>
-    trace[veil.smt.debug] "{solverName} says Sat"
-    return CheckSatResult.Sat
-  | .atom (.symb "unsat") =>
-    trace[veil.smt.debug] "{solverName} says Unsat"
-    return CheckSatResult.Unsat
-  | .atom (.symb "unknown") =>
-    trace[veil.smt.debug] "{solverName} says Unknown"
-    return CheckSatResult.Unknown ""
-  | _ => throwError s!"Unexpected response from solver: {checkSatResponse}"
-  catch e =>
-    let _exMsg ← e.toMessageData.toString
-    let stderr ← solver.stderr.readToEnd
-    let stderr := if stderr.isEmpty then "" else s!": \n{stderr}"
-    trace[veil.smt.debug] "check-sat failed ({_exMsg}) {stderr}"
-    throwError s!"check-sat failed ({_exMsg}) {stderr}"
-
-def getModel (solver : SolverProc) : MetaM Parser.SMTSexp.Sexp := do
-  withTraceNode `veil.smt.perf.getModel (fun _ => return "getModel") do
-  try
-  emitCommand solver .getModel
-  let stdout ← Handle.readUntil solver.stdout ")\n"
-  let (model, _) ← getSexp stdout
-  return model
-  catch e =>
-    let _exMsg ← e.toMessageData.toString
-    let stderr ← solver.stderr.readToEnd
-    let stderr := if stderr.isEmpty then "" else s!": \n{stderr}"
-    trace[veil.smt.debug] "get-model failed ({_exMsg}) {stderr}"
-    throwError s!"get-model failed{stderr}"
-
-/-- Check if the constraint is satisfiable in the current frame. -/
-def constraintIsSatisfiable (solver : SolverProc) (solverName : SolverName) (constr : Option Expr) : MetaM Bool := do
-  match constr with
-  | none => return true
-  | some expr =>
-  addConstraint solver expr
-  let res ← checkSat solver solverName
-  match res with
-  | .Sat => return true
-  | .Unsat => return false
-  | .Unknown e => throwError s!"Unexpected unknown from solver: {e}"
-  | .Failure e => throwError s!"failure from solver: {e}"
-
-private def minimizeModelImpl (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill: Bool := true) : MetaM FirstOrderStructure := do
-  -- Implementation follows the `solver.py:_minimal_model()` function in `mypyvy`
-  try
-  -- Minimize sorts
-  let mut sortConstraints : Array (FirstOrderSort × Nat × Expr) := #[]
-  for sort in fostruct.domains do
-    for sortSize in [1 : sort.size] do
-      let .some constraint ← sort.cardinalityConstraint sortSize
-        | trace[veil.smt.debug] "no constraint for sort {sort} at size {sortSize}"; continue
-      -- we check each constraint in a separate frame
-      emitCommandStr solver s!"(push)"
-      let isSat ← constraintIsSatisfiable solver solverName constraint
-      match isSat with
-      | true =>
-          sortConstraints := sortConstraints.push (sort, sortSize, constraint)
-          trace[veil.smt.debug] "minimized sort {sort} to size {sortSize}"
-          break -- break out of the `sortSize in [1 : sort.size]` loop
-      | false =>
-        -- we end the frame here; since this constraint is unsatisfiable,
-        -- we don't want to build on top of it
-        emitCommandStr solver "(pop)"
-        continue
-  -- Minimize number of positive elements in each relation interpreted as a finite enumeration
-  let mut relConstraints : Array (Declaration × Nat × Expr) := #[]
-  for decl in fostruct.signature.declarations do
-    -- We try to minimize symbolic interpretations of relations to zero size
-    let currentSize ← if fostruct.isInterpretedByFiniteEnumeration decl then fostruct.numTrueInstances decl else pure 1
-    trace[veil.smt.debug] "trying to minimize relation {decl.name} at sizes [0 : {currentSize})"
-    for relSize in [0 : currentSize] do
-      let .some constraint ← decl.cardinalityConstraint relSize
-        | trace[veil.smt.debug] "no constraint for relation {decl.name} at size {relSize}"; continue
-      -- we check each constraint in a separate frame
-      emitCommandStr solver "(push)"
-      let isSat ← constraintIsSatisfiable solver solverName constraint
-      match isSat with
-      | true =>
-          relConstraints := relConstraints.push (decl, relSize, constraint)
-          trace[veil.smt.debug] "minimized relation {decl.name} to size {relSize}"
-          break -- break out of the `relSize in [0 : ← fostruct.numTrueInstances decl]` loop
-      | false =>
-        -- we end the frame here; since this constraint is unsatisfiable,
-        -- we don't want to build on top of it
-        emitCommandStr solver "(pop)"
-        trace[veil.smt.debug] "relation {decl.name} is unsatisfiable at size {relSize}"
-        continue
-  let checkSatResponse ← checkSat solver solverName
-  if checkSatResponse != .Sat then
-    throwError s!"Minimization failed! (check-sat) returned {checkSatResponse}."
-  emitCommand solver .getModel
-  -- FIXME: it's probably not OK to kill the solver here
-  let (_, solver) ← solver.takeStdin
-  let stdout ← solver.stdout.readToEnd
-  let stderr ← solver.stderr.readToEnd
-  if kill then
-    solver.kill
-  trace[veil.smt.debug] "(get-model) {stdout.length}: {stdout}"
-  trace[veil.smt.debug] "(stderr) {stderr}"
-  let (model, _) ← getSexp stdout
-  trace[veil.smt.debug] "Model:\n{model}"
-  let fostruct ← extractStructure model
-  return fostruct
-  catch e =>
-    let exMsg ← e.toMessageData.toString
-    throwError s!"Minimization failed: {exMsg}"
-
-/- FIXME: for whatever reason, if I add `withTraceNode` directly inside `minimizeModelImpl`, it hangs. -/
-def minimizeModel (solver : SolverProc) (solverName : SolverName) (fostruct : FirstOrderStructure) (kill : Bool := true): MetaM FirstOrderStructure := do
-  withTraceNode `veil.smt.perf.minimizeModel (fun _ => return "minimizeModel") do
-  minimizeModelImpl solver solverName fostruct kill
-
-/-- If the solver returns `Unknown`, we try the other solver. -/
-def solverToTryOnUnknown (tried : SolverName) : Option SolverName :=
-  match tried with
-  | SolverName.z3 => SolverName.cvc5
-  | SolverName.cvc5 => SolverName.z3
-  | _ => none
-
-partial def getSolverResult (solver: SolverProc) (solverName: SolverName) (kill: Bool := true) (getModel? : Bool := true) (minimize : Bool := false) : MetaM SmtResult := do
-  let checkSatResponse ← checkSat solver solverName
-  match checkSatResponse with
-  | .Sat =>
-      trace[veil.smt.result] "{solverName} says Sat"
-      if getModel? then
-        let model ← getModel solver
-        trace[veil.smt.debug] "Model:\n{model}"
-        -- For Z3, we have model pretty-printing and minimization.
-        if solverName == SolverName.z3 then
-          let mut fostruct ← extractStructure model
-          if minimize then
-            fostruct ← minimizeModel solver solverName fostruct (kill := kill)
-          trace[veil.smt.model] "{fostruct}"
-          return .Sat fostruct
-        -- Non-Z3 solver
-        else
-          trace[veil.smt.model] "Currently, we print readable interpretations only for Z3. For other solvers, we only return the raw model."
-          trace[veil.smt.model] "Model:\n{model}"
-          if kill then
-            solver.kill
-          return .Sat .none
-      else
-        if kill then
-            solver.kill
-        return .Sat .none
-  | .Unsat =>
-      trace[veil.smt.result] "{solverName} says Unsat"
-      return .Unsat
-  | .Unknown reason =>
-      trace[veil.smt.result] "{solverName} says Unknown ({reason})"
-      if kill then
-        solver.kill
-      return .Unknown reason
-  | .Failure reason => return .Failure reason
-
-open Smt Smt.Tactic Translate in
-partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SolverName := none) (retryOnUnknown : Bool := false) (getModel? : Bool := true) (minimize : Option Bool := none) : MetaM SmtResult := do
-  withTraceNode `veil.smt.perf.query (fun _ => return "querySolver") do
-  try
-  let opts ← getOptions
-  let minimize := minimize.getD (veil.smt.model.minimize.get opts)
-  let solverName :=
-    match forceSolver with
-    | some s => s
-    | none => veil.smt.solver.get opts
-  trace[veil.smt.debug] "solver: {solverName}"
-  let solver ← createSolver solverName withTimeout
-  emitCommandStr solver goalQuery
-  let res ← getSolverResult solver solverName (kill := true) getModel? minimize
-  let res : SmtResult ← match res with
-  | .Unknown _=> do
-    if retryOnUnknown then
-      let .some newSolver := solverToTryOnUnknown solverName | return res
-      trace[veil.smt.debug] "Retrying with {newSolver}"
-      querySolver goalQuery withTimeout (forceSolver := .some newSolver) (retryOnUnknown := false) getModel? minimize
-    else
-      return res
-  | _ => return res
-  catch e =>
-    let exMsg ← e.toMessageData.toString
-    return .Failure s!"{exMsg}"
+namespace Veil.SMT
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
-syntax (name := sauto) "sauto" smtHints smtTimeout : tactic
+syntax (name := sauto) "sauto" Smt.Tactic.smtHints Smt.Tactic.smtTimeout : tactic
+
+open Lean Elab Tactic
 
 /-- Converts `smtHints` into those understood by `lean-auto`. -/
 def parseAutoHints : TSyntax `smtHints → TacticM (TSyntax `Auto.hints)
-  | `(smtHints| [ $[$hs],* ]) => `(hints| [$[$hs:term],*])
-  | `(smtHints| ) => `(hints| [])
+  | `(Smt.Tactic.smtHints| [ $[$hs],* ]) => `(Auto.hints| [$[$hs:term],*])
+  | `(Smt.Tactic.smtHints| ) => `(Auto.hints| [])
   | _ => throwUnsupportedSyntax
 
 /- We use our own `parseTimeout` because the one in `lean-smt` has a
   hard-coded `5` as default if no timeout is specified. -/
 def parseTimeout : TSyntax `smtTimeout → CoreM Nat
-  | `(smtTimeout| (timeout := $n)) => return n.getNat
-  | `(smtTimeout| ) => return (auto.smt.timeout.get (← getOptions))
+  | `(Smt.Tactic.smtTimeout| (timeout := $n)) => return n.getNat
+  | `(Smt.Tactic.smtTimeout| ) => return (auto.smt.timeout.get (← getOptions))
   | _ => throwUnsupportedSyntax
-
-open Embedding.Lam Lean.Meta in
-/-- Alternative to `prepareQuery`, this invokes `lean-auto` to generate the
-  SMT query rather than `lean-smt`. The advantage is this is much faster
-  (see
-  [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126)),
-  but produces unreadable queries. -/
-def prepareAutoQuery (mv : MVarId) (hints : TSyntax `Auto.hints) : TacticM String := do
-  withTraceNode `veil.smt.perf.translate (fun _ => return "prepareAutoQuery") do
-  -- HACK: We operate on a cloned goal, and then reset it to the original.
-  let goal := (← mkFreshExprMVar (← mv.getType)).mvarId!
-  let (goalBinders, newGoal) ← goal.intros
-  let [nngoal] ← newGoal.apply (.const ``Classical.byContradiction [])
-    | throwError "prepareAutoQuery :: Unexpected result after applying Classical.byContradiction"
-  let (ngoal, absurd) ← MVarId.intro1 nngoal
-  replaceMainGoal [absurd]
-  withMainContext do
-    let (lemmas, inhFacts) ← collectAllLemmas hints #[] (goalBinders.push ngoal)
-    let query ← getQueryFromAuto lemmas inhFacts
-    -- IMPORTANT: Reset the goal to the original
-    replaceMainGoal [mv]
-    return query
-  where
-  -- based on `runAuto`
-  getQueryFromAuto
-    (lemmas : Array Lemma) (inhFacts : Array Lemma) : MetaM String := do
-    -- Simplify `ite`
-    let ite_simp_lem ← Lemma.ofConst ``Auto.Bool.ite_simp (.leaf "hw Auto.Bool.ite_simp")
-    let lemmas ← lemmas.mapM (fun lem => Lemma.rewriteUPolyRigid lem ite_simp_lem)
-    -- Simplify `decide`
-    let decide_simp_lem ← Lemma.ofConst ``Auto.Bool.decide_simp (.leaf "hw Auto.Bool.decide_simp")
-    let lemmas ← lemmas.mapM (fun lem => Lemma.rewriteUPolyRigid lem decide_simp_lem)
-    let afterReify (uvalids : Array UMonoFact) (uinhs : Array UMonoFact) (minds : Array (Array SimpleIndVal)) : LamReif.ReifM String := (do
-      let exportFacts ← LamReif.reifFacts uvalids
-      let mut exportFacts := exportFacts.map (Embedding.Lam.REntry.valid [])
-      let _ ← LamReif.reifInhabitations uinhs
-      let exportInds ← LamReif.reifMutInds minds
-      LamReif.printValuation
-      -- **Preprocessing in Verified Checker**
-      let (exportFacts', exportInds) ← LamReif.preprocess exportFacts exportInds
-      exportFacts := exportFacts'
-      getAutoQueryString exportFacts exportInds)
-    let (cmdString, _) ← Monomorphization.monomorphize lemmas inhFacts (@id (Reif.ReifM String) do
-      let s ← get
-      let u ← computeMaxLevel s.facts
-      (afterReify s.facts s.inhTys s.inds).run' {u := u})
-    return cmdString
-  getAutoQueryString (exportFacts : Array REntry) (exportInds : Array MutualIndInfo) : LamReif.ReifM String := do
-    let lamVarTy := (← LamReif.getVarVal).map Prod.snd
-    let lamEVarTy ← LamReif.getLamEVarTy
-    let exportLamTerms ← exportFacts.mapM (fun re => do
-      match re with
-      | .valid [] t => return t
-      | _ => throwError "runAuto :: Unexpected error")
-    let sni : SMT.SMTNamingInfo :=
-      {tyVal := (← LamReif.getTyVal), varVal := (← LamReif.getVarVal), lamEVarTy := (← LamReif.getLamEVarTy)}
-    let ((commands, _validFacts), _state) ← (lamFOL2SMT sni lamVarTy lamEVarTy exportLamTerms exportInds).run
-    trace[debug] "{_state.h2lMap.toArray}"
-    let queryStr := String.intercalate "\n" (commands.toList.map toString)
-    return queryStr
 
 /-- A string to print when the solver returns `sat`. Factored out here
 because it's used by `checkTheorems` in `Check.lean` to distinguish
@@ -400,7 +39,7 @@ def satGoalStr : String := "the goal is false"
 def unknownGoalStr : String := "the solver returned unknown"
 def failureGoalStr : String := "solver invocation failed"
 
-@[tactic sauto] def evalSauto : Tactic := fun stx => withMainContext do
+@[tactic sauto] def elabSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
   let withTimeout ← parseTimeout ⟨stx[2]⟩
   -- If the user wants proof reconstruction, we simply call the `smt`
@@ -410,7 +49,7 @@ def failureGoalStr : String := "solver invocation failed"
     let chosenTranslator := veil.smt.translator.get opts
     if chosenTranslator != .leanSmt then
       logInfo s!"Proof reconstruction is only supported with `lean-smt`, but `veil.smt.translator = {chosenTranslator}`. Falling back to `lean-smt`."
-    evalSmt stx
+    Smt.Tactic.evalSmt stx
   else
     -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
     -- we first use `lean-auto` to generate the query, and call `lean-smt` only
@@ -419,29 +58,19 @@ def failureGoalStr : String := "solver invocation failed"
     let translatorToUse := veil.smt.translator.get opts
     let cmdString ←
       match translatorToUse with
-      | .leanAuto => prepareAutoQuery mv (← parseAutoHints ⟨stx[1]⟩)
-      | .leanSmt => prepareLeanSmtQuery mv (← Tactic.parseHints ⟨stx[1]⟩)
+      | .leanAuto => Veil.SMT.prepareLeanAutoQuery mv (← Veil.SMT.parseAutoHints ⟨stx[1]⟩)
+      | .leanSmt => Veil.SMT.prepareLeanSmtQuery mv (← Smt.Tactic.parseHints ⟨stx[1]⟩)
     let getModel? := translatorToUse == .leanSmt
-    let res ← querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
+    let res ← Veil.SMT.querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
     match res with
-    -- if we have a model, we can print it
-    | .Sat (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
-    | .Sat none =>
-      -- If we don't, we probably called `lean-auto`, so we need to call
-      -- `lean-smt` to get the model.
-      if translatorToUse == .leanAuto then
-        let hs ← Tactic.parseHints ⟨stx[1]⟩
-        let cmdString ← prepareLeanSmtQuery mv hs
-        let res ← querySolver cmdString withTimeout
-        match res with
-        | .Sat (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
-        | .Sat none => throwError "{satGoalStr} (print the model with `set_option trace.veil.smt.model true`)"
-        | .Unknown _ | .Failure _ | .Unsat => throwError s!"{satGoalStr}, but second SMT query asking for a model returned {res}"
-      else
-        throwError "{satGoalStr} (print the model with `set_option trace.veil.smt.model true`)"
+    -- if we have a user-readable model, we can print it
+    | .Sat _ (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
+    | .Sat (.some model) none => throwError s!"{satGoalStr}\n{model}"
+    | .Sat none none => throwError s!"{satGoalStr}"
     | .Unknown reason => throwError "{unknownGoalStr}: {reason}"
     | .Failure reason => throwError "{failureGoalStr}: {reason}"
     | .Unsat => mv.admit (synthetic := false)
+
 
 open Lean.Meta in
 /-- UNSAFE: Switches the goal with its negation!
@@ -454,7 +83,7 @@ elab "negate_goal" : tactic => withMainContext do
   goal.admit (synthetic := false)
   setGoals [negatedGoal.mvarId!]
 
-syntax (name := admit_if_satisfiable) "admit_if_satisfiable" smtHints smtTimeout : tactic
+syntax (name := admit_if_satisfiable) "admit_if_satisfiable" Smt.Tactic.smtHints Smt.Tactic.smtTimeout : tactic
 
 open Lean.Meta in
 /-- UNSAFE: admits the goal if it is satisfiable.
@@ -463,17 +92,16 @@ open Lean.Meta in
 -/
 @[tactic admit_if_satisfiable] def evalAdmitIfSat : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
-  let hs ← Tactic.parseHints ⟨stx[1]⟩
+  let hs ← Smt.Tactic.parseHints ⟨stx[1]⟩
   let withTimeout ← parseTimeout ⟨stx[2]⟩
-  let cmdString ← prepareLeanSmtQuery mv hs
-  let res ← querySolver cmdString withTimeout (retryOnUnknown := true)
+  let cmdString ← Veil.SMT.prepareLeanSmtQuery mv hs
+  let res ← Veil.SMT.querySolver cmdString withTimeout (retryOnUnknown := true)
   match res with
-  | .Sat _ =>
+  | .Sat _ _ =>
     trace[veil.smt.result] "The negation of the goal is satisfiable, hence the goal is valid."
     mv.admit (synthetic := false)
   | .Unsat => throwError "the goal is false"
   | .Unknown reason => throwError "the solver returned unknown: {reason}"
   | .Failure reason => throwError "solver invocation failed: {reason}"
 
-
-end Smt
+end Veil.SMT
