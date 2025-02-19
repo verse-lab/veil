@@ -53,10 +53,12 @@ def createModelGenerator (name : ModelGenerator) (withTimeout : Nat) (minimize :
   | .z3Model   =>
     let wrapperDir := currentDirectory!
     let wrapperPath := (System.mkFilePath [wrapperDir, "z3model.py"]).toString
-    let mut args := #[s!"--tlimit={tlim_sec * 1000}", s!"--seed", s!"{seed}"]
+    let mut wrapperArgs := #[s!"--tlimit={tlim_sec * 1000}", s!"--seed", s!"{seed}"]
     if minimize then
-      args := args.push "--minimize"
-    createAux wrapperPath args
+      wrapperArgs := wrapperArgs.push "--minimize"
+    let uvCmd := "uv"
+    let uvArgs := #["run", wrapperPath] ++ wrapperArgs
+    createAux uvCmd uvArgs
 
 def getFOStructure (queryStr : String) (withTimeout : Nat) (minimize : Bool) : MetaM (Option FirstOrderStructure) := do
   try

@@ -1,4 +1,12 @@
 #! /usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "multiprocess",
+#     "sexpdata",
+#     "z3-solver",
+# ]
+# ///
 
 # This program is a wrapper around Z3 that behaves (approximately) like `z3 -in`,
 # but overwrites the behaviour of the `(get-model)` command to print the

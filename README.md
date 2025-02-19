@@ -29,18 +29,18 @@ rev = "main"
 ```
 
 **Important:** if you use Veil as a library, make sure to also install
-`z3`, `cvc5`, Python >= 3.11, and the `z3-solver`, `multiprocess`, and
-`sexpdata` Python libraries. See the Build section for detailed
-instructions.
-
-See
+[`z3`](https://github.com/Z3Prover/z3), [`cvc5`](https://github.com/cvc5/cvc5),
+and [`uv`](https://github.com/astral-sh/uv). See
 [`verse-lab/veil-usage-example`](https://github.com/verse-lab/veil-usage-example)
 for a fully set-up example project.
 
 ## Build
 
-Veil requires Lean 4, `z3`, `cvc5`, Python >= 3.11, and the `z3-solver`,
-`multiprocess`, and `sexpdata` Python libraries.
+Veil requires [Lean 4](https://github.com/leanprover/lean4),
+[`z3`](https://github.com/Z3Prover/z3), [`cvc5`](https://github.com/cvc5/cvc5),
+and [`uv`](https://github.com/astral-sh/uv) (the Python project manager). We
+have tested Veil on macOS and Ubuntu. Windows with WSL2 is also supported.
+Native Windows support is not yet available.
 
 To build Veil run `lake build`. This will build the whole project with
 tests in `Tests/` but without case studies. To build the case studies
@@ -49,12 +49,19 @@ run `lake build Examples`.
 <details close>
 <summary><strong>Detailed build instructions</strong></summary>
 
-1. Install Python 3 with version >= 3.11. The latest version of Python
-can be downloaded from [here](https://www.python.org).
 
-2. Install Lean. Detailed instructions on Lean installations can be
-found [here](https://docs.lean-lang.org/lean4/doc/setup.html). We
-recommend installing via [`elan`](https://github.com/leanprover/elan).
+1. [Install Lean](https://docs.lean-lang.org/lean4/doc/setup.html). We recommend
+   installing via [`elan`](https://github.com/leanprover/elan):
+
+```bash
+curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain leanprover/lean4:stable
+```
+
+2. Install [`uv`](https://github.com/astral-sh/uv), the Python dependency manager:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 3. Install `z3` and `cvc5`.
    - For Ubuntu run
@@ -87,18 +94,6 @@ recommend installing via [`elan`](https://github.com/leanprover/elan).
       echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.zshrc
       source ~/.zshrc
       ```
-
-4. Finally, you will need to install dependencies for our  Python wrapper around the Z3 SMT solver. Run and then either:
-
-   ```bash
-   pip3 install z3-solver multiprocess sexpdata
-   ```
-
-   or (on Ubuntu)
-
-   ```bash
-   apt-get install python3-z3 python3-multiprocess python3-sexpdata
-   ```
 
 </details>
 
