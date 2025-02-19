@@ -11,7 +11,6 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Set,
 
 import sexpdata
 import z3
-import cvc5.pythonic as cvc5
 
 # Dependencies:
 # `pip3 install z3-solver cvc5 sexpdata multiprocess` OR `apt-get install python3-z3 python3-cvc5 python3-sexpdata python3-multiprocess`
@@ -258,7 +257,7 @@ class Model:
             # to identify which integers the relation is true for, and we add
             # these to the universe of the `Int` sort.
             if isinstance(decl, RelationDecl) and any(d == IntSort for d in dom):
-                dtype = " -> ".join(dom)
+                # dtype = " -> ".join(dom)
                 # print(f"  Getting Int domain for {z3decl} : {dtype}", file=sys.stderr)
                 (int_domain, ast) = get_int_domain(z3decl, z3model)
                 # A finite (< MAXIMUM_DOMAIN_INTEGERS_TO_ENUMERATE) domain is returned as a set of integers
@@ -299,7 +298,7 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
     assert z3decl.range().name(
     ) == BoolSort, f"expected relation, but {z3decl} has range {z3decl.range().name()}"
     args = [z3.Const(f"arg{i}", z3decl.domain(i)) for i in range(z3decl.arity())]
-    sorts = [arg.sort().name() for arg in args]
+    # sorts = [arg.sort().name() for arg in args]
     int_args = [arg for arg in args if arg.sort().name() == IntSort]
     # print(f"{z3decl} | args: {args} | sort:s {sorts}", file=sys.stderr)
 
@@ -436,8 +435,6 @@ def run_z3(args, queryLines):
     z3.set_param("model.completion", True)
     z3.Context.__del__ = lambda self: None
     z3.Solver.__del__ = lambda self: None
-    cfg = z3.Z3_mk_config()
-    ctx = z3.Z3_mk_context(cfg)
     execute_with_timeout(print_model, queryLines, args)
    
 def get_query():
