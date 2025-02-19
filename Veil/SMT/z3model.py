@@ -1,25 +1,38 @@
 #! /usr/bin/env python3
-import argparse
-from contextlib import contextmanager
-import itertools
-import sys
-from dataclasses import dataclass
-import time
-import multiprocess as mp
-
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Set, Tuple, TypeAlias, Union, cast
-
-import sexpdata
-import z3
-
-# Dependencies:
-# `pip3 install z3-solver cvc5 sexpdata multiprocess` OR `apt-get install python3-z3 python3-cvc5 python3-sexpdata python3-multiprocess`
 
 # This program is a wrapper around Z3 that behaves (approximately) like `z3 -in`,
 # but overwrites the behaviour of the `(get-model)` command to print the
 # model in a more readable format, that can be parsed by our Lean code.
-# NOTE: THIS RUNS THE SAT CHECK TWICE! The proper solution would be to
-# implement proper Lean bindings for Z3.
+
+# https://github.com/Z3Prover/z3/issues/1553
+# https://stackoverflow.com/questions/63641783/outputting-z3-model-output-in-a-readable-format
+# https://github.com/wilcoxjay/mypyvy/blob/3a055dfad3d13fb35b6125ab6f43fa6ea4493b5f/src/translator.py#L460 (`model_to_first_order_structure`)
+
+import argparse
+import itertools
+import sys
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import (Any, Callable, Dict, Iterable, Iterator, List, Optional,
+                    Set, Tuple, TypeAlias, Union, cast)
+
+import multiprocess as mp
+import sexpdata
+import z3
+
+SortName: TypeAlias = str
+DeclName: TypeAlias = str
+BoolSort: SortName = 'Bool'
+IntSort: SortName = 'Int'
+
+# We use this prefix to identify variables artificially introduced to
+# represent the cardinality of a sort for minimization.
+CARDINALITY_VAR_PREFIX = "_card$_"
+
+# We give up enumerating integer in the domain of a relation after this
+# many, and simply display the AST of the interpretation.
+MAXIMUM_DOMAIN_INTEGERS_TO_ENUMERATE=5
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -31,34 +44,9 @@ parser.add_argument(
 parser.add_argument(
     '--log', help='SMT query log file', type=argparse.FileType('a'), default=None)
 
-# # https://stackoverflow.com/questions/51286748/make-the-python-json-encoder-support-pythons-new-dataclasses
-# class EnhancedJSONEncoder(json.JSONEncoder):
-#     def default(self, o):
-#         if dataclasses.is_dataclass(o):
-#             return dataclasses.asdict(o)
-#         if isinstance(o, z3.ExprRef):
-#             return str(o)
-#         return super().default(o)
-
-# https://github.com/Z3Prover/z3/issues/1553
-# https://stackoverflow.com/questions/63641783/outputting-z3-model-output-in-a-readable-format
-# https://github.com/wilcoxjay/mypyvy/blob/3a055dfad3d13fb35b6125ab6f43fa6ea4493b5f/src/translator.py#L460 (`model_to_first_order_structure`)
-
-SortName: TypeAlias = str
-DeclName: TypeAlias = str
-
-BoolSort: SortName = 'Bool'
-IntSort: SortName = 'Int'
-
-CARDINALITY_VAR_PREFIX = "_card$_"
-
-# We give up enumerating integer in the domain of a relation after this
-# many, and simply display the AST of the interpretation.
-MAXIMUM_DOMAIN_INTEGERS_TO_ENUMERATE=20
 
 def sexp(x: Any) -> str:
     return sexpdata.dumps(x, true_as='true', false_as='false', str_as='symbol')
-
 
 @dataclass(eq=True, frozen=True)
 class ConstantDecl:
