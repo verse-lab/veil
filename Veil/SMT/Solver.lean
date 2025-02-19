@@ -31,15 +31,21 @@ private def createAux (path : String) (args : Array String) : MetaM SolverProc :
     IO.Process.spawn {stdin := .piped, stdout := .piped, stderr := .piped,
                       cmd := path, args := args}
 
+/-- FIXME: this is a hack to get the build directory; how to do this properly? -/
+private def buildDir := System.mkFilePath [currentDirectory!] / ".." / ".." / ".lake" / "build"
+def z3Path := buildDir / "z3"
+def cvc5Path := buildDir / "cvc5"
+def z3ModelPath := System.mkFilePath [currentDirectory!, "z3model.py"]
+
 def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
   let tlim_sec := withTimeout
   let seed := veil.smt.seed.get $ ← getOptions
   match name with
-  | .z3   => createAux "z3" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}", s!"sat.random_seed={seed}", s!"smt.random_seed={seed}"]
+  | .z3   => createAux s!"{z3Path}" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}", s!"sat.random_seed={seed}", s!"smt.random_seed={seed}"]
   | .cvc5 =>
       let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}", "--seed", s!"{seed}",
         "--finite-model-find", "--enum-inst-interleave", "--nl-ext-tplanes", "--incremental"]
-      let proc ← createAux "cvc5" args
+      let proc ← createAux s!"{cvc5Path}" args
       emitCommand proc (.setLogic "ALL")
       pure proc
 
