@@ -213,7 +213,7 @@ class Model:
         }
 
         # interpret constants, relations, and functions
-        def _eval_bool(expr: z3.ExprRef) -> bool:
+        def _eval_bool(expr: z3.ExprRef) -> Union[bool, None]:
             assert z3.is_bool(expr), expr
             ans = z3model.eval(expr, model_completion=True)
             assert z3.is_bool(ans), (expr, ans)
@@ -245,6 +245,7 @@ class Model:
             name: DeclName = z3decl.name()
             dom = tuple(z3decl.domain(i).name() for i in range(z3decl.arity()))
             rng = z3decl.range().name()
+            decl: Union[ConstantDecl, RelationDecl, FunctionDecl]
             if len(dom) == 0:
                 decl = ConstantDecl(name, rng)
             elif rng == BoolSort:
@@ -262,15 +263,15 @@ class Model:
                 (int_domain, ast) = get_int_domain(z3decl, z3model)
                 # A finite (< MAXIMUM_DOMAIN_INTEGERS_TO_ENUMERATE) domain is returned as a set of integers
                 if ast is None:
-                    int_domain = {SortElement(z3.IntVal(i), i) for i in int_domain}
-                    self.sorts[IntSort] = set(self.sorts[IntSort]) | int_domain
+                    elem_int_domain = {SortElement(z3.IntVal(i), i) for i in int_domain}
+                    self.sorts[IntSort] = set(self.sorts[IntSort]) | elem_int_domain
                 else:
                     symbolicInterpretation = self.translateASTString(str(ast))
 
             if symbolicInterpretation is not None:
                 self.interps[name] = Interpretation(decl, {}, symbolicInterpretation)
             else:
-                _eval: Callable[[z3.ExprRef], Union[bool, int, SortElement]]
+                _eval: Callable[[z3.ExprRef], Union[bool, int, SortElement, None]]
                 if rng == BoolSort:
                     _eval = _eval_bool
                 elif rng == IntSort:
@@ -291,7 +292,7 @@ class Model:
                 self.interps[name] = Interpretation(decl, fi, None)
 
 
-def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> Set[int]:
+def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> tuple[Set[int], Any]:
     """Given a Z3 function declaration with range Bool (i.e. a
     relation), returns the set of integer arguments for which there
     exist arguments that make the relation true."""
