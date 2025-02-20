@@ -179,7 +179,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         if hasSat then
           modelStrs := modelStrs.push (s!"{thmId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n")
         pure $ match hasSat, hasUnknown, hasFailure with
-        | true, false, false => SmtResult.Sat .none .none
+        | true, false, false => SmtResult.Sat .none
         | false, true, false => SmtResult.Unknown msgsTxt
         | false, false, true => SmtResult.Failure msgsTxt
         | _, _, _ =>

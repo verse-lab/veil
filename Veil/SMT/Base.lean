@@ -45,10 +45,8 @@ def solverToTryOnUnknown (tried : SmtSolver) : SmtSolver :=
 abbrev SolverProc := IO.Process.Child ⟨.piped, .piped, .piped⟩
 
 inductive SmtResult
-  /-- `model` contains the raw string returned by the solver.
-  `fostruct` is an interpreted version of it that we can manipulate in
-  Lean. -/
-  | Sat (model : Option String) (fostruct : Option FirstOrderStructure)
+  /-- `modelString` contains the raw string returned by the solver. -/
+  | Sat (modelString : Option String)
   | Unsat
   | Unknown (reason : Option String)
   | Failure (reason : Option String)
@@ -56,9 +54,8 @@ deriving Inhabited
 
 instance : ToString SmtResult where
   toString
-    | SmtResult.Sat none none => "sat"
-    | SmtResult.Sat _ (some m) => s!"sat\n{m}"
-    | SmtResult.Sat (some m) none => s!"sat\n{m}"
+    | SmtResult.Sat none => "sat"
+    | SmtResult.Sat (some m) => s!"sat\n{m}"
     | SmtResult.Unsat => s!"unsat"
     | SmtResult.Unknown none => s!"unknown"
     | SmtResult.Unknown (some r) => s!"unknown ({r})"

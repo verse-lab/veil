@@ -51,22 +51,28 @@ def failureGoalStr : String := "solver invocation failed"
       logInfo s!"Proof reconstruction is only supported with `lean-smt`, but `veil.smt.translator = {chosenTranslator}`. Falling back to `lean-smt`."
     Smt.Tactic.evalSmt stx
   else
+    let cmdString := fun (translator : SmtTranslator) => do
+      match translator with
+      | .leanAuto => Veil.SMT.prepareLeanAutoQuery mv (← Veil.SMT.parseAutoHints ⟨stx[1]⟩)
+      | .leanSmt => Veil.SMT.prepareLeanSmtQuery mv (← Smt.Tactic.parseHints ⟨stx[1]⟩)
     -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
     -- we first use `lean-auto` to generate the query, and call `lean-smt` only
     -- if the query is satisfiable and we want to print a model,
     -- UNLESS the `veil.smt.translator` option overrides this behaviour.
     let translatorToUse := veil.smt.translator.get opts
-    let cmdString ←
-      match translatorToUse with
-      | .leanAuto => Veil.SMT.prepareLeanAutoQuery mv (← Veil.SMT.parseAutoHints ⟨stx[1]⟩)
-      | .leanSmt => Veil.SMT.prepareLeanSmtQuery mv (← Smt.Tactic.parseHints ⟨stx[1]⟩)
-    let getModel? := translatorToUse == .leanSmt
-    let res ← Veil.SMT.querySolver cmdString withTimeout (getModel? := getModel?) (retryOnUnknown := true)
+    let originalCmdString ← cmdString translatorToUse
+    let res ← Veil.SMT.querySolver originalCmdString withTimeout
     match res with
-    -- if we have a user-readable model, we can print it
-    | .Sat _ (.some fostruct) => throwError s!"{satGoalStr}: {fostruct}"
-    | .Sat (.some model) none => throwError s!"{satGoalStr}\n{model}"
-    | .Sat none none => throwError s!"{satGoalStr}"
+    -- this shouldn't happen
+    | .Sat none => throwError s!"{satGoalStr}"
+    | .Sat (some modelString) =>
+      -- try to generate a readable model, using `lean-smt`
+      let leanSmtQueryString ← if translatorToUse == .leanSmt then pure originalCmdString else cmdString .leanSmt
+      -- FIXME: we are doing some crazy string manipulation in `getModelStr` to print counterexamples in `#check_invariants`,
+      -- so please don't change the string format in the next two lines.
+      let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := veil.smt.model.minimize.get opts)
+        | throwError s!"{satGoalStr}:{modelString}"
+      throwError s!"{satGoalStr}:{fostruct}"
     | .Unknown reason => throwError "{unknownGoalStr}: {reason}"
     | .Failure reason => throwError "{failureGoalStr}: {reason}"
     | .Unsat => mv.admit (synthetic := false)
@@ -97,7 +103,7 @@ open Lean.Meta in
   let cmdString ← Veil.SMT.prepareLeanSmtQuery mv hs
   let res ← Veil.SMT.querySolver cmdString withTimeout (retryOnUnknown := true)
   match res with
-  | .Sat _ _ =>
+  | .Sat _ =>
     trace[veil.smt.result] "The negation of the goal is satisfiable, hence the goal is valid."
     mv.admit (synthetic := false)
   | .Unsat => throwError "the goal is false"

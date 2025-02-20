@@ -17,7 +17,7 @@ def displaySuggestion (stx : Syntax) (theorems : Array (TSyntax `command)) (preM
 def emoji (res : SmtResult) : String :=
   match res with
   | .Unsat => "✅"
-  | .Sat _ _ => "❌"
+  | .Sat _ => "❌"
   | .Unknown _ => s!"❓"
   | .Failure reason => s!"💥 {reason}"
 

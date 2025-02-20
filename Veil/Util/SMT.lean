@@ -121,7 +121,7 @@ def querySolverWithIndicators (goalQuery : String) (withTimeout : Nat) (checks: 
       let stdout ← Handle.readLineSkip solver.stdout
       let (checkSatResponse, _) ← Auto.Solver.SMT.getSexp stdout
       let checkSatResponse: SmtResult := match checkSatResponse with
-        | .atom (.symb "sat") => SmtResult.Sat none none
+        | .atom (.symb "sat") => SmtResult.Sat none
         | .atom (.symb "unsat") => SmtResult.Unsat
         | .atom (.symb "unknown") => SmtResult.Unknown ""
         | e => SmtResult.Failure s!"{e}"
