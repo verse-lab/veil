@@ -37,6 +37,13 @@ See
 for a fully set-up example project that you can
 [use as a template](https://github.com/new?template_name=veil-usage-example&template_owner=verse-lab).
 
+## Tutorial
+
+The file
+[`Examples/Tutorial/Ring.lean`](https://github.com/verse-lab/veil/blob/main/Examples/Tutorial/Ring.lean)
+contains a guided tour of Veil's main features. Check it out if you want to see
+what Veil can do!
+
 ## Build
 
 Veil requires [Lean 4](https://github.com/leanprover/lean4). We have tested Veil
@@ -85,7 +92,6 @@ touch your system-wide versions.
 Note that if you want to invoke Lean-Auto's `auto` tactic, you need to have
 `z3` and `cvc5` installed on your system and available in your PATH.
 </details>
-
 
 ## Project Structure
 
