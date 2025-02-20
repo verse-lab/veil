@@ -28,73 +28,58 @@ git = "https://github.com/verse-lab/veil.git"
 rev = "main"
 ```
 
-**Important:** if you use Veil as a library, make sure to also install
-[`z3`](https://github.com/Z3Prover/z3), [`cvc5`](https://github.com/cvc5/cvc5),
-and [`uv`](https://github.com/astral-sh/uv). See
+See
 [`verse-lab/veil-usage-example`](https://github.com/verse-lab/veil-usage-example)
-for a fully set-up example project.
+for a fully set-up example project that you can
+[use as a template](https://github.com/new?template_name=veil-usage-example&template_owner=verse-lab).
 
 ## Build
 
-Veil requires [Lean 4](https://github.com/leanprover/lean4),
-[`z3`](https://github.com/Z3Prover/z3), [`cvc5`](https://github.com/cvc5/cvc5),
-and [`uv`](https://github.com/astral-sh/uv) (the Python project manager). We
-have tested Veil on macOS and Ubuntu. Windows with WSL2 is also supported.
+Veil requires [Lean 4](https://github.com/leanprover/lean4). We have tested Veil
+on macOS (arm64) and Ubuntu (x86_64). Windows with WSL2 is also supported.
 Native Windows support is not yet available.
 
-To build Veil run `lake build`. This will build the whole project with
-tests in `Tests/` but without case studies. To build the case studies
-run `lake build Examples`.
+
+To build Veil, run:
+
+```bash
+lake build
+```
+
+<!-- This will build the whole project, including the tests, but without the
+case studies. -->
+
+To build the case studies run:
+
+```bash
+lake build Examples
+```
 
 <details close>
-<summary><strong>Detailed build instructions</strong></summary>
+<summary><strong>How to install Lean?</strong></summary>
 
+If you don't have Lean installed, we recommend installing it via
+[`elan`](https://github.com/leanprover/elan):
 
-1. [Install Lean](https://docs.lean-lang.org/lean4/doc/setup.html). We recommend
-   installing via [`elan`](https://github.com/leanprover/elan):
 
 ```bash
 curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain leanprover/lean4:stable
 ```
 
-2. Install [`uv`](https://github.com/astral-sh/uv), the Python dependency manager:
+</details>
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+<details close>
+<summary><strong>Dependencies</strong></summary>
 
-3. Install `z3` and `cvc5`.
-   - For Ubuntu run
+Veil depends on [`z3`](https://github.com/Z3Prover/z3),
+[`cvc5`](https://github.com/cvc5/cvc5), and
+[`uv`](https://github.com/astral-sh/uv). You do not need to have these installed
+on your system, as our build system will download them automatically when you
+run `lake build`. Veil will use its own copies of these tools, and will not
+touch your system-wide versions.
 
-     ```bash
-     sudo apt update && sudo apt install z3 cvc5
-     ```
-
-   - For Mac (using [Homebrew](https://brew.sh/))
-
-     ```bash
-     brew install z3 cvc5/homebrew-cvc5/cvc5
-     ```
-
-     - Detailed instructions on `cvc5` installation can be found
-     [here](https://github.com/cvc5/cvc5/blob/main/INSTALL.rst).
-     - If you install `cvc5` by getting the binary make sure to add it
-     to your PATH by running:
-
-      For bash:
-
-      ```bash
-      echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
-      source ~/.bashrc
-      ```
-
-      For Zsh:
-
-      ```bash
-      echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.zshrc
-      source ~/.zshrc
-      ```
-
+Note that if you want to invoke Lean-Auto's `auto` tactic, you need to have
+`z3` and `cvc5` installed on your system and available in your PATH.
 </details>
 
 
@@ -136,7 +121,7 @@ x86-64 Linux, but can be used on ARM computers with any OS that can
 run Docker. To use it with Visual Studio Code, follow these
 instructions:
 
-1. Make sure Docker is running. Run `./create_docker_image.sh`. 
+1. Make sure Docker is running. Run `./create_docker_image.sh`.
 This will automatically download Veil and install
 most of the prerequisites on the created image. This can take up to 10 minutes.
 2. Run the container with `docker run -dt --platform=linux/amd64 <image-id>`.
@@ -145,6 +130,6 @@ most of the prerequisites on the created image. This can take up to 10 minutes.
 (Ctrl/Cmd + Shift + P).
 5. **On the container**, install the [Lean 4](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4) VS Code plugin. This needs to be done once per container.
 6. Initially, Veil will be placed in `/root/veil`. You can move it, or open that folder directly from VS Code.
-7. Test Veil: Go to any of Veil's example files and run the `Lean 4: Server: Restart File` action from the Command Palette. This may take a while on the first run, as it has to rebuild all of Veil. 
+7. Test Veil: Go to any of Veil's example files and run the `Lean 4: Server: Restart File` action from the Command Palette. This may take a while on the first run, as it has to rebuild all of Veil.
 
 </details>
