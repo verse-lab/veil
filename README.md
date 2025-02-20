@@ -1,5 +1,9 @@
 # Veil: A Framework for Automated and Interactive Verification of Transition Systems
 
+[![Actions status](https://github.com/verse-lab/veil/actions/workflows/docker-build-and-test.yml/badge.svg)](https://github.com/verse-lab/veil/actions)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+
 Veil is a _foundational_ framework for (1) specifying, (2)
 implementing, (3) testing, and (4) proving safety (and, in the future,
 liveness) properties of state transition systems, with a focus on
