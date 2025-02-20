@@ -6,15 +6,6 @@ require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "4cdea120ba1
 
 package veil
 
-@[default_target]
-lean_lib «Veil» {
-  globs := #[`Veil, .submodules `Veil, .submodules `Test]
-}
-
-lean_lib Examples {
-  globs := #[.submodules `Examples]
-}
-
 -- Paths and URLs for SMT solvers
 def z3.baseUrl := "https://github.com/Z3Prover/z3/releases/download"
 def z3.version := "4.14.0"
@@ -76,7 +67,7 @@ def Lake.copyFile (src : FilePath) (dst : FilePath) : LogIO PUnit := do
   }
 
 -- Modelled after https://github.com/abdoo8080/lean-cvc5/blob/6ab43688cff28aaf5096fb153e3dd89014bf4410/lakefile.lean#L62
-def downloadSolver (solver : Solver) : LakeT LoggerIO Unit := do
+def downloadSolver (solver : Solver) : FetchM Unit := do
  if let some pkg ← findPackage? _package.name then
     let solverPath := pkg.buildDir / s!"{solver}"
     if ← solverPath.pathExists then
@@ -97,18 +88,58 @@ def downloadSolver (solver : Solver) : LakeT LoggerIO Unit := do
     IO.FS.removeFile zipPath
     IO.FS.removeDirAll extractedPath
 
-script downloadSolvers do
+-- Code to download Python `uv`
+
+def uv.version := "0.6.2"
+def uv.url := s!"https://astral.sh/uv/{uv.version}/install.sh"
+
+-- curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="/custom/path" sh
+def downloadPythonUv : FetchM Unit := do
+ if let some pkg ← findPackage? _package.name then
+    let uvShPath := pkg.buildDir / "install-uv.sh"
+    let uvPath := pkg.buildDir / "uv"
+    if ← uvPath.pathExists then
+      logInfo s!"`uv` already exists at {uvPath}"
+      return
+    logInfo s!"Downloading `uv` from {uv.url} to {uvShPath}"
+    download uv.url uvShPath
+    proc {
+      cmd := "env"
+      args := #[s!"UV_UNMANAGED_INSTALL={pkg.buildDir}", "sh", uvShPath.toString]
+    }
+    logInfo s!"`uv` is now at {uvPath}"
+    IO.FS.removeFile uvShPath
+
+def downloadAllDeps : FetchM (BuildJob Unit) := do
+  downloadSolver Solver.z3
+  downloadSolver Solver.cvc5
+  downloadPythonUv
+  -- FIXME: I suspect this is not the right way to do this
+  return BuildJob.nil
+
+script downloadDependencies do
   let ws ← getWorkspace
   let args := ws.lakeArgs?.getD #[]
   let v := Verbosity.normal
   let v := if args.contains "-q" || args.contains "--quiet" then Verbosity.quiet else v
   let v := if args.contains "-v" || args.contains "--verbose" then Verbosity.verbose else v
-  let exitCode ← LoggerIO.toBaseIO (minLv := v.minLogLv) <| ws.runLakeT do
+  let exitCode ← LoggerIO.toBaseIO (minLv := v.minLogLv) <| ws.runFetchM do
     if let some _pkg ← findPackage? _package.name then
-      downloadSolver Solver.z3
-      downloadSolver Solver.cvc5
+      let _ ← downloadAllDeps
       return 0
     else
-      logError "package not found"
+      logError s!"package {_package.name} not found in workspace"
       return 1
   return ⟨exitCode.getD 1⟩
+
+target downloadDeps : Unit := downloadAllDeps
+
+@[default_target]
+lean_lib «Veil» {
+  globs := #[`Veil, .submodules `Veil, .submodules `Test]
+  extraDepTargets := #[``downloadDeps]
+}
+
+lean_lib Examples {
+  globs := #[.submodules `Examples]
+}

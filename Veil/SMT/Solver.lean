@@ -35,6 +35,7 @@ private def createAux (path : String) (args : Array String) : MetaM SolverProc :
 private def buildDir := System.mkFilePath [currentDirectory!] / ".." / ".." / ".lake" / "build"
 def z3Path := buildDir / "z3"
 def cvc5Path := buildDir / "cvc5"
+def uvPath := buildDir / "uv"
 def z3ModelPath := System.mkFilePath [currentDirectory!, "z3model.py"]
 
 def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
@@ -62,9 +63,8 @@ def createModelGenerator (name : ModelGenerator) (withTimeout : Nat) (minimize :
     let mut wrapperArgs := #[s!"--tlimit={tlim_sec * 1000}", s!"--seed", s!"{seed}"]
     if minimize then
       wrapperArgs := wrapperArgs.push "--minimize"
-    let uvCmd := "uv"
     let uvArgs := #["run", wrapperPath] ++ wrapperArgs
-    createAux uvCmd uvArgs
+    createAux s!"{uvPath}" uvArgs
 
 def getFOStructure (queryStr : String) (withTimeout : Nat) (minimize : Bool) : MetaM (Option FirstOrderStructure) := do
   try
