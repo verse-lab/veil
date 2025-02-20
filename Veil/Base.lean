@@ -56,8 +56,8 @@ register_option veil.printCounterexamples : Bool := {
 }
 
 register_option veil.smt.solver : SmtSolver := {
-  defValue := SmtSolver.z3
-  descr := "SMT solver to use"
+  defValue := SmtSolver.cvc5
+  descr := "SMT solver to use (default: cvc5)"
 }
 
 register_option veil.smt.seed : Nat := {
