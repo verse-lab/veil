@@ -65,6 +65,11 @@ register_option veil.smt.seed : Nat := {
   descr := "SMT seed to use"
 }
 
+register_option veil.smt.timeout : Nat := {
+  defValue := 5
+  descr := "SMT timeout to use (in seconds)"
+}
+
 register_option veil.smt.model.minimize : Bool := {
   defValue := false
   descr := "Should models be minimized before being displayed?"

@@ -272,7 +272,7 @@ close_isolate
 #gen_spec
 
 set_option maxHeartbeats 8000000
-set_option auto.smt.timeout 120
+set_option veil.smt.timeout 120
 
 set_option veil.smt.solver "cvc5"
 set_option veil.smt.translator "lean-auto"

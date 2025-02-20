@@ -226,7 +226,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let invariants ← repeatedAnd invStxList
       let _actions ← repeatedOr actStxList
       let allIndicators := List.append invIndicators actIndicators
-      let withTimeout := auto.smt.timeout.get (← getOptions)
+      let withTimeout := veil.smt.timeout.get (← getOptions)
 
       -- Init checks
       let initParams ← Array.mapM (fun (_, e) => do
@@ -313,7 +313,7 @@ syntax "#check_invariants_indicators" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
-  liftCoreM errorIfStateNotDefined
+  liftCoreM (do errorIfStateNotDefined; warnIfNoInvariantsDefined; warnIfNoActionsDefined)
   let (initChecks, actChecks) ← getAllChecks
   checkTheorems stx initChecks actChecks behaviour
 

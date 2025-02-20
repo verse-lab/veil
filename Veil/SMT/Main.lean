@@ -29,7 +29,7 @@ def parseAutoHints : TSyntax `smtHints → TacticM (TSyntax `Auto.hints)
   hard-coded `5` as default if no timeout is specified. -/
 def parseTimeout : TSyntax `smtTimeout → CoreM Nat
   | `(Smt.Tactic.smtTimeout| (timeout := $n)) => return n.getNat
-  | `(Smt.Tactic.smtTimeout| ) => return (auto.smt.timeout.get (← getOptions))
+  | `(Smt.Tactic.smtTimeout| ) => return (veil.smt.timeout.get (← getOptions))
   | _ => throwUnsupportedSyntax
 
 /-- A string to print when the solver returns `sat`. Factored out here
