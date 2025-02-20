@@ -47,8 +47,8 @@ def failureGoalStr : String := "solver invocation failed"
   let opts ← getOptions
   if veil.smt.reconstructProofs.get opts then
     let chosenTranslator := veil.smt.translator.get opts
-    if chosenTranslator != .leanSmt then
-      logInfo s!"Proof reconstruction is only supported with `lean-smt`, but `veil.smt.translator = {chosenTranslator}`. Falling back to `lean-smt`."
+    -- if chosenTranslator != .leanSmt then
+      -- logInfo s!"Proof reconstruction is only supported with `lean-smt`, but `veil.smt.translator = {chosenTranslator}`. Falling back to `lean-smt`."
     Smt.Tactic.evalSmt stx
   else
     let cmdString := fun (translator : SmtTranslator) => do
