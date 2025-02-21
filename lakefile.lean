@@ -76,7 +76,7 @@ def Lake.copyFile (src : FilePath) (dst : FilePath) : LogIO PUnit := do
 -- curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="/custom/path" sh
 def downloadPythonUv (pkg : Package) (oFile : FilePath) : JobM PUnit := do
   let uvShPath := pkg.buildDir / "install-uv.sh"
-  logInfo s!"Downloading `uv` from {uv.url} to {uvShPath}"
+  logInfo s!"Downloading uv from {uv.url}"
   download uv.url uvShPath
   proc (quiet := true) {
     cmd := "env"
