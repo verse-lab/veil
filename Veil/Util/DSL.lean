@@ -1,6 +1,7 @@
 import Lean
 import Veil.Model.State
 import Veil.DSL.Internals.StateExtensions
+import Veil.DSL.Action.Theory
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -221,8 +222,11 @@ def toUnsimplifiedIdent (id : Ident) : Ident := mkIdent $ toUnsimplifiedName id.
 def toSpecName (n : Name) : Name := n ++ `spec
 def toSpecIdent (id : Ident) : Ident := mkIdent $ toSpecName id.getId
 
-def toGenName (n : Name) : Name := n ++ `gen
-def toGenIdent (id : Ident) : Ident := mkIdent $ toGenName id.getId
+def toGenName (n : Name) (mode : Mode) : Name :=
+  n ++ (match mode with
+  | Mode.internal => `genI
+  | Mode.external => `genE)
+def toGenIdent (id : Ident) (mode : Mode): Ident := mkIdent $ toGenName id.getId mode
 
 def toExtName (n : Name) : Name := n ++ `ext
 def toExtIdent (id : Ident) : Ident := mkIdent $ toExtName id.getId

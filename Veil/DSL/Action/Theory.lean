@@ -11,9 +11,16 @@ open Classical
 /-! ## Types  -/
 section Types
 
+/-- Actions in Veil can be elaborated in two ways:
+  - `internal`: when we call an action, callee should ensure all assertions are
+    satisfied
+  - `external`: when we call an action, the environment ("caller") should ensure
+    all `require`'s are satisfied
+-/
 inductive Mode where
   | internal : Mode
   | external : Mode
+deriving BEq
 
 /-! Our language is parametric over the state and return type. -/
 variable (m : Mode) (σ ρ : Type)

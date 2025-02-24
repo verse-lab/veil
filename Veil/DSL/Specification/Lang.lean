@@ -369,11 +369,16 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
 def wlpUnfold := [``Wlp.bind, ``Wlp.pure, ``Wlp.get, ``Wlp.set, ``Wlp.modifyGet,
   ``Wlp.assert, ``Wlp.assume, ``Wlp.require, ``Wlp.spec, ``Wlp.lift, ``Wlp.toActProp]
 
-/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`.
-  More specifically it defines 4 things
-  - `act.unsimplified : ∀ m, Wlp m σ ρ`: unsimplified version of `act`, which
-    incorporates  -/
-def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
+/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`. More
+specifically it defines:
+  - `act.genE` : external action interpretation of the action, unsimplified
+  - `act.genI` : internal action interpretation of the action, unsimplified
+
+  - `act.ext` : external action interpretation of the action, simplified
+  - `act` : internal action interpretation (for procedure calls) of the action, simplified
+  - `act.tr` : (external) transition of the action, with existentially quantified arguments
+-/
+def defineAction (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
     let vd ← getImplicitActionParameters
     Command.runTermElabM fun vs => do
       -- Create binders and arguments
@@ -383,40 +388,12 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       | none => pure (#[], #[], #[])
       -- Create types
       let moduleName <- getCurrNamespace
-      let genEName := moduleName ++ nm.getId ++ `genE
-      let genIName := moduleName ++ nm.getId ++ `genI
-      -- The actual command (not term) elaboration happens here
-      let genlI <- `(fun $funBinders* => do' .internal in $l)
-      let genlE <- `(fun $funBinders* => do' .external in $l)
-
-      let genExpI <- withDeclName genIName do elabTermAndSynthesize genlI none
-      let genExpE <- withDeclName genEName do elabTermAndSynthesize genlE none
-      let wlpSimp := mkIdent `wlpSimp
-      let ⟨genExpE, _, _⟩ <- genExpE.runSimp `(tactic| simp only [$wlpSimp:ident])
-      let ⟨genExpI, _, _⟩ <- genExpI.runSimp `(tactic| simp only [$wlpSimp:ident])
-      let genExpE <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExpE
-      let genExpI <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExpI
-      simpleAddDefn genEName genExpE (attr := #[{name := `actSimp}, {name := `reducible}])
-      simpleAddDefn genIName genExpI (attr := #[{name := `actSimp}, {name := `reducible}])
-
-      let actE <- Lean.mkConst genEName |>.runUnfold (genEName :: wlpUnfold)
-      let actI <- Lean.mkConst genIName |>.runUnfold (genIName :: wlpUnfold)
-      let ⟨actE, actEPf, _⟩ <- actE.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
-      let ⟨actI, actIPf, _⟩ <- actI.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
-      let actEName := moduleName ++ nm.getId ++ `ext
-      let actIName := moduleName ++ nm.getId
-      let attr := toActionAttribute' (toActionType actT)
-      simpleAddDefn actEName actE (attr := #[{name := `actSimp}]) (type := <- inferType genExpE)
-      simpleAddDefn actIName actI (attr := #[{name := `actSimp}, attr]) (type := <- inferType genExpI)
-
-
-      let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
-      let actTr <- elabTermAndSynthesize actTrStx none
-      let actTr <- mkLambdaFVarsImplicit vs actTr
-      let ⟨actTr, actTrPf, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
-      let actTr <- instantiateMVars actTr
-      let actTrName := moduleName ++ nm.getId ++ `tr
-      simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
+      let baseName := moduleName ++ nm.getId
+      let (genIName, genExpI) ← genUnsimplified vs funBinders baseName .internal l
+      let (genEName, genExpE) ← genUnsimplified vs funBinders baseName .external l
+      let (actIName, actIPf) ← genSimplified baseName .internal genIName genExpI
+      let (actEName, actEPf) ← genSimplified baseName .external genEName genExpE
+      let (actTrName, actTrStx, actTrPf) ← genTransition vs sectionArgs args baseName
 
       if veil.gen_sound.get <| <- getOptions then
         let trActThmStatement ← `(forall? $[$vd]* , ($actTrStx) = (@$(mkIdent actTrName) $sectionArgs*))
@@ -468,7 +445,43 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
           `(tacticSeq|
             have h : @$(mkIdent genIName) = @$(mkIdent actIName) := $eqI
             rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
+where
+  genUnsimplified (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
+    let genName := toGenName baseName mode
+    let genl ← match mode with
+    | Mode.internal => do `(fun $funBinders* => do' .internal in $l)
+    | Mode.external => do `(fun $funBinders* => do' .external in $l)
+    let genExp <- withDeclName genName do elabTermAndSynthesize genl none
+    let wlpSimp := mkIdent `wlpSimp
+    let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
+    let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
+    simpleAddDefn genName genExp (attr := #[{name := `actSimp}, {name := `reducible}])
+    return (genName, genExp)
 
+  genSimplified (baseName : Name) (mode : Mode) (genName : Name) (genExp : Expr) := do
+    let actName := match mode with
+    | Mode.internal => baseName
+    | Mode.external => toExtName baseName
+    let act ← Lean.mkConst genName |>.runUnfold (genName :: wlpUnfold)
+    let ⟨act, actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let mut attr : Array Attribute := #[{name := `actSimp}]
+    -- We "register" the internal interpretation of the action as an IO automata action
+    -- FIXME George: is this the right thing to do?
+    if mode == .internal then
+      attr := attr.push (toActionAttribute' (toActionType actT))
+    simpleAddDefn actName act (attr := attr) (type := ← inferType genExp)
+    return (actName, actPf)
+
+  genTransition (vs : Array Expr) (sectionArgs : Array (TSyntax `term)) (args : TSyntaxArray `term) (baseName : Name) := do
+    let actEName := toExtName baseName
+    let actTrName := toTrName baseName
+    let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
+    let actTr <- elabTermAndSynthesize actTrStx none
+    let actTr <- mkLambdaFVarsImplicit vs actTr
+    let ⟨actTr, actTrPf, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let actTr <- instantiateMVars actTr
+    simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
+    return (actTrName, actTrStx, actTrPf)
 
 /-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
 def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
@@ -545,11 +558,10 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
   (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
     liftCoreM errorIfStateNotDefined
     let actT ← parseActionTypeStx actT
-    -- Elab the action
-    elabCallableFn actT nm br l
+    -- Create all the action-related declarations
+    defineAction actT nm br l
     -- warn if this is not first-order
     Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
-    trace[veil.info] s!"{nm} has no higher-order quantification"
     -- add constructor for label type
     registerIOActionDecl actT nm br
     Command.runTermElabM fun _ => do
@@ -564,7 +576,7 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
           else t }
     unless spec.isNone do
       let (pre, binder, post) <- getPrePost spec.get!
-      elabCallableFn actT (nm.getId ++ `spec |> mkIdent) br spec.get!
+      defineAction actT (nm.getId ++ `spec |> mkIdent) br spec.get!
       checkSpec nm br pre post binder
 
 def elabTransition (actT : TSyntax `actionType) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
