@@ -154,3 +154,27 @@ def mkOrN : List Expr → Expr
   | [] => mkConst ``True
   | [p] => p
   | p :: ps => mkOr p (mkOrN ps)
+
+def simpleAddDefn (n : Name) (e : Expr)
+  (red := Lean.ReducibilityHints.regular 0)
+  (attr : Array Attribute := #[])
+  (type : Option Expr := none) : TermElabM Unit := do
+  addDecl <|
+    Declaration.defnDecl <|
+      mkDefinitionValEx n [] (type.getD <| ← Meta.inferType e) e red
+      (DefinitionSafety.safe) []
+  Elab.Term.applyAttributes n attr
+
+def mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) : TermElabM Expr := do
+  let e <- Meta.mkLambdaFVars vs e
+  return go vs.size e
+  where go (cnt : Nat) (e : Expr) : Expr :=
+    match cnt, e with
+    | 0, _ => e
+    | _, Expr.lam n d b .default =>
+      let b := go (cnt-1) b
+      Expr.lam n d b .implicit
+    | _, Expr.lam n d b bi =>
+      let b := go (cnt-1) b
+      Expr.lam n d b bi
+    | _, _ => e

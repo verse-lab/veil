@@ -1,5 +1,5 @@
 import Lean
-import Veil.Model.ActionDecl
+import Veil.Model.IOAutomata
 import Veil.Util.Meta
 
 open Lean Parser

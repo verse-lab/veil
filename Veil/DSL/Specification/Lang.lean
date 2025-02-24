@@ -369,30 +369,6 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
 def wlpUnfold := [``Wlp.bind, ``Wlp.pure, ``Wlp.get, ``Wlp.set, ``Wlp.modifyGet,
   ``Wlp.assert, ``Wlp.assume, ``Wlp.require, ``Wlp.spec, ``Wlp.lift, ``Wlp.toActProp]
 
-def simpleAddDefn (n : Name) (e : Expr)
-  (red := Lean.ReducibilityHints.regular 0)
-  (attr : Array Attribute := #[])
-  (type : Option Expr := none) : TermElabM Unit := do
-  addDecl <|
-    Declaration.defnDecl <|
-      mkDefinitionValEx n [] (type.getD <| ← inferType e) e red
-      (DefinitionSafety.safe) []
-  applyAttributes n attr
-
-def mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) : TermElabM Expr := do
-  let e <- mkLambdaFVars vs e
-  return go vs.size e
-  where go (cnt : Nat) (e : Expr) : Expr :=
-    match cnt, e with
-    | 0, _ => e
-    | _, Expr.lam n d b .default =>
-      let b := go (cnt-1) b
-      Expr.lam n d b .implicit
-    | _, Expr.lam n d b bi =>
-      let b := go (cnt-1) b
-      Expr.lam n d b bi
-    | _, _ => e
-
 /-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`.
   More specifically it defines 4 things
   - `act.unsimplified : ∀ m, Wlp m σ ρ`: unsimplified version of `act`, which
@@ -402,8 +378,7 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
     Command.runTermElabM fun vs => do
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
-      -- let stateTpT ← getStateTpStx
-      let (univBinders, args, funNinders) ← match br with
+      let (univBinders, args, funBinders) ← match br with
       | some br => pure (← toBracketedBinderArray br, ← existentialIdents br, <- toFunBinderArray br)
       | none => pure (#[], #[], #[])
       -- Create types
@@ -411,8 +386,8 @@ def elabCallableFn (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       let genEName := moduleName ++ nm.getId ++ `genE
       let genIName := moduleName ++ nm.getId ++ `genI
       -- The actual command (not term) elaboration happens here
-      let genlI <- `(fun $funNinders* => do' .internal in $l)
-      let genlE <- `(fun $funNinders* => do' .external in $l)
+      let genlI <- `(fun $funBinders* => do' .internal in $l)
+      let genlE <- `(fun $funBinders* => do' .external in $l)
 
       let genExpI <- withDeclName genIName do elabTermAndSynthesize genlI none
       let genExpE <- withDeclName genEName do elabTermAndSynthesize genlE none
