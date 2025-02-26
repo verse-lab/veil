@@ -90,18 +90,19 @@ def getFields [Monad m] [MonadEnv m] : m (Array Name) := do
   pure $ spec.signature.map (·.name)
 
 def getSubActions : TermElabM (Array (Ident × Term)) := do
-  /- FIXME: principled way to fix this would be to iterate
-    over all already defined actions in `(← localSpecCtx.get).spec.actions`
-    but at this point it is somehow empty (it should contain actions from
-    dependent modules). -/
+  /- FIXME: this replicates some of the logic in `defineDepsActions`, since when
+  this gets called as part of `defineDepsActions` (invoked indirectly in the
+  elaboration of the `action` to be defined -- see `do'` elaborator), the list
+  of actions (which _should_ contain actions from dependent modules) is empty,
+  since we haven't yet `monadLift`ed them to the parent (dependee) model's state
+  definition. -/
   let mut names := #[]
   for (modAlias, dependency) in (← localSpecCtx.get).spec.dependencies do
     let ts := dependency.variableInstantiations
     let spec := (← globalSpecCtx.get)[dependency.name]!
     for act in spec.actions do
-      let actArgs := List.replicate spec.typeClassNum (<- `(_)) |>.toArray
       let actName := mkIdent <| modAlias ++ act.name
-      let actTerm <- `(@$actName $ts* $actArgs*)
+      let actTerm <- `(@$actName $ts*)
       let currMod := (← localSpecCtx.get).stateBaseName.get!
       if (<- getEnv).find? (currMod ++ actName.getId) |>.isSome then
         names := names.push (actName, actTerm)

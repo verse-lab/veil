@@ -35,7 +35,7 @@ def getStateParametersBinders (vd : Array (TSyntax `Lean.Parser.Term.bracketedBi
   vd.filter (fun b => !isTypeClassBinder b)
 
 /-- Get the arguments which we have to pass to the `State` type to instantiate it. -/
-def getStateArguments (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) : TermElabM (Array Expr) := do
+def getStateArguments [ToMessageData α] (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array α) : TermElabM (Array α) := do
   if vd.size != vs.size then throwError "Mismatch in number of arguments between {vd} and {vs}"
   let vs' := (vd.zip vs).filter (fun (b, _) => !isTypeClassBinder b) |> .map Prod.snd
   return vs'
@@ -68,21 +68,6 @@ def getStateTpStx : AttrM Term := do
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
   let sectionArgs ← getSectionArgumentsStx vs
   `(@$(mkIdent `System) $sectionArgs:term*)
-
-def errorIfStateNotDefined : CoreM Unit := do
-  let stateName := (← localSpecCtx.get).stateBaseName
-  if stateName.isNone then
-     throwError "State has not been declared so far: run `#gen_state [name]`"
-
-def warnIfNoInvariantsDefined : CoreM Unit := do
-  let invariants := (← localSpecCtx.get).spec.invariants
-  if invariants.isEmpty then
-    logWarning "you have not defined any invariants for this specification; did you forget?"
-
-def warnIfNoActionsDefined : CoreM Unit := do
-  let actions := (← localSpecCtx.get).spec.actions
-  if actions.isEmpty then
-    logWarning "you have not defined any actions for this specification; did you forget?"
 
 /-- Retrieves the name passed to `#gen_state` -/
 def getPrefixedName (name : Name): AttrM Name := do

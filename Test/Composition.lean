@@ -34,11 +34,10 @@ type node'
 type node''
 
 relation r'' (n : node') (m : node') : Prop
-includes Test₁ node' as test
-includes Test₁ node' as test'
+includes Test₁ node' node'_dec node'_ne as test
+includes Test₁ node' _ _ as test'
 
 #gen_state
-
 
 action g = {
   let n <- fresh node'

@@ -8,13 +8,17 @@ import Veil.DSL.Tactic
 import Veil.Tactic.Main
 import Veil.Util.DSL
 
+import Veil.DSL.Specification.SpecDef
+
 open Lean Elab Command Term Meta Lean.Parser
 
 /-!
   # Specification Language
 
   This file defines the syntax and elaborators (i.e. semantics in terms
-  of Lean definitions) for the specification language.
+  of Lean definitions) for the specification language, which is used to
+  declare Veil modules.
+
 -/
 
 /-! ## State -/
@@ -73,20 +77,26 @@ def generateIgnoreFn : CommandElabM Unit := do
     return ignoreFnStx
   elabCommand cmd
 
+/-- We support executing actions from dependent modules is by `monadLift`ing
+them to the current module's state. This function generates the
+`IsStateExtension` instances required to do this. -/
 def genStateExtInstances : CommandElabM Unit := do
   let currName <- getCurrNamespace
   let vd := (<- getScope).varDecls
   let insts <- Command.runTermElabM fun vs => do
     let mut insts := #[]
-    for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
-      let ts := dependency.variableInstantiations
+    for (modAlias, dep) in (<- localSpecCtx.get).spec.dependencies do
+      -- We must pass `dep.variableInstantiations` through
+      -- `getStateArguments` to filter out typeclass arguments, which
+      -- are not arguments to the `State` type.
+      let ts ← getModuleInstanceStateArgs dep.name dep.variableInstantiations
       let currTs <- getStateArgumentsStx vd vs
       let alia := mkIdent modAlias
       let inst <-
         `(@[actSimp]
           instance :
            IsStateExtension
-             (@$(mkIdent $ dependency.name ++ `State) $ts*)
+             (@$(mkIdent $ dep.name ++ `State) $ts*)
              (@$(mkIdent $ currName ++ `State) $currTs*) where
             extendWith := fun s s' => { s' with $alia:ident := s }
             restrictTo := fun s' => s'.$alia)
@@ -138,8 +148,9 @@ def defineDepsActions : CommandElabM Unit := do
       let actArgs <- liftTermElabM do match act.br with
         | some br => existentialIdents br
         | _ => return #[]
-      let typeClassInsts := List.replicate ctx.typeClassNum (<- `(_)) |>.toArray
-      let actArgs := typeClassInsts.append actArgs
+      -- let typeClassInsts := List.replicate ctx.typeClassNum (<- `(_)) |>.toArray
+      -- let actArgs := typeClassInsts.append actArgs
+      trace[veil.info] "lifting action {actBaseName} from module {dependency.name} to module {← specName} as {currName}"
       let stx <- `(action $currName:ident $(act.br)? = { monadLift <| @$(mkIdent $ actName) $ts* $actArgs* })
       trace[veil.debug] stx
       elabCommand stx
@@ -147,7 +158,7 @@ def defineDepsActions : CommandElabM Unit := do
 /-- Assembles all declared `relation` predicates into a single `State` type. -/
 def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
-  let typeClassNum := vd.filter isTypeClassBinder |>.size
+  declareSpecParameters vd
   let name <- getCurrNamespace
   let (sdef, isHOInst, smtAttr) <- Command.runTermElabM fun vs => do
   -- set the name
@@ -178,7 +189,8 @@ def assembleState : CommandElabM Unit := do
   Command.runTermElabM fun vs => do
     -- we set `stateStx` ourselves
     let stateTp ← mkStateTpStx vd vs
-    localSpecCtx.modify ({· with spec.stateStx := stateTp, spec.typeClassNum := typeClassNum })
+    localSpecCtx.modify ({· with spec.stateStx := stateTp })
+  -- Do work necessary for module composition
   genStateExtInstances
   defineDepsActions
 
@@ -267,17 +279,16 @@ elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => 
 
 syntax moduleAbbrev := ("as" ident)?
 
-def checkModuleExists (id : Name) [Monad m] [MonadEnv m] [MonadError m] : m Unit := do
-  let modules := (<- globalSpecCtx.get)
-  unless modules.contains id do
-    throwError s!"Module {id} does not exist"
-
 elab "includes" nm:ident ts:term:max * ma:moduleAbbrev : command => do
   let name := nm.getId
   checkModuleExists name
+  checkCorrectInstantiation name ts
   let mut modAlias := name
   if let `(moduleAbbrev| as $al) := ma then modAlias := al.getId
-  elabCommand $ <- `(individual ($nm) $(mkIdent modAlias):ident : @$(mkIdent $ name ++ `State) $ts*)
+  let stateArgs ← Command.runTermElabM fun _ => getModuleInstanceStateArgs name ts
+  let stx ← `(individual ($nm) $(mkIdent modAlias):ident : @$(mkIdent $ name ++ `State) $stateArgs*)
+  trace[veil.debug] "lifting state from module {name} as {modAlias}:\n{stx}"
+  elabCommand stx
   localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (modAlias, {name, variableInstantiations := ts}) })
 
 @[inherit_doc assembleState]
@@ -848,11 +859,15 @@ Unfortunately, this means we're breaking all the DSL clients. -/
 macro "type" id:ident : command => do
   let dec_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_dec")
   let ne_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_ne")
-  `(variable ($id : Type) [$dec_id : DecidableEq $id] [$ne_id : Nonempty $id])
+  let deceq := Lean.mkIdent ``DecidableEq
+  let nemp := Lean.mkIdent ``Nonempty
+  `(variable ($id : Type) [$dec_id : $deceq $id] [$ne_id : $nemp $id])
 -- macro "instantiate" t:term : command => `(variable [$t])
 macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
 
 /-- Declaring a Veil module -/
-macro atomic("veil" "module") i:ident : command => do
-  `(namespace $i:ident
+elab atomic("veil" "module") i:ident : command => do
+  let cmd ← `(namespace $i:ident
     open Classical)
+  elabCommand cmd
+  declareSpecName i.getId

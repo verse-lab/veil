@@ -5,6 +5,7 @@ import Veil.DSL.Internals.StateExtensions
 import Veil.Util.DSL
 import Veil.Util.Display
 import Veil.Util.SMT
+import Veil.DSL.Specification.SpecDef
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 

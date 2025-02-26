@@ -176,6 +176,10 @@ abbrev Alias := Name
 structure ModuleSpecification : Type where
   /-- Name of the specification -/
   name         : Name
+  /-- Parameters of this module : type variables and typeclass variables. -/
+  parameters   : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  /-- Modules that this module depends on (instantiates) -/
+  dependencies : Array (Alias × ModuleDependency)
   /-- Expression representing the type of the transition system state,
   *without* having applied the section variables. -/
   stateType    : Expr
@@ -194,9 +198,6 @@ structure ModuleSpecification : Type where
   actions      : Array ActionSpecification
   /-- Invariants -/
   invariants   : Array StateAssertion
-  /-- Number of type class variables -/
-  typeClassNum : Nat
-  dependencies : Array (Alias × ModuleDependency)
 deriving Inhabited
 
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
