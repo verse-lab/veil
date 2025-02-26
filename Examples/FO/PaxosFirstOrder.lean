@@ -2,8 +2,7 @@ import Veil
 
 -- https://www.wisdom.weizmann.ac.il/~padon/paxos-made-epr-examples.zip /paxos/paxos_fol.ivy
 
-namespace PaxosFirstOrder
-open Classical
+veil module PaxosFirstOrder
 
 type node
 type value

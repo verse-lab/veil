@@ -1,10 +1,10 @@
 import Veil.DSL
 import Test.TestUtil
 
-open Classical
+
 set_option linter.unusedVariables false
 
-namespace Test
+veil module Test
 type block
 type queue
 

@@ -5,8 +5,8 @@ set_option synthInstance.maxSize 1000000
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
-namespace Ring
-open Classical
+veil module Ring
+
 
 type node
 instantiate tot : TotalOrder node

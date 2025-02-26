@@ -2,8 +2,7 @@ import Veil
 -- https://github.com/aman-goel/ivybench/blob/master/ex/ivy/decentralized-lock.ivy
 
 
-namespace DecentralizedLock
-open Classical
+veil module DecentralizedLock
 
 type node
 type time

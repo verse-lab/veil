@@ -1,7 +1,7 @@
 import Veil.DSL
 import Test.TestUtil
 
-namespace Test
+veil module Test
 
 individual x : Prop
 

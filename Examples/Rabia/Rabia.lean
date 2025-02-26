@@ -21,8 +21,8 @@ class Rabia.Background (node set_majority set_f_plus_1 : outParam Type) where
 
   ax0 : ∀ (Q1 Q2 : set_majority), ∃ (N : node), member_maj N Q1 ∧ member_maj N Q2
   ax1 : ∀ (Q1 : set_majority) (Q2 : set_f_plus_1), ∃ (N : node), member_maj N Q1 ∧ member_fp1 N Q2
-namespace Rabia
-open Classical
+veil module Rabia
+
 
 set_option veil.gen_sound true
 set_option synthInstance.maxSize 1000000

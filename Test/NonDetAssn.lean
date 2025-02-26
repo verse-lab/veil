@@ -1,7 +1,7 @@
 import Veil.DSL
 
-namespace Test
-open Classical
+veil module Test
+
 
 type node
 

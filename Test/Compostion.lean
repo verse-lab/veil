@@ -2,8 +2,8 @@ import Veil.DSL
 import Test.TestUtil
 import Veil.Std
 
-namespace Test₁
-open Classical
+veil module Test₁
+
 
 type node
 
@@ -27,8 +27,8 @@ action f (n : Nat)  = {
 
 end Test₁
 
-namespace Test₂
-open Classical
+veil module Test₂
+
 
 type node'
 type node''

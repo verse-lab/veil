@@ -2,10 +2,10 @@ import Veil.DSL
 import Test.TestUtil
 import Veil.Std
 
-open Classical
+
 set_option linter.unusedVariables false
 
-namespace Test
+veil module Test
 type seq_t
 type node
 type block

@@ -1,8 +1,8 @@
 import Veil.DSL
 import Veil.Std
 
-namespace Ring
-open Classical
+veil module Ring
+
 
 type node
 instantiate tot : TotalOrder node

@@ -1,8 +1,7 @@
 import Veil
 -- https://github.com/aman-goel/ivybench/blob/master/distai/ivy/blockchain.ivy
 
-namespace Blockchain
-open Classical
+veil module Blockchain
 
 type node
 type block

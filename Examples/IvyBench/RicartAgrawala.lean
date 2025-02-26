@@ -3,8 +3,8 @@ import Veil
 -- https://github.com/aman-goel/ivybench/blob/d2c9298fdd099001c71a34bc2e118db6f07d8404/distai/ivy/Ricart-Agrawala.ivy
 
 
-namespace RicartAgrawala
-open Classical
+veil module RicartAgrawala
+
 
 type node
 

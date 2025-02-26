@@ -2,8 +2,8 @@ import Veil
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami_int.ivy
 
-namespace SuzukiKasamiNats
-open Classical
+veil module SuzukiKasamiNats
+
 
 type node
 notation "seq_t" => Nat

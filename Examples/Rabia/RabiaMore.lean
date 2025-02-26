@@ -37,8 +37,8 @@ instance : TotalOrderWithMinimum Nat where
   zero := 0
   zero_lt := by simp
 
-namespace Rabia
-open Classical
+veil module Rabia
+
 
 -- all implicit, required by the invariant definition
 --  make more precise? maybe `type [implicit] node`?

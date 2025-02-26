@@ -2,8 +2,8 @@ import Veil
 
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/two_phase_commit.ivy
 
-namespace TwoPhaseCommit
-open Classical
+veil module TwoPhaseCommit
+
 
 type node
 

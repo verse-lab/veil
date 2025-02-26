@@ -50,8 +50,8 @@ def one_such_Background (node : Type) [fba : FBA.System node]
     next => apply FBA.intertwined_node_is_well_behaved <;> assumption
     next => assumption
 
-namespace SCP
-open Classical
+veil module SCP
+
 
 type value
 type node

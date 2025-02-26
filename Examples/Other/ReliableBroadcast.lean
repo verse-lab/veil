@@ -1,7 +1,7 @@
 import Veil
 
-namespace ReliableBroadcast
-open Classical
+veil module ReliableBroadcast
+
 /-
   Reliable Broadcast is a Byzantine fault-tolerant broadcast protocol
   that ensures that all honest nodes deliver the same message, as long

@@ -2,8 +2,8 @@ import Veil
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy
 
-namespace SuzukiKasami
-open Classical
+veil module SuzukiKasami
+
 
 type node
 type seq_t

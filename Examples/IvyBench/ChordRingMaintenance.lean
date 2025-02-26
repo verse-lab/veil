@@ -2,8 +2,7 @@ import Veil
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/chord_ring_maintenance.ivy
 
 
-namespace ChordRing
-open Classical
+veil module ChordRing
 
 class RingTopology (t : Type) where
   -- relation

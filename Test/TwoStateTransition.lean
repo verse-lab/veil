@@ -1,7 +1,7 @@
 import Veil.DSL
 
-namespace TwoStateTransitionTest
-open Classical
+veil module TwoStateTransitionTest
+
 
 type address
 variable (is_byz : address → Prop)

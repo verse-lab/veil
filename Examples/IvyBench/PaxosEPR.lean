@@ -2,8 +2,8 @@ import Veil
 
 -- https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_epr.ivy
 
-namespace PaxosEPR
-open Classical
+veil module PaxosEPR
+
 
 type node
 type value

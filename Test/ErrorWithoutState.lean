@@ -1,9 +1,9 @@
 import Veil.DSL
 import Test.TestUtil
 
-open Classical
 
-namespace Test
+
+veil module Test
 
 individual x : Prop
 
