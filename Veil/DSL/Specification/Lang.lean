@@ -78,14 +78,15 @@ def genStateExtInstances : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   let insts <- Command.runTermElabM fun vs => do
     let mut insts := #[]
-    for (name, ts, alia) in (<- localSpecCtx.get).spec.dependencies do
+    for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
+      let ts := dependency.variableInstantiations
       let currTs <- getStateArgumentsStx vd vs
-      let alia := mkIdent alia
+      let alia := mkIdent modAlias
       let inst <-
         `(@[actSimp]
           instance :
            IsStateExtension
-             (@$(mkIdent $ name ++ `State) $ts*)
+             (@$(mkIdent $ dependency.name ++ `State) $ts*)
              (@$(mkIdent $ currName ++ `State) $currTs*) where
             extendWith := fun s s' => { s' with $alia:ident := s }
             restrictTo := fun s' => s'.$alia)
@@ -126,12 +127,14 @@ implicitly quantified. -/
 syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeq "}" : command
 
 def defineDepsActions : CommandElabM Unit := do
-  for (name, ts, al) in (<- localSpecCtx.get).spec.dependencies do
+  for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
+    let ts := dependency.variableInstantiations
     let globalCtx <- globalSpecCtx.get
-    let some ctx := globalCtx[name]? | throwError "Module {name} is not declared"
+    let some ctx := globalCtx[dependency.name]? | throwError "Module {dependency.name} is not declared"
     for act in ctx.actions do
-      let actName := if act.hasSpec then name ++ act.decl.name ++ `spec else name ++ act.decl.name
-      let currName := mkIdent <| al ++ actName.componentsRev[0]!
+      let actBaseName := dependency.name ++ act.decl.name
+      let actName := if act.hasSpec then toSpecName actBaseName else actBaseName
+      let currName := mkIdent <| modAlias ++ actName.componentsRev[0]!
       let actArgs <- liftTermElabM do match act.br with
         | some br => existentialIdents br
         | _ => return #[]
@@ -272,10 +275,10 @@ def checkModuleExists (id : Name) [Monad m] [MonadEnv m] [MonadError m] : m Unit
 elab "includes" nm:ident ts:term:max * ma:moduleAbbrev : command => do
   let name := nm.getId
   checkModuleExists name
-  let mut alia := name
-  if let `(moduleAbbrev| as $al) := ma then alia := al.getId
-  elabCommand $ <- `(individual ($nm) $(mkIdent alia):ident : @$(mkIdent $ name ++ `State) $ts*)
-  localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (name, ts, alia) })
+  let mut modAlias := name
+  if let `(moduleAbbrev| as $al) := ma then modAlias := al.getId
+  elabCommand $ <- `(individual ($nm) $(mkIdent modAlias):ident : @$(mkIdent $ name ++ `State) $ts*)
+  localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (modAlias, {name, variableInstantiations := ts}) })
 
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState

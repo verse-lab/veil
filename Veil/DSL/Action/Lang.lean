@@ -95,11 +95,12 @@ def getSubActions : TermElabM (Array (Ident × Term)) := do
     but at this point it is somehow empty (it should contain actions from
     dependent modules). -/
   let mut names := #[]
-  for (depName, ts, al) in (← localSpecCtx.get).spec.dependencies do
-    let spec := (← globalSpecCtx.get)[depName]!
+  for (modAlias, dependency) in (← localSpecCtx.get).spec.dependencies do
+    let ts := dependency.variableInstantiations
+    let spec := (← globalSpecCtx.get)[dependency.name]!
     for act in spec.actions do
       let actArgs := List.replicate spec.typeClassNum (<- `(_)) |>.toArray
-      let actName := mkIdent <| al ++ act.name
+      let actName := mkIdent <| modAlias ++ act.name
       let actTerm <- `(@$actName $ts* $actArgs*)
       let currMod := (← localSpecCtx.get).stateBaseName.get!
       if (<- getEnv).find? (currMod ++ actName.getId) |>.isSome then
@@ -233,12 +234,12 @@ end
 elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
   /- Array containing all auxilary let-bingings to be inserted in the
     beginning of the `do`-block. It consists of
-    - `let mut feild := (<- get). field` for each field of the protocol state. We do this
+    - `let mut field := (<- get). field` for each field of the protocol state. We do this
       to be able to access and modify the state fields without the need to use
       `get` and `modify` functions
     - [HACK] `let submodule.act := submodule.act` for each action `act` inherited from
       submodules. As for each submodule, the previous step defines a local variable
-      `submodule`, `submodule.act` will be treated as an access to `submodule`'s filed `act`,
+      `submodule`, `submodule.act` will be treated as an access to `submodule`'s field `act`,
       rather than an action `act` operation on `submodule`
     - `let freshName <- fresh` for each non-deterministic assigment. We hoist all fresh
       variables to make all the quantifiers top level -/

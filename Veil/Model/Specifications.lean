@@ -163,6 +163,15 @@ instance : ToString StateAssertion where
     | some term => s!"{sa.kind} [{sa.name}] {term}"
     | none => s!"{sa.kind} [{sa.name}] {sa.expr}"
 
+
+/-- Modules can depend on other modules, which must be fully-instantiated with
+type (and typeclass) arguments provided for all variables. -/
+structure ModuleDependency where
+  name : Name
+  variableInstantiations : Array Term
+
+abbrev Alias := Name
+
 /-- A cleaned-up version of `StsState`, this gets generated on `#gen_spec` and stored in the global state. -/
 structure ModuleSpecification : Type where
   /-- Name of the specification -/
@@ -187,9 +196,7 @@ structure ModuleSpecification : Type where
   invariants   : Array StateAssertion
   /-- Number of type class variables -/
   typeClassNum : Nat
-  /-- Names of modules which the current one depends on with their type variables
-     instances and aliases in a current module -/
-  dependencies : Array (Name × Array Term × Name)
+  dependencies : Array (Alias × ModuleDependency)
 deriving Inhabited
 
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
