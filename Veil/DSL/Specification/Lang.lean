@@ -145,13 +145,20 @@ def defineDepsActions : CommandElabM Unit := do
       let actBaseName := dependency.name ++ act.decl.name
       let actName := if act.hasSpec then toSpecName actBaseName else actBaseName
       let currName := mkIdent <| modAlias ++ actName.componentsRev[0]!
+      -- When we lift an action from a dependency, the binders of the action
+      -- may have types that are not syntactically present in the action's
+      -- signature. Instead of trying to do the substitution manually, which
+      -- would be error-prone and annoying, we just ask Lean to infer the
+      -- types. This should always work, since we apply these args (`actArgs`)
+      -- to the original action, and hence their type is fully determined.
+      let newBinders ← do match act.br with
+        | some br => pure (Option.some (← toBindersWithInferredTypes br))
+        | none => pure .none
       let actArgs <- liftTermElabM do match act.br with
         | some br => existentialIdents br
         | _ => return #[]
-      -- let typeClassInsts := List.replicate ctx.typeClassNum (<- `(_)) |>.toArray
-      -- let actArgs := typeClassInsts.append actArgs
       trace[veil.info] "lifting action {actBaseName} from module {dependency.name} to module {← specName} as {currName}"
-      let stx <- `(action $currName:ident $(act.br)? = { monadLift <| @$(mkIdent $ actName) $ts* $actArgs* })
+      let stx <- `(action $currName:ident $(newBinders)? = { monadLift <| @$(mkIdent $ actName) $ts* $actArgs* })
       trace[veil.debug] stx
       elabCommand stx
 

@@ -22,6 +22,16 @@ action f (n : Nat)  = {
   pure n
 }
 
+action foo (x : node) = {
+  pure ()
+}
+
+action fresh_node (yy : node) = {
+  let n <- fresh node
+  nd := n
+}
+
+
 #guard_msgs(drop warning) in
 #gen_spec
 

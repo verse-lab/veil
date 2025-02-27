@@ -81,6 +81,19 @@ def existentialIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArra
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
   return vars
 
+def toBindersWithInferredTypes (stx : TSyntax `Lean.explicitBinders) [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m] : m (TSyntax `Lean.explicitBinders) := do
+ let mut newBinders := #[]
+  match stx with
+  | `(explicitBinders|$bs*) => do
+    for b in bs do
+      match b with
+      | `(bracketedExplicitBinders|($bis* : $_tp)) => do
+         newBinders := newBinders.push (← `(bracketedExplicitBinders|($bis* : _)))
+      | _ => throwError "unexpected syntax in explicit binder: {b}"
+  | _ => throwError "unexpected syntax in explicit binder: {stx}"
+  return ← `(explicitBinders| $newBinders*)
+
+
 /-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
 def mkArrowStx (tps : List Ident) (terminator : Option $ TSyntax `term := none) : CoreM (TSyntax `term) := do
   match tps with
