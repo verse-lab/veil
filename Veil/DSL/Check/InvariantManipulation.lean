@@ -26,7 +26,7 @@ def theoremSuggestionsForChecks' (initIndicators : List Name) (actIndicators : L
           let some args := (<- localSpecCtx.get).spec.actions.find? (moduleName ++ ·.name == actName)
             | throwError s!"action {actName} not found"
           let (univBinders, args) ← match args.br with
-          | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
+          | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
           | none => pure (#[], #[])
 
           let body ← do

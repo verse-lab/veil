@@ -67,7 +67,7 @@ def toFunBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray
     return binders
 
 /-- Convert existential binders (with explicit types) into terms (including only the identifiers). -/
-def existentialIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `term) := do
+def explicitBindersIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `term) := do
   let mut vars := #[]
   match stx with
   | `(explicitBinders|$bs*) => do
@@ -81,6 +81,16 @@ def existentialIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArra
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
   return vars
 
+def bracketedBinderIdent [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m Ident := do
+  match stx with
+  | `(bracketedBinder| ($id:ident : $_tp)) => return id
+  | `(bracketedBinder| ($id:ident)) => return id
+  | `(bracketedBinder| [$id:ident : $_tp]) => return id
+  | `(bracketedBinder| [$id:ident]) => return id
+  | `(bracketedBinder| {$id:ident : $_tp}) => return id
+  | `(bracketedBinder| {$id:ident}) => return id
+  | _ => throwError "unexpected syntax in bracketed binder: {stx}"
+
 def toBindersWithInferredTypes (stx : TSyntax `Lean.explicitBinders) [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m] : m (TSyntax `Lean.explicitBinders) := do
  let mut newBinders := #[]
   match stx with
@@ -93,6 +103,23 @@ def toBindersWithInferredTypes (stx : TSyntax `Lean.explicitBinders) [Monad m] [
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
   return ← `(explicitBinders| $newBinders*)
 
+
+/-- Convert existential binders (with explicit types) into terms (including only the identifiers). -/
+def toBindersWithMappedTypes (stx : TSyntax `Lean.explicitBinders) (mapping : Array (Term × Term)) : CommandElabM (TSyntax `Lean.explicitBinders) := do
+  let mut newBinders := #[]
+  match stx with
+  | `(explicitBinders|$bs*) => do
+    for b in bs do
+      match b with
+      | `(bracketedExplicitBinders|($bis* : $tp)) => do
+        let newTp := match mapping.find? (fun (paramType, _argType) => paramType == tp) with
+          | some (_, newTp) => newTp
+          | none => tp
+        newBinders := newBinders.push $ ← `(bracketedExplicitBinders|($bis* : $newTp))
+      | _ => throwError "unexpected syntax in explicit binder: {b}"
+  | _ => throwError "unexpected syntax in explicit binder: {stx}"
+  let newStx ← `(explicitBinders|$newBinders*)
+  return newStx
 
 /-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
 def mkArrowStx (tps : List Ident) (terminator : Option $ TSyntax `term := none) : CoreM (TSyntax `term) := do

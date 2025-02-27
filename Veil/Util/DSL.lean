@@ -35,7 +35,7 @@ def getStateParametersBinders (vd : Array (TSyntax `Lean.Parser.Term.bracketedBi
   vd.filter (fun b => !isTypeClassBinder b)
 
 /-- Get the arguments which we have to pass to the `State` type to instantiate it. -/
-def getStateArguments [ToMessageData α] (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array α) : TermElabM (Array α) := do
+def getStateArguments [ToMessageData α] (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array α) [Monad m] [MonadError m]: m (Array α) := do
   if vd.size != vs.size then throwError "Mismatch in number of arguments between {vd} and {vs}"
   let vs' := (vd.zip vs).filter (fun (b, _) => !isTypeClassBinder b) |> .map Prod.snd
   return vs'

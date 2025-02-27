@@ -167,8 +167,12 @@ instance : ToString StateAssertion where
 /-- Modules can depend on other modules, which must be fully-instantiated with
 type (and typeclass) arguments provided for all variables. -/
 structure ModuleDependency where
-  name : Name
-  variableInstantiations : Array Term
+  name       : Name
+  /-- Module parameters-/
+  parameters : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  /-- Instantiations of the module's parameters, i.e. the arguments
+  passed to the module when it is instantiated. -/
+  arguments  : Array Term
 
 abbrev Alias := Name
 

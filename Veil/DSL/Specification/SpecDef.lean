@@ -34,10 +34,19 @@ def checkCorrectInstantiation (id : Name) (ts : Array Term) [Monad m] [MonadEnv 
   if vd.size != vs.size then
     let vdStr := "\n".intercalate (Array.toList $ vd.map (fun x => s!"{x}"))
     throwError s!"Module {id} has {vd.size} parameters, but {vs.size} were provided\nrequired parameters: {vdStr}"
+  -- TODO FIXME: check that the types match
 
-def getModuleInstanceStateArgs (id : Name) (allArgs : Array Term) := do
-  let module := (<- globalSpecCtx.get)[id]!
-  getStateArguments module.parameters allArgs
+/-- Return only those arguments that are used in the state type. -/
+def ModuleDependency.stateArguments [Monad m] [MonadError m] (dep : ModuleDependency) : m (Array Term) := do
+  getStateArguments dep.parameters dep.arguments
+
+def ModuleDependency.typeMapping [Monad m] [MonadError m] [MonadQuotation m] (dep : ModuleDependency) : m (Array (Term × Term)) := do
+  let paramIdents : Array Ident ← dep.parameters.mapM bracketedBinderIdent
+  let paramTerms ← paramIdents.mapM (fun id => `(term|$id))
+  let pairs := paramTerms.zip dep.arguments
+  let mapping ← getStateArguments dep.parameters pairs
+  return mapping
+
 
 def errorIfStateNotDefined : CoreM Unit := do
   let stateName := (← localSpecCtx.get).stateBaseName

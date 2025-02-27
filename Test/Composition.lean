@@ -49,6 +49,10 @@ includes Test₁ node' _ _ as test'
 
 #gen_state
 
+after_init {
+  r'' N M := False
+}
+
 action g = {
   let n <- fresh node'
   test.r' N n := True
@@ -57,3 +61,7 @@ action g = {
   let _ <- test.f 1
   test'.f 1
 }
+
+invariant True
+
+#gen_spec

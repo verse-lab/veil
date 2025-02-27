@@ -86,10 +86,7 @@ def genStateExtInstances : CommandElabM Unit := do
   let insts <- Command.runTermElabM fun vs => do
     let mut insts := #[]
     for (modAlias, dep) in (<- localSpecCtx.get).spec.dependencies do
-      -- We must pass `dep.variableInstantiations` through
-      -- `getStateArguments` to filter out typeclass arguments, which
-      -- are not arguments to the `State` type.
-      let ts ← getModuleInstanceStateArgs dep.name dep.variableInstantiations
+      let ts ← dep.stateArguments
       let currTs <- getStateArgumentsStx vd vs
       let alia := mkIdent modAlias
       let inst <-
@@ -138,24 +135,26 @@ syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeq "}" : comma
 
 def defineDepsActions : CommandElabM Unit := do
   for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
-    let ts := dependency.variableInstantiations
+    let ts := dependency.arguments
     let globalCtx <- globalSpecCtx.get
     let some ctx := globalCtx[dependency.name]? | throwError "Module {dependency.name} is not declared"
     for act in ctx.actions do
       let actBaseName := dependency.name ++ act.decl.name
+      -- If an action has a pre-post specification, we use the the specification
+      -- instead of the action itself as the definition of the lifted action.
       let actName := if act.hasSpec then toSpecName actBaseName else actBaseName
       let currName := mkIdent <| modAlias ++ actName.componentsRev[0]!
       -- When we lift an action from a dependency, the binders of the action
       -- may have types that are not syntactically present in the action's
-      -- signature. Instead of trying to do the substitution manually, which
-      -- would be error-prone and annoying, we just ask Lean to infer the
-      -- types. This should always work, since we apply these args (`actArgs`)
-      -- to the original action, and hence their type is fully determined.
+      -- signature. We have to substitute the types with the arguments of the
+      -- dependency instantiation. We cannot use `_` to infer the types, since
+      -- we use these type arguments to construct the `Label` type, so they
+      -- must be explicit.
       let newBinders ← do match act.br with
-        | some br => pure (Option.some (← toBindersWithInferredTypes br))
+        | some br => pure (Option.some (← toBindersWithMappedTypes br (← dependency.typeMapping)))
         | none => pure .none
       let actArgs <- liftTermElabM do match act.br with
-        | some br => existentialIdents br
+        | some br => explicitBindersIdents br
         | _ => return #[]
       trace[veil.info] "lifting action {actBaseName} from module {dependency.name} to module {← specName} as {currName}"
       let stx <- `(action $currName:ident $(newBinders)? = { monadLift <| @$(mkIdent $ actName) $ts* $actArgs* })
@@ -290,13 +289,18 @@ elab "includes" nm:ident ts:term:max * ma:moduleAbbrev : command => do
   let name := nm.getId
   checkModuleExists name
   checkCorrectInstantiation name ts
-  let mut modAlias := name
-  if let `(moduleAbbrev| as $al) := ma then modAlias := al.getId
-  let stateArgs ← Command.runTermElabM fun _ => getModuleInstanceStateArgs name ts
+  let modAlias := if let `(moduleAbbrev| as $al) := ma then al.getId else name
+  let modParams := (<- globalSpecCtx.get)[name]!.parameters
+  let modDep : ModuleDependency := {
+    name := name,
+    parameters := modParams,
+    arguments := ts
+  }
+  let stateArgs ← Command.runTermElabM fun _ => getStateArguments modParams ts
   let stx ← `(individual ($nm) $(mkIdent modAlias):ident : @$(mkIdent $ name ++ `State) $stateArgs*)
   trace[veil.debug] "lifting state from module {name} as {modAlias}:\n{stx}"
   elabCommand stx
-  localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (modAlias, {name, variableInstantiations := ts}) })
+  localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (modAlias, modDep) })
 
 @[inherit_doc assembleState]
 elab "#gen_state" : command => assembleState
@@ -405,7 +409,7 @@ def defineAction (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
       let (univBinders, args, funBinders) ← match br with
-      | some br => pure (← toBracketedBinderArray br, ← existentialIdents br, <- toFunBinderArray br)
+      | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br, <- toFunBinderArray br)
       | none => pure (#[], #[], #[])
       -- Create types
       let moduleName <- getCurrNamespace
@@ -515,7 +519,7 @@ def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Opti
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
       let (univBinders, args) ← match br with
-      | some br => pure (← toBracketedBinderArray br, ← existentialIdents br)
+      | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
       | none => pure (#[], #[])
       let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* : $trType := $tr)
       trace[veil.debug] "{unsimplifiedDef}"
@@ -562,7 +566,7 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
       let st := mkIdent `st
       let thmName := mkIdent $ nm.getId ++ `spec_correct
       let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
-      let br <- (existentialIdents <$> br) |>.getD (pure #[])
+      let br <- (explicitBindersIdents <$> br) |>.getD (pure #[])
       let stx <- `(theorem $thmName $br' * : ∀ $st:ident,
           (fun s => funcases s $pre) $st ->
           @$nm $(← getSectionArgumentsStx vs)* $br* $st (by rintro $ret; exact (funcases $post)) := by
