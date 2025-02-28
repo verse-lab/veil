@@ -128,7 +128,17 @@ def getPropsInContext : TacticM (Array Ident) := do
   let idents := (props.toList.eraseDups.map mkIdent).toArray
   return idents
 
-def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent) (thorough :  Bool := true) (traceAt : Option Syntax := none): TacticM (Array Ident × Array (TSyntax `tactic)) := withMainContext do
+def concatTacticSeq (xtacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) : TacticM (TSyntax `Lean.Parser.Tactic.tacticSeq) := do
+  if xtacs.isEmpty then
+    return ← `(tacticSeq|skip)
+  let accInit ← `(tacticSeq|$(xtacs[0]!))
+  let combined_tactic ← xtacs[1:].foldlM (init := accInit) fun acc tac => `(tacticSeq|
+     ($acc)
+     ($tac)
+  )
+  return combined_tactic
+
+def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent) (thorough :  Bool := true) (traceAt : Option Syntax := none): TacticM (Array Ident × Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) := withMainContext do
   -- (*) Collect executed tactics to generate suggestion
   let mut xtacs := #[]
   -- (1) Identify the type of the state
@@ -136,7 +146,7 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   let stateName := stateType.getAppFn.constName
   -- dbg_trace "State is structure with name: {stateName}"
   -- (2) Destruct all hypotheses into components
-  let destructTac ← `(tactic| sdestruct_hyps)
+  let destructTac ← `(tacticSeq| sdestruct_hyps)
   xtacs := xtacs.push destructTac
   evalTactic destructTac
   withMainContext do
@@ -154,7 +164,10 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   let fastSimp := mkSimpLemmas $ #[`invSimp, `smtSimp].map mkIdent
   let finalSimp := mkSimpLemmas $ #[`quantifierSimp].map mkIdent
   let simp2 := if thorough then thoroughSimp else fastSimp
-  let simpTac ← `(tactic| try (try dsimp only [$simp0,*] at *) ; (try simp only [$simp2,*] at *) ; (try simp only [$finalSimp,*] at *))
+  let simpTac ← `(tacticSeq|
+    (try dsimp only [$simp0,*] at *)
+    (try simp only [$simp2,*] at *)
+    (try simp only [$finalSimp,*] at *))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
@@ -174,9 +187,9 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   let idents ← getPropsInContext
   return ← finishWith idents xtacs
   where
-  finishWith (idents : Array Ident) (xtacs : Array (TSyntax `tactic)) : TacticM (Array Ident × Array (TSyntax `tactic)) := do
+  finishWith (idents : Array Ident) (xtacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) : TacticM (Array Ident × Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) := do
     if let some stx := traceAt then
-      let combined_tactic ← `(tactic| $xtacs;*)
+      let combined_tactic ← concatTacticSeq xtacs
       addSuggestion stx combined_tactic
     return (idents, xtacs)
 
@@ -234,7 +247,7 @@ elab tk:solveWlp act:ident inv:ident : tactic => withMainContext do
     clearInvs <- `(tactic| clear_invariants)
     invSimpTac <- `(tactic| dsimp only [$[$invsToUnfold:ident],*])
   let stateTpT ← getStateTpStx
-  let solve <- `(tacticSeq|
+  let simplify <- `(tacticSeq|
     dsimp only [$act:ident]
     $invSimpTac:tactic
     intros $st:ident; sdestruct_hyps
@@ -245,18 +258,17 @@ elab tk:solveWlp act:ident inv:ident : tactic => withMainContext do
         try simp only [$and_imp:ident, $exists_imp:ident]
         unhygienic intros
         $clearInvs:tactic
-        try simp only [$ifSimp:ident]
-    first
-      -- | sauto_all
-      | (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
+        try simp only [$ifSimp:ident])
+    let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWlp| solve_wlp_clause?) := tk then
-      addSuggestion (<- getRef) solve
-    else evalTactic solve
-
-
-def showTacticTraceAt (stx : Syntax) (xtacs : Array (TSyntax `tactic)) : TacticM Unit := do
-  let combined_tactic ← `(tactic| $xtacs;*)
-  addSuggestion stx combined_tactic
+      addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
+    else
+      evalTactic simplify
+      -- Simplification might solve the goal; if we try to evaluate `sauto_all` in
+      -- that case, this will wrongly throw an error, which might confuse the user.
+      if (← getUnsolvedGoals).length != 0 then
+        withMainContext do
+          evalTactic solve
 
 def elabSolveClause (stx : Syntax)
   (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent)
@@ -267,13 +279,13 @@ def elabSolveClause (stx : Syntax)
   -- calls `throwNoGoalsToBeSolved` if there are no goals.
   if (← getUnsolvedGoals).length != 0 then
     withMainContext do
-      let autoTac ← `(tactic| sauto [$[$idents:ident],*])
+      let autoTac ← `(tacticSeq| sauto [$[$idents:ident],*])
       if trace then
-        showTacticTraceAt stx (xtacs.push autoTac)
+        addSuggestion stx (← concatTacticSeq (xtacs.push autoTac))
       evalTactic autoTac
   else
     if trace then
-      showTacticTraceAt stx xtacs
+      addSuggestion stx (← concatTacticSeq xtacs)
 
 syntax (name := solveClause) "solve_clause" : tactic
 syntax (name := solveClauseWith) "solve_clause" "[" ident,* "]" : tactic
