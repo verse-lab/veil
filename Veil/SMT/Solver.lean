@@ -44,10 +44,14 @@ def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
   match name with
   | .z3   => createAux s!"{z3Path}" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}", s!"sat.random_seed={seed}", s!"smt.random_seed={seed}"]
   | .cvc5 =>
-      let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}", "--seed", s!"{seed}",
-        "--finite-model-find", "--enum-inst-interleave", "--nl-ext-tplanes", "--incremental"]
+      let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}",
+        "--seed", s!"{seed}", "--finite-model-find", "--enum-inst-interleave",
+        "--nl-ext-tplanes", "--produce-models", "--incremental"]
       let proc ← createAux s!"{cvc5Path}" args
       emitCommand proc (.setLogic "ALL")
+      -- I don't think we need this, since WE don't use proofs directly; only
+      -- the `smt` tactic does, and they have their own invocation of CVC5
+      -- emitCommand proc (.setOption (.produceProofs true))
       pure proc
 
 inductive ModelGenerator where
