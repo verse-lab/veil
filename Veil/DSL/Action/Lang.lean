@@ -97,12 +97,14 @@ def getSubActions : TermElabM (Array (Ident × Term)) := do
   since we haven't yet `monadLift`ed them to the parent (dependee) model's state
   definition. -/
   let mut names := #[]
-  for (modAlias, dependency) in (← localSpecCtx.get).spec.dependencies do
-    let ts := dependency.arguments
+  let ourSpec := (← localSpecCtx.get).spec
+  for (modAlias, dependency) in ourSpec.dependencies do
     let spec := (← globalSpecCtx.get)[dependency.name]!
     for act in spec.actions do
       let actName := mkIdent <| modAlias ++ act.name
-      let actTerm <- `(@$actName $ts*)
+      -- Since we have lifted the action, we must apply OUR section arguments to
+      -- it, rather than the dependency's
+      let actTerm <- `(@$actName $(← ourSpec.arguments)*)
       let currMod := (← localSpecCtx.get).stateBaseName.get!
       if (<- getEnv).find? (currMod ++ actName.getId) |>.isSome then
         names := names.push (actName, actTerm)
@@ -250,13 +252,17 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
   | `(doSeq| { $doE* }) => pure doE
   | _ => throwErrorAt stx "unexpected syntax of Veil `do`-notation sequence {stx}"
   let (doS, vars) <- (expandDoSeqVeil (<- `(doSeq| $doS*))).run #[]
-
+  -- Make available lifted actions using `alias.actionName`
   let as := (<- getSubActions)
   for a in as do
-    preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $(a.1):ident := $(a.snd))
+    let (actName, actTerm) := a
+    preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $(actName):ident := $(actTerm))
+  -- Make available state fields as mutable variables
   let fs := (<- getFields).map Lean.mkIdent
   for f in fs do
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let mut $f:ident := (<- get).$f)
+  -- We hoist all fresh variables to make all the quantifiers top level
+  -- Here we add them to the prelude, as immutable variables
   for v in vars do
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- fresh $v.type)
   let doS := preludeAssn.append doS

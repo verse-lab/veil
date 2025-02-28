@@ -167,7 +167,7 @@ def assembleState : CommandElabM Unit := do
   declareSpecParameters vd
   let name <- getCurrNamespace
   let (sdef, isHOInst, smtAttr) <- Command.runTermElabM fun vs => do
-  -- set the name
+    -- set the name
     let components ← liftCommandElabM $ liftCoreM $ ((<- localSpecCtx.get).spec.signature).mapM StateComponent.getSimpleBinder
     -- record the state name
     localSpecCtx.modify (fun s => { s with stateBaseName := name })

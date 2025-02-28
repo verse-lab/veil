@@ -204,6 +204,11 @@ structure ModuleSpecification : Type where
   invariants   : Array StateAssertion
 deriving Inhabited
 
+/-- Syntax for the arguments of this module. Typeclasses that are not named are
+replaced with `_`, to be inferred. -/
+def ModuleSpecification.arguments [Monad m] [MonadError m] [MonadQuotation m] (spec : ModuleSpecification) : m (Array Term) :=
+  bracketedBindersToTerms spec.parameters
+
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
   spec.signature.find? (fun sc => sc.name == name)
 

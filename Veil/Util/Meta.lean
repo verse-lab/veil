@@ -81,15 +81,22 @@ def explicitBindersIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntax
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
   return vars
 
-def bracketedBinderIdent [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m Ident := do
+def bracketedBinderIdent [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m (Option Ident) := do
   match stx with
   | `(bracketedBinder| ($id:ident : $_tp)) => return id
-  | `(bracketedBinder| ($id:ident)) => return id
   | `(bracketedBinder| [$id:ident : $_tp]) => return id
-  | `(bracketedBinder| [$id:ident]) => return id
   | `(bracketedBinder| {$id:ident : $_tp}) => return id
-  | `(bracketedBinder| {$id:ident}) => return id
-  | _ => throwError "unexpected syntax in bracketed binder: {stx}"
+  | _ => return none
+
+/-- Given a set of binders, return the terms that correspond to them.
+Typeclasses that are not named are replaced with `_`, to be inferred. -/
+def bracketedBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array Term) := do
+  let idents : Array (Option Ident) ← stx.mapM bracketedBinderIdent
+  let terms ← idents.mapM (fun mid => do
+    match mid with
+    | some id => `(term|$id)
+    | none => `(term|_))
+  return terms
 
 def toBindersWithInferredTypes (stx : TSyntax `Lean.explicitBinders) [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m] : m (TSyntax `Lean.explicitBinders) := do
  let mut newBinders := #[]

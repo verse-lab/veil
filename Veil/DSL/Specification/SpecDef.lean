@@ -41,8 +41,7 @@ def ModuleDependency.stateArguments [Monad m] [MonadError m] (dep : ModuleDepend
   getStateArguments dep.parameters dep.arguments
 
 def ModuleDependency.typeMapping [Monad m] [MonadError m] [MonadQuotation m] (dep : ModuleDependency) : m (Array (Term × Term)) := do
-  let paramIdents : Array Ident ← dep.parameters.mapM bracketedBinderIdent
-  let paramTerms ← paramIdents.mapM (fun id => `(term|$id))
+  let paramTerms ← bracketedBindersToTerms dep.parameters
   let pairs := paramTerms.zip dep.arguments
   let mapping ← getStateArguments dep.parameters pairs
   return mapping
