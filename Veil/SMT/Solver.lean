@@ -85,7 +85,9 @@ def getReadableModel (goalQuery : String) (withTimeout : Nat) (minimize : Bool) 
     mg.kill
     let (model, _) ← Auto.Solver.SMT.getSexp stdout
     extractStructure model
-  catch _ex => pure none
+  catch e =>
+    logWarning s!"Could not get readable model: {← e.toMessageData.toString}"
+    pure none
 
 open Smt Smt.Tactic Translate in
 partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SmtSolver := none) (retryOnUnknown : Bool := false) : MetaM SmtResult := do

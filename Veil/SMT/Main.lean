@@ -71,7 +71,7 @@ def failureGoalStr : String := "solver invocation failed"
       -- FIXME: we are doing some crazy string manipulation in `getModelStr` to print counterexamples in `#check_invariants`,
       -- so please don't change the string format in the next two lines.
       let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := veil.smt.model.minimize.get opts)
-        | throwError s!"{satGoalStr}:{modelString}"
+        | throwError s!"{satGoalStr} (could not get readable model):\n{modelString}"
       throwError s!"{satGoalStr}:{fostruct}"
     | .Unknown reason => throwError "{unknownGoalStr}: {reason}"
     | .Failure reason => throwError "{failureGoalStr}: {reason}"
