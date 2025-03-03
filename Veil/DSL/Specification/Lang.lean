@@ -394,36 +394,22 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
 def wlpUnfold := [``Wlp.bind, ``Wlp.pure, ``Wlp.get, ``Wlp.set, ``Wlp.modifyGet,
   ``Wlp.assert, ``Wlp.assume, ``Wlp.require, ``Wlp.spec, ``Wlp.lift, ``Wlp.toActProp]
 
-/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`. More
-specifically it defines:
-  - `act.genE` : external action interpretation of the action, unsimplified
+
+/-- Given `l` : `Wlp m σ ρ` (parametrised over `br`), this defines:
   - `act.genI` : internal action interpretation of the action, unsimplified
-
-  - `act.ext` : external action interpretation of the action, simplified
-  - `act` : internal action interpretation (for procedure calls) of the action, simplified
-  - `act.tr` : (external) transition of the action, with existentially quantified arguments
+  - `act.genE` : external action interpretation of the action, unsimplified
 -/
-def defineAction (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
-    let vd ← getImplicitActionParameters
-    Command.runTermElabM fun vs => do
-      -- Create binders and arguments
-      let sectionArgs ← getSectionArgumentsStx vs
-      let (args, funBinders) ← match br with
-      | some br => pure (← explicitBindersIdents br, <- toFunBinderArray br)
-      | none => pure (#[], #[])
-      -- Create types
-      let moduleName <- getCurrNamespace
-      let baseName := moduleName ++ nm.getId
-      let (genIName, genExpI) ← genGenerator vs funBinders baseName .internal l
-      let (genEName, genExpE) ← genGenerator vs funBinders baseName .external l
-      let (_actIName, actIPf) ← genAction baseName .internal genIName genExpI
-      let (_actEName, actEPf) ← genAction baseName .external genEName genExpE
-      let (_actTrName, actTrStx, actTrPf) ← genTransition vs sectionArgs args baseName
-      if veil.gen_sound.get <| <- getOptions then
-        genSoundness vd vs br baseName actTrStx actIPf actEPf actTrPf
-
+def defineActionGenerators (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
+  Command.runTermElabM fun vs => do
+    let funBinders ← match br with
+    | some br => toFunBinderArray br
+    | none => pure #[]
+    let baseName := (← getCurrNamespace) ++ act.getId
+    let (genIName, _genExpI) ← genGenerator vs funBinders baseName .internal l
+    let (genEName, _genExpE) ← genGenerator vs funBinders baseName .external l
+    return (genIName, genEName)
 where
-  /-- This creates a generator for the action, which takes asa input the `mode`
+  /-- This creates a generator for the action, which takes as input the `mode`
   in which to interpret the action and returns an _unsimplified_ interpretation
   of the action under that mode. -/
   genGenerator (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
@@ -438,23 +424,50 @@ where
     simpleAddDefn genName genExp (attr := #[{name := `actSimp}, {name := `reducible}])
     return (genName, genExp)
 
-  genAction (baseName : Name) (mode : Mode) (genName : Name) (genExp : Expr) := do
+/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`. This
+assumes that `act.genE` and `act.genI` have already been defined. Specifically
+it defines:
+  - `act.ext` : external action interpretation of the action, simplified
+  - `act` : internal action interpretation (for procedure calls) of the action, simplified
+  - `act.tr` : (external) transition of the action, with existentially quantified arguments
+-/
+def defineActionFromGenerators (actT : TSyntax `actionType) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (genIName genEName : Name) : CommandElabM Unit := do
+    let vd ← getImplicitActionParameters
+    Command.runTermElabM fun vs => do
+      -- Create binders and arguments
+      let sectionArgs ← getSectionArgumentsStx vs
+      let baseName := (← getCurrNamespace) ++ act.getId
+      let (_actIName, actIPf) ← genAction baseName .internal genIName
+      let (_actEName, actEPf) ← genAction baseName .external genEName
+      let (_actTrName, actTrStx, actTrPf) ← genTransition vs sectionArgs baseName
+      if veil.gen_sound.get <| <- getOptions then
+        genSoundness vd vs br baseName actTrStx actIPf actEPf actTrPf
+where
+  /-- This generates the 'simplified' (fully unfolded) action interpretation,
+  assuming the generator for this `mode` has already been defined and can be
+  found in the environment with name `genName`. -/
+  genAction (baseName : Name) (mode : Mode) (genName : Name) := do
     let actName := match mode with
     | Mode.internal => baseName
     | Mode.external => toExtName baseName
-    let act ← Lean.mkConst genName |>.runUnfold (genName :: wlpUnfold)
+    let genExp := Lean.mkConst genName
+    let act ← genExp |>.runUnfold (genName :: wlpUnfold)
     let ⟨act, actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
     let mut attr : Array Attribute := #[{name := `actSimp}]
     -- We "register" the internal interpretation of the action as an IO automata action
     -- FIXME George: is this the right thing to do?
-    if mode == .internal then
+    if mode == Mode.internal then
       attr := attr.push (toActionAttribute' (toActionType actT))
     simpleAddDefn actName act (attr := attr) (type := ← inferType genExp)
     return (actName, actPf)
 
-  genTransition (vs : Array Expr) (sectionArgs : Array (TSyntax `term)) (args : TSyntaxArray `term) (baseName : Name) := do
-    let actEName := toExtName baseName
-    let actTrName := toTrName baseName
+  /-- This generates a two-state transition from the action, with existentially
+  quantified arguments. -/
+  genTransition (vs : Array Expr) (sectionArgs : Array (TSyntax `term)) (baseName : Name) := do
+    let args  ← match br with
+      | some br => explicitBindersIdents br
+      | none => pure #[]
+    let (actEName, actTrName) := (toExtName baseName, toTrName baseName)
     let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
     let actTr <- elabTermAndSynthesize actTrStx none
     let actTr <- mkLambdaFVarsImplicit vs actTr
@@ -463,6 +476,9 @@ where
     simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
     return (actTrName, actTrStx, actTrPf)
 
+  /-- This generates type class instances that are required to prove the
+  _soundness_ of the translation of the imperative action into the two-state
+  transition. This can be expensive, so it is off by default. -/
   genSoundness (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) (br : Option (TSyntax `Lean.explicitBinders)) (baseName : Name) (actTrStx : TSyntax `term) (actIPf actEPf actTrPf : Option Expr) := do
     let (actTrName, genEName, genIName, actEName, actIName) :=
       let actTrName := toTrName baseName
@@ -524,6 +540,19 @@ where
       `(tacticSeq|
         have h : @$(mkIdent genIName) = @$(mkIdent actIName) := $eqI
         rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
+
+/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`. More
+specifically it defines:
+  - `act.genI` : internal action interpretation of the action, unsimplified
+  - `act.genE` : external action interpretation of the action, unsimplified
+
+  - `act.ext` : external action interpretation of the action, simplified
+  - `act` : internal action interpretation (for procedure calls) of the action, simplified
+  - `act.tr` : (external) transition of the action, with existentially quantified arguments
+-/
+def defineAction (actT : TSyntax `actionType) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
+  let (genIName, genEName) ← defineActionGenerators act br l
+  defineActionFromGenerators actT act br genIName genEName
 
 /-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
 def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
