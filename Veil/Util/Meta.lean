@@ -148,7 +148,7 @@ def complexBinderToSimpleBinder (nm : TSyntax `ident) (br : TSyntaxArray `Lean.P
   return simple
 
 /-- Given `nm : _ `, return `nm` -/
-def getSimpleBinderName (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : CoreM Name := do
+def getSimpleBinderName [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : m Name := do
   match sig with
   | `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $_:term) => pure nm.getId
   | _ => throwError s!"getSimpleBinderName: don't know how to handle {sig}"

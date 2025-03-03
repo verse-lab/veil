@@ -46,21 +46,21 @@ syntax (name:= inputActDef) "inputActDef" : attr
 syntax (name:= outputActDef) "outputActDef" : attr
 
 open Lean.Parser.Term in
-def toActionAttribute (type : ActionType) : AttrM (TSyntax `Lean.Parser.Term.attrInstance) :=
+def toActionAttribute (type : ActionKind) : AttrM (TSyntax `Lean.Parser.Term.attrInstance) :=
   match type with
   | .internal => `(attrInstance|internalActDef)
   | .input => `(attrInstance|inputActDef)
   | .output => `(attrInstance|outputActDef)
 
 open Lean.Parser.Term in
-def toActionAttribute' (type : ActionType) : Lean.Elab.Attribute :=
+def toActionAttribute' (type : ActionKind) : Lean.Elab.Attribute :=
   match type with
   | .internal => {name := `internalActDef}
   | .input => {name := `inputActDef}
   | .output => {name := `outputActDef}
 
 
-def addAction (type : ActionType) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
+def addAction (type : ActionKind) (declName : Name) : Syntax → AttributeKind → AttrM Unit :=
   fun _ _ => do
     let spec := ActionSpecification.mkPlain type declName (mkConst declName)
     localSpecCtx.modify (fun s => { s with spec := {s.spec with actions := s.spec.actions.push spec }})

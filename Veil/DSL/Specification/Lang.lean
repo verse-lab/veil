@@ -8,74 +8,151 @@ import Veil.DSL.Tactic
 import Veil.Tactic.Main
 import Veil.Util.DSL
 
+
+import Veil.DSL.Specification.Syntax
 import Veil.DSL.Specification.SpecDef
 
 open Lean Elab Command Term Meta Lean.Parser
 
 /-!
-  # Specification Language
+  # Specification Language Semantics
 
-  This file defines the syntax and elaborators (i.e. semantics in terms
-  of Lean definitions) for the specification language, which is used to
-  declare Veil modules.
+  This file defines the elaborators (i.e. semantics in terms of Lean
+  definitions) for the specification language, which is used to declare Veil
+  modules.
 
 -/
 
+@[command_elab Veil.moduleDeclaration]
+def elabModuleDeclaration : CommandElab := fun stx => do
+  match stx with
+  | `(veil module $i:ident) => do
+    let cmd ← `(namespace $i:ident
+      open Classical)
+    elabCommand cmd
+    declareSpecName i.getId
+  | _ => throwUnsupportedSyntax
+
 /-! ## State -/
 
-/-! ### Semantics -/
+@[command_elab Veil.typeDeclaration]
+def elabTypeDeclaration : CommandElab := fun stx => do
+  match stx with
+  | `(type $id:ident) => do
+    let dec_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_dec")
+    let ne_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_ne")
+    let deceq := Lean.mkIdent ``DecidableEq
+    let nemp := Lean.mkIdent ``Nonempty
+    let cmd ← `(variable ($id : Type) [$dec_id : $deceq $id] [$ne_id : $nemp $id])
+    elabCommand cmd
+  | _ => throwUnsupportedSyntax
 
-/-- Defines a `constant`, `relation`, or `function`, validating its type
-before adding it. -/
-def defineStateComponent
-  (comp : StateComponent)
-  (validateTp : Expr → CommandElabM Bool := fun _ => pure true)
-  (failureMsg : StateComponent → CoreM Unit := fun _ => do throwErrorAt (← comp.stx) s!"{comp} is not of the expected type")
-   : CommandElabM Unit := do
-  /- When you include module `M` in your current module, to get access to a field `F` of `M`
-    you would write `M.F`. That is why non-atomic names (those with `.`) might lead to
-    confusion -/
-  unless comp.name.isAtomic do throwError "Invalid name: {comp.name} must be atomic"
-  let sig ← liftCoreM $ comp.getSimpleBinder
-  let tp ← do match sig with
-    /- e.g. `relation initial_msg : address → address → round → value → Prop` -/
-  | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
-    runTermElabM fun _ => elabTerm tp none
-  | _ => throwErrorAt sig "Unsupported syntax {sig}"
-  if ← validateTp tp then
-    liftTermElabM do localSpecCtx.modify (fun s => { s with spec := {s.spec with signature := s.spec.signature.push comp }})
-  else
-    liftCoreM $ failureMsg comp
+@[command_elab Veil.instanceDeclaration]
+def elabInstanceDeclaration : CommandElab := fun stx => do
+  match stx with
+  | `(instantiate $nm:ident : $tp:term) => do
+    let cmd ← `(variable [$nm : $tp])
+    elabCommand cmd
+  | _ => throwUnsupportedSyntax
 
-/-- Define a `relation`. -/
-def defineRelation (comp : StateComponent) : CommandElabM Unit :=
-  defineStateComponent comp
-     (fun (tp : Expr) => do
-      let returnSProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
-      return returnSProp)
-    (fun comp => do throwErrorAt (← comp.stx) "Invalid type: relations must return Prop")
+private def defineStateComponent (mutab : Option (TSyntax `stateMutability)) (kind : TSyntax `stateComponentKind) (name : Name) (tp : StateComponentType) :=
+    let mutability := stxToMut mutab
+    let kind := stxToKind kind
+    let comp := StateComponent.mk mutability kind name tp .none
+    defineStateComponentImpl comp (validateTpFn kind) (failureMsgFn kind)
 
-/-- Define a `function`. -/
-def defineFunction (comp : StateComponent) : CommandElabM Unit :=
-  defineStateComponent comp
-    (fun (tp : Expr) => do return tp.isArrow)
-    (fun comp => do throwErrorAt (← comp.stx) "Invalid type: functions must have arrow type")
+where
+  defineStateComponentImpl (comp : StateComponent) (validateTp : Expr → CommandElabM Bool) (failureMsg : StateComponent → CoreM Unit) := do
+    /- When you include module `M` in your current module, to get access to a
+    field `F` of `M` you would write `M.F`. Hence non-atomic names (those with
+    `.`) might lead to confusion, so we prohibit them. -/
+    unless comp.name.isAtomic do throwError "Invalid name: {comp.name} must be atomic"
+    let sig ← liftCoreM $ comp.getSimpleBinder
+    let tp ← do match sig with
+      /- e.g. `relation initial_msg : address → address → round → value → Prop` -/
+    | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
+      runTermElabM fun _ => elabTerm tp none
+    | _ => throwErrorAt sig "Unsupported syntax {sig}"
+    if ← validateTp tp then
+      liftTermElabM do localSpecCtx.modify (fun s => { s with spec := {s.spec with signature := s.spec.signature.push comp }})
+    else
+      liftCoreM $ failureMsg comp
 
-def isActionSyntax (stack : Syntax.Stack) : Bool :=
-  stack.any (fun (s, _) => s.isOfKind `VeilInit || s.isOfKind `VeilAction)
+  /-- Fields are `mutable` by default. -/
+  stxToMut (m : Option (TSyntax `stateMutability)) : Mutability :=
+    if let some stx := m then
+      match stx with
+      | `(stateMutability|immutable) => Mutability.immutable
+      | `(stateMutability|mutable) => Mutability.mutable
+      | _ => unreachable!
+    else
+      Mutability.mutable
 
-/-- Instruct the linter to not mark state variables as unused in our
-`after_init` and `action` definitions. -/
-def generateIgnoreFn : CommandElabM Unit := do
-  let cmd ← Command.runTermElabM fun _ => do
-    let fieldNames ← getFields
-    let fnIdents ← fieldNames.mapM (fun n => `($(quote n)))
-    let namesArrStx ← `(#[$[$fnIdents],*])
-    let fnStx ← `(fun id stack _ => ($namesArrStx).contains id.getId /-&& isActionSyntax stack-/)
-    let nm := mkIdent $ ← getPrefixedName `ignoreStateFields
-    let ignoreFnStx ← `(@[unused_variables_ignore_fn] def $nm : Lean.Linter.IgnoreFunction := $fnStx)
-    return ignoreFnStx
-  elabCommand cmd
+  stxToKind (k : TSyntax `stateComponentKind) : StateComponentKind :=
+    match k with
+    | `(stateComponentKind|individual) => StateComponentKind.individual
+    | `(stateComponentKind|relation) => StateComponentKind.relation
+    | `(stateComponentKind|function) => StateComponentKind.function
+    | _ => unreachable!
+
+  validateTpFn (kind : StateComponentKind) (tp : Expr) : CommandElabM Bool := do
+    match kind with
+    | .individual => return !tp.isArrow
+    | .relation =>
+      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
+      return returnsProp
+    | .function => return tp.isArrow
+
+  failureMsgFn (kind : StateComponentKind) (comp : StateComponent) : CoreM Unit := do
+    match kind with
+    | .individual => throwErrorAt (← comp.stx) "Invalid type: individuals must not be arrow types"
+    | .relation => throwErrorAt (← comp.stx) "Invalid type: relations must return Prop"
+    | .function => throwErrorAt (← comp.stx) "Invalid type: functions must have arrow type"
+
+@[command_elab Veil.declareStateComponent]
+def elabStateComponentNamed : CommandElab := fun stx => do
+  match stx with
+  | `(command|$mutab:stateMutability ? $kind:stateComponentKind $name:ident $br:bracketedBinder* : $dom:term) => do
+    defineIt mutab kind name br dom
+  | `(command|$mutab:stateMutability ? relation $name:ident $br:bracketedBinder*) => do
+    let kind ← `(stateComponentKind|relation)
+    let dom ← `(Prop)
+    defineIt mutab kind name br dom
+  -- FIXME: show a better error message when user forgets to specify domain type
+  | _ => throwUnsupportedSyntax
+where
+  defineIt (mutab : Option (TSyntax `stateMutability)) (kind : TSyntax `stateComponentKind) (name : Ident) (br : TSyntaxArray ``Term.bracketedBinder) (dom : TSyntax `term) := do
+    if !br.isEmpty then
+      defineStateComponent mutab kind name.getId (.complex br dom)
+    else
+      let sig ← `(Command.structSimpleBinder|$name:ident : $dom)
+      defineStateComponent mutab kind name.getId (.simple sig)
+
+@[command_elab Veil.declareDependency]
+def elabDependency : CommandElab := fun stx => do
+  match stx with
+  | `(command|includes $nm:ident $ts:term* $ma:moduleAbbrev) => do
+      let name := nm.getId
+      checkModuleExists name
+      checkCorrectInstantiation name ts
+      let modAlias := if let `(Veil.moduleAbbrev| as $al) := ma then al.getId else name
+      let modParams := (<- globalSpecCtx.get)[name]!.parameters
+      let modDep : ModuleDependency := {
+        name := name,
+        parameters := modParams,
+        arguments := ts
+      }
+      let stateArgs ← Command.runTermElabM fun _ => getStateArguments modParams ts
+      let sig ← `(Command.structSimpleBinder|$(mkIdent modAlias):ident : @$(mkIdent $ name ++ `State) $stateArgs*)
+      -- FIXME: we MUST respect the `mutable`/`immutable` attribute of the
+      -- dependency's state components, but we currently don't!
+      let mutab ← `(stateMutability|mutable)
+      let kind ← `(stateComponentKind|individual)
+      defineStateComponent mutab kind modAlias (.simple sig)
+      trace[veil.debug] "lifting state from module {name} as {modAlias}:\n{stx}"
+      localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (modAlias, modDep) })
+  | _ => throwUnsupportedSyntax
+
 
 /-- We support executing actions from dependent modules is by `monadLift`ing
 them to the current module's state. This function generates the
@@ -103,35 +180,6 @@ def genStateExtInstances : CommandElabM Unit := do
     trace[veil.debug] "Generating state extension instance {inst}"
     elabCommand inst
     trace[veil.info] "State extension instance is defined"
-
-declare_syntax_cat actionType
-syntax (name := inputAction) "input" : actionType
-syntax (name := internalAction) "internal" : actionType
-syntax (name := outputAction) "output" : actionType
-
-/-- Transition defined via a two-state relation. -/
-syntax (actionType)? "transition" ident (explicitBinders)? "=" term : command
-
--- /-- Transition defined via a two-state relation. -/
--- syntax (priority := high) (actionType)? "transition" ident (explicitBinders)? "=" "{" term "}" : command
-
-elab actT:(actionType)? "transition" nm:ident br:explicitBinders ? "=" "{" t:term "}" : command => do
-  let fields : Array Name <- getFields
-  let mut unchangedFields := #[]
-  for f in fields do
-    unless t.raw.find? (·.getId.toString == f.toString ++ "'") |>.isSome do
-      unchangedFields := unchangedFields.push $ mkIdent f
-  elabCommand $ <- `($actT:actionType ? transition $nm $br ? = by
-    intros st st'
-    unhygienic cases st
-    with_rename "'" unhygienic cases st'
-    exact [unchanged|"'"| $unchangedFields*] ∧ ($t))
-
-
-/-- Transition defined as an imperative program in `ActionLang`. We call
-these "actions". All capital letters in `require` and in assignments are
-implicitly quantified. -/
-syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeq "}" : command
 
 def defineDepsActions : CommandElabM Unit := do
   for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
@@ -199,76 +247,28 @@ def assembleState : CommandElabM Unit := do
   -- Do work necessary for module composition
   genStateExtInstances
   defineDepsActions
+where
+  /-- Instruct the linter to not mark state variables as unused in our
+  `after_init` and `action` definitions. -/
+  generateIgnoreFn : CommandElabM Unit := do
+    let cmd ← Command.runTermElabM fun _ => do
+      let fieldNames ← getFields
+      let fnIdents ← fieldNames.mapM (fun n => `($(quote n)))
+      let namesArrStx ← `(#[$[$fnIdents],*])
+      let fnStx ← `(fun id stack _ => ($namesArrStx).contains id.getId /-&& isActionSyntax stack-/)
+      let nm := mkIdent $ ← getPrefixedName `ignoreStateFields
+      let ignoreFnStx ← `(@[unused_variables_ignore_fn] def $nm : Lean.Linter.IgnoreFunction := $fnStx)
+      return ignoreFnStx
+    elabCommand cmd
 
+@[command_elab Veil.genState]
+def elabGenState : CommandElab := fun _stx => do assembleState
 
-/-! ### Syntax -/
-
-declare_syntax_cat state_mutability
-syntax (name := immutable) "immutable" : state_mutability
-syntax (name := mutable) "mutable" : state_mutability
-
-/-- Fields are `mutable` by default. -/
-private def stxToMut (m : Option (TSyntax `state_mutability)) : Mutability :=
-  if let some stx := m then
-    match stx with
-    | `(state_mutability|immutable) => Mutability.immutable
-    | `(state_mutability|mutable) => Mutability.mutable
-    | _ => unreachable!
-  else
-    Mutability.mutable
-
-syntax optModule := ("(" ident")")
-
-/-- Declare an `individual` state component. -/
-elab m:(state_mutability)? "individual" mod:optModule ? sig:Command.structSimpleBinder : command => do
-  let name := match mod with
-    | some mod => match mod with
-      | `(optModule|($id:ident)) => some id.getId
-      | _ => none
-    | none => none
-  let comp := StateComponent.mk (stxToMut m) .individual (← liftCoreM $ getSimpleBinderName sig) (.simple sig) name
-  defineStateComponent comp
-    (fun (tp : Expr) => return !tp.isArrow)
-    (fun comp => do throwErrorAt (← comp.stx) "Invalid type: constants must not be arrow types")
-
-/-- Declare a relation, giving only the type, e.g.
-  ```lean
-  relation R : address → round → Prop
-  ```
--/
-elab m:(state_mutability)? "relation" sig:Command.structSimpleBinder : command => do
-  let rel := StateComponent.mk (stxToMut m) .relation (← liftCoreM $ getSimpleBinderName sig) (.simple sig) none
-  defineRelation rel
-
-/-- Declare a relation, giving names to the arguments, e.g.:
-  ```lean
-  relation sent (n : address) (r : round)
-  ```
--/
-elab m:(state_mutability)? "relation" nm:ident br:(bracketedBinder)* (":" "Prop")? : command => do
-  let rel := StateComponent.mk (stxToMut m) .relation nm.getId (.complex br (← `(Prop))) none
-  defineRelation rel
-
-/-- `function` command saves a State structure field declaration -/
-elab m:(state_mutability)? "function" sig:Command.structSimpleBinder : command => do
-  let func := StateComponent.mk (stxToMut m) .function (← liftCoreM $ getSimpleBinderName sig) (.simple sig) none
-  defineFunction func
-
-/-- Declare a function, giving names to the arguments. Example:
-  ```lean
-  function currentRound (n : address) : round
-  ```
--/
-elab m:(state_mutability)? "function" nm:ident br:(bracketedBinder)* ":" dom:term: command => do
-  let func := StateComponent.mk (stxToMut m) .relation nm.getId (.complex br dom) none
-  defineFunction func
-
-/-- Declare a ghost relation, i.e. a predicate over state. Example:
-  ```lean
-  relation R (r : round) (v : value) := [definition]
-  ```
--/
-elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => do
+/-! ## Ghost relations -/
+@[command_elab Veil.ghostRelationDefinition]
+def elabGhostRelationDefinition : CommandElab := fun stx => do
+  match stx with
+  | `(command|ghost relation $nm:ident $br:bracketedBinder* := $t:term) => do
   liftCoreM errorIfStateNotDefined
   let vd := (<- getScope).varDecls
   -- As we are going to call this predicate explicitly we want to make all
@@ -282,46 +282,29 @@ elab "ghost" "relation" nm:ident br:(bracketedBinder)* ":=" t:term : command => 
       let stx ← `(@[actSimp, invSimp, invSimpTopLevel] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
       trace[veil.debug] "{stx}"
       return stx
-
-syntax moduleAbbrev := ("as" ident)?
-
-elab "includes" nm:ident ts:term:max * ma:moduleAbbrev : command => do
-  let name := nm.getId
-  checkModuleExists name
-  checkCorrectInstantiation name ts
-  let modAlias := if let `(moduleAbbrev| as $al) := ma then al.getId else name
-  let modParams := (<- globalSpecCtx.get)[name]!.parameters
-  let modDep : ModuleDependency := {
-    name := name,
-    parameters := modParams,
-    arguments := ts
-  }
-  let stateArgs ← Command.runTermElabM fun _ => getStateArguments modParams ts
-  let stx ← `(individual ($nm) $(mkIdent modAlias):ident : @$(mkIdent $ name ++ `State) $stateArgs*)
-  trace[veil.debug] "lifting state from module {name} as {modAlias}:\n{stx}"
-  elabCommand stx
-  localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (modAlias, modDep) })
-
-@[inherit_doc assembleState]
-elab "#gen_state" : command => assembleState
+  | _ => throwUnsupportedSyntax
 
 /-! ## Initializers -/
 
-/-- Declare the initial state predicate. -/
-elab "initial" ini:term : command => do
-  liftCoreM errorIfStateNotDefined
-  let vd ← getAssertionParameters
-  elabCommand <| <- Command.runTermElabM fun _ => do
-    -- let stateTp ← getStateTpStx
-    -- let expectedType ← `($stateTp → Prop)
-    let ini ←  simplifyTerm ini
-    let predName := `initialState?
-    -- because of `initDef`, this sets `stsExt.init` with `lang := none`
-    `(@[initDef, initSimp] def $(mkIdent predName) $[$vd]* := $ini)
+@[command_elab Veil.initialStatePredicate]
+def elabInitialStatePredicate : CommandElab := fun stx => do
+  match stx with
+  | `(command|initial $ini) => do
+    liftCoreM errorIfStateNotDefined
+    let vd ← getAssertionParameters
+    elabCommand <| <- Command.runTermElabM fun _ => do
+      -- let stateTp ← getStateTpStx
+      -- let expectedType ← `($stateTp → Prop)
+      let ini ←  simplifyTerm ini
+      let predName := `initialState?
+      -- because of `initDef`, this sets `stsExt.init` with `lang := none`
+      `(@[initDef, initSimp] def $(mkIdent predName) $[$vd]* := $ini)
+  | _ => throwUnsupportedSyntax
 
-/-- Declare the initial state predicate as an imperative program in
-`ActionLang`. -/
-elab (name := VeilInit) "after_init" "{" l:doSeq "}" : command => do
+@[command_elab Veil.initialStateAction]
+def elabInitialStateAction : CommandElab := fun stx => do
+  match stx with
+  | `(command|after_init { $l:doSeq }) => do
     liftCoreM errorIfStateNotDefined
     let (ret, st, st', st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `st_curr, mkIdent `post)
     let vd ← getAssertionParameters
@@ -342,30 +325,31 @@ elab (name := VeilInit) "after_init" "{" l:doSeq "}" : command => do
     liftTermElabM do localSpecCtx.modify (fun s => { s with spec := {s.spec with init := {s.spec.init with lang := .some l}}})
     let sp ← liftTermElabM $ return (← localSpecCtx.get).spec.init
     trace[veil.debug] s!"{sp}"
+  | _ => throwUnsupportedSyntax
 
-/-! ## Actions -/
+/-! ## Transitions -/
 
-def toActionType (stx : TSyntax `actionType) : ActionType :=
+def toActionKind (stx : TSyntax `actionKind) : ActionKind :=
   match stx with
-  | `(actionType|input) => ActionType.input
-  | `(actionType|internal) => ActionType.internal
-  | `(actionType|output) => ActionType.output
+  | `(actionKind|input) => ActionKind.input
+  | `(actionKind|internal) => ActionKind.internal
+  | `(actionKind|output) => ActionKind.output
   | _ => unreachable!
 
-def toActionTypeIdent (stx : TSyntax `actionType) : Ident :=
+def toActionKindIdent (stx : TSyntax `actionKind) : Ident :=
   mkIdent $ match stx with
-  | `(actionType|input) => ``ActionType.input
-  | `(actionType|internal) => ``ActionType.internal
-  | `(actionType|output) => ``ActionType.output
+  | `(actionKind|input) => ``ActionKind.input
+  | `(actionKind|internal) => ``ActionKind.internal
+  | `(actionKind|output) => ``ActionKind.output
   | _ => unreachable!
 
 /-- `action foo` means `internal action foo` -/
-def parseActionTypeStx (stx : Option (TSyntax `actionType)) : CommandElabM (TSyntax `actionType) := do
-  return stx.getD $ ← `(actionType|internal)
+def parseActionKindStx (stx : Option (TSyntax `actionKind)) : CommandElabM (TSyntax `actionKind) := do
+  return stx.getD $ ← `(actionKind|internal)
 
 open Command Term in
 /-- Record the action type and signature of this action in the `localSpecificationCtx`.  -/
-def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
+def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
   trace[veil.debug] s!"registering action {actT} {nm}"
   let moduleName <- getCurrNamespace
   Command.runTermElabM fun _ => do
@@ -376,7 +360,7 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
     | none => pure $ TSyntaxArray.mk #[]
     let ctor ← `(ctor| | $nm:ident $br* : $labelTypeName)
     let actdecl : ActionDeclaration := {
-      type := toActionType actT,
+      kind := toActionKind actT,
       name := name,
       ctor := ctor
     }
@@ -390,6 +374,88 @@ def registerIOActionDecl (actT : TSyntax `actionType) (nm : TSyntax `ident) (br 
           if t.name == moduleName ++ name then
             { t with decl := actdecl }
           else t})
+
+/-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
+def elabCallableTr (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
+    let vd ← getImplicitActionParameters
+    -- `nm.unsimplified`
+    let (uName, fnName, extName, trName) := (toUnsimplifiedIdent nm, nm, toExtIdent nm, toTrIdent nm)
+    let (unsimplifiedDef, trDef, extDef, fnDef) ← Command.runTermElabM fun vs => do
+      let stateTpT ← getStateTpStx
+      let trType <- `($stateTpT -> $stateTpT -> Prop)
+      -- Create binders and arguments
+      let sectionArgs ← getSectionArgumentsStx vs
+      let (univBinders, args) ← match br with
+      | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
+      | none => pure (#[], #[])
+      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* : $trType := $tr)
+      trace[veil.debug] "{unsimplifiedDef}"
+      -- `nm.tr`, with existentially quantified arguments
+      let trDef ← do
+        let (st, st') := (mkIdent `st, mkIdent `st')
+        let rhs ← match br with
+        | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, @$uName $sectionArgs* $args* $st $st')
+        | none => `(fun ($st $st' : $stateTpT) => @$uName $sectionArgs* $args* $st $st')
+        `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWlp rhs))
+      let attr ← toActionAttribute (toActionKind actT)
+      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← unfoldWlp $ ← `((@$uName $sectionArgs* $args*).toWlp .internal)))
+      let extTerm ← `(fun (st : $stateTpT) post => forall? $univBinders*, (@$uName $sectionArgs* $args*).toWlp .external st post)
+      let extDef ← `(@[$attr, actSimp] def $extName $[$vd]* :=  $(<- unfoldWlp extTerm) )
+      trace[veil.debug] "{fnDef}"
+      return (unsimplifiedDef, trDef, extDef, fnDef)
+    -- Declare `nm.unsimplified` and `nm`
+    elabCommand unsimplifiedDef
+    trace[veil.info] "{uName} is defined"
+    elabCommand trDef
+    trace[veil.info] "{fnName} is defined"
+    elabCommand fnDef
+    trace[veil.info] "{trName} is defined"
+    elabCommand extDef
+    trace[veil.info] "{extName} is defined"
+
+
+/-- Show a warning if the given declaration has higher-order quantification -/
+def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
+  let modName <- getCurrNamespace
+  let .some decl := (← getEnv).find? (modName ++ name) | throwError s!"{name} not found"
+  let .some val := decl.value? | throwError s!"{name} has no value"
+  let isFirstOrderUniv ← allHOQuantIsTopLevelForAll val
+  if !isFirstOrderUniv then
+    logWarning s!"{name} is not first-order (and cannot be sent to SMT)"
+
+
+@[command_elab Veil.nativeTransitionDefinition]
+def elabNativeTransition : CommandElab := fun stx => do
+  match stx with
+  | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = $tr) => do
+    liftCoreM errorIfStateNotDefined
+    let actT ← parseActionKindStx actT
+    elabCallableTr actT nm br tr
+    -- warn if this is not first-order
+    Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
+    -- add constructor for label type
+    registerIOActionDecl actT nm br
+  | _ => throwUnsupportedSyntax
+
+
+@[command_elab Veil.transitionDefinition]
+def elabTransition : CommandElab := fun stx => do
+  match stx with
+  | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = { $t:term }) => do
+    let fields : Array Name ← getFields
+    let mut unchangedFields := #[]
+    for f in fields do
+      unless t.raw.find? (·.getId.toString == f.toString ++ "'") |>.isSome do
+        unchangedFields := unchangedFields.push $ mkIdent f
+    let stx ← `($actT:actionKind ? transition $nm $br ? = by
+      intros st st'
+      unhygienic cases st
+      with_rename "'" unhygienic cases st'
+      exact [unchanged|"'"| $unchangedFields*] ∧ ($t))
+    elabCommand stx
+  | _ => throwUnsupportedSyntax
+
+/-! ## Actions -/
 
 def wlpUnfold := [``Wlp.bind, ``Wlp.pure, ``Wlp.get, ``Wlp.set, ``Wlp.modifyGet,
   ``Wlp.assert, ``Wlp.assume, ``Wlp.require, ``Wlp.spec, ``Wlp.lift, ``Wlp.toActProp]
@@ -431,7 +497,7 @@ it defines:
   - `act` : internal action interpretation (for procedure calls) of the action, simplified
   - `act.tr` : (external) transition of the action, with existentially quantified arguments
 -/
-def defineActionFromGenerators (actT : TSyntax `actionType) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (genIName genEName : Name) : CommandElabM Unit := do
+def defineActionFromGenerators (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (genIName genEName : Name) : CommandElabM Unit := do
     let vd ← getImplicitActionParameters
     Command.runTermElabM fun vs => do
       -- Create binders and arguments
@@ -457,8 +523,8 @@ where
     -- We "register" the internal interpretation of the action as an IO automata action
     -- FIXME George: is this the right thing to do?
     if mode == Mode.internal then
-      attr := attr.push (toActionAttribute' (toActionType actT))
-    simpleAddDefn actName act (attr := attr) (type := ← inferType genExp)
+      attr := attr.push (toActionAttribute' (toActionKind actT))
+    simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
     return (actName, actPf)
 
   /-- This generates a two-state transition from the action, with existentially
@@ -550,85 +616,14 @@ specifically it defines:
   - `act` : internal action interpretation (for procedure calls) of the action, simplified
   - `act.tr` : (external) transition of the action, with existentially quantified arguments
 -/
-def defineAction (actT : TSyntax `actionType) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
+def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
   let (genIName, genEName) ← defineActionGenerators act br l
   defineActionFromGenerators actT act br genIName genEName
 
-/-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
-def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
-    let vd ← getImplicitActionParameters
-    -- `nm.unsimplified`
-    let (uName, fnName, extName, trName) := (toUnsimplifiedIdent nm, nm, toExtIdent nm, toTrIdent nm)
-    let (unsimplifiedDef, trDef, extDef, fnDef) ← Command.runTermElabM fun vs => do
-      let stateTpT ← getStateTpStx
-      let trType <- `($stateTpT -> $stateTpT -> Prop)
-      -- Create binders and arguments
-      let sectionArgs ← getSectionArgumentsStx vs
-      let (univBinders, args) ← match br with
-      | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
-      | none => pure (#[], #[])
-      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* : $trType := $tr)
-      trace[veil.debug] "{unsimplifiedDef}"
-      -- `nm.tr`, with existentially quantified arguments
-      let trDef ← do
-        let (st, st') := (mkIdent `st, mkIdent `st')
-        let rhs ← match br with
-        | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, @$uName $sectionArgs* $args* $st $st')
-        | none => `(fun ($st $st' : $stateTpT) => @$uName $sectionArgs* $args* $st $st')
-        `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWlp rhs))
-      let attr ← toActionAttribute (toActionType actT)
-      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← unfoldWlp $ ← `((@$uName $sectionArgs* $args*).toWlp .internal)))
-      let extTerm ← `(fun (st : $stateTpT) post => forall? $univBinders*, (@$uName $sectionArgs* $args*).toWlp .external st post)
-      let extDef ← `(@[$attr, actSimp] def $extName $[$vd]* :=  $(<- unfoldWlp extTerm) )
-      trace[veil.debug] "{fnDef}"
-      return (unsimplifiedDef, trDef, extDef, fnDef)
-    -- Declare `nm.unsimplified` and `nm`
-    elabCommand unsimplifiedDef
-    trace[veil.info] "{uName} is defined"
-    elabCommand trDef
-    trace[veil.info] "{fnName} is defined"
-    elabCommand fnDef
-    trace[veil.info] "{trName} is defined"
-    elabCommand extDef
-    trace[veil.info] "{extName} is defined"
-
-
-/-- Show a warning if the given declaration has higher-order quantification -/
-def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
-  let module <- getCurrNamespace
-  let .some decl := (← getEnv).find? (module ++ name) | throwError s!"{name} not found"
-  let .some val := decl.value? | throwError s!"{name} has no value"
-  let isFirstOrderUniv ← allHOQuantIsTopLevelForAll val
-  if !isFirstOrderUniv then
-    logWarning s!"{name} is not first-order (and cannot be sent to SMT)"
-
-syntax (actionType)? "action" ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
--- syntax (actionType)? "action" ident (explicitBinders)? "=" "{" doSeqVeil "}" : command
-
-def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
-  (pre post : Term) (ret : TSyntax `rcasesPat) : CommandElabM Unit := do
-  try
-    elabCommand $ ← Command.runTermElabM fun vs => do
-      let st := mkIdent `st
-      let thmName := mkIdent $ nm.getId ++ `spec_correct
-      let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
-      let br <- (explicitBindersIdents <$> br) |>.getD (pure #[])
-      let stx <- `(theorem $thmName $br' * : ∀ $st:ident,
-          (fun s => funcases s $pre) $st ->
-          @$nm $(← getSectionArgumentsStx vs)* $br* $st (by rintro $ret; exact (funcases $post)) := by
-          intro
-          solve_clause)
-      trace[veil.debug] "{stx}"
-      return stx
-    trace[veil.info] "{nm} specification is verified"
-  catch e =>
-    throwError s!"Error while checking the specification of {nm}:" ++ e.toMessageData
-
-
-def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
+def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
     liftCoreM errorIfStateNotDefined
-    let actT ← parseActionTypeStx actT
+    let actT ← parseActionKindStx actT
     -- Create all the action-related declarations
     defineAction actT nm br l
     -- warn if this is not first-order
@@ -649,49 +644,33 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
       let (pre, binder, post) <- getPrePost spec.get!
       defineAction actT (nm.getId ++ `spec |> mkIdent) br spec.get!
       checkSpec nm br pre post binder
+where
+  checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
+  (pre post : Term) (ret : TSyntax `rcasesPat) : CommandElabM Unit := do
+  try
+    elabCommand $ ← Command.runTermElabM fun vs => do
+      let st := mkIdent `st
+      let thmName := mkIdent $ nm.getId ++ `spec_correct
+      let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
+      let br <- (explicitBindersIdents <$> br) |>.getD (pure #[])
+      let stx <- `(theorem $thmName $br' * : ∀ $st:ident,
+          (fun s => funcases s $pre) $st ->
+          @$nm $(← getSectionArgumentsStx vs)* $br* $st (by rintro $ret; exact (funcases $post)) := by
+          intro
+          solve_clause)
+      trace[veil.debug] "{stx}"
+      return stx
+    trace[veil.info] "{nm} specification is verified"
+  catch e =>
+    throwError s!"Error while checking the specification of {nm}:" ++ e.toMessageData
 
-def elabTransition (actT : TSyntax `actionType) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
-    liftCoreM errorIfStateNotDefined
-    elabCallableTr actT nm br tr
-    -- warn if this is not first-order
-    Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
-    -- add constructor for label type
-    registerIOActionDecl actT nm br
-
-/--
-```lean
-transition name binders* = tr
-```
-This command defines lifts a two-state formula into a `Wlp .internal σ Unit`
--/
 elab_rules : command
-  | `(command|$actT:actionType transition $nm:ident $br:explicitBinders ? = $tr) => do
-  elabTransition actT nm br tr
-
-elab_rules : command
-  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => do
+  | `(command|$actT:actionKind ? action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => do
   elabAction actT nm br none l
-  | `(command|$actT:actionType ? action $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) =>
+  | `(command|$actT:actionKind ? action $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) =>
   elabAction actT nm br spec l
 
-/-! ## Assertions -/
-
-declare_syntax_cat propertyName
-syntax "[" ident "]": propertyName
-
-def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
-  match stx with
-  | `(propertyName| [$id]) => id.getId
-  | _ => unreachable!
-
-def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
-  match stx with
-  | some stx => stx.getPropertyName
-  | none => default
-
-syntax "open_isolate" ident ("with" ident+)? : command
-syntax "close_isolate" : command
-
+/-! ## Isolates -/
 elab_rules : command
   | `(command|open_isolate $is:ident $[with $iss:ident*]? ) => do
     let isStore := (<- localIsolates.get).isolateStore
@@ -715,6 +694,19 @@ def addInvariantToIsolate [Monad m] [MonadEnv m] (inv : Name) : m (List Name) :=
   -- localSpecCtx.modify fun s =>
   -- { s with spec.invariants :=
   --   s.spec.invariants.map (fun x => if x.name == inv then { x with isolates := openIs } else x) }
+
+
+/-! ## Assertions -/
+
+def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
+  match stx with
+  | `(propertyName| [$id]) => id.getId
+  | _ => unreachable!
+
+def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
+  match stx with
+  | some stx => stx.getPropertyName
+  | none => default
 
 def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
   liftCoreM errorIfStateNotDefined
@@ -756,21 +748,15 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
     | .assumption | .trustedInvariant => {s.spec with
         assumptions := s.spec.assumptions.map (fun x => if x.name == name then { x with term := t } else x) })})
 
-
-/-- Axiom. All state components referred to must be `immutable`. All
-capital variables are implicitly quantified. -/
-elab "assumption" name:(propertyName)? prop:term : command => defineAssertion (kind := .assumption) name prop
-
-/-- Invariant that is assumed. State components referred to can be `mutable`. All
-capital variables are implicitly quantified. -/
-elab "trusted" "invariant" name:(propertyName)? prop:term : command => defineAssertion (kind := .trustedInvariant) name prop
-
-/-- Safety property. All capital variables are implicitly quantified -/
-elab "safety" name:(propertyName)? safe:term : command => defineAssertion (kind := .safety) name safe
-
-/-- Invariant of the transition system. All capital variables are implicitly quantified -/
-elab "invariant" name:(propertyName)? inv:term : command => defineAssertion (kind := .invariant) name inv
-
+elab_rules : command
+  | `(command|assumption $name:propertyName ? $prop:term) => do
+    defineAssertion .assumption name prop
+  | `(command|invariant $name:propertyName ? $prop:term) => do
+    defineAssertion .invariant name prop
+  | `(command|safety $name:propertyName ? $prop:term) => do
+    defineAssertion .safety name prop
+  | `(command|trusted invariant $name:propertyName ? $prop:term) => do
+    defineAssertion .trustedInvariant name prop
 
 /-! ## Specification Generation -/
 
@@ -812,7 +798,7 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
     let ctors ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do match s.decl.ctor with
       | none => throwError "DSL: missing label constructor for action {s.name}"
       | some ctor => pure ctor)
-    trace[veil] "storing constructors for {name}"
+    trace[veil.info] "storing constructors for {name}"
     `(inductive $labelTypeName where $[$ctors]*)
   trace[veil.info] "Label {labelTypeName} type is defined"
 
@@ -826,7 +812,7 @@ def assembleActionMap : CommandElabM Unit := do
       `(($(quote decl.label.name), $act))
     let actMapStx ← `(IOAutomata.ActionMap.ofList [$[$ioStx],*])
     let actMapStx ← `(def $(mkIdent `actionMap) := $actMapStx)
-    trace[veil] "{actMapStx}"
+    trace[veil.info] "{actMapStx}"
     return actMapStx
 
 /-- Assembles all declared invariants (including safety properties) into
@@ -887,7 +873,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
         safe := @$Safety $sectionArgs*
         inv  := @$Invariant $sectionArgs*
         )
-  trace[veil] "{rtsStx}"
+  trace[veil.info] "{rtsStx}"
   elabCommand rtsStx
   trace[veil.info] "RelationalTransitionSystem instance instantiated"
 
@@ -904,27 +890,5 @@ def genSpec : CommandElabM Unit := do
     -- globally register the spec, so it can be composed with other modules
     registerModuleSpecification (← localSpecCtx.get).spec
 
-elab "#gen_spec" : command => do
-  genSpec
-
-/-! ## Section Variables -/
-
-/- FIXME: This is a bit stupid, but we place these here so they don't
-interfere with the definitions above. For instance, we need to define a
-`structure` with a field named `type` and that gets broken.
-Unfortunately, this means we're breaking all the DSL clients. -/
-macro "type" id:ident : command => do
-  let dec_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_dec")
-  let ne_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_ne")
-  let deceq := Lean.mkIdent ``DecidableEq
-  let nemp := Lean.mkIdent ``Nonempty
-  `(variable ($id : Type) [$dec_id : $deceq $id] [$ne_id : $nemp $id])
--- macro "instantiate" t:term : command => `(variable [$t])
-macro "instantiate" nm:ident " : " t:term : command => `(variable [$nm : $t])
-
-/-- Declaring a Veil module -/
-elab atomic("veil" "module") i:ident : command => do
-  let cmd ← `(namespace $i:ident
-    open Classical)
-  elabCommand cmd
-  declareSpecName i.getId
+elab_rules : command
+  | `(command|#gen_spec) => genSpec

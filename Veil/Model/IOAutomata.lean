@@ -5,16 +5,16 @@ open Lean
 class Label (ℓ : Type) extends BEq ℓ, Hashable ℓ, ToString ℓ, Inhabited ℓ
 instance [BEq ℓ] [Hashable ℓ] [ToString ℓ] [Inhabited ℓ] : Label ℓ := { }
 
-inductive ActionType where
+inductive ActionKind where
   | internal
   | input
   | output
 deriving BEq, Hashable
 
-instance : Inhabited ActionType where
-  default := ActionType.internal
+instance : Inhabited ActionKind where
+  default := ActionKind.internal
 
-instance : ToString ActionType where
+instance : ToString ActionKind where
   toString
     | .internal => "internal"
     | .input => "input"
@@ -32,7 +32,7 @@ instance [Label ℓ]: ToString (ActionLabel ℓ) where
     | ActionLabel.input l => "input " ++ toString l
     | ActionLabel.output l => "output " ++ toString l
 
-def ActionLabel.type {ℓ : Type} [Label ℓ] : ActionLabel ℓ → ActionType
+def ActionLabel.type {ℓ : Type} [Label ℓ] : ActionLabel ℓ → ActionKind
   | .internal _ => .internal
   | .input _ => .input
   | .output _ => .output
@@ -42,23 +42,23 @@ def ActionLabel.name {ℓ : Type} [Label ℓ] : ActionLabel ℓ → ℓ
   | ActionLabel.input l => l
   | ActionLabel.output l => l
 
-def ActionLabel.mk {ℓ : Type} [Label ℓ] (t : ActionType) (l : ℓ) : ActionLabel ℓ :=
+def ActionLabel.mk {ℓ : Type} [Label ℓ] (t : ActionKind) (l : ℓ) : ActionLabel ℓ :=
   match t with
   | .internal => .internal l
   | .input => .input l
   | .output => .output l
 
 structure ActionDeclaration where
-  type: ActionType
+  kind: ActionKind
   name: Lean.Name
   ctor : Option (TSyntax `Lean.Parser.Command.ctor)
 deriving BEq, Inhabited
 
 def ActionDeclaration.label (a : ActionDeclaration) : ActionLabel Name :=
-  ActionLabel.mk a.type a.name
+  ActionLabel.mk a.kind a.name
 
 instance : ToString ActionDeclaration where
-  toString a := s!"{a.type} {a.name} with ctor {a.ctor}"
+  toString a := s!"{a.kind} {a.name} with ctor {a.ctor}"
 
 /-- Actions with labels, which include parameters. -/
 structure Action (σ : Type) (ℓ : Type) [Label ℓ] where

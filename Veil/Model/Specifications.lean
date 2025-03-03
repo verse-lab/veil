@@ -99,12 +99,12 @@ deriving Inhabited, BEq
 
 instance : ToString ActionSpecification where
   toString a := match a.lang with
-    | some lang => s!"{a.decl.type} {a.decl.name} [defined via lang] {lang}"
-    | none => s!"{a.decl.type} {a.decl.name} [defined via expr] {a.expr}"
+    | some lang => s!"{a.decl.kind} {a.decl.name} [defined via lang] {lang}"
+    | none => s!"{a.decl.kind} {a.decl.name} [defined via expr] {a.expr}"
 
 /-- Make an action specification without any DSL-specific information. -/
-def ActionSpecification.mkPlain (type : ActionType) (name : Name) (expr : Expr) : ActionSpecification := {
-  decl := { type := type, name := name, ctor := none },
+def ActionSpecification.mkPlain (type : ActionKind) (name : Name) (expr : Expr) : ActionSpecification := {
+  decl := { kind := type, name := name, ctor := none },
   lang := none,
   spec := none,
   expr := expr
