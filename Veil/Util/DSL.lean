@@ -213,6 +213,21 @@ def toGenName (n : Name) (mode : Mode) : Name :=
   | Mode.external => `genE)
 def toGenIdent (id : Ident) (mode : Mode): Ident := mkIdent $ toGenName id.getId mode
 
+def toGenInstName (n : Name) (mode : Mode) : Name :=
+  n ++ (match mode with
+  | Mode.internal => `genIInst
+  | Mode.external => `genEInst)
+def toGenInstIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toGenInstName id.getId mode
+
+def toActTrEqName (n : Name) : Name := n ++ `act_tr_eq
+def toActTrEqIdent (id : Ident) : Ident := mkIdent $ toActTrEqName id.getId
+
+def toInstName (n : Name) (mode : Mode) : Name :=
+  n ++ (match mode with
+  | Mode.internal => `inst
+  | Mode.external => `instExt)
+def toInstIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toInstName id.getId mode
+
 def toExtName (n : Name) : Name := n ++ `ext
 def toExtIdent (id : Ident) : Ident := mkIdent $ toExtName id.getId
 

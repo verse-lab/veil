@@ -30,7 +30,7 @@ def theoremSuggestionsForChecks' (initIndicators : List Name) (actIndicators : L
           | none => pure (#[], #[])
 
           let body ← do
-            let name1 := actName ++ `act_tr_eq
+            let name1 := toActTrEqName actName
             let name2 := mkTheoremName actName invName
             let name3 := `forall_exists_index
             let name4 := `triple_sound'_ret_unit'

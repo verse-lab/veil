@@ -408,70 +408,25 @@ def defineAction (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option
     Command.runTermElabM fun vs => do
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
-      let (univBinders, args, funBinders) ← match br with
-      | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br, <- toFunBinderArray br)
-      | none => pure (#[], #[], #[])
+      let (args, funBinders) ← match br with
+      | some br => pure (← explicitBindersIdents br, <- toFunBinderArray br)
+      | none => pure (#[], #[])
       -- Create types
       let moduleName <- getCurrNamespace
       let baseName := moduleName ++ nm.getId
-      let (genIName, genExpI) ← genUnsimplified vs funBinders baseName .internal l
-      let (genEName, genExpE) ← genUnsimplified vs funBinders baseName .external l
-      let (actIName, actIPf) ← genSimplified baseName .internal genIName genExpI
-      let (actEName, actEPf) ← genSimplified baseName .external genEName genExpE
-      let (actTrName, actTrStx, actTrPf) ← genTransition vs sectionArgs args baseName
-
+      let (genIName, genExpI) ← genGenerator vs funBinders baseName .internal l
+      let (genEName, genExpE) ← genGenerator vs funBinders baseName .external l
+      let (_actIName, actIPf) ← genAction baseName .internal genIName genExpI
+      let (_actEName, actEPf) ← genAction baseName .external genEName genExpE
+      let (_actTrName, actTrStx, actTrPf) ← genTransition vs sectionArgs args baseName
       if veil.gen_sound.get <| <- getOptions then
-        let trActThmStatement ← `(forall? $[$vd]* , ($actTrStx) = (@$(mkIdent actTrName) $sectionArgs*))
-        let trActThm ← elabTermAndSynthesize trActThmStatement (.some <| .sort .zero)
-        let actTrPf := actTrPf.get!
-        let tytemp ← inferType actTrPf
-        -- the type of `actTrPf` is `fun xs ys => ... = fun xs ys' => ...`
-        -- need to transform it into `forall xs, fun ys ... => ... = fun ys' ... => ...`
-        if let .some (ty, lhs, rhs) := tytemp.eq? then
-          -- here the proof term is hardcoded
-          let proof ← lambdaBoundedTelescope lhs vs.size fun xs _ => do
-            let rhsApplied := mkAppN rhs xs
-            let eq1 ← withLocalDeclD `_a ty fun va => do
-              let vaApplied := mkAppN va xs
-              let eq1 ← mkEq vaApplied rhsApplied
-              mkLambdaFVars #[va] eq1
-            let congrArgUse ← mkAppM ``congrArg #[eq1, actTrPf]
-            let eq2 ← mkEqRefl rhsApplied
-            let proofBody ← mkAppM ``Eq.mpr #[congrArgUse, eq2]
-            mkLambdaFVars xs proofBody
-          addDecl <| Declaration.thmDecl <| mkTheoremValEx (moduleName ++ nm.getId ++ `act_tr_eq) [] trActThm proof []
+        genSoundness vd vs br baseName actTrStx actIPf actEPf actTrPf
 
-        let instETp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genEName):ident $sectionArgs* $args*))
-        let instETp <- elabTermAndSynthesize instETp none
-        let instITp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genIName):ident $sectionArgs* $args*))
-        let instITp <- elabTermAndSynthesize instITp none
-
-        simpleAddThm (moduleName ++ nm.getId ++ `genEInst) instETp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
-        simpleAddThm (moduleName ++ nm.getId ++ `genIInst) instITp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
-        let eqETp <- `(@$(mkIdent genEName) = @$(mkIdent actEName))
-        let eqITp <- `(@$(mkIdent genIName) = @$(mkIdent actIName))
-        let eqETp <- elabTermAndSynthesize eqETp none
-        let eqITp <- elabTermAndSynthesize eqITp none
-        let eqE <- ensureHasType eqETp <| actEPf.getD <| <- mkAppM ``Eq.refl #[mkConst actEName]
-        let eqI <- ensureHasType eqITp <| actIPf.getD <| <- mkAppM ``Eq.refl #[mkConst actIName]
-        let eqE <- Term.exprToSyntax eqE
-        let eqI <- Term.exprToSyntax eqI
-
-        let instETp <- `(forall? $[$vd]* $univBinders*, Sound (m := .external) (@$(mkIdent actEName):ident $sectionArgs* $args*))
-        let instETp <- elabTermAndSynthesize instETp none
-        let instITp <- `(forall? $[$vd]* $univBinders*, Sound (m := .internal) (@$(mkIdent actIName):ident $sectionArgs* $args*))
-        let instITp <- elabTermAndSynthesize instITp none
-
-        simpleAddThm (moduleName ++ nm.getId ++ `instExt) instETp
-          `(tacticSeq|
-            have h : @$(mkIdent genEName) = @$(mkIdent actEName) := $eqE
-            rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
-        simpleAddThm (moduleName ++ nm.getId ++ `inst) instITp
-          `(tacticSeq|
-            have h : @$(mkIdent genIName) = @$(mkIdent actIName) := $eqI
-            rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
 where
-  genUnsimplified (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
+  /-- This creates a generator for the action, which takes asa input the `mode`
+  in which to interpret the action and returns an _unsimplified_ interpretation
+  of the action under that mode. -/
+  genGenerator (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
     let genName := toGenName baseName mode
     let genl ← match mode with
     | Mode.internal => do `(fun $funBinders* => do' .internal in $l)
@@ -483,7 +438,7 @@ where
     simpleAddDefn genName genExp (attr := #[{name := `actSimp}, {name := `reducible}])
     return (genName, genExp)
 
-  genSimplified (baseName : Name) (mode : Mode) (genName : Name) (genExp : Expr) := do
+  genAction (baseName : Name) (mode : Mode) (genName : Name) (genExp : Expr) := do
     let actName := match mode with
     | Mode.internal => baseName
     | Mode.external => toExtName baseName
@@ -507,6 +462,68 @@ where
     let actTr <- instantiateMVars actTr
     simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
     return (actTrName, actTrStx, actTrPf)
+
+  genSoundness (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) (br : Option (TSyntax `Lean.explicitBinders)) (baseName : Name) (actTrStx : TSyntax `term) (actIPf actEPf actTrPf : Option Expr) := do
+    let (actTrName, genEName, genIName, actEName, actIName) :=
+      let actTrName := toTrName baseName
+      let genEName := toGenName baseName .external
+      let genIName := toGenName baseName .internal
+      let actEName := toExtName baseName
+      let actIName := baseName
+      (actTrName, genEName, genIName, actEName, actIName)
+    let sectionArgs ← getSectionArgumentsStx vs
+    let (univBinders, args) ← match br with
+      | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
+      | none => pure (#[], #[])
+
+    let trActThmStatement ← `(forall? $[$vd]* , ($actTrStx) = (@$(mkIdent actTrName) $sectionArgs*))
+    let trActThm ← elabTermAndSynthesize trActThmStatement (.some <| .sort .zero)
+    let actTrPf := actTrPf.get!
+    let tytemp ← inferType actTrPf
+    -- the type of `actTrPf` is `fun xs ys => ... = fun xs ys' => ...`
+    -- need to transform it into `forall xs, fun ys ... => ... = fun ys' ... => ...`
+    if let .some (ty, lhs, rhs) := tytemp.eq? then
+      -- here the proof term is hardcoded
+      let proof ← lambdaBoundedTelescope lhs vs.size fun xs _ => do
+        let rhsApplied := mkAppN rhs xs
+        let eq1 ← withLocalDeclD `_a ty fun va => do
+          let vaApplied := mkAppN va xs
+          let eq1 ← mkEq vaApplied rhsApplied
+          mkLambdaFVars #[va] eq1
+        let congrArgUse ← mkAppM ``congrArg #[eq1, actTrPf]
+        let eq2 ← mkEqRefl rhsApplied
+        let proofBody ← mkAppM ``Eq.mpr #[congrArgUse, eq2]
+        mkLambdaFVars xs proofBody
+      addDecl <| Declaration.thmDecl <| mkTheoremValEx (toActTrEqName baseName) [] trActThm proof []
+
+    let instETp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genEName):ident $sectionArgs* $args*))
+    let instETp <- elabTermAndSynthesize instETp none
+    let instITp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genIName):ident $sectionArgs* $args*))
+    let instITp <- elabTermAndSynthesize instITp none
+
+    simpleAddThm (toGenInstName baseName .external) instETp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
+    simpleAddThm (toGenInstName baseName .internal) instITp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
+    let eqETp <- `(@$(mkIdent genEName) = @$(mkIdent actEName))
+    let eqITp <- `(@$(mkIdent genIName) = @$(mkIdent actIName))
+    let eqETp <- elabTermAndSynthesize eqETp none
+    let eqITp <- elabTermAndSynthesize eqITp none
+    let eqE <- ensureHasType eqETp <| actEPf.getD <| <- mkAppM ``Eq.refl #[mkConst actEName]
+    let eqI <- ensureHasType eqITp <| actIPf.getD <| <- mkAppM ``Eq.refl #[mkConst actIName]
+    let eqE <- Term.exprToSyntax eqE
+    let eqI <- Term.exprToSyntax eqI
+
+    let instETp <- `(forall? $[$vd]* $univBinders*, Sound (m := .external) (@$(mkIdent actEName):ident $sectionArgs* $args*))
+    let instETp <- elabTermAndSynthesize instETp none
+    let instITp <- `(forall? $[$vd]* $univBinders*, Sound (m := .internal) (@$(mkIdent actIName):ident $sectionArgs* $args*))
+    let instITp <- elabTermAndSynthesize instITp none
+    simpleAddThm (toInstName baseName .external) instETp
+      `(tacticSeq|
+        have h : @$(mkIdent genEName) = @$(mkIdent actEName) := $eqE
+        rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
+    simpleAddThm (toInstName baseName .internal) instITp
+      `(tacticSeq|
+        have h : @$(mkIdent genIName) = @$(mkIdent actIName) := $eqI
+        rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
 
 /-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
 def elabCallableTr (actT : TSyntax `actionType) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
@@ -596,7 +613,7 @@ def elabAction (actT : Option (TSyntax `actionType)) (nm : Ident) (br : Option (
           if t.name == nm.getId then
             { t with
               lang := l,
-              hasSpec := spec.isSome,
+              spec := spec,
               br   := br }
           else t }
     unless spec.isNone do

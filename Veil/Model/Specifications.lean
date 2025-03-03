@@ -89,7 +89,7 @@ structure ActionSpecification where
   /-- DSL expression for this action -/
   lang : Option (TSyntax ``Term.doSeq)
   /-- DSL expression for the specificarion of this action -/
-  hasSpec : Bool := false
+  spec : Option (TSyntax ``Term.doSeq)
   /-- Arguments of the current action -/
   br   : Option (TSyntax ``Lean.explicitBinders) := none
   /-- Lean `Expr` for this action; this is usually a constant in the
@@ -106,6 +106,7 @@ instance : ToString ActionSpecification where
 def ActionSpecification.mkPlain (type : ActionType) (name : Name) (expr : Expr) : ActionSpecification := {
   decl := { type := type, name := name, ctor := none },
   lang := none,
+  spec := none,
   expr := expr
 }
 
@@ -115,6 +116,7 @@ def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax ``T
 
 def ActionSpecification.name (a : ActionSpecification) : Name := a.decl.name
 def ActionSpecification.label (a : ActionSpecification) : ActionLabel Name := a.decl.label
+def ActionSpecification.hasSpec (a : ActionSpecification) : Bool := a.spec.isSome
 
 /-- `invariant` and `safety` mean the same thing, but `safety` is as a
 convention used to denote the main, top-level properties of the system,
