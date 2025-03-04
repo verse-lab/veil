@@ -225,3 +225,19 @@ def mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) : TermElabM Expr := do
       let b := go (cnt-1) b
       Expr.lam n d b bi
     | _, _ => e
+
+open Meta in
+/-- Generates a repeated-`op` of all expressions in `exps`, each applied
+to `vs`. For instance, when called with `Or` and the list of actions,
+this gives us the `Next` transition.-/
+def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
+    let exp0 :: exprs := exps
+      | throwError ("There are no " ++ name ++ " defined")
+    let exp0 <- etaExpand exp0
+    let exps <- lambdaTelescope exp0 fun args exp0 => do
+      let mut exps := exp0
+      for exp in exprs do
+        let exp := mkAppN exp args
+        exps <- mkAppM op #[exp, exps]
+      mkLambdaFVars args exps
+    instantiateLambda exps vs
