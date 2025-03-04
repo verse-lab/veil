@@ -24,6 +24,15 @@ def toActionKindIdent (stx : TSyntax `actionKind) : Ident :=
   | `(actionKind|output) => ``ActionKind.output
   | _ => unreachable!
 
+def ActionKind.stx [Monad m] [MonadQuotation m] : ActionKind → m (TSyntax `actionKind)
+  | .input => `(actionKind|input)
+  | .internal => `(actionKind|internal)
+  | .output => `(actionKind|output)
+
+def Mode.stx [Monad m] [MonadQuotation m] : Mode → m (TSyntax `term)
+  | .internal => `(term|$(mkIdent ``Mode.internal))
+  | .external => `(term|$(mkIdent ``Mode.external))
+
 /-- `action foo` means `internal action foo` -/
 def parseActionKindStx (stx : Option (TSyntax `actionKind)) : CommandElabM (TSyntax `actionKind) := do
   return stx.getD $ ← `(actionKind|internal)
@@ -244,33 +253,66 @@ def genStateExtInstances : CommandElabM Unit := do
     elabCommand inst
     trace[veil.info] "State extension instance is defined"
 
+-- def baz (n  q: Nat) := @monadLift (Wlp Mode.internal (Test₁.State node')) (Wlp Mode.internal (State node' node'')) _ Unit (@Test₁.f.genI node' node'_dec node'_ne n q)
+def liftActionGenerators (forAct : TSyntax `ident) (withBinders : Option (TSyntax `Lean.explicitBinders)) (stateTpT : TSyntax `term) (fromBaseGenerator : Name) (instatiatedWithArgs : Array Term) : CommandElabM (Name × Name) := do
+  Command.runTermElabM fun vs => do
+    let baseName := (← getCurrNamespace) ++ forAct.getId
+    let (genIName, _genExpI) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .internal
+    let (genEName, _genExpE) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .external
+    return (genIName, genEName)
+where
+  liftGenerator (liftedActName : Name) (actVs : Array Expr) (actBinders :  Option (TSyntax `Lean.explicitBinders)) (baseNameToLift : Name) (depArgs : Array Term) (mode : Mode)  := do
+    let baseGenName := toGenName baseNameToLift mode
+    let (actParams, actArgs) ← match actBinders with
+    | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
+    | none => pure (#[], #[])
+    let infer ← `(term|_)
+    let (srcWlpType, typeClassInst, retType) := (infer, infer, infer)
+    -- e.g. `Wlp Mode.internal (State node' node'')`
+    let dstWlpType ← `(term|Wlp $(← mode.stx) ($stateTpT))
+    let liftedGenStx ← `(fun $actParams* => @monadLift $srcWlpType $dstWlpType $typeClassInst $retType <| @$(mkIdent baseGenName) $depArgs* $actArgs*)
+    let liftedGenName := toGenName liftedActName mode
+    trace[veil.info] "{liftedGenName} := {liftedGenStx}"
+    let genExp <- withDeclName liftedGenName do elabTermAndSynthesize liftedGenStx .none
+    let wlpSimp := mkIdent `wlpSimp
+    let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
+    let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit actVs genExp
+    simpleAddDefn liftedGenName genExp (attr := #[{name := `actSimp}, {name := `reducible}])
+    return (liftedGenName, genExp)
+
 def defineDepsActions : CommandElabM Unit := do
   for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
-    let ts := dependency.arguments
+    -- arguments with which the dependency was instantiated
+    let depArgs := dependency.arguments
     let globalCtx <- globalSpecCtx.get
-    let some ctx := globalCtx[dependency.name]? | throwError "Module {dependency.name} is not declared"
-    for act in ctx.actions do
-      let actBaseName := dependency.name ++ act.decl.name
+    let some depCtx := globalCtx[dependency.name]? | throwError "Module {dependency.name} is not declared"
+    for actToLift in depCtx.actions do
+      let actBaseName := dependency.name ++ actToLift.decl.name
       -- If an action has a pre-post specification, we use the the specification
-      -- instead of the action itself as the definition of the lifted action.
-      let actName := if act.hasSpec then toSpecName actBaseName else actBaseName
-      let currName := mkIdent <| modAlias ++ actName.componentsRev[0]!
+      -- instead of the action itself as the lifted action. Recall that
+      -- specification are just `action`s` themselves. In particular they have
+      -- `genE` and `genI` generators that we can use to lift the action.
+      let actBaseName := if actToLift.hasSpec then toSpecName actBaseName else actBaseName
+      let liftedName := mkIdent <| modAlias ++ actBaseName.componentsRev[0]!
       -- When we lift an action from a dependency, the binders of the action
       -- may have types that are not syntactically present in the action's
       -- signature. We have to substitute the types with the arguments of the
       -- dependency instantiation. We cannot use `_` to infer the types, since
       -- we use these type arguments to construct the `Label` type, so they
       -- must be explicit.
-      let newBinders ← do match act.br with
+      let liftedBinders ← do match actToLift.br with
         | some br => pure (Option.some (← toBindersWithMappedTypes br (← dependency.typeMapping)))
         | none => pure .none
-      let actArgs <- liftTermElabM do match act.br with
-        | some br => explicitBindersIdents br
-        | _ => return #[]
-      trace[veil.info] "lifting action {actBaseName} from module {dependency.name} to module {← specName} as {currName}"
-      let stx <- `(action $currName:ident $(newBinders)? = { monadLift <| @$(mkIdent $ actName) $ts* $actArgs* })
-      trace[veil.debug] stx
-      elabCommand stx
+      let stateTpT ← liftCoreM $ getStateTpStx
+      trace[veil.info] "lifting action {actBaseName} from module {dependency.name} to module {← specName} as {liftedName}"
+      let actionKind ← actToLift.decl.kind.stx
+      let (genIName, genEName) ← liftActionGenerators liftedName liftedBinders stateTpT actBaseName depArgs
+      defineActionFromGenerators actionKind liftedName liftedBinders genIName genEName
+      -- Important: don't forget to register the label
+      registerIOActionDecl actionKind liftedName liftedBinders
+      -- let stx <- `(action $liftedName:ident $(liftedBinders)? = { monadLift <| @$(mkIdent $ actBaseName) $depArgs* $actArgs* })
+      -- trace[veil.debug] stx
+      -- elabCommand stx
 
 /-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
 def elabCallableTr (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
