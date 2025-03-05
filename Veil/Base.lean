@@ -149,3 +149,7 @@ register_simp_attr actSimp
 
 /-- Attribute added to `Wlp` constructs, to unfold them. -/
 register_simp_attr wlpSimp
+
+/-- Implementation detail. Tagged to `genE` and `genI` instances to unfold them.
+Used to make `lift_transition` work. -/
+register_simp_attr generatorSimp

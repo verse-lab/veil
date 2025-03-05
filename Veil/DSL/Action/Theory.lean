@@ -169,23 +169,48 @@ def getE : get = Wlp.get (σ := σ) (m := m) := rfl
 @[wlpSimp]
 def modifyGetE : modifyGet = Wlp.modifyGet (σ := σ) (ρ := ρ) (m := m) := rfl
 
+/-- `σ` is a sub-state of `σ'` -/
+class IsSubStateOf (σ : semiOutParam Type) (σ' : Type) where
+  /-- Set the small state `σ` in the big one `σ'`, returning the new `σ'` -/
+  setIn : σ -> σ' -> σ'
+  /-- Get the small state `σ` from the big one `σ'` -/
+  getFrom : σ' -> σ
 
-class IsStateExtension (σ : semiOutParam Type) (σ' : Type) where
-  extendWith : σ -> σ' -> σ'
-  restrictTo : σ' -> σ
+  setIn_getFrom_idempotent : ∀ σ', setIn (getFrom σ') σ' = σ'
+  getFrom_setIn_idempotent : ∀ σ σ', getFrom (setIn σ σ') = σ
 
-export IsStateExtension (extendWith restrictTo)
+export IsSubStateOf (setIn getFrom)
 
 @[actSimp]
-def Wlp.lift {σ σ'} [IsStateExtension σ σ'] (act : Wlp m σ ρ) : Wlp m σ' ρ :=
-  fun s' post => act (restrictTo s') (fun r s => post r (extendWith s s'))
+def Wlp.lift {σ σ'} [IsSubStateOf σ σ'] (act : Wlp m σ ρ) : Wlp m σ' ρ :=
+  fun s' post => act (getFrom s') (fun r s => post r (setIn s s'))
 
-instance [IsStateExtension σ σ'] : MonadLift (Wlp m σ) (Wlp m σ') where
+instance [IsSubStateOf σ σ'] : MonadLift (Wlp m σ) (Wlp m σ') where
   monadLift := Wlp.lift
 
 @[wlpSimp]
-def monadLiftE [IsStateExtension σ σ'] : monadLift = Wlp.lift (σ := σ) (σ' := σ') (ρ := ρ) (m := m) := rfl
+def monadLiftE [IsSubStateOf σ σ'] : monadLift = Wlp.lift (σ := σ) (σ' := σ') (ρ := ρ) (m := m) := rfl
 
+/-! ### Lifting transitions -/
+
+/-- This theorem lets us lift a transition in a way that does not introduce
+quantification over `σ` in the lifted transition. -/
+theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : σ -> σ -> Prop) :
+  (@Wlp.lift _  m σ σ' _ (r.toWlp m)).toActProp =
+  fun st st' =>
+    r (getFrom st) (getFrom st') ∧
+    st' = (setIn (@getFrom σ σ' _ st') st)
+  := by
+  unfold Wlp.lift Function.toWlp Wlp.toActProp
+  funext st st'
+  simp only [not_forall, not_imp, Decidable.not_not, eq_iff_iff]
+  constructor
+  {
+    rintro ⟨rs, liftedR, heq⟩
+    simp only [heq, IsSubStateOf.setIn_getFrom_idempotent, IsSubStateOf.getFrom_setIn_idempotent, and_true]
+    apply liftedR
+  }
+  · rintro ⟨baseR, heq⟩; exists (getFrom st'), baseR
 
 /-! ### Soundness proof -/
 
@@ -387,7 +412,7 @@ instance if_sound [Decidable c] [instT: Sound t] [instS : Sound e] : Sound (ite 
   impl := by
     intros; by_cases c <;> simp_all <;> solve_by_elim [instT.impl, instS.impl]
 
-instance (act : Wlp m σ ρ) [IsStateExtension σ σ'] [Sound act] :
+instance (act : Wlp m σ ρ) [IsSubStateOf σ σ'] [Sound act] :
   Sound (act.lift (σ' := σ')) where
   inter := by
     intros; simp_all [Wlp.lift]

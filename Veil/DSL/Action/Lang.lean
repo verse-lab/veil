@@ -47,11 +47,11 @@ macro "unfold_wlp" : conv =>
     Function.toWlp
     -- unfold actions definded via lifting
     monadLift
-    restrictTo
-    extendWith
+    getFrom
+    setIn
     instMonadLiftTOfMonadLift
     MonadLift.monadLift
-    instMonadLiftWlpOfIsStateExtension
+    instMonadLiftWlpOfIsSubStateOf
     instMonadLiftT)
 
 partial def getCapitals (s : Syntax) :=

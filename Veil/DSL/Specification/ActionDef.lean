@@ -92,7 +92,7 @@ where
     let wlpSimp := mkIdent `wlpSimp
     let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
-    simpleAddDefn genName genExp (attr := #[{name := `actSimp}, {name := `reducible}])
+    simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
     return (genName, genExp)
 
 /-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`. This
@@ -139,11 +139,19 @@ where
     let args  ← match br with
       | some br => explicitBindersIdents br
       | none => pure #[]
-    let (actEName, actTrName) := (toExtName baseName, toTrName baseName)
-    let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
+    let (genName, actTrName) := (toGenName baseName .external, toTrName baseName)
+    let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent genName) $sectionArgs* $args*).toActProp st st')
     let actTr <- elabTermAndSynthesize actTrStx none
+    -- For transitions that are lifted from a dependency (i.e. run through
+    -- `.toWlp.lift.toActProp`), simplifying the definitions leads to a
+    -- transition that existentially quantifies over the state of the
+    -- dependency, which is bad. Instead, we apply the `lift_transition`
+    -- theorem, giving us a nicer lifted transition.
+    let ⟨actTr, actTrPf1, _⟩ <- actTr.runSimp `(tactic| simp only [$(mkIdent `generatorSimp):ident, setIn, getFrom, lift_transition])
+    -- After (potentially) `lift_transition` theorem, we simplify as usual
+    let ⟨actTr, actTrPf2, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let actTrPf ← mkEqTrans? actTrPf1 actTrPf2 -- combine the proofs
     let actTr <- mkLambdaFVarsImplicit vs actTr
-    let ⟨actTr, actTrPf, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
     let actTr <- instantiateMVars actTr
     simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
     return (actTrName, actTrStx, actTrPf)
@@ -229,7 +237,7 @@ def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Optio
 
 /-- We support executing actions from dependent modules is by `monadLift`ing
 them to the current module's state. This function generates the
-`IsStateExtension` instances required to do this. -/
+`IsSubStateOf` instances required to do this. -/
 def genStateExtInstances : CommandElabM Unit := do
   let currName <- getCurrNamespace
   let vd := (<- getScope).varDecls
@@ -239,14 +247,17 @@ def genStateExtInstances : CommandElabM Unit := do
       let ts ← dep.stateArguments
       let currTs <- getStateArgumentsStx vd vs
       let alia := mkIdent modAlias
+      let stateExtTypeclass := mkIdent ``IsSubStateOf
       let inst <-
         `(@[actSimp]
           instance :
-           IsStateExtension
+           $stateExtTypeclass
              (@$(mkIdent $ dep.name ++ `State) $ts*)
              (@$(mkIdent $ currName ++ `State) $currTs*) where
-            extendWith := fun s s' => { s' with $alia:ident := s }
-            restrictTo := fun s' => s'.$alia)
+            setIn := fun s s' => { s' with $alia:ident := s }
+            getFrom := fun s' => s'.$alia
+            setIn_getFrom_idempotent := sorry
+            getFrom_setIn_idempotent := sorry)
       insts := insts.push inst
     return insts
   for inst in insts do
@@ -278,7 +289,7 @@ where
     let wlpSimp := mkIdent `wlpSimp
     let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit actVs genExp
-    simpleAddDefn liftedGenName genExp (attr := #[{name := `actSimp}, {name := `reducible}])
+    simpleAddDefn liftedGenName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
     return (liftedGenName, genExp)
 
 def defineDepsActions : CommandElabM Unit := do
@@ -364,49 +375,10 @@ where
     let term ← match mode with
     | Mode.internal => `((@$origName $sectionArgs* $args*).toWlp .internal)
     | Mode.external => `((@$origName $sectionArgs* $args*).toWlp .external)
-    let genl ← `(fun $funBinders* => $(← unfoldWlp term))
+    let genl ← `(fun $funBinders* => $term)
     let genExp <- withDeclName genName do elabTermAndSynthesize genl none
     -- let wlpSimp := mkIdent `wlpSimp
     -- let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
-    simpleAddDefn genName genExp (attr := #[{name := `actSimp}, {name := `reducible}]) («type» := ← inferType genExp)
+    simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}]) («type» := ← inferType genExp)
     return (genName, genExp)
-
-/-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
-def elabCallableTr (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
-    let vd ← getImplicitActionParameters
-    -- `nm.unsimplified`
-    let (uName, fnName, extName, trName) := (toOriginalIdent nm, nm, toExtIdent nm, toTrIdent nm)
-    let (unsimplifiedDef, trDef, extDef, fnDef) ← Command.runTermElabM fun vs => do
-      let stateTpT ← getStateTpStx
-      let trType <- `($stateTpT -> $stateTpT -> Prop)
-      -- Create binders and arguments
-      let sectionArgs ← getSectionArgumentsStx vs
-      let (univBinders, args) ← match br with
-      | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
-      | none => pure (#[], #[])
-      let unsimplifiedDef ← `(@[actSimp] def $uName $[$vd]* $univBinders* : $trType := $tr)
-      trace[veil.debug] "{unsimplifiedDef}"
-      -- `nm.tr`, with existentially quantified arguments
-      let trDef ← do
-        let (st, st') := (mkIdent `st, mkIdent `st')
-        let rhs ← match br with
-        | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, @$uName $sectionArgs* $args* $st $st')
-        | none => `(fun ($st $st' : $stateTpT) => @$uName $sectionArgs* $args* $st $st')
-        `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWlp rhs))
-      let attr ← toActionAttribute (toActionKind actT)
-      let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← unfoldWlp $ ← `((@$uName $sectionArgs* $args*).toWlp .internal)))
-      -- FIXME George: does this actually make sense?
-      let extTerm ← `(fun (st : $stateTpT) post => forall? $univBinders*, (@$uName $sectionArgs* $args*).toWlp .external st post)
-      let extDef ← `(@[$attr, actSimp] def $extName $[$vd]* :=  $(<- unfoldWlp extTerm) )
-      trace[veil.debug] "{fnDef}"
-      return (unsimplifiedDef, trDef, extDef, fnDef)
-    -- Declare `nm.unsimplified` and `nm`
-    elabCommand unsimplifiedDef
-    trace[veil.info] "{uName} is defined"
-    elabCommand trDef
-    trace[veil.info] "{fnName} is defined"
-    elabCommand fnDef
-    trace[veil.info] "{trName} is defined"
-    elabCommand extDef
-    trace[veil.info] "{extName} is defined"
