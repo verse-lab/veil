@@ -290,7 +290,7 @@ def elabNativeTransition : CommandElab := fun stx => do
   | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = $tr) => do
     liftCoreM errorIfStateNotDefined
     let actT ← parseActionKindStx actT
-    elabCallableTr actT nm br tr
+    defineTransition actT nm br tr
     -- warn if this is not first-order
     Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
     -- add constructor for label type

@@ -201,8 +201,8 @@ def toFnName (n : Name) : Name := n ++ `fn
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
 
 /-- See docstring on `toTrName`. -/
-def toUnsimplifiedName (n : Name) : Name := n ++ `unsimplified
-def toUnsimplifiedIdent (id : Ident) : Ident := mkIdent $ toUnsimplifiedName id.getId
+def toOriginalName (n : Name) : Name := n ++ `original
+def toOriginalIdent (id : Ident) : Ident := mkIdent $ toOriginalName id.getId
 
 def toSpecName (n : Name) : Name := n ++ `spec
 def toSpecIdent (id : Ident) : Ident := mkIdent $ toSpecName id.getId

@@ -102,7 +102,7 @@ it defines:
   - `act` : internal action interpretation (for procedure calls) of the action, simplified
   - `act.tr` : (external) transition of the action, with existentially quantified arguments
 -/
-def defineActionFromGenerators (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (genIName genEName : Name) : CommandElabM Unit := do
+def defineActionFromGenerators (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (genIName genEName : Name) (generateTransition : Bool := true): CommandElabM Unit := do
     let vd ← getImplicitActionParameters
     Command.runTermElabM fun vs => do
       -- Create binders and arguments
@@ -110,9 +110,10 @@ def defineActionFromGenerators (actT : TSyntax `actionKind) (act : TSyntax `iden
       let baseName := (← getCurrNamespace) ++ act.getId
       let (_actIName, actIPf) ← genAction baseName .internal genIName
       let (_actEName, actEPf) ← genAction baseName .external genEName
-      let (_actTrName, actTrStx, actTrPf) ← genTransition vs sectionArgs baseName
-      if veil.gen_sound.get <| <- getOptions then
-        genSoundness vd vs br baseName actTrStx actIPf actEPf actTrPf
+      if generateTransition then
+        let (_actTrName, actTrStx, actTrPf) ← genTransition vs sectionArgs baseName
+        if veil.gen_sound.get <| <- getOptions then
+          genSoundness vd vs br baseName actTrStx actIPf actEPf actTrPf
 where
   /-- This generates the 'simplified' (fully unfolded) action interpretation,
   assuming the generator for this `mode` has already been defined and can be
@@ -314,11 +315,68 @@ def defineDepsActions : CommandElabM Unit := do
       -- trace[veil.debug] stx
       -- elabCommand stx
 
+/-- Given `tr` : `σ → σ → Prop` (parametrised over `br`), this defines:
+  - `tr.genI` : internal action interpretation of the action, unsimplified
+  - `tr.genE` : external action interpretation of the action, unsimplified
+
+  This is used to re-cast a transition as an action.
+-/
+def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
+  let vd ← getImplicitActionParameters
+  let baseName := (← getCurrNamespace) ++ nm.getId
+  let (origName, trName) := (toOriginalIdent nm, toTrIdent nm)
+  let (originalDef, trDef) ← Command.runTermElabM fun vs => do
+    let stateTpT ← getStateTpStx
+    let trType <- `($stateTpT -> $stateTpT -> Prop)
+    let sectionArgs ← getSectionArgumentsStx vs
+    let (univBinders, args) ← match br with
+    | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
+    | none => pure (#[], #[])
+    -- We keep the original definition of the transition, as given by the user.
+    let originalDef ← `(@[actSimp] def $origName $[$vd]* $univBinders* : $trType := $tr)
+    -- We also define a `.tr` version, with existentially quantified arguments.
+    -- We do this "manually" rather than reusing the code in `defineActionFromGenerators`
+    -- since our conversion to `Wlp` increases the size of the formula.
+    let trDef ← do
+      let (st, st') := (mkIdent `st, mkIdent `st')
+      let rhs ← match br with
+      | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, @$origName $sectionArgs* $args* $st $st')
+      | none => `(fun ($st $st' : $stateTpT) => @$origName $sectionArgs* $args* $st $st')
+      `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWlp rhs))
+    return (originalDef, trDef)
+  trace[veil.info] "{originalDef}"
+  elabCommand originalDef
+  trace[veil.info] "{trDef}"
+  elabCommand trDef
+  let (genIName, genEName) ← Command.runTermElabM fun vs => do
+    let (genIName, _genExpI) ← genGeneratorFromTransition vs origName baseName .internal
+    let (genEName, _genExpE) ← genGeneratorFromTransition vs origName baseName .external
+    return (genIName, genEName)
+  -- We don't generate the transition based on `Wlp`, since we already have it from the user.
+  defineActionFromGenerators actT nm br genIName genEName (generateTransition := false)
+where
+  genGeneratorFromTransition (vs : Array Expr) (origName : Ident) (baseName : Name) (mode : Mode) := do
+    let genName := toGenName baseName mode
+    let sectionArgs ← getSectionArgumentsStx vs
+    let (funBinders, args) ← match br with
+    | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
+    | none => pure (#[], #[])
+    let term ← match mode with
+    | Mode.internal => `((@$origName $sectionArgs* $args*).toWlp .internal)
+    | Mode.external => `((@$origName $sectionArgs* $args*).toWlp .external)
+    let genl ← `(fun $funBinders* => $(← unfoldWlp term))
+    let genExp <- withDeclName genName do elabTermAndSynthesize genl none
+    -- let wlpSimp := mkIdent `wlpSimp
+    -- let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
+    let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
+    simpleAddDefn genName genExp (attr := #[{name := `actSimp}, {name := `reducible}]) («type» := ← inferType genExp)
+    return (genName, genExp)
+
 /-- Elaborates a two-state transition. FIXME: get rid of code duplication with `elabCallableFn`. -/
 def elabCallableTr (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
     let vd ← getImplicitActionParameters
     -- `nm.unsimplified`
-    let (uName, fnName, extName, trName) := (toUnsimplifiedIdent nm, nm, toExtIdent nm, toTrIdent nm)
+    let (uName, fnName, extName, trName) := (toOriginalIdent nm, nm, toExtIdent nm, toTrIdent nm)
     let (unsimplifiedDef, trDef, extDef, fnDef) ← Command.runTermElabM fun vs => do
       let stateTpT ← getStateTpStx
       let trType <- `($stateTpT -> $stateTpT -> Prop)
@@ -338,6 +396,7 @@ def elabCallableTr (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Opti
         `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWlp rhs))
       let attr ← toActionAttribute (toActionKind actT)
       let fnDef ← `(@[$attr, actSimp] def $fnName $[$vd]* $univBinders* := $(← unfoldWlp $ ← `((@$uName $sectionArgs* $args*).toWlp .internal)))
+      -- FIXME George: does this actually make sense?
       let extTerm ← `(fun (st : $stateTpT) post => forall? $univBinders*, (@$uName $sectionArgs* $args*).toWlp .external st post)
       let extDef ← `(@[$attr, actSimp] def $extName $[$vd]* :=  $(<- unfoldWlp extTerm) )
       trace[veil.debug] "{fnDef}"
