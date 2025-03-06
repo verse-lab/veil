@@ -111,9 +111,9 @@ def defineActionFromGenerators (actT : TSyntax `actionKind) (act : TSyntax `iden
       let (_actIName, actIPf) ← genAction baseName .internal genIName
       let (_actEName, actEPf) ← genAction baseName .external genEName
       if generateTransition then
-        let (_actTrName, actTrStx, actTrPf) ← genTransition vs sectionArgs baseName
+        genTransition vs sectionArgs baseName
         if veil.gen_sound.get <| <- getOptions then
-          genSoundness vd vs br baseName actTrStx actIPf actEPf actTrPf
+          genSoundness vd vs br baseName actIPf actEPf
 where
   /-- This generates the 'simplified' (fully unfolded) action interpretation,
   assuming the generator for this `mode` has already been defined and can be
@@ -147,79 +147,54 @@ where
     -- transition that existentially quantifies over the state of the
     -- dependency, which is bad. Instead, we apply the `lift_transition`
     -- theorem, giving us a nicer lifted transition.
-    let ⟨actTr, actTrPf1, _⟩ <- actTr.runSimp `(tactic| simp only [$(mkIdent `generatorSimp):ident, setIn, getFrom, lift_transition])
+    let ⟨actTr, _, _⟩ <- actTr.runSimp `(tactic| simp only [$(mkIdent `generatorSimp):ident, setIn, getFrom, lift_transition])
     -- After (potentially) `lift_transition` theorem, we simplify as usual
-    let ⟨actTr, actTrPf2, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
-    let actTrPf ← mkEqTrans? actTrPf1 actTrPf2 -- combine the proofs
+    let ⟨actTr, _, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
     let actTr <- mkLambdaFVarsImplicit vs actTr
     let actTr <- instantiateMVars actTr
     simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
-    return (actTrName, actTrStx, actTrPf)
 
   /-- This generates type class instances that are required to prove the
   _soundness_ of the translation of the imperative action into the two-state
   transition. This can be expensive, so it is off by default. -/
-  genSoundness (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) (br : Option (TSyntax `Lean.explicitBinders)) (baseName : Name) (actTrStx : TSyntax `term) (actIPf actEPf actTrPf : Option Expr) := do
-    let (actTrName, genEName, genIName, actEName, actIName) :=
-      let actTrName := toTrName baseName
-      let genEName := toGenName baseName .external
-      let genIName := toGenName baseName .internal
-      let actEName := toExtName baseName
-      let actIName := baseName
-      (actTrName, genEName, genIName, actEName, actIName)
+  genSoundness (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) (br : Option (TSyntax `Lean.explicitBinders)) (baseName : Name) (actIPf actEPf : Option Expr) := do
+    let (actTrName, genEName, genIName, actEName, actIName) := (toTrName baseName, toGenName baseName .external, toGenName baseName .internal, toExtName baseName, baseName)
     let sectionArgs ← getSectionArgumentsStx vs
     let (univBinders, args) ← match br with
       | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
       | none => pure (#[], #[])
 
+    let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
     let trActThmStatement ← `(forall? $[$vd]* , ($actTrStx) = (@$(mkIdent actTrName) $sectionArgs*))
-    let trActThm ← elabTermAndSynthesize trActThmStatement (.some <| .sort .zero)
-    let actTrPf := actTrPf.get!
-    let tytemp ← inferType actTrPf
-    -- the type of `actTrPf` is `fun xs ys => ... = fun xs ys' => ...`
-    -- need to transform it into `forall xs, fun ys ... => ... = fun ys' ... => ...`
-    if let .some (ty, lhs, rhs) := tytemp.eq? then
-      -- here the proof term is hardcoded
-      let proof ← lambdaBoundedTelescope lhs vs.size fun xs _ => do
-        let rhsApplied := mkAppN rhs xs
-        let eq1 ← withLocalDeclD `_a ty fun va => do
-          let vaApplied := mkAppN va xs
-          let eq1 ← mkEq vaApplied rhsApplied
-          mkLambdaFVars #[va] eq1
-        let congrArgUse ← mkAppM ``congrArg #[eq1, actTrPf]
-        let eq2 ← mkEqRefl rhsApplied
-        let proofBody ← mkAppM ``Eq.mpr #[congrArgUse, eq2]
-        mkLambdaFVars xs proofBody
-      addDecl <| Declaration.thmDecl <| mkTheoremValEx (toActTrEqName baseName) [] trActThm proof []
+    let trActThm ← elabTermAndSynthesize trActThmStatement mkProp
+    let ⟨afterSimp, thmPf, _⟩ <- trActThm.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    if !afterSimp.isTrue then
+      throwError "[genSoundness] {trActThmStatement} could not be proven by `simp`"
+    let proof ← match thmPf with
+    | some thmPf => mkAppM ``of_eq_true #[thmPf]
+    | none => mkEqRefl trActThm -- `simp` returns no proof if the statement is true by reflexivity
 
-    let instETp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genEName):ident $sectionArgs* $args*))
-    let instETp <- elabTermAndSynthesize instETp none
-    let instITp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genIName):ident $sectionArgs* $args*))
-    let instITp <- elabTermAndSynthesize instITp none
+    addDecl <| Declaration.thmDecl <| mkTheoremValEx (toActTrEqName baseName) [] trActThm proof []
 
-    simpleAddThm (toGenInstName baseName .external) instETp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
-    simpleAddThm (toGenInstName baseName .internal) instITp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
-    let eqETp <- `(@$(mkIdent genEName) = @$(mkIdent actEName))
-    let eqITp <- `(@$(mkIdent genIName) = @$(mkIdent actIName))
-    let eqETp <- elabTermAndSynthesize eqETp none
-    let eqITp <- elabTermAndSynthesize eqITp none
-    let eqE <- ensureHasType eqETp <| actEPf.getD <| <- mkAppM ``Eq.refl #[mkConst actEName]
-    let eqI <- ensureHasType eqITp <| actIPf.getD <| <- mkAppM ``Eq.refl #[mkConst actIName]
-    let eqE <- Term.exprToSyntax eqE
-    let eqI <- Term.exprToSyntax eqI
+    let genSoundnessInstance (mode : Mode) (genName actName : Name) (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (univBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (sectionArgs args : Array (TSyntax `term)) (actPf : Option Expr) := do
+      let instTp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genName):ident $sectionArgs* $args*))
+      let instTp <- elabTermAndSynthesize instTp none
+      simpleAddThm (toGenInstName baseName mode) instTp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
 
-    let instETp <- `(forall? $[$vd]* $univBinders*, Sound (m := .external) (@$(mkIdent actEName):ident $sectionArgs* $args*))
-    let instETp <- elabTermAndSynthesize instETp none
-    let instITp <- `(forall? $[$vd]* $univBinders*, Sound (m := .internal) (@$(mkIdent actIName):ident $sectionArgs* $args*))
-    let instITp <- elabTermAndSynthesize instITp none
-    simpleAddThm (toInstName baseName .external) instETp
-      `(tacticSeq|
-        have h : @$(mkIdent genEName) = @$(mkIdent actEName) := $eqE
-        rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
-    simpleAddThm (toInstName baseName .internal) instITp
-      `(tacticSeq|
-        have h : @$(mkIdent genIName) = @$(mkIdent actIName) := $eqI
-        rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
+      let eqTp <- `(@$(mkIdent genName) = @$(mkIdent actName))
+      let eqTp <- elabTermAndSynthesize eqTp none
+      let eq <- ensureHasType eqTp <| actPf.getD <| <- mkAppM ``Eq.refl #[mkConst actName]
+      let eq <- Term.exprToSyntax eq
+
+      let instTp <- `(forall? $[$vd]* $univBinders*, Sound (m := $(← mode.stx)) (@$(mkIdent actName):ident $sectionArgs* $args*))
+      let instTp <- elabTermAndSynthesize instTp none
+      simpleAddThm (toInstName baseName mode) instTp
+        `(tacticSeq|
+          have h : @$(mkIdent genName) = @$(mkIdent actName) := $eq
+          rw [<-h]; intros; infer_instance) (attr := #[{name := `instance}])
+
+    genSoundnessInstance .external genEName actEName vd univBinders sectionArgs args actEPf
+    genSoundnessInstance .internal genIName actIName vd univBinders sectionArgs args actIPf
 
 /-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`. More
 specifically it defines:
