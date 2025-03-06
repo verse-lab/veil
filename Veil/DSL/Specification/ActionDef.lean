@@ -123,7 +123,10 @@ where
     | Mode.internal => baseName
     | Mode.external => toExtName baseName
     let genExp := Lean.mkConst genName
-    let act ← genExp |>.runUnfold (genName :: wlpUnfold)
+    -- Here, to account for the case when the action is generated from a transition,
+    -- we also unfold the original definition of the transition.
+    let origName := toOriginalName baseName
+    let act ← genExp |>.runUnfold (genName :: origName :: wlpUnfold)
     let ⟨act, actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
     let mut attr : Array Attribute := #[{name := `actSimp}]
     -- We "register" the internal interpretation of the action as an IO automata action
