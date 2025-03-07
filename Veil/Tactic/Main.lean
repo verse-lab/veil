@@ -258,7 +258,8 @@ elab tk:solveWlp act:ident inv:ident : tactic => withMainContext do
         try simp only [$and_imp:ident, $exists_imp:ident]
         unhygienic intros
         $clearInvs:tactic
-        try simp only [$ifSimp:ident])
+        try simp only [$ifSimp:ident]
+        try sdestruct_hyps)
     let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWlp| solve_wlp_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
