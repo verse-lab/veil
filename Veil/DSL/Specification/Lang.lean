@@ -283,17 +283,6 @@ def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
   if !isFirstOrderUniv then
     logWarning s!"{name} is not first-order (and cannot be sent to SMT)"
 
-def updateLocalSpecCtxAction (nm : Name) (lang spec : Option (TSyntax `Lean.Parser.Term.doSeq))
-    (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
-  localSpecCtx.modify fun s =>
-    { s with spec.actions := s.spec.actions.map fun t =>
-      if t.name == nm then
-        { t with
-          lang := lang,
-          spec := spec,
-          br   := br }
-      else t }
-
 @[command_elab Veil.nativeTransitionDefinition]
 def elabNativeTransition : CommandElab := fun stx => do
   match stx with
@@ -303,11 +292,6 @@ def elabNativeTransition : CommandElab := fun stx => do
     defineTransition actT nm br tr
     -- warn if this is not first-order
     Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
-    -- add constructor for label type
-    registerIOActionDecl actT nm br
-    Command.runTermElabM fun _ => do
-      -- there is no `lang` or `spec` component here
-      updateLocalSpecCtxAction nm.getId none none br
   | _ => throwUnsupportedSyntax
 
 
@@ -338,12 +322,8 @@ def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (
     defineAction actT nm br l
     -- warn if this is not first-order
     Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
-    -- add constructor for label type
-    registerIOActionDecl actT nm br
-    Command.runTermElabM fun _ => do
-      -- [add_action_lang] find the appropriate transition and add the `lang` declaration to it
-      updateLocalSpecCtxAction nm.getId l spec br
     unless spec.isNone do
+      registerActionSpec nm.getId spec
       let (pre, binder, post) <- getPrePost spec.get!
       defineAction actT (nm.getId ++ `spec |> mkIdent) br spec.get!
       checkSpec nm br pre post binder

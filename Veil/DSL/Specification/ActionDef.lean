@@ -37,11 +37,16 @@ def Mode.stx [Monad m] [MonadQuotation m] : Mode → m (TSyntax `term)
 def parseActionKindStx (stx : Option (TSyntax `actionKind)) : CommandElabM (TSyntax `actionKind) := do
   return stx.getD $ ← `(actionKind|internal)
 
+
+def assertActionDeclared [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (op : String) : m Unit := do
+  let actionExists := (← localSpecCtx.get).spec.actions.any fun t => t.name == nm
+  if !actionExists then
+    throwError "Action {nm} has not been declared (trying to {op})"
+
 open Command Term in
 /-- Record the action type and signature of this action in the `localSpecificationCtx`.  -/
 def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
-  trace[veil.debug] s!"registering action {actT} {nm}"
-  let moduleName <- getCurrNamespace
+  assertActionDeclared nm.getId "registerIOActionDecl"
   Command.runTermElabM fun _ => do
     let name := nm.getId
     let labelTypeName := mkIdent `Label
@@ -61,10 +66,33 @@ def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br 
     localSpecCtx.modify (fun s =>
       { s with spec.actions :=
         s.spec.actions.map fun t =>
-          if t.name == moduleName ++ name then
+          if t.name == nm.getId then
             { t with decl := actdecl }
           else t})
 
+def registerActionBinders [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (br : Option (TSyntax `Lean.explicitBinders)) : m Unit := do
+  assertActionDeclared nm "registerActionBinders"
+  localSpecCtx.modify fun s =>
+    { s with spec.actions := s.spec.actions.map fun t =>
+      if t.name == nm then
+        { t with br := br }
+      else t }
+
+def registerActionSyntax [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (lang : TSyntax `Lean.Parser.Term.doSeq) : m Unit := do
+  assertActionDeclared nm "registerActionSyntax"
+  localSpecCtx.modify fun s =>
+    { s with spec.actions := s.spec.actions.map fun t =>
+      if t.name == nm then
+        { t with lang := lang }
+      else t }
+
+def registerActionSpec [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (spec : Option (TSyntax `Lean.Parser.Term.doSeq)) : m Unit := do
+  assertActionDeclared nm "registerActionSpec"
+  localSpecCtx.modify fun s =>
+    { s with spec.actions := s.spec.actions.map fun t =>
+      if t.name == nm then
+        { t with spec := spec }
+      else t }
 
 /-- Given `l` : `Wlp m σ ρ` (parametrised over `br`), this defines:
   - `act.genI` : internal action interpretation of the action, unsimplified
@@ -104,6 +132,9 @@ it defines:
 -/
 def defineActionFromGenerators (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (genIName genEName : Name) (generateTransition : Bool := true): CommandElabM Unit := do
     let vd ← getImplicitActionParameters
+    declareAction (toActionKind actT) act.getId
+    registerIOActionDecl actT act br
+    registerActionBinders act.getId br
     Command.runTermElabM fun vs => do
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
@@ -130,10 +161,6 @@ where
     let act ← act |>.runUnfold [``Function.toWlp, origName]
     let ⟨act, actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
     let mut attr : Array Attribute := #[{name := `actSimp}]
-    -- We "register" the internal interpretation of the action as an IO automata action
-    -- FIXME George: is this the right thing to do?
-    if mode == Mode.internal then
-      attr := attr.push (toActionAttribute' (toActionKind actT))
     simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
     return (actName, actPf)
 
@@ -212,6 +239,8 @@ specifically it defines:
 def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
   let (genIName, genEName) ← defineActionGenerators act br l
   defineActionFromGenerators actT act br genIName genEName
+  registerActionSyntax act.getId l
+
 
 
 /-- We support executing actions from dependent modules is by `monadLift`ing
@@ -299,8 +328,6 @@ def defineDepsActions : CommandElabM Unit := do
       let actionKind ← actToLift.decl.kind.stx
       let (genIName, genEName) ← liftActionGenerators liftedName liftedBinders stateTpT actBaseName depArgs
       defineActionFromGenerators actionKind liftedName liftedBinders genIName genEName
-      -- Important: don't forget to register the label
-      registerIOActionDecl actionKind liftedName liftedBinders
       -- let stx <- `(action $liftedName:ident $(liftedBinders)? = { monadLift <| @$(mkIdent $ actBaseName) $depArgs* $actArgs* })
       -- trace[veil.debug] stx
       -- elabCommand stx
