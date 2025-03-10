@@ -33,15 +33,19 @@ invariant pending L L → le N L
 
 #gen_spec
 
-/-- info:
-The following set of actions must preserve the invariant:
+/--
+info: The following set of actions must preserve the invariant:
   ruin_inv
     single_leader ... ✅
     not_flag ... ❌
     inv_2 ... ✅
     inv_3 ... ✅
+---
+info: Run with `set_option veil.printCounterexamples true` to print counter-examples.
+---
+error: The invariant is not inductive: one clause is not preserved!
 -/
-#guard_msgs in
+#guard_msgs(info, error, drop warning) in
 #check_action ruin_inv
 
 end Ring

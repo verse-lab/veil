@@ -58,7 +58,7 @@ The following set of actions must preserve the invariant:
     inv_1 ... ✅
     inv_2 ... ✅
 -/
-#guard_msgs in
+#guard_msgs(info, error, drop warning) in
 #check_invariants
 
 /-- info:
@@ -68,7 +68,7 @@ The following set of actions must preserve the invariant:
     inv_1 ... ✅
     inv_2 ... ✅
 -/
-#guard_msgs in
+#guard_msgs(info, error, drop warning) in
 #check_action recv
 
 /-- info:
@@ -78,7 +78,7 @@ The following set of actions must preserve the invariant:
     inv_1 ... ✅
     inv_2 ... ✅
 -/
-#guard_msgs in
+#guard_msgs(info, error, drop warning) in
 #check_action send
 
 /-- info:
@@ -90,7 +90,7 @@ The following set of actions must preserve the invariant:
   recv
     single_leader ... ✅
 -/
-#guard_msgs in
+#guard_msgs(info, error, drop warning) in
 #check_invariant single_leader
 
 end Ring

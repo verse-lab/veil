@@ -107,7 +107,7 @@ open Lean.Meta in
     trace[veil.smt.result] "The negation of the goal is satisfiable, hence the goal is valid."
     mv.admit (synthetic := false)
   | .Unsat => throwError "the goal is false"
-  | .Unknown reason => throwError "the solver returned unknown: {reason}"
-  | .Failure reason => throwError "solver invocation failed: {reason}"
+  | .Unknown _ => throwError "the solver returned {res}"
+  | .Failure _ => throwError "solver invocation {res}"
 
 end Veil.SMT

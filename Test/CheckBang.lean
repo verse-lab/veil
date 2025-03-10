@@ -91,6 +91,12 @@ info: @[invProof]
             (@Ring.ruin_inv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.indv_true node node_dec node_ne tot btwn) st' :=
     by (unhygienic intros); solve_clause[Ring.ruin_inv.tr]
+---
+info: Run with `set_option veil.printCounterexamples true` to print counter-examples.
+---
+warning: Trusting the SMT solver for 9 theorems.
+---
+error: The invariant is not inductive: 3 clauses are not preserved!
 -/
 #guard_msgs(whitespace := lax) in
 #check_invariants_tr!

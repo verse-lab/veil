@@ -36,6 +36,32 @@ inductive TheoremSuggestionStyle
   /-- Suggests only theorems that were not proved automatically. -/
   | printUnverifiedTheorems
 
+inductive ProofKind
+  | checkedByLean
+  | trustingSolver
+
+instance : ToString ProofKind where
+  toString kind := match kind with
+    | .checkedByLean => ""
+    | .trustingSolver => " (trusting solver)"
+
+inductive ProofResult
+  | proven (kind : ProofKind)
+  | notProven
+
+instance : ToString ProofResult where
+  toString res := match res with
+    | .proven kind => s!"proven{kind}"
+    | .notProven => "not proven"
+
+def ProofResult.isProven (res : ProofResult) : Bool := match res with
+  | .proven _ => true
+  | .notProven => false
+
+def ProofResult.isAdmitted (res : ProofResult) : Bool := match res with
+  | .proven (.trustingSolver) => true
+  | _ => false
+
 def CheckInvariantsBehaviour := VCGenStyle × CheckStyle × TheoremSuggestionStyle
 def CheckInvariantsBehaviour.default (style : VCGenStyle := .wlp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .doNotPrint)
 def CheckInvariantsBehaviour.question (style : VCGenStyle := .wlp) : CheckInvariantsBehaviour := (style, .noCheck, .printAllTheorems)
@@ -129,26 +155,32 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
     return (initIndicators, acts)
   theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList vcStyle (sorry_body := False)
 
-def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) : CommandElabM Bool := do
+def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) : CommandElabM ProofResult := do
   let env ← getEnv
   -- If the theorem has been defined already, reuse the existing
   -- definition to figure out whether it's proven
   if (← resolveGlobalName thmId.theoremName).isEmpty then
     trace[veil.debug] "Checking theorem {thmId.theoremName} for the first time"
-    elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
+    elabCommand cmd
   else
     trace[veil.debug] "Theorem {thmId.theoremName} has been checked before; reusing result"
   -- Check the `Expr` for the given theorem
   let thFullName ← resolveGlobalConstNoOverloadCore thmId.theoremName
   let th ← getConstInfo thFullName
-  let isProven ← match th with
-    | ConstantInfo.thmInfo attempt => pure <| !attempt.value.hasSyntheticSorry
+  let (isProven, proofKind) ← match th with
+    | ConstantInfo.thmInfo attempt =>
+      -- a synthetic sorry is one introduced by Lean when typechecking the proof script fails
+      -- our tactics introduce a non-synthetic sorry when the solver says `unsat` and we trust the solver
+      let isProven := !attempt.value.hasSyntheticSorry
+      let proofKind := if attempt.value.hasSorry then ProofKind.trustingSolver else ProofKind.checkedByLean
+      pure (isProven, proofKind)
     | _ => throwError s!"checkTheorem: expected {thmId.theoremName} to be a theorem"
   -- We only add the theorem to the environment if it successfully type-checks
   -- i.e. we restore the original environment if the theorem is not proven
   if !isProven then
     setEnv env
-  return isProven
+  let result := if isProven then .proven proofKind else .notProven
+  return result
 
 def Lean.MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
   msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
@@ -157,7 +189,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   CommandElabM Unit := do
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
-  let (vcStyle, checkStyle, suggestionStyle) := behaviour
+  let (vcStyle, _checkStyle, suggestionStyle) := behaviour
   let mut allTheorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle
   match behaviour with
   | (_, .noCheck, .doNotPrint) => pure ()
@@ -167,15 +199,18 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let mut initIdAndResults := #[]
     let mut thmIdAndResults := #[]
     let mut modelStrs := #[]
+    let mut theoremCheckingMsgs : Array MessageLog := #[]
+    let mut (admittedTheorems, unprovenTheorems) := (#[], #[])
     for (thmId, cmd) in allTheorems do
       -- save messages before elaboration
       let origMsgs := (<- get).messages
-      let isProven ← checkIndividualTheorem thmId (← `(#guard_msgs(drop warning) in $(cmd)))
+      let res ← checkIndividualTheorem thmId cmd
       let msgs := (← get).messages
-      let result ← if isProven then pure SmtResult.Unsat else
+      theoremCheckingMsgs := theoremCheckingMsgs.push msgs
+      let result ← if res.isProven then pure SmtResult.Unsat else
         -- The theorem is not proven; we need to figure out why:
         -- either solver returned `sat`, `unknown`, or there was an error
-        let msgsTxt := String.intercalate "\n" (← msgs.toList.mapM (fun msg => msg.toString))
+        let msgsTxt := String.intercalate "\n" (← msgs.toList.filterMapM (fun msg => if msg.severity == .error then msg.toString else pure none))
         let (hasSat, hasUnknown, hasFailure) := (← msgs.containsSubStr Veil.SMT.satGoalStr, ← msgs.containsSubStr Veil.SMT.unknownGoalStr, ← msgs.containsSubStr Veil.SMT.failureGoalStr)
         if hasSat then
           modelStrs := modelStrs.push (s!"{thmId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n")
@@ -184,12 +219,16 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         | false, true, false => SmtResult.Unknown msgsTxt
         | false, false, true => SmtResult.Failure msgsTxt
         | _, _, _ =>
-          dbg_trace s!"[{thmId.theoremName}] (isProven: {isProven}, hasSat: {hasSat}, hasUnknown: {hasUnknown}, hasFailure: {hasFailure}) Unexpected messages: {msgsTxt}"
+          dbg_trace s!"[{thmId.theoremName}] (isProven: {res}, hasSat: {hasSat}, hasUnknown: {hasUnknown}, hasFailure: {hasFailure}) Unexpected messages: {msgsTxt}"
           unreachable!
       if thmId.actName.isNone then
         initIdAndResults := initIdAndResults.push (thmId, result)
       else
         thmIdAndResults := thmIdAndResults.push (thmId, result)
+      if res.isAdmitted then
+        admittedTheorems := admittedTheorems.push thmId
+      if !res.isProven then
+        unprovenTheorems := unprovenTheorems.push thmId
       -- restore messages (similar to `#guard_msgs`)
       modify fun st => { st with messages := origMsgs }
     let initMsgs := getInitCheckResultMessages initIdAndResults.toList
@@ -207,6 +246,18 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         | _ => true)).map (fun (id, _) => id)
       let unverifiedTheorems := (allTheorems.filter (fun (id, _) => unverifiedTheoremIds.any (fun id' => id == id'))).map Prod.snd
       displaySuggestion stx unverifiedTheorems
+    -- emit all messages collected during theorem checking
+    -- let errorMsgs := theoremCheckingMsgs.foldl (fun acc msgs => acc.append msgs) (← get).messages
+    -- modify fun st => { st with messages := errorMsgs }
+    if !unprovenTheorems.isEmpty && (!veil.printCounterexamples.get (← getOptions)) then
+      logInfo s!"Run with `set_option veil.printCounterexamples true` to print counter-examples."
+    if !admittedTheorems.isEmpty then
+      -- let admittedTheoremsStr := String.intercalate ", " (admittedTheorems.toList.map (fun id => id.theoremName.toString))
+      let theoremStr := if admittedTheorems.size == 1 then "one theorem" else s!"{admittedTheorems.size} theorems"
+      logWarning s!"Trusting the SMT solver for {theoremStr}."
+    if !unprovenTheorems.isEmpty then
+      let theoremStr := if unprovenTheorems.size == 1 then "one clause is" else s!"{unprovenTheorems.size} clauses are"
+      throwError "The invariant is not inductive: {theoremStr} not preserved!"
   | (.wlp, .checkTheoremsWithIndicators, _) => throwError "[checkTheorems] wlp style is not supported for checkTheoremsWithIndicators"
   | (.transition, .checkTheoremsWithIndicators, _) =>
     let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
@@ -270,9 +321,11 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         | _ => false)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
     let verifiedTheorems := (← theoremSuggestionsForChecks provenInit provenActs vcStyle)
     for (name, cmd) in verifiedTheorems do
-      -- `drop warning` to not show the sorry warning; `drop error` in case it's been defined before
-      elabCommand (← `(#guard_msgs(drop warning, drop error) in $(cmd)))
-
+      let resolved ← resolveGlobalName name.theoremName
+      if resolved.isEmpty then
+        elabCommand cmd
+      else
+        logInfo s!"{name.theoremName} was proven previously"
     -- Display if needed
     match suggestionStyle with
     | .doNotPrint => pure ()

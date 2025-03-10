@@ -57,6 +57,8 @@ The following set of actions must preserve the invariant:
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
+---
+warning: Trusting the SMT solver for 9 theorems.
 -/
 #guard_msgs in
 #check_invariants)
@@ -69,6 +71,8 @@ The following set of actions must preserve the invariant:
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
+---
+warning: Trusting the SMT solver for 3 theorems.
 -/
 #guard_msgs in
 #check_action $(Lean.mkIdent `recv))
@@ -80,6 +84,8 @@ The following set of actions must preserve the invariant:
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
+---
+warning: Trusting the SMT solver for 3 theorems.
 -/
 #guard_msgs in
 #check_action $(Lean.mkIdent `send))
@@ -93,6 +99,8 @@ The following set of actions must preserve the invariant:
     single_leader ... ✅
   recv
     single_leader ... ✅
+---
+warning: Trusting the SMT solver for 3 theorems.
 -/
 #guard_msgs in
 #check_invariant $(Lean.mkIdent `single_leader))
