@@ -48,13 +48,10 @@ def elabTypeDeclaration : CommandElab := fun stx => do
     elabCommand cmd
   | _ => throwUnsupportedSyntax
 
-@[command_elab Veil.instanceDeclaration]
-def elabInstanceDeclaration : CommandElab := fun stx => do
-  match stx with
-  | `(instantiate $nm:ident : $tp:term) => do
-    let cmd ← `(variable [$nm : $tp])
-    elabCommand cmd
-  | _ => throwUnsupportedSyntax
+/- We use a macro here rather than a command elaborator, since the
+latter seems to trigger the unused variable linter. -/
+macro_rules
+  | `(command|instantiate $nm:ident : $tp:term) => `(variable [$nm : $tp])
 
 private def defineStateComponent (mutab : Option (TSyntax `stateMutability)) (kind : TSyntax `stateComponentKind) (name : Name) (tp : StateComponentType) :=
     let mutability := stxToMut mutab
