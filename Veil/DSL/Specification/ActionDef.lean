@@ -264,8 +264,8 @@ def genStateExtInstances : CommandElabM Unit := do
              (@$(mkIdent $ currName ++ `State) $currTs*) where
             setIn := fun s s' => { s' with $alia:ident := s }
             getFrom := fun s' => s'.$alia
-            setIn_getFrom_idempotent := sorry
-            getFrom_setIn_idempotent := sorry)
+            setIn_getFrom_idempotent := by intros; dsimp only
+            getFrom_setIn_idempotent := by intros; dsimp only)
       insts := insts.push inst
     return insts
   for inst in insts do
