@@ -115,11 +115,29 @@ invariant [allowed_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 
 #gen_spec
 
+-- FIXME: this is much faster with `z3` because our `cvc5` invocation
+-- uses `--finite-model-find`. `cvc5` with no arguments is fast.
 set_option veil.smt.solver "cvc5"
 set_option veil.smt.translator "lean-auto"
 
-#check_invariants
+sat trace {
+  request
+  enter
+  exit
+  request
+  enter
+  exit
+} by bmc_sat
 
+
+unsat trace {
+  enter
+  enter
+  any 2 actions
+} by bmc
+
+
+#check_invariants
 
 @[invProof]
   theorem enter_mutex_manual :
