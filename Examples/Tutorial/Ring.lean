@@ -62,13 +62,13 @@ as "y is between x and z".
     .---.---.
    /         \
   w           z
-  |           |      ring goes clockwise (i.e. w -> x -> y -> z -> w)
+  |           |      ring goes counter-clockwise (i.e. w -> x -> y -> z -> w)
   x           .
    \         /
     .---.---y
 
 The relation `btw x y z` means that `y` lies between `x` and `z` when traversing
-the ring clockwise, as shown in the diagram above.
+the ring counter-clockwise, as shown in the diagram above.
 
 The axioms are as follows:
 - [btw_ring] `∀ x y z, btw x y z → btw y z x`
@@ -76,7 +76,7 @@ The axioms are as follows:
 - [btw_side] `∀ w x y, btw w x y → ¬ btw w y x`
   - this encodes the fact that the ring is unidirectional: it is NOT the case
     that `y` is between `w` and `x` since that would entail going
-    counter-clockwise, which is not allowed
+    clockwise, which is not allowed
 - [btw_total] `∀ w x y, btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y`
 -/
 instantiate btwn : Between node
