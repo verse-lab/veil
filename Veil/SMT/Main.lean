@@ -73,8 +73,8 @@ def failureGoalStr : String := "solver invocation failed"
       let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := veil.smt.model.minimize.get opts)
         | throwError s!"{satGoalStr} (could not get readable model):\n{modelString}"
       throwError s!"{satGoalStr}:{fostruct}"
-    | .Unknown reason => throwError "{unknownGoalStr}: {reason}"
-    | .Failure reason => throwError "{failureGoalStr}: {reason}"
+    | .Unknown reason => throwError "{unknownGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
+    | .Failure reason => throwError "{failureGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
     | .Unsat => mv.admit (synthetic := false)
 
 
