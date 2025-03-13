@@ -203,7 +203,6 @@ invariant [honest_non_conflicting_votes]
 
 set_option maxHeartbeats 10000000
 set_option veil.smt.timeout 15 -- seconds
--- set_option veil.smt.macrofinder true -- Ivy uses this by default
 
 #gen_spec
 

@@ -85,11 +85,6 @@ register_option veil.smt.reconstructProofs : Bool := {
   descr := "Whether to use Lean SMT's proof reconstruction"
 }
 
-register_option veil.smt.macrofinder : Bool := {
-  defValue := false
-  descr := "Whether to use Z3's macro-finder tactic"
-}
-
 /-! ## `simp` attributes
 
 We have a large number of `simp` attributes in Veil, since we want
