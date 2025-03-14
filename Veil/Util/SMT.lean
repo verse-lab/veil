@@ -83,7 +83,7 @@ open Lean Elab Command Term Meta Tactic
 the given expression and then passes it to the SMT translator.-/
 def translateExprToSmt (expr: Expr) : TermElabM String := do
   let g ← mkFreshExprMVar expr
-  let (cmdString, [l]) ← Tactic.run g.mvarId! (do
+  let (cmdString, [_l]) ← Tactic.run g.mvarId! (do
     tryGoal $ run `(tactic|(unhygienic intros); fast_simplify_clause)
     for mvarId in (← Tactic.getGoals) do
       liftM <| mvarId.refl <|> mvarId.inferInstance <|> pure ()

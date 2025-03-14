@@ -8,7 +8,7 @@ def mkTheoremFullActionName (actName : Name) (invName : Name) : Name := s!"{actN
 def mkTrTheoremName (actName : Name) (invName : Name) : Name := s!"{actName.components.getLast!}.tr_{invName.components.getLast!}".toName
 
 -- adapted from `theoremSuggestionsForChecks`
-def theoremSuggestionsForChecks' (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
+def theoremSuggestionsForChecks' (actIndicators : List (Name × Name)): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let sectionArgs ← getSectionArgumentsStx vs
@@ -21,13 +21,12 @@ def theoremSuggestionsForChecks' (initIndicators : List Name) (actIndicators : L
           let trStx ← `(@$(mkIdent trName) $sectionArgs*)
           let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
 
-          let extName := toExtName actName
           let moduleName <- getCurrNamespace
           let some args := (<- localSpecCtx.get).spec.actions.find? (moduleName ++ ·.name == actName)
             | throwError s!"action {actName} not found"
-          let (univBinders, args) ← match args.br with
-          | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
-          | none => pure (#[], #[])
+          let args ← match args.br with
+          | some br => explicitBindersIdents br
+          | none => pure #[]
 
           let body ← do
             let name1 := toActTrEqName actName
@@ -50,8 +49,8 @@ def theoremSuggestionsForChecks' (initIndicators : List Name) (actIndicators : L
       return theorems
 
 -- adapted from `theoremSuggestionsForIndicators`; the only change is to call `theoremSuggestionsForChecks'` instead of the `'`-free one
-def theoremSuggestionsForIndicators' (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (vcStyle : VCGenStyle) : CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
-  let (initIndicators, acts) ← Command.runTermElabM fun _ => do
+def theoremSuggestionsForIndicators' (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
+  let (_, acts) ← Command.runTermElabM fun _ => do
     -- prevent code duplication
     let initIndicators ← invIndicators.mapM (fun (invName, _) => resolveGlobalConstNoOverloadCore invName)
     let actIndicators ← actIndicators.mapM (fun (actName, _) => resolveGlobalConstNoOverloadCore actName)
@@ -60,7 +59,7 @@ def theoremSuggestionsForIndicators' (generateInitThms : Bool) (actIndicators in
       for invName in initIndicators do
         acts := acts.push (actName, invName)
     return (initIndicators, acts)
-  theoremSuggestionsForChecks' (if generateInitThms then initIndicators else []) acts.toList vcStyle (sorry_body := False)
+  theoremSuggestionsForChecks' acts.toList
 
 -- adapted from `checkInvariants` and `checkTheorems`
 -- FIXME: enhance this function, and all related functions, by handling error better, avoiding repeating code, etc.
@@ -68,7 +67,7 @@ def recoverInvariantsInTrStyle : CommandElabM Unit := do
   let (_, invChecks) ← getAllChecks
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
-  let allTheorems ← theoremSuggestionsForIndicators' false actIndicators invIndicators .transition
+  let allTheorems ← theoremSuggestionsForIndicators' actIndicators invIndicators
   for (thmId, cmd) in allTheorems do
     elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
 
