@@ -319,25 +319,74 @@ elab "bmc" : tactic => withMainContext do
   trace[veil.smt] "{tac}"
   evalTactic $ tac
 
-/-- Tactic to solve `sat_trace` goals. -/
-elab "bmc_sat" : tactic => withMainContext do
-  let prep_tac ← `(tactic|
-    (try simplify_all);
-    (try
-      negate_goal;
-      simp only [Classical.exists_elim, Classical.not_not];
-      (unhygienic intros);
-      sdestruct_hyps);
-    (try simplify_all);
-    /- Needed to work around [lean-smt#100](https://github.com/ufmg-smite/lean-smt/issues/100) -/
-    (try rename_binders)
-  )
-  trace[veil.smt] "{prep_tac}"
-  evalTactic prep_tac
-  if (← getUnsolvedGoals).length != 0 then
-    /- After preparing the context, call `sauto` on it. -/
-    withMainContext do
-    let idents ← getPropsInContext
-    let auto_tac ← `(tactic| admit_if_satisfiable [$[$idents:ident],*])
-    trace[veil.smt] "{auto_tac}"
-    evalTactic auto_tac
+open Lean.Meta in
+def bmcSat : TacticM Unit := withMainContext do
+  let originalGoal ← Tactic.getMainGoal
+  -- Operate on a duplicated goal
+  let goal' ← mkFreshExprMVar (← Tactic.getMainTarget)
+  replaceMainGoal [goal'.mvarId!]
+  run `(tactic| simplify_all)
+  if (← getUnsolvedGoals).length == 0 then
+    trace[veil.info] "goal is solved by initial simplification"
+    originalGoal.admit (synthetic := false)
+  else
+    trace[veil.info] "goal is not solved by initial simplification"
+    existIntoForall
+    let simpLemmas := mkSimpLemmas $ #[`smtSimp].map mkIdent
+    withMainContext do run `(tactic| unhygienic intros; sdestruct_hyps; (try simp only [$simpLemmas,*]))
+    if (← getUnsolvedGoals).length == 0 then
+      trace[veil.info] "goal is solved by existential elimination"
+      originalGoal.admit (synthetic := false)
+    else
+      trace[veil.info] "proceeding with SMT"
+      trace[veil.info] "goal: {← Tactic.getMainTarget}"
+      admitIfSat
+      if (← getUnsolvedGoals).length == 0 then
+        originalGoal.admit (synthetic := false)
+      else
+        throwError "goal is not solved by SMT"
+where
+  existIntoForall := withMainContext do
+    let goalType' ← turnExistsIntoForall (← Tactic.getMainTarget)
+    let goal' ← mkFreshExprMVar goalType'
+    replaceMainGoal [goal'.mvarId!]
+  /-- UNSAFE: admits the goal if it is satisfiable, taking into account
+  all hypotheses in the context. -/
+  admitIfSat : TacticM Unit := withMainContext do
+  let opts ← getOptions
+  let mv ← Tactic.getMainGoal
+  let idents ← getPropsInContext
+  let hints ← `(Smt.Tactic.smtHints|[$[$idents:ident],*])
+  let hs ← Smt.Tactic.parseHints ⟨hints⟩
+  let withTimeout := veil.smt.timeout.get opts
+  -- IMPORTANT: `prepareLeanSmtQuery` (in `Smt.prepareSmtQuery`) negates
+  -- the goal (it's designed for validity checking), so we negate it here
+  -- to counter-act this.
+  -- NOTE: we don't respect `veil.smt.translator` here, since we want to
+  -- print a readable model, which requires `lean-smt`.
+  let mv' ← mkFreshExprMVar (mkNot $ ← Tactic.getMainTarget)
+  let leanSmtQueryString ← Veil.SMT.prepareLeanSmtQuery mv'.mvarId! hs
+  let res ← Veil.SMT.querySolver leanSmtQueryString withTimeout (retryOnUnknown := true)
+  match res with
+  | .Sat .none => mv.admit (synthetic := false)
+  | .Sat (some modelString) =>
+    -- try to generate a readable model, using `lean-smt`
+    let resStr := match ← Veil.SMT.getReadableModel leanSmtQueryString withTimeout (minimize := veil.smt.model.minimize.get opts) with
+    | .some fostruct => s!"{fostruct}"
+    | .none => s!"(could not get readable model)\n{modelString}"
+    logInfo resStr
+    mv.admit (synthetic := false)
+  | .Unknown reason => throwError "{Veil.SMT.unknownGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
+  | .Failure reason => throwError "{Veil.SMT.failureGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
+  | .Unsat => throwError "{Veil.SMT.satGoalStr}"
+
+/-- Tactic to solve `sat trace` goals.
+
+Given a goal of the form `∃ x, P x` (valid), we prove it by showing `P c`
+is _satisfiable_ for some constant `c`.
+
+In principle, we could use the model returned by the SMT solver to
+instantiate the existential quantifiers, and thus avoid the need to
+trust the solver, but this is not implemented yet.
+-/
+elab "bmc_sat" : tactic => bmcSat

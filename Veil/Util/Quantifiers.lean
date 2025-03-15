@@ -220,7 +220,7 @@ abbrev QuantElimM := StateT QEState n
 
 def isHigherOrder (e : Expr) : MetaM Bool := do
   let t ← inferType e
-  let isHO := !t.isProp && (e.isArrow || e.isAppOf (← getStateName))
+  let isHO := (!t.isProp) && (e.isArrow || e.isAppOf (← getStateName))
   return isHO
 
 partial def forEachExprSane'

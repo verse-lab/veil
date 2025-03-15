@@ -127,11 +127,12 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     -- unsat trace -> ∀ states, ¬ (conjunction of assertions)
     let stateTp ← getStateTpStx
     let binderNames : Array (TSyntax ``Lean.binderIdent) := stateNames.map toBinderIdent
+    let vdE ← vd.mapM toExplicitBinders
     let assertion ← match r with
-    | `(expected_smt_result| unsat) => `(∀ ($[$stateNames]* : $stateTp), ¬ $conjunction)
-    | `(expected_smt_result| sat) => `(∃ ($[$binderNames]* : $stateTp), $conjunction)
+    | `(expected_smt_result| unsat) => `(∀ $[$vd]* ($[$stateNames]* : $stateTp), ¬ $conjunction)
+    | `(expected_smt_result| sat) => `(∃ $[$vdE]* ($[$binderNames]* : $stateTp), $conjunction)
     | _ => dbg_trace "expected result is neither sat nor unsat!" ; unreachable!
-    `(theorem $th_id $[$vd]* : $assertion := by exact $pf)
+    `(theorem $th_id : $assertion := by exact $pf)
   elabCommand $ th
 
 elab_rules : command

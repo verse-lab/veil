@@ -77,37 +77,4 @@ def failureGoalStr : String := "solver invocation failed"
     | .Failure reason => throwError "{failureGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
     | .Unsat => mv.admit (synthetic := false)
 
-
-open Lean.Meta in
-/-- UNSAFE: Switches the goal with its negation!
-    This is unsound unless we use `admit_if_satisfiable` on the resulting goal! -/
-elab "negate_goal" : tactic => withMainContext do
-  let goal ← getMainGoal
-  let goalType ← getMainTarget
-  let negatedGoalType ← mkAppM `Not #[goalType]
-  let negatedGoal ← mkFreshExprMVar $ negatedGoalType
-  goal.admit (synthetic := false)
-  setGoals [negatedGoal.mvarId!]
-
-syntax (name := admit_if_satisfiable) "admit_if_satisfiable" Smt.Tactic.smtHints Smt.Tactic.smtTimeout : tactic
-
-open Lean.Meta in
-/-- UNSAFE: admits the goal if it is satisfiable.
-    This is unsound unless we use `negate_goal` on the goal first!
-    MOREOVER, we need to pass in all the hypotheses in the context.
--/
-@[tactic admit_if_satisfiable] def evalAdmitIfSat : Tactic := fun stx => withMainContext do
-  let mv ← Tactic.getMainGoal
-  let hs ← Smt.Tactic.parseHints ⟨stx[1]⟩
-  let withTimeout ← parseTimeout ⟨stx[2]⟩
-  let cmdString ← Veil.SMT.prepareLeanSmtQuery mv hs
-  let res ← Veil.SMT.querySolver cmdString withTimeout (retryOnUnknown := true)
-  match res with
-  | .Sat _ =>
-    trace[veil.smt.result] "The negation of the goal is satisfiable, hence the goal is valid."
-    mv.admit (synthetic := false)
-  | .Unsat => throwError "the goal is false"
-  | .Unknown _ => throwError "the solver returned {res}"
-  | .Failure _ => throwError "solver invocation {res}"
-
 end Veil.SMT

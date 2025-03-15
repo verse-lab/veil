@@ -69,7 +69,10 @@ def HO_exists_push_left_impl : Simp.Simproc := fun e => do
   -- The body of an `∃` is a lambda
   let step : Simp.Step ← lambdaBoundedTelescope eBody (maxFVars := 1) (fun ks lBody => do
       let_expr Exists t' eBody' := lBody | return .continue
-      if (← isHigherOrder t') && !(← isHigherOrder t) then
+      -- We only want to push HO types left over non-HO types. But we must be
+      -- careful: if `t'` depends on the value of the previous binder, we cannot
+      -- swap them.
+      if (← isHigherOrder t') && !(← isHigherOrder t) && !(dependsOn t' ks)  then
         let step : Simp.Step ← lambdaBoundedTelescope eBody' (maxFVars := 1) (fun ks' lBody' => do
           -- swap the quantifiers
           let innerExists := mkAppN e.getAppFn #[t, ← mkLambdaFVars ks lBody']
@@ -82,6 +85,9 @@ def HO_exists_push_left_impl : Simp.Simproc := fun e => do
         return .continue
   )
   return step
+where
+  dependsOn (child : Expr) (deps : Array Expr) : Bool :=
+    child.find? (fun e => deps.contains e) != none
 
 simproc HO_exists_push_left (∃ _ _, _) := HO_exists_push_left_impl
 attribute [quantifierSimp] HO_exists_push_left

@@ -44,6 +44,14 @@ def toBracketedBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSynta
       pure ()
     | _ => throwError "unexpected syntax in explicit binder: {stx}"
     return binders
+/-- Convert definition binders into existential binders. -/
+def toExplicitBinders [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m (TSyntax `Lean.bracketedExplicitBinders) := do
+  match stx with
+  | `(bracketedBinder| ($id:ident : $tp:term))
+  | `(bracketedBinder| [$id:ident : $tp:term])
+  | `(bracketedBinder| {$id:ident : $tp:term}) =>
+    return ← `(bracketedExplicitBinders|($(toBinderIdent id) : $tp))
+  | _ => throwError "unexpected syntax in explicit binder: {stx}"
 
 /-- Convert existential binders into function binders. -/
 def toFunBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.funBinder) := do
@@ -241,3 +249,12 @@ def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String
         exps <- mkAppM op #[exp, exps]
       mkLambdaFVars args exps
     instantiateLambda exps vs
+
+open Meta in
+partial def turnExistsIntoForall (e : Expr) : MetaM Expr := do
+  match_expr e with
+  | Exists _t eBody =>
+  lambdaBoundedTelescope eBody (maxFVars := 1) (fun ks lBody => do
+    mkForallFVars ks (← turnExistsIntoForall lBody)
+  )
+  | _ => return e
