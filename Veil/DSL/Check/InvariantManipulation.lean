@@ -4,8 +4,8 @@ import Veil.DSL.Check.Main
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
-def mkTheoremFullActionName (actName : Name) (invName : Name) : Name := s!"{actName}_{invName.components.getLast!}".toName
-def mkTrTheoremName (actName : Name) (invName : Name) : Name := s!"{actName.components.getLast!}.tr_{invName.components.getLast!}".toName
+def mkTheoremFullActionName (actName : Name) (invName : Name) : Name := s!"{actName}_{mkStrippedName invName}".toName
+def mkTrTheoremName (actName : Name) (invName : Name) : Name := s!"{mkStrippedName actName}.tr_{mkStrippedName invName}".toName
 
 -- adapted from `theoremSuggestionsForChecks`
 def theoremSuggestionsForChecks' (actIndicators : List (Name × Name)): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do

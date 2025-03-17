@@ -239,6 +239,18 @@ print these to SMT. -/
 def mkPrintableName (n : Name) : Name :=
   Name.mkSimple $ "_".intercalate (n.components.map toString)
 
+/-- Like `mkPrintableName`, but strips the first component of the name. -/
+def mkStrippedName (n : Name) (separator : String := "_") : Name :=
+  s!"{mkString n.components}".toName
+where
+  stripFirst {α : Type} (xs : List α) : List α :=
+    match xs with
+    | [] => []
+    | [x] => [x]
+    | _ :: xs => xs
+  mkString (xs : List Name) : String :=
+    xs.map toString |> stripFirst |> String.intercalate separator
+
 def List.removeDuplicates [BEq α] (xs : List α) : List α :=
   xs.foldl (init := []) fun acc x =>
     if acc.contains x then acc else x :: acc
