@@ -124,8 +124,10 @@ class Interpretation:
     explicitInterpretation: Dict[Tuple, Union[bool, int, SortElement]]
     symbolicInterpretation: Optional[str] = None
 
-    def is_cardinality_related(self) -> bool:
-        return CARDINALITY_VAR_PREFIX in self.decl.name
+    def is_implementation_detail(self) -> bool:
+        is_cardinality_related = CARDINALITY_VAR_PREFIX in self.decl.name
+        is_model_artificial_function = "!" in self.decl.name
+        return is_cardinality_related or is_model_artificial_function
 
     def __to_lisp_as__(self) -> str:
         strs = []
@@ -146,7 +148,7 @@ class Model:
         strs = []
         for sortname, elems in self.sorts.items():
             strs.append(f"(sort |{sortname}| {sexp(elems)})")
-        real_interps = filter(lambda x: not x[1].is_cardinality_related(), self.interps.items())
+        real_interps = filter(lambda x: not x[1].is_implementation_detail(), self.interps.items())
         for _declname, interp in real_interps:
             strs.append(f"{sexp(interp)}")
         return "(\n" + "\n".join(strs) + "\n)"
