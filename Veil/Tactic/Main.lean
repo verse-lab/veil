@@ -327,19 +327,14 @@ def bmcSat : TacticM Unit := withMainContext do
   replaceMainGoal [goal'.mvarId!]
   run `(tactic| simplify_all)
   if (← getUnsolvedGoals).length == 0 then
-    trace[veil.info] "goal is solved by initial simplification"
     originalGoal.admit (synthetic := false)
   else
-    trace[veil.info] "goal is not solved by initial simplification"
     existIntoForall
     let simpLemmas := mkSimpLemmas $ #[`smtSimp].map mkIdent
     withMainContext do run `(tactic| unhygienic intros; sdestruct_hyps; (try simp only [$simpLemmas,*]))
     if (← getUnsolvedGoals).length == 0 then
-      trace[veil.info] "goal is solved by existential elimination"
       originalGoal.admit (synthetic := false)
     else
-      trace[veil.info] "proceeding with SMT"
-      trace[veil.info] "goal: {← Tactic.getMainTarget}"
       admitIfSat
       if (← getUnsolvedGoals).length == 0 then
         originalGoal.admit (synthetic := false)
