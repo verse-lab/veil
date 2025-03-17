@@ -333,10 +333,17 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> tuple[Set[in
 
 
 def _cardinality_constraint(x: Union[z3.SortRef, z3.FuncDeclRef], n: int) -> z3.ExprRef:
+    # minimize sort sizes
     if isinstance(x, z3.SortRef):
         return _sort_cardinality_constraint(x, n)
     else:
-        return _relational_cardinality_constraint(x, n)
+        # minimize relation sizes
+        if x.range() == z3.BoolSort():
+            return _relational_cardinality_constraint(x, n)
+        # we can't minimize functions, so we don't add any constraints
+        else:
+            domain = " -> ".join([x.domain(i).name() for i in range(x.arity())])
+            return z3.BoolVal(True)
 
 def _sort_cardinality_constraint(s: z3.SortRef, n: int) -> z3.ExprRef:
     x = z3.Const(f'{CARDINALITY_VAR_PREFIX}x$', s)
@@ -348,6 +355,7 @@ def _sort_cardinality_constraint(s: z3.SortRef, n: int) -> z3.ExprRef:
     return z3.ForAll(x, z3.Or(*disjs))
 
 def _relational_cardinality_constraint(relation: z3.FuncDeclRef, n: int) -> z3.ExprRef:
+    # we can't minimize constants
     if relation.arity() == 0:
         return z3.BoolVal(True)
 
