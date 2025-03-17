@@ -304,7 +304,7 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> tuple[Set[in
     interp = z3model.eval(z3.Lambda(args, z3decl(*args)),
                           model_completion=True)
     # print(f"interp: {interp}", file=sys.stderr)
-    print(args)
+    # print(args, file=sys.stderr)
     # vp = z3.simplify(interp.__getitem__(*args))
     vp = z3.simplify(interp[*args])
     solver = z3.Solver()
