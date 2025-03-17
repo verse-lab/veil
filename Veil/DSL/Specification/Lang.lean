@@ -248,16 +248,8 @@ def elabInitialStateAction : CommandElab := fun stx => do
   match stx with
   | `(command|after_init { $l:doSeq }) => do
     liftCoreM errorIfStateNotDefined
-    let (ret, st, st', st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `st_curr, mkIdent `post)
-    let vd ← getAssertionParameters
-    -- define initial state action (`Wp`)
-    let act ← Command.runTermElabM fun _ => (do
-      let stateTp ← getStateTpStx
-      `(fun ($st : $stateTp) ($post : SProp $stateTp) => (do' .external in $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
-    elabCommand $ ← Command.runTermElabM fun _ => do
-      let actName := `init
-      `(@[initSimp, actSimp] def $(mkIdent actName) $[$vd]* := $act)
     -- define initial state predicate
+    let (st, st') := (mkIdent `st, mkIdent `st')
     let pred ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
       `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wp.toTwoState (do' .external in $l) $st $st'))
