@@ -21,7 +21,7 @@ def emoji (res : SmtResult) : String :=
   | .Unknown _ => s!"❓"
   | .Failure reason => s!"💥 {reason}"
 
-def getBaseNameForDisplay (n : Name) : Name := mkStrippedName n (separator := ".")
+def getBaseNameForDisplay (n : Name) : Name := stripFirstComponent n
 
 structure TheoremIdentifier where
   invName : Name

@@ -123,6 +123,27 @@ where
     simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
     return (genName, genExp)
 
+def defineInitialActionFromGenerators (act : TSyntax `ident) (genIName genEName : Name) : CommandElabM Unit := do
+    Command.runTermElabM fun _ => do
+      -- Create binders and arguments
+      let baseName := (← getCurrNamespace) ++ act.getId
+      let _actIName ← genInitialAction baseName .internal genIName
+      let _actEName ← genInitialAction baseName .external genEName
+where
+  /-- This generates the 'simplified' (fully unfolded) action interpretation,
+  assuming the generator for this `mode` has already been defined and can be
+  found in the environment with name `genName`. -/
+  genInitialAction (baseName : Name) (mode : Mode) (genName : Name) := do
+    let actName := match mode with
+    | Mode.internal => baseName
+    | Mode.external => toExtName baseName
+    let genExp := Lean.mkConst genName
+    let act ← genExp |>.runUnfold (genName :: wpUnfold)
+    let ⟨act, _actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let mut attr : Array Attribute := #[{name := `initSimp}, {name := `actSimp}]
+    simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
+    return actName
+
 /-- Defines `act` : `Wp m σ ρ` monad computation, parametrised over `br`. This
 assumes that `act.genE` and `act.genI` have already been defined. Specifically
 it defines:
@@ -273,15 +294,15 @@ def genStateExtInstances : CommandElabM Unit := do
     elabCommand inst
     trace[veil.info] "State extension instance is defined"
 
--- def baz (n  q: Nat) := @monadLift (Wp Mode.internal (Test₁.State node')) (Wp Mode.internal (State node' node'')) _ Unit (@Test₁.f.genI node' node'_dec node'_ne n q)
-def liftActionGenerators (forAct : TSyntax `ident) (withBinders : Option (TSyntax `Lean.explicitBinders)) (stateTpT : TSyntax `term) (fromBaseGenerator : Name) (instatiatedWithArgs : Array Term) : CommandElabM (Name × Name) := do
+-- def baz (n  q: Nat) := @monadLift (Wlp Mode.internal (Test₁.State node')) (Wlp Mode.internal (State node' node'')) _ Unit (@Test₁.f.genI node' node'_dec node'_ne n q)
+def liftActionGenerators (forAct : TSyntax `ident) (withBinders : Option (TSyntax `Lean.explicitBinders)) (stateTpT : TSyntax `term) (fromBaseGenerator : Name) (instatiatedWithArgs : Array Term) (isInitialAction : Bool := false) : CommandElabM (Name × Name) := do
   Command.runTermElabM fun vs => do
     let baseName := (← getCurrNamespace) ++ forAct.getId
-    let (genIName, _genExpI) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .internal
-    let (genEName, _genExpE) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .external
+    let (genIName, _genExpI) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .internal isInitialAction
+    let (genEName, _genExpE) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .external isInitialAction
     return (genIName, genEName)
 where
-  liftGenerator (liftedActName : Name) (actVs : Array Expr) (actBinders :  Option (TSyntax `Lean.explicitBinders)) (baseNameToLift : Name) (depArgs : Array Term) (mode : Mode)  := do
+  liftGenerator (liftedActName : Name) (actVs : Array Expr) (actBinders :  Option (TSyntax `Lean.explicitBinders)) (baseNameToLift : Name) (depArgs : Array Term) (mode : Mode) (isInitialAction : Bool)  := do
     let baseGenName := toGenName baseNameToLift mode
     let (actParams, actArgs) ← match actBinders with
     | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
@@ -297,15 +318,24 @@ where
     let wpSimp := mkIdent `wpSimp
     let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wpSimp:ident])
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit actVs genExp
-    simpleAddDefn liftedGenName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
+    let initAttr := if isInitialAction then #[{name := `initSimp}] else #[]
+    simpleAddDefn liftedGenName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}] ++ initAttr)
     return (liftedGenName, genExp)
 
 def defineDepsActions : CommandElabM Unit := do
+  let stateTpT ← liftCoreM $ getStateTpStx
   for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
     -- arguments with which the dependency was instantiated
     let depArgs := dependency.arguments
     let globalCtx <- globalSpecCtx.get
     let some depCtx := globalCtx[dependency.name]? | throwError "Module {dependency.name} is not declared"
+    -- Lift initializer
+    let initName := dependency.name ++ `initializer
+    let liftedName := mkIdent <| modAlias ++ (stripFirstComponent initName)
+    trace[veil.info] "lifting {initName} from module {dependency.name} to module {← specName} as {liftedName}"
+    let (genIName, genEName) ← liftActionGenerators liftedName .none stateTpT initName depArgs (isInitialAction := true)
+    defineInitialActionFromGenerators liftedName genIName genEName
+    -- Lift actions
     for actToLift in depCtx.actions do
       let actBaseName := dependency.name ++ actToLift.decl.name
       -- If an action has a pre-post specification, we use the the specification
@@ -313,7 +343,7 @@ def defineDepsActions : CommandElabM Unit := do
       -- specification are just `action`s` themselves. In particular they have
       -- `genE` and `genI` generators that we can use to lift the action.
       let actBaseName := if actToLift.hasSpec then toSpecName actBaseName else actBaseName
-      let liftedName := mkIdent <| modAlias ++ actBaseName.componentsRev[0]!
+      let liftedName := mkIdent <| modAlias ++ (stripFirstComponent actBaseName)
       -- When we lift an action from a dependency, the binders of the action
       -- may have types that are not syntactically present in the action's
       -- signature. We have to substitute the types with the arguments of the
@@ -323,14 +353,10 @@ def defineDepsActions : CommandElabM Unit := do
       let liftedBinders ← do match actToLift.br with
         | some br => pure (Option.some (← toBindersWithMappedTypes br (← dependency.typeMapping)))
         | none => pure .none
-      let stateTpT ← liftCoreM $ getStateTpStx
       trace[veil.info] "lifting action {actBaseName} from module {dependency.name} to module {← specName} as {liftedName}"
       let actionKind ← actToLift.decl.kind.stx
       let (genIName, genEName) ← liftActionGenerators liftedName liftedBinders stateTpT actBaseName depArgs
       defineActionFromGenerators actionKind liftedName liftedBinders genIName genEName
-      -- let stx <- `(action $liftedName:ident $(liftedBinders)? = { monadLift <| @$(mkIdent $ actBaseName) $depArgs* $actArgs* })
-      -- trace[veil.debug] stx
-      -- elabCommand stx
 
 /-- Given `tr` : `σ → σ → Prop` (parametrised over `br`), this defines:
   - `tr.genI` : internal action interpretation of the action, unsimplified

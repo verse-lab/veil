@@ -94,6 +94,15 @@ def getFields [Monad m] [MonadEnv m] : m (Array Name) := do
   let spec := (← localSpecCtx.get).spec
   pure $ spec.signature.map (·.name)
 
+def getSubInitializers [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m]: m (Array (Ident × Term)) := do
+  let mut names := #[]
+  let ourSpec := (← localSpecCtx.get).spec
+  for (modAlias, _) in ourSpec.dependencies do
+    let initName := mkIdent <| modAlias ++ `initializer
+    let initTerm <- `(@$initName $(← ourSpec.arguments)*)
+    names := names.push (initName, initTerm)
+  return names
+
 def getSubActions : TermElabM (Array (Ident × Term)) := do
   /- FIXME: this replicates some of the logic in `defineDepsActions`, since when
   this gets called as part of `defineDepsActions` (invoked indirectly in the
@@ -229,8 +238,7 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
   | _ => throwErrorAt stx "unexpected syntax of Veil `do`-notation sequence {stx}"
   let (doS, vars) <- (expandDoSeqVeil (<- `(doSeq| $doS*))).run #[]
   -- Make available lifted actions using `alias.actionName`
-  let as := (<- getSubActions)
-  for a in as do
+  for a in (← getSubInitializers) ++ (← getSubActions) do
     let (actName, actTerm) := a
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $(actName):ident := $(actTerm))
   -- Make available state fields as mutable variables

@@ -251,6 +251,8 @@ where
   mkString (xs : List Name) : String :=
     xs.map toString |> stripFirst |> String.intercalate separator
 
+def stripFirstComponent (n : Name) : Name := mkStrippedName n "."
+
 def List.removeDuplicates [BEq α] (xs : List α) : List α :=
   xs.foldl (init := []) fun acc x =>
     if acc.contains x then acc else x :: acc
