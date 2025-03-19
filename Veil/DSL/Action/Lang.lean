@@ -44,7 +44,12 @@ macro "unfold_wp" : conv =>
     instMonadStateOfWp
     -- unfold specifications
     Wp.spec
-    -- unfold actions defined via two-state relations
+    -- unfold actions defined by conversion
+    Wp.toWlp
+    Wp.hasTerminatingExecFromState
+    Wp.toBigStep
+    Wp.toActProp
+    BigStep.toWp
     Function.toWp
     -- unfold actions definded via lifting
     monadLift

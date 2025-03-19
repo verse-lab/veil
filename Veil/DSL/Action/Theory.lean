@@ -12,11 +12,15 @@ open Classical
 section Types
 
 /-- Actions in Veil can be elaborated in two ways:
-  - `internal`: when we call an action, callee should ensure all assertions are
-    satisfied
-  - `external`: when we call an action, the environment ("caller") should ensure
-    all `require`'s are satisfied
--/
+
+- `internal`: when we call an action, callee should ensure all
+`require`s are satisfied. That is, under this interpretation, `require P`
+is equivalent to `assert P`.
+
+- `external`: when we call an action, it's the environment's responsibility
+  to ensure `require`s are satisfied. We treat `require`s as `assume`s under
+  this interpretation. Only top-level actions should be interpreted as
+  `external`. -/
 inductive Mode where
   | internal : Mode
   | external : Mode
@@ -32,22 +36,45 @@ variable (m : Mode) (σ ρ : Type)
 /-- Two-state formula -/
 @[inline] abbrev ActProp := σ -> σ -> Prop
 
-/- In Veil we will be using two different types of semantics:
-  - [Wp]: Omni semantics, which relates a state `s : σ` to set of the
-    possible program outcomes `post : RProp σ`
-  - [BigStep]: Standard big-step semantics, which relates a state `s : σ`
-    to a return value `r : ρ` and a post-state `s' : σ`
+
+
+/-!
+In Veil we will be using three different semantics:
+
+- [Wp]: a weakest-precondition transformer expressed in [Omni
+semantics](https://doi.org/10.1145/3579834) style; this relates a state
+`s : σ` to set of the possible program outcomes `post : RProp σ`
+
+- [Wlp]: liberal weakest-precondition semantics, which is similar to
+`Wp`, but does not require termination of the program
+
+- [BigStep]: standard big-step semantics, which relates a state `s : σ`
+to a return value `r : ρ` and a post-state `s' : σ`; we use this to
+cast Veil `action`s into two-state `transition`s
 -/
 
 set_option linter.unusedVariables false in
-/-- Omni semantics, which relates a state `s : σ` to set of the possible program outcomes `post : RProp σ`
-  We have two modes for this monad:
-  - `internal` for function calls. When we call an action, callee should ensure all assertions are satisfied
-    To model that we treat all `require` statements as `assert`'s.
-  - `external` for enviorment calls. In this case envioremnt should provide a necessary conditions to
-    satisfy all `require`'s. To model that we treat all `require` statements as `assume`'s. -/
+
+/-- Weakest precondition semantics in Omni style. This is a
+specification monad which relates a state `s : σ` to the set of the
+possible program outcomes `post : RProp σ`.
+
+We have two modes for this monad:
+- `internal`, for function calls, which treats `require` statements as
+  `assert`'s
+
+- `external`, for environment calls, which treats `require` statements as
+  `assume`'s. It's the environment's responsibility to ensure `require`s are
+  satisfied.
+-/
 abbrev Wp (m : Mode) (σ ρ : Type) := σ -> RProp σ ρ -> Prop
-/-- [BigStep]: Standard big-step semantics, which relates a state `s : σ` to a return value `r : ρ` and a post-state `s' : σ` -/
+
+set_option linter.unusedVariables false in
+-- /-- Weakest-liberal-precondition semantics. -/
+abbrev Wlp (m : Mode) (σ ρ : Type) := σ -> RProp σ ρ -> Prop
+
+/-- Standard big-step semantics, which relates a state `s : σ` to a
+return value `r : ρ` and a post-state `s' : σ` -/
 abbrev BigStep := σ -> ρ -> σ -> Prop
 
 end Types
@@ -56,48 +83,6 @@ end Types
 section Theory
 
 variable {σ ρ : Type}
-
-/-! ### Relation between `BigStep` and `Wp`  -/
-
-/-- `Wp.toBigStep` converts Omni semantics to a Big-step one. Note that, it only
-  makes sence is `act` terminates, in other words, the following holds
-
-  ```∀ s, ∃ Q, act s Q```
-
-  If the statement above does not hold, then ```act s Q``` should be false for all `Q`.
-  In this case, `act.toBigStep s r' s'` will be true for all `r'` and `s'`, which is
-  not what we not.
-
-  In theory we could add  ```∀ s, ∃ Q, act s Q``` condition to this definition, but
-  this will duplicate the body of `act` twice, increasing the formula which we eventually
-  send to the solver.
-   -/
-@[actSimp]
-def Wp.toBigStep {σ} (act : Wp m σ ρ) : BigStep σ ρ :=
-  fun s r' s' =>
-    act s (fun _ _ => True) ∧
-    ¬ act s (fun r₀ s₀ => ¬ (r' = r₀ ∧ s' = s₀))
-
-/-- [BigStep.toWp] converts Big-step semantics to Omni one.
-
-  Ideally, here we should also assert termination of `act`, but this will be handled
-  via `Sound` condition later. -/
-@[actSimp]
-def BigStep.toWp {σ} (act : BigStep σ ρ) : Wp .internal σ ρ :=
-  fun s post => ∀ r s', act s r s' -> post r s'
-
-
-/-- Function which transforms any two-state formula into `Wp` -/
-@[actSimp]
-def Function.toWp (m : Mode) (r : σ -> σ -> Prop) : Wp m σ Unit :=
-  fun s post => ∀ s', r s s' -> post () s'
-
-/-- Function which transforms any `Wp` into a two-state formula -/
-@[actSimp]
-def Wp.toActProp {σ} (act : Wp m σ ρ) : ActProp σ :=
-  fun s s' =>
-    act s (fun _ _ => True) ∧
-    ¬ act s (fun _ s₀ => ¬ (s' = s₀))
 
 /-! ### Languge statements -/
 
@@ -130,8 +115,6 @@ def Wp.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : Wp m σ ρ :=
     | .internal => req s ∧ ∀ r' s', (ens s r' s' -> post r' s')
     | .external => ∀ r' s', req s -> ens s r' s' -> post r' s'
 
-
-
 def BigStep.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : BigStep σ ρ :=
   fun s r s' => req s ∧ (req s -> ens s r s')
 
@@ -152,6 +135,87 @@ def Wp.modifyGet (act : σ -> ρ × σ) : Wp m σ ρ := fun s post => let (ret, 
 
 -- def Wp.choice (wp : Wp σ ρ) (wp' : Wp σ ρ) : Wp σ ρ :=
 --   wp.toBigStep.choice wp'.toBigStep |>.toWp
+
+
+/-! ### Relation between `Wp`, `Wlp`, and `BigStep`
+
+[Comparing Weakest Precondition and Weakest Liberal Precondition](https://arxiv.org/abs/1512.04013)
+gives an overview of the relation between `Wp` and `Wlp` (summarized below).
+
+Assuming transition semantics $\text{tr}$ of changes to the program
+variables induced by the different program constructs, we have the
+following definitions of $\text{wp}$ and $\text{wlp}$ ($P$ is the
+program, $s$ is the initial state, $\varphi$ is the postcondition):
+
+$\text{wp}(P, \varphi, s) \coloneqq \exists s',  \text{tr}(s, s') \land \varphi(s')$
+
+$\text{wlp}(P, \varphi, s) \coloneqq ∀ s',  \text{tr}(s, s') \rightarrow \varphi(s')$
+
+$\text{wp}$ says "starting in state $x$, program $P$ terminates and
+reaches state $x'$, and $\varphi(x')$ holds" $\text{wlp}$ says
+"starting in state $x$, **if** program P terminates in some state $x'$,
+then $\varphi(x')$ holds"
+
+Given these definitions, the following holds: $\text{wlp}(P, \varphi,
+s) = \lnot \text{wp}(P, \lnot \varphi, s)$
+
+Note also that $\text{wp}(P, \top, s) = \exists s', \text{tr}(s, s')$,
+i.e. this says "P terminates when starting on $s$"
+
+----
+
+Whereas in the paper above, the base semantics is `Tr` (the transition
+meaning of program constructs), in Veil, as we explain in the tool
+paper, we choose to use `Wp` as our base semantics. This let us avoid
+existentially quantifying over the post-state `s'` when defining `Wp`
+in terms of `Tr`.
+
+Therefore, we define `Wlp` and `BigStep` (`Tr`) in terms of `Wp`, as
+follows.
+-/
+
+/-- Converting `Wp` to `Wlp` "drops" all non-terminating executions. -/
+@[actSimp]
+abbrev Wp.toWlp {σ ρ : Type} (m : Mode) (wp : Wp m σ ρ) : Wlp m σ ρ :=
+  -- `wlp(P, φ, s) = ¬ wp(P, ¬φ, s)`
+  fun (s : σ) (post : RProp σ ρ) => ¬ wp s (fun r s' => ¬ post r s')
+
+/-- Starting in state `s`, `wp` has a terminating execution. -/
+abbrev Wp.hasTerminatingExecFromState {σ} (wp : Wp m σ ρ) (s : σ) : Prop :=
+  wp s (fun _ _ => True)
+
+/-- State `s` leads to post-state `s'` and return value `r'` under `wp`
+if `wp` has a terminating execution starting from `s`, and all
+executions starting from `s` end in `s'` with return value `r'`. -/
+@[actSimp]
+def Wp.toBigStep {σ} (wp : Wp m σ ρ) : BigStep σ ρ :=
+  fun s r' s' =>
+    wp.hasTerminatingExecFromState s ∧
+    wp.toWlp m s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
+
+/-- States `s` and `s'` are related by `wp` if `wp` has a terminating
+execution starting from `s`, and all executions starting from `s` end
+in `s'`. -/
+@[actSimp]
+def Wp.toActProp {σ} (wp : Wp m σ ρ) : ActProp σ :=
+  -- `tr(s, s') = wp(P, ⊤, s) ∧ wlp(P, φ, s)`
+  fun s s' =>
+    wp.hasTerminatingExecFromState s ∧
+    wp.toWlp m s (fun _ s₀ => (s' = s₀))
+
+/-- [BigStep.toWp] converts Big-step semantics to Omni one.
+
+  Ideally, here we should also assert termination of `act`, but this will be handled
+  via `Sound` condition later. -/
+@[actSimp]
+def BigStep.toWp {σ} (act : BigStep σ ρ) : Wp .internal σ ρ :=
+  fun s post => ∀ r s', act s r s' -> post r s'
+
+
+/-- Function which transforms any two-state formula into `Wp` -/
+@[actSimp]
+def Function.toWp (m : Mode) (r : σ -> σ -> Prop) : Wp m σ Unit :=
+  fun s post => ∀ s', r s s' -> post () s'
 
 /-! ### Monad Instances -/
 
@@ -205,7 +269,7 @@ theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : σ -> σ 
     r (getFrom st) (getFrom st') ∧
     st' = (setIn (@getFrom σ σ' _ st') st)
   := by
-  unfold Wp.lift Function.toWp Wp.toActProp
+  unfold Wp.lift Function.toWp Wp.toActProp Wp.toWlp Wp.hasTerminatingExecFromState
   funext st st'
   simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
   constructor
@@ -440,7 +504,7 @@ instance (act : Wp m σ ρ) [IsSubStateOf σ σ'] [Sound act] :
 
 theorem wp_spec_to_big_step :
   (Wp.spec ens req).toBigStep (m := .internal) = BigStep.spec ens req := by
-  ext s r' s'; unfold Wp.spec BigStep.spec Wp.toBigStep; simp
+  ext s r' s'; unfold Wp.spec BigStep.spec Wp.toBigStep Wp.toWlp Wp.hasTerminatingExecFromState; simp
 
 theorem check_spec_sound [Sound act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
   (∀ s, req s -> act s (ens s)) ->
