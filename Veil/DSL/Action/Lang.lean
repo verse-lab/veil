@@ -4,6 +4,7 @@ import Veil.Model.State
 import Veil.Util.DSL
 import Veil.DSL.Base
 import Veil.DSL.Internals.StateExtensions
+import Veil.DSL.Action.Syntax
 import Veil.DSL.Action.Theory
 
 open Lean Elab Command Term Meta Lean.Parser
@@ -125,35 +126,6 @@ elab "[State]" : term => do
     `st` making all its fields accessible for `Pred` -/
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
 macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident; exact $t)
-
-/-- `require s` admits fact `s`   -/
-syntax "require" term      : term
-/-- `assert s` checks if `s` is true on the current state -/
-syntax "assert" term      : term
-/-- `assume s` checks if `s` is true on the current state -/
-syntax "assume" term      : term
-/-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
-syntax "fresh" (lineEq term) ? : term
-
--- declare_syntax_cat doSeq
--- declare_syntax_cat doSeqItem
-
--- syntax (priority := low) doElem : doSeqItem
-
-syntax (priority := high) atomic(term ":=" "*") : doElem
-
--- syntax "if" term "then" doSeq colGe "else" doSeq : doSeqItem
--- syntax "if" term "then" doSeq : doSeqItem
--- syntax "if" ident ":" term "then" doSeq colGe "else" doSeq : doSeqItem
--- syntax "if" ident ":" term "then" doSeq : doSeqItem
-
-declare_syntax_cat unchanged_decl
-declare_syntax_cat spec
-syntax "requires" term colGe "ensures" rcasesPat  "," term : spec
-syntax (priority := high) "requires" term colGe "ensures" term : spec
-syntax "with" "unchanged" "[" ident,* "]" : unchanged_decl
-syntax spec (colGe unchanged_decl)? : term
-syntax "[unchanged|" str "|" ident* "]" : term
 
 abbrev doSeq := TSyntax ``Term.doSeq
 abbrev doSeqItem := TSyntax ``Term.doSeqItem
