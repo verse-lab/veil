@@ -7,8 +7,8 @@ import Veil.DSL.Specification.SpecDef
 
 open Lean Elab Command Term Meta Lean.Parser
 
-def wlpUnfold := [``Wlp.bind, ``Wlp.pure, ``Wlp.get, ``Wlp.set, ``Wlp.modifyGet,
-  ``Wlp.assert, ``Wlp.assume, ``Wlp.require, ``Wlp.spec, ``Wlp.lift, ``Wlp.toActProp]
+def wpUnfold := [``Wp.bind, ``Wp.pure, ``Wp.get, ``Wp.set, ``Wp.modifyGet,
+  ``Wp.assert, ``Wp.assume, ``Wp.require, ``Wp.spec, ``Wp.lift, ``Wp.toActProp]
 
 def toActionKind (stx : TSyntax `actionKind) : ActionKind :=
   match stx with
@@ -94,7 +94,7 @@ def registerActionSpec [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m
         { t with spec := spec }
       else t }
 
-/-- Given `l` : `Wlp m σ ρ` (parametrised over `br`), this defines:
+/-- Given `l` : `Wp m σ ρ` (parametrised over `br`), this defines:
   - `act.genI` : internal action interpretation of the action, unsimplified
   - `act.genE` : external action interpretation of the action, unsimplified
 -/
@@ -117,13 +117,13 @@ where
     | Mode.internal => do `(fun $funBinders* => do' .internal in $l)
     | Mode.external => do `(fun $funBinders* => do' .external in $l)
     let genExp <- withDeclName genName do elabTermAndSynthesize genl none
-    let wlpSimp := mkIdent `wlpSimp
-    let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
+    let wpSimp := mkIdent `wpSimp
+    let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wpSimp:ident])
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
     simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
     return (genName, genExp)
 
-/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`. This
+/-- Defines `act` : `Wp m σ ρ` monad computation, parametrised over `br`. This
 assumes that `act.genE` and `act.genI` have already been defined. Specifically
 it defines:
   - `act.ext` : external action interpretation of the action, simplified
@@ -155,10 +155,10 @@ where
     | Mode.external => toExtName baseName
     let genExp := Lean.mkConst genName
     -- Here, to account for the case when the action is generated from a transition,
-    -- we also unfold `Function.toWlp` and the original definition of the transition.
+    -- we also unfold `Function.toWp` and the original definition of the transition.
     let origName := toOriginalName baseName
-    let act ← genExp |>.runUnfold (genName :: wlpUnfold)
-    let act ← act |>.runUnfold [``Function.toWlp, origName]
+    let act ← genExp |>.runUnfold (genName :: wpUnfold)
+    let act ← act |>.runUnfold [``Function.toWp, origName]
     let ⟨act, actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
     let mut attr : Array Attribute := #[{name := `actSimp}]
     simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
@@ -174,7 +174,7 @@ where
     let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent genName) $sectionArgs* $args*).toActProp st st')
     let actTr <- elabTermAndSynthesize actTrStx none
     -- For transitions that are lifted from a dependency (i.e. run through
-    -- `.toWlp.lift.toActProp`), simplifying the definitions leads to a
+    -- `.toWp.lift.toActProp`), simplifying the definitions leads to a
     -- transition that existentially quantifies over the state of the
     -- dependency, which is bad. Instead, we apply the `lift_transition`
     -- theorem, giving us a nicer lifted transition.
@@ -227,7 +227,7 @@ where
     genSoundnessInstance .external genEName actEName vd univBinders sectionArgs args actEPf
     genSoundnessInstance .internal genIName actIName vd univBinders sectionArgs args actIPf
 
-/-- Defines `act` : `Wlp m σ ρ` monad computation, parametrised over `br`. More
+/-- Defines `act` : `Wp m σ ρ` monad computation, parametrised over `br`. More
 specifically it defines:
   - `act.genI` : internal action interpretation of the action, unsimplified
   - `act.genE` : external action interpretation of the action, unsimplified
@@ -273,7 +273,7 @@ def genStateExtInstances : CommandElabM Unit := do
     elabCommand inst
     trace[veil.info] "State extension instance is defined"
 
--- def baz (n  q: Nat) := @monadLift (Wlp Mode.internal (Test₁.State node')) (Wlp Mode.internal (State node' node'')) _ Unit (@Test₁.f.genI node' node'_dec node'_ne n q)
+-- def baz (n  q: Nat) := @monadLift (Wp Mode.internal (Test₁.State node')) (Wp Mode.internal (State node' node'')) _ Unit (@Test₁.f.genI node' node'_dec node'_ne n q)
 def liftActionGenerators (forAct : TSyntax `ident) (withBinders : Option (TSyntax `Lean.explicitBinders)) (stateTpT : TSyntax `term) (fromBaseGenerator : Name) (instatiatedWithArgs : Array Term) : CommandElabM (Name × Name) := do
   Command.runTermElabM fun vs => do
     let baseName := (← getCurrNamespace) ++ forAct.getId
@@ -287,15 +287,15 @@ where
     | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
     | none => pure (#[], #[])
     let infer ← `(term|_)
-    let (srcWlpType, typeClassInst, retType) := (infer, infer, infer)
-    -- e.g. `Wlp Mode.internal (State node' node'')`
-    let dstWlpType ← `(term|Wlp $(← mode.stx) ($stateTpT))
-    let liftedGenStx ← `(fun $actParams* => @monadLift $srcWlpType $dstWlpType $typeClassInst $retType <| @$(mkIdent baseGenName) $depArgs* $actArgs*)
+    let (srcWpType, typeClassInst, retType) := (infer, infer, infer)
+    -- e.g. `Wp Mode.internal (State node' node'')`
+    let dstWpType ← `(term|Wp $(← mode.stx) ($stateTpT))
+    let liftedGenStx ← `(fun $actParams* => @monadLift $srcWpType $dstWpType $typeClassInst $retType <| @$(mkIdent baseGenName) $depArgs* $actArgs*)
     let liftedGenName := toGenName liftedActName mode
     trace[veil.info] "{liftedGenName} := {liftedGenStx}"
     let genExp <- withDeclName liftedGenName do elabTermAndSynthesize liftedGenStx .none
-    let wlpSimp := mkIdent `wlpSimp
-    let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
+    let wpSimp := mkIdent `wpSimp
+    let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wpSimp:ident])
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit actVs genExp
     simpleAddDefn liftedGenName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
     return (liftedGenName, genExp)
@@ -353,13 +353,13 @@ def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Op
     let originalDef ← `(@[actSimp] def $origName $[$vd]* $univBinders* : $trType := $tr)
     -- We also define a `.tr` version, with existentially quantified arguments.
     -- We do this "manually" rather than reusing the code in `defineActionFromGenerators`
-    -- since our conversion to `Wlp` increases the size of the formula.
+    -- since our conversion to `Wp` increases the size of the formula.
     let trDef ← do
       let (st, st') := (mkIdent `st, mkIdent `st')
       let rhs ← match br with
       | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, @$origName $sectionArgs* $args* $st $st')
       | none => `(fun ($st $st' : $stateTpT) => @$origName $sectionArgs* $args* $st $st')
-      `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWlp rhs))
+      `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWp rhs))
     return (originalDef, trDef)
   trace[veil.info] "{originalDef}"
   elabCommand originalDef
@@ -369,7 +369,7 @@ def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Op
     let (genIName, _genExpI) ← genGeneratorFromTransition vs origName baseName .internal
     let (genEName, _genExpE) ← genGeneratorFromTransition vs origName baseName .external
     return (genIName, genEName)
-  -- We don't generate the transition based on `Wlp`, since we already have it from the user.
+  -- We don't generate the transition based on `Wp`, since we already have it from the user.
   defineActionFromGenerators actT nm br genIName genEName (generateTransition := false)
 where
   genGeneratorFromTransition (vs : Array Expr) (origName : Ident) (baseName : Name) (mode : Mode) := do
@@ -379,12 +379,12 @@ where
     | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
     | none => pure (#[], #[])
     let term ← match mode with
-    | Mode.internal => `((@$origName $sectionArgs* $args*).toWlp .internal)
-    | Mode.external => `((@$origName $sectionArgs* $args*).toWlp .external)
+    | Mode.internal => `((@$origName $sectionArgs* $args*).toWp .internal)
+    | Mode.external => `((@$origName $sectionArgs* $args*).toWp .external)
     let genl ← `(fun $funBinders* => $term)
     let genExp <- withDeclName genName do elabTermAndSynthesize genl none
-    -- let wlpSimp := mkIdent `wlpSimp
-    -- let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wlpSimp:ident])
+    -- let wpSimp := mkIdent `wpSimp
+    -- let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wpSimp:ident])
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
     simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}]) («type» := ← inferType genExp)
     return (genName, genExp)

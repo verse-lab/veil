@@ -10,14 +10,14 @@ import Veil.DSL.Specification.SpecDef
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
 /-- We support two styles of verification condition generation:
-  - `wlp`, which is what Ivy does
+  - `wp`, which is what Ivy does
   - `transition`, which is what mypyvy does
 
-  The `transition` style is more general, but `wlp` generates smaller, usually
+  The `transition` style is more general, but `wp` generates smaller, usually
   better queries.
 -/
 inductive VCGenStyle
-  | wlp
+  | wp
   | transition
 
 inductive CheckStyle
@@ -63,9 +63,9 @@ def ProofResult.isAdmitted (res : ProofResult) : Bool := match res with
   | _ => false
 
 def CheckInvariantsBehaviour := VCGenStyle × CheckStyle × TheoremSuggestionStyle
-def CheckInvariantsBehaviour.default (style : VCGenStyle := .wlp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .doNotPrint)
-def CheckInvariantsBehaviour.question (style : VCGenStyle := .wlp) : CheckInvariantsBehaviour := (style, .noCheck, .printAllTheorems)
-def CheckInvariantsBehaviour.exclamation (style : VCGenStyle := .wlp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .printUnverifiedTheorems)
+def CheckInvariantsBehaviour.default (style : VCGenStyle := .wp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .doNotPrint)
+def CheckInvariantsBehaviour.question (style : VCGenStyle := .wp) : CheckInvariantsBehaviour := (style, .noCheck, .printAllTheorems)
+def CheckInvariantsBehaviour.exclamation (style : VCGenStyle := .wp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .printUnverifiedTheorems)
 
 /--  Generate theorems to check in the initial state and after each action -/
 def getAllChecks : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
@@ -125,7 +125,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
           let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by (unhygienic intros); solve_clause [$(mkIdent trName)])
           pure (trTpSyntax, body)
-        | .wlp =>
+        | .wp =>
           let extName := toExtName actName
           let moduleName <- getCurrNamespace
           let some args := (<- localSpecCtx.get).spec.actions.find? (moduleName ++ ·.name == actName)
@@ -136,7 +136,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs*  $st')
           let extStx ← `(@$(mkIdent extName) $sectionArgs* $args*)
           let extTpSyntax ← `(∀ ($st : $stateTp), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
-          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wlp_clause $(mkIdent extName) $(mkIdent invName))
+          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
           pure (extTpSyntax, body)
         let thmName := mkTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
@@ -258,7 +258,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     if !unprovenTheorems.isEmpty then
       let theoremStr := if unprovenTheorems.size == 1 then "one clause is" else s!"{unprovenTheorems.size} clauses are"
       throwError "The invariant is not inductive: {theoremStr} not preserved!"
-  | (.wlp, .checkTheoremsWithIndicators, _) => throwError "[checkTheorems] wlp style is not supported for checkTheoremsWithIndicators"
+  | (.wp, .checkTheoremsWithIndicators, _) => throwError "[checkTheorems] wp style is not supported for checkTheoremsWithIndicators"
   | (.transition, .checkTheoremsWithIndicators, _) =>
     let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
@@ -342,13 +342,13 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
 
 /- ## `#check_invariants` -/
 
-/-- Check all invariants and print result of each check. Uses `wlp` VC
+/-- Check all invariants and print result of each check. Uses `wp` VC
 style. -/
 syntax "#check_invariants" : command
-/-- Suggest theorems to check all invariants. Uses `wlp` VC style. -/
+/-- Suggest theorems to check all invariants. Uses `wp` VC style. -/
 syntax "#check_invariants?" : command
 /-- Check all invariants and suggest only theorems that
-were not proved automatically. Uses `wlp` VC style. -/
+were not proved automatically. Uses `wp` VC style. -/
 syntax "#check_invariants!" : command
 
 /-- Check all invariants and print result of each check. Uses `tr` VC

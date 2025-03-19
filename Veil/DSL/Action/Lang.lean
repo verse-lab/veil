@@ -19,18 +19,18 @@ section Veil
 
 attribute [actSimp] modify modifyGet MonadStateOf.modifyGet get
   getThe MonadStateOf.get MonadStateOf.set instMonadStateOfMonadStateOf
-  instMonadStateOfWlp
+  instMonadStateOfWp
 
-macro "unfold_wlp" : conv =>
+macro "unfold_wp" : conv =>
   `(conv| unfold
     -- unfold actions defined via Veil do-notation
-    Wlp.pure
-    Wlp.bind
-    Wlp.assume
-    Wlp.assert
-    Wlp.require
-    Wlp.fresh
-    Wlp.get
+    Wp.pure
+    Wp.bind
+    Wp.assume
+    Wp.assert
+    Wp.require
+    Wp.fresh
+    Wp.get
     -- unfold state monad actions
     set
     modify
@@ -41,18 +41,18 @@ macro "unfold_wlp" : conv =>
     MonadStateOf.modifyGet
     MonadStateOf.get
     MonadStateOf.set
-    instMonadStateOfWlp
+    instMonadStateOfWp
     -- unfold specifications
-    Wlp.spec
+    Wp.spec
     -- unfold actions defined via two-state relations
-    Function.toWlp
+    Function.toWp
     -- unfold actions definded via lifting
     monadLift
     getFrom
     setIn
     instMonadLiftTOfMonadLift
     MonadLift.monadLift
-    instMonadLiftWlpOfIsSubStateOf
+    instMonadLiftWpOfIsSubStateOf
     instMonadLiftT)
 
 partial def getCapitals (s : Syntax) :=
@@ -239,14 +239,14 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- fresh $v.type)
   let doS := preludeAssn.append doS
   trace[veil.debug] "{stx}\n→\n{doS}"
-  elabTerm (<- `(term| ((do $doS*) : Wlp $mode [State] _))) none
+  elabTerm (<- `(term| ((do $doS*) : Wp $mode [State] _))) none
 
 macro_rules
-  | `(require $t) => `(Wlp.require $t)
-  | `(assert  $t) => `(Wlp.assert $t)
-  | `(assume  $t) => `(Wlp.assume $t)
-  | `(fresh   $t) => `(Wlp.fresh  $t)
-  | `(fresh)      => `(Wlp.fresh  _)
+  | `(require $t) => `(Wp.require $t)
+  | `(assert  $t) => `(Wp.assert $t)
+  | `(assume  $t) => `(Wp.assume $t)
+  | `(fresh   $t) => `(Wp.fresh  $t)
+  | `(fresh)      => `(Wp.fresh  _)
 
 /- Ensures statement -/
 
@@ -299,7 +299,7 @@ elab_rules : term
     elabTerm (<- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])) none
   | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
     -- withRef t $
-    elabTerm (<- `(term| @Wlp.spec [State] _ _ (funcases $pre) (
+    elabTerm (<- `(term| @Wp.spec [State] _ _ (funcases $pre) (
       by rintro st $r st';
          unhygienic cases st';
          with_rename "_old" unhygienic cases st;
@@ -307,7 +307,7 @@ elab_rules : term
 
 attribute [actSimp] Bind.bind Pure.pure
 
-/- We need those to simplify `Wlp` goals  -/
+/- We need those to simplify `Wp` goals  -/
 attribute [ifSimp] ite_self ite_true_same ite_false_same if_true_left
   if_true_right if_false_left if_false_right
 

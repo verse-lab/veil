@@ -104,7 +104,7 @@ applied. -/
 register_simp_attr smtSimp
 
 /-- Simplifiers to get rid of trivial if conditions. We need these to
-simplify `Wlp` goals. -/
+simplify `Wp` goals. -/
 register_simp_attr ifSimp
 
 /-- We specifically identify lemmas for quantifier elimination and
@@ -142,8 +142,8 @@ register_simp_attr initSimp
 actions, to unfold them. -/
 register_simp_attr actSimp
 
-/-- Attribute added to `Wlp` constructs, to unfold them. -/
-register_simp_attr wlpSimp
+/-- Attribute added to `Wp` constructs, to unfold them. -/
+register_simp_attr wpSimp
 
 /-- Implementation detail. Tagged to `genE` and `genI` instances to unfold them.
 Used to make `lift_transition` work. -/

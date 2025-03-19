@@ -24,7 +24,7 @@ action fail_nondeterministically (fail : Prop) = {
 invariant True
 
 /--
-info: def Semantics.set_flag.ext : Wlp Mode.external State PUnit :=
+info: def Semantics.set_flag.ext : Wp Mode.external State PUnit :=
 fun s post => False
 -/
 #guard_msgs in
