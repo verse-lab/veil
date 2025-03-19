@@ -74,7 +74,9 @@ variable {σ ρ : Type}
    -/
 @[actSimp]
 def Wlp.toBigStep {σ} (act : Wlp m σ ρ) : BigStep σ ρ :=
-  fun s r' s' => ¬ act s (fun r₀ s₀ => ¬ (r' = r₀ ∧ s' = s₀))
+  fun s r' s' =>
+    act s (fun _ _ => True) ∧
+    ¬ act s (fun r₀ s₀ => ¬ (r' = r₀ ∧ s' = s₀))
 
 /-- [BigStep.toWlp] converts Big-step semantics to Omni one.
 
@@ -93,7 +95,9 @@ def Function.toWlp (m : Mode) (r : σ -> σ -> Prop) : Wlp m σ Unit :=
 /-- Function which transforms any `Wlp` into a two-state formula -/
 @[actSimp]
 def Wlp.toActProp {σ} (act : Wlp m σ ρ) : ActProp σ :=
-  fun s s' => ¬ act s (fun _ s₀ => ¬ (s' = s₀))
+  fun s s' =>
+    act s (fun _ _ => True) ∧
+    ¬ act s (fun _ s₀ => ¬ (s' = s₀))
 
 /-! ### Languge statements -/
 
@@ -129,7 +133,7 @@ def Wlp.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : Wlp m σ ρ :=
 
 
 def BigStep.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : BigStep σ ρ :=
-  fun s r s' => req s -> ens s r s'
+  fun s r s' => req s ∧ (req s -> ens s r s')
 
 @[actSimp]
 def Wlp.get : Wlp m σ σ := fun s post => post s s
@@ -203,7 +207,7 @@ theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : σ -> σ 
   := by
   unfold Wlp.lift Function.toWlp Wlp.toActProp
   funext st st'
-  simp only [not_forall, not_imp, Decidable.not_not, eq_iff_iff]
+  simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
   constructor
   {
     rintro ⟨rs, liftedR, heq⟩
@@ -223,8 +227,15 @@ instance : LE (Wlp m σ ρ) where
 abbrev Wlp.triple {σ ρ} (req : SProp σ) (act : Wlp m σ ρ) (ens : RProp σ ρ) : Prop :=
   ∀ s, req s -> act s ens
 
+/- Termination -/
+abbrev Wlp.terminates {σ } (req : SProp σ) (act : Wlp m σ ρ)  : Prop :=
+  ∀ s, req s -> act s (fun _ _ => True)
+
+
+/- partial correctness triple -/
 abbrev ActProp.triple {σ } (req : SProp σ) (act : ActProp σ) (ens : SProp σ) : Prop :=
   ∀ s s', req s -> act s s' -> ens s'
+
 
 
 /-- `Sound act` states the set of minimal conditions on `act` that are required
@@ -287,8 +298,9 @@ theorem sound_and (act : Wlp m σ ρ) [Sound act] :
 
 theorem triple_sound [Sound act] (req : SProp σ) (ens : SProp σ) :
   (¬ ∀ s, ens s) ->
+  act.terminates req →
   act.toActProp.triple req ens -> act.triple req (fun _ => ens) := by
-  intro ensTaut htriple s hreq
+  intro ensTaut term htriple s hreq
   have ens_impl : ∀ s, (∀ s' : { s' // ¬ ens s' }, ¬ (s'.val = s)) -> ens s := by
     simp; intro s impl
     false_or_by_contra
@@ -299,12 +311,12 @@ theorem triple_sound [Sound act] (req : SProp σ) (ens : SProp σ) :
   apply Sound.inter; rintro ⟨s', hens⟩
   apply Sound.impl (post := fun r₀ s₀ => ¬s' = s₀) <;> (intros; try simp_all)
   false_or_by_contra
-  specialize htriple _ _ ‹_› ‹_›; contradiction
+  specialize htriple _ s' ‹_› ⟨term _ ‹_›,‹_›⟩; contradiction
 
 theorem triple_sound' [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
   act.triple req ens → act.toActProp.triple req (∃ r, ens r ·) := by
-  intro htriple s s' hreq hact
-  unfold Wlp.toActProp at hact ; unfold Wlp.triple at htriple
+  intro htriple s s' hreq ⟨_, hact⟩
+  unfold Wlp.triple at htriple
   specialize htriple _ hreq
   false_or_by_contra ; rename_i h ; simp at h
   apply hact ; apply Sound.impl (post := ens) <;> try assumption
