@@ -176,7 +176,7 @@ follows.
 
 /-- Converting `Wp` to `Wlp` "drops" all non-terminating executions. -/
 @[actSimp]
-abbrev Wp.toWlp {σ ρ : Type} (m : Mode) (wp : Wp m σ ρ) : Wlp m σ ρ :=
+abbrev Wp.toWlp {σ ρ : Type} {m : Mode} (wp : Wp m σ ρ) : Wlp m σ ρ :=
   -- `wlp(P, φ, s) = ¬ wp(P, ¬φ, s)`
   fun (s : σ) (post : RProp σ ρ) => ¬ wp s (fun r s' => ¬ post r s')
 
@@ -191,7 +191,7 @@ executions starting from `s` end in `s'` with return value `r'`. -/
 def Wp.toBigStep {σ} (wp : Wp m σ ρ) : BigStep σ ρ :=
   fun s r' s' =>
     wp.hasTerminatingExecFromState s ∧
-    wp.toWlp m s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
+    wp.toWlp s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
 
 /-- States `s` and `s'` are related by `wp` if `wp` has a terminating
 execution starting from `s`, and all executions starting from `s` end
@@ -201,7 +201,7 @@ def Wp.toActProp {σ} (wp : Wp m σ ρ) : ActProp σ :=
   -- `tr(s, s') = wp(P, ⊤, s) ∧ wlp(P, φ, s)`
   fun s s' =>
     wp.hasTerminatingExecFromState s ∧
-    wp.toWlp m s (fun _ s₀ => (s' = s₀))
+    wp.toWlp s (fun _ s₀ => (s' = s₀))
 
 /-- [BigStep.toWp] converts Big-step semantics to Omni one.
 
