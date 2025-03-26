@@ -116,7 +116,7 @@ def Wp.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : Wp m σ ρ :=
     | .external => ∀ r' s', req s -> ens s r' s' -> post r' s'
 
 def BigStep.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : BigStep σ ρ :=
-  fun s r s' => req s ∧ (req s -> ens s r s')
+  fun s r s' => req s ∧ ens s r s'
 
 @[actSimp]
 def Wp.get : Wp m σ σ := fun s post => post s s
@@ -190,7 +190,6 @@ executions starting from `s` end in `s'` with return value `r'`. -/
 @[actSimp]
 def Wp.toBigStep {σ} (wp : Wp m σ ρ) : BigStep σ ρ :=
   fun s r' s' =>
-    wp.hasTerminatingExecFromState s ∧
     wp.toWlp s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
 
 /-- States `s` and `s'` are related by `wp` if `wp` has a terminating
@@ -200,7 +199,6 @@ in `s'`. -/
 def Wp.toActProp {σ} (wp : Wp m σ ρ) : ActProp σ :=
   -- `tr(s, s') = wp(P, ⊤, s) ∧ wlp(P, φ, s)`
   fun s s' =>
-    wp.hasTerminatingExecFromState s ∧
     wp.toWlp s (fun _ s₀ => (s' = s₀))
 
 /-- [BigStep.toWp] converts Big-step semantics to Omni one.
@@ -269,7 +267,7 @@ theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : σ -> σ 
     r (getFrom st) (getFrom st') ∧
     st' = (setIn (@getFrom σ σ' _ st') st)
   := by
-  unfold Wp.lift Function.toWp Wp.toActProp Wp.toWlp Wp.hasTerminatingExecFromState
+  unfold Wp.lift Function.toWp Wp.toActProp Wp.toWlp --Wp.hasTerminatingExecFromState
   funext st st'
   simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
   constructor
@@ -299,6 +297,10 @@ abbrev Wp.terminates {σ } (req : SProp σ) (act : Wp m σ ρ)  : Prop :=
 /- partial correctness triple -/
 abbrev ActProp.triple {σ } (req : SProp σ) (act : ActProp σ) (ens : SProp σ) : Prop :=
   ∀ s s', req s -> act s s' -> ens s'
+
+/- partial correctness triple -/
+abbrev BigStep.triple {σ } (req : SProp σ) (act : BigStep σ ρ) (ens : RProp σ ρ) : Prop :=
+  ∀ s r' s', req s -> act s r' s' -> ens r' s'
 
 
 
@@ -333,38 +335,10 @@ theorem sound_and (act : Wp m σ ρ) [Sound act] :
     unfold Post; simp
   rw [<-post_eq]; apply Sound.inter <;> simp [*, Post]
 
--- theorem sound_terminates [Sound act] : (∀ r s, post r s) -> act m s post := by
---   intro hpost
---   have post_eq : post = (fun _ _ => Empty -> True) := by ext; simp_all
---   rw [post_eq]; apply Sound.inter; rintro ⟨⟩
-
--- theorem wp_sound (act : ∀ m, Wp m σ ρ) [Sound act] :
---   ∀ s post, (act m).toBigStep.toWp (m := m) s post <-> act m s post := by
---   intro s post; constructor
---   { unfold Wp.toBigStep BigStep.toWp; simp
---     intro hact
---     have post_impl : ∀ r s, (∀ r' s', ¬ post r' s' -> ¬ (r' = r ∧ s' = s)) -> post r s := by
---       intro r s impl
---       false_or_by_contra
---       specialize impl r s; apply impl <;> simp_all
---     apply Sound.impl; apply post_impl
---     apply Sound.inter; intro r'
---     apply Sound.inter; intro s'
---     by_cases postrs : post r' s'
---     { apply sound_terminates; simp_all }
---     apply Sound.impl (post := fun r₀ s₀ => r' = r₀ → ¬s' = s₀) <;> simp_all
---     false_or_by_contra
---     specialize hact _ _ ‹_›; contradiction }
---   intro hact r' s' h
---   false_or_by_contra; apply h; apply Sound.impl (post := post)
---   { intros; intro _; simp_all }
---   assumption
-
 theorem triple_sound [Sound act] (req : SProp σ) (ens : SProp σ) :
   (¬ ∀ s, ens s) ->
-  act.terminates req →
   act.toActProp.triple req ens -> act.triple req (fun _ => ens) := by
-  intro ensTaut term htriple s hreq
+  intro ensTaut htriple s hreq
   have ens_impl : ∀ s, (∀ s' : { s' // ¬ ens s' }, ¬ (s'.val = s)) -> ens s := by
     simp; intro s impl
     false_or_by_contra
@@ -375,16 +349,42 @@ theorem triple_sound [Sound act] (req : SProp σ) (ens : SProp σ) :
   apply Sound.inter; rintro ⟨s', hens⟩
   apply Sound.impl (post := fun r₀ s₀ => ¬s' = s₀) <;> (intros; try simp_all)
   false_or_by_contra
-  specialize htriple _ s' ‹_› ⟨term _ ‹_›,‹_›⟩; contradiction
+  specialize htriple _ s' ‹_› ‹_›; contradiction
+
+attribute [-simp] not_and in
+theorem triple_sound_big_step [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
+  (¬ ∀ r s, ens r s) ->
+  act.toBigStep.triple req ens -> act.triple req ens := by
+  intro ensTaut htriple s hreq
+  have ens_impl : ∀ r s, (∀ rs' : { rs' : ρ × σ // ¬ ens rs'.1 rs'.2 }, ¬ (rs'.val.1 = r ∧ rs'.val.2 = s)) -> ens r s := by
+    simp; intro r s impl
+    false_or_by_contra
+    specialize impl r s; apply impl <;> simp_all
+  apply Sound.impl; intro _; apply ens_impl
+  simp at ensTaut; rcases ensTaut with ⟨r', s', hens⟩
+  have: Inhabited { rs' : ρ × σ // ¬ ens rs'.1 rs'.2 } := ⟨⟨(r', s'), hens⟩⟩
+  apply Sound.inter; rintro ⟨⟨r', s'⟩, hens⟩
+  apply Sound.impl (post := fun r₀ s₀ => ¬(r' = r₀ ∧ s' = s₀)) <;> (intros; try simp_all)
+  false_or_by_contra
+  specialize htriple _ r' s' ‹_› ‹_›; contradiction
 
 theorem triple_sound' [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
   act.triple req ens → act.toActProp.triple req (∃ r, ens r ·) := by
-  intro htriple s s' hreq ⟨_, hact⟩
+  intro htriple s s' hreq hact
   unfold Wp.triple at htriple
   specialize htriple _ hreq
   false_or_by_contra ; rename_i h ; simp at h
   apply hact ; apply Sound.impl (post := ens) <;> try assumption
   intro r s hh heq ; subst_eqs ; apply h ; apply hh
+
+theorem triple_sound_big_step' [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
+  act.triple req ens → act.toBigStep.triple req ens := by
+  intro htriple s r' s' hreq hact
+  unfold Wp.triple at htriple
+  specialize htriple _ hreq
+  false_or_by_contra ; rename_i h ; simp at h
+  apply hact ; apply Sound.impl (post := ens) <;> try assumption
+  intro r s hh ⟨heq,_⟩ ; subst_eqs ; apply h ; apply hh
 
 theorem exists_over_PUnit (p : PUnit → Prop) : (∃ (u : PUnit), p u) = p () := by
   simp ; constructor ; intro ⟨⟨⟩, h⟩ ; assumption ; intro h ; exists PUnit.unit
@@ -502,14 +502,153 @@ instance (act : Wp m σ ρ) [IsSubStateOf σ σ'] [Sound act] :
 
 /-! ### Correctness of `checkSpec` -/
 
-theorem wp_spec_to_big_step :
-  (Wp.spec ens req).toBigStep (m := .internal) = BigStep.spec ens req := by
-  ext s r' s'; unfold Wp.spec BigStep.spec Wp.toBigStep Wp.toWlp Wp.hasTerminatingExecFromState; simp
+-- theorem wp_spec_to_big_step :
+--   (Wp.spec ens req).toBigStep (m := .internal) = BigStep.spec ens req := by
+--   ext s r' s'; unfold Wp.spec BigStep.spec Wp.toBigStep Wp.toWlp; simp
 
 theorem check_spec_sound [Sound act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
   (∀ s, req s -> act s (ens s)) ->
   Wp.spec (m := .internal) req ens <= act := by
   intro triple s post; simp [actSimp]; intros hreq hens
   solve_by_elim [Sound.impl]
+
+
+structure VeilAction (σ ρ : Type) where
+  wp m       : Wp m σ ρ
+  tr         : BigStep σ ρ
+  lawful {m} : Sound (wp m)
+  sound pre  :
+    (wp .external).terminates pre -> ∀ s, pre s -> tr s = (wp .external).toBigStep s
+
+def BigStep.pure (r : ρ) : BigStep σ ρ := fun s r' s' => s' = s ∧ r' = r
+
+def BigStep.bind (act : BigStep σ ρ) (act' : ρ -> BigStep σ ρ') : BigStep σ ρ' :=
+  fun s r' s' => ∃ r s'', act s r s'' ∧ act' r s'' r' s'
+
+def BigStep.assume (asm : Prop) : BigStep σ PUnit := fun s _ s' => asm ∧ s' = s
+def BigStep.assert (ast : Prop) : BigStep σ PUnit := fun s _ s' => ast ∧ s' = s
+def BigStep.fresh (τ : Type) : BigStep σ τ := fun s _r s' => s' = s
+def BigStep.set (s : σ) : BigStep σ Unit := fun _s _r s' => s' = s
+def BigStep.get : BigStep σ σ := fun s r s' => s' = s ∧ r = s
+def BigStep.modifyGet (act : σ -> ρ × σ) : BigStep σ ρ := fun s r s' => let (ret, st) := act s; s' = st ∧ r = ret
+
+def VeilAction.pure (r : ρ) : VeilAction σ ρ :=
+  { wp m := Wp.pure r
+    lawful := inferInstance
+    tr := BigStep.pure r
+    sound pre := by
+      unfold Wp.toBigStep BigStep.pure Wp.toWlp Wp.pure; simp; intros
+      ext; constructor <;> simp <;> intros <;> simp_all }
+
+def VeilAction.assume (asm : Prop) : VeilAction σ PUnit :=
+  { wp m := Wp.assume asm
+    lawful := inferInstance
+    tr := BigStep.assume asm
+    sound pre := by
+      unfold Wp.toBigStep BigStep.assume Wp.toWlp Wp.assume; simp }
+
+def VeilAction.assert (asm : Prop) : VeilAction σ PUnit :=
+  { wp m := Wp.assert asm
+    lawful := inferInstance
+    tr := BigStep.assert asm
+    sound := by
+      unfold Wp.terminates Wp.toBigStep BigStep.assert Wp.toWlp Wp.assert; simp
+      rintro pre preAsm s hpre; ext
+      have h := preAsm s hpre; simp_all }
+
+def VeilAction.fresh (τ : Type) : VeilAction σ τ :=
+  { wp m := Wp.fresh τ
+    lawful := inferInstance
+    tr := BigStep.fresh τ
+    sound := by
+      unfold Wp.terminates Wp.toBigStep BigStep.fresh Wp.toWlp Wp.fresh; simp }
+
+def VeilAction.set (s : σ) : VeilAction σ Unit :=
+  { wp m := Wp.set s
+    lawful := inferInstance
+    tr := BigStep.set s
+    sound := by
+      unfold Wp.terminates Wp.toBigStep BigStep.set Wp.toWlp Wp.set; simp }
+
+def VeilAction.get : VeilAction σ σ :=
+  { wp m := Wp.get, lawful := inferInstance
+    tr := BigStep.get,
+    sound := by
+      unfold Wp.terminates Wp.toBigStep BigStep.get Wp.toWlp Wp.get; simp
+      intros; ext; constructor<;> intros <;> simp_all }
+
+def VeilAction.modifyGet (act : σ -> ρ × σ) : VeilAction σ ρ :=
+  { wp m := Wp.modifyGet act, lawful := inferInstance
+    tr := BigStep.modifyGet act,
+    sound := by
+      unfold Wp.terminates Wp.toBigStep BigStep.modifyGet Wp.toWlp Wp.modifyGet; simp
+      intros; ext; constructor<;> intros <;> simp_all }
+
+def VeilAction.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : VeilAction σ ρ :=
+  { wp m := Wp.spec req ens, lawful := inferInstance
+    tr := BigStep.spec req ens,
+    sound := by
+      unfold Wp.terminates Wp.toBigStep BigStep.spec Wp.toWlp Wp.spec; simp }
+
+theorem bind_terminates m (act : Wp m σ ρ) (act' : ρ -> Wp m σ ρ') s [Sound act] :
+  pre s ->
+  act.terminates pre →
+  (act.bind act').terminates pre ->
+  act.toBigStep s r' s' ->
+  (act' r').terminates (· = s') := by
+    unfold Wp.terminates Wp.toBigStep Wp.toWlp Wp.bind
+    intros hpre actT act'T
+    have actT := actT s hpre
+    have act'T := act'T s hpre
+    have act''T := triple_sound_big_step' (act := act) (req := (· = s))
+    unfold Wp.triple BigStep.triple Wp.toBigStep Wp.toWlp at act''T
+    simp at act''T; specialize act''T _ act'T s r' s' rfl
+    simp_all
+
+attribute [-simp] not_and
+
+def VeilAction.bind [Inhabited σ] [Inhabited ρ] (act : VeilAction σ ρ) (act' : ρ -> VeilAction σ ρ') : VeilAction σ ρ' :=
+  { wp m   := (act.wp m).bind (act' · |>.wp m)
+    lawful := by dsimp; intro m; apply @bind_sound _ _ _ _ _ _ _ (act.lawful) (act' · |>.lawful)
+    tr     := act.tr.bind (act' · |>.tr)
+    sound pre := by
+      unfold Wp.bind; simp
+      intros term s hpre
+      have := @act.lawful .external
+      have actTerm : act.wp .external |>.terminates pre := by
+        intro s' hpre'
+        apply Sound.impl _ _ _ _ (term _ hpre'); simp
+      unfold BigStep.bind Wp.toBigStep Wp.toWlp; simp; ext r' s'
+      rw [act.sound _ actTerm s hpre]
+      unfold Wp.toBigStep Wp.toWlp; simp; constructor
+      { simp; intros ret st htr htr' hwp
+        apply htr; apply Sound.impl <;> try assumption
+        rintro s r _ ⟨⟩; subst_eqs
+        rw [(act' ret).sound (pre := (· = st))] at htr' <;> try simp
+        { solve_by_elim }
+        have := @(act' ret).lawful .external
+        apply Sound.impl <;> try assumption
+        simp }
+      intro hact; false_or_by_contra
+      rename_i hact'; simp [not_and_iff_or_not_not] at hact'
+      by_cases hex : ∀ ret st, act.wp .external s (¬ret = · ∨ ¬st = ·)
+      { apply hact
+        apply Sound.impl (post := fun r s => ∀ (ret : ρ) (st : σ), ret ≠ r ∨ st ≠ s)
+        { rintro r s hf; specialize hf r s; simp at hf }
+        solve_by_elim [Sound.inter] }
+      simp at hex; rcases hex with ⟨ret, st, hret⟩
+      rcases hact' ret st with (hret' | hst) <;> try contradiction
+      apply hact
+      by_cases ∀ r s'_1, (act' r).wp Mode.external s'_1 fun r s'_2 => ¬(r' = r ∧ s' = s'_2)
+      { apply Sound.impl <;> try solve_by_elim }
+      apply triple_sound_big_step (req := (· = s)) <;> try simp_all [BigStep.triple]
+      rintro s'' ret' st' rfl
+      unfold  Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not]; intro _
+      rcases hact' ret' st' with (h | h) <;> try solve_by_elim
+      rw [(act' ret').sound (pre := (· = st'))] at h <;> try simp
+      { unfold Wp.toBigStep Wp.toWlp at h; simp_all [not_and_iff_or_not_not] }
+      have := (act' ret').lawful (m := .external)
+      apply bind_terminates (act := act.wp .external) (act' := fun ret => (act' ret).wp .external) (pre := pre) <;> try solve_by_elim
+      unfold Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not, *] }
 
 end Theory
