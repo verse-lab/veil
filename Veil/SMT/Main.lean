@@ -40,6 +40,7 @@ def unknownGoalStr : String := "the solver returned unknown"
 def failureGoalStr : String := "solver invocation failed"
 
 @[tactic sauto] def elabSauto : Tactic := fun stx => withMainContext do
+
   let mv ← Tactic.getMainGoal
   let withTimeout ← parseTimeout ⟨stx[2]⟩
   -- If the user wants proof reconstruction, we simply call the `smt`

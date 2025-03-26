@@ -5,6 +5,17 @@ open Lean Elab Command
 /-- The directory of the file being currently compiled. -/
 syntax (name := currentDirectory) "currentDirectory!" : term
 
+def setOption (option : Name) (val : Bool) : CommandElabM Unit := do
+  let stx ←
+    if val then
+      `(set_option $(mkIdent option) true)
+    else
+      `(set_option $(mkIdent option) false)
+  let options ← Elab.elabSetOption stx.raw[1] stx.raw[3]
+  modify fun s => { s with maxRecDepth := maxRecDepth.get options }
+  modifyScope fun scope => { scope with opts := options }
+
+
 open Lean Elab Elab.Term in
 @[term_elab currentDirectory] def elabCurrentFilePath : TermElab
   | `(currentDirectory!), _ => do

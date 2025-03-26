@@ -393,6 +393,8 @@ syntax "#check_invariants_indicators" : command
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default)
   (isolate : NameHashSet := ∅) : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; warnIfNoInvariantsDefined; warnIfNoActionsDefined)
+  profileCmdIf veil.perf.profile.checkInvariants do
+  withTraceNode `veil.perf.checkInvariants (fun _ => return s!"checkInvariants") do
   let (initChecks, actChecks) ← getAllChecks isolate
   checkTheorems stx initChecks actChecks behaviour
 

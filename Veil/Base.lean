@@ -37,13 +37,21 @@ initialize
   registerTraceClass `veil.smt.debug
 
   -- the following are primarily for performance profiling
+  registerTraceClass `veil.perf.checkInvariants
+  registerTraceClass `veil.smt.perf.simplify
   registerTraceClass `veil.smt.perf.translate
   registerTraceClass `veil.smt.perf.query
+  registerTraceClass `veil.smt.perf.solveClause
   registerTraceClass `veil.smt.perf.checkSat
   registerTraceClass `veil.smt.perf.getModel
   registerTraceClass `veil.smt.perf.minimizeModel
 
 /-! ## Options -/
+
+register_option veil.perf.profile.checkInvariants : Bool := {
+  defValue := false
+  descr := "Profile performance of Veil's `#check_invariants`."
+}
 
 register_option veil.gen_sound : Bool := {
   defValue := false

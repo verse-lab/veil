@@ -3,6 +3,15 @@ import Veil.Util.DSL
 
 open Lean Lean.Elab.Tactic
 
+open Lean Elab Command in
+def profileCmdIf (condition : Lean.Option Bool) (cmd : CommandElabM Unit) : CommandElabM Unit := do
+  let shouldProfile := condition.get (← getOptions)
+  let default := trace.profiler.get (← getOptions)
+  if shouldProfile then
+    setOption `trace.profiler true
+  cmd
+  setOption `trace.profiler default
+
 /-- Is `typ` an application of `n`, after normalisation? -/
 def whnfIsAppOf (typ : Expr) (n : Name) : MetaM Bool := do
   let norm ← Meta.whnf typ
