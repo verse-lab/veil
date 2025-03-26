@@ -1,8 +1,9 @@
 import Lake
 open Lake DSL System
 
-require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "44d9c8a3b89bfe633c6e519bb4f142724be637b8"
-require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "4cdea120ba132ba0cb817e7fd516a967f1148752"
+-- FIXME: change to "https://github.com/leanprover-community/lean-auto.git" once they bump to v4.16.0 upstream
+require auto from git "https://github.com/abdoo8080/lean-auto.git" @ "918a69939911ea5b0906aa67505dc5c85dc6296b"
+require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "1df3f342c196f3f9db3ab2a8204995f8ff9754a5"
 
 package veil
 
@@ -115,7 +116,7 @@ target downloadDependencies pkg : Array FilePath := do
   let uv ← downloadDependency pkg (pkg.buildDir / "uv") downloadPythonUv
   let z3 ← downloadDependency pkg (pkg.buildDir / "z3") (downloadSolver Solver.z3)
   let cvc5 ← downloadDependency pkg (pkg.buildDir / "cvc5") (downloadSolver Solver.cvc5)
-  BuildJob.collectArray #[uv, z3, cvc5]
+  return Job.collectArray #[uv, z3, cvc5]
 
 @[default_target]
 lean_lib «Veil» {
