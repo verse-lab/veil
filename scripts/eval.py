@@ -6,6 +6,7 @@ import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 # [veil.smt.perf.solveClause] [0.053585]
 PATTERN_TOTAL_TACTIC_TIME = re.compile(r"\[veil\.smt\.perf\.solveClause\] \[(\d+\.\d+)\]")
@@ -19,11 +20,35 @@ PATTERN_QUERY = re.compile(r"\[veil\.smt\.perf\.query\] \[(\d+\.\d+)\] querySolv
 # [0.145319] #check_invariants
 PATTERN_OVERALL = re.compile(r"\[veil\.perf\.checkInvariants\] \[(\d+\.\d+)\] checkInvariants")
 
-def run_file(f: str) -> dict[str, float]:
-    print(f"Now running on {f}", file=sys.stderr)
+
+EXTRA_IVY_ARGS = {
+    "PaxosFirstOrder.ivy": ["complete=fo"],
+    "SuzukiKasamiInts.ivy": ["complete=fo"],
+    "VerticalPaxosFirstOrder.ivy": ["complete=fo"],
+    # as recommended in the [instructions](https://github.com/haochenpan/rabia/blob/main/proofs/README)
+    # the `isolate=protocol` corresponds to checking just what we have ported to Veil
+    "Rabia.ivy": ["seed=1", "isolate=protocol"],
+}
+
+def run_ivy(lean_file: str) -> dict[str, float]:
+    base_name = os.path.basename(lean_file).replace(".lean", ".ivy")
+    ivy_path = os.path.join(args.ivy_dir, base_name)
+    print(f"Running ivy_check on {ivy_path} (and measuring total runtime)", file=sys.stderr)
+    extra_args = EXTRA_IVY_ARGS.get(base_name, [])
+    cmd = ["ivy_check"] + extra_args + [ivy_path]
+    ivy_start = time.monotonic()
+    output = subprocess.run(cmd, capture_output=True)
+    ivy_end = time.monotonic()
+    assert output.returncode == 0, f"Failed to run {cmd}: {output.stderr.decode('utf-8')}"
+    total_ivy_time = ivy_end - ivy_start
+    return {"total_ivy_time": total_ivy_time}
+
+def run_file(filepath: str) -> dict[str, float]:
+    ivy_res = run_ivy(filepath)
+    print(f"Running Lean on{filepath} (and measuring #check_invariants)", file=sys.stderr)
     # IMPORTANT: `lake build` does nothing on repeat, so we use `lake lean` instead
     # leanModPath = f.replace("/", ".").removesuffix(".lean"); cmd = ["lake", "build", leanModPath]
-    cmd = ["lake", "lean", f, "--", "-Dweak.veil.perf.profile.checkInvariants=true"]
+    cmd = ["lake", "lean", filepath, "--", "-Dweak.veil.perf.profile.checkInvariants=true"]
     output = subprocess.run(cmd, capture_output=True)
     assert output.returncode == 0, f"Failed to run {cmd}: {output.stderr.decode('utf-8')}"
     stdout = output.stdout.decode("utf-8")
@@ -39,7 +64,8 @@ def run_file(f: str) -> dict[str, float]:
     # 'simplification' time to include all the operations that are not
     # translation from Lean to SMT-LIB and solver invocation.
     simplification_time = overall_time - translation_time - query_time
-    return {"simplification_time": simplification_time, "translation_time": translation_time, "solving_time": query_time, "total_time": overall_time}
+    veil_res = {"simplification_time": simplification_time, "translation_time": translation_time, "solving_time": query_time, "total_time": overall_time}
+    return {**veil_res, **ivy_res}
 
 def run_dir(dir: str) -> dict[str, dict[str, float]]:
     ret = {}
@@ -119,6 +145,7 @@ def create_graph(res : dict[str, dict[str, float]], output_file : str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", type=str)
+    parser.add_argument("--ivy-dir", type=str, default='Examples/Ivy', help="directory including Ivy specifications corresponding to the Lean ones (default: `Examples/Ivy`)")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--output-file", type=str, default=None)
     args = parser.parse_args()
@@ -134,7 +161,7 @@ if __name__ == "__main__":
         averaged_results = {}
         for file in results[0]:
             averaged_results[file] = {j: sum(res[file][j] for res in results) / args.repeat 
-                                        for j in {"simplification_time", "translation_time", "solving_time", "total_time"}}
+                                        for j in {"simplification_time", "translation_time", "solving_time", "total_time", "total_ivy_time"}}
         if args.output_file:
             create_graph(averaged_results, args.output_file)
         else:
@@ -150,6 +177,6 @@ if __name__ == "__main__":
                 print(f"Running for the {i + 1}th time", file=sys.stderr)
             results.append(run_file(args.input_file))
         # average the results
-        averaged_results = {j: sum(res[j] for res in results) / args.repeat for j in {"simplification_time", "translation_time", "solving_time", "total_time"}}
+        averaged_results = {j: sum(res[j] for res in results) / args.repeat for j in {"simplification_time", "translation_time", "solving_time", "total_time", "total_ivy_time"}}
         averaged_results = dict(sorted(averaged_results.items()))
         print(averaged_results)
