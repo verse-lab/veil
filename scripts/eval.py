@@ -20,11 +20,15 @@ PATTERN_QUERY = re.compile(r"\[veil\.smt\.perf\.query\] \[(\d+\.\d+)\] querySolv
 # [0.145319] #check_invariants
 PATTERN_OVERALL = re.compile(r"\[veil\.perf\.checkInvariants\] \[(\d+\.\d+)\] checkInvariants")
 
+IVY_TIMEOUT_SEC = 60
+TIMEOUT_RETURN_CODE = 124
+
+TIMEOUT_MARKER_VAL = 0.0
 
 EXTRA_IVY_ARGS = {
-    "PaxosFirstOrder.ivy": ["complete=fo"],
-    "SuzukiKasamiInts.ivy": ["complete=fo"],
-    "VerticalPaxosFirstOrder.ivy": ["complete=fo"],
+    # "PaxosFirstOrder.ivy": ["complete=fo"],
+    # "SuzukiKasamiInts.ivy": ["complete=fo"],
+    # "VerticalPaxosFirstOrder.ivy": ["complete=fo"],
     # as recommended in the [instructions](https://github.com/haochenpan/rabia/blob/main/proofs/README)
     # the `isolate=protocol` corresponds to checking just what we have ported to Veil
     "Rabia.ivy": ["seed=1", "isolate=protocol"],
@@ -35,10 +39,14 @@ def run_ivy(lean_file: str) -> dict[str, float]:
     ivy_path = os.path.join(args.ivy_dir, base_name)
     print(f"Running ivy_check on {ivy_path} (and measuring total runtime)", file=sys.stderr)
     extra_args = EXTRA_IVY_ARGS.get(base_name, [])
-    cmd = ["ivy_check"] + extra_args + [ivy_path]
+    cmd = ["timeout", str(IVY_TIMEOUT_SEC), "ivy_check", "complete=fo"] + extra_args + [ivy_path]
     ivy_start = time.monotonic()
     output = subprocess.run(cmd, capture_output=True)
+    print(output.stdout.decode('utf-8'), file=sys.stderr)
     ivy_end = time.monotonic()
+    if output.returncode == TIMEOUT_RETURN_CODE:
+        print(f"Ivy timed out after {IVY_TIMEOUT_SEC} seconds", file=sys.stderr)
+        return {"total_ivy_time": TIMEOUT_MARKER_VAL}
     assert output.returncode == 0, f"Failed to run {cmd}: {output.stderr.decode('utf-8')}"
     total_ivy_time = ivy_end - ivy_start
     return {"total_ivy_time": total_ivy_time}
@@ -121,10 +129,11 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
             ax_high.text(x[it] - 0.2, 2 + time, text, fontsize=11, color='black', ha='center', rotation=90)
 
             # Ivy runtimes
-            time = ivy_times[it]
-            text = str(time)
-            text = text if len(text) < 5 else text[:4]
-            ax_low.text(x[it] + 0.2, time + 1, text, fontsize=11, color='black', ha='center', rotation=90)
+            if ivy_times[it] != TIMEOUT_MARKER_VAL:
+                time = ivy_times[it]
+                text = str(time)
+                text = text if len(text) < 5 else text[:4]
+                ax_low.text(x[it] + 0.2, time + 1, text, fontsize=11, color='black', ha='center', rotation=90)
 
         for idx, v in enumerate(ivy_times):
             if v > 0: continue
@@ -178,8 +187,8 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
         ax_low.bar(x + 0.2, ivy_times_normalized, width=0.4, label='Ivy Runtime', color='red')
 
         for idx, v in enumerate(ivy_times_normalized):
-            if v > 0: continue
-            text = '*' if v == 0 else '†'
+            if v != TIMEOUT_MARKER_VAL: continue
+            text = '*' if v == TIMEOUT_MARKER_VAL else '†'
             ax_low.text(x[idx] + 0.2, 0.2, text, fontsize=14, color='black', ha='center')
 
         for it in range(len(categories)):
@@ -188,7 +197,7 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
             ax_low.text(x[it] - 0.2, 1.2, text, fontsize=11, color='black', ha='center', rotation=90)
             ivy_time_text = str(ivy_times[it])
             ivy_time_text = ivy_time_text if len(ivy_time_text) < 5 else ivy_time_text[:4]
-            if ivy_times[it] > 0:
+            if ivy_times[it] != TIMEOUT_MARKER_VAL:
                 if ivy_times_normalized[it] + 0.2 <= 3:
                     ax_low.text(x[it] + 0.28, ivy_times_normalized[it] + 0.2, ivy_time_text, fontsize=11, color='black', ha='center', rotation=90)
                 ax_high.text(x[it] + 0.28, ivy_times_normalized[it] + 0.2, ivy_time_text, fontsize=11, color='black', ha='center', rotation=90)
@@ -214,7 +223,7 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
         ax_low.set_xticks(x)
         ax_high.tick_params(axis='x', top=False, bottom=False, labelbottom=False)
         plt.xticks(rotation=30, ha='right')
-        ax_low.set_xticklabels(categories)
+        ax_low.set_xticklabels(list(categories.values()))
         ax_low.set_ylabel("Normalised time")
         # ax_high.set_title("Results for RQ1")
         ax_high.legend(prop={'size': 14}, loc=1, ncol=2)
@@ -232,7 +241,7 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", type=str)
-    parser.add_argument("--ivy-dir", type=str, default='Examples/Ivy', help="directory including Ivy specifications corresponding to the Lean ones (default: `Examples/Ivy`)")
+    parser.add_argument("--ivy-dir", type=str, default='Examples/Benchmarks/Ivy', help="directory including Ivy specifications corresponding to the Lean ones (default: `Examples/Benchmarks/Ivy`)")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--output-file", type=str, default=None)
     args = parser.parse_args()
