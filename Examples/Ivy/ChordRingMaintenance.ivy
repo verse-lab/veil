@@ -1,0 +1,193 @@
+#lang ivy1.7
+
+module ring_topology(carrier) = {
+    relation btw(X:carrier,Y:carrier, Z:carrier) # Y is on the acyclic path from X to Z
+
+    # Axiom defining the btw relation - note it's not reflexive
+    # not needed: axiom btw(X,Y,Z) -> X ~= Y & X ~= Z & Y ~= Z  # anti-reflexive
+    axiom btw(W, X, Y) & btw(W, Y, Z) -> btw(W, X, Z)  # transitive
+    axiom btw(W, X, Y) -> ~btw(W, Y, X)  # acyclic
+    axiom btw(W, X, Y) | btw(W, Y, X) | W=X | X=Y  # total
+    axiom (btw(X, Y, Z) & X ~= Z) -> btw(Y, Z, X)  # cyclic permutations
+}
+
+#module nodeopology(t) = {
+#    relation btw(X:t,Y:t,Z:t)
+
+#    axiom btw(W, Y, Z) & btw(W, X, Y) -> btw(X, Y, Z)
+#    property btw(W, X, Z) & btw(X, Y, Z) -> btw(W, X, Y)
+#    property btw(W, X, Z) & btw(X, Y, Z) -> btw(W, Y, Z)
+#    property btw(W, Y, Z) & btw(W, X, Y) -> btw(W, X, Z)
+#    property W = X | btw(W, X, W)
+#    property ~btw(X, X, Y)
+#    property ~btw(X, Y, Y)
+#    property btw(X,Y,Z) |  Y = Z |  btw(X,Z,Y)
+#    property btw(X,Y,Z) |  Y = X |  btw(Y,X,Z)
+#}
+
+type node
+
+instantiate ring : ring_topology(node)
+
+relation a(X : node)                    # active set
+relation s1(X : node, Y : node)         # first successor
+relation in_s1(X : node)
+relation s2(X : node, Y : node)         # second successor
+relation in_s2(X : node)
+relation p(X : node, Y : node)          # predecessor
+
+individual org : node
+individual other : node
+axiom other ~= org
+
+relation reach(X: node)
+relation error(X: node)
+
+after init {
+    a(X) := X = org | X = other;
+    s1(X, Y) := (X = org & Y = other) | (X = other & Y = org);
+    in_s1(X) := X = org | X = other;
+    s2(X, Y) := false;
+    in_s2(X) := false;
+    p(X, Y) := (X = org & Y = other) | (X = other & Y = org);
+    reach(X) := X = org;
+    error(X) := false;
+}
+
+action join(x : node, y : node) = {
+    require ~a(x);
+    require a(y);
+#    require ~(a(Z) & ring.btw(x, Z, y));
+    require ~ring.btw(x, org, y);
+#    assume in_s1(x) -> exists Y. s1(x, Y);
+#    assume in_s2(x) -> exists Y. s2(x, Y);
+    a(x) := true;
+    s1(x, Y) := y = Y;
+    in_s1(x) := true;
+    s2(x, Y) := false;
+    in_s2(x) := false;
+    p(x, Y) := false;
+}
+
+action stabilize(x : node, y : node, z : node) = {
+    require a(x);
+    require s1(x, y);
+    require a(y);
+    require p(y, z);
+#    assume a(z);
+    require ring.btw(x, z, y);
+#    assume in_s1(x) -> exists Y. s1(x, Y);
+#    assume in_s2(x) -> exists Y. s2(x, Y);
+    s1(x, Z) := Z = z;
+    in_s1(x) := true;
+    s2(x, Y) := Y = y;
+    in_s2(x) := true;
+}
+
+action notify(x : node, y : node, z : node)  = {
+    require a(x);
+    require s1(x, y);
+    require a(y);
+    require p(y, z) | ~p(y, X);
+    require ring.btw(z, x, y);
+    p(y, X) := X = x;
+}
+
+action inherit(x : node, y : node, z : node) = {
+    require a(x);
+    require s1(x, y);
+    require a(y);
+    require s1(y, z);
+#    assume in_s2(x) -> exists Y. s2(x, Y);
+    s2(x, Z) := Z = z;
+    in_s2(x) := true;
+}
+
+action remove(x : node, y : node, z : node) = {
+    require a(x);
+    require s1(x, y);
+    require ~a(y);
+    require s2(x, z);
+#    assume in_s1(x) -> exists Y. s1(x, Y);
+#    assume in_s2(x) -> exists Y. s2(x, Y);
+    s1(x, Z) := Z = z;
+    in_s1(x) := true;
+    s2(x, Y) := false;
+    in_s2(x) := false;
+}
+
+action fail(x : node) = {
+    require a(x);
+    require x ~= org; # assume origin node cannot fail
+    # assume the last active successor of any does not fail
+    require (s1(Y, x)) -> in_s2(Y);
+    require (s1(Y, x) & s2(Y, Z)) -> a(Z);
+    require (s1(X, Y) & s2(X, x)) -> (Y ~= x & a(Y));
+#    assume in_s1(x) -> exists Y. s1(x, Y);
+#    assume in_s2(x) -> exists Y. s2(x, Y);
+    a(x) := false;
+    p(x, Y) := false;
+    s1(x, Y) := false;
+    in_s1(x) := false;
+    s2(x, Y) := false;
+    in_s2(x) := false;
+#    assume (~s1(X, Y) | a(Y) | in_s2(X));
+#    assume (~s1(X, Y) | a(Y) | ~s2(X, Z) | a(Z));
+}
+
+action reach_org(x : node, y : node, z : node) = {
+    require (s1(x, y) & a(y) & reach(y)) | (s1(x, y) & ~a(y) & s2(x, z) & a(z) & reach(z));
+    reach(x) := true;
+}
+
+action remove_org(x : node, y : node, z : node) = {
+    require x ~= org;
+    require s1(x, y);
+    require (~a(y) | ~reach(y));
+    require ~a(y) -> (~s2(x, Z) | s2(x, z));
+    require (~a(y) & s2(x, z)) -> (~a(z) | ~reach(z));
+#    require (s1(x, y) & a(y) & ~reach(y)) | (s1(x, y) & ~a(y) & s2(x, z) & (a(z) & ~reach(z)));
+    reach(x) := false;
+}
+
+action test(x : node) = {
+    require (s1(X, Y) & a(Y) & reach(Y)) -> reach(X);
+    require (s1(X, Y) & ~a(Y) & s2(X, Z) & a(Z) & reach(Z)) -> reach(X);
+    require (ring.btw(x, Y, org) & a(Y)) -> reach(Y);
+    require a(x);
+    require ~reach(x);
+    require in_s1(x) -> exists Y. s1(x, Y);
+    require in_s2(x) -> exists Y. s2(x, Y);
+    error(x) := true;
+}
+
+export join
+export stabilize
+export inherit
+export remove
+export notify
+export reach_org
+export remove_org
+export fail
+export test
+
+invariant ~error(N)
+
+
+invariant [manual_1] s1(X,Y) -> in_s1(X)
+invariant [manual_2] s2(X,Y) -> in_s2(X)
+invariant [manual_3] reach(org)
+invariant [manual_4] s1(X,Y) & s1(X,Z) -> Y=Z
+invariant [manual_5] s2(X,Y) & s2(X,Z) -> Y=Z
+invariant [manual_6] p(X,Y) & p(X,Z) -> Y=Z
+invariant [manual_7] (a(X) | X ~= org)
+invariant [manual_8] (a(X) | ~p(Y, X) | ~s1(X, Y)) 
+invariant [manual_9] (a(X) | p(Y, X) | ~s1(X, Y)) 
+invariant [manual_10] (a(X) | ~s2(X, Y)) 
+invariant [manual_11] (in_s1(X) | ~a(X))
+invariant [manual_12] (a(Y) | a(Z) | ~s1(X, Y) | ~s2(X, Z)) 
+invariant [manual_13] (a(Y) | in_s2(X) | ~a(X) | ~s1(X, Y)) 
+invariant [manual_14] p(A,B) -> a(A)
+invariant [manual_15] a(X) & p(Y,X) & s1(X,Y) -> a(Y)
+invariant [manual_16] (~ring.btw(X, org, Y) | ~s1(X, Y)) 
+invariant [manual_17] ~(s1(V0, V1) & V1 ~= org & s2(V0, V2) & ring.btw(V0, org, V2))

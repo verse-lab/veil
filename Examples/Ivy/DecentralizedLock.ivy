@@ -1,0 +1,53 @@
+#lang ivy1.7
+
+# Source: https://github.com/sat-group/cfg-enum/blob/master/examples/decentralized-lock.ivy
+
+type node
+type time
+
+relation le(X: time, Y: time)
+axiom forall X : time . le(X, X)
+axiom forall X : time . forall Y : time . le(X, Y) & le(Y, Z) -> le(X, Z)
+axiom forall X : time . forall Y : time . (le(X, Y) & le(Y, X)) -> X = Y
+axiom forall X : time . forall Y : time . le(X, Y) | le(Y, X)
+
+relation has_lock(X: node)
+relation msg(Y: node, E: time)
+function epoch(X: node): time
+
+individual first: node
+individual zero: time
+axiom le(zero, X)
+individual max: time
+axiom le(X, max)
+
+after init {
+	has_lock(X) := (X = first);
+	msg(Y,T) := false;
+	epoch(X) := zero;
+}
+
+action take_lock(x: node, y: node, t: time) = {
+    require msg(y, t);
+    require ~le(t, epoch(y));
+    has_lock(y) := true;
+    epoch(y) := t;
+}
+
+action release_lock(x: node, y : node, t: time) = {
+    require has_lock(x);
+    require ~le(t, epoch(x));
+    has_lock(x) := false;
+    msg(y, t) := true;
+}
+
+export take_lock
+export release_lock
+
+# safety property
+
+invariant ~(X ~= Y & has_lock(X) & has_lock(Y))
+
+invariant [manual_1] ~(X ~= Y & ( has_lock(X) | (msg(X, T) & ~le(T, epoch(X))) ) & ( has_lock(Y) | (msg(Y, S) & ~le(S, epoch(Y))) ))
+invariant [manual_2] ~(has_lock(X) & (msg(X, T) & ~le(T, epoch(X))))
+invariant [manual_3] ~(S ~= T & msg(Y, S) & msg(Y, T) & ~le(T, epoch(Y)) & ~le(S, epoch(Y)))

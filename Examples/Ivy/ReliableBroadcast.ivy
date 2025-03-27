@@ -1,0 +1,180 @@
+#lang ivy1.8
+
+# Node sets and properties about Byzantine quorums.
+# Parametrised by the `is_byz` relation which determines faulty nodes.
+module nodeset(node, is_byz) = {
+    type this
+    alias nset = this
+
+    relation member(N:node, S:nset)
+    relation is_empty(S:nset)
+
+    relation greater_than_third(S:nset) # f + 1 nodes
+    relation supermajority(S:nset)      # 2f + 1 nodes
+
+    axiom [supermajorities_intersect_in_honest]
+        forall S1:nset, S2:nset. exists N:node. member(N, S1) & member(N, S2) & ~is_byz(N)
+
+    axiom [greater_than_third_one_honest]
+        forall S:nset. greater_than_third(S) -> exists N:node. member(N, S) & ~is_byz(N)
+
+    axiom [supermajority_greater_than_third]
+        forall S:nset. supermajority(S) -> greater_than_third(S)
+
+    axiom [greater_than_third_non_empty]
+        forall S:nset. greater_than_third(S) -> ~is_empty(S)
+}
+
+type address
+type round
+type value
+
+relation is_byz(N:address)
+# this defines a type `nset` whose elements satisfy the axioms above
+instance nset : nodeset(address, is_byz)
+
+# Messages over the network
+relation initial_msg(ORIGINATOR:address, DST:address, R:round, V:value)
+relation echo_msg(SRC:address, DST:address, ORIGINATOR:address, R:round, V:value)
+relation vote_msg(SRC:address, DST:address, ORIGINATOR:address, R:round, V:value)
+
+# State of the nodes
+# sent(address, round) := has the node initiated round `r`? 
+relation sent(N:address, R:round)
+relation echoed(N:address, ORIG:address, IN_ROUND:round, V:value)
+relation voted(N:address, ORIG:address, IN_ROUND:round, V:value)
+relation output(N:address, ORIG:address, IN_ROUND:round, V:value)
+
+# Ghost relations
+relation initial_value(N:address, R:round, V:value) = forall DST:address. initial_msg(N, DST, R, V)
+
+after init {
+    initial_msg(O, D, R, V) := false;
+    echo_msg(S, D, O, R, V) := false;
+    vote_msg(S, D, O, R, V) := false;
+
+    sent(N, R) := false;
+    echoed(N, O, R, V) := false;
+    voted(N, O, R, V) := false;
+    output(N, O, R, V) := false;
+}
+
+export action byz = {
+    # Byzantine nodes can send any non-forged message BUT cannot "unsend" them
+    ensure 
+        (is_byz(SRC) & (old initial_msg(SRC, DST, R, V)) -> initial_msg(SRC, DST, R, V)) |
+        (~is_byz(SRC) & (old initial_msg(SRC, DST, R, V)) <-> initial_msg(SRC, DST, R, V));
+    ensure 
+        (is_byz(SRC) & (old echo_msg(SRC, DST, ORIG, R, V)) -> echo_msg(SRC, DST, ORIG, R, V)) |
+        (~is_byz(SRC) & (old echo_msg(SRC, DST, ORIG, R, V)) <-> echo_msg(SRC, DST, ORIG, R, V));
+    ensure 
+        (is_byz(SRC) & (old vote_msg(SRC, DST, ORIG, R, V)) -> vote_msg(SRC, DST, ORIG, R, V)) |
+        (~is_byz(SRC) & (old vote_msg(SRC, DST, ORIG, R, V)) <-> vote_msg(SRC, DST, ORIG, R, V));
+}
+
+export action start_round(n:address, r:round, v:value) = {
+    require ~sent(n, r);
+    initial_msg(n, N, r, v) := true;
+    sent(n, r) := true;
+}
+
+export action echo(n:address, orig:address, r:round, v:value) = {
+    require initial_msg(orig, n, r, v);
+    require ~echoed(n, orig, r, V);
+    echoed(n, orig, r, v) := true;
+    echo_msg(n, DST, orig, r, v) := true;
+}
+
+export action vote(n:address, orig:address, r:round, v:value) = {
+    # received a 2f + 1 echo messages OR f + 1 vote message
+    require (exists Q:nset.
+                (nset.supermajority(Q) & forall SRC:address. nset.member(SRC, Q) -> echo_msg(SRC, n, orig, r, v)) |
+                (nset.greater_than_third(Q) & forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, n, orig, r, v)));
+    require ~voted(n, orig, r, V);
+    voted(n, orig, r, v) := true;
+    vote_msg(n, DST, orig, r, v) := true;
+}
+
+export action deliver(n:address, orig:address, r:round, v:value) = {
+    # received a quorum of votes
+    require (exists Q:nset. nset.supermajority(Q) & forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, n, orig, r, v));
+    output(n, orig, r, v) := true;
+}
+
+# If a value is voted for, it is the value that was initially proposed by the originator.
+invariant [vote_integrity]
+    forall SRC:address, DST:address, R:round, V:value.
+        ~is_byz(SRC) & ~is_byz(DST) & voted(DST, SRC, R, V) ->
+        (sent(SRC, R) & initial_value(SRC, R, V))
+
+# If a value is output, it is the value that was initially proposed by the originator.
+invariant [output_integrity]
+    forall SRC:address, DST:address, R:round, V:value.
+        ~is_byz(SRC) & ~is_byz(DST) & output(DST, SRC, R, V) ->
+        (sent(SRC, R) & initial_value(SRC, R, V))
+
+# Also known as "output uniqueness".
+invariant [agreement]
+    forall SRC:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        ~is_byz(DST1) & ~is_byz(DST2) & output(DST1, SRC, R, V1) & output(DST2, SRC, R, V2) ->
+        (V1 = V2)
+
+# Looking at the actions
+
+invariant [sent_iff_initial]
+    forall SRC:address, R:round.
+        ~is_byz(SRC) -> (sent(SRC, R) <-> exists V:value. initial_value(SRC, R, V))
+
+invariant [echoed_iff_echo]
+    forall N:address, DST:address, ORIG:address, R:round, V:value.
+       ~is_byz(N) -> (echoed(N, ORIG, R, V) <-> echo_msg(N, DST, ORIG, R, V))
+
+invariant [echoed_requires_initial]
+    forall N:address, ORIG:address, R:round, V:value.
+         ~is_byz(N) -> (echoed(N, ORIG, R, V) -> initial_msg(ORIG, N, R, V))
+
+invariant [voted_iff_vote]
+    forall N:address, DST:address, ORIG:address, R:round, V:value.
+         ~is_byz(N) -> (voted(N, ORIG, R, V) <-> vote_msg(N, DST, ORIG, R, V))
+
+# not in the decidable fragment due to edge from `address` to `nset`
+invariant [voted_requires_echo_quorum_or_vote_quorum]
+    forall N:address, ORIG:address, R:round, V:value.
+         ~is_byz(N) -> (voted(N, ORIG, R, V) ->
+            (exists Q:nset. nset.supermajority(Q) &
+                forall SRC:address. nset.member(SRC, Q) -> echo_msg(SRC, N, ORIG, R, V)) |
+            (exists Q:nset. nset.greater_than_third(Q) &
+                forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)))
+
+invariant [output_requires_vote_quorum]
+    forall N:address, ORIG:address, R:round, V:value.
+         ~is_byz(N) -> (output(N, ORIG, R, V) ->
+            (exists Q:nset. nset.supermajority(Q) &
+                forall SRC:address. nset.member(SRC, Q) -> vote_msg(SRC, N, ORIG, R, V)))
+
+# Looking at CTIs
+
+# vote -> vote_integrity
+
+# this version is not in the decidable fragment:
+# invariant [sent_iff_initial]
+#    ∀ (src : address) (r : round),
+#      sent src r ↔ ∃ (dst : address) (v : value), initial_msg src dst r v
+
+invariant [initial_value_iff_initial_msg]
+    forall SRC:address, DST:address, R:round, V:value.
+         ~is_byz(SRC) -> (initial_value(SRC, R, V) <-> initial_msg(SRC, DST, R, V))
+
+# deliver -> agreement
+
+invariant [honest_non_conflicting_initial_msg]
+    forall SRC:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        (~is_byz(SRC)) -> (initial_msg(SRC, DST1, R, V1) & initial_msg(SRC, DST2, R, V2) -> V1 = V2)
+
+invariant [honest_non_conflicting_echoes]
+    forall SRC:address, ORIG:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        (~is_byz(SRC)) -> (echo_msg(SRC, DST1, ORIG, R, V1) & echo_msg(SRC, DST2, ORIG, R, V2) -> V1 = V2)
+
+invariant [honest_non_conflicting_votes]
+    forall SRC:address, ORIG:address, DST1:address, DST2:address, R:round, V1:value, V2:value.
+        (~is_byz(SRC)) -> (vote_msg(SRC, DST1, ORIG, R, V1) & vote_msg(SRC, DST2, ORIG, R, V2) -> V1 = V2)

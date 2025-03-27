@@ -1,0 +1,163 @@
+#lang ivy1.6
+
+################################################################################
+#
+# Modules that should probably come from a standard library
+#
+################################################################################
+
+################################################################################
+#
+# Module for axiomatizing a total order
+#
+################################################################################
+
+module total_order(r) = {
+    axiom r(X,X)                        # Reflexivity
+    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # Transitivity
+    axiom r(X, Y) & r(Y, X) -> X = Y    # Anti-symmetry
+    axiom r(X, Y) | r(Y, X)             # Totality
+}
+
+
+################################################################################
+#
+# Types, relations and functions describing state of the network
+#
+################################################################################
+
+type node
+type value
+type quorum
+type round
+
+individual none: round
+relation le(X:round, Y:round)
+instantiate total_order(le)
+
+relation member(N:node, Q:quorum)
+axiom forall Q1:quorum, Q2:quorum. exists N:node. member(N, Q1) & member(N, Q2)
+
+relation one_a(R:round)
+relation one_b_max_vote(N:node, R1:round, R2:round, V:value)
+relation one_b(N:node, R:round) # := exists RMAX, V. one_b_max_vote(N,R,RMAX,V)
+relation left_rnd(N:node, R:round) # := exists R2, RMAX, V. ~le(R2,R) & one_b_max_vote(N,R,RMAX,V)
+relation proposal(R:round, V:value) # 2a
+relation vote(N:node, R:round, V:value) # 2b
+relation decision(N:node, R:round, V:value) # got 2b from a quorum
+
+init ~one_a(R)
+init ~one_b_max_vote(N,R1,R2,V)
+init ~one_b(N,R)
+init ~left_rnd(N,R)
+init ~proposal(R,V)
+init ~vote(N,R,V)
+init ~decision(N,R,V)
+
+action send_1a = {
+    # a proposer selects a round and sends a message asking nodes to join the round
+    local r:round {
+        assume r ~= none;
+        one_a(r) := true
+    }
+}
+
+
+action join_round = {
+    # receive 1a and answer with 1b
+    local n:node, r:round {
+        assume r ~= none;
+        assume one_a(r);
+        assume ~left_rnd(n,r);
+
+        local maxr:round, v:value {
+            # find the maximal vote in a round less than r
+            assume ((maxr = none & forall MAXR:round,V:value. ~(~le(r,MAXR) & vote(n,MAXR,V))) |
+                    (maxr ~= none & ~le(r,maxr) & vote(n,maxr,v) &
+                    (forall MAXR:round,V:value. (~le(r,MAXR) & vote(n,MAXR,V)) -> le(MAXR,maxr))
+                   ));
+            # send the 1b message
+            one_b_max_vote(n,r,maxr,v) := true;
+            one_b(n,r) := true;
+            left_rnd(n,R) := left_rnd(n,R) | ~le(r,R)
+        }
+    }
+}
+
+
+
+action propose = {
+    # receive a quorum of 1b's and send a 2a (proposal)
+    local r:round, q:quorum {
+        assume r ~= none;
+        assume ~proposal(r,V);
+        assume forall N:node. member(N, q) -> one_b(N,r);
+
+        local maxr:round, v:value {
+            # find the maximal max_vote in the quorum
+            assume ((maxr = none & forall N:node,MAXR:round,V:value. ~(member(N, q) & ~le(r,MAXR) & vote(N,MAXR,V))) |
+                    (maxr ~= none &
+                    (exists N:node. member(N, q) & ~le(r,maxr) & vote(N,maxr,v)) &
+                    (forall N:node,MAXR:round,V:value. (member(N, q) & ~le(r,MAXR) & vote(N,MAXR,V)) -> le(MAXR,maxr))
+                   ));
+            # propose value v
+            proposal(r, v) := true
+        }
+    }
+}
+
+action cast_vote = {
+    # receive a 2a and send 2b
+    local n:node, v:value, r:round {
+        assume r ~= none;
+        assume ~left_rnd(n,r);
+        assume proposal(r, v);
+        vote(n, r, v) := true
+    }
+}
+
+action decide = {
+    # get 2b from a quorum
+    local n:node, r:round, v:value, q:quorum {
+        assume r ~= none;
+        assume member(N, q) -> vote(N, r, v);
+        decision(n, r, v) := true
+    }
+}
+
+export send_1a
+export join_round
+export propose
+export cast_vote
+export decide
+
+# safety property:
+conjecture (
+    decision(N1,R1,V1) &
+    decision(N2,R2,V2)
+) -> V1 = V2
+
+# proposals are unique per round
+conjecture proposal(R,V1) & proposal(R,V2) -> V1 = V2
+
+# only vote for proposed values
+conjecture vote(N,R,V) -> proposal(R,V)
+
+# decisions come from quorums of votes:
+conjecture forall R:round, V:value. (exists N:node. decision(N,R,V)) -> exists Q:quorum. forall N:node. member(N, Q) -> vote(N,R,V)
+
+# properties of one_b_max_vote
+#conjecture one_b_max_vote(N,R2,none,V1) & ~le(R2,R1) -> ~vote(N,R1,V2)
+#conjecture one_b_max_vote(N,R,RMAX,V) & RMAX ~= none -> ~le(R,RMAX) & vote(N,RMAX,V)
+#conjecture one_b_max_vote(N,R,RMAX,V) & RMAX ~= none & ~le(R,ROTHER) & ~le(ROTHER,RMAX) -> ~vote(N,ROTHER,VOTHER)
+
+# properties of none
+conjecture ~vote(N,none,V)
+
+# Properties of choosable and proposal
+conjecture forall R1:round, R2:round, V1:value, V2:value, Q:quorum. ~le(R2,R1) & proposal(R2,V2) & V1 ~= V2 ->
+    exists N:node. member(N,Q) & left_rnd(N,R1) & ~vote(N,R1,V1)
+
+# properties of one_b, left_rnd
+#conjecture one_b_max_vote(N,R,RMAX,V) -> one_b(N,R)
+conjecture one_b(N,R2) & ~le(R2,R1) -> left_rnd(N,R1)

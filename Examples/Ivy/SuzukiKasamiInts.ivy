@@ -1,0 +1,180 @@
+#lang ivy1.7
+
+###############################################################################
+# System sorts                                                                #
+###############################################################################
+
+type node
+type index
+
+individual init_node : node
+
+interpret index -> nat
+
+###############################################################################
+# Object state                                                                #
+###############################################################################
+
+# Nodes
+relation n_have_privilege(N:node)
+relation n_requesting(N:node)
+function n_RN(N:node, M:node) : index
+function n_token_seq(N:node) : index
+
+# Requests
+relation reqs(N:node, M:node, I:index)
+
+# Tokens
+relation t_for(I:index, N:node)
+function t_LN(I:index, N:node) : index
+relation t_q(I:index, N:node)
+
+# Critical section
+relation crit(N:node)
+
+###############################################################################
+# Initial state                                                               #
+###############################################################################
+
+after init {
+    n_have_privilege(N) := N = init_node;
+    n_requesting(N) := false;
+    n_RN(N, M) := 0;
+    n_token_seq(N) := 1 if N = init_node else 0;
+
+    reqs(N, M, I) := false;
+
+    t_for(I, N) := I = 1 & N = init_node;
+    t_LN(I, N) := 0;
+    t_q(I, N) := false;
+
+    crit(N) := false;
+}
+
+###############################################################################
+# Transitions                                                                 #
+###############################################################################
+
+export action request(n:node) = {
+    require ~n_requesting(n);
+    # Change n to requesting
+    n_requesting(n) := true;
+    if ~n_have_privilege(n) {
+        # Increment n.RN[n]
+        n_RN(n, n) := n_RN(n, n) + 1;
+        # Broadcast requests to all other nodes
+        reqs(N, n, n_RN(n, n)) := N ~= n;
+    }
+}
+
+export action rcv_request(n:node, m:node, r:index) = {
+    require reqs(n, m, r);
+    # Always update n.RN[m]
+    n_RN(n, m) := n_RN(n, m) if n_RN(n, m) > r else r;
+    # Check if we don't need the token now and the request is up to date
+    # i.e. n.RN[m] = t.LN[m] + 1
+    if n_have_privilege(n) & ~n_requesting(n) &
+        n_RN(n, m) = t_LN(n_token_seq(n), m) + 1 {
+        # Update n.have_privilege, create and send next token
+        n_have_privilege(n) := false;
+        t_for(n_token_seq(n) + 1, m) := true;
+        t_LN(n_token_seq(n) + 1, N) := t_LN(n_token_seq(n), N);
+        t_q(n_token_seq(n) + 1, N) := t_q(n_token_seq(n), N);
+    }
+}
+
+export action rcv_privilege(n:node, t:index) = {
+    require t_for(t, n);
+    require t > n_token_seq(n);
+    # Update n.have_privilege and n.token_seq
+    n_have_privilege(n) := true;
+    n_token_seq(n) := t;
+}
+
+export action enter(n:node) = {
+    require n_have_privilege(n);
+    require n_requesting(n);
+    # Add n to crit
+    crit(n) := true;
+}
+
+export action exit(n:node) = {
+    require crit(n);
+    crit(n) := false;
+    # Switch to not requesting
+    n_requesting(n) := false;
+    # Update LN
+    t_LN(n_token_seq(n), n) := n_RN(n, n);
+    # Update queue
+    t_q(n_token_seq(n), N) := n_RN(n, N) = t_LN(n_token_seq(n), N) + 1;
+    # Send the next token if a node is waiting after updating queue
+    if some m:node. t_q(n_token_seq(n), m) {
+        # Remove the requesting node from queue
+        t_q(n_token_seq(n), m) := false;
+        # Remove privilege
+        n_have_privilege(n) := false;
+        # Generate next token
+        t_for(n_token_seq(n) + 1, m) := true;
+        t_LN(n_token_seq(n) + 1, N) := t_LN(n_token_seq(n), N);
+        t_q(n_token_seq(n) + 1, N) := t_q(n_token_seq(n), N);
+    }
+}
+
+###############################################################################
+# Invariants                                                                  #
+###############################################################################
+
+# Primary mutex safety property we want to preserve
+invariant [mutex]
+    (crit(N) & crit(M)) -> N = M
+
+# Affirms that only one node may have privilege at any given time
+invariant [single_privilege]
+    (n_have_privilege(N) & n_have_privilege(M)) -> N = M
+
+# Affirms that any node in the critical section must have privilege and be
+# requesting
+invariant [allowed_in_crit]
+    crit(N) -> (n_have_privilege(N) & n_requesting(N))
+
+# Affirms that all token sequence numbers are unique
+invariant [unique_tokens]
+    (t_for(I, N) & t_for(I, M)) -> N = M
+
+# Affirms that each current node token seq corresponds to a token message, bar
+# the initial state with 0
+invariant [corresponding_tokens]
+    n_token_seq(N) ~= 0 -> t_for(n_token_seq(N), N)
+
+# Affirms that the privileged node's token sequence number is the largest
+# amongst all nodes
+invariant [current_privilege_latest_token_1]
+    (n_have_privilege(N) & N ~= M) -> n_token_seq(M) < n_token_seq(N)
+
+# # Affirms greatest for all privilege messages
+# invariant [current_privilege_latest_token_2]
+#     (n_have_privilege(N) & t_for(I, M)) -> I <= n_token_seq(N)
+
+# # Affirms that if no node has privilege then a privilege message is in transit
+# invariant [current_privilege_latest_token_3]
+#     (forall N. ~n_have_privilege(N)) ->
+#         (exists I, M. t_for(I, M) & forall W. n_token_seq(W) < I)
+
+# # Affirms only a single privilege message larger than node token seqs may be
+# # in transit
+# invariant [current_privilege_latest_token_4]
+#     (t_for(I, N) & (forall W. n_token_seq(W) < I) &
+#         t_for(J, M) & (forall W. n_token_seq(W) < J)) -> (I = J & N = M)
+
+# Affirms that no request is sent to onself
+invariant [no_request_to_self]
+    reqs(N, M, I) -> N ~= M
+
+# # Affirms that no consecutive privilege is awarded to the same node
+# # i.e. no privilege message is sent to oneself
+invariant [no_consecutive_privilege]
+    (t_for(I, N) & J = I + 1 & t_for(J, M)) -> N ~= M
+
+# # Affirms that all prior token seqs were consumed
+invariant [token_relation]
+    (t_for(I, N) & t_for(J, M) & I < J) -> I <= n_token_seq(N)

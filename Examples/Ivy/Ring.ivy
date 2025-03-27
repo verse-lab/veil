@@ -1,0 +1,56 @@
+#lang ivy1.7
+
+# Source: https://github.com/wilcoxjay/mypyvy/blob/aada097006e712d591a9f41c086b80444e941f8c/examples/fol/ring.pyv
+
+type node
+
+relation le(N0:node, N1:node)
+
+axiom le(X,X)
+axiom le(X, Y) & le(Y, Z) -> le(X, Z)
+axiom le(X, Y) & le(Y, X) -> X = Y
+axiom le(X, Y) | le(Y, X)
+
+relation btw(N0:node, N1:node, N2:node)
+
+axiom btw(W,X,Y) & btw(W,Y,Z) -> btw(W,X,Z)
+axiom btw(W,X,Y) -> ~btw(W,Y,X)
+axiom btw(W,X,Y) | btw(W,Y,X) | W=X | W=Y | X=Y
+axiom btw(X,Y,Z) -> btw(Y,Z,X)
+
+relation leader(N:node)
+relation pending(N0:node, N1:node)
+
+after init  {
+	leader(N) := false;
+	pending(N1, N2) := false;
+}
+
+action send(n: node, next: node) = {
+  require (forall Z. n ~= next & ((Z ~= n & Z ~= next) -> btw(n,next,Z)));
+  
+  pending(n, next) := true;
+}
+
+action recv(sender: node, n: node, next: node) = {
+  require (forall Z. n ~= next & ((Z ~= n & Z ~= next) -> btw(n,next,Z)));
+  require pending(sender, n);
+  
+  pending(sender, n) := *;
+  if sender = n {
+    leader(n) := true;
+  }
+  else {
+    if le(n, sender) {
+      pending(sender, next) := true;
+    }
+  }
+}
+
+export send
+export recv
+
+invariant [safety_leader_max] leader(L) -> le(N, L)
+
+invariant [manual_1] pending(S, D) & btw(S, N, D) -> le(N, S)
+invariant [manual_2] pending(L, L) -> le(N, L)

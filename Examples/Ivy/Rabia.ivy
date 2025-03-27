@@ -1,0 +1,387 @@
+#lang ivy1.7
+
+# https://github.com/haochenpan/rabia/blob/main/proofs/ivy/weak_mvc.ivy
+
+# From Paxos made EPR, defines a total order
+module total_order(r) = {
+    axiom r(X,X)                        # Reflexivity
+    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # Transitivity
+    axiom r(X, Y) & r(Y, X) -> X = Y    # Anti-symmetry
+    axiom r(X, Y) | r(Y, X)             # Totality
+}
+
+type node
+
+################################################################################
+# Types of node sets and their threshold properties
+################################################################################
+
+type set_majority
+type set_f_plus_1
+
+relation member_maj(N:node, Q:set_majority)
+relation member_fp1(N:node, Q:set_f_plus_1)
+
+isolate intersection_axioms = {
+	axiom forall Q1:set_majority, Q2:set_majority. exists N:node.
+	      member_maj(N, Q1) & member_maj(N, Q2)
+	
+	axiom forall Q1:set_majority, Q2:set_f_plus_1.
+	      exists N:node. member_maj(N, Q1) & member_fp1(N, Q2)
+
+}
+
+################################################################################
+# Protocol actions and relations
+################################################################################
+
+type phase
+
+relation le(X:phase, Y:phase)
+
+
+relation in_phase(N:node, P:phase)
+relation succ(P:phase, P:phase)
+individual zero : phase
+
+isolate ordering_axioms = {
+	instantiate total_order(le)
+	axiom succ(P1, P2) -> le(P1, P2)
+	axiom succ(P1, P2) & succ(P1, P3) -> P2 = P3
+	axiom succ(P1, P2) -> P1 ~= P2
+	axiom succ(Pa, P2) & succ(Pb, P2) -> Pa = Pb
+	axiom ~succ(P, zero)
+	axiom le(P, zero) -> P = zero
+	axiom le(P1,P2) & P1 ~= P2 & succ(Ppred, P2) -> le(P1, Ppred)
+}
+
+
+type proposal_value
+type state_value = {v0, v1, vquestion}
+
+relation propose(N: node, V:proposal_value)
+relation vote_rnd1(N: node, P:phase, V:state_value)
+relation vote_rnd2(N: node, P:phase, V:state_value)
+
+relation decision_bc(N: node, P: phase, V:state_value)
+relation decision_full_val(N: node, P: phase, V:proposal_value)
+relation decision_full_noval(N: node, P: phase)
+relation coin(P: phase, V:state_value)
+
+isolate protocol = {
+     after init {
+        in_phase(N, P) := false;
+        decision_bc(N,P,V) := false;
+        decision_full_val(N,P,V) := false;
+        decision_full_noval(N,P) := false;
+	propose(N,V) := false;
+	vote_rnd1(N,P,V) := false;
+	vote_rnd2(N,P,V) := false;
+	coin(P,V) := false
+     }
+
+     export action initial_proposal = {
+            local n:node, v:proposal_value {
+	    	  assume ~(exists V:proposal_value. propose(n, V));
+	    	  assume ~(exists V:state_value. vote_rnd1(n, P, V));
+	    	  assume ~(exists V:state_value. vote_rnd2(n, P, V));
+	    	  assume ~(exists V:state_value. decision_bc(n, P, V));
+	    	  assume ~(in_phase(n, P));
+		  propose(n, v) := true;
+	    }
+     }
+
+     export action decide_bc_decide_full_val = {
+     	    local n:node, p:phase, q:set_majority {
+	    	  assume (decision_bc(n, p, v1));
+     	          if some v:proposal_value.
+     	              ((forall N:node. member_maj(N, q) -> propose(N, v))) {
+		  	  decision_full_val(n, p, v) := true;
+     	          }
+     	    }
+     } 
+
+     export action decide_bc_decide_full_noval = {
+     	    local n:node, p:phase {
+	    	  assume (decision_bc(n, p, v0));
+		  decision_full_noval(n, p) := true;
+     	    }
+     } 
+
+     export action initial_vote1 = {
+            local n:node, q:set_majority {
+	    	  assume (exists V:proposal_value. propose(n, V));
+	    	  assume ~(exists V:state_value. vote_rnd1(n, P, V));
+	    	  assume ~(exists V:state_value. vote_rnd2(n, P, V));
+	    	  assume ~(exists V:state_value. decision_bc(n, P, V));
+	    	  assume ~(in_phase(n, P));
+		  # TODO: do not yet have the short circuiting for super majority 
+     	          if some v:proposal_value.
+     	              ((forall N:node. member_maj(N, q) -> propose(N, v))) {
+     	          	  vote_rnd1(n, zero, v1) := true;
+		  	  in_phase(n, zero) := true;
+     	          }
+     	          else {
+     	          	  vote_rnd1(n, zero, v0) := true;
+		  	  in_phase(n, zero) := true;
+     	          }
+	    }
+
+     }
+     export action phase_rnd1 = {
+            local n:node, p:phase, q:set_majority {
+     	     assume in_phase(n, p);
+     	     assume ~(exists V:state_value. vote_rnd2(n, p, V));
+            	     assume forall N: node. member_maj(N, q) -> exists V. vote_rnd1(N, p, V);
+     
+     	     if some v:state_value.
+     	         ((forall N:node. member_maj(N, q) -> vote_rnd1(N, p, v))) {
+     	   	  vote_rnd2(n, p, v) := true;
+     	     }
+     	     else {
+     	     	  vote_rnd2(n, p, vquestion) := true;
+     	     }
+            }
+     }
+     
+     export action phase_rnd2 = {
+            local n:node, p:phase, psucc: phase, q:set_majority {
+     	     assume in_phase(n, p);
+     	     assume (exists V:state_value. vote_rnd2(n, p, V));
+            	     assume forall N: node. member_maj(N, q) -> exists V. vote_rnd2(N, p, V);
+     	     assume succ(p, psucc);
+     
+     	     if some v:state_value.
+     	         (v ~= vquestion &
+     		  (exists N0, Q:set_f_plus_1.
+     		    member_fp1(N0, Q) &
+		    (forall N:node. member_fp1(N, Q) -> (member_maj(N, q) & vote_rnd2(N, p, v)))))
+                  {
+     	   	  decision_bc(n, p, v) := true;
+     		  vote_rnd1(n, psucc, v) := true;
+     		  in_phase(n, psucc) := true;
+     		  in_phase(n, p) := false;
+     	     }
+     	     else {
+     	         if some v:state_value.
+		    (v ~= vquestion & (exists N:node. member_maj(N, q)
+		      & vote_rnd2(N, p, v)))
+     		 {
+     			vote_rnd1(n, psucc, v) := true;
+     		  	in_phase(n, psucc) := true;
+     		  	in_phase(n, p) := false;
+     	         }
+     	         else {
+     	         	  if some v: state_value. (v ~= vquestion & coin(p, v))
+     			  {
+     				vote_rnd1(n, psucc, v) := true;
+     		  	  	in_phase(n, psucc) := true;
+     		  	  	in_phase(n, p) := false;
+     	         	  }
+     	         	  else {
+     	         	       local v:state_value {
+     	         	       	assume v ~= vquestion;
+     	         		coin(p, v) := true;
+     				vote_rnd1(n, psucc, v) := true;
+     		  	  	in_phase(n, psucc) := true;
+     		  	  	in_phase(n, p) := false;
+     	         		}
+     	         	  }
+     	         }
+     	     }
+            }
+     }
+
+
+################################################################################
+# Inductive invariant
+################################################################################
+
+# Basic facts about ordering of phases/rounds
+##################
+
+specification {
+
+conjecture (propose(N,V1) & propose(N,V2) -> V1 = V2)
+conjecture [decision_full_val_inv] (decision_full_val(N,P,V) -> decision_bc(N,P,v1))
+
+conjecture (decision_full_val(N,P,V) -> exists Q:set_majority. forall N:node. member_maj(N, Q) -> propose(N,V))
+
+conjecture [decision_full_val_validity] decision_full_val(N, P, V) -> exists N:node. propose(N, V)
+
+conjecture [decision_full_val_agree] (decision_full_val(N1,P1,V1) &
+            decision_full_val(N2,P2,V2) ->
+	    V1 = V2)
+
+conjecture [decision_full_noval_inv] (decision_full_noval(N,P) -> decision_bc(N,P,v0))
+
+conjecture (in_phase(N, P1) & in_phase(N, P2) -> P1 = P2)
+conjecture (vote_rnd1(N,P1,V) & in_phase(N, P2) -> le(P1, P2))
+conjecture (vote_rnd2(N,P1,V) & in_phase(N, P2) -> le(P1, P2))
+conjecture (vote_rnd2(N,P,V2) -> exists V1. vote_rnd1(N, P, V1))
+conjecture (in_phase(N, P1) -> exists V1. vote_rnd1(N, P1, V1))
+conjecture (in_phase(N, P1) & le(P1, P2) & P1 ~= P2 -> ~exists V1. vote_rnd1(N, P2, V1))
+conjecture (in_phase(N, P1) & le(P1, P2) & P1 ~= P2 -> ~exists V1. vote_rnd2(N, P2, V1))
+
+conjecture (vote_rnd1(N, P, V) -> V ~= vquestion)
+conjecture (vote_rnd1(N, P, V1) & vote_rnd1(N, P, V2) -> V1 = V2)
+conjecture (vote_rnd2(N, P, V1) & vote_rnd2(N, P, V2) -> V1 = V2)
+
+conjecture (vote_rnd2(N1, P, V1) & vote_rnd2(N2, P, V2) & V1 ~= vquestion & V2 ~= vquestion -> V1 = V2)
+
+conjecture vote_rnd2(N,P,V) & V ~= vquestion -> exists Q:set_majority. forall N:node. member_maj(N, Q)
+	   -> vote_rnd1(N,P,V)
+
+conjecture (decision_bc(N,P1,V) & in_phase(N, P2) -> P1 ~= P2 & le(P1, P2))
+conjecture (in_phase(N, P) -> ~ exists V. decision_bc(N,P,V))
+
+conjecture  (decision_bc(N1, P1, V1) -> V1 ~= vquestion)
+
+conjecture decision_bc(N,P,V) ->
+	   exists Q:set_f_plus_1. forall N:node. member_fp1(N, Q) -> vote_rnd2(N, P, V)
+
+# Basic properties of coin flips
+
+conjecture ~(coin(P,vquestion))
+conjecture ~(coin(P,v0) & coin(P, v1))
+conjecture decision_bc(N,P,V) & vote_rnd2(N2, P, V2) -> V2 ~= vquestion | V2 = V2
+conjecture forall Q. coin(P,V) -> exists N:node. member_fp1(N, Q) & vote_rnd2(N, P, vquestion)
+conjecture decision_bc(N,P,V) -> ~coin(P,V2)
+
+conjecture  (coin(P, V) -> exists Q:set_majority. (forall N: node. member_maj(N, Q) -> exists V. vote_rnd2(N, P, V)))
+conjecture succ(P, Psucc) & vote_rnd1(N, Psucc, V) ->
+           exists Q: set_majority. forall N: node. member_maj(N, Q) -> exists V.  vote_rnd2(N, P, V)
+
+conjecture succ(P, Psucc) & vote_rnd1(N, Psucc, V) & ~ coin(P, v0) & ~coin(P, v1) ->
+           exists Q: set_majority, N:node. member_maj(N, Q) & vote_rnd2(N, P, V)
+
+
+# State_Value locking
+##################
+
+# Definitions of derived predicates
+
+# A phase P is state_value locked with state_value V if every round 1 vote that
+#  happnes in that phase will be for state_value V
+
+derived state_value_locked(P, V) = (forall N, Valt. vote_rnd1(N, P, Valt) -> Valt = V)
+derived strong_state_value_locked(P, V) =
+	(exists N:node. vote_rnd1(N, P, V)) & (forall N, Valt. vote_rnd1(N, P, Valt) -> Valt = V)
+
+# Captures that a majority set Q has finished round 2 voting in phase P.
+derived members_voted_rnd2(Q, P) = forall N. member_maj(N, Q) -> exists V. vote_rnd2(N, P, V)
+
+conjecture  [vote_rnd1_pred_rnd]  (vote_rnd1(N1, Psucc, V1) & succ(P,Psucc) -> exists N2. vote_rnd1(N2, P, V1))
+
+conjecture  (decision_bc(N1, P, V1) & succ(P,Psucc) -> state_value_locked(Psucc, V1))
+
+conjecture  (state_value_locked(P, V1) & vote_rnd2(N, P, V2) -> V1 = V2 | V2 = vquestion)
+
+conjecture  (coin(P, V) ->
+             exists Q:set_majority. (forall N: node. member_maj(N, Q) -> vote_rnd2(N, P, vquestion)))
+
+conjecture  (state_value_locked(P, V) -> (forall Q:set_majority. members_voted_rnd2(Q, P)
+	    -> exists N:node. member_maj(N, Q) & vote_rnd2(N, P, V)))
+conjecture  (state_value_locked(P, V) -> forall Q:set_majority. members_voted_rnd2(Q, P)
+	    -> ~coin(P, V2))
+conjecture  (state_value_locked(P, V) & succ(P,Psucc) -> state_value_locked(Psucc, V))
+
+conjecture  (decision_bc(N1, P, V1) & succ(P,Psucc) ->
+             forall Q:set_majority. members_voted_rnd2(Q, Psucc)
+	     	    -> exists N:node. member_maj(N, Q) & vote_rnd2(N, Psucc, V1))
+conjecture  (decision_bc(N1, P, V1) & succ(P,Psucc) -> ~exists V. coin(Psucc, V))
+
+conjecture [vl_decision_bc_agree] (forall V. state_value_locked(P, V) & decision_bc(N2, P, V2) -> V = V2)
+
+conjecture  (decision_bc(N1, P, V1) & succ(P,Psucc) & decision_bc(N2, Psucc, V2) -> V1 = V2)
+
+conjecture [decision_bc_same_round_agree] (decision_bc(N1, P, V1) & decision_bc(N2, P, V2) -> V1 = V2)
+
+conjecture  ((exists N, V. vote_rnd1(N, P, V)) & state_value_locked(P, V1) & state_value_locked(P, V2) -> V1 = V2)
+}
+
+
+} with ordering_axioms, intersection_axioms
+
+
+isolate ind_defs = {
+   derived lt(P1, P2) = le(P1, P2) & P1 ~= P2
+   derived started(P) = exists N, V. vote_rnd1(N, P, V)
+   derived good(P) =
+       started(P) &
+       (forall P0. lt(P0, P) -> started(P0)) &
+       (forall P0, V0. lt(P0, P) &
+                       started(P) &
+		       ((exists N. decision_bc(N, P0, V0)) | protocol.state_value_locked(P0, V0))
+		         -> protocol.state_value_locked(P, V0))
+}
+
+
+isolate wrapper1 = {
+   export action initial_proposal = { call protocol.initial_proposal }
+   export action decide_bc_decide_full_val = { call protocol.decide_bc_decide_full_val }
+   export action decide_bc_decide_full_noval = { call protocol.decide_bc_decide_full_noval }
+   export action initial_vote1 = { call protocol.initial_vote1 }
+   export action phase_rnd1 = { call protocol.phase_rnd1 }
+   export action phase_rnd2 = { call protocol.phase_rnd2 }
+
+
+   specification {
+     conjecture [good_succ_good]
+       (ind_defs.good(P) & succ(P, Psucc) & ind_defs.started(Psucc) -> ind_defs.good(Psucc))
+   }
+} with ordering_axioms, intersection_axioms, protocol, ind_defs
+
+
+isolate wrapper2 = {
+   export action initial_proposal = { call wrapper1.initial_proposal }
+   export action decide_bc_decide_full_val = { call wrapper1.decide_bc_decide_full_val }
+   export action decide_bc_decide_full_noval = { call wrapper1.decide_bc_decide_full_noval }
+   export action initial_vote1 = { call wrapper1.initial_vote1 }
+   export action phase_rnd1 = { call wrapper1.phase_rnd1 }
+   export action phase_rnd2 = { call wrapper1.phase_rnd2 }
+
+   specification {
+     conjecture [good_zero] (ind_defs.started(zero) -> ind_defs.good(zero))
+   }
+} with ordering_axioms, intersection_axioms, protocol, ind_defs, wrapper1
+
+isolate wrapper3 = {
+   export action initial_proposal = { call wrapper2.initial_proposal }
+   export action decide_bc_decide_full_val = { call wrapper2.decide_bc_decide_full_val }
+   export action decide_bc_decide_full_noval = { call wrapper2.decide_bc_decide_full_noval }
+   export action initial_vote1 = { call wrapper2.initial_vote1 }
+   export action phase_rnd1 = { call wrapper2.phase_rnd1 }
+   export action phase_rnd2 = { call wrapper2.phase_rnd2 }
+
+   specification {
+     conjecture [started_pred] (ind_defs.started(Psucc) & succ(P, Psucc) -> ind_defs.started(Psucc))
+   }
+} with ordering_axioms, intersection_axioms, protocol, ind_defs, wrapper1, wrapper2
+
+isolate wrapper4 = {
+   export action initial_proposal = { call wrapper3.initial_proposal }
+   export action decide_bc_decide_full_val = { call wrapper3.decide_bc_decide_full_val }
+   export action decide_bc_decide_full_noval = { call wrapper3.decide_bc_decide_full_noval }
+   export action initial_vote1 = { call wrapper3.initial_vote1 }
+   export action phase_rnd1 = { call wrapper3.phase_rnd1 }
+   export action phase_rnd2 = { call wrapper3.phase_rnd2 }
+
+   specification {
+     conjecture [decision_bc_started] (decision_bc(N,P,V2) -> ind_defs.started(P))
+   }
+} with ordering_axioms, intersection_axioms, protocol, ind_defs
+
+isolate wrapper5 = {
+   export action initial_proposal = { call wrapper3.initial_proposal }
+   export action decide_bc_decide_full_val = { call wrapper3.decide_bc_decide_full_val }
+   export action decide_bc_decide_full_noval = { call wrapper3.decide_bc_decide_full_noval }
+   export action initial_vote1 = { call wrapper3.initial_vote1 }
+   export action phase_rnd1 = { call wrapper3.phase_rnd1 }
+   export action phase_rnd2 = { call wrapper3.phase_rnd2 }
+
+   specification {
+     conjecture [vote_rnd2_vote_rnd1] (vote_rnd2(N,P,V) & V ~= vquestion -> exists N2. vote_rnd1(N2, P, V))
+     conjecture [decision_bc_vote_rnd1] (decision_bc(N,P,V) -> exists N2. vote_rnd1(N2, P, V))
+   }
+} with ordering_axioms, intersection_axioms, protocol, ind_defs

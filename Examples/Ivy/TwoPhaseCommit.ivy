@@ -1,0 +1,107 @@
+#lang ivy1.7
+
+################################################################################
+#
+# Types, relations and functions describing state of the network
+#
+################################################################################
+
+type node
+
+# epochs are totally ordered with a least element called zero
+relation vote_yes(N: node)
+relation vote_no(N: node)
+relation alive(N: node)
+relation go_commit(N: node)
+relation go_abort(N: node)
+relation decide_commit(N: node)
+relation decide_abort(N: node)
+
+individual abort_flag: bool
+
+################################################################################
+#
+# Protocol description
+#
+################################################################################
+
+after init {
+    vote_yes(N) := false;
+    vote_no(N) := false;
+    alive(N) := true;
+    go_commit(N) := false;
+    go_abort(N) := false;
+    decide_commit(N) := false;
+    decide_abort(N) := false;
+    abort_flag := false;
+}
+
+action vote1(n: node) = {
+    require alive(n);
+    require ~vote_no(n);
+    require ~decide_commit(n);
+    require ~decide_abort(n);
+    vote_yes(n) := true;
+}
+
+action vote2(n: node) = {
+    require alive(n);
+    require ~vote_yes(n);
+    require ~decide_commit(n);
+    require ~decide_abort(n);
+    vote_no(n) := true;
+    abort_flag := true;
+    decide_abort(n) := true;
+}
+
+action fail(n: node) = {
+    require alive(n);
+    alive(n) := false;
+    abort_flag := true;
+}
+
+action go1 = {
+    require ~go_commit(N);
+    require ~go_abort(N);
+    require vote_yes(N);
+    go_commit(N) := true;
+}
+
+action go2 = {
+    require ~go_commit(N);
+    require ~go_abort(N);
+    require exists N. vote_no(N) | ~alive(N);
+    go_abort(N) := true;
+}
+
+action commit(n: node) = {
+    require alive(n);
+    require go_commit(n);
+    decide_commit(n) := true;
+}
+
+action abort(n: node) = {
+    require alive(n);
+    require go_abort(n);
+    decide_abort(n) := true;
+}
+
+export vote1
+export vote2
+export fail
+export go1
+export go2
+export commit
+export abort
+
+# the safety property
+invariant [1000000] (decide_commit(N) -> ~decide_abort(N2)) & (decide_commit(N) -> vote_yes(N2)) & (decide_abort(N) -> abort_flag)
+
+invariant [manual_1] ~((~(alive(N0)) & ~(abort_flag))) 
+invariant [manual_2] ~((~(abort_flag) & vote_no(N0))) 
+invariant [manual_3] ~((~(abort_flag) & go_abort(N0))) 
+invariant [manual_4] ~((~(go_abort(N5)) & decide_abort(N5) & vote_yes(N5))) 
+invariant [manual_5] ~((~(go_commit(N5)) & decide_commit(N5))) 
+invariant [manual_6] (N0 ~= N5) -> ~((~(go_commit(N5)) & go_commit(N0))) 
+invariant [manual_7] ~((~(vote_yes(N5)) & go_commit(N5))) 
+invariant [manual_8] ~((go_commit(N5) & go_abort(N5))) 
