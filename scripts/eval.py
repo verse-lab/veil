@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import json
 
 # [veil.smt.perf.solveClause] [0.053585]
 PATTERN_TOTAL_TACTIC_TIME = re.compile(r"\[veil\.smt\.perf\.solveClause\] \[(\d+\.\d+)\]")
@@ -20,7 +21,7 @@ PATTERN_QUERY = re.compile(r"\[veil\.smt\.perf\.query\] \[(\d+\.\d+)\] querySolv
 # [0.145319] #check_invariants
 PATTERN_OVERALL = re.compile(r"\[veil\.perf\.checkInvariants\] \[(\d+\.\d+)\] checkInvariants")
 
-IVY_TIMEOUT_SEC = 60
+IVY_TIMEOUT_SEC = 300
 TIMEOUT_RETURN_CODE = 124
 
 TIMEOUT_MARKER_VAL = 0.0
@@ -82,15 +83,16 @@ def run_dir(dir: str) -> dict[str, dict[str, float]]:
         if root.startswith("."):
             continue
         for f in files:
-            filename = os.path.join(root, f)
+            filepath = os.path.join(root, f)
             try:
-                with open(filename, "r") as file:
+                with open(filepath, "r") as file:
                     first_line = file.readline()
-                    if "skip eval" in first_line or filename.startswith(".") or (not filename.endswith("lean")):
+                    if "skip eval" in first_line or filepath.startswith(".") or (not filepath.endswith("lean")):
                         continue
-                ret[filename] = run_file(filename)
+                filename=filepath.split("/")[-1].split(".")[0]
+                ret[filename] = run_file(filepath)
             except Exception as e:
-                print(f"Failed to run {filename}: {e}", file=sys.stderr)
+                print(f"Failed to run {filepath}: {e}", file=sys.stderr)
     return ret
 
 def create_graphs(res : dict[str, dict[str, float]], output_file : str):
@@ -259,7 +261,13 @@ if __name__ == "__main__":
             averaged_results[file] = {j: sum(res[file][j] for res in results) / args.repeat 
                                         for j in {"simplification_time", "translation_time", "solving_time", "total_time", "total_ivy_time"}}
         print(dict(sorted(averaged_results.items())))
+        json.dump(averaged_results, open("results.json", "w"))
         if args.output_file:
+            # Create same order as chart in original paper submission
+            paper_order = ["MultiSigMajority", "ChordRingMaintenance", "DecentralizedLock", "RicartAgrawala", "MultiSigAll", "Blockchain",
+                           "TwoPhaseCommit", "SCP", "PaxosFirstOrder", "Ring", "PaxosEPR", "SuzukiKasami", "SuzukiKasamiInts",
+                             "VerticalPaxosFirstOrder", "ReliableBroadcast", "Rabia"]
+            averaged_results = {k: v for k, v in sorted(averaged_results.items(), key=lambda item: paper_order.index(item[0]))}
             create_graphs(averaged_results, args.output_file)
     else:
         if args.output_file:
