@@ -152,8 +152,8 @@ invariant [current_privilege_latest_token_1]
     (n_have_privilege(N) & N ~= M) -> n_token_seq(M) < n_token_seq(N)
 
 # # Affirms greatest for all privilege messages
-# invariant [current_privilege_latest_token_2]
-#     (n_have_privilege(N) & t_for(I, M)) -> I <= n_token_seq(N)
+invariant [current_privilege_latest_token_2]
+    (n_have_privilege(N) & t_for(I, M)) -> I <= n_token_seq(N)
 
 # # Affirms that if no node has privilege then a privilege message is in transit
 # invariant [current_privilege_latest_token_3]
