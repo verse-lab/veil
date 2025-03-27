@@ -31,7 +31,7 @@ EXTRA_IVY_ARGS = {
     # "VerticalPaxosFirstOrder.ivy": ["complete=fo"],
     # as recommended in the [instructions](https://github.com/haochenpan/rabia/blob/main/proofs/README)
     # the `isolate=protocol` corresponds to checking just what we have ported to Veil
-    "Rabia.ivy": ["seed=1", "isolate=protocol"],
+    "Rabia.ivy": ["isolate=protocol"],
 }
 
 def run_ivy(lean_file: str) -> dict[str, float]:
