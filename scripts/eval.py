@@ -52,7 +52,7 @@ def run_dir(dir: str) -> dict[str, dict[str, float]]:
             try:
                 with open(filename, "r") as file:
                     first_line = file.readline()
-                    if "skip eval" in first_line or filename.startswith("."):
+                    if "skip eval" in first_line or filename.startswith(".") or (not filename.endswith("lean")):
                         continue
                 ret[filename] = run_file(filename)
             except Exception as e:
