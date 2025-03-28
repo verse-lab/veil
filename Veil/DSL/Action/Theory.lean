@@ -387,6 +387,14 @@ theorem triple_sound_big_step [LawfulAction act] (req : SProp σ) (ens : RProp �
   false_or_by_contra
   specialize htriple _ r' s' ‹_› ‹_›; contradiction
 
+theorem triple_sound_terminate [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
+  act.terminates req ->
+  act.toBigStep.triple req ens -> act.triple req ens := by
+  intro ensTaut htriple s hreq
+  by_cases h: (¬ ∀ r s, ens r s)
+  { solve_by_elim [triple_sound_big_step] }
+  apply LawfulAction.impl (post := fun _ _ => True) <;> try simp_all
+
 theorem triple_sound' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
   act.triple req ens → act.toActProp.triple req (∃ r, ens r ·) := by
   intro htriple s s' hreq hact
@@ -404,6 +412,18 @@ theorem triple_sound_big_step' [LawfulAction act] (req : SProp σ) (ens : RProp 
   false_or_by_contra ; rename_i h ; simp at h
   apply hact ; apply LawfulAction.impl (post := ens) <;> try assumption
   intro r s hh ⟨heq,_⟩ ; subst_eqs ; apply h ; apply hh
+
+theorem big_step_to_wp (act : Wp m σ ρ) [LawfulAction act] (req : SProp σ) :
+  act.terminates req ->
+  req s ->
+  act s = act.toBigStep.toWp s := by
+  intro hterm hreq; ext post; constructor
+  { simp [BigStep.toWp]; intro _ _ _
+    solve_by_elim [triple_sound_big_step'] }
+  simp [BigStep.toWp]
+  intro h; apply triple_sound_terminate (req := (s = ·)) <;> try simp
+  { solve_by_elim }
+  intro; simp_all
 
 theorem exists_over_PUnit (p : PUnit → Prop) : (∃ (u : PUnit), p u) = p () := by
   simp ; constructor ; intro ⟨⟨⟩, h⟩ ; assumption ; intro h ; exists PUnit.unit
