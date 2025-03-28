@@ -208,7 +208,7 @@ where
     addDecl <| Declaration.thmDecl <| mkTheoremValEx (toActTrEqName baseName) [] trActThm proof []
 
     let genSoundnessInstance (mode : Mode) (genName actName : Name) (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (univBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (sectionArgs args : Array (TSyntax `term)) (actPf : Option Expr) := do
-      let instTp <- `(forall? $[$vd]* $univBinders*, Sound (@$(mkIdent genName):ident $sectionArgs* $args*))
+      let instTp <- `(forall? $[$vd]* $univBinders*, LawfulAction (@$(mkIdent genName):ident $sectionArgs* $args*))
       let instTp <- elabTermAndSynthesize instTp none
       simpleAddThm (toGenInstName baseName mode) instTp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
 
@@ -217,7 +217,7 @@ where
       let eq <- ensureHasType eqTp <| actPf.getD <| <- mkAppM ``Eq.refl #[mkConst actName]
       let eq <- Term.exprToSyntax eq
 
-      let instTp <- `(forall? $[$vd]* $univBinders*, Sound (m := $(← mode.stx)) (@$(mkIdent actName):ident $sectionArgs* $args*))
+      let instTp <- `(forall? $[$vd]* $univBinders*, LawfulAction (m := $(← mode.stx)) (@$(mkIdent actName):ident $sectionArgs* $args*))
       let instTp <- elabTermAndSynthesize instTp none
       simpleAddThm (toInstName baseName mode) instTp
         `(tacticSeq|

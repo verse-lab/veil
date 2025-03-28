@@ -204,7 +204,7 @@ def Wp.toActProp {σ} (wp : Wp m σ ρ) : ActProp σ :=
 /-- [BigStep.toWp] converts Big-step semantics to Omni one.
 
   Ideally, here we should also assert termination of `act`, but this will be handled
-  via `Sound` condition later. -/
+  via `LawfulAction` condition later. -/
 @[actSimp]
 def BigStep.toWp {σ} (act : BigStep σ ρ) : Wp .internal σ ρ :=
   fun s post => ∀ r s', act s r s' -> post r s'
@@ -304,7 +304,7 @@ abbrev BigStep.triple {σ } (req : SProp σ) (act : BigStep σ ρ) (ens : RProp 
 
 
 
-/-- `Sound act` states the set of minimal conditions on `act` that are required
+/-- `LawfulAction act` states the set of minimal conditions on `act` that are required
   to prove the soundness of the `Wp.toBigStep` conversion.
   - first condition `inter` is a generalization of the following statement:
     ```lean
@@ -312,7 +312,7 @@ abbrev BigStep.triple {σ } (req : SProp σ) (act : BigStep σ ρ) (ens : RProp 
         act s fun r s => post r s ∧ post' r s
     ```
     In other words, if both `post` and `post'` overapproximate the behavior of `act`,
-    then their intersection also overapproximates the behavior of `act`. `Sound.inter`
+    then their intersection also overapproximates the behavior of `act`. `LawfulAction.inter`
     states that for the intersection of an arbitrary (possibly infinite) collection of
     predicates `post`
   - second condition `impl`, states that we can always weaken the postcondition of `act`
@@ -320,22 +320,22 @@ abbrev BigStep.triple {σ } (req : SProp σ) (act : BigStep σ ρ) (ens : RProp 
   - third condition `call`, states that the `internal` mode of `act` refines the `external`
     one. In other words, if you have proven some striple for `internal` mode of `act`,
     the same one holds for its `external` version -/
-class Sound {σ ρ : Type} (act : Wp m σ ρ) where
+class LawfulAction {σ ρ : Type} (act : Wp m σ ρ) where
   inter {τ : Type} [Inhabited τ] (post : τ -> RProp σ ρ) :
     ∀ s : σ, (∀ t : τ, act s (post t)) -> act s (∀ t, post t · ·)
   impl (post post' : RProp σ ρ) : ∀ s,
     (∀ r s, post r s -> post' r s) -> act s post -> act s post'
   -- call : act .internal <= act .external
 
-theorem sound_and (act : Wp m σ ρ) [Sound act] :
+theorem sound_and (act : Wp m σ ρ) [LawfulAction act] :
   act s post -> act s post' -> act s fun r s => post r s ∧ post' r s := by
   intro hact hact'
   let Post := fun (b : Bool) => if b then post' else post
   have post_eq : (fun r s => ∀ b, Post b r s) = fun r s => post r s ∧ post' r s := by
     unfold Post; simp
-  rw [<-post_eq]; apply Sound.inter <;> simp [*, Post]
+  rw [<-post_eq]; apply LawfulAction.inter <;> simp [*, Post]
 
-theorem triple_sound [Sound act] (req : SProp σ) (ens : SProp σ) :
+theorem triple_sound [LawfulAction act] (req : SProp σ) (ens : SProp σ) :
   (¬ ∀ s, ens s) ->
   act.toActProp.triple req ens -> act.triple req (fun _ => ens) := by
   intro ensTaut htriple s hreq
@@ -343,16 +343,16 @@ theorem triple_sound [Sound act] (req : SProp σ) (ens : SProp σ) :
     simp; intro s impl
     false_or_by_contra
     specialize impl s; apply impl <;> simp_all
-  apply Sound.impl; intro _; apply ens_impl
+  apply LawfulAction.impl; intro _; apply ens_impl
   simp at ensTaut; rcases ensTaut with ⟨s', hens⟩
   have: Inhabited { s' // ¬ ens s' } := ⟨⟨_, hens⟩⟩
-  apply Sound.inter; rintro ⟨s', hens⟩
-  apply Sound.impl (post := fun r₀ s₀ => ¬s' = s₀) <;> (intros; try simp_all)
+  apply LawfulAction.inter; rintro ⟨s', hens⟩
+  apply LawfulAction.impl (post := fun r₀ s₀ => ¬s' = s₀) <;> (intros; try simp_all)
   false_or_by_contra
   specialize htriple _ s' ‹_› ‹_›; contradiction
 
 attribute [-simp] not_and in
-theorem triple_sound_big_step [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
+theorem triple_sound_big_step [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
   (¬ ∀ r s, ens r s) ->
   act.toBigStep.triple req ens -> act.triple req ens := by
   intro ensTaut htriple s hreq
@@ -360,83 +360,83 @@ theorem triple_sound_big_step [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
     simp; intro r s impl
     false_or_by_contra
     specialize impl r s; apply impl <;> simp_all
-  apply Sound.impl; intro _; apply ens_impl
+  apply LawfulAction.impl; intro _; apply ens_impl
   simp at ensTaut; rcases ensTaut with ⟨r', s', hens⟩
   have: Inhabited { rs' : ρ × σ // ¬ ens rs'.1 rs'.2 } := ⟨⟨(r', s'), hens⟩⟩
-  apply Sound.inter; rintro ⟨⟨r', s'⟩, hens⟩
-  apply Sound.impl (post := fun r₀ s₀ => ¬(r' = r₀ ∧ s' = s₀)) <;> (intros; try simp_all)
+  apply LawfulAction.inter; rintro ⟨⟨r', s'⟩, hens⟩
+  apply LawfulAction.impl (post := fun r₀ s₀ => ¬(r' = r₀ ∧ s' = s₀)) <;> (intros; try simp_all)
   false_or_by_contra
   specialize htriple _ r' s' ‹_› ‹_›; contradiction
 
-theorem triple_sound' [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
+theorem triple_sound' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
   act.triple req ens → act.toActProp.triple req (∃ r, ens r ·) := by
   intro htriple s s' hreq hact
   unfold Wp.triple at htriple
   specialize htriple _ hreq
   false_or_by_contra ; rename_i h ; simp at h
-  apply hact ; apply Sound.impl (post := ens) <;> try assumption
+  apply hact ; apply LawfulAction.impl (post := ens) <;> try assumption
   intro r s hh heq ; subst_eqs ; apply h ; apply hh
 
-theorem triple_sound_big_step' [Sound act] (req : SProp σ) (ens : RProp σ ρ) :
+theorem triple_sound_big_step' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
   act.triple req ens → act.toBigStep.triple req ens := by
   intro htriple s r' s' hreq hact
   unfold Wp.triple at htriple
   specialize htriple _ hreq
   false_or_by_contra ; rename_i h ; simp at h
-  apply hact ; apply Sound.impl (post := ens) <;> try assumption
+  apply hact ; apply LawfulAction.impl (post := ens) <;> try assumption
   intro r s hh ⟨heq,_⟩ ; subst_eqs ; apply h ; apply hh
 
 theorem exists_over_PUnit (p : PUnit → Prop) : (∃ (u : PUnit), p u) = p () := by
   simp ; constructor ; intro ⟨⟨⟩, h⟩ ; assumption ; intro h ; exists PUnit.unit
 
-theorem triple_sound'_ret_unit [Sound act] (req : SProp σ) (ens : RProp σ PUnit) :
+theorem triple_sound'_ret_unit [LawfulAction act] (req : SProp σ) (ens : RProp σ PUnit) :
   act.triple req ens → act.toActProp.triple req (ens () ·) := by
   have heq : (ens () ·) = (∃ r, ens r ·) := by ext ; rw [exists_over_PUnit]
   rw [heq] ; apply triple_sound'
 
-theorem triple_sound'_ret_unit' [Sound act] {st : σ} (ens : RProp σ PUnit) :
+theorem triple_sound'_ret_unit' [LawfulAction act] {st : σ} (ens : RProp σ PUnit) :
   act st ens → (∀ st', act.toActProp st st' → ens () st') := by
   have h := triple_sound'_ret_unit (act := act) (fun stt => stt = st) ens
   unfold Wp.triple ActProp.triple at h ; simp at h
   intro hq st' ; specialize h hq st st' rfl ; exact h
 
-instance pure_sound : Sound (Wp.pure (σ := σ) (m := m) r) where
+instance pure_sound : LawfulAction (Wp.pure (σ := σ) (m := m) r) where
   inter := by simp [pure, actSimp]
   impl  := by intros; simp_all [pure, actSimp]
   -- call  := by solve_by_elim
 
-instance bind_sound (act : Wp m' σ ρ) (act' : ρ -> Wp m σ ρ') [Sound act] [∀ r, Sound (act' r)] : Sound (Wp.bind (m := m) act act') where
+instance bind_sound (act : Wp m' σ ρ) (act' : ρ -> Wp m σ ρ') [LawfulAction act] [∀ r, LawfulAction (act' r)] : LawfulAction (Wp.bind (m := m) act act') where
   inter := by
     unfold Wp.bind
     intros τ _ post s hbind
-    apply Sound.impl (∀ t, act' · · <| post t) <;> solve_by_elim [Sound.inter]
+    apply LawfulAction.impl (∀ t, act' · · <| post t) <;> solve_by_elim [LawfulAction.inter]
   impl := by
     unfold Wp.bind
     intros post post' s hpost hbind
-    apply Sound.impl (act' · · <| post) <;> (intros; solve_by_elim [Sound.impl])
+    apply LawfulAction.impl (act' · · <| post) <;> (intros; solve_by_elim [LawfulAction.impl])
 
-instance (priority := low) internal_sound (act : Wp m σ ρ) [inst : Sound (m := .internal) act] : Sound (m := .external) act where
+instance (priority := low) internal_sound (act : Wp m σ ρ) [inst : LawfulAction (m := .internal) act] : LawfulAction (m := .external) act where
   inter := inst.inter
   impl := inst.impl
 
   -- call := by
   --   unfold Wp.bind
   --   intros s post hbind
-  --   apply Sound.call; apply Sound.impl;
-  --   { intros _ _; apply Sound.call }
+  --   apply LawfulAction.call; apply LawfulAction.impl;
+  --   { intros _ _; apply LawfulAction.call }
   --   solve_by_elim
 
-instance assume_sound : Sound (Wp.assume (m := m) (σ := σ) rq) where
+instance assume_sound : LawfulAction (Wp.assume (m := m) (σ := σ) rq) where
   inter := by intros; simp_all [actSimp]
   impl := by intros; simp_all [actSimp]
   -- call := by solve_by_elim
 
-instance assert_sound : Sound (Wp.assert (m := m) (σ := σ) rq) where
+instance assert_sound : LawfulAction (Wp.assert (m := m) (σ := σ) rq) where
   inter := by intros; simp_all [actSimp]; rename_i h; specialize h default; simp [*]
   impl  := by intros; simp_all [actSimp] <;> solve_by_elim
   -- call  := by solve_by_elim
 
-instance require_sound : Sound (Wp.require (m := m) (σ := σ) rq) where
+instance require_sound : LawfulAction (Wp.require (m := m) (σ := σ) rq) where
   inter := by
     cases m
     { intros; simp_all [actSimp]; rename_i h; specialize h default; simp [*] }
@@ -446,13 +446,13 @@ instance require_sound : Sound (Wp.require (m := m) (σ := σ) rq) where
   --  intros s post; unfold Wp.require; simp [Wp.assert, Wp.assume]; solve_by_elim
 
 
-instance fresh_sound : Sound (Wp.fresh (m := m) (σ := σ) τ) where
+instance fresh_sound : LawfulAction (Wp.fresh (m := m) (σ := σ) τ) where
   inter := by intros; simp_all [actSimp]
   impl := by intros; simp_all [actSimp]
   -- call := by solve_by_elim
 
 
-instance spec_sound : Sound (Wp.spec (m := m) req ens) where
+instance spec_sound : LawfulAction (Wp.spec (m := m) req ens) where
   inter := by
     cases m <;> (intros; simp_all [actSimp])
     rename_i h; intros; specialize h default; simp [*]
@@ -462,43 +462,43 @@ instance spec_sound : Sound (Wp.spec (m := m) req ens) where
     solve_by_elim
   -- call := by intros _; simp_all [actSimp]
 
-instance (r : σ -> σ -> Prop) : Sound (r.toWp (m := m)) where
+instance (r : σ -> σ -> Prop) : LawfulAction (r.toWp (m := m)) where
   inter := by intros; simp_all [actSimp]
   impl := by intros; simp_all [actSimp]
   -- call := by solve_by_elim
 
-instance get_sound : Sound (Wp.get (m := m) (σ := σ)) where
+instance get_sound : LawfulAction (Wp.get (m := m) (σ := σ)) where
   inter := by intros; simp_all [get, getThe,MonadStateOf.get, Wp.get]
   impl := by intros; simp_all [get, getThe,MonadStateOf.get,Wp.get]
   -- call := by solve_by_elim
 
-instance set_sound (s : σ) : Sound (Wp.set s (m := m)) where
+instance set_sound (s : σ) : LawfulAction (Wp.set s (m := m)) where
   inter := by intros; simp_all [Wp.set]
   impl := by intros; simp_all [Wp.set]
   -- call := by solve_by_elim
 
-instance modifyGet_sound : Sound (Wp.modifyGet f (m := m) (σ := σ) (ρ := ρ)) where
+instance modifyGet_sound : LawfulAction (Wp.modifyGet f (m := m) (σ := σ) (ρ := ρ)) where
   inter := by intros; simp_all [Wp.modifyGet]
   impl := by intros; simp_all [Wp.modifyGet]
   -- call := by solve_by_elim
 
-instance if_sound [Decidable c] [instT: Sound t] [instS : Sound e] : Sound (ite c t e) where
+instance if_sound [Decidable c] [instT: LawfulAction t] [instS : LawfulAction e] : LawfulAction (ite c t e) where
   inter := by
     intros; by_cases c <;> simp_all <;> solve_by_elim [instT.inter, instS.inter]
   impl := by
     intros; by_cases c <;> simp_all <;> solve_by_elim [instT.impl, instS.impl]
 
-instance (act : Wp m σ ρ) [IsSubStateOf σ σ'] [Sound act] :
-  Sound (act.lift (σ' := σ')) where
+instance (act : Wp m σ ρ) [IsSubStateOf σ σ'] [LawfulAction act] :
+  LawfulAction (act.lift (σ' := σ')) where
   inter := by
     intros; simp_all [Wp.lift]
-    solve_by_elim [Sound.inter]
+    solve_by_elim [LawfulAction.inter]
   impl := by
     intros; simp_all [Wp.lift]
-    solve_by_elim [Sound.impl]
+    solve_by_elim [LawfulAction.impl]
   -- call := by
   --   intros; simp_all [monadLift, MonadLift.monadLift]
-  --   solve_by_elim [Sound.call]
+  --   solve_by_elim [LawfulAction.call]
 
 /-! ### Correctness of `checkSpec` -/
 
@@ -506,19 +506,16 @@ instance (act : Wp m σ ρ) [IsSubStateOf σ σ'] [Sound act] :
 --   (Wp.spec ens req).toBigStep (m := .internal) = BigStep.spec ens req := by
 --   ext s r' s'; unfold Wp.spec BigStep.spec Wp.toBigStep Wp.toWlp; simp
 
-theorem check_spec_sound [Sound act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
+theorem check_spec_sound [LawfulAction act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
   (∀ s, req s -> act s (ens s)) ->
   Wp.spec (m := .internal) req ens <= act := by
   intro triple s post; simp [actSimp]; intros hreq hens
-  solve_by_elim [Sound.impl]
+  solve_by_elim [LawfulAction.impl]
 
-
-structure VeilAction (σ ρ : Type) where
-  wp m       : Wp m σ ρ
-  tr         : BigStep σ ρ
-  lawful {m} : Sound (wp m)
-  sound pre  :
-    (wp .external).terminates pre -> ∀ s, pre s -> tr s = (wp .external).toBigStep s
+class GenBigStep (σ ρ : Type) (wp : Wp .external σ ρ) (tr : outParam (BigStep σ ρ)) where
+  lawful : LawfulAction wp
+  equiv pre  :
+    wp.terminates pre -> ∀ s, pre s -> tr s = wp.toBigStep s
 
 def BigStep.pure (r : ρ) : BigStep σ ρ := fun s r' s' => s' = s ∧ r' = r
 
@@ -532,65 +529,89 @@ def BigStep.set (s : σ) : BigStep σ Unit := fun _s _r s' => s' = s
 def BigStep.get : BigStep σ σ := fun s r s' => s' = s ∧ r = s
 def BigStep.modifyGet (act : σ -> ρ × σ) : BigStep σ ρ := fun s r s' => let (ret, st) := act s; s' = st ∧ r = ret
 
-def VeilAction.pure (r : ρ) : VeilAction σ ρ :=
-  { wp m := Wp.pure r
-    lawful := inferInstance
-    tr := BigStep.pure r
-    sound pre := by
-      unfold Wp.toBigStep BigStep.pure Wp.toWlp Wp.pure; simp; intros
-      ext; constructor <;> simp <;> intros <;> simp_all }
+instance : GenBigStep σ ρ (Wp.pure r) (BigStep.pure r) where
+  lawful := inferInstance
+  equiv := by
+    unfold Wp.toBigStep BigStep.pure Wp.toWlp Wp.pure; simp; intros
+    ext; constructor <;> simp <;> intros <;> simp_all
 
-def VeilAction.assume (asm : Prop) : VeilAction σ PUnit :=
-  { wp m := Wp.assume asm
-    lawful := inferInstance
-    tr := BigStep.assume asm
-    sound pre := by
-      unfold Wp.toBigStep BigStep.assume Wp.toWlp Wp.assume; simp }
+instance : GenBigStep σ PUnit (Wp.assume asm) (BigStep.assume asm) where
+  lawful := inferInstance
+  equiv := by
+    unfold Wp.toBigStep BigStep.assume Wp.toWlp Wp.assume; simp
 
-def VeilAction.assert (asm : Prop) : VeilAction σ PUnit :=
-  { wp m := Wp.assert asm
-    lawful := inferInstance
-    tr := BigStep.assert asm
-    sound := by
-      unfold Wp.terminates Wp.toBigStep BigStep.assert Wp.toWlp Wp.assert; simp
-      rintro pre preAsm s hpre; ext
-      have h := preAsm s hpre; simp_all }
+instance : GenBigStep σ PUnit (Wp.assert asm) (BigStep.assert asm) where
+  lawful := inferInstance
+  equiv := by
+    unfold Wp.toBigStep BigStep.assert Wp.toWlp Wp.assert; simp
+    rintro pre preAsm s hpre; ext
+    have h := preAsm s hpre; simp_all
 
-def VeilAction.fresh (τ : Type) : VeilAction σ τ :=
-  { wp m := Wp.fresh τ
-    lawful := inferInstance
-    tr := BigStep.fresh τ
-    sound := by
-      unfold Wp.terminates Wp.toBigStep BigStep.fresh Wp.toWlp Wp.fresh; simp }
+instance : GenBigStep σ PUnit (Wp.require rq) (BigStep.assume rq) where
+  lawful := inferInstance
+  equiv := by
+    unfold Wp.toBigStep BigStep.assume Wp.toWlp Wp.require Wp.assume; simp
 
-def VeilAction.set (s : σ) : VeilAction σ Unit :=
-  { wp m := Wp.set s
-    lawful := inferInstance
-    tr := BigStep.set s
-    sound := by
-      unfold Wp.terminates Wp.toBigStep BigStep.set Wp.toWlp Wp.set; simp }
+instance : GenBigStep σ τ (Wp.fresh τ) (BigStep.fresh τ) where
+  lawful := inferInstance
+  equiv := by
+    unfold Wp.toBigStep BigStep.fresh Wp.toWlp Wp.fresh; simp
 
-def VeilAction.get : VeilAction σ σ :=
-  { wp m := Wp.get, lawful := inferInstance
-    tr := BigStep.get,
-    sound := by
-      unfold Wp.terminates Wp.toBigStep BigStep.get Wp.toWlp Wp.get; simp
-      intros; ext; constructor<;> intros <;> simp_all }
+instance : GenBigStep σ Unit (Wp.set s) (BigStep.set s) where
+  lawful := inferInstance
+  equiv := by
+    unfold Wp.toBigStep BigStep.set Wp.toWlp Wp.set; simp
 
-def VeilAction.modifyGet (act : σ -> ρ × σ) : VeilAction σ ρ :=
-  { wp m := Wp.modifyGet act, lawful := inferInstance
-    tr := BigStep.modifyGet act,
-    sound := by
-      unfold Wp.terminates Wp.toBigStep BigStep.modifyGet Wp.toWlp Wp.modifyGet; simp
-      intros; ext; constructor<;> intros <;> simp_all }
+instance : GenBigStep σ σ (Wp.get) (BigStep.get) where
+  lawful := inferInstance
+  equiv := by
+    unfold Wp.toBigStep BigStep.get Wp.toWlp Wp.get; simp
+    intros; ext; constructor<;> intros <;> simp_all
 
-def VeilAction.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : VeilAction σ ρ :=
-  { wp m := Wp.spec req ens, lawful := inferInstance
-    tr := BigStep.spec req ens,
-    sound := by
-      unfold Wp.terminates Wp.toBigStep BigStep.spec Wp.toWlp Wp.spec; simp }
+instance : GenBigStep σ ρ (Wp.modifyGet act) (BigStep.modifyGet act) where
+  lawful := inferInstance
+  equiv := by
+    unfold Wp.toBigStep BigStep.modifyGet Wp.toWlp Wp.modifyGet; simp
+    intros; ext; constructor<;> intros <;> simp_all
 
-theorem bind_terminates m (act : Wp m σ ρ) (act' : ρ -> Wp m σ ρ') s [Sound act] :
+instance : GenBigStep σ ρ (Wp.spec req ens) (BigStep.spec req ens) where
+  lawful := inferInstance
+  equiv := by unfold Wp.toBigStep BigStep.spec Wp.toWlp Wp.spec; simp
+
+instance [inst : GenBigStep σ ρ act actTr] : LawfulAction act := inst.lawful
+
+
+/-- This theorem lets us lift a transition in a way that does not introduce
+quantification over `σ` in the lifted transition. -/
+theorem lift_transition_big_step' {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : Wp m σ ρ) [LawfulAction r] (st : σ') :
+  r.terminates (· = getFrom st) →
+  (@Wp.lift _  m σ σ' _ r).toBigStep st =
+  fun r' st' =>
+    r.toBigStep (getFrom st) r' (getFrom st') ∧
+    st' = (setIn (@getFrom σ σ' _ st') st) := by sorry
+
+  -- intro term
+  -- have rEq : r.lift.toBigStep st = (r.toBigStep.toWp.lift.toBigStep st) := by {
+  --   unfold Wp.lift Wp.toBigStep Wp.toWlp; ext; simp
+  --   rw [big_step_to_wp (act := r) (req := (fun x => x = getFrom st))] <;> try simp [*]
+  --   unfold Wp.toBigStep Wp.toWlp; simp }
+  -- rw [rEq, lift_transition_big_step]
+
+def BigStep.lift [IsSubStateOf σ σ'] (act : BigStep σ ρ) : BigStep σ' ρ :=
+  fun st r' st' => act (getFrom st) r' (getFrom st') ∧ st' = (setIn (@getFrom σ σ' _ st') st)
+
+instance {σ σ'} [IsSubStateOf σ σ'] (act : Wp .external σ ρ) (actTr : BigStep σ ρ) [inst:GenBigStep σ ρ act actTr]
+  : GenBigStep σ' ρ (Wp.lift (σ' := σ') act) (BigStep.lift (σ := σ) actTr) where
+  lawful := inferInstance
+  equiv pre := by
+    intro term s hpre; ext; dsimp;
+    have : Wp.terminates (· = getFrom s) act := by simp; solve_by_elim
+    unfold BigStep.lift
+    rw [inst.equiv (pre := (getFrom s = ·))] <;> try simp [*]
+    rwa [lift_transition_big_step']
+
+
+theorem bind_terminates m (act : Wp m σ ρ) (act' : ρ -> Wp m σ ρ') s [LawfulAction act] :
   pre s ->
   act.terminates pre →
   (act.bind act').terminates pre ->
@@ -607,48 +628,53 @@ theorem bind_terminates m (act : Wp m σ ρ) (act' : ρ -> Wp m σ ρ') s [Sound
 
 attribute [-simp] not_and
 
-def VeilAction.bind [Inhabited σ] [Inhabited ρ] (act : VeilAction σ ρ) (act' : ρ -> VeilAction σ ρ') : VeilAction σ ρ' :=
-  { wp m   := (act.wp m).bind (act' · |>.wp m)
-    lawful := by dsimp; intro m; apply @bind_sound _ _ _ _ _ _ _ (act.lawful) (act' · |>.lawful)
-    tr     := act.tr.bind (act' · |>.tr)
-    sound pre := by
-      unfold Wp.bind; simp
+instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
+  [inst: GenBigStep σ ρ act actTr] [inst' : ∀ r, GenBigStep σ ρ' (act' r) (actTr' r)] :
+  GenBigStep σ ρ' (act.bind act') (actTr.bind actTr') where
+  lawful := inferInstance
+  equiv pre := by
+      unfold Wp.bind; --simp
       intros term s hpre
-      have := @act.lawful .external
-      have actTerm : act.wp .external |>.terminates pre := by
+      have := @inst.lawful
+      have actTerm : act |>.terminates pre := by
         intro s' hpre'
-        apply Sound.impl _ _ _ _ (term _ hpre'); simp
+        apply LawfulAction.impl _ _ _ _ (term _ hpre'); simp
       unfold BigStep.bind Wp.toBigStep Wp.toWlp; simp; ext r' s'
-      rw [act.sound _ actTerm s hpre]
+      rw [inst.equiv _ actTerm s hpre]
       unfold Wp.toBigStep Wp.toWlp; simp; constructor
       { simp; intros ret st htr htr' hwp
-        apply htr; apply Sound.impl <;> try assumption
+        apply htr; apply LawfulAction.impl <;> try assumption
         rintro s r _ ⟨⟩; subst_eqs
-        rw [(act' ret).sound (pre := (· = st))] at htr' <;> try simp
+        rw [(inst' ret).equiv (pre := (· = st))] at htr' <;> try simp
         { solve_by_elim }
-        have := @(act' ret).lawful .external
-        apply Sound.impl <;> try assumption
+        have := @(inst' ret).lawful
+        apply LawfulAction.impl <;> try assumption
         simp }
       intro hact; false_or_by_contra
       rename_i hact'; simp [not_and_iff_or_not_not] at hact'
-      by_cases hex : ∀ ret st, act.wp .external s (¬ret = · ∨ ¬st = ·)
+      by_cases hex : ∀ ret st, act s (¬ret = · ∨ ¬st = ·)
       { apply hact
-        apply Sound.impl (post := fun r s => ∀ (ret : ρ) (st : σ), ret ≠ r ∨ st ≠ s)
+        apply LawfulAction.impl (post := fun r s => ∀ (ret : ρ) (st : σ), ret ≠ r ∨ st ≠ s)
         { rintro r s hf; specialize hf r s; simp at hf }
-        solve_by_elim [Sound.inter] }
+        by_cases nr : Nonempty ρ
+        { have := inhabited_of_nonempty nr; have ns := Inhabited.mk s
+          solve_by_elim [LawfulAction.inter] }
+        apply LawfulAction.impl (post := fun _ _ => True) <;> simp [*]
+        intro r; have : Nonempty ρ := by constructor; assumption
+        contradiction }
       simp at hex; rcases hex with ⟨ret, st, hret⟩
       rcases hact' ret st with (hret' | hst) <;> try contradiction
       apply hact
-      by_cases ∀ r s'_1, (act' r).wp Mode.external s'_1 fun r s'_2 => ¬(r' = r ∧ s' = s'_2)
-      { apply Sound.impl <;> try solve_by_elim }
+      by_cases ∀ r s'_1, act' r s'_1 fun r s'_2 => ¬(r' = r ∧ s' = s'_2)
+      { apply LawfulAction.impl <;> try solve_by_elim }
       apply triple_sound_big_step (req := (· = s)) <;> try simp_all [BigStep.triple]
       rintro s'' ret' st' rfl
       unfold  Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not]; intro _
       rcases hact' ret' st' with (h | h) <;> try solve_by_elim
-      rw [(act' ret').sound (pre := (· = st'))] at h <;> try simp
+      rw [(inst' ret').equiv (pre := (· = st'))] at h <;> try simp
       { unfold Wp.toBigStep Wp.toWlp at h; simp_all [not_and_iff_or_not_not] }
-      have := (act' ret').lawful (m := .external)
-      apply bind_terminates (act := act.wp .external) (act' := fun ret => (act' ret).wp .external) (pre := pre) <;> try solve_by_elim
-      unfold Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not, *] }
+      have := (inst' ret').lawful
+      apply bind_terminates (act := act) (act' := fun ret => act' ret) (pre := pre) <;> try solve_by_elim
+      unfold Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not, *]
 
 end Theory
