@@ -278,6 +278,25 @@ theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : σ -> σ 
   }
   · rintro ⟨baseR, heq⟩; exists (getFrom st'), baseR
 
+/-- This theorem lets us lift a transition in a way that does not introduce
+quantification over `σ` in the lifted transition. -/
+theorem lift_transition_big_step {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : BigStep σ ρ) :
+  (@Wp.lift _  m σ σ' _ r.toWp).toBigStep =
+  fun st r' st' =>
+    r (getFrom st) r' (getFrom st') ∧
+    st' = (setIn (@getFrom σ σ' _ st') st)
+  := by
+  unfold Wp.lift BigStep.toWp Wp.toBigStep Wp.toWlp --Wp.hasTerminatingExecFromState
+  funext st r' st'
+  simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
+  constructor
+  {
+    rintro ⟨rr, rs, liftedR, heq⟩
+    simp only [heq, IsSubStateOf.setIn_getFrom_idempotent, IsSubStateOf.getFrom_setIn_idempotent, and_true]
+    apply liftedR
+  }
+  · rintro ⟨baseR, heq⟩; exists r', (getFrom st'), baseR
+
 /-! ### Soundness proof -/
 
 abbrev refines {σ ρ} (act : Wp m σ ρ) (act' : Wp m σ ρ) : Prop :=
@@ -588,14 +607,13 @@ theorem lift_transition_big_step' {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r :
   (@Wp.lift _  m σ σ' _ r).toBigStep st =
   fun r' st' =>
     r.toBigStep (getFrom st) r' (getFrom st') ∧
-    st' = (setIn (@getFrom σ σ' _ st') st) := by sorry
-
-  -- intro term
-  -- have rEq : r.lift.toBigStep st = (r.toBigStep.toWp.lift.toBigStep st) := by {
-  --   unfold Wp.lift Wp.toBigStep Wp.toWlp; ext; simp
-  --   rw [big_step_to_wp (act := r) (req := (fun x => x = getFrom st))] <;> try simp [*]
-  --   unfold Wp.toBigStep Wp.toWlp; simp }
-  -- rw [rEq, lift_transition_big_step]
+    st' = (setIn (@getFrom σ σ' _ st') st) := by
+  intro term
+  have rEq : r.lift.toBigStep st = (r.toBigStep.toWp.lift.toBigStep st) := by {
+    unfold Wp.lift Wp.toBigStep Wp.toWlp; ext; simp
+    rw [big_step_to_wp (act := r) (req := (fun x => x = getFrom st))] <;> try simp [*]
+    unfold Wp.toBigStep Wp.toWlp; simp }
+  rw [rEq, lift_transition_big_step]
 
 def BigStep.lift [IsSubStateOf σ σ'] (act : BigStep σ ρ) : BigStep σ' ρ :=
   fun st r' st' => act (getFrom st) r' (getFrom st') ∧ st' = (setIn (@getFrom σ σ' _ st') st)
