@@ -259,7 +259,8 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
         unhygienic intros
         $clearInvs:tactic
         try simp only [$ifSimp:ident]
-        try sdestruct_hyps)
+        try sdestruct_hyps
+        try dsimp only at *)
     let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWp| solve_wp_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
