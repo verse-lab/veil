@@ -106,8 +106,10 @@ class NodeSet (node : Type) (is_byz : outParam (node → Prop)) (nset : outParam
   member (a : node) (s : nset) : Prop
   is_empty (s : nset) : Prop
 
-  greater_than_third (s : nset) : Prop  -- f + 1 nodes
-  supermajority (s : nset) : Prop       -- 2f + 1 nodes
+  /-- f + 1 nodes -/
+  greater_than_third (s : nset) : Prop
+  /-- 2f + 1 nodes -/
+  supermajority (s : nset) : Prop
 
   supermajorities_intersect_in_honest :
     ∀ (s1 s2 : nset), ∃ (a : node), member a s1 ∧ member a s2 ∧ ¬ is_byz a
