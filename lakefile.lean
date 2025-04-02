@@ -121,6 +121,7 @@ target downloadDependencies pkg : Array FilePath := do
 @[default_target]
 lean_lib «Veil» {
   globs := #[`Veil, .submodules `Veil, .submodules `Test]
+  precompileModules := true
   extraDepTargets := #[``downloadDependencies]
 }
 
