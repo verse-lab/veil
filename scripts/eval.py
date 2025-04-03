@@ -27,9 +27,9 @@ TIMEOUT_RETURN_CODE = 124
 TIMEOUT_MARKER_VAL = 0.0
 
 EXTRA_IVY_ARGS = {
-    # "PaxosFirstOrder.ivy": ["complete=fo"],
-    # "SuzukiKasamiInts.ivy": ["complete=fo"],
-    # "VerticalPaxosFirstOrder.ivy": ["complete=fo"],
+    "PaxosFirstOrder.ivy": ["complete=fo"],
+    "SuzukiKasamiInts.ivy": ["complete=fo"],
+    "VerticalPaxosFirstOrder.ivy": ["complete=fo"],
     # as recommended in the [instructions](https://github.com/haochenpan/rabia/blob/main/proofs/README)
     # the `isolate=protocol` corresponds to checking just what we have ported to Veil
     "Rabia.ivy": ["isolate=protocol"],
@@ -40,7 +40,7 @@ def run_ivy(lean_file: str) -> dict[str, float]:
     ivy_path = os.path.join(args.ivy_dir, base_name)
     print(f"Running ivy_check on {ivy_path} (and measuring total runtime)", file=sys.stderr)
     extra_args = EXTRA_IVY_ARGS.get(base_name, [])
-    cmd = ["timeout", str(IVY_TIMEOUT_SEC), "ivy_check", "complete=fo"] + extra_args + [ivy_path]
+    cmd = ["timeout", str(IVY_TIMEOUT_SEC), "ivy_check"] + extra_args + [ivy_path]
     ivy_start = time.monotonic()
     output = subprocess.run(cmd, capture_output=True)
     print(output.stdout.decode('utf-8'), file=sys.stderr)
@@ -53,8 +53,10 @@ def run_ivy(lean_file: str) -> dict[str, float]:
     return {"total_ivy_time": total_ivy_time}
 
 def run_file(filepath: str) -> dict[str, float]:
+    filename=filepath.split("/")[-1].split(".")[0]
+    print(f"[{time.strftime('%H:%M:%S')}] {filename}: ", flush=True, end="")
     ivy_res = run_ivy(filepath)
-    print(f"Running Lean on{filepath} (and measuring #check_invariants)", file=sys.stderr)
+    print(f"Running Lean on {filepath} (and measuring #check_invariants)", file=sys.stderr)
     # IMPORTANT: `lake build` does nothing on repeat, so we use `lake lean` instead
     # leanModPath = f.replace("/", ".").removesuffix(".lean"); cmd = ["lake", "build", leanModPath]
     cmd = ["lake", "lean", filepath, "--", "-Dweak.veil.perf.profile.checkInvariants=true"]
@@ -74,6 +76,7 @@ def run_file(filepath: str) -> dict[str, float]:
     # translation from Lean to SMT-LIB and solver invocation.
     simplification_time = overall_time - translation_time - query_time
     veil_res = {"simplification_time": simplification_time, "translation_time": translation_time, "solving_time": query_time, "total_time": overall_time}
+    print(f"{veil_res}", flush=True)
     return {**veil_res, **ivy_res}
 
 def run_dir(dir: str) -> dict[str, dict[str, float]]:
@@ -108,7 +111,7 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
     def create_raw_graph(output_file : str):
         fig, (ax_high, ax_low) = plt.subplots(2, 1, sharex=True, figsize=(8, 6), gridspec_kw={'height_ratios': [2, 1], 'hspace': 0.05})
         ax_low.set_ylim(0, 30)  # Normal range
-        ax_high.set_ylim(200, 600)  # Normal range
+        ax_high.set_ylim(200, 350)  # Normal range
 
         ax_low.bar(x - 0.2, simp_times, width=0.4, label='Simplification Time', color='blue')
         ax_low.bar(x - 0.2, trans_times, width=0.4, bottom=simp_times, label='Translation Time', color='lightblue')
@@ -124,8 +127,7 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
         for it in range(len(categories)):
             # Veil runtimes
             time = total_times[it]
-            text = str(time)
-            text = text if len(text) < 5 else text[:4]
+            text = f"{time:.2f}"
             if time + 1 <= 30:
                 ax_low.text(x[it] - 0.2, time + 1, text, fontsize=11, color='black', ha='center', rotation=90)
             ax_high.text(x[it] - 0.2, 2 + time, text, fontsize=11, color='black', ha='center', rotation=90)
@@ -133,8 +135,7 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
             # Ivy runtimes
             if ivy_times[it] != TIMEOUT_MARKER_VAL:
                 time = ivy_times[it]
-                text = str(time)
-                text = text if len(text) < 5 else text[:4]
+                text = f"{time:.2f}"
                 ax_low.text(x[it] + 0.2, time + 1, text, fontsize=11, color='black', ha='center', rotation=90)
 
         for idx, v in enumerate(ivy_times):
@@ -174,61 +175,32 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
         solving_time_normalized = np.array([solving_times[it] / (total_times[it]) for it in range(len(categories))])
         ivy_times_normalized = np.array([ivy_times[it] / (total_times[it]) for it in range(len(categories))])
 
-        fig, (ax_high, ax_low) = plt.subplots(2, 1, sharex=True, figsize=(12, 6), gridspec_kw={'height_ratios': [1, 4], 'hspace': 0.05})
-        ax_low.set_ylim(0, 3)  # Normal range
-        ax_high.set_ylim(7, 10)  # Normal range
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.set_ylim(0, 2.5)  # Single range
 
-        ax_high.bar(x - 0.2, simp_times_normalized, width=0.4, label='Simplification Time', color='blue')
-        ax_high.bar(x - 0.2, trans_times_normalized, width=0.4, bottom=simp_times_normalized, label='Translation Time', color='lightblue')
-        ax_high.bar(x - 0.2, solving_time_normalized, width=0.4, bottom=simp_times_normalized+trans_times_normalized, label='Solver Time', color='green')
-        ax_high.bar(x + 0.2, ivy_times_normalized, width=0.4, label='Ivy Runtime', color='red')
-
-        ax_low.bar(x - 0.2, simp_times_normalized, width=0.4, label='Simplification Time', color='blue')
-        ax_low.bar(x - 0.2, trans_times_normalized, width=0.4, bottom=simp_times_normalized, label='Translation Time', color='lightblue')
-        ax_low.bar(x - 0.2, solving_time_normalized, width=0.4, bottom=simp_times_normalized+trans_times_normalized,label='Solver Time', color='green')
-        ax_low.bar(x + 0.2, ivy_times_normalized, width=0.4, label='Ivy Runtime', color='red')
+        ax.bar(x - 0.2, simp_times_normalized, width=0.4, label='Simplification Time', color='blue')
+        ax.bar(x - 0.2, trans_times_normalized, width=0.4, bottom=simp_times_normalized, label='Translation Time', color='lightblue')
+        ax.bar(x - 0.2, solving_time_normalized, width=0.4, bottom=simp_times_normalized+trans_times_normalized, label='Solver Time', color='green')
+        ax.bar(x + 0.2, ivy_times_normalized, width=0.4, label='Ivy Runtime', color='red')
 
         for idx, v in enumerate(ivy_times_normalized):
             if v != TIMEOUT_MARKER_VAL: continue
             text = '*' if v == TIMEOUT_MARKER_VAL else '†'
-            ax_low.text(x[idx] + 0.2, 0.2, text, fontsize=14, color='black', ha='center')
+            ax.text(x[idx] + 0.2, 0.2, text, fontsize=14, color='black', ha='center')
 
         for it in range(len(categories)):
-            text = str(total_times[it])
-            text = text if len(text) < 5 else text[:4]
-            ax_low.text(x[it] - 0.2, 1.2, text, fontsize=11, color='black', ha='center', rotation=90)
-            ivy_time_text = str(ivy_times[it])
-            ivy_time_text = ivy_time_text if len(ivy_time_text) < 5 else ivy_time_text[:4]
+            text = f"{total_times[it]:.2f}"
+            ax.text(x[it] - 0.2, 1.2, text, fontsize=11, color='black', ha='center', rotation=90)
+            ivy_time_text = f"{ivy_times[it]:.2f}"
             if ivy_times[it] != TIMEOUT_MARKER_VAL:
                 if ivy_times_normalized[it] + 0.2 <= 3:
-                    ax_low.text(x[it] + 0.28, ivy_times_normalized[it] + 0.2, ivy_time_text, fontsize=11, color='black', ha='center', rotation=90)
-                ax_high.text(x[it] + 0.28, ivy_times_normalized[it] + 0.2, ivy_time_text, fontsize=11, color='black', ha='center', rotation=90)
+                    ax.text(x[it] + 0.28, ivy_times_normalized[it] + 0.2, ivy_time_text, fontsize=11, color='black', ha='center', rotation=90)
 
-        # Labels & Legend
-        # Add diagonal break marks
-        d = 0.015  # Adjust diagonal size
-        kwargs = dict(transform=ax_high.transAxes, color='k', clip_on=False)
-
-        # Top break marks (ax_high → lower boundary)
-        ax_high.plot((-d, +d), (-d, +d), **kwargs)  
-        ax_high.plot((1 - d, 1 + d), (-d, +d), **kwargs)  
-
-        kwargs = dict(transform=ax_low.transAxes, color='k', clip_on=False)
-
-        # Bottom break marks (ax_low → upper boundary)
-        ax_low.plot((-d, +d), (1 - d, 1 + d), **kwargs)  
-        ax_low.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  
-
-        ax_low.spines['top'].set_visible(False)
-        ax_high.spines['bottom'].set_visible(False)
-
-        ax_low.set_xticks(x)
-        ax_high.tick_params(axis='x', top=False, bottom=False, labelbottom=False)
+        ax.set_xticks(x)
         plt.xticks(rotation=30, ha='right')
-        ax_low.set_xticklabels(list(categories.values()))
-        ax_low.set_ylabel("Normalised time")
-        # ax_high.set_title("Results for RQ1")
-        ax_high.legend(prop={'size': 14}, loc=1, ncol=2)
+        ax.set_xticklabels(list(categories.values()))
+        ax.set_ylabel("Normalised time")
+        ax.legend(prop={'size': 14}, loc=1, ncol=2)
 
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         
