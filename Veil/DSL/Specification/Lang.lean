@@ -260,7 +260,7 @@ def elabInitialStateAction : CommandElab := fun stx => do
     -- define initial state predicate
     let pred ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wp.toActProp (do' .external in $l) $st $st'))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wp.toTwoState (do' .external in $l) $st $st'))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
     -- we modify it to store the `lang`

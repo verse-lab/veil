@@ -47,7 +47,7 @@ macro "unfold_wp" : conv =>
     -- unfold actions defined by conversion
     Wp.toWlp
     Wp.toBigStep
-    Wp.toActProp
+    Wp.toTwoState
     BigStep.toWp
     Function.toWp
     -- unfold actions definded via lifting

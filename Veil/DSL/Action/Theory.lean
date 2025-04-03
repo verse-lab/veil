@@ -37,7 +37,7 @@ variable (m : Mode) (σ ρ : Type)
 /-- One-state formula that also talks about the return value. -/
 @[inline] abbrev RProp (ρ : Type u) := ρ → SProp σ
 /-- Two-state formula -/
-@[inline] abbrev ActProp := σ -> σ -> Prop
+@[inline] abbrev TwoState := σ -> σ -> Prop
 
 
 /-!
@@ -236,7 +236,7 @@ def Wp.toBigStep {σ} (wp : Wp m σ ρ) : BigStep σ ρ :=
 
 /-- Same as `Wp.toBigStep`, but ignores the return value. -/
 @[actSimp]
-def Wp.toActProp {σ} (wp : Wp m σ ρ) : ActProp σ :=
+def Wp.toTwoState {σ} (wp : Wp m σ ρ) : TwoState σ :=
   fun s s' =>
     wp.toWlp s (fun _ s₀ => (s' = s₀))
 
@@ -247,7 +247,7 @@ def BigStep.toWp {σ} (act : BigStep σ ρ) : Wp .internal σ ρ :=
 /-- Transforms any two-state formula into `Wp`. Used for casting
 `transition`s into `action`s. -/
 @[actSimp]
-def Function.toWp (m : Mode) (r : ActProp σ) : Wp m σ Unit :=
+def Function.toWp (m : Mode) (r : TwoState σ) : Wp m σ Unit :=
   fun s post => ∀ s', r s s' -> post () s'
 
 /-- This theorem lets us lift a transition in a way that does not introduce
@@ -271,13 +271,13 @@ theorem lift_transition_big_step {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (tr :
 
 /-- This theorem lets us lift a transition in a way that does not introduce
 quantification over `σ` in the lifted transition. -/
-theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (tr : ActProp σ) :
-  (@Wp.lift _  m σ σ' _ (tr.toWp m)).toActProp =
+theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (tr : TwoState σ) :
+  (@Wp.lift _  m σ σ' _ (tr.toWp m)).toTwoState =
   fun st st' =>
     tr (getFrom st) (getFrom st') ∧
     st' = (setIn (@getFrom σ σ' _ st') st)
   := by
-  unfold Wp.lift Function.toWp Wp.toActProp Wp.toWlp
+  unfold Wp.lift Function.toWp Wp.toTwoState Wp.toWlp
   funext st st'
   simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
   constructor
@@ -304,7 +304,7 @@ abbrev Wp.alwaysSuccessfullyTerminates {σ } (req : SProp σ) (act : Wp m σ ρ)
   ∀ s, req s -> act s (fun _ _ => True)
 
 /- Partial correctness triple -/
-abbrev ActProp.triple {σ } (req : SProp σ) (act : ActProp σ) (ens : SProp σ) : Prop :=
+abbrev TwoState.triple {σ } (req : SProp σ) (act : TwoState σ) (ens : SProp σ) : Prop :=
   ∀ s s', req s -> act s s' -> ens s'
 
 /- Partial correctness triple -/
@@ -347,15 +347,15 @@ theorem wp_and (act : Wp m σ ρ) [LawfulAction act] :
     unfold Post; simp
   rw [<-post_eq]; apply LawfulAction.inter <;> simp [*, Post]
 
-section ActPropSoundness
+section TwoStateSoundness
 
-/-- (Axiomatic) soundness of `toActProp` conversion — if you don't have
+/-- (Axiomatic) soundness of `toTwoState` conversion — if you don't have
 a trivial post-condition, then anything provable after converting to
-`ActProp` (two-state) semantics was provable in the `Wp` semantics. -/
-theorem actprop_sound [LawfulAction act] (req : SProp σ) (ens : SProp σ) :
+`TwoState` (two-state) semantics was provable in the `Wp` semantics. -/
+theorem TwoState_sound [LawfulAction act] (req : SProp σ) (ens : SProp σ) :
   -- The post-condition is not trivial
   (¬ ∀ s, ens s) ->
-  act.toActProp.triple req ens -> act.triple req (fun _ => ens) := by
+  act.toTwoState.triple req ens -> act.triple req (fun _ => ens) := by
   intro ensTaut htriple s hreq
   have ens_impl : ∀ s, (∀ s' : { s' // ¬ ens s' }, ¬ (s'.val = s)) -> ens s := by
     simp; intro s impl
@@ -370,9 +370,9 @@ theorem actprop_sound [LawfulAction act] (req : SProp σ) (ens : SProp σ) :
   specialize htriple _ s' ‹_› ‹_›; contradiction
 
 /-- If something is provable in `Wp` semanticsm it is provable in
-`ActProp` semantics. -/
-theorem actprop_sound' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
-  act.triple req ens → act.toActProp.triple req (∃ r, ens r ·) := by
+`TwoState` semantics. -/
+theorem TwoState_sound' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
+  act.triple req ens → act.toTwoState.triple req (∃ r, ens r ·) := by
   intro htriple s s' hreq hact
   unfold Wp.triple at htriple
   specialize htriple _ hreq
@@ -383,18 +383,18 @@ theorem actprop_sound' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
 theorem exists_over_PUnit (p : PUnit → Prop) : (∃ (u : PUnit), p u) = p () := by
   simp ; constructor ; intro ⟨⟨⟩, h⟩ ; assumption ; intro h ; exists PUnit.unit
 
-theorem actprop_sound'_ret_unit [LawfulAction act] (req : SProp σ) (ens : RProp σ PUnit) :
-  act.triple req ens → act.toActProp.triple req (ens () ·) := by
+theorem TwoState_sound'_ret_unit [LawfulAction act] (req : SProp σ) (ens : RProp σ PUnit) :
+  act.triple req ens → act.toTwoState.triple req (ens () ·) := by
   have heq : (ens () ·) = (∃ r, ens r ·) := by ext ; rw [exists_over_PUnit]
-  rw [heq] ; apply actprop_sound'
+  rw [heq] ; apply TwoState_sound'
 
-theorem actprop_sound'_ret_unit' [LawfulAction act] {st : σ} (ens : RProp σ PUnit) :
-  act st ens → (∀ st', act.toActProp st st' → ens () st') := by
-  have h := actprop_sound'_ret_unit (act := act) (fun stt => stt = st) ens
-  unfold Wp.triple ActProp.triple at h ; simp at h
+theorem TwoState_sound'_ret_unit' [LawfulAction act] {st : σ} (ens : RProp σ PUnit) :
+  act st ens → (∀ st', act.toTwoState st st' → ens () st') := by
+  have h := TwoState_sound'_ret_unit (act := act) (fun stt => stt = st) ens
+  unfold Wp.triple TwoState.triple at h ; simp at h
   intro hq st' ; specialize h hq st st' rfl ; exact h
 
-end ActPropSoundness
+end TwoStateSoundness
 
 section BigStepSoundness
 

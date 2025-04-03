@@ -8,7 +8,7 @@ import Veil.DSL.Specification.SpecDef
 open Lean Elab Command Term Meta Lean.Parser
 
 def wpUnfold := [``Wp.bind, ``Wp.pure, ``Wp.get, ``Wp.set, ``Wp.modifyGet,
-  ``Wp.assert, ``Wp.assume, ``Wp.require, ``Wp.spec, ``Wp.lift, ``Wp.toActProp]
+  ``Wp.assert, ``Wp.assume, ``Wp.require, ``Wp.spec, ``Wp.lift, ``Wp.toTwoState]
 
 def toActionKind (stx : TSyntax `actionKind) : ActionKind :=
   match stx with
@@ -171,10 +171,10 @@ where
       | some br => explicitBindersIdents br
       | none => pure #[]
     let (genName, actTrName) := (toGenName baseName .external, toTrName baseName)
-    let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent genName) $sectionArgs* $args*).toActProp st st')
+    let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent genName) $sectionArgs* $args*).toTwoState st st')
     let actTr <- elabTermAndSynthesize actTrStx none
     -- For transitions that are lifted from a dependency (i.e. run through
-    -- `.toWp.lift.toActProp`), simplifying the definitions leads to a
+    -- `.toWp.lift.toTwoState`), simplifying the definitions leads to a
     -- transition that existentially quantifies over the state of the
     -- dependency, which is bad. Instead, we apply the `lift_transition`
     -- theorem, giving us a nicer lifted transition.
@@ -195,7 +195,7 @@ where
       | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
       | none => pure (#[], #[])
 
-    let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toActProp st st')
+    let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toTwoState st st')
     let trActThmStatement ← `(forall? $[$vd]* , ($actTrStx) = (@$(mkIdent actTrName) $sectionArgs*))
     let trActThm ← elabTermAndSynthesize trActThmStatement mkProp
     let ⟨afterSimp, thmPf, _⟩ <- trActThm.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
