@@ -70,6 +70,11 @@ register_option veil.smt.timeout : Nat := {
   descr := "SMT timeout to use (in seconds)"
 }
 
+register_option veil.smt.finiteModelFind : Bool := {
+  defValue := true
+  descr := "Should the `--finite-model-find` option be passed to CVC5? (This option has no effect if a different solver is used.)"
+}
+
 register_option veil.smt.model.minimize : Bool := {
   defValue := false
   descr := "Should models be minimized before being displayed?"
