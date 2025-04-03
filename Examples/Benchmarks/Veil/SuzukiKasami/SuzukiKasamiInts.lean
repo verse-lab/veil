@@ -115,9 +115,9 @@ invariant [allowed_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 
 #gen_spec
 
--- FIXME: this is much faster with `z3` because our `cvc5` invocation
--- uses `--finite-model-find`. `cvc5` with no arguments is fast.
 set_option veil.smt.solver "cvc5"
+-- FIXME: we should probably set this automatically if a query involves `Int`s
+set_option veil.smt.finiteModelFind false
 set_option veil.smt.translator "lean-auto"
 
 sat trace {
