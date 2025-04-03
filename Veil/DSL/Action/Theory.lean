@@ -388,6 +388,7 @@ theorem TwoState_sound'_ret_unit [LawfulAction act] (req : SProp σ) (ens : RPro
   have heq : (ens () ·) = (∃ r, ens r ·) := by ext ; rw [exists_over_PUnit]
   rw [heq] ; apply TwoState_sound'
 
+/-- This is used by `#recover_invariants_in_tr` in `Rabia.lean`. -/
 theorem TwoState_sound'_ret_unit' [LawfulAction act] {st : σ} (ens : RProp σ PUnit) :
   act st ens → (∀ st', act.toTwoState st st' → ens () st') := by
   have h := TwoState_sound'_ret_unit (act := act) (fun stt => stt = st) ens
