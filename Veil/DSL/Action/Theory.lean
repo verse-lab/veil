@@ -14,13 +14,16 @@ section Types
 /-- Actions in Veil can be elaborated in two ways:
 
 - `internal`: when we call an action, callee should ensure all
-`require`s are satisfied. That is, under this interpretation, `require P`
-is equivalent to `assert P`.
+`require`s are satisfied. That is, under this interpretation, `require
+P` is equivalent to `assert P`.
 
-- `external`: when we call an action, it's the environment's responsibility
-  to ensure `require`s are satisfied. We treat `require`s as `assume`s under
-  this interpretation. Only top-level actions should be interpreted as
-  `external`. -/
+- `external`: when we call an action, it's the environment's
+responsibility to ensure `require`s are satisfied. We treat `require`s
+as `assume`s under this interpretation. Only top-level actions should
+be interpreted as `external`.
+
+See the definition of `Wp.require`.
+-/
 inductive Mode where
   | internal : Mode
   | external : Mode
@@ -37,16 +40,12 @@ variable (m : Mode) (σ ρ : Type)
 @[inline] abbrev ActProp := σ -> σ -> Prop
 
 
-
 /-!
-In Veil we will be using three different semantics:
+In Veil we use two different semantics:
 
 - [Wp]: a weakest-precondition transformer expressed in [Omni
 semantics](https://doi.org/10.1145/3579834) style; this relates a state
 `s : σ` to set of the possible program outcomes `post : RProp σ`
-
-- [Wlp]: liberal weakest-precondition semantics, which is similar to
-`Wp`, but does not require termination of the program
 
 - [BigStep]: standard big-step semantics, which relates a state `s : σ`
 to a return value `r : ρ` and a post-state `s' : σ`; we use this to
@@ -54,7 +53,6 @@ cast Veil `action`s into two-state `transition`s
 -/
 
 set_option linter.unusedVariables false in
-
 /-- Weakest precondition semantics in Omni style. This is a
 specification monad which relates a state `s : σ` to the set of the
 possible program outcomes `post : RProp σ`.
@@ -84,158 +82,64 @@ section Theory
 
 variable {σ ρ : Type}
 
-/-! ### Languge statements -/
+/-! ### Weakest Precondition Semantics -/
 
-@[actSimp]
-def Wp.pure (r : ρ) : Wp m σ ρ := fun s post => post r s
-@[actSimp]
-def Wp.bind (wp : Wp m σ ρ) (wp_cont : ρ -> Wp m σ ρ') : Wp m σ ρ' :=
+@[actSimp] def Wp.pure (r : ρ) : Wp m σ ρ := fun s post => post r s
+@[actSimp] def Wp.bind (wp : Wp m σ ρ) (wp_cont : ρ -> Wp m σ ρ') : Wp m σ ρ' :=
   fun s post => wp s (fun r s' => wp_cont r s' post)
 
-@[actSimp]
-def Wp.assume (asm : Prop) : Wp m σ PUnit := fun s post => asm → post () s
-@[actSimp]
-def Wp.assert (ast : Prop) : Wp m σ PUnit := fun s post => ast ∧ post () s
-@[actSimp]
-def Wp.fresh (τ : Type) : Wp m σ τ := fun s post => ∀ t, post t s
-
-@[actSimp]
-def Wp.require (rq : Prop) : Wp m σ PUnit :=
+@[actSimp] def Wp.assume (asm : Prop) : Wp m σ PUnit := fun s post => asm → post () s
+@[actSimp] def Wp.assert (ast : Prop) : Wp m σ PUnit := fun s post => ast ∧ post () s
+@[actSimp] def Wp.require (rq : Prop) : Wp m σ PUnit :=
   match m with
   | Mode.internal => Wp.assert rq
   | Mode.external => Wp.assume rq
 
+@[actSimp] def Wp.fresh (τ : Type) : Wp m σ τ := fun s post => ∀ t, post t s
+
+@[actSimp] def Wp.get : Wp m σ σ := fun s post => post s s
+@[actSimp] def Wp.set (s' : σ) : Wp m σ Unit := fun _ post => post () s'
+@[actSimp] def Wp.modifyGet (act : σ -> ρ × σ) : Wp m σ ρ := fun s post => let (ret, s') := act s ; post ret s'
+
 /-- `Wp.spec req ens` is the weakest precondition for a function with
   precondition `req` and postcondition `ens`.
 -/
-@[actSimp]
-def Wp.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : Wp m σ ρ :=
+@[actSimp] def Wp.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : Wp m σ ρ :=
   fun s post =>
     match m with
     | .internal => req s ∧ ∀ r' s', (ens s r' s' -> post r' s')
     | .external => ∀ r' s', req s -> ens s r' s' -> post r' s'
 
-def BigStep.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : BigStep σ ρ :=
-  fun s r s' => req s ∧ ens s r s'
+/-! #### Monad Instances -/
 
-@[actSimp]
-def Wp.get : Wp m σ σ := fun s post => post s s
-@[actSimp]
-def Wp.set (s' : σ) : Wp m σ Unit := fun _ post => post () s'
-@[actSimp]
-def Wp.modifyGet (act : σ -> ρ × σ) : Wp m σ ρ := fun s post => let (ret, s') := act s ; post ret s'
-
-
--- def BigStep.choice : BigStep σ ρ -> BigStep σ ρ -> BigStep σ ρ :=
---   fun act act' s r s' => act s r s' ∨ act' s r s'
-
-/- BAD: it duplicates post -/
--- def Wp.choice : Wp σ ρ -> Wp σ ρ -> Wp σ ρ :=
---   fun wp wp' s post => wp s post ∨ wp' s post
-
--- def Wp.choice (wp : Wp σ ρ) (wp' : Wp σ ρ) : Wp σ ρ :=
---   wp.toBigStep.choice wp'.toBigStep |>.toWp
-
-
-/-! ### Relation between `Wp`, `Wlp`, and `BigStep`
-
-[Comparing Weakest Precondition and Weakest Liberal Precondition](https://arxiv.org/abs/1512.04013)
-gives an overview of the relation between `Wp` and `Wlp` (summarized below).
-
-Assuming transition semantics $\text{tr}$ of changes to the program
-variables induced by the different program constructs, we have the
-following definitions of $\text{wp}$ and $\text{wlp}$ ($P$ is the
-program, $s$ is the initial state, $\varphi$ is the postcondition):
-
-$\text{wp}(P, \varphi, s) \coloneqq \exists s',  \text{tr}(s, s') \land \varphi(s')$
-
-$\text{wlp}(P, \varphi, s) \coloneqq ∀ s',  \text{tr}(s, s') \rightarrow \varphi(s')$
-
-$\text{wp}$ says "starting in state $x$, program $P$ terminates and
-reaches state $x'$, and $\varphi(x')$ holds" $\text{wlp}$ says
-"starting in state $x$, **if** program P terminates in some state $x'$,
-then $\varphi(x')$ holds"
-
-Given these definitions, the following holds: $\text{wlp}(P, \varphi,
-s) = \lnot \text{wp}(P, \lnot \varphi, s)$
-
-Note also that $\text{wp}(P, \top, s) = \exists s', \text{tr}(s, s')$,
-i.e. this says "P terminates when starting on $s$"
-
-----
-
-Whereas in the paper above, the base semantics is `Tr` (the transition
-meaning of program constructs), in Veil, as we explain in the tool
-paper, we choose to use `Wp` as our base semantics. This let us avoid
-existentially quantifying over the post-state `s'` when defining `Wp`
-in terms of `Tr`.
-
-Therefore, we define `Wlp` and `BigStep` (`Tr`) in terms of `Wp`, as
-follows.
--/
-
-/-- Converting `Wp` to `Wlp` "drops" all non-terminating executions. -/
-@[actSimp]
-abbrev Wp.toWlp {σ ρ : Type} {m : Mode} (wp : Wp m σ ρ) : Wlp m σ ρ :=
-  -- `wlp(P, φ, s) = ¬ wp(P, ¬φ, s)`
-  fun (s : σ) (post : RProp σ ρ) => ¬ wp s (fun r s' => ¬ post r s')
-
-/-- Starting in state `s`, `wp` has a terminating execution. -/
-abbrev Wp.hasTerminatingExecFromState {σ} (wp : Wp m σ ρ) (s : σ) : Prop :=
-  wp s (fun _ _ => True)
-
-/-- State `s` leads to post-state `s'` and return value `r'` under `wp`
-if `wp` has a terminating execution starting from `s`, and all
-executions starting from `s` end in `s'` with return value `r'`. -/
-@[actSimp]
-def Wp.toBigStep {σ} (wp : Wp m σ ρ) : BigStep σ ρ :=
-  fun s r' s' =>
-    wp.toWlp s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
-
-/-- States `s` and `s'` are related by `wp` if `wp` has a terminating
-execution starting from `s`, and all executions starting from `s` end
-in `s'`. -/
-@[actSimp]
-def Wp.toActProp {σ} (wp : Wp m σ ρ) : ActProp σ :=
-  -- `tr(s, s') = wp(P, ⊤, s) ∧ wlp(P, φ, s)`
-  fun s s' =>
-    wp.toWlp s (fun _ s₀ => (s' = s₀))
-
-/-- [BigStep.toWp] converts Big-step semantics to Omni one.
-
-  Ideally, here we should also assert termination of `act`, but this will be handled
-  via `LawfulAction` condition later. -/
-@[actSimp]
-def BigStep.toWp {σ} (act : BigStep σ ρ) : Wp .internal σ ρ :=
-  fun s post => ∀ r s', act s r s' -> post r s'
-
-
-/-- Function which transforms any two-state formula into `Wp` -/
-@[actSimp]
-def Function.toWp (m : Mode) (r : σ -> σ -> Prop) : Wp m σ Unit :=
-  fun s post => ∀ s', r s s' -> post () s'
-
-/-! ### Monad Instances -/
-
+/-- `Wp` is a monad -/
 instance : Monad (Wp m σ) where
   pure := Wp.pure
   bind := Wp.bind
 
+/-- `Wp` is a state monad -/
 instance : MonadStateOf σ (Wp m σ) where
   get := Wp.get
   set := Wp.set
   modifyGet := Wp.modifyGet
 
-@[wpSimp]
-def pureE : pure = Wp.pure (σ := σ) (ρ := ρ) (m := m) := rfl
-@[wpSimp]
-def bindE : bind = Wp.bind (σ := σ) (ρ := ρ) (ρ' := ρ') (m := m) := rfl
-@[wpSimp]
-def getE : get = Wp.get (σ := σ) (m := m) := rfl
-@[wpSimp]
-def modifyGetE : modifyGet = Wp.modifyGet (σ := σ) (ρ := ρ) (m := m) := rfl
+/-! #### State Monad Lifting-/
 
-/-- `σ` is a sub-state of `σ'` -/
+/-- To support inter-operation between `action`s defined in different
+Veil modules (which have different `State` types), we define a
+sub-state relation on `State`s. This lets a module have a "part" of its
+state correspond to another module's `State` type, and call `action`s
+from that module by `lift`ing them into the appropriate State monad.
+
+`IsSubState σ σ'` means that `σ` is a sub-state of `σ'`. This gives us:
+
+- `setIn : σ -> σ' -> σ'`, which updates/sets the sub-state in the
+bigger state
+- `getFrom : σ' -> σ`, which extracts the sub-state from the bigger
+state
+- proofs that these methods are related to each other in the natural
+way
+-/
 class IsSubStateOf (σ : semiOutParam Type) (σ' : Type) where
   /-- Set the small state `σ` in the big one `σ'`, returning the new `σ'` -/
   setIn : σ -> σ' -> σ'
@@ -247,46 +151,114 @@ class IsSubStateOf (σ : semiOutParam Type) (σ' : Type) where
 
 export IsSubStateOf (setIn getFrom)
 
-@[actSimp]
-def Wp.lift {σ σ'} [IsSubStateOf σ σ'] (act : Wp m σ ρ) : Wp m σ' ρ :=
+/-- `Wp.lift act` lifts an action defined on a sub-state into an action
+defined on the bigger state. -/
+@[actSimp] def Wp.lift {σ σ'} [IsSubStateOf σ σ'] (act : Wp m σ ρ) : Wp m σ' ρ :=
   fun s' post => act (getFrom s') (fun r s => post r (setIn s s'))
 
+/-- `Wp` supports lifting between different state monads. -/
 instance [IsSubStateOf σ σ'] : MonadLift (Wp m σ) (Wp m σ') where
   monadLift := Wp.lift
 
-@[wpSimp]
-def monadLiftE [IsSubStateOf σ σ'] : monadLift = Wp.lift (σ := σ) (σ' := σ') (ρ := ρ) (m := m) := rfl
+/-! We want to unfold the monad definitions (e.g. for `pure`, `bind`,
+`get`, `set`, `modifyGet`, `monadLift`) from Lean-elaborated monads
+into our constructs. Unfolding them directly gives some nasty terms, so
+we define custom "clean" unfolding lemmas under the `wpSimp` attribute.
+-/
+@[wpSimp] def pureE : pure = Wp.pure (σ := σ) (ρ := ρ) (m := m) := rfl
+@[wpSimp] def bindE : bind = Wp.bind (σ := σ) (ρ := ρ) (ρ' := ρ') (m := m) := rfl
+@[wpSimp] def getE : get = Wp.get (σ := σ) (m := m) := rfl
+@[wpSimp] def setE : set = Wp.set (σ := σ) (m := m) := rfl
+@[wpSimp] def modifyGetE : modifyGet = Wp.modifyGet (σ := σ) (ρ := ρ) (m := m) := rfl
+@[wpSimp] def monadLiftE [IsSubStateOf σ σ'] : monadLift = Wp.lift (σ := σ) (σ' := σ') (ρ := ρ) (m := m) := rfl
 
-/-! ### Lifting transitions -/
+/-! ### Big-Step Semantics -/
+
+def BigStep.pure (r : ρ) : BigStep σ ρ := fun s r' s' => s' = s ∧ r' = r
+def BigStep.bind (act : BigStep σ ρ) (act' : ρ -> BigStep σ ρ') : BigStep σ ρ' :=
+  fun s r' s' => ∃ r s'', act s r s'' ∧ act' r s'' r' s'
+
+def BigStep.assume (asm : Prop) : BigStep σ PUnit := fun s _ s' => asm ∧ s' = s
+def BigStep.assert (ast : Prop) : BigStep σ PUnit := fun s _ s' => ast ∧ s' = s
+
+def BigStep.fresh (τ : Type) : BigStep σ τ := fun s _r s' => s' = s
+
+def BigStep.get : BigStep σ σ := fun s r s' => s' = s ∧ r = s
+def BigStep.set (s : σ) : BigStep σ Unit := fun _s _r s' => s' = s
+def BigStep.modifyGet (act : σ -> ρ × σ) : BigStep σ ρ := fun s r s' => let (ret, st) := act s; s' = st ∧ r = ret
+
+def BigStep.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : BigStep σ ρ :=
+  fun s r s' => req s ∧ ens s r s'
+
+def BigStep.lift [IsSubStateOf σ σ'] (act : BigStep σ ρ) : BigStep σ' ρ :=
+  fun st r' st' => act (getFrom st) r' (getFrom st') ∧ st' = (setIn (@getFrom σ σ' _ st') st)
+
+/-! ### Relation between `Wp`, `Wlp`, and `BigStep` -/
+
+/-- Converting `Wp` to `Wlp` "drops" all non-terminating executions. It
+is defined as follows:
+
+  `wlp(P, φ, s) = ¬ wp(P, ¬φ, s)`
+
+The intuition is:
+
+1. `wp(P, φ, s)` gives you the set of "good" pre-states `S` such that
+any execution from `S` terminates and reaches a state where `φ` holds;
+
+2. `wp(P, ¬φ, s)` gives the set of "bad" pre-states, from which every
+execution terminates and reaches a state where `φ` does not hold;
+
+3. `¬ wp(P, ¬φ, s)` thus gives the set of states from which either the
+execution does not terminate OR the execution terminates and reaches a
+state where `φ` holds.
+-/
+@[actSimp]
+abbrev Wp.toWlp {σ ρ : Type} {m : Mode} (wp : Wp m σ ρ) : Wlp m σ ρ :=
+  -- `wlp(P, φ, s) = ¬ wp(P, ¬φ, s)`
+  fun (s : σ) (post : RProp σ ρ) => ¬ wp s (fun r s' => ¬ post r s')
+
+/-- This is an INCOMPLETE definition of the conversion from `Wp` to
+`BigStep`, since it does NOT require `Wp.terminates` (see definition
+below). Our soundness proof takes `Wp.terminates` as a precondition.
+
+We nonetheless use this definition so as not to double the size of VCs
+for BMC (`trace`) queries — but this means that in the current
+implementation, these queries only make sense if the actions do not
+`assert False` on any program path, i.e. they always succeed.
+
+We will fix this in the near future, when we introduce execution
+semantics.
+-/
+@[actSimp]
+def Wp.toBigStep {σ} (wp : Wp m σ ρ) : BigStep σ ρ :=
+  fun s r' s' =>
+    wp.toWlp s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
+
+/-- Same as `Wp.toBigStep`, but ignores the return value. -/
+@[actSimp]
+def Wp.toActProp {σ} (wp : Wp m σ ρ) : ActProp σ :=
+  fun s s' =>
+    wp.toWlp s (fun _ s₀ => (s' = s₀))
+
+@[actSimp]
+def BigStep.toWp {σ} (act : BigStep σ ρ) : Wp .internal σ ρ :=
+  fun s post => ∀ r s', act s r s' -> post r s'
+
+/-- Transforms any two-state formula into `Wp`. Used for casting
+`transition`s into `action`s. -/
+@[actSimp]
+def Function.toWp (m : Mode) (r : ActProp σ) : Wp m σ Unit :=
+  fun s post => ∀ s', r s s' -> post () s'
 
 /-- This theorem lets us lift a transition in a way that does not introduce
 quantification over `σ` in the lifted transition. -/
-theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : σ -> σ -> Prop) :
-  (@Wp.lift _  m σ σ' _ (r.toWp m)).toActProp =
-  fun st st' =>
-    r (getFrom st) (getFrom st') ∧
-    st' = (setIn (@getFrom σ σ' _ st') st)
-  := by
-  unfold Wp.lift Function.toWp Wp.toActProp Wp.toWlp --Wp.hasTerminatingExecFromState
-  funext st st'
-  simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
-  constructor
-  {
-    rintro ⟨rs, liftedR, heq⟩
-    simp only [heq, IsSubStateOf.setIn_getFrom_idempotent, IsSubStateOf.getFrom_setIn_idempotent, and_true]
-    apply liftedR
-  }
-  · rintro ⟨baseR, heq⟩; exists (getFrom st'), baseR
-
-/-- This theorem lets us lift a transition in a way that does not introduce
-quantification over `σ` in the lifted transition. -/
-theorem lift_transition_big_step {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : BigStep σ ρ) :
-  (@Wp.lift _  m σ σ' _ r.toWp).toBigStep =
+theorem lift_transition_big_step {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (tr : BigStep σ ρ) :
+  (@Wp.lift _  m σ σ' _ tr.toWp).toBigStep =
   fun st r' st' =>
-    r (getFrom st) r' (getFrom st') ∧
+    tr (getFrom st) r' (getFrom st') ∧
     st' = (setIn (@getFrom σ σ' _ st') st)
   := by
-  unfold Wp.lift BigStep.toWp Wp.toBigStep Wp.toWlp --Wp.hasTerminatingExecFromState
+  unfold Wp.lift BigStep.toWp Wp.toBigStep Wp.toWlp
   funext st r' st'
   simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
   constructor
@@ -296,6 +268,25 @@ theorem lift_transition_big_step {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : 
     apply liftedR
   }
   · rintro ⟨baseR, heq⟩; exists r', (getFrom st'), baseR
+
+/-- This theorem lets us lift a transition in a way that does not introduce
+quantification over `σ` in the lifted transition. -/
+theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (tr : ActProp σ) :
+  (@Wp.lift _  m σ σ' _ (tr.toWp m)).toActProp =
+  fun st st' =>
+    tr (getFrom st) (getFrom st') ∧
+    st' = (setIn (@getFrom σ σ' _ st') st)
+  := by
+  unfold Wp.lift Function.toWp Wp.toActProp Wp.toWlp
+  funext st st'
+  simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
+  constructor
+  {
+    rintro ⟨rs, liftedR, heq⟩
+    simp only [heq, IsSubStateOf.setIn_getFrom_idempotent, IsSubStateOf.getFrom_setIn_idempotent, and_true]
+    apply liftedR
+  }
+  · rintro ⟨baseR, heq⟩; exists (getFrom st'), baseR
 
 /-! ### Soundness proof -/
 
@@ -308,45 +299,47 @@ instance : LE (Wp m σ ρ) where
 abbrev Wp.triple {σ ρ} (req : SProp σ) (act : Wp m σ ρ) (ens : RProp σ ρ) : Prop :=
   ∀ s, req s -> act s ens
 
-/- Termination -/
-abbrev Wp.terminates {σ } (req : SProp σ) (act : Wp m σ ρ)  : Prop :=
+/-- Always terminates without failure (i.e. without `assert False`) -/
+abbrev Wp.alwaysSuccessfullyTerminates {σ } (req : SProp σ) (act : Wp m σ ρ)  : Prop :=
   ∀ s, req s -> act s (fun _ _ => True)
 
-
-/- partial correctness triple -/
+/- Partial correctness triple -/
 abbrev ActProp.triple {σ } (req : SProp σ) (act : ActProp σ) (ens : SProp σ) : Prop :=
   ∀ s s', req s -> act s s' -> ens s'
 
-/- partial correctness triple -/
+/- Partial correctness triple -/
 abbrev BigStep.triple {σ } (req : SProp σ) (act : BigStep σ ρ) (ens : RProp σ ρ) : Prop :=
   ∀ s r' s', req s -> act s r' s' -> ens r' s'
 
 
+/-- `LawfulAction act` is the minimal set of conditions on `act`
+that are required to prove the soundness of the `Wp.toBigStep`
+conversion.
 
-/-- `LawfulAction act` states the set of minimal conditions on `act` that are required
-  to prove the soundness of the `Wp.toBigStep` conversion.
-  - first condition `inter` is a generalization of the following statement:
-    ```lean
-      ∀ s post post', act s post -> act s post' ->
-        act s fun r s => post r s ∧ post' r s
-    ```
-    In other words, if both `post` and `post'` overapproximate the behavior of `act`,
-    then their intersection also overapproximates the behavior of `act`. `LawfulAction.inter`
-    states that for the intersection of an arbitrary (possibly infinite) collection of
-    predicates `post`
-  - second condition `impl`, states that we can always weaken the postcondition of `act`
-    by adding some of the possible outcomes.
-  - third condition `call`, states that the `internal` mode of `act` refines the `external`
-    one. In other words, if you have proven some striple for `internal` mode of `act`,
-    the same one holds for its `external` version -/
+- `inter` is a generalization of the following statement:
+  ```lean
+    ∀ s post post', act s post -> act s post' ->
+      act s fun r s => post r s ∧ post' r s
+  ```
+
+  In other words, if both `post` and `post'` overapproximate the behavior of `act`,
+  then their intersection also overapproximates the behavior of `act`. `LawfulAction.inter`
+  states that for the intersection of an arbitrary (possibly infinite) collection of
+  predicates `post`
+
+- `impl` states that we can always weaken the postcondition of `act` by
+adding some of the possible outcomes.
+-/
 class LawfulAction {σ ρ : Type} (act : Wp m σ ρ) where
   inter {τ : Type} [Inhabited τ] (post : τ -> RProp σ ρ) :
     ∀ s : σ, (∀ t : τ, act s (post t)) -> act s (∀ t, post t · ·)
+
   impl (post post' : RProp σ ρ) : ∀ s,
     (∀ r s, post r s -> post' r s) -> act s post -> act s post'
-  -- call : act .internal <= act .external
 
-theorem sound_and (act : Wp m σ ρ) [LawfulAction act] :
+/-- If an action satisfies two postconditions, then it satisfies their
+conjunction. -/
+theorem wp_and (act : Wp m σ ρ) [LawfulAction act] :
   act s post -> act s post' -> act s fun r s => post r s ∧ post' r s := by
   intro hact hact'
   let Post := fun (b : Bool) => if b then post' else post
@@ -354,7 +347,13 @@ theorem sound_and (act : Wp m σ ρ) [LawfulAction act] :
     unfold Post; simp
   rw [<-post_eq]; apply LawfulAction.inter <;> simp [*, Post]
 
-theorem triple_sound [LawfulAction act] (req : SProp σ) (ens : SProp σ) :
+section ActPropSoundness
+
+/-- (Axiomatic) soundness of `toActProp` conversion — if you don't have
+a trivial post-condition, then anything provable after converting to
+`ActProp` (two-state) semantics was provable in the `Wp` semantics. -/
+theorem actprop_sound [LawfulAction act] (req : SProp σ) (ens : SProp σ) :
+  -- The post-condition is not trivial
   (¬ ∀ s, ens s) ->
   act.toActProp.triple req ens -> act.triple req (fun _ => ens) := by
   intro ensTaut htriple s hreq
@@ -370,8 +369,37 @@ theorem triple_sound [LawfulAction act] (req : SProp σ) (ens : SProp σ) :
   false_or_by_contra
   specialize htriple _ s' ‹_› ‹_›; contradiction
 
+/-- If something is provable in `Wp` semanticsm it is provable in
+`ActProp` semantics. -/
+theorem actprop_sound' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
+  act.triple req ens → act.toActProp.triple req (∃ r, ens r ·) := by
+  intro htriple s s' hreq hact
+  unfold Wp.triple at htriple
+  specialize htriple _ hreq
+  false_or_by_contra ; rename_i h ; simp at h
+  apply hact ; apply LawfulAction.impl (post := ens) <;> try assumption
+  intro r s hh heq ; subst_eqs ; apply h ; apply hh
+
+theorem exists_over_PUnit (p : PUnit → Prop) : (∃ (u : PUnit), p u) = p () := by
+  simp ; constructor ; intro ⟨⟨⟩, h⟩ ; assumption ; intro h ; exists PUnit.unit
+
+theorem actprop_sound'_ret_unit [LawfulAction act] (req : SProp σ) (ens : RProp σ PUnit) :
+  act.triple req ens → act.toActProp.triple req (ens () ·) := by
+  have heq : (ens () ·) = (∃ r, ens r ·) := by ext ; rw [exists_over_PUnit]
+  rw [heq] ; apply actprop_sound'
+
+theorem actprop_sound'_ret_unit' [LawfulAction act] {st : σ} (ens : RProp σ PUnit) :
+  act st ens → (∀ st', act.toActProp st st' → ens () st') := by
+  have h := actprop_sound'_ret_unit (act := act) (fun stt => stt = st) ens
+  unfold Wp.triple ActProp.triple at h ; simp at h
+  intro hq st' ; specialize h hq st st' rfl ; exact h
+
+end ActPropSoundness
+
+section BigStepSoundness
+
 attribute [-simp] not_and in
-theorem triple_sound_big_step [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
+theorem big_step_sound [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
   (¬ ∀ r s, ens r s) ->
   act.toBigStep.triple req ens -> act.triple req ens := by
   intro ensTaut htriple s hreq
@@ -387,24 +415,7 @@ theorem triple_sound_big_step [LawfulAction act] (req : SProp σ) (ens : RProp �
   false_or_by_contra
   specialize htriple _ r' s' ‹_› ‹_›; contradiction
 
-theorem triple_sound_terminate [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
-  act.terminates req ->
-  act.toBigStep.triple req ens -> act.triple req ens := by
-  intro ensTaut htriple s hreq
-  by_cases h: (¬ ∀ r s, ens r s)
-  { solve_by_elim [triple_sound_big_step] }
-  apply LawfulAction.impl (post := fun _ _ => True) <;> try simp_all
-
-theorem triple_sound' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
-  act.triple req ens → act.toActProp.triple req (∃ r, ens r ·) := by
-  intro htriple s s' hreq hact
-  unfold Wp.triple at htriple
-  specialize htriple _ hreq
-  false_or_by_contra ; rename_i h ; simp at h
-  apply hact ; apply LawfulAction.impl (post := ens) <;> try assumption
-  intro r s hh heq ; subst_eqs ; apply h ; apply hh
-
-theorem triple_sound_big_step' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
+theorem big_step_sound' [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
   act.triple req ens → act.toBigStep.triple req ens := by
   intro htriple s r' s' hreq hact
   unfold Wp.triple at htriple
@@ -413,38 +424,39 @@ theorem triple_sound_big_step' [LawfulAction act] (req : SProp σ) (ens : RProp 
   apply hact ; apply LawfulAction.impl (post := ens) <;> try assumption
   intro r s hh ⟨heq,_⟩ ; subst_eqs ; apply h ; apply hh
 
+theorem big_step_always_terminating_sound [LawfulAction act] (req : SProp σ) (ens : RProp σ ρ) :
+  act.alwaysSuccessfullyTerminates req ->
+  act.toBigStep.triple req ens -> act.triple req ens := by
+  intro ensTaut htriple s hreq
+  by_cases h: (¬ ∀ r s, ens r s)
+  { solve_by_elim [big_step_sound] }
+  apply LawfulAction.impl (post := fun _ _ => True) <;> try simp_all
+
 theorem big_step_to_wp (act : Wp m σ ρ) [LawfulAction act] (req : SProp σ) :
-  act.terminates req ->
+  act.alwaysSuccessfullyTerminates req ->
   req s ->
   act s = act.toBigStep.toWp s := by
   intro hterm hreq; ext post; constructor
   { simp [BigStep.toWp]; intro _ _ _
-    solve_by_elim [triple_sound_big_step'] }
+    solve_by_elim [big_step_sound'] }
   simp [BigStep.toWp]
-  intro h; apply triple_sound_terminate (req := (s = ·)) <;> try simp
+  intro h; apply big_step_always_terminating_sound (req := (s = ·)) <;> try simp
   { solve_by_elim }
   intro; simp_all
 
-theorem exists_over_PUnit (p : PUnit → Prop) : (∃ (u : PUnit), p u) = p () := by
-  simp ; constructor ; intro ⟨⟨⟩, h⟩ ; assumption ; intro h ; exists PUnit.unit
+end BigStepSoundness
 
-theorem triple_sound'_ret_unit [LawfulAction act] (req : SProp σ) (ens : RProp σ PUnit) :
-  act.triple req ens → act.toActProp.triple req (ens () ·) := by
-  have heq : (ens () ·) = (∃ r, ens r ·) := by ext ; rw [exists_over_PUnit]
-  rw [heq] ; apply triple_sound'
+section LawfulActionInstances
+/-! ### LawfulAction instances
 
-theorem triple_sound'_ret_unit' [LawfulAction act] {st : σ} (ens : RProp σ PUnit) :
-  act st ens → (∀ st', act.toActProp st st' → ens () st') := by
-  have h := triple_sound'_ret_unit (act := act) (fun stt => stt = st) ens
-  unfold Wp.triple ActProp.triple at h ; simp at h
-  intro hq st' ; specialize h hq st st' rfl ; exact h
+These instances show that all our actions are `LawfulAction`s.
+-/
 
-instance pure_sound : LawfulAction (Wp.pure (σ := σ) (m := m) r) where
+instance pure_lawful : LawfulAction (Wp.pure (σ := σ) (m := m) r) where
   inter := by simp [pure, actSimp]
   impl  := by intros; simp_all [pure, actSimp]
-  -- call  := by solve_by_elim
 
-instance bind_sound (act : Wp m' σ ρ) (act' : ρ -> Wp m σ ρ') [LawfulAction act] [∀ r, LawfulAction (act' r)] : LawfulAction (Wp.bind (m := m) act act') where
+instance bind_lawful (act : Wp m' σ ρ) (act' : ρ -> Wp m σ ρ') [LawfulAction act] [∀ r, LawfulAction (act' r)] : LawfulAction (Wp.bind (m := m) act act') where
   inter := by
     unfold Wp.bind
     intros τ _ post s hbind
@@ -458,40 +470,26 @@ instance (priority := low) internal_sound (act : Wp m σ ρ) [inst : LawfulActio
   inter := inst.inter
   impl := inst.impl
 
-  -- call := by
-  --   unfold Wp.bind
-  --   intros s post hbind
-  --   apply LawfulAction.call; apply LawfulAction.impl;
-  --   { intros _ _; apply LawfulAction.call }
-  --   solve_by_elim
-
-instance assume_sound : LawfulAction (Wp.assume (m := m) (σ := σ) rq) where
+instance assume_lawful : LawfulAction (Wp.assume (m := m) (σ := σ) rq) where
   inter := by intros; simp_all [actSimp]
   impl := by intros; simp_all [actSimp]
-  -- call := by solve_by_elim
 
-instance assert_sound : LawfulAction (Wp.assert (m := m) (σ := σ) rq) where
+instance assert_lawful : LawfulAction (Wp.assert (m := m) (σ := σ) rq) where
   inter := by intros; simp_all [actSimp]; rename_i h; specialize h default; simp [*]
   impl  := by intros; simp_all [actSimp] <;> solve_by_elim
-  -- call  := by solve_by_elim
 
-instance require_sound : LawfulAction (Wp.require (m := m) (σ := σ) rq) where
+instance require_lawful : LawfulAction (Wp.require (m := m) (σ := σ) rq) where
   inter := by
     cases m
     { intros; simp_all [actSimp]; rename_i h; specialize h default; simp [*] }
     intros; simp_all [actSimp]
   impl := by cases m <;> (intros; simp_all [actSimp] <;> solve_by_elim)
-  -- call := by
-  --  intros s post; unfold Wp.require; simp [Wp.assert, Wp.assume]; solve_by_elim
 
-
-instance fresh_sound : LawfulAction (Wp.fresh (m := m) (σ := σ) τ) where
+instance fresh_lawful : LawfulAction (Wp.fresh (m := m) (σ := σ) τ) where
   inter := by intros; simp_all [actSimp]
   impl := by intros; simp_all [actSimp]
-  -- call := by solve_by_elim
 
-
-instance spec_sound : LawfulAction (Wp.spec (m := m) req ens) where
+instance spec_lawful : LawfulAction (Wp.spec (m := m) req ens) where
   inter := by
     cases m <;> (intros; simp_all [actSimp])
     rename_i h; intros; specialize h default; simp [*]
@@ -499,35 +497,30 @@ instance spec_sound : LawfulAction (Wp.spec (m := m) req ens) where
     cases m <;> (simp [actSimp]; intros)
     { constructor <;> (intros; solve_by_elim) }
     solve_by_elim
-  -- call := by intros _; simp_all [actSimp]
 
 instance (r : σ -> σ -> Prop) : LawfulAction (r.toWp (m := m)) where
   inter := by intros; simp_all [actSimp]
   impl := by intros; simp_all [actSimp]
-  -- call := by solve_by_elim
 
-instance get_sound : LawfulAction (Wp.get (m := m) (σ := σ)) where
+instance get_lawful : LawfulAction (Wp.get (m := m) (σ := σ)) where
   inter := by intros; simp_all [get, getThe,MonadStateOf.get, Wp.get]
   impl := by intros; simp_all [get, getThe,MonadStateOf.get,Wp.get]
-  -- call := by solve_by_elim
 
-instance set_sound (s : σ) : LawfulAction (Wp.set s (m := m)) where
+instance set_lawful (s : σ) : LawfulAction (Wp.set s (m := m)) where
   inter := by intros; simp_all [Wp.set]
   impl := by intros; simp_all [Wp.set]
-  -- call := by solve_by_elim
 
-instance modifyGet_sound : LawfulAction (Wp.modifyGet f (m := m) (σ := σ) (ρ := ρ)) where
+instance modifyGet_lawful : LawfulAction (Wp.modifyGet f (m := m) (σ := σ) (ρ := ρ)) where
   inter := by intros; simp_all [Wp.modifyGet]
   impl := by intros; simp_all [Wp.modifyGet]
-  -- call := by solve_by_elim
 
-instance if_sound [Decidable c] [instT: LawfulAction t] [instS : LawfulAction e] : LawfulAction (ite c t e) where
+instance if_lawful [Decidable c] [instT: LawfulAction t] [instS : LawfulAction e] : LawfulAction (ite c t e) where
   inter := by
     intros; by_cases c <;> simp_all <;> solve_by_elim [instT.inter, instS.inter]
   impl := by
     intros; by_cases c <;> simp_all <;> solve_by_elim [instT.impl, instS.impl]
 
-instance (act : Wp m σ ρ) [IsSubStateOf σ σ'] [LawfulAction act] :
+instance lift_lawful (act : Wp m σ ρ) [IsSubStateOf σ σ'] [LawfulAction act] :
   LawfulAction (act.lift (σ' := σ')) where
   inter := by
     intros; simp_all [Wp.lift]
@@ -535,38 +528,27 @@ instance (act : Wp m σ ρ) [IsSubStateOf σ σ'] [LawfulAction act] :
   impl := by
     intros; simp_all [Wp.lift]
     solve_by_elim [LawfulAction.impl]
-  -- call := by
-  --   intros; simp_all [monadLift, MonadLift.monadLift]
-  --   solve_by_elim [LawfulAction.call]
 
-/-! ### Correctness of `checkSpec` -/
-
--- theorem wp_spec_to_big_step :
---   (Wp.spec ens req).toBigStep (m := .internal) = BigStep.spec ens req := by
---   ext s r' s'; unfold Wp.spec BigStep.spec Wp.toBigStep Wp.toWlp; simp
-
-theorem check_spec_sound [LawfulAction act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
+theorem check_spec_lawful [LawfulAction act] (req : SProp σ) (ens : σ -> RProp σ ρ) :
   (∀ s, req s -> act s (ens s)) ->
   Wp.spec (m := .internal) req ens <= act := by
   intro triple s post; simp [actSimp]; intros hreq hens
   solve_by_elim [LawfulAction.impl]
 
+end LawfulActionInstances
+
+section GenBigStepInstances
+/-! ### GenBigStep instances
+
+These instances show that we can soundly translate `LawfulAction`s that
+always successfully terminate (under some precondition `pre`, which is
+taken to be either `True` or the inductive invariant) into `BigStep`
+semantics.
+-/
 class GenBigStep (σ ρ : Type) (wp : Wp .external σ ρ) (tr : outParam (BigStep σ ρ)) where
   lawful : LawfulAction wp
   equiv pre  :
-    wp.terminates pre -> ∀ s, pre s -> tr s = wp.toBigStep s
-
-def BigStep.pure (r : ρ) : BigStep σ ρ := fun s r' s' => s' = s ∧ r' = r
-
-def BigStep.bind (act : BigStep σ ρ) (act' : ρ -> BigStep σ ρ') : BigStep σ ρ' :=
-  fun s r' s' => ∃ r s'', act s r s'' ∧ act' r s'' r' s'
-
-def BigStep.assume (asm : Prop) : BigStep σ PUnit := fun s _ s' => asm ∧ s' = s
-def BigStep.assert (ast : Prop) : BigStep σ PUnit := fun s _ s' => ast ∧ s' = s
-def BigStep.fresh (τ : Type) : BigStep σ τ := fun s _r s' => s' = s
-def BigStep.set (s : σ) : BigStep σ Unit := fun _s _r s' => s' = s
-def BigStep.get : BigStep σ σ := fun s r s' => s' = s ∧ r = s
-def BigStep.modifyGet (act : σ -> ρ × σ) : BigStep σ ρ := fun s r s' => let (ret, st) := act s; s' = st ∧ r = ret
+    wp.alwaysSuccessfullyTerminates pre -> ∀ s, pre s -> tr s = wp.toBigStep s
 
 instance : GenBigStep σ ρ (Wp.pure r) (BigStep.pure r) where
   lawful := inferInstance
@@ -619,11 +601,10 @@ instance : GenBigStep σ ρ (Wp.spec req ens) (BigStep.spec req ens) where
 
 instance [inst : GenBigStep σ ρ act actTr] : LawfulAction act := inst.lawful
 
-
-/-- This theorem lets us lift a transition in a way that does not introduce
-quantification over `σ` in the lifted transition. -/
+/-- A specialized version of `lift_transition_big_step`, applied to
+`LawfulAction`s. -/
 theorem lift_transition_big_step' {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r : Wp m σ ρ) [LawfulAction r] (st : σ') :
-  r.terminates (· = getFrom st) →
+  r.alwaysSuccessfullyTerminates (· = getFrom st) →
   (@Wp.lift _  m σ σ' _ r).toBigStep st =
   fun r' st' =>
     r.toBigStep (getFrom st) r' (getFrom st') ∧
@@ -635,15 +616,12 @@ theorem lift_transition_big_step' {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (r :
     unfold Wp.toBigStep Wp.toWlp; simp }
   rw [rEq, lift_transition_big_step]
 
-def BigStep.lift [IsSubStateOf σ σ'] (act : BigStep σ ρ) : BigStep σ' ρ :=
-  fun st r' st' => act (getFrom st) r' (getFrom st') ∧ st' = (setIn (@getFrom σ σ' _ st') st)
-
 instance {σ σ'} [IsSubStateOf σ σ'] (act : Wp .external σ ρ) (actTr : BigStep σ ρ) [inst:GenBigStep σ ρ act actTr]
   : GenBigStep σ' ρ (Wp.lift (σ' := σ') act) (BigStep.lift (σ := σ) actTr) where
   lawful := inferInstance
   equiv pre := by
     intro term s hpre; ext; dsimp;
-    have : Wp.terminates (· = getFrom s) act := by simp; solve_by_elim
+    have : Wp.alwaysSuccessfullyTerminates (· = getFrom s) act := by simp; solve_by_elim
     unfold BigStep.lift
     rw [inst.equiv (pre := (getFrom s = ·))] <;> try simp [*]
     rwa [lift_transition_big_step']
@@ -651,21 +629,20 @@ instance {σ σ'} [IsSubStateOf σ σ'] (act : Wp .external σ ρ) (actTr : BigS
 
 theorem bind_terminates m (act : Wp m σ ρ) (act' : ρ -> Wp m σ ρ') s [LawfulAction act] :
   pre s ->
-  act.terminates pre →
-  (act.bind act').terminates pre ->
+  act.alwaysSuccessfullyTerminates pre →
+  (act.bind act').alwaysSuccessfullyTerminates pre ->
   act.toBigStep s r' s' ->
-  (act' r').terminates (· = s') := by
-    unfold Wp.terminates Wp.toBigStep Wp.toWlp Wp.bind
+  (act' r').alwaysSuccessfullyTerminates (· = s') := by
+    unfold Wp.alwaysSuccessfullyTerminates Wp.toBigStep Wp.toWlp Wp.bind
     intros hpre actT act'T
     have actT := actT s hpre
     have act'T := act'T s hpre
-    have act''T := triple_sound_big_step' (act := act) (req := (· = s))
+    have act''T := big_step_sound' (act := act) (req := (· = s))
     unfold Wp.triple BigStep.triple Wp.toBigStep Wp.toWlp at act''T
     simp at act''T; specialize act''T _ act'T s r' s' rfl
     simp_all
 
-attribute [-simp] not_and
-
+attribute [-simp] not_and in
 instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
   [inst: GenBigStep σ ρ act actTr] [inst' : ∀ r, GenBigStep σ ρ' (act' r) (actTr' r)] :
   GenBigStep σ ρ' (act.bind act') (actTr.bind actTr') where
@@ -674,7 +651,7 @@ instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
       unfold Wp.bind; --simp
       intros term s hpre
       have := @inst.lawful
-      have actTerm : act |>.terminates pre := by
+      have actTerm : act |>.alwaysSuccessfullyTerminates pre := by
         intro s' hpre'
         apply LawfulAction.impl _ _ _ _ (term _ hpre'); simp
       unfold BigStep.bind Wp.toBigStep Wp.toWlp; simp; ext r' s'
@@ -705,7 +682,7 @@ instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
       apply hact
       by_cases ∀ r s'_1, act' r s'_1 fun r s'_2 => ¬(r' = r ∧ s' = s'_2)
       { apply LawfulAction.impl <;> try solve_by_elim }
-      apply triple_sound_big_step (req := (· = s)) <;> try simp_all [BigStep.triple]
+      apply big_step_sound (req := (· = s)) <;> try simp_all [BigStep.triple]
       rintro s'' ret' st' rfl
       unfold  Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not]; intro _
       rcases hact' ret' st' with (h | h) <;> try solve_by_elim
@@ -714,5 +691,7 @@ instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
       have := (inst' ret').lawful
       apply bind_terminates (act := act) (act' := fun ret => act' ret) (pre := pre) <;> try solve_by_elim
       unfold Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not, *]
+
+end GenBigStepInstances
 
 end Theory

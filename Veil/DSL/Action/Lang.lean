@@ -46,7 +46,6 @@ macro "unfold_wp" : conv =>
     Wp.spec
     -- unfold actions defined by conversion
     Wp.toWlp
-    Wp.hasTerminatingExecFromState
     Wp.toBigStep
     Wp.toActProp
     BigStep.toWp
