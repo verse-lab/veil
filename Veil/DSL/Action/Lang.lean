@@ -4,6 +4,7 @@ import Veil.Model.State
 import Veil.Util.DSL
 import Veil.DSL.Base
 import Veil.DSL.Internals.StateExtensions
+import Veil.DSL.Action.Syntax
 import Veil.DSL.Action.Theory
 
 open Lean Elab Command Term Meta Lean.Parser
@@ -18,18 +19,18 @@ section Veil
 
 attribute [actSimp] modify modifyGet MonadStateOf.modifyGet get
   getThe MonadStateOf.get MonadStateOf.set instMonadStateOfMonadStateOf
-  instMonadStateOfWlp
+  instMonadStateOfWp
 
-macro "unfold_wlp" : conv =>
+macro "unfold_wp" : conv =>
   `(conv| unfold
     -- unfold actions defined via Veil do-notation
-    Wlp.pure
-    Wlp.bind
-    Wlp.assume
-    Wlp.assert
-    Wlp.require
-    Wlp.fresh
-    Wlp.get
+    Wp.pure
+    Wp.bind
+    Wp.assume
+    Wp.assert
+    Wp.require
+    Wp.fresh
+    Wp.get
     -- unfold state monad actions
     set
     modify
@@ -40,18 +41,22 @@ macro "unfold_wlp" : conv =>
     MonadStateOf.modifyGet
     MonadStateOf.get
     MonadStateOf.set
-    instMonadStateOfWlp
+    instMonadStateOfWp
     -- unfold specifications
-    Wlp.spec
-    -- unfold actions defined via two-state relations
-    Function.toWlp
+    Wp.spec
+    -- unfold actions defined by conversion
+    Wp.toWlp
+    Wp.toBigStep
+    Wp.toTwoState
+    BigStep.toWp
+    Function.toWp
     -- unfold actions definded via lifting
     monadLift
     getFrom
     setIn
     instMonadLiftTOfMonadLift
     MonadLift.monadLift
-    instMonadLiftWlpOfIsSubStateOf
+    instMonadLiftWpOfIsSubStateOf
     instMonadLiftT)
 
 partial def getCapitals (s : Syntax) :=
@@ -125,35 +130,6 @@ elab "[State]" : term => do
     `st` making all its fields accessible for `Pred` -/
 macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
 macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident; exact $t)
-
-/-- `require s` admits fact `s`   -/
-syntax "require" term      : term
-/-- `assert s` checks if `s` is true on the current state -/
-syntax "assert" term      : term
-/-- `assume s` checks if `s` is true on the current state -/
-syntax "assume" term      : term
-/-- `fresh [ty]?` allocate a fresh variable of a given type `ty` -/
-syntax "fresh" (lineEq term) ? : term
-
--- declare_syntax_cat doSeq
--- declare_syntax_cat doSeqItem
-
--- syntax (priority := low) doElem : doSeqItem
-
-syntax (priority := high) atomic(term ":=" "*") : doElem
-
--- syntax "if" term "then" doSeq colGe "else" doSeq : doSeqItem
--- syntax "if" term "then" doSeq : doSeqItem
--- syntax "if" ident ":" term "then" doSeq colGe "else" doSeq : doSeqItem
--- syntax "if" ident ":" term "then" doSeq : doSeqItem
-
-declare_syntax_cat unchanged_decl
-declare_syntax_cat spec
-syntax "requires" term colGe "ensures" rcasesPat  "," term : spec
-syntax (priority := high) "requires" term colGe "ensures" term : spec
-syntax "with" "unchanged" "[" ident,* "]" : unchanged_decl
-syntax spec (colGe unchanged_decl)? : term
-syntax "[unchanged|" str "|" ident* "]" : term
 
 abbrev doSeq := TSyntax ``Term.doSeq
 abbrev doSeqItem := TSyntax ``Term.doSeqItem
@@ -267,14 +243,14 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- fresh $v.type)
   let doS := preludeAssn.append doS
   trace[veil.debug] "{stx}\n→\n{doS}"
-  elabTerm (<- `(term| ((do $doS*) : Wlp $mode [State] _))) none
+  elabTerm (<- `(term| ((do $doS*) : Wp $mode [State] _))) none
 
 macro_rules
-  | `(require $t) => `(Wlp.require $t)
-  | `(assert  $t) => `(Wlp.assert $t)
-  | `(assume  $t) => `(Wlp.assume $t)
-  | `(fresh   $t) => `(Wlp.fresh  $t)
-  | `(fresh)      => `(Wlp.fresh  _)
+  | `(require $t) => `(Wp.require $t)
+  | `(assert  $t) => `(Wp.assert $t)
+  | `(assume  $t) => `(Wp.assume $t)
+  | `(fresh   $t) => `(Wp.fresh  $t)
+  | `(fresh)      => `(Wp.fresh  _)
 
 /- Ensures statement -/
 
@@ -327,7 +303,7 @@ elab_rules : term
     elabTerm (<- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])) none
   | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
     -- withRef t $
-    elabTerm (<- `(term| @Wlp.spec [State] _ _ (funcases $pre) (
+    elabTerm (<- `(term| @Wp.spec [State] _ _ (funcases $pre) (
       by rintro st $r st';
          unhygienic cases st';
          with_rename "_old" unhygienic cases st;
@@ -335,7 +311,7 @@ elab_rules : term
 
 attribute [actSimp] Bind.bind Pure.pure
 
-/- We need those to simplify `Wlp` goals  -/
+/- We need those to simplify `Wp` goals  -/
 attribute [ifSimp] ite_self ite_true_same ite_false_same if_true_left
   if_true_right if_false_left if_false_right
 

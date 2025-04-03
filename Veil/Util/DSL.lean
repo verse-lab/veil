@@ -188,7 +188,7 @@ We have various versions of actions: `act.tr`, `act.fn`, and `act.tr.fn`.
   instances)
 - `act.tr.fn` returns `act.tr` instantiated for specific argument
   instances (with NO return value)
-- `act.raw` is `act.tr.fn` with only `wlp` unfolded but with no other
+- `act.raw` is `act.tr.fn` with only `wp` unfolded but with no other
   simplifications applied. We use this for debugging purposes.
  -/
 def toTrName (n : Name) : Name := n ++ `tr

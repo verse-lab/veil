@@ -32,7 +32,7 @@ def theoremSuggestionsForChecks' (actIndicators : List (Name × Name)): CommandE
             let name1 := toActTrEqName actName
             let name2 := mkTheoremName actName invName
             let name3 := `forall_exists_index
-            let name4 := `triple_sound'_ret_unit'
+            let name4 := `TwoState_sound'_ret_unit'
             `(tacticSeq|
               rw [← $(mkIdent name1)] ; dsimp
               (try simp only [$(mkIdent name3):ident])

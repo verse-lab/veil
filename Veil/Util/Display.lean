@@ -63,7 +63,7 @@ def getActCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := g
 def getModelStr (msg : String) : String :=
   let resWithErr := match msg.splitOn Veil.SMT.satGoalStr with
     | [_, model] => model
-    /- multiple models can be returned, e.g. due to the `split_ifs` in `solve_clause_wlp` -/
+    /- multiple models can be returned, e.g. due to the `split_ifs` in `solve_clause_wp` -/
     | _ :: model :: _rest => model
     | _ => msg
   /- at this point, the message string looks like this:

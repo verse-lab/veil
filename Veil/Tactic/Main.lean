@@ -225,8 +225,8 @@ elab "clear_invariants" : tactic => withMainContext do
     if g.contains hyp.type.getAppFn'.constName? then
       evalTactic <| <- `(tactic| try clear $(mkIdent hyp.userName):ident)
 
-syntax solveWlp := "solve_wlp_clause" <|> "solve_wlp_clause?"
-elab tk:solveWlp act:ident inv:ident : tactic => withMainContext do
+syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
+elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
   let some invInfo := (<- localSpecCtx.get).spec.invariants.find? (·.name == inv.getId)
     | throwError "Invariant {inv.getId} not found"
   let (invSimp, invSimpTopLevel, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
@@ -261,7 +261,7 @@ elab tk:solveWlp act:ident inv:ident : tactic => withMainContext do
         try simp only [$ifSimp:ident]
         try sdestruct_hyps)
     let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
-    if let `(solveWlp| solve_wlp_clause?) := tk then
+    if let `(solveWp| solve_wp_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
     else
       evalTactic simplify
