@@ -258,3 +258,9 @@ partial def turnExistsIntoForall (e : Expr) : MetaM Expr := do
     mkForallFVars ks (← turnExistsIntoForall lBody)
   )
   | _ => return e
+
+def getItemsFromDoSeq [Monad m] [MonadError m] [MonadQuotation m] (l : TSyntax `Lean.Parser.Term.doSeq) : m (TSyntaxArray `Lean.Parser.Term.doSeqItem) := do
+  match l with
+  | `(doSeq|$items*) => pure items
+  | `(doSeq|{ $items* }) => pure items
+  | _ => throwError "Unexpected doSeq: {l}"

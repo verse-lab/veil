@@ -124,8 +124,10 @@ class Interpretation:
     explicitInterpretation: Dict[Tuple, Union[bool, int, SortElement]]
     symbolicInterpretation: Optional[str] = None
 
-    def is_cardinality_related(self) -> bool:
-        return CARDINALITY_VAR_PREFIX in self.decl.name
+    def is_implementation_detail(self) -> bool:
+        is_cardinality_related = CARDINALITY_VAR_PREFIX in self.decl.name
+        is_model_artificial_function = "!" in self.decl.name
+        return is_cardinality_related or is_model_artificial_function
 
     def __to_lisp_as__(self) -> str:
         strs = []
@@ -146,7 +148,7 @@ class Model:
         strs = []
         for sortname, elems in self.sorts.items():
             strs.append(f"(sort |{sortname}| {sexp(elems)})")
-        real_interps = filter(lambda x: not x[1].is_cardinality_related(), self.interps.items())
+        real_interps = filter(lambda x: not x[1].is_implementation_detail(), self.interps.items())
         for _declname, interp in real_interps:
             strs.append(f"{sexp(interp)}")
         return "(\n" + "\n".join(strs) + "\n)"
@@ -302,7 +304,7 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> tuple[Set[in
     interp = z3model.eval(z3.Lambda(args, z3decl(*args)),
                           model_completion=True)
     # print(f"interp: {interp}", file=sys.stderr)
-    print(args)
+    # print(args, file=sys.stderr)
     # vp = z3.simplify(interp.__getitem__(*args))
     vp = z3.simplify(interp[*args])
     solver = z3.Solver()
@@ -333,10 +335,17 @@ def get_int_domain(z3decl: z3.FuncDeclRef, z3model: z3.ModelRef) -> tuple[Set[in
 
 
 def _cardinality_constraint(x: Union[z3.SortRef, z3.FuncDeclRef], n: int) -> z3.ExprRef:
+    # minimize sort sizes
     if isinstance(x, z3.SortRef):
         return _sort_cardinality_constraint(x, n)
     else:
-        return _relational_cardinality_constraint(x, n)
+        # minimize relation sizes
+        if x.range() == z3.BoolSort():
+            return _relational_cardinality_constraint(x, n)
+        # we can't minimize functions, so we don't add any constraints
+        else:
+            domain = " -> ".join([x.domain(i).name() for i in range(x.arity())])
+            return z3.BoolVal(True)
 
 def _sort_cardinality_constraint(s: z3.SortRef, n: int) -> z3.ExprRef:
     x = z3.Const(f'{CARDINALITY_VAR_PREFIX}x$', s)
@@ -348,6 +357,7 @@ def _sort_cardinality_constraint(s: z3.SortRef, n: int) -> z3.ExprRef:
     return z3.ForAll(x, z3.Or(*disjs))
 
 def _relational_cardinality_constraint(relation: z3.FuncDeclRef, n: int) -> z3.ExprRef:
+    # we can't minimize constants
     if relation.arity() == 0:
         return z3.BoolVal(True)
 

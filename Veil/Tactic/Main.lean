@@ -259,7 +259,8 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
         unhygienic intros
         $clearInvs:tactic
         try simp only [$ifSimp:ident]
-        try sdestruct_hyps)
+        try sdestruct_hyps
+        try dsimp only at *)
     let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWp| solve_wp_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
@@ -327,19 +328,14 @@ def bmcSat : TacticM Unit := withMainContext do
   replaceMainGoal [goal'.mvarId!]
   run `(tactic| simplify_all)
   if (← getUnsolvedGoals).length == 0 then
-    trace[veil.info] "goal is solved by initial simplification"
     originalGoal.admit (synthetic := false)
   else
-    trace[veil.info] "goal is not solved by initial simplification"
     existIntoForall
     let simpLemmas := mkSimpLemmas $ #[`smtSimp].map mkIdent
     withMainContext do run `(tactic| unhygienic intros; sdestruct_hyps; (try simp only [$simpLemmas,*]))
     if (← getUnsolvedGoals).length == 0 then
-      trace[veil.info] "goal is solved by existential elimination"
       originalGoal.admit (synthetic := false)
     else
-      trace[veil.info] "proceeding with SMT"
-      trace[veil.info] "goal: {← Tactic.getMainTarget}"
       admitIfSat
       if (← getUnsolvedGoals).length == 0 then
         originalGoal.admit (synthetic := false)

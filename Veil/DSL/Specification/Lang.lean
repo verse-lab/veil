@@ -248,23 +248,24 @@ def elabInitialStateAction : CommandElab := fun stx => do
   match stx with
   | `(command|after_init { $l:doSeq }) => do
     liftCoreM errorIfStateNotDefined
-    let (ret, st, st', st_curr, post) := (mkIdent `ret, mkIdent `st, mkIdent `st', mkIdent `st_curr, mkIdent `post)
-    let vd ← getAssertionParameters
-    -- define initial state action (`Wp`)
-    let act ← Command.runTermElabM fun _ => (do
-      let stateTp ← getStateTpStx
-      `(fun ($st : $stateTp) ($post : SProp $stateTp) => (do' .external in $l) $st (fun $ret ($st_curr : $stateTp) => $post $st_curr)))
-    elabCommand $ ← Command.runTermElabM fun _ => do
-      let actName := `init
-      `(@[initSimp, actSimp] def $(mkIdent actName) $[$vd]* := $act)
+    -- Our initializer should run all sub-module initializers in the
+    -- order they are included in
+    let subInitializers ← (← getSubInitializers).mapM (fun (nm, _) => `(Term.doSeqItem|$nm:term))
+    let ourInitializer ← getItemsFromDoSeq l
+    let init ← `(doSeq|do $subInitializers*; $(ourInitializer)*)
+    -- define the initial action
+    let initName := mkIdent `initializer
+    let (genI, genE) ← defineActionGenerators initName none init
+    defineInitialActionFromGenerators initName genI genE
     -- define initial state predicate
+    let (st, st') := (mkIdent `st, mkIdent `st')
     let pred ← Command.runTermElabM fun _ => (do
       let stateTp ← getStateTpStx
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wp.toTwoState (do' .external in $l) $st $st'))
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wp.toTwoState (do' .external in $init) $st $st'))
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
     -- we modify it to store the `lang`
-    liftTermElabM do localSpecCtx.modify (fun s => { s with spec := {s.spec with init := {s.spec.init with lang := .some l}}})
+    liftTermElabM do localSpecCtx.modify (fun s => { s with spec := {s.spec with init := {s.spec.init with lang := .some init}}})
     let sp ← liftTermElabM $ return (← localSpecCtx.get).spec.init
     trace[veil.debug] s!"{sp}"
   | _ => throwUnsupportedSyntax

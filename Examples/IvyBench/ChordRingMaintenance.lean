@@ -5,15 +5,17 @@ import Veil
 veil module ChordRing
 
 class RingTopology (t : Type) where
-  -- relation
-  btw (a b c : t) : Prop
-  trans : ∀ (a b c : t), btw a b c ∧ btw a c d → btw a b d
-  acyclic : ∀ (a b c : t), btw a b c → ¬ btw a c b
-  total : ∀ (a b c : t), (a = b) ∨ (a = c) ∨ btw a b c ∨ btw a c b
-  cyclic_perm : ∀ (a b c : t), (btw a b c ∧ a ≠ c)→ btw b c a
+  -- Y is on the acyclic path from X to Z
+  btw : t → t → t → Prop
+
+  -- Axioms defining the btw relation
+  -- Note: anti-reflexivity not needed: btw X Y Z → X ≠ Y ∧ X ≠ Z ∧ Y ≠ Z
+  trans : ∀ w x y z, btw w x y → btw w y z → btw w x z
+  acyclic : ∀ w x y, btw w x y → ¬ btw w y x
+  total : ∀ w x y, btw w x y ∨ btw w y x ∨ w = x ∨ x = y
+  cyclic_perm : ∀ x y z, btw x y z ∧ x ≠ z → btw y z x
 
 type node
-
 instantiate ring : RingTopology node
 
 relation a : node → Prop
@@ -135,7 +137,25 @@ action test (x : node) = {
   error x := True
 }
 
-safety ¬ error N
+safety [no_error] ¬ error N
+
+invariant [manual_1] s1 X Y → in_s1 X
+invariant [manual_2] s2 X Y → in_s2 X
+invariant [manual_3] reach org
+invariant [manual_4] s1 X Y ∧ s1 X Z → Y = Z
+invariant [manual_5] s2 X Y ∧ s2 X Z → Y = Z
+invariant [manual_6] p X Y ∧ p X Z → Y = Z
+invariant [manual_7] a X ∨ X ≠ org
+invariant [manual_8] a X ∨ ¬ p Y X ∨ ¬ s1 X Y
+invariant [manual_9] a X ∨ p Y X ∨ ¬ s1 X Y
+invariant [manual_10] a X ∨ ¬ s2 X Y
+invariant [manual_11] in_s1 X ∨ ¬ a X
+invariant [manual_12] a Y ∨ a Z ∨ ¬ s1 X Y ∨ ¬ s2 X Z
+invariant [manual_13] a Y ∨ in_s2 X ∨ ¬ a X ∨ ¬ s1 X Y
+invariant [manual_14] p A B → a A
+invariant [manual_15] a X ∧ p Y X ∧ s1 X Y → a Y
+invariant [manual_16] ¬ ring.btw X org Y ∨ ¬ s1 X Y
+invariant [manual_17] ¬ (s1 V0 V1 ∧ V1 ≠ org ∧ s2 V0 V2 ∧ ring.btw V0 org V2)
 
 #gen_spec
 

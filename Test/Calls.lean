@@ -18,10 +18,6 @@ after_init {
 
 /-- info: true -/
 #guard_msgs in
-#eval isElaboratedCorrectly ``Test.init
-
-/-- info: true -/
-#guard_msgs in
 #eval isElaboratedCorrectly ``Test.initialState?
 
 #guard_msgs in
