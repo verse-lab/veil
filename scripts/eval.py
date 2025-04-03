@@ -214,14 +214,20 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
 # NOTE: Requires the benchmarks to have `set_option trace.profiler true`.
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("input_file", type=str)
+    parser.add_argument("input_file", type=str, help="path to file or directory to benchmark; if the input_file is a json file, the script will print the results / create graphs")
     parser.add_argument("--ivy-dir", type=str, default='Examples/Benchmarks/Ivy', help="directory including Ivy specifications corresponding to the Lean ones (default: `Examples/Benchmarks/Ivy`)")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--output-file", type=str, default=None)
     args = parser.parse_args()
     if args.repeat < 1:
         exit(1)
-    if os.path.isdir(args.input_file):
+    if os.path.isfile(args.input_file) and args.input_file.endswith(".json"):
+        results = json.load(open(args.input_file))
+        if args.output_file:
+            create_graphs(results, args.output_file)
+        else:
+            print(results)
+    elif os.path.isdir(args.input_file):
         results : list[dict[str, dict[str, float]]] = []
         for i in range(args.repeat):
             if args.repeat > 1:
