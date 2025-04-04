@@ -1,13 +1,14 @@
 import Veil
 import Examples.StellarConsensus.SCPTheory
 
--- adapted from [SCP.ivy](https://github.com/stellar/scp-proofs/blob/3e0428acc78e598a227a866b99fe0b3ad4582914/SCP.ivy)
-
 /-
   NOTE: For now we do not prove liveness property in Veil, so we only
   adapt the proof for `intertwined_safe`.
 -/
 
+/-- This type class bundles the properties abstracted from the concrete model
+    of SCP, which will be used in the subsequent verification.
+    In the Ivy spec, they appear as `trusted` properties (assumptions). -/
 class SCP.Background (node : outParam Type) (nset : outParam Type) where
   well_behaved : node → Prop
   intertwined : node → Prop
@@ -23,8 +24,10 @@ class SCP.Background (node : outParam Type) (nset : outParam Type) where
     (∃ (n2 : node), intertwined n2 ∧ is_quorum q2 ∧ member n2 q2) →
     ∃ (n3 : node), well_behaved n3 ∧ member n3 q1 ∧ member n3 q2
 
+/-- Given a concrete system model `FBA.System`, fix the intertwined set `S` and
+    the intact set `I ⊆ S` to consider, all abstracted properties can be satisfied. -/
 def one_such_Background (node : Type) [fba : FBA.System node]
-    (I : Set node) (hI : FBA.intact (inst := fba) I)
+    (I : Set node) (_hI : FBA.intact (inst := fba) I)
     (S : Set node) (hS : FBA.intertwined (inst := fba) S)
     (hIS : I ⊆ S) : SCP.Background node (Set node) where
   well_behaved n := n ∈ fba.W
@@ -50,6 +53,18 @@ def one_such_Background (node : Type) [fba : FBA.System node]
     next => apply FBA.intertwined_node_is_well_behaved <;> assumption
     next => assumption
 
+-- the following is adapted from [SCP.ivy](https://github.com/stellar/scp-proofs/blob/3e0428acc78e598a227a866b99fe0b3ad4582914/SCP.ivy)
+
+/-
+  NOTE: For now we do not prove the liveness property of SCP in Veil, so
+  there are some notable differences between the Veil spec and the Ivy spec:
+  - The `node` type is declared to be `finite` in the Ivy spec as required
+    by the liveness proof, but we do not require it in Veil.
+  - Some assumptions (`qi_intact`, `slice_blocks_ne` and `intact_is_quorum`)
+    in the Ivy spec are only needed for the liveness proof and are not included
+    in the Veil spec.
+-/
+
 veil module SCP
 
 
@@ -62,6 +77,7 @@ type ballot
    but neither `next` nor `prev` appears in the protocol or any invariant.
    So here we model `ballot` as simply a `TotalOrderWithMinimum`. -/
 instantiate tot : TotalOrderWithMinimum ballot
+-- effectively, taking the abstracted properties as assumptions
 instantiate bg : Background node nset
 
 open TotalOrderWithMinimum Background
@@ -83,21 +99,6 @@ relation received_vote_commit : node → node → ballot → value → Prop
 relation received_accept_commit : node → node → ballot → value → Prop
 
 #gen_state
-
--- NOTE: the following seem to be unnecessary for proving the safety
-/-
-assumption [qi_intact]
-  ∀ (q1 q2 : nset),
-    (∃ (n1 : node), intact n1 ∧ is_quorum q1 ∧ member n1 q1) ∧
-    (∃ (n2 : node), intact n2 ∧ is_quorum q2 ∧ member n2 q2) →
-    ∃ (n3 : node), intact n3 ∧ member n3 q1 ∧ member n3 q2
-
-assumption [slice_blocks_ne]
-  ∀ (s : nset), (∃ (n : node), intact n ∧ blocks_slices s n) → ∃ (n2 : node), member n2 s ∧ intact n2
-
-assumption [intact_is_quorum]
-  ∃ (q : nset), (∀ (n : node), member n q ↔ intact n) ∧ is_quorum q
--/
 
 after_init {
   voted_prepared N B V := False;
