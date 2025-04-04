@@ -115,10 +115,7 @@ invariant [allowed_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 
 #gen_spec
 
-set_option veil.smt.solver "cvc5"
--- FIXME: we should probably set this automatically if a query involves `Int`s
 set_option veil.smt.finiteModelFind false
-set_option veil.smt.translator "lean-auto"
 
 sat trace {
   request
@@ -149,9 +146,9 @@ unsat trace {
   intros st st' _ inv
   simp[enter.tr, invSimp] at *
   rcases inv with ⟨allowed_crit, one_priv, _⟩
-  rintro n priv req ⟨⟩ N M act1 act2; simp at *
+  rintro n priv req ⟨⟩  N M critN critM; simp at *
   apply one_priv
-  . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, act1]
-  . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, act2]
+  . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, critN]
+  . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, critM]
 
 end SuzukiKasamiNats

@@ -145,9 +145,9 @@ set_option veil.smt.finiteModelFind false in
   intros st st' _ inv
   simp[enter.tr, invSimp] at *
   rcases inv with ⟨allowed_crit, one_priv, _⟩
-  rintro n priv req ⟨⟩ N M act1 act2; simp at *
+  rintro n priv req ⟨⟩  N M critN critM; simp at *
   apply one_priv
-  . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, act1]
-  . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, act2]
+  . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, critN]
+  . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, critM]
 
 end SuzukiKasamiNats
