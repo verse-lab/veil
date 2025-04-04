@@ -4,6 +4,7 @@ import Veil.DSL.Check.InvariantManipulation
 
 -- adapted from [weak_mvc.ivy](https://github.com/haochenpan/rabia/blob/88013ca8369a7ae3adfed44e3c226c8d97f11209/proofs/ivy/weak_mvc.ivy)
 
+-- axiomatising an enumerate type containing three distinct elements: `v0`, `v1`, and `vquestion`
 class ThreeValuedType (t : Type) where
   v0 : t
   v1 : t
@@ -15,6 +16,7 @@ class ThreeValuedType (t : Type) where
   ax3 : v1 ≠ vquestion
   ax4 : ∀ (x : t), x = v0 ∨ x = v1 ∨ x = vquestion
 
+-- axioms from the Ivy spec
 class Rabia.Background (node set_majority set_f_plus_1 : outParam Type) where
   member_maj : node → set_majority → Prop
   member_fp1 : node → set_f_plus_1 → Prop
@@ -39,7 +41,6 @@ relation in_phase : node → phase → Prop
 
 type proposal_value
 type state_value
--- poor man's enum type
 instantiate tv : ThreeValuedType state_value
 
 open ThreeValuedType TotalOrderWithMinimum Background
@@ -159,6 +160,8 @@ action phase_rnd2 = {
         in_phase n psucc := True
         in_phase n p := False
 }
+
+-- NOTE: the following `isolate`s correspond to the `isolate`s in the Ivy spec
 
 open_isolate protocol
 
