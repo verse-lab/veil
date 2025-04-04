@@ -5,7 +5,7 @@ import Mathlib.Data.Set.Basic
 -- adapted from [FBA.thy](https://github.com/stellar/scp-proofs/blob/ac41c6353fae870c47c0e7ee558da98c03a7d041/FBA.thy)
 
 /-
-  NOTE: For now we do not prove liveness property in Veil, so we only
+  NOTE: For now we do not prove the liveness property of SCP in Veil, so we only
   adapt the definitions that are sufficient for justifying the assumptions
   in the current Veil model of SCP.
 -/
@@ -21,6 +21,10 @@ def project {α β : Type} (slices : β → Set (Set α)) (S : Set α) : β → 
 class System (Node : Type) where
   /-- The set of well-behaved nodes. -/
   W : Set Node
+  /-- The __slices__ of a node is a concept in SCP;
+      Check [the original FMBC'20 paper](https://drops.dagstuhl.de/storage/01oasics/oasics-vol084-fmbc2020/OASIcs.FMBC.2020.9/OASIcs.FMBC.2020.9.pdf) and
+      [the DISC'19 paper](https://drops.dagstuhl.de/storage/00lipics/lipics-vol146-disc2019/LIPIcs.DISC.2019.27/LIPIcs.DISC.2019.27.pdf)
+      for more information. -/
   slices : Node → Set (Set Node)
   /-- The set of slices of a well-behaved node is not empty. -/
   slices_ne : ∀ p ∈ W, slices p ≠ ∅
@@ -41,7 +45,7 @@ def System.project (sys : System Node) (I : Set Node) : System Node :=
 variable [inst : System Node]
 open System
 
-/-- A quorum is a set whose well-behaved members have at least one slice
+/-- A __quorum__ is a set whose well-behaved members have at least one slice
     included in the set. -/
 def quorum (Q : Set Node) : Prop := ∀ p ∈ Q ∩ W, ∃ Sl ∈ slices p, Sl ⊆ Q
 
@@ -53,12 +57,12 @@ theorem quorum_after_proj (Q S : Set Node) : quorum (inst := inst) Q → quorum 
   exists Sl ; apply And.intro ; assumption
   rw [Set.subset_def] at hq2 ⊢ ; simp ; aesop
 
-/-- A set `S` is a slice-blocking set for a node `p` when every slice of
+/-- A set `S` is a __slice-blocking set__ for a node `p` when every slice of
     `p` intersects `S`. -/
 def blocks_slices (S : Set Node) (p : Node) : Prop :=
   ∀ Sl ∈ slices p, Sl ∩ S ≠ ∅
 
-/-- A set of node is intertwined if all of its members are well-behaved
+/-- A set of node is __intertwined__ if all of its members are well-behaved
     and it satisfies the quorum intersection property. -/
 structure intertwined (S : Set Node) where
   well_behaved : S ⊆ W
@@ -72,7 +76,7 @@ structure intertwined (S : Set Node) where
     quorum (inst := inst.project S) Q' →
     Q ∩ S ≠ ∅ → Q' ∩ S ≠ ∅ → Q ∩ Q' ∩ S ≠ ∅)
 
-/-- A set of node is intact if all of its members are well-behaved
+/-- A set of node is __intact__ if all of its members are well-behaved
     and it satisfies both the quorum availability property and
     the quorum intersection property. -/
 structure intact (I : Set Node) extends intertwined I where
