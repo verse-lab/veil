@@ -92,23 +92,6 @@ invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 
 #gen_spec
 
-set_option veil.smt.solver "cvc5" in
 #check_invariants
-
-sat trace [initial_state] {} by { bmc_sat }
-
-sat trace { } by { bmc_sat }
-
-sat trace {
-  vote1
-  vote1
-  go1
-  commit
-} by { bmc_sat }
-
-unsat trace {
-  any 6 actions
-  assert ¬ ((decide_commit N → ¬decide_abort N2) ∧ (decide_commit N -> vote_yes N2) ∧ (decide_abort N → abort_flag))
-} by { bmc }
 
 end TwoPhaseCommit

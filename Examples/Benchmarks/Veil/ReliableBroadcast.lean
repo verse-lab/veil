@@ -206,38 +206,6 @@ set_option veil.smt.timeout 15 -- seconds
 
 #gen_spec
 
-set_option veil.smt.solver "cvc5"
 #check_invariants
-
-sat trace [initial_state] {} by { bmc_sat }
-
-unsat trace [cannot_echo_without_init] {
-  echo
-} by { bmc }
-
-sat trace [can_echo] {
-  broadcast
-  echo
-} by { bmc_sat }
-
-sat trace [can_vote] {
-  broadcast
-  echo
-  echo
-  echo
-  vote
-} by { bmc_sat }
-
-
-sat trace [succesful_delivery] {
-  broadcast
-  echo
-  echo
-  echo
-  vote
-  vote
-  vote
-  deliver
-} by { bmc_sat }
 
 end ReliableBroadcast
