@@ -30,6 +30,7 @@ EXTRA_IVY_ARGS = {
     "PaxosFirstOrder.ivy": ["complete=fo"],
     "SuzukiKasamiInts.ivy": ["complete=fo"],
     "VerticalPaxosFirstOrder.ivy": ["complete=fo"],
+    "ReliableBroadcast.ivy": ["complete=fo"],
     # as recommended in the [instructions](https://github.com/haochenpan/rabia/blob/main/proofs/README)
     # the `isolate=protocol` corresponds to checking just what we have ported to Veil
     "Rabia.ivy": ["isolate=protocol"],
@@ -76,8 +77,9 @@ def run_file(filepath: str) -> dict[str, float]:
     # translation from Lean to SMT-LIB and solver invocation.
     simplification_time = overall_time - translation_time - query_time
     veil_res = {"simplification_time": simplification_time, "translation_time": translation_time, "solving_time": query_time, "total_time": overall_time}
-    print(f"{veil_res}", flush=True)
-    return {**veil_res, **ivy_res}
+    res = {**veil_res, **ivy_res}
+    print(f"{res}", flush=True)
+    return res
 
 def run_dir(dir: str) -> dict[str, dict[str, float]]:
     ret = {}
@@ -99,6 +101,7 @@ def run_dir(dir: str) -> dict[str, dict[str, float]]:
     return ret
 
 def create_graphs(res : dict[str, dict[str, float]], output_file : str):
+    res = {k: v for k, v in sorted(res.items())}
     categories = {it: it.split("/")[-1].split(".")[0] for it in res.keys()}
     res  = {k: [v["simplification_time"], v["translation_time"], v["solving_time"], v["total_time"], v["total_ivy_time"]] for k, v in res.items()}
     simp_times = np.array([res[it][0] for it in categories]) # Bottom part of stacked bars
@@ -176,7 +179,7 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
         ivy_times_normalized = np.array([ivy_times[it] / (total_times[it]) for it in range(len(categories))])
 
         fig, ax = plt.subplots(figsize=(12, 6))
-        ax.set_ylim(0, 2.5)  # Single range
+        ax.set_ylim(0, 3)  # Single range
 
         ax.bar(x - 0.2, simp_times_normalized, width=0.4, label='Simplification Time', color='blue')
         ax.bar(x - 0.2, trans_times_normalized, width=0.4, bottom=simp_times_normalized, label='Translation Time', color='lightblue')
@@ -222,7 +225,8 @@ if __name__ == "__main__":
     if args.repeat < 1:
         exit(1)
     if os.path.isfile(args.input_file) and args.input_file.endswith(".json"):
-        results = json.load(open(args.input_file))
+        store = json.load(open(args.input_file))
+        results = store['averaged_results']
         if args.output_file:
             create_graphs(results, args.output_file)
         else:
@@ -231,21 +235,22 @@ if __name__ == "__main__":
         results : list[dict[str, dict[str, float]]] = []
         for i in range(args.repeat):
             if args.repeat > 1:
-                print(f"Running for the {i + 1}th time", file=sys.stderr)
-            results.append(run_dir(args.input_file))
-        # average the results
-        averaged_results = {}
-        for file in results[0]:
-            averaged_results[file] = {j: sum(res[file][j] for res in results) / args.repeat 
-                                        for j in {"simplification_time", "translation_time", "solving_time", "total_time", "total_ivy_time"}}
-        print(dict(sorted(averaged_results.items())))
-        json.dump(averaged_results, open("results.json", "w"))
+                print(f"[{time.strftime('%H:%M:%S')}] Starting run {i + 1} out of {args.repeat}")
+            run = run_dir(args.input_file)
+            results.append(run)
+            print(f"[{time.strftime('%H:%M:%S')}] Results for run {i + 1}:\n{dict(sorted(run.items()))}\n", flush=True)
+
+            # average the results
+            averaged_results = {}
+            for file in results[0]:
+                averaged_results[file] = {j: sum(res[file][j] for res in results) / args.repeat 
+                                            for j in {"simplification_time", "translation_time", "solving_time", "total_time", "total_ivy_time"}}
+
+            print(f"[{time.strftime('%H:%M:%S')}] Averaged results (up to run {i + 1}):\n{dict(sorted(averaged_results.items()))}\n", flush=True)
+            store = {'averaged_results': averaged_results, 'raw_results': results, 'runs_expected': args.repeat}
+            json.dump(store, open("results.json", "w"), indent=2)
+
         if args.output_file:
-            # Create same order as chart in original paper submission
-            paper_order = ["MultiSigMajority", "ChordRingMaintenance", "DecentralizedLock", "RicartAgrawala", "MultiSigAll", "Blockchain",
-                           "TwoPhaseCommit", "SCP", "PaxosFirstOrder", "Ring", "PaxosEPR", "SuzukiKasami", "SuzukiKasamiInts",
-                             "VerticalPaxosFirstOrder", "ReliableBroadcast", "Rabia"]
-            averaged_results = {k: v for k, v in sorted(averaged_results.items(), key=lambda item: paper_order.index(item[0]))}
             create_graphs(averaged_results, args.output_file)
     else:
         if args.output_file:
