@@ -1,8 +1,5 @@
 import Veil
 
-set_option veil.gen_sound true
-set_option synthInstance.maxSize 1000000
-
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
 veil module Ring
@@ -50,57 +47,7 @@ invariant pending L L → le N L
 
 #gen_spec
 
-set_option veil.smt.solver "cvc5" in
 #check_invariants
 
-prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
-
-prove_inv_safe by {
-  sdestruct st;
-  simp [invSimp]
-}
-
-prove_inv_inductive by {
-  constructor
-  . apply inv_init
-  intro st st' has hinv hnext
-  sts_induction <;> sdestruct_goal <;> solve_clause
-}
-
-sat trace [initial_state] {} by { bmc_sat }
-
-sat trace {
-  send
-  assert (∃ n next, pending n next)
-} by { bmc_sat }
-
-
-sat trace [can_elect_leader_explicit] {
-  send
-  assert (∃ n next, pending n next)
-  recv
-  recv
-  assert (∃ l, leader l)
-} by { bmc_sat }
-
-sat trace [can_elect_leader] {
-  any 3 actions
-  assert (∃ l, leader l)
-} by { bmc_sat }
-
-unsat trace {
-  send
-  assert (¬ ∃ n next, pending n next)
-} by { bmc }
-
-sat trace {
-  send
-  assert (∃ n next, pending n next)
-} by { bmc_sat }
-
-unsat trace [trace_any] {
-  any 6 actions
-  assert ¬ (leader L → le N L)
-} by { bmc }
 
 end Ring

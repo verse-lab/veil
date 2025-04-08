@@ -218,9 +218,9 @@ def create_graphs(res : dict[str, dict[str, float]], output_file : str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input_file", type=str, help="path to file or directory to benchmark; if the input_file is a json file, the script will print the results / create graphs")
-    parser.add_argument("--ivy-dir", type=str, default='Examples/Benchmarks/Ivy', help="directory including Ivy specifications corresponding to the Lean ones (default: `Examples/Benchmarks/Ivy`)")
+    parser.add_argument("--ivy-dir", type=str, default='Benchmarks/Ivy', help="directory including Ivy specifications corresponding to the Lean ones (default: `Examples/Benchmarks/Ivy`)")
     parser.add_argument("--repeat", type=int, default=1)
-    parser.add_argument("--output-file", type=str, default=None)
+    parser.add_argument("--output-file", type=str, default=None, help="path to the output file; must have extension `.pdf`")
     args = parser.parse_args()
     if args.repeat < 1:
         exit(1)
@@ -248,8 +248,8 @@ if __name__ == "__main__":
 
             print(f"[{time.strftime('%H:%M:%S')}] Averaged results (up to run {i + 1}):\n{dict(sorted(averaged_results.items()))}\n", flush=True)
             store = {'averaged_results': averaged_results, 'raw_results': results, 'runs_expected': args.repeat}
-            json.dump(store, open("results.json", "w"), indent=2)
-
+            filename = os.path.basename(args.output_file).replace(".pdf", "_results.json")
+            json.dump(store, open(filename, "w"), indent=2)
         if args.output_file:
             create_graphs(averaged_results, args.output_file)
     else:

@@ -21,7 +21,12 @@ def z3.arch := if System.Platform.target.startsWith "x86_64" then "x64" else "ar
 def z3.platform :=
   if System.Platform.isWindows then "win"
   else if System.Platform.isOSX then "osx-13.7.2"
-  else "glibc-2.35"
+  -- linux x64
+  else if System.Platform.target.startsWith "x86_64" then "glibc-2.35"
+  -- linux arm64
+  else if System.Platform.target.startsWith "aarch64" then "glibc-2.34"
+  else panic! s!"Unsupported platform: {System.Platform.target}"
+
 def z3.target := s!"{arch}-{platform}"
 def z3.fullName := s!"z3-{version}-{z3.target}"
 -- https://github.com/Z3Prover/z3/releases/download/z3-4.14.0/z3-4.14.0-arm64-osx-13.7.2.zip
@@ -125,6 +130,6 @@ lean_lib «Veil» {
   extraDepTargets := #[``downloadDependencies]
 }
 
-lean_lib Examples {
-  globs := #[.submodules `Examples]
+lean_lib Benchmarks {
+  globs := #[.submodules `Benchmarks.Veil]
 }

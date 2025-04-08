@@ -1,0 +1,689 @@
+{
+  "averaged_results": {
+    "MultiSigMajority": {
+      "solving_time": 0.3291174,
+      "total_time": 1.7246008,
+      "translation_time": 0.6979938000000001,
+      "total_ivy_time": 0.21395194139913656,
+      "simplification_time": 0.6974896
+    },
+    "TwoPhaseCommit": {
+      "solving_time": 0.6380156,
+      "total_time": 2.5217012,
+      "translation_time": 0.3691516,
+      "total_ivy_time": 0.21330709179746918,
+      "simplification_time": 1.514534
+    },
+    "SCP": {
+      "solving_time": 1.8638211999999998,
+      "total_time": 7.8018586,
+      "translation_time": 1.9553464000000003,
+      "total_ivy_time": 3.8413716082024623,
+      "simplification_time": 3.982691
+    },
+    "PaxosFirstOrder": {
+      "solving_time": 1.1421314,
+      "total_time": 4.7481232,
+      "translation_time": 1.3965872000000001,
+      "total_ivy_time": 0.0,
+      "simplification_time": 2.2094046
+    },
+    "Ring": {
+      "solving_time": 0.1432272,
+      "total_time": 0.672491,
+      "translation_time": 0.1940952,
+      "total_ivy_time": 1.2730319833994144,
+      "simplification_time": 0.3351686
+    },
+    "ChordRingMaintenance": {
+      "solving_time": 2.390797,
+      "total_time": 12.9541032,
+      "translation_time": 4.2789182,
+      "total_ivy_time": 0.34689866679836995,
+      "simplification_time": 6.284388
+    },
+    "PaxosEPR": {
+      "solving_time": 0.7529712,
+      "total_time": 3.1088842,
+      "translation_time": 1.0148804,
+      "total_ivy_time": 0.42014533339824994,
+      "simplification_time": 1.3410326000000001
+    },
+    "DecentralizedLock": {
+      "solving_time": 0.1692348,
+      "total_time": 0.7818974,
+      "translation_time": 0.2764532,
+      "total_ivy_time": 1.2727400165982545,
+      "simplification_time": 0.3362094
+    },
+    "SuzukiKasami": {
+      "solving_time": 1.6170842,
+      "total_time": 7.1760688,
+      "translation_time": 2.6862368,
+      "total_ivy_time": 0.3166631997999502,
+      "simplification_time": 2.8727478
+    },
+    "RicartAgrawala": {
+      "solving_time": 0.13136140000000002,
+      "total_time": 0.40423359999999997,
+      "translation_time": 0.0020718,
+      "total_ivy_time": 0.17602234140213113,
+      "simplification_time": 0.2708004
+    },
+    "SuzukiKasamiInts": {
+      "solving_time": 1.2860402,
+      "total_time": 6.4608962000000005,
+      "translation_time": 2.9042766,
+      "total_ivy_time": 0.23194409160059876,
+      "simplification_time": 2.2705794
+    },
+    "VerticalPaxosFirstOrder": {
+      "solving_time": 3.2039771999999997,
+      "total_time": 18.8049748,
+      "translation_time": 4.7600292,
+      "total_ivy_time": 0.0,
+      "simplification_time": 10.8409684
+    },
+    "Rabia": {
+      "solving_time": 155.2573832,
+      "total_time": 272.38379679999997,
+      "translation_time": 52.5435376,
+      "total_ivy_time": 30.949564250395632,
+      "simplification_time": 64.582876
+    },
+    "MultiSigAll": {
+      "solving_time": 0.3496786,
+      "total_time": 1.5072026,
+      "translation_time": 0.5396838,
+      "total_ivy_time": 0.41309219139802733,
+      "simplification_time": 0.6178402000000001
+    },
+    "Blockchain": {
+      "solving_time": 1.263527,
+      "total_time": 10.6611334,
+      "translation_time": 3.5052582,
+      "total_ivy_time": 0.27099131640279667,
+      "simplification_time": 5.8923482
+    },
+    "ReliableBroadcast": {
+      "solving_time": 2.3883766,
+      "total_time": 8.4409904,
+      "translation_time": 2.3411934,
+      "total_ivy_time": 1.5188330584001961,
+      "simplification_time": 3.7114204
+    }
+  },
+  "raw_results": [
+    {
+      "MultiSigMajority": {
+        "simplification_time": 0.6882349999999999,
+        "translation_time": 0.658711,
+        "solving_time": 0.266213,
+        "total_time": 1.613159,
+        "total_ivy_time": 0.20939466598792933
+      },
+      "TwoPhaseCommit": {
+        "simplification_time": 1.7560110000000002,
+        "translation_time": 0.23412,
+        "solving_time": 0.374176,
+        "total_time": 2.364307,
+        "total_ivy_time": 0.2622335420019226
+      },
+      "SCP": {
+        "simplification_time": 3.847168,
+        "translation_time": 1.9143270000000001,
+        "solving_time": 1.7620090000000002,
+        "total_time": 7.523504,
+        "total_ivy_time": 3.882051250009681
+      },
+      "PaxosFirstOrder": {
+        "simplification_time": 2.214189,
+        "translation_time": 1.401378,
+        "solving_time": 1.12329,
+        "total_time": 4.738857,
+        "total_ivy_time": 0.0
+      },
+      "Ring": {
+        "simplification_time": 0.33167099999999994,
+        "translation_time": 0.193857,
+        "solving_time": 0.143929,
+        "total_time": 0.669457,
+        "total_ivy_time": 1.2742425420001382
+      },
+      "ChordRingMaintenance": {
+        "simplification_time": 6.264408,
+        "translation_time": 4.274961,
+        "solving_time": 2.381616,
+        "total_time": 12.920985,
+        "total_ivy_time": 0.3509023749938933
+      },
+      "PaxosEPR": {
+        "simplification_time": 1.3350210000000002,
+        "translation_time": 1.01563,
+        "solving_time": 0.764297,
+        "total_time": 3.114948,
+        "total_ivy_time": 0.4220748329971684
+      },
+      "DecentralizedLock": {
+        "simplification_time": 0.344526,
+        "translation_time": 0.276601,
+        "solving_time": 0.161389,
+        "total_time": 0.782516,
+        "total_ivy_time": 1.2741898749954998
+      },
+      "SuzukiKasami": {
+        "simplification_time": 2.8871789999999997,
+        "translation_time": 2.69909,
+        "solving_time": 1.588896,
+        "total_time": 7.175165,
+        "total_ivy_time": 0.31963374999759253
+      },
+      "RicartAgrawala": {
+        "simplification_time": 0.278054,
+        "translation_time": 0.010359,
+        "solving_time": 0.115824,
+        "total_time": 0.404237,
+        "total_ivy_time": 0.17972579100751318
+      },
+      "SuzukiKasamiInts": {
+        "simplification_time": 2.2949199999999994,
+        "translation_time": 2.940915,
+        "solving_time": 1.282628,
+        "total_time": 6.518463,
+        "total_ivy_time": 0.23344920799718238
+      },
+      "VerticalPaxosFirstOrder": {
+        "simplification_time": 10.853252999999999,
+        "translation_time": 4.786028,
+        "solving_time": 3.210195,
+        "total_time": 18.849476,
+        "total_ivy_time": 0.0
+      },
+      "Rabia": {
+        "simplification_time": 64.50583699999999,
+        "translation_time": 52.634753,
+        "solving_time": 156.40332,
+        "total_time": 273.54391,
+        "total_ivy_time": 48.67682458399213
+      },
+      "MultiSigAll": {
+        "simplification_time": 0.6081860000000001,
+        "translation_time": 0.540347,
+        "solving_time": 0.378638,
+        "total_time": 1.527171,
+        "total_ivy_time": 0.4204772909870371
+      },
+      "Blockchain": {
+        "simplification_time": 5.885617000000001,
+        "translation_time": 3.522627,
+        "solving_time": 1.297109,
+        "total_time": 10.705353,
+        "total_ivy_time": 0.2720146250067046
+      },
+      "ReliableBroadcast": {
+        "simplification_time": 3.7367239999999993,
+        "translation_time": 2.345798,
+        "solving_time": 2.395488,
+        "total_time": 8.47801,
+        "total_ivy_time": 1.5216632919909898
+      }
+    },
+    {
+      "MultiSigMajority": {
+        "simplification_time": 0.7109239999999999,
+        "translation_time": 0.70874,
+        "solving_time": 0.349224,
+        "total_time": 1.768888,
+        "total_ivy_time": 0.21470945799956098
+      },
+      "TwoPhaseCommit": {
+        "simplification_time": 1.4001960000000002,
+        "translation_time": 0.393103,
+        "solving_time": 0.787401,
+        "total_time": 2.5807,
+        "total_ivy_time": 0.20087049998983275
+      },
+      "SCP": {
+        "simplification_time": 4.019302,
+        "translation_time": 1.968567,
+        "solving_time": 1.901297,
+        "total_time": 7.889166,
+        "total_ivy_time": 4.006185292004375
+      },
+      "PaxosFirstOrder": {
+        "simplification_time": 2.1908249999999994,
+        "translation_time": 1.387316,
+        "solving_time": 1.168241,
+        "total_time": 4.746382,
+        "total_ivy_time": 0.0
+      },
+      "Ring": {
+        "simplification_time": 0.33438500000000004,
+        "translation_time": 0.196047,
+        "solving_time": 0.150119,
+        "total_time": 0.680551,
+        "total_ivy_time": 1.274519541009795
+      },
+      "ChordRingMaintenance": {
+        "simplification_time": 6.262373,
+        "translation_time": 4.293653,
+        "solving_time": 2.415983,
+        "total_time": 12.972009,
+        "total_ivy_time": 0.34445366699947044
+      },
+      "PaxosEPR": {
+        "simplification_time": 1.343382,
+        "translation_time": 1.015112,
+        "solving_time": 0.752821,
+        "total_time": 3.111315,
+        "total_ivy_time": 0.41680445900419727
+      },
+      "DecentralizedLock": {
+        "simplification_time": 0.334931,
+        "translation_time": 0.278623,
+        "solving_time": 0.175458,
+        "total_time": 0.789012,
+        "total_ivy_time": 1.2909249160002219
+      },
+      "SuzukiKasami": {
+        "simplification_time": 2.865569,
+        "translation_time": 2.681615,
+        "solving_time": 1.627237,
+        "total_time": 7.174421,
+        "total_ivy_time": 0.31646591599565
+      },
+      "RicartAgrawala": {
+        "simplification_time": 0.26800599999999997,
+        "translation_time": 0,
+        "solving_time": 0.138956,
+        "total_time": 0.406962,
+        "total_ivy_time": 0.1769995829963591
+      },
+      "SuzukiKasamiInts": {
+        "simplification_time": 2.259327,
+        "translation_time": 2.899662,
+        "solving_time": 1.285875,
+        "total_time": 6.444864,
+        "total_ivy_time": 0.23045108299993444
+      },
+      "VerticalPaxosFirstOrder": {
+        "simplification_time": 10.821715000000001,
+        "translation_time": 4.750303,
+        "solving_time": 3.230652,
+        "total_time": 18.80267,
+        "total_ivy_time": 0.0
+      },
+      "Rabia": {
+        "simplification_time": 64.809257,
+        "translation_time": 52.500264,
+        "solving_time": 155.489191,
+        "total_time": 272.798712,
+        "total_ivy_time": 23.3931153750018
+      },
+      "MultiSigAll": {
+        "simplification_time": 0.6063389999999999,
+        "translation_time": 0.538514,
+        "solving_time": 0.370282,
+        "total_time": 1.515135,
+        "total_ivy_time": 0.4227651249966584
+      },
+      "Blockchain": {
+        "simplification_time": 5.866785000000001,
+        "translation_time": 3.496979,
+        "solving_time": 1.302335,
+        "total_time": 10.666099,
+        "total_ivy_time": 0.26605833299981896
+      },
+      "ReliableBroadcast": {
+        "simplification_time": 3.694428,
+        "translation_time": 2.341783,
+        "solving_time": 2.402225,
+        "total_time": 8.438436,
+        "total_ivy_time": 1.5299029580055503
+      }
+    },
+    {
+      "MultiSigMajority": {
+        "simplification_time": 0.6971849999999999,
+        "translation_time": 0.710167,
+        "solving_time": 0.342251,
+        "total_time": 1.749603,
+        "total_ivy_time": 0.2156369580043247
+      },
+      "TwoPhaseCommit": {
+        "simplification_time": 1.4884590000000002,
+        "translation_time": 0.41322,
+        "solving_time": 0.647192,
+        "total_time": 2.548871,
+        "total_ivy_time": 0.19798991599236615
+      },
+      "SCP": {
+        "simplification_time": 4.016128,
+        "translation_time": 1.967841,
+        "solving_time": 1.882824,
+        "total_time": 7.866793,
+        "total_ivy_time": 3.664830333000282
+      },
+      "PaxosFirstOrder": {
+        "simplification_time": 2.2124510000000006,
+        "translation_time": 1.395581,
+        "solving_time": 1.140426,
+        "total_time": 4.748458,
+        "total_ivy_time": 0.0
+      },
+      "Ring": {
+        "simplification_time": 0.338586,
+        "translation_time": 0.19214799999999999,
+        "solving_time": 0.138778,
+        "total_time": 0.669512,
+        "total_ivy_time": 1.2721244170097634
+      },
+      "ChordRingMaintenance": {
+        "simplification_time": 6.354069,
+        "translation_time": 4.287175,
+        "solving_time": 2.432797,
+        "total_time": 13.074041,
+        "total_ivy_time": 0.3481443339987891
+      },
+      "PaxosEPR": {
+        "simplification_time": 1.3399040000000002,
+        "translation_time": 1.013115,
+        "solving_time": 0.75339,
+        "total_time": 3.106409,
+        "total_ivy_time": 0.4176352500071516
+      },
+      "DecentralizedLock": {
+        "simplification_time": 0.3315560000000001,
+        "translation_time": 0.278039,
+        "solving_time": 0.174041,
+        "total_time": 0.783636,
+        "total_ivy_time": 1.2657032080023782
+      },
+      "SuzukiKasami": {
+        "simplification_time": 2.8706389999999997,
+        "translation_time": 2.687432,
+        "solving_time": 1.625701,
+        "total_time": 7.183772,
+        "total_ivy_time": 0.31571216600423213
+      },
+      "RicartAgrawala": {
+        "simplification_time": 0.256756,
+        "translation_time": 0,
+        "solving_time": 0.148506,
+        "total_time": 0.405262,
+        "total_ivy_time": 0.17353041699971072
+      },
+      "SuzukiKasamiInts": {
+        "simplification_time": 2.2947539999999997,
+        "translation_time": 2.918178,
+        "solving_time": 1.296992,
+        "total_time": 6.509924,
+        "total_ivy_time": 0.23336174999712966
+      },
+      "VerticalPaxosFirstOrder": {
+        "simplification_time": 10.841347,
+        "translation_time": 4.749641,
+        "solving_time": 3.169202,
+        "total_time": 18.76019,
+        "total_ivy_time": 0.0
+      },
+      "Rabia": {
+        "simplification_time": 64.781701,
+        "translation_time": 52.806445,
+        "solving_time": 155.698825,
+        "total_time": 273.286971,
+        "total_ivy_time": 25.2850484590017
+      },
+      "MultiSigAll": {
+        "simplification_time": 0.608136,
+        "translation_time": 0.541529,
+        "solving_time": 0.371025,
+        "total_time": 1.52069,
+        "total_ivy_time": 0.4203571250109235
+      },
+      "Blockchain": {
+        "simplification_time": 5.884102,
+        "translation_time": 3.506964,
+        "solving_time": 1.302493,
+        "total_time": 10.693559,
+        "total_ivy_time": 0.27113104100862984
+      },
+      "ReliableBroadcast": {
+        "simplification_time": 3.69945,
+        "translation_time": 2.341563,
+        "solving_time": 2.408533,
+        "total_time": 8.449546,
+        "total_ivy_time": 1.514674375008326
+      }
+    },
+    {
+      "MultiSigMajority": {
+        "simplification_time": 0.6992240000000001,
+        "translation_time": 0.708418,
+        "solving_time": 0.34306,
+        "total_time": 1.750702,
+        "total_ivy_time": 0.21684287500102073
+      },
+      "TwoPhaseCommit": {
+        "simplification_time": 1.41671,
+        "translation_time": 0.425033,
+        "solving_time": 0.725039,
+        "total_time": 2.566782,
+        "total_ivy_time": 0.2032999170041876
+      },
+      "SCP": {
+        "simplification_time": 4.017352999999999,
+        "translation_time": 1.96395,
+        "solving_time": 1.885969,
+        "total_time": 7.867272,
+        "total_ivy_time": 3.647163832996739
+      },
+      "PaxosFirstOrder": {
+        "simplification_time": 2.2162129999999998,
+        "translation_time": 1.398049,
+        "solving_time": 1.1238650000000001,
+        "total_time": 4.738127,
+        "total_ivy_time": 0.0
+      },
+      "Ring": {
+        "simplification_time": 0.329171,
+        "translation_time": 0.193574,
+        "solving_time": 0.146803,
+        "total_time": 0.669548,
+        "total_ivy_time": 1.276062416989589
+      },
+      "ChordRingMaintenance": {
+        "simplification_time": 6.279839999999999,
+        "translation_time": 4.271139,
+        "solving_time": 2.382563,
+        "total_time": 12.933542,
+        "total_ivy_time": 0.3457037079933798
+      },
+      "PaxosEPR": {
+        "simplification_time": 1.3477749999999997,
+        "translation_time": 1.015976,
+        "solving_time": 0.7427010000000001,
+        "total_time": 3.106452,
+        "total_ivy_time": 0.41880224998749327
+      },
+      "DecentralizedLock": {
+        "simplification_time": 0.34009300000000003,
+        "translation_time": 0.27466,
+        "solving_time": 0.160518,
+        "total_time": 0.775271,
+        "total_ivy_time": 1.2670508339942899
+      },
+      "SuzukiKasami": {
+        "simplification_time": 2.878413,
+        "translation_time": 2.685111,
+        "solving_time": 1.61961,
+        "total_time": 7.183134,
+        "total_ivy_time": 0.3160323329939274
+      },
+      "RicartAgrawala": {
+        "simplification_time": 0.27656000000000003,
+        "translation_time": 0,
+        "solving_time": 0.126764,
+        "total_time": 0.403324,
+        "total_ivy_time": 0.17724845799966715
+      },
+      "SuzukiKasamiInts": {
+        "simplification_time": 2.254779,
+        "translation_time": 2.885615,
+        "solving_time": 1.274588,
+        "total_time": 6.414982,
+        "total_ivy_time": 0.22924075000628363
+      },
+      "VerticalPaxosFirstOrder": {
+        "simplification_time": 10.786287,
+        "translation_time": 4.736422,
+        "solving_time": 3.189976,
+        "total_time": 18.712685,
+        "total_ivy_time": 0.0
+      },
+      "Rabia": {
+        "simplification_time": 64.26033500000003,
+        "translation_time": 52.310981,
+        "solving_time": 153.573285,
+        "total_time": 270.144601,
+        "total_ivy_time": 34.17702908399224
+      },
+      "MultiSigAll": {
+        "simplification_time": 0.653045,
+        "translation_time": 0.53984,
+        "solving_time": 0.312632,
+        "total_time": 1.505517,
+        "total_ivy_time": 0.4195839579915628
+      },
+      "Blockchain": {
+        "simplification_time": 5.9566099999999995,
+        "translation_time": 3.509313,
+        "solving_time": 1.145837,
+        "total_time": 10.61176,
+        "total_ivy_time": 0.2723255829914706
+      },
+      "ReliableBroadcast": {
+        "simplification_time": 3.693381000000001,
+        "translation_time": 2.338436,
+        "solving_time": 2.406805,
+        "total_time": 8.438622,
+        "total_ivy_time": 1.513803875001031
+      }
+    },
+    {
+      "MultiSigMajority": {
+        "simplification_time": 0.6918800000000002,
+        "translation_time": 0.703933,
+        "solving_time": 0.344839,
+        "total_time": 1.740652,
+        "total_ivy_time": 0.21317575000284705
+      },
+      "TwoPhaseCommit": {
+        "simplification_time": 1.5112939999999995,
+        "translation_time": 0.380282,
+        "solving_time": 0.65627,
+        "total_time": 2.547846,
+        "total_ivy_time": 0.2021415839990368
+      },
+      "SCP": {
+        "simplification_time": 4.013504,
+        "translation_time": 1.962047,
+        "solving_time": 1.8870069999999999,
+        "total_time": 7.862558,
+        "total_ivy_time": 4.006627333001234
+      },
+      "PaxosFirstOrder": {
+        "simplification_time": 2.2133450000000003,
+        "translation_time": 1.400612,
+        "solving_time": 1.154835,
+        "total_time": 4.768792,
+        "total_ivy_time": 0.0
+      },
+      "Ring": {
+        "simplification_time": 0.34203,
+        "translation_time": 0.19485,
+        "solving_time": 0.136507,
+        "total_time": 0.673387,
+        "total_ivy_time": 1.2682109999877866
+      },
+      "ChordRingMaintenance": {
+        "simplification_time": 6.26125,
+        "translation_time": 4.267663,
+        "solving_time": 2.341026,
+        "total_time": 12.869939,
+        "total_ivy_time": 0.34528925000631716
+      },
+      "PaxosEPR": {
+        "simplification_time": 1.3390810000000004,
+        "translation_time": 1.014569,
+        "solving_time": 0.751647,
+        "total_time": 3.105297,
+        "total_ivy_time": 0.4254098749952391
+      },
+      "DecentralizedLock": {
+        "simplification_time": 0.32994099999999993,
+        "translation_time": 0.274343,
+        "solving_time": 0.174768,
+        "total_time": 0.779052,
+        "total_ivy_time": 1.2658312499988824
+      },
+      "SuzukiKasami": {
+        "simplification_time": 2.8619390000000005,
+        "translation_time": 2.677936,
+        "solving_time": 1.623977,
+        "total_time": 7.163852,
+        "total_ivy_time": 0.3154718340083491
+      },
+      "RicartAgrawala": {
+        "simplification_time": 0.274626,
+        "translation_time": 0,
+        "solving_time": 0.126757,
+        "total_time": 0.401383,
+        "total_ivy_time": 0.1726074580074055
+      },
+      "SuzukiKasamiInts": {
+        "simplification_time": 2.2491170000000005,
+        "translation_time": 2.877013,
+        "solving_time": 1.290118,
+        "total_time": 6.416248,
+        "total_ivy_time": 0.2332176670024637
+      },
+      "VerticalPaxosFirstOrder": {
+        "simplification_time": 10.90224,
+        "translation_time": 4.777752,
+        "solving_time": 3.219861,
+        "total_time": 18.899853,
+        "total_ivy_time": 0.0
+      },
+      "Rabia": {
+        "simplification_time": 64.55724999999998,
+        "translation_time": 52.465245,
+        "solving_time": 155.122295,
+        "total_time": 272.14479,
+        "total_ivy_time": 23.2158037499903
+      },
+      "MultiSigAll": {
+        "simplification_time": 0.613495,
+        "translation_time": 0.538189,
+        "solving_time": 0.315816,
+        "total_time": 1.4675,
+        "total_ivy_time": 0.38227745800395496
+      },
+      "Blockchain": {
+        "simplification_time": 5.868626999999999,
+        "translation_time": 3.490408,
+        "solving_time": 1.269861,
+        "total_time": 10.628896,
+        "total_ivy_time": 0.2734270000073593
+      },
+      "ReliableBroadcast": {
+        "simplification_time": 3.7331189999999994,
+        "translation_time": 2.338387,
+        "solving_time": 2.3288320000000002,
+        "total_time": 8.400338,
+        "total_ivy_time": 1.514120791995083
+      }
+    }
+  ],
+  "runs_expected": 5
+}
