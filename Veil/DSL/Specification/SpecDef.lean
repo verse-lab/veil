@@ -28,7 +28,7 @@ def checkModuleExists (id : Name) [Monad m] [MonadEnv m] [MonadError m] : m Unit
 
 def checkCorrectInstantiation (id : Name) (ts : Array Term) [Monad m] [MonadEnv m] [MonadError m] : m Unit := do
   checkModuleExists id
-  let module := (<- globalSpecCtx.get)[id]!
+  let module := (<- globalSpecCtx.get)[id]!.spec
   let vd := module.parameters
   let vs := ts
   if vd.size != vs.size then

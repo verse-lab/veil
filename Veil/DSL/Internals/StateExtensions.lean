@@ -47,7 +47,7 @@ def _root_.Lean.SimpleScopedEnvExtension.modifyIsolates
   [Monad m] [MonadEnv m] : m Unit := do
   Lean.modifyEnv (ext.modifyState · (fun ctx => { ctx with isolates := s ctx.isolates }))
 
-abbrev GlobalSpecificationCtx := Std.HashMap Name ModuleSpecification
+abbrev GlobalSpecificationCtx := Std.HashMap Name LocalSpecificationCtx
 
 initialize localSpecCtx : SimpleScopedEnvExtension LocalSpecificationCtx LocalSpecificationCtx ←
   registerSimpleScopedEnvExtension {
@@ -56,17 +56,17 @@ initialize localSpecCtx : SimpleScopedEnvExtension LocalSpecificationCtx LocalSp
   }
 
 initialize globalSpecCtx :
-  SimpleScopedEnvExtension (Name × ModuleSpecification) GlobalSpecificationCtx <-
+  SimpleScopedEnvExtension (Name × LocalSpecificationCtx) GlobalSpecificationCtx <-
   registerSimpleScopedEnvExtension {
     initial := ∅
     addEntry := fun s (n, thm) => s.insert n thm
   }
 
-/-- Record the given specification in the global specification context. -/
-def registerModuleSpecification (spec : ModuleSpecification) : AttrM Unit := do
-  let n := spec.name
+/-- Record the local specification in the global specification context. -/
+def registerModuleSpecification : AttrM Unit := do
+  let lctx := <- localSpecCtx.get
+  let n := lctx.spec.name
   if (← globalSpecCtx.get).contains n then
     throwError "Specification {n} has already been declared"
   trace[veil] "Globally declaring specification {n}"
-  -- stsStateGlobalExt.modify (fun s => s.insert n spec)
-  globalSpecCtx.add (n, spec)
+  globalSpecCtx.add (n, lctx)

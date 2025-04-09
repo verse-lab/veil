@@ -31,7 +31,17 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     let cmd ← `(namespace $i:ident
       open Classical)
     elabCommand cmd
-    declareSpecName i.getId
+    let gctx := <- globalSpecCtx.get
+    let name := i.getId
+    if gctx.contains name then
+      logInfo s!"Module {name} already exists. Importing it here."
+      let ctx := gctx[name]!
+      -- import the context
+      localSpecCtx.modify (fun _ => ctx)
+      -- re-declare the section variables
+      elabCommand $ ← `(variable $(ctx.spec.parameters)*)
+    else
+      declareSpecName name
   | _ => throwUnsupportedSyntax
 
 /-! ## State -/
@@ -134,7 +144,7 @@ def elabDependency : CommandElab := fun stx => do
       checkModuleExists name
       checkCorrectInstantiation name ts
       let modAlias := if let `(Veil.moduleAbbrev| as $al) := ma then al.getId else name
-      let modParams := (<- globalSpecCtx.get)[name]!.parameters
+      let modParams := (<- globalSpecCtx.get)[name]!.spec.parameters
       let modDep : ModuleDependency := {
         name := name,
         parameters := modParams,
@@ -479,7 +489,7 @@ def genSpec : CommandElabM Unit := do
     -- set the name of the spec
     localSpecCtx.modify (fun s => { s with spec := {s.spec with name := name }})
     -- globally register the spec, so it can be composed with other modules
-    registerModuleSpecification (← localSpecCtx.get).spec
+    registerModuleSpecification
 
 elab_rules : command
   | `(command|#gen_spec) => genSpec

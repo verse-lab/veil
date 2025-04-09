@@ -336,7 +336,7 @@ def defineDepsActions : CommandElabM Unit := do
     let (genIName, genEName) ← liftActionGenerators liftedName .none stateTpT initName depArgs (isInitialAction := true)
     defineInitialActionFromGenerators liftedName genIName genEName
     -- Lift actions
-    for actToLift in depCtx.actions do
+    for actToLift in depCtx.spec.actions do
       let actBaseName := dependency.name ++ actToLift.decl.name
       -- If an action has a pre-post specification, we use the the specification
       -- instead of the action itself as the lifted action. Recall that
