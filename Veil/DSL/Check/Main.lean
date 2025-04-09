@@ -71,7 +71,7 @@ def CheckInvariantsBehaviour.exclamation (style : VCGenStyle := .wp) : CheckInva
 def getAllChecks (isolates : NameHashSet := ∅) : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
     let mut invs := (← localSpecCtx.get).spec.invariants
     unless isolates.isEmpty do
-      invs := invs.filter fun inv => isolates.all inv.isolates.contains
+      invs := invs.filter fun inv => isolates.any inv.isolates.contains
     let invNames := invs.map StateAssertion.name
     let actNames := ((<- localSpecCtx.get).spec.actions).map (fun s => s.name)
     let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName name}"))
