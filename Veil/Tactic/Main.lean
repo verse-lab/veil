@@ -240,7 +240,7 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
   let mut invSimpTac <- `(tactic| dsimp only [$invSimp:ident])
   let mut clearInvs  <- `(tactic| skip)
   let mut invsToUnfold := #[invSimpTopLevel]
-  let isStore := (<- localIsolates.get).isolateStore
+  let isStore := (<- localSpecCtx.getIsolates).isolateStore
   unless invInfo.isolates.isEmpty do
     for is in invInfo.isolates do
       invsToUnfold := invsToUnfold.append <| isStore[is]!.toArray.map mkIdent

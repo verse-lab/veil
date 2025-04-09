@@ -32,24 +32,28 @@ structure LocalSpecificationCtx where
   spec : ModuleSpecification
   /-- base name of the State type; set when `#gen_state` runs -/
   stateBaseName: Option Name
+  /-- keeps track of isolates in this specification -/
+  isolates: IsolatesInfo
   /-- established invariant clauses; set on `@[invProof]` label -/
   establishedClauses : List Name := []
 deriving Inhabited
 
-abbrev GlobalSpecificationCtx := Std.HashMap Name ModuleSpecification
+def _root_.Lean.SimpleScopedEnvExtension.getIsolates (ext : SimpleScopedEnvExtension LocalSpecificationCtx LocalSpecificationCtx)
+  [Monad m] [MonadEnv m] : m IsolatesInfo := do
+  return (ext.getState (<- getEnv)).isolates
 
-initialize localIsolates : SimpleScopedEnvExtension IsolatesInfo IsolatesInfo <-
-  registerSimpleScopedEnvExtension {
-    initial := default
-    addEntry := fun s _ => s
-  }
+def _root_.Lean.SimpleScopedEnvExtension.modifyIsolates
+  (ext : SimpleScopedEnvExtension LocalSpecificationCtx LocalSpecificationCtx) (s : IsolatesInfo -> IsolatesInfo)
+  [Monad m] [MonadEnv m] : m Unit := do
+  Lean.modifyEnv (ext.modifyState · (fun ctx => { ctx with isolates := s ctx.isolates }))
+
+abbrev GlobalSpecificationCtx := Std.HashMap Name ModuleSpecification
 
 initialize localSpecCtx : SimpleScopedEnvExtension LocalSpecificationCtx LocalSpecificationCtx ←
   registerSimpleScopedEnvExtension {
     initial := default
     addEntry := fun _ s' => s'
   }
-
 
 initialize globalSpecCtx :
   SimpleScopedEnvExtension (Name × ModuleSpecification) GlobalSpecificationCtx <-

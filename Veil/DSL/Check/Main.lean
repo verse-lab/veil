@@ -399,7 +399,7 @@ def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := Chec
 def checkIsolate (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default)
   (isolates : Array Ident) : CommandElabM Unit := do
   for iso in isolates do
-    unless (← localIsolates.get).isolateStore.contains iso.getId do
+    unless (<- localSpecCtx.getIsolates).isolateStore.contains iso.getId do
       throwErrorAt iso s!"Isolate {iso.getId} not found in the current context."
   checkInvariants stx behaviour (isolate := Std.HashSet.ofArray <| isolates.map TSyntax.getId)
 
