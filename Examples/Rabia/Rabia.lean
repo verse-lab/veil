@@ -277,7 +277,8 @@ set_option veil.smt.timeout 120
 set_option veil.smt.solver "cvc5"
 set_option veil.smt.translator "lean-auto"
 
-#check_invariants
+#check_isolate protocol
+#check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
 
 #time #recover_invariants_in_tr
 

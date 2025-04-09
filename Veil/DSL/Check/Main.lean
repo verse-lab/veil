@@ -68,8 +68,11 @@ def CheckInvariantsBehaviour.question (style : VCGenStyle := .wp) : CheckInvaria
 def CheckInvariantsBehaviour.exclamation (style : VCGenStyle := .wp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .printUnverifiedTheorems)
 
 /--  Generate theorems to check in the initial state and after each action -/
-def getAllChecks : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
-    let invNames := (← localSpecCtx.get).spec.invariants.map StateAssertion.name
+def getAllChecks (isolates : NameHashSet := ∅) : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
+    let mut invs := (← localSpecCtx.get).spec.invariants
+    unless isolates.isEmpty do
+      invs := invs.filter fun inv => isolates.all inv.isolates.contains
+    let invNames := invs.map StateAssertion.name
     let actNames := ((<- localSpecCtx.get).spec.actions).map (fun s => s.name)
     let invNamesInds := invNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"invInd_{mkPrintableName name}"))
     let actNamesInds := actNames.map (fun name => (name, Lean.mkConst $ Name.mkSimple s!"actInd_{mkPrintableName name}"))
@@ -351,6 +354,27 @@ syntax "#check_invariants?" : command
 were not proved automatically. Uses `wp` VC style. -/
 syntax "#check_invariants!" : command
 
+/-- Check all invariants in specified isolates and print result of
+each check. Uses `wlp` VC style. -/
+syntax "#check_isolate" ident : command
+/-- Suggest theorems to check all invariants in isolates. Uses `wlp`
+VC style. -/
+syntax "#check_isolate?" ident : command
+/-- Check all invariants in isolates and suggest only theorems that
+were not proved automatically. Uses `wlp` VC style. -/
+syntax "#check_isolate!" ident : command
+
+/-- Check all invariants in a specified isolate and print result of
+each check. Uses `wlp` VC style. -/
+syntax "#check_isolates" ident* : command
+/-- Suggest theorems to check all invariants in the isolate. Uses `wlp`
+VC style. -/
+syntax "#check_isolates?" ident* : command
+/-- Check all invariants in the isolate and suggest only theorems that
+were not proved automatically. Uses `wlp` VC style. -/
+syntax "#check_isolates!" ident* : command
+
+
 /-- Check all invariants and print result of each check. Uses `tr` VC
 style. -/
 syntax "#check_invariants_tr" : command
@@ -366,15 +390,29 @@ query. -/
 syntax "#check_invariants_indicators" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
-def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
+def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default)
+  (isolate : NameHashSet := ∅) : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; warnIfNoInvariantsDefined; warnIfNoActionsDefined)
-  let (initChecks, actChecks) ← getAllChecks
+  let (initChecks, actChecks) ← getAllChecks isolate
   checkTheorems stx initChecks actChecks behaviour
+
+def checkIsolate (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default)
+  (isolates : Array Ident) : CommandElabM Unit := do
+  for iso in isolates do
+    unless (← localIsolates.get).isolateStore.contains iso.getId do
+      throwErrorAt iso s!"Isolate {iso.getId} not found in the current context."
+  checkInvariants stx behaviour (isolate := Std.HashSet.ofArray <| isolates.map TSyntax.getId)
 
 elab_rules : command
   | `(command| #check_invariants)  => do checkInvariants (← getRef) (behaviour := .default)
   | `(command| #check_invariants?) => do checkInvariants (← getRef) (behaviour := .question)
   | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .exclamation)
+  | `(command| #check_isolate $is)  => do checkIsolate (← getRef) (behaviour := .default) (isolates := #[is])
+  | `(command| #check_isolate? $is) => do checkIsolate (← getRef) (behaviour := .question) (isolates := #[is])
+  | `(command| #check_isolate! $is) => do checkIsolate (← getRef) (behaviour := .exclamation) (isolates := #[is])
+  | `(command| #check_isolates $is*)  => do checkIsolate (← getRef) (behaviour := .default) (isolates := is)
+  | `(command| #check_isolates? $is*) => do checkIsolate (← getRef) (behaviour := .question) (isolates := is)
+  | `(command| #check_isolates! $is*) => do checkIsolate (← getRef) (behaviour := .exclamation) (isolates := is)
   | `(command| #check_invariants_tr)  => do checkInvariants (← getRef) (behaviour := .default .transition)
   | `(command| #check_invariants_tr?) => do checkInvariants (← getRef) (behaviour := .question .transition)
   | `(command| #check_invariants_tr!) => do checkInvariants (← getRef) (behaviour := .exclamation .transition)
