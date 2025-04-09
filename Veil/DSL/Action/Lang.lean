@@ -113,7 +113,7 @@ def getSubActions : TermElabM (Array (Ident × Term)) := do
   let mut names := #[]
   let ourSpec := (← localSpecCtx.get).spec
   for (modAlias, dependency) in ourSpec.dependencies do
-    let spec := (← globalSpecCtx.get)[dependency.name]!
+    let spec := (← globalSpecCtx.get)[dependency.name]!.spec
     for act in spec.actions do
       let actName := mkIdent <| modAlias ++ act.name
       -- Since we have lifted the action, we must apply OUR section arguments to

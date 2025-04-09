@@ -31,7 +31,17 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     let cmd ← `(namespace $i:ident
       open Classical)
     elabCommand cmd
-    declareSpecName i.getId
+    let gctx := <- globalSpecCtx.get
+    let name := i.getId
+    if gctx.contains name then
+      logInfo s!"Module {name} already exists. Importing it here."
+      let ctx := gctx[name]!
+      -- import the context
+      localSpecCtx.modify (fun _ => ctx)
+      -- re-declare the section variables
+      elabCommand $ ← `(variable $(ctx.spec.parameters)*)
+    else
+      declareSpecName name
   | _ => throwUnsupportedSyntax
 
 /-! ## State -/
@@ -134,7 +144,7 @@ def elabDependency : CommandElab := fun stx => do
       checkModuleExists name
       checkCorrectInstantiation name ts
       let modAlias := if let `(Veil.moduleAbbrev| as $al) := ma then al.getId else name
-      let modParams := (<- globalSpecCtx.get)[name]!.parameters
+      let modParams := (<- globalSpecCtx.get)[name]!.spec.parameters
       let modDep : ModuleDependency := {
         name := name,
         parameters := modParams,
@@ -354,23 +364,23 @@ elab_rules : command
 /-! ## Isolates -/
 elab_rules : command
   | `(command|open_isolate $is:ident $[with $iss:ident*]? ) => do
-    let isStore := (<- localIsolates.get).isolateStore
+    let isStore := (<- localSpecCtx.getIsolates).isolateStore
     let mut invsFromIss : Std.HashSet Name := isStore[is.getId]?.getD ∅
     unless iss.isNone do
       for is in iss.get! do
         invsFromIss := invsFromIss.union <| isStore[is.getId]?.getD ∅
-    localIsolates.modify fun ⟨openIs, _⟩ =>
+    localSpecCtx.modifyIsolates fun ⟨openIs, _⟩ =>
       ⟨is.getId :: openIs, isStore.insert is.getId invsFromIss⟩
   | `(command|close_isolate) => do
-    let _ :: openIs := (<- localIsolates.get).openIsolates
+    let _ :: openIs := (<- localSpecCtx.get).isolates.openIsolates
       | throwError "No open isolates to close"
-    localIsolates.modify ({· with openIsolates := openIs})
+    localSpecCtx.modifyIsolates ({· with openIsolates := openIs})
 
 def addInvariantToIsolate [Monad m] [MonadEnv m] (inv : Name) : m (List Name) := do
-  let ⟨openIs, isStore⟩ := (<- localIsolates.get)
+  let ⟨openIs, isStore⟩ := (<- localSpecCtx.getIsolates)
   for is in openIs do
     let invs := (isStore[is]?.getD ∅).insert inv
-    localIsolates.modify ({ · with isolateStore := isStore.insert is invs })
+    localSpecCtx.modifyIsolates ({ · with isolateStore := isStore.insert is invs })
   return openIs
   -- localSpecCtx.modify fun s =>
   -- { s with spec.invariants :=
@@ -479,7 +489,7 @@ def genSpec : CommandElabM Unit := do
     -- set the name of the spec
     localSpecCtx.modify (fun s => { s with spec := {s.spec with name := name }})
     -- globally register the spec, so it can be composed with other modules
-    registerModuleSpecification (← localSpecCtx.get).spec
+    registerModuleSpecification
 
 elab_rules : command
   | `(command|#gen_spec) => genSpec

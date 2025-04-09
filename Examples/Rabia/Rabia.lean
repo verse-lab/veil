@@ -277,18 +277,6 @@ set_option veil.smt.timeout 120
 set_option veil.smt.solver "cvc5"
 set_option veil.smt.translator "lean-auto"
 
-#check_invariants
-
-#time #recover_invariants_in_tr
-
-prove_inv_inductive by {
-  constructor
-  . intro st has hinit
-    sdestruct_goal <;> already_proven_init
-  · intro st st' has hinv hnext
-    sts_induction <;> sdestruct_goal <;> already_proven_next_tr
-}
-
-#time #split_invariants
+#check_isolate protocol
 
 end Rabia
