@@ -92,6 +92,52 @@ with its own version of Z3.
 
 ### Definitions and Theorems Highlighted in the Paper (Section 3)
 
+All the following are found in `Veil/DSL/Action/Theory.lean`:
+
+- `BigStep` - big-step semantics (lines 175-195)
+  - note the `∃ s''` in the definition of `BigStep.bind` (line 178):
+
+```lean
+def BigStep.bind (act : BigStep σ ρ) (act' : ρ -> BigStep σ ρ') : BigStep σ ρ' :=
+  fun s r' s' => ∃ r s'', act s r s'' ∧ act' r s'' r' s'
+```
+
+- `WP` - weakest precondition semantics (lines 85-125)
+  - note there is no existential quantification in the definition of
+  `WP.bind` (line 78):
+
+```lean
+def Wp.bind (wp : Wp m σ ρ) (wp_cont : ρ -> Wp m σ ρ') : Wp m σ ρ' :=
+  fun s post => wp s (fun r s' => wp_cont r s' post)
+```
+
+- The definition of `tr'` in the paper is `Wp.toBigStep` (after
+unfolding `Wp.toWlp`) (lines 234-236):
+
+```lean
+def Wp.toBigStep {σ} (wp : Wp m σ ρ) : BigStep σ ρ :=
+  fun s r' s' =>
+    wp.toWlp s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
+```
+
+- `big_step_to_wp` (line 438) is the soundness theorem in Section 3.2:
+
+```lean
+theorem big_step_to_wp (act : Wp m σ ρ) [LawfulAction act] (req : SProp σ) :
+  act.alwaysSuccessfullyTerminates req ->
+  req s ->
+  act s = act.toBigStep.toWp s
+```
+
+For this theorem `alwaysSuccessfullyTerminates` encodes that the action
+has no failing assertions (when executed from a state `s` satisfying
+some precondition `req` — this is usually instantiated with either
+`True` or the inductive invariant).
+
+`LawfulAction`, defined in lines 335-340, encodes the properties
+necessary for this conversion to be sound. The typeclass instances in
+`section LawfulActionInstances` (lines 452-541) show that all of our
+actions satisfy these properties.
 
 ### Case Studies Highlighted in the Paper (Section 4.3)
 
@@ -178,11 +224,18 @@ In order to import the Docker container, run:
 sudo docker load < veil_cav25.tar
 ```
 
+Then you can obtain a shell into the container by running:
+
+```bash
+docker run -ti --platform linux/amd64 veil:cav25 /bin/bash --login
+```
+
 Now, run Veil's basic sanity check using the following command:
 ```bash
-sudo docker run -ti --rm veil:cav25 run_quick.sh
+sh smoke_test.sh
 ```
-This should take less than a minute. The expected result is <TODO>
+
+This should take no more than 2-3 minutes.
 
 ## Full Evaluation
 

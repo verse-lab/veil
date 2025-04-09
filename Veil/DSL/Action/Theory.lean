@@ -218,8 +218,9 @@ abbrev Wp.toWlp {σ ρ : Type} {m : Mode} (wp : Wp m σ ρ) : Wlp m σ ρ :=
   fun (s : σ) (post : RProp σ ρ) => ¬ wp s (fun r s' => ¬ post r s')
 
 /-- This is an INCOMPLETE definition of the conversion from `Wp` to
-`BigStep`, since it does NOT require `Wp.terminates` (see definition
-below). Our soundness proof takes `Wp.terminates` as a precondition.
+`BigStep`, since it does NOT require `Wp.alwaysSuccessfullyTerminates`
+(see definition below). Our soundness proof takes
+`Wp.alwaysSuccessfullyTerminates` as a precondition.
 
 We nonetheless use this definition so as not to double the size of VCs
 for BMC (`trace`) queries — but this means that in the current
@@ -299,7 +300,8 @@ instance : LE (Wp m σ ρ) where
 abbrev Wp.triple {σ ρ} (req : SProp σ) (act : Wp m σ ρ) (ens : RProp σ ρ) : Prop :=
   ∀ s, req s -> act s ens
 
-/-- Always terminates without failure (i.e. without `assert False`) -/
+/-- Always terminates without failure (there are no non-deterministic
+choices that make any `assert P` fail) -/
 abbrev Wp.alwaysSuccessfullyTerminates {σ } (req : SProp σ) (act : Wp m σ ρ)  : Prop :=
   ∀ s, req s -> act s (fun _ _ => True)
 
