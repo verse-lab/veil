@@ -259,7 +259,11 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       logWarning s!"Trusting the SMT solver for {theoremStr}."
     if !unprovenTheorems.isEmpty then
       let theoremStr := if unprovenTheorems.size == 1 then "one clause is" else s!"{unprovenTheorems.size} clauses are"
-      throwError "The invariant is not inductive: {theoremStr} not preserved!"
+      let str := s!"The invariant is not inductive: {theoremStr} not preserved!"
+      if veil.failedCheckThrowsError.get (← getOptions) then
+        throwError str
+      else
+        logWarning str
   | (.wp, .checkTheoremsWithIndicators, _) => throwError "[checkTheorems] wp style is not supported for checkTheoremsWithIndicators"
   | (.transition, .checkTheoremsWithIndicators, _) =>
     let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
