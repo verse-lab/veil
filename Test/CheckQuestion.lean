@@ -40,29 +40,31 @@ safety [single_leader] leader L → le N L
 
 #gen_spec
 
-/-- info:
-@[invProof] theorem init_single_leader :
+/--
+info: @[invProof]
+  theorem init_single_leader :
       ∀ (st : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
-          (@System node node_dec node_ne tot btwn).init st →
-            (@Ring.single_leader node node_dec node_ne tot btwn) st :=
-    by (unhygienic intros); solve_clause[initSimp]
-
-@[invProof] theorem send_single_leader :
+          (@System node node_dec node_ne tot btwn).init st → (@Ring.single_leader node node_dec node_ne tot btwn) st :=
+    by ((unhygienic intros); solve_clause[initSimp]Ring.single_leader)
+  ⏎
+  @[invProof]
+  theorem send_tr_single_leader :
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.send.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); solve_clause[Ring.send.tr]
-
-@[invProof] theorem recv_single_leader :
+    by ((unhygienic intros); solve_clause[Ring.send.tr]Ring.single_leader)
+  ⏎
+  @[invProof]
+  theorem recv_tr_single_leader :
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); solve_clause[Ring.recv.tr]
+    by ((unhygienic intros); solve_clause[Ring.recv.tr]Ring.single_leader)
 -/
 #guard_msgs(whitespace := lax) in
 set_option veil.vc_gen "transition" in #check_invariants?

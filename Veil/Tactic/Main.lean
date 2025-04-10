@@ -218,12 +218,35 @@ elab_rules : tactic
   | `(tactic| sauto_all%$tk) => elabSautoAll tk
   | `(tactic| sauto_all?%$tk) => elabSautoAll tk true
 
-elab "clear_invariants" : tactic => withMainContext do
-  let g := (<- localSpecCtx.get).spec.invariants.map (·.name)
+/-- Clear all folded (i.e. not unfolded) invariants in the context. -/
+elab "clear_folded_invariants" : tactic => withMainContext do
+  let g : Array (Option Name) := (<- localSpecCtx.get).spec.invariants.map (·.name)
   let hyps <- getLCtx
-  for hyp in hyps do
-    if g.contains hyp.type.getAppFn'.constName? then
+  let hypsToClear := hyps.decls.toArray.filter (fun hyp =>
+    match hyp with
+    | some hyp => g.contains (hyp.type.getAppFn'.constName?)
+    | none => false) |> Array.map (fun hyp => hyp.get!)
+  -- logInfo s!"Clearing {hypsToClear.map (·.userName)}"
+  for hyp in hypsToClear do
       evalTactic <| <- `(tactic| try clear $(mkIdent hyp.userName):ident)
+
+def getInvariantsInSameIsolateAs (invInfo : StateAssertion) : TacticM (Array Ident) := do
+  let mut invsToUnfold := #[]
+  let isStore := (<- localSpecCtx.getIsolates).isolateStore
+  unless invInfo.isolates.isEmpty do
+    for is in invInfo.isolates do
+      invsToUnfold := invsToUnfold.append <| isStore[is]!.toArray.map mkIdent
+  return invsToUnfold
+
+elab "enforce_isolate_for_invariant" inv:ident : tactic => withMainContext do
+  let some invInfo := (<- localSpecCtx.get).spec.invariants.find? (·.name == inv.getId)
+    | throwError "Invariant {inv.getId} not found"
+  if !invInfo.isolates.isEmpty then
+    let invSimpTopLevel := mkIdent `invSimpTopLevel
+    let invsToUnfold := #[invSimpTopLevel] ++ (← getInvariantsInSameIsolateAs invInfo)
+    -- logInfo s!"Enforcing isolate for invariant {inv.getId}; unfolding {invsToUnfold.map (·.getId)}"
+    withMainContext do evalTactic $ ← `(tactic| dsimp only [$[$invsToUnfold:ident],*] at *)
+    withMainContext do evalTactic $ ← `(tactic| clear_folded_invariants)
 
 syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
 elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
@@ -237,15 +260,12 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
        mkIdent `ifSimp,
        mkIdent `exists_imp,
        mkIdent `and_imp)
-  let mut invSimpTac <- `(tactic| dsimp only [$invSimp:ident])
-  let mut clearInvs  <- `(tactic| skip)
-  let mut invsToUnfold := #[invSimpTopLevel]
-  let isStore := (<- localSpecCtx.getIsolates).isolateStore
-  unless invInfo.isolates.isEmpty do
-    for is in invInfo.isolates do
-      invsToUnfold := invsToUnfold.append <| isStore[is]!.toArray.map mkIdent
-    clearInvs <- `(tactic| clear_invariants)
-    invSimpTac <- `(tactic| dsimp only [$[$invsToUnfold:ident],*])
+  let (invSimpTac, clearInvs) ←
+    if invInfo.isolates.isEmpty then
+      pure (← `(tactic| dsimp only [$invSimp:ident]), ← `(tactic| skip))
+    else
+      let invsToUnfold := #[invSimpTopLevel] ++ (← getInvariantsInSameIsolateAs invInfo)
+      pure (← `(tactic| dsimp only [$[$invsToUnfold:ident],*]), ← `(tactic| clear_folded_invariants))
   let stateTpT ← getStateTpStx
   let simplify <- `(tacticSeq|
     dsimp only [$act:ident]
@@ -274,7 +294,12 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
 
 def elabSolveClause (stx : Syntax)
   (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent)
+  (inv : Option Name := none)
   (trace : Bool := false) : TacticM Unit := withMainContext do
+  withTraceNode `veil.smt.perf.solveClause (fun _ => return "solve_clause") do
+  if let some inv := inv then
+    let enforceIsolate ← `(tactic|simp only [invSimpTopLevel] at *; sdestruct_hyps; enforce_isolate_for_invariant $(mkIdent inv))
+    evalTactic enforceIsolate
   let (idents, xtacs) ← elabSimplifyClause simp0
   -- Sometimes the simplification solves the goal, and we don't need to
   -- `sauto`; this check needs to be before `withMainContext`, since that
@@ -290,12 +315,17 @@ def elabSolveClause (stx : Syntax)
       addSuggestion stx (← concatTacticSeq xtacs)
 
 syntax (name := solveClause) "solve_clause" : tactic
-syntax (name := solveClauseWith) "solve_clause" "[" ident,* "]" : tactic
 syntax (name := solveClauseTrace) "solve_clause?" : tactic
+
+/-- In square brackets are the action names (or simp sets like
+`initSimp` and `actSimp`) to be unfolded, and following that is the
+invariant/clause name to be proven. The latter is used to enforce
+isolates as well. -/
+syntax (name := solveClauseWith) "solve_clause" "[" ident,* "]" ident : tactic
 elab_rules : tactic
   | `(tactic| solve_clause%$tk) => elabSolveClause tk
   | `(tactic| solve_clause?%$tk) => elabSolveClause tk (trace := true)
-  | `(tactic| solve_clause%$tk [ $[$simp0],* ]) => elabSolveClause tk simp0
+  | `(tactic| solve_clause%$tk [ $[$simp0],* ] $inv:ident)   => elabSolveClause tk simp0 inv.getId
 
 
 

@@ -55,7 +55,7 @@ initialize
 inductive VCGenStyle
   | wp
   | transition
-deriving Inhabited
+deriving Inhabited, BEq
 
 instance : ToString VCGenStyle where
   toString
