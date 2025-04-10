@@ -100,6 +100,11 @@ register_option veil.smt.seed : Nat := {
   descr := "SMT seed to use"
 }
 
+register_option veil.smt.retryOnUnknown : Bool := {
+  defValue := true
+  descr := "Should the query be retried with a different SMT solver if it the first check returns `unknown`? (default: true)"
+}
+
 register_option veil.smt.timeout : Nat := {
   defValue := 5
   descr := "SMT timeout to use (in seconds)"
