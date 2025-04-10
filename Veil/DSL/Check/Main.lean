@@ -102,6 +102,7 @@ def getChecksForAction (actName : Name) : CommandElabM (Array (Name × Expr) × 
     return (#[], invChecks)
 
 def mkTheoremName (actName : Name) (invName : Name) : Name := s!"{mkStrippedName actName}_{mkStrippedName invName}".toName
+def mkTrTheoremName (actName : Name) (invName : Name) : Name := mkTheoremName (toTrName actName) invName
 
 def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
@@ -112,7 +113,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
       for invName in initIndicators.reverse do
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-        let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by (unhygienic intros); solve_clause [$(mkIdent `initSimp)])
+        let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
         let thmName := mkTheoremName `init invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $initTpStx := $body)
         theorems := theorems.push (⟨invName, .none, thmName⟩, thm)
@@ -124,7 +125,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let invStx ← `(@$(mkIdent invName) $sectionArgs*)
           let trStx ← `(@$(mkIdent trName) $sectionArgs*)
           let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by (unhygienic intros); solve_clause [$(mkIdent trName)])
+          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent trName)] $(mkIdent invName)))
           pure (trTpSyntax, body)
         | .wp =>
           let extName := toExtName actName
@@ -139,7 +140,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let extTpSyntax ← `(∀ ($st : $stateTp), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
           let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
           pure (extTpSyntax, body)
-        let thmName := mkTheoremName actName invName
+        let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
         theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
       return theorems

@@ -4,9 +4,6 @@ import Veil.DSL.Check.Main
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
-def mkTheoremFullActionName (actName : Name) (invName : Name) : Name := s!"{actName}_{mkStrippedName invName}".toName
-def mkTrTheoremName (actName : Name) (invName : Name) : Name := s!"{mkStrippedName actName}.tr_{mkStrippedName invName}".toName
-
 -- adapted from `theoremSuggestionsForChecks`
 def theoremSuggestionsForChecks' (actIndicators : List (Name × Name)): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
@@ -44,7 +41,7 @@ def theoremSuggestionsForChecks' (actIndicators : List (Name × Name)): CommandE
           pure (trTpSyntax, body)
         let thmName := mkTrTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := by $body)
-        trace[veil.debug] "{thm}"
+        trace[veil.debug] "{thmName} ({thmName.components}) | {thm}"
         theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
       return theorems
 
@@ -69,7 +66,11 @@ def recoverInvariantsInTrStyle : CommandElabM Unit := do
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
   let allTheorems ← theoremSuggestionsForIndicators' actIndicators invIndicators
   for (thmId, cmd) in allTheorems do
-    elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
+    -- if the `tr` theorem hasn't been proven yet, we can recover it from `wp`
+    if (← resolveGlobalName thmId.theoremName).isEmpty then
+      elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
+    else
+      trace[veil.info] s!"{thmId.theoremName} has already been proven in transition mode; not recovering it from wp"
 
 syntax "#recover_invariants_in_tr" : command
 
@@ -83,7 +84,7 @@ def elabAlreadyProven (trName : Name) : TacticM Unit := withMainContext do
   let ty ← instantiateMVars ty      -- this is usually required
   let inv := ty.getAppFn'
   let .some (invName, _) := inv.const? | throwError "the goal {ty} is not about an invariant clause? got {inv}, expect it to be a const"
-  let thmName := if trName == `init then mkTheoremName trName invName else mkTheoremFullActionName trName invName
+  let thmName := mkTheoremName trName invName
   let attempt ← `(tactic| (apply $(mkIdent thmName) <;> assumption) )
   evalTactic attempt
 

@@ -144,7 +144,7 @@ instance : ToString StateAssertionKind where
 structure StateAssertion where
   kind : StateAssertionKind
   name : Name
-  /-- Set of isolates where this invariant is contained -/
+  /-- Set of isolates that were open when this invariant was defined -/
   isolates : List Name := []
   /-- Lean term for this predicate -/
   term : Option (TSyntax `term)

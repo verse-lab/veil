@@ -72,25 +72,27 @@ info: @[invProof]
       ∀ (st : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).init st → (@Ring.indv_true node node_dec node_ne tot btwn) st :=
-    by (unhygienic intros); solve_clause[initSimp]
+    by ((unhygienic intros); solve_clause[initSimp]Ring.indv_true)
   ⏎
   @[invProof]
-  theorem recv_single_leader :
+  theorem recv_tr_single_leader :
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); solve_clause[Ring.recv.tr]
+    by ((unhygienic intros); solve_clause[Ring.recv.tr]Ring.single_leader)
   ⏎
   @[invProof]
-  theorem ruin_inv_indv_true :
+  theorem ruin_inv_tr_indv_true :
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.ruin_inv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.indv_true node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); solve_clause[Ring.ruin_inv.tr]
+    by ((unhygienic intros); solve_clause[Ring.ruin_inv.tr]Ring.indv_true)
+  ⏎
+  ⏎
 ---
 info: Run with `set_option veil.printCounterexamples true` to print counter-examples.
 ---
