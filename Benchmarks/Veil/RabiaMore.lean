@@ -44,7 +44,83 @@ set_option veil.smt.timeout 120
 -- Instead of this:
 -- #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
 -- We found that this is faster:
-#time set_option veil.vc_gen "transition" in #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+-- #time set_option veil.vc_gen "transition" in #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+
+
+/- NOTE for Artifact Reviewers:
+
+On our (MacBook Pro, M4 processor, 32GB RAM) machine, we ran one of the two
+commented-out commands above (either works) to verify the non-`protocol`
+isolates in the Rabia specification. This completed without any errors or
+timeouts in ~2.5 minutes.
+
+However, we found that on a different machine (Thinkpad X1 Carbon, 13th Gen
+Intel(R) Core(TM) i7-1370P, 64GB RAM), these reliably timed out on some
+sub-goals. We suspect this might be the case on other `amd64` machines as well,
+so in the interest of increasing reproducibility, we provide instead a different
+approach of proving the same final theorem:
+
+- We first prove `phase_rnd2_good_succ_good` with the `BigStep` (in fact,
+  `TwoState` – we don't care about `action` return values) semantics.
+
+- We then prove all other invariants in the `wrapperN` isolates in the `WP`
+  semantics and use the `#recover_invariants_in_tr` command to soundly (via the
+  `TwoState_sound'_ret_unit'` theorem) 'lift' these `WP`-style theorems into
+  `tr`-style theorems.
+
+=> The end result is equivalent to running either:
+
+```lean
+#check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+#recover_invariants_in_tr
+```
+
+OR
+
+```lean
+set_option veil.vc_gen "transition" in #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+```
+
+(these have the same behavior)
+
+However, that the approach below, will produce an `unknown` (❓) result for
+`phase_rnd2_good_succ_good` in the `WP` semantics. This is OK, as that theorem
+is not generated and not used in any way. We run this check with
+`set_option veil.failedCheckThrowsError false` to proceed despite the `unknown`
+result. The rest of the file compiles without any errors.
+
+-/
+
+#time
+@[invProof]
+theorem phase_rnd2_tr_good_succ_good :
+    ∀ (st st' : @State node set_majority set_f_plus_1 phase proposal_value state_value),
+      (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+              set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+              proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+              tv).assumptions
+          st →
+        (@System node node_dec node_ne set_majority set_majority_dec set_majority_ne set_f_plus_1
+                set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec phase_ne tot proposal_value
+                proposal_value_dec proposal_value_ne state_value state_value_dec state_value_ne
+                tv).inv
+            st →
+          (@Rabia.phase_rnd2.tr node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st st' →
+            (@Rabia.good_succ_good node node_dec node_ne set_majority set_majority_dec
+                set_majority_ne set_f_plus_1 set_f_plus_1_dec set_f_plus_1_ne bg phase phase_dec
+                phase_ne tot proposal_value proposal_value_dec proposal_value_ne state_value
+                state_value_dec state_value_ne tv)
+              st' :=
+  by ((unhygienic intros); solve_clause[Rabia.phase_rnd2.tr]Rabia.good_succ_good)
+
+set_option veil.smt.retryOnUnknown false
+set_option veil.failedCheckThrowsError false in
+#time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+
 -- Lift to `tr` style those theorems that were originally proven in `wp` style
 #time #recover_invariants_in_tr
 
