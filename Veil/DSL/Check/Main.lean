@@ -1,4 +1,5 @@
 import Lean
+import Veil.Base
 import Veil.Tactic.Main
 import Veil.DSL.Internals.Attributes
 import Veil.DSL.Internals.StateExtensions
@@ -8,17 +9,6 @@ import Veil.Util.SMT
 import Veil.DSL.Specification.SpecDef
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
-
-/-- We support two styles of verification condition generation:
-  - `wp`, which is what Ivy does
-  - `transition`, which is what mypyvy does
-
-  The `transition` style is more general, but `wp` generates smaller, usually
-  better queries.
--/
-inductive VCGenStyle
-  | wp
-  | transition
 
 inductive CheckStyle
   /-- Do not check any theorems. Used to only print suggestions. -/
@@ -63,9 +53,17 @@ def ProofResult.isAdmitted (res : ProofResult) : Bool := match res with
   | _ => false
 
 def CheckInvariantsBehaviour := VCGenStyle × CheckStyle × TheoremSuggestionStyle
-def CheckInvariantsBehaviour.default (style : VCGenStyle := .wp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .doNotPrint)
-def CheckInvariantsBehaviour.question (style : VCGenStyle := .wp) : CheckInvariantsBehaviour := (style, .noCheck, .printAllTheorems)
-def CheckInvariantsBehaviour.exclamation (style : VCGenStyle := .wp) : CheckInvariantsBehaviour := (style, .checkTheoremsIndividually, .printUnverifiedTheorems)
+def CheckInvariantsBehaviour.default [Monad m] [MonadOptions m] : m CheckInvariantsBehaviour := do
+  let vcGen := veil.vc_gen.get (← getOptions)
+  return (vcGen, .checkTheoremsIndividually, .doNotPrint)
+
+def CheckInvariantsBehaviour.question [Monad m] [MonadOptions m] : m CheckInvariantsBehaviour := do
+  let vcGen := veil.vc_gen.get (← getOptions)
+  return (vcGen, .noCheck, .printAllTheorems)
+
+def CheckInvariantsBehaviour.exclamation [Monad m] [MonadOptions m] : m CheckInvariantsBehaviour := do
+  let vcGen := veil.vc_gen.get (← getOptions)
+  return (vcGen, .checkTheoremsIndividually, .printUnverifiedTheorems)
 
 /--  Generate theorems to check in the initial state and after each action -/
 def getAllChecks (isolates : NameHashSet := ∅) : CommandElabM (Array (Name × Expr) × Array ((Name × Expr) × (Name × Expr))) := Command.runTermElabM fun _ => do
@@ -188,7 +186,7 @@ def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) 
 def Lean.MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
   msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
 
-def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) :
+def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour) :
   CommandElabM Unit := do
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
@@ -375,28 +373,19 @@ were not proved automatically. Uses `wlp` VC style. -/
 syntax "#check_isolates!" ident* : command
 
 
-/-- Check all invariants and print result of each check. Uses `tr` VC
-style. -/
-syntax "#check_invariants_tr" : command
-/-- Suggest theorems to check all invariants. Uses `tr` VC style. -/
-syntax "#check_invariants_tr?" : command
-/-- Check all invariants and suggest only theorems that
-were not proved automatically. Uses `tr` VC style. -/
-syntax "#check_invariants_tr!" : command
-
 /-- Legacy code: generates a mega-query with indicator variables and
 checks each action-invariant pair with a separate `check-sat-assuming`
 query. -/
 syntax "#check_invariants_indicators" : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
-def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default)
+def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour)
   (isolate : NameHashSet := ∅) : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; warnIfNoInvariantsDefined; warnIfNoActionsDefined)
   let (initChecks, actChecks) ← getAllChecks isolate
   checkTheorems stx initChecks actChecks behaviour
 
-def checkIsolate (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default)
+def checkIsolate (stx : Syntax) (behaviour : CheckInvariantsBehaviour)
   (isolates : Array Ident) : CommandElabM Unit := do
   for iso in isolates do
     unless (<- localSpecCtx.getIsolates).isolateStore.contains iso.getId do
@@ -404,63 +393,48 @@ def checkIsolate (stx : Syntax) (behaviour : CheckInvariantsBehaviour := CheckIn
   checkInvariants stx behaviour (isolate := Std.HashSet.ofArray <| isolates.map TSyntax.getId)
 
 elab_rules : command
-  | `(command| #check_invariants)  => do checkInvariants (← getRef) (behaviour := .default)
-  | `(command| #check_invariants?) => do checkInvariants (← getRef) (behaviour := .question)
-  | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := .exclamation)
-  | `(command| #check_isolate $is)  => do checkIsolate (← getRef) (behaviour := .default) (isolates := #[is])
-  | `(command| #check_isolate? $is) => do checkIsolate (← getRef) (behaviour := .question) (isolates := #[is])
-  | `(command| #check_isolate! $is) => do checkIsolate (← getRef) (behaviour := .exclamation) (isolates := #[is])
-  | `(command| #check_isolates $is*)  => do checkIsolate (← getRef) (behaviour := .default) (isolates := is)
-  | `(command| #check_isolates? $is*) => do checkIsolate (← getRef) (behaviour := .question) (isolates := is)
-  | `(command| #check_isolates! $is*) => do checkIsolate (← getRef) (behaviour := .exclamation) (isolates := is)
-  | `(command| #check_invariants_tr)  => do checkInvariants (← getRef) (behaviour := .default .transition)
-  | `(command| #check_invariants_tr?) => do checkInvariants (← getRef) (behaviour := .question .transition)
-  | `(command| #check_invariants_tr!) => do checkInvariants (← getRef) (behaviour := .exclamation .transition)
+  | `(command| #check_invariants)  => do checkInvariants (← getRef) (behaviour := ← CheckInvariantsBehaviour.default)
+  | `(command| #check_invariants?) => do checkInvariants (← getRef) (behaviour := ← CheckInvariantsBehaviour.question)
+  | `(command| #check_invariants!) => do checkInvariants (← getRef) (behaviour := ← CheckInvariantsBehaviour.exclamation)
+  | `(command| #check_isolate $is)  => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.default) (isolates := #[is])
+  | `(command| #check_isolate? $is) => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.question) (isolates := #[is])
+  | `(command| #check_isolate! $is) => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.exclamation) (isolates := #[is])
+  | `(command| #check_isolates $is*)  => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.default) (isolates := is)
+  | `(command| #check_isolates? $is*) => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.question) (isolates := is)
+  | `(command| #check_isolates! $is*) => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.exclamation) (isolates := is)
   | `(command| #check_invariants_indicators) => do checkInvariants (← getRef) (behaviour := (.transition, .checkTheoremsWithIndicators, .doNotPrint))
 
 /- ## `#check_invariant` -/
 syntax "#check_invariant" ident : command
 syntax "#check_invariant?" ident : command
 syntax "#check_invariant!" ident : command
-syntax "#check_invariant_tr" ident : command
-syntax "#check_invariant_tr?" ident : command
-syntax "#check_invariant_tr!" ident : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command limited to a single invariant. -/
-def checkInvariant (stx : Syntax) (invName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
+def checkInvariant (stx : Syntax) (invName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour) : CommandElabM Unit := do
   liftCoreM errorIfStateNotDefined
   let (initChecks, actChecks) ← getChecksForInvariant invName.getId
   checkTheorems stx initChecks actChecks behaviour
 
 elab_rules : command
-  | `(command| #check_invariant $invName)  => do checkInvariant (← getRef) invName (behaviour := .default)
-  | `(command| #check_invariant? $invName) => do checkInvariant (← getRef) invName (behaviour := .question)
-  | `(command| #check_invariant! $invName) => do checkInvariant (← getRef) invName (behaviour := .exclamation)
-  | `(command| #check_invariant_tr $invName)  => do checkInvariant (← getRef) invName (behaviour := .default .transition)
-  | `(command| #check_invariant_tr? $invName) => do checkInvariant (← getRef) invName (behaviour := .question .transition)
-  | `(command| #check_invariant_tr! $invName) => do checkInvariant (← getRef) invName (behaviour := .exclamation .transition)
+  | `(command| #check_invariant $invName)  => do checkInvariant (← getRef) invName (behaviour := ← CheckInvariantsBehaviour.default)
+  | `(command| #check_invariant? $invName) => do checkInvariant (← getRef) invName (behaviour := ← CheckInvariantsBehaviour.question)
+  | `(command| #check_invariant! $invName) => do checkInvariant (← getRef) invName (behaviour := ← CheckInvariantsBehaviour.exclamation)
 
 /- ## `#check_action` -/
 syntax "#check_action" ident : command
 syntax "#check_action?" ident : command
 syntax "#check_action!" ident : command
-syntax "#check_action_tr" ident : command
-syntax "#check_action_tr?" ident : command
-syntax "#check_action_tr!" ident : command
 
 /-- Prints output similar to that of Ivy's `ivy_check` command limited to a single action. -/
-def checkAction (stx : Syntax) (actName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour := CheckInvariantsBehaviour.default) : CommandElabM Unit := do
+def checkAction (stx : Syntax) (actName : TSyntax `ident) (behaviour : CheckInvariantsBehaviour) : CommandElabM Unit := do
   liftCoreM errorIfStateNotDefined
   let (initChecks, actChecks) ← getChecksForAction actName.getId
   checkTheorems stx initChecks actChecks behaviour
 
 elab_rules : command
-  | `(command| #check_action $actName)  => do checkAction (← getRef) actName (behaviour := .default)
-  | `(command| #check_action? $actName) => do checkAction (← getRef) actName (behaviour := .question)
-  | `(command| #check_action! $actName) => do checkAction (← getRef) actName (behaviour := .exclamation)
-  | `(command| #check_action_tr $actName)  => do checkAction (← getRef) actName (behaviour := .default .transition)
-  | `(command| #check_action_tr? $actName) => do checkAction (← getRef) actName (behaviour := .question .transition)
-  | `(command| #check_action_tr! $actName) => do checkAction (← getRef) actName (behaviour := .exclamation .transition)
+  | `(command| #check_action $actName)  => do checkAction (← getRef) actName (behaviour := ← CheckInvariantsBehaviour.default)
+  | `(command| #check_action? $actName) => do checkAction (← getRef) actName (behaviour := ← CheckInvariantsBehaviour.question)
+  | `(command| #check_action! $actName) => do checkAction (← getRef) actName (behaviour := ← CheckInvariantsBehaviour.exclamation)
 
 open Tactic in
 /-- Try to solve the goal using one of the already proven invariant clauses,

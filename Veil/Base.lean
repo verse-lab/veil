@@ -45,9 +45,44 @@ initialize
 
 /-! ## Options -/
 
+/-- We support two styles of verification condition generation:
+  - `wp`, which is what Ivy does
+  - `transition`, which is what mypyvy does
+
+  The `transition` style is more general, but `wp` generates smaller, usually
+  better queries.
+-/
+inductive VCGenStyle
+  | wp
+  | transition
+deriving Inhabited
+
+instance : ToString VCGenStyle where
+  toString
+    | .wp => "wp"
+    | .transition => "transition"
+
+instance : Lean.KVMap.Value VCGenStyle where
+  toDataValue n := toString n
+  ofDataValue?
+  | "wp"  => some .wp
+  | "transition" => some .transition
+  | _     => none
+
+
+register_option veil.perf.profile.checkInvariants : Bool := {
+  defValue := false
+  descr := "Profile performance of Veil's `#check_invariants`."
+}
+
 register_option veil.gen_sound : Bool := {
   defValue := false
   descr := "Generate soundness instances for actions."
+}
+
+register_option veil.vc_gen : VCGenStyle := {
+  defValue := .wp
+  descr := "Verification condition generation style: wp or transition (default: wp)"
 }
 
 register_option veil.printCounterexamples : Bool := {

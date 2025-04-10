@@ -65,6 +65,6 @@ safety [single_leader] leader L → le N L
     by (unhygienic intros); solve_clause[Ring.recv.tr]
 -/
 #guard_msgs(whitespace := lax) in
-#check_invariants_tr?
+set_option veil.vc_gen "transition" in #check_invariants?
 
 end Ring
