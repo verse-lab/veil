@@ -53,7 +53,7 @@ invariant [manual_3] ¬ (S ≠ T ∧ msg Y S ∧ msg Y T ∧ ¬ le T (epoch Y) �
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 
 

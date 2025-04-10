@@ -203,6 +203,6 @@ invariant [honest_non_conflicting_votes]
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 end ReliableBroadcast

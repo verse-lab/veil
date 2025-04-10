@@ -153,6 +153,6 @@ invariant [join_ack_msg_property3] join_ack_msg N R RP V ∧ V ≠ none → vote
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 end VerticalPaxosFirstOrder

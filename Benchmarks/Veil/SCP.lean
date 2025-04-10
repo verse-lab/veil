@@ -222,6 +222,6 @@ invariant ∀ N B V1 V2, well_behaved N ∧ accepted_prepared N B V1 ∧ accepte
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 end SCP

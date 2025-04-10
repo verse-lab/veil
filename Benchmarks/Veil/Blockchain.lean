@@ -103,7 +103,7 @@ invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ transaction_time TR1 TI1  ∨
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 
 end Blockchain

@@ -112,6 +112,6 @@ invariant [choosable_proposal] (∀ (R1:round) (R2:round) (V1:value) (V2:value) 
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 end PaxosFirstOrder

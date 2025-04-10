@@ -123,6 +123,6 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 end SuzukiKasami

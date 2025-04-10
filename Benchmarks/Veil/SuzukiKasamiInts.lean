@@ -133,7 +133,7 @@ unsat trace {
 
 
 set_option veil.smt.finiteModelFind false in
-#check_invariants
+#time #check_invariants
 
 @[invProof]
   theorem enter_mutex_manual :

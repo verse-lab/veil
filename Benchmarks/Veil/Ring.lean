@@ -47,7 +47,7 @@ invariant pending L L → le N L
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 
 end Ring

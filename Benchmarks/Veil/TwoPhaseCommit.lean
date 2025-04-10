@@ -92,6 +92,6 @@ invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 end TwoPhaseCommit

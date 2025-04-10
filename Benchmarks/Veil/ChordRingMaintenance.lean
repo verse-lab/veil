@@ -159,6 +159,6 @@ invariant [manual_17] ¬ (s1 V0 V1 ∧ V1 ≠ org ∧ s2 V0 V2 ∧ ring.btw V0 o
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 end ChordRing

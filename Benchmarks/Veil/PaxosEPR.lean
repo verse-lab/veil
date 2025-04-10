@@ -117,7 +117,7 @@ invariant [oneb_leftrnd] one_b N R2 ∧ ¬tot.le R2 R1 -> left_rnd N R1
 
 #gen_spec
 
-#check_invariants
+#time #check_invariants
 
 
 end PaxosEPR
