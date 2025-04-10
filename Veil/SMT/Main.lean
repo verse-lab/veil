@@ -62,7 +62,7 @@ def failureGoalStr : String := "solver invocation failed"
     -- UNLESS the `veil.smt.translator` option overrides this behaviour.
     let translatorToUse := veil.smt.translator.get opts
     let originalCmdString ← cmdString translatorToUse
-    let res ← Veil.SMT.querySolver originalCmdString withTimeout (retryOnUnknown := true)
+    let res ← Veil.SMT.querySolver originalCmdString withTimeout (retryOnUnknown := veil.smt.retryOnUnknown.get opts)
     match res with
     -- this shouldn't happen
     | .Sat none => throwError s!"{satGoalStr}"
