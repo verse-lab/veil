@@ -9,6 +9,25 @@ import Veil.SMT.Main
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis
 
+-- Copied from Mathlib's [`rename'` tactic ](https://github.com/leanprover-community/mathlib4/blob/25ffff65d07b0c88e418c1ecf26701808e521196/Mathlib/Tactic/Rename.lean#L22-L25)
+syntax renameArg := term " => " ident
+syntax (name := renameHyp) "rename_hyp " renameArg,+ : tactic
+
+elab_rules : tactic
+  | `(tactic| rename_hyp $[$as:term => $bs:ident],*) => do
+    let ids ← getFVarIds as
+    liftMetaTactic1 fun goal ↦ do
+      let mut lctx ← getLCtx
+      for fvar in ids, tgt in bs do
+        lctx := lctx.setUserName fvar tgt.getId
+      let mvarNew ← mkFreshExprMVarAt lctx (← getLocalInstances)
+        (← goal.getType) MetavarKind.syntheticOpaque (← goal.getTag)
+      goal.assign mvarNew
+      pure mvarNew.mvarId!
+    withMainContext do
+      for fvar in ids, tgt in bs do
+        Elab.Term.addTermInfo' tgt (mkFVar fvar)
+
 /-- Destruct a structure into its fields. -/
 elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
   if ids.size == 0 then
@@ -25,6 +44,18 @@ elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
     let newFieldNames := _sinfo.fieldNames.map (mkIdent $ name ++ ·)
     let s <- `(rcasesPat| ⟨ $[$newFieldNames],* ⟩)
     evalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident with $s)
+    -- Try to give better names to the new hypotheses if they are invariant clauses
+    withMainContext do
+    let lctx ← getLCtx
+    let invs := Std.HashSet.ofArray $ (<- localSpecCtx.get).spec.invariants.map (·.name)
+    for hypIdent in newFieldNames do
+      let name' := getNameOfIdent' hypIdent
+      let .some ld := lctx.findFromUserName? name' | return
+      let .some app := ld.type.getAppFn.constName? | return
+      if invs.contains app then
+        let baseName := name.components[0]!
+        let newName := mkIdent $ baseName ++ app
+        evalTactic $ ← `(tactic| rename_hyp $hypIdent => $newName)
 
 /-- Split the goal into sub-goals. -/
 elab "sdestruct_goal" : tactic => withMainContext do
