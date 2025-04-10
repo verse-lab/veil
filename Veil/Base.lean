@@ -90,6 +90,11 @@ register_option veil.printCounterexamples : Bool := {
   descr := "Print counterexamples (models) when they are found in `#check_invariants`."
 }
 
+register_option veil.failedCheckThrowsError : Bool := {
+  defValue := true
+  descr := "Throw an error if a check fails? (default: true)"
+}
+
 register_option veil.smt.solver : SmtSolver := {
   defValue := SmtSolver.cvc5
   descr := "SMT solver to use (default: cvc5)"
