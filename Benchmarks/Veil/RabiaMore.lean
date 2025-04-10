@@ -40,8 +40,12 @@ instance : TotalOrderWithMinimum Nat where
 veil module Rabia
 
 set_option veil.smt.timeout 120
-#time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
 
+-- Instead of this:
+-- #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+-- We found that this is faster:
+#time set_option veil.vc_gen "transition" in #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+-- Lift to `tr` style those theorems that were originally proven in `wp` style
 #time #recover_invariants_in_tr
 
 prove_inv_inductive by {

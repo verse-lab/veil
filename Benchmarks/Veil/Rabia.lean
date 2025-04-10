@@ -278,6 +278,6 @@ close_isolate
 set_option maxHeartbeats 8000000
 set_option veil.smt.timeout 120
 
-#check_isolate protocol
+#time #check_isolate protocol
 
 end Rabia
