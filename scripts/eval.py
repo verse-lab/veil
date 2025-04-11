@@ -62,7 +62,9 @@ def run_ivy(lean_file: str) -> dict[str, float]:
     if output.returncode == TIMEOUT_RETURN_CODE:
         print(f"Ivy timed out after {IVY_TIMEOUT_SEC} seconds", file=sys.stderr)
         return {"total_ivy_time": TIMEOUT_MARKER_VAL}
-    assert output.returncode == 0, f"Failed to run {cmd}: {output.stderr.decode('utf-8')}"
+    if output.returncode != 0:
+        print(f"Failed to run {cmd} (return code {output.returncode}): {output.stderr.decode('utf-8')}", file=sys.stderr)
+        return {"total_ivy_time": TIMEOUT_MARKER_VAL}
     total_ivy_time = ivy_end - ivy_start
     return {"total_ivy_time": total_ivy_time}
 
