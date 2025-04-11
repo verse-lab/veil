@@ -51,7 +51,7 @@ Core(TM) i7-1370P processor and 64GB of RAM.
 ## Structure and Contents
 
 The Docker image contains Veil's implementation in `/root/veil`, which
-consists of four major directories and their subdirectories:
+consists of five major directories and their subdirectories:
 
 - `Veil/`: the implementation of Veil,
   - `Veil/Base.lean`: defines all the options for Veil
@@ -87,6 +87,7 @@ consists of four major directories and their subdirectories:
   evaluation script on our machine
 - `Tutorial/Ring.lean` is a heavily-commented **tutorial** example of
 Veil, highlighting the main features of the framework
+- `logs/` contains the logs of our execution of the evaluation script
 
 Ivy's sources from commit
 [dbe45e7f](https://github.com/kenmcmil/ivy/commit/dbe45e7fc5769170b92492b70827d1cf7efb7972)
@@ -224,7 +225,7 @@ the Docker image.
 In order to import the Docker container, run:
 
 ```bash
-sudo docker load < veil_cav25.tar
+sudo docker load < veil_cav25.tar.gz
 ```
 
 Then you can obtain a shell into the container by running:
@@ -270,9 +271,29 @@ to Veil's runtime
 we show in the paper (Fig. 5); note that the actual runtimes are
 written on top of the bars (normalization is only for sizing the bars)
 
-## Full Evaluation
+If you have time, we recommend running a single evaluation run (~30
+minutes) during the smoke testing phase as well. This will produce
+exactly the same figure as in the paper, but with only 1 execution of
+the benchmarks rather than the 5 in the full evaluation.
 
-For the full evaluation, run the following command:
+## Evaluation
+
+### Single Evaluation Run
+
+To perform a single evaluation, run:
+
+```bash
+sh evaluate_once.sh
+```
+
+This will take about 30 minutes, and run both Veil and Ivy, generating
+the same files as the smoke test, but with prefix `evaluate_once_` and
+with the full set of benchmarks.
+
+### Full Evaluation
+
+For the full evaluation (which repeats the above 5 times), run the
+following command:
 
 ```bash
 sh evaluate_all.sh
@@ -295,6 +316,9 @@ the Figure 5 used in the paper from our execution results by running:
 ```bash
 python3 scripts/eval.py ./logs/evaluate_all_results.json --output-file fig.pdf
 ```
+
+(You can copy the resulting `fig_normalized.pdf` into `/tmp/output` for
+easier access on the host machine.)
 
 ## Badge Checklist
 
