@@ -28,12 +28,12 @@ COPY ./lake-manifest.json /root/veil/lake-manifest.json
 COPY ./lakefile.lean /root/veil/lakefile.lean
 COPY ./lean-toolchain /root/veil/lean-toolchain
 COPY ./LICENSE /root/veil/LICENSE
-COPY ./*.lean /root/veil/
+COPY ./Veil.lean /root/veil/Veil.lean
 
 SHELL ["/bin/bash", "--login", "-c"]
 
 WORKDIR /root/veil
-RUN lake clean && lake build
+RUN lake build
 
 COPY ./lakefile.lean /root/veil/lakefile.lean
 COPY ./Benchmarks /root/veil/Benchmarks
@@ -45,7 +45,6 @@ RUN lake build Benchmarks.Veil.MultiSigMajority
 RUN lake build Benchmarks.Veil.PaxosEPR
 RUN lake build Benchmarks.Veil.PaxosFirstOrder
 RUN lake build Benchmarks.Veil.Rabia
-RUN lake build Benchmarks.Veil.RabiaMore
 RUN lake build Benchmarks.Veil.ReliableBroadcast
 RUN lake build Benchmarks.Veil.RicartAgrawala
 RUN lake build Benchmarks.Veil.Ring
@@ -55,6 +54,8 @@ RUN lake build Benchmarks.Veil.SuzukiKasami
 RUN lake build Benchmarks.Veil.SuzukiKasamiInts
 RUN lake build Benchmarks.Veil.TwoPhaseCommit
 RUN lake build Benchmarks.Veil.VerticalPaxosFirstOrder
+
+RUN lake build Benchmarks.Veil.RabiaMore
 
 COPY ./*.sh /root/veil/
 COPY ./scripts /root/veil/scripts
