@@ -132,4 +132,17 @@ lean_lib «Veil» {
 
 lean_lib Benchmarks {
   globs := #[.submodules `Benchmarks.Veil]
+  /- NOTE to Artifact Reviewers:
+
+  In our native benchmarking on a Macbook Pro M4, we ran the benchmarks with
+  Veil's default per-query timeout of 5 seconds, as mentioned in the paper.
+
+  On other machines, this seems to produce spurious timeouts on some goals, so
+  we increase it to 30 seconds to aid reproducibility of results. Feel free to
+  manually set the value to `5`, but increase it if you see `unknown` results
+  when running `lake build Benchmarks`.
+
+  Make sure you also change the value in `scripts/eval.py`.
+  -/
+  leanOptions := #[⟨`weak.veil.smt.timeout, .ofNat 30⟩]
 }

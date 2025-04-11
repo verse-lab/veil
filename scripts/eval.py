@@ -22,6 +22,17 @@ PATTERN_QUERY = re.compile(r"\[veil\.smt\.perf\.query\] \[(\d+\.\d+)\] querySolv
 PATTERN_OVERALL = re.compile(r"\[veil\.perf\.checkInvariants\] \[(\d+\.\d+)\] checkInvariants")
 
 IVY_TIMEOUT_SEC = 300
+# NOTE to Artifact Reviewers:
+#
+# In our native benchmarking on a Macbook Pro M4, we ran the benchmarks with
+# Veil's default per-query timeout of 5 seconds, as mentioned in the paper.
+
+# On other machines, this seems to produce spurious timeouts on some goals, so we
+# increase it to 30 seconds to aid reproducibility of results. Feel free to
+# manually set the value to `5`, but increase it if you see `unknown` results when
+# running `lake build Benchmarks`.
+VEIL_PER_QUERY_TIMEOUT_SEC = 30
+
 TIMEOUT_RETURN_CODE = 124
 
 TIMEOUT_MARKER_VAL = 0.0
@@ -32,7 +43,9 @@ EXTRA_IVY_ARGS = {
     "VerticalPaxosFirstOrder.ivy": ["complete=fo"],
     "ReliableBroadcast.ivy": ["complete=fo"],
     # as recommended in the [instructions](https://github.com/haochenpan/rabia/blob/main/proofs/README)
-    # the `isolate=protocol` corresponds to checking just what we have ported to Veil
+    # the `isolate=protocol` corresponds to the check in `Rabia.lean`;
+    # the other isolates are checked in `RabiaMore.lean` and are used
+    # in the Coq/Rocq proofs that we have ported to Lean
     "Rabia.ivy": ["isolate=protocol"],
 }
 
@@ -60,7 +73,7 @@ def run_file(filepath: str) -> dict[str, float]:
     print(f"Running Lean on {filepath} (and measuring #check_invariants)", file=sys.stderr)
     # IMPORTANT: `lake build` does nothing on repeat, so we use `lake lean` instead
     # leanModPath = f.replace("/", ".").removesuffix(".lean"); cmd = ["lake", "build", leanModPath]
-    cmd = ["lake", "lean", filepath, "--", "-Dweak.veil.perf.profile.checkInvariants=true"]
+    cmd = ["lake", "lean", filepath, "--", "-Dweak.veil.perf.profile.checkInvariants=true", f"-Dweak.veil.smt.timeout={VEIL_PER_QUERY_TIMEOUT_SEC}"]
     output = subprocess.run(cmd, capture_output=True)
     assert output.returncode == 0, f"Failed to run {cmd}: {output.stderr.decode('utf-8')}"
     stdout = output.stdout.decode("utf-8")
