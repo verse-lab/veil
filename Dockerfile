@@ -37,7 +37,27 @@ RUN lake clean && lake build
 
 COPY ./lakefile.lean /root/veil/lakefile.lean
 COPY ./Benchmarks /root/veil/Benchmarks
-RUN lake build Benchmarks
+RUN lake build Benchmarks.Veil.Blockchain
+RUN lake build Benchmarks.Veil.ChordRingMaintenance
+RUN lake build Benchmarks.Veil.DecentralizedLock
+RUN lake build Benchmarks.Veil.MultiSigAll
+RUN lake build Benchmarks.Veil.MultiSigMajority
+RUN lake build Benchmarks.Veil.PaxosEPR
+RUN lake build Benchmarks.Veil.PaxosFirstOrder
+RUN lake build Benchmarks.Veil.Rabia
+RUN lake build Benchmarks.Veil.RabiaMore
+RUN lake build Benchmarks.Veil.ReliableBroadcast
+RUN lake build Benchmarks.Veil.RicartAgrawala
+RUN lake build Benchmarks.Veil.Ring
+RUN lake build Benchmarks.Veil.SCP
+RUN lake build Benchmarks.Veil.SCPTheory
+RUN lake build Benchmarks.Veil.SuzukiKasami
+RUN lake build Benchmarks.Veil.SuzukiKasamiInts
+RUN lake build Benchmarks.Veil.TwoPhaseCommit
+RUN lake build Benchmarks.Veil.VerticalPaxosFirstOrder
 
 COPY ./*.sh /root/veil/
 COPY ./scripts /root/veil/scripts
+COPY ./logs /root/veil/logs
+COPY ./README_artifact.md ./root/veil/README.md
+COPY ./README.md /root/veil/Veil_README.md
