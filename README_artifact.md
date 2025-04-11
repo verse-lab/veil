@@ -19,13 +19,29 @@ on GitHub at
 
 ## Requirements
 
-We recommend running this artifact on a machine with at least 4 CPU
-cores and at least 16 GB of RAM.
+We have tested this artifact on an `arm64` 2024 MacBook Pro with an M4
+processor and 32 GB of RAM and a `amd64`Thinkpad X1 Carbon with a 13th
+Gen Intel(R) Core(TM) i7-1370P processor and 64GB of RAM. We recommend
+running this artifact on a machine with at least 4 CPU cores and at
+least 16 GB of RAM.
 
-The artifact Docker image comes with all dependencies downloaded and
-Veil and Ivy already compiled (for archival purposes). Running the
-artifact does not require an Internet connection. However, if you `lake
-clean`, a further `lake build` will require an Internet connection.
+The artifact comes with two Docker images that include all dependencies
+and have Veil and Ivy already compiled (for archival purposes):
+
+- `veil_cav25-arm64.tar.gz` is an image for `arm64` architectures (e.g.
+M1 Macs)
+  - **IMPORTANT NOTE:** we found that the Linux `arm64` build of Ivy
+  often segfaults (seemingly due to Z3); our evaluation scripts still
+  try to run Ivy, but if Ivy crashes, this will be reported as a
+  timeout. (Our actual evaluation was done natively on a `arm64` Mac OS
+  machine — not Linux — and was not affected by this issue.)
+
+- `veil_cav25-amd64.tar.gz` is an image for `amd64` architectures
+(e.g. Intel Macs, PCs)
+
+Running the artifact does not require an Internet connection. However,
+if you `lake clean`, a further `lake build` will require an Internet
+connection.
 
 Time required for various tasks is as follows:
 
@@ -44,9 +60,114 @@ cycle of the full evaluation) takes around 30 minutes;
 evaluation, i.e. 5 repeats, averaging the results) takes around 2.5
 hours.
 
-We have tested this artifact on a 2024 MacBook Pro with an M4 processor
-and 32 GB of RAM and a Thinkpad X1 Carbon with a 13th Gen Intel(R)
-Core(TM) i7-1370P processor and 64GB of RAM.
+## Set Up and Smoke Test
+
+The artifact for Veil is a x86 Ubuntu Docker image containing Lean
+v4.16.0 along with Veil and its benchmark sets depicted in Figure 5,
+and [Ivy](https://github.com/kenmcmil/ivy) for our baseline. For
+convenience, the source code for Veil is also attached separate from
+the Docker image.
+
+In order to import the Docker container, run:
+
+```bash
+sudo docker load < veil_cav25-<your platform>.tar.gz
+```
+
+... where `<your platform>` is either `arm64` or `amd64` (i.e. x86-64).
+
+Then you can obtain a shell into the container by running:
+
+```bash
+docker run -it --volume ./container-output:/tmp/output veil:cav25 /bin/bash --login
+```
+
+This will mount the `./container-output` directory on your machine as
+`/tmp/output` inside the container. Within the container, any files you
+place in `/tmp/output` will be visible on your host machines. All
+output files from our evaluation scripts are automatically copied to
+this directory.
+
+Now, run Veil's basic sanity check using the following command:
+```bash
+sh smoke_test.sh
+```
+
+This should take no more than 2-3 minutes. 
+
+It will produce a number of files:
+
+- `smoke_test_log.txt` - full log of the output from Ivy and Veil's
+profiling of `#check_invariants`, used to compute the numbers in the
+figure in the paper
+
+- `smoke_test_results.txt` - a copy of what's displayed in the terminal
+as the evaluation script runs; Ivy timeouts get a `total_ivy_time`
+of 0.0
+
+- `smoke_test_results.json` - a JSON version of the above; this can be
+used to reproduce the figures by running:
+
+```bash
+python3 scripts/eval.py evaluate_all_results.json --output-file fig.pdf
+```
+
+- `smoke_test_raw.pdf` - the raw figure, without normalizing the times
+to Veil's runtime
+
+- `smoke_test_normalized.pdf` - the normalized figure, similar to what
+we show in the paper (Fig. 5); note that the actual runtimes are
+written on top of the bars (normalization is only for sizing the bars)
+
+If you have time, we recommend running a single evaluation run (~30
+minutes) during the smoke testing phase as well. This will produce
+exactly the same figure as in the paper, but with only 1 execution of
+the benchmarks rather than the 5 in the full evaluation.
+
+## Evaluation
+
+### Single Evaluation Run
+
+To perform a single run of the benchmark suite, run:
+
+```bash
+sh evaluate_once.sh
+```
+
+This will take about 30 minutes, and run both Veil and Ivy, generating
+the same files as the smoke test, but with prefix `evaluate_once_` and
+with the full set of benchmarks.
+
+### Full Evaluation
+
+For the full evaluation (which repeats the above 5 times), run the
+following command:
+
+```bash
+sh evaluate_all.sh
+```
+
+This will take about 2.5 hours, and run both Veil and Ivy, generating
+the same files as the smoke test, but with prefix `evaluate_all_` and
+with the full set of benchmarks.
+
+`evaluate_all_normalized.pdf` should correspond to Figure 5 in the
+paper. Note that your execution times may differ from ours, but the
+overall shape of the bars should roughly match. Please be reminded that
+the graph is normalized and the real times are written above each bar.
+
+### Recreating Figure 5 in the Paper
+
+We have attached the logs of our execution in `logs/`. You can recreate
+the exact Figure 5 used in the paper from our execution results by
+running:
+
+```bash
+python3 scripts/eval.py ./logs/evaluate_all_results.json --output-file fig.pdf
+```
+
+(You can copy the resulting `fig_normalized.pdf` into `/tmp/output` for
+easier access on the host machine.)
 
 ## Structure and Contents
 
@@ -213,113 +334,6 @@ More precisely, its statement in the Ivy spec is a simple tautology,
 while its statement in Rocq is non-trivial and should be regarded as
 the correct formulation.
 
-
-## Set Up and Smoke Test
-
-The artifact for Veil is a x86 Ubuntu Docker image containing Lean
-v4.16.0 along with Veil and its benchmark sets depicted in Figure 5,
-and [Ivy](https://github.com/kenmcmil/ivy) for our baseline. For
-convenience, the source code for Veil is also attached separate from
-the Docker image.
-
-In order to import the Docker container, run:
-
-```bash
-sudo docker load < veil_cav25.tar.gz
-```
-
-Then you can obtain a shell into the container by running:
-
-```bash
-docker run -it --platform linux/amd64 --volume ./container-output:/tmp/output veil:cav25 /bin/bash --login
-```
-
-This will mount the `./container-output` directory on your machine as
-`/tmp/output` inside the container. Within the container, any files you
-place in `/tmp/output` will be visible on your host machines. All
-output files from our evaluation scripts are automatically copied to
-this directory.
-
-Now, run Veil's basic sanity check using the following command:
-```bash
-sh smoke_test.sh
-```
-
-This should take no more than 2-3 minutes. 
-
-It will produce a number of files:
-
-- `smoke_test_log.txt` - full log of the output from Ivy and Veil's
-profiling of `#check_invariants`, used to compute the numbers in the
-figure in the paper
-
-- `smoke_test_results.txt` - a copy of what's displayed in the terminal
-as the evaluation script runs; Ivy timeouts get a `total_ivy_time`
-of 0.0
-
-- `smoke_test_results.json` - a JSON version of the above; this can be
-used to reproduce the figures by running:
-
-```bash
-python3 scripts/eval.py evaluate_all_results.json --output-file fig.pdf
-```
-
-- `smoke_test_raw.pdf` - the raw figure, without normalizing the times
-to Veil's runtime
-
-- `smoke_test_normalized.pdf` - the normalized figure, similar to what
-we show in the paper (Fig. 5); note that the actual runtimes are
-written on top of the bars (normalization is only for sizing the bars)
-
-If you have time, we recommend running a single evaluation run (~30
-minutes) during the smoke testing phase as well. This will produce
-exactly the same figure as in the paper, but with only 1 execution of
-the benchmarks rather than the 5 in the full evaluation.
-
-## Evaluation
-
-### Single Evaluation Run
-
-To perform a single evaluation, run:
-
-```bash
-sh evaluate_once.sh
-```
-
-This will take about 30 minutes, and run both Veil and Ivy, generating
-the same files as the smoke test, but with prefix `evaluate_once_` and
-with the full set of benchmarks.
-
-### Full Evaluation
-
-For the full evaluation (which repeats the above 5 times), run the
-following command:
-
-```bash
-sh evaluate_all.sh
-```
-
-This will take about 2.5 hours, and run both Veil and Ivy, generating
-the same files as the smoke test, but with prefix `evaluate_all_` and
-with the full set of benchmarks.
-
-`evaluate_all_normalized.pdf` should correspond to Figure 5 in the
-paper. Note that your execution times may differ from ours, but the
-overall shape of the bars should roughly match. Please be reminded that
-the graph is normalized and the real times are written above each bar.
-
-### Recreating the Exact Figure 5 in the Paper
-
-We have attached the logs of our execution in `logs/`. You can recreate
-the Figure 5 used in the paper from our execution results by running:
-
-```bash
-python3 scripts/eval.py ./logs/evaluate_all_results.json --output-file fig.pdf
-```
-
-(You can copy the resulting `fig_normalized.pdf` into `/tmp/output` for
-easier access on the host machine.)
-
 ## Badge Checklist
 
 ### Functional
@@ -413,18 +427,7 @@ window with the Lean 4 extension installed.
 Veil is fully [open source](https://github.com/verse-lab/veil/) and
 available freely under a permissive Apache 2.0 license.
 
-Veil is a _foundational_ framework for (1) specifying, (2)
-implementing, (3) testing, and (4) proving safety (and, in the future,
-liveness) properties of state transition systems, with a focus on
-distributed protocols.
-
-Veil is embedded in the [Lean 4 proof
-assistant](https://lean-lang.org/) and provides push-button
-verification for transition systems and their properties expressed
-decidable fragments of first-order logic, with the full power of a
-modern higher-order proof assistant for when automation falls short.
-
-## Using `veil`
+### Using `veil`
 
 To use `veil` in your project, add the following to your
 `lakefile.lean`:
@@ -447,14 +450,14 @@ See
 for a fully set-up example project that you can
 [use as a template](https://github.com/new?template_name=veil-usage-example&template_owner=verse-lab).
 
-## Tutorial
+### Tutorial
 
 The file
 [`Examples/Tutorial/Ring.lean`](https://github.com/verse-lab/veil/blob/main/Examples/Tutorial/Ring.lean)
 contains a guided tour of Veil's main features. Check it out if you want to see
 what Veil can do!
 
-## Build
+### Build
 
 Veil requires [Lean 4](https://github.com/leanprover/lean4). We have tested Veil
 on macOS (arm64) and Ubuntu (x86_64). Windows with WSL2 is also supported.
@@ -473,7 +476,7 @@ case studies. -->
 To build the case studies run:
 
 ```bash
-lake build Examples
+lake build Benchmarks
 ```
 
 <details close>
