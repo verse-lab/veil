@@ -23,14 +23,15 @@ We recommend running this artifact on a machine with at least 4 CPU
 cores and at least 16 GB of RAM.
 
 The artifact Docker image comes with all dependencies downloaded and
-Veil already compiled (for archival purposes). Running the artifact
-does not require an Internet connection. However, if you `lake clean`,
-a further `lake build` will require an Internet connection.
+Veil and Ivy already compiled (for archival purposes). Running the
+artifact does not require an Internet connection. However, if you `lake
+clean`, a further `lake build` will require an Internet connection.
 
 Time required for various tasks is as follows:
 
 - A full `lake build` from scratch (i.e. after a `lake clean`) takes
-about 10 minutes, depending on the speed of your internet connection;
+10-20 minutes, depending on the speed of your CPU and internet
+connection;
 
 - With Veil already compiled, the smoke test `smoke_test.sh` should
 take no more than 2-3 minutes; this runs the evaluation script (for
@@ -44,7 +45,8 @@ evaluation, i.e. 5 repeats, averaging the results) takes around 2.5
 hours.
 
 We have tested this artifact on a 2024 MacBook Pro with an M4 processor
-and 32 GB of RAM.
+and 32 GB of RAM and a Thinkpad X1 Carbon with a 13th Gen Intel(R)
+Core(TM) i7-1370P processor and 64GB of RAM.
 
 ## Structure and Contents
 
@@ -52,6 +54,7 @@ The Docker image contains Veil's implementation in `/root/veil`, which
 consists of four major directories and their subdirectories:
 
 - `Veil/`: the implementation of Veil,
+  - `Veil/Base.lean`: defines all the options for Veil
   - `DSL/`: Veil DSL
     - `Action/`: implementation of the imperative action DSL
       - `Syntax.lean`: syntax of imperative DSL
@@ -60,7 +63,7 @@ consists of four major directories and their subdirectories:
       - `Theory.lean`: semantics of action DSL with meta-theory
       and the soundness proof
     - `Specification/`: implementation of the specification DSL (i.e.
-    state definitions, actions, invariants)
+    state definitions, actions declarations, invariants)
       - `Syntax.lean`: syntax of specification DSL
       - `Lang.lean`: expansion of syntax into the
       shallowly-embedded semantics
@@ -227,48 +230,180 @@ sudo docker load < veil_cav25.tar
 Then you can obtain a shell into the container by running:
 
 ```bash
-docker run -ti --platform linux/amd64 veil:cav25 /bin/bash --login
+docker run -it --platform linux/amd64 --volume ./container-output:/tmp/output veil:cav25 /bin/bash --login
 ```
+
+This will mount the `./container-output` directory on your machine as
+`/tmp/output` inside the container. Within the container, any files you
+place in `/tmp/output` will be visible on your host machines. All
+output files from our evaluation scripts are automatically copied to
+this directory.
 
 Now, run Veil's basic sanity check using the following command:
 ```bash
 sh smoke_test.sh
 ```
 
-This should take no more than 2-3 minutes.
+This should take no more than 2-3 minutes. 
+
+It will produce a number of files:
+
+- `smoke_test_log.txt` - full log of the output from Ivy and Veil's
+profiling of `#check_invariants`, used to compute the numbers in the
+figure in the paper
+
+- `smoke_test_results.txt` - a copy of what's displayed in the terminal
+as the evaluation script runs; Ivy timeouts get a `total_ivy_time`
+of 0.0
+
+- `smoke_test_results.json` - a JSON version of the above; this can be
+used to reproduce the figures by running:
+
+```bash
+python3 scripts/eval.py evaluate_all_results.json --output-file fig.pdf
+```
+
+- `smoke_test_raw.pdf` - the raw figure, without normalizing the times
+to Veil's runtime
+
+- `smoke_test_normalized.pdf` - the normalized figure, similar to what
+we show in the paper (Fig. 5); note that the actual runtimes are
+written on top of the bars (normalization is only for sizing the bars)
 
 ## Full Evaluation
 
 For the full evaluation, run the following command:
 
 ```bash
-sudo docker run -ti --rm veil:cav25 run_all.sh
+sh evaluate_all.sh
 ```
 
-This will take about <time>, and run both Veil and Ivy, printing a csv file summarizing the results. The expected results should correspond to the times in Figure 5 in the paper. Please be reminded that the graph is normalized and the real times are written above each bar.
+This will take about 2.5 hours, and run both Veil and Ivy, generating
+the same files as the smoke test, but with prefix `evaluate_all_` and
+with the full set of benchmarks.
 
-It is also possible to run just Veil:
+`evaluate_all_normalized.pdf` should correspond to Figure 5 in the
+paper. Note that your execution times may differ from ours, but the
+overall shape of the bars should roughly match. Please be reminded that
+the graph is normalized and the real times are written above each bar.
+
+### Recreating the Exact Figure 5 in the Paper
+
+We have attached the logs of our execution in `logs/`. You can recreate
+the Figure 5 used in the paper from our execution results by running:
 
 ```bash
-sudo docker run -ti --rm veil:cav25 run_all.sh --no-ivy
+python3 scripts/eval.py ./logs/evaluate_all_results.json --output-file fig.pdf
 ```
-------
 
-## Reusability Guide (Tutorial)
+## Badge Checklist
+
+### Functional
+
+- **(Documentation)** Veil is well-documented, includes a tutorial
+(`Tutorial/Ring.lean`) and a number of examples for users to take as
+inspiration when writing their own specifications. The source code is
+reasonably organised into sub-modules, and sub-components (e.g. clear
+split between syntax and semantics of the different sub-DSLS) and has
+extensive comments (e.g. in `Veil/DSL/Action/Theory.lean`). Most syntax
+constructs have detailed doc-comments that show up on hover in Visual
+Studio Code and other similar IDEs.
+
+- **(Completeness)** The Suzuki Kasami Ints example in the paper,
+including the BMC queries and the interactive proof, are found in
+`Benchmarks/Veil/SuzukiKasamiInts.lean`. The definitions and theorems
+in Section 3 are present in `Veil/DSL/Action/Theory.lean` and the main
+ones are highlighted in this README ("Definitions and Theorems
+Highlighted in the Paper (Section 3)"). All the benchmarks mentioned in
+the paper (Section 4.1) are present in the artifact. There is an
+evaluation script (`evaluate_all.sh`) to directly reproduce the figure
+in the paper. Moreover, the log information from the execution that
+generated the exact figure in the paper is included in the artifact,
+and the Figure 5 in the paper can be reproduced automatically (via
+`scripts/eval.py` as mentioned above) from the build log. The two case
+studies in Section 4.3 (Stellar Consensus Protocol and Rabia) are
+present and highlighted in this README. The discrepancy in Rabia
+mentioned in the paper is highlighted in this README.
+
+- **(Consistency)** The artifact supports the claims made in the paper.
+Whilst execution times on other machines may differ from ours, the
+execution logs and scripts used to produce the exact figure in the
+paper are present in the artifact. Note also that we do not make
+specific performance claims in the paper besides the claim that Veil's
+"automated verification performance is acceptable for practical
+verification tasks" (in the abstract).
+
+- **(Correctness)** Veil employs software engineering practices such as
+unit testing, and comes with a soundness proof for part of its
+functionality. Moreover, we tested Veil against Ivy — the reference
+tool for this domain — for a fairly extensive benchmark set and
+obtained (ignoring Ivy's timeouts) consistent results.
+
+### Reusable
+
+- **(License)** Veil is licensed under the Apache 2.0 license, which is
+an open-source permissive license that allows reuse and repurposing,
+including for commercial purposes. Our dependencies (Lean 4,
+`mathlib4`, `lean-smt`, and `lean-auto`) are licensed under the same
+permissive license.
+
+- **(Dependencies)** We use recent versions of our dependencies, i.e.
+the latest (as of the time of writing this artifact README) versions of
+`lean-smt` and `lean-auto`, and the latest Lean 4 version they are
+compatible with, i.e. Lean v4.16.0, originally released on 2025-02-03.
+All dependencies are clearly defined in `lakefile.lean`.
+
+- **(Reusability beyond the paper)** Users can use Veil to verify their
+own specifications, as detailed in the Reusability Guide below (adapted
+from Veil's `README`). Veil can be used in other Lean projects by
+simply including it in the `lakefile.lean` and issuing an `import Veil`
+command in an open Lean file. We encourage users read through the
+tutorial and look at the examples to learn what Veil specifications
+look like and what features are available.
+
+- **(Extensions)** The artifact is open-source.
+
+- **(Use outside the container)** Absolutely. The only hard dependency
+for Veil is Lean itself (every other dependency, including CVC5 and Z3,
+is downloaded at build time), which can be installed on any modern
+system as detailed below by running the following command:
+
+```bash
+curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain leanprover/lean4:stable
+```
+
+Moreover, opening the Veil repository in a Visual Studio Code window
+with the [Lean 4
+extension](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4)
+installed is sufficient to fully build Veil — no command-line
+installation is necessary.
+
+In fact, we recommend people who are reviewing Veil for purposes other
+than replicating Figure 5 in the paper to not use the artifact, but
+rather simply clone Veil's public repository
+(https://github.com/verse-lab/veil) and open it in a Visual Studio Code
+window with the Lean 4 extension installed.
+
+## Reusability Guide
 
 Veil is fully [open source](https://github.com/verse-lab/veil/) and
 available freely under a permissive Apache 2.0 license.
 
-The file `/root/Veil/Examples/Tutorial/Ring.lean` contains a guided
-tour of Veil's main features. Check it out if you want to see what Veil
-can do!
+Veil is a _foundational_ framework for (1) specifying, (2)
+implementing, (3) testing, and (4) proving safety (and, in the future,
+liveness) properties of state transition systems, with a focus on
+distributed protocols.
 
-### Using Veil in your own project
+Veil is embedded in the [Lean 4 proof
+assistant](https://lean-lang.org/) and provides push-button
+verification for transition systems and their properties expressed
+decidable fragments of first-order logic, with the full power of a
+modern higher-order proof assistant for when automation falls short.
+
+## Using `veil`
 
 To use `veil` in your project, add the following to your
 `lakefile.lean`:
-
-<TODO - how to require from folder>
 
 ```lean
 require "verse-lab" / "veil" @ git "main"
@@ -283,8 +418,19 @@ git = "https://github.com/verse-lab/veil.git"
 rev = "main"
 ```
 
+See
+[`verse-lab/veil-usage-example`](https://github.com/verse-lab/veil-usage-example)
+for a fully set-up example project that you can
+[use as a template](https://github.com/new?template_name=veil-usage-example&template_owner=verse-lab).
 
-### Build
+## Tutorial
+
+The file
+[`Examples/Tutorial/Ring.lean`](https://github.com/verse-lab/veil/blob/main/Examples/Tutorial/Ring.lean)
+contains a guided tour of Veil's main features. Check it out if you want to see
+what Veil can do!
+
+## Build
 
 Veil requires [Lean 4](https://github.com/leanprover/lean4). We have tested Veil
 on macOS (arm64) and Ubuntu (x86_64). Windows with WSL2 is also supported.
@@ -300,6 +446,11 @@ lake build
 <!-- This will build the whole project, including the tests, but without the
 case studies. -->
 
+To build the case studies run:
+
+```bash
+lake build Examples
+```
 
 <details close>
 <summary><strong>How to install Lean?</strong></summary>
@@ -327,4 +478,3 @@ touch your system-wide versions.
 Note that if you want to invoke Lean-Auto's `auto` tactic, you need to have
 `z3` and `cvc5` installed on your system and available in your PATH.
 </details>
-
