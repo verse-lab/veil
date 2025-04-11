@@ -19,9 +19,22 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 WORKDIR /root
 RUN mkdir veil
-COPY . /root/veil
+
+COPY ./Benchmarks /root/veil/Benchmarks
+COPY ./scripts /root/veil/scripts
+COPY ./Test /root/veil/Test
+COPY ./Tutorial /root/veil/Tutorial
+COPY ./Veil /root/veil/Veil
+COPY ./dependencies.toml /root/veil/dependencies.toml
+COPY ./lake-manifest.json /root/veil/lake-manifest.json
+COPY ./lakefile.lean /root/veil/lakefile.lean
+COPY ./lean-toolchain /root/veil/lean-toolchain
+COPY ./LICENSE /root/veil/LICENSE
+COPY ./*.sh /root/veil/
+COPY ./*.lean /root/veil/
 
 SHELL ["/bin/bash", "--login", "-c"]
 
 WORKDIR /root/veil
-# RUN lake clean && lake build
+RUN lake clean && lake build
+RUN lake build Benchmarks.Veil
