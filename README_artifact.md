@@ -26,7 +26,7 @@ running this artifact on a machine with at least 4 CPU cores and at
 least 16 GB of RAM.
 
 The artifact comes with two Docker images that include all dependencies
-and have Veil and Ivy already compiled (for archival purposes):
+and have Veil and Ivy already compiled:
 
 - `veil_cav25-arm64.tar.gz` is an image for `arm64` architectures (e.g.
 M1 Macs)
@@ -38,6 +38,11 @@ M1 Macs)
 
 - `veil_cav25-amd64.tar.gz` is an image for `amd64` architectures
 (e.g. Intel Macs, PCs)
+  - We find that Lean on `amd64` is generally slower than on `arm64`,
+  so Veil's runtimes will be higher than what we report in the paper.
+
+You only need to run the Docker image that corresponds to your
+architecture, not both of them.
 
 Running the artifact does not require an Internet connection. However,
 if you `lake clean`, a further `lake build` will require an Internet
@@ -62,9 +67,9 @@ hours.
 
 ## Set Up and Smoke Test
 
-The artifact for Veil is a x86 Ubuntu Docker image containing Lean
-v4.16.0 along with Veil and its benchmark sets depicted in Figure 5,
-and [Ivy](https://github.com/kenmcmil/ivy) for our baseline. For
+The artifact for Veil is a Ubuntu Docker image containing Lean v4.16.0
+along with Veil and its benchmark sets depicted in Figure 5, and
+[Ivy](https://github.com/kenmcmil/ivy) for our baseline. For
 convenience, the source code for Veil is also attached separate from
 the Docker image.
 
@@ -119,7 +124,7 @@ to Veil's runtime
 we show in the paper (Fig. 5); note that the actual runtimes are
 written on top of the bars (normalization is only for sizing the bars)
 
-If you have time, we recommend running a single evaluation run (~30
+If you have time, we encourage you to run a single evaluation run (~30
 minutes) during the smoke testing phase as well. This will produce
 exactly the same figure as in the paper, but with only 1 execution of
 the benchmarks rather than the 5 in the full evaluation.
@@ -153,8 +158,10 @@ with the full set of benchmarks.
 
 `evaluate_all_normalized.pdf` should correspond to Figure 5 in the
 paper. Note that your execution times may differ from ours, but the
-overall shape of the bars should roughly match. Please be reminded that
-the graph is normalized and the real times are written above each bar.
+overall shape of the bars should roughly match. (If you run the `arm64`
+image, Ivy will crash for all but 2 benchmarks, but Veil will run
+normally.) Please be reminded that the graph is normalized and the real
+times are written above each bar.
 
 ### Recreating Figure 5 in the Paper
 
@@ -317,7 +324,7 @@ work, please refer to the Section 5 of [the associated
 paper](https://doi.org/10.1145/3477132.3483582).
 
 - `Benchmarks/Veil/Rabia.lean` is adapted from the Ivy specification
-mentioned above.
+mentioned above;
 
 - `Benchmarks/Veil/RabiaMore.lean` is adapted from the Rocq file
 mentioned above, with one major difference: the Rocq file take all
