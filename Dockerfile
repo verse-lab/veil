@@ -96,5 +96,5 @@ RUN lake lean Tutorial/Ring.lean
 COPY ./*.sh /root/veil/
 COPY ./scripts /root/veil/scripts
 COPY ./logs /root/veil/logs
-COPY ./README_artifact.md ./root/veil/README.md
+COPY ./README_artifact.md /root/veil/README.md
 COPY ./README.md /root/veil/Veil_README.md
