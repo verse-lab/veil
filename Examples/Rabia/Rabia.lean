@@ -26,6 +26,8 @@ class Rabia.Background (node set_majority set_f_plus_1 : outParam Type) where
 veil module Rabia
 
 
+-- this enables `#recover_invariants_in_tr` to work
+-- everything after `#check_invariants` is not part of evaluation as such, but we leave it for completeness
 set_option veil.gen_sound true
 set_option synthInstance.maxSize 1000000
 
@@ -162,7 +164,6 @@ action phase_rnd2 = {
 }
 
 -- NOTE: the following `isolate`s correspond to the `isolate`s in the Ivy spec
-
 open_isolate protocol
 
 invariant propose N V1 ∧ propose N V2 → V1 = V2
@@ -277,9 +278,6 @@ close_isolate
 set_option maxHeartbeats 8000000
 set_option veil.smt.timeout 120
 
-set_option veil.smt.solver "cvc5"
-set_option veil.smt.translator "lean-auto"
-
-#check_isolate protocol
+#time #check_isolate protocol
 
 end Rabia

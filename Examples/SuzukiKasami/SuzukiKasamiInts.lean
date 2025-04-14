@@ -115,11 +115,6 @@ invariant [allowed_crit] (crit N) → (n_have_privilege N ∧ n_requesting N)
 
 #gen_spec
 
--- FIXME: this is much faster with `z3` because our `cvc5` invocation
--- uses `--finite-model-find`. `cvc5` with no arguments is fast.
-set_option veil.smt.solver "cvc5"
-set_option veil.smt.translator "lean-auto"
-
 sat trace {
   request
   enter
@@ -137,7 +132,8 @@ unsat trace {
 } by bmc
 
 
-#check_invariants
+set_option veil.smt.finiteModelFind false in
+#time #check_invariants
 
 @[invProof]
   theorem enter_mutex_manual :
@@ -149,9 +145,9 @@ unsat trace {
   intros st st' _ inv
   simp[enter.tr, invSimp] at *
   rcases inv with ⟨allowed_crit, one_priv, _⟩
-  rintro n priv req ⟨⟩ N M act1 act2; simp at *
+  rintro n priv req ⟨⟩  N M critN critM; simp at *
   apply one_priv
-  . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, act1]
-  . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, act2]
+  . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, critN]
+  . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, critM]
 
 end SuzukiKasamiNats

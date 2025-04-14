@@ -1,7 +1,7 @@
 -- skip eval
 import Veil
 import Veil.Model.TransitionSystem
-import Examples.Rabia.Rabia
+import Benchmarks.Veil.Rabia
 
 -- adapted from [weak_mvc.v](https://github.com/haochenpan/rabia/blob/88013ca8369a7ae3adfed44e3c226c8d97f11209/proofs/coq/weak_mvc.v)
 
@@ -40,8 +40,10 @@ instance : TotalOrderWithMinimum Nat where
 veil module Rabia
 
 set_option veil.smt.timeout 120
+
 #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
 
+-- Lift to `tr` style those theorems that were originally proven in `wp` style
 #time #recover_invariants_in_tr
 
 prove_inv_inductive by {
