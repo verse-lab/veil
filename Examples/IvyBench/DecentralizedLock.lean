@@ -53,8 +53,7 @@ invariant [manual_3] ¬ (S ≠ T ∧ msg Y S ∧ msg Y T ∧ ¬ le T (epoch Y) �
 
 #gen_spec
 
-set_option veil.smt.solver "cvc5" in
-#check_invariants
+#time #check_invariants
 
 
 

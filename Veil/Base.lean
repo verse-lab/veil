@@ -45,14 +45,54 @@ initialize
 
 /-! ## Options -/
 
+/-- We support two styles of verification condition generation:
+  - `wp`, which is what Ivy does
+  - `transition`, which is what mypyvy does
+
+  The `transition` style is more general, but `wp` generates smaller, usually
+  better queries.
+-/
+inductive VCGenStyle
+  | wp
+  | transition
+deriving Inhabited, BEq
+
+instance : ToString VCGenStyle where
+  toString
+    | .wp => "wp"
+    | .transition => "transition"
+
+instance : Lean.KVMap.Value VCGenStyle where
+  toDataValue n := toString n
+  ofDataValue?
+  | "wp"  => some .wp
+  | "transition" => some .transition
+  | _     => none
+
+
+register_option veil.perf.profile.checkInvariants : Bool := {
+  defValue := false
+  descr := "Profile performance of Veil's `#check_invariants`."
+}
+
 register_option veil.gen_sound : Bool := {
   defValue := false
   descr := "Generate soundness instances for actions."
 }
 
+register_option veil.vc_gen : VCGenStyle := {
+  defValue := .wp
+  descr := "Verification condition generation style: wp or transition (default: wp)"
+}
+
 register_option veil.printCounterexamples : Bool := {
   defValue := false
   descr := "Print counterexamples (models) when they are found in `#check_invariants`."
+}
+
+register_option veil.failedCheckThrowsError : Bool := {
+  defValue := true
+  descr := "Throw an error if a check fails? (default: true)"
 }
 
 register_option veil.smt.solver : SmtSolver := {
@@ -65,9 +105,19 @@ register_option veil.smt.seed : Nat := {
   descr := "SMT seed to use"
 }
 
+register_option veil.smt.retryOnUnknown : Bool := {
+  defValue := true
+  descr := "Should the query be retried with a different SMT solver if it the first check returns `unknown`? (default: true)"
+}
+
 register_option veil.smt.timeout : Nat := {
   defValue := 5
   descr := "SMT timeout to use (in seconds)"
+}
+
+register_option veil.smt.finiteModelFind : Bool := {
+  defValue := true
+  descr := "Should the `--finite-model-find` option be passed to CVC5? (This option has no effect if a different solver is used.)"
 }
 
 register_option veil.smt.model.minimize : Bool := {

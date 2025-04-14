@@ -48,4 +48,22 @@ error: The invariant is not inductive: one clause is not preserved!
 #guard_msgs(info, error, drop warning) in
 #check_action ruin_inv
 
+/--
+info: The following set of actions must preserve the invariant:
+  ruin_inv
+    single_leader ... ✅
+    not_flag ... ❌
+    inv_2 ... ✅
+    inv_3 ... ✅
+---
+info: Run with `set_option veil.printCounterexamples true` to print counter-examples.
+---
+warning: Trusting the SMT solver for 3 theorems.
+---
+warning: The invariant is not inductive: one clause is not preserved!
+-/
+#guard_msgs in
+set_option veil.failedCheckThrowsError false in
+#check_action ruin_inv
+
 end Ring

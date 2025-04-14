@@ -57,4 +57,14 @@ invariant pending L L → le N L
 
 #recover_invariants_in_tr
 
+prove_inv_inductive by {
+  constructor
+  . intro st has hinit
+    sdestruct_goal <;> already_proven_init
+  · intro st st' has hinv hnext
+    sts_induction <;> sdestruct_goal <;> already_proven_next_tr
+}
+
+#split_invariants
+
 end Ring

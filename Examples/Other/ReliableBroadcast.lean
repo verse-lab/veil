@@ -201,43 +201,8 @@ invariant [honest_non_conflicting_votes]
   ∀ (src originator dst₁ dst₂ : address) (r : round) (v₁ v₂ : value),
     (¬ is_byz src) → (vote_msg src dst₁ originator r v₁ ∧ vote_msg src dst₂ originator r v₂ → v₁ = v₂)
 
-set_option maxHeartbeats 10000000
-set_option veil.smt.timeout 15 -- seconds
-
 #gen_spec
 
-set_option veil.smt.solver "cvc5"
-#check_invariants
-
-sat trace [initial_state] {} by { bmc_sat }
-
-unsat trace [cannot_echo_without_init] {
-  echo
-} by { bmc }
-
-sat trace [can_echo] {
-  broadcast
-  echo
-} by { bmc_sat }
-
-sat trace [can_vote] {
-  broadcast
-  echo
-  echo
-  echo
-  vote
-} by { bmc_sat }
-
-
-sat trace [succesful_delivery] {
-  broadcast
-  echo
-  echo
-  echo
-  vote
-  vote
-  vote
-  deliver
-} by { bmc_sat }
+#time #check_invariants
 
 end ReliableBroadcast

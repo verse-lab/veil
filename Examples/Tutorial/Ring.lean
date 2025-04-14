@@ -244,11 +244,15 @@ must run the `#gen_spec` command. -/
 set_option veil.printCounterexamples true
 set_option veil.smt.model.minimize true
 
+/- The `transition` VC style gives more readable counter-examples, since
+those show both the pre-state and post-state. -/
+set_option veil.vc_gen "transition"
+
 /- TIP: Press the pause (⏸) button in the Lean Infoview to "lock" the
 counter-example, so you can look at it while you type the `invariant` clause you
 want to add above. Then press play (▶) button to re-check the spec with the
 newly added invariant. -/
-#check_invariants_tr
+#check_invariants
 
 /-
 
@@ -299,9 +303,9 @@ We can repeat this process until we eliminate all CTIs and thus find an
 inductive invariant that establishes the safety of the system.
 -/
 
-/- TIP: you can run `#check_invariants_tr!` to see the theorem statements that
+/- TIP: you can run `#check_invariants!` to see the theorem statements that
 couldn't be proven. In this case: -/
--- #check_invariants_tr!
+-- #check_invariants!
 @[invProof]
   theorem recv_single_leader_ :
       ∀ (st st' : @State node),
@@ -309,10 +313,10 @@ couldn't be proven. In this case: -/
           (@System node node_dec node_ne tot btwn).inv st →
             (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); solve_clause[Ring.recv.tr]
+    by (unhygienic intros); solve_clause[Ring.recv.tr] Ring.single_leader
 
-/- TIP: `#check_invariants_tr?` will print all theorems that will be checked. -/
--- #check_invariants_tr?
+/- TIP: `#check_invariants?` will print all theorems that will be checked. -/
+-- #check_invariants?
 
 /- Veil also provides facilities for interactively proving the safety of state
 transition systems, as shown below: -/

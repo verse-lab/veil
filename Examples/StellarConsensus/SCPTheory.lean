@@ -5,9 +5,9 @@ import Mathlib.Data.Set.Basic
 -- adapted from [FBA.thy](https://github.com/stellar/scp-proofs/blob/ac41c6353fae870c47c0e7ee558da98c03a7d041/FBA.thy)
 
 /-
-  NOTE: For now we do not prove liveness property in Veil, so we only
-  adapt the definitions that are sufficient for justifying the assumptions
-  in the current Veil model of SCP.
+  NOTE: For now we do not prove SCP's liveness property in Veil, so we
+  only adapt the definitions that are sufficient for justifying the
+  assumptions in the current Veil model of SCP.
 -/
 
 theorem Set.ne_empty_iff_exists_mem {α : Type u} {s : Set α} : s ≠ ∅ ↔ ∃ a, a ∈ s := by

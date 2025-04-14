@@ -44,9 +44,11 @@ def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
   match name with
   | .z3   => createAux s!"{z3Path}" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}", s!"sat.random_seed={seed}", s!"smt.random_seed={seed}"]
   | .cvc5 =>
-      let args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}",
-        "--seed", s!"{seed}", "--finite-model-find", "--enum-inst-interleave",
+      let mut args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}",
+        "--seed", s!"{seed}", "--enum-inst-interleave",
         "--nl-ext-tplanes", "--produce-models", "--incremental"]
+      if veil.smt.finiteModelFind.get $ ← getOptions then
+        args := args.push "--finite-model-find"
       let proc ← createAux s!"{cvc5Path}" args
       emitCommand proc (.setLogic "ALL")
       -- I don't think we need this, since WE don't use proofs directly; only
