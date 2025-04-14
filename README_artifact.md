@@ -41,6 +41,11 @@ M1 Macs)
   - We find that Lean on `amd64` is generally slower than on `arm64`,
   so Veil's runtimes will be higher than what we report in the paper.
 
+To avoid spurious timeouts and aid reproducibility of results on
+machines with different specifications than ours, we increased the
+per-query timeout from 5 seconds to 30 seconds in `lakefile.lean` and
+in `scripts/eval.py`. See the notes in those files for more details.
+
 You only need to run the Docker image that corresponds to your
 architecture, not both of them.
 
@@ -102,7 +107,7 @@ This should take no more than 2-3 minutes.
 
 It will produce a number of files:
 
-- `smoke_test_log.txt` - full log of the output from Ivy and Veil's
+- `smoke_test_eval_log.txt` - full log of the output from Ivy and Veil's
 profiling of `#check_invariants`, used to compute the numbers in the
 figure in the paper
 
@@ -110,19 +115,27 @@ figure in the paper
 as the evaluation script runs; Ivy timeouts get a `total_ivy_time`
 of 0.0
 
-- `smoke_test_results.json` - a JSON version of the above; this can be
-used to reproduce the figures by running:
+- `smoke_test_results.json` - a JSON version of the above; such JSON
+files can be used to reproduce the figures by running:
 
 ```bash
-python3 scripts/eval.py evaluate_all_results.json --output-file fig.pdf
+python3 scripts/eval.py file.json --output-file fig.pdf
 ```
 
 - `smoke_test_raw.pdf` - the raw figure, without normalizing the times
-to Veil's runtime
+to Veil's runtime; we don't have this in the paper and we haven't made
+the script that generates it robust to different timings; it may look
+odd on your machine, but you can safely ignore this file
 
 - `smoke_test_normalized.pdf` - the normalized figure, similar to what
 we show in the paper (Fig. 5); note that the actual runtimes are
 written on top of the bars (normalization is only for sizing the bars)
+
+For the smoke test, it suffices to inspect `smoke_test_normalized.pdf`.
+You should see six (6) benchmarks: Blockchain, MultiSigMajority,
+ReliableBroadcast, RicartAgrawala, Ring, and TwoPhaseCommit, with
+numbers for both Veil and Ivy. There should be no timeouts (marked by
+`*`). An example to compare against can be found in `logs/smoke_test`.
 
 If you have time, we encourage you to run a single evaluation run (~30
 minutes) during the smoke testing phase as well. This will produce
@@ -159,9 +172,9 @@ with the full set of benchmarks.
 `evaluate_all_normalized.pdf` should correspond to Figure 5 in the
 paper. Note that your execution times may differ from ours, but the
 overall shape of the bars should roughly match. (If you run the `arm64`
-image, Ivy will crash for all but 2 benchmarks, but Veil will run
-normally.) Please be reminded that the graph is normalized and the real
-times are written above each bar.
+image, Ivy will crash for many benchmarks, but Veil will run normally.)
+Please be reminded that the graph is normalized and the real times are
+written above each bar.
 
 ### Recreating Figure 5 in the Paper
 
@@ -215,12 +228,17 @@ consists of five major directories and their subdirectories:
   evaluation script on our machine
 - `Tutorial/Ring.lean` is a heavily-commented **tutorial** example of
 Veil, highlighting the main features of the framework
-- `logs/` contains the logs of our execution of the evaluation script
+- `logs/` contains the logs of OUR execution of the evaluation script,
+in case you want to inspect them or reproduce the figure in the paper
 
 Ivy's sources from commit
 [dbe45e7f](https://github.com/kenmcmil/ivy/commit/dbe45e7fc5769170b92492b70827d1cf7efb7972)
 are in `/root/ivy`. This is pre-built and installed globally. Ivy ships
 with its own version of Z3.
+
+If you want to inspect Veil's source code, the `veil` folder outside
+the Docker image contains the same source files as in the Docker image,
+but might be easier to navigate from your host machine.
 
 ### Definitions and Theorems Highlighted in the Paper (Section 3)
 
@@ -434,9 +452,9 @@ window with the Lean 4 extension installed.
 Veil is fully [open source](https://github.com/verse-lab/veil/) and
 available freely under a permissive Apache 2.0 license.
 
-### Using `veil`
+### Using Veil
 
-To use `veil` in your project, add the following to your
+To use Veil in your project, add the following to your
 `lakefile.lean`:
 
 ```lean
