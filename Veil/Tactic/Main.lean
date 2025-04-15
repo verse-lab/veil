@@ -44,15 +44,16 @@ elab "sdestruct " ids:(colGt ident)* : tactic => withMainContext do
     let newFieldNames := _sinfo.fieldNames.map (mkIdent $ name ++ ·)
     let s <- `(rcasesPat| ⟨ $[$newFieldNames],* ⟩)
     evalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident with $s)
-    -- Try to give better names to the new hypotheses if they are invariant clauses
+    -- Try to give better names to the new hypotheses if they are named clauses
     withMainContext do
     let lctx ← getLCtx
-    let invs := Std.HashSet.ofArray $ (<- localSpecCtx.get).spec.invariants.map (·.name)
+    let spec := (<- localSpecCtx.get).spec
+    let namedClauses := Std.HashSet.ofArray $ (spec.invariants ++ spec.assumptions).map (·.name)
     for hypIdent in newFieldNames do
       let name' := getNameOfIdent' hypIdent
       let .some ld := lctx.findFromUserName? name' | return
       let .some app := ld.type.getAppFn.constName? | return
-      if invs.contains app then
+      if namedClauses.contains app then
         let baseName := name.components[0]!
         let newName := mkIdent $ baseName ++ app
         evalTactic $ ← `(tactic| rename_hyp $hypIdent => $newName)
