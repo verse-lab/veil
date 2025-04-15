@@ -137,7 +137,7 @@ def toBindersWithMappedTypes (stx : TSyntax `Lean.explicitBinders) (mapping : Ar
   return newStx
 
 /-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
-def mkArrowStx (tps : List Ident) (terminator : Option $ TSyntax `term := none) : CoreM (TSyntax `term) := do
+def mkArrowStx (tps : List Term) (terminator : Option $ TSyntax `term := none) : CoreM (TSyntax `term) := do
   match tps with
   | [] => if let some t := terminator then return t else throwError "empty list of types and no terminator"
   | [a] => match terminator with
@@ -149,7 +149,7 @@ def mkArrowStx (tps : List Ident) (terminator : Option $ TSyntax `term := none) 
 
 def complexBinderToSimpleBinder (nm : TSyntax `ident) (br : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (domT : TSyntax `term) : CoreM (TSyntax `Lean.Parser.Command.structSimpleBinder) := do
   let types ← br.mapM fun m => match m with
-    | `(bracketedBinder| ($_arg:ident : $tp:term)) => return (mkIdent tp.raw.getId)
+    | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
     | _ => throwError "Invalid binder syntax {br}"
   let typeStx ← mkArrowStx types.toList domT
   let simple ← `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $typeStx)
