@@ -1,5 +1,5 @@
 import Veil
-import Benchmarks.Veil.SCPTheory
+import Examples.StellarConsensus.SCPTheory
 
 -- adapted from [SCP.ivy](https://github.com/stellar/scp-proofs/blob/3e0428acc78e598a227a866b99fe0b3ad4582914/SCP.ivy)
 
