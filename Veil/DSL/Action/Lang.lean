@@ -164,7 +164,7 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
   -- Expand `if` statements
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
     let fs <- `(Term.doSeqItem| let $h:ident <- fresh)
-    let t' <- `(Term.doSeqItem| require $t)
+    let t' <- `(Term.doSeqItem| assume $t)
     let thn := fs :: t' :: thn.toList |>.toArray
     expandDoElemVeil $ <-
       `(Term.doSeqItem| if (∃ $h:ident, $t) then $thn* else $els)

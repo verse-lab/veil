@@ -26,11 +26,20 @@ syntax (name := kw_unchanged) "unchanged" : veilActionKeyword
 
 end VeilActionKeywords
 
-/-- `require P` means that execution can only proceed if `P` holds.
+/-- `require P` means that execution can only proceed if `P` holds. It
+is used to express pre-conditions.
 
 When an action including `require` is called by the environment, this
 behaves like an `assume`. When it is called by another action, this
 behaves like an `assert`: the caller must ensure that `P` holds.
+
+In particular, if you do `let x ← fresh` and want to constrain the
+value obtained, you should use `assume`, not `require`, e.g.:
+
+```lean
+let x ← fresh Nat
+assume (x < 10)
+```
 
 If you have inconsistent `require` statements, your action will not
 admit any executions. -/
