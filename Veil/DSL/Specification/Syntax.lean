@@ -200,7 +200,7 @@ syntax (name := nativeTransitionDefinition) (actionKind)? kw_transition ident (e
 syntax (name := actionDefinition) (actionKind)? kw_action ident (explicitBinders)? "=" "{" doSeq "}" : command
 
 /-- An imperative action in Veil, with a specification. -/
-syntax (name := actionDefinitionWithSpec) (actionKind)? "action" ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
+syntax (name := actionDefinitionWithSpec) (actionKind)? kw_action ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
 
 /- ## Assertions -/
 
