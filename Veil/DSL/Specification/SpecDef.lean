@@ -83,7 +83,9 @@ def assembleNext : CommandElabM Unit := do
 def assembleLabelType (name : Name) : CommandElabM Unit := do
   let labelTypeName := mkIdent `Label
   elabCommand $ ← Command.runTermElabM fun _ => do
-    let ctors ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do match s.decl.ctor with
+    let ctors ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
+      let .some decl := s.actionDecl | throwError "[assembleLabelType] {s} is not an action"
+      match decl.ctor with
       | none => throwError "DSL: missing label constructor for action {s.name}"
       | some ctor => pure ctor)
     trace[veil.info] "storing constructors for {name}"
@@ -94,7 +96,8 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
 a bit strange, since it constructs a term (syntax) to build a value. -/
 def assembleActionMap : CommandElabM Unit := do
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let ioStx ← (← localSpecCtx.get).spec.actions.mapM fun decl => do
+    let ioStx ← (← localSpecCtx.get).spec.actions.mapM fun s => do
+      let .some decl := s.actionDecl | throwError "[assembleActionMap] {s} is not an action"
       let ioActName := toIOActionDeclName decl.label.name
       let act ← PrettyPrinter.delab $ ← mkAppOptM ioActName (vs.map Option.some)
       `(($(quote decl.label.name), $act))

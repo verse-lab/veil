@@ -198,7 +198,7 @@ def assembleState : CommandElabM Unit := do
     localSpecCtx.modify ({· with spec.stateStx := stateTp })
   -- Do work necessary for module composition
   genStateExtInstances
-  defineDepsActions
+  defineDepsProcedures
 where
   /-- Instruct the linter to not mark state variables as unused in our
   `after_init` and `action` definitions. -/
@@ -265,7 +265,7 @@ def elabInitialStateAction : CommandElab := fun stx => do
     let init ← `(doSeq|do $subInitializers*; $(ourInitializer)*)
     -- define the initial action
     let initName := mkIdent `initializer
-    let (genI, genE) ← defineActionGenerators initName none init
+    let (genI, genE) ← defineProcedureGenerators initName none init
     defineInitialActionFromGenerators initName genI genE
     -- define initial state predicate
     let (st, st') := (mkIdent `st, mkIdent `st')
@@ -322,21 +322,7 @@ def elabTransition : CommandElab := fun stx => do
 
 /-! ## Actions -/
 
-def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
-  (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
-    liftCoreM errorIfStateNotDefined
-    let actT ← parseActionKindStx actT
-    -- Create all the action-related declarations
-    defineAction actT nm br l
-    -- warn if this is not first-order
-    Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
-    unless spec.isNone do
-      registerActionSpec nm.getId spec
-      let (pre, binder, post) <- getPrePost spec.get!
-      defineAction actT (nm.getId ++ `spec |> mkIdent) br spec.get!
-      checkSpec nm br pre post binder
-where
-  checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
+def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
   (pre post : Term) (ret : TSyntax `rcasesPat) : CommandElabM Unit := do
   try
     elabCommand $ ← Command.runTermElabM fun vs => do
@@ -355,11 +341,39 @@ where
   catch e =>
     throwError s!"Error while checking the specification of {nm}:" ++ e.toMessageData
 
+def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
+  (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
+    liftCoreM errorIfStateNotDefined
+    let actT ← parseActionKindStx actT
+    -- Create all the action-related declarations
+    defineAction actT nm br l
+    -- warn if this is not first-order
+    Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
+    unless spec.isNone do
+      registerProcedureSpec nm.getId spec
+      let (pre, binder, post) <- getPrePost spec.get!
+      defineProcedure (nm.getId ++ `spec |> mkIdent) br spec.get!
+      checkSpec nm br pre post binder
+
+def elabProcedure (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
+  liftCoreM errorIfStateNotDefined
+  defineProcedure nm br l
+  Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
+  unless spec.isNone do
+    registerProcedureSpec nm.getId spec
+    let (pre, binder, post) <- getPrePost spec.get!
+    defineProcedure (nm.getId ++ `spec |> mkIdent) br spec.get!
+    checkSpec nm br pre post binder
+
 elab_rules : command
   | `(command|$actT:actionKind ? action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => do
   elabAction actT nm br none l
   | `(command|$actT:actionKind ? action $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) =>
   elabAction actT nm br spec l
+  | `(command|procedure $nm:ident $br:explicitBinders ? = {$l:doSeq}) =>
+  elabProcedure nm br none l
+  | `(command|procedure $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) =>
+  elabProcedure nm br spec l
 
 /-! ## Isolates -/
 elab_rules : command

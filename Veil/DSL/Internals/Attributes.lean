@@ -59,12 +59,14 @@ def toActionAttribute' (type : ActionKind) : Lean.Elab.Attribute :=
   | .input => {name := `inputActDef}
   | .output => {name := `outputActDef}
 
-def declareAction [Monad m] [MonadEnv m] [MonadError m] (type : ActionKind) (declName : Name) : m Unit := do
-  let actionExists := (← localSpecCtx.get).spec.actions.any fun t => t.name == declName
-  if actionExists then
-    throwError "An action named {declName} has already been declared!"
-  let spec := ActionSpecification.mkPlain type declName (mkConst declName)
-  localSpecCtx.modify (fun s => { s with spec := {s.spec with actions := s.spec.actions.push spec }})
+def declareProcedure [Monad m] [MonadEnv m] [MonadError m] (actT : Option ActionKind)  (declName : Name) : m Unit := do
+  let procedureExists := (← localSpecCtx.get).spec.procedures.any fun t => t.name == declName
+  if procedureExists then
+    throwError "A procedure or action named {declName} has already been declared!"
+  let spec := match actT with
+    | some actT => ActionSpecification.mkPlain actT declName (mkConst declName)
+    | none => ProcedureSpecification.mkPlain declName (mkConst declName)
+  localSpecCtx.modify (fun s => { s with spec := {s.spec with procedures := s.spec.procedures.push spec }})
 
 syntax (name:= assumption) "assumptionDef" : attr
 initialize registerBuiltinAttribute {

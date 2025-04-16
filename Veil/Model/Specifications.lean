@@ -84,8 +84,36 @@ instance : ToString StateSpecification where
     | some lang => s!"{sp.name} : {lang}"
     | none => s!"{sp.name} : {sp.expr}"
 
-structure ActionSpecification where
-  decl : ActionDeclaration
+structure ProcedureDeclaration where
+  name: Lean.Name
+  ctor : Option (TSyntax `Lean.Parser.Command.ctor)
+deriving BEq, Inhabited
+
+
+inductive ProcedureKind
+  /-- Callable by the environment -/
+  | action (decl : ActionDeclaration)
+  /-- Not callable by the environment -/
+  | procedure (decl : ProcedureDeclaration)
+deriving Inhabited, BEq
+
+def ProcedureKind.isAction (kind : ProcedureKind) : Bool :=
+  match kind with
+  | .action _ => true
+  | .procedure _ => false
+
+def ProcedureKind.actionDecl (kind : ProcedureKind) : Option ActionDeclaration :=
+  match kind with
+  | .action decl => some decl
+  | .procedure _ => none
+
+def ProcedureKind.procedureDecl (kind : ProcedureKind) : Option ProcedureDeclaration :=
+  match kind with
+  | .action _ => none
+  | .procedure decl => some decl
+
+structure ProcedureSpecification where
+  kind : ProcedureKind
   /-- DSL expression for this action -/
   lang : Option (TSyntax ``Term.doSeq)
   /-- DSL expression for the specificarion of this action -/
@@ -97,26 +125,59 @@ structure ActionSpecification where
   expr : Expr
 deriving Inhabited, BEq
 
-instance : ToString ActionSpecification where
-  toString a := match a.lang with
-    | some lang => s!"{a.decl.kind} {a.decl.name} [defined via lang] {lang}"
-    | none => s!"{a.decl.kind} {a.decl.name} [defined via expr] {a.expr}"
+instance : ToString ProcedureSpecification where
+  toString a := match a.kind with
+    | .action decl => match a.lang with
+      | some lang => s!"{decl.kind} {decl.name} [defined via lang] {lang}"
+      | none => s!"{decl.kind} {decl.name} [defined via expr] {a.expr}"
+    | .procedure decl => match a.lang with
+      | some lang => s!"procedure {decl.name} [defined via lang] {lang}"
+      | none => s!"procedure {decl.name} [defined via expr] {a.expr}"
+
+def ProcedureSpecification.kindString (proc : ProcedureSpecification) : String :=
+  match proc.kind with
+  | .action _ => "action"
+  | .procedure _ => "procedure"
+
+def ProcedureSpecification.actionDecl (proc : ProcedureSpecification) : Option ActionDeclaration :=
+  match proc.kind with
+  | .action decl => some decl
+  | .procedure _ => none
+
+def ProcedureSpecification.hasSpec (proc : ProcedureSpecification) : Bool :=
+  proc.spec.isSome
 
 /-- Make an action specification without any DSL-specific information. -/
-def ActionSpecification.mkPlain (type : ActionKind) (name : Name) (expr : Expr) : ActionSpecification := {
-  decl := { kind := type, name := name, ctor := none },
+def ActionSpecification.mkPlain (type : ActionKind) (name : Name) (expr : Expr) : ProcedureSpecification := {
+  kind := .action { kind := type, name := name, ctor := none },
+  lang := none,
+  spec := none,
+  expr := expr
+}
+
+/-- Make a procedure specification without any DSL-specific information. -/
+def ProcedureSpecification.mkPlain (name : Name) (expr : Expr) : ProcedureSpecification := {
+  kind := .procedure { name := name, ctor := none },
   lang := none,
   spec := none,
   expr := expr
 }
 
 /-- Enhance a given `ActionSpecification` with DSL-specific information. -/
-def ActionSpecification.addDSLInfo (a : ActionSpecification) (lang : TSyntax ``Term.doSeq) (ctor : TSyntax `Lean.Parser.Command.ctor) : ActionSpecification :=
-  { a with lang := some lang, decl := { a.decl with ctor := some ctor } }
+def ProcedureSpecification.addDSLInfo (a : ProcedureSpecification) (lang : TSyntax ``Term.doSeq) (ctor : TSyntax `Lean.Parser.Command.ctor) : ProcedureSpecification :=
+  match a.kind with
+  | .action decl => { a with lang := some lang, kind := .action { decl with ctor := some ctor } }
+  | .procedure decl => { a with lang := some lang, kind := .procedure { decl with ctor := some ctor } }
 
-def ActionSpecification.name (a : ActionSpecification) : Name := a.decl.name
-def ActionSpecification.label (a : ActionSpecification) : ActionLabel Name := a.decl.label
-def ActionSpecification.hasSpec (a : ActionSpecification) : Bool := a.spec.isSome
+def ProcedureSpecification.name (a : ProcedureSpecification) : Name :=
+  match a.kind with
+  | .action decl => decl.name
+  | .procedure decl => decl.name
+
+def ProcedureSpecification.label (a : ProcedureSpecification) : Option (ActionLabel Name) :=
+  match a.kind with
+  | .action decl => some decl.label
+  | .procedure _ => none
 
 /-- `invariant` and `safety` mean the same thing, but `safety` is as a
 convention used to denote the main, top-level properties of the system,
@@ -200,8 +261,9 @@ structure ModuleSpecification : Type where
   assumptions  : Array StateAssertion
   /-- Initial state predicate -/
   init         : StateSpecification
-  /-- Action of the system -/
-  actions      : Array ActionSpecification
+  /-- Procedures of the system, some of which are marked as `action`s,
+  i.e. procedures that can be called by the environment. -/
+  procedures    : Array ProcedureSpecification
   /-- Invariants -/
   invariants   : Array StateAssertion
 deriving Inhabited
@@ -225,13 +287,22 @@ def ModuleSpecification.immutableComponents (spec : ModuleSpecification) : Array
 def ModuleSpecification.mutableComponents (spec : ModuleSpecification) : Array StateComponent :=
   spec.signature.filter (fun sc => sc.isMutable)
 
+/-- Actions are those procedures that can be called by the environment. -/
+def ModuleSpecification.actions (spec : ModuleSpecification) : Array ProcedureSpecification :=
+  spec.procedures.filter (fun proc => match proc.kind with
+    | .action _ => true
+    | .procedure _ => false)
+
 /-- Every DSL-specified transition gets a 'constructor' that corresponds
 to the transition's signature. This is used to build up a `Label` type
 for this specification, which encodes its IO Automata signature. -/
 def ModuleSpecification.transitionCtors (spec : ModuleSpecification) : CoreM (Array (TSyntax `Lean.Parser.Command.ctor)) := do
-  spec.actions.mapM (fun t => do match t.decl.ctor with
-    | some ctor => return ctor
-    | none => throwError "DSL: missing constructor for transition {t.decl.name}")
+  spec.procedures.mapM (fun t => do match t.kind with
+    | .action decl => match decl.ctor with
+      | some ctor => return ctor
+      | none => throwError "DSL: missing constructor for transition {t.name}"
+    | .procedure _ => throwError "DSL: missing constructor for procedure {t.name}"
+  )
 
 instance : ToString ModuleSpecification where
   toString spec := s!"ModuleSpecification {spec.name}"
