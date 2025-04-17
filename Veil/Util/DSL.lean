@@ -46,7 +46,7 @@ def getStateArgumentsStx (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
 
 def getActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := return (← getScope).varDecls
 def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
-def getImplicitActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do (← getActionParameters).mapM mkImplicitBinders
+def getImplicitProcedureParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do (← getActionParameters).mapM mkImplicitBinders
 
 /-- Makes a full application of the `State` type, with the appropriate
 section variables/arguments. We don't pass typeclass arguments (e.g.

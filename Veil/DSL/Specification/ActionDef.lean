@@ -37,11 +37,10 @@ def Mode.stx [Monad m] [MonadQuotation m] : Mode → m (TSyntax `term)
 def parseActionKindStx (stx : Option (TSyntax `actionKind)) : CommandElabM (TSyntax `actionKind) := do
   return stx.getD $ ← `(actionKind|internal)
 
-
-def assertActionDeclared [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (op : String) : m Unit := do
-  let actionExists := (← localSpecCtx.get).spec.actions.any fun t => t.name == nm
-  if !actionExists then
-    throwError "Action {nm} has not been declared (trying to {op})"
+def assertProcedureDeclared [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (op : String) : m Unit := do
+  let procedureExists := (← localSpecCtx.get).spec.procedures.any fun t => t.name == nm
+  if !procedureExists then
+    throwError "Procedure {nm} has not been declared (trying to {op})"
 
 open Command Term in
 /-- Record the action type and signature of this action in the `localSpecificationCtx`.  -/
@@ -64,32 +63,36 @@ def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br 
     code We do that by a further modification in the relevant elaborator
     (see [add_action_lang]) -/
     localSpecCtx.modify (fun s =>
-      { s with spec.actions :=
+      { s with spec.procedures :=
         s.spec.actions.map fun t =>
           if t.name == nm.getId then
-            { t with decl := actdecl }
+            { t with kind := .action actdecl }
           else t})
+where assertActionDeclared (nm : Name) (op : String) := do
+  let actionExists := (← localSpecCtx.get).spec.actions.any fun t => t.name == nm
+  if !actionExists then
+    throwError "Action {nm} has not been declared (trying to {op})"
 
-def registerActionBinders [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (br : Option (TSyntax `Lean.explicitBinders)) : m Unit := do
-  assertActionDeclared nm "registerActionBinders"
+def registerProcedureBinders [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (br : Option (TSyntax `Lean.explicitBinders)) : m Unit := do
+  assertProcedureDeclared nm "registerProcedureBinders"
   localSpecCtx.modify fun s =>
-    { s with spec.actions := s.spec.actions.map fun t =>
+    { s with spec.procedures := s.spec.procedures.map fun t =>
       if t.name == nm then
         { t with br := br }
       else t }
 
-def registerActionSyntax [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (lang : TSyntax `Lean.Parser.Term.doSeq) : m Unit := do
-  assertActionDeclared nm "registerActionSyntax"
+def registerProcedureSyntax [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (lang : TSyntax `Lean.Parser.Term.doSeq) : m Unit := do
+  assertProcedureDeclared nm "registerProcedureSyntax"
   localSpecCtx.modify fun s =>
-    { s with spec.actions := s.spec.actions.map fun t =>
+    { s with spec.procedures := s.spec.procedures.map fun t =>
       if t.name == nm then
         { t with lang := lang }
       else t }
 
-def registerActionSpec [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (spec : Option (TSyntax `Lean.Parser.Term.doSeq)) : m Unit := do
-  assertActionDeclared nm "registerActionSpec"
+def registerProcedureSpec [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (spec : Option (TSyntax `Lean.Parser.Term.doSeq)) : m Unit := do
+  assertProcedureDeclared nm "registerProcedureSpec"
   localSpecCtx.modify fun s =>
-    { s with spec.actions := s.spec.actions.map fun t =>
+    { s with spec.procedures := s.spec.procedures.map fun t =>
       if t.name == nm then
         { t with spec := spec }
       else t }
@@ -98,7 +101,7 @@ def registerActionSpec [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m
   - `act.genI` : internal action interpretation of the action, unsimplified
   - `act.genE` : external action interpretation of the action, unsimplified
 -/
-def defineActionGenerators (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
+def defineProcedureGenerators (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
   Command.runTermElabM fun vs => do
     let funBinders ← match br with
     | some br => toFunBinderArray br
@@ -152,10 +155,10 @@ it defines:
   - `act.tr` : (external) transition of the action, with existentially quantified arguments
 -/
 def defineActionFromGenerators (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (genIName genEName : Name) (generateTransition : Bool := true): CommandElabM Unit := do
-    let vd ← getImplicitActionParameters
-    declareAction (toActionKind actT) act.getId
+    let vd ← getImplicitProcedureParameters
+    declareProcedure (toActionKind actT) act.getId
     registerIOActionDecl actT act br
-    registerActionBinders act.getId br
+    registerProcedureBinders act.getId br
     Command.runTermElabM fun vs => do
       -- Create binders and arguments
       let sectionArgs ← getSectionArgumentsStx vs
@@ -248,6 +251,26 @@ where
     genSoundnessInstance .external genEName actEName vd univBinders sectionArgs args actEPf
     genSoundnessInstance .internal genIName actIName vd univBinders sectionArgs args actIPf
 
+def defineProcedureFromGenerator (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (genIName : Name) : CommandElabM Unit := do
+    declareProcedure .none proc.getId
+    registerProcedureBinders proc.getId br
+    Command.runTermElabM fun _ => do
+      let baseName := (← getCurrNamespace) ++ proc.getId
+      let _ ← genProcedure baseName genIName
+where
+  /-- This generates the 'simplified' (fully unfolded) action interpretation,
+  assuming the internal generator has already been defined and can be
+  found in the environment with name `genName`. -/
+  genProcedure (baseName : Name) (genIName : Name) := do
+    let procName := baseName
+    let genExp := Lean.mkConst genIName
+    let act ← genExp |>.runUnfold (genIName :: wpUnfold)
+    let act ← act |>.runUnfold [``Function.toWp]
+    let ⟨act, actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let mut attr : Array Attribute := #[{name := `actSimp}]
+    simpleAddDefn procName act (attr := attr) («type» := ← inferType genExp)
+    return (procName, actPf)
+
 /-- Defines `act` : `Wp m σ ρ` monad computation, parametrised over `br`. More
 specifically it defines:
   - `act.genI` : internal action interpretation of the action, unsimplified
@@ -258,11 +281,14 @@ specifically it defines:
   - `act.tr` : (external) transition of the action, with existentially quantified arguments
 -/
 def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
-  let (genIName, genEName) ← defineActionGenerators act br l
+  let (genIName, genEName) ← defineProcedureGenerators act br l
   defineActionFromGenerators actT act br genIName genEName
-  registerActionSyntax act.getId l
+  registerProcedureSyntax act.getId l
 
-
+def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
+  let (genIName, _genEName) ← defineProcedureGenerators proc br l
+  defineProcedureFromGenerator proc br genIName
+  registerProcedureSyntax proc.getId l
 
 /-- We support executing actions from dependent modules is by `monadLift`ing
 them to the current module's state. This function generates the
@@ -295,7 +321,7 @@ def genStateExtInstances : CommandElabM Unit := do
     trace[veil.info] "State extension instance is defined"
 
 -- def baz (n  q: Nat) := @monadLift (Wlp Mode.internal (Test₁.State node')) (Wlp Mode.internal (State node' node'')) _ Unit (@Test₁.f.genI node' node'_dec node'_ne n q)
-def liftActionGenerators (forAct : TSyntax `ident) (withBinders : Option (TSyntax `Lean.explicitBinders)) (stateTpT : TSyntax `term) (fromBaseGenerator : Name) (instatiatedWithArgs : Array Term) (isInitialAction : Bool := false) : CommandElabM (Name × Name) := do
+def liftProcedureGenerators (forAct : TSyntax `ident) (withBinders : Option (TSyntax `Lean.explicitBinders)) (stateTpT : TSyntax `term) (fromBaseGenerator : Name) (instatiatedWithArgs : Array Term) (isInitialAction : Bool := false) : CommandElabM (Name × Name) := do
   Command.runTermElabM fun vs => do
     let baseName := (← getCurrNamespace) ++ forAct.getId
     let (genIName, _genExpI) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .internal isInitialAction
@@ -322,7 +348,7 @@ where
     simpleAddDefn liftedGenName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}] ++ initAttr)
     return (liftedGenName, genExp)
 
-def defineDepsActions : CommandElabM Unit := do
+def defineDepsProcedures : CommandElabM Unit := do
   let stateTpT ← liftCoreM $ getStateTpStx
   for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
     -- arguments with which the dependency was instantiated
@@ -333,16 +359,16 @@ def defineDepsActions : CommandElabM Unit := do
     let initName := dependency.name ++ `initializer
     let liftedName := mkIdent <| modAlias ++ (stripFirstComponent initName)
     trace[veil.info] "lifting {initName} from module {dependency.name} to module {← specName} as {liftedName}"
-    let (genIName, genEName) ← liftActionGenerators liftedName .none stateTpT initName depArgs (isInitialAction := true)
+    let (genIName, genEName) ← liftProcedureGenerators liftedName .none stateTpT initName depArgs (isInitialAction := true)
     defineInitialActionFromGenerators liftedName genIName genEName
     -- Lift actions
-    for actToLift in depCtx.spec.actions do
-      let actBaseName := dependency.name ++ actToLift.decl.name
+    for procToLift in depCtx.spec.procedures do
+      let procBaseName := dependency.name ++ procToLift.name
       -- If an action has a pre-post specification, we use the the specification
       -- instead of the action itself as the lifted action. Recall that
       -- specification are just `action`s` themselves. In particular they have
       -- `genE` and `genI` generators that we can use to lift the action.
-      let actBaseName := if actToLift.hasSpec then toSpecName actBaseName else actBaseName
+      let actBaseName := if procToLift.hasSpec then toSpecName procBaseName else procBaseName
       let liftedName := mkIdent <| modAlias ++ (stripFirstComponent actBaseName)
       -- When we lift an action from a dependency, the binders of the action
       -- may have types that are not syntactically present in the action's
@@ -350,13 +376,16 @@ def defineDepsActions : CommandElabM Unit := do
       -- dependency instantiation. We cannot use `_` to infer the types, since
       -- we use these type arguments to construct the `Label` type, so they
       -- must be explicit.
-      let liftedBinders ← do match actToLift.br with
+      let liftedBinders ← do match procToLift.br with
         | some br => pure (Option.some (← toBindersWithMappedTypes br (← dependency.typeMapping)))
         | none => pure .none
-      trace[veil.info] "lifting action {actBaseName} from module {dependency.name} to module {← specName} as {liftedName}"
-      let actionKind ← actToLift.decl.kind.stx
-      let (genIName, genEName) ← liftActionGenerators liftedName liftedBinders stateTpT actBaseName depArgs
-      defineActionFromGenerators actionKind liftedName liftedBinders genIName genEName
+      trace[veil.info] "lifting {procToLift.kindString} {actBaseName} from module {dependency.name} to module {← specName} as {liftedName}"
+      let (genIName, genEName) ← liftProcedureGenerators liftedName liftedBinders stateTpT actBaseName depArgs
+      match procToLift.kind with
+      | .action decl =>
+        let actionKind ← decl.kind.stx
+        defineActionFromGenerators actionKind liftedName liftedBinders genIName genEName
+      | .procedure _ => defineProcedureFromGenerator liftedName liftedBinders genIName
 
 /-- Given `tr` : `σ → σ → Prop` (parametrised over `br`), this defines:
   - `tr.genI` : internal action interpretation of the action, unsimplified
@@ -365,7 +394,7 @@ def defineDepsActions : CommandElabM Unit := do
   This is used to re-cast a transition as an action.
 -/
 def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
-  let vd ← getImplicitActionParameters
+  let vd ← getImplicitProcedureParameters
   let baseName := (← getCurrNamespace) ++ nm.getId
   let (origName, trName) := (toOriginalIdent nm, toTrIdent nm)
   let (originalDef, trDef) ← Command.runTermElabM fun vs => do

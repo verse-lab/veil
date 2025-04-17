@@ -50,6 +50,7 @@ syntax (name := kw_output) "output" : veilKeyword
 
 syntax (name := kw_transition) "transition" : veilKeyword
 syntax (name := kw_action) "action" : veilKeyword
+syntax (name := kw_procedure) "procedure" : veilKeyword
 
 syntax (name := kw_open_isolate) "open_isolate" : veilKeyword
 syntax (name := kw_close_isolate) "close_isolate" : veilKeyword
@@ -200,7 +201,13 @@ syntax (name := nativeTransitionDefinition) (actionKind)? kw_transition ident (e
 syntax (name := actionDefinition) (actionKind)? kw_action ident (explicitBinders)? "=" "{" doSeq "}" : command
 
 /-- An imperative action in Veil, with a specification. -/
-syntax (name := actionDefinitionWithSpec) (actionKind)? "action" ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
+syntax (name := actionDefinitionWithSpec) (actionKind)? kw_action ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
+
+/-- An imperative procedure in Veil. -/
+syntax (name := procedureDefinition) kw_procedure ident (explicitBinders)? "=" "{" doSeq "}" : command
+
+/-- An imperative procedure in Veil, with a specification. -/
+syntax (name := procedureDefinitionWithSpec) kw_procedure ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
 
 /- ## Assertions -/
 

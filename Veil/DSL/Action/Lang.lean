@@ -103,7 +103,7 @@ def getSubInitializers [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m]:
     names := names.push (initName, initTerm)
   return names
 
-def getSubActions : TermElabM (Array (Ident × Term)) := do
+def getSubProcedures : TermElabM (Array (Ident × Term)) := do
   /- FIXME: this replicates some of the logic in `defineDepsActions`, since when
   this gets called as part of `defineDepsActions` (invoked indirectly in the
   elaboration of the `action` to be defined -- see `do'` elaborator), the list
@@ -114,14 +114,14 @@ def getSubActions : TermElabM (Array (Ident × Term)) := do
   let ourSpec := (← localSpecCtx.get).spec
   for (modAlias, dependency) in ourSpec.dependencies do
     let spec := (← globalSpecCtx.get)[dependency.name]!.spec
-    for act in spec.actions do
-      let actName := mkIdent <| modAlias ++ act.name
+    for proc in spec.procedures do
+      let procName := mkIdent <| modAlias ++ proc.name
       -- Since we have lifted the action, we must apply OUR section arguments to
       -- it, rather than the dependency's
-      let actTerm <- `(@$actName $(← ourSpec.arguments)*)
+      let procTerm <- `(@$procName $(← ourSpec.arguments)*)
       let currMod := (← localSpecCtx.get).stateBaseName.get!
-      if (<- getEnv).find? (currMod ++ actName.getId) |>.isSome then
-        names := names.push (actName, actTerm)
+      if (<- getEnv).find? (currMod ++ procName.getId) |>.isSome then
+        names := names.push (procName, procTerm)
   pure names
 
 
@@ -238,7 +238,7 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
   | _ => throwErrorAt stx "unexpected syntax of Veil `do`-notation sequence {stx}"
   let (doS, vars) <- (expandDoSeqVeil (<- `(doSeq| $doS*))).run #[]
   -- Make available lifted actions using `alias.actionName`
-  for a in (← getSubInitializers) ++ (← getSubActions) do
+  for a in (← getSubInitializers) ++ (← getSubProcedures) do
     let (actName, actTerm) := a
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $(actName):ident := $(actTerm))
   -- Make available state fields as mutable variables
