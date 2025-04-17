@@ -30,25 +30,32 @@ structure TheoremIdentifier where
   theoremName : Name
 deriving Inhabited, BEq
 
-def getInitCheckResultMessages' (res: List (Name × SmtResult)) : (Array String) := Id.run do
+def getTimeForDisplay [Monad m] [MonadOptions m] (time : Option TimeInMs) : m String := do
+  if !veil.showVerificationTime.get (← getOptions) then
+    return ""
+  return match time with
+  | .some time => s!" ({time} ms)"
+  | .none => ""
+
+def getInitCheckResultMessages' [Monad m] [MonadOptions m]  (res: List (Name × SmtResult × Option TimeInMs)) : m (Array String) := do
   let mut msgs := #[]
   if !res.isEmpty then
     msgs := msgs.push "Initialization must establish the invariant:"
-    for (invName, r) in res do
-      msgs := msgs.push s!"  {getBaseNameForDisplay invName} ... {emoji r}"
+    for (invName, (r, time)) in res do
+      msgs := msgs.push s!"  {getBaseNameForDisplay invName} ... {emoji r}{← getTimeForDisplay time}"
   pure msgs
 
-def getInitCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := getInitCheckResultMessages' (res.map (fun (id, r) => (id.invName, r)))
+def getInitCheckResultMessages [Monad m] [MonadOptions m] (res : List (TheoremIdentifier × SmtResult × Option TimeInMs)) : m (Array String) := getInitCheckResultMessages' (res.map (fun (id, r) => (id.invName, r)))
 
 /-- `(invName, actName, result)` -/
-def getActCheckResultMessages' (res: List (Name × Name × SmtResult)) : (Array String) := Id.run do
+def getActCheckResultMessages' [Monad m] [MonadOptions m] (res: List (Name × Name × SmtResult × Option TimeInMs)) : m (Array String) := do
   let mut msgs := #[]
   if !res.isEmpty then
     msgs := msgs.push "The following set of actions must preserve the invariant:"
     for (actName, invResults) in group res do
       msgs := msgs.push s!"  {getBaseNameForDisplay actName}"
-      for (invName, r) in invResults do
-        msgs := msgs.push s!"    {getBaseNameForDisplay invName} ... {emoji r}"
+      for (invName, (r, time)) in invResults do
+        msgs := msgs.push s!"    {getBaseNameForDisplay invName} ... {emoji r}{← getTimeForDisplay time}"
   pure msgs
 where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
   xs.foldl (fun acc (key, val) =>
@@ -58,7 +65,7 @@ where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
     | none =>
       acc ++ [(key, [val])]) []
 
-def getActCheckResultMessages (res : List (TheoremIdentifier × SmtResult)) := getActCheckResultMessages' (res.map (fun (id, r) => (id.actName.get!, id.invName, r)))
+def getActCheckResultMessages [Monad m] [MonadOptions m] (res : List (TheoremIdentifier × SmtResult × Option TimeInMs)) : m (Array String) := getActCheckResultMessages' (res.map (fun (id, r) => (id.actName.get!, id.invName, r)))
 
 def getModelStr (msg : String) : String :=
   let resWithErr := match msg.splitOn Veil.SMT.satGoalStr with
