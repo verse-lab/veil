@@ -58,6 +58,26 @@ def elabTypeDeclaration : CommandElab := fun stx => do
     elabCommand cmd
   | _ => throwUnsupportedSyntax
 
+
+@[command_elab Veil.enumDeclaration]
+def elabEnumDeclaration : CommandElab := fun stx => do
+  match stx with
+  | `(enum $id:ident = { $[$elems:ident],* }) => do
+
+    let indStx ← `(
+      inductive $id:ident : Type where
+        $[| $elems:ident]*
+    )
+    elabCommand indStx
+
+    let dec_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_dec")
+    let ne_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_ne")
+    let deceq := Lean.mkIdent ``DecidableEq
+    let nemp := Lean.mkIdent ``Nonempty
+    let cmd ← `(variable [$dec_id : $deceq $id] [$ne_id : $nemp $id])
+    elabCommand cmd
+  | _ => throwUnsupportedSyntax
+
 /- We use a macro here rather than a command elaborator, since the
 latter seems to trigger the unused variable linter. -/
 macro_rules

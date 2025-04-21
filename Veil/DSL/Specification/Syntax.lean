@@ -25,6 +25,7 @@ syntax (name := kw_veil) "veil" : veilKeyword
 syntax (name := kw_module) "module" : veilKeyword
 
 syntax (name := kw_type) "type" : veilKeyword
+syntax (name := kw_enum) "enum" : veilKeyword
 syntax (name := kw_instantiate) "instantiate" : veilKeyword
 
 syntax (name := kw_immutable) "immutable" : veilKeyword
@@ -92,6 +93,17 @@ type node
 ```
 -/
 syntax (name := typeDeclaration) kw_type ident : command
+
+/--Declare an enum type.
+
+Example:
+```lean
+enum switch_state = {on, off}
+
+#print switch_state.on
+```
+-/
+syntax (name := enumDeclaration) kw_enum ident "=" "{" ident,+ "}" : command
 
 /-- Instantiate a typeclass instance.
 
