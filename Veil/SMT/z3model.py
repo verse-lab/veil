@@ -52,6 +52,9 @@ parser.add_argument(
 parser.add_argument(
     '--log', help='SMT query log file', type=argparse.FileType('a'), default=None)
 
+class UnknownDuringMinimization(Exception):
+    """Raised when Z3 returns 'unknown' during model minimization."""
+    pass
 
 def sexp(x: Any) -> str:
     return sexpdata.dumps(x, true_as='true', false_as='false', str_as='symbol')
@@ -390,9 +393,14 @@ def _minimal_model(s : z3.Solver, sorts_to_minimize: Iterable[z3.SortRef], relat
                 with new_frame(s):
                     s.add(_cardinality_constraint(x, n))
                     res = s.check()
-                    assert res in (z3.sat, z3.unsat), res
+                    if res == z3.unknown:
+                        # give up
+                        raise UnknownDuringMinimization()
                     if res == z3.sat:
+                        # This is a minimal model; we're done
                         break
+                    # if unsat, try to find a larger model
+
             s.add(_cardinality_constraint(x, n))
 
         assert s.check() == z3.sat
@@ -403,10 +411,14 @@ def get_model(passedLines: List[str]) -> Model:
     s = z3.Solver()
     s.from_string("\n".join(passedLines))
     res = s.check()
-    assert res == z3.sat, f"Expected sat, got {res} (reason: {s.reason_unknown()})"
+    reason_unknown = f" (reason: {s.reason_unknown()})" if res == z3.unknown else ""
+    assert res == z3.sat, f"Expected sat, got {res}{reason_unknown}"
     m = s.model()
     if args.minimize:
-        m = _minimal_model(s, m.sorts(), m.decls())
+        try:
+            m = _minimal_model(s, m.sorts(), m.decls())
+        except UnknownDuringMinimization:
+            print("z3 returned unknown during model minimization", file=sys.stderr)
     print(f"Model: {m}", file=sys.stderr)
     return Model(m)
 
