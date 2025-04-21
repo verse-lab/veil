@@ -446,11 +446,12 @@ def execute_with_timeout(f: Callable, passedLines, args) -> Any:
     tlimit_s = args.tlimit / 1000
     p.join(tlimit_s)
     if p.is_alive():
-        print(f"Timeout in model generation after {time.monotonic() - start:.2f} seconds!", file=sys.stderr)
         if shared_state.get('model_str') is not None:
+            print(f"Timeout in model minimization after {time.monotonic() - start:.2f} seconds! Printing un-minimized model.", file=sys.stderr)
             print(shared_state['model_str'], flush=True)
         else:
-            print("unknown", flush=True)
+            print(f"Timeout in model generation after {time.monotonic() - start:.2f} seconds! No model was generated.", file=sys.stderr)
+            print("(timeout)", flush=True)
         p.kill()
         p.join()
         sys.exit(1)

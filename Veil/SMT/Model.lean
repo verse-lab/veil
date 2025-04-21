@@ -390,9 +390,15 @@ instance : Inhabited FirstOrderStructure := ⟨{ isMinimized := false, domains :
 open Auto.Parser.SMTSexp
 abbrev Sexpr := Auto.Parser.SMTSexp.Sexp
 
+deriving instance Repr for LexVal
+deriving instance Repr for Auto.Parser.SMTSexp.Sexp
+
+def ModelGenerationTimeoutMsg : String := "model generation timed out"
+
 partial def extractInstructions (e : Sexpr) (depth : Int := 0): MetaM (List Sexpr) := do
   match e with
-  | .atom _ => throwError s!"malformed model: unexpected atom at depth {depth} in {e}"
+  | .atom (.symb "timeout") => throwError ModelGenerationTimeoutMsg
+  | .atom _ => throwError s!"malformed model: unexpected atom at depth {depth} in {e} ({repr e})"
   | .app xs =>
       let mut instructions : List Sexpr:= if depth == 1 then [e] else []
       if depth == 0 then
@@ -509,7 +515,7 @@ def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (First
     let interp := struct.interp.getD decl (Interpretation.Symbolic interp)
     struct := { struct with interp := struct.interp.insert decl interp }
 
-  | _ => throwError s!"(parseInstruction) malformed instruction: {inst}"
+  | _ => throwError s!"(parseInstruction) malformed instruction: {inst} ({repr inst})"
   return struct
 
 def extractStructure (model : Sexpr) : MetaM FirstOrderStructure := do

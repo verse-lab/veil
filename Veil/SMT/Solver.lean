@@ -59,6 +59,8 @@ def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
 inductive ModelGenerator where
   | z3Model
 
+def modelGenerationFailureDiagnostic : String := "try changing `veil.smt.seed` or increasing `veil.smt.timeout`"
+
 def createModelGenerator (name : ModelGenerator) (withTimeout : Nat) (minimize : Bool) : MetaM SolverProc := do
   let tlim_sec := withTimeout
   let seed := veil.smt.seed.get $ ← getOptions
@@ -88,7 +90,11 @@ def getReadableModel (goalQuery : String) (withTimeout : Nat) (minimize : Bool) 
     let (model, _) ← Auto.Solver.SMT.getSexp stdout
     extractStructure model
   catch e =>
-    logWarning s!"Could not get readable model: {← e.toMessageData.toString}"
+    let exMsg ← e.toMessageData.toString
+    if exMsg == ModelGenerationTimeoutMsg then
+      logWarning s!"{ModelGenerationTimeoutMsg}; {modelGenerationFailureDiagnostic}"
+    else
+      logWarning s!"Could not get readable model: {exMsg}"
     pure none
 
 open Smt Smt.Tactic Translate in

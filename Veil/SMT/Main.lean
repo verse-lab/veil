@@ -72,12 +72,12 @@ def failureGoalStr : String := "solver invocation failed"
       -- so please don't change the string format in the next two lines.
       let tryToMinimize := veil.smt.model.minimize.get opts
       let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := tryToMinimize)
-        | throwError s!"{satGoalStr} (could not get readable model):\n{modelString}"
+        | throwError s!"{satGoalStr} (could not get readable model; {modelGenerationFailureDiagnostic}):\n{modelString}"
       -- Print that the model is not minimized if that we failed to
       -- minimize it and the user requested minimization.
       let mismatchedExpectation := tryToMinimize && !fostruct.isMinimized
       let minimizationWarning := if mismatchedExpectation then
-        s!"\n(we could not minimize this model; try increasing `veil.smt.timeout`)"
+        s!"\n(we could not minimize this model; {modelGenerationFailureDiagnostic})"
       else ""
       let modelString := minimizationWarning ++ fostruct.mkString
       throwError s!"{satGoalStr}:{modelString}"
