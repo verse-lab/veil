@@ -29,6 +29,9 @@ import multiprocess as mp
 import sexpdata
 import z3
 
+mp_manager = mp.Manager()
+shared_state = mp_manager.dict()
+
 SortName: TypeAlias = str
 DeclName: TypeAlias = str
 BoolSort: SortName = 'Bool'
@@ -149,6 +152,7 @@ class Interpretation:
 class Model:
     def __to_lisp_as__(self) -> str:
         strs = []
+        strs.append(f"(minimized {sexp(self.minimized)})")
         for sortname, elems in self.sorts.items():
             strs.append(f"(sort |{sortname}| {sexp(elems)})")
         real_interps = filter(lambda x: not x[1].is_implementation_detail(), self.interps.items())
@@ -166,7 +170,8 @@ class Model:
             ast = ast.replace(str(z3elem), elemname)
         return ast
 
-    def __init__(self, z3model: z3.ModelRef):
+    def __init__(self, z3model: z3.ModelRef, minimized: bool):
+        self.minimized = minimized
         self.fromZ3ElemToSortElemName: Dict[z3.ExprRef, str] = {}
         # This code largely copy-pasted from mypyvy's `model_to_first_order_structure``
         self.sorts: Dict[str, Any] = {
@@ -413,14 +418,20 @@ def get_model(passedLines: List[str]) -> Model:
     res = s.check()
     reason_unknown = f" (reason: {s.reason_unknown()})" if res == z3.unknown else ""
     assert res == z3.sat, f"Expected sat, got {res}{reason_unknown}"
-    m = s.model()
+    raw_model = s.model()
+    model = Model(raw_model, minimized=False)
     if args.minimize:
+        # Serialize the model early, such that if model minimization times
+        # out, we can still print the un-minimized model.
+        shared_state['model_str'] = str(model)
         try:
-            m = _minimal_model(s, m.sorts(), m.decls())
+            raw_model = _minimal_model(s, raw_model.sorts(), raw_model.decls())
+            model = Model(raw_model, minimized=True)
+            shared_state['model_str'] = str(model)
         except UnknownDuringMinimization:
             print("z3 returned unknown during model minimization", file=sys.stderr)
-    print(f"Model: {m}", file=sys.stderr)
-    return Model(m)
+    print(f"Raw model: {raw_model}", file=sys.stderr)
+    return model
 
 def log_query(query: str):
     if args.log is not None:
@@ -436,7 +447,10 @@ def execute_with_timeout(f: Callable, passedLines, args) -> Any:
     p.join(tlimit_s)
     if p.is_alive():
         print(f"Timeout in model generation after {time.monotonic() - start:.2f} seconds!", file=sys.stderr)
-        print("unknown", flush=True)
+        if shared_state.get('model_str') is not None:
+            print(shared_state['model_str'], flush=True)
+        else:
+            print("unknown", flush=True)
         p.kill()
         p.join()
         sys.exit(1)

@@ -70,9 +70,17 @@ def failureGoalStr : String := "solver invocation failed"
       let leanSmtQueryString ← if translatorToUse == .leanSmt then pure originalCmdString else cmdString .leanSmt
       -- FIXME: we are doing some crazy string manipulation in `getModelStr` to print counterexamples in `#check_invariants`,
       -- so please don't change the string format in the next two lines.
-      let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := veil.smt.model.minimize.get opts)
+      let tryToMinimize := veil.smt.model.minimize.get opts
+      let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := tryToMinimize)
         | throwError s!"{satGoalStr} (could not get readable model):\n{modelString}"
-      throwError s!"{satGoalStr}:{fostruct}"
+      -- Print that the model is not minimized if that we failed to
+      -- minimize it and the user requested minimization.
+      let mismatchedExpectation := tryToMinimize && !fostruct.isMinimized
+      let minimizationWarning := if mismatchedExpectation then
+        s!"\n(we could not minimize this model; try increasing `veil.smt.timeout`)"
+      else ""
+      let modelString := minimizationWarning ++ fostruct.mkString
+      throwError s!"{satGoalStr}:{modelString}"
     | .Unknown reason => throwError "{unknownGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
     | .Failure reason => throwError "{failureGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
     | .Unsat => mv.admit (synthetic := false)

@@ -332,6 +332,8 @@ instance : Ord ExplicitInterpretation where
   compare x y := compare x.toArray y.toArray
 
 structure FirstOrderStructure where
+  isMinimized : Bool
+
   /-- Also called universes. -/
   domains : Array FirstOrderSort
   signature : Signature
@@ -341,14 +343,20 @@ deriving Ord
 open Lean hiding Declaration
 
 /- FIXME: make this match mypyvy output to a greater extent -/
-instance : ToString FirstOrderStructure where
-  toString s := Id.run (do
+def FirstOrderStructure.mkString (s : FirstOrderStructure) (printWhetherMinimized : Bool := false) : String :=
+  Id.run (do
     let mut out := s!"\n"
+    if printWhetherMinimized then
+      let minimized := if s.isMinimized then "(this model is minimized)" else "(this model is not minimized)"
+      out := out ++ s!"{minimized}\n"
     for dom in s.domains do
       out := out ++ s!"{dom}\n"
     for (decl, interp) in s.interp.toArray.qsortOrd do
       out := out ++ (← interp.toString decl)
     return out)
+
+instance : ToString FirstOrderStructure where
+  toString s := s.mkString (printWhetherMinimized := true)
 
 def FirstOrderStructure.findSort (s : FirstOrderStructure) (name : Lean.Name) : MetaM FirstOrderSort :=
   match s.domains.find? (fun s => s.name == name) with
@@ -377,7 +385,7 @@ def FirstOrderStructure.numTrueInstances (s : FirstOrderStructure) (decl : Decla
       return iopairs.foldl (init := 0) fun c (_, res) => if res.isTrue then c + 1 else c
   | _ => throwError s!"cannot call `FirstOrderStructure.numTrueInstances` on a symbolic interpretation!"
 
-instance : Inhabited FirstOrderStructure := ⟨{ domains := #[], signature := default, interp := default }⟩
+instance : Inhabited FirstOrderStructure := ⟨{ isMinimized := false, domains := #[], signature := default, interp := default }⟩
 
 open Auto.Parser.SMTSexp
 abbrev Sexpr := Auto.Parser.SMTSexp.Sexp
@@ -432,6 +440,11 @@ def getValueArray (vals : Array Sexp) (sorts : Array FirstOrderSort) : MetaM (Ar
 def parseInstruction (inst : Sexpr) (struct : FirstOrderStructure): MetaM (FirstOrderStructure) := do
   let mut struct := struct
   match inst with
+  -- (|minimized| true)
+  | .app #[(.atom (.symb "minimized")), (.atom (.symb "true"))] => do
+    struct := { struct with isMinimized := true }
+  | .app #[(.atom (.symb "minimized")), (.atom (.symb "false"))] => do
+    struct := { struct with isMinimized := false }
   -- (|sort| |Bool| (|true| |false|)),
   -- (|sort| |a| (|a0| |a1|)),
   | .app #[(.atom (.symb "sort")), (.atom (.symb sortName)), (.app els)] => do
