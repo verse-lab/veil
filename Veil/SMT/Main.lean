@@ -32,21 +32,17 @@ def parseTimeout : TSyntax `smtTimeout → CoreM Nat
   | `(Smt.Tactic.smtTimeout| ) => return (veil.smt.timeout.get (← getOptions))
   | _ => throwUnsupportedSyntax
 
+private def solverStr (solver : Option SmtSolver := none) : String :=
+  match solver with
+  | some solver => s!"{solver}: "
+  | none => ""
+
 /-- A string to print when the solver returns `sat`. Factored out here
 because it's used by `checkTheorems` in `Check.lean` to distinguish
 between failures and `sat` from the solver .-/
-def satGoalStr (solver : Option SmtSolver := none) : String :=
-  match solver with
-  | some solver => s!"{solver}: the goal is false"
-  | none => "the goal is false"
-def unknownGoalStr (solver : Option SmtSolver := none) : String :=
-  match solver with
-  | some solver => s!"{solver}: the goal is unknown"
-  | none => "the goal is unknown"
-def failureGoalStr (solver : Option SmtSolver := none) : String :=
-  match solver with
-  | some solver => s!"{solver} invocation failed"
-  | none => "solver invocation failed"
+def satGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}the goal is false"
+def unknownGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}the goal is unknown"
+def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}solver invocation failed"
 
 @[tactic sauto] def elabSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
