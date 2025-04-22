@@ -393,7 +393,8 @@ abbrev Sexpr := Auto.Parser.SMTSexp.Sexp
 deriving instance Repr for LexVal
 deriving instance Repr for Auto.Parser.SMTSexp.Sexp
 
-def ModelGenerationTimeoutMsg : String := "model generation timed out"
+
+def ModelGenerationTimeoutMsg : String := s!"z3 timeout: could not generate a model (query timed out)"
 
 partial def extractInstructions (e : Sexpr) (depth : Int := 0): MetaM (List Sexpr) := do
   match e with

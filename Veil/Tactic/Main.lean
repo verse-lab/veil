@@ -424,7 +424,7 @@ where
   -- print a readable model, which requires `lean-smt`.
   let mv' ← mkFreshExprMVar (mkNot $ ← Tactic.getMainTarget)
   let leanSmtQueryString ← Veil.SMT.prepareLeanSmtQuery mv'.mvarId! hs
-  let res ← Veil.SMT.querySolver leanSmtQueryString withTimeout (retryOnUnknown := true)
+  let (res, solverUsed) ← Veil.SMT.querySolver leanSmtQueryString withTimeout (retryOnUnknown := true)
   match res with
   | .Sat .none => mv.admit (synthetic := false)
   | .Sat (some modelString) =>
@@ -434,9 +434,9 @@ where
     | .none => s!"(could not get readable model)\n{modelString}"
     logInfo resStr
     mv.admit (synthetic := false)
-  | .Unknown reason => throwError "{Veil.SMT.unknownGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
-  | .Failure reason => throwError "{Veil.SMT.failureGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
-  | .Unsat => throwError "{Veil.SMT.satGoalStr}"
+  | .Unknown reason => throwError "{Veil.SMT.unknownGoalStr solverUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
+  | .Failure reason => throwError "{Veil.SMT.failureGoalStr solverUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
+  | .Unsat => throwError "{Veil.SMT.satGoalStr solverUsed}"
 
 /-- Tactic to solve `sat trace` goals.
 
