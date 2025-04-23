@@ -348,7 +348,7 @@ def Lean.Expr.simpWp (e : Expr) : TermElabM Simp.Result := do
   e.runSimp stx
 
 def Lean.Expr.simpAction (e : Expr) : TermElabM Simp.Result := do
-  let stx := `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+  let stx := `(tactic| simp only [actSimp, smtSimp, quantifierSimp])
   e.runSimp stx
 
 def Lean.Expr.runUnfold (e : Expr) (defs : List Name) : TermElabM Expr := do
