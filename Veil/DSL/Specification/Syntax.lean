@@ -99,8 +99,6 @@ syntax (name := typeDeclaration) kw_type ident : command
 Example:
 ```lean
 enum switch_state = {on, off}
-
-#print switch_state.on
 ```
 -/
 syntax (name := enumDeclaration) kw_enum ident "=" "{" ident,+ "}" : command
