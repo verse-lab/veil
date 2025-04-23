@@ -120,8 +120,7 @@ where
     | Mode.internal => do `(fun $funBinders* => do' .internal in $l)
     | Mode.external => do `(fun $funBinders* => do' .external in $l)
     let genExp <- withDeclName genName do elabTermAndSynthesize genl none
-    let wpSimp := mkIdent `wpSimp
-    let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wpSimp:ident])
+    let ⟨genExp, _, _⟩ <- genExp.simpWp
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
     simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
     return (genName, genExp)
@@ -142,7 +141,7 @@ where
     | Mode.external => toExtName baseName
     let genExp := Lean.mkConst genName
     let act ← genExp |>.runUnfold (genName :: wpUnfold)
-    let ⟨act, _actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let ⟨act, _actPf, _⟩ <- act.simpAction
     let mut attr : Array Attribute := #[{name := `initSimp}, {name := `actSimp}]
     simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
     return actName
@@ -183,7 +182,7 @@ where
     let origName := toOriginalName baseName
     let act ← genExp |>.runUnfold (genName :: wpUnfold)
     let act ← act |>.runUnfold [``Function.toWp, origName]
-    let ⟨act, actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let ⟨act, actPf, _⟩ <- act.simpAction
     let mut attr : Array Attribute := #[{name := `actSimp}]
     simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
     return (actName, actPf)
@@ -204,7 +203,7 @@ where
     -- theorem, giving us a nicer lifted transition.
     let ⟨actTr, _, _⟩ <- actTr.runSimp `(tactic| simp only [$(mkIdent `generatorSimp):ident, setIn, getFrom, lift_transition])
     -- After (potentially) `lift_transition` theorem, we simplify as usual
-    let ⟨actTr, _, _⟩ <- actTr.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let ⟨actTr, _, _⟩ <- actTr.simpAction
     let actTr <- mkLambdaFVarsImplicit vs actTr
     let actTr <- instantiateMVars actTr
     simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
@@ -222,7 +221,7 @@ where
     let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toTwoState st st')
     let trActThmStatement ← `(forall? $[$vd]* , ($actTrStx) = (@$(mkIdent actTrName) $sectionArgs*))
     let trActThm ← elabTermAndSynthesize trActThmStatement mkProp
-    let ⟨afterSimp, thmPf, _⟩ <- trActThm.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let ⟨afterSimp, thmPf, _⟩ <- trActThm.simpAction
     if !afterSimp.isTrue then
       throwError "[genSoundness] {trActThmStatement} could not be proven by `simp`"
     let proof ← match thmPf with
@@ -266,7 +265,7 @@ where
     let genExp := Lean.mkConst genIName
     let act ← genExp |>.runUnfold (genIName :: wpUnfold)
     let act ← act |>.runUnfold [``Function.toWp]
-    let ⟨act, actPf, _⟩ <- act.runSimp `(tactic| simp only [actSimp, logicSimp, smtSimp, quantifierSimp])
+    let ⟨act, actPf, _⟩ <- act.simpAction
     let mut attr : Array Attribute := #[{name := `actSimp}]
     simpleAddDefn procName act (attr := attr) («type» := ← inferType genExp)
     return (procName, actPf)
@@ -341,8 +340,7 @@ where
     let liftedGenName := toGenName liftedActName mode
     trace[veil.info] "{liftedGenName} := {liftedGenStx}"
     let genExp <- withDeclName liftedGenName do elabTermAndSynthesize liftedGenStx .none
-    let wpSimp := mkIdent `wpSimp
-    let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wpSimp:ident])
+    let ⟨genExp, _, _⟩ <- genExp.simpWp
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit actVs genExp
     let initAttr := if isInitialAction then #[{name := `initSimp}] else #[]
     simpleAddDefn liftedGenName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}] ++ initAttr)
