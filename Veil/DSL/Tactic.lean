@@ -334,9 +334,13 @@ def mkSimpContext' (stx : Syntax) (eraseLocal : Bool) (kind := SimpKind.simp)
     let ctx := ctx.setSimpTheorems simpTheorems
     return { ctx, simprocs, dischargeWrapper }
 
+def veilSimpMaxSteps := 10 * Lean.Meta.Simp.defaultMaxSteps
+
 def Lean.Expr.runSimp (e : Expr) (stx : TermElabM (TSyntax `tactic)) : TermElabM Simp.Result := do
-  let ctx <- mkSimpContext' (← stx) false
-  let res <- simp e ctx.ctx (simprocs := ctx.simprocs) (discharge? := none)
+  let sc <- mkSimpContext' (← stx) false
+  let cfg := { sc.ctx.config with maxSteps := veilSimpMaxSteps }
+  let ctx ← sc.ctx.setConfig cfg
+  let res <- simp e ctx (simprocs := sc.simprocs) (discharge? := none)
   return res.1
 
 def Lean.Expr.runUnfold (e : Expr) (defs : List Name) : TermElabM Expr := do
