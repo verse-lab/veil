@@ -26,17 +26,23 @@ jobs:
     - name: List Docker images
       run: docker images
 
-    - name: Run container and execute lake build
+    - name: Start container (in background)
+      run: docker run --name test-container -dti veil/latest
+
+    - name: Execute lake build
       id: run-container
       run: |
-        docker run --name test-container -dti veil/latest
+        set +e # stop this script from aborting if a command fails, s.t., the exit code can be captured
         docker exec test-container bash -c 'cd veil && /root/.elan/bin/lake build || exit $?'
         echo "exitcode=$?" >> $GITHUB_OUTPUT
+
+    - name: Stop container and cleanup docker
+      if: ${{ always() }}
+      run: |
         docker stop test-container
         docker rm test-container
 
-    - name: Report status
+    - name: Report exit code
       if: ${{ steps.run-container.outcome == 'failure' }}
       run: |
-        echo "The lake build process exited with a non-zero status."
-
+        echo "The lake build process exited with the non-zero exit code ${{ steps.run-container.outputs.exitcode }}."
