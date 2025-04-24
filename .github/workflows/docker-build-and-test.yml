@@ -44,5 +44,4 @@ jobs:
 
     - name: Report exit code
       if: ${{ steps.run-container.outcome == 'failure' }}
-      run: |
-        echo "The lake build process exited with the non-zero exit code ${{ steps.run-container.outputs.exitcode }}."
+      run: echo "The lake build process exited with the non-zero exit code ${{ steps.run-container.outputs.exitcode }}."
