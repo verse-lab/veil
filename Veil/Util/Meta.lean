@@ -120,7 +120,7 @@ def toBindersWithInferredTypes (stx : TSyntax `Lean.explicitBinders) [Monad m] [
 
 
 /-- Convert existential binders (with explicit types) into terms (including only the identifiers). -/
-def toBindersWithMappedTypes (stx : TSyntax `Lean.explicitBinders) (mapping : Array (Term × Term)) : CommandElabM (TSyntax `Lean.explicitBinders) := do
+def toBindersWithMappedTypes [Monad m] [MonadQuotation m] [MonadError m] (stx : TSyntax `Lean.explicitBinders) (mapping : Array (Term × Term)) : m (TSyntax `Lean.explicitBinders) := do
   let mut newBinders := #[]
   match stx with
   | `(explicitBinders|$bs*) => do
@@ -137,7 +137,7 @@ def toBindersWithMappedTypes (stx : TSyntax `Lean.explicitBinders) (mapping : Ar
   return newStx
 
 /-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
-def mkArrowStx (tps : List Term) (terminator : Option $ TSyntax `term := none) : CoreM (TSyntax `term) := do
+def mkArrowStx [Monad m] [MonadQuotation m] [MonadError m] (tps : List Term) (terminator : Option $ TSyntax `term := none) : m (TSyntax `term) := do
   match tps with
   | [] => if let some t := terminator then return t else throwError "empty list of types and no terminator"
   | [a] => match terminator with
@@ -147,7 +147,7 @@ def mkArrowStx (tps : List Term) (terminator : Option $ TSyntax `term := none) :
     let cont ← mkArrowStx as terminator
     `(term| $a -> $cont)
 
-def complexBinderToSimpleBinder (nm : TSyntax `ident) (br : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (domT : TSyntax `term) : CoreM (TSyntax `Lean.Parser.Command.structSimpleBinder) := do
+def complexBinderToSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (nm : TSyntax `ident) (br : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (domT : TSyntax `term) : m (TSyntax `Lean.Parser.Command.structSimpleBinder) := do
   let types ← br.mapM fun m => match m with
     | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
     | _ => throwError "Invalid binder syntax {br}"
@@ -167,7 +167,7 @@ def getSimpleBinderType (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) 
   | `(Lean.Parser.Command.structSimpleBinder| $_:ident : $tp:term) => pure tp
   | _ => throwError s!"getSimpleBinderType: don't know how to handle {sig}"
 
-def createExistsBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
+def createExistsBinders [Monad m] [MonadQuotation m] (vars : Array (Ident × Option Name)) : m (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
   let binders ← vars.mapM fun (var, sort) => do
     let bi := toBinderIdent var
     match sort with
@@ -175,35 +175,52 @@ def createExistsBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TS
     | some sort => return ← `(bracketedExplicitBinders|($bi : $(mkIdent sort)))
   return binders
 
-def repeatedExists (vars : Array (Ident × Option Name)) (body : TSyntax `term) : MetaM (TSyntax `term) := do
+def repeatedExists [Monad m] [MonadQuotation m] (vars : Array (Ident × Option Name)) (body : TSyntax `term) : m (TSyntax `term) := do
   let binders ← createExistsBinders vars
   if binders.size == 0 then return body
   else `(term|∃ $binders*, $body)
 
-def createForallBinders (vars : Array (Ident × Option Name)) : MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def createForallBinders [Monad m] [MonadQuotation m] (vars : Array (Ident × Option Name)) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let binders ← vars.mapM fun (var, sort) => do
     match sort with
     | none => return ← `(bracketedBinder|($var))
     | some sort => return ← `(bracketedBinder|($var : $(mkIdent sort)))
   return binders
 
-def repeatedForall (vars : Array (Ident × Option Name)) (body : TSyntax `term) : MetaM (TSyntax `term) := do
+def repeatedForall  [Monad m] [MonadQuotation m] (vars : Array (Ident × Option Name)) (body : TSyntax `term) : m (TSyntax `term) := do
   let binders ← createForallBinders vars
   if binders.size == 0 then return body
   else `(term|∀ $binders*, $body)
 
-def repeatedOp (op : Name) (default : TSyntax `term) (operands : Array (TSyntax `term)) : MetaM (TSyntax `term) := do
+def repeatedOp [Monad m] [MonadQuotation m] (op : Name) (default : TSyntax `term) (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
   if operands.isEmpty then return default
   else
-    let initT := operands[0]!
-    let acc := operands[1:]
-    acc.foldlM (init := initT) fun operand acc => `(term|$(mkIdent op) $operand $acc)
+    let last := operands.size - 1
+    let initT := operands[last]!
+    let acc := operands[0:last]
+    acc.foldrM (init := initT) fun operand acc => `(term|$(mkIdent op) $operand $acc)
 
-def repeatedAnd (operands : Array (TSyntax `term)) : MetaM (TSyntax `term) := do
+def repeatedAnd [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
   repeatedOp `And (default := ← `(term|$(mkIdent `True))) operands
 
-def repeatedOr (operands : Array (TSyntax `term)) : MetaM (TSyntax `term) := do
+def repeatedOr  [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
   repeatedOp `Or (default := ← `(term|$(mkIdent `False))) operands
+
+/--
+Similar to the `distinct` keyword in SMT-LIB, this generates inequality
+conditions for multiple terms. Example: `distinct a b c d`=
+-/
+syntax "distinct" (term:max)* : term
+macro_rules
+  | `(term|distinct $[$ids:term]*) => do
+    let mut inequalities := #[]
+    for index_left in [0:ids.size] do
+      for index_right in [index_left+1:ids.size] do
+        let elem_i := ids[index_left]!
+        let elem_j := ids[index_right]!
+        inequalities := inequalities.push (← `($elem_i ≠ $elem_j))
+    let fmla ← repeatedAnd inequalities
+    return fmla
 
 def mkOrN : List Expr → Expr
   | [] => mkConst ``True

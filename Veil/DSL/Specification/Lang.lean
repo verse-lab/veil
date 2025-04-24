@@ -63,47 +63,31 @@ def elabTypeDeclaration : CommandElab := fun stx => do
 def elabEnumDeclaration : CommandElab := fun stx => do
   match stx with
   | `(enum $id:ident = { $[$elems:ident],* }) => do
-    let dec_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_dec")
-    let ne_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_ne")
-    let deceq := Lean.mkIdent ``DecidableEq
-    let nemp := Lean.mkIdent ``Nonempty
-    let cmd ← `(variable ($id : Type) [$dec_id : $deceq $id] [$ne_id : $nemp $id])
-    elabCommand cmd
-
-    for elem in elems do
-      let elem_declaration ← `(variable ($elem : $id))
-      elabCommand elem_declaration
-
-    for index_left in [0:elems.size] do
-      for index_right in [index_left+1:elems.size] do
-        let elem_i := elems[index_left]!
-        let elem_j := elems[index_right]!
-        if elem_i.getId = elem_j.getId
-        then
-          throwError s!"duplicate in enum declaration: {elem_i.getId}"
-        else
-          let axiom_neq_name := Name.mkSimple s!"{elem_i.getId}_neq_{elem_j.getId}"
-          let axiom_neq ← `(variable ($(mkIdent axiom_neq_name) : $elem_i ≠ $elem_j))
-          elabCommand axiom_neq
-
-    let equalities ← elems.mapM (fun elem => `(x = $(elem)))
-    let enumerating ← equalities.foldrM (init := none) (
-      fun elem_equality current_expression =>
-        match current_expression with
-        | none => pure (some elem_equality)
-        | some actual_expression => do
-          let j ← `(Or $elem_equality $actual_expression)
-          pure (some j)
+    -- Declare the uninterpreted sort
+    elabCommand $ ← `(type $id)
+    -- Declare a class for the enum type
+    let variants ← elems.mapM (fun elem => `(Command.structSimpleBinder|$elem:ident : $id))
+    let (class_name, ax_distinct, ax_complete) := (mkIdent (Name.mkSimple s!"{id.getId}_Enum"), mkIdent $ Name.mkSimple s!"{id.getId}_distinct", mkIdent $ Name.mkSimple s!"{id.getId}_complete")
+    let ax_distinct ← `(Command.structSimpleBinder|$ax_distinct:ident : distinct $[$elems]*)
+    let x := mkIdent $ Name.mkSimple s!"{id.getId}_x"
+    let ax_complete ← `(Command.structSimpleBinder|$ax_complete:ident : ∀ ($x : $id), $(← isEqualToOneOf x elems))
+    let class_decl ← `(
+      class $class_name ($id : outParam Type) where
+        $[$variants]*
+        $ax_distinct
+        $ax_complete
     )
-
-    match enumerating with
-    | some resulting_expression =>
-      let axiom_enumerating_name := mkIdent (Name.mkSimple s!"${id.getId}_enumerating")
-      let axiom_enumerating ← `(variable ($axiom_enumerating_name : ∀ x : $id, $resulting_expression))
-      elabCommand axiom_enumerating
-    | none => throwError "enum cannot be empty" --actually impossible due to parsing
+    elabCommand class_decl
+    let instanceName := mkIdent $ Name.mkSimple s!"{id.getId}_isEnum"
+    let instanceV ← `(command|instantiate $instanceName : @$class_name $id)
+    elabCommand instanceV
+    elabCommand $ ← `(open $class_name:ident)
 
   | _ => throwUnsupportedSyntax
+where
+isEqualToOneOf {m} [Monad m] [MonadQuotation m] (x : TSyntax `term) (xs : Array (TSyntax `term)) : m (TSyntax `term) := do
+  let equalities ← xs.mapM (fun elem => `($x = $(elem)))
+  repeatedOr equalities
 
 /- We use a macro here rather than a command elaborator, since the
 latter seems to trigger the unused variable linter. -/
