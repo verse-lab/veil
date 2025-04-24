@@ -52,6 +52,12 @@ action call_f (z : node) = {
   f 5 z
 }
 
+#guard_msgs(drop warning) in
+action foo (z : node)= {
+  let _qq ← f 5 z;
+  pure 42
+}
+
 /-- info: true -/
 #guard_msgs in
 #eval isElaboratedCorrectly ``call_f
