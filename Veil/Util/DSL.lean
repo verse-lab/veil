@@ -13,8 +13,8 @@ def Term.explicitBinderF := Term.explicitBinder (requireType := false)
 def Term.implicitBinderF := Term.implicitBinder (requireType := false)
 
 /-- Transforms explicit binder into implicit one -/
-def mkImplicitBinders : TSyntax `Lean.Parser.Term.bracketedBinder ->
-  CommandElabM (TSyntax `Lean.Parser.Term.bracketedBinder)
+def mkImplicitBinders [Monad m] [MonadQuotation m] : TSyntax `Lean.Parser.Term.bracketedBinder ->
+  m (TSyntax `Lean.Parser.Term.bracketedBinder)
   | `(Term.explicitBinderF| ($id:ident : $tp:term)) => do
     `(Term.bracketedBinderF| {$id:ident : $tp:term})
   | stx => return stx
