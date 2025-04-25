@@ -152,15 +152,21 @@ abbrev VeilM := StateT (Array Vars) TermElabM
 mutual
 partial def expandDoSeqVeil (stx : doSeq) : VeilM (Array doSeqItem) :=
   match stx with
-  | `(doSeq| $doS:doSeqItem*) => doS.mapM expandDoElemVeil
+  | `(doSeq| $doS:doSeqItem*) => return Array.flatten $ ← doS.mapM expandDoElemVeil
   | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation sequence {stx}"
 
-
-
-partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
+partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
   trace[veil.debug] "[expand doElem] {stx}"
   match stx with
+  -- Ignore semicolons
   | `(Term.doSeqItem| $stx ;) => expandDoElemVeil $ <- `(Term.doSeqItem| $stx:doElem)
+  -- We don't want to introduce state updates after pure statements, so
+  -- we pass these through unchanged
+  | `(Term.doSeqItem| return $t:term) | `(Term.doSeqItem| pure $t:term)
+  | `(Term.doSeqItem| require $t) | `(Term.doSeqItem| assert $t) | `(Term.doSeqItem| assume $t) => return #[stx]
+  -- `fresh` also doesn't modify the state, so we pass these through unchanged
+  | `(Term.doSeqItem|let $_ : $_ ← fresh $_) | `(Term.doSeqItem|let $_ : $_ ← fresh)
+  | `(Term.doSeqItem|let $_ ← fresh $_) | `(Term.doSeqItem|let $_ ← fresh) => return #[stx]
   -- Expand `if` statements
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
     let fs <- `(Term.doSeqItem| let $h:ident <- fresh)
@@ -176,7 +182,8 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
   | `(Term.doSeqItem| if $t:term then $thn:doSeq else $els:doSeq) =>
     let thn <- expandDoSeqVeil thn
     let els <- expandDoSeqVeil els
-    `(Term.doSeqItem| if $t then $thn* else $els*)
+    let ret ← `(Term.doSeqItem| if $t then $thn* else $els*)
+    return #[ret]
   -- Expand non-deterministic assignments statements
   | `(Term.doSeqItem| $id:ident := *) =>
     let typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
@@ -200,23 +207,48 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM doSeqItem := do
         throwIfImmutable id'
         -- NOTE: It is very important that we return a single `doSeqItem`;
         -- otherwise syntax highlighting gets broken very badly
-        withRef stx `(Term.doSeqItem| $id:ident ← modifyGet
+        let res ← withRef stx `(Term.doSeqItem| $id:ident ← modifyGet
             (fun st => (($t, {st with $id:ident := $t}))))
+        return #[res]
       else
-        `(Term.doSeqItem| $id:ident := $t:term)
+        let res ← `(Term.doSeqItem| $id:ident := $t:term)
+        return #[res]
     else
       let base := mkIdent name.getPrefix
       let suff := mkIdent $ name.updatePrefix default
       expandDoElemVeil $ <- withRef stx `(Term.doSeqItem| $base:ident := { $base with $suff:ident := $t })
   | `(Term.doSeqItem| $idts:term := $t:term) =>
     trace[veil.debug] "[expand assignment with args] {stx}"
-    let some (id, ts) := idts.isApp? | return stx
+    let some (id, ts) := idts.isApp? | return #[stx]
     let stx' <- withRef t `(term| $id[ $[$ts],* ↦ $t:term ])
     let stx <- withRef stx `(Term.doSeqItem| $id:ident := $stx')
     expandDoElemVeil stx
+  /-
+    To make available the state fields without requiring explicit
+    binds, we introduce `let mut field := (<- get).field` for each
+    field of state at the beginning of every `do`-block.
+
+    However, this requires us to update these variables after each
+    `bind`, to ensure that they have the correct/up-to-date values.
+  -/
+  -- We handle `bind`s of terms specially, since we want to maintain
+  -- the same return value, even though we update the state.
+  | `(Term.doSeqItem|$t:term) =>
+    let b := mkIdent <| <- mkFreshUserName `_b
+    let bind <- `(Term.doSeqItem| let $b:ident ← $t:term)
+    return #[bind] ++ (← refreshState) ++ #[← `(Term.doSeqItem| pure $b:ident)]
+  -- For everything else, we just update the state afterwards (return
+  -- value is `Unit`)
   | doE =>
     trace[veil.debug] "[expand just a doElem] {stx}"
-    return doE
+    return #[doE] ++ (← refreshState)
+where
+refreshState : VeilM (Array doSeqItem) := do
+  let fields := (<- getFields).map Lean.mkIdent
+  let state := mkIdent <| <- mkFreshUserName `_State
+  let refresh ← fields.mapM fun f => `(Term.doSeqItem| $f:ident := $state.$f)
+  let refresh :=  #[<- `(Term.doSeqItem| let $state:ident ← get)] ++ refresh
+  return refresh
 end
 
 elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
