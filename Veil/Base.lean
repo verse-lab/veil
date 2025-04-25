@@ -95,6 +95,11 @@ register_option veil.failedCheckThrowsError : Bool := {
   descr := "Throw an error if a check fails? (default: true)"
 }
 
+register_option veil.showVerificationTime : Bool := {
+  defValue := false
+  descr := "Show the time taken to verify each invariant clause."
+}
+
 register_option veil.smt.solver : SmtSolver := {
   defValue := SmtSolver.cvc5
   descr := "SMT solver to use (default: cvc5)"

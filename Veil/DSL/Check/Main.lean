@@ -206,7 +206,10 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     for (thmId, cmd) in allTheorems do
       -- save messages before elaboration
       let origMsgs := (<- get).messages
+      -- time the theorem checking
+      let startTime := ← IO.monoMsNow
       let res ← checkIndividualTheorem thmId cmd
+      let endTime := ← IO.monoMsNow
       let msgs := (← get).messages
       theoremCheckingMsgs := theoremCheckingMsgs.push msgs
       let result ← if res.isProven then pure SmtResult.Unsat else
@@ -223,6 +226,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         | _, _, _ =>
           dbg_trace s!"[{thmId.theoremName}] (isProven: {res}, hasSat: {hasSat}, hasUnknown: {hasUnknown}, hasFailure: {hasFailure}) Unexpected messages: {msgsTxt}"
           unreachable!
+      let result := (result, .some $ endTime - startTime)
       if thmId.actName.isNone then
         initIdAndResults := initIdAndResults.push (thmId, result)
       else
@@ -233,8 +237,8 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         unprovenTheorems := unprovenTheorems.push thmId
       -- restore messages (similar to `#guard_msgs`)
       modify fun st => { st with messages := origMsgs }
-    let initMsgs := getInitCheckResultMessages initIdAndResults.toList
-    let actMsgs := getActCheckResultMessages thmIdAndResults.toList
+    let initMsgs ← getInitCheckResultMessages initIdAndResults.toList
+    let actMsgs ← getActCheckResultMessages thmIdAndResults.toList
     let checkMsgs := initMsgs ++ actMsgs
     let modelMsgs := if modelStrs.isEmpty || (!veil.printCounterexamples.get (← getOptions)) then [] else ["\nCounter-examples", "================\n"] ++ modelStrs.toList
     let msg := ("\n".intercalate (checkMsgs.toList ++ modelMsgs))
@@ -244,7 +248,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     | .printAllTheorems => displaySuggestion stx (allTheorems.map Prod.snd)
     | .printUnverifiedTheorems =>
       let unverifiedTheoremIds := ((initIdAndResults ++ thmIdAndResults).filter (fun res => match res with
-        | (_, .Unsat) => false
+        | (_, .Unsat, _) => false
         | _ => true)).map (fun (id, _) => id)
       let unverifiedTheorems := (allTheorems.filter (fun (id, _) => unverifiedTheoremIds.any (fun id' => id == id'))).map Prod.snd
       displaySuggestion stx unverifiedTheorems
@@ -295,8 +299,8 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
       trace[veil.debug] "SMT init check: {initCmd}"
       let initRes ← querySolverWithIndicators initCmd withTimeout (initChecks.map (fun a => #[a]))
-      let initMsgs := getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
-      | [invName] => (⟨invName, .none, mkTheoremName `init invName⟩, res)
+      let initMsgs ← getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
+      | [invName] => (⟨invName, .none, mkTheoremName `init invName⟩, (res, .none))
       | _ => unreachable!)
 
       -- Action checks
@@ -308,8 +312,8 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
       trace[veil.debug] "SMT action check: {actCmd}"
       let actRes ← querySolverWithIndicators actCmd withTimeout (invChecks.map (fun (a, b) => #[a, b]))
-      let actMsgs := getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
-      | [actName, invName] => (⟨actName, invName, mkTheoremName actName invName⟩, res)
+      let actMsgs ← getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
+      | [actName, invName] => (⟨actName, invName, mkTheoremName actName invName⟩, (res, .none))
       | _ => unreachable!)
 
       let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList) ++ "\n"
