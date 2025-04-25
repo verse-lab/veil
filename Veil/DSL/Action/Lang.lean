@@ -164,6 +164,9 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
   -- we pass these through unchanged
   | `(Term.doSeqItem| return $t:term) | `(Term.doSeqItem| pure $t:term)
   | `(Term.doSeqItem| require $t) | `(Term.doSeqItem| assert $t) | `(Term.doSeqItem| assume $t) => return #[stx]
+  -- `fresh` also doesn't modify the state, so we pass these through unchanged
+  | `(Term.doSeqItem|let $_ : $_ ← fresh $_) | `(Term.doSeqItem|let $_ : $_ ← fresh)
+  | `(Term.doSeqItem|let $_ ← fresh $_) | `(Term.doSeqItem|let $_ ← fresh) => return #[stx]
   -- Expand `if` statements
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
     let fs <- `(Term.doSeqItem| let $h:ident <- fresh)
@@ -242,7 +245,9 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
 where
 refreshState : VeilM (Array doSeqItem) := do
   let fields := (<- getFields).map Lean.mkIdent
-  let refresh ← fields.mapM fun f => `(Term.doSeqItem| $f:ident := (<- get).$f)
+  let state := mkIdent <| <- mkFreshUserName `_State
+  let refresh ← fields.mapM fun f => `(Term.doSeqItem| $f:ident := $state.$f)
+  let refresh :=  #[<- `(Term.doSeqItem| let $state:ident ← get)] ++ refresh
   return refresh
 end
 
