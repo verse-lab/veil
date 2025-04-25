@@ -334,29 +334,24 @@ def mkSimpContext' (stx : Syntax) (eraseLocal : Bool) (kind := SimpKind.simp)
     let ctx := ctx.setSimpTheorems simpTheorems
     return { ctx, simprocs, dischargeWrapper }
 
+def veilSimpMaxSteps := 10 * Lean.Meta.Simp.defaultMaxSteps
+
 def Lean.Expr.runSimp (e : Expr) (stx : TermElabM (TSyntax `tactic)) : TermElabM Simp.Result := do
-  let ctx <- mkSimpContext' (← stx) false
-  let res <- simp e ctx.ctx (simprocs := ctx.simprocs) (discharge? := none)
+  let sc <- mkSimpContext' (← stx) false
+  let cfg := { sc.ctx.config with maxSteps := veilSimpMaxSteps }
+  let ctx ← sc.ctx.setConfig cfg
+  let res <- simp e ctx (simprocs := sc.simprocs) (discharge? := none)
   return res.1
+
+def Lean.Expr.simpWp (e : Expr) : TermElabM Simp.Result := do
+  let stx := `(tactic| simp only [wpSimp])
+  e.runSimp stx
+
+def Lean.Expr.simpAction (e : Expr) : TermElabM Simp.Result := do
+  let stx := `(tactic| simp only [actSimp, smtSimp, quantifierSimp])
+  e.runSimp stx
 
 def Lean.Expr.runUnfold (e : Expr) (defs : List Name) : TermElabM Expr := do
   let mut eu := e
   for name in defs do eu := (<- unfold eu name).expr
   return eu
-
--- #check Nat.add_comm
-
--- example {P : Nat -> Prop} (x : Nat) : P (x + 3 + 4) := by
---   simp only [Nat.add_assoc]
-
-
--- #eval do
---   withLocalDeclD `x (mkConst ``Nat) fun x => do
---     let x <- Term.exprToSyntax x
---     let e <- `((fun x => (x + x + x) : Nat -> Nat))
---     let e <- Term.elabTerm e none
---     dbg_trace <- ppExpr e
---     let res <- e.runSimp `(tactic| simp only [Nat.add_assoc])
---     dbg_trace <- ppExpr res.1
---     dbg_trace res.2
---     return res.1.dbgToString
