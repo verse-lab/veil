@@ -428,13 +428,16 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
     let name := getPropertyNameD name defaultName
     let cmd ← elabBindersAndCapitals #[] vs stx fun _ e => do
       let e <- delabWithMotives e
+      -- The implicit binders + `exact_state` trick is to allow using
+      -- clauses in actions, e.g. `assert clauseName`
+      let vd ← vd.mapM mkImplicitBinders
       match kind with
       | .safety =>
-        `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) $[$vd]*: $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+        `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e: term)
       | .invariant =>
-        `(@[invDef, invSimp] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+        `(@[invDef, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e: term)
       | .assumption | .trustedInvariant =>
-        `(@[assumptionDef, invSimp] def $(mkIdent name) $[$vd]* : $stateTp -> Prop := fun $(mkIdent `st) => $e: term)
+        `(@[assumptionDef, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
