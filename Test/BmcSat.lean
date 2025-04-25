@@ -27,7 +27,7 @@ sat trace {
   set_flag
 } by bmc_sat
 
-/-- error: the goal is false -/
+/-- error: cvc5: the goal is false -/
 #guard_msgs in
 sat trace {
   assert False

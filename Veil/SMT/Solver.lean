@@ -59,6 +59,8 @@ def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
 inductive ModelGenerator where
   | z3Model
 
+def modelGenerationFailureDiagnostic : String := "try changing `veil.smt.seed` or increasing `veil.smt.timeout`; if the goal cannot be solved by z3, we cannot show a readable model and instead show the model from cvc5"
+
 def createModelGenerator (name : ModelGenerator) (withTimeout : Nat) (minimize : Bool) : MetaM SolverProc := do
   let tlim_sec := withTimeout
   let seed := veil.smt.seed.get $ ← getOptions
@@ -88,18 +90,22 @@ def getReadableModel (goalQuery : String) (withTimeout : Nat) (minimize : Bool) 
     let (model, _) ← Auto.Solver.SMT.getSexp stdout
     extractStructure model
   catch e =>
-    logWarning s!"Could not get readable model: {← e.toMessageData.toString}"
+    let exMsg ← e.toMessageData.toString
+    if exMsg == ModelGenerationTimeoutMsg then
+      logWarning s!"{ModelGenerationTimeoutMsg}; {modelGenerationFailureDiagnostic}"
+    else
+      logWarning s!"Could not get readable model: {exMsg}"
     pure none
 
 open Smt Smt.Tactic Translate in
-partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SmtSolver := none) (retryOnUnknown : Bool := false) : MetaM SmtResult := do
+partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SmtSolver := none) (retryOnUnknown : Bool := false) : MetaM (SmtResult × SmtSolver):= do
   withTraceNode `veil.smt.perf.query (fun _ => return "querySolver") do
-  try
   let opts ← getOptions
   let solverName :=
     match forceSolver with
     | some s => s
     | none => veil.smt.solver.get opts
+  try
   trace[veil.smt.debug] "solver: {solverName}"
   let solver ← createSolver solverName withTimeout
   emitCommandStr solver goalQuery
@@ -118,7 +124,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     trace[veil.smt.debug] "stderr: {stderr}"
     let (model, _) ← Auto.Solver.SMT.getSexp stdout
     solver.kill
-    return SmtResult.Sat s!"{model}"
+    return (SmtResult.Sat s!"{model}", solverName)
 
   | .atom (.symb "unsat") =>
     trace[veil.smt.result] "{solverName} says Unsat"
@@ -128,7 +134,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     trace[veil.smt.debug] "stdout: {stdout}"
     trace[veil.smt.debug] "stderr: {stderr}"
     solver.kill
-    return SmtResult.Unsat
+    return (SmtResult.Unsat, solverName)
 
   | .atom (.symb "unknown") =>
     trace[veil.smt.result] "{solverName} says Unknown"
@@ -143,11 +149,11 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
         trace[veil.smt.debug] "stdout: {stdout}"
         trace[veil.smt.debug] "stderr: {stderr}"
         solver.kill
-        return SmtResult.Unknown .none
+        return (SmtResult.Unknown .none, solverName)
 
   | _ => throwError s!"Unexpected response from solver: {checkSatResponse}"
   catch e =>
     let exMsg ← e.toMessageData.toString
-    return .Failure s!"{exMsg}"
+    return (.Failure s!"{exMsg}", solverName)
 
 end Veil.SMT

@@ -65,8 +65,3 @@ instance : ToString SmtResult where
 abbrev SExpression := Auto.Parser.SMTSexp.Sexp
 
 abbrev TimeInMs := Nat
-
-structure SmtQuery where
-  queryString : String
-  translatedUsing : SmtTranslator
-  result : Std.HashMap SmtSolver SmtResult

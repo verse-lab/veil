@@ -32,12 +32,17 @@ def parseTimeout : TSyntax `smtTimeout → CoreM Nat
   | `(Smt.Tactic.smtTimeout| ) => return (veil.smt.timeout.get (← getOptions))
   | _ => throwUnsupportedSyntax
 
+private def solverStr (solver : Option SmtSolver := none) : String :=
+  match solver with
+  | some solver => s!"{solver}: "
+  | none => ""
+
 /-- A string to print when the solver returns `sat`. Factored out here
 because it's used by `checkTheorems` in `Check.lean` to distinguish
 between failures and `sat` from the solver .-/
-def satGoalStr : String := "the goal is false"
-def unknownGoalStr : String := "the solver returned unknown"
-def failureGoalStr : String := "solver invocation failed"
+def satGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}the goal is false"
+def unknownGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}the goal is unknown"
+def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}solver invocation failed"
 
 @[tactic sauto] def elabSauto : Tactic := fun stx => withMainContext do
   let mv ← Tactic.getMainGoal
@@ -61,20 +66,28 @@ def failureGoalStr : String := "solver invocation failed"
     -- UNLESS the `veil.smt.translator` option overrides this behaviour.
     let translatorToUse := veil.smt.translator.get opts
     let originalCmdString ← cmdString translatorToUse
-    let res ← Veil.SMT.querySolver originalCmdString withTimeout (retryOnUnknown := veil.smt.retryOnUnknown.get opts)
+    let (res, solverUsed) ← Veil.SMT.querySolver originalCmdString withTimeout (retryOnUnknown := veil.smt.retryOnUnknown.get opts)
     match res with
     -- this shouldn't happen
-    | .Sat none => throwError s!"{satGoalStr}"
+    | .Sat none => throwError s!"{satGoalStr solverUsed}"
     | .Sat (some modelString) =>
       -- try to generate a readable model, using `lean-smt`
       let leanSmtQueryString ← if translatorToUse == .leanSmt then pure originalCmdString else cmdString .leanSmt
       -- FIXME: we are doing some crazy string manipulation in `getModelStr` to print counterexamples in `#check_invariants`,
       -- so please don't change the string format in the next two lines.
-      let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := veil.smt.model.minimize.get opts)
-        | throwError s!"{satGoalStr} (could not get readable model):\n{modelString}"
-      throwError s!"{satGoalStr}:{fostruct}"
-    | .Unknown reason => throwError "{unknownGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
-    | .Failure reason => throwError "{failureGoalStr}{if reason.isSome then s!": {reason.get!}" else ""}"
+      let tryToMinimize := veil.smt.model.minimize.get opts
+      let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := tryToMinimize)
+        | throwError s!"{satGoalStr solverUsed} (could not get readable model; {modelGenerationFailureDiagnostic}):\n{modelString}"
+      -- Print that the model is not minimized if that we failed to
+      -- minimize it and the user requested minimization.
+      let mismatchedExpectation := tryToMinimize && !fostruct.isMinimized
+      let minimizationWarning := if mismatchedExpectation then
+        s!"\n(we could not minimize this model; {modelGenerationFailureDiagnostic})"
+      else ""
+      let modelString := minimizationWarning ++ fostruct.mkString
+      throwError s!"{satGoalStr solverUsed}:{modelString}"
+    | .Unknown reason => throwError "{unknownGoalStr solverUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
+    | .Failure reason => throwError "{failureGoalStr solverUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
     | .Unsat => mv.admit (synthetic := false)
 
 end Veil.SMT
