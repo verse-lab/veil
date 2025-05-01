@@ -59,24 +59,27 @@ the `node`s form a (unidirectional) ring topology.
 It defines an (immutable) relation `btwn.btw (x y z : node)` between nodes, read
 as "y is between x and z".
 
+An illustration of a ring, going clockwise:
+
     .---.---.
    /         \
-  w           z
-  |           |      ring goes counter-clockwise (i.e. w -> x -> y -> z -> w)
-  x           .
+  w           x      in this illustration, the ring goes clockwise
+  |           |      (i.e. w -> x -> y -> z -> w)
+  z           .
    \         /
     .---.---y
 
-The relation `btw x y z` means that `y` lies between `x` and `z` when traversing
-the ring counter-clockwise, as shown in the diagram above.
+The relation `btw x y z` means that `y` lies between `x` and `z`, as
+shown in the diagram above.
 
 The axioms are as follows:
 - [btw_ring] `∀ x y z, btw x y z → btw y z x`
 - [btw_trans] `∀ w x y z, btw w x y → btw w y z → btw w x z`
 - [btw_side] `∀ w x y, btw w x y → ¬ btw w y x`
-  - this encodes the fact that the ring is unidirectional: it is NOT the case
-    that `y` is between `w` and `x` since that would entail going
-    clockwise, which is not allowed
+  - this encodes the fact that the ring is unidirectional: in our
+  example diagram, it is NOT the case that `y` is between `w` and `x`,
+  since that would entail going counter-clockwise, which is not allowed
+  (since, for illustration, we chose the ring to go clockwise)
 - [btw_total] `∀ w x y, btw w x y ∨ btw w y x ∨ w = x ∨ w = y ∨ x = y`
 -/
 instantiate btwn : Between node
