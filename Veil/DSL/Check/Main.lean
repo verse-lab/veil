@@ -138,6 +138,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs*  $st')
           let extStx ← `(@$(mkIdent extName) $sectionArgs* $args*)
           let extTpSyntax ← `(∀ ($st : $stateTp), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
+          let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
           let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
           pure (extTpSyntax, body)
         let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
