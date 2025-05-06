@@ -345,7 +345,7 @@ theorem wp_and (act : Wp m σ ρ) [LawfulAction act] :
   let Post := fun (b : Bool) => if b then post' else post
   have post_eq : (fun r s => ∀ b, Post b r s) = fun r s => post r s ∧ post' r s := by
     unfold Post; simp
-  rw [<-post_eq]; apply LawfulAction.inter <;> simp [*, Post]
+  rw [<-post_eq]; apply LawfulAction.inter ; simp [*, Post]
 
 section TwoStateSoundness
 
@@ -477,14 +477,14 @@ instance assume_lawful : LawfulAction (Wp.assume (m := m) (σ := σ) rq) where
 
 instance assert_lawful : LawfulAction (Wp.assert (m := m) (σ := σ) rq) where
   inter := by intros; simp_all [actSimp]; rename_i h; specialize h default; simp [*]
-  impl  := by intros; simp_all [actSimp] <;> solve_by_elim
+  impl  := by intros; simp_all [actSimp]
 
 instance require_lawful : LawfulAction (Wp.require (m := m) (σ := σ) rq) where
   inter := by
     cases m
     { intros; simp_all [actSimp]; rename_i h; specialize h default; simp [*] }
     intros; simp_all [actSimp]
-  impl := by cases m <;> (intros; simp_all [actSimp] <;> solve_by_elim)
+  impl := by cases m <;> (intros; simp_all [actSimp])
 
 instance fresh_lawful : LawfulAction (Wp.fresh (m := m) (σ := σ) τ) where
   inter := by intros; simp_all [actSimp]
@@ -667,7 +667,7 @@ instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
         apply LawfulAction.impl <;> try assumption
         simp }
       intro hact; false_or_by_contra
-      rename_i hact'; simp [not_and_iff_or_not_not] at hact'
+      rename_i hact'; simp [not_and_iff_not_or_not] at hact'
       by_cases hex : ∀ ret st, act s (¬ret = · ∨ ¬st = ·)
       { apply hact
         apply LawfulAction.impl (post := fun r s => ∀ (ret : ρ) (st : σ), ret ≠ r ∨ st ≠ s)
@@ -685,13 +685,13 @@ instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
       { apply LawfulAction.impl <;> try solve_by_elim }
       apply big_step_sound (req := (· = s)) <;> try simp_all [BigStep.triple]
       rintro s'' ret' st' rfl
-      unfold  Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not]; intro _
+      unfold  Wp.toBigStep Wp.toWlp; simp [not_and_iff_not_or_not]; intro _
       rcases hact' ret' st' with (h | h) <;> try solve_by_elim
       rw [(inst' ret').equiv (pre := (· = st'))] at h <;> try simp
-      { unfold Wp.toBigStep Wp.toWlp at h; simp_all [not_and_iff_or_not_not] }
+      { unfold Wp.toBigStep Wp.toWlp at h; simp_all [not_and_iff_not_or_not] }
       have := (inst' ret').lawful
       apply bind_terminates (act := act) (act' := fun ret => act' ret) (pre := pre) <;> try solve_by_elim
-      unfold Wp.toBigStep Wp.toWlp; simp [not_and_iff_or_not_not, *]
+      unfold Wp.toBigStep Wp.toWlp; simp [not_and_iff_not_or_not, *]
 
 end GenBigStepInstances
 
