@@ -1,6 +1,6 @@
 # Veil: A Framework for Automated and Interactive Verification of Transition Systems
 
-[![Actions status](https://github.com/verse-lab/veil/actions/workflows/docker-build-and-test.yml/badge.svg)](https://github.com/verse-lab/veil/actions)
+[![Actions status](https://github.com/verse-lab/veil/actions/workflows/ci.yml/badge.svg)](https://github.com/verse-lab/veil/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 
@@ -117,29 +117,3 @@ The project consists of three major folders:
 - `Rabia/`: [Rabia protocol](https://github.com/haochenpan/rabia?tab=readme-ov-file)
 - `StellarConsensus/`: [Stellar Consensus Protocol](https://github.com/stellar/scp-proofs/tree/3e0428acc78e598a227a866b99fe0b3ad4582914)
 - `SuzukiKasami/`: [Suzuki Kasami protocol](https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy)
-
-------
-
-### Additional resources
-
-<details close>
-<summary><strong>Docker image</strong></summary>
-
-We supply a script that creates a Docker image that can be used for
-developing and running Veil projects. This Docker image is based on
-x86-64 Linux, but can be used on ARM computers with any OS that can
-run Docker. To use it with Visual Studio Code, follow these
-instructions:
-
-1. Make sure Docker is running. Run `./create_docker_image.sh`.
-This will automatically download Veil and install
-most of the prerequisites on the created image. This can take up to 10 minutes.
-2. Run the container with `docker run -dt --platform=linux/amd64 <image-id>`.
-3. On your host computer, install the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) VS Code plugin.
-4. Connect to the Docker container with the `Dev Containers: Attach to Running Container...` action from the Command Palette
-(Ctrl/Cmd + Shift + P).
-5. **On the container**, install the [Lean 4](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4) VS Code plugin. This needs to be done once per container.
-6. Initially, Veil will be placed in `/root/veil`. You can move it, or open that folder directly from VS Code.
-7. Test Veil: Go to any of Veil's example files and run the `Lean 4: Server: Restart File` action from the Command Palette. This may take a while on the first run, as it has to rebuild all of Veil.
-
-</details>

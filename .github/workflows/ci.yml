@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # https://github.com/actions/runner-images
+      # https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+      matrix:
+        include:
+        - name: macOS-aarch64
+          os: macos-15
+        - name: Linux-x86_64
+          os: ubuntu-24.04
+        # Currently disabled on private repositories:
+        # - name: Linux-aarch64
+        #   os: ubuntu-24.04-arm
+        # We disable Intel Mac CI for now:
+        # - name: macOS-x86_64
+        #   os: macos-13
+    steps:
+    # https://github.com/abdoo8080/lean-cvc5/blob/main/.github/workflows/ci.yml#L31
+    - name: Install dependencies for cvc5
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get install -y clang-15 lld-15 libc++-15-dev libc++abi-15-dev
+        sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-15 100
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Build and test Veil
+      uses: leanprover/lean-action@v1
+      with:
+        use-github-cache: false # TODO: enable this
