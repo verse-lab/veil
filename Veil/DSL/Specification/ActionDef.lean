@@ -4,6 +4,7 @@ import Veil.DSL.Action.Lang
 import Veil.DSL.Tactic
 import Veil.DSL.Specification.Syntax
 import Veil.DSL.Specification.SpecDef
+import Veil.Util.TermSimp
 
 open Lean Elab Command Term Meta Lean.Parser
 
