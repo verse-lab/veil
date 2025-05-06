@@ -112,7 +112,7 @@ fix implemented there seems unreliable. -/
 
 /-! ## decidable -/
 attribute [smtSimp] Decidable.not_not decide_eq_decide Decidable.not_imp_self
-  decide_implies decide_ite ite_true_decide_same ite_false_decide_same
+  decide_implies decide_ite ite_then_decide_self ite_else_decide_self
   decide_eq_true_eq decide_eq_false_iff_not decide_not not_decide_eq_true
   cond_true cond_false decide_False decide_True
 
@@ -143,7 +143,7 @@ theorem if_app {α β : Type} {_ : Decidable c} (t e : α -> β) (a : α) :
 attribute [logicSimp] if_true if_false dite_true dite_false
 attribute [logicSimp] if_false_left if_false_right if_app
 attribute [logicSimp low] if_true_left if_true_right
-attribute [logicSimp] dite_not ite_not ite_true_same ite_false_same
+attribute [logicSimp] dite_not ite_not ite_then_self ite_else_self
 
 /-
 
@@ -165,8 +165,8 @@ attribute [logicSimp] exists_eq_left' exists_eq_right' forall_eq_or_imp
 
 /-! ## decidable -/
 attribute [logicSimp] Decidable.not_not decide_eq_decide
-  Decidable.not_imp_self decide_implies decide_ite ite_true_decide_same
-  ite_false_decide_same
+  Decidable.not_imp_self decide_implies decide_ite ite_then_decide_self
+  ite_else_decide_self
 
 /-! From `SimpLemmas.Lean`-/
 attribute [logicSimp] eq_self ne_eq ite_true ite_false dite_true

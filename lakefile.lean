@@ -2,8 +2,8 @@ import Lake
 open Lake DSL System
 
 -- FIXME: change to "https://github.com/leanprover-community/lean-auto.git" once they bump to v4.16.0 upstream
-require auto from git "https://github.com/abdoo8080/lean-auto.git" @ "918a69939911ea5b0906aa67505dc5c85dc6296b"
-require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "1df3f342c196f3f9db3ab2a8204995f8ff9754a5"
+require auto from git "https://github.com/dranov/lean-auto.git" @ "bump-v4.20.0-rc3"
+require smt from git "https://github.com/dranov/lean-smt.git" @ "bump-v4.20.0-rc3"
 
 package veil
 
@@ -123,13 +123,25 @@ target downloadDependencies pkg : Array FilePath := do
   let cvc5 ← downloadDependency pkg (pkg.buildDir / "cvc5") (downloadSolver Solver.cvc5)
   return Job.collectArray #[uv, z3, cvc5]
 
+abbrev veilOptions : Array LeanOption := #[] -- Project-specific options
+abbrev defaultLeanOptions := #[⟨`Elab.async, false⟩] -- global options
+  ++ -- project-specific options that are used in `lake build`
+  veilOptions.map fun s ↦ { s with name := `weak ++ s.name }
+
 @[default_target]
 lean_lib «Veil» {
-  globs := #[`Veil, .submodules `Veil, .submodules `Test]
+  globs := #[`Veil, .submodules `Veil]
   precompileModules := true
   extraDepTargets := #[``downloadDependencies]
 }
 
+@[default_target, test_driver]
+lean_lib Test where
+  globs := #[Glob.submodules `Test]
+  leanOptions := defaultLeanOptions
+
+
 lean_lib Examples {
   globs := #[.submodules `Examples]
+  leanOptions := defaultLeanOptions
 }
