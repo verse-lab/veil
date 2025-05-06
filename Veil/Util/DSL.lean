@@ -267,6 +267,7 @@ def simpleAddThm (n : Name) (tp : Expr) (tac : TermElabM (TSyntax `Lean.Parser.T
   addDecl <|
     Declaration.thmDecl <|
       mkTheoremValEx n [] tp (<- elabTermAndSynthesize (<- `(by $(<- tac))) tp) []
+  enableRealizationsForConst n
   applyAttributes n attr
 
 macro "exists?" br:explicitBinders ? "," t:term : term =>

@@ -228,7 +228,9 @@ where
     | some thmPf => mkAppM ``of_eq_true #[thmPf]
     | none => mkEqRefl trActThm -- `simp` returns no proof if the statement is true by reflexivity
 
-    addDecl <| Declaration.thmDecl <| mkTheoremValEx (toActTrEqName baseName) [] trActThm proof []
+    let declName := toActTrEqName baseName
+    addDecl <| Declaration.thmDecl <| mkTheoremValEx declName [] trActThm proof []
+    enableRealizationsForConst declName
 
     let genSoundnessInstance (mode : Mode) (genName actName : Name) (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (univBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (sectionArgs args : Array (TSyntax `term)) (actPf : Option Expr) := do
       let instTp <- `(forall? $[$vd]* $univBinders*, LawfulAction (@$(mkIdent genName):ident $sectionArgs* $args*))
