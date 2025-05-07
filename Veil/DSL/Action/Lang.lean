@@ -360,7 +360,7 @@ elab_rules : term
 attribute [actSimp] Bind.bind Pure.pure
 
 /- We need those to simplify `Wp` goals  -/
-attribute [ifSimp] ite_self ite_true_same ite_false_same if_true_left
+attribute [ifSimp] ite_self ite_then_self ite_else_self if_true_left
   if_true_right if_false_left if_false_right
 
 

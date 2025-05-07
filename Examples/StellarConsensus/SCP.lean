@@ -39,8 +39,8 @@ def one_such_Background (node : Type) [fba : FBA.System node]
   is_quorum := FBA.quorum (inst := fba)
   blocks_slices := FBA.blocks_slices (inst := fba)
 
-  axiom_0 := by simp ; assumption
-  axiom_1 := by intro n ; simp ; apply FBA.intertwined_node_is_well_behaved ; assumption
+  axiom_0 := by assumption
+  axiom_1 := by intro n ; apply FBA.intertwined_node_is_well_behaved ; assumption
   qi_intertwined := by
     simp ; intro q1 q2
     have hinter := hS.q_inter q1 q2

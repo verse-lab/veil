@@ -164,7 +164,7 @@ def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) 
   -- definition to figure out whether it's proven
   if (← resolveGlobalName thmId.theoremName).isEmpty then
     trace[veil.debug] "Checking theorem {thmId.theoremName} for the first time"
-    elabCommand cmd
+    elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
   else
     trace[veil.debug] "Theorem {thmId.theoremName} has been checked before; reusing result"
   -- Check the `Expr` for the given theorem

@@ -235,6 +235,7 @@ def simpleAddDefn (n : Name) (e : Expr)
     Declaration.defnDecl <|
       mkDefinitionValEx n [] (type.getD <| ← Meta.inferType e) e red
       (DefinitionSafety.safe) []
+  enableRealizationsForConst n
   Elab.Term.applyAttributes n attr
 
 def mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) : TermElabM Expr := do

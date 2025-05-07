@@ -2,8 +2,8 @@ import Lake
 open Lake DSL System
 
 -- FIXME: change to "https://github.com/leanprover-community/lean-auto.git" once they bump to v4.16.0 upstream
-require auto from git "https://github.com/abdoo8080/lean-auto.git" @ "918a69939911ea5b0906aa67505dc5c85dc6296b"
-require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "1df3f342c196f3f9db3ab2a8204995f8ff9754a5"
+require auto from git "https://github.com/dranov/lean-auto.git" @ "bump-v4.20.0-rc3"
+require smt from git "https://github.com/dranov/lean-smt.git" @ "bump-v4.20.0-rc3"
 
 package veil
 
@@ -125,9 +125,14 @@ target downloadDependencies pkg : Array FilePath := do
 
 @[default_target]
 lean_lib «Veil» {
-  globs := #[`Veil, .submodules `Veil, .submodules `Test]
+  globs := #[`Veil, .submodules `Veil]
   precompileModules := true
   extraDepTargets := #[``downloadDependencies]
+}
+
+@[default_target, test_driver]
+lean_lib Test {
+  globs := #[Glob.submodules `Test]
 }
 
 lean_lib Examples {
