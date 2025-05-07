@@ -123,11 +123,6 @@ target downloadDependencies pkg : Array FilePath := do
   let cvc5 ← downloadDependency pkg (pkg.buildDir / "cvc5") (downloadSolver Solver.cvc5)
   return Job.collectArray #[uv, z3, cvc5]
 
-abbrev veilOptions : Array LeanOption := #[] -- Project-specific options
-abbrev defaultLeanOptions := #[⟨`Elab.async, false⟩] -- global options
-  ++ -- project-specific options that are used in `lake build`
-  veilOptions.map fun s ↦ { s with name := `weak ++ s.name }
-
 @[default_target]
 lean_lib «Veil» {
   globs := #[`Veil, .submodules `Veil]
@@ -136,12 +131,10 @@ lean_lib «Veil» {
 }
 
 @[default_target, test_driver]
-lean_lib Test where
+lean_lib Test {
   globs := #[Glob.submodules `Test]
-  leanOptions := defaultLeanOptions
-
+}
 
 lean_lib Examples {
   globs := #[.submodules `Examples]
-  leanOptions := defaultLeanOptions
 }
