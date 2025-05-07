@@ -149,6 +149,17 @@ structure Vars where
 
 abbrev VeilM := StateT (Array Vars) TermElabM
 
+/-- Used when first declaring the variables. -/
+def getStateDestructorPattern [Monad m] [MonadEnv m] [MonadQuotation m]: m (TSyntax `term) := do
+  -- https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/Pattern.20match.20and.20name.20binder.20.60none.60/near/514568614
+  let fields ← (<- getFields).mapM (fun f => return ← `(term|$(mkIdent f)@_)) -- note the @_
+  `(term|⟨$fields:term,*⟩)
+
+/-- Used when accessing the state / re-assigning the variables. -/
+def getStateAccessorPattern [Monad m] [MonadEnv m] [MonadQuotation m]: m (TSyntax `term) := do
+  let fields ← (<- getFields).mapM (fun f => return ← `(term|$(mkIdent f)))
+  `(term|⟨$fields:term,*⟩)
+
 mutual
 partial def expandDoSeqVeil (stx : doSeq) : VeilM (Array doSeqItem) :=
   match stx with
@@ -244,11 +255,9 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
     return #[doE] ++ (← refreshState)
 where
 refreshState : VeilM (Array doSeqItem) := do
-  let fields := (<- getFields).map Lean.mkIdent
-  let state := mkIdent <| <- mkFreshUserName `_State
-  let refresh ← fields.mapM fun f => `(Term.doSeqItem| $f:ident := $state.$f)
-  let refresh :=  #[<- `(Term.doSeqItem| let $state:ident ← get)] ++ refresh
-  return refresh
+  let pattern ← getStateAccessorPattern
+  let refresh ← `(Term.doSeqItem| $pattern:term := ← get)
+  return #[refresh]
 end
 
 elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
@@ -274,9 +283,8 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
     let (actName, actTerm) := a
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $(actName):ident := $(actTerm))
   -- Make available state fields as mutable variables
-  let fs := (<- getFields).map Lean.mkIdent
-  for f in fs do
-    preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let mut $f:ident := (<- get).$f)
+  let pattern ← getStateDestructorPattern
+  preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let mut $pattern:term := (<- get))
   -- We hoist all fresh variables to make all the quantifiers top level
   -- Here we add them to the prelude, as immutable variables
   for v in vars do
