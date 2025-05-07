@@ -3,40 +3,11 @@ import Lean
 import Veil.SMT.Main
 import Veil.Util.Tactic
 import Veil.Tactic.Main
+import Veil.Util.TermSimp
 import Auto.Solver.SMT
 import Auto
 
 open Lean hiding Command Declaration
-
-namespace Tactic
-open Lean Elab Command Tactic
-
-abbrev Context := Lean.Elab.Tactic.Context
-abbrev State := Lean.Elab.Tactic.State
-
-@[inline] private def _runCore (x : TacticM α) (ctx : Context) (s : State) : TermElabM (α × State) :=
-  x ctx |>.run s
-
-@[inline] private def _runCore' (x : TacticM α) (ctx : Context) (s : State) : TermElabM α :=
-  Prod.fst <$> _runCore x ctx s
-
-/-- This is a copy of `Tactic.run` that returns a value. -/
-def run  (mvarId : MVarId) (x : TacticM α) : TermElabM (α × List MVarId) :=
-  mvarId.withContext do
-   let pendingMVarsSaved := (← get).pendingMVars
-   modify fun s => { s with pendingMVars := [] }
-   let aux : TacticM (α × List MVarId) :=
-     try
-       let ret ← x
-       let unsolved ← getUnsolvedGoals
-       return (ret, unsolved)
-     catch ex =>
-         throw ex
-   try
-     _runCore' aux { elaborator := .anonymous } { goals := [mvarId] }
-   finally
-     modify fun s => { s with pendingMVars := pendingMVarsSaved }
-end Tactic
 
 /-- A version of `Auto.IR.SMT.processSuggestedName` that assumes
 `name` arguments are unique. We use this to "reverse-engineer" what

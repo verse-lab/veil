@@ -4,6 +4,7 @@ import Veil.DSL.Action.Lang
 import Veil.DSL.Tactic
 import Veil.DSL.Specification.Syntax
 import Veil.DSL.Specification.SpecDef
+import Veil.Util.TermSimp
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -438,8 +439,6 @@ where
     | Mode.external => `((@$origName $sectionArgs* $args*).toWp .external)
     let genl ← `(fun $funBinders* => $term)
     let genExp <- withDeclName genName do elabTermAndSynthesize genl none
-    -- let wpSimp := mkIdent `wpSimp
-    -- let ⟨genExp, _, _⟩ <- genExp.runSimp `(tactic| simp only [$wpSimp:ident])
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
     simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}]) («type» := ← inferType genExp)
     return (genName, genExp)
