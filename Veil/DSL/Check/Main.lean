@@ -273,16 +273,9 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       if Elab.async.get (← getOptions) then
         -- Prepare tasks for parallel execution (but don't execute them yet)
         let cancelTk ← IO.CancelToken.new
-        let moduleName <- getCurrNamespace
         let tasks : Array (Unit → BaseIO Language.SnapshotTree) ← allTheorems.mapM (fun (thmId, cmd) => do
-          let fullName := moduleName ++ thmId.theoremName
-          wrapAsyncAsSnapshot (fun () => do let _ ← processThm thmId cmd) cancelTk (desc := s!"{fullName}"))
-        let tasks := Array.toList $ ← tasks.mapM (fun task => do
-          let task ← BaseIO.asTask (task ());
-          -- don't relay captured messages
-          -- logSnapshotTask { stx? := none, task := task, cancelTk? := cancelTk };
-          return task)
-
+          wrapAsyncAsSnapshot (fun () => do let _ ← processThm thmId cmd) cancelTk (desc := s!"{thmId.theoremName}"))
+        let tasks := Array.toList $ ← tasks.mapM (fun task => BaseIO.asTask (task ()))
         -- Execute tasks in parallel and collect results
         let allTasks ← BaseIO.mapTasks (fun snaptree => return snaptree) tasks
         let trees := allTasks.get
