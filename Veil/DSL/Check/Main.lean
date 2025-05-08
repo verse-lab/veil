@@ -49,6 +49,7 @@ instance : FromJson ProofKind where
 inductive ProofResult
   | proven (kind : ProofKind)
   | notProven
+deriving Inhabited
 
 instance : ToJson ProofResult where
   toJson res := match res with
@@ -67,7 +68,7 @@ structure CheckTheoremResult where
   smtResult : SmtResult
   timeInMs : Nat
   modelStr : Option String
-deriving FromJson, ToJson
+deriving Inhabited, ToJson, FromJson
 
 instance : ToString ProofResult where
   toString res := match res with
@@ -218,6 +219,11 @@ def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) 
 def Lean.MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
   msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
 
+def parseStrAsJson [Monad m] [MonadError m] (str : String) : m Json := do
+  match Json.parse str with
+  | .ok json => return json
+  | .error err => throwError s!"could not parse {str} as Json: {err}"
+
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour) :
   CommandElabM Unit := do
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
@@ -253,25 +259,52 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
           unreachable!
       -- restore messages (similar to `#guard_msgs`)
       modify fun st => { st with messages := origMsgs }
-      return { theoremId, proofResult, smtResult, timeInMs := endTime - startTime, modelStr }
+      let checkResult := { theoremId, proofResult, smtResult, timeInMs := endTime - startTime, modelStr }
+      let jsonStr := (toJson checkResult).pretty
+      logInfo s!"{jsonStr}"
+      -- dbg_trace s!"{jsonStr}"
+      return checkResult
+
+    -- Compute results for all theorems in parallel
+    let cancelTk ← IO.CancelToken.new
+    let moduleName <- getCurrNamespace
+    let tasks : Array (Unit → BaseIO Language.SnapshotTree) ← allTheorems.mapM (fun (thmId, cmd) => do
+      let fullName := moduleName ++ thmId.theoremName
+      wrapAsyncAsSnapshot (fun () => do
+        let _ ← processThm thmId cmd
+      ) cancelTk (desc := s!"{fullName}"))
+    let tasks := Array.toList $ ← tasks.mapM (fun task => do
+      let task ← BaseIO.asTask (task ());
+      -- don't relay captured messages
+      -- logSnapshotTask { stx? := none, task := task, cancelTk? := cancelTk };
+      return task)
 
     -- Compute results for all theorems
+    let allTasks ← BaseIO.mapTasks (fun snaptree => return snaptree) tasks
+    let trees := allTasks.get
+
     let mut initIdAndResults := #[]
     let mut thmIdAndResults := #[]
     let mut modelStrs := #[]
     let mut (admittedTheorems, unprovenTheorems) := (#[], #[])
-    for (thmId, cmd) in allTheorems do
-      let {proofResult, smtResult, timeInMs, modelStr, ..} ← processThm thmId cmd
-      if thmId.actName.isNone then
-          initIdAndResults := initIdAndResults.push (thmId, (smtResult, .some timeInMs))
+    for tree in trees do
+      let msgsTxt := String.intercalate "\n" (← tree.element.diagnostics.msgLog.toList.mapM (fun msg => msg.toString))
+      let json ← parseStrAsJson msgsTxt
+      let mut checkResult : Option CheckTheoremResult := .none
+      match fromJson? json with
+      | .ok cr => checkResult := .some cr
+      | .error err => throwError s!"could not parse {msgsTxt} as CheckTheoremResult: {err}"
+      let {theoremId, proofResult, smtResult, timeInMs, modelStr} := checkResult.get!
+      if theoremId.actName.isNone then
+          initIdAndResults := initIdAndResults.push (theoremId, (smtResult, .some timeInMs))
       else
-        thmIdAndResults := thmIdAndResults.push (thmId, (smtResult, .some timeInMs))
+        thmIdAndResults := thmIdAndResults.push (theoremId, (smtResult, .some timeInMs))
       if let .some modelStr := modelStr then
         modelStrs := modelStrs.push modelStr
       if proofResult.isAdmitted then
-        admittedTheorems := admittedTheorems.push thmId
+        admittedTheorems := admittedTheorems.push theoremId
       if !proofResult.isProven then
-        unprovenTheorems := unprovenTheorems.push thmId
+        unprovenTheorems := unprovenTheorems.push theoremId
 
     -- Display results
     let initMsgs ← getInitCheckResultMessages initIdAndResults.toList
