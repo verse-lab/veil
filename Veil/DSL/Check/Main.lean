@@ -35,9 +35,39 @@ instance : ToString ProofKind where
     | .checkedByLean => ""
     | .trustingSolver => " (trusting solver)"
 
+instance : ToJson ProofKind where
+  toJson kind := match kind with
+    | .checkedByLean => "checkedByLean"
+    | .trustingSolver => "trustingSolver"
+
+instance : FromJson ProofKind where
+  fromJson? s := match s with
+    | "checkedByLean" => .ok .checkedByLean
+    | "trustingSolver" => .ok .trustingSolver
+    | _ => .error s!"unknown proof kind: {s}"
+
 inductive ProofResult
   | proven (kind : ProofKind)
   | notProven
+
+instance : ToJson ProofResult where
+  toJson res := match res with
+    | .proven kind => Json.arr #["proven", toJson kind]
+    | .notProven => "not proven"
+
+instance : FromJson ProofResult where
+  fromJson? s := match s with
+    | Json.arr #["proven", kind] => fromJson? kind >>= fun kind => .ok (.proven kind)
+    | Json.str "not proven" => .ok .notProven
+    | _ => .error s!"unknown proof result: {s}"
+
+structure CheckTheoremResult where
+  theoremId : TheoremIdentifier
+  proofResult : ProofResult
+  smtResult : SmtResult
+  timeInMs : Nat
+  modelStr : Option String
+deriving FromJson, ToJson
 
 instance : ToString ProofResult where
   toString res := match res with
@@ -199,32 +229,31 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   | (_, .noCheck, .printUnverifiedTheorems) => throwError "[checkTheorems] Cannot print unverified theorems without checking"
   | (_, .noCheck, .printAllTheorems) => displaySuggestion stx (allTheorems.map Prod.snd)
   | (_, .checkTheoremsIndividually, _) =>
-    let ResultT := ProofResult × SmtResult × Nat × Option String -- tuple of proof result, SMT result, time taken, and model string
-    let processThm (thmId : TheoremIdentifier) (cmd : TSyntax `command) : CommandElabM ResultT := do
+    let processThm (theoremId : TheoremIdentifier) (cmd : TSyntax `command) : CommandElabM CheckTheoremResult := do
       -- save messages before elaboration
       let origMsgs := (<- get).messages
       let startTime := ← IO.monoMsNow
-      let checkResult ← checkIndividualTheorem thmId cmd
+      let proofResult ← checkIndividualTheorem theoremId cmd
       let endTime := ← IO.monoMsNow
       -- messages after elaboration
       let msgs := (← get).messages
       let mut modelStr : Option String := .none
-      let smtResult ← if checkResult.isProven then pure SmtResult.Unsat else
+      let smtResult ← if proofResult.isProven then pure SmtResult.Unsat else
         -- The theorem is not proven; we need to figure out why:
         -- either solver returned `sat`, `unknown`, or there was an error
         let msgsTxt := String.intercalate "\n" (← msgs.toList.filterMapM (fun msg => if msg.severity == .error then msg.toString else pure none))
         let (hasSat, hasUnknown, hasFailure) := (← msgs.containsSubStr Veil.SMT.satGoalStr, ← msgs.containsSubStr Veil.SMT.unknownGoalStr, ← msgs.containsSubStr Veil.SMT.failureGoalStr)
-        modelStr := if hasSat then .some $ (s!"{thmId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n") else .none
+        modelStr := if hasSat then .some $ (s!"{theoremId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n") else .none
         pure $ match hasSat, hasUnknown, hasFailure with
         | true, false, false => SmtResult.Sat .none
         | false, true, false => SmtResult.Unknown msgsTxt
         | false, false, true => SmtResult.Failure msgsTxt
         | _, _, _ =>
-          dbg_trace s!"[{thmId.theoremName}] (isProven: {checkResult}, hasSat: {hasSat}, hasUnknown: {hasUnknown}, hasFailure: {hasFailure}) Unexpected messages: {msgsTxt}"
+          dbg_trace s!"[{theoremId.theoremName}] (isProveproofResultsult}, hasSat: {hasSat}, hasUnknown: {hasUnknown}, hasFailure: {hasFailure}) Unexpected messages: {msgsTxt}"
           unreachable!
       -- restore messages (similar to `#guard_msgs`)
       modify fun st => { st with messages := origMsgs }
-      return (checkResult, smtResult, endTime - startTime, modelStr)
+      return { theoremId, proofResult, smtResult, timeInMs := endTime - startTime, modelStr }
 
     -- Compute results for all theorems
     let mut initIdAndResults := #[]
@@ -232,16 +261,16 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let mut modelStrs := #[]
     let mut (admittedTheorems, unprovenTheorems) := (#[], #[])
     for (thmId, cmd) in allTheorems do
-      let (checkResult, smtResult, time, modelStr) ← processThm thmId cmd
+      let {proofResult, smtResult, timeInMs, modelStr, ..} ← processThm thmId cmd
       if thmId.actName.isNone then
-          initIdAndResults := initIdAndResults.push (thmId, (smtResult, .some time))
+          initIdAndResults := initIdAndResults.push (thmId, (smtResult, .some timeInMs))
       else
-        thmIdAndResults := thmIdAndResults.push (thmId, (smtResult, .some time))
+        thmIdAndResults := thmIdAndResults.push (thmId, (smtResult, .some timeInMs))
       if let .some modelStr := modelStr then
         modelStrs := modelStrs.push modelStr
-      if checkResult.isAdmitted then
+      if proofResult.isAdmitted then
         admittedTheorems := admittedTheorems.push thmId
-      if !checkResult.isProven then
+      if !proofResult.isProven then
         unprovenTheorems := unprovenTheorems.push thmId
 
     -- Display results

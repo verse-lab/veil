@@ -62,6 +62,35 @@ instance : ToString SmtResult where
     | SmtResult.Failure none => "failure"
     | SmtResult.Failure (some r) => s!"failure ({r})"
 
+open Lean in
+instance : ToJson SmtResult where
+  toJson res := match res with
+    | .Sat none => Json.arr #["sat"]
+    | .Unsat => Json.arr #["unsat"]
+    | .Unknown none => Json.arr #["unknown"]
+    | .Failure none => Json.arr #["failure"]
+
+    | .Sat (some m) => Json.arr #["sat", m]
+    | .Unknown (some r) => Json.arr #["unknown", r]
+    | .Failure (some r) => Json.arr #["failure", r]
+
+
+open Lean in
+instance : FromJson SmtResult where
+  fromJson? s := match s with
+    | Json.arr #["sat"] => .ok (.Sat none)
+    | Json.arr #["unsat"] => .ok .Unsat
+    | Json.arr #["unknown"] => .ok (.Unknown none)
+    | Json.arr #["failure"] => .ok (.Failure none)
+    | Json.arr #["sat", m] => fromJsonStr? m >>= fun m => .ok (.Sat (some m))
+    | Json.arr #["unknown", r] => fromJsonStr? r >>= fun r => .ok (.Unknown (some r))
+    | Json.arr #["failure", r] => fromJsonStr? r >>= fun r => .ok (.Failure (some r))
+    | _ => .error s!"invalid SMT result: {s}"
+    where
+      fromJsonStr? : Json → Except String String
+        | Json.str s => .ok s
+        | s => .error s!"expected string, got {s}"
+
 abbrev SExpression := Auto.Parser.SMTSexp.Sexp
 
 abbrev TimeInMs := Nat
