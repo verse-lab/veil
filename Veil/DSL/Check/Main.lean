@@ -70,6 +70,8 @@ structure CheckTheoremResult where
   modelStr : Option String
 deriving Inhabited, ToJson, FromJson
 
+abbrev CheckTheoremResultStringMarker := "[VEIL_CHECK_RESULT]\n"
+
 instance : ToString ProofResult where
   toString res := match res with
     | .proven kind => s!"proven{kind}"
@@ -263,7 +265,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let jsonStr := (toJson checkResult).pretty
       -- we use this to communicate results to the main thread
       if Elab.async.get (← getOptions) then
-        logInfo s!"{jsonStr}"
+        logInfo s!"{CheckTheoremResultStringMarker}{jsonStr}"
       return checkResult
 
     -- Compute results for all theorems
@@ -285,7 +287,11 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         let allTasks ← BaseIO.mapTasks (fun snaptree => return snaptree) tasks
         let trees := allTasks.get
         let results := trees.mapM (fun tree => do
-          let msgsTxt := String.intercalate "\n" (← tree.element.diagnostics.msgLog.toList.mapM (fun msg => msg.toString))
+          let msgsTxt := String.intercalate "\n" (← tree.element.diagnostics.msgLog.toList.filterMapM (fun msg => do
+            let msgStr ← msg.toString
+            if msg.severity == .information && msgStr.startsWith CheckTheoremResultStringMarker then
+              pure $ msgStr.stripPrefix CheckTheoremResultStringMarker
+            else pure none))
           let json ← parseStrAsJson msgsTxt
           let mut checkResult : Option CheckTheoremResult := .none
           match fromJson? json with
