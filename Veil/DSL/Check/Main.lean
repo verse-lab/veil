@@ -261,40 +261,51 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       modify fun st => { st with messages := origMsgs }
       let checkResult := { theoremId, proofResult, smtResult, timeInMs := endTime - startTime, modelStr }
       let jsonStr := (toJson checkResult).pretty
-      logInfo s!"{jsonStr}"
-      -- dbg_trace s!"{jsonStr}"
+      -- we use this to communicate results to the main thread
+      if Elab.async.get (← getOptions) then
+        logInfo s!"{jsonStr}"
       return checkResult
 
-    -- Compute results for all theorems in parallel
-    let cancelTk ← IO.CancelToken.new
-    let moduleName <- getCurrNamespace
-    let tasks : Array (Unit → BaseIO Language.SnapshotTree) ← allTheorems.mapM (fun (thmId, cmd) => do
-      let fullName := moduleName ++ thmId.theoremName
-      wrapAsyncAsSnapshot (fun () => do
-        let _ ← processThm thmId cmd
-      ) cancelTk (desc := s!"{fullName}"))
-    let tasks := Array.toList $ ← tasks.mapM (fun task => do
-      let task ← BaseIO.asTask (task ());
-      -- don't relay captured messages
-      -- logSnapshotTask { stx? := none, task := task, cancelTk? := cancelTk };
-      return task)
-
     -- Compute results for all theorems
-    let allTasks ← BaseIO.mapTasks (fun snaptree => return snaptree) tasks
-    let trees := allTasks.get
+    let results ← do
+      if Elab.async.get (← getOptions) then
+        -- Prepare tasks for parallel execution (but don't execute them yet)
+        let cancelTk ← IO.CancelToken.new
+        let moduleName <- getCurrNamespace
+        let tasks : Array (Unit → BaseIO Language.SnapshotTree) ← allTheorems.mapM (fun (thmId, cmd) => do
+          let fullName := moduleName ++ thmId.theoremName
+          wrapAsyncAsSnapshot (fun () => do let _ ← processThm thmId cmd) cancelTk (desc := s!"{fullName}"))
+        let tasks := Array.toList $ ← tasks.mapM (fun task => do
+          let task ← BaseIO.asTask (task ());
+          -- don't relay captured messages
+          -- logSnapshotTask { stx? := none, task := task, cancelTk? := cancelTk };
+          return task)
 
+        -- Execute tasks in parallel and collect results
+        let allTasks ← BaseIO.mapTasks (fun snaptree => return snaptree) tasks
+        let trees := allTasks.get
+        let results := trees.mapM (fun tree => do
+          let msgsTxt := String.intercalate "\n" (← tree.element.diagnostics.msgLog.toList.mapM (fun msg => msg.toString))
+          let json ← parseStrAsJson msgsTxt
+          let mut checkResult : Option CheckTheoremResult := .none
+          match fromJson? json with
+          | .ok cr => checkResult := .some cr
+          | .error err => throwError s!"could not parse {msgsTxt} as CheckTheoremResult: {err}"
+          pure checkResult.get!
+        )
+        results
+      else
+        let results ← allTheorems.mapM (fun (thmId, cmd) => processThm thmId cmd)
+        pure results.toList
+
+    -- Extract information for display from results
     let mut initIdAndResults := #[]
     let mut thmIdAndResults := #[]
     let mut modelStrs := #[]
     let mut (admittedTheorems, unprovenTheorems) := (#[], #[])
-    for tree in trees do
-      let msgsTxt := String.intercalate "\n" (← tree.element.diagnostics.msgLog.toList.mapM (fun msg => msg.toString))
-      let json ← parseStrAsJson msgsTxt
-      let mut checkResult : Option CheckTheoremResult := .none
-      match fromJson? json with
-      | .ok cr => checkResult := .some cr
-      | .error err => throwError s!"could not parse {msgsTxt} as CheckTheoremResult: {err}"
-      let {theoremId, proofResult, smtResult, timeInMs, modelStr} := checkResult.get!
+
+    for result in results do
+      let {theoremId, proofResult, smtResult, timeInMs, modelStr} := result
       if theoremId.actName.isNone then
           initIdAndResults := initIdAndResults.push (theoremId, (smtResult, .some timeInMs))
       else
