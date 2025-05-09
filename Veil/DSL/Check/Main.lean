@@ -146,7 +146,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
       for invName in initIndicators.reverse do
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-        let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
+        let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
         let thmName := mkTheoremName `init invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $initTpStx := $body)
         theorems := theorems.push (⟨invName, .none, thmName⟩, thm)
@@ -158,7 +158,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let invStx ← `(@$(mkIdent invName) $sectionArgs*)
           let trStx ← `(@$(mkIdent trName) $sectionArgs*)
           let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent trName)] $(mkIdent invName)))
+          let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent trName)] $(mkIdent invName)))
           pure (trTpSyntax, body)
         | .wp =>
           let extName := toExtName actName
@@ -172,14 +172,14 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let extStx ← `(@$(mkIdent extName) $sectionArgs* $args*)
           let extTpSyntax ← `(∀ ($st : $stateTp), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
           let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
-          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
+          let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
           pure (extTpSyntax, body)
         let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
         theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
       return theorems
 
-def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (vcStyle : VCGenStyle) : CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
+def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (vcStyle : VCGenStyle) (sorry_body: Bool := false): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
   let (initIndicators, acts) ← Command.runTermElabM fun _ => do
     -- prevent code duplication
     let initIndicators ← invIndicators.mapM (fun (invName, _) => resolveGlobalConstNoOverloadCore invName)
@@ -189,7 +189,7 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
       for invName in initIndicators do
         acts := acts.push (actName, invName)
     return (initIndicators, acts)
-  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList vcStyle (sorry_body := False)
+  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList vcStyle sorry_body
 
 def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) : CommandElabM ProofResult := do
   let env ← getEnv
@@ -231,7 +231,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
   let (vcStyle, _checkStyle, suggestionStyle) := behaviour
-  let mut allTheorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle
+  let allTheorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle
   match behaviour with
   | (_, .noCheck, .doNotPrint) => pure ()
   | (_, .noCheck, .printUnverifiedTheorems) => throwError "[checkTheorems] Cannot print unverified theorems without checking"
@@ -303,8 +303,27 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
     let mut modelStrs := #[]
     let mut (admittedTheorems, unprovenTheorems) := (#[], #[])
 
+    -- If we're running in async mode, we need to add the theorems to the
+    -- environment manually. If we run without proof reconstruction, we
+    -- don't have to call the SMT solver again (we just admit the theorems).
+    -- With proof reconstruction, we re-do the work, unfortunately.
+    let theoremsToAdd ← do
+      if Elab.async.get (← getOptions) then
+        let sorry_body := if veil.smt.reconstructProofs.get (← getOptions) then false else true
+        pure $ (← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle sorry_body) |>.toList |> Std.HashMap.ofList
+      else
+        pure $ Std.HashMap.emptyWithCapacity 0
+
     for result in results do
       let {theoremId, proofResult, smtResult, timeInMs, modelStr} := result
+      -- The async code we currently have does not actually add the
+      -- theorems to the environment, so we add proven theorems manually
+      -- with a `sorry` body.
+      if proofResult.isProven && Elab.async.get (← getOptions) then
+        let .some cmd := theoremsToAdd.get? theoremId
+          | throwError s!"theorem {theoremId.theoremName} not found in allTheoremsSorry"
+        if (← resolveGlobalName theoremId.theoremName).isEmpty then
+          elabCommand $ ← `(#guard_msgs(drop warning) in $(cmd))
       if theoremId.actName.isNone then
           initIdAndResults := initIdAndResults.push (theoremId, (smtResult, .some timeInMs))
       else

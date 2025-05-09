@@ -28,7 +28,7 @@ structure TheoremIdentifier where
   /-- If it's `none`, it's the initial action. -/
   actName : Option Name
   theoremName : Name
-deriving Inhabited, BEq, ToJson, FromJson
+deriving Inhabited, BEq, ToJson, FromJson, Hashable
 
 def getTimeForDisplay [Monad m] [MonadOptions m] (time : Option TimeInMs) : m String := do
   if !veil.showVerificationTime.get (← getOptions) then
