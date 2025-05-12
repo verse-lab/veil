@@ -92,20 +92,6 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
     `(inductive $labelTypeName where $[$ctors]*)
   trace[veil.info] "Label {labelTypeName} type is defined"
 
-/-- Assembles the IOAutomata `ActionMap` for this specification. This is
-a bit strange, since it constructs a term (syntax) to build a value. -/
-def assembleActionMap : CommandElabM Unit := do
-  elabCommand $ ← Command.runTermElabM fun vs => do
-    let ioStx ← (← localSpecCtx.get).spec.actions.mapM fun s => do
-      let .some decl := s.actionDecl | throwError "[assembleActionMap] {s} is not an action"
-      let ioActName := toIOActionDeclName decl.label.name
-      let act ← PrettyPrinter.delab $ ← mkAppOptM ioActName (vs.map Option.some)
-      `(($(quote decl.label.name), $act))
-    let actMapStx ← `(IOAutomata.ActionMap.ofList [$[$ioStx],*])
-    let actMapStx ← `(def $(mkIdent `actionMap) := $actMapStx)
-    trace[veil.info] "{actMapStx}"
-    return actMapStx
-
 /-- Assembles all declared invariants (including safety properties) into
 a single `Invariant` predicate -/
 def assembleInvariant : CommandElabM Unit := do

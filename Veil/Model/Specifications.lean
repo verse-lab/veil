@@ -174,11 +174,6 @@ def ProcedureSpecification.name (a : ProcedureSpecification) : Name :=
   | .action decl => decl.name
   | .procedure decl => decl.name
 
-def ProcedureSpecification.label (a : ProcedureSpecification) : Option (ActionLabel Name) :=
-  match a.kind with
-  | .action decl => some decl.label
-  | .procedure _ => none
-
 /-- `invariant` and `safety` mean the same thing, but `safety` is as a
 convention used to denote the main, top-level properties of the system,
 whereas `invariant` clauses are supporting the main safety property. -/
