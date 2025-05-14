@@ -29,6 +29,11 @@ inductive Mode where
   | external : Mode
 deriving BEq
 
+instance : ToString Mode where
+  toString := fun m => match m with
+  | .internal => "internal"
+  | .external => "external"
+
 /-! Our language is parametric over the state and return type. -/
 variable (m : Mode) (σ ρ : Type)
 

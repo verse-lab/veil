@@ -120,11 +120,17 @@ where
     let genl ← match mode with
     | Mode.internal => do `(fun $funBinders* => do' .internal in $l)
     | Mode.external => do `(fun $funBinders* => do' .external in $l)
-    let genExp <- withDeclName genName do elabTermAndSynthesize genl none
-    let ⟨genExp, _, _⟩ <- genExp.simpWp
-    let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
-    simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
-    return (genName, genExp)
+    try
+      withoutErrToSorry $ do
+      let genExp <- withDeclName genName do elabTermAndSynthesize genl none
+      let ⟨genExp, _, _⟩ <- genExp.simpWp
+      let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
+      simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
+      return (genName, genExp)
+    catch ex =>
+      trace[veil.debug] "Error generating {mode} generator for {genName}: {← ex.toMessageData.toString}"
+      -- We have this as a more user-readable message
+      throwError "Error in action {baseName}: {← ex.toMessageData.toString}"
 
 def defineInitialActionFromGenerators (act : TSyntax `ident) (genIName genEName : Name) : CommandElabM Unit := do
     Command.runTermElabM fun _ => do
@@ -141,11 +147,15 @@ where
     | Mode.internal => baseName
     | Mode.external => toExtName baseName
     let genExp := Lean.mkConst genName
-    let act ← genExp |>.runUnfold (genName :: wpUnfold)
-    let ⟨act, _actPf, _⟩ <- act.simpAction
-    let mut attr : Array Attribute := #[{name := `initSimp}, {name := `actSimp}]
-    simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
-    return actName
+    try
+      let act ← genExp |>.runUnfold (genName :: wpUnfold)
+      let ⟨act, _actPf, _⟩ <- act.simpAction
+      let mut attr : Array Attribute := #[{name := `initSimp}, {name := `actSimp}]
+      simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
+      return actName
+    catch ex =>
+      trace[veil.debug] "Error generating {mode} initial action {actName} (from generator {genName}): {← ex.toMessageData.toString}"
+      throwError "Error in action {baseName}: {← ex.toMessageData.toString}"
 
 /-- Defines `act` : `Wp m σ ρ` monad computation, parametrised over `br`. This
 assumes that `act.genE` and `act.genI` have already been defined. Specifically
@@ -181,12 +191,17 @@ where
     -- Here, to account for the case when the action is generated from a transition,
     -- we also unfold `Function.toWp` and the original definition of the transition.
     let origName := toOriginalName baseName
-    let act ← genExp |>.runUnfold (genName :: wpUnfold)
-    let act ← act |>.runUnfold [``Function.toWp, origName]
-    let ⟨act, actPf, _⟩ <- act.simpAction
-    let mut attr : Array Attribute := #[{name := `actSimp}]
-    simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
-    return (actName, actPf)
+    try
+      withoutErrToSorry $ do
+      let act ← genExp |>.runUnfold (genName :: wpUnfold)
+      let act ← act |>.runUnfold [``Function.toWp, origName]
+      let ⟨act, actPf, _⟩ <- act.simpAction
+      let mut attr : Array Attribute := #[{name := `actSimp}]
+      simpleAddDefn actName act (attr := attr) («type» := ← inferType genExp)
+      return (actName, actPf)
+    catch ex =>
+      trace[veil.debug] "Error generating {mode} view of action {actName} (from generator {genName}): {← ex.toMessageData.toString}"
+      throwError "Error in action {baseName}: {← ex.toMessageData.toString}"
 
   /-- This generates a two-state transition from the action, with existentially
   quantified arguments. -/
@@ -196,18 +211,22 @@ where
       | none => pure #[]
     let (genName, actTrName) := (toGenName baseName .external, toTrName baseName)
     let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent genName) $sectionArgs* $args*).toTwoState st st')
-    let actTr <- elabTermAndSynthesize actTrStx none
-    -- For transitions that are lifted from a dependency (i.e. run through
-    -- `.toWp.lift.toTwoState`), simplifying the definitions leads to a
-    -- transition that existentially quantifies over the state of the
-    -- dependency, which is bad. Instead, we apply the `lift_transition`
-    -- theorem, giving us a nicer lifted transition.
-    let ⟨actTr, _, _⟩ <- actTr.runSimp `(tactic| simp only [$(mkIdent `generatorSimp):ident, setIn, getFrom, lift_transition])
-    -- After (potentially) `lift_transition` theorem, we simplify as usual
-    let ⟨actTr, _, _⟩ <- actTr.simpAction
-    let actTr <- mkLambdaFVarsImplicit vs actTr
-    let actTr <- instantiateMVars actTr
-    simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
+    try
+      withoutErrToSorry $ do
+      let actTr <- elabTermAndSynthesize actTrStx none
+      -- For transitions that are lifted from a dependency (i.e. run through
+      -- `.toWp.lift.toTwoState`), simplifying the definitions leads to a
+      -- transition that existentially quantifies over the state of the
+      -- dependency, which is bad. Instead, we apply the `lift_transition`
+      -- theorem, giving us a nicer lifted transition.
+      let ⟨actTr, _, _⟩ <- actTr.runSimp `(tactic| simp only [$(mkIdent `generatorSimp):ident, setIn, getFrom, lift_transition])
+      -- After (potentially) `lift_transition` theorem, we simplify as usual
+      let ⟨actTr, _, _⟩ <- actTr.simpAction
+      let actTr <- mkLambdaFVarsImplicit vs actTr
+      let actTr <- instantiateMVars actTr
+      simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
+    catch ex =>
+      throwError "Error generating transition for {actTrName} (from generator {genName}): {← ex.toMessageData.toString}"
 
   /-- This generates type class instances that are required to prove the
   _soundness_ of the translation of the imperative action into the two-state
@@ -221,7 +240,7 @@ where
 
     let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent actEName) $sectionArgs* $args*).toTwoState st st')
     let trActThmStatement ← `(forall? $[$vd]* , ($actTrStx) = (@$(mkIdent actTrName) $sectionArgs*))
-    let trActThm ← elabTermAndSynthesize trActThmStatement mkProp
+    let trActThm ← withoutErrToSorry $ elabTermAndSynthesize trActThmStatement mkProp
     let ⟨afterSimp, thmPf, _⟩ <- trActThm.simpAction
     if !afterSimp.isTrue then
       throwError "[genSoundness] {trActThmStatement} could not be proven by `simp`"
@@ -235,16 +254,16 @@ where
 
     let genSoundnessInstance (mode : Mode) (genName actName : Name) (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (univBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (sectionArgs args : Array (TSyntax `term)) (actPf : Option Expr) := do
       let instTp <- `(forall? $[$vd]* $univBinders*, LawfulAction (@$(mkIdent genName):ident $sectionArgs* $args*))
-      let instTp <- elabTermAndSynthesize instTp none
+      let instTp <- withoutErrToSorry $ elabTermAndSynthesize instTp none
       simpleAddThm (toGenInstName baseName mode) instTp `(tacticSeq| intros; infer_instance) (attr := #[{name := `instance}])
 
       let eqTp <- `(@$(mkIdent genName) = @$(mkIdent actName))
-      let eqTp <- elabTermAndSynthesize eqTp none
+      let eqTp <- withoutErrToSorry $ elabTermAndSynthesize eqTp none
       let eq <- ensureHasType eqTp <| actPf.getD <| <- mkAppM ``Eq.refl #[mkConst actName]
       let eq <- Term.exprToSyntax eq
 
       let instTp <- `(forall? $[$vd]* $univBinders*, LawfulAction (m := $(← mode.stx)) (@$(mkIdent actName):ident $sectionArgs* $args*))
-      let instTp <- elabTermAndSynthesize instTp none
+      let instTp <- withoutErrToSorry $ elabTermAndSynthesize instTp none
       simpleAddThm (toInstName baseName mode) instTp
         `(tacticSeq|
           have h : @$(mkIdent genName) = @$(mkIdent actName) := $eq
@@ -283,7 +302,9 @@ specifically it defines:
   - `act.tr` : (external) transition of the action, with existentially quantified arguments
 -/
 def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
+  trace[veil.debug] "Defining generators for action {act}"
   let (genIName, genEName) ← defineProcedureGenerators act br l
+  trace[veil.debug] "Defining action {act} from generators {genIName} and {genEName}"
   defineActionFromGenerators actT act br genIName genEName
   registerProcedureSyntax act.getId l
 
