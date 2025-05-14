@@ -94,10 +94,14 @@ latter seems to trigger the unused variable linter. -/
 macro_rules
   | `(command|instantiate $nm:ident : $tp:term) => `(variable [$nm : $tp])
 
-private def defineStateComponent (mutab : Option (TSyntax `stateMutability)) (kind : TSyntax `stateComponentKind) (name : Name) (tp : StateComponentType) :=
+private def defineStateComponent (mutab : Option (TSyntax `stateMutability)) (kindStx : TSyntax `stateComponentKind) (name : Name) (tp : StateComponentType) (moduleName : Option Name := none) := do
     let mutability := stxToMut mutab
-    let kind := stxToKind kind
-    let comp := StateComponent.mk mutability kind name tp .none
+    let kind := stxToKind kindStx
+    if kind == StateComponentKind.module && moduleName.isNone then
+      throwErrorAt kindStx "Module state components must specify the name of the module they are the state of"
+    if moduleName.isSome && kind != StateComponentKind.module then
+      throwErrorAt kindStx "Passed `moduleName` argument {moduleName} to `defineStateComponent` for a non-module state component"
+    let comp := StateComponent.mk mutability kind name tp moduleName
     defineStateComponentImpl comp (validateTpFn kind) (failureMsgFn kind)
 
 where
@@ -123,6 +127,7 @@ where
       match stx with
       | `(stateMutability|immutable) => Mutability.immutable
       | `(stateMutability|mutable) => Mutability.mutable
+      | `(stateMutability|module) => Mutability.module
       | _ => unreachable!
     else
       Mutability.mutable
@@ -132,6 +137,7 @@ where
     | `(stateComponentKind|individual) => StateComponentKind.individual
     | `(stateComponentKind|relation) => StateComponentKind.relation
     | `(stateComponentKind|function) => StateComponentKind.function
+    | `(stateComponentKind|module) => StateComponentKind.module
     | _ => unreachable!
 
   validateTpFn (kind : StateComponentKind) (tp : Expr) : CommandElabM Bool := do
@@ -141,12 +147,19 @@ where
       let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
       return returnsProp
     | .function => return tp.isArrow
+    | .module =>
+      -- `tp` must be a structure
+      let constName := tp.getAppFn.constName?
+      match constName with
+      | .some constName => return (isStructure (←  getEnv) constName)
+      | .none => return false
 
   failureMsgFn (kind : StateComponentKind) (comp : StateComponent) : CoreM Unit := do
     match kind with
     | .individual => throwErrorAt (← comp.stx) "Invalid type: individuals must not be arrow types"
     | .relation => throwErrorAt (← comp.stx) "Invalid type: relations must return Prop"
     | .function => throwErrorAt (← comp.stx) "Invalid type: functions must have arrow type"
+    | .module => throwErrorAt (← comp.stx) "Invalid type: module state components must be structures"
 
 @[command_elab Veil.declareStateComponent]
 def elabStateComponentNamed : CommandElab := fun stx => do
@@ -171,24 +184,24 @@ where
 def elabDependency : CommandElab := fun stx => do
   match stx with
   | `(command|includes $nm:ident $ts:term* $ma:moduleAbbrev) => do
-      let name := nm.getId
-      checkModuleExists name
-      checkCorrectInstantiation name ts
-      let modAlias := if let `(Veil.moduleAbbrev| as $al) := ma then al.getId else name
-      let modParams := (<- globalSpecCtx.get)[name]!.spec.parameters
+      let fullModuleName := nm.getId
+      checkModuleExists fullModuleName
+      checkCorrectInstantiation fullModuleName ts
+      let modAlias := if let `(Veil.moduleAbbrev| as $al) := ma then al.getId else fullModuleName
+      let modParams := (<- globalSpecCtx.get)[fullModuleName]!.spec.parameters
       let modDep : ModuleDependency := {
-        name := name,
+        name := fullModuleName,
         parameters := modParams,
         arguments := ts
       }
       let stateArgs ← Command.runTermElabM fun _ => getStateArguments modParams ts
-      let sig ← `(Command.structSimpleBinder|$(mkIdent modAlias):ident : @$(mkIdent $ name ++ `State) $stateArgs*)
+      let sig ← `(Command.structSimpleBinder|$(mkIdent modAlias):ident : @$(mkIdent $ fullModuleName ++ `State) $stateArgs*)
       -- FIXME: we MUST respect the `mutable`/`immutable` attribute of the
       -- dependency's state components, but we currently don't!
-      let mutab ← `(stateMutability|mutable)
-      let kind ← `(stateComponentKind|individual)
-      defineStateComponent mutab kind modAlias (.simple sig)
-      trace[veil.debug] "lifting state from module {name} as {modAlias}:\n{stx}"
+      let mutab ← `(stateMutability|module)
+      let kind ← `(stateComponentKind|module)
+      defineStateComponent mutab kind modAlias (.simple sig) fullModuleName
+      trace[veil.debug] "lifting state from module {fullModuleName} as {modAlias}:\n{stx}"
       localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (modAlias, modDep) })
   | _ => throwUnsupportedSyntax
 

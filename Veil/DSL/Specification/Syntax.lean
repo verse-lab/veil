@@ -120,6 +120,8 @@ typically want to make `assumption`s about it. -/
 syntax (name := immutableState) kw_immutable : stateMutability
 /-- This state component can be modified. This is the default. -/
 syntax (name := mutableState) kw_mutable : stateMutability
+/-- This state component is the state of another module. -/
+syntax (name := moduleState) kw_module : stateMutability
 
 declare_syntax_cat stateComponentKind
 
@@ -142,6 +144,9 @@ Functions can also be defined with names for the arguments, e.g.
 `function currentRound (n : address) : round`
 -/
 syntax (name := functionStateComponent) kw_function : stateComponentKind
+
+/-- This state component is the state of another module. -/
+syntax (name := moduleStateComponent) kw_module : stateComponentKind
 
 /-- Assemble the state type for this Veil module, based on the previously
 declared state components. -/

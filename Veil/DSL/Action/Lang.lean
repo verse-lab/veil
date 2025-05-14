@@ -79,16 +79,44 @@ def closeCapitals (s : Term) : MacroM Term :=
 /-- Throw an error if the field (which we're trying to assign to) was
 declared immutable. FIXME: make sure elaboration aborts? -/
 def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Unit := do
-  let spec := (← localSpecCtx.get).spec
   let nm ← getIdFrom lhs
-  let .some comp := spec.getStateComponent nm
-    | throwErrorAt lhs "trying to assign to undeclared state component {nm}"
+  let (modules, field, spec) ← getInnerMostModule nm
+  trace[veil.debug] "assigning to field {ppModules modules}.{field} (declared in module {spec.name})"
+  let .some comp := spec.getStateComponent field
+    | throwErrorAt lhs "trying to assign to undeclared state component {nm} (fully qualified name: {ppModules modules}.{field})"
   if comp.isImmutable then
-    throwErrorAt lhs "{comp.kind} {comp.name} was declared immutable, but trying to assign to it!"
-  where getIdFrom (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Name :=
+    throwErrorAt lhs "{comp.kind} {comp.name} in module {spec.name} was declared immutable, but trying to assign to it!"
+  where
+
+  getIdFrom (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Name :=
     match lhs with
     | `(Lean.Parser.Term.structInstLVal|$id:ident) => pure id.getId
     | _ => throwErrorAt lhs "expected an identifier in the LHS of an assignment, got {repr lhs}"
+
+  ppModules (modules : Array Name) := ".".intercalate $ Array.toList $ modules.map (·.toString)
+
+  getInnerMostModule (nm : Name) : TermElabM (Array Name × Name × ModuleSpecification) := do
+    let mut spec := (← localSpecCtx.get).spec
+    let field := nm.updatePrefix default
+    let mut path := let mods := nm.components.toArray; mods[:mods.size - 1]
+
+    -- This contains the full names of the modules in the path to the field
+    let mut modules : Array Name := #[]
+
+    while true do
+      let .some (topComp, path') := path.popHead?
+        | break
+      let .some topComp := spec.getStateComponent topComp
+        | throwErrorAt lhs "trying to assign to {nm}, but {topComp} is not a declared field in {ppModules modules}"
+      let .some topModule := topComp.moduleName
+        | throwErrorAt lhs "(internal error) {topComp} has no module name in its StateComponent definition"
+      modules := modules.push topModule
+      path := path'
+      match (← globalSpecCtx.get)[topModule]? with
+      | .some mod => spec := mod.spec
+      | .none => throwErrorAt lhs "trying to assign to {nm}, but {topModule} (the module type of {topComp} in {path}) is not a declared module"
+
+    return (modules, field, spec)
 
 def getFields [Monad m] [MonadEnv m] : m (Array Name) := do
   let spec := (← localSpecCtx.get).spec
@@ -209,10 +237,10 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
     expandDoElemVeil $ <- `(Term.doSeqItem|$idts:term := $fr:ident $ts*)
   -- Expand deterministic assignments statements
   | `(Term.doSeqItem| $id:ident := $t:term) =>
-    trace[veil.debug] "[expand assignment with args] {stx}"
+    trace[veil.debug] "[expand assignment to {id.getId}] {stx}"
     let name := id.getId
+    let id' <- `(Term.structInstLVal| $id:ident)
     if name.isAtomic then
-      let id' <- `(Term.structInstLVal| $id:ident)
       let fields <- getFields
       if id.getId ∈ fields then
         throwIfImmutable id'
@@ -224,9 +252,11 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
       else
         let res ← `(Term.doSeqItem| $id:ident := $t:term)
         return #[res]
-    else
+    else -- we are assigning to a structure field (probably a module)
+      throwIfImmutable id'
       let base := mkIdent name.getPrefix
       let suff := mkIdent $ name.updatePrefix default
+      trace[veil.debug] "assigning to {base.getId} field {suff.getId}"
       expandDoElemVeil $ <- withRef stx `(Term.doSeqItem| $base:ident := { $base with $suff:ident := $t })
   | `(Term.doSeqItem| $idts:term := $t:term) =>
     trace[veil.debug] "[expand assignment with args] {stx}"

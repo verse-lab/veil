@@ -8,14 +8,19 @@ inductive StateComponentKind where
   | individual
   | relation
   | function
-deriving Inhabited
+  /-- This is used to include another module's state in the current
+  module. It behaves differently than defining an `individual` of the
+  child module's state type, however, since it ensures the mutability
+  annotations of the child are respected. -/
+  | module
+deriving Inhabited, BEq
 
 instance : ToString StateComponentKind where
   toString
     | StateComponentKind.individual => "individual"
     | StateComponentKind.relation => "relation"
     | StateComponentKind.function => "function"
-
+    | StateComponentKind.module => "module"
 inductive StateComponentType where
   /-- e.g. `name : Int -> vertex -> Prop` -/
   | simple (t : TSyntax ``Command.structSimpleBinder)
@@ -36,12 +41,16 @@ def StateComponentType.stx (sct : StateComponentType) : CoreM (TSyntax `term) :=
 inductive Mutability
   | mutable
   | immutable
+  /-- Pass-through mutability; this means each sub-component keeps its
+  own mutability/immutability annotation. -/
+  | module
 deriving Inhabited, BEq
 
 instance : ToString Mutability where
   toString
     | Mutability.mutable => "mutable"
     | Mutability.immutable => "immutable"
+    | Mutability.module => "module"
 
 structure StateComponent where
   /-- Is this state component mutable or immutable? -/
@@ -51,7 +60,9 @@ structure StateComponent where
   name       : Name
   /-- The Lean syntax that declares the type of this state component -/
   type       : StateComponentType
-  /-- If it is an inherited module, the name of this module -/
+  /-- If this state component is the state of a module, the name of the
+  module (_not_ the module alias). We use this to determine the
+  mutability of sub-components. -/
   moduleName : Option Name := none
 deriving Inhabited
 

@@ -17,7 +17,7 @@ relation n_have_privilege : node → Prop
 #gen_state
 
 /--
-error: Error in action Test.initializer: individual b was declared immutable, but trying to assign to it!
+error: Error in action Test.initializer: individual b in module Test was declared immutable, but trying to assign to it!
 -/
 #guard_msgs in
 after_init {
@@ -37,7 +37,7 @@ action test = {
 }
 
 /--
-error: Error in action Test.try_assign_immutable: individual b was declared immutable, but trying to assign to it!
+error: Error in action Test.try_assign_immutable: individual b in module Test was declared immutable, but trying to assign to it!
 -/
 #guard_msgs in
 action try_assign_immutable = {
