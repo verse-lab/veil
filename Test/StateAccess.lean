@@ -16,17 +16,18 @@ relation n_have_privilege : node → Prop
 
 #gen_state
 
+#guard_msgs in
 action with_block (b : block) = {
   let b' ← fresh block
   return (b, b')
 }
 
+#guard_msgs in
 action test = {
   let mut (z, y) := (5, 7)
 }
 
--- FIXME Vova: this is a BROKEN test
--- #guard_msgs(drop error) in
+#guard_msgs in
 action double_bind (r : Int) = {
     let (bb, b') ← with_block b
  }
