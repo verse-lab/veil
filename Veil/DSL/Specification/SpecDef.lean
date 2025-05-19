@@ -81,15 +81,37 @@ def assembleNext : CommandElabM Unit := do
 
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do
+  let vd ← getActionParameters
   let labelTypeName := mkIdent `Label
-  elabCommand $ ← Command.runTermElabM fun _ => do
-    let ctors ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
+  let labelTypeBinders := getStateParametersBinders vd
+  let labelTypeArgs ← getStateArgumentsStx' vd
+  let labelT ← `(term|$labelTypeName $labelTypeArgs*)
+
+  let (labelType, alInstance) ← Command.runTermElabM fun _ => do
+    let (ctors, altkinds) := Array.unzip $ ← (← localSpecCtx.get).spec.actions.mapM (fun s => do
       let .some decl := s.actionDecl | throwError "[assembleLabelType] {s} is not an action"
-      match decl.ctor with
-      | none => throwError "DSL: missing label constructor for action {s.name}"
-      | some ctor => pure ctor)
+      let .some ctor := decl.ctor | throwError "DSL: missing label constructor for action {s.name}"
+      let name ← `(term|$(quote decl.name))
+      -- for use with `casesOn` to generated the functions of `ActionLabel`
+      let alt ← match s.br with
+        | some br => `(term|fun $(← toFunBinderArray br)* => $name)
+        | none => `(term|$name)
+      let kind ← `(term|($name, $(mkIdent decl.kind.toName)))
+      pure (ctor, alt, kind))
+    let (alts, kinds) := Array.unzip altkinds
     trace[veil.info] "storing constructors for {name}"
-    `(inductive $labelTypeName where $[$ctors]*)
+    let labelType ← `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]*)
+    let idFn ← `(term|fun (l : $labelT) => l.casesOn $alts*)
+    let kindMap ← `(Std.HashMap.ofList [$[$kinds],*])
+    let alInstance ← `(command|instance (priority := low) $(mkIdent $ Name.mkSimple s!"{name}_ActionLabel") : ActionLabel $labelT where
+      id := $idFn
+      kind := $kindMap
+    )
+    trace[veil.debug] "labelType: {labelType}"
+    trace[veil.debug] "alInstance: {alInstance}"
+    pure (labelType, alInstance)
+  elabCommand labelType
+  elabCommand alInstance
   trace[veil.info] "Label {labelTypeName} type is defined"
 
 /-- Assembles all declared invariants (including safety properties) into

@@ -47,13 +47,16 @@ open Command Term in
 /-- Record the action type and signature of this action in the `localSpecificationCtx`.  -/
 def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
   assertActionDeclared nm.getId "registerIOActionDecl"
+  let vd ← getActionParameters
+  let labelTypeName := mkIdent `Label
+  let labelTypeArgs ← getStateArgumentsStx' vd
+  let labelT ← `(term|$labelTypeName $labelTypeArgs*)
   Command.runTermElabM fun _ => do
     let name := nm.getId
-    let labelTypeName := mkIdent `Label
     let br ← match br with
     | some br => toBracketedBinderArray br
     | none => pure $ TSyntaxArray.mk #[]
-    let ctor ← `(ctor| | $nm:ident $br* : $labelTypeName)
+    let ctor ← `(ctor| | $nm:ident $br* : $labelT)
     let actdecl : ActionDeclaration := {
       kind := toActionKind actT,
       name := name,

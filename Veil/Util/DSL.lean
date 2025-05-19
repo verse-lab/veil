@@ -44,6 +44,10 @@ def getStateArgumentsStx (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
   let vs' ← getStateArguments vd vs
   getSectionArgumentsStx vs'
 
+def getStateArgumentsStx' [Monad m] [MonadError m] [MonadQuotation m] (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array (TSyntax `term)) := do
+  let binders := vd.filter (fun b => !isTypeClassBinder b)
+  bracketedBindersToTerms binders
+
 def getActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := return (← getScope).varDecls
 def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
 def getImplicitProcedureParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do (← getActionParameters).mapM mkImplicitBinders

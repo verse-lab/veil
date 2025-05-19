@@ -38,6 +38,7 @@ syntax (name := kw_function) "function" : veilKeyword
 syntax (name := kw_ghost) "ghost" : veilKeyword
 
 syntax (name := kw_includes) "includes" : veilKeyword
+
 syntax (name := kw_as) "as" : veilKeyword
 
 syntax (name := kw_gen_state) "#gen_state" : veilKeyword

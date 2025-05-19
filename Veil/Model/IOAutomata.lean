@@ -11,6 +11,11 @@ inductive ActionKind where
   | output
 deriving BEq, Hashable
 
+def ActionKind.toName : ActionKind → Name
+  | .input => ``ActionKind.input
+  | .internal => ``ActionKind.internal
+  | .output => ``ActionKind.output
+
 instance : Inhabited ActionKind where
   default := ActionKind.internal
 
@@ -39,38 +44,26 @@ instance {α} [BEq α] [Hashable α] : SDiff (Std.HashSet α) where
 instance : ToString ActionDeclaration where
   toString a := s!"{a.kind} {a.name} with ctor {a.ctor}"
 
-def ActionDeclaration.isInternal (a : ActionDeclaration) : Bool :=
-  a.kind == .internal
-
-def ActionDeclaration.isInput (a : ActionDeclaration) : Bool :=
-  a.kind == .input
-
-def ActionDeclaration.isOutput (a : ActionDeclaration) : Bool :=
-  a.kind == .output
-
 /-- This typeclass connects the label type to the action declarations.
 We introduce this because our actions take parameters, so they carry
 strictly more information than just the action declaration. -/
 class ActionLabel (l : Type) where
   /-- The action identifier for a given label. -/
   id : l → ActionIdentifier
-  /-- The action declaration for a given action identifier. -/
-  decl : ActionIdentifier → ActionDeclaration
+  /-- The action kind for a given action identifier. -/
+  kind : Std.HashMap ActionIdentifier ActionKind
 
 def actionIdentifier (a : l) [L : ActionLabel l] : ActionIdentifier :=
   L.id a
 
-def actionDeclaration (a : l) [L : ActionLabel l] : ActionDeclaration :=
-  L.decl (actionIdentifier a)
+def isInputAction (a : l) [L : ActionLabel l] : Bool :=
+  L.kind.get? (actionIdentifier a) == .some .input
 
-def isInputAction (a : l) [ActionLabel l] : Bool :=
-  (actionDeclaration a).isInput
+def isOutputAction (a : l) [L : ActionLabel l] : Bool :=
+  L.kind.get? (actionIdentifier a) == .some .output
 
-def isOutputAction (a : l) [ActionLabel l] : Bool :=
-  (actionDeclaration a).isOutput
-
-def isInternalAction (a : l) [ActionLabel l] : Bool :=
-  (actionDeclaration a).isInternal
+def isInternalAction (a : l) [L : ActionLabel l] : Bool :=
+  L.kind.get? (actionIdentifier a) == .some .internal
 
 -- A concrete `Label` type is constructed based on the `ActionDeclaration`s
 -- for each specification in Veil.
