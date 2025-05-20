@@ -346,16 +346,12 @@ def elabNativeTransition : CommandElab := fun stx => do
     Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
   | _ => throwUnsupportedSyntax
 
-
 @[command_elab Veil.transitionDefinition]
 def elabTransition : CommandElab := fun stx => do
   match stx with
   | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = { $t:term }) => do
-    let fields : Array Name ← getFields
-    let mut unchangedFields := #[]
-    for f in fields do
-      unless t.raw.find? (·.getId.toString == f.toString ++ "'") |>.isSome do
-        unchangedFields := unchangedFields.push $ mkIdent f
+    let unchangedFields ← getUnchangedFields (fun f => t.raw.find? (·.getId.toString == (mkPrimed f).toString) |>.isSome)
+    trace[veil.info] "Unchanged fields: {unchangedFields}"
     let stx ← `($actT:actionKind ? transition $nm $br ? = by
       intros st st'
       unhygienic cases st

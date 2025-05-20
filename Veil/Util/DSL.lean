@@ -80,7 +80,6 @@ def getPrefixedName (name : Name): AttrM Name := do
 
 def getStateName : AttrM Name := getPrefixedName `State
 
-
 /-- A `Lean.Expr` denoting the `Prop` type. -/
 def mkProp := (Lean.Expr.sort (Lean.Level.zero))
 
@@ -242,6 +241,21 @@ def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.
 print these to SMT. -/
 def mkPrintableName (n : Name) : Name :=
   Name.mkSimple $ "_".intercalate (n.components.map toString)
+
+def mkNameFromComponents (comp : List Name) : Name :=
+  s!"{mkString comp}".toName
+where
+  mkString (xs : List Name) : String :=
+    xs.map toString |> String.intercalate "."
+
+/-- Primes the first component of the name. -/
+def mkPrimed (f : Name) : Name :=
+  let comp := f.components
+  let primeComp (n : Name) : Name := Name.mkSimple (n.toString ++ "'")
+  match comp with
+  | [nm] => primeComp nm
+  | fst :: rest => mkNameFromComponents (primeComp fst :: rest)
+  | [] => unreachable!
 
 /-- Like `mkPrintableName`, but strips the first component of the name. -/
 def mkStrippedName (n : Name) (separator : String := "_") : Name :=

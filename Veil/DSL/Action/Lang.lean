@@ -122,6 +122,31 @@ def getFields [Monad m] [MonadEnv m] : m (Array Name) := do
   let spec := (← localSpecCtx.get).spec
   pure $ spec.signature.map (·.name)
 
+partial def getFieldsRecursively [Monad m] [MonadEnv m] [MonadError m]: m (Array Name) := do
+  let spec := (← localSpecCtx.get).spec
+  let res ← go spec #[]
+  return res
+  where
+  go (spec : ModuleSpecification) (path : Array Name) : m (Array Name) := do
+    let mut fields := #[]
+    for comp in spec.signature do
+      match comp.kind with
+      | .module =>
+        let .some modName := comp.moduleName
+          | throwError s!"(internal error) {comp} has no module name in its StateComponent definition"
+        let spec' := (← globalSpecCtx.get)[modName]!.spec
+        fields := fields ++ (← go spec' (path.push comp.name))
+      | _ => fields := fields.push (mkNameFromComponents (path.push comp.name).toList)
+    return fields
+
+def getUnchangedFields [Monad m] [MonadEnv m] [MonadError m](used : Name → Bool): m (Array Ident) := do
+  let fields ← getFieldsRecursively
+  let mut unchangedFields := #[]
+  for f in fields do
+    if !used f then
+      unchangedFields := unchangedFields.push $ mkIdent f
+  return unchangedFields
+
 def getSubInitializers [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m]: m (Array (Ident × Term)) := do
   let mut names := #[]
   let ourSpec := (← localSpecCtx.get).spec
@@ -351,7 +376,7 @@ elab "with_rename" s:str t:tactic : tactic => withMainContext do
 /- Expanding `unchanged` statement -/
 macro_rules
   | `([unchanged|$s:str| $id:ident]) =>
-    let id_old := id.getId.toString ++ s.getString |>.toName
+    let id_old := if s.getString == "'" then mkPrimed id.getId else id.getId.toString ++ s.getString |>.toName
     `($id = $(mkIdent id_old))
   | `([unchanged|$s| $id $ids*]) => `([unchanged|$s| $id] ∧ [unchanged|$s| $ids*])
   | `([unchanged|$_|]) => `(True)
@@ -373,11 +398,7 @@ elab_rules : term
      we assume that if the state filed is not mentioned, then it is left
      unchanged  -/
   | `(requires $pre ensures $r, $post:term) => do
-    let fields : Array Name <- getFields
-    let mut unchangedFields := #[]
-    for f in fields do
-      unless post.raw.find? (·.getId == f) |>.isSome do
-        unchangedFields := unchangedFields.push $ mkIdent f
+    let unchangedFields ← getUnchangedFields (fun f => post.raw.find? (·.getId == f) |>.isSome)
     elabTerm (<- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])) none
   | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
     -- withRef t $
