@@ -107,7 +107,7 @@ def IOAutomatonSignature.mkExternal (s : IOAutomatonSignature) : IOAutomatonSign
 class IOAutomaton (σ : Type) (l : Type) [ActionLabel l] where
   signature : IOAutomatonSignature
   /-- Initial states -/
-  initial : σ → Prop
+  init : σ → Prop
   /-- Transition relation -/
   step : σ → l → σ → Prop
 
@@ -127,7 +127,7 @@ def IOAutomaton.outputs [ActionLabel l] (m : IOAutomaton σ l) : Std.HashSet Act
 
 /-- The set of initial states is non-empty. -/
 def IOAutomaton.hasInitialStates [ActionLabel l] (m : IOAutomaton σ l) : Prop :=
-  ∃ s, m.initial s
+  ∃ s, m.init s
 
 /-- The transition relation of the automaton is consistent with the
 signature, i.e. it doesn't use any actions that are not in the
@@ -179,7 +179,7 @@ def IOAutomaton.parallelCompose [ActionLabel l₁] [ActionLabel l₂] [ActionLab
   (m₁ : IOAutomaton σ₁ l₁) (m₂ : IOAutomaton σ₂ l₂) : IOAutomaton (σ₁ × σ₂) l :=
   {
     signature := IOAutomatonSignature.compose m₁.signature m₂.signature,
-    initial := fun ⟨s₁, s₂⟩ => m₁.initial s₁ ∧ m₂.initial s₂,
+    init := fun ⟨s₁, s₂⟩ => m₁.init s₁ ∧ m₂.init s₂,
     step := fun ⟨s₁, s₂⟩ a ⟨s₁', s₂'⟩ =>
       let a₁ := ℓ.conv₁ a
       let a₂ := ℓ.conv₂ a

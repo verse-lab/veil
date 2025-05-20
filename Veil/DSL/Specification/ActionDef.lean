@@ -193,7 +193,7 @@ where
     let genExp := Lean.mkConst genName
     -- Here, to account for the case when the action is generated from a transition,
     -- we also unfold `Function.toWp` and the original definition of the transition.
-    let origName := toOriginalName baseName
+    let origName := toFnName baseName
     try
       withoutErrToSorry $ do
       let act ← genExp |>.runUnfold (genName :: wpUnfold)
@@ -209,10 +209,11 @@ where
   /-- This generates a two-state transition from the action, with existentially
   quantified arguments. -/
   genTransition (vs : Array Expr) (sectionArgs : Array (TSyntax `term)) (baseName : Name) := do
-    let args  ← match br with
-      | some br => explicitBindersIdents br
-      | none => pure #[]
-    let (genName, actTrName) := (toGenName baseName .external, toTrName baseName)
+    let (params, args) ← match br with
+      | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
+      | none => pure (#[], #[])
+
+    let (genName, actFnName, actTrName) := (toGenName baseName .external, toFnName baseName, toTrName baseName)
     let actTrStx <- `(fun st st' => exists? $br ?, (@$(mkIdent genName) $sectionArgs* $args*).toTwoState st st')
     try
       withoutErrToSorry $ do
@@ -228,6 +229,14 @@ where
       let actTr <- mkLambdaFVarsImplicit vs actTr
       let actTr <- instantiateMVars actTr
       simpleAddDefn actTrName actTr (attr := #[{name := `actSimp}])
+
+      let actFnStx <- `(fun $params* st st' => (@$(mkIdent genName) $sectionArgs* $args*).toTwoState st st')
+      let actFn <- elabTermAndSynthesize actFnStx none
+      let ⟨actFn, _, _⟩ <- actFn.simpAction
+      let actFn <- mkLambdaFVarsImplicit vs actFn
+      let actFn <- instantiateMVars actFn
+      simpleAddDefn actFnName actFn (attr := #[{name := `actSimp}])
+
     catch ex =>
       throwError "Error generating transition for {actTrName} (from generator {genName}): {← ex.toMessageData.toString}"
 
@@ -421,7 +430,7 @@ def defineDepsProcedures : CommandElabM Unit := do
 def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
   let vd ← getImplicitProcedureParameters
   let baseName := (← getCurrNamespace) ++ nm.getId
-  let (origName, trName) := (toOriginalIdent nm, toTrIdent nm)
+  let (origName, trName) := (toFnIdent nm, toTrIdent nm)
   let (originalDef, trDef) ← Command.runTermElabM fun vs => do
     let stateTpT ← getStateTpStx
     let trType <- `($stateTpT -> $stateTpT -> Prop)

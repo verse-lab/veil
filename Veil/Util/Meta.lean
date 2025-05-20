@@ -54,7 +54,7 @@ def toExplicitBinders [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
 
 /-- Convert existential binders into function binders. -/
-def toFunBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.funBinder) := do
+def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) := do
   let mut binders := #[]
   match stx with
   | `(explicitBinders|$bs*) => do
@@ -62,7 +62,7 @@ def toFunBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
   return binders.flatten
   where
-  helper (stx : TSyntax `Lean.bracketedExplicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.funBinder) := do
+  helper (stx : TSyntax `Lean.bracketedExplicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) := do
     let mut binders := #[]
     match stx with
     | `(bracketedExplicitBinders|($bis* : $tp)) => do
@@ -75,7 +75,7 @@ def toFunBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray
     return binders
 
 /-- Convert existential binders (with explicit types) into terms (including only the identifiers). -/
-def explicitBindersIdents (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `term) := do
+def explicitBindersIdents [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `term) := do
   let mut vars := #[]
   match stx with
   | `(explicitBinders|$bs*) => do

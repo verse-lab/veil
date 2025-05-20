@@ -114,6 +114,29 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
   elabCommand alInstance
   trace[veil.info] "Label {labelTypeName} type is defined"
 
+def getIOSignatureStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (TSyntax `term) := do
+  let actions := (← localSpecCtx.get).spec.actions
+  let internals := actions.filterMap (fun (s : ProcedureSpecification) => if s.isInternal then some (quote s.name) else none)
+  let inputs := actions.filterMap (fun (s : ProcedureSpecification) => if s.isInput then some (quote s.name) else none)
+  let outputs := actions.filterMap (fun (s : ProcedureSpecification) => if s.isOutput then some (quote s.name) else none)
+  let stx ← `(term|{internal := Std.HashSet.ofList [$[$internals],*], input := Std.HashSet.ofList [$[$inputs],*], output := Std.HashSet.ofList [$[$outputs],*]})
+  return stx
+
+def getIOStepStx [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m] (stateTp : TSyntax `term) (labelT : TSyntax `term) : m (TSyntax `term) := do
+  let spec := (← localSpecCtx.get).spec
+  let (st, st') := (mkIdent `st, mkIdent `st')
+  let alts ← spec.actions.mapM (fun s => do
+    let (params, args) ← match s.br with
+      | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
+      | none => pure (#[], #[])
+    let actFn := mkIdent $ toFnName s.name
+    match s.br with
+      | some _ => `(term|fun $params* => $actFn $args* $st $st')
+      | none => `(term|$actFn $st $st')
+  )
+  let stepStx ← `(term|fun ($st : $stateTp) (a : $labelT) ($st' : $stateTp) => a.casesOn $alts*)
+  return stepStx
+
 /-- Assembles all declared invariants (including safety properties) into
 a single `Invariant` predicate -/
 def assembleInvariant : CommandElabM Unit := do

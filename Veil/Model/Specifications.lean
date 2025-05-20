@@ -158,6 +158,21 @@ def ProcedureSpecification.actionDecl (proc : ProcedureSpecification) : Option A
 def ProcedureSpecification.hasSpec (proc : ProcedureSpecification) : Bool :=
   proc.spec.isSome
 
+def ProcedureSpecification.isInternal (proc : ProcedureSpecification) : Bool :=
+  match proc.kind with
+  | .action a => a.kind == .internal
+  | .procedure _ => false
+
+def ProcedureSpecification.isInput (proc : ProcedureSpecification) : Bool :=
+  match proc.kind with
+  | .action a => a.kind == .input
+  | .procedure _ => false
+
+def ProcedureSpecification.isOutput (proc : ProcedureSpecification) : Bool :=
+  match proc.kind with
+  | .action a => a.kind == .output
+  | .procedure _ => false
+
 /-- Make an action specification without any DSL-specific information. -/
 def ActionSpecification.mkPlain (type : ActionKind) (name : Name) (expr : Expr) : ProcedureSpecification := {
   kind := .action { kind := type, name := name, ctor := none },

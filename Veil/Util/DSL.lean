@@ -64,9 +64,8 @@ def mkStateTpStx (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : 
   return stx
 
 /-- Retrieve `stateTp` from the local state.-/
-def getStateTpStx : AttrM Term := do
+def getStateTpStx [Monad m] [MonadEnv m]  : m Term := do
   let stateTp := (← localSpecCtx.get).spec.stateStx
-  trace[debug] "[getStateTpStx] {stateTp}"
   return stateTp
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
@@ -202,10 +201,6 @@ def toTrIdent (id : Ident) : Ident := mkIdent $ toTrName id.getId
 def toFnName (n : Name) : Name := n ++ `fn
 /-- See docstring on `toTrName`. -/
 def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
-
-/-- See docstring on `toTrName`. -/
-def toOriginalName (n : Name) : Name := n ++ `original
-def toOriginalIdent (id : Ident) : Ident := mkIdent $ toOriginalName id.getId
 
 def toSpecName (n : Name) : Name := n ++ `spec
 def toSpecIdent (id : Ident) : Ident := mkIdent $ toSpecName id.getId

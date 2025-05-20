@@ -517,23 +517,38 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleInvariant
   assembleSafeties
   assembleAssumptions
+
+  let stateTpStx ← getStateTpStx
+  let labelTpStx ← `(term|$(mkIdent `Label) $(← getStateArgumentsStx' vd)*)
   assembleLabelType name
-  let rtsStx <- Command.runTermElabM fun vs => do
+  let stepStx ← getIOStepStx stateTpStx labelTpStx
+
+  let (rtsStx, ioAutomatonStx) <- Command.runTermElabM fun vs => do
     let sectionArgs ← getSectionArgumentsStx vs
-    let stateTpStx <- getStateTpStx
     let [initialState?, Assumptions, Next, Safety, Invariant] :=
       [`initialState?, `Assumptions, `Next, `Safety, `Invariant].map Lean.mkIdent
       | unreachable!
-    `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
+    -- RelationalTransitionSystem instance
+    let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
         init := @$initialState? $sectionArgs*
         assumptions := @$Assumptions $sectionArgs*
         next := @$Next $sectionArgs*
         safe := @$Safety $sectionArgs*
         inv  := @$Invariant $sectionArgs*
         )
+    -- IO Automaton instance
+    let ioAutomatonStx ← `(instance (priority := low) $(mkIdent `IOA) $[$vd]* : $(mkIdent ``IOAutomaton) $stateTpStx $labelTpStx where
+      signature := $(← getIOSignatureStx)
+      init := @$initialState? $sectionArgs*
+      step := $stepStx
+    )
+    pure (rtsStx, ioAutomatonStx)
   trace[veil.info] "{rtsStx}"
   elabCommand rtsStx
   trace[veil.info] "RelationalTransitionSystem instance instantiated"
+  trace[veil.info] "{ioAutomatonStx}"
+  elabCommand ioAutomatonStx
+  trace[veil.info] "IO Automaton instance instantiated"
 
 @[inherit_doc instantiateSystem]
 def genSpec : CommandElabM Unit := do
