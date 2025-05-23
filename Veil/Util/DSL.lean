@@ -232,6 +232,8 @@ def toExtIdent (id : Ident) : Ident := mkIdent $ toExtName id.getId
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId
 
+def initialStateName : Name := `initialState?
+
 /-- The DSL sometimes generates names including `.tr`, and we can't
 print these to SMT. -/
 def mkPrintableName (n : Name) : Name :=

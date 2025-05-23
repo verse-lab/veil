@@ -46,11 +46,31 @@ def ModuleDependency.typeMapping [Monad m] [MonadError m] [MonadQuotation m] (de
   let mapping ← getStateArguments dep.parameters pairs
   return mapping
 
-
 def errorIfStateNotDefined : CoreM Unit := do
   let stateName := (← localSpecCtx.get).stateBaseName
   if stateName.isNone then
      throwError "State has not been declared so far: run `#gen_state`"
+
+def errorIfStateAlreadyDefined : CoreM Unit := do
+  let stateName := (← localSpecCtx.get).stateBaseName
+  if stateName.isSome then
+    throwError "You have already run #gen_state for module {stateName.get!}: adding state components is no longer allowed!"
+
+def errorIfSpecNotDefined : CoreM Unit := do
+  let specName := (← localSpecCtx.get).spec.name
+  let modules := (<- globalSpecCtx.get)
+  unless modules.contains specName do
+    throwError s!"The specification for module {specName} has not been defined: run `#gen_spec`"
+
+def errorIfSpecAlreadyDefined : CoreM Unit := do
+  let specName := (← localSpecCtx.get).spec.name
+  let modules := (<- globalSpecCtx.get)
+  if modules.contains specName then
+    throwError s!"You have already run #gen_spec for module {specName}: adding actions or invariants is no longer allowed!"
+
+def errorIfNoInitialStateDefined : CoreM Unit := do
+  if (← resolveGlobalName initialStateName).isEmpty then
+    throwError "You have not defined any initial state for this specification: write an `after_init` declaration"
 
 def warnIfNoInvariantsDefined : CoreM Unit := do
   let invariants := (← localSpecCtx.get).spec.invariants
@@ -61,6 +81,12 @@ def warnIfNoActionsDefined : CoreM Unit := do
   let actions := (← localSpecCtx.get).spec.actions
   if actions.isEmpty then
     logWarning "you have not defined any actions for this specification; did you forget?"
+
+def errorOrWarnWhenSpecIsNeeded : CoreM Unit := do
+  errorIfStateNotDefined
+  errorIfSpecNotDefined
+  warnIfNoInvariantsDefined
+  warnIfNoActionsDefined
 
 /--Assembles all declared transitions into a `Next` transition relation. -/
 def assembleNext : CommandElabM Unit := do

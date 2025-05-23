@@ -37,7 +37,9 @@ action becauseitshouldmeanthesameasthis = {
 -- In defining the `invariant` after `#gen_spec`, we ensure that `inv` is
 -- `True`, but this clause is checked nonetheless, i.e. it is not assumed
 -- in the pre-state, but IS checked in the post-state.
-invariant [x_is_true] x
+-- invariant [x_is_true] x
+@[invDef, invSimp] def x_is_true : {node : Type} → [DecidableEq node] → [Nonempty node] → (State node) → Prop :=
+fun {node} [DecidableEq node] [Nonempty node] st => State.casesOn st fun x => x = true
 
 /--
 info: The following set of actions must preserve the invariant:

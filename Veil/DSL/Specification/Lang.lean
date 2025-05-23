@@ -95,6 +95,7 @@ macro_rules
   | `(command|instantiate $nm:ident : $tp:term) => `(variable [$nm : $tp])
 
 private def defineStateComponent (mutab : Option (TSyntax `stateMutability)) (kindStx : TSyntax `stateComponentKind) (name : Name) (tp : StateComponentType) (moduleName : Option Name := none) := do
+    liftCoreM errorIfStateAlreadyDefined
     let mutability := stxToMut mutab
     let kind := stxToKind kindStx
     if kind == StateComponentKind.module && moduleName.isNone then
@@ -292,7 +293,7 @@ def elabInitialStatePredicate : CommandElab := fun stx => do
       -- let stateTp ← getStateTpStx
       -- let expectedType ← `($stateTp → Prop)
       let ini ←  simplifyTerm ini
-      let predName := `initialState?
+      let predName := initialStateName
       -- because of `initDef`, this sets `stsExt.init` with `lang := none`
       `(@[initDef, initSimp] def $(mkIdent predName) $[$vd]* := $ini)
   | _ => throwUnsupportedSyntax
@@ -339,7 +340,7 @@ def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
 def elabNativeTransition : CommandElab := fun stx => do
   match stx with
   | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = $tr) => do
-    liftCoreM errorIfStateNotDefined
+    liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
     let actT ← parseActionKindStx actT
     defineTransition actT nm br tr
     -- warn if this is not first-order
@@ -383,7 +384,7 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
 
 def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
-    liftCoreM errorIfStateNotDefined
+    liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
     let actT ← parseActionKindStx actT
     -- Create all the action-related declarations
     defineAction actT nm br l
@@ -396,7 +397,7 @@ def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (
       checkSpec nm br pre post binder
 
 def elabProcedure (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
-  liftCoreM errorIfStateNotDefined
+  liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
   defineProcedure nm br l
   Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
   unless spec.isNone do
@@ -454,7 +455,7 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
   | none => default
 
 def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
-  liftCoreM errorIfStateNotDefined
+  liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
   let vd ← getAssertionParameters
   let (name, cmd) ← Command.runTermElabM fun vs => do
     let stateTp <- getStateTpStx
@@ -526,7 +527,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   let (rtsStx, ioAutomatonStx) <- Command.runTermElabM fun vs => do
     let sectionArgs ← getSectionArgumentsStx vs
     let [initialState?, Assumptions, Next, Safety, Invariant] :=
-      [`initialState?, `Assumptions, `Next, `Safety, `Invariant].map Lean.mkIdent
+      [initialStateName, `Assumptions, `Next, `Safety, `Invariant].map Lean.mkIdent
       | unreachable!
     -- RelationalTransitionSystem instance
     let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
@@ -552,7 +553,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
 
 @[inherit_doc instantiateSystem]
 def genSpec : CommandElabM Unit := do
-  liftCoreM (do errorIfStateNotDefined; warnIfNoInvariantsDefined; warnIfNoActionsDefined)
+  liftCoreM (do errorIfStateNotDefined; errorIfNoInitialStateDefined; warnIfNoInvariantsDefined; warnIfNoActionsDefined)
   let some name := (← localSpecCtx.get).stateBaseName
     | throwError "Command is run outside of a module declaration"
   trace[veil.info] "State, invariants and actions are defined"
