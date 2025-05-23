@@ -73,22 +73,17 @@ after_init {
   delivered N O R V   := False
 }
 
-internal transition byz = fun st st' =>
+internal transition byz = {
   (∀ (src dst : address) (r : round) (v : value),
-    (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
-    (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v))) ∧
+    (¬ is_byz src ∧ (initial_msg src dst r v ↔ initial_msg' src dst r v)) ∨
+    (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v))) ∧
   (∀ (src dst originator : address) (r : round) (v : value),
-    (¬ is_byz src ∧ (st.echo_msg src dst originator r v ↔ st'.echo_msg src dst originator r v)) ∨
-    (is_byz src ∧ (st.echo_msg src dst originator r v → st'.echo_msg src dst originator r v))) ∧
+    (¬ is_byz src ∧ (echo_msg src dst originator r v ↔ echo_msg' src dst originator r v)) ∨
+    (is_byz src ∧ (echo_msg src dst originator r v → echo_msg' src dst originator r v))) ∧
   (∀ (src dst originator : address) (r : round) (v : value),
-    (¬ is_byz src ∧ (st.vote_msg src dst originator r v ↔ st'.vote_msg src dst originator r v)) ∨
-    (is_byz src ∧ (st.vote_msg src dst originator r v → st'.vote_msg src dst originator r v)))
-  -- unchanged
-  ∧ (st.sent = st'.sent)
-  ∧ (st.echoed = st'.echoed)
-  ∧ (st.voted = st'.voted)
-  ∧ (st.delivered = st'.delivered)
-
+    (¬ is_byz src ∧ (vote_msg src dst originator r v ↔ vote_msg' src dst originator r v)) ∨
+    (is_byz src ∧ (vote_msg src dst originator r v → vote_msg' src dst originator r v)))
+}
 
 action broadcast (n : address) (r : round) (v : value) = {
   require ¬ sent n r;

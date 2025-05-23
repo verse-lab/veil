@@ -58,13 +58,6 @@ action foo3 (k : Nat) = {
 #eval isElaboratedCorrectly ``foo3
 
 #guard_msgs(drop warning) in
-input transition fooo (n : Nat) = fun st st' => st = st'
-
-/-- info: true -/
-#guard_msgs in
-#eval isElaboratedCorrectly ``fooo
-
-#guard_msgs(drop warning) in
 action foo4 (k : Nat) (m : node) = {
   let mut y := m
   if x : r x k then

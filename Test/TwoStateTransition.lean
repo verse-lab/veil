@@ -11,15 +11,17 @@ relation initial_msg (originator : address) (dst : address) (r : address) (v : a
 #gen_state
 
 #guard_msgs in
-internal transition byz = fun st st' =>
+internal transition byz = {
   (∀ (src dst : address) (r : address) (v : address),
-    (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
-    (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v)))
+    (¬ is_byz src ∧ (initial_msg src dst r v ↔ initial_msg' src dst r v)) ∨
+    (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v)))
+}
 
 #guard_msgs in
-internal transition withargs (r : address) = fun st st' =>
+internal transition withargs (r : address) = {
   (∀ (src dst : address) (v : address),
-    (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
-    (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v)))
+    (¬ is_byz src ∧ (initial_msg src dst r v ↔ initial_msg' src dst r v)) ∨
+    (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v)))
+}
 
 end TwoStateTransitionTest

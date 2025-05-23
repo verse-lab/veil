@@ -189,7 +189,12 @@ syntax (name := outputAction) kw_output : actionKind
 
 /-- Transition defined via a Veil two-state relation, which implicitly has
 access to the state variables. The post-state can be referred to with primed
-variable names, e.g. `initial_msg'`. Example:
+variable names, e.g. `initial_msg'`.
+
+Every variable that is not mentioned with its primed name is assumed to
+be unchanged.
+
+Example:
 
 ```lean
 transition byz = {
@@ -199,19 +204,6 @@ transition byz = {
 ```
  -/
 syntax (name := transitionDefinition) (priority := high) (actionKind)? kw_transition ident explicitBinders ? "=" "{" term "}" : command
-
-
-/-- Transition defined via a native two-state relation (a Lean function with
-type `State -> State -> Prop`). Example:
-
-```lean
-transition byz = fun st st' =>
-  (∀ (src dst : address) (r : round) (v : value),
-    (¬ is_byz src ∧ (st.initial_msg src dst r v ↔ st'.initial_msg src dst r v)) ∨
-    (is_byz src ∧ (st.initial_msg src dst r v → st'.initial_msg src dst r v)))
-```
--/
-syntax (name := nativeTransitionDefinition) (actionKind)? kw_transition ident (explicitBinders)? "=" term : command
 
 /-- An imperative action in Veil. -/
 syntax (name := actionDefinition) (actionKind)? kw_action ident (explicitBinders)? "=" "{" doSeq "}" : command

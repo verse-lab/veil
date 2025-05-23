@@ -336,16 +336,12 @@ def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
   if !isFirstOrderUniv then
     logWarning s!"{name} is not first-order (and cannot be sent to SMT)"
 
-@[command_elab Veil.nativeTransitionDefinition]
-def elabNativeTransition : CommandElab := fun stx => do
-  match stx with
-  | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = $tr) => do
-    liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
-    let actT ← parseActionKindStx actT
-    defineTransition actT nm br tr
-    -- warn if this is not first-order
-    Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
-  | _ => throwUnsupportedSyntax
+def elabNativeTransition (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (tr : TSyntax `term) : CommandElabM Unit := do
+  liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
+  let actT ← parseActionKindStx actT
+  defineTransition actT nm br tr
+  -- warn if this is not first-order
+  Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
 
 @[command_elab Veil.transitionDefinition]
 def elabTransition : CommandElab := fun stx => do
@@ -353,12 +349,12 @@ def elabTransition : CommandElab := fun stx => do
   | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = { $t:term }) => do
     let unchangedFields ← getUnchangedFields (fun f => t.raw.find? (·.getId.toString == (mkPrimed f).toString) |>.isSome)
     trace[veil.info] "Unchanged fields: {unchangedFields}"
-    let stx ← `($actT:actionKind ? transition $nm $br ? = by
+    let trStx ← `(by
       intros st st'
       unhygienic cases st
       with_rename "'" unhygienic cases st'
       exact [unchanged|"'"| $unchangedFields*] ∧ ($t))
-    elabCommand stx
+    elabNativeTransition actT nm br trStx
   | _ => throwUnsupportedSyntax
 
 /-! ## Actions -/
