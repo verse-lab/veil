@@ -26,14 +26,22 @@ def checkModuleExists (id : Name) [Monad m] [MonadEnv m] [MonadError m] : m Unit
   unless modules.contains id do
     throwError s!"Module {id} does not exist"
 
-def checkCorrectInstantiation (id : Name) (ts : Array Term) [Monad m] [MonadEnv m] [MonadError m] : m Unit := do
+def checkCorrectInstantiation (id : Name) (ts : Array Term) : CoreM Unit := do
   checkModuleExists id
   let module := (<- globalSpecCtx.get)[id]!.spec
   let vd := module.parameters
   let vs := ts
   if vd.size != vs.size then
-    let vdStr := "\n".intercalate (Array.toList $ vd.map (fun x => s!"{x}"))
-    throwError s!"Module {id} has {vd.size} parameters, but {vs.size} were provided\nrequired parameters: {vdStr}"
+    let sz := (List.range' 1 (max vd.size vs.size)) |>.toArray
+    let pairing := Array.zip sz (Array.zipWithAll (fun p a => (p, a)) vd vs)
+    let vdStr := "\n".intercalate (Array.toList $ ← pairing.mapM (fun (idx, param, arg) => do
+      match param, arg with
+      | .some p, .some a => return s!"{idx}. {← ppBracketedBinder p} ⟶ {← ppTerm a}"
+      | .some p, .none => return s!"{idx}. {← ppBracketedBinder p} ⟶ no argument provided"
+      | .none, .some a => return s!"{idx}. no argument expected ⟶ {← ppTerm a}"
+      | .none, .none => return s!""
+    ))
+    throwError s!"Module {id} has {vd.size} parameters, but {vs.size} were provided:\n{vdStr}"
   -- TODO FIXME: check that the types match
 
 /-- Return only those arguments that are used in the state type. -/

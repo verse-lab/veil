@@ -53,6 +53,17 @@ def toExplicitBinders [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax
     return ← `(bracketedExplicitBinders|($(toBinderIdent id) : $tp))
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
 
+def ppTerm (stx : TSyntax `term) : CoreM String := do
+  let fmt ← Lean.PrettyPrinter.ppTerm ⟨stx.raw⟩
+  return fmt.pretty'
+
+def ppBracketedBinder (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : CoreM String := do
+  match stx with
+  | `(bracketedBinder| ($id:ident : $tp:term)) => return s!"({id.getId} : {← ppTerm tp})"
+  | `(bracketedBinder| [$id:ident : $tp:term]) => return s!"[{id.getId} : {← ppTerm tp}]"
+  | `(bracketedBinder| {$id:ident : $tp:term}) => return s!"\{{id.getId} : {← ppTerm tp}}"
+  | _ => throwError "unexpected syntax in explicit binder: {stx}"
+
 /-- Convert existential binders into function binders. -/
 def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) := do
   let mut binders := #[]

@@ -187,7 +187,7 @@ def elabDependency : CommandElab := fun stx => do
   | `(command|includes $nm:ident $ts:term* $ma:moduleAbbrev) => do
       let fullModuleName := nm.getId
       checkModuleExists fullModuleName
-      checkCorrectInstantiation fullModuleName ts
+      liftCoreM $ checkCorrectInstantiation fullModuleName ts
       let modAlias := if let `(Veil.moduleAbbrev| as $al) := ma then al.getId else fullModuleName
       let modParams := (<- globalSpecCtx.get)[fullModuleName]!.spec.parameters
       let modDep : ModuleDependency := {
