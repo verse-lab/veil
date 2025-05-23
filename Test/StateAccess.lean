@@ -45,6 +45,14 @@ action try_assign_immutable = {
   b := b'
 }
 
+/--
+error: individual b in module Test was declared immutable, but the transition might modify it (since it mentions its primed version b')!
+-/
+#guard_msgs in
+transition try_assign_immutable' (x : block) = {
+    b' = x
+}
+
 #guard_msgs in
 action double_bind (r : Int) = {
     let (bb, b') ← with_block b

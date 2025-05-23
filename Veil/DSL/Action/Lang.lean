@@ -78,45 +78,44 @@ def closeCapitals (s : Term) : MacroM Term :=
 
 /-- Throw an error if the field (which we're trying to assign to) was
 declared immutable. FIXME: make sure elaboration aborts? -/
-def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Unit := do
-  let nm ← getIdFrom lhs
+def throwIfImmutable' (nm : Name) (isTransition : Bool := false) : TermElabM Unit := do
   let (modules, field, spec) ← getInnerMostModule nm
   trace[veil.debug] "assigning to field {ppModules modules}.{field} (declared in module {spec.name})"
   let .some comp := spec.getStateComponent field
-    | throwErrorAt lhs "trying to assign to undeclared state component {nm} (fully qualified name: {ppModules modules}.{field})"
+    | throwError "trying to assign to undeclared state component {nm} (fully qualified name: {ppModules modules}.{field})"
   if comp.isImmutable then
-    throwErrorAt lhs "{comp.kind} {comp.name} in module {spec.name} was declared immutable, but trying to assign to it!"
+    let msg := if isTransition then "the transition might modify" else "trying to assign to"
+    let explanation := if isTransition then s!" (since it mentions its primed version {mkPrimed comp.name})" else ""
+    throwError "{comp.kind} {comp.name} in module {spec.name} was declared immutable, but {msg} it{explanation}!"
   where
-
-  getIdFrom (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Name :=
-    match lhs with
-    | `(Lean.Parser.Term.structInstLVal|$id:ident) => pure id.getId
-    | _ => throwErrorAt lhs "expected an identifier in the LHS of an assignment, got {repr lhs}"
-
   ppModules (modules : Array Name) := ".".intercalate $ Array.toList $ modules.map (·.toString)
-
   getInnerMostModule (nm : Name) : TermElabM (Array Name × Name × ModuleSpecification) := do
     let mut spec := (← localSpecCtx.get).spec
     let field := nm.updatePrefix default
     let mut path := let mods := nm.components.toArray; mods[:mods.size - 1]
-
     -- This contains the full names of the modules in the path to the field
     let mut modules : Array Name := #[]
-
     while true do
       let .some (topComp, path') := path.popHead?
         | break
       let .some topComp := spec.getStateComponent topComp
-        | throwErrorAt lhs "trying to assign to {nm}, but {topComp} is not a declared field in {ppModules modules}"
+        | throwError "trying to assign to {nm}, but {topComp} is not a declared field in {ppModules modules}"
       let .some topModule := topComp.moduleName
-        | throwErrorAt lhs "(internal error) {topComp} has no module name in its StateComponent definition"
+        | throwError "(internal error) {topComp} has no module name in its StateComponent definition"
       modules := modules.push topModule
       path := path'
       match (← globalSpecCtx.get)[topModule]? with
       | .some mod => spec := mod.spec
-      | .none => throwErrorAt lhs "trying to assign to {nm}, but {topModule} (the module type of {topComp} in {path}) is not a declared module"
-
+      | .none => throwError "trying to assign to {nm}, but {topModule} (the module type of {topComp} in {path}) is not a declared module"
     return (modules, field, spec)
+
+def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Unit := do
+  let nm ← getIdFrom lhs
+  throwIfImmutable' nm
+  where getIdFrom (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElabM Name :=
+    match lhs with
+    | `(Lean.Parser.Term.structInstLVal|$id:ident) => pure id.getId
+    | _ => throwErrorAt lhs "expected an identifier in the LHS of an assignment, got {repr lhs}"
 
 def getFields [Monad m] [MonadEnv m] : m (Array Name) := do
   let spec := (← localSpecCtx.get).spec
@@ -139,13 +138,16 @@ partial def getFieldsRecursively [Monad m] [MonadEnv m] [MonadError m]: m (Array
       | _ => fields := fields.push (mkNameFromComponents (path.push comp.name).toList)
     return fields
 
-def getUnchangedFields [Monad m] [MonadEnv m] [MonadError m](used : Name → Bool): m (Array Ident) := do
+def getUnchangedFields [Monad m] [MonadEnv m] [MonadError m] (used : Name → Bool): m (Array Ident) := do
   let fields ← getFieldsRecursively
-  let mut unchangedFields := #[]
-  for f in fields do
-    if !used f then
-      unchangedFields := unchangedFields.push $ mkIdent f
+  let unchangedFields := fields.filterMap (fun f => if !used f then some $ mkIdent f else none)
   return unchangedFields
+
+def getChangedFields [Monad m] [MonadEnv m] [MonadError m] (used : Name → Bool): m (Array Ident) := do
+  let fields ← getFieldsRecursively
+  let unchangedFields := Std.HashSet.ofArray $ (← getUnchangedFields used).map (fun (x : Ident) => x.getId)
+  let changedFields := fields.filter (fun f => !unchangedFields.contains f)
+  pure $ changedFields.map mkIdent
 
 def getSubInitializers [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m]: m (Array (Ident × Term)) := do
   let mut names := #[]

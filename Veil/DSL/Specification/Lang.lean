@@ -347,8 +347,12 @@ def elabNativeTransition (actT : Option (TSyntax `actionKind)) (nm : Ident) (br 
 def elabTransition : CommandElab := fun stx => do
   match stx with
   | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = { $t:term }) => do
-    let unchangedFields ← getUnchangedFields (fun f => t.raw.find? (·.getId.toString == (mkPrimed f).toString) |>.isSome)
+    let changedFn := (fun f => t.raw.find? (·.getId.toString == (mkPrimed f).toString) |>.isSome)
+    let unchangedFields ← getUnchangedFields changedFn
     trace[veil.info] "Unchanged fields: {unchangedFields}"
+    let changedFields ← getChangedFields changedFn
+    for f in changedFields do
+      liftTermElabM $ throwIfImmutable' f.getId (isTransition := true)
     let trStx ← `(by
       intros st st'
       unhygienic cases st
