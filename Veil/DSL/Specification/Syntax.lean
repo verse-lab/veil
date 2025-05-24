@@ -30,6 +30,7 @@ syntax (name := kw_instantiate) "instantiate" : veilKeyword
 
 syntax (name := kw_immutable) "immutable" : veilKeyword
 syntax (name := kw_mutable) "mutable" : veilKeyword
+syntax (name := kw_passthrough) "passthrough" : veilKeyword
 
 syntax (name := kw_individual) "individual" : veilKeyword
 syntax (name := kw_relation) "relation" : veilKeyword
@@ -121,8 +122,9 @@ typically want to make `assumption`s about it. -/
 syntax (name := immutableState) kw_immutable : stateMutability
 /-- This state component can be modified. This is the default. -/
 syntax (name := mutableState) kw_mutable : stateMutability
-/-- This state component is the state of another module. -/
-syntax (name := moduleState) kw_module : stateMutability
+/-- This state component's mutability is passed through (inherited)
+from the annotation in the child module. -/
+syntax (name := moduleState) kw_passthrough : stateMutability
 
 declare_syntax_cat stateComponentKind
 

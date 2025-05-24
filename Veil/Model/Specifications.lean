@@ -43,14 +43,14 @@ inductive Mutability
   | immutable
   /-- Pass-through mutability; this means each sub-component keeps its
   own mutability/immutability annotation. -/
-  | module
+  | passthrough
 deriving Inhabited, BEq
 
 instance : ToString Mutability where
   toString
     | Mutability.mutable => "mutable"
     | Mutability.immutable => "immutable"
-    | Mutability.module => "module"
+    | Mutability.passthrough => "passthrough"
 
 structure StateComponent where
   /-- Is this state component mutable or immutable? -/
@@ -71,6 +71,7 @@ instance : ToString StateComponent where
 
 def StateComponent.isMutable (sc : StateComponent) : Bool := sc.mutability == Mutability.mutable
 def StateComponent.isImmutable (sc : StateComponent) : Bool := sc.mutability == Mutability.immutable
+def StateComponent.isModule (sc : StateComponent) : Bool := sc.kind == StateComponentKind.module
 
 def StateComponent.getSimpleBinder (sc : StateComponent) : CoreM (TSyntax ``Command.structSimpleBinder) := do
   match sc.type with

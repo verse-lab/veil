@@ -128,7 +128,7 @@ where
       match stx with
       | `(stateMutability|immutable) => Mutability.immutable
       | `(stateMutability|mutable) => Mutability.mutable
-      | `(stateMutability|module) => Mutability.module
+      | `(stateMutability|passthrough) => Mutability.passthrough
       | _ => unreachable!
     else
       Mutability.mutable
@@ -197,9 +197,10 @@ def elabDependency : CommandElab := fun stx => do
       }
       let stateArgs ← Command.runTermElabM fun _ => getStateArguments modParams ts
       let sig ← `(Command.structSimpleBinder|$(mkIdent modAlias):ident : @$(mkIdent $ fullModuleName ++ `State) $stateArgs*)
-      -- FIXME: we MUST respect the `mutable`/`immutable` attribute of the
-      -- dependency's state components, but we currently don't!
-      let mutab ← `(stateMutability|module)
+      -- NOTE: set `mutab` to `passthrough` if you want to pass-through
+      -- mutability annotations; by default, the state of the child module
+      -- is immutable in the parent
+      let mutab ← `(stateMutability|immutable)
       let kind ← `(stateComponentKind|module)
       defineStateComponent mutab kind modAlias (.simple sig) fullModuleName
       trace[veil.debug] "lifting state from module {fullModuleName} as {modAlias}:\n{stx}"

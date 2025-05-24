@@ -77,16 +77,25 @@ def closeCapitals (s : Term) : MacroM Term :=
   `(forall $[$caps]*, $s)
 
 /-- Throw an error if the field (which we're trying to assign to) was
-declared immutable. FIXME: make sure elaboration aborts? -/
+declared immutable. -/
 def throwIfImmutable' (nm : Name) (isTransition : Bool := false) : TermElabM Unit := do
-  let (modules, field, spec) ← getInnerMostModule nm
-  trace[veil.debug] "assigning to field {ppModules modules}.{field} (declared in module {spec.name})"
-  let .some comp := spec.getStateComponent field
-    | throwError "trying to assign to undeclared state component {nm} (fully qualified name: {ppModules modules}.{field})"
-  if comp.isImmutable then
-    let msg := if isTransition then "the transition might modify" else "trying to assign to"
-    let explanation := if isTransition then s!" (since it mentions its primed version {mkPrimed comp.name})" else ""
-    throwError "{comp.kind} {comp.name} in module {spec.name} was declared immutable, but {msg} it{explanation}!"
+  -- NOTE: This code supports two modes of operation:
+  -- (a) child modules' state is immutable in the parent
+  -- (b) child modules' state mutability annotations are inherited in the parent
+  let spec := (← localSpecCtx.get).spec
+  let .some comp := spec.getStateComponent nm.components[0]!
+    | throwError "trying to assign to undeclared state component {nm}"
+  if comp.isModule && comp.isImmutable then -- (a)
+    throwError "cannot assign to {nm}: child module's ({comp.name}) state is immutable in the parent ({spec.name})"
+  else -- (b)
+    let (modules, field, spec) ← getInnerMostModule nm
+    trace[veil.debug] "{nm} ({comp}) → assigning to field {ppModules modules}.{field} (declared in module {spec.name})"
+    let .some comp := spec.getStateComponent field
+      | throwError "trying to assign to undeclared state component {nm} (fully qualified name: {ppModules modules}.{field})"
+    if comp.isImmutable then
+      let msg := if isTransition then "the transition might modify" else "trying to assign to"
+      let explanation := if isTransition then s!" (since it mentions its primed version {mkPrimed comp.name})" else ""
+      throwError "{comp.kind} {comp.name} in module {spec.name} was declared immutable, but {msg} it{explanation}!"
   where
   ppModules (modules : Array Name) := ".".intercalate $ Array.toList $ modules.map (·.toString)
   getInnerMostModule (nm : Name) : TermElabM (Array Name × Name × ModuleSpecification) := do

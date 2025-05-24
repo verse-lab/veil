@@ -58,7 +58,7 @@ after_init {
 }
 
 /--
-error: Error in action Parent.try_modify_b: individual b in module Child was declared immutable, but trying to assign to it!
+error: Error in action Parent.try_modify_b: cannot assign to Child.b: child module's (Child) state is immutable in the parent (Parent)
 -/
 #guard_msgs in
 action try_modify_b (new_block : block) = {
@@ -66,7 +66,7 @@ action try_modify_b (new_block : block) = {
 }
 
 /--
-error: Error in action Parent.try_modify_inner_child: individual n in module InnerChild was declared immutable, but trying to assign to it!
+error: Error in action Parent.try_modify_inner_child: cannot assign to Child.ic.n: child module's (Child) state is immutable in the parent (Parent)
 -/
 #guard_msgs in
 action try_modify_inner_child (new_node : node) = {

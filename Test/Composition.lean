@@ -54,8 +54,8 @@ after_init {
 }
 
 action g = {
-  let n <- fresh node'
-  test.r' N n := True
+  -- let n <- fresh node'
+  -- test.r' N n := True
   r'' := test.r
   r'' := test'.r
   let _ <- test.f 1

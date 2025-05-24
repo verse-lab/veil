@@ -63,7 +63,7 @@ after_init { l.clear }
 
 input action send (m : msg) = { l.enqueue m }
 
-input transition recv (m : msg) = { removed m l.contents l'.contents }
+input transition recv (m : msg) = { True }
 
 -- The point of this test is to check that `unchanged` recursively descends into
 -- the modules included in the state.
@@ -73,7 +73,7 @@ info: def ReliableReorderingChannel.recv.tr : {msg : Type} →
   [msg_dec : DecidableEq msg] → [msg_ne : Nonempty msg] → State msg → State msg → Prop :=
 fun {msg} [DecidableEq msg] [Nonempty msg] =>
   let t := fun st st' =>
-    ∃ m, (st.l.foobar = st'.l.foobar ∧ st.l.Foo.foobar = st'.l.Foo.foobar) ∧ removed m st.l.contents st'.l.contents;
+    ∃ m, (st.l.foobar = st'.l.foobar ∧ st.l.Foo.foobar = st'.l.Foo.foobar ∧ st.l.contents = st'.l.contents) ∧ True;
   t
 -/
 #guard_msgs in
