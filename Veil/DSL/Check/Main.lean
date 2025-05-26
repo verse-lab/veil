@@ -140,11 +140,12 @@ def mkTrTheoremName (actName : Name) (invName : Name) : Name := mkTheoremName (t
 def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
-      let sectionArgs ← getSectionArgumentsStx vs
+      let assertionArgs ← getSectionArgumentsStx $ ← getAssertionArguments vs
+      let actionArgs ← getSectionArgumentsStx vs
       let mut theorems : Array (TheoremIdentifier × TSyntax `command) := #[]
       -- Init checks
       for invName in initIndicators.reverse do
-        let invStx ← `(@$(mkIdent invName) $sectionArgs*)
+        let invStx ← `(@$(mkIdent invName) $assertionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
         let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
         let thmName := mkTheoremName `init invName
@@ -155,8 +156,8 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
         let (tp, body) ← match vcStyle with
         | .transition =>
           let trName := toTrName actName
-          let invStx ← `(@$(mkIdent invName) $sectionArgs*)
-          let trStx ← `(@$(mkIdent trName) $sectionArgs*)
+          let invStx ← `(@$(mkIdent invName) $assertionArgs*)
+          let trStx ← `(@$(mkIdent trName) $actionArgs*)
           let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
           let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent trName)] $(mkIdent invName)))
           pure (trTpSyntax, body)
@@ -168,8 +169,8 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let (univBinders, args) ← match args.br with
           | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
           | none => pure (#[], #[])
-          let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $sectionArgs*  $st')
-          let extStx ← `(@$(mkIdent extName) $sectionArgs* $args*)
+          let invStx ← `(fun _ ($st' : $stateTp) => @$(mkIdent invName) $assertionArgs*  $st')
+          let extStx ← `(@$(mkIdent extName) $actionArgs* $args*)
           let extTpSyntax ← `(∀ ($st : $stateTp), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
           let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
           let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))

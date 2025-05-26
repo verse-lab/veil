@@ -29,7 +29,7 @@ syntax expected_smt_result "trace" ("[" ident "]")? "{"
 "}" term : command
 
 
-open Lean Elab Command Term RelationalTransitionSystem
+open Lean Elab Command Term
 
 /-- A single line in a trace specification -/
 inductive TraceSpecLine
@@ -72,6 +72,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   liftCoreM errorIfSpecNotDefined
   let vd ← getAssertionParameters
   let th ← Command.runTermElabM fun vs => do
+    let systemTp ← getSystemTpStx vs
     let spec ← parseTraceSpec spec
     let numActions := spec.foldl (fun n s =>
       match s with
@@ -85,7 +86,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let mut currStateId := 0
     /- Which assertions, including state-transitions, does the spec contain. -/
     let mut assertions : Array (TSyntax `term) := #[]
-    assertions := assertions.push (← `(term|(RelationalTransitionSystem.assumptions $(stateNames[0]!) ∧ (RelationalTransitionSystem.init $(stateNames[0]!)))))
+    assertions := assertions.push (← `(term|(($systemTp).$(mkIdent `assumptions) $(stateNames[0]!) ∧ (($systemTp).$(mkIdent `init) $(stateNames[0]!)))))
     for s in spec do
       let currState := stateNames[currStateId]!
       match s with
@@ -99,7 +100,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         currStateId := currStateId + 1
       | TraceSpecLine.anyAction => do
         let nextState := stateNames[currStateId + 1]!
-        let t ← `(term|(RelationalTransitionSystem.next $currState $nextState))
+        let t ← `(term|(($systemTp).$(mkIdent `next) $currState $nextState))
         assertions := assertions.push t
         currStateId := currStateId + 1
       -- FIXME: remove code duplication with above
@@ -107,7 +108,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         for _ in [0:k] do
           let currState := stateNames[currStateId]!
           let nextState := stateNames[currStateId + 1]!
-          let t ← `(term|(RelationalTransitionSystem.next $currState $nextState))
+          let t ← `(term|(($systemTp).$(mkIdent `next) $currState $nextState))
           assertions := assertions.push t
           currStateId := currStateId + 1
       | TraceSpecLine.assertion t => do

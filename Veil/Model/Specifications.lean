@@ -250,7 +250,9 @@ instance : ToString StateAssertion where
 
 structure ModuleParameters where
   /-- Parameters of this module : type variables and typeclass
-  variables. This includes ALL parameters. -/
+  variables. This includes ALL parameters. This initially gets set when
+  `#gen_state` is called, and might be updated when `#gen_spec` is
+  called. -/
   parameters    : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
 
   /-- Expression representing the type of the transition system state,
@@ -262,8 +264,14 @@ structure ModuleParameters where
 
   /-- Syntax representing the arguments of the state type, which need
   to be passed in order to fully instantiate it. The index is the
-  position of the argument in `parameters`. -/
+  position of the argument in `parameters`. These are the `Type`
+  parameters that exist when `#gen_state` is called, ignoring the
+  typeclass parameters. -/
   stateArgs     : Array (Nat × Term)
+
+  /-- Assertion parameters, as indices into `parameters`. These are all
+  the parameters that exist when `#gen_spec` is called. -/
+  assertionParams : Std.HashSet Nat
 deriving Inhabited
 
 def ModuleParameters.stateArguments (mp : ModuleParameters) : Array Term :=
@@ -279,6 +287,19 @@ def ModuleParameters.applyGetStateArguments [Monad m] [MonadError m] (mp : Modul
     throwError "Expected at least {mp.parameters.size} arguments, but got {args.size}!"
   let pairs := Array.zip (List.range' 0 args.size).toArray args
   let indices := mp.stateArgIndices
+  let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then some arg else none)
+  return res
+
+def ModuleParameters.assertionParameters (mp : ModuleParameters) : Array (TSyntax `Lean.Parser.Term.bracketedBinder) :=
+  let pairs := Array.zip (List.range' 0 mp.parameters.size).toArray mp.parameters
+  let res := pairs.filterMap (fun (idx, p) => if mp.assertionParams.contains idx then some p else none)
+  res
+
+def ModuleParameters.applyGetAssertionArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
+  let indices := mp.assertionParams
+  if args.size < indices.size then
+    throwError "Expected at least {indices.size} arguments, but got {args.size}!"
+  let pairs := Array.zip (List.range' 0 args.size).toArray args
   let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then some arg else none)
   return res
 

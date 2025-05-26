@@ -154,19 +154,21 @@ def getIOSignatureStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (TSyntax `te
   let stx ← `(term|{internal := Std.HashSet.ofList [$[$internals],*], input := Std.HashSet.ofList [$[$inputs],*], output := Std.HashSet.ofList [$[$outputs],*]})
   return stx
 
-def getIOStepStx [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m] (stateTp : TSyntax `term) (labelT : TSyntax `term) : m (TSyntax `term) := do
+def getIOStepStx (stateTp : TSyntax `term) (labelT : TSyntax `term) (vs : Array Expr) : TermElabM (TSyntax `term) := do
   let spec := (← localSpecCtx.get).spec
   let (st, st') := (mkIdent `st, mkIdent `st')
+  let actionArgs ← getSectionArgumentsStx vs
   let alts ← spec.actions.mapM (fun s => do
     let (params, args) ← match s.br with
       | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
       | none => pure (#[], #[])
     let actFn := mkIdent $ toFnName s.name
     match s.br with
-      | some _ => `(term|fun $params* => $actFn $args* $st $st')
+      | some _ => `(term|fun $params* => @$actFn $actionArgs* $args* $st $st')
       | none => `(term|$actFn $st $st')
   )
   let stepStx ← `(term|fun ($st : $stateTp) (a : $labelT) ($st' : $stateTp) => a.casesOn $alts*)
+  trace[veil.debug] "stepStx: {stepStx}"
   return stepStx
 
 /-- Assembles all declared invariants (including safety properties) into
@@ -174,6 +176,7 @@ a single `Invariant` predicate -/
 def assembleInvariant : CommandElabM Unit := do
   let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
+    let vs ← getAssertionArguments vs
     let stateTp <- getStateTpStx
     let allClauses := (<- localSpecCtx.get).spec.invariants
     let exprs := allClauses.toList.map (fun p => p.expr)
@@ -187,6 +190,7 @@ predicate -/
 def assembleSafeties : CommandElabM Unit := do
   let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
+    let vs ← getAssertionArguments vs
     let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
     let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
@@ -198,6 +202,7 @@ predicate -/
 def assembleAssumptions : CommandElabM Unit := do
   let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
+    let vs ← getAssertionArguments vs
     let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
     let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"

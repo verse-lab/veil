@@ -31,8 +31,11 @@ def getStateTpArgsStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (Array Term)
   return args
 
 def getActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := return (← getScope).varDecls
-def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
 def getImplicitProcedureParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do (← getActionParameters).mapM mkImplicitBinders
+
+def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let spec := (← localSpecCtx.get).spec
+  return spec.generic.assertionParameters
 
 /-- Returns syntax for the given section arguments (`Expr`s). -/
 def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
@@ -42,6 +45,10 @@ def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term))
     if isHygienicName then return ← `(term|_) else return t
   )
   return args
+
+def getAssertionArguments [Monad m] [MonadEnv m] [MonadError m] (vs : Array Expr) : m (Array Expr) := do
+  let spec := (← localSpecCtx.get).spec
+  spec.generic.applyGetAssertionArguments vs
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
   let sectionArgs ← getSectionArgumentsStx vs

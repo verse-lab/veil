@@ -244,11 +244,12 @@ def assembleState : CommandElabM Unit := do
   -- Do not show unused variable warnings for field names
   generateIgnoreFn
   Command.runTermElabM fun _ => do
-    -- we set `stateStx` ourselves
+    -- IMPORTANT: here we set most of `ModuleParameters`
     let stateTpExpr := (<- localSpecCtx.get).spec.generic.stateType
     unless stateTpExpr != default do throwError "State has not been declared so far"
     let stateTypeTerm ← PrettyPrinter.delab stateTpExpr
-    localSpecCtx.modify ({· with spec.generic.stateTypeTerm := stateTypeTerm, spec.generic.stateArgs := args'})
+    let assertionParams := Std.HashSet.ofList (List.range' 0 vd.size)
+    localSpecCtx.modify ({· with spec.generic.stateTypeTerm := stateTypeTerm, spec.generic.stateArgs := args', spec.generic.assertionParams := assertionParams })
   -- Do work necessary for module composition
   genStateExtInstances
   defineDepsProcedures
@@ -535,25 +536,27 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   let stateTpStx ← getStateTpStx
   let labelTpStx ← `(term|$(mkIdent `Label) $(← getStateTpArgsStx)*)
   assembleLabelType name
-  let stepStx ← getIOStepStx stateTpStx labelTpStx
 
   let (rtsStx, ioAutomatonStx) <- Command.runTermElabM fun vs => do
-    let sectionArgs ← getSectionArgumentsStx vs
+    let actionArgs ← getSectionArgumentsStx vs
+    let assertionArgs ← getSectionArgumentsStx $ ← getAssertionArguments vs
+    let stepStx ← getIOStepStx stateTpStx labelTpStx vs
+
     let [initialState?, Assumptions, Next, Safety, Invariant] :=
       [initialStateName, `Assumptions, `Next, `Safety, `Invariant].map Lean.mkIdent
       | unreachable!
     -- RelationalTransitionSystem instance
     let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
-        init := @$initialState? $sectionArgs*
-        assumptions := @$Assumptions $sectionArgs*
-        next := @$Next $sectionArgs*
-        safe := @$Safety $sectionArgs*
-        inv  := @$Invariant $sectionArgs*
+        init := @$initialState? $assertionArgs*
+        assumptions := @$Assumptions $assertionArgs*
+        next := @$Next $actionArgs*
+        safe := @$Safety $assertionArgs*
+        inv  := @$Invariant $assertionArgs*
         )
     -- IO Automaton instance
     let ioAutomatonStx ← `(instance (priority := low) $(mkIdent `IOA) $[$vd]* : $(mkIdent ``IOAutomaton) $stateTpStx $labelTpStx where
       signature := $(← getIOSignatureStx)
-      init := @$initialState? $sectionArgs*
+      init := @$initialState? $assertionArgs*
       step := $stepStx
     )
     pure (rtsStx, ioAutomatonStx)
