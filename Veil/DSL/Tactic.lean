@@ -12,7 +12,7 @@ open Lean Lean.Elab
 -/
 elab "exact_state" : tactic => do
   let stateName ← getStateName
-  let stateTp := (<- localSpecCtx.get).spec.stateType
+  let stateTp := (<- localSpecCtx.get).spec.generic.stateType
   let .some sn := stateTp.constName?
     | throwError "{stateTp} is not a constant"
   let .some _sinfo := getStructureInfo? (<- getEnv) sn

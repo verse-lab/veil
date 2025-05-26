@@ -22,11 +22,11 @@ initialize registerBuiltinAttribute {
   name := `state
   descr := "This is the state type"
   add := fun declName _ _ => do
-    let stsTp := (<- localSpecCtx.get).spec.stateType
+    let stsTp := (<- localSpecCtx.get).spec.generic.stateType
     unless stsTp == default do
       throwError "State type has already been declared: {stsTp}"
     let ty := mkConst declName
-    localSpecCtx.modify (fun s => { s with spec := {s.spec with stateType := ty }})
+    localSpecCtx.modify (fun s => { s with spec.generic := {s.spec.generic with stateType := ty }})
 }
 
 syntax (name:= initial) "initDef" : attr

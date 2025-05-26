@@ -117,6 +117,17 @@ def bracketedBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : A
     | none => `(term|_))
   return terms
 
+/-- Given a set of binders, return the terms that correspond to them.
+Typeclasses that are not named are replaced with `_`, to be inferred. -/
+def bracketedBindersToTerms' [Monad m] [MonadError m] [MonadQuotation m] (stx : Array (Nat × TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array (Nat × Term)) := do
+  let idents : Array (Nat × Option Ident)  ← stx.mapM (fun (idx, b) => do pure (idx, ← bracketedBinderIdent b))
+  let terms ← idents.mapM (fun (idx, mid) => do
+  pure (idx,
+    ← match mid with
+    | some id => `(term|$id)
+    | none => `(term|_)))
+  return terms
+
 def toBindersWithInferredTypes (stx : TSyntax `Lean.explicitBinders) [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m] : m (TSyntax `Lean.explicitBinders) := do
  let mut newBinders := #[]
   match stx with

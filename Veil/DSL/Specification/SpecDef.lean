@@ -19,7 +19,7 @@ def specName : CommandElabM Name := do
   return ctx.spec.name
 
 def declareSpecParameters (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : CommandElabM Unit := do
-  localSpecCtx.modify (fun s => { s with spec.parameters := vd })
+  localSpecCtx.modify (fun s => { s with spec.generic.parameters := vd })
 
 def checkModuleExists (id : Name) [Monad m] [MonadEnv m] [MonadError m] : m Unit := do
   let modules := (<- globalSpecCtx.get)
@@ -29,7 +29,7 @@ def checkModuleExists (id : Name) [Monad m] [MonadEnv m] [MonadError m] : m Unit
 def checkCorrectInstantiation (id : Name) (ts : Array Term) : CoreM Unit := do
   checkModuleExists id
   let module := (<- globalSpecCtx.get)[id]!.spec
-  let vd := module.parameters
+  let vd := module.generic.parameters
   let vs := ts
   if vd.size != vs.size then
     let sz := (List.range' 1 (max vd.size vs.size)) |>.toArray
@@ -44,14 +44,11 @@ def checkCorrectInstantiation (id : Name) (ts : Array Term) : CoreM Unit := do
     throwError s!"Module {id} has {vd.size} parameters, but {vs.size} were provided:\n{vdStr}"
   -- TODO FIXME: check that the types match
 
-/-- Return only those arguments that are used in the state type. -/
-def ModuleDependency.stateArguments [Monad m] [MonadError m] (dep : ModuleDependency) : m (Array Term) := do
-  getStateArguments dep.parameters dep.arguments
 
 def ModuleDependency.typeMapping [Monad m] [MonadError m] [MonadQuotation m] (dep : ModuleDependency) : m (Array (Term × Term)) := do
   let paramTerms ← bracketedBindersToTerms dep.parameters
   let pairs := paramTerms.zip dep.arguments
-  let mapping ← getStateArguments dep.parameters pairs
+  let mapping ← dep.applyGetStateArguments pairs
   return mapping
 
 def errorIfStateNotDefined : CoreM Unit := do
@@ -116,9 +113,10 @@ def assembleNext : CommandElabM Unit := do
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do
   let vd ← getActionParameters
+  let generic := (← localSpecCtx.get).spec.generic
   let labelTypeName := mkIdent `Label
-  let labelTypeBinders := getStateParametersBinders vd
-  let labelTypeArgs ← getStateArgumentsStx' vd
+  let labelTypeBinders ← generic.applyGetStateArguments vd
+  let labelTypeArgs ← bracketedBindersToTerms labelTypeBinders
   let labelT ← `(term|$labelTypeName $labelTypeArgs*)
 
   let (labelType, alInstance) ← Command.runTermElabM fun _ => do

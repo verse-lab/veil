@@ -248,33 +248,77 @@ instance : ToString StateAssertion where
     | some term => s!"{sa.kind} [{sa.name}] {term}"
     | none => s!"{sa.kind} [{sa.name}] {sa.expr}"
 
+structure ModuleParameters where
+  /-- Parameters of this module : type variables and typeclass
+  variables. This includes ALL parameters. -/
+  parameters    : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+
+  /-- Expression representing the type of the transition system state,
+  *without* having applied the state-specific section variables. -/
+  stateType     : Expr
+  /-- Syntax representing the type of the transition system state,
+  *without* having applied the state-specific section variables. -/
+  stateTypeTerm : Term
+
+  /-- Syntax representing the arguments of the state type, which need
+  to be passed in order to fully instantiate it. The index is the
+  position of the argument in `parameters`. -/
+  stateArgs     : Array (Nat × Term)
+deriving Inhabited
+
+def ModuleParameters.stateArguments (mp : ModuleParameters) : Array Term :=
+  mp.stateArgs.map (fun (_, arg) => arg)
+
+def ModuleParameters.stateArgIndices (mp : ModuleParameters) : Std.HashSet Nat :=
+  Std.HashSet.ofArray (mp.stateArgs.map (fun (idx, _) => idx))
+
+/-- Apply the arguments to the module, and return only those that
+should be passed to the `State` type. -/
+def ModuleParameters.applyGetStateArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
+  if args.size < mp.parameters.size then
+    throwError "Expected at least {mp.parameters.size} arguments, but got {args.size}!"
+  let pairs := Array.zip (List.range' 0 args.size).toArray args
+  let indices := mp.stateArgIndices
+  let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then some arg else none)
+  return res
+
+/--Fully-applied `stateTp` from the local state. -/
+def ModuleParameters.stateTpStx [Monad m] [MonadQuotation m] (mp : ModuleParameters) : m Term := do
+  let stateTp := mp.stateTypeTerm
+  let args := mp.stateArguments
+  let stx ← `(term|@$stateTp $args*)
+  return stx
 
 /-- Modules can depend on other modules, which must be fully-instantiated with
 type (and typeclass) arguments provided for all variables. -/
 structure ModuleDependency where
-  name       : Name
+  name        : Name
   /-- Module parameters-/
-  parameters : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  generic     : ModuleParameters
   /-- Instantiations of the module's parameters, i.e. the arguments
   passed to the module when it is instantiated. -/
-  arguments  : Array Term
+  arguments   : Array Term
 
 abbrev Alias := Name
+
+def ModuleDependency.stateArguments (dep : ModuleDependency) : Array Term :=
+  dep.generic.stateArguments
+
+def ModuleDependency.parameters (dep : ModuleDependency) : Array (TSyntax `Lean.Parser.Term.bracketedBinder) :=
+  dep.generic.parameters
+
+def ModuleDependency.applyGetStateArguments [Monad m] [MonadError m] (dep : ModuleDependency) (args : Array α) : m (Array α) := do
+  dep.generic.applyGetStateArguments args
 
 /-- A cleaned-up version of `StsState`, this gets generated on `#gen_spec` and stored in the global state. -/
 structure ModuleSpecification : Type where
   /-- Name of the specification -/
   name         : Name
-  /-- Parameters of this module : type variables and typeclass variables. -/
-  parameters   : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  /-- Information needed to instantiate this module's state type,
+  actions, and properties/assertions. -/
+  generic   : ModuleParameters
   /-- Modules that this module depends on (instantiates) -/
   dependencies : Array (Alias × ModuleDependency)
-  /-- Expression representing the type of the transition system state,
-  *without* having applied the section variables. -/
-  stateType    : Expr
-  /-- Expression representing the syntax type of the transition system state,
-  *with* having applied the section variables. -/
-  stateStx     : Term
   /-- Signatures of all constants, relations, and functions that compose
   the state. This basically defines a FOL signature. -/
   signature    : Array StateComponent
@@ -293,7 +337,7 @@ deriving Inhabited
 /-- Syntax for the arguments of this module. Typeclasses that are not named are
 replaced with `_`, to be inferred. -/
 def ModuleSpecification.arguments [Monad m] [MonadError m] [MonadQuotation m] (spec : ModuleSpecification) : m (Array Term) :=
-  bracketedBindersToTerms spec.parameters
+  bracketedBindersToTerms spec.generic.parameters
 
 def ModuleSpecification.getStateComponent (spec : ModuleSpecification) (name : Name) : Option StateComponent :=
   spec.signature.find? (fun sc => sc.name == name)

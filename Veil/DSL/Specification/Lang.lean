@@ -39,7 +39,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
       -- import the context
       localSpecCtx.modify (fun _ => ctx)
       -- re-declare the section variables
-      elabCommand $ ← `(variable $(ctx.spec.parameters)*)
+      elabCommand $ ← `(variable $(ctx.spec.generic.parameters)*)
     else
       declareSpecName name
   | _ => throwUnsupportedSyntax
@@ -189,13 +189,14 @@ def elabDependency : CommandElab := fun stx => do
       checkModuleExists fullModuleName
       liftCoreM $ checkCorrectInstantiation fullModuleName ts
       let modAlias := if let `(Veil.moduleAbbrev| as $al) := ma then al.getId else fullModuleName
-      let modParams := (<- globalSpecCtx.get)[fullModuleName]!.spec.parameters
+      let modParams := (<- globalSpecCtx.get)[fullModuleName]!.spec.generic
       let modDep : ModuleDependency := {
         name := fullModuleName,
-        parameters := modParams,
+        generic := modParams,
         arguments := ts
       }
-      let stateArgs ← Command.runTermElabM fun _ => getStateArguments modParams ts
+      let stateArgs ← Command.runTermElabM fun _ => modParams.applyGetStateArguments ts
+      dbg_trace "ts: {ts} => stateArgs: {stateArgs}"
       let sig ← `(Command.structSimpleBinder|$(mkIdent modAlias):ident : @$(mkIdent $ fullModuleName ++ `State) $stateArgs*)
       -- NOTE: set `mutab` to `passthrough` if you want to pass-through
       -- mutability annotations; by default, the state of the child module
@@ -211,8 +212,12 @@ def elabDependency : CommandElab := fun stx => do
 def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   declareSpecParameters vd
+  let binders' := getStateParametersBinders vd
+  let args' ← bracketedBindersToTerms' binders'
+  let binders := binders'.map (fun (_, b) => b)
+  let args := args'.map (fun (_, arg) => arg)
   let name <- getCurrNamespace
-  let (sdef, isHOInst, smtAttr) <- Command.runTermElabM fun vs => do
+  let (sdef, isHOInst, smtAttr) <- Command.runTermElabM fun _ => do
     -- set the name
     let components ← liftCommandElabM $ liftCoreM $ ((<- localSpecCtx.get).spec.signature).mapM StateComponent.getSimpleBinder
     -- record the state name
@@ -220,12 +225,12 @@ def assembleState : CommandElabM Unit := do
     let stName := `State
     let sdef ←
     `(@[stateDef]
-      structure $(mkIdent stName) $(getStateParametersBinders vd)* where
+      structure $(mkIdent stName) $binders* where
         $(mkIdent `mk):ident :: $[$components]*
       deriving $(mkIdent ``Nonempty))
     let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
-    let isHOInst ← `(instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stName}_ho") $(getStateParametersBinders vd)* : IsHigherOrder (@$(mkIdent stName) $(← getStateArgumentsStx vd vs)*) := ⟨⟩)
+    let isHOInst ← `(instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stName}_ho") $binders* : IsHigherOrder (@$(mkIdent stName) $args*) := ⟨⟩)
     trace[veil.debug] "{sdef}"
     trace[veil.debug] "{isHOInst}"
     -- Tag the `injEq` lemma as `smtSimp`
@@ -238,10 +243,12 @@ def assembleState : CommandElabM Unit := do
   elabCommand smtAttr
   -- Do not show unused variable warnings for field names
   generateIgnoreFn
-  Command.runTermElabM fun vs => do
+  Command.runTermElabM fun _ => do
     -- we set `stateStx` ourselves
-    let stateTp ← mkStateTpStx vd vs
-    localSpecCtx.modify ({· with spec.stateStx := stateTp })
+    let stateTpExpr := (<- localSpecCtx.get).spec.generic.stateType
+    unless stateTpExpr != default do throwError "State has not been declared so far"
+    let stateTypeTerm ← PrettyPrinter.delab stateTpExpr
+    localSpecCtx.modify ({· with spec.generic.stateTypeTerm := stateTypeTerm, spec.generic.stateArgs := args'})
   -- Do work necessary for module composition
   genStateExtInstances
   defineDepsProcedures
@@ -258,7 +265,12 @@ where
       let ignoreFnStx ← `(@[unused_variables_ignore_fn] def $nm : Lean.Linter.IgnoreFunction := $fnStx)
       return ignoreFnStx
     elabCommand cmd
-
+  /- We don't pass typeclass arguments (e.g. `[DecidableEq node]`) to the
+  `State` type, since we want to use `deriving Nonempty` on the
+  `structure` we create, and it seems it gets confused by them -/
+  getStateParametersBinders (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : Array (Nat × TSyntax `Lean.Parser.Term.bracketedBinder) :=
+    let pairs := Array.zip (List.range' 0 vd.size).toArray vd
+    pairs.filter (fun (_, b) => !isTypeClassBinder b)
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do assembleState
 
@@ -274,7 +286,7 @@ def elabGhostRelationDefinition : CommandElab := fun stx => do
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <- Command.runTermElabM fun vs => do
     let stateTp <- getStateTpStx
-    let stx' <- funcasesM t (← getStateArguments vd vs)
+    let stx' <- funcasesM t
     elabBindersAndCapitals br vs stx' fun _ e => do
       let e <- delabWithMotives e
       let stx ← `(@[actSimp, invSimp, invSimpTopLevel] abbrev $nm $[$vd']* $br* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e)
@@ -463,7 +475,7 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
     -- Check that the assumption does not refer to mutable state components
     if kind == .assumption then
       throwIfRefersToMutable t
-    let stx <- funcasesM t (← getStateArguments vd vs)
+    let stx <- funcasesM t
     let defaultName ← match kind with
       | .safety | .invariant => pure $ Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
       | .assumption | .trustedInvariant => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.assumptions.size}"
@@ -521,7 +533,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleAssumptions
 
   let stateTpStx ← getStateTpStx
-  let labelTpStx ← `(term|$(mkIdent `Label) $(← getStateArgumentsStx' vd)*)
+  let labelTpStx ← `(term|$(mkIdent `Label) $(← getStateTpArgsStx)*)
   assembleLabelType name
   let stepStx ← getIOStepStx stateTpStx labelTpStx
 

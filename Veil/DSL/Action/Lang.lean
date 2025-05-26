@@ -195,8 +195,8 @@ def getSubProcedures : TermElabM (Array (Ident × Term)) := do
     introduce the following notation, witch gets resolved to a current state type
     during the elaboration stage  -/
 elab "[State]" : term => do
-    let stateTp := (← localSpecCtx.get).spec.stateStx
-    elabTerm (<- `(term| $stateTp)) none
+    let stateTpStx ← getStateTpStx
+    elabTerm (<- `(term|$stateTpStx)) none
 
 /-- This is used in `require` were we define a predicate over a state.
     Instead of writing `fun st => Pred` this command will pattern match over

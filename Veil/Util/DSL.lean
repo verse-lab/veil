@@ -19,7 +19,22 @@ def mkImplicitBinders [Monad m] [MonadQuotation m] : TSyntax `Lean.Parser.Term.b
     `(Term.bracketedBinderF| {$id:ident : $tp:term})
   | stx => return stx
 
-/-- Returns syntax for the given section arguments. -/
+/-- Construct the fully-applied `stateTp` from the local state. -/
+def getStateTpStx [Monad m] [MonadEnv m] [MonadQuotation m] : m Term := do
+  let spec := (← localSpecCtx.get).spec
+  let stateTpStx ← spec.generic.stateTpStx
+  return stateTpStx
+
+def getStateTpArgsStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (Array Term) := do
+  let spec := (← localSpecCtx.get).spec
+  let args := spec.generic.stateArguments
+  return args
+
+def getActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := return (← getScope).varDecls
+def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
+def getImplicitProcedureParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do (← getActionParameters).mapM mkImplicitBinders
+
+/-- Returns syntax for the given section arguments (`Expr`s). -/
 def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
   let args ← vs.mapM (fun v => do
     let t ← PrettyPrinter.delab v
@@ -27,46 +42,6 @@ def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term))
     if isHygienicName then return ← `(term|_) else return t
   )
   return args
-
-/- We don't pass typeclass arguments (e.g. `[DecidableEq node]`) to the
-`State` type, since we want to use `deriving Nonempty` on the
-`structure` we create, and it seems it gets confused by them -/
-def getStateParametersBinders (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : Array (TSyntax `Lean.Parser.Term.bracketedBinder) :=
-  vd.filter (fun b => !isTypeClassBinder b)
-
-/-- Get the arguments which we have to pass to the `State` type to instantiate it. -/
-def getStateArguments [ToMessageData α] (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array α) [Monad m] [MonadError m]: m (Array α) := do
-  if vd.size != vs.size then throwError "Mismatch in number of arguments between {vd} and {vs}"
-  let vs' := (vd.zip vs).filter (fun (b, _) => !isTypeClassBinder b) |> .map Prod.snd
-  return vs'
-
-def getStateArgumentsStx (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
-  let vs' ← getStateArguments vd vs
-  getSectionArgumentsStx vs'
-
-def getStateArgumentsStx' [Monad m] [MonadError m] [MonadQuotation m] (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array (TSyntax `term)) := do
-  let binders := vd.filter (fun b => !isTypeClassBinder b)
-  bracketedBindersToTerms binders
-
-def getActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := return (← getScope).varDecls
-def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
-def getImplicitProcedureParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do (← getActionParameters).mapM mkImplicitBinders
-
-/-- Makes a full application of the `State` type, with the appropriate
-section variables/arguments. We don't pass typeclass arguments (e.g.
-`[DecidableEq node]`), since we want to use `deriving Nonempty` on the
-`structure` we create, and it seems it gets confused by them. -/
-def mkStateTpStx (vd : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (vs : Array Expr) : TermElabM Term := do
-  let stateTpExpr := (<- localSpecCtx.get).spec.stateType
-  unless stateTpExpr != default do throwError "State has not been declared so far"
-  let stateTp ← PrettyPrinter.delab stateTpExpr
-  let stx ← `(term|@$stateTp $(← getStateArgumentsStx vd vs)*)
-  return stx
-
-/-- Retrieve `stateTp` from the local state.-/
-def getStateTpStx [Monad m] [MonadEnv m]  : m Term := do
-  let stateTp := (← localSpecCtx.get).spec.stateStx
-  return stateTp
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
   let sectionArgs ← getSectionArgumentsStx vs
@@ -134,12 +109,9 @@ def throwIfRefersToMutable (t : Term) : TermElabM Unit :=
 /-- This is used wherever we want to define a predicate over a state
     (for instance, in `safety`, `invariant` and `relation`). Instead
     of writing `fun st => Pred` this command will pattern match over
-    `st` making all its fields accessible for `Pred`.
-    IMPORTANT: You should NOT pass all of `vs`, but only those returned
-    by `(← getStateArguments vd vs)`!
-    -/
-def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
-  let stateTpExpr := (<- localSpecCtx.get).spec.stateType
+    `st` making all its fields accessible for `Pred`. -/
+def funcasesM (t : Term) : TermElabM Term := do
+  let stateTpExpr := (<- localSpecCtx.get).spec.generic.stateType
   let .some sn := stateTpExpr.getAppFn.constName?
     | throwError "{stateTpExpr} is not a constant"
   let .some _sinfo := getStructureInfo? (<- getEnv) sn
@@ -149,9 +121,10 @@ def funcasesM (t : Term) (vs : Array Expr) : TermElabM Term := do
   let stateName := `State
   let casesOn <- mkConst $ (moduleName ++ stateName ++ `casesOn)
   let casesOn <- PrettyPrinter.delab casesOn
-  let stateTp <- getStateTpStx
-  let term ← `(term| (fun $(mkIdent `st) : $stateTp =>
-      $(casesOn) $(← getSectionArgumentsStx vs)* (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
+  let stateTpStx ← getStateTpStx
+  let stateTpArgs ← getStateTpArgsStx
+  let term ← `(term| (fun $(mkIdent `st) : $stateTpStx =>
+      $(casesOn) $(stateTpArgs)* (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
   trace[veil.debug] "funcasesM: {term}"
   return term
 

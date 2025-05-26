@@ -113,7 +113,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       | TraceSpecLine.assertion t => do
         -- Elaborate assertions in the same way we elaborate invariants.
         -- See `elab "invariant"` in `DSL.lean`.
-        let stx <- funcasesM t (← getStateArguments vd vs)
+        let stx <- funcasesM t
         let t ← elabBindersAndCapitals #[] vs stx fun _ e => do
           let e <- delabWithMotives e
           `(fun $(mkIdent `st) => $e: term)

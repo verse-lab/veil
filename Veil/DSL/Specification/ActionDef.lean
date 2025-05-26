@@ -49,7 +49,7 @@ def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br 
   assertActionDeclared nm.getId "registerIOActionDecl"
   let vd ← getActionParameters
   let labelTypeName := mkIdent `Label
-  let labelTypeArgs ← getStateArgumentsStx' vd
+  let labelTypeArgs ← bracketedBindersToTerms $ ← (← localSpecCtx.get).spec.generic.applyGetStateArguments vd
   let labelT ← `(term|$labelTypeName $labelTypeArgs*)
   Command.runTermElabM fun _ => do
     let name := nm.getId
@@ -330,12 +330,11 @@ them to the current module's state. This function generates the
 `IsSubStateOf` instances required to do this. -/
 def genStateExtInstances : CommandElabM Unit := do
   let currName <- getCurrNamespace
-  let vd := (<- getScope).varDecls
-  let insts <- Command.runTermElabM fun vs => do
+  let insts <- Command.runTermElabM fun _ => do
     let mut insts := #[]
     for (modAlias, dep) in (<- localSpecCtx.get).spec.dependencies do
-      let ts ← dep.stateArguments
-      let currTs <- getStateArgumentsStx vd vs
+      let ts ← dep.applyGetStateArguments dep.arguments
+      let currTs <- getStateTpArgsStx
       let alia := mkIdent modAlias
       let stateExtTypeclass := mkIdent ``IsSubStateOf
       let inst <-
