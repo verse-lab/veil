@@ -19,7 +19,8 @@ section Veil
 
 attribute [actSimp] modify modifyGet MonadStateOf.modifyGet get
   getThe MonadStateOf.get MonadStateOf.set instMonadStateOfMonadStateOf
-  instMonadStateOfWp
+  -- instMonadStateOfWp
+  instMonadStateOfWpOfIsSubStateOf instIsSubStateOf
 
 macro "unfold_wp" : conv =>
   `(conv| unfold
@@ -41,7 +42,6 @@ macro "unfold_wp" : conv =>
     MonadStateOf.modifyGet
     MonadStateOf.get
     MonadStateOf.set
-    instMonadStateOfWp
     -- unfold specifications
     Wp.spec
     -- unfold actions defined by conversion
@@ -163,7 +163,7 @@ def getSubInitializers [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m]:
   let ourSpec := (← localSpecCtx.get).spec
   for (modAlias, _) in ourSpec.dependencies do
     let initName := mkIdent <| modAlias ++ `initializer
-    let initTerm <- `(@$initName $(← ourSpec.arguments)*)
+    let initTerm <- `(@$initName $(← ourSpec.arguments)* $genericState _)
     names := names.push (initName, initTerm)
   return names
 
@@ -182,7 +182,7 @@ def getSubProcedures : TermElabM (Array (Ident × Term)) := do
       let procName := mkIdent <| modAlias ++ proc.name
       -- Since we have lifted the action, we must apply OUR section arguments to
       -- it, rather than the dependency's
-      let procTerm <- `(@$procName $(← ourSpec.arguments)*)
+      let procTerm <- `(@$procName $(← ourSpec.arguments)* $genericState _)
       let currMod := (← localSpecCtx.get).stateBaseName.get!
       if (<- getEnv).find? (currMod ++ procName.getId) |>.isSome then
         names := names.push (procName, procTerm)
@@ -326,7 +326,9 @@ refreshState : VeilM (Array doSeqItem) := do
   return #[refresh]
 end
 
-elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
+/-- Elaborate the given `stx` with resulting state type `stateTp` by
+treating `require`'s in the way described by `mode`. -/
+elab (name := VeilDo) "do'" mode:term "as" stateTp:term "in" stx:doSeq : term => do
   /- Array containing all auxilary let-bingings to be inserted in the
     beginning of the `do`-block. It consists of
     - `let mut field := (<- get). field` for each field of the protocol state. We do this
@@ -357,7 +359,7 @@ elab (name := VeilDo) "do'" mode:term "in" stx:doSeq : term => do
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- fresh $v.type)
   let doS := preludeAssn.append doS
   trace[veil.debug] "{stx}\n→\n{doS}"
-  elabTerm (<- `(term| ((do $doS*) : Wp $mode [State] _))) none
+  elabTerm (<- `(term| ((do $doS*) : Wp $mode $stateTp _))) none
 
 macro_rules
   | `(require $t) => `(Wp.require $t)
@@ -410,14 +412,18 @@ elab_rules : term
      unchanged  -/
   | `(requires $pre ensures $r, $post:term) => do
     let unchangedFields ← getUnchangedFields (fun f => post.raw.find? (·.getId == f) |>.isSome)
-    elabTerm (<- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])) none
+    let stx <- `(requires $pre ensures $r, $post:term with unchanged[$[$unchangedFields],*])
+    trace[veil.debug] "spec initial stx: {stx}"
+    elabTerm stx none
   | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
     -- withRef t $
-    elabTerm (<- `(term| @Wp.spec [State] _ _ (funcases $pre) (
+    let stx <- `(term| @Wp.spec [State] _ $genericState _ _ (funcases $pre) (
       by rintro st $r st';
          unhygienic cases st';
          with_rename "_old" unhygienic cases st;
-         exact $post ∧ [unchanged|"_old"|$ids*]))) none
+         exact $post ∧ [unchanged|"_old"|$ids*]))
+    trace[veil.debug] "spec stx with unchanged: {stx}"
+    elabTerm stx none
 
 attribute [actSimp] Bind.bind Pure.pure
 

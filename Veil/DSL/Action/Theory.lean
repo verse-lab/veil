@@ -87,6 +87,80 @@ section Theory
 
 variable {σ ρ : Type}
 
+/- `Wp` is a state monad -/
+-- instance  : MonadStateOf σ (Wp m σ) where
+--   get := Wp.get
+--   set := Wp.set
+--   modifyGet := Wp.modifyGet
+
+/-! ### State Monad Lifting-/
+
+/-- To support inter-operation between `action`s defined in different
+Veil modules (which have different `State` types), we define a
+sub-state relation on `State`s. This lets a module have a "part" of its
+state correspond to another module's `State` type, and call `action`s
+from that module by `lift`ing them into the appropriate State monad.
+
+`IsSubState σ σ'` means that `σ` is a sub-state of `σ'`. This gives us:
+
+- `setIn : σ -> σ' -> σ'`, which updates/sets the sub-state in the
+bigger state
+- `getFrom : σ' -> σ`, which extracts the sub-state from the bigger
+state
+- proofs that these methods are related to each other in the natural
+way
+-/
+class IsSubStateOf (σ : outParam Type) (σ' : Type) where
+  /-- Set the small state `σ` in the big one `σ'`, returning the new `σ'` -/
+  setIn : σ -> σ' -> σ'
+  /-- Get the small state `σ` from the big one `σ'` -/
+  getFrom : σ' -> σ
+
+  setIn_getFrom_idempotent : ∀ σ', setIn (getFrom σ') σ' = σ'
+  getFrom_setIn_idempotent : ∀ σ σ', getFrom (setIn σ σ') = σ
+
+export IsSubStateOf (setIn getFrom)
+
+instance [IsSubStateOf σₛ σ] : MonadStateOf σₛ (Wp m σ) where
+  get := fun s post => post (getFrom s) s
+  set := fun sₛ s post => post () (setIn sₛ s)
+  modifyGet := fun act s post => let (ret, s') := act (getFrom s) ; post ret (setIn s' s)
+
+@[wpSimp, initSimp, actSimp] instance : IsSubStateOf σ σ where
+  setIn := (fun σₛ σ => σₛ)
+  getFrom := id
+  setIn_getFrom_idempotent := by simp
+  getFrom_setIn_idempotent := by simp
+
+attribute [wpSimp, initSimp, actSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.getFrom_setIn_idempotent
+
+def IsSubStateOf.trans {σₛ σₘ σ : Type} (S₁ : IsSubStateOf σₛ σₘ) (S₂ : IsSubStateOf σₘ σ) : IsSubStateOf σₛ σ :=
+{
+  setIn := fun σₛ σ => let σₘ := (S₂.getFrom σ); S₂.setIn (S₁.setIn σₛ σₘ) σ
+  getFrom := fun σ => S₁.getFrom (S₂.getFrom σ)
+  setIn_getFrom_idempotent := by simp [S₁.setIn_getFrom_idempotent, S₂.setIn_getFrom_idempotent]
+  getFrom_setIn_idempotent := by simp [S₁.getFrom_setIn_idempotent, S₂.getFrom_setIn_idempotent]
+}
+
+-- only works if `σ` is `semiOutParam`
+-- @[always_inline] instance IsSubStateOf_transitive [S₁ : IsSubStateOf σₛ σₘ] [S₂ : IsSubStateOf σₘ σ] : IsSubStateOf σₛ σ :=
+--   IsSubStateOf.trans S₁ S₂
+
+-- /-- This tries to transitively infer an `IsSubStateOf` instance between two states. -/
+-- syntax "infer_substate" : tactic
+-- macro_rules
+-- | `(tactic| infer_substate) => do
+--   `(tactic| (first | infer_instance | (apply IsSubStateOf.trans; rotate_left ; infer_instance ; infer_substate)))
+
+/-- `Wp.lift act` lifts an action defined on a sub-state into an action
+defined on the bigger state. -/
+@[actSimp] def Wp.lift {σ σ'} [IsSubStateOf σ σ'] (act : Wp m σ ρ) : Wp m σ' ρ :=
+  fun s' post => act (getFrom s') (fun r s => post r (setIn s s'))
+
+/-- `Wp` supports lifting between different state monads. -/
+instance [IsSubStateOf σ σ'] : MonadLift (Wp m σ) (Wp m σ') where
+  monadLift := Wp.lift
+
 /-! ### Weakest Precondition Semantics -/
 
 @[actSimp] def Wp.pure (r : ρ) : Wp m σ ρ := fun s post => post r s
@@ -109,11 +183,11 @@ variable {σ ρ : Type}
 /-- `Wp.spec req ens` is the weakest precondition for a function with
   precondition `req` and postcondition `ens`.
 -/
-@[actSimp] def Wp.spec (req : SProp σ) (ens : σ -> RProp σ ρ) : Wp m σ ρ :=
+@[actSimp] def Wp.spec {σ : Type} {m : Mode} {σ' ρ : Type} [IsSubStateOf σ σ'] (req : SProp σ) (ens : σ -> RProp σ ρ) : Wp m σ' ρ :=
   fun s post =>
     match m with
-    | .internal => req s ∧ ∀ r' s', (ens s r' s' -> post r' s')
-    | .external => ∀ r' s', req s -> ens s r' s' -> post r' s'
+    | .internal => req (getFrom s) ∧ ∀ r' s', (ens (getFrom s) r' s' -> post r' (setIn s' s))
+    | .external => ∀ r' s', req (getFrom s) -> ens (getFrom s) r' s' -> post r' (setIn s' s)
 
 /-! #### Monad Instances -/
 
@@ -121,49 +195,6 @@ variable {σ ρ : Type}
 instance : Monad (Wp m σ) where
   pure := Wp.pure
   bind := Wp.bind
-
-/-- `Wp` is a state monad -/
-instance : MonadStateOf σ (Wp m σ) where
-  get := Wp.get
-  set := Wp.set
-  modifyGet := Wp.modifyGet
-
-/-! #### State Monad Lifting-/
-
-/-- To support inter-operation between `action`s defined in different
-Veil modules (which have different `State` types), we define a
-sub-state relation on `State`s. This lets a module have a "part" of its
-state correspond to another module's `State` type, and call `action`s
-from that module by `lift`ing them into the appropriate State monad.
-
-`IsSubState σ σ'` means that `σ` is a sub-state of `σ'`. This gives us:
-
-- `setIn : σ -> σ' -> σ'`, which updates/sets the sub-state in the
-bigger state
-- `getFrom : σ' -> σ`, which extracts the sub-state from the bigger
-state
-- proofs that these methods are related to each other in the natural
-way
--/
-class IsSubStateOf (σ : semiOutParam Type) (σ' : Type) where
-  /-- Set the small state `σ` in the big one `σ'`, returning the new `σ'` -/
-  setIn : σ -> σ' -> σ'
-  /-- Get the small state `σ` from the big one `σ'` -/
-  getFrom : σ' -> σ
-
-  setIn_getFrom_idempotent : ∀ σ', setIn (getFrom σ') σ' = σ'
-  getFrom_setIn_idempotent : ∀ σ σ', getFrom (setIn σ σ') = σ
-
-export IsSubStateOf (setIn getFrom)
-
-/-- `Wp.lift act` lifts an action defined on a sub-state into an action
-defined on the bigger state. -/
-@[actSimp] def Wp.lift {σ σ'} [IsSubStateOf σ σ'] (act : Wp m σ ρ) : Wp m σ' ρ :=
-  fun s' post => act (getFrom s') (fun r s => post r (setIn s s'))
-
-/-- `Wp` supports lifting between different state monads. -/
-instance [IsSubStateOf σ σ'] : MonadLift (Wp m σ) (Wp m σ') where
-  monadLift := Wp.lift
 
 /-! We want to unfold the monad definitions (e.g. for `pure`, `bind`,
 `get`, `set`, `modifyGet`, `monadLift`) from Lean-elaborated monads
@@ -217,7 +248,7 @@ execution terminates and reaches a state where `φ` does not hold;
 execution does not terminate OR the execution terminates and reaches a
 state where `φ` holds.
 -/
-@[actSimp]
+@[initSimp, actSimp]
 abbrev Wp.toWlp {σ ρ : Type} {m : Mode} (wp : Wp m σ ρ) : Wlp m σ ρ :=
   -- `wlp(P, φ, s) = ¬ wp(P, ¬φ, s)`
   fun (s : σ) (post : RProp σ ρ) => ¬ wp s (fun r s' => ¬ post r s')
@@ -234,24 +265,24 @@ implementation, these queries only make sense if the actions do not
 We will fix this in the near future, when we introduce execution
 semantics.
 -/
-@[actSimp]
+@[initSimp,actSimp]
 def Wp.toBigStep {σ} (wp : Wp m σ ρ) : BigStep σ ρ :=
   fun s r' s' =>
     wp.toWlp s (fun r₀ s₀ => r' = r₀ ∧ s' = s₀)
 
 /-- Same as `Wp.toBigStep`, but ignores the return value. -/
-@[actSimp]
+@[initSimp, actSimp]
 def Wp.toTwoState {σ} (wp : Wp m σ ρ) : TwoState σ :=
   fun s s' =>
     wp.toWlp s (fun _ s₀ => (s' = s₀))
 
-@[actSimp]
+@[initSimp, actSimp]
 def BigStep.toWp {σ} (act : BigStep σ ρ) : Wp .internal σ ρ :=
   fun s post => ∀ r s', act s r s' -> post r s'
 
 /-- Transforms any two-state formula into `Wp`. Used for casting
 `transition`s into `action`s. -/
-@[actSimp]
+@[initSimp,actSimp]
 def Function.toWp (m : Mode) (r : TwoState σ) : Wp m σ Unit :=
   fun s post => ∀ s', r s s' -> post () s'
 
@@ -601,9 +632,9 @@ instance : GenBigStep σ ρ (Wp.modifyGet act) (BigStep.modifyGet act) where
     unfold Wp.toBigStep BigStep.modifyGet Wp.toWlp Wp.modifyGet; simp
     intros; ext; constructor<;> intros <;> simp_all
 
-instance : GenBigStep σ ρ (Wp.spec req ens) (BigStep.spec req ens) where
-  lawful := inferInstance
-  equiv := by unfold Wp.toBigStep BigStep.spec Wp.toWlp Wp.spec; simp
+-- instance : GenBigStep σ ρ (Wp.spec req ens) (BigStep.spec req ens) where
+--   lawful := inferInstance
+--   equiv := by unfold Wp.toBigStep BigStep.spec Wp.toWlp Wp.spec; simp
 
 instance [inst : GenBigStep σ ρ act actTr] : LawfulAction act := inst.lawful
 
@@ -701,3 +732,5 @@ instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
 end GenBigStepInstances
 
 end Theory
+
+attribute [default_instance low] instIsSubStateOf

@@ -53,7 +53,7 @@ info: @[invProof]
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
-            (@Ring.send.tr node node_dec node_ne tot btwn) st st' →
+            (@Ring.send.tr node node_dec node_ne tot btwn (@State node) _) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
     by ((unhygienic intros); solve_clause[Ring.send.tr]Ring.single_leader)
   ⏎
@@ -62,7 +62,7 @@ info: @[invProof]
       ∀ (st st' : @State node),
         (@System node node_dec node_ne tot btwn).assumptions st →
           (@System node node_dec node_ne tot btwn).inv st →
-            (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
+            (@Ring.recv.tr node node_dec node_ne tot btwn (@State node) _) st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
     by ((unhygienic intros); solve_clause[Ring.recv.tr]Ring.single_leader)
 -/

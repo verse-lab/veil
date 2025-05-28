@@ -121,8 +121,8 @@ where
   genGenerator (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
     let genName := toGenName baseName mode
     let genl ← match mode with
-    | Mode.internal => do `(fun $funBinders* => do' .internal in $l)
-    | Mode.external => do `(fun $funBinders* => do' .external in $l)
+    | Mode.internal => do `(fun $funBinders* => do' .internal as $genericState in $l)
+    | Mode.external => do `(fun $funBinders* => do' .external as $genericState in $l)
     try
       withoutErrToSorry $ do
       let genExp <- withDeclName genName do elabTermAndSynthesize genl none
@@ -325,8 +325,8 @@ def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicit
   defineProcedureFromGenerator proc br genIName
   registerProcedureSyntax proc.getId l
 
-/-- We support executing actions from dependent modules is by `monadLift`ing
-them to the current module's state. This function generates the
+/-- We support executing actions from dependent modules by executing
+them on the current module's state. This function generates the
 `IsSubStateOf` instances required to do this. -/
 def genStateExtInstances : CommandElabM Unit := do
   let currName <- getCurrNamespace
@@ -337,9 +337,11 @@ def genStateExtInstances : CommandElabM Unit := do
       let currTs <- getStateTpArgsStx
       let alia := mkIdent modAlias
       let stateExtTypeclass := mkIdent ``IsSubStateOf
+      let instName := subStateInstIdent alia
+      -- Prove sub-state is a sub-state of the current state
       let inst <-
         `(@[actSimp]
-          instance :
+          def $instName:ident :
            $stateExtTypeclass
              (@$(mkIdent $ dep.name ++ `State) $ts*)
              (@$(mkIdent $ currName ++ `State) $currTs*) where
@@ -348,77 +350,42 @@ def genStateExtInstances : CommandElabM Unit := do
             setIn_getFrom_idempotent := by intros; dsimp only
             getFrom_setIn_idempotent := by intros; dsimp only)
       insts := insts.push inst
+      -- Create an instance showing that the sub-state is of the
+      -- generic state type `σ`
+      let transInstName := subStateInstIdent' alia genericState
+      let transInst ← `(command|def $transInstName := IsSubStateOf.trans ($instName $currTs*) $genericSubStateIdent)
+      insts := insts.push transInst
     return insts
   for inst in insts do
-    trace[veil.debug] "Generating state extension instance {inst}"
+    trace[veil.debug] "Generating state extension instance:\n{inst}"
     elabCommand inst
     trace[veil.info] "State extension instance is defined"
 
--- def baz (n  q: Nat) := @monadLift (Wlp Mode.internal (Test₁.State node')) (Wlp Mode.internal (State node' node'')) _ Unit (@Test₁.f.genI node' node'_dec node'_ne n q)
-def liftProcedureGenerators (forAct : TSyntax `ident) (withBinders : Option (TSyntax `Lean.explicitBinders)) (stateTpT : TSyntax `term) (fromBaseGenerator : Name) (instatiatedWithArgs : Array Term) (isInitialAction : Bool := false) : CommandElabM (Name × Name) := do
-  Command.runTermElabM fun vs => do
-    let baseName := (← getCurrNamespace) ++ forAct.getId
-    let (genIName, _genExpI) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .internal isInitialAction
-    let (genEName, _genExpE) ← liftGenerator baseName vs withBinders fromBaseGenerator instatiatedWithArgs .external isInitialAction
-    return (genIName, genEName)
-where
-  liftGenerator (liftedActName : Name) (actVs : Array Expr) (actBinders :  Option (TSyntax `Lean.explicitBinders)) (baseNameToLift : Name) (depArgs : Array Term) (mode : Mode) (isInitialAction : Bool)  := do
-    let baseGenName := toGenName baseNameToLift mode
-    let (actParams, actArgs) ← match actBinders with
-    | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
-    | none => pure (#[], #[])
-    let infer ← `(term|_)
-    let (srcWpType, typeClassInst, retType) := (infer, infer, infer)
-    -- e.g. `Wp Mode.internal (State node' node'')`
-    let dstWpType ← `(term|Wp $(← mode.stx) ($stateTpT))
-    let liftedGenStx ← `(fun $actParams* => @monadLift $srcWpType $dstWpType $typeClassInst $retType <| @$(mkIdent baseGenName) $depArgs* $actArgs*)
-    let liftedGenName := toGenName liftedActName mode
-    trace[veil.info] "{liftedGenName} := {liftedGenStx}"
-    let genExp <- withDeclName liftedGenName do elabTermAndSynthesize liftedGenStx .none
-    let ⟨genExp, _, _⟩ <- genExp.simpWp
-    let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit actVs genExp
-    let initAttr := if isInitialAction then #[{name := `initSimp}] else #[]
-    simpleAddDefn liftedGenName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}] ++ initAttr)
-    return (liftedGenName, genExp)
+def liftAction (liftedName : TSyntax `ident) (originalName : TSyntax `ident) (instatiatedWithArgs : Array Term) (σ instSubState : Term)  : CommandElabM Unit := do
+  let params ← getImplicitProcedureParameters
+  let stx ← `(command| def $liftedName $params* := @$originalName $instatiatedWithArgs* $σ $instSubState)
+  trace[veil.debug] "Lifting action {liftedName} to {liftedName}:\n{stx}"
+  elabCommand stx
 
 def defineDepsProcedures : CommandElabM Unit := do
-  let stateTpT ← liftCoreM $ getStateTpStx
   for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
     -- arguments with which the dependency was instantiated
     let depArgs := dependency.arguments
     let globalCtx <- globalSpecCtx.get
     let some depCtx := globalCtx[dependency.name]? | throwError "Module {dependency.name} is not declared"
     -- Lift initializer
-    let initName := dependency.name ++ `initializer
-    let liftedName := mkIdent <| modAlias ++ (stripFirstComponent initName)
-    trace[veil.info] "lifting {initName} from module {dependency.name} to module {← specName} as {liftedName}"
-    let (genIName, genEName) ← liftProcedureGenerators liftedName .none stateTpT initName depArgs (isInitialAction := true)
-    defineInitialActionFromGenerators liftedName genIName genEName
+    let initName := mkIdent $ dependency.name ++ `initializer
+    let liftedName := mkIdent $ modAlias ++ (stripFirstComponent initName.getId)
+    -- trace[veil.info] "lifting {initName} from module {dependency.name} to module {← specName} as {liftedName}"
+    let subStateInst ← Command.runTermElabM fun _ => do
+      let subStateInstName := subStateInstIdent' (mkIdent modAlias) genericState
+      return ← `(term|@$subStateInstName $(← getStateTpArgsStx)* $genericState _)
+    liftAction liftedName initName depArgs genericState subStateInst
     -- Lift actions
     for procToLift in depCtx.spec.procedures do
-      let procBaseName := dependency.name ++ procToLift.name
-      -- If an action has a pre-post specification, we use the the specification
-      -- instead of the action itself as the lifted action. Recall that
-      -- specification are just `action`s` themselves. In particular they have
-      -- `genE` and `genI` generators that we can use to lift the action.
-      let actBaseName := if procToLift.hasSpec then toSpecName procBaseName else procBaseName
-      let liftedName := mkIdent <| modAlias ++ (stripFirstComponent actBaseName)
-      -- When we lift an action from a dependency, the binders of the action
-      -- may have types that are not syntactically present in the action's
-      -- signature. We have to substitute the types with the arguments of the
-      -- dependency instantiation. We cannot use `_` to infer the types, since
-      -- we use these type arguments to construct the `Label` type, so they
-      -- must be explicit.
-      let liftedBinders ← do match procToLift.br with
-        | some br => pure (Option.some (← toBindersWithMappedTypes br (← dependency.typeMapping)))
-        | none => pure .none
-      trace[veil.info] "lifting {procToLift.kindString} {actBaseName} from module {dependency.name} to module {← specName} as {liftedName}"
-      let (genIName, genEName) ← liftProcedureGenerators liftedName liftedBinders stateTpT actBaseName depArgs
-      match procToLift.kind with
-      | .action decl =>
-        let actionKind ← decl.kind.stx
-        defineActionFromGenerators actionKind liftedName liftedBinders genIName genEName
-      | .procedure _ => defineProcedureFromGenerator liftedName liftedBinders genIName
+      let procBaseName := mkIdent $ dependency.name ++ procToLift.name
+      let liftedName := mkIdent <| modAlias ++ (stripFirstComponent procBaseName.getId)
+      liftAction liftedName procBaseName depArgs genericState subStateInst
 
 /-- Given `tr` : `σ → σ → Prop` (parametrised over `br`), this defines:
   - `tr.genI` : internal action interpretation of the action, unsimplified

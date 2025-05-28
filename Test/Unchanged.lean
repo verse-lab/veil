@@ -19,7 +19,7 @@ type elt
 
 individual foobar : Bool
 
-includes Foo
+includes Foo as F
 
 individual contents : List elt
 
@@ -70,10 +70,11 @@ input transition recv (m : msg) = { True }
 
 /--
 info: def ReliableReorderingChannel.recv.tr : {msg : Type} →
-  [msg_dec : DecidableEq msg] → [msg_ne : Nonempty msg] → State msg → State msg → Prop :=
-fun {msg} [DecidableEq msg] [Nonempty msg] =>
+  [msg_dec : DecidableEq msg] →
+    [msg_ne : Nonempty msg] → {σ : Type} → [σ_substate : IsSubStateOf (State msg) σ] → State msg → State msg → Prop :=
+fun {msg} [DecidableEq msg] [Nonempty msg] {σ} [IsSubStateOf (State msg) σ] =>
   let t := fun st st' =>
-    ∃ m, (st.l.foobar = st'.l.foobar ∧ st.l.Foo.foobar = st'.l.Foo.foobar ∧ st.l.contents = st'.l.contents) ∧ True;
+    ∃ m, (st.l.foobar = st'.l.foobar ∧ st.l.F.foobar = st'.l.F.foobar ∧ st.l.contents = st'.l.contents) ∧ True;
   t
 -/
 #guard_msgs in

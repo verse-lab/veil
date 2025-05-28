@@ -141,7 +141,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
     Command.runTermElabM fun vs => do
       let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
       let assertionArgs ← getSectionArgumentsStx $ ← getAssertionArguments vs
-      let actionArgs ← getSectionArgumentsStx vs
+      let actionArgs ← getSectionArgumentsStxWithConcreteState vs
       let mut theorems : Array (TheoremIdentifier × TSyntax `command) := #[]
       -- Init checks
       for invName in initIndicators.reverse do

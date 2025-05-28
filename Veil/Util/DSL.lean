@@ -46,13 +46,27 @@ def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term))
   )
   return args
 
+def getSectionArgumentsStxWithConcreteState (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
+  let args ← getSectionArgumentsStx vs
+  let spec := (← localSpecCtx.get).spec
+  let stateTp ← getStateTpStx
+  let substateInst ← `(term|_) -- infer the instance from the context
+  let concreteArgs ← spec.generic.applyWithConcreteState args stateTp substateInst
+  return concreteArgs
+
 def getAssertionArguments [Monad m] [MonadEnv m] [MonadError m] (vs : Array Expr) : m (Array Expr) := do
   let spec := (← localSpecCtx.get).spec
   spec.generic.applyGetAssertionArguments vs
 
+def getSystemParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getAssertionParameters
+
+def getSystemArguments [Monad m] [MonadEnv m] [MonadError m] (vs : Array Expr) : m (Array Expr) := do
+  let spec := (← localSpecCtx.get).spec
+  spec.generic.applyGetSystemArguments vs
+
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
-  let sectionArgs ← getSectionArgumentsStx vs
-  `(@$(mkIdent `System) $sectionArgs:term*)
+  let systemArgs ← getSectionArgumentsStx $ ← getSystemArguments vs
+  `(@$(mkIdent `System) $systemArgs:term*)
 
 /-- Retrieves the name passed to `#gen_state` -/
 def getPrefixedName (name : Name): AttrM Name := do
@@ -213,6 +227,16 @@ def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId
 
 def initialStateName : Name := `initialState?
+def initializerName : Name := `initializer
+
+/-- Name of the generic state variable. -/
+def genericStateName : Name := `σ
+/-- The generic state variable. -/
+def genericState : Ident := mkIdent genericStateName
+
+def subStateInstIdent (id : Ident): Ident := mkIdent $ Name.mkSimple s!"{id.getId}_substate"
+def subStateInstIdent' (base : Ident) (other : Ident): Ident := mkIdent $ Name.mkSimple s!"{base.getId}_substate_{other.getId}"
+def genericSubStateIdent : Ident := subStateInstIdent genericState
 
 /-- The DSL sometimes generates names including `.tr`, and we can't
 print these to SMT. -/

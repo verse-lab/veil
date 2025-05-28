@@ -284,8 +284,9 @@ syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
 elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
   let some invInfo := (<- localSpecCtx.get).spec.invariants.find? (·.name == inv.getId)
     | throwError "Invariant {inv.getId} not found"
-  let (invSimp, invSimpTopLevel, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
-      (mkIdent `invSimp,
+  let (wpSimp,invSimp, invSimpTopLevel, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
+      (mkIdent `wpSimp,
+       mkIdent `invSimp,
        mkIdent `invSimpTopLevel,
        mkIdent `st, mkIdent `st',
        mkIdent `ass_, mkIdent `inv_,
@@ -300,7 +301,7 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
       pure (← `(tactic| dsimp only [$[$invsToUnfold:ident],*]), ← `(tactic| clear_folded_invariants))
   let stateTpT ← getStateTpStx
   let simplify <- `(tacticSeq|
-    dsimp only [$act:ident]
+    dsimp only [$act:ident, $wpSimp:ident]
     $invSimpTac:tactic
     intros $st:ident; sdestruct_hyps
     first
@@ -332,7 +333,7 @@ def elabSolveClause (stx : Syntax)
   if let some inv := inv then
     let enforceIsolate ← `(tactic|simp only [invSimpTopLevel] at *; sdestruct_hyps; enforce_isolate_for_invariant $(mkIdent inv))
     evalTactic enforceIsolate
-  let (idents, xtacs) ← elabSimplifyClause simp0
+  let (idents, xtacs) ← elabSimplifyClause (simp0 ++ [mkIdent `wpSimp])
   -- Sometimes the simplification solves the goal, and we don't need to
   -- `sauto`; this check needs to be before `withMainContext`, since that
   -- calls `throwNoGoalsToBeSolved` if there are no goals.

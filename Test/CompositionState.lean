@@ -49,7 +49,7 @@ type block
 type node
 type queue
 
-includes Child block _ _ node _ _ queue _ _
+includes Child block _ _ node _ _ queue _ _ as C
 
 #gen_state
 
@@ -58,19 +58,19 @@ after_init {
 }
 
 /--
-error: Error in action Parent.try_modify_b: cannot assign to Child.b: child module's (Child) state is immutable in the parent (Parent)
+error: Error in action Parent.try_modify_b: cannot assign to C.b: child module's (C) state is immutable in the parent (Parent)
 -/
 #guard_msgs in
 action try_modify_b (new_block : block) = {
-  Child.b := new_block
+  C.b := new_block
 }
 
 /--
-error: Error in action Parent.try_modify_inner_child: cannot assign to Child.ic.n: child module's (Child) state is immutable in the parent (Parent)
+error: Error in action Parent.try_modify_inner_child: cannot assign to C.ic.n: child module's (C) state is immutable in the parent (Parent)
 -/
 #guard_msgs in
 action try_modify_inner_child (new_node : node) = {
-  Child.ic.n := new_node
+  C.ic.n := new_node
 }
 
 -- FIXME: cannot refer to included state components in properties

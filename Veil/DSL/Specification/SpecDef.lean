@@ -95,15 +95,15 @@ def errorOrWarnWhenSpecIsNeeded : CoreM Unit := do
 
 /--Assembles all declared transitions into a `Next` transition relation. -/
 def assembleNext : CommandElabM Unit := do
-  let vd ← getActionParameters
+  let vd ← getSystemParameters
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let stateTp ← getStateTpStx
-    let sectionArgs ← getSectionArgumentsStx vs
+    let sectionArgs ← getSectionArgumentsStxWithConcreteState vs
     let (st, st') := (mkIdent `st, mkIdent `st')
     let trs ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
       let nm := mkIdent $ toTrName s.name
       `(@$nm $sectionArgs* $st $st'))
     -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[veil.debug] s!"{t}")
+    let stateTp ← getStateTpStx
     let next ← if trs.isEmpty then `(fun ($st $st' : $stateTp) => $st = $st') else
               `(fun ($st $st' : $stateTp) => $(← repeatedOr trs))
     trace[veil.debug] "[assembleActions] {next}"
@@ -157,7 +157,7 @@ def getIOSignatureStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (TSyntax `te
 def getIOStepStx (stateTp : TSyntax `term) (labelT : TSyntax `term) (vs : Array Expr) : TermElabM (TSyntax `term) := do
   let spec := (← localSpecCtx.get).spec
   let (st, st') := (mkIdent `st, mkIdent `st')
-  let actionArgs ← getSectionArgumentsStx vs
+  let actionArgs ← getSectionArgumentsStxWithConcreteState vs
   let alts ← spec.actions.mapM (fun s => do
     let (params, args) ← match s.br with
       | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)

@@ -24,6 +24,11 @@ open Lean Elab Command Term Meta Lean.Parser
 
 -/
 
+def elabGenericState : CommandElabM Unit := do
+  let genericState ← `(variable ($genericState : Type) [$genericSubStateIdent : IsSubStateOf $(← getStateTpStx) $genericState])
+  trace[veil.debug] "genericState: {genericState}"
+  elabCommand genericState
+
 @[command_elab Veil.moduleDeclaration]
 def elabModuleDeclaration : CommandElab := fun stx => do
   match stx with
@@ -40,6 +45,8 @@ def elabModuleDeclaration : CommandElab := fun stx => do
       localSpecCtx.modify (fun _ => ctx)
       -- re-declare the section variables
       elabCommand $ ← `(variable $(ctx.spec.generic.parameters)*)
+      -- FIXME: handle this in a better way as part of `.parameters`
+      elabGenericState
     else
       declareSpecName name
   | _ => throwUnsupportedSyntax
@@ -196,7 +203,7 @@ def elabDependency : CommandElab := fun stx => do
         arguments := ts
       }
       let stateArgs ← Command.runTermElabM fun _ => modParams.applyGetStateArguments ts
-      dbg_trace "ts: {ts} => stateArgs: {stateArgs}"
+      trace[veil.debug] "ts: {ts} => stateArgs: {stateArgs}"
       let sig ← `(Command.structSimpleBinder|$(mkIdent modAlias):ident : @$(mkIdent $ fullModuleName ++ `State) $stateArgs*)
       -- NOTE: set `mutab` to `passthrough` if you want to pass-through
       -- mutability annotations; by default, the state of the child module
@@ -208,7 +215,10 @@ def elabDependency : CommandElab := fun stx => do
       localSpecCtx.modify (fun s => { s with spec.dependencies := s.spec.dependencies.push (modAlias, modDep) })
   | _ => throwUnsupportedSyntax
 
-/-- Assembles all declared `relation` predicates into a single `State` type. -/
+/-- Assembles all declared `relation` predicates into a single `State` type.
+  Since our action definitions are parametric in the `State` type, this
+  also creates `variable (σ : Type) [IsSubState [State] σ]` declaration.
+-/
 def assembleState : CommandElabM Unit := do
   let vd := (<- getScope).varDecls
   declareSpecParameters vd
@@ -249,7 +259,14 @@ def assembleState : CommandElabM Unit := do
     unless stateTpExpr != default do throwError "State has not been declared so far"
     let stateTypeTerm ← PrettyPrinter.delab stateTpExpr
     let assertionParams := Std.HashSet.ofList (List.range' 0 vd.size)
-    localSpecCtx.modify ({· with spec.generic.stateTypeTerm := stateTypeTerm, spec.generic.stateArgs := args', spec.generic.assertionParams := assertionParams })
+    localSpecCtx.modify ({· with
+      spec.generic.stateTypeTerm := stateTypeTerm,
+      spec.generic.stateArgs := args',
+      spec.generic.assertionParams := assertionParams,
+      -- for $genericState and $genericSubStateIdent
+      spec.generic.genericStateParam := vd.size,
+      spec.generic.genericSubStateInstParam := vd.size + 1 })
+  elabGenericState
   -- Do work necessary for module composition
   genStateExtInstances
   defineDepsProcedures
@@ -309,7 +326,9 @@ def elabInitialStatePredicate : CommandElab := fun stx => do
       let ini ←  simplifyTerm ini
       let predName := initialStateName
       -- because of `initDef`, this sets `stsExt.init` with `lang := none`
-      `(@[initDef, initSimp] def $(mkIdent predName) $[$vd]* := $ini)
+      let stx ← `(@[initDef, initSimp] def $(mkIdent predName) $[$vd]* := $ini)
+      trace[veil.info] "initial state predicate: {stx}"
+      return stx
   | _ => throwUnsupportedSyntax
 
 @[command_elab Veil.initialStateAction]
@@ -322,15 +341,18 @@ def elabInitialStateAction : CommandElab := fun stx => do
     let subInitializers ← (← getSubInitializers).mapM (fun (nm, _) => `(Term.doSeqItem|$nm:term))
     let ourInitializer ← getItemsFromDoSeq l
     let init ← `(doSeq|do $subInitializers*; $(ourInitializer)*)
-    -- define the initial action
-    let initName := mkIdent `initializer
+    -- define the initial action (on the generic state type)
+    let initName := mkIdent initializerName
     let (genI, genE) ← defineProcedureGenerators initName none init
     defineInitialActionFromGenerators initName genI genE
-    -- define initial state predicate
+    -- define initial state predicate (on the concrete state type)
     let (st, st') := (mkIdent `st, mkIdent `st')
-    let pred ← Command.runTermElabM fun _ => (do
-      let stateTp ← getStateTpStx
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wp.toTwoState (do' .external in $init) $st $st'))
+    let stateTp ← getStateTpStx
+    let pred ← Command.runTermElabM fun vs => (do
+      let extInit := mkIdent (toExtName initializerName)
+      let concreteArgs ← getSectionArgumentsStxWithConcreteState vs
+      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wp.toTwoState (@$extInit $concreteArgs*) $st $st'))
+    trace[veil.debug] "pred: {pred}"
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
     -- we modify it to store the `lang`
@@ -385,9 +407,10 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
       let thmName := mkIdent $ nm.getId ++ `spec_correct
       let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
       let br <- (explicitBindersIdents <$> br) |>.getD (pure #[])
+      let actionArgs ← getSectionArgumentsStxWithConcreteState vs
       let stx <- `(theorem $thmName $br' * : ∀ $st:ident,
           (fun s => funcases s $pre) $st ->
-          @$nm $(← getSectionArgumentsStx vs)* $br* $st (by rintro $ret; exact (funcases $post)) := by
+          @$nm $actionArgs* $br* $st (by rintro $ret; exact (funcases $post)) := by
           intro
           solve_clause)
       trace[veil.debug] "{stx}"
@@ -407,6 +430,7 @@ def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (
     unless spec.isNone do
       registerProcedureSpec nm.getId spec
       let (pre, binder, post) <- getPrePost spec.get!
+      trace[veil.debug] "Defining specification for {nm} with pre: {pre}"
       defineProcedure (nm.getId ++ `spec |> mkIdent) br spec.get!
       checkSpec nm br pre post binder
 
@@ -527,7 +551,7 @@ elab_rules : command
 Instantiates the `RelationalTransitionSystem` type class with the declared actions, safety and invariant
 -/
 def instantiateSystem (name : Name) : CommandElabM Unit := do
-  let vd := (<- getScope).varDecls
+  let vd ← getSystemParameters
   assembleNext
   assembleInvariant
   assembleSafeties
@@ -538,8 +562,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleLabelType name
 
   let (rtsStx, ioAutomatonStx) <- Command.runTermElabM fun vs => do
-    let actionArgs ← getSectionArgumentsStx vs
-    let assertionArgs ← getSectionArgumentsStx $ ← getAssertionArguments vs
+    let systemArgs ← getSectionArgumentsStx $ ← getSystemArguments vs
     let stepStx ← getIOStepStx stateTpStx labelTpStx vs
 
     let [initialState?, Assumptions, Next, Safety, Invariant] :=
@@ -547,16 +570,16 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
       | unreachable!
     -- RelationalTransitionSystem instance
     let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
-        init := @$initialState? $assertionArgs*
-        assumptions := @$Assumptions $assertionArgs*
-        next := @$Next $actionArgs*
-        safe := @$Safety $assertionArgs*
-        inv  := @$Invariant $assertionArgs*
+        init := @$initialState? $systemArgs*
+        assumptions := @$Assumptions $systemArgs*
+        next := @$Next $systemArgs*
+        safe := @$Safety $systemArgs*
+        inv  := @$Invariant $systemArgs*
         )
     -- IO Automaton instance
     let ioAutomatonStx ← `(instance (priority := low) $(mkIdent `IOA) $[$vd]* : $(mkIdent ``IOAutomaton) $stateTpStx $labelTpStx where
       signature := $(← getIOSignatureStx)
-      init := @$initialState? $assertionArgs*
+      init := @$initialState? $systemArgs*
       step := $stepStx
     )
     pure (rtsStx, ioAutomatonStx)
