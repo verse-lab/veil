@@ -159,7 +159,7 @@ syntax (name := genState) "#gen_state" : command
 syntax (name := declareStateComponent) (stateMutability)? stateComponentKind ident bracketedBinder* (":" term)? : command
 
 /-- A module abbreviation, e.g. `as rb`. -/
-syntax moduleAbbrev := (kw_as ident)?
+syntax moduleAbbrev := (kw_as ident)
 
 /-- Declare a dependency on another module. -/
 syntax (name := declareDependency) kw_includes ident term:max* moduleAbbrev : command
