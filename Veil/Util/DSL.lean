@@ -33,10 +33,6 @@ def getStateTpArgsStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (Array Term)
 def getActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := return (← getScope).varDecls
 def getImplicitProcedureParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do (← getActionParameters).mapM mkImplicitBinders
 
-def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  let spec := (← localSpecCtx.get).spec
-  return spec.generic.assertionParameters
-
 /-- Returns syntax for the given section arguments (`Expr`s). -/
 def getSectionArgumentsStx (vs : Array Expr) : TermElabM (Array (TSyntax `term)) := do
   let args ← vs.mapM (fun v => do
@@ -52,20 +48,14 @@ def getSectionArgumentsStxWithConcreteState (vs : Array Expr) : TermElabM (Array
   let stateTp ← getStateTpStx
   let substateInst ← `(term|_) -- infer the instance from the context
   let concreteArgs ← spec.generic.applyWithConcreteState args stateTp substateInst
+  trace[veil.debug] "args: {args} => concreteArgs: {concreteArgs}"
   return concreteArgs
 
-def getAssertionArguments [Monad m] [MonadEnv m] [MonadError m] (vs : Array Expr) : m (Array Expr) := do
-  let spec := (← localSpecCtx.get).spec
-  spec.generic.applyGetAssertionArguments vs
-
-def getSystemParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getAssertionParameters
-
-def getSystemArguments [Monad m] [MonadEnv m] [MonadError m] (vs : Array Expr) : m (Array Expr) := do
-  let spec := (← localSpecCtx.get).spec
-  spec.generic.applyGetSystemArguments vs
+def getSystemParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
+def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
-  let systemArgs ← getSectionArgumentsStx $ ← getSystemArguments vs
+  let systemArgs ← getSectionArgumentsStx vs
   `(@$(mkIdent `System) $systemArgs:term*)
 
 /-- Retrieves the name passed to `#gen_state` -/
@@ -144,8 +134,9 @@ def funcasesM (t : Term) : TermElabM Term := do
   let casesOn <- PrettyPrinter.delab casesOn
   let stateTpStx ← getStateTpStx
   let stateTpArgs ← getStateTpArgsStx
-  let term ← `(term| (fun $(mkIdent `st) : $stateTpStx =>
-      $(casesOn) $(stateTpArgs)* (motive := fun _ => Prop) $(mkIdent `st) <| (fun $[$fns]* => ($t : Prop))))
+  let st := mkIdent `st
+  let term ← `(term| (fun $st : $stateTpStx =>
+      $(casesOn) $(stateTpArgs)* (motive := fun _ => Prop) (getFrom $st) <| (fun $[$fns]* => ($t : Prop))))
   trace[veil.debug] "funcasesM: {term}"
   return term
 
@@ -229,6 +220,7 @@ def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.
 def initialStateName : Name := `initialState?
 def initializerName : Name := `initializer
 
+def stateSimpHypName : Name := `hStateSimp
 /-- Name of the generic state variable. -/
 def genericStateName : Name := `σ
 /-- The generic state variable. -/

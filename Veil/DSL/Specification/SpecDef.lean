@@ -97,15 +97,14 @@ def errorOrWarnWhenSpecIsNeeded : CoreM Unit := do
 def assembleNext : CommandElabM Unit := do
   let vd ← getSystemParameters
   elabCommand $ ← Command.runTermElabM fun vs => do
-    let sectionArgs ← getSectionArgumentsStxWithConcreteState vs
+    let sectionArgs ← getSectionArgumentsStx vs
     let (st, st') := (mkIdent `st, mkIdent `st')
     let trs ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
       let nm := mkIdent $ toTrName s.name
       `(@$nm $sectionArgs* $st $st'))
     -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[veil.debug] s!"{t}")
-    let stateTp ← getStateTpStx
-    let next ← if trs.isEmpty then `(fun ($st $st' : $stateTp) => $st = $st') else
-              `(fun ($st $st' : $stateTp) => $(← repeatedOr trs))
+    let next ← if trs.isEmpty then `(fun ($st $st' : $genericState) => $st = $st') else
+              `(fun ($st $st' : $genericState) => $(← repeatedOr trs))
     trace[veil.debug] "[assembleActions] {next}"
     `(@[actSimp] def $(mkIdent $ `Next) $[$vd]* := $next)
   trace[veil.info] "Next transition assembled"
@@ -157,7 +156,7 @@ def getIOSignatureStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (TSyntax `te
 def getIOStepStx (stateTp : TSyntax `term) (labelT : TSyntax `term) (vs : Array Expr) : TermElabM (TSyntax `term) := do
   let spec := (← localSpecCtx.get).spec
   let (st, st') := (mkIdent `st, mkIdent `st')
-  let actionArgs ← getSectionArgumentsStxWithConcreteState vs
+  let actionArgs ← getSectionArgumentsStx vs
   let alts ← spec.actions.mapM (fun s => do
     let (params, args) ← match s.br with
       | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
@@ -176,13 +175,11 @@ a single `Invariant` predicate -/
 def assembleInvariant : CommandElabM Unit := do
   let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let vs ← getAssertionArguments vs
-    let stateTp <- getStateTpStx
     let allClauses := (<- localSpecCtx.get).spec.invariants
     let exprs := allClauses.toList.map (fun p => p.expr)
     let _ ← allClauses.mapM (fun t => do trace[veil.debug] s!"{t}")
     let invs ← if allClauses.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Invariant) $[$vd]* : $stateTp -> Prop := $invs)
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Invariant) $[$vd]* : $genericState -> Prop := $invs)
   trace[veil.info] "Invariant assembled"
 
 /-- Assembles all declared safety properties into a single `Safety`
@@ -190,11 +187,9 @@ predicate -/
 def assembleSafeties : CommandElabM Unit := do
   let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let vs ← getAssertionArguments vs
-    let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
     let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Safety) $[$vd]* : $stateTp -> Prop := $safeties)
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Safety) $[$vd]* : $genericState -> Prop := $safeties)
   trace[veil.info] "Safety assembled"
 
 /-- Assembles all declared `assumption`s into a single `Assumptions`
@@ -202,9 +197,7 @@ predicate -/
 def assembleAssumptions : CommandElabM Unit := do
   let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let vs ← getAssertionArguments vs
-    let stateTp <- getStateTpStx
     let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
     let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
-    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $stateTp -> Prop := $assumptions)
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $genericState -> Prop := $assumptions)
   trace[veil.info] "Assumptions assembled"

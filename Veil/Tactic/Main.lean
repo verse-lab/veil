@@ -83,8 +83,12 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
     | .some sn => pure (isStructure (<- getEnv) sn)
     let name := mkIdent hyp.userName
     if isStructure then
-      let dtac ← `(tactic| sdestruct $name:ident)
-      evalTactic dtac
+      let sn := hyp.type.getAppFn.constName!
+      -- We don't want to destruct `IsSubStateOf` because it's needed
+      -- to perform rewrites
+      if sn != ``IsSubStateOf then
+        let dtac ← `(tactic| sdestruct $name:ident)
+        evalTactic dtac
     else
       let isExists ← whnfIsAppOf hyp.type ``Exists
       if isExists then
@@ -199,7 +203,9 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   let simpTac ← `(tacticSeq|
     (try dsimp only [$simp0,*] at *)
     (try simp only [$simp2,*] at *)
-    (try simp only [$finalSimp,*] at *))
+    (try simp only [$finalSimp,*] at *)
+    -- To get rid of `IsSubStateOf` applications
+    (try simp_all [$(mkIdent `wpSimp):ident, $(mkIdent stateSimpHypName):ident]))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
@@ -313,7 +319,10 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
         $clearInvs:tactic
         try simp only [$ifSimp:ident]
         try sdestruct_hyps
-        try dsimp only at *)
+        try dsimp only at *
+        try simp only [$wpSimp:ident, $(mkIdent stateSimpHypName):ident] at *
+        (try clear $st) ; (try clear $genericState) ; (try clear $genericSubStateIdent)
+        )
     let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWp| solve_wp_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])

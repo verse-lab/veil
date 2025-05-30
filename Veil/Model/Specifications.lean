@@ -278,10 +278,6 @@ structure ModuleParameters where
   parameters that exist when `#gen_state` is called, ignoring the
   typeclass parameters. -/
   stateArgs     : Array (Nat × Term)
-
-  /-- Assertion parameters, as indices into `parameters`. These are all
-  the parameters that exist when `#gen_spec` is called. -/
-  assertionParams : Std.HashSet Nat
 deriving Inhabited
 
 def ModuleParameters.stateArguments (mp : ModuleParameters) : Array Term :=
@@ -300,19 +296,6 @@ def ModuleParameters.applyGetStateArguments [Monad m] [MonadError m] (mp : Modul
   let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then some arg else none)
   return res
 
-def ModuleParameters.assertionParameters (mp : ModuleParameters) : Array (TSyntax `Lean.Parser.Term.bracketedBinder) :=
-  let pairs := Array.zip (List.range' 0 mp.parameters.size).toArray mp.parameters
-  let res := pairs.filterMap (fun (idx, p) => if mp.assertionParams.contains idx then some p else none)
-  res
-
-def ModuleParameters.applyGetAssertionArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
-  let indices := mp.assertionParams
-  if args.size < indices.size then
-    throwError "Expected at least {indices.size} arguments, but got {args.size}!"
-  let pairs := Array.zip (List.range' 0 args.size).toArray args
-  let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then some arg else none)
-  return res
-
 /-- Replaces the generic state parameter with the concrete `st` and instance `inst` -/
 def ModuleParameters.applyWithConcreteState [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) (st : α) (inst : α) : m (Array α) := do
   let pairs := Array.zip (List.range' 0 args.size).toArray args
@@ -321,12 +304,6 @@ def ModuleParameters.applyWithConcreteState [Monad m] [MonadError m] (mp : Modul
     else if idx == mp.genericSubStateInstParam then (idx, inst)
     else (idx, arg))
   return pairs.map (fun (_, arg) => arg)
-
-def ModuleParameters.applyGetSystemArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
-  let genericStateParams := [mp.genericStateParam, mp.genericSubStateInstParam]
-  let pairs := Array.zip (List.range' 0 args.size).toArray args
-  let res := pairs.filterMap (fun (idx, arg) => if genericStateParams.contains idx then none else some arg)
-  return res
 
 /--Fully-applied `stateTp` from the local state. -/
 def ModuleParameters.stateTpStx [Monad m] [MonadQuotation m] (mp : ModuleParameters) : m Term := do

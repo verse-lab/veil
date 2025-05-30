@@ -258,11 +258,9 @@ def assembleState : CommandElabM Unit := do
     let stateTpExpr := (<- localSpecCtx.get).spec.generic.stateType
     unless stateTpExpr != default do throwError "State has not been declared so far"
     let stateTypeTerm ← PrettyPrinter.delab stateTpExpr
-    let assertionParams := Std.HashSet.ofList (List.range' 0 vd.size)
     localSpecCtx.modify ({· with
       spec.generic.stateTypeTerm := stateTypeTerm,
       spec.generic.stateArgs := args',
-      spec.generic.assertionParams := assertionParams,
       -- for $genericState and $genericSubStateIdent
       spec.generic.genericStateParam := vd.size,
       spec.generic.genericSubStateInstParam := vd.size + 1 })
@@ -321,9 +319,7 @@ def elabInitialStatePredicate : CommandElab := fun stx => do
     liftCoreM errorIfStateNotDefined
     let vd ← getAssertionParameters
     elabCommand <| <- Command.runTermElabM fun _ => do
-      -- let stateTp ← getStateTpStx
-      -- let expectedType ← `($stateTp → Prop)
-      let ini ←  simplifyTerm ini
+      -- let ini ←  simplifyTerm ini
       let predName := initialStateName
       -- because of `initDef`, this sets `stsExt.init` with `lang := none`
       let stx ← `(@[initDef, initSimp] def $(mkIdent predName) $[$vd]* := $ini)
@@ -347,11 +343,10 @@ def elabInitialStateAction : CommandElab := fun stx => do
     defineInitialActionFromGenerators initName genI genE
     -- define initial state predicate (on the concrete state type)
     let (st, st') := (mkIdent `st, mkIdent `st')
-    let stateTp ← getStateTpStx
     let pred ← Command.runTermElabM fun vs => (do
       let extInit := mkIdent (toExtName initializerName)
-      let concreteArgs ← getSectionArgumentsStxWithConcreteState vs
-      `(fun ($st' : $stateTp) => ∃ ($(toBinderIdent st) : $stateTp), Wp.toTwoState (@$extInit $concreteArgs*) $st $st'))
+      let args ← getSectionArgumentsStx vs
+      `(fun ($st' : $genericState) => ∃ ($(toBinderIdent st) : $genericState), Wp.toTwoState (@$extInit $args*) $st $st'))
     trace[veil.debug] "pred: {pred}"
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
@@ -407,7 +402,7 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
       let thmName := mkIdent $ nm.getId ++ `spec_correct
       let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
       let br <- (explicitBindersIdents <$> br) |>.getD (pure #[])
-      let actionArgs ← getSectionArgumentsStxWithConcreteState vs
+      let actionArgs ← getSectionArgumentsStx vs
       let stx <- `(theorem $thmName $br' * : ∀ $st:ident,
           (fun s => funcases s $pre) $st ->
           @$nm $actionArgs* $br* $st (by rintro $ret; exact (funcases $post)) := by
@@ -496,7 +491,6 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
   liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
   let vd ← getAssertionParameters
   let (name, cmd) ← Command.runTermElabM fun vs => do
-    let stateTp <- getStateTpStx
     -- Check that the assumption does not refer to mutable state components
     if kind == .assumption then
       throwIfRefersToMutable t
@@ -512,11 +506,11 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
       let vd ← vd.mapM mkImplicitBinders
       match kind with
       | .safety =>
-        `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e: term)
+        `(@[safeDef, safeSimp, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $genericState := by exact_state) : Prop := $e: term)
       | .invariant =>
-        `(@[invDef, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e: term)
+        `(@[invDef, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $genericState := by exact_state) : Prop := $e: term)
       | .assumption | .trustedInvariant =>
-        `(@[assumptionDef, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $stateTp := by exact_state) : Prop := $e: term)
+        `(@[assumptionDef, invSimp] def $(mkIdent name) $[$vd]* ($(mkIdent `st) : $genericState := by exact_state) : Prop := $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
@@ -557,19 +551,18 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleSafeties
   assembleAssumptions
 
-  let stateTpStx ← getStateTpStx
   let labelTpStx ← `(term|$(mkIdent `Label) $(← getStateTpArgsStx)*)
   assembleLabelType name
 
   let (rtsStx, ioAutomatonStx) <- Command.runTermElabM fun vs => do
-    let systemArgs ← getSectionArgumentsStx $ ← getSystemArguments vs
-    let stepStx ← getIOStepStx stateTpStx labelTpStx vs
+    let systemArgs ← getSectionArgumentsStx vs
+    let stepStx ← getIOStepStx genericState labelTpStx vs
 
     let [initialState?, Assumptions, Next, Safety, Invariant] :=
       [initialStateName, `Assumptions, `Next, `Safety, `Invariant].map Lean.mkIdent
       | unreachable!
     -- RelationalTransitionSystem instance
-    let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $stateTpStx where
+    let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $genericState where
         init := @$initialState? $systemArgs*
         assumptions := @$Assumptions $systemArgs*
         next := @$Next $systemArgs*
@@ -577,7 +570,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
         inv  := @$Invariant $systemArgs*
         )
     -- IO Automaton instance
-    let ioAutomatonStx ← `(instance (priority := low) $(mkIdent `IOA) $[$vd]* : $(mkIdent ``IOAutomaton) $stateTpStx $labelTpStx where
+    let ioAutomatonStx ← `(instance (priority := low) $(mkIdent `IOA) $[$vd]* : $(mkIdent ``IOAutomaton) $genericState $labelTpStx where
       signature := $(← getIOSignatureStx)
       init := @$initialState? $systemArgs*
       step := $stepStx

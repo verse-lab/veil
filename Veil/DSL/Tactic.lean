@@ -54,7 +54,7 @@ def dsimpOnly (t : TSyntax `term) (classes : Array Name := #[]) : TermElabM (TSy
 
 /-- This does `unfoldWp` followed by some other simplifications. -/
 def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
-  let (actSimp, smtSimp, logicSimp, quantifierSimp) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp, mkIdent `quantifierSimp)
+  let (actSimp, smtSimp, logicSimp, wpSimp, quantifierSimp) := (mkIdent `actSimp, mkIdent `smtSimp, mkIdent `logicSimp, mkIdent `wpSimp, mkIdent `quantifierSimp)
   -- Reduce the body of the function
   let t' ← `(term| by
     -- Try simplifying first, but this might fail if there's no `wp` in the
@@ -65,6 +65,6 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
         dsimp only [$actSimp:ident];
         -- for two-state version of the cation
         unfold_wp
-        simp only [$smtSimp:ident, $logicSimp:ident];
+        simp only [$wpSimp:ident, $smtSimp:ident, $logicSimp:ident];
         simp only [$quantifierSimp:ident]) => $t; exact t) | exact $t)
   return t'
