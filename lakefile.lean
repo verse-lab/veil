@@ -4,6 +4,7 @@ open Lake DSL System
 -- FIXME: change to "https://github.com/leanprover-community/lean-auto.git" once they bump to v4.16.0 upstream
 require auto from git "https://github.com/dranov/lean-auto.git" @ "bump-v4.20.0-rc3"
 require smt from git "https://github.com/dranov/lean-smt.git" @ "bump-v4.20.0-rc3"
+require Loom from git "https://github.com/verse-lab/loom-dev.git" @ "master"
 
 package veil
 
