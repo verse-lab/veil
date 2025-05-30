@@ -126,13 +126,11 @@ instance [IsSubStateOf σₛ σ] : MonadStateOf σₛ (Wp m σ) where
   set := fun sₛ s post => post () (setIn sₛ s)
   modifyGet := fun act s post => let (ret, s') := act (getFrom s) ; post ret (setIn s' s)
 
-@[wpSimp, initSimp, actSimp] instance : IsSubStateOf σ σ where
+instance : IsSubStateOf σ σ where
   setIn := (fun σₛ σ => σₛ)
   getFrom := id
   setIn_getFrom_idempotent := by simp
   getFrom_setIn_idempotent := by simp
-
-attribute [wpSimp, initSimp, actSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.getFrom_setIn_idempotent
 
 def IsSubStateOf.trans {σₛ σₘ σ : Type} (S₁ : IsSubStateOf σₛ σₘ) (S₂ : IsSubStateOf σₘ σ) : IsSubStateOf σₛ σ :=
 {
@@ -141,6 +139,10 @@ def IsSubStateOf.trans {σₛ σₘ σ : Type} (S₁ : IsSubStateOf σₛ σₘ)
   setIn_getFrom_idempotent := by simp [S₁.setIn_getFrom_idempotent, S₂.setIn_getFrom_idempotent]
   getFrom_setIn_idempotent := by simp [S₁.getFrom_setIn_idempotent, S₂.getFrom_setIn_idempotent]
 }
+
+attribute [wpSimp, initSimp, actSimp]
+  id instIsSubStateOf IsSubStateOf.trans
+  IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.getFrom_setIn_idempotent
 
 -- only works if `σ` is `semiOutParam`
 -- @[always_inline] instance IsSubStateOf_transitive [S₁ : IsSubStateOf σₛ σₘ] [S₂ : IsSubStateOf σₘ σ] : IsSubStateOf σₛ σ :=

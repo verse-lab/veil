@@ -150,8 +150,17 @@ includes ReliableBroadcast node node_dec node_ne nodeset nodeset_dec nodeset_ne 
 
 #gen_state
 
+after_init { pure () }
+
 action foo (n : node) (originator : node) (r : Int) (v : vertex) = {
   rb.echo n originator r v
 }
+
+#guard_msgs(drop warning) in
+#gen_spec
+
+-- This tests that all the simplification attributes exist
+#guard_msgs(drop warning, error) in
+sat trace { } by bmc_sat
 
 end DAGConstruction

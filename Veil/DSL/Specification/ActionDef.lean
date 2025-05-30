@@ -353,7 +353,7 @@ def genStateExtInstances : CommandElabM Unit := do
       -- Create an instance showing that the sub-state is of the
       -- generic state type `σ`
       let transInstName := subStateInstIdent' alia genericState
-      let transInst ← `(command|def $transInstName := IsSubStateOf.trans ($instName $currTs*) $genericSubStateIdent)
+      let transInst ← `(command|@[actSimp] def $transInstName := IsSubStateOf.trans ($instName $currTs*) $genericSubStateIdent)
       insts := insts.push transInst
     return insts
   for inst in insts do
@@ -363,7 +363,7 @@ def genStateExtInstances : CommandElabM Unit := do
 
 def liftAction (liftedName : TSyntax `ident) (originalName : TSyntax `ident) (instatiatedWithArgs : Array Term) (σ instSubState : Term)  : CommandElabM Unit := do
   let params ← getImplicitProcedureParameters
-  let stx ← `(command| def $liftedName $params* := @$originalName $instatiatedWithArgs* $σ $instSubState)
+  let stx ← `(command|@[actSimp]def $liftedName $params* := @$originalName $instatiatedWithArgs* $σ $instSubState)
   trace[veil.debug] "Lifting action {liftedName} to {liftedName}:\n{stx}"
   elabCommand stx
 
