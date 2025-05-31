@@ -5,7 +5,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "e3178c351ad11343e094009781d6c0fa49a97679",
+   "rev": "938d97c00e23d88bead712670ea7bece6efcc6b8",
    "name": "Loom",
    "manifestFile": "lake-manifest.json",
    "inputRev": "master",
