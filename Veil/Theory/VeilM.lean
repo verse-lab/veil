@@ -73,14 +73,15 @@ def VeilM.succeedsAndPreservesInvariants (act : VeilM m σ ρ α) (inv : SProp �
 def VeilM.assumptions (act : VeilM m σ ρ α) (ex : ExtractNonDet WeakFindable act) : SProp ρ σ :=
   [DemonFail| ex.prop]
 
-def VeilM.toBigStep (act : VeilM m σ ρ α) : BigStep ρ σ α :=
-  fun r₀ s₀ a₁ s₁ =>
-    [AngelFail| triple (fun r s => r = r₀ ∧ s = s₀) act (fun a r s => a = a₁ ∧ r = r₀ ∧ s = s₁)]
+def VeilM.toTwoState (act : VeilM m σ ρ α) : TwoState ρ σ :=
+  fun r₀ s₀ s₁ =>
+    [AngelFail| triple (fun r s => r = r₀ ∧ s = s₀) act (fun _ r s => r = r₀ ∧ s = s₁)]
 
-def VeilExecM.operational (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (res : Except ExId (α × σ)) : Prop :=
+def VeilExecM.operational (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (res : Except ExId σ) : Prop :=
   match act r₀ s₀ with
   | .div => False
-  | .res r => r = res
+  | .res (.error i) => res = .error i
+  | .res (.ok (_, s)) => .ok s = res
 
 def VeilExecM.axiomatic (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (post : RProp α ρ σ) : Prop :=
   match act r₀ s₀ with
@@ -88,22 +89,22 @@ def VeilExecM.axiomatic (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (po
   | .res (.error _) => False
   | .res (.ok (a, s)) => post a r₀ s
 
-def VeilExecM.operationalTriple (act : VeilExecM m σ ρ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
+def VeilExecM.operationalTriple (act : VeilExecM m σ ρ α) (pre : SProp ρ σ) (post : SProp ρ σ) : Prop :=
   ∀ r₀ s₀ res,
     pre r₀ s₀ ->
     act.operational r₀ s₀ res ->
     match res with
-    | .ok (a₁, s₁) => post a₁ r₀ s₁
+    | .ok s₁ => post r₀ s₁
     | .error _ => False
 
-def BigStep.triple (act : BigStep ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
-  ∀ r₀ s₀ a₁ s₁,
+def TwoState.triple (act : TwoState ρ σ) (pre : SProp ρ σ) (post : SProp ρ σ) : Prop :=
+  ∀ r₀ s₀ s₁,
     pre r₀ s₀ ->
-    act r₀ s₀ a₁ s₁ ->
-    post a₁ r₀ s₁
+    act r₀ s₀ s₁ ->
+    post r₀ s₁
 
-def BigStep.preservesInvariantsOnSuccesful (act : BigStep ρ σ α) (inv : SProp ρ σ) : Prop :=
-  act.triple inv (fun _ => inv)
+def TwoState.preservesInvariantsOnSuccesful (act : TwoState ρ σ) (inv : SProp ρ σ) : Prop :=
+  act.triple inv inv
 
 section WpSoundness
 open PartialCorrectness
@@ -137,7 +138,7 @@ lemma VeilM.triple_sound
   (act : VeilM m σ ρ α) (inv : SProp ρ σ) (ex : ExtractNonDet WeakFindable act) :
   act.succesfullyTerminates inv ->
   act.preservesInvariantsOnSuccesful inv ->
-  (act.runWeak ex).operationalTriple (inv ⊓ act.assumptions ex) (fun _ => inv) := by
+  (act.runWeak ex).operationalTriple (inv ⊓ act.assumptions ex) inv := by
     intros term invs
     have : [DemonFail| triple (inv ⊓ act.assumptions ex) (act.runWeak ex) (fun _ => inv)] := by
       simp [VeilM.assumptions]
@@ -207,17 +208,17 @@ lemma VeilM.angel_fail_imp_assumptions (act : VeilM m σ ρ α) :
   simp [VeilExecM.axiomatic, NonDetT.runWeak, NonDetT.extractWeak]
   apply h.2
 
-lemma VeilM.toBigStep_sound (act : VeilM m σ ρ α) :
-  act.toBigStep r₀ s₀ a₁ s₁ ->
+lemma VeilM.toTwoState_sound (act : VeilM m σ ρ α) :
+  act.toTwoState r₀ s₀ s₁ ->
   ∃ ex,
     act.assumptions ex r₀ s₀ ∧
-    (act.runWeak ex).operational r₀ s₀ (Except.ok (a₁, s₁)) := by
+    (act.runWeak ex).operational r₀ s₀ (Except.ok s₁) := by
   intro h;
   specialize h r₀ s₀; simp at h
   have h := act.angel_fail_imp_assumptions h
   rcases h with ⟨ex, h⟩; exists ex; constructor; apply h.1
   revert h; simp [VeilExecM.axiomatic, VeilExecM.operational]
-  split <;> simp [*]
+  -- split <;> simp [*]
 
 
 lemma VeilExecM.wlp_eq (act : VeilExecM m σ ρ α) (post : RProp α ρ σ) :
@@ -233,8 +234,8 @@ lemma VeilM.assumptions_eq (act : VeilM m σ ρ α) (ex : ExtractNonDet WeakFind
 
 lemma VeilM.toBigStep_complete (act : VeilM m σ ρ α) (ex : ExtractNonDet WeakFindable act) :
   act.assumptions ex r₀ s₀ ->
-  (act.runWeak ex).operational r₀ s₀ (Except.ok (a₁, s₁)) ->
-  act.toBigStep r₀ s₀ a₁ s₁ := by
+  (act.runWeak ex).operational r₀ s₀ (Except.ok s₁) ->
+  act.toTwoState r₀ s₀ s₁ := by
   intro h₁ h₂
   open AngelicChoice TotalCorrectness ExceptionAsFailure in
   apply ExtractNonDet.extract_refines_triple (inst := ex)
@@ -256,9 +257,9 @@ macro "[Raises" ex:term "|" t:term "]" : term =>  `(open PartialCorrectness Demo
 def VeilM.raises (ex : Set ExId) (act : VeilM m σ ρ α) (pre : SProp ρ σ) : Prop :=
   [Raises ex| triple pre act (fun _ => ⊤)]
 
-def VeilM.toBigStepDerived (act : VeilM m σ ρ α) : BigStep ρ σ α :=
-  fun r₀ s₀ a₁ s₁ =>
-    [Raises (fun (_ : ExId) => True)| iwp act (fun a r s => a = a₁ ∧ r = r₀ ∧ s = s₁) r₀ s₀]
+def VeilM.toBigStepDerived (act : VeilM m σ ρ α) : TwoState ρ σ :=
+  fun r₀ s₀ s₁ =>
+    [Raises (fun (_ : ExId) => True)| iwp act (fun _ r s => r = r₀ ∧ s = s₁) r₀ s₀]
 
 open PartialCorrectness in
 lemma VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m σ ρ α)
@@ -309,20 +310,27 @@ lemma VeilM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilM m σ ρ α) (post 
   simp [@compl_iInf, himp_eq, <-f_ih, inf_comm]
 
 lemma VeilM.toBigStepDerived_sound (act : VeilM m σ ρ α) :
-  act.toBigStep = act.toBigStepDerived := by
-    unfold VeilM.toBigStep VeilM.toBigStepDerived
+  act.toTwoState = act.toBigStepDerived := by
+    unfold VeilM.toTwoState VeilM.toBigStepDerived
     simp [<-VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, LE.le]
 
 lemma wp_iInf {ι : Type} (act : VeilM m σ ρ α) (post : ι -> RProp α ρ σ) :
   [DemonSucc| wp act (fun a r s => iInf (fun i => post i a r s)) = ⨅ i, wp act (post i)] := by sorry
 
-lemma VeilM.wp_r_eq (act : VeilM m σ ρ α) (post : RProp α ρ σ) :
-  [DemonSucc| wp act (fun a r => post a r₀) r₀ = wp act post r₀] := by
-  sorry
 
-lemma BigStep.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m σ ρ α) (inv : SProp ρ σ) :
-  act.toBigStep.preservesInvariantsOnSuccesful inv = act.preservesInvariantsOnSuccesful inv := by
-  simp [BigStep.preservesInvariantsOnSuccesful, triple,
+lemma VeilExecM.wp_r_eq (act : VeilExecM m σ ρ α) (post : RProp α ρ σ) :
+  [DemonSucc| wp act (fun a _ => post a r₀) r₀ = wp act post r₀] := by
+  simp [ReaderT.wp_eq]
+
+
+lemma VeilM.wp_r_eq (act : VeilM m σ ρ α) (post : RProp α ρ σ) :
+  [DemonSucc| wp act (fun a _ => post a r₀) r₀ = wp act post r₀] := by
+  induction act <;> simp [wp_pure, <-VeilExecM.wp_r_eq, *]
+
+
+lemma TwoState.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m σ ρ α) (inv : SProp ρ σ) :
+  act.toTwoState.preservesInvariantsOnSuccesful inv = act.preservesInvariantsOnSuccesful inv := by
+  simp [TwoState.preservesInvariantsOnSuccesful, triple,
     VeilM.toBigStepDerived_sound,
     VeilM.toBigStepDerived, _root_.triple,
     VeilM.preservesInvariantsOnSuccesful, LE.le]; constructor
@@ -331,14 +339,12 @@ lemma BigStep.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m σ
       ext s; simp; constructor; aesop
       intro; false_or_by_contra; aesop }
     erw [this, wp_iInf]; simp; intro s' inv'
-    false_or_by_contra; apply inv'; apply hwp r s default s' hinv
+    false_or_by_contra; apply inv'; apply hwp r s s' hinv
     intro hwp; rename_i h; apply h;
+    rw [<-VeilM.wp_r_eq] at hwp; simp at hwp
     open PartialCorrectness DemonicChoice ExceptionAsSuccess in
     apply wp_cons act; rotate_left; apply hwp;
-    intro
-    simp
-    sorry
-    }
+    intro; simp [LE.le] }
   introv hwp  hinv hwp'
   false_or_by_contra; apply hwp';
   open PartialCorrectness DemonicChoice ExceptionAsSuccess in
