@@ -342,7 +342,7 @@ lemma TwoState.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m �
     have : inv r = ⨅ x : { s // ¬ inv r s }, (· ≠ x.val) := by {
       ext s; simp; constructor; aesop
       intro; false_or_by_contra; aesop }
-    erw [this, wp_iInf]; simp; intro s' inv'
+    erw [this, VeilM.wp_iInf]; simp; intro s' inv'
     false_or_by_contra; apply inv'; apply hwp r s s' hinv
     intro hwp; rename_i h; apply h;
     rw [<-VeilM.wp_r_eq] at hwp; simp at hwp
