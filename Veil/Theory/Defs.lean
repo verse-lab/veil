@@ -107,11 +107,11 @@ end TwoStateSemantics
 
 section OperationalSemantics
 
-def VeilExecM.operational (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (res : Except ExId σ) : Prop :=
+def VeilExecM.operational (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (s₁ : σ) (res : Except ExId α) : Prop :=
   match act r₀ s₀ with
   | .div => False
-  | .res (.error i)   => res = .error i
-  | .res (.ok (_, s)) => res = .ok s
+  | .res (.error i)   => res = .error i ∧ s₁ = s₀
+  | .res (.ok (a, s)) => res = .ok a ∧ s = s₁
 
 def VeilExecM.axiomatic (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (post : RProp α ρ σ) : Prop :=
   match act r₀ s₀ with
@@ -120,11 +120,11 @@ def VeilExecM.axiomatic (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (po
   | .res (.ok (a, s)) => post a r₀ s
 
 def VeilExecM.operationalTriple (act : VeilExecM m σ ρ α) (pre : SProp ρ σ) (post : SProp ρ σ) : Prop :=
-  ∀ r₀ s₀ res,
+  ∀ r₀ s₀ s₁ res,
     pre r₀ s₀ ->
-    act.operational r₀ s₀ res ->
+    act.operational r₀ s₀ s₁ res ->
     match res with
-    | .ok s₁ => post r₀ s₁
+    | .ok _ => post r₀ s₁
     | .error _ => False
 
 
@@ -137,7 +137,6 @@ def VeilM.canRaise (ex : Set ExId) (act : VeilM m σ ρ α) (pre : SProp ρ σ) 
 
 def VeilSpecM.toTwoStateDerived (spec : VeilSpecM σ ρ α) : TwoState ρ σ :=
   fun r₀ s₀ s₁ => spec.inv (fun _ r s => r = r₀ ∧ s = s₁) r₀ s₀
-
 
 def VeilM.toTwoStateDerived (act : VeilM m σ ρ α) : TwoState ρ σ :=
   [CanRaise (fun _ => True)| VeilSpecM.toTwoStateDerived <| wp act]

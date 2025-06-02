@@ -57,19 +57,22 @@ lemma VeilM.assumptions_eq (act : VeilM m σ ρ α) (ex : ExtractNonDet WeakFind
 
 lemma VeilM.toTwoState_sound (act : VeilM m σ ρ α) :
   act.toTwoState r₀ s₀ s₁ ->
-  ∃ chs,
+  ∃ chs a,
     act.assumptions chs r₀ s₀ ∧
-    (act.run chs).operational r₀ s₀ (Except.ok s₁) := by
+    (act.run chs).operational r₀ s₀ s₁ (Except.ok a) := by
   intro h; specialize h r₀ s₀
   simp [VeilM.toTwoState, VeilSpecM.toTwoState] at h
   have h := act.angel_fail_imp_assumptions h
-  rcases h with ⟨ex, h⟩; exists ex; constructor; apply h.1
-  revert h; simp [VeilExecM.axiomatic, VeilExecM.operational]
-  aesop
+  rcases h with ⟨chs, assum, h⟩;
+  simp [VeilExecM.axiomatic] at h
+  exists chs; revert h
+  simp only [VeilExecM.axiomatic, VeilExecM.operational]
+  rcases act.run chs r₀ s₀ with ((_|⟨a, s₁⟩)|_) <;> simp only [IsEmpty.forall_iff]
+  rintro rfl; exists a
 
 lemma VeilM.toTwoState_complete (act : VeilM m σ ρ α) (chs : act.choices) :
   act.assumptions chs r₀ s₀ ->
-  (act.run chs).operational r₀ s₀ (Except.ok s₁) ->
+  (act.run chs).operational r₀ s₀ s₁ (Except.ok a) ->
   act.toTwoState r₀ s₀ s₁ := by
   intro h₁ h₂
   open AngelicChoice TotalCorrectness ExceptionAsFailure in
