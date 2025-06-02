@@ -286,31 +286,71 @@ elab "enforce_isolate_for_invariant" inv:ident : tactic => withMainContext do
     withMainContext do evalTactic $ ← `(tactic| dsimp only [$[$invsToUnfold:ident],*] at *)
     withMainContext do evalTactic $ ← `(tactic| clear_folded_invariants)
 
-syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
-elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
+
+def handleInvariants (inv : Ident) : TacticM (TSyntax `tactic × TSyntax `tactic) := withMainContext do
   let some invInfo := (<- localSpecCtx.get).spec.invariants.find? (·.name == inv.getId)
     | throwError "Invariant {inv.getId} not found"
-  let (wpSimp,invSimp, invSimpTopLevel, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
-      (mkIdent `wpSimp,
-       mkIdent `invSimp,
-       mkIdent `invSimpTopLevel,
-       mkIdent `st, mkIdent `st',
-       mkIdent `ass_, mkIdent `inv_,
-       mkIdent `ifSimp,
-       mkIdent `exists_imp,
-       mkIdent `and_imp)
+  let (invSimp, invSimpTopLevel) := (mkIdent `invSimp, mkIdent `invSimpTopLevel)
   let (invSimpTac, clearInvs) ←
     if invInfo.isolates.isEmpty then
       pure (← `(tactic| dsimp only [$invSimp:ident]), ← `(tactic| skip))
     else
       let invsToUnfold := #[invSimpTopLevel] ++ (← getInvariantsInSameIsolateAs invInfo)
       pure (← `(tactic| dsimp only [$[$invsToUnfold:ident],*]), ← `(tactic| clear_folded_invariants))
+  return (invSimpTac, clearInvs)
+
+syntax solveTr := "solve_tr_clause" <|> "solve_tr_clause?"
+elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
+  let (invSimpTac, clearInvs) ← handleInvariants inv
+  let (wpSimp, st, st', ifSimp, logicSimp, hStateSimp) :=
+      (mkIdent `wpSimp,
+       mkIdent `st, mkIdent `st',
+       mkIdent `ifSimp,
+       mkIdent `logicSimp,
+       mkIdent stateSimpHypName)
+  let simplify <- `(tacticSeq|
+    dsimp only [$act:ident]
+    $invSimpTac:tactic
+    unhygienic intros
+    sdestruct_hyps
+    try simp only [$ifSimp:ident] at *
+    sdestruct_hyps
+    $clearInvs:tactic
+  )
+  let finisher ← `(Parser.Tactic.tacticSeqBracketed|{
+    (try simp only [$logicSimp:ident] at *)
+    subst $st'
+    (try simp only [$wpSimp:ident, $hStateSimp:ident] at *)
+    (try clear $st) ; (try clear $genericState) ; (try clear $genericSubStateIdent) ; (try clear $hStateSimp)
+    sauto_all
+  })
+  let solve <- `(tacticSeq|(try unhygienic split_ifs at *) <;> ($finisher:tacticSeqBracketed))
+  if let `(solveTr| solve_tr_clause?) := tk then
+      addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
+  else
+    evalTactic simplify
+    if (← getUnsolvedGoals).length != 0 then
+      withMainContext do
+        evalTactic solve
+
+syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
+elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
+  let (invSimpTac, clearInvs) ← handleInvariants inv
+  let (wpSimp, st, st', ass, inv, ifSimp, and_imp, exists_imp, hStateSimp) :=
+      (mkIdent `wpSimp,
+       mkIdent `st, mkIdent `st',
+       mkIdent `ass_, mkIdent `inv_,
+       mkIdent `ifSimp,
+       mkIdent `exists_imp,
+       mkIdent `and_imp,
+       mkIdent stateSimpHypName)
   let stateTpT ← getStateTpStx
   let simplify <- `(tacticSeq|
     dsimp only [$act:ident, $wpSimp:ident]
     $invSimpTac:tactic
     intros $st:ident; sdestruct_hyps
     first
+      -- This is for actions defined via transitions
       | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
         unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
       | try dsimp only
@@ -320,8 +360,8 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
         try simp only [$ifSimp:ident]
         try sdestruct_hyps
         try dsimp only at *
-        try simp only [$wpSimp:ident, $(mkIdent stateSimpHypName):ident] at *
-        (try clear $st) ; (try clear $genericState) ; (try clear $genericSubStateIdent)
+        try simp only [$wpSimp:ident, $hStateSimp:ident] at *
+        (try clear $st) ; (try clear $genericState) ; (try clear $genericSubStateIdent) ; (try clear $hStateSimp)
         )
     let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWp| solve_wp_clause?) := tk then

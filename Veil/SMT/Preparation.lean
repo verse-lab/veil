@@ -127,7 +127,7 @@ Note: the above misses some lemmas that have `@[simp]` above the line with `theo
 attribute [logicSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
 
 /-! ## Ite -/
-theorem not_if {_ : Decidable c} :
+@[ifSimp] theorem not_if {_ : Decidable c} :
   ¬ (if c then t else e) =
   if c then ¬ t else ¬ e := by
   by_cases c <;> simp_all

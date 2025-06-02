@@ -139,7 +139,7 @@ def mkTrTheoremName (actName : Name) (invName : Name) : Name := mkTheoremName (t
 
 def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, st, stₛ, st', st'ₛ, stateSimpH) := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `stₛ, mkIdent `st', mkIdent `st'ₛ, mkIdent stateSimpHypName)
+      let (systemTp, stateTp, st, stₛ, st', stateSimpH) := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `stₛ, mkIdent `st', mkIdent stateSimpHypName)
       let assertionArgs ← getSectionArgumentsStx vs
       let actionArgs ← getSectionArgumentsStx vs
       let mut theorems : Array (TheoremIdentifier × TSyntax `command) := #[]
@@ -158,8 +158,8 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let trName := toTrName actName
           let invStx ← `(@$(mkIdent invName) $assertionArgs*)
           let trStx ← `(@$(mkIdent trName) $actionArgs*)
-          let trTpSyntax ← `(∀ ($st $st' : $genericState) ($stₛ $st'ₛ : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st') $st'ₛ) → ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-          let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent trName)] $(mkIdent invName)))
+          let trTpSyntax ← `(∀ ($st $st' : $genericState) ($stₛ  : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
+          let body ← if sorry_body then `(by sorry) else `(by solve_tr_clause $(mkIdent trName) $(mkIdent invName))
           pure (trTpSyntax, body)
         | .wp =>
           let extName := toExtName actName
