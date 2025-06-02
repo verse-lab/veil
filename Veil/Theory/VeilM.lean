@@ -314,8 +314,12 @@ lemma VeilM.toBigStepDerived_sound (act : VeilM m σ ρ α) :
     unfold VeilM.toTwoState VeilM.toBigStepDerived
     simp [<-VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, LE.le]
 
-lemma wp_iInf {ι : Type} (act : VeilM m σ ρ α) (post : ι -> RProp α ρ σ) :
-  [DemonSucc| wp act (fun a r s => iInf (fun i => post i a r s)) = ⨅ i, wp act (post i)] := by sorry
+open PartialCorrectness DemonicChoice ExceptionAsSuccess in
+lemma VeilM.wp_iInf {ι : Type} (act : VeilM m σ ρ α) (post : ι -> RProp α ρ σ) :
+  wp act (fun a r s => iInf (fun i => post i a r s)) = ⨅ i, wp act (post i) := by
+  by_cases h: Nonempty ι
+  { rw [<-NonDetT.wp_iInf]; simp [iInf, sInf] }
+  simp at h; simp [iInf_of_empty]; erw [wp_top]
 
 
 lemma VeilExecM.wp_r_eq (act : VeilExecM m σ ρ α) (post : RProp α ρ σ) :
