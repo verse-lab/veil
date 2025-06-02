@@ -143,41 +143,59 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
       let assertionArgs ← getSectionArgumentsStx vs
       let actionArgs ← getSectionArgumentsStx vs
       let mut theorems : Array (TheoremIdentifier × TSyntax `command) := #[]
-      -- Init checks
-      for invName in initIndicators.reverse do
-        let invStx ← `(@$(mkIdent invName) $assertionArgs*)
-        let initTpStx ← `(∀ ($st : $genericState) ($stₛ : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-        let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
-        let thmName := mkTheoremName `init invName
-        let thm ← `(@[invProof] theorem $(mkIdent thmName) : $initTpStx := $body)
-        theorems := theorems.push (⟨invName, .none, thmName⟩, thm)
-      -- Action checks
-      for (actName, invName) in actIndicators.reverse do
-        let (tp, body) ← match vcStyle with
-        | .transition =>
+      match vcStyle with
+      | .transition =>
+        -- Init checks
+        for invName in initIndicators.reverse do
+          let invStx ← `(@$(mkIdent invName) $assertionArgs*)
+          let initTpStx ← `(∀ ($st' : $genericState), ($systemTp).$(mkIdent `assumptions) $st' → ($systemTp).$(mkIdent `init) $st' → $invStx $st')
+          let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
+          let thmName := mkTheoremName `init invName
+          let thm ← `(@[invProof] theorem $(mkIdent thmName) : $initTpStx := $body)
+          theorems := theorems.push (⟨invName, .none, thmName⟩, thm)
+
+        -- Action checks
+        for (actName, invName) in actIndicators.reverse do
           let trName := toTrName actName
           let invStx ← `(@$(mkIdent invName) $assertionArgs*)
           let trStx ← `(@$(mkIdent trName) $actionArgs*)
           let trTpSyntax ← `(∀ ($st $st' : $genericState) ($stₛ  : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
           let body ← if sorry_body then `(by sorry) else `(by solve_tr_clause $(mkIdent trName) $(mkIdent invName))
-          pure (trTpSyntax, body)
-        | .wp =>
-          let extName := toExtName actName
-          let moduleName <- getCurrNamespace
-          let some args := (<- localSpecCtx.get).spec.actions.find? (moduleName ++ ·.name == actName)
-            | throwError s!"action {actName} not found"
-          let (univBinders, args) ← match args.br with
-          | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
-          | none => pure (#[], #[])
-          let invStx ← `(fun _ ($st' : $genericState) => @$(mkIdent invName) $assertionArgs*  $st')
-          let extStx ← `(@$(mkIdent extName) $actionArgs* $args*)
-          let extTpSyntax ← `(∀ ($st : $genericState) ($stₛ : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
-          let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
-          let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
-          pure (extTpSyntax, body)
-        let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
-        let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
-        theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
+          let (tp, body) := (trTpSyntax, body)
+          let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
+          let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
+          theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
+
+      | .wp =>
+        let init := initIndicators.reverse.map (fun invName => (initializerName, invName))
+        -- Init + Action checks
+        for (actName, invName) in init ++ actIndicators.reverse do
+            let extName := toExtName actName
+            let moduleName <- getCurrNamespace
+
+            let (univBinders, args) ← do
+              if actName != initializerName then
+                let some args := (<- localSpecCtx.get).spec.actions.find? (moduleName ++ ·.name == actName)
+                  | throwError s!"action {actName} not found"
+                match args.br with
+                | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
+                | none => pure (#[], #[])
+              else pure (#[], #[])
+
+            let invStx ← `(fun _ ($st' : $genericState) => @$(mkIdent invName) $assertionArgs*  $st')
+            let extStx ← `(@$(mkIdent extName) $actionArgs* $args*)
+            let extTpSyntax ←
+              if actName != initializerName then
+                `(∀ ($st : $genericState) ($stₛ : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
+              else
+                `(∀ ($st : $genericState) ($stₛ : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → $extStx $st $invStx)
+            let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
+            let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
+            let (tp, body) := (extTpSyntax, body)
+            let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
+            let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
+            theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
+
       return theorems
 
 def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (vcStyle : VCGenStyle) (sorry_body: Bool := false): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
