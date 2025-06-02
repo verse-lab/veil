@@ -153,12 +153,22 @@ elab "sts_induction" : tactic => withMainContext do
     let newHypName := mkIdent newHyps[0]!.userName
     evalTactic $ ← `(tactic| revert $newHypName:ident; intro $hnextName:ident)
 
-/-- Get all the names of the propositions found in the context, including
-    within typeclasses in the context. -/
+def hypIsVeilSpecific (hyp : LocalDecl) : TacticM Bool := do
+  match hyp.type.getAppFn.constName? with
+  | .none => pure false
+  | .some sn =>
+  let res := sn == ``IsSubStateOf
+  return res
+
+/--
+Get all the names of the propositions found in the context, including
+within typeclasses in the context. This ignores some Veil-specific
+typeclasses that should not be sent to the SMT solver.
+-/
 def getPropsInContext : TacticM (Array Ident) := do
   let mut props := #[]
   for hyp in (← getLCtx) do
-    if hyp.isImplementationDetail then
+    if hyp.isImplementationDetail || (← hypIsVeilSpecific hyp) then
       continue
     props := props.append (← collectPropertiesFromHyp hyp)
   let idents := (props.toList.eraseDups.map mkIdent).toArray
@@ -319,10 +329,9 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   )
   let finisher ← `(Parser.Tactic.tacticSeqBracketed|{
     (try simp only [$logicSimp:ident] at *)
-    subst $st'
+    (try subst $st')
     (try simp only [$wpSimp:ident, $hStateSimp:ident] at *)
-    (try clear $st) ; (try clear $genericState) ; (try clear $genericSubStateIdent) ; (try clear $hStateSimp)
-    sauto_all
+    (try sauto_all)
   })
   let solve <- `(tacticSeq|(try unhygienic split_ifs at *) <;> ($finisher:tacticSeqBracketed))
   if let `(solveTr| solve_tr_clause?) := tk then
@@ -361,7 +370,6 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
         try sdestruct_hyps
         try dsimp only at *
         try simp only [$wpSimp:ident, $hStateSimp:ident] at *
-        (try clear $st) ; (try clear $genericState) ; (try clear $genericSubStateIdent) ; (try clear $hStateSimp)
         )
     let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWp| solve_wp_clause?) := tk then
