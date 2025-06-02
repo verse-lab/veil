@@ -342,11 +342,12 @@ def elabInitialStateAction : CommandElab := fun stx => do
     let (genI, genE) ← defineProcedureGenerators initName none init
     defineInitialActionFromGenerators initName genI genE
     -- define initial state predicate (on the concrete state type)
-    let (st, st') := (mkIdent `st, mkIdent `st')
+    let (st, stₛ, st', stateSimpH) := (mkIdent `st, mkIdent `stₛ, mkIdent `st', mkIdent stateSimpHypName)
     let pred ← Command.runTermElabM fun vs => (do
+      let stateTp <- getStateTpStx
       let extInit := mkIdent (toExtName initializerName)
       let args ← getSectionArgumentsStx vs
-      `(fun ($st' : $genericState) => ∃ ($(toBinderIdent st) : $genericState), Wp.toTwoState (@$extInit $args*) $st $st'))
+      `(fun ($st' : $genericState) => ∃ ($(toBinderIdent st) : $genericState) ($(toBinderIdent stₛ) : $stateTp) ($(toBinderIdent stateSimpH) : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ), Wp.toTwoState (@$extInit $args*) $st $st'))
     trace[veil.debug] "pred: {pred}"
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
