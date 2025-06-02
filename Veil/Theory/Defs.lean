@@ -74,10 +74,9 @@ def VeilM.preservesInvariantsOnSuccesful (act : VeilM m σ ρ α) (inv : SProp �
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m σ ρ α) (inv : SProp ρ σ) : Prop :=
   [DemonFail| triple inv act (fun _ => inv)]
 
-def VeilM.assumptions (act : VeilM m σ ρ α) (ex : ExtractNonDet WeakFindable act) : SProp ρ σ :=
-  [DemonFail| ex.prop]
-
 abbrev VeilM.choices (act : VeilM m σ ρ α) := ExtractNonDet WeakFindable act
+
+def VeilM.assumptions (act : VeilM m σ ρ α) (chs : act.choices) : SProp ρ σ := [DemonFail| chs.prop]
 
 noncomputable
 def VeilM.run (act : VeilM m σ ρ α) (chs : act.choices) : VeilExecM m σ ρ α :=
@@ -110,7 +109,7 @@ section OperationalSemantics
 def VeilExecM.operational (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (s₁ : σ) (res : Except ExId α) : Prop :=
   match act r₀ s₀ with
   | .div => False
-  | .res (.error i)   => res = .error i ∧ s₁ = s₀
+  | .res (.error i)   => res = .error i ∧ /- can be anything -/ s₁ = s₀
   | .res (.ok (a, s)) => res = .ok a ∧ s = s₁
 
 def VeilExecM.axiomatic (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (post : RProp α ρ σ) : Prop :=
@@ -119,12 +118,12 @@ def VeilExecM.axiomatic (act : VeilExecM m σ ρ α) (r₀ : ρ) (s₀ : σ) (po
   | .res (.error _) => False
   | .res (.ok (a, s)) => post a r₀ s
 
-def VeilExecM.operationalTriple (act : VeilExecM m σ ρ α) (pre : SProp ρ σ) (post : SProp ρ σ) : Prop :=
+def VeilExecM.operationalTriple (act : VeilExecM m σ ρ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
   ∀ r₀ s₀ s₁ res,
     pre r₀ s₀ ->
     act.operational r₀ s₀ s₁ res ->
     match res with
-    | .ok _ => post r₀ s₁
+    | .ok a => post a r₀ s₁
     | .error _ => False
 
 

@@ -35,7 +35,7 @@ lemma VeilM.triple_sound
   (act : VeilM m σ ρ α) (inv : SProp ρ σ) (chs : act.choices) :
   act.succesfullyTerminates inv ->
   act.preservesInvariantsOnSuccesful inv ->
-  (act.run chs).operationalTriple (inv ⊓ act.assumptions chs) inv := by
+  (act.run chs).operationalTriple (inv ⊓ act.assumptions chs) (fun _ => inv) := by
     intros term invs
     have : [DemonFail| triple (inv ⊓ act.assumptions chs) (act.run chs) (fun _ => inv)] := by
       simp [VeilM.assumptions]
@@ -75,7 +75,6 @@ lemma VeilM.not_raises_imp_terminates (act : VeilM m σ ρ α) (pre : SProp ρ �
   have : (⊤ : RProp α ρ σ) = iInf (fun (_ : ExId) => ⊤) := by simp
   rw [this]
   solve_by_elim [VeilM.not_raises_imp_terminates_wp, le_trans']
-
 
 section DerivingSemantics
 
