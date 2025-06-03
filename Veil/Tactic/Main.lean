@@ -211,7 +211,7 @@ elab tk:concretizeState : tactic => withMainContext do
   -- NOTE: `subst` might have removed some of the abstract state hyps, so we need to recompute them
   for hyp in (← getAbstractStateHyps) do
     let simpLemmaName := mkIdent $ ← mkFreshBinderNameForTactic stateSimpHypName
-    let concreteState := mkIdent $ Name.mkSimple $ s!"{hyp.userName}_concrete"
+    let concreteState := mkIdent $ hyp.userName
     let concretize ← `(tacticSeq|try rcases (@$(mkIdent ``exists_eq') _ ($(mkIdent ``getFrom) $(mkIdent hyp.userName))) with ⟨$concreteState, $simpLemmaName⟩)
     concretizeTacs := concretizeTacs.push concretize
     simpLemmas := simpLemmas.push simpLemmaName
@@ -368,7 +368,7 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   )
   let finisher ← `(Parser.Tactic.tacticSeqBracketed|{
     try concretize_state
-    (try sauto_all)
+    sauto_all
   })
   let solve <- `(tacticSeq|(try unhygienic split_ifs at *) <;> ($finisher:tacticSeqBracketed))
   if let `(solveTr| solve_tr_clause?) := tk then
