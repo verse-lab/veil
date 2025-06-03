@@ -184,6 +184,45 @@ def concatTacticSeq (xtacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) : Ta
   )
   return combined_tactic
 
+def getAbstractStateHyps : TacticM (Array LocalDecl) := withMainContext do
+  let mut abstractStateHyps := #[]
+  let lctx ← getLCtx
+  for hyp in lctx do
+    let `(term|$x:ident) ← delabWithMotives hyp.type
+      | continue
+    if x.getId == genericStateName then
+      abstractStateHyps := abstractStateHyps.push hyp
+  return abstractStateHyps
+
+syntax concretizeState := "concretize_state" <|> "concretize_state?"
+elab tk:concretizeState : tactic => withMainContext do
+  let mut tacticsToPrint := #[]
+
+  for s in (← getAbstractStateHyps) do
+    let tac ← `(tacticSeq| try subst $(mkIdent s.userName))
+    tacticsToPrint := tacticsToPrint.push tac
+    withMainContext $ evalTactic tac
+  let mut (concretizeTacs, simpLemmas) := (#[], #[])
+  -- NOTE: `subst` might have removed some of the abstract state hyps, so we need to recompute them
+  for hyp in (← getAbstractStateHyps) do
+    let simpLemmaName := mkIdent $ ← mkFreshBinderNameForTactic stateSimpHypName
+    let concreteState := mkIdent $ Name.mkSimple $ s!"{hyp.userName}_concrete"
+    let concretize ← `(tacticSeq|try rcases (@$(mkIdent ``exists_eq') _ ($(mkIdent ``getFrom) $(mkIdent hyp.userName))) with ⟨$concreteState, $simpLemmaName⟩)
+    concretizeTacs := concretizeTacs.push concretize
+    simpLemmas := simpLemmas.push simpLemmaName
+
+  let mut tacticsToExecute := #[]
+  for t in concretizeTacs do tacticsToExecute := tacticsToExecute.push t
+  for t in simpLemmas ++ [mkIdent `wpSimp] do tacticsToExecute := tacticsToExecute.push $ ← `(tacticSeq|try simp only [$t:ident] at *)
+  tacticsToExecute := tacticsToExecute.push $ ← `(tacticSeq|sdestruct_hyps; try simp only [smtSimp] at *)
+
+  if let `(concretizeState| concretize_state?) := tk then
+      tacticsToPrint := tacticsToPrint.append tacticsToExecute
+      addSuggestion (<- getRef) (← concatTacticSeq tacticsToPrint)
+      return
+  for t in tacticsToExecute do
+    withMainContext $ evalTactic t
+
 def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent) (thorough :  Bool := true) (traceAt : Option Syntax := none): TacticM (Array Ident × Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) := withMainContext do
   -- (*) Collect executed tactics to generate suggestion
   let mut xtacs := #[]
@@ -312,9 +351,9 @@ def handleInvariants (inv : Ident) : TacticM (TSyntax `tactic × TSyntax `tactic
 syntax solveTr := "solve_tr_clause" <|> "solve_tr_clause?"
 elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   let (invSimpTac, clearInvs) ← handleInvariants inv
-  let (wpSimp, st, st', ifSimp, logicSimp, hStateSimp) :=
+  let (wpSimp, st', ifSimp, logicSimp, hStateSimp) :=
       (mkIdent `wpSimp,
-       mkIdent `st, mkIdent `st',
+       mkIdent `st',
        mkIdent `ifSimp,
        mkIdent `logicSimp,
        mkIdent stateSimpHypName)
@@ -329,8 +368,7 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   )
   let finisher ← `(Parser.Tactic.tacticSeqBracketed|{
     (try simp only [$logicSimp:ident] at *)
-    (try subst $st')
-    (try simp only [$wpSimp:ident, $hStateSimp:ident] at *)
+    try concretize_state
     (try sauto_all)
   })
   let solve <- `(tacticSeq|(try unhygienic split_ifs at *) <;> ($finisher:tacticSeqBracketed))
@@ -369,7 +407,7 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
         try simp only [$ifSimp:ident]
         try sdestruct_hyps
         try dsimp only at *
-        try simp only [$wpSimp:ident, $hStateSimp:ident] at *
+        try concretize_state
         )
     let solve <- `(tacticSeq| (try split_ifs with $and_imp, $exists_imp) <;> sauto_all)
     if let `(solveWp| solve_wp_clause?) := tk then

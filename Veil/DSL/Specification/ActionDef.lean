@@ -398,8 +398,7 @@ def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Op
   let baseName := (← getCurrNamespace) ++ nm.getId
   let (origName, trName) := (toFnIdent nm, toTrIdent nm)
   let (originalDef, trDef) ← Command.runTermElabM fun vs => do
-    let stateTpT ← getStateTpStx
-    let trType <- `($stateTpT -> $stateTpT -> Prop)
+    let trType <- `($genericState -> $genericState -> Prop)
     let sectionArgs ← getSectionArgumentsStx vs
     let (univBinders, args) ← match br with
     | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
@@ -412,8 +411,8 @@ def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Op
     let trDef ← do
       let (st, st') := (mkIdent `st, mkIdent `st')
       let rhs ← match br with
-      | some br => `(fun ($st $st' : $stateTpT) => ∃ $br, @$origName $sectionArgs* $args* $st $st')
-      | none => `(fun ($st $st' : $stateTpT) => @$origName $sectionArgs* $args* $st $st')
+      | some br => `(fun ($st $st' : $genericState) => ∃ $br, @$origName $sectionArgs* $args* $st $st')
+      | none => `(fun ($st $st' : $genericState) => @$origName $sectionArgs* $args* $st $st')
       `(@[actSimp] def $trName $[$vd]* : $trType := $(← unfoldWp rhs))
     return (originalDef, trDef)
   trace[veil.info] "{originalDef}"

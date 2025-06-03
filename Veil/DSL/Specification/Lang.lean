@@ -385,10 +385,11 @@ def elabTransition : CommandElab := fun stx => do
     let changedFields ← getChangedFields changedFn
     for f in changedFields do
       liftTermElabM $ throwIfImmutable' f.getId (isTransition := true)
-    let trStx ← `(by
-      intros st st'
-      unhygienic cases st
-      with_rename "'" unhygienic cases st'
+    let (st, st') := (mkIdent `st, mkIdent `st')
+    let trStx ← `(fun ($st $st' : $genericState) => let ($st, $st') := (getFrom $st, getFrom $st')
+      by
+      unhygienic cases $st:ident
+      with_rename "'" unhygienic cases $st':ident
       exact [unchanged|"'"| $unchangedFields*] ∧ ($t))
     elabNativeTransition actT nm br trStx
   | _ => throwUnsupportedSyntax

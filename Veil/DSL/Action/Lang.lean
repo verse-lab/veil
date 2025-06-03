@@ -52,8 +52,6 @@ macro "unfold_wp" : conv =>
     Function.toWp
     -- unfold actions definded via lifting
     monadLift
-    getFrom
-    setIn
     instMonadLiftTOfMonadLift
     MonadLift.monadLift
     instMonadLiftWpOfIsSubStateOf
