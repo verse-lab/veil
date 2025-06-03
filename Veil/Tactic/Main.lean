@@ -198,6 +198,11 @@ syntax concretizeState := "concretize_state" <|> "concretize_state?"
 elab tk:concretizeState : tactic => withMainContext do
   let mut tacticsToPrint := #[]
 
+-- Sometimes required to enable `subst`
+  let doubleNegTac ← `(tacticSeq|try simp only [$(mkIdent ``Classical.not_not):ident] at *)
+  tacticsToPrint := tacticsToPrint.push doubleNegTac
+  withMainContext $ evalTactic doubleNegTac
+
   for s in (← getAbstractStateHyps) do
     let tac ← `(tacticSeq| try subst $(mkIdent s.userName))
     tacticsToPrint := tacticsToPrint.push tac
@@ -254,7 +259,7 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
     (try simp only [$simp2,*] at *)
     (try simp only [$finalSimp,*] at *)
     -- To get rid of `IsSubStateOf` applications
-    (try simp_all [$(mkIdent `wpSimp):ident, $(mkIdent stateSimpHypName):ident]))
+    (try concretize_state))
   let mut xtacs := xtacs.push simpTac
   withMainContext do
   evalTactic simpTac
@@ -351,12 +356,7 @@ def handleInvariants (inv : Ident) : TacticM (TSyntax `tactic × TSyntax `tactic
 syntax solveTr := "solve_tr_clause" <|> "solve_tr_clause?"
 elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   let (invSimpTac, clearInvs) ← handleInvariants inv
-  let (wpSimp, st', ifSimp, logicSimp, hStateSimp) :=
-      (mkIdent `wpSimp,
-       mkIdent `st',
-       mkIdent `ifSimp,
-       mkIdent `logicSimp,
-       mkIdent stateSimpHypName)
+  let ifSimp := mkIdent `ifSimp
   let simplify <- `(tacticSeq|
     dsimp only [$act:ident]
     $invSimpTac:tactic
@@ -367,7 +367,6 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
     $clearInvs:tactic
   )
   let finisher ← `(Parser.Tactic.tacticSeqBracketed|{
-    (try simp only [$logicSimp:ident] at *)
     try concretize_state
     (try sauto_all)
   })
@@ -383,14 +382,13 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
 syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
 elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
   let (invSimpTac, clearInvs) ← handleInvariants inv
-  let (wpSimp, st, st', ass, inv, ifSimp, and_imp, exists_imp, hStateSimp) :=
+  let (wpSimp, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
       (mkIdent `wpSimp,
        mkIdent `st, mkIdent `st',
        mkIdent `ass_, mkIdent `inv_,
        mkIdent `ifSimp,
        mkIdent `exists_imp,
-       mkIdent `and_imp,
-       mkIdent stateSimpHypName)
+       mkIdent `and_imp)
   let stateTpT ← getStateTpStx
   let simplify <- `(tacticSeq|
     dsimp only [$act:ident, $wpSimp:ident]

@@ -139,7 +139,7 @@ def mkTrTheoremName (actName : Name) (invName : Name) : Name := mkTheoremName (t
 
 def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, st, stₛ, st', stateSimpH) := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `stₛ, mkIdent `st', mkIdent stateSimpHypName)
+      let (systemTp, stateTp, st, st', stateSimpH) := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st', mkIdent stateSimpHypName)
       let assertionArgs ← getSectionArgumentsStx vs
       let actionArgs ← getSectionArgumentsStx vs
       let mut theorems : Array (TheoremIdentifier × TSyntax `command) := #[]
@@ -159,7 +159,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let trName := toTrName actName
           let invStx ← `(@$(mkIdent invName) $assertionArgs*)
           let trStx ← `(@$(mkIdent trName) $actionArgs*)
-          let trTpSyntax ← `(∀ ($st $st' : $genericState) ($stₛ  : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
+          let trTpSyntax ← `(∀ ($st $st' : $genericState), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
           let body ← if sorry_body then `(by sorry) else `(by solve_tr_clause $(mkIdent trName) $(mkIdent invName))
           let (tp, body) := (trTpSyntax, body)
           let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
@@ -186,9 +186,9 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
             let extStx ← `(@$(mkIdent extName) $actionArgs* $args*)
             let extTpSyntax ←
               if actName != initializerName then
-                `(∀ ($st : $genericState) ($stₛ : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
+                `(∀ ($st : $genericState), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
               else
-                `(∀ ($st : $genericState) ($stₛ : $stateTp), ($stateSimpH : $(mkIdent ``Eq) ($(mkIdent ``getFrom) $st) $stₛ) → forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → $extStx $st $invStx)
+                `(∀ ($st : $genericState), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → $extStx $st $invStx)
             let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
             let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
             let (tp, body) := (extTpSyntax, body)
