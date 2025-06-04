@@ -310,13 +310,13 @@ inductive invariant that establishes the safety of the system.
 couldn't be proven. In this case: -/
 -- #check_invariants!
 @[invProof]
-  theorem recv_single_leader_ :
-      ∀ (st st' : @State node),
-        (@System node node_dec node_ne tot btwn).assumptions st →
-          (@System node node_dec node_ne tot btwn).inv st →
-            (@Ring.recv.tr node node_dec node_ne tot btwn) st st' →
-              (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by (unhygienic intros); solve_clause[Ring.recv.tr] Ring.single_leader
+  theorem recv_tr_single_leader_ :
+      ∀ (st st' : σ),
+        (@System node node_dec node_ne tot btwn σ σ_substate).assumptions st →
+          (@System node node_dec node_ne tot btwn σ σ_substate).inv st →
+            (@Ring.recv.tr node node_dec node_ne tot btwn σ σ_substate) st st' →
+              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate) st' :=
+    by solve_tr_clause Ring.recv.tr Ring.single_leader
 
 /- TIP: `#check_invariants?` will print all theorems that will be checked. -/
 -- #check_invariants?

@@ -38,8 +38,8 @@ action becauseitshouldmeanthesameasthis = {
 -- `True`, but this clause is checked nonetheless, i.e. it is not assumed
 -- in the pre-state, but IS checked in the post-state.
 -- invariant [x_is_true] x
-@[invDef, invSimp] def x_is_true : {node : Type} → [DecidableEq node] → [Nonempty node] → (State node) → Prop :=
-fun {node} [DecidableEq node] [Nonempty node] st => State.casesOn st fun x => x = true
+@[invDef, invSimp] def x_is_true : {node : Type} → [DecidableEq node] → [Nonempty node] → {σ : Type} → [IsSubStateOf (State node) σ] → σ → Prop :=
+fun {node} [DecidableEq node] [Nonempty node] {σ : Type} [IsSubStateOf (State node) σ] st => State.casesOn (getFrom st) fun x => x = true
 
 /--
 info: The following set of actions must preserve the invariant:

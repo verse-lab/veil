@@ -296,6 +296,16 @@ def ModuleParameters.applyGetStateArguments [Monad m] [MonadError m] (mp : Modul
   let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then some arg else none)
   return res
 
+/-- Apply the arguments to the module, but ignoring the generic state
+(`σ` and `σ_substate`) parameters. -/
+def ModuleParameters.applyGetNonGenericStateArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
+  if args.size < mp.parameters.size then
+    throwError "Expected at least {mp.parameters.size} arguments, but got {args.size}!"
+  let pairs := Array.zip (List.range' 0 args.size).toArray args
+  let indices := #[mp.genericStateParam, mp.genericSubStateInstParam]
+  let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then none else some arg)
+  return res
+
 /-- Replaces the generic state parameter with the concrete `st` and instance `inst` -/
 def ModuleParameters.applyWithConcreteState [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) (st : α) (inst : α) : m (Array α) := do
   let pairs := Array.zip (List.range' 0 args.size).toArray args

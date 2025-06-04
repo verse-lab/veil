@@ -43,28 +43,29 @@ safety [single_leader] leader L → le N L
 /--
 info: @[invProof]
   theorem init_single_leader :
-      ∀ (st : @State node),
-        (@System node node_dec node_ne tot btwn).assumptions st →
-          (@System node node_dec node_ne tot btwn).init st → (@Ring.single_leader node node_dec node_ne tot btwn) st :=
+      ∀ (st' : σ),
+        (@System node node_dec node_ne tot btwn σ σ_substate).assumptions st' →
+          (@System node node_dec node_ne tot btwn σ σ_substate).init st' →
+            (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate) st' :=
     by ((unhygienic intros); solve_clause[initSimp]Ring.single_leader)
   ⏎
   @[invProof]
   theorem send_tr_single_leader :
-      ∀ (st st' : @State node),
-        (@System node node_dec node_ne tot btwn).assumptions st →
-          (@System node node_dec node_ne tot btwn).inv st →
-            (@Ring.send.tr node node_dec node_ne tot btwn (@State node) _) st st' →
-              (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by ((unhygienic intros); solve_clause[Ring.send.tr]Ring.single_leader)
+      ∀ (st st' : σ),
+        (@System node node_dec node_ne tot btwn σ σ_substate).assumptions st →
+          (@System node node_dec node_ne tot btwn σ σ_substate).inv st →
+            (@Ring.send.tr node node_dec node_ne tot btwn σ σ_substate) st st' →
+              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate) st' :=
+    by solve_tr_clause Ring.send.tr Ring.single_leader
   ⏎
   @[invProof]
   theorem recv_tr_single_leader :
-      ∀ (st st' : @State node),
-        (@System node node_dec node_ne tot btwn).assumptions st →
-          (@System node node_dec node_ne tot btwn).inv st →
-            (@Ring.recv.tr node node_dec node_ne tot btwn (@State node) _) st st' →
-              (@Ring.single_leader node node_dec node_ne tot btwn) st' :=
-    by ((unhygienic intros); solve_clause[Ring.recv.tr]Ring.single_leader)
+      ∀ (st st' : σ),
+        (@System node node_dec node_ne tot btwn σ σ_substate).assumptions st →
+          (@System node node_dec node_ne tot btwn σ σ_substate).inv st →
+            (@Ring.recv.tr node node_dec node_ne tot btwn σ σ_substate) st st' →
+              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate) st' :=
+    by solve_tr_clause Ring.recv.tr Ring.single_leader
 -/
 #guard_msgs(whitespace := lax) in
 set_option veil.vc_gen "transition" in #check_invariants?

@@ -70,9 +70,9 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   : CommandElabM Unit := do
   liftCoreM errorIfStateNotDefined
   liftCoreM errorIfSpecNotDefined
-  let vd ← getAssertionParameters
+  let vd ← getNonGenericStateParameters
   let th ← Command.runTermElabM fun vs => do
-    let systemTp ← getSystemTpStx vs
+    let systemTp ← getConcreteSystemTpStx vs
     let spec ← parseTraceSpec spec
     let numActions := spec.foldl (fun n s =>
       match s with
@@ -135,6 +135,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     | `(expected_smt_result| sat) => `(∃ $[$vdE]* ($[$binderNames]* : $stateTp), $conjunction)
     | _ => dbg_trace "expected result is neither sat nor unsat!" ; unreachable!
     `(theorem $th_id : $assertion := by exact $pf)
+  trace[veil.debug] "{th}"
   elabCommand $ th
 
 elab_rules : command

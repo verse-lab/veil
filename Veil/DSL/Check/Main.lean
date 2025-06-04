@@ -194,7 +194,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
             let (tp, body) := (extTpSyntax, body)
             let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
             let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
-            theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
+            theorems := theorems.push (⟨invName, if actName == initializerName then .none else .some actName, thmName⟩, thm)
 
       return theorems
 

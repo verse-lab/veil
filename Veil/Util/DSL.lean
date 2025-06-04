@@ -51,11 +51,21 @@ def getSectionArgumentsStxWithConcreteState (vs : Array Expr) : TermElabM (Array
   trace[veil.debug] "args: {args} => concreteArgs: {concreteArgs}"
   return concreteArgs
 
+/-- Used to get the existentials in `trace` queries. -/
+def getNonGenericStateParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let vd := (← getScope).varDecls
+  let spec := (← localSpecCtx.get).spec
+  spec.generic.applyGetNonGenericStateArguments vd
+
 def getSystemParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
 def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
   let systemArgs ← getSectionArgumentsStx vs
+  `(@$(mkIdent `System) $systemArgs:term*)
+
+def getConcreteSystemTpStx (vs : Array Expr) : TermElabM Term := do
+  let systemArgs ← getSectionArgumentsStxWithConcreteState vs
   `(@$(mkIdent `System) $systemArgs:term*)
 
 /-- Retrieves the name passed to `#gen_state` -/

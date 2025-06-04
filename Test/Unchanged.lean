@@ -71,10 +71,13 @@ input transition recv (m : msg) = { True }
 /--
 info: def ReliableReorderingChannel.recv.tr : {msg : Type} →
   [msg_dec : DecidableEq msg] →
-    [msg_ne : Nonempty msg] → {σ : Type} → [σ_substate : IsSubStateOf (State msg) σ] → State msg → State msg → Prop :=
+    [msg_ne : Nonempty msg] → {σ : Type} → [σ_substate : IsSubStateOf (State msg) σ] → σ → σ → Prop :=
 fun {msg} [DecidableEq msg] [Nonempty msg] {σ} [IsSubStateOf (State msg) σ] =>
   let t := fun st st' =>
-    ∃ m, (st.l.foobar = st'.l.foobar ∧ st.l.F.foobar = st'.l.F.foobar ∧ st.l.contents = st'.l.contents) ∧ True;
+    ∃ m,
+      ((getFrom st).l.foobar = (getFrom st').l.foobar ∧
+          (getFrom st).l.F.foobar = (getFrom st').l.F.foobar ∧ (getFrom st).l.contents = (getFrom st').l.contents) ∧
+        True;
   t
 -/
 #guard_msgs in

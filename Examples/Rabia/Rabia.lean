@@ -28,7 +28,7 @@ veil module Rabia
 
 -- this enables `#recover_invariants_in_tr` to work
 -- everything after `#check_invariants` is not part of evaluation as such, but we leave it for completeness
-set_option veil.gen_sound true
+-- set_option veil.gen_sound true
 set_option synthInstance.maxSize 8192
 
 type node

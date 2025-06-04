@@ -205,28 +205,31 @@ elab tk:concretizeState : tactic => withMainContext do
 
   for s in (← getAbstractStateHyps) do
     let tac ← `(tacticSeq| try subst $(mkIdent s.userName))
-    tacticsToPrint := tacticsToPrint.push tac
-    withMainContext $ evalTactic tac
-  let mut (concretizeTacs, simpLemmas) := (#[], #[])
-  -- NOTE: `subst` might have removed some of the abstract state hyps, so we need to recompute them
+    if (← getUnsolvedGoals).length != 0 then
+      tacticsToPrint := tacticsToPrint.push tac
+      withMainContext $ evalTactic tac
+  let mut (concretizeTacs, simpLemmaNames) := (#[], #[])
+  -- NOTE: `subst` might have removed some of the abstract state hyps,
+  -- so we need to recompute them
   for hyp in (← getAbstractStateHyps) do
     let simpLemmaName := mkIdent $ ← mkFreshBinderNameForTactic stateSimpHypName
     let concreteState := mkIdent $ hyp.userName
     let concretize ← `(tacticSeq|try rcases (@$(mkIdent ``exists_eq') _ ($(mkIdent ``getFrom) $(mkIdent hyp.userName))) with ⟨$concreteState, $simpLemmaName⟩)
     concretizeTacs := concretizeTacs.push concretize
-    simpLemmas := simpLemmas.push simpLemmaName
+    simpLemmaNames := simpLemmaNames.push simpLemmaName
 
   let mut tacticsToExecute := #[]
   for t in concretizeTacs do tacticsToExecute := tacticsToExecute.push t
-  for t in simpLemmas ++ [mkIdent `wpSimp] do tacticsToExecute := tacticsToExecute.push $ ← `(tacticSeq|try simp only [$t:ident] at *)
+  let simpLemmas := mkSimpLemmas $ simpLemmaNames ++ [mkIdent `wpSimp]
+  tacticsToExecute := tacticsToExecute.push $ ← `(tacticSeq|try simp only [$simpLemmas,*] at *)
   tacticsToExecute := tacticsToExecute.push $ ← `(tacticSeq|sdestruct_hyps; try simp only [smtSimp] at *)
-
   if let `(concretizeState| concretize_state?) := tk then
       tacticsToPrint := tacticsToPrint.append tacticsToExecute
       addSuggestion (<- getRef) (← concatTacticSeq tacticsToPrint)
       return
   for t in tacticsToExecute do
-    withMainContext $ evalTactic t
+    if (← getUnsolvedGoals).length != 0 then
+      withMainContext $ evalTactic t
 
 def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent) (thorough :  Bool := true) (traceAt : Option Syntax := none): TacticM (Array Ident × Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) := withMainContext do
   -- (*) Collect executed tactics to generate suggestion

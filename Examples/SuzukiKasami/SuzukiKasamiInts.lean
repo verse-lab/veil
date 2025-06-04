@@ -136,18 +136,20 @@ set_option veil.smt.finiteModelFind false in
 #time #check_invariants
 
 @[invProof]
-  theorem enter_mutex_manual :
-      ∀ (st : @State node) (st' : @State node),
-        (@System node node_dec node_ne).assumptions st →
-          (@System node node_dec node_ne).inv st →
-            (@SuzukiKasamiNats.enter.tr node node_dec node_ne) st st' ->
-              @SuzukiKasamiNats.mutex node node_dec node_ne st' := by
-  intros st st' _ inv
-  simp[enter.tr, invSimp] at *
-  rcases inv with ⟨allowed_crit, one_priv, _⟩
-  rintro n priv req ⟨⟩  N M critN critM; simp at *
-  apply one_priv
-  . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, critN]
-  . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, critM]
+  theorem enter_mutex_manual' :
+    ∀ (st st' : σ),
+      (@System node node_dec node_ne σ σ_substate).assumptions st →
+        (@System node node_dec node_ne σ σ_substate).inv st →
+          (@SuzukiKasamiNats.enter.tr node node_dec node_ne σ σ_substate) st st' →
+            (@SuzukiKasamiNats.mutex node node_dec node_ne σ σ_substate) st' :=
+    by
+    intros st st' _ inv
+    concretize_state
+    simp[enter.tr, invSimp] at *
+    rcases inv with ⟨allowed_crit, one_priv, _⟩
+    rintro n priv req ⟨⟩  N M critN critM; simp only [wpSimp] at *
+    apply one_priv
+    . by_cases h : (N = n) <;> simp [allowed_crit, h, priv, critN]
+    . by_cases h : (M = n) <;> simp [allowed_crit, h, priv, critM]
 
 end SuzukiKasamiNats

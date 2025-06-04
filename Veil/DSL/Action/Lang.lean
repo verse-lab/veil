@@ -199,8 +199,8 @@ elab "[State]" : term => do
 /-- This is used in `require` were we define a predicate over a state.
     Instead of writing `fun st => Pred` this command will pattern match over
     `st` making all its fields accessible for `Pred` -/
-macro "funcases" t:term : term => `(term| by intros st; unhygienic cases st; exact $t)
-macro "funcases" id:ident t:term : term => `(term| by unhygienic cases $id:ident; exact $t)
+macro "funcases" t:term : term => `(term| by intros st; unhygienic cases (getFrom st); exact $t)
+macro "funcases" id:ident t:term : term => `(term| by unhygienic cases (getFrom $id:ident); exact $t)
 
 abbrev doSeq := TSyntax ``Term.doSeq
 abbrev doSeqItem := TSyntax ``Term.doSeqItem
