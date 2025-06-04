@@ -70,8 +70,8 @@ after_init {
 }
 
 action initial_proposal = {
-  let n : node ← fresh
-  let v : proposal_value ← fresh
+  let n : node ← pick
+  let v : proposal_value ← pick
   assume ¬ ∃ V : proposal_value, propose n V
   assume ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
   assume ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
@@ -81,24 +81,24 @@ action initial_proposal = {
 }
 
 action decide_bc_decide_full_val = {
-  let n : node ← fresh
-  let p : phase ← fresh
-  let q : set_majority ← fresh
+  let n : node ← pick
+  let p : phase ← pick
+  let q : set_majority ← pick
   assume decision_bc n p v1
   if v : (∀ (N : node), member_maj N q → propose N v) then
     decision_full_val n p v := True
 }
 
 action decide_bc_decide_full_noval = {
-  let n : node ← fresh
-  let p : phase ← fresh
+  let n : node ← pick
+  let p : phase ← pick
   assume decision_bc n p v0
   decision_full_noval n p := True
 }
 
 action initial_vote1 = {
-  let n : node ← fresh
-  let q : set_majority ← fresh
+  let n : node ← pick
+  let q : set_majority ← pick
   assume ∃ V : proposal_value, propose n V
   assume ∀ P, ¬ ∃ V : state_value, vote_rnd1 n P V
   assume ∀ P, ¬ ∃ V : state_value, vote_rnd2 n P V
@@ -114,9 +114,9 @@ action initial_vote1 = {
 }
 
 action phase_rnd1 = {
-  let n : node ← fresh
-  let p : phase ← fresh
-  let q : set_majority ← fresh
+  let n : node ← pick
+  let p : phase ← pick
+  let q : set_majority ← pick
   assume in_phase n p
   assume ¬ ∃ V : state_value, vote_rnd2 n p V
   assume ∀ (N : node), member_maj N q → ∃ V, vote_rnd1 N p V
@@ -128,10 +128,10 @@ action phase_rnd1 = {
 }
 
 action phase_rnd2 = {
-  let n : node ← fresh
-  let p : phase ← fresh
-  let psucc : phase ← fresh
-  let q : set_majority ← fresh
+  let n : node ← pick
+  let p : phase ← pick
+  let psucc : phase ← pick
+  let q : set_majority ← pick
   assume in_phase n p
   assume ∃ V : state_value, vote_rnd2 n p V
   assume ∀ (N : node), member_maj N q → ∃ V, vote_rnd2 N p V
@@ -155,7 +155,7 @@ action phase_rnd2 = {
         in_phase n psucc := True
         in_phase n p := False
       else
-        let v : state_value ← fresh
+        let v : state_value ← pick
         assume v ≠ vquestion
         coin p v := True
         vote_rnd1 n psucc v := True

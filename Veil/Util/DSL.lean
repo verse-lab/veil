@@ -1,7 +1,7 @@
 import Lean
 import Veil.Model.State
 import Veil.DSL.Internals.StateExtensions
-import Veil.DSL.Action.Theory
+import Veil.Theory.Basic
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -25,9 +25,20 @@ def getStateTpStx [Monad m] [MonadEnv m] [MonadQuotation m] : m Term := do
   let stateTpStx ← spec.generic.stateTpStx
   return stateTpStx
 
+/-- Construct the fully-applied `stateTp` from the local state. -/
+def getReaderTpStx [Monad m] [MonadEnv m] [MonadQuotation m] : m Term := do
+  let spec := (← localSpecCtx.get).spec
+  let readerTpStx ← spec.generic.readerTpStx
+  return readerTpStx
+
 def getStateTpArgsStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (Array Term) := do
   let spec := (← localSpecCtx.get).spec
   let args := spec.generic.stateArguments
+  return args
+
+def getReaderTpArgsStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (Array Term) := do
+  let spec := (← localSpecCtx.get).spec
+  let args := spec.generic.readerArguments
   return args
 
 def getActionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := return (← getScope).varDecls
@@ -236,9 +247,18 @@ def genericStateName : Name := `σ
 /-- The generic state variable. -/
 def genericState : Ident := mkIdent genericStateName
 
+/-- Name of the generic reader variable. -/
+def genericReaderName : Name := `ρ
+/-- The generic reader variable. -/
+def genericReader : Ident := mkIdent genericReaderName
+
 def subStateInstIdent (id : Ident): Ident := mkIdent $ Name.mkSimple s!"{id.getId}_substate"
 def subStateInstIdent' (base : Ident) (other : Ident): Ident := mkIdent $ Name.mkSimple s!"{base.getId}_substate_{other.getId}"
 def genericSubStateIdent : Ident := subStateInstIdent genericState
+
+def subReaderInstIdent (id : Ident): Ident := mkIdent $ Name.mkSimple s!"{id.getId}_reader"
+def subReaderInstIdent' (base : Ident) (other : Ident): Ident := mkIdent $ Name.mkSimple s!"{base.getId}_reader_{other.getId}"
+def genericSubReaderIdent : Ident := subReaderInstIdent genericReader
 
 /-- The DSL sometimes generates names including `.tr`, and we can't
 print these to SMT. -/

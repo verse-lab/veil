@@ -48,8 +48,8 @@ action join_round (n:node) (r:round) = {
     require r ≠ none
     require one_a r
     require ¬ left_rnd n r
-    let maxr : round ← fresh
-    let v : value ← fresh
+    let maxr : round ← pick
+    let v : value ← pick
       -- find the maximal vote in a round less than r
     require (maxr = none ∧ ∀ (mAXR:round) (v':value), ¬ (¬ tot.le r mAXR ∧ vote n mAXR v')) ∨
                     (maxr ≠ none ∧ ¬ tot.le r maxr ∧ vote n maxr v ∧
@@ -63,8 +63,8 @@ action propose (r : round) (q : quorum) = {
   require r ≠ none
   require ∀ V, ¬ proposal r V
   require ∀ (N:node), member N q -> one_b N r
-  let maxr : round ← fresh
-  let v : value ← fresh
+  let maxr : round ← pick
+  let v : value ← pick
       -- find the maximal vote in a round less than r
   require ∀ N, (maxr = none ∧ ∀ (n : node) (mAXR:round) (v':value), ¬ (member n q ∧ ¬ tot.le r mAXR ∧ vote n mAXR v')) ∨
                     (maxr ≠ none ∧

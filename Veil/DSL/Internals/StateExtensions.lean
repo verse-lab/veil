@@ -62,6 +62,18 @@ initialize globalSpecCtx :
     addEntry := fun s (n, thm) => s.insert n thm
   }
 
+structure AssertCtx where
+  maxId : Nat
+  map   : Std.HashMap Nat Syntax
+deriving Inhabited
+
+initialize assertsCtx :
+  SimpleScopedEnvExtension Syntax AssertCtx <-
+  registerSimpleScopedEnvExtension {
+    initial := { maxId := 0, map := ∅ }
+    addEntry := fun s stx => { s with maxId := s.maxId + 1, map := s.map.insert s.maxId stx }
+  }
+
 /-- Record the local specification in the global specification context. -/
 def registerModuleSpecification : AttrM Unit := do
   let lctx := <- localSpecCtx.get

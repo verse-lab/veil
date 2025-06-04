@@ -5,7 +5,7 @@ import Veil.Util.DSL
 import Veil.DSL.Base
 import Veil.DSL.Internals.StateExtensions
 import Veil.DSL.Action.Syntax
-import Veil.DSL.Action.Theory
+import Veil.Theory.WP
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -17,45 +17,6 @@ define initializers and actions.
 
 section Veil
 
-attribute [actSimp] modify modifyGet MonadStateOf.modifyGet get
-  getThe MonadStateOf.get MonadStateOf.set instMonadStateOfMonadStateOf
-  -- instMonadStateOfWp
-  instMonadStateOfWpOfIsSubStateOf instIsSubStateOf
-
-macro "unfold_wp" : conv =>
-  `(conv| unfold
-    -- unfold actions defined via Veil do-notation
-    Wp.pure
-    Wp.bind
-    Wp.assume
-    Wp.assert
-    Wp.require
-    Wp.fresh
-    Wp.get
-    -- unfold state monad actions
-    set
-    modify
-    modifyGet
-    get
-    instMonadStateOfMonadStateOf
-    getThe
-    MonadStateOf.modifyGet
-    MonadStateOf.get
-    MonadStateOf.set
-    -- unfold specifications
-    Wp.spec
-    -- unfold actions defined by conversion
-    Wp.toWlp
-    Wp.toBigStep
-    Wp.toTwoState
-    BigStep.toWp
-    Function.toWp
-    -- unfold actions definded via lifting
-    monadLift
-    instMonadLiftTOfMonadLift
-    MonadLift.monadLift
-    instMonadLiftWpOfIsSubStateOf
-    instMonadLiftT)
 
 partial def getCapitals (s : Syntax) :=
   let rec loop  (acc : Array $ TSyntax `ident ) (s : Syntax) : Array $ TSyntax `ident :=
@@ -196,6 +157,15 @@ elab "[State]" : term => do
     let stateTpStx ← getStateTpStx
     elabTerm (<- `(term|$stateTpStx)) none
 
+/-- In some cases, during the macro expansion, we need to annotate certain
+    arguments with the immutable state type. To get the state type, we need an access to an
+    eviorment with we don't have at the macro-expansion stage. To overcome this, we
+    introduce the following notation, witch gets resolved to a current immutable state type
+    during the elaboration stage  -/
+elab "[Reader]" : term => do
+    let readerTpStx ← getReaderTpStx
+    elabTerm (<- `(term|$readerTpStx)) none
+
 /-- This is used in `require` were we define a predicate over a state.
     Instead of writing `fun st => Pred` this command will pattern match over
     `st` making all its fields accessible for `Pred` -/
@@ -209,7 +179,7 @@ structure Vars where
   name : Ident
   type : Term
 
-abbrev VeilM := StateT (Array Vars) TermElabM
+abbrev VeilElabM := StateT (Array Vars) TermElabM
 
 /-- Used when first declaring the variables. -/
 def getStateDestructorPattern [Monad m] [MonadEnv m] [MonadQuotation m]: m (TSyntax `term) := do
@@ -223,12 +193,12 @@ def getStateAccessorPattern [Monad m] [MonadEnv m] [MonadQuotation m]: m (TSynta
   `(term|⟨$fields:term,*⟩)
 
 mutual
-partial def expandDoSeqVeil (stx : doSeq) : VeilM (Array doSeqItem) :=
+partial def expandDoSeqVeil (stx : doSeq) : VeilElabM (Array doSeqItem) :=
   match stx with
   | `(doSeq| $doS:doSeqItem*) => return Array.flatten $ ← doS.mapM expandDoElemVeil
   | _ => throwErrorAt stx s!"unexpected syntax of Veil `do`-notation sequence {stx}"
 
-partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
+partial def expandDoElemVeil (stx : doSeqItem) : VeilElabM (Array doSeqItem) := do
   trace[veil.debug] "[expand doElem] {stx}"
   match stx with
   -- Ignore semicolons
@@ -236,15 +206,20 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
   -- We don't want to introduce state updates after pure statements, so
   -- we pass these through unchanged
   | `(Term.doSeqItem| return $t:term) | `(Term.doSeqItem| pure $t:term)
-  | `(Term.doSeqItem| require $t) | `(Term.doSeqItem| assert $t) | `(Term.doSeqItem| assume $t) => return #[stx]
-  -- `fresh` also doesn't modify the state, so we pass these through unchanged
-  | `(Term.doSeqItem|let $_ : $_ ← fresh $_) | `(Term.doSeqItem|let $_ : $_ ← fresh)
-  | `(Term.doSeqItem|let $_ ← fresh $_) | `(Term.doSeqItem|let $_ ← fresh) => return #[stx]
+  | `(Term.doSeqItem| require $t)
+  | `(Term.doSeqItem| assert $t)
+  | `(Term.doSeqItem| assume $t) => return #[stx]
+  -- `pick` also doesn't modify the state, so we pass these through unchanged
+  | `(Term.doSeqItem|let $_ : $_ ← pick $_)
+  | `(Term.doSeqItem|let $_ : $_ ← pick)
+  | `(Term.doSeqItem|let $_ ← pick $_)
+  | `(Term.doSeqItem|let $_ ← pick) => return #[stx]
+  -- `pickSuchThat` also doesn't modify the state, so we pass these through unchanged
+  | `(Term.doSeqItem|let $_ :| $_) => return #[stx]
   -- Expand `if` statements
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
-    let fs <- `(Term.doSeqItem| let $h:ident <- fresh)
-    let t' <- `(Term.doSeqItem| assume $t)
-    let thn := fs :: t' :: thn.toList |>.toArray
+    let fs <- `(Term.doSeqItem| let $h:ident :| $t:term)
+    let thn := fs :: thn.toList |>.toArray
     expandDoElemVeil $ <-
       `(Term.doSeqItem| if (∃ $h:ident, $t) then $thn* else $els)
   | `(Term.doSeqItem| if $t:term then $thn:doSeq) =>
@@ -260,13 +235,13 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
   -- Expand non-deterministic assignments statements
   | `(Term.doSeqItem| $id:ident := *) =>
     let typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
-    let fr := mkIdent <| <- mkFreshUserName `fresh
+    let fr := mkIdent <| <- mkFreshUserName `pick
     modify (·.push ⟨fr, typeStx.getD (<- `(_))⟩)
     expandDoElemVeil $ <- `(Term.doSeqItem|$id:ident := $fr)
   | `(Term.doSeqItem| $idts:term := *) =>
     let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
     let typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
-    let fr := mkIdent <| <- mkFreshUserName `fresh
+    let fr := mkIdent <| <- mkFreshUserName `pick
     modify (·.push ⟨fr, typeStx.getD (<- `(_))⟩)
     expandDoElemVeil $ <- `(Term.doSeqItem|$idts:term := $fr:ident $ts*)
   -- Expand deterministic assignments statements
@@ -311,22 +286,22 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
   | `(Term.doSeqItem|$t:term) =>
     let b := mkIdent <| <- mkFreshUserName `_b
     let bind <- `(Term.doSeqItem| let $b:ident ← $t:term)
-    return #[bind] ++ (← refreshState) ++ #[← `(Term.doSeqItem| pure $b:ident)]
+    return #[bind] ++ (← repickState) ++ #[← `(Term.doSeqItem| pure $b:ident)]
   -- For everything else, we just update the state afterwards (return
   -- value is `Unit`)
   | doE =>
     trace[veil.debug] "[expand just a doElem] {stx}"
-    return #[doE] ++ (← refreshState)
+    return #[doE] ++ (← repickState)
 where
-refreshState : VeilM (Array doSeqItem) := do
+repickState : VeilElabM (Array doSeqItem) := do
   let pattern ← getStateAccessorPattern
-  let refresh ← `(Term.doSeqItem| $pattern:term := ← get)
-  return #[refresh]
+  let repick ← `(Term.doSeqItem| $pattern:term := ← get)
+  return #[repick]
 end
 
 /-- Elaborate the given `stx` with resulting state type `stateTp` by
 treating `require`'s in the way described by `mode`. -/
-elab (name := VeilDo) "do'" mode:term "as" stateTp:term "in" stx:doSeq : term => do
+elab (name := VeilDo) "do'" mode:term "as" stateTp:term "," readerTp:term "in" stx:doSeq : term => do
   /- Array containing all auxilary let-bingings to be inserted in the
     beginning of the `do`-block. It consists of
     - `let mut field := (<- get). field` for each field of the protocol state. We do this
@@ -336,7 +311,7 @@ elab (name := VeilDo) "do'" mode:term "as" stateTp:term "in" stx:doSeq : term =>
       submodules. As for each submodule, the previous step defines a local variable
       `submodule`, `submodule.act` will be treated as an access to `submodule`'s field `act`,
       rather than an action `act` operation on `submodule`
-    - `let freshName <- fresh` for each non-deterministic assigment. We hoist all fresh
+    - `let pickName <- pick` for each non-deterministic assigment. We hoist all pick
       variables to make all the quantifiers top level -/
   let mut preludeAssn : Array doSeqItem := #[]
   let doS <- match stx with
@@ -351,20 +326,36 @@ elab (name := VeilDo) "do'" mode:term "as" stateTp:term "in" stx:doSeq : term =>
   -- Make available state fields as mutable variables
   let pattern ← getStateDestructorPattern
   preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let mut $pattern:term := (<- get))
-  -- We hoist all fresh variables to make all the quantifiers top level
+  -- We hoist all pick variables to make all the quantifiers top level
   -- Here we add them to the prelude, as immutable variables
   for v in vars do
-    preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- fresh $v.type)
+    preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- pick $v.type)
   let doS := preludeAssn.append doS
   trace[veil.debug] "{stx}\n→\n{doS}"
-  elabTerm (<- `(term| ((do $doS*) : Wp $mode $stateTp _))) none
+  elabTerm (<- `(term| ((do $doS*) : VeilM $mode $stateTp $readerTp _))) none
+
+elab_rules : term
+  | `(assert $t) => do
+    let ctx ← assertsCtx.get
+    let id := ctx.maxId
+    let stx <- getRef
+    assertsCtx.modify fun ctx => { ctx with
+      maxId := id + 1
+      map := ctx.map.insert id stx }
+    withRef stx $ elabTerm (<- `(term| VeilM.assert $t $(Syntax.mkNatLit id))) none
+  | `(require $t) => do
+    let ctx ← assertsCtx.get
+    let id := ctx.maxId
+    let stx <- getRef
+    assertsCtx.modify fun ctx => { ctx with
+      maxId := id + 1
+      map := ctx.map.insert id stx }
+    withRef stx $ elabTerm (<- `(term| VeilM.require $t $(Syntax.mkNatLit id))) none
 
 macro_rules
-  | `(require $t) => `(Wp.require $t)
-  | `(assert  $t) => `(Wp.assert $t)
-  | `(assume  $t) => `(Wp.assume $t)
-  | `(fresh   $t) => `(Wp.fresh  $t)
-  | `(fresh)      => `(Wp.fresh  _)
+  | `(assume  $t) => `(MonadNonDet.assume $t)
+  | `(pick   $t)  => `(MonadNonDet.pick  $t)
+  | `(pick)       => `(MonadNonDet.pick  _)
 
 /- Ensures statement -/
 
@@ -422,8 +413,6 @@ elab_rules : term
          exact $post ∧ [unchanged|"_old"|$ids*]))
     trace[veil.debug] "spec stx with unchanged: {stx}"
     elabTerm stx none
-
-attribute [actSimp] Bind.bind Pure.pure
 
 /- We need those to simplify `Wp` goals  -/
 attribute [ifSimp] ite_self ite_then_self ite_else_self if_true_left

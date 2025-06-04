@@ -128,8 +128,8 @@ action change_ballot (n : node) (b : ballot) = {
   require ¬ left_ballot n b ∧ ¬ started n b
   left_ballot n B := lt B b
   started n b := True
-  let bmax : ballot ← fresh
-  let vmax : value ← fresh
+  let bmax : ballot ← pick
+  let vmax : value ← pick
   require
     ((∀ B V, lt B b → ¬ confirmed_prepared n B V) ∧ nomination_output n vmax) ∨
     (lt bmax b ∧ confirmed_prepared n bmax vmax ∧

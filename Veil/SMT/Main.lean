@@ -1,17 +1,4 @@
-import Lean
-import Auto
-import Smt
-
-import Veil.SMT.Base
-import Veil.SMT.Translation
 import Veil.SMT.Solver
-import Veil.Util.Meta
-
-/- Not actually used here, but re-exported. -/
-import Veil.SMT.Preparation
-import Veil.SMT.Quantifiers.Elimination
-import Veil.SMT.Model
-
 namespace Veil.SMT
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/

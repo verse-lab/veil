@@ -63,6 +63,24 @@ def VeilExecM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilExecM m σ ρ Un
 def VeilM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilM m σ ρ Unit := do
   liftM (@VeilExecM.assert m σ ρ p _ ex)
 
+def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m σ ρ Unit := do
+  match m with
+  | .internal => VeilM.assert p ex
+  | .external => assume p
+
+@[wpSimp]
+lemma VeilExecM.wp_assume :
+  wp (assume p : VeilM m σ ρ PUnit) post = fun r s => p -> post .unit r s := by
+  simp [MonadNonDet.wp_assume, loomLogicSimp, himp];
+
+@[wpSimp]
+lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId) :
+  wp (require p ex : VeilM m σ ρ Unit) post =
+    match m with
+    | .internal => wp (VeilM.assert p ex : VeilM m σ ρ Unit) post
+    | .external => wp (assume p : VeilM m σ ρ PUnit) post := by
+  cases m <;> rfl
+
 
 @[wpSimp]
 lemma VeilExecM.wp_assert (p : Prop) [Decidable p] (ex : ExId) :
@@ -99,11 +117,6 @@ lemma VeilExecM.wp_read [IsSubStateOf ρₛ ρ] :
   erw [ReaderT.wp_read]
 
 @[wpSimp]
-lemma VeilExecM.wp_assume :
-  wp (assume p : VeilM m σ ρ PUnit) post = fun r s => p -> post .unit r s := by
-  simp [MonadNonDet.wp_assume, loomLogicSimp, himp];
-
-@[wpSimp]
 lemma VeilM.wp_pick :
   wp (pick τ : VeilM m σ ρ τ) post = fun r s => ∀ t, post t r s := by
   simp [MonadNonDet.wp_pick, loomLogicSimp, himp, iInf, sInf]; aesop
@@ -112,5 +125,11 @@ lemma VeilM.wp_pick :
 lemma VeilM.wp_pickSuchThat :
   wp (pickSuchThat τ p : VeilM m σ ρ τ) post = fun r s => ∀ t, p t -> post t r s := by
   simp [MonadNonDet.wp_pickSuchThat, loomLogicSimp, himp, iInf, sInf]; aesop
+
+@[wpSimp]
+lemma VeilM.wp_if [Decidable p] :
+  wp (if p then a else b : VeilM m σ ρ τ) post =
+  if p then wp a post else wp b post := by
+  split_ifs <;> simp
 
 attribute [wpSimp] wp_pure wp_bind wp_map wp_bind

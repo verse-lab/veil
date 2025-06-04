@@ -26,8 +26,8 @@ action foo (x : node) = {
   pure ()
 }
 
-action fresh_node (yy : node) = {
-  let n <- fresh node
+action pick_node (yy : node) = {
+  let n <- pick node
   nd := n
 }
 
@@ -54,7 +54,7 @@ after_init {
 }
 
 action g = {
-  -- let n <- fresh node'
+  -- let n <- pick node'
   -- test.r' N n := True
   r'' := test.r
   r'' := test'.r

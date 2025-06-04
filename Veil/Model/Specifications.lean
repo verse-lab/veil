@@ -271,6 +271,15 @@ structure ModuleParameters where
   /-- Syntax representing the type of the transition system state,
   *without* having applied the state-specific section variables. -/
   stateTypeTerm : Term
+  /-- Expression representing the type of the transition system
+  immutable state, *without* having applied the state-specific
+  section variables. -/
+  readerType     : Expr
+  /-- Syntax representing the type of the transition system
+  immutable state, *without* having applied the state-specific
+  section variables. -/
+  readerTypeTerm : Term
+
 
   /-- Syntax representing the arguments of the state type, which need
   to be passed in order to fully instantiate it. The index is the
@@ -278,10 +287,23 @@ structure ModuleParameters where
   parameters that exist when `#gen_state` is called, ignoring the
   typeclass parameters. -/
   stateArgs     : Array (Nat × Term)
+  /-- Syntax representing the arguments of the immutable state type,
+  which need to be passed in order to fully instantiate it. The index
+  is the position of the argument in `parameters`. These are the `Type`
+  parameters that exist when `#gen_state` is called, ignoring the
+  typeclass parameters. -/
+  readerArgs     : Array (Nat × Term)
+
+  /-- Assertion parameters, as indices into `parameters`. These are all
+  the parameters that exist when `#gen_spec` is called. -/
+  assertionParams : Std.HashSet Nat
 deriving Inhabited
 
 def ModuleParameters.stateArguments (mp : ModuleParameters) : Array Term :=
   mp.stateArgs.map (fun (_, arg) => arg)
+
+def ModuleParameters.readerArguments (mp : ModuleParameters) : Array Term :=
+  mp.readerArgs.map (fun (_, arg) => arg)
 
 def ModuleParameters.stateArgIndices (mp : ModuleParameters) : Std.HashSet Nat :=
   Std.HashSet.ofArray (mp.stateArgs.map (fun (idx, _) => idx))
@@ -320,6 +342,13 @@ def ModuleParameters.stateTpStx [Monad m] [MonadQuotation m] (mp : ModuleParamet
   let stateTp := mp.stateTypeTerm
   let args := mp.stateArguments
   let stx ← `(term|@$stateTp $args*)
+  return stx
+
+/--Fully-applied `readerTp` from the local state. -/
+def ModuleParameters.readerTpStx [Monad m] [MonadQuotation m] (mp : ModuleParameters) : m Term := do
+  let readerTp := mp.readerTypeTerm
+  let args := mp.readerArguments
+  let stx ← `(term|@$readerTp $args*)
   return stx
 
 /-- Modules can depend on other modules, which must be fully-instantiated with

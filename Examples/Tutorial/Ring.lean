@@ -202,7 +202,7 @@ action recv (id n next : node) = {
 
   /- This is equivalent to the following Veil code:
   ```lean
-  let isPresent ← fresh
+  let isPresent ← pick
   pending id n := isPresent
   ```
 
@@ -210,7 +210,7 @@ action recv (id n next : node) = {
   `pending ID N := *` (the entirety of the `pending` relation is now
   indeterminate), i.e.:
   ```lean
-  let newPending ← fresh
+  let newPending ← pick
   pending := newPending
   ```
   -/

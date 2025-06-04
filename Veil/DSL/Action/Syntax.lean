@@ -13,7 +13,7 @@ declare_syntax_cat veilActionKeyword
 syntax (name := kw_require) "require" : veilActionKeyword
 syntax (name := kw_assume) "assume" : veilActionKeyword
 syntax (name := kw_assert) "assert" : veilActionKeyword
-syntax (name := kw_fresh) "fresh" : veilActionKeyword
+syntax (name := kw_pick) "pick" : veilActionKeyword
 
 /-- Precondition -/
 syntax (name := kw_requires) "requires" : veilActionKeyword
@@ -33,33 +33,25 @@ When an action including `require` is called by the environment, this
 behaves like an `assume`. When it is called by another action, this
 behaves like an `assert`: the caller must ensure that `P` holds.
 
-In particular, if you do `let x ← fresh` and want to constrain the
-value obtained, you should use `assume`, not `require`, e.g.:
-
-```lean
-let x ← fresh Nat
-assume (x < 10)
-```
-
 If you have inconsistent `require` statements, your action will not
 admit any executions. -/
 syntax (name := requireStatement) kw_require term : term
 
 /-- `assert P` means that `P` must hold on every execution that reaches
 this statement. If `P` does not hold, this execution fails. -/
-syntax (name := assertStatement) kw_assert term : term
+syntax (name := assertStatement) (priority := high) kw_assert term : term
 
 /-- `assume P` ignores executions that do not satisfy `P`. BE CAREFUL
 when making assumptions, as inconsistent assumptions will eliminate ALL
 executions, making your specification vacuous. -/
 syntax (name := assumeStatement) kw_assume term : term
 
-/-- `fresh` creates a non-deterministic, arbitrary value of the given
+/-- `pick` creates a non-deterministic, arbitrary value of the given
 type `ty`, which is optional. If no type is provided, it is inferred.
 
-We recommend giving type annotations when possible, e.g. `fresh Nat`,
+We recommend giving type annotations when possible, e.g. `pick Nat`,
 as type inference failures might lead to confusing error messages. -/
-syntax (name := freshExpression) kw_fresh (lineEq term) ? : term
+syntax (name := pickExpression) kw_pick (lineEq term) ? : term
 
 syntax (name := havocAssignment) (priority := high) atomic(term ":=" "*") : doElem
 

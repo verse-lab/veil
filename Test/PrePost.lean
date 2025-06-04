@@ -19,7 +19,7 @@ action foo (k : Nat) =
   requires ∀ x, r x k
   ensures True
 {
-  let x <- fresh node
+  let x <- pick node
   require r x k
 }
 
@@ -28,7 +28,7 @@ procedure foobar (k : Nat) =
   requires ∀ x, r x k
   ensures True
 {
-  let x <- fresh node
+  let x <- pick node
   require r x k
 }
 

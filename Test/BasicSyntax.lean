@@ -16,7 +16,7 @@ action foo (k : Nat) =
   requires ∀ x, r x k
   ensures True
 {
-  let x <- fresh node
+  let x <- pick node
   -- return x
   require r x k
 }
@@ -37,7 +37,7 @@ action foo2 (k : Nat) = {
 
 #guard_msgs(drop warning) in
 action foo3 (k : Nat) = {
-  let x <- fresh node
+  let x <- pick node
   n := x
   let mut y := f 0 = 7
   let mut z := r x k

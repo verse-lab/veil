@@ -27,14 +27,14 @@ after_init {
 
 #guard_msgs in
 action succ (n : seq_t) = {
-  let k : seq_t ← fresh;
+  let k : seq_t ← pick;
   require seq.next k n;
   return k
 }
 
 #guard_msgs in
 action return_two (n : seq_t) = {
-  let m ← fresh seq_t
+  let m ← pick seq_t
   return (n, m)
 }
 

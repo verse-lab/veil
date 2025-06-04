@@ -1,7 +1,8 @@
 import Lean.Elab.Tactic
 import Veil.Util.DSL
-import Veil.SMT.Main
-import Veil.DSL.Action.Lang -- TODO: can we remove this?
+-- import Veil.SMT.Main
+-- import Veil.Theory.Basic
+-- import Veil.DSL.Action.Lang -- TODO: can we remove this?
 
 open Lean Lean.Elab
 
@@ -36,6 +37,7 @@ elab _tk:"conv! " conv:conv " => " e:term : term => do
   )
   return rhs
 
+/-
 /-- We use this to evaluate `wp` inside function bodies at definition time.
   Otherwise it has to be evaluated in the kernel during proofs, which is very slow.
   `conv!` applies a tactic to a term. -/
@@ -68,3 +70,4 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
         simp only [$wpSimp:ident, $smtSimp:ident, $logicSimp:ident];
         simp only [$quantifierSimp:ident]) => $t; exact t) | exact $t)
   return t'
+-/

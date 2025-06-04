@@ -37,7 +37,7 @@ after_init {
 
 action send_1a = {
   -- a proposer selects a round and sends a message asking nodes to join the round
-  let r : round ← fresh
+  let r : round ← pick
   require r ≠ none;
   one_a r := True
 }
@@ -47,8 +47,8 @@ action join_round (n:node) (r:round) = {
     require r ≠ none;
     require one_a r;
     require ¬(∃ (r':round) (rMAX:round) (v:value), one_b_max_vote n r' rMAX v ∧ ¬ tot.le r' r);
-    let maxr : round ← fresh
-    let v : value ← fresh
+    let maxr : round ← pick
+    let v : value ← pick
       -- find the maximal vote in a round less than r
     require ((maxr = none ∧ ∀ (mAXR:round) (v':value), ¬ (¬ tot.le r mAXR ∧ vote n mAXR v')) ∨
                     (maxr ≠ none ∧ ¬ tot.le r maxr ∧ vote n maxr v ∧
@@ -63,8 +63,8 @@ action propose (r : round) (q: quorum) = {
     require r ≠ none;
     require ∀ V, ¬ proposal r V;
     require ∀ (n:node), member n q -> ∃ (r':round) (v:value), one_b_max_vote n r r' v;
-    let maxr : round ← fresh
-    let v : value ← fresh
+    let maxr : round ← pick
+    let v : value ← pick
     -- find the maximal max_vote in the quorum
     require ((maxr = none ∧ ∀ (n:node) (mAXR:round) (v:value), ¬ (member n q ∧ one_b_max_vote n r mAXR v ∧ mAXR ≠ none)) ∨
                     (maxr ≠ none ∧

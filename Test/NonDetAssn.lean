@@ -24,13 +24,13 @@ fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ
 #guard_msgs in
 #print nondet_individual
 
-action quantify_fresh (n : node) = {
-  -- let n <- fresh node
+action quantify_pick (n : node) = {
+  -- let n <- pick node
   r n N := *
 }
 
 /--
-info: def Test.quantify_fresh : {node : Type} →
+info: def Test.quantify_pick : {node : Type} →
   [node_dec : DecidableEq node] →
     [node_ne : Nonempty node] →
       {σ : Type} → [σ_substate : IsSubStateOf (State node) σ] → node → Wp Mode.internal σ PUnit :=
@@ -39,7 +39,7 @@ fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ
     post PUnit.unit (setIn { x := (getFrom s).x, r := fun x N => if x = n then t n N else (getFrom s).r x N } s)
 -/
 #guard_msgs in
-#print quantify_fresh
+#print quantify_pick
 
 action double_quant = {
   r N N := *
@@ -65,13 +65,13 @@ def top_level (n : node) := do' .external as [State] in
   return r
 
 def top_level' (n : node) := do' .external as [State]in
-  let freshR <- fresh node -> node -> Prop
-  let freshR' <- fresh node -> node -> Prop
+  let pickR <- pick node -> node -> Prop
+  let pickR' <- pick node -> node -> Prop
   require x
   if x then
-    r N N := freshR N N
+    r N N := pickR N N
   else
-    r n n := freshR' n n
+    r n n := pickR' n n
   return r
 
 example : top_level = top_level' := rfl

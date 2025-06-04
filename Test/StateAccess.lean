@@ -21,13 +21,13 @@ error: Error in action Test.initializer: individual b in module Test was declare
 -/
 #guard_msgs in
 after_init {
-  let b' ← fresh block
+  let b' ← pick block
   b := b'
 }
 
 #guard_msgs in
 action with_block (b : block) = {
-  let b' ← fresh block
+  let b' ← pick block
   return (b, b')
 }
 
@@ -41,7 +41,7 @@ error: Error in action Test.try_assign_immutable: individual b in module Test wa
 -/
 #guard_msgs in
 action try_assign_immutable = {
-  let b' ← fresh block
+  let b' ← pick block
   b := b'
 }
 

@@ -23,16 +23,16 @@ after_init {
 }
 
 action send = {
-  let n : node ← fresh
-  let next : node ← fresh
+  let n : node ← pick
+  let next : node ← pick
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := True
 }
 
 action recv = {
-  let sender : node ← fresh
-  let n : node ← fresh
-  let next : node ← fresh
+  let sender : node ← pick
+  let n : node ← pick
+  let next : node ← pick
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   require pending sender n
   -- message may or may not be removed

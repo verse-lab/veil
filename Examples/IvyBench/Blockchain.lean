@@ -63,7 +63,7 @@ action byzantine_broadcast (n : node) (b : block) (t : time) = {
   require ∀ TR T, honest n ∧ transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n → transaction_in_block TR b;
   require ∀ TR T, honest n ∧ transaction_in_block TR b → transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n;
   --  why doesn't `block_confirmed N B t := *` work here?
-  -- let havoc <- fresh
+  -- let havoc <- pick
   block_confirmed N B t := *
   broadcasted n := True;
   broadcastable n b t := False;

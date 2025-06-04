@@ -34,7 +34,7 @@ relation crit : node → Prop
 #gen_state
 
 action succ (n : seq_t) = {
-  let k : seq_t ← fresh
+  let k : seq_t ← pick
   assume seq.next n k;
   return k
 }

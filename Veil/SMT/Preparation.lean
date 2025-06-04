@@ -47,11 +47,11 @@ attribute [smtSimp] funextEq
 
 private def uniqueBinder (e : Expr) : MetaM Expr := do
   match e with
-  | .forallE bn bt body bi => return .forallE (← freshBinderName bn) bt body bi
-  | .lam bn bt body bi => return .lam (← freshBinderName bn) bt body bi
-  | .letE n t v b nd => return .letE (← freshBinderName n) t v b nd
+  | .forallE bn bt body bi => return .forallE (← pickBinderName bn) bt body bi
+  | .lam bn bt body bi => return .lam (← pickBinderName bn) bt body bi
+  | .letE n t v b nd => return .letE (← pickBinderName n) t v b nd
   | _ => return e
-  where freshBinderName (bn : Name) := do
+  where pickBinderName (bn : Name) := do
     let ids := (← smtExt.get).binderIds
     let id := ids.getD bn 0
     let bn' := if id == 0 then bn else Name.mkSimple s!"{bn}{id}"
@@ -84,10 +84,10 @@ elab "rename_binders" : tactic => do
   let goal' ← goal.replaceTargetDefEq' goalType'
   setGoals [goal']
 
-/-- Workaround for
+/- Workaround for
 [lean-smt#121](https://github.com/ufmg-smite/lean-smt/issues/121). The
 fix implemented there seems unreliable. -/
-@[smtSimp] theorem iff_eq_eq : (p ↔ q) = (p = q) := propext ⟨propext, (· ▸ ⟨(·), (·)⟩)⟩
+attribute [smtSimp] iff_eq_eq
 
 /-- Tuples are not supported in SMT-LIB, so we destruct tuple equalities. -/
 @[smtSimp] theorem tupleEq [DecidableEq t1] [DecidableEq t2] (a c : t1) (b d : t2):
@@ -133,7 +133,7 @@ attribute [logicSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
   by_cases c <;> simp_all
 
 /-! ## distributivity -/
-attribute [logicSimp] not_or not_imp not_and not_if -- Classical.not_forall
+attribute [logicSimp] not_or Classical.not_imp not_and not_if -- Classical.not_forall
 /-! ## Ite -/
 theorem if_app {α β : Type} {_ : Decidable c} (t e : α -> β) (a : α) :
   (if c then t else e) a =

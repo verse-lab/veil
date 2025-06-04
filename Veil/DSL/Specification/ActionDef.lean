@@ -8,9 +8,6 @@ import Veil.Util.TermSimp
 
 open Lean Elab Command Term Meta Lean.Parser
 
-def wpUnfold := [``Wp.bind, ``Wp.pure, ``Wp.get, ``Wp.set, ``Wp.modifyGet,
-  ``Wp.assert, ``Wp.assume, ``Wp.require, ``Wp.spec, ``Wp.lift, ``Wp.toTwoState]
-
 def toActionKind (stx : TSyntax `actionKind) : ActionKind :=
   match stx with
   | `(actionKind|input) => ActionKind.input
@@ -121,8 +118,8 @@ where
   genGenerator (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
     let genName := toGenName baseName mode
     let genl ← match mode with
-    | Mode.internal => do `(fun $funBinders* => do' .internal as $genericState in $l)
-    | Mode.external => do `(fun $funBinders* => do' .external as $genericState in $l)
+    | Mode.internal => do `(fun $funBinders* => do' .internal as $genericState, $genericReader in $l)
+    | Mode.external => do `(fun $funBinders* => do' .external as $genericState, $genericReader in $l)
     try
       withoutErrToSorry $ do
       let genExp <- withDeclName genName do elabTermAndSynthesize genl none

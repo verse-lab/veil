@@ -49,36 +49,36 @@ action call_with_if = {
 }
 
 #guard_msgs in
-action with_if_fresh = {
+action with_if_pick = {
   if (x) then
-    let m ← fresh node
+    let m ← pick node
     r N m := False
 }
 
 #guard_msgs in
 action ff = {
-  with_if_fresh
+  with_if_pick
   -- x := False
 }
 
 #guard_msgs in
-action with_if_fresh_more = {
+action with_if_pick_more = {
   if (x) then
-    let m ← fresh node
+    let m ← pick node
     r N m := False
     require x
 }
 
 #guard_msgs in
-action call_with_if_fresh_more = {
+action call_with_if_pick_more = {
   if x then
-    with_if_fresh_more
+    with_if_pick_more
   -- x := False
 }
 
 #guard_msgs in
 action nested_call = {
-  call_with_if_fresh_more
+  call_with_if_pick_more
   -- x := False
 }
 
@@ -111,7 +111,7 @@ action nondet_assgn (m : node) = {
 
 #guard_msgs in
 action call_nondet_assgn = {
-  let m ← fresh node;
+  let m ← pick node;
   if x then
       nondet_assgn m;
   else
@@ -120,12 +120,12 @@ action call_nondet_assgn = {
 
 #guard_msgs in
 action call_nondet_assgn' = {
-  let m ← fresh node;
+  let m ← pick node;
   if x then
     nondet_assgn m;
     call_nondet_assgn
   else
-    let n ← fresh node;
+    let n ← pick node;
     nondet_assgn n
     r N M := *;
 }

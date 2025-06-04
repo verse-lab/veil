@@ -14,39 +14,39 @@ relation r : block -> block -> Prop
 #gen_state
 
 #guard_msgs in
-action fresh_with_type = {
-  let b ← fresh block
+action pick_with_type = {
+  let b ← pick block
 }
 
 /-- info: true -/
 #guard_msgs in
-#eval isElaboratedCorrectly ``fresh_with_type
+#eval isElaboratedCorrectly ``pick_with_type
 
 #guard_msgs in
-action fresh_with_lhs_type = {
-  let b : block ← fresh
+action pick_with_lhs_type = {
+  let b : block ← pick
 }
 
 /-- info: true -/
 #guard_msgs in
-#eval isElaboratedCorrectly ``fresh_with_lhs_type
+#eval isElaboratedCorrectly ``pick_with_lhs_type
 
 #guard_msgs in
-action fresh_with_lhs_type_ok = {
-  let b : block ← (fresh)
-  let q : queue ← fresh
+action pick_with_lhs_type_ok = {
+  let b : block ← (pick)
+  let q : queue ← pick
 }
 
 /-- info: true -/
 #guard_msgs in
-#eval isElaboratedCorrectly ``fresh_with_lhs_type_ok
+#eval isElaboratedCorrectly ``pick_with_lhs_type_ok
 
 #guard_msgs in
-action fresh_with_lhs_type_2 = {
-  let b : block ← fresh
-  let q : queue ← fresh
+action pick_with_lhs_type_2 = {
+  let b : block ← pick
+  let q : queue ← pick
 }
 
 /-- info: true -/
 #guard_msgs in
-#eval isElaboratedCorrectly ``fresh_with_lhs_type_2
+#eval isElaboratedCorrectly ``pick_with_lhs_type_2

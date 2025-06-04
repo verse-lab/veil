@@ -21,7 +21,7 @@ after_init {
 }
 
 action random_switch = {
-  let s ← fresh switch_state
+  let s ← pick switch_state
   state := s
 }
 
@@ -69,7 +69,7 @@ after_init {
 }
 
 action random_switch = {
-  let s ← fresh one_elem
+  let s ← pick one_elem
   state := s
 }
 

@@ -93,7 +93,7 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
       let isExists ← whnfIsAppOf hyp.type ``Exists
       if isExists then
         let lctx ← getLCtx
-        -- we want the new hypotheses to have fresh names so they're
+        -- we want the new hypotheses to have pick names so they're
         -- not included in the ignore list, hence we don't reuse `$name`
         let x := mkIdent $ lctx.getUnusedName (← existsBinderName hyp.type)
         let name' := mkIdent $ lctx.getUnusedName name.getId

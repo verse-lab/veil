@@ -67,7 +67,7 @@ action send_1a (r : round) (c : config) (cr : round) = {
  action join_round (n : node) (r : round) (rp : round) = {
   require one_a r rp
   require ¬ (∃ r' rp' v, join_ack_msg n r' rp' v ∧ ¬ tot.le r' r)
-  let mut v : value ← fresh
+  let mut v : value ← pick
   if ∀ V, ¬ vote n rp V then
     v := none
   else
@@ -83,8 +83,8 @@ action propose (r : round) (c : config) (cr : round) = {
   require ∀ R, tot.le cr R ∧ ¬ tot.le r R → ∃ c, configure_round_msg R c
   require ∀ R C, tot.le cr R ∧ ¬ tot.le r R ∧ configure_round_msg R C → quorumin (quorum_of_round R) C
   require ∀ R N, tot.le cr R ∧ ¬ tot.le r R ∧ member N (quorum_of_round R) → ∃ v, join_ack_msg N r R v
-  let mut v : value ← fresh
-  let maxr : round ← fresh
+  let mut v : value ← pick
+  let maxr : round ← pick
   assume ((v = none ∧ forall N MAXR V,
                       ¬ (tot.le cr MAXR ∧ ¬tot.le r MAXR ∧ member N (quorum_of_round MAXR)) ∧ join_ack_msg N r MAXR V ∧ V ≠ none) ∨
                       (v ≠ none ∧
