@@ -224,6 +224,7 @@ We have various versions of actions: `act.tr`, `act.fn`, and `act.tr.fn`.
 def toTrName (n : Name) : Name := n ++ `tr
 /-- See docstring on `toTrName`. -/
 def toTrIdent (id : Ident) : Ident := mkIdent $ toTrName id.getId
+def toTrLemmaName (n : Name) : Name := n ++ `tr_eq
 
 /-- See docstring on `toTrName`. -/
 def toFnName (n : Name) : Name := n ++ `fn
@@ -249,7 +250,8 @@ def toWpSuccName (n : Name) : Name := n ++ `wpSucc
 def toWpSuccLemmaName (n : Name) : Name := n ++ `wpSucc_eq
 def toWpExName (n : Name) : Name := n ++ `wpEx
 def toWpExLemmaName (n : Name) : Name := n ++ `wpEx_eq
-
+def toTwoStateName (n : Name) : Name := n ++ `twoState
+def toTwoStateLemmaName (n : Name) : Name := n ++ `twoState_eq
 
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId

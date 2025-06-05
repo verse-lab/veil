@@ -100,7 +100,7 @@ def assembleNext : CommandElabM Unit := do
     let sectionArgs ← getSectionArgumentsStx vs
     let (st, st') := (mkIdent `st, mkIdent `st')
     let trs ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
-      let nm := mkIdent $ toTrName s.name
+      let nm := mkIdent $ toTwoStateName s.name
       `(@$nm $sectionArgs* $st $st'))
     -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[veil.debug] s!"{t}")
     let next ← if trs.isEmpty then `(fun ($st $st' : $genericState) => $st = $st') else
@@ -161,7 +161,7 @@ def getIOStepStx (stateTp : TSyntax `term) (labelT : TSyntax `term) (vs : Array 
     let (params, args) ← match s.br with
       | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
       | none => pure (#[], #[])
-    let actFn := mkIdent $ toFnName s.name
+    let actFn := mkIdent $ toTwoStateName s.name
     match s.br with
       | some _ => `(term|fun $params* => @$actFn $actionArgs* $args* $st $st')
       | none => `(term|$actFn $st $st')

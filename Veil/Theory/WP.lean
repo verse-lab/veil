@@ -83,7 +83,7 @@ lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId) :
 
 
 @[wpSimp]
-lemma VeilExecM.wp_assert (p : Prop) [Decidable p] (ex : ExId) :
+lemma VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
   wp (@VeilExecM.assert m ρ σ p _ ex) post = fun r s => if p then post () r s else hd ex := by
   simp [VeilExecM.assert]; split
   { simp [wp_pure] }
@@ -94,24 +94,24 @@ lemma VeilExecM.wp_assert (p : Prop) [Decidable p] (ex : ExId) :
   simp [loomLogicSimp]
 
 @[wpSimp]
-lemma VeilM.wp_assert (p : Prop) [Decidable p] (ex : ExId) :
+lemma VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
   wp (@VeilM.assert m ρ σ p _ ex) post = fun r s => if p then post () r s else hd ex := by
   simp [VeilM.assert, MPropLift.wp_lift, wpSimp]
 
 @[wpSimp]
-lemma VeilM.wp_get [IsSubStateOf σₛ σ] :
+lemma VeilM.wp_get {_ : IsSubStateOf σₛ σ} :
   wp (get : VeilM m ρ σ σₛ) post = fun r s => post (getFrom s) r s := by
   simp [get, getThe, MonadStateOf.get, MPropLift.wp_lift]; ext
   erw [StateT.wp_get]
 
 @[wpSimp]
-lemma VeilM.wp_modifyGet [IsSubStateOf σₛ σ] :
-  wp (modifyGet f : VeilM m ρ σ σₛ) post = fun r s => post (f (getFrom s)).1 r (setIn (f (getFrom s)).2 s) := by
+lemma VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} :
+  wp (modifyGet f : VeilM m ρ σ α) post = fun r s => post (f (getFrom s)).1 r (setIn (f (getFrom s)).2 s) := by
   simp [modifyGet, MonadStateOf.modifyGet, MPropLift.wp_lift]; ext
   erw [StateT.wp_modifyGet]
 
 @[wpSimp]
-lemma VeilExecM.wp_read [IsSubStateOf ρₛ ρ] :
+lemma VeilExecM.wp_read {_ : IsSubStateOf ρₛ ρ} :
   wp (read : VeilExecM m ρ σ ρₛ) post = fun r s => post (getFrom r) r s := by
   simp [read, getThe, MonadReaderOf.read, MPropLift.wp_lift]; ext
   erw [ReaderT.wp_read]

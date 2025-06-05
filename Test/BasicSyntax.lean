@@ -26,26 +26,8 @@ action foo (k : Nat) =
   let x <- pick node
   -- return x
   require r x k
+  n := x
 }
-
-#print foo.wpSucc_eq
-
-#print foo.ext.wp_eq
-
-#check foo.wp_eq
-
-open PartialCorrectness DemonicChoice
-
-example (P : _ -> Prop) (hd : ExId -> Prop) [IsHandler hd]
-  [σ_substate : IsSubStateOf (State node) σ] [ρ_reader : IsSubStateOf (Reader node σ) ρ] :
-  P ( Test.foo.ext.wpSucc (σ_substate := σ_substate) (ρ_reader := ρ_reader)) := by
-  unfold Test.foo.ext.wpSucc
-  simp [actSimp]
-
-
-
-#print foo.ext.gen_wp
-
 
 #guard_msgs(drop warning) in
 action foo2 (k : Nat) = {
@@ -55,6 +37,8 @@ action foo2 (k : Nat) = {
     return True
   else return False
 }
+
+#print foo2.wpGen
 
 /-- info: true -/
 #guard_msgs in
@@ -74,6 +58,8 @@ action foo3 (k : Nat) = {
     y := f 1 < 5
   return y
 }
+
+#print foo3.wpGen
 
 /-- info: true -/
 #guard_msgs in

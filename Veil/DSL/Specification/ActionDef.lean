@@ -144,7 +144,7 @@ def defineAndSimplify (vs : Array Expr)
     let act <- mkLambdaFVarsImplicit vs act
     let act <- instantiateMVars act
     simpleAddDefn defName act (attr := #[{name := `actSimp}])
-    return (defName, act, actPf)
+    return (defName, actPf)
 
 partial
 def Lean.Expr.removeFunExt (limit : Nat) (actPf : Expr)  : MetaM Expr := do
@@ -161,7 +161,7 @@ def Lean.Expr.removeFunExt (limit : Nat) (actPf : Expr)  : MetaM Expr := do
 /-- Defines the weakest precondition for the action, generalised over the exception handler. -/
 def defineWpForAction (vs : Array Expr)
   (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM
-  (Name × Expr × Option Expr) :=
+  (Name × Option Expr) :=
   defineAndSimplify vs (toWpName actName) (fun sectionArgs args => `(fun hd $args* post =>
     [CanRaise hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post]))
     [] #[`wpSimp, actName, `smtSimp, `quantifierSimp] br
@@ -170,7 +170,7 @@ def defineWpForAction (vs : Array Expr)
   exception handler is `True`. -/
 def defineWpSuccForAction (vs : Array Expr)
   (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM
-  (Name × Expr × Option Expr) :=
+  (Name × Option Expr) :=
   let actWpName := toWpName actName
   let actWpSuccName := toWpSuccName actName
   defineAndSimplify vs actWpSuccName (fun sectionArgs args => `(fun $args* post =>
@@ -181,17 +181,37 @@ def defineWpSuccForAction (vs : Array Expr)
   exception handler allows all exceptions except the one given. -/
 def defineWpExForAction (vs : Array Expr)
   (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM
-  (Name × Expr × Option Expr) :=
+  (Name × Option Expr) :=
   let actWpName := toWpName actName
   let actWpExName := toWpExName actName
   defineAndSimplify vs actWpExName (fun sectionArgs args => `(fun ex $args* post =>
     @$(mkIdent actWpName) $sectionArgs* (· ≠ ex) $args* post))
     [actWpName] #[] br
 
+def defineTwoStateAction (vs : Array Expr)
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) :
+  TermElabM (Name × Option Expr) := do
+  let actWpSuccName := toWpSuccName actName
+  let actTwoStateName := toTwoStateName actName
+  defineAndSimplify vs actTwoStateName (fun sectionArgs args => `(
+    fun $args* =>
+      VeilSpecM.toTwoStateDerived <| @$(mkIdent actWpSuccName) $sectionArgs* $args*))
+    [actWpSuccName, ``VeilSpecM.toTwoStateDerived, ``Cont.inv] #[] br
+    --#[``Pi.compl_def, ``compl] br
+
+def defineTr (vs : Array Expr)
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) :
+  TermElabM (Name × Option Expr) := do
+  let actTrName := toTrName actName
+  let actTwoStateName := toTwoStateName actName
+  defineAndSimplify vs actTrName (fun sectionArgs args => `(
+    fun r s s' =>
+      exists? $br ?, @$(mkIdent actTwoStateName) $sectionArgs* $args* r s s'))
+    [actTwoStateName] #[] br
+
 def defineEqLemma
   (vs : Array Expr)
   (vd : Array (TSyntax ``Term.bracketedBinder))
-  (eqTerm : Expr)
   (lemmaName : Name)
   (lemmaStx :
     Array (TSyntax ``Term.bracketedBinder) ->
@@ -218,11 +238,10 @@ def defineEqLemma
 
 def defineWpLemma (vs : Array Expr)
   (vd : Array (TSyntax ``Term.bracketedBinder))
-  (actName : Name) (actWpName : Name) (actWp : Expr)
+  (actName : Name) (actWpName : Name)
   (actPf : Option Expr)
   (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
   defineEqLemma vs vd
-    actWp
     (toWpLemmaName actName)
     (fun vd univBinders sectionArgs args =>
     `(forall $vd* hd $univBinders* post,
@@ -236,11 +255,9 @@ def defineWpSuccLemma (vs : Array Expr)
   (vd : Array (TSyntax ``Term.bracketedBinder))
   (actName : Name) (actWpSuccName : Name)
   (actWpName : Name)
-  (actWpSucc : Expr)
   (actWpSuccPf : Option Expr)
   (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
   defineEqLemma vs vd
-    actWpSucc
     (toWpSuccLemmaName actName)
     (fun vd univBinders sectionArgs args =>
       `(forall $vd* $univBinders* post,
@@ -254,11 +271,10 @@ def defineWpExLemma (vs : Array Expr)
   (vd : Array (TSyntax ``Term.bracketedBinder))
   (actName : Name)
   (actWpName : Name)
-  (actWpExName : Name) (actWpEx : Expr)
+  (actWpExName : Name)
   (actWpExPf : Option Expr)
   (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
   defineEqLemma vs vd
-    actWpEx
     (toWpExLemmaName actName)
     (fun vd univBinders sectionArgs args =>
       `(forall $vd* ex $univBinders* post,
@@ -268,17 +284,54 @@ def defineWpExLemma (vs : Array Expr)
     true
     br
 
+def defineTwoStateLemma (vs : Array Expr)
+  (vd : Array (TSyntax ``Term.bracketedBinder))
+  (actName : Name) (actTwoStateName : Name)
+  (actTwoStatePf : Option Expr)
+  (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+  let actWpSuccName := toWpSuccName actName
+  let actTwoStateLemmaName := toTwoStateLemmaName actName
+  defineEqLemma vs vd actTwoStateLemmaName (fun vd univBinders sectionArgs args =>
+    `(forall $vd* $univBinders*,
+       VeilSpecM.toTwoStateDerived
+         (@$(mkIdent actWpSuccName) $sectionArgs* $args*) =
+      @$(mkIdent actTwoStateName) $sectionArgs* $args*))
+    actTwoStatePf
+    false
+    br
+
+def defineTrLemma (vs : Array Expr)
+  (vd : Array (TSyntax ``Term.bracketedBinder))
+  (actName : Name) (actTrName : Name)
+  (actTrPf : Option Expr)
+  (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+  let actTwoStateName := toTwoStateName actName
+  let actTrLemmaName := toTrLemmaName actName
+  defineEqLemma vs vd actTrLemmaName (fun vd _univBinders sectionArgs args =>
+    `(forall $vd* r s s',
+      @$(mkIdent actTrName) $sectionArgs* r s s' =
+      exists? $br ?, @$(mkIdent actTwoStateName) $sectionArgs* $args* r s s'))
+    actTrPf
+    true
+    br
+
 def defineAuxiliaryWpDeclarations (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) := do
   let vd ← getImplicitProcedureParameters
   runTermElabM fun vs => do
-    let (actWpName, actWp, actWpPf) ← defineWpForAction vs actName br
-    defineWpLemma vs vd actName actWpName actWp actWpPf br
+    let (actWpName, actWpPf) ← defineWpForAction vs actName br
+    defineWpLemma vs vd actName actWpName actWpPf br
 
-    let (actWpSuccName, actWpSucc, actWpSuccPf) ← defineWpSuccForAction vs actName br
-    defineWpSuccLemma vs vd actName actWpSuccName actWpName actWpSucc actWpSuccPf br
+    let (actWpSuccName, actWpSuccPf) ← defineWpSuccForAction vs actName br
+    defineWpSuccLemma vs vd actName actWpSuccName actWpName actWpSuccPf br
 
-    let (actWpExName, actWpEx, actWpExPf) ← defineWpExForAction vs actName br
-    defineWpExLemma vs vd actName actWpName actWpExName actWpEx actWpExPf br
+    let (actWpExName, actWpExPf) ← defineWpExForAction vs actName br
+    defineWpExLemma vs vd actName actWpName actWpExName actWpExPf br
+
+    let (actTwoStateName, actTwoStatePf) ← defineTwoStateAction vs actName br
+    defineTwoStateLemma vs vd actName actTwoStateName actTwoStatePf br
+
+    let (actTrName, actTrPf) ← defineTr vs actName br
+    defineTrLemma vs vd actName actTrName actTrPf br
 
 /-- Defines `act` : `VeilM m ρ σ α` monad computation, parametrised over `br`. More
 specifically it defines:
