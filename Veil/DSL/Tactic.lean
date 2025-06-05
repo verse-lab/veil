@@ -1,8 +1,8 @@
 import Lean.Elab.Tactic
 import Veil.Util.DSL
--- import Veil.SMT.Main
--- import Veil.Theory.Basic
--- import Veil.DSL.Action.Lang -- TODO: can we remove this?
+import Veil.SMT.Main
+import Veil.Theory.WP
+import Veil.DSL.Action.Lang -- TODO: can we remove this?
 
 open Lean Lean.Elab
 
@@ -21,6 +21,23 @@ elab "exact_state" : tactic => do
   let fns := _sinfo.fieldNames.map mkIdent
   -- fileds' names should be the same as ones in the local context
   let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent stateName) ..))
+  Tactic.evalTactic $ ← `(tactic| exact $constr)
+
+/--
+  `exact_reader` is usually used after `funcases` ar `funcasesM`. At this point the goal should
+  contain all reader fields as hypotheses. This tactic will then construct the
+  reader term using the field hypotheses and close the goal.
+-/
+elab "exact_reader" : tactic => do
+  let readerName ← getReaderName
+  let readerTp := (<- localSpecCtx.get).spec.generic.readerType
+  let .some sn := readerTp.constName?
+    | throwError "{readerTp} is not a constant"
+  let .some _sinfo := getStructureInfo? (<- getEnv) sn
+    | throwError "{readerTp} is not a structure"
+  let fns := _sinfo.fieldNames.map mkIdent
+  -- fileds' names should be the same as ones in the local context
+  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent readerName) ..))
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
 open Tactic in

@@ -32,6 +32,8 @@ structure LocalSpecificationCtx where
   spec : ModuleSpecification
   /-- base name of the State type; set when `#gen_state` runs -/
   stateBaseName: Option Name
+  /-- base name of the Reader type; set when `#gen_state` runs -/
+  readerBaseName: Option Name
   /-- keeps track of isolates in this specification -/
   isolates: IsolatesInfo
   /-- established invariant clauses; set on `@[invProof]` label -/

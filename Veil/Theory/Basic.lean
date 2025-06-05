@@ -1,7 +1,7 @@
 import Veil.Theory.Defs
 
 
-lemma VeilExecM.wp_eq (act : VeilExecM m σ ρ α) (post : RProp α ρ σ) :
+lemma VeilExecM.wp_eq (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [DemonFail| wp act post = fun r s => wp (m := DivM) (act r s) (fun | .ok as => post as.1 r as.2 | .error _ => False)] ∧
   [DemonSucc| wp act post = fun r s => wp (m := DivM) (act r s) (fun | .ok as => post as.1 r as.2 | .error _ => True)] ∧
   [AngelFail| wp act post = fun r s => wp (m := DivM) (act r s) (fun | .ok as => post as.1 r as.2 | .error _ => False)] ∧
@@ -11,19 +11,19 @@ lemma VeilExecM.wp_eq (act : VeilExecM m σ ρ α) (post : RProp α ρ σ) :
 
 open PartialCorrectness
 
-lemma VeilExecM.terminates_preservesInvariants_wp (act : VeilExecM m σ ρ α) :
+lemma VeilExecM.terminates_preservesInvariants_wp (act : VeilExecM m ρ σ α) :
   [DemonFail| wp act inv'] ⊓ [DemonSucc| wp act inv] = [DemonFail| wp act (inv' ⊓ inv)] := by
     ext; simp only [VeilExecM.wp_eq, Pi.inf_apply, <-wp_and]
     congr! 1; ext (_|_) <;> simp
 
 
-lemma VeilM.terminates_preservesInvariants_wp (act : VeilM m σ ρ α) :
+  lemma VeilM.terminates_preservesInvariants_wp (act : VeilM m ρ σ α) :
   [DemonFail| wp act inv₁] ⊓ [DemonSucc| wp act inv₂] = [DemonFail| wp act (inv₁ ⊓ inv₂)] := by
     unhygienic induction act <;> simp [-le_iInf_iff]
     { simp [x.terminates_preservesInvariants_wp, Pi.inf_def, *] }
     rw [← @iInf_inf_eq]; simp only [meet_himp _ _ _ _ rfl, *]
 
-lemma VeilM.terminates_preservesInvariants (act : VeilM m σ ρ α) (inv : SProp ρ σ) :
+lemma VeilM.terminates_preservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
   act.succesfullyTerminates inv ->
   act.preservesInvariantsOnSuccesful inv ->
   act.succeedsAndPreservesInvariants inv := by
@@ -32,7 +32,7 @@ lemma VeilM.terminates_preservesInvariants (act : VeilM m σ ρ α) (inv : SProp
   apply le_inf h₁ h₂; simp [VeilM.terminates_preservesInvariants_wp]
 
 lemma VeilM.triple_sound
-  (act : VeilM m σ ρ α) (inv : SProp ρ σ) (chs : act.choices) :
+  (act : VeilM m ρ σ α) (inv : SProp ρ σ) (chs : act.choices) :
   act.succesfullyTerminates inv ->
   act.preservesInvariantsOnSuccesful inv ->
   (act.run chs).operationalTriple (inv ⊓ act.assumptions chs) (fun _ => inv) := by
@@ -51,13 +51,13 @@ lemma VeilM.triple_sound
     simp [VeilExecM.operational, VeilExecM.wp_eq, DivM.wp_eq]
     cases act r s₀ <;> aesop
 
-lemma VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m σ ρ α)
+lemma VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
   ⨅ ex, [CanRaise (· ≠ ex)| wp act (invEx ex)] <= [DemonFail| wp act (iInf invEx)] := by
   intro r s; simp [VeilExecM.wp_eq, DivM.wp_eq]
   cases (act r s) <;> aesop (add safe simp loomLogicSimp)
 
-lemma VeilM.not_raises_imp_terminates_wp (act : VeilM m σ ρ α)
+lemma VeilM.not_raises_imp_terminates_wp (act : VeilM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
   ⨅ ex, [CanRaise (· ≠ ex)| wp act (invEx ex)] <= [DemonFail| wp act (iInf invEx)] := by
   dsimp; unhygienic induction act <;> simp [-le_iInf_iff]
@@ -67,7 +67,7 @@ lemma VeilM.not_raises_imp_terminates_wp (act : VeilM m σ ρ α)
   rw [iInf_comm]; apply iInf_mono; intro i
   by_cases h : p i <;> simp [h,f_ih]
 
-lemma VeilM.not_raises_imp_terminates (act : VeilM m σ ρ α) (pre : SProp ρ σ) :
+lemma VeilM.not_raises_imp_terminates (act : VeilM m ρ σ α) (pre : SProp ρ σ) :
   (∀ ex, act.canRaise (· ≠ ex) pre) ->
   act.succesfullyTerminates pre := by
   unfold VeilM.canRaise VeilM.succesfullyTerminates triple
@@ -78,8 +78,8 @@ lemma VeilM.not_raises_imp_terminates (act : VeilM m σ ρ α) (pre : SProp ρ �
 
 section DerivingSemantics
 
-variable (act : VeilM m σ ρ α)
-  (genWp : (ExId -> Prop) -> VeilSpecM σ ρ α)
+variable (act : VeilM m ρ σ α)
+  (genWp : (ExId -> Prop) -> VeilSpecM ρ σ α)
   (genWp_sound : ∀ hd, genWp hd <= [CanRaise hd| wp act])
 
 include genWp_sound

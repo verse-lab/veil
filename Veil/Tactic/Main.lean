@@ -3,6 +3,7 @@ import Lean.Meta.Tactic.TryThis
 import Veil.Util.Tactic
 import Veil.Tactic.SplitIfs
 import Veil.Model.TransitionSystem
+import Veil.Theory.WP
 
 -- For automation
 import Veil.SMT.Main
@@ -146,7 +147,7 @@ elab "sts_induction" : tactic => withMainContext do
     -- Inspired by `scase` in LeanSSR: https://github.com/verse-lab/lean-ssr/blob/29ba85c915de17602ba224558e6ebaf2a2845786/Ssreflect/Elim.lean#L11
     let oldHyps ← getLCtx
     evalTactic $ ← `(tactic| unhygienic cases $hnextName:ident)
-    withMainContext $ allGoals $ do
+    withMainContext $ Tactic.allGoals $ do
     let newHyps ← newHypotheses oldHyps (← getLCtx)
     -- dbg_trace "newHyps: {newHyps.map (·.userName)}"
     assert! newHyps.size == 1

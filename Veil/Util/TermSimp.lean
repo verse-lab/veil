@@ -52,12 +52,30 @@ def Lean.Expr.runSimp (e : Expr) (stx : TermElabM (TSyntax `tactic)) : TermElabM
   ) | throwError "[runSimp] expected exactly one goal after simplification"
   return res.1
 
-def Lean.Expr.simpWp (e : Expr) : TermElabM Simp.Result := do
-  let stx := `(tactic| simp only [wpSimp])
+def Lean.Expr.simp (e : Expr) (act : Array Name) : TermElabM Simp.Result := do
+  let act := act.map mkIdent
+  let stx :=
+   `(tactic| simp only [$[$act:ident],*])
+  e.runSimp stx
+
+
+def Lean.Expr.simpWp (e : Expr) (act : Name) : TermElabM Simp.Result := do
+  let stx :=
+   `(tactic| simp only [wpSimp, $(mkIdent act):ident, smtSimp, quantifierSimp])
+  e.runSimp stx
+
+def Lean.Expr.simpWpSucc (e : Expr) (act : Name) : TermElabM Simp.Result := do
+  let stx :=
+   `(tactic| simp only [$(mkIdent act):ident, if_true_right])
+  e.runSimp stx
+
+def Lean.Expr.simpWpEx (e : Expr) (act : Name) : TermElabM Simp.Result := do
+  let stx :=
+   `(tactic| simp only [$(mkIdent act):ident])
   e.runSimp stx
 
 def Lean.Expr.simpAction (e : Expr) : TermElabM Simp.Result := do
-  let stx := `(tactic| simp only [actSimp, smtSimp, quantifierSimp])
+  let stx := `(tactic| simp only [$(mkIdent `VeilM.require):ident])
   e.runSimp stx
 
 def Lean.Expr.runUnfold (e : Expr) (defs : List Name) : TermElabM Expr := do

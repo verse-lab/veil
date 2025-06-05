@@ -169,8 +169,15 @@ elab "[Reader]" : term => do
 /-- This is used in `require` were we define a predicate over a state.
     Instead of writing `fun st => Pred` this command will pattern match over
     `st` making all its fields accessible for `Pred` -/
-macro "funcases" t:term : term => `(term| by intros st; unhygienic cases (getFrom st); exact $t)
-macro "funcases" id:ident t:term : term => `(term| by unhygienic cases (getFrom $id:ident); exact $t)
+macro "funcases" t:term : term => `(term| by
+   intros rd st;
+   unhygienic cases (getFrom rd);
+   unhygienic cases (getFrom st);
+   exact $t)
+macro "funcases" rid:ident sid:ident t:term : term => `(term| by
+  unhygienic cases (getFrom $rid:ident);
+  unhygienic cases (getFrom $sid:ident);
+  exact $t)
 
 abbrev doSeq := TSyntax ``Term.doSeq
 abbrev doSeqItem := TSyntax ``Term.doSeqItem
@@ -301,7 +308,7 @@ end
 
 /-- Elaborate the given `stx` with resulting state type `stateTp` by
 treating `require`'s in the way described by `mode`. -/
-elab (name := VeilDo) "do'" mode:term "as" stateTp:term "," readerTp:term "in" stx:doSeq : term => do
+elab (name := VeilDo) "do'" mode:term "as" readerTp:term "," stateTp:term "in" stx:doSeq : term => do
   /- Array containing all auxilary let-bingings to be inserted in the
     beginning of the `do`-block. It consists of
     - `let mut field := (<- get). field` for each field of the protocol state. We do this
@@ -332,7 +339,7 @@ elab (name := VeilDo) "do'" mode:term "as" stateTp:term "," readerTp:term "in" s
     preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $v.name:ident <- pick $v.type)
   let doS := preludeAssn.append doS
   trace[veil.debug] "{stx}\n→\n{doS}"
-  elabTerm (<- `(term| ((do $doS*) : VeilM $mode $stateTp $readerTp _))) none
+  elabTerm (<- `(term| ((do $doS*) : VeilM $mode $readerTp $stateTp _))) none
 
 elab_rules : term
   | `(assert $t) => do
@@ -394,6 +401,7 @@ def getPrePost (spec : doSeq) [Monad m] [MonadError m] [MonadQuotation m] :
   | `(doSeq| requires $pre ensures $post:term $_:unchanged_decl ?) => pure (pre, <- `(rcasesPat|(_ : Unit)), post)
   | _ => throwErrorAt spec "Invalid specification: expected `requires ... ensures ...`"
 
+/- TODO: fix spec elaboration -/
 elab_rules : term
   /- if the list of unchanged state fields is omitted, we can restore it by
      checking witch of them are mentioned in the [ensures] body. By default

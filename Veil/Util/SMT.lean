@@ -1,4 +1,4 @@
-import Smt
+import Smt.Tactic
 import Lean
 import Veil.SMT.Main
 import Veil.Util.Tactic

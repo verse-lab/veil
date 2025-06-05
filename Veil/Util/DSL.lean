@@ -1,7 +1,7 @@
 import Lean
 import Veil.Model.State
 import Veil.DSL.Internals.StateExtensions
-import Veil.Theory.Basic
+import Veil.Theory.WP
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -85,6 +85,7 @@ def getPrefixedName (name : Name): AttrM Name := do
   return (stateName.getD Name.anonymous) ++ name
 
 def getStateName : AttrM Name := getPrefixedName `State
+def getReaderName : AttrM Name := getPrefixedName `Reader
 
 /-- A `Lean.Expr` denoting the `Prop` type. -/
 def mkProp := (Lean.Expr.sort (Lean.Level.zero))
@@ -148,16 +149,37 @@ def funcasesM (t : Term) : TermElabM Term := do
     | throwError "{stateTpExpr} is not a constant"
   let .some _sinfo := getStructureInfo? (<- getEnv) sn
     | throwError "{stateTpExpr} is not a structure"
-  let fns := _sinfo.fieldNames.map Lean.mkIdent
+  let stateFns := _sinfo.fieldNames.map Lean.mkIdent
+
+  let readerTpExpr := (<- localSpecCtx.get).spec.generic.readerType
+  let .some sn := readerTpExpr.getAppFn.constName?
+    | throwError "{readerTpExpr} is not a constant"
+  let .some _rinfo := getStructureInfo? (<- getEnv) sn
+    | throwError "{readerTpExpr} is not a structure"
+  let readerFns := _rinfo.fieldNames.map Lean.mkIdent
+
   let moduleName <- getCurrNamespace
   let stateName := `State
+  let readerName := `Reader
   let casesOn <- mkConst $ (moduleName ++ stateName ++ `casesOn)
+  let casesOnReader <- mkConst $ (moduleName ++ readerName ++ `casesOn)
   let casesOn <- PrettyPrinter.delab casesOn
+  let casesOnReader <- PrettyPrinter.delab casesOnReader
   let stateTpStx ← getStateTpStx
+  let readerTpStx ← getReaderTpStx
   let stateTpArgs ← getStateTpArgsStx
+  let readerTpArgs ← getReaderTpArgsStx
   let st := mkIdent `st
-  let term ← `(term| (fun $st : $stateTpStx =>
-      $(casesOn) $(stateTpArgs)* (motive := fun _ => Prop) (getFrom $st) <| (fun $[$fns]* => ($t : Prop))))
+  let rd := mkIdent `rd
+  let term ← `(term| (fun ($rd : $readerTpStx) ($st : $stateTpStx) =>
+      $(casesOnReader)
+      $(readerTpArgs)*
+      (motive := fun _ => Prop) (getFrom $rd) <|
+        fun $[$readerFns]* =>
+          $(casesOn)
+          $(stateTpArgs)*
+          (motive := fun _ => Prop) (getFrom $st) <|
+          fun $[$stateFns]* => ($t : Prop)))
   trace[veil.debug] "funcasesM: {term}"
   return term
 
@@ -211,29 +233,23 @@ def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
 def toSpecName (n : Name) : Name := n ++ `spec
 def toSpecIdent (id : Ident) : Ident := mkIdent $ toSpecName id.getId
 
-def toGenName (n : Name) (mode : Mode) : Name :=
-  n ++ (match mode with
-  | Mode.internal => `genI
-  | Mode.external => `genE)
-def toGenIdent (id : Ident) (mode : Mode): Ident := mkIdent $ toGenName id.getId mode
-
-def toGenInstName (n : Name) (mode : Mode) : Name :=
-  n ++ (match mode with
-  | Mode.internal => `genIInst
-  | Mode.external => `genEInst)
-def toGenInstIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toGenInstName id.getId mode
-
-def toActTrEqName (n : Name) : Name := n ++ `act_tr_eq
-def toActTrEqIdent (id : Ident) : Ident := mkIdent $ toActTrEqName id.getId
-
-def toInstName (n : Name) (mode : Mode) : Name :=
-  n ++ (match mode with
-  | Mode.internal => `inst
-  | Mode.external => `instExt)
-def toInstIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toInstName id.getId mode
-
 def toExtName (n : Name) : Name := n ++ `ext
 def toExtIdent (id : Ident) : Ident := mkIdent $ toExtName id.getId
+
+def toActName (n : Name) (mode : Mode) : Name :=
+  match mode with
+  | Mode.internal => toExtName n
+  | Mode.external => n
+
+def toActIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toActName id.getId mode
+
+def toWpName (n : Name) : Name := n ++ `wpGen
+def toWpLemmaName (n : Name) : Name := n ++ `wp_eq
+def toWpSuccName (n : Name) : Name := n ++ `wpSucc
+def toWpSuccLemmaName (n : Name) : Name := n ++ `wpSucc_eq
+def toWpExName (n : Name) : Name := n ++ `wpEx
+def toWpExLemmaName (n : Name) : Name := n ++ `wpEx_eq
+
 
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId

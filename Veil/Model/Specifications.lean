@@ -258,12 +258,19 @@ structure ModuleParameters where
 
   /-- Index of the generic state parameter -/
   genericStateParam : Nat
+  /-- Index of the generic reader parameter -/
+  genericReaderParam : Nat
 
   /-- Index of the `IsSubStateOf` instance parameter, which states that
   the concrete state is a sub-state of the generic state. This should
   always be `genericStateParam + 1`, but we store it separately for
   convenience. -/
   genericSubStateInstParam : Nat
+  /-- Index of the `IsSubStateOf` instance parameter, which states that
+  the concrete state is a sub-state of the generic state. This should
+  always be `genericStateParam + 1`, but we store it separately for
+  convenience. -/
+  genericSubReaderInstParam : Nat
 
   /-- Expression representing the type of the transition system state,
   *without* having applied the state-specific section variables. -/

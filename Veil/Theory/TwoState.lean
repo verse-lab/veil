@@ -1,13 +1,13 @@
 import Veil.Theory.Defs
 import Veil.Theory.Basic
 
-lemma VeilExecM.total_imp_partial (act : VeilExecM m σ ρ α) :
+lemma VeilExecM.total_imp_partial (act : VeilExecM m ρ σ α) :
   [AngelFail| wp act post] <= [DemonFail| wp act post] := by
   simp [VeilExecM.wp_eq, PartialCorrectness.DivM.wp_eq, TotalCorrectness.DivM.wp_eq]
   intro r s; cases (act r s) <;> aesop (add safe simp loomLogicSimp)
 
 
-instance (act : VeilM m σ ρ α) : Nonempty act.choices := by
+instance (act : VeilM m ρ σ α) : Nonempty act.choices := by
   unhygienic induction act <;> constructor
   { exact (ExtractNonDet.pure _) }
   { exact (ExtractNonDet.vis _ _ (fun a => f_ih a |>.some)) }
@@ -15,11 +15,11 @@ instance (act : VeilM m σ ρ α) : Nonempty act.choices := by
   exact fun t => f_ih t |>.some
 
 noncomputable
-instance (act : VeilM m σ ρ α) : Inhabited act.choices := by
+instance (act : VeilM m ρ σ α) : Inhabited act.choices := by
   exact Classical.inhabited_of_nonempty'
 
 open Classical in
-lemma VeilM.angel_fail_imp_assumptions (act : VeilM m σ ρ α) :
+lemma VeilM.angel_fail_imp_assumptions (act : VeilM m ρ σ α) :
   [AngelFail| wp act post r s] <= ∃ chs, act.assumptions chs r s ∧ (act.run chs).axiomatic r s post := by
   unhygienic induction act generalizing r s <;> simp [VeilM.assumptions, ExtractNonDet.prop, -top_le_iff]
   { intro; exists (ExtractNonDet.pure _); }
@@ -46,16 +46,16 @@ lemma VeilM.angel_fail_imp_assumptions (act : VeilM m σ ρ α) :
   simp [VeilExecM.axiomatic, VeilM.run, NonDetT.runWeak, NonDetT.extractWeak]
   apply h.2
 
-lemma VeilExecM.wlp_eq (act : VeilExecM m σ ρ α) (post : RProp α ρ σ) :
+lemma VeilExecM.wlp_eq (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [AngelFail| wlp act post] = [DemonFail| wlp act post] := by
   simp [wlp, VeilExecM.wp_eq, TotalCorrectness.DivM.wp_eq, PartialCorrectness.DivM.wp_eq]
   ext r s; simp; cases (act r s) <;> simp [loomLogicSimp]
 
-lemma VeilM.assumptions_eq (act : VeilM m σ ρ α) (ex : ExtractNonDet WeakFindable act) :
+lemma VeilM.assumptions_eq (act : VeilM m ρ σ α) (ex : ExtractNonDet WeakFindable act) :
   [DemonFail| ExtractNonDet.prop act ex] = [AngelFail| ExtractNonDet.prop act ex] := by
   induction ex <;> simp [ExtractNonDet.prop, -top_le_iff, VeilExecM.wlp_eq, *]
 
-lemma VeilM.toTwoState_sound (act : VeilM m σ ρ α) :
+lemma VeilM.toTwoState_sound (act : VeilM m ρ σ α) :
   act.toTwoState r₀ s₀ s₁ ->
   ∃ chs a,
     act.assumptions chs r₀ s₀ ∧
@@ -70,7 +70,7 @@ lemma VeilM.toTwoState_sound (act : VeilM m σ ρ α) :
   rcases act.run chs r₀ s₀ with ((_|⟨a, s₁⟩)|_) <;> simp only [IsEmpty.forall_iff]
   rintro rfl; exists a
 
-lemma VeilM.toTwoState_complete (act : VeilM m σ ρ α) (chs : act.choices) :
+lemma VeilM.toTwoState_complete (act : VeilM m ρ σ α) (chs : act.choices) :
   act.assumptions chs r₀ s₀ ->
   (act.run chs).operational r₀ s₀ s₁ (Except.ok a) ->
   act.toTwoState r₀ s₀ s₁ := by
@@ -85,40 +85,40 @@ lemma VeilM.toTwoState_complete (act : VeilM m σ ρ α) (chs : act.choices) :
   intro r s; simp; rintro rfl rfl
   revert h₁; simp [VeilM.assumptions, VeilM.assumptions_eq]
 
-lemma VeilExecM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilExecM m σ ρ α) (post : RProp α ρ σ) :
+lemma VeilExecM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [CanRaise (fun _ => True)| iwp act post] = [AngelFail| wp act post] := by
   simp [iwp, VeilExecM.wp_eq, TotalCorrectness.DivM.wp_eq, PartialCorrectness.DivM.wp_eq]
   ext r s; simp; cases (act r s) <;> simp [loomLogicSimp]
   rename_i x; cases x <;> simp
 
-lemma VeilM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilM m σ ρ α) (post : RProp α ρ σ) :
+lemma VeilM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilM m ρ σ α) (post : RProp α ρ σ) :
   [CanRaise (fun _ => True)| iwp act post] = [AngelFail| wp act post] := by
   unhygienic induction act <;> simp [iwp]
   { rw [<-VeilExecM.raises_true_imp_wp_eq_angel_fail_iwp]
     simp [iwp, <-f_ih, @Pi.compl_def] }
   simp [@compl_iInf, himp_eq, <-f_ih, inf_comm]
 
-lemma VeilM.toTwoStateDerived_sound (act : VeilM m σ ρ α) :
+lemma VeilM.toTwoStateDerived_sound (act : VeilM m ρ σ α) :
   act.toTwoState = act.toTwoStateDerived := by
     unfold VeilM.toTwoState VeilM.toTwoStateDerived VeilSpecM.toTwoStateDerived
     simp [<-VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, LE.le,]
 
 open PartialCorrectness DemonicChoice ExceptionAsSuccess in
-lemma VeilM.wp_iInf {ι : Type} (act : VeilM m σ ρ α) (post : ι -> RProp α ρ σ) :
+lemma VeilM.wp_iInf {ι : Type} (act : VeilM m ρ σ α) (post : ι -> RProp α ρ σ) :
   wp act (fun a r s => iInf (fun i => post i a r s)) = ⨅ i, wp act (post i) := by
   by_cases h: Nonempty ι
   { rw [<-NonDetT.wp_iInf]; simp [iInf, sInf] }
   simp at h; simp [iInf_of_empty]; erw [wp_top]
 
-lemma VeilExecM.wp_r_eq (act : VeilExecM m σ ρ α) (post : RProp α ρ σ) :
+lemma VeilExecM.wp_r_eq (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [DemonSucc| wp act (fun a _ => post a r₀) r₀ = wp act post r₀] := by
   simp [ReaderT.wp_eq]
 
-lemma VeilM.wp_r_eq (act : VeilM m σ ρ α) (post : RProp α ρ σ) :
+lemma VeilM.wp_r_eq (act : VeilM m ρ σ α) (post : RProp α ρ σ) :
   [DemonSucc| wp act (fun a _ => post a r₀) r₀ = wp act post r₀] := by
   induction act <;> simp [wp_pure, <-VeilExecM.wp_r_eq, *]
 
-lemma TwoState.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m σ ρ α) (inv : SProp ρ σ) :
+lemma TwoState.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
   act.toTwoState.preservesInvariantsOnSuccesful inv = act.preservesInvariantsOnSuccesful inv := by
   simp [TwoState.preservesInvariantsOnSuccesful, triple,
     VeilM.toTwoStateDerived_sound,
@@ -143,8 +143,8 @@ lemma TwoState.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m �
 
 section DerivingSemantics
 
-variable (act : VeilM m σ ρ α)
-  (genWp : (ExId -> Prop) -> VeilSpecM σ ρ α)
+variable (act : VeilM m ρ σ α)
+  (genWp : (ExId -> Prop) -> VeilSpecM ρ σ α)
   (genWp_sound : ∀ hd, genWp hd <= [CanRaise hd| wp act])
 
 include genWp_sound

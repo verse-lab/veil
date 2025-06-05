@@ -98,11 +98,7 @@ def registerProcedureSpec [Monad m] [MonadEnv m] [MonadResolveName m] [MonadErro
         { t with spec := spec }
       else t }
 
-/-- Given `l` : `Wp m σ ρ` (parametrised over `br`), this defines:
-  - `act.genI` : internal action interpretation of the action, unsimplified
-  - `act.genE` : external action interpretation of the action, unsimplified
--/
-def defineProcedureGenerators (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
+def defineProcedure (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
   Command.runTermElabM fun vs => do
     let funBinders ← match br with
     | some br => toFunBinderArray br
@@ -111,26 +107,265 @@ def defineProcedureGenerators (act : TSyntax `ident) (br : Option (TSyntax `Lean
     let (genIName, _genExpI) ← genGenerator vs funBinders baseName .internal l
     let (genEName, _genExpE) ← genGenerator vs funBinders baseName .external l
     return (genIName, genEName)
-where
-  /-- This creates a generator for the action, which takes as input the `mode`
-  in which to interpret the action and returns an _unsimplified_ interpretation
-  of the action under that mode. -/
-  genGenerator (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
-    let genName := toGenName baseName mode
-    let genl ← match mode with
-    | Mode.internal => do `(fun $funBinders* => do' .internal as $genericState, $genericReader in $l)
-    | Mode.external => do `(fun $funBinders* => do' .external as $genericState, $genericReader in $l)
-    try
-      withoutErrToSorry $ do
-      let genExp <- withDeclName genName do elabTermAndSynthesize genl none
-      let ⟨genExp, _, _⟩ <- genExp.simpWp
-      let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
-      simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
-      return (genName, genExp)
-    catch ex =>
-      trace[veil.debug] "Error generating {mode} generator for {genName}: {← ex.toMessageData.toString}"
-      -- We have this as a more user-readable message
-      throwError "Error in action {baseName}: {← ex.toMessageData.toString}"
+  where
+    genGenerator (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
+      let genName := toActName baseName mode
+      let genl ← match mode with
+      | Mode.internal => do `(fun $funBinders* => do' .internal as $genericReader, $genericState in $l)
+      | Mode.external => do `(fun $funBinders* => do' .external as $genericReader, $genericState in $l)
+      try
+        withoutErrToSorry $ do
+        let genExp <- withDeclName genName do elabTermAndSynthesize genl none
+        let ⟨genExp, _, _⟩ <- genExp.simpAction
+        let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
+        simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
+        return (genName, genExp)
+      catch ex =>
+        trace[veil.debug] "Error generating {mode} generator for {genName}: {← ex.toMessageData.toString}"
+        -- We have this as a more user-readable message
+        throwError "Error in action {baseName}: {← ex.toMessageData.toString}"
+
+/-- Defines a function and simplifies it using `simp` with the given simp lemma and simp sets. -/
+def defineAndSimplify (vs : Array Expr)
+  (defName : Name)
+  (defStx : Array Term -> Array Term -> TermElabM Term)
+  (unfolds : List Name)
+  (simps : Array Name)
+  (br : Option (TSyntax `Lean.explicitBinders)) := do
+    let sectionArgs ← getSectionArgumentsStx vs
+    let args ← match br with
+      | some br => pure (← explicitBindersIdents br)
+      | none => pure #[]
+    let actStx <- defStx sectionArgs args
+    let mut actExp <- elabTermAndSynthesize actStx none
+    unless unfolds.isEmpty do
+      actExp <- actExp.runUnfold unfolds
+    let ⟨act, actPf, _⟩ <- actExp.simp simps
+    let act <- mkLambdaFVarsImplicit vs act
+    let act <- instantiateMVars act
+    simpleAddDefn defName act (attr := #[{name := `actSimp}])
+    return (defName, act, actPf)
+
+partial
+def Lean.Expr.removeFunExt (limit : Nat) (actPf : Expr)  : MetaM Expr := do
+  if limit > 0 then
+    match_expr actPf with
+    | funext _ _ _ _ h =>
+      match h.consumeMData with
+      | .lam n tp bd inf  =>
+        return Expr.lam n tp (← removeFunExt (limit - 1) bd) inf
+      | _ => throwError "Expected a function extensionality lemma"
+    | _ => return actPf
+  else return actPf
+
+/-- Defines the weakest precondition for the action, generalised over the exception handler. -/
+def defineWpForAction (vs : Array Expr)
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM
+  (Name × Expr × Option Expr) :=
+  defineAndSimplify vs (toWpName actName) (fun sectionArgs args => `(fun hd $args* post =>
+    [CanRaise hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post]))
+    [] #[`wpSimp, actName, `smtSimp, `quantifierSimp] br
+
+/-- Defines the weakest precondition for the action specialised to the case where the
+  exception handler is `True`. -/
+def defineWpSuccForAction (vs : Array Expr)
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM
+  (Name × Expr × Option Expr) :=
+  let actWpName := toWpName actName
+  let actWpSuccName := toWpSuccName actName
+  defineAndSimplify vs actWpSuccName (fun sectionArgs args => `(fun $args* post =>
+      @$(mkIdent actWpName) $sectionArgs* (fun _ => True) $args* post))
+    [actWpName] #[``if_true_right] br
+
+/-- Defines the weakest precondition for the action specialised to the case where the
+  exception handler allows all exceptions except the one given. -/
+def defineWpExForAction (vs : Array Expr)
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM
+  (Name × Expr × Option Expr) :=
+  let actWpName := toWpName actName
+  let actWpExName := toWpExName actName
+  defineAndSimplify vs actWpExName (fun sectionArgs args => `(fun ex $args* post =>
+    @$(mkIdent actWpName) $sectionArgs* (· ≠ ex) $args* post))
+    [actWpName] #[] br
+
+def defineEqLemma
+  (vs : Array Expr)
+  (vd : Array (TSyntax ``Term.bracketedBinder))
+  (eqTerm : Expr)
+  (lemmaName : Name)
+  (lemmaStx :
+    Array (TSyntax ``Term.bracketedBinder) ->
+    Array (TSyntax ``Term.bracketedBinder) ->
+    Array Term -> Array Term -> TermElabM Term)
+  (lemmaProof : Option Expr)
+  (hasHandler? : Bool)
+  (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+  let sectionArgs ← getSectionArgumentsStx vs
+  let (univBinders, args) ← match br with
+    | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
+    | none => pure (#[], #[])
+  let lemmaStx <- lemmaStx vd univBinders sectionArgs args
+  let lemmaExpr <- elabTermAndSynthesize lemmaStx none
+  let proof ← match lemmaProof with
+  | some lemmaProof =>
+    let lemmaProof <- lemmaProof.removeFunExt (hasHandler?.toNat + 1 + args.size)
+    instantiateMVars <| <- mkLambdaFVarsImplicit vs lemmaProof
+  | none => elabTermAndSynthesize (<- `(by intros; rfl)) lemmaExpr -- `simp` returns no proof if the statement is true by reflexivity
+  let declName := lemmaName
+  addDecl <| Declaration.thmDecl <| mkTheoremValEx declName [] lemmaExpr proof []
+  enableRealizationsForConst declName
+  applyAttributes declName #[{name := `wpSimp}]
+
+def defineWpLemma (vs : Array Expr)
+  (vd : Array (TSyntax ``Term.bracketedBinder))
+  (actName : Name) (actWpName : Name) (actWp : Expr)
+  (actPf : Option Expr)
+  (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+  defineEqLemma vs vd
+    actWp
+    (toWpLemmaName actName)
+    (fun vd univBinders sectionArgs args =>
+    `(forall $vd* hd $univBinders* post,
+      [CanRaise hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post =
+      @$(mkIdent actWpName) $sectionArgs* hd $args* post]))
+    actPf
+    true
+    br
+
+def defineWpSuccLemma (vs : Array Expr)
+  (vd : Array (TSyntax ``Term.bracketedBinder))
+  (actName : Name) (actWpSuccName : Name)
+  (actWpName : Name)
+  (actWpSucc : Expr)
+  (actWpSuccPf : Option Expr)
+  (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+  defineEqLemma vs vd
+    actWpSucc
+    (toWpSuccLemmaName actName)
+    (fun vd univBinders sectionArgs args =>
+      `(forall $vd* $univBinders* post,
+        @$(mkIdent actWpName) $sectionArgs* (fun _ => True) $args* post =
+        @$(mkIdent actWpSuccName) $sectionArgs* $args* post))
+    actWpSuccPf
+    false
+    br
+
+def defineWpExLemma (vs : Array Expr)
+  (vd : Array (TSyntax ``Term.bracketedBinder))
+  (actName : Name)
+  (actWpName : Name)
+  (actWpExName : Name) (actWpEx : Expr)
+  (actWpExPf : Option Expr)
+  (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+  defineEqLemma vs vd
+    actWpEx
+    (toWpExLemmaName actName)
+    (fun vd univBinders sectionArgs args =>
+      `(forall $vd* ex $univBinders* post,
+        @$(mkIdent actWpName) $sectionArgs* (· ≠ ex) $args* post =
+        @$(mkIdent actWpExName) $sectionArgs* ex $args* post))
+    actWpExPf
+    true
+    br
+
+def defineAuxiliaryWpDeclarations (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) := do
+  let vd ← getImplicitProcedureParameters
+  runTermElabM fun vs => do
+    let (actWpName, actWp, actWpPf) ← defineWpForAction vs actName br
+    defineWpLemma vs vd actName actWpName actWp actWpPf br
+
+    let (actWpSuccName, actWpSucc, actWpSuccPf) ← defineWpSuccForAction vs actName br
+    defineWpSuccLemma vs vd actName actWpSuccName actWpName actWpSucc actWpSuccPf br
+
+    let (actWpExName, actWpEx, actWpExPf) ← defineWpExForAction vs actName br
+    defineWpExLemma vs vd actName actWpName actWpExName actWpEx actWpExPf br
+
+/-- Defines `act` : `VeilM m ρ σ α` monad computation, parametrised over `br`. More
+specifically it defines:
+  - `act.ext` : external action interpretation of the action, simplified
+  - `act` : internal action interpretation (for procedure calls) of the action, simplified
+  - `act.ext.gen_wp` : simplified weakest precondition for the external action interpretation
+    generalised over the exception handler
+  - `act.gen_wp` : simplified weakest precondition for the internal action interpretation
+    generalised over the exception handler
+  - `act.ext.wp.eq` : equality between the weakest precondition for the external action interpretation and
+     its simplified version
+  - `act.wp.eq` : equality between the weakest precondition for the internal action interpretation and
+    its simplified version
+-/
+def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
+  let (actExtName, actIntName) ← defineProcedure act br l
+  defineAuxiliaryWpDeclarations actExtName br
+  defineAuxiliaryWpDeclarations actIntName br
+  registerIOActionDecl actT act br
+  registerProcedureBinders act.getId br
+
+/- TODO: fix state extension instances -/
+/-- We support executing actions from dependent modules by executing
+them on the current module's state. This function generates the
+`IsSubStateOf` instances required to do this. -/
+def genStateExtInstances : CommandElabM Unit := do
+  let currName <- getCurrNamespace
+  let insts <- Command.runTermElabM fun _ => do
+    let mut insts := #[]
+    for (modAlias, dep) in (<- localSpecCtx.get).spec.dependencies do
+      let ts ← dep.applyGetStateArguments dep.arguments
+      let currTs <- getStateTpArgsStx
+      let alia := mkIdent modAlias
+      let stateExtTypeclass := mkIdent ``IsSubStateOf
+      let instName := subStateInstIdent alia
+      -- Prove sub-state is a sub-state of the current state
+      let inst <-
+        `(@[actSimp]
+          def $instName:ident :
+           $stateExtTypeclass
+             (@$(mkIdent $ dep.name ++ `State) $ts*)
+             (@$(mkIdent $ currName ++ `State) $currTs*) where
+            setIn := fun s s' => { s' with $alia:ident := s }
+            getFrom := fun s' => s'.$alia
+            setIn_getFrom_idempotent := by intros; dsimp only
+            getFrom_setIn_idempotent := by intros; dsimp only)
+      insts := insts.push inst
+      -- Create an instance showing that the sub-state is of the
+      -- generic state type `σ`
+      let transInstName := subStateInstIdent' alia genericState
+      let transInst ← `(command|@[actSimp] def $transInstName := IsSubStateOf.trans ($instName $currTs*) $genericSubStateIdent)
+      insts := insts.push transInst
+    return insts
+  for inst in insts do
+    trace[veil.debug] "Generating state extension instance:\n{inst}"
+    elabCommand inst
+    trace[veil.info] "State extension instance is defined"
+
+/- TODO: fix -/
+def liftAction (liftedName : TSyntax `ident) (originalName : TSyntax `ident) (instatiatedWithArgs : Array Term) (σ instSubState : Term)  : CommandElabM Unit := do
+  let params ← getImplicitProcedureParameters
+  let stx ← `(command|@[actSimp]def $liftedName $params* := @$originalName $instatiatedWithArgs* $σ $instSubState)
+  trace[veil.debug] "Lifting action {liftedName} to {liftedName}:\n{stx}"
+  elabCommand stx
+
+/- TODO: fix -/
+def defineDepsProcedures : CommandElabM Unit := do
+  for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
+    -- arguments with which the dependency was instantiated
+    let depArgs := dependency.arguments
+    let globalCtx <- globalSpecCtx.get
+    let some depCtx := globalCtx[dependency.name]? | throwError "Module {dependency.name} is not declared"
+    -- Lift initializer
+    let initName := mkIdent $ dependency.name ++ `initializer
+    let liftedName := mkIdent $ modAlias ++ (stripFirstComponent initName.getId)
+    -- trace[veil.info] "lifting {initName} from module {dependency.name} to module {← specName} as {liftedName}"
+    let subStateInst ← Command.runTermElabM fun _ => do
+      let subStateInstName := subStateInstIdent' (mkIdent modAlias) genericState
+      return ← `(term|@$subStateInstName $(← getStateTpArgsStx)* $genericState _)
+    liftAction liftedName initName depArgs genericState subStateInst
+    -- Lift actions
+    for procToLift in depCtx.spec.procedures do
+      let procBaseName := mkIdent $ dependency.name ++ procToLift.name
+      let liftedName := mkIdent <| modAlias ++ (stripFirstComponent procBaseName.getId)
+      liftAction liftedName procBaseName depArgs genericState subStateInst
+
+#exit
 
 def defineInitialActionFromGenerators (act : TSyntax `ident) (genIName genEName : Name) : CommandElabM Unit := do
     Command.runTermElabM fun _ => do
@@ -157,7 +392,7 @@ where
       trace[veil.debug] "Error generating {mode} initial action {actName} (from generator {genName}): {← ex.toMessageData.toString}"
       throwError "Error in action {baseName}: {← ex.toMessageData.toString}"
 
-/-- Defines `act` : `Wp m σ ρ` monad computation, parametrised over `br`. This
+/-- Defines `act` : `Wp m ρ σ` monad computation, parametrised over `br`. This
 assumes that `act.genE` and `act.genI` have already been defined. Specifically
 it defines:
   - `act.ext` : external action interpretation of the action, simplified
@@ -301,7 +536,7 @@ where
     simpleAddDefn procName act (attr := attr) («type» := ← inferType genExp)
     return (procName, actPf)
 
-/-- Defines `act` : `Wp m σ ρ` monad computation, parametrised over `br`. More
+/-- Defines `act` : `Wp m ρ σ` monad computation, parametrised over `br`. More
 specifically it defines:
   - `act.genI` : internal action interpretation of the action, unsimplified
   - `act.genE` : external action interpretation of the action, unsimplified
@@ -321,68 +556,6 @@ def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicit
   let (genIName, _genEName) ← defineProcedureGenerators proc br l
   defineProcedureFromGenerator proc br genIName
   registerProcedureSyntax proc.getId l
-
-/-- We support executing actions from dependent modules by executing
-them on the current module's state. This function generates the
-`IsSubStateOf` instances required to do this. -/
-def genStateExtInstances : CommandElabM Unit := do
-  let currName <- getCurrNamespace
-  let insts <- Command.runTermElabM fun _ => do
-    let mut insts := #[]
-    for (modAlias, dep) in (<- localSpecCtx.get).spec.dependencies do
-      let ts ← dep.applyGetStateArguments dep.arguments
-      let currTs <- getStateTpArgsStx
-      let alia := mkIdent modAlias
-      let stateExtTypeclass := mkIdent ``IsSubStateOf
-      let instName := subStateInstIdent alia
-      -- Prove sub-state is a sub-state of the current state
-      let inst <-
-        `(@[actSimp]
-          def $instName:ident :
-           $stateExtTypeclass
-             (@$(mkIdent $ dep.name ++ `State) $ts*)
-             (@$(mkIdent $ currName ++ `State) $currTs*) where
-            setIn := fun s s' => { s' with $alia:ident := s }
-            getFrom := fun s' => s'.$alia
-            setIn_getFrom_idempotent := by intros; dsimp only
-            getFrom_setIn_idempotent := by intros; dsimp only)
-      insts := insts.push inst
-      -- Create an instance showing that the sub-state is of the
-      -- generic state type `σ`
-      let transInstName := subStateInstIdent' alia genericState
-      let transInst ← `(command|@[actSimp] def $transInstName := IsSubStateOf.trans ($instName $currTs*) $genericSubStateIdent)
-      insts := insts.push transInst
-    return insts
-  for inst in insts do
-    trace[veil.debug] "Generating state extension instance:\n{inst}"
-    elabCommand inst
-    trace[veil.info] "State extension instance is defined"
-
-def liftAction (liftedName : TSyntax `ident) (originalName : TSyntax `ident) (instatiatedWithArgs : Array Term) (σ instSubState : Term)  : CommandElabM Unit := do
-  let params ← getImplicitProcedureParameters
-  let stx ← `(command|@[actSimp]def $liftedName $params* := @$originalName $instatiatedWithArgs* $σ $instSubState)
-  trace[veil.debug] "Lifting action {liftedName} to {liftedName}:\n{stx}"
-  elabCommand stx
-
-def defineDepsProcedures : CommandElabM Unit := do
-  for (modAlias, dependency) in (<- localSpecCtx.get).spec.dependencies do
-    -- arguments with which the dependency was instantiated
-    let depArgs := dependency.arguments
-    let globalCtx <- globalSpecCtx.get
-    let some depCtx := globalCtx[dependency.name]? | throwError "Module {dependency.name} is not declared"
-    -- Lift initializer
-    let initName := mkIdent $ dependency.name ++ `initializer
-    let liftedName := mkIdent $ modAlias ++ (stripFirstComponent initName.getId)
-    -- trace[veil.info] "lifting {initName} from module {dependency.name} to module {← specName} as {liftedName}"
-    let subStateInst ← Command.runTermElabM fun _ => do
-      let subStateInstName := subStateInstIdent' (mkIdent modAlias) genericState
-      return ← `(term|@$subStateInstName $(← getStateTpArgsStx)* $genericState _)
-    liftAction liftedName initName depArgs genericState subStateInst
-    -- Lift actions
-    for procToLift in depCtx.spec.procedures do
-      let procBaseName := mkIdent $ dependency.name ++ procToLift.name
-      let liftedName := mkIdent <| modAlias ++ (stripFirstComponent procBaseName.getId)
-      liftAction liftedName procBaseName depArgs genericState subStateInst
 
 /-- Given `tr` : `σ → σ → Prop` (parametrised over `br`), this defines:
   - `tr.genI` : internal action interpretation of the action, unsimplified

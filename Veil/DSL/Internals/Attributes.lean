@@ -29,6 +29,18 @@ initialize registerBuiltinAttribute {
     localSpecCtx.modify (fun s => { s with spec.generic := {s.spec.generic with stateType := ty }})
 }
 
+syntax (name:= reader) "readerDef" : attr
+initialize registerBuiltinAttribute {
+  name := `reader
+  descr := "This is the reader type"
+  add := fun declName _ _ => do
+    let rdsTp := (<- localSpecCtx.get).spec.generic.readerType
+    unless rdsTp == default do
+      throwError "Reader type has already been declared: {rdsTp}"
+    let ty := mkConst declName
+    localSpecCtx.modify (fun s => { s with spec.generic := {s.spec.generic with readerType := ty }})
+}
+
 syntax (name:= initial) "initDef" : attr
 initialize registerBuiltinAttribute {
   name := `initial
