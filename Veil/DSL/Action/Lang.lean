@@ -85,9 +85,19 @@ def throwIfImmutable (lhs : TSyntax `Lean.Parser.Term.structInstLVal) : TermElab
     | `(Lean.Parser.Term.structInstLVal|$id:ident) => pure id.getId
     | _ => throwErrorAt lhs "expected an identifier in the LHS of an assignment, got {repr lhs}"
 
-def getFields [Monad m] [MonadEnv m] : m (Array Name) := do
+def getMutableFields [Monad m] [MonadEnv m] : m (Array Name) := do
   let spec := (← localSpecCtx.get).spec
-  pure $ spec.signature.map (·.name)
+  pure $ spec
+      |>.signature
+      |>.filter (·.mutability != .immutable)
+      |>.map (·.name)
+
+def getImmutableFields [Monad m] [MonadEnv m] : m (Array Name) := do
+  let spec := (← localSpecCtx.get).spec
+  pure $ spec
+      |>.signature
+      |>.filter (·.mutability == .immutable)
+      |>.map (·.name)
 
 partial def getFieldsRecursively [Monad m] [MonadEnv m] [MonadError m]: m (Array Name) := do
   let spec := (← localSpecCtx.get).spec
@@ -191,12 +201,16 @@ abbrev VeilElabM := StateT (Array Vars) TermElabM
 /-- Used when first declaring the variables. -/
 def getStateDestructorPattern [Monad m] [MonadEnv m] [MonadQuotation m]: m (TSyntax `term) := do
   -- https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/Pattern.20match.20and.20name.20binder.20.60none.60/near/514568614
-  let fields ← (<- getFields).mapM (fun f => return ← `(term|$(mkIdent f)@_)) -- note the @_
+  let fields ← (<- getMutableFields).mapM (fun f => return ← `(term|$(mkIdent f)@_)) -- note the @_
+  `(term|⟨$fields:term,*⟩)
+
+def getReaderDestructorPattern [Monad m] [MonadEnv m] [MonadQuotation m]: m (TSyntax `term) := do
+  let fields ← (<- getImmutableFields).mapM (fun f => return ← `(term|$(mkIdent f)@_)) -- note the @_
   `(term|⟨$fields:term,*⟩)
 
 /-- Used when accessing the state / re-assigning the variables. -/
 def getStateAccessorPattern [Monad m] [MonadEnv m] [MonadQuotation m]: m (TSyntax `term) := do
-  let fields ← (<- getFields).mapM (fun f => return ← `(term|$(mkIdent f)))
+  let fields ← (<- getMutableFields).mapM (fun f => return ← `(term|$(mkIdent f)))
   `(term|⟨$fields:term,*⟩)
 
 mutual
@@ -257,8 +271,9 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilElabM (Array doSeqItem) := 
     let name := id.getId
     let id' <- `(Term.structInstLVal| $id:ident)
     if name.isAtomic then
-      let fields <- getFields
-      if id.getId ∈ fields then
+      let immutableFields <- getImmutableFields
+      let mutableFields <- getMutableFields
+      if id.getId ∈ immutableFields || id.getId ∈ mutableFields then
         throwIfImmutable id'
         -- NOTE: It is very important that we return a single `doSeqItem`;
         -- otherwise syntax highlighting gets broken very badly
@@ -311,9 +326,12 @@ treating `require`'s in the way described by `mode`. -/
 elab (name := VeilDo) "do'" mode:term "as" readerTp:term "," stateTp:term "in" stx:doSeq : term => do
   /- Array containing all auxilary let-bingings to be inserted in the
     beginning of the `do`-block. It consists of
-    - `let mut field := (<- get). field` for each field of the protocol state. We do this
+    - `let mut field := (<- get). field` for each mutable field of the protocol state. We do this
       to be able to access and modify the state fields without the need to use
       `get` and `modify` functions
+    - `let field := (<- read). field` for each immutable field of the protocol state. We do this
+      to be able to access the immutable fields without the need to use
+      `read` function
     - [HACK] `let submodule.act := submodule.act` for each action `act` inherited from
       submodules. As for each submodule, the previous step defines a local variable
       `submodule`, `submodule.act` will be treated as an access to `submodule`'s field `act`,
@@ -333,6 +351,9 @@ elab (name := VeilDo) "do'" mode:term "as" readerTp:term "," stateTp:term "in" s
   -- Make available state fields as mutable variables
   let pattern ← getStateDestructorPattern
   preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let mut $pattern:term := (<- get))
+  -- Make available immutable fields as immutable variables
+  let readerPattern ← getReaderDestructorPattern
+  preludeAssn := preludeAssn.push <| ← `(Term.doSeqItem| let $readerPattern:term := (<- read))
   -- We hoist all pick variables to make all the quantifiers top level
   -- Here we add them to the prelude, as immutable variables
   for v in vars do

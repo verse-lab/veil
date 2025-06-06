@@ -1,6 +1,6 @@
 import Lean
 import Auto
-import Smt.Tactic
+import Veil.SMT.Imports
 
 import Veil.SMT.Base
 

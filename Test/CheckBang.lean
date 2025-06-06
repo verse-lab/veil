@@ -1,6 +1,7 @@
 import Veil.DSL
 import Veil.Std
 
+/- TODO: fix this when we have invariant checking for tr
 veil module Ring
 
 
@@ -105,3 +106,4 @@ error: The invariant is not inductive: 3 clauses are not preserved!
 set_option veil.vc_gen "transition" in #check_invariants!
 
 end Ring
+-/

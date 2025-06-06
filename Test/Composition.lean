@@ -2,6 +2,8 @@ import Veil.DSL
 import Test.TestUtil
 import Veil.Std
 
+/- TODO: fix it when we add compositionality
+
 veil module Test₁
 
 
@@ -164,3 +166,4 @@ action foo (n : node) (originator : node) (r : Int) (v : vertex) = {
 sat trace { } by bmc_sat
 
 end DAGConstruction
+-/

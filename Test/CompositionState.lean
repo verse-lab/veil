@@ -1,6 +1,7 @@
 import Veil.DSL
 import Test.TestUtil
 
+/- TODO: fix it when we add compositionality
 
 set_option linter.unusedVariables false
 
@@ -80,3 +81,4 @@ action try_modify_inner_child (new_node : node) = {
 #gen_spec
 
 end Parent
+-/

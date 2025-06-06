@@ -1,5 +1,7 @@
 import Veil
 
+/- TODO: fix it when we add compositionality
+
 veil module Foo
 
 individual foobar : Bool
@@ -87,3 +89,4 @@ fun {msg} [DecidableEq msg] [Nonempty msg] {σ} [IsSubStateOf (State msg) σ] =>
 #gen_spec
 
 end ReliableReorderingChannel
+-/

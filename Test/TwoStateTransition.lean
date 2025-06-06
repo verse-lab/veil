@@ -3,6 +3,8 @@ import Veil.DSL
 veil module TwoStateTransitionTest
 
 
+/- TODO: Fix when we support actions declared via transition relations
+
 type address
 variable (is_byz : address → Prop)
 
@@ -25,3 +27,4 @@ internal transition withargs (r : address) = {
 }
 
 end TwoStateTransitionTest
+-/

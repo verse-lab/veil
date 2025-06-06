@@ -77,8 +77,8 @@ lemma VeilExecM.wp_assume :
 lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId) :
   wp (require p ex : VeilM m ρ σ Unit) post =
     match m with
-    | .internal => wp (VeilM.assert p ex : VeilM m ρ σ Unit) post
-    | .external => wp (assume p : VeilM m ρ σ PUnit) post := by
+    | .internal => wp (VeilM.assert p ex : VeilM .internal ρ σ Unit) post
+    | .external => wp (      assume p    : VeilM .external ρ σ PUnit) post := by
   cases m <;> rfl
 
 
@@ -111,9 +111,9 @@ lemma VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} :
   erw [StateT.wp_modifyGet]
 
 @[wpSimp]
-lemma VeilExecM.wp_read {_ : IsSubStateOf ρₛ ρ} :
-  wp (read : VeilExecM m ρ σ ρₛ) post = fun r s => post (getFrom r) r s := by
-  simp [read, getThe, MonadReaderOf.read, MPropLift.wp_lift]; ext
+lemma VeilM.wp_read {_ : IsSubStateOf ρₛ ρ} :
+  wp (read : VeilM m ρ σ ρₛ) post = fun r s => post (getFrom r) r s := by
+  simp [read, getThe, MonadReaderOf.read, readThe, MPropLift.wp_lift]; ext
   erw [ReaderT.wp_read]
 
 @[wpSimp]

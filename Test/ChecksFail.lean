@@ -22,6 +22,7 @@ after_init {
   flag := False
 }
 
+
 action ruin_inv = {
   flag := True
 }

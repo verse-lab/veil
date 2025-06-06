@@ -2,6 +2,7 @@ import Lean
 import Veil.Tactic.Main
 import Veil.DSL.Check.Main
 
+/- TODO: fix this when we have time
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
 -- adapted from `theoremSuggestionsForChecks`
@@ -149,3 +150,4 @@ elab "#split_invariants" : command => do
           intro $tempvars* ; have hh := @$(mkIdent thmName1) $tempvars*
           revert hh ; simp only [and_imp] ; intros ; assumption
         )     -- avoid having a tactic spliting at hyp
+-/

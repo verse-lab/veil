@@ -462,8 +462,13 @@ elab_rules : tactic
 elab "simplify_all" : tactic => withMainContext do
   let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
   let toSimp := mkSimpLemmas $ #[`smtSimp, `logicSimp].map mkIdent
+  let complSimp := mkSimpLemmas $ #[`Pi.compl_def, ``Pi.compl_apply, ``compl].map mkIdent
   let finalSimp := mkSimpLemmas $ #[`quantifierSimp].map mkIdent
-  let simp_tac ← `(tactic| (try dsimp only [$toDsimp,*] at *) ; (try simp only [$toSimp,*] at *); (try simp only [$finalSimp,*] at *))
+  let simp_tac ← `(tactic|
+    (try dsimp only [$toDsimp,*] at *) ;
+    (try simp only [$toSimp,*] at *);
+    (try simp only [$finalSimp,*] at *))
+  trace[veil.debug] "simp_tac: {simp_tac}"
   evalTactic simp_tac
 
 /-- Tactic to solve `unsat trace` goals. -/

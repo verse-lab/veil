@@ -12,5 +12,5 @@ action req = {
   require False
 }
 
-example : forall s s' (Q : Prop), req.tr s s' -> Q := by simp [actSimp]
-example : forall s Q, ¬ req s Q := by simp [actSimp]
+example : forall (r : ρ) (s s' : σ) (Q : Prop), req.tr r s s' -> Q := by simp [actSimp]
+example : forall (r : ρ) (s : σ) (Q), ¬ req.wpGen (fun _ => False) Q r s := by simp [actSimp]

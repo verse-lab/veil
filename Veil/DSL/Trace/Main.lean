@@ -81,12 +81,13 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       | _ => n + 1) 0
     let numStates := numActions + 1
     let stateNames := List.toArray $ (List.range numStates).map fun i => mkIdent (Name.mkSimple s!"st{i}")
+    let readerState := mkIdent `rd
 
     /- Track which state assertions refer to. -/
     let mut currStateId := 0
     /- Which assertions, including state-transitions, does the spec contain. -/
     let mut assertions : Array (TSyntax `term) := #[]
-    assertions := assertions.push (← `(term|(($systemTp).$(mkIdent `assumptions) $(stateNames[0]!) ∧ (($systemTp).$(mkIdent `init) $(stateNames[0]!)))))
+    assertions := assertions.push (← `(term|(($systemTp).$(mkIdent `assumptions) $readerState $(stateNames[0]!) ∧ (($systemTp).$(mkIdent `init) $readerState $(stateNames[0]!)))))
     for s in spec do
       let currState := stateNames[currStateId]!
       match s with
@@ -95,12 +96,12 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         let vs <- getSectionArgumentsStxWithConcreteState vs
         let stx <- `(@$(mkIdent $ toTrName n) $vs*)
         -- FIXME: make a correct application, i.e. providing the `vd` names
-        let t ← `(term|($stx $currState $nextState))
+        let t ← `(term|($stx $readerState $currState $nextState))
         assertions := assertions.push t
         currStateId := currStateId + 1
       | TraceSpecLine.anyAction => do
         let nextState := stateNames[currStateId + 1]!
-        let t ← `(term|(($systemTp).$(mkIdent `next) $currState $nextState))
+        let t ← `(term|(($systemTp).$(mkIdent `next) $readerState $currState $nextState))
         assertions := assertions.push t
         currStateId := currStateId + 1
       -- FIXME: remove code duplication with above
@@ -108,7 +109,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         for _ in [0:k] do
           let currState := stateNames[currStateId]!
           let nextState := stateNames[currStateId + 1]!
-          let t ← `(term|(($systemTp).$(mkIdent `next) $currState $nextState))
+          let t ← `(term|(($systemTp).$(mkIdent `next) $readerState $currState $nextState))
           assertions := assertions.push t
           currStateId := currStateId + 1
       | TraceSpecLine.assertion t => do
@@ -117,22 +118,23 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         let stx <- funcasesM t
         let t ← elabBindersAndCapitals #[] vs stx fun _ e => do
           let e <- delabWithMotives e
-          `(fun $(mkIdent `st) => $e: term)
-        let t ← `(term|($t $currState))
+          `(fun $(mkIdent `rd) $(mkIdent `st) => $e: term)
+        let t ← `(term|($t $readerState $currState))
         assertions := assertions.push t
     let name : Name ← match name with
     | some n => pure n.getId
-    | none => mkFreshUserName (Name.mkSimple "trace")
+    | none => mkFreshUserName `trace
     let th_id := mkIdent name
     let conjunction ← repeatedAnd assertions
     -- sat trace -> ∃ states, (conjunction of assertions)
     -- unsat trace -> ∀ states, ¬ (conjunction of assertions)
     let stateTp ← getStateTpStx
+    let readerTp ← getReaderTpStx
     let binderNames : Array (TSyntax ``Lean.binderIdent) := stateNames.map toBinderIdent
     let vdE ← vd.mapM toExplicitBinders
     let assertion ← match r with
-    | `(expected_smt_result| unsat) => `(∀ $[$vd]* ($[$stateNames]* : $stateTp), ¬ $conjunction)
-    | `(expected_smt_result| sat) => `(∃ $[$vdE]* ($[$binderNames]* : $stateTp), $conjunction)
+    | `(expected_smt_result| unsat) => `(∀ $[$vd]* ($readerState:ident : $readerTp) ($[$stateNames]* : $stateTp), ¬ $conjunction)
+    | `(expected_smt_result| sat) => `(∃ $[$vdE]* ($readerState:ident : $readerTp) ($[$binderNames]* : $stateTp), $conjunction)
     | _ => dbg_trace "expected result is neither sat nor unsat!" ; unreachable!
     `(theorem $th_id : $assertion := by exact $pf)
   trace[veil.debug] "{th}"

@@ -89,6 +89,8 @@ elab "rename_binders" : tactic => do
 fix implemented there seems unreliable. -/
 attribute [smtSimp] iff_eq_eq
 
+attribute [smtSimp] Pi.compl_def Pi.compl_apply compl
+
 /-- Tuples are not supported in SMT-LIB, so we destruct tuple equalities. -/
 @[smtSimp] theorem tupleEq [DecidableEq t1] [DecidableEq t2] (a c : t1) (b d : t2):
   ((a, b) = (c, d)) = (a = c ∧ b = d) := by

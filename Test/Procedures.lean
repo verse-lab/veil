@@ -1,5 +1,6 @@
 import Veil
 
+/- TODO: fix it when we add procedures and specifications
 veil module Foo
 
 type node
@@ -51,3 +52,4 @@ The following set of actions must preserve the invariant:
 #check_invariants
 
 end Foo
+-/

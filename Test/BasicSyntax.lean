@@ -10,18 +10,9 @@ relation r : node -> Nat -> Prop
 individual n : node
 function f : Nat -> Nat
 
-set_option trace.veil.debug true
-
 #gen_state
 
-#check VeilM.require
-
--- set_option pp.all true
-
--- #guard_msgs(drop warning) in
 action foo (k : Nat) =
-  -- requires ∀ x, r x k
-  -- ensures True
 {
   let x <- pick node
   -- return x
@@ -31,14 +22,11 @@ action foo (k : Nat) =
 
 #guard_msgs(drop warning) in
 action foo2 (k : Nat) = {
-  let mut y := 0
-  y := k
-  if y > 0 then
+  -- y := k
+  if k > 0 then
     return True
   else return False
 }
-
-#print foo2.wpGen
 
 /-- info: true -/
 #guard_msgs in
@@ -58,8 +46,6 @@ action foo3 (k : Nat) = {
     y := f 1 < 5
   return y
 }
-
-#print foo3.wpGen
 
 /-- info: true -/
 #guard_msgs in

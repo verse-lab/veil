@@ -45,6 +45,7 @@ action try_assign_immutable = {
   b := b'
 }
 
+/- TODO: fix it when we add transitions
 /--
 error: individual b in module Test was declared immutable, but the transition might modify it (since it mentions its primed version b')!
 -/
@@ -52,6 +53,7 @@ error: individual b in module Test was declared immutable, but the transition mi
 transition try_assign_immutable' (x : block) = {
     b' = x
 }
+-/
 
 #guard_msgs in
 action double_bind (r : Int) = {

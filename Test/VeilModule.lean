@@ -56,6 +56,7 @@ veil module Foo
 #guard_msgs in
 #check tot
 
+
 -- You can do all the checks
 /--
 info: Initialization must establish the invariant:

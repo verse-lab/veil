@@ -258,19 +258,12 @@ structure ModuleParameters where
 
   /-- Index of the generic state parameter -/
   genericStateParam : Nat
-  /-- Index of the generic reader parameter -/
-  genericReaderParam : Nat
 
   /-- Index of the `IsSubStateOf` instance parameter, which states that
   the concrete state is a sub-state of the generic state. This should
   always be `genericStateParam + 1`, but we store it separately for
   convenience. -/
   genericSubStateInstParam : Nat
-  /-- Index of the `IsSubStateOf` instance parameter, which states that
-  the concrete state is a sub-state of the generic state. This should
-  always be `genericStateParam + 1`, but we store it separately for
-  convenience. -/
-  genericSubReaderInstParam : Nat
 
   /-- Expression representing the type of the transition system state,
   *without* having applied the state-specific section variables. -/
@@ -294,12 +287,6 @@ structure ModuleParameters where
   parameters that exist when `#gen_state` is called, ignoring the
   typeclass parameters. -/
   stateArgs     : Array (Nat × Term)
-  /-- Syntax representing the arguments of the immutable state type,
-  which need to be passed in order to fully instantiate it. The index
-  is the position of the argument in `parameters`. These are the `Type`
-  parameters that exist when `#gen_state` is called, ignoring the
-  typeclass parameters. -/
-  readerArgs     : Array (Nat × Term)
 
   /-- Assertion parameters, as indices into `parameters`. These are all
   the parameters that exist when `#gen_spec` is called. -/
@@ -310,7 +297,7 @@ def ModuleParameters.stateArguments (mp : ModuleParameters) : Array Term :=
   mp.stateArgs.map (fun (_, arg) => arg)
 
 def ModuleParameters.readerArguments (mp : ModuleParameters) : Array Term :=
-  mp.readerArgs.map (fun (_, arg) => arg)
+  mp.stateArgs.map (fun (_, arg) => arg)
 
 def ModuleParameters.stateArgIndices (mp : ModuleParameters) : Std.HashSet Nat :=
   Std.HashSet.ofArray (mp.stateArgs.map (fun (idx, _) => idx))
@@ -331,16 +318,18 @@ def ModuleParameters.applyGetNonGenericStateArguments [Monad m] [MonadError m] (
   if args.size < mp.parameters.size then
     throwError "Expected at least {mp.parameters.size} arguments, but got {args.size}!"
   let pairs := Array.zip (List.range' 0 args.size).toArray args
-  let indices := #[mp.genericStateParam, mp.genericSubStateInstParam]
+  let indices := #[mp.genericStateParam, mp.genericSubStateInstParam, mp.genericSubStateInstParam + 1, mp.genericSubStateInstParam + 2]
   let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then none else some arg)
   return res
 
 /-- Replaces the generic state parameter with the concrete `st` and instance `inst` -/
-def ModuleParameters.applyWithConcreteState [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) (st : α) (inst : α) : m (Array α) := do
+def ModuleParameters.applyWithConcreteState [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) (st : α) (rd : α) (inst : α) (instr : α) : m (Array α) := do
   let pairs := Array.zip (List.range' 0 args.size).toArray args
   let pairs := pairs.map (fun (idx, arg) =>
     if idx == mp.genericStateParam then (idx, st)
     else if idx == mp.genericSubStateInstParam then (idx, inst)
+    else if idx == mp.genericSubStateInstParam + 1 then (idx, rd)
+    else if idx == mp.genericSubStateInstParam + 2 then (idx, instr)
     else (idx, arg))
   return pairs.map (fun (_, arg) => arg)
 

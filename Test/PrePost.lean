@@ -5,6 +5,8 @@ import Test.TestUtil
 set_option linter.unusedVariables.analyzeTactics true
 set_option veil.smt.translator "lean-smt"
 
+/- TODO: fix it when we add procedures and specifications
+
 veil module Test
 type node
 
@@ -58,3 +60,4 @@ action bar =
 
 
 end Test
+-/

@@ -1,5 +1,7 @@
 import Veil
 
+/- TODO: fix it when we add assertion actions
+
 veil module Foo
 
 type node
@@ -67,3 +69,4 @@ unsat trace {
 } by bmc
 
 end Foo
+-/

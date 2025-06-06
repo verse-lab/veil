@@ -15,14 +15,19 @@ action nondet_individual = {
 }
 
 /--
-info: def Test.nondet_individual : {node : Type} →
+info: def Test.nondet_individual.wpGen : {node : Type} →
   [node_dec : DecidableEq node] →
-    [node_ne : Nonempty node] → {σ : Type} → [σ_substate : IsSubStateOf (State node) σ] → Wp Mode.internal σ PUnit :=
-fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] s post =>
-  ∀ (t : Prop), post PUnit.unit (setIn { x := t, r := (getFrom s).r } s)
+    [node_ne : Nonempty node] →
+      {σ : Type} →
+        [σ_substate : IsSubStateOf (State node) σ] →
+          {ρ : Type} →
+            [ρ_reader : IsSubStateOf (Reader node) ρ] → (ExId → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
+fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubStateOf (Reader node) ρ] hd
+    post r s =>
+  ∀ (t : Prop), post PUnit.unit r (setIn { x := t, r := (getFrom s).r } s)
 -/
 #guard_msgs in
-#print nondet_individual
+#print nondet_individual.wpGen
 
 action quantify_pick (n : node) = {
   -- let n <- pick node
@@ -30,33 +35,44 @@ action quantify_pick (n : node) = {
 }
 
 /--
-info: def Test.quantify_pick : {node : Type} →
+info: def Test.quantify_pick.wpGen : {node : Type} →
   [node_dec : DecidableEq node] →
     [node_ne : Nonempty node] →
-      {σ : Type} → [σ_substate : IsSubStateOf (State node) σ] → node → Wp Mode.internal σ PUnit :=
-fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] n s post =>
+      {σ : Type} →
+        [σ_substate : IsSubStateOf (State node) σ] →
+          {ρ : Type} →
+            [ρ_reader : IsSubStateOf (Reader node) ρ] →
+              (ExId → Prop) → node → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
+fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubStateOf (Reader node) ρ] hd n
+    post r s =>
   ∀ (t : node → node → Prop),
-    post PUnit.unit (setIn { x := (getFrom s).x, r := fun x N => if x = n then t n N else (getFrom s).r x N } s)
+    post PUnit.unit r (setIn { x := (getFrom s).x, r := fun x N => if x = n then t n N else (getFrom s).r x N } s)
 -/
 #guard_msgs in
-#print quantify_pick
+#print quantify_pick.wpGen
 
 action double_quant = {
   r N N := *
 }
 
 /--
-info: def Test.double_quant : {node : Type} →
+info: def Test.double_quant.wpGen : {node : Type} →
   [node_dec : DecidableEq node] →
-    [node_ne : Nonempty node] → {σ : Type} → [σ_substate : IsSubStateOf (State node) σ] → Wp Mode.internal σ PUnit :=
-fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] s post =>
+    [node_ne : Nonempty node] →
+      {σ : Type} →
+        [σ_substate : IsSubStateOf (State node) σ] →
+          {ρ : Type} →
+            [ρ_reader : IsSubStateOf (Reader node) ρ] → (ExId → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
+fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubStateOf (Reader node) ρ] hd
+    post r s =>
   ∀ (t : node → node → Prop),
-    post PUnit.unit (setIn { x := (getFrom s).x, r := fun N x => if x = N then t N N else (getFrom s).r N x } s)
+    post PUnit.unit r (setIn { x := (getFrom s).x, r := fun N x => if x = N then t N N else (getFrom s).r N x } s)
 -/
 #guard_msgs in
-#print double_quant
+#print double_quant.wpGen
 
-def top_level (n : node) := do' .external as [State] in
+noncomputable
+def top_level (n : node) := do' .external as [Reader], [State] in
   require x
   if x then
     r N N := *
@@ -64,7 +80,8 @@ def top_level (n : node) := do' .external as [State] in
     r n n := *
   return r
 
-def top_level' (n : node) := do' .external as [State]in
+noncomputable
+def top_level' (n : node) := do' .external as [Reader],[State]in
   let pickR <- pick node -> node -> Prop
   let pickR' <- pick node -> node -> Prop
   require x

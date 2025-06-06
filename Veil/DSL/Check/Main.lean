@@ -139,7 +139,7 @@ def mkTrTheoremName (actName : Name) (invName : Name) : Name := mkTheoremName (t
 
 def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, st, st', stateSimpH) := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st', mkIdent stateSimpHypName)
+      let (systemTp, stateTp, readerTp, rd, st, st', stateSimpH) := (← getSystemTpStx vs, ← getStateTpStx, ← getReaderTpStx, mkIdent `rd, mkIdent `st, mkIdent `st', mkIdent stateSimpHypName)
       let assertionArgs ← getSectionArgumentsStx vs
       let actionArgs ← getSectionArgumentsStx vs
       let mut theorems : Array (TheoremIdentifier × TSyntax `command) := #[]
@@ -148,7 +148,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
         -- Init checks
         for invName in initIndicators.reverse do
           let invStx ← `(@$(mkIdent invName) $assertionArgs*)
-          let initTpStx ← `(∀ ($st' : $genericState), ($systemTp).$(mkIdent `assumptions) $st' → ($systemTp).$(mkIdent `init) $st' → $invStx $st')
+          let initTpStx ← `(∀ ($rd : $genericReader) ($st' : $genericState), ($systemTp).$(mkIdent `assumptions) $rd $st' → ($systemTp).$(mkIdent `init) $rd $st' → $invStx $st')
           let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
           let thmName := mkTheoremName `init invName
           let thm ← `(@[invProof] theorem $(mkIdent thmName) : $initTpStx := $body)
@@ -159,7 +159,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let trName := toTrName actName
           let invStx ← `(@$(mkIdent invName) $assertionArgs*)
           let trStx ← `(@$(mkIdent trName) $actionArgs*)
-          let trTpSyntax ← `(∀ ($st $st' : $genericState), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
+          let trTpSyntax ← `(∀ ($rd : $genericReader) ($st $st' : $genericState), ($systemTp).$(mkIdent `assumptions) $rd $st → ($systemTp).$(mkIdent `inv) $rd $st → $trStx $rd $st $st' → $invStx $rd $st')
           let body ← if sorry_body then `(by sorry) else `(by solve_tr_clause $(mkIdent trName) $(mkIdent invName))
           let (tp, body) := (trTpSyntax, body)
           let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
@@ -170,7 +170,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
         let init := initIndicators.reverse.map (fun invName => (initializerName, invName))
         -- Init + Action checks
         for (actName, invName) in init ++ actIndicators.reverse do
-            let extName := toExtName actName
+            let extName := toWpSuccName $ toExtName actName
             let moduleName <- getCurrNamespace
 
             let (univBinders, args) ← do
@@ -182,13 +182,15 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
                 | none => pure (#[], #[])
               else pure (#[], #[])
 
-            let invStx ← `(fun _ ($st' : $genericState) => @$(mkIdent invName) $assertionArgs*  $st')
+            let invStx ← `(fun _ ($rd : $genericReader) ($st' : $genericState) => @$(mkIdent invName) $assertionArgs* $rd $st')
             let extStx ← `(@$(mkIdent extName) $actionArgs* $args*)
             let extTpSyntax ←
               if actName != initializerName then
-                `(∀ ($st : $genericState), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
+                `(∀ ($rd : $genericReader) ($st : $genericState), forall? $univBinders*,
+                  ($systemTp).$(mkIdent `assumptions) $rd $st → ($systemTp).$(mkIdent `inv) $rd $st → $extStx $invStx $rd $st)
               else
-                `(∀ ($st : $genericState), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → $extStx $st $invStx)
+                `(∀ ($rd : $genericReader) ($st : $genericState), forall? $univBinders*,
+                  ($systemTp).$(mkIdent `assumptions) $rd $st → $extStx $invStx $rd $st)
             let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
             let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
             let (tp, body) := (extTpSyntax, body)
@@ -387,19 +389,19 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
   | (.wp, .checkTheoremsWithIndicators, _) => throwError "[checkTheorems] wp style is not supported for checkTheoremsWithIndicators"
   | (.transition, .checkTheoremsWithIndicators, _) =>
     let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
+      let (systemTp, stateTp, readerTp, rd, st, st') := (← getSystemTpStx vs, ← getStateTpStx, ← getReaderTpStx, mkIdent `rd, mkIdent `st, mkIdent `st')
       let sectionArgs ← getSectionArgumentsStx vs
       -- get the syntax of the transitions
       let actStxList : Array Term ← actIndicators.toArray.mapM (fun (actName, indName) => do
         let actName ← resolveGlobalConstNoOverloadCore actName
         let tr := mkIdent $ toTrName actName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
-        `($(mkIdent indName) ∧ (@$tr $sectionArgs* $st $st'))
+        `($(mkIdent indName) ∧ (@$tr $sectionArgs* $rd $st $st'))
       )
       let invStxList : Array Term ← invIndicators.toArray.mapM (fun (invName, indName) => do
         let invName ← resolveGlobalConstNoOverloadCore invName
         let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
-        `(($(mkIdent indName) → @$(mkIdent invName) $sectionArgs* $st'))
+        `(($(mkIdent indName) → @$(mkIdent invName) $sectionArgs* $rd $st'))
       )
       let invariants ← repeatedAnd invStxList
       let _actions ← repeatedOr actStxList
@@ -410,7 +412,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let initParams ← Array.mapM (fun (_, e) => do
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ invIndicators.toArray
-      let initTpStx ← `(∀ $[$initParams]* ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st' → ($systemTp).$(mkIdent `init) $st' → $invariants)
+      let initTpStx ← `(∀ $[$initParams]* ($rd : $readerTp) ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $rd $st' → ($systemTp).$(mkIdent `init) $rd $st' → $invariants)
       trace[veil] "init check: {initTpStx}"
       let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
       trace[veil.debug] "SMT init check: {initCmd}"
@@ -423,7 +425,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       let actParams ← Array.mapM (fun (_, e) => do
         return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
       ) $ allIndicators.toArray
-      let actTpStx ← `(∀ $[$actParams]* ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $_actions → $invariants)
+      let actTpStx ← `(∀ $[$actParams]* ($rd : $readerTp) ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $rd $st → ($systemTp).$(mkIdent `inv) $rd $st → $_actions → $invariants)
       trace[veil] "action check: {actTpStx}"
       let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
       trace[veil.debug] "SMT action check: {actCmd}"
@@ -574,8 +576,9 @@ elab "prove_inv_init" proof:term : command => do
   liftCoreM errorOrWarnWhenSpecIsNeeded
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
+    let readerTp <- getReaderTpStx
     let invInit := mkIdent ``RelationalTransitionSystem.invInit
-    `(theorem $(mkIdent `inv_init) : $invInit (σ := $stateTp) :=
+    `(theorem $(mkIdent `inv_init) : $invInit (σ := $stateTp) (ρ := $readerTp) :=
        by unfold $invInit
           -- simp only [initSimp, invSimp]
           intros $(mkIdent `st)
@@ -585,8 +588,9 @@ elab "prove_inv_safe" proof:term : command => do
   liftCoreM errorOrWarnWhenSpecIsNeeded
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
+    let readerTp <- getReaderTpStx
     let invSafe := mkIdent ``RelationalTransitionSystem.invSafe
-    `(theorem $(mkIdent `safety_init) : $invSafe (σ := $stateTp) :=
+    `(theorem $(mkIdent `safety_init) : $invSafe (σ := $stateTp) (ρ := $readerTp) :=
        by unfold $invSafe;
           -- simp only [initSimp, safeSimp]
           intros $(mkIdent `st);
@@ -596,8 +600,9 @@ elab "prove_inv_inductive" proof:term : command => do
   liftCoreM errorOrWarnWhenSpecIsNeeded
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
+    let readerTp <- getReaderTpStx
     let invInductive := mkIdent ``RelationalTransitionSystem.invInductive
-    `(theorem $(mkIdent `inv_inductive) : $invInductive (σ := $stateTp) :=
+    `(theorem $(mkIdent `inv_inductive) : $invInductive (σ := $stateTp) (ρ := $readerTp) :=
       by unfold $invInductive;
         --  intros $(mkIdent `st) $(mkIdent `st')
         --  simp only [actSimp, invSimp, safeSimp]

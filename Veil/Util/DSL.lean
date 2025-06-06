@@ -57,8 +57,10 @@ def getSectionArgumentsStxWithConcreteState (vs : Array Expr) : TermElabM (Array
   let args ← getSectionArgumentsStx vs
   let spec := (← localSpecCtx.get).spec
   let stateTp ← getStateTpStx
+  let readerTp ← getReaderTpStx
   let substateInst ← `(term|_) -- infer the instance from the context
-  let concreteArgs ← spec.generic.applyWithConcreteState args stateTp substateInst
+  let subreaderInst ← `(term|_) -- infer the instance from the context
+  let concreteArgs ← spec.generic.applyWithConcreteState args stateTp readerTp substateInst subreaderInst
   trace[veil.debug] "args: {args} => concreteArgs: {concreteArgs}"
   return concreteArgs
 
@@ -239,8 +241,8 @@ def toExtIdent (id : Ident) : Ident := mkIdent $ toExtName id.getId
 
 def toActName (n : Name) (mode : Mode) : Name :=
   match mode with
-  | Mode.internal => toExtName n
-  | Mode.external => n
+  | Mode.internal => n
+  | Mode.external => toExtName n
 
 def toActIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toActName id.getId mode
 

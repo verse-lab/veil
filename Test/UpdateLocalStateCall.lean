@@ -1,5 +1,7 @@
 import Veil
 
+/- TODO: fix it when we add compositionality
+
 veil module Test
 type node
 
@@ -65,3 +67,4 @@ info: The following set of actions must preserve the invariant:
 #guard_msgs in
 #check_action becauseitshouldmeanthesameasthis
 end Test
+-/

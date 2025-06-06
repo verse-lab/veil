@@ -147,7 +147,7 @@ def defineAndSimplify (vs : Array Expr)
     return (defName, actPf)
 
 partial
-def Lean.Expr.removeFunExt (limit : Nat) (actPf : Expr)  : MetaM Expr := do
+def Lean.Expr.removeFunExt (limit : Int) (actPf : Expr)  : MetaM Expr := do
   if limit > 0 then
     match_expr actPf with
     | funext _ _ _ _ h =>
@@ -218,7 +218,7 @@ def defineEqLemma
     Array (TSyntax ``Term.bracketedBinder) ->
     Array Term -> Array Term -> TermElabM Term)
   (lemmaProof : Option Expr)
-  (hasHandler? : Bool)
+  (offset : Option Int)
   (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
   let sectionArgs ← getSectionArgumentsStx vs
   let (univBinders, args) ← match br with
@@ -228,7 +228,7 @@ def defineEqLemma
   let lemmaExpr <- elabTermAndSynthesize lemmaStx none
   let proof ← match lemmaProof with
   | some lemmaProof =>
-    let lemmaProof <- lemmaProof.removeFunExt (hasHandler?.toNat + 1 + args.size)
+    let lemmaProof <- lemmaProof.removeFunExt (offset.map (· + 1 + (args.size : Int)) |>.getD 0)
     instantiateMVars <| <- mkLambdaFVarsImplicit vs lemmaProof
   | none => elabTermAndSynthesize (<- `(by intros; rfl)) lemmaExpr -- `simp` returns no proof if the statement is true by reflexivity
   let declName := lemmaName
@@ -248,7 +248,7 @@ def defineWpLemma (vs : Array Expr)
       [CanRaise hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post =
       @$(mkIdent actWpName) $sectionArgs* hd $args* post]))
     actPf
-    true
+    (some 1)
     br
 
 def defineWpSuccLemma (vs : Array Expr)
@@ -264,7 +264,7 @@ def defineWpSuccLemma (vs : Array Expr)
         @$(mkIdent actWpName) $sectionArgs* (fun _ => True) $args* post =
         @$(mkIdent actWpSuccName) $sectionArgs* $args* post))
     actWpSuccPf
-    false
+    (some 0)
     br
 
 def defineWpExLemma (vs : Array Expr)
@@ -281,7 +281,7 @@ def defineWpExLemma (vs : Array Expr)
         @$(mkIdent actWpName) $sectionArgs* (· ≠ ex) $args* post =
         @$(mkIdent actWpExName) $sectionArgs* ex $args* post))
     actWpExPf
-    true
+    (some 1)
     br
 
 def defineTwoStateLemma (vs : Array Expr)
@@ -297,7 +297,7 @@ def defineTwoStateLemma (vs : Array Expr)
          (@$(mkIdent actWpSuccName) $sectionArgs* $args*) =
       @$(mkIdent actTwoStateName) $sectionArgs* $args*))
     actTwoStatePf
-    false
+    (some $ -1)
     br
 
 def defineTrLemma (vs : Array Expr)
@@ -308,30 +308,51 @@ def defineTrLemma (vs : Array Expr)
   let actTwoStateName := toTwoStateName actName
   let actTrLemmaName := toTrLemmaName actName
   defineEqLemma vs vd actTrLemmaName (fun vd _univBinders sectionArgs args =>
-    `(forall $vd* r s s',
-      @$(mkIdent actTrName) $sectionArgs* r s s' =
-      exists? $br ?, @$(mkIdent actTwoStateName) $sectionArgs* $args* r s s'))
+    `(forall $vd*,
+      @$(mkIdent actTrName) $sectionArgs* =
+      fun r s s' => exists? $br ?, @$(mkIdent actTwoStateName) $sectionArgs* $args* r s s'))
     actTrPf
-    true
+    none
     br
 
-def defineAuxiliaryWpDeclarations (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) := do
+inductive DeclType : Type where
+  | proc
+  | act
+  | init
+deriving DecidableEq
+
+def defineAuxiliaryDeclarations (declType : DeclType) (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) := do
   let vd ← getImplicitProcedureParameters
   runTermElabM fun vs => do
     let (actWpName, actWpPf) ← defineWpForAction vs actName br
     defineWpLemma vs vd actName actWpName actWpPf br
 
-    let (actWpSuccName, actWpSuccPf) ← defineWpSuccForAction vs actName br
-    defineWpSuccLemma vs vd actName actWpSuccName actWpName actWpSuccPf br
+    unless declType = DeclType.proc do
+      let (actWpSuccName, actWpSuccPf) ← defineWpSuccForAction vs actName br
+      defineWpSuccLemma vs vd actName actWpSuccName actWpName actWpSuccPf br
 
-    let (actWpExName, actWpExPf) ← defineWpExForAction vs actName br
-    defineWpExLemma vs vd actName actWpName actWpExName actWpExPf br
+      unless declType = DeclType.init do
+        let (actWpExName, actWpExPf) ← defineWpExForAction vs actName br
+        defineWpExLemma vs vd actName actWpName actWpExName actWpExPf br
 
-    let (actTwoStateName, actTwoStatePf) ← defineTwoStateAction vs actName br
-    defineTwoStateLemma vs vd actName actTwoStateName actTwoStatePf br
+      let (actTwoStateName, actTwoStatePf) ← defineTwoStateAction vs actName br
+      defineTwoStateLemma vs vd actName actTwoStateName actTwoStatePf br
 
-    let (actTrName, actTrPf) ← defineTr vs actName br
-    defineTrLemma vs vd actName actTrName actTrPf br
+      let (actTrName, actTrPf) ← defineTr vs actName br
+      defineTrLemma vs vd actName actTrName actTrPf br
+
+def registerAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) := do
+  declareProcedure (toActionKind actT) act.getId
+  registerIOActionDecl actT act br
+  registerProcedureBinders act.getId br
+  registerProcedureSyntax act.getId l
+
+def registerProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) :
+  CommandElabM Unit := do
+  declareProcedure .none proc.getId
+  registerProcedureBinders proc.getId br
+  registerProcedureSyntax proc.getId l
+
 
 /-- Defines `act` : `VeilM m ρ σ α` monad computation, parametrised over `br`. More
 specifically it defines:
@@ -347,13 +368,24 @@ specifically it defines:
     its simplified version
 -/
 def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
-  let (actExtName, actIntName) ← defineProcedure act br l
-  defineAuxiliaryWpDeclarations actExtName br
-  defineAuxiliaryWpDeclarations actIntName br
-  registerIOActionDecl actT act br
-  registerProcedureBinders act.getId br
+  let (actIntName, actExtName) ← defineProcedure act br l
+  defineAuxiliaryDeclarations DeclType.act actExtName br
+  defineAuxiliaryDeclarations DeclType.act actIntName br
+  registerAction actT act br l
 
-/- TODO: fix state extension instances -/
+def defineInitialAction (l : doSeq) : CommandElabM Unit := do
+  let initName := mkIdent initializerName
+  let (_, actExtName) ← defineProcedure initName none l
+  defineAuxiliaryDeclarations DeclType.init actExtName none
+
+
+-- def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
+--   let (actExtName, actIntName) ← defineProcedure act br l
+--   defineAuxiliaryDeclarations DeclType.act actExtName br
+--   defineAuxiliaryDeclarations DeclType.act actIntName br
+--   registerAction actT act br l
+
+/- TODO: fix state extension instances
 /-- We support executing actions from dependent modules by executing
 them on the current module's state. This function generates the
 `IsSubStateOf` instances required to do this. -/
@@ -417,7 +449,7 @@ def defineDepsProcedures : CommandElabM Unit := do
       let procBaseName := mkIdent $ dependency.name ++ procToLift.name
       let liftedName := mkIdent <| modAlias ++ (stripFirstComponent procBaseName.getId)
       liftAction liftedName procBaseName depArgs genericState subStateInst
-
+-/
 #exit
 
 def defineInitialActionFromGenerators (act : TSyntax `ident) (genIName genEName : Name) : CommandElabM Unit := do

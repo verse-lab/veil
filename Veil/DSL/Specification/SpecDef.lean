@@ -98,13 +98,13 @@ def assembleNext : CommandElabM Unit := do
   let vd ← getSystemParameters
   elabCommand $ ← Command.runTermElabM fun vs => do
     let sectionArgs ← getSectionArgumentsStx vs
-    let (st, st') := (mkIdent `st, mkIdent `st')
+    let (rd, st, st') := (mkIdent `st, mkIdent `rd, mkIdent `st')
     let trs ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
-      let nm := mkIdent $ toTwoStateName s.name
-      `(@$nm $sectionArgs* $st $st'))
+      let nm := mkIdent $ toTrName s.name
+      `(@$nm $sectionArgs* $rd $st $st'))
     -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[veil.debug] s!"{t}")
-    let next ← if trs.isEmpty then `(fun ($st $st' : $genericState) => $st = $st') else
-              `(fun ($st $st' : $genericState) => $(← repeatedOr trs))
+    let next ← if trs.isEmpty then `(fun (_ : $genericReader) ($st $st' : $genericState) => $st = $st') else
+              `(fun ($rd : $genericReader) ($st $st' : $genericState) => $(← repeatedOr trs))
     trace[veil.debug] "[assembleActions] {next}"
     `(@[actSimp] def $(mkIdent $ `Next) $[$vd]* := $next)
   trace[veil.info] "Next transition assembled"
@@ -161,7 +161,7 @@ def getIOStepStx (stateTp : TSyntax `term) (labelT : TSyntax `term) (vs : Array 
     let (params, args) ← match s.br with
       | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
       | none => pure (#[], #[])
-    let actFn := mkIdent $ toTwoStateName s.name
+    let actFn := mkIdent $ toFnName s.name
     match s.br with
       | some _ => `(term|fun $params* => @$actFn $actionArgs* $args* $st $st')
       | none => `(term|$actFn $st $st')
@@ -178,8 +178,8 @@ def assembleInvariant : CommandElabM Unit := do
     let allClauses := (<- localSpecCtx.get).spec.invariants
     let exprs := allClauses.toList.map (fun p => p.expr)
     let _ ← allClauses.mapM (fun t => do trace[veil.debug] s!"{t}")
-    let invs ← if allClauses.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Invariant) $[$vd]* : $genericState -> Prop := $invs)
+    let invs ← if allClauses.isEmpty then `(fun _ _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Invariant) $[$vd]* : $genericReader -> $genericState -> Prop := $invs)
   trace[veil.info] "Invariant assembled"
 
 /-- Assembles all declared safety properties into a single `Safety`
@@ -188,8 +188,8 @@ def assembleSafeties : CommandElabM Unit := do
   let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
     let exprs := (<- localSpecCtx.get).spec.invariants.toList.filterMap (fun p => if p.kind == .safety then p.expr else none)
-    let safeties ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
-    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Safety) $[$vd]* : $genericState -> Prop := $safeties)
+    let safeties ← if exprs.isEmpty then `(fun _ _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "invariants"
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Safety) $[$vd]* : $genericReader -> $genericState -> Prop := $safeties)
   trace[veil.info] "Safety assembled"
 
 /-- Assembles all declared `assumption`s into a single `Assumptions`
@@ -198,6 +198,6 @@ def assembleAssumptions : CommandElabM Unit := do
   let vd ← getAssertionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
     let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
-    let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
-    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $genericState -> Prop := $assumptions)
+    let assumptions ← if exprs.isEmpty then `(fun _ _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
+    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $genericReader -> $genericState -> Prop := $assumptions)
   trace[veil.info] "Assumptions assembled"

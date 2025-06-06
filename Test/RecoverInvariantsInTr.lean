@@ -1,6 +1,8 @@
 import Veil
 import Veil.DSL.Check.InvariantManipulation
 
+/- TODO: fix this when we have invariant checking for tr
+
 set_option veil.gen_sound true
 set_option synthInstance.maxSize 1000000
 
@@ -68,3 +70,4 @@ prove_inv_inductive by {
 #split_invariants
 
 end Ring
+-/
