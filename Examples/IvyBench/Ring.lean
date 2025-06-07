@@ -12,19 +12,19 @@ instantiate btwn : Between node
 
 open Between TotalOrder
 
-relation leader : node -> Prop
-relation pending : node -> node -> Prop
+relation leader : node -> Bool
+relation pending : node -> node -> Bool
 
 #gen_state
 
 after_init {
-  leader N := False
-  pending M N := False
+  leader N := false
+  pending M N := false
 }
 
 action send (n next : node) = {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
-  pending n next := True
+  pending n next := true
 }
 
 action recv (sender n next : node) = {
@@ -34,11 +34,11 @@ action recv (sender n next : node) = {
   -- this models that multiple messages might be in flight
   pending sender n := *
   if (sender = n) then
-    leader n := True
+    leader n := true
   else
     -- pass message to next node
     if (le n sender) then
-      pending sender next := True
+      pending sender next := true
 }
 
 safety [single_leader] leader L → le N L
