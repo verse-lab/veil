@@ -36,8 +36,9 @@ set_option veil.smt.translator "lean-smt"
 info: Initialization must establish the invariant:
   all ... ✅
   neq ... ✅
-The following set of actions must preserve the invariant:
+The following set of actions must preserve the invariant and successfully terminate:
   random_switch
+    termination ... ✅
     all ... ✅
     neq ... ✅
 ---

@@ -345,15 +345,18 @@ elab "enforce_isolate_for_invariant" inv:ident : tactic => withMainContext do
     withMainContext do evalTactic $ ← `(tactic| clear_folded_invariants)
 
 
-def handleInvariants (inv : Ident) : TacticM (TSyntax `tactic × TSyntax `tactic) := withMainContext do
-  let some invInfo := (<- localSpecCtx.get).spec.invariants.find? (·.name == inv.getId)
-    | throwError "Invariant {inv.getId} not found"
+def handleInvariants (inv : Option Ident) : TacticM (TSyntax `tactic × TSyntax `tactic) := withMainContext do
+  let mut invInfo := none
+  if let some inv := inv then
+    let some info := (<- localSpecCtx.get).spec.invariants.find? (mkIdent ·.name == inv)
+      | throwError "Invariant {inv.getId} not found"
+    invInfo := some info
   let (invSimp, invSimpTopLevel) := (mkIdent `invSimp, mkIdent `invSimpTopLevel)
   let (invSimpTac, clearInvs) ←
-    if invInfo.isolates.isEmpty then
+    if invInfo.all (·.isolates.isEmpty) then
       pure (← `(tactic| dsimp only [$invSimp:ident]), ← `(tactic| skip))
     else
-      let invsToUnfold := #[invSimpTopLevel] ++ (← getInvariantsInSameIsolateAs invInfo)
+      let invsToUnfold := #[invSimpTopLevel] ++ (← getInvariantsInSameIsolateAs invInfo.get!)
       pure (← `(tactic| dsimp only [$[$invsToUnfold:ident],*]), ← `(tactic| clear_folded_invariants))
   return (invSimpTac, clearInvs)
 
@@ -384,10 +387,12 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
         evalTactic solve
 
 syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
-elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
+elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
   let (invSimpTac, clearInvs) ← handleInvariants inv
-  let (wpSimp, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
+  let introExId <- if inv.isNone then `(tactic| intro $(mkIdent `exId):ident) else `(tactic| skip)
+  let (wpSimp, rd, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
       (mkIdent `wpSimp,
+       mkIdent `rd,
        mkIdent `st, mkIdent `st',
        mkIdent `ass_, mkIdent `inv_,
        mkIdent `ifSimp,
@@ -397,7 +402,8 @@ elab tk:solveWp act:ident inv:ident : tactic => withMainContext do
   let simplify <- `(tacticSeq|
     dsimp only [$act:ident, $wpSimp:ident]
     $invSimpTac:tactic
-    intros $st:ident; sdestruct_hyps
+    $introExId
+    intros $rd:ident $st:ident; sdestruct_hyps
     first
       -- This is for actions defined via transitions
       | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
@@ -462,7 +468,6 @@ elab_rules : tactic
 elab "simplify_all" : tactic => withMainContext do
   let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent
   let toSimp := mkSimpLemmas $ #[`smtSimp, `logicSimp].map mkIdent
-  let complSimp := mkSimpLemmas $ #[`Pi.compl_def, ``Pi.compl_apply, ``compl].map mkIdent
   let finalSimp := mkSimpLemmas $ #[`quantifierSimp].map mkIdent
   let simp_tac ← `(tactic|
     (try dsimp only [$toDsimp,*] at *) ;

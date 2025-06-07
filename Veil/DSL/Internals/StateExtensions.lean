@@ -65,8 +65,8 @@ initialize globalSpecCtx :
   }
 
 structure AssertCtx where
-  maxId : Nat
-  map   : Std.HashMap Nat Syntax
+  maxId : Int
+  map   : Std.HashMap Int Syntax
 deriving Inhabited
 
 initialize assertsCtx :

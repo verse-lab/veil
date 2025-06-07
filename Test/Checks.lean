@@ -43,17 +43,19 @@ invariant pending L L → le N L
 #gen_spec
 
 
-/-- info:
-Initialization must establish the invariant:
+/--
+info: Initialization must establish the invariant:
   single_leader ... ✅
   inv_1 ... ✅
   inv_2 ... ✅
-The following set of actions must preserve the invariant:
+The following set of actions must preserve the invariant and successfully terminate:
   send
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
   recv
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
@@ -61,9 +63,10 @@ The following set of actions must preserve the invariant:
 #guard_msgs(info, error, drop warning) in
 #check_invariants
 
-/-- info:
-The following set of actions must preserve the invariant:
+/--
+info: The following set of actions must preserve the invariant and successfully terminate:
   recv
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
@@ -71,9 +74,10 @@ The following set of actions must preserve the invariant:
 #guard_msgs(info, error, drop warning) in
 #check_action recv
 
-/-- info:
-The following set of actions must preserve the invariant:
+/--
+info: The following set of actions must preserve the invariant and successfully terminate:
   send
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
@@ -81,13 +85,15 @@ The following set of actions must preserve the invariant:
 #guard_msgs(info, error, drop warning) in
 #check_action send
 
-/-- info:
-Initialization must establish the invariant:
+/--
+info: Initialization must establish the invariant:
   single_leader ... ✅
-The following set of actions must preserve the invariant:
+The following set of actions must preserve the invariant and successfully terminate:
   send
+    termination ... ✅
     single_leader ... ✅
   recv
+    termination ... ✅
     single_leader ... ✅
 -/
 #guard_msgs(info, error, drop warning) in

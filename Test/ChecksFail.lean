@@ -35,8 +35,9 @@ invariant pending L L → le N L
 #gen_spec
 
 /--
-info: The following set of actions must preserve the invariant:
+info: The following set of actions must preserve the invariant and successfully terminate:
   ruin_inv
+    termination ... ✅
     single_leader ... ✅
     not_flag ... ❌
     inv_2 ... ✅
@@ -50,8 +51,9 @@ error: The invariant is not inductive: one clause is not preserved!
 #check_action ruin_inv
 
 /--
-info: The following set of actions must preserve the invariant:
+info: The following set of actions must preserve the invariant and successfully terminate:
   ruin_inv
+    termination ... ✅
     single_leader ... ✅
     not_flag ... ❌
     inv_2 ... ✅
@@ -59,7 +61,7 @@ info: The following set of actions must preserve the invariant:
 ---
 info: Run with `set_option veil.printCounterexamples true` to print counter-examples.
 ---
-warning: Trusting the SMT solver for 3 theorems.
+warning: Trusting the SMT solver for 4 theorems.
 ---
 warning: The invariant is not inductive: one clause is not preserved!
 -/

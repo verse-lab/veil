@@ -43,17 +43,42 @@ invariant pending L L → le N L
 #gen_spec
 
 macro "test_check_invariants" : command => `(command|
-/-- info:
-Initialization must establish the invariant:
+/--
+info: Initialization must establish the invariant:
   single_leader ... ✅
   inv_1 ... ✅
   inv_2 ... ✅
-The following set of actions must preserve the invariant:
+The following set of actions must preserve the invariant and successfully terminate:
   send
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
   recv
+    termination ... ✅
+    single_leader ... ✅
+    inv_1 ... ✅
+    inv_2 ... ✅
+---
+warning: Trusting the SMT solver for 11 theorems.
+-/
+#guard_msgs in
+#check_invariants)
+
+macro "test_check_invariants'" : command => `(command|
+/--
+info: Initialization must establish the invariant:
+  single_leader ... ✅
+  inv_1 ... ✅
+  inv_2 ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  send
+    termination ... ✅
+    single_leader ... ✅
+    inv_1 ... ✅
+    inv_2 ... ✅
+  recv
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
@@ -65,42 +90,46 @@ warning: Trusting the SMT solver for 9 theorems.
 
 
 macro "test_check_action_recv" : command => `(command|
-/-- info:
-The following set of actions must preserve the invariant:
+/--
+info: The following set of actions must preserve the invariant and successfully terminate:
   recv
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
 ---
-warning: Trusting the SMT solver for 3 theorems.
+warning: Trusting the SMT solver for 4 theorems.
 -/
 #guard_msgs in
 #check_action $(Lean.mkIdent `recv))
 
 macro "test_check_action_send" : command => `(command|
-/-- info:
-The following set of actions must preserve the invariant:
+/--
+info: The following set of actions must preserve the invariant and successfully terminate:
   send
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
 ---
-warning: Trusting the SMT solver for 3 theorems.
+warning: Trusting the SMT solver for 4 theorems.
 -/
 #guard_msgs in
 #check_action $(Lean.mkIdent `send))
 
 macro "test_check_invariant_single_leader" : command => `(command|
-/-- info:
-Initialization must establish the invariant:
+/--
+info: Initialization must establish the invariant:
   single_leader ... ✅
-The following set of actions must preserve the invariant:
+The following set of actions must preserve the invariant and successfully terminate:
   send
+    termination ... ✅
     single_leader ... ✅
   recv
+    termination ... ✅
     single_leader ... ✅
 ---
-warning: Trusting the SMT solver for 3 theorems.
+warning: Trusting the SMT solver for 5 theorems.
 -/
 #guard_msgs in
 #check_invariant $(Lean.mkIdent `single_leader))
@@ -109,7 +138,7 @@ warning: Trusting the SMT solver for 3 theorems.
 set_option veil.smt.translator "lean-smt"
 set_option veil.smt.solver "z3"
 
-test_check_invariants
+test_check_invariants'
 test_check_action_recv
 test_check_action_send
 test_check_invariant_single_leader
@@ -139,3 +168,20 @@ test_check_action_send
 test_check_invariant_single_leader
 
 end Ring
+
+
+/-
+The following set of actions must preserve the invariant and successfully terminate:
+  recv
+    termination ... ✅
+    single_leader ... ✅
+    inv_1 ... ✅
+    inv_2 ... ✅
+
+The following set of actions must preserve the invariant and successfully terminate:
+  recv
+    termination ... ✅
+    single_leader ... ✅
+    inv_1 ... ✅
+    inv_2 ... ✅
+-/

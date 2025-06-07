@@ -24,7 +24,8 @@ def emoji (res : SmtResult) : String :=
 def getBaseNameForDisplay (n : Name) : Name := stripFirstComponent n
 
 structure TheoremIdentifier where
-  invName : Name
+  /- If it's `none`, it's the termination check for the action. -/
+  invName : Option Name
   /-- If it's `none`, it's the initial action. -/
   actName : Option Name
   theoremName : Name
@@ -45,13 +46,14 @@ def getInitCheckResultMessages' [Monad m] [MonadOptions m]  (res: List (Name × 
       msgs := msgs.push s!"  {getBaseNameForDisplay invName} ... {emoji r}{← getTimeForDisplay time}"
   pure msgs
 
-def getInitCheckResultMessages [Monad m] [MonadOptions m] (res : List (TheoremIdentifier × SmtResult × Option TimeInMs)) : m (Array String) := getInitCheckResultMessages' (res.map (fun (id, r) => (id.invName, r)))
+def getInitCheckResultMessages [Monad m] [MonadOptions m] (res : List (TheoremIdentifier × SmtResult × Option TimeInMs)) : m (Array String) :=
+  getInitCheckResultMessages' (res.map (fun (id, r) => (id.invName.getD `termination, r)))
 
 /-- `(invName, actName, result)` -/
 def getActCheckResultMessages' [Monad m] [MonadOptions m] (res: List (Name × Name × SmtResult × Option TimeInMs)) : m (Array String) := do
   let mut msgs := #[]
   if !res.isEmpty then
-    msgs := msgs.push "The following set of actions must preserve the invariant:"
+    msgs := msgs.push "The following set of actions must preserve the invariant and successfully terminate:"
     for (actName, invResults) in group res do
       msgs := msgs.push s!"  {getBaseNameForDisplay actName}"
       for (invName, (r, time)) in invResults do
@@ -65,7 +67,8 @@ where group {T : Type} (xs : List (Name × T)) : List (Name × List T) :=
     | none =>
       acc ++ [(key, [val])]) []
 
-def getActCheckResultMessages [Monad m] [MonadOptions m] (res : List (TheoremIdentifier × SmtResult × Option TimeInMs)) : m (Array String) := getActCheckResultMessages' (res.map (fun (id, r) => (id.actName.get!, id.invName, r)))
+def getActCheckResultMessages [Monad m] [MonadOptions m] (res : List (TheoremIdentifier × SmtResult × Option TimeInMs)) : m (Array String) :=
+  getActCheckResultMessages' (res.map (fun (id, r) => (id.actName.get!, id.invName.getD `termination, r)))
 
 def getModelStr (msg : String) : String :=
   let resWithErr := match msg.splitOn Veil.SMT.satGoalStr with

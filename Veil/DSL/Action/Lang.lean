@@ -370,7 +370,7 @@ elab_rules : term
     assertsCtx.modify fun ctx => { ctx with
       maxId := id + 1
       map := ctx.map.insert id stx }
-    withRef stx $ elabTerm (<- `(term| VeilM.assert $t $(Syntax.mkNatLit id))) none
+    withRef stx $ elabTerm (<- `(term| VeilM.assert $t $(Syntax.mkNatLit id.toNat))) none
   | `(require $t) => do
     let ctx ← assertsCtx.get
     let id := ctx.maxId
@@ -378,7 +378,7 @@ elab_rules : term
     assertsCtx.modify fun ctx => { ctx with
       maxId := id + 1
       map := ctx.map.insert id stx }
-    withRef stx $ elabTerm (<- `(term| VeilM.require $t $(Syntax.mkNatLit id))) none
+    withRef stx $ elabTerm (<- `(term| VeilM.require $t $(Syntax.mkNatLit id.toNat))) none
 
 macro_rules
   | `(assume  $t) => `(MonadNonDet.assume $t)
