@@ -158,7 +158,7 @@ where
     match kind with
     | .individual => return !tp.isArrow
     | .relation =>
-      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp)
+      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp || true)
       return returnsProp
     | .function => return tp.isArrow
     | .module =>
@@ -171,7 +171,7 @@ where
   failureMsgFn (kind : StateComponentKind) (comp : StateComponent) : CoreM Unit := do
     match kind with
     | .individual => throwErrorAt (← comp.stx) "Invalid type: individuals must not be arrow types"
-    | .relation => throwErrorAt (← comp.stx) "Invalid type: relations must return Prop"
+    | .relation => throwErrorAt (← comp.stx) "Invalid type: relations must return Prop or Bool"
     | .function => throwErrorAt (← comp.stx) "Invalid type: functions must have arrow type"
     | .module => throwErrorAt (← comp.stx) "Invalid type: module state components must be structures"
 

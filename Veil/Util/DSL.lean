@@ -341,3 +341,5 @@ macro "forall?" br:bracketedBinder* "," t:term : term =>
     `(∀ $br*, $t)
   else
     `($t)
+
+def Lean.Expr.isBool (e : Expr) : Bool := e.isConstOf `Bool
