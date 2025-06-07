@@ -158,7 +158,7 @@ where
     match kind with
     | .individual => return !tp.isArrow
     | .relation =>
-      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp || true)
+      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp || b.isBool)
       return returnsProp
     | .function => return tp.isArrow
     | .module =>
@@ -601,7 +601,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleAssumptions
 
   -- let labelTpStx ← `(term|$(mkIdent `Label) $(← getStateTpArgsStx)*)
-  -- assembleLabelType name
+  assembleLabelType name
 
   let (rtsStx
     --, ioAutomatonStx
