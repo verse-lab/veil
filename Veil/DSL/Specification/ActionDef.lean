@@ -140,9 +140,14 @@ def defineAndSimplify (vs : Array Expr)
     let mut actExp <- elabTermAndSynthesize actStx none
     unless unfolds.isEmpty do
       actExp <- actExp.runUnfold unfolds
-    let ⟨act, actPf, _⟩ <- actExp.simp simps
-    let act <- mkLambdaFVarsImplicit vs act
-    let act <- instantiateMVars act
+    let mut act := actExp
+    let mut actPf := none
+    unless simps.isEmpty do
+      let actAndPf <- actExp.simp simps
+      act := actAndPf.expr
+      actPf := actAndPf.proof?
+    act <- mkLambdaFVarsImplicit vs act
+    act <- instantiateMVars act
     simpleAddDefn defName act (attr := #[{name := `actSimp}])
     return (defName, actPf)
 
@@ -208,6 +213,17 @@ def defineTr (vs : Array Expr)
     fun r s s' =>
       exists? $br ?, @$(mkIdent actTwoStateName) $sectionArgs* $args* r s s'))
     [actTwoStateName] #[] br
+
+def defineUnitAct (vs : Array Expr) (vd : Array (TSyntax ``Term.bracketedBinder))
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+  let sectionArgs ← getSectionArgumentsStx vs
+  let (univBinders, args) ← match br with
+    | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
+    | none => pure (#[], #[])
+  liftCommandElabM <| elabCommand <| <- `(command|
+    def $(mkIdent (toUnitActName actName)) $vd* $univBinders* : VeilM .external $genericReader $genericState Unit := do
+      let _ <- @$(mkIdent actName) $sectionArgs* $args*; pure ()
+  )
 
 def defineEqLemma
   (vs : Array Expr)
@@ -321,11 +337,14 @@ inductive DeclType : Type where
   | init
 deriving DecidableEq
 
-def defineAuxiliaryDeclarations (declType : DeclType) (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) := do
+def defineAuxiliaryDeclarations (declType : DeclType) (mode : Mode) (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) := do
   let vd ← getImplicitProcedureParameters
   runTermElabM fun vs => do
     let (actWpName, actWpPf) ← defineWpForAction vs actName br
     defineWpLemma vs vd actName actWpName actWpPf br
+
+    if mode == Mode.external then
+      defineUnitAct vs vd actName br
 
     unless declType = DeclType.proc do
       let (actWpSuccName, actWpSuccPf) ← defineWpSuccForAction vs actName br
@@ -369,14 +388,14 @@ specifically it defines:
 -/
 def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
   let (actIntName, actExtName) ← defineProcedure act br l
-  defineAuxiliaryDeclarations DeclType.act actExtName br
-  defineAuxiliaryDeclarations DeclType.act actIntName br
+  defineAuxiliaryDeclarations .act .external actExtName br
+  defineAuxiliaryDeclarations .act .internal actIntName br
   registerAction actT act br l
 
 def defineInitialAction (l : doSeq) : CommandElabM Unit := do
   let initName := mkIdent initializerName
   let (_, actExtName) ← defineProcedure initName none l
-  defineAuxiliaryDeclarations DeclType.init actExtName none
+  defineAuxiliaryDeclarations .init .external actExtName none
 
 
 -- def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do

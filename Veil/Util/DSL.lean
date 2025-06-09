@@ -255,6 +255,8 @@ def toWpExLemmaName (n : Name) : Name := n ++ `wpEx_eq
 def toTwoStateName (n : Name) : Name := n ++ `twoState
 def toTwoStateLemmaName (n : Name) : Name := n ++ `twoState_eq
 
+def toUnitActName (n : Name) : Name := n ++ `unitAct
+
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId
 

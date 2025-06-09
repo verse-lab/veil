@@ -35,15 +35,12 @@ lemma VeilM.triple_sound
   (act : VeilM m ρ σ α) (inv : SProp ρ σ) (chs : act.choices) :
   act.succesfullyTerminates inv ->
   act.preservesInvariantsOnSuccesful inv ->
-  (act.run chs).operationalTriple (inv ⊓ act.assumptions chs) (fun _ => inv) := by
+  (act.run chs).operationalTriple inv (fun _ => inv) := by
     intros term invs
-    have : [DemonFail| triple (inv ⊓ act.assumptions chs) (act.run chs) (fun _ => inv)] := by
-      simp [VeilM.assumptions]
+    have : [DemonFail| triple inv (act.run chs) (fun _ => inv)] := by
       open DemonicChoice ExceptionAsFailure in
-      apply ExtractNonDet.extract_refines_triple_weak
-      apply le_trans';
-      { apply VeilM.terminates_preservesInvariants <;> simp [*] }
-      all_goals simp
+      apply ExtractNonDet.extract_refines_triple_weak;
+      apply VeilM.terminates_preservesInvariants <;> simp [*]
     revert this; simp [triple]
     generalize (act.run chs) = act
     introv h r hinv;

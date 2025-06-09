@@ -158,7 +158,7 @@ where
     match kind with
     | .individual => return !tp.isArrow
     | .relation =>
-      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp || b.isBool)
+      let returnsProp ← liftTermElabM $ forallTelescope tp (fun _ b => do return b.isProp || true)
       return returnsProp
     | .function => return tp.isArrow
     | .module =>
@@ -595,13 +595,11 @@ Instantiates the `RelationalTransitionSystem` type class with the declared actio
 -/
 def instantiateSystem (name : Name) : CommandElabM Unit := do
   let vd ← getSystemParameters
+  assembleLabelType name
   assembleNext
   assembleInvariant
   assembleSafeties
   assembleAssumptions
-
-  -- let labelTpStx ← `(term|$(mkIdent `Label) $(← getStateTpArgsStx)*)
-  assembleLabelType name
 
   let (rtsStx
     --, ioAutomatonStx

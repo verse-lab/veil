@@ -51,5 +51,4 @@ invariant pending L L → le N L
 
 #time #check_invariants
 
-
 end Ring

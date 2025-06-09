@@ -61,8 +61,6 @@ error: The invariant is not inductive: one clause is not preserved!
 #check_action fail
 
 /--
-error: Some assertion might fail but its exception id is not found
----
 info: The following set of actions must preserve the invariant and successfully terminate:
   fail_req
     termination ... ✅

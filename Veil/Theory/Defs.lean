@@ -76,8 +76,6 @@ def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp �
 
 abbrev VeilM.choices (act : VeilM m ρ σ α) := ExtractNonDet WeakFindable act
 
-def VeilM.assumptions (act : VeilM m ρ σ α) (chs : act.choices) : SProp ρ σ := [DemonFail| chs.prop]
-
 noncomputable
 def VeilM.run (act : VeilM m ρ σ α) (chs : act.choices) : VeilExecM m ρ σ α :=
   act.runWeak chs

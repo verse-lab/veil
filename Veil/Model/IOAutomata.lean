@@ -48,12 +48,11 @@ instance : ToString ActionDeclaration where
 /-- This typeclass connects the label type to the action declarations.
 We introduce this because our actions take parameters, so they carry
 strictly more information than just the action declaration. -/
-class ActionLabel (l : Type) (ρ σ : Type) where
+class ActionLabel (l : Type) where
   /-- The action identifier for a given label. -/
   id : l → ActionIdentifier
   /-- The action kind for a given action identifier. -/
   kind : Std.HashMap ActionIdentifier ActionKind
-  next : l -> VeilM .external ρ σ Unit
 
 /- Fix if we need IOAutomata
 

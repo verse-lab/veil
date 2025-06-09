@@ -96,18 +96,58 @@ def errorOrWarnWhenSpecIsNeeded : CoreM Unit := do
 /--Assembles all declared transitions into a `Next` transition relation. -/
 def assembleNext : CommandElabM Unit := do
   let vd ← getSystemParameters
-  elabCommand $ ← Command.runTermElabM fun vs => do
+  let (nextAct, nextTr, nextLemma) ← Command.runTermElabM fun vs => do
     let sectionArgs ← getSectionArgumentsStx vs
+    let spec := (← localSpecCtx.get).spec
     let (rd, st, st') := (mkIdent `st, mkIdent `rd, mkIdent `st')
-    let trs ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
-      let nm := mkIdent $ toTrName s.name
-      `(@$nm $sectionArgs* $rd $st $st'))
-    -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[veil.debug] s!"{t}")
-    let next ← if trs.isEmpty then `(fun (_ : $genericReader) ($st $st' : $genericState) => $st = $st') else
-              `(fun ($rd : $genericReader) ($st $st' : $genericState) => $(← repeatedOr trs))
-    trace[veil.debug] "[assembleActions] {next}"
-    `(@[actSimp] def $(mkIdent $ `Next) $[$vd]* := $next)
+    let labelTypeName := mkIdent `Label
+    let labelTypeBinders ← spec.generic.applyGetStateArguments vd
+    let labelTypeArgs ← bracketedBindersToTerms labelTypeBinders
+    let labelT ← `(term|$labelTypeName $labelTypeArgs*)
+    let (Next, NextAct) := (mkIdent `Next, mkIdent `NextAct)
+    let acts <- spec.actions.mapM fun s => do
+      let name := mkIdent <| toUnitActName <| toExtName <| s.name
+      `(@$name $sectionArgs*)
+    let nextAct <- `(
+      @[actSimp]
+      noncomputable def $NextAct $[$vd]* : $labelT -> VeilM .external $genericReader $genericState Unit :=
+        fun (l : $labelT) => l.casesOn $acts*
+    )
+    let nextTr <- `(
+      @[actSimp] def $Next $[$vd]* :=
+        fun ($rd : $genericReader) ($st $st' : $genericState) =>
+          ∃ (l : $labelT),
+          @$(mkIdent `NextAct) $sectionArgs* l |>.toTwoState $rd $st $st'
+    )
+    let nextLemma <- `(
+      lemma $(mkIdent $ `next_refine) $[$vd]* (rd : $genericReader) (st st' : $genericState) l :
+        let next := (@$NextAct $sectionArgs* l)
+        ∀ chs : next.choices,
+          (next.run chs).operational rd st st' (Except.ok ()) →
+          @$Next $sectionArgs* rd st st' := by
+        dsimp; intros chs op; exists l
+        try cases l <;> simp [$NextAct:ident, $Next:ident] at *
+        all_goals apply VeilM.toTwoState_complete <;> solve_by_elim
+    )
+    pure (nextAct, nextTr, nextLemma)
+  elabCommand nextAct
+  trace[veil.debug] "[assembleActions] {nextTr}"
+  elabCommand nextTr
+  trace[veil.debug] "[assembleActions] {nextAct}"
+  elabCommand nextLemma
+  trace[veil.debug] "[assembleActions] {nextLemma}"
   trace[veil.info] "Next transition assembled"
+
+
+  --   let trs ← (<- localSpecCtx.get).spec.actions.mapM (fun s => do
+  --     let nm := mkIdent $ toTrName s.name
+  --     `(@$nm $sectionArgs* $rd $st $st'))
+  --   -- let _ ← (← localSpecCtx.get).spec.actions.mapM (fun t => do trace[veil.debug] s!"{t}")
+  --   let next ← if trs.isEmpty then `(fun (_ : $genericReader) ($st $st' : $genericState) => $st = $st') else
+  --             `(fun ($rd : $genericReader) ($st $st' : $genericState) => $(← repeatedOr trs))
+  --   trace[veil.debug] "[assembleActions] {next}"
+  --   `(@[actSimp] def $(mkIdent $ `Next) $[$vd]* := $next)
+  -- trace[veil.info] "Next transition assembled"
 
 
 def assembleLabelType (name : Name) : CommandElabM Unit := do
@@ -134,9 +174,12 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
     let labelType ← `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]*)
     let idFn ← `(term|fun (l : $labelT) => l.casesOn $alts*)
     let kindMap ← `(Std.HashMap.ofList [$[$kinds],*])
-    let alInstance ← `(command|instance (priority := low) $(mkIdent $ Name.mkSimple s!"{name}_ActionLabel") : ActionLabel $labelT where
+    let alInstance ← `(command|
+    noncomputable
+    instance (priority := low) $(mkIdent $ Name.mkSimple s!"{name}_ActionLabel") : ActionLabel $labelT where
       id := $idFn
       kind := $kindMap
+
     )
     trace[veil.debug] "labelType: {labelType}"
     trace[veil.debug] "alInstance: {alInstance}"

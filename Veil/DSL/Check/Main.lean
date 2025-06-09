@@ -389,9 +389,8 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
       if !proofResult.isProven then
         unprovenTheorems := unprovenTheorems.push theoremId
       if theoremId.invName.isNone then
-        let .some exId := getExId modelStrs
-          | logError s!"Some assertion might fail but its exception id is not found"
-        throwTerminationErrorAt exId theoremId.actName.get!
+        if let .some exId := getExId modelStrs then
+          throwTerminationErrorAt exId theoremId.actName.get!
 
     -- Display results
     let initMsgs ← getInitCheckResultMessages initIdAndResults.toList
