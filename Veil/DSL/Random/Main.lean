@@ -4,6 +4,7 @@ import Veil.Util.Meta
 import Veil.Util.DSL
 import Veil.Model.TransitionSystem
 import Veil.DSL.Specification.SpecDef
+import Veil.Theory.Basic
 import Plausible
 
 open Lean Lean.Elab.Command Lean.Meta Lean.Elab.Term
@@ -90,3 +91,22 @@ def check_safety (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.saf
 lemma check_safety_sound (size : Nat) (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] :
   (ReaderT.run (check_safety genL nextComp r₀ s₀ steps cfg) ⟨size⟩ |>.run seed).1.safe? = false ->
   ¬ sys.isInvariant sys.safe := by sorry
+
+def findRandom (gen : Gen α) (size : ℕ) (seed : ULift StdGen) (p : α -> Prop) [DecidablePred p] : Option α := do
+  let res := ReaderT.run gen ⟨size⟩ |>.run seed
+  if p res.1 then some res.1 else findRandom gen size res.2 p
+  partial_fixpoint
+
+instance {α : Type u} (p : α -> Prop) [SampleableExt α] [DecidablePred p] : WeakFindable p where
+  find :=
+    match (ST.Ref.get IO.stdGenRef : BaseIO StdGen) |>.run () with
+    | .ok stdGen _ =>
+      findRandom (SampleableExt.interpSample α) 100 (ULift.up stdGen) p
+    | .error e _ => none
+  find_some_p := by
+    intro x; split <;> try simp
+    rename_i seed _ _; revert x
+    generalize ULift.up.{u, 0} seed = seed'; revert seed'
+    apply findRandom.partial_correctness; simp
+    introv ih; split_ifs; simp; rintro rfl; solve_by_elim
+    solve_by_elim
