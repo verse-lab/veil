@@ -191,7 +191,7 @@ def getAbstractStateHyps : TacticM (Array LocalDecl) := withMainContext do
   for hyp in lctx do
     let `(term|$x:ident) ← delabWithMotives hyp.type
       | continue
-    if x.getId == genericStateName then
+    if x.getId == genericStateName || x.getId == genericReaderName then
       abstractStateHyps := abstractStateHyps.push hyp
   return abstractStateHyps
 
