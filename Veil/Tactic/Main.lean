@@ -65,6 +65,15 @@ elab "sdestruct_goal" : tactic => withMainContext do
 
 instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
 
+
+def veilSpecificNames : List Name := [``IsSubStateOf, ``IsSubReaderOf]
+
+def hypIsVeilSpecific (hyp : LocalDecl) : TacticM Bool := do
+  match hyp.type.getAppFn.constName? with
+  | .none => pure false
+  | .some sn =>
+    return veilSpecificNames.contains sn
+
 /-- Destruct all structures in the context into their respective fields,
 recursively. Also destructs all existentials. -/
 partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) : TacticM Unit := withMainContext do
@@ -87,7 +96,7 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
       let sn := hyp.type.getAppFn.constName!
       -- We don't want to destruct `IsSubStateOf` because it's needed
       -- to perform rewrites
-      if sn != ``IsSubStateOf then
+      if !veilSpecificNames.contains sn then
         let dtac ← `(tactic| sdestruct $name:ident)
         evalTactic dtac
     else
@@ -154,13 +163,6 @@ elab "sts_induction" : tactic => withMainContext do
     let newHypName := mkIdent newHyps[0]!.userName
     evalTactic $ ← `(tactic| revert $newHypName:ident; intro $hnextName:ident)
 
-def hypIsVeilSpecific (hyp : LocalDecl) : TacticM Bool := do
-  match hyp.type.getAppFn.constName? with
-  | .none => pure false
-  | .some sn =>
-  let res := sn == ``IsSubStateOf
-  return res
-
 /--
 Get all the names of the propositions found in the context, including
 within typeclasses in the context. This ignores some Veil-specific
@@ -185,14 +187,22 @@ def concatTacticSeq (xtacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) : Ta
   )
   return combined_tactic
 
-def getAbstractStateHyps : TacticM (Array LocalDecl) := withMainContext do
+private inductive AbstractStateKind where
+  /-- mutable state -/
+  | state
+  /-- immutable state / background theory -/
+  | reader
+
+def getAbstractStateHyps : TacticM (Array (AbstractStateKind × LocalDecl)) := withMainContext do
   let mut abstractStateHyps := #[]
   let lctx ← getLCtx
   for hyp in lctx do
     let `(term|$x:ident) ← delabWithMotives hyp.type
       | continue
-    if x.getId == genericStateName || x.getId == genericReaderName then
-      abstractStateHyps := abstractStateHyps.push hyp
+    if x.getId == genericStateName then
+      abstractStateHyps := abstractStateHyps.push (.state, hyp)
+    else if x.getId == genericReaderName then
+      abstractStateHyps := abstractStateHyps.push (.reader, hyp)
   return abstractStateHyps
 
 syntax concretizeState := "concretize_state" <|> "concretize_state?"
@@ -204,7 +214,7 @@ elab tk:concretizeState : tactic => withMainContext do
   tacticsToPrint := tacticsToPrint.push doubleNegTac
   withMainContext $ evalTactic doubleNegTac
 
-  for s in (← getAbstractStateHyps) do
+  for (_, s) in (← getAbstractStateHyps) do
     let tac ← `(tacticSeq| try subst $(mkIdent s.userName))
     if (← getUnsolvedGoals).length != 0 then
       tacticsToPrint := tacticsToPrint.push tac
@@ -212,10 +222,13 @@ elab tk:concretizeState : tactic => withMainContext do
   let mut (concretizeTacs, simpLemmaNames) := (#[], #[])
   -- NOTE: `subst` might have removed some of the abstract state hyps,
   -- so we need to recompute them
-  for hyp in (← getAbstractStateHyps) do
+  for (k, hyp) in (← getAbstractStateHyps) do
     let simpLemmaName := mkIdent $ ← mkFreshBinderNameForTactic stateSimpHypName
     let concreteState := mkIdent $ hyp.userName
-    let concretize ← `(tacticSeq|try rcases (@$(mkIdent ``exists_eq') _ ($(mkIdent ``getFrom) $(mkIdent hyp.userName))) with ⟨$concreteState, $simpLemmaName⟩)
+    let getter := match k with
+    | .state => mkIdent ``getFrom
+    | .reader => mkIdent ``readFrom
+    let concretize ← `(tacticSeq|try rcases (@$(mkIdent ``exists_eq') _ ($(getter) $(mkIdent hyp.userName))) with ⟨$concreteState, $simpLemmaName⟩)
     concretizeTacs := concretizeTacs.push concretize
     simpLemmaNames := simpLemmaNames.push simpLemmaName
 

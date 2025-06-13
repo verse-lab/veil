@@ -30,7 +30,7 @@ def elabGenericState (mutable? : Bool) : CommandElabM Unit := do
     if mutable? then
       `(variable ($genericState : Type) [$genericSubStateIdent : IsSubStateOf $(← getStateTpStx) $genericState])
     else
-      `(variable ($genericReader : Type) [$genericSubReaderIdent : IsSubStateOf $(← getReaderTpStx) $genericReader])
+      `(variable ($genericReader : Type) [$genericSubReaderIdent : IsSubReaderOf $(← getReaderTpStx) $genericReader])
   trace[veil.debug] "genericState: {genericState}"
   elabCommand genericState
 

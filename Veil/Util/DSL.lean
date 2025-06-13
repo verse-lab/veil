@@ -176,7 +176,7 @@ def funcasesM (t : Term) : TermElabM Term := do
   let term ← `(term| (fun ($rd : $readerTpStx) ($st : $stateTpStx) =>
       $(casesOnReader)
       $(readerTpArgs)*
-      (motive := fun _ => Prop) (getFrom $rd) <|
+      (motive := fun _ => Prop) (readFrom $rd) <|
         fun $[$readerFns]* =>
           $(casesOn)
           $(stateTpArgs)*

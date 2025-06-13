@@ -181,11 +181,11 @@ elab "[Reader]" : term => do
     `st` making all its fields accessible for `Pred` -/
 macro "funcases" t:term : term => `(term| by
    intros rd st;
-   unhygienic cases (getFrom rd);
+   unhygienic cases (readFrom rd);
    unhygienic cases (getFrom st);
    exact $t)
 macro "funcases" rid:ident sid:ident t:term : term => `(term| by
-  unhygienic cases (getFrom $rid:ident);
+  unhygienic cases (readFrom $rid:ident);
   unhygienic cases (getFrom $sid:ident);
   exact $t)
 

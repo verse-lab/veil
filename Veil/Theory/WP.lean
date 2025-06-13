@@ -1,59 +1,10 @@
 import Veil.Theory.Basic
+import Veil.Theory.State
 import Veil.Theory.TwoState
 
 open PartialCorrectness DemonicChoice
 
 variable (hd : ExId -> Prop) [IsHandler hd]
-
-/-- To support inter-operation between `action`s defined in different
-Veil modules (which have different `State` types), we define a
-sub-state relation on `State`s. This lets a module have a "part" of its
-state correspond to another module's `State` type, and call `action`s
-from that module by `lift`ing them into the appropriate State monad.
-
-`IsSubState σ σ'` means that `σ` is a sub-state of `σ'`. This gives us:
-
-- `setIn : σ -> σ' -> σ'`, which updates/sets the sub-state in the
-bigger state
-- `getFrom : σ' -> σ`, which extracts the sub-state from the bigger
-state
-- proofs that these methods are related to each other in the natural
-way
--/
-class IsSubStateOf (σ : outParam Type) (σ' : Type) where
-  /-- Set the small state `σ` in the big one `σ'`, returning the new `σ'` -/
-  setIn : σ -> σ' -> σ'
-  /-- Get the small state `σ` from the big one `σ'` -/
-  getFrom : σ' -> σ
-
-  setIn_getFrom_idempotent : ∀ σ', setIn (getFrom σ') σ' = σ'
-  getFrom_setIn_idempotent : ∀ σ σ', getFrom (setIn σ σ') = σ
-
-export IsSubStateOf (setIn getFrom)
-
-@[wpSimp, initSimp, actSimp] instance : IsSubStateOf σ σ where
-  setIn := (fun σₛ σ => σₛ)
-  getFrom := id
-  setIn_getFrom_idempotent := by simp
-  getFrom_setIn_idempotent := by simp
-
-attribute [wpSimp, initSimp, actSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.getFrom_setIn_idempotent
-
-def IsSubStateOf.trans {σₛ σₘ σ : Type} (S₁ : IsSubStateOf σₛ σₘ) (S₂ : IsSubStateOf σₘ σ) : IsSubStateOf σₛ σ :=
-{
-  setIn := fun σₛ σ => let σₘ := (S₂.getFrom σ); S₂.setIn (S₁.setIn σₛ σₘ) σ
-  getFrom := fun σ => S₁.getFrom (S₂.getFrom σ)
-  setIn_getFrom_idempotent := by simp [S₁.setIn_getFrom_idempotent, S₂.setIn_getFrom_idempotent]
-  getFrom_setIn_idempotent := by simp [S₁.getFrom_setIn_idempotent, S₂.getFrom_setIn_idempotent]
-}
-
-instance (priority := high + 1) [IsSubStateOf σₛ σ] [Monad m] : MonadStateOf σₛ (StateT σ m) where
-  get         := getFrom <$> get
-  set s       := modify <| setIn s
-  modifyGet f := modifyGet fun s => let ⟨a, s'⟩ := f (getFrom s); (a, setIn s' s)
-
-instance (priority := high + 1) [IsSubStateOf σₛ σ] [Monad m] : MonadReaderOf σₛ (ReaderT σ m) where
-  read := getFrom <$> read
 
 /- Languge constructs -/
 
@@ -111,8 +62,8 @@ lemma VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} :
   erw [StateT.wp_modifyGet]
 
 @[wpSimp]
-lemma VeilM.wp_read {_ : IsSubStateOf ρₛ ρ} :
-  wp (read : VeilM m ρ σ ρₛ) post = fun r s => post (getFrom r) r s := by
+lemma VeilM.wp_read {_ : IsSubReaderOf ρₛ ρ} :
+  wp (read : VeilM m ρ σ ρₛ) post = fun r s => post (readFrom r) r s := by
   simp [read, getThe, MonadReaderOf.read, readThe, MPropLift.wp_lift]; ext
   erw [ReaderT.wp_read]
 
