@@ -330,15 +330,13 @@ def elabGhostRelationDefinition : CommandElab := fun stx => do
   -- section binders implicit
   let vd' <- vd.mapM (fun x => mkImplicitBinders x)
   elabCommand $ <- Command.runTermElabM fun vs => do
-    let stateTp <- getStateTpStx
-    let readerTp <- getReaderTpStx
     let stx' <- funcasesM t
     elabBindersAndCapitals br vs stx' fun _ e => do
       let e <- delabWithMotives e
       let stx ← `(@[actSimp, invSimp, invSimpTopLevel]
         abbrev $nm $[$vd']* $br*
-          ($(mkIdent `rd) : $readerTp := by exact_reader)
-          ($(mkIdent `st) : $stateTp := by exact_state)
+          ($(mkIdent `rd) : $genericReader := by exact_reader)
+          ($(mkIdent `st) : $genericState := by exact_state)
            : Prop := $e)
       trace[veil.debug] "{stx}"
       return stx

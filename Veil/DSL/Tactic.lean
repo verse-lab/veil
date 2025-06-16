@@ -12,7 +12,6 @@ open Lean Lean.Elab
   state term using the field hypotheses and close the goal.
 -/
 elab "exact_state" : tactic => do
-  let stateName ← getStateName
   let stateTp := (<- localSpecCtx.get).spec.generic.stateType
   let .some sn := stateTp.constName?
     | throwError "{stateTp} is not a constant"
@@ -20,7 +19,7 @@ elab "exact_state" : tactic => do
     | throwError "{stateTp} is not a structure"
   let fns := _sinfo.fieldNames.map mkIdent
   -- fileds' names should be the same as ones in the local context
-  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent stateName) ..))
+  let constr <- `(term| (⟨$[$fns],*⟩ : $(← getStateTpStx)))
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
 /--
@@ -29,7 +28,6 @@ elab "exact_state" : tactic => do
   reader term using the field hypotheses and close the goal.
 -/
 elab "exact_reader" : tactic => do
-  let readerName ← getReaderName
   let readerTp := (<- localSpecCtx.get).spec.generic.readerType
   let .some sn := readerTp.constName?
     | throwError "{readerTp} is not a constant"
@@ -37,7 +35,7 @@ elab "exact_reader" : tactic => do
     | throwError "{readerTp} is not a structure"
   let fns := _sinfo.fieldNames.map mkIdent
   -- fileds' names should be the same as ones in the local context
-  let constr <- `(term| (⟨$[$fns],*⟩ : $(mkIdent readerName) ..))
+  let constr <- `(term| (⟨$[$fns],*⟩ : $(← getReaderTpStx)))
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
 open Tactic in
