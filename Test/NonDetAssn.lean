@@ -21,8 +21,8 @@ info: def Test.nondet_individual.wpGen : {node : Type} →
       {σ : Type} →
         [σ_substate : IsSubStateOf (State node) σ] →
           {ρ : Type} →
-            [ρ_reader : IsSubStateOf (Reader node) ρ] → (ExId → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
-fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubStateOf (Reader node) ρ] hd
+            [ρ_reader : IsSubReaderOf (Reader node) ρ] → (ExId → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
+fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubReaderOf (Reader node) ρ] hd
     post r s =>
   ∀ (t : Prop), post PUnit.unit r (setIn { x := t, r := (getFrom s).r } s)
 -/
@@ -41,9 +41,9 @@ info: def Test.quantify_pick.wpGen : {node : Type} →
       {σ : Type} →
         [σ_substate : IsSubStateOf (State node) σ] →
           {ρ : Type} →
-            [ρ_reader : IsSubStateOf (Reader node) ρ] →
+            [ρ_reader : IsSubReaderOf (Reader node) ρ] →
               (ExId → Prop) → node → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
-fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubStateOf (Reader node) ρ] hd n
+fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubReaderOf (Reader node) ρ] hd n
     post r s =>
   ∀ (t : node → node → Prop),
     post PUnit.unit r (setIn { x := (getFrom s).x, r := fun x N => if x = n then t n N else (getFrom s).r x N } s)
@@ -62,8 +62,8 @@ info: def Test.double_quant.wpGen : {node : Type} →
       {σ : Type} →
         [σ_substate : IsSubStateOf (State node) σ] →
           {ρ : Type} →
-            [ρ_reader : IsSubStateOf (Reader node) ρ] → (ExId → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
-fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubStateOf (Reader node) ρ] hd
+            [ρ_reader : IsSubReaderOf (Reader node) ρ] → (ExId → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
+fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubReaderOf (Reader node) ρ] hd
     post r s =>
   ∀ (t : node → node → Prop),
     post PUnit.unit r (setIn { x := (getFrom s).x, r := fun N x => if x = N then t N N else (getFrom s).r N x } s)
