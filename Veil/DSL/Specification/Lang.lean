@@ -467,12 +467,12 @@ def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (
       -- checkSpec nm br pre post binder
 
 def elabProcedure (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
-  throwError "TODO: fix"
-  -- liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
-  -- defineProcedure nm br l
-  -- Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
-  -- unless spec.isNone do
-  --   registerProcedureSpec nm.getId spec
+  liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
+  let (actIntName, actExtName) ← defineProcedure nm br l
+  Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
+  unless spec.isNone do
+    throwUnsupportedSyntax
+    -- registerProcedureSpec nm.getId spec
     -- let (pre, binder, post) <- getPrePost spec.get!
     -- defineProcedure (nm.getId ++ `spec |> mkIdent) br spec.get!
     -- checkSpec nm br pre post binder
