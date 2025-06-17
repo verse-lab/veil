@@ -362,23 +362,23 @@ elab (name := VeilDo) "do'" mode:term "as" readerTp:term "," stateTp:term "in" s
   trace[veil.debug] "{stx}\n→\n{doS}"
   elabTerm (<- `(term| ((do $doS*) : VeilM $mode $readerTp $stateTp _))) none
 
+def mkNewAssertion [Monad m] [MonadEnv m] (stx : Syntax) : m NumLit := do
+  let ctx ← assertsCtx.get
+  let id := ctx.maxId
+  assertsCtx.modify fun ctx => { ctx with
+    maxId := id + 1
+    map := ctx.map.insert id stx }
+  return Syntax.mkNatLit (id.toNat)
+
 elab_rules : term
   | `(assert $t) => do
-    let ctx ← assertsCtx.get
-    let id := ctx.maxId
     let stx <- getRef
-    assertsCtx.modify fun ctx => { ctx with
-      maxId := id + 1
-      map := ctx.map.insert id stx }
-    withRef stx $ elabTerm (<- `(term| VeilM.assert $t $(Syntax.mkNatLit id.toNat))) none
+    let id <- mkNewAssertion stx
+    withRef stx $ elabTerm (<- `(term| VeilM.assert $t $id)) none
   | `(require $t) => do
-    let ctx ← assertsCtx.get
-    let id := ctx.maxId
     let stx <- getRef
-    assertsCtx.modify fun ctx => { ctx with
-      maxId := id + 1
-      map := ctx.map.insert id stx }
-    withRef stx $ elabTerm (<- `(term| VeilM.require $t $(Syntax.mkNatLit id.toNat))) none
+    let id ← mkNewAssertion stx
+    withRef stx $ elabTerm (<- `(term| VeilM.require $t $id)) none
 
 macro_rules
   | `(assume  $t) => `(MonadNonDet.assume $t)
@@ -434,12 +434,13 @@ elab_rules : term
     trace[veil.debug] "spec initial stx: {stx}"
     elabTerm stx none
   | `(requires $pre ensures $r, $post:term with unchanged[$[$ids],*]) => do
-    -- withRef t $
-    let stx <- `(term| @Wp.spec [State] _ $genericState _ _ (funcases $pre) (
-      by rintro st $r st';
-         unhygienic cases st';
-         with_rename "_old" unhygienic cases st;
-         exact $post ∧ [unchanged|"_old"|$ids*]))
+    let preEx <- mkNewAssertion pre
+    let postEx <- mkNewAssertion post
+    let stx <- `(term| @VeilM.spec $genericReader $genericState _ _ (funcases $pre) (
+      by rintro st rd st' $r;
+         unhygienic cases (getFrom st');
+         with_rename "_old" unhygienic cases (getFrom st);
+         exact $post ∧ [unchanged|"_old"|$ids*]) $preEx $postEx _ _)
     trace[veil.debug] "spec stx with unchanged: {stx}"
     elabTerm stx none
 

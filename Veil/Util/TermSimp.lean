@@ -75,7 +75,7 @@ def Lean.Expr.simpWpEx (e : Expr) (act : Name) : TermElabM Simp.Result := do
   e.runSimp stx
 
 def Lean.Expr.simpAction (e : Expr) : TermElabM Simp.Result := do
-  let stx := `(tactic| simp only [$(mkIdent `VeilM.require):ident])
+  let stx := `(tactic| simp only [$(mkIdent `VeilM.require):ident, $(mkIdent `VeilM.ensure):ident])
   e.runSimp stx
 
 def Lean.Expr.runUnfold (e : Expr) (defs : List Name) : TermElabM Expr := do

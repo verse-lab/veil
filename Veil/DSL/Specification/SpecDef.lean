@@ -204,7 +204,7 @@ def getIOStepStx (stateTp : TSyntax `term) (labelT : TSyntax `term) (vs : Array 
     let (params, args) ← match s.br with
       | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
       | none => pure (#[], #[])
-    let actFn := mkIdent $ toFnName s.name
+    let actFn := mkIdent $ toOriginalName s.name
     match s.br with
       | some _ => `(term|fun $params* => @$actFn $actionArgs* $args* $st $st')
       | none => `(term|$actFn $st $st')

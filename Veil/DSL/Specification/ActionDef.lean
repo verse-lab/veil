@@ -98,7 +98,7 @@ def registerProcedureSpec [Monad m] [MonadEnv m] [MonadResolveName m] [MonadErro
         { t with spec := spec }
       else t }
 
-def defineProcedure (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
+def mkProcedureGenerators (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
   Command.runTermElabM fun vs => do
     let funBinders ← match br with
     | some br => toFunBinderArray br
@@ -136,6 +136,7 @@ def defineAndSimplify (vs : Array Expr)
     let args ← match br with
       | some br => pure (← explicitBindersIdents br)
       | none => pure #[]
+    withoutErrToSorry $ do
     let actStx <- defStx sectionArgs args
     let mut actExp <- elabTermAndSynthesize actStx none
     unless unfolds.isEmpty do
@@ -372,6 +373,10 @@ def registerProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explic
   registerProcedureBinders proc.getId br
   registerProcedureSyntax proc.getId l
 
+def registerTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) : CommandElabM Unit:= do
+  declareProcedure (toActionKind actT) nm.getId
+  registerIOActionDecl actT nm br
+  registerProcedureBinders nm.getId br
 
 /-- Defines `act` : `VeilM m ρ σ α` monad computation, parametrised over `br`. More
 specifically it defines:
@@ -387,22 +392,59 @@ specifically it defines:
     its simplified version
 -/
 def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
-  let (actIntName, actExtName) ← defineProcedure act br l
+  let (actIntName, actExtName) ← mkProcedureGenerators act br l
   defineAuxiliaryDeclarations .act .external actExtName br
   defineAuxiliaryDeclarations .act .internal actIntName br
   registerAction actT act br l
 
 def defineInitialAction (l : doSeq) : CommandElabM Unit := do
   let initName := mkIdent initializerName
-  let (_, actExtName) ← defineProcedure initName none l
+  let (_, actExtName) ← mkProcedureGenerators initName none l
   defineAuxiliaryDeclarations .init .external actExtName none
 
+def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
+  let (_, actIntName) ← mkProcedureGenerators proc br l
+  defineAuxiliaryDeclarations .proc .internal actIntName br
+  registerProcedure proc br l
 
--- def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
---   let (actExtName, actIntName) ← defineProcedure act br l
---   defineAuxiliaryDeclarations DeclType.act actExtName br
---   defineAuxiliaryDeclarations DeclType.act actIntName br
---   registerAction actT act br l
+def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
+  trace[veil.debug] "Defining {actT} transition {nm}: {tr}"
+  let vd ← getImplicitProcedureParameters
+  let baseName := (← getCurrNamespace) ++ nm.getId
+  let origName := toOriginalIdent nm
+  let originalDef ← Command.runTermElabM fun _ => do
+    let trType <- `($genericReader -> $genericState -> $genericState -> Prop)
+    let univBinders ← match br with
+    | some br => pure (← toBracketedBinderArray br)
+    | none => pure #[]
+    -- We keep the original definition of the transition, as given by the user.
+    let originalDef ← `(@[actSimp] def $origName $[$vd]* $univBinders* : $trType := $tr)
+    return originalDef
+  trace[veil.debug] "{originalDef}"
+  elabCommand originalDef
+  let (_genIName, genEName) ← Command.runTermElabM fun vs => do
+    let genIName ← genGeneratorFromTransition vs origName baseName .internal
+    let genEName ← genGeneratorFromTransition vs origName baseName .external
+    return (genIName, genEName)
+  defineAuxiliaryDeclarations .act .external genEName br
+  registerTransition actT nm br
+where
+  genGeneratorFromTransition (vs : Array Expr) (origName : Ident) (baseName : Name) (mode : Mode) := do
+    let genName := toActName baseName mode
+    let sectionArgs ← getSectionArgumentsStx vs
+    let (funBinders, args) ← match br with
+    | some br => pure (← toFunBinderArray br, ← explicitBindersIdents br)
+    | none => pure (#[], #[])
+    let term ← match mode with
+    | Mode.internal => `(@TwoState.toVeilM .internal _ _ (@$origName $sectionArgs* $args*))
+    | Mode.external => `(@TwoState.toVeilM .external _ _ (@$origName $sectionArgs* $args*))
+    let genl ← `(fun $funBinders* => $term)
+    let genExp <- withDeclName genName do elabTermAndSynthesize genl none
+    let ⟨genExp, _, _⟩ <- genExp.simp #[``TwoState.toVeilM, origName.getId]
+    let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
+    simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}]) («type» := ← inferType genExp)
+    return genName
+
 
 /- TODO: fix state extension instances
 /-- We support executing actions from dependent modules by executing

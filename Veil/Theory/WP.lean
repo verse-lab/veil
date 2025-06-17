@@ -19,6 +19,21 @@ def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := d
   | .internal => VeilM.assert p ex
   | .external => assume p
 
+def VeilM.ensure (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+  match m with
+  | .internal => assume p
+  | .external => VeilM.assert p ex
+
+/-- `ens` takes the pre-state as an argument to be able to compute the
+frame (`unchanged`). -/
+@[reducible] def VeilM.spec (req : SProp ρ σ) (ens : σ → RProp ρ σ α) (pre_ex post_ex : ExId) [∀ rd st, Decidable (req rd st)] [∀ rd st st' ret, Decidable (ens rd st st' ret)] : VeilM m ρ σ α := do
+  let (rd, st) := (← read, ← get)
+  VeilM.require (req rd st) pre_ex
+  let (ret, st') := (← pick α, ← pick σ)
+  VeilM.ensure (ens st rd st' ret) post_ex
+  set st'
+  return ret
+
 @[wpSimp]
 lemma VeilExecM.wp_assume :
   wp (assume p : VeilM m ρ σ PUnit) post = fun r s => p -> post .unit r s := by
@@ -32,6 +47,13 @@ lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId) :
     | .external => wp (      assume p    : VeilM .external ρ σ PUnit) post := by
   cases m <;> rfl
 
+@[wpSimp]
+lemma VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId) :
+  wp (ensure p ex : VeilM m ρ σ Unit) post =
+    match m with
+    | .internal => wp (      assume p    : VeilM .internal ρ σ PUnit) post
+    | .external => wp (VeilM.assert p ex : VeilM .external ρ σ Unit) post := by
+  cases m <;> rfl
 
 @[wpSimp]
 lemma VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
@@ -54,6 +76,12 @@ lemma VeilM.wp_get {_ : IsSubStateOf σₛ σ} :
   wp (get : VeilM m ρ σ σₛ) post = fun r s => post (getFrom s) r s := by
   simp [get, getThe, MonadStateOf.get, MPropLift.wp_lift]; ext
   erw [StateT.wp_get]
+
+@[wpSimp]
+lemma VeilM.wp_set {_ : IsSubStateOf σₛ σ} :
+  wp (set s': VeilM m ρ σ Unit) post = fun r _s => post () r s' := by
+  simp [set, MPropLift.wp_lift, modify, modifyGet, MonadStateOf.modifyGet]; ext
+  erw [StateT.wp_modifyGet]; rfl
 
 @[wpSimp]
 lemma VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} :

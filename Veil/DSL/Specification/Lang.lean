@@ -399,10 +399,9 @@ def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
     logWarning s!"{name} is not first-order (and cannot be sent to SMT)"
 
 def elabNativeTransition (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (tr : TSyntax `term) : CommandElabM Unit := do
-  throwError "TODO: fix"
-  -- liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
-  -- let actT ← parseActionKindStx actT
-  -- defineTransition actT nm br tr
+  liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
+  let actT ← parseActionKindStx actT
+  defineTransition actT nm br tr
   -- -- warn if this is not first-order
   Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
 
@@ -410,20 +409,20 @@ def elabNativeTransition (actT : Option (TSyntax `actionKind)) (nm : Ident) (br 
 def elabTransition : CommandElab := fun stx => do
   match stx with
   | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = { $t:term }) => do
-    throwUnsupportedSyntax
-    -- let changedFn := (fun f => t.raw.find? (·.getId.toString == (mkPrimed f).toString) |>.isSome)
-    -- let unchangedFields ← getUnchangedFields changedFn
-    -- trace[veil.info] "Unchanged fields: {unchangedFields}"
-    -- let changedFields ← getChangedFields changedFn
-    -- for f in changedFields do
-    --   liftTermElabM $ throwIfImmutable' f.getId (isTransition := true)
-    -- let (st, st') := (mkIdent `st, mkIdent `st')
-    -- let trStx ← `(fun ($st $st' : $genericState) => let ($st, $st') := (getFrom $st, getFrom $st')
-    --   by
-    --   unhygienic cases $st:ident
-    --   with_rename "'" unhygienic cases $st':ident
-    --   exact [unchanged|"'"| $unchangedFields*] ∧ ($t))
-    -- elabNativeTransition actT nm br trStx
+    let changedFn := (fun f => t.raw.find? (·.getId.toString == (mkPrimed f).toString) |>.isSome)
+    let unchangedFields ← getUnchangedFields changedFn
+    trace[veil.info] "Unchanged fields: {unchangedFields}"
+    let changedFields ← getChangedFields changedFn
+    for f in changedFields do
+      liftTermElabM $ throwIfImmutable' f.getId (isTransition := true)
+    let (rd, st, st') := (mkIdent `rd, mkIdent `st, mkIdent `st')
+    let trStx ← `(fun ($rd : $genericReader) ($st $st' : $genericState) => let ($rd, $st, $st') := (readFrom $rd, getFrom $st, getFrom $st')
+      by
+      unhygienic cases $rd:ident
+      unhygienic cases $st:ident
+      with_rename "'" unhygienic cases $st':ident
+      exact [unchanged|"'"| $unchangedFields*] ∧ ($t))
+    elabNativeTransition actT nm br trStx
   | _ => throwUnsupportedSyntax
 
 /-! ## Actions -/
@@ -459,22 +458,21 @@ def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (
     -- warn if this is not first-order
     Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
     unless spec.isNone do
-      throwUnsupportedSyntax
-      -- registerProcedureSpec nm.getId spec
-      -- let (pre, binder, post) <- getPrePost spec.get!
-      -- trace[veil.debug] "Defining specification for {nm} with pre: {pre}"
-      -- defineProcedure (nm.getId ++ `spec |> mkIdent) br spec.get!
+      registerProcedureSpec nm.getId spec
+      let (pre, binder, post) <- getPrePost spec.get!
+      trace[veil.debug] "Defining specification for {nm} with pre: {pre}"
+      let _ ← mkProcedureGenerators (toSpecIdent nm) br spec.get!
       -- checkSpec nm br pre post binder
 
 def elabProcedure (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
-  let (actIntName, actExtName) ← defineProcedure nm br l
+  defineProcedure nm br l
   Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
   unless spec.isNone do
-    throwUnsupportedSyntax
-    -- registerProcedureSpec nm.getId spec
-    -- let (pre, binder, post) <- getPrePost spec.get!
-    -- defineProcedure (nm.getId ++ `spec |> mkIdent) br spec.get!
+    registerProcedureSpec nm.getId spec
+    let (pre, binder, post) <- getPrePost spec.get!
+    trace[veil.debug] "Defining specification for {nm} with pre: {pre}"
+    let _ ← mkProcedureGenerators (toSpecIdent nm) br spec.get!
     -- checkSpec nm br pre post binder
 
 elab_rules : command

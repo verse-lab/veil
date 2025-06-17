@@ -138,4 +138,9 @@ def VeilSpecM.toTwoStateDerived (spec : VeilSpecM ρ σ α) : TwoState ρ σ :=
 def VeilM.toTwoStateDerived (act : VeilM m ρ σ α) : TwoState ρ σ :=
   [CanRaise (fun _ => True)| VeilSpecM.toTwoStateDerived <| wp act]
 
+def TwoState.toVeilM (act : TwoState ρ σ) : VeilM m ρ σ Unit := do
+  let st' ← pick σ
+  assume (act (← read) (← get) st')
+  set st'
+
 end DerivingSemantics

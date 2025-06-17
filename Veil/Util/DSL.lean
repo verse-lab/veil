@@ -227,10 +227,9 @@ def toTrName (n : Name) : Name := n ++ `tr
 def toTrIdent (id : Ident) : Ident := mkIdent $ toTrName id.getId
 def toTrLemmaName (n : Name) : Name := n ++ `tr_eq
 
-/-- See docstring on `toTrName`. -/
-def toFnName (n : Name) : Name := n ++ `fn
-/-- See docstring on `toTrName`. -/
-def toFnIdent (id : Ident) : Ident := mkIdent $ toFnName id.getId
+
+def toOriginalName (n : Name) : Name := n ++ `original
+def toOriginalIdent (id : Ident) : Ident := mkIdent $ toOriginalName id.getId
 
 def toSpecName (n : Name) : Name := n ++ `spec
 def toSpecIdent (id : Ident) : Ident := mkIdent $ toSpecName id.getId
