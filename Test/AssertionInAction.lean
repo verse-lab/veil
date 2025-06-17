@@ -1,7 +1,5 @@
 import Veil
 
-/- TODO: fix it when we add assertion actions
-
 veil module Foo
 
 type node
@@ -38,35 +36,11 @@ procedure foo = {
 action send (n next : node) = {
   require isNext n next
   pending n next := True
-  assert inv_1
 }
 
 #gen_spec
 
-/--
-info: Initialization must establish the invariant:
-  single_leader ... ✅
-  inv_1 ... ✅
-  inv_2 ... ✅
-The following set of actions must preserve the invariant:
-  send
-    single_leader ... ✅
-    inv_1 ... ✅
-    inv_2 ... ✅
----
-warning: Trusting the SMT solver for 6 theorems.
--/
-#guard_msgs in
-#check_invariants
-
 #guard_msgs(drop info, drop warning) in
 sat trace { assert inv_1 } by bmc_sat
 
-#guard_msgs(drop info, drop warning) in
-unsat trace {
-   any 3 actions
-   assert ¬ (single_leader ∧ inv_1 ∧ inv_2)
-} by bmc
-
 end Foo
--/
