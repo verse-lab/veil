@@ -77,8 +77,20 @@ lemma VeilM.wp_get {_ : IsSubStateOf σₛ σ} :
   simp [get, getThe, MonadStateOf.get, MPropLift.wp_lift]; ext
   erw [StateT.wp_get]
 
+@[wpSimp low]
+lemma VeilM.wp_get' :
+  wp (get : VeilM m ρ σ σ) post = fun r s => post s r s := by
+  simp [get, getThe, MonadStateOf.get, MPropLift.wp_lift]; ext
+  erw [StateT.wp_get]
+
 @[wpSimp]
 lemma VeilM.wp_set {_ : IsSubStateOf σₛ σ} :
+  wp (set s': VeilM m ρ σ Unit) post = fun r s => post () r (setIn s' s) := by
+  simp [set, MPropLift.wp_lift, modify, modifyGet, MonadStateOf.modifyGet]; ext
+  erw [StateT.wp_modifyGet]
+
+@[wpSimp low]
+lemma VeilM.wp_set' :
   wp (set s': VeilM m ρ σ Unit) post = fun r _s => post () r s' := by
   simp [set, MPropLift.wp_lift, modify, modifyGet, MonadStateOf.modifyGet]; ext
   erw [StateT.wp_modifyGet]; rfl
@@ -89,9 +101,21 @@ lemma VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} :
   simp [modifyGet, MonadStateOf.modifyGet, MPropLift.wp_lift]; ext
   erw [StateT.wp_modifyGet]
 
+@[wpSimp low]
+lemma VeilM.wp_modifyGet' :
+  wp (modifyGet f : VeilM m ρ σ α) post = fun r s => post (f s).1 r (f s).2 := by
+  simp [modifyGet, MonadStateOf.modifyGet, MPropLift.wp_lift]; ext
+  erw [StateT.wp_modifyGet]; rfl
+
 @[wpSimp]
 lemma VeilM.wp_read {_ : IsSubReaderOf ρₛ ρ} :
   wp (read : VeilM m ρ σ ρₛ) post = fun r s => post (readFrom r) r s := by
+  simp [read, getThe, MonadReaderOf.read, readThe, MPropLift.wp_lift]; ext
+  erw [ReaderT.wp_read]
+
+@[wpSimp low]
+lemma VeilM.wp_read' :
+  wp (read : VeilM m ρ σ ρ) post = fun r s => post r r s := by
   simp [read, getThe, MonadReaderOf.read, readThe, MPropLift.wp_lift]; ext
   erw [ReaderT.wp_read]
 

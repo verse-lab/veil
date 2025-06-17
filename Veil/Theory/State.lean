@@ -1,4 +1,4 @@
-import Veil.Theory.Basic
+import Veil.DSL.Base
 
 class IsSubReaderOf (ρ : outParam Type) (ρ' : Type) where
   /-- Get the small state `ρ` from the big one `ρ'` -/
