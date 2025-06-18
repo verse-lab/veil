@@ -280,6 +280,12 @@ def subReaderInstIdent (id : Ident): Ident := mkIdent $ Name.mkSimple s!"{id.get
 def subReaderInstIdent' (base : Ident) (other : Ident): Ident := mkIdent $ Name.mkSimple s!"{base.getId}_reader_{other.getId}"
 def genericSubReaderIdent : Ident := subReaderInstIdent genericReader
 
+def labelName : Name := `Label
+def labelIdent : Ident := mkIdent labelName
+
+def labelCasesName : Name := `Label_cases
+def labelCasesIdent : Ident := mkIdent labelCasesName
+
 /-- The DSL sometimes generates names including `.tr`, and we can't
 print these to SMT. -/
 def mkPrintableName (n : Name) : Name :=

@@ -100,10 +100,9 @@ def assembleNext : CommandElabM Unit := do
     let sectionArgs ← getSectionArgumentsStx vs
     let spec := (← localSpecCtx.get).spec
     let (rd, st, st') := (mkIdent `st, mkIdent `rd, mkIdent `st')
-    let labelTypeName := mkIdent `Label
     let labelTypeBinders ← spec.generic.applyGetStateArguments vd
     let labelTypeArgs ← bracketedBindersToTerms labelTypeBinders
-    let labelT ← `(term|$labelTypeName $labelTypeArgs*)
+    let labelT ← `(term|$labelIdent $labelTypeArgs*)
     let (Next, NextAct) := (mkIdent `Next, mkIdent `NextAct)
     let acts <- spec.actions.mapM fun s => do
       let name := mkIdent <| toUnitActName <| toExtName <| s.name
@@ -153,12 +152,13 @@ def assembleNext : CommandElabM Unit := do
 def assembleLabelType (name : Name) : CommandElabM Unit := do
   let vd ← getActionParameters
   let generic := (← localSpecCtx.get).spec.generic
-  let labelTypeName := mkIdent `Label
+  let labelTypeName := labelIdent
   let labelTypeBinders ← generic.applyGetStateArguments vd
   let labelTypeArgs ← bracketedBindersToTerms labelTypeBinders
   let labelT ← `(term|$labelTypeName $labelTypeArgs*)
 
-  let (labelType, alInstance) ← Command.runTermElabM fun _ => do
+  let (labelType, alInstance, casesLemma) ← Command.runTermElabM fun _ => do
+    let P := mkIdent `P
     let (ctors, altkinds) := Array.unzip $ ← (← localSpecCtx.get).spec.actions.mapM (fun s => do
       let .some decl := s.actionDecl | throwError "[assembleLabelType] {s} is not an action"
       let .some ctor := decl.ctor | throwError "DSL: missing label constructor for action {s.name}"
@@ -168,10 +168,19 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
         | some br => `(term|fun $(← toFunBinderArray br)* => $name)
         | none => `(term|$name)
       let kind ← `(term|($name, $(mkIdent decl.kind.toName)))
-      pure (ctor, alt, kind))
-    let (alts, kinds) := Array.unzip altkinds
+      let constructor := mkIdent (labelTypeName.getId ++ s.name)
+      let ex ← match s.br with
+        | some br => `(term| (∃ $br, $P ($constructor $(← explicitBindersIdents br)*)))
+        | none => `(term| $P ($constructor))
+      pure (ctor, alt, kind, ex))
+    let (alts, kindsexs) := Array.unzip altkinds
+    let (kinds, exs) := Array.unzip kindsexs
     trace[veil.info] "storing constructors for {name}"
-    let labelType ← `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]*)
+    let labelType ←
+      if ctors.isEmpty then
+        `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]*)
+      else
+        `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]* deriving Nonempty)
     let idFn ← `(term|fun (l : $labelT) => l.casesOn $alts*)
     let kindMap ← `(Std.HashMap.ofList [$[$kinds],*])
     let alInstance ← `(command|
@@ -179,13 +188,23 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
     instance (priority := low) $(mkIdent $ Name.mkSimple s!"{name}_ActionLabel") : ActionLabel $labelT where
       id := $idFn
       kind := $kindMap
-
+    )
+    let casesLemma ← `(command|set_option linter.unusedSectionVars false in
+      lemma $labelCasesIdent ($P : $labelT -> Prop) :
+        (∃ l : $labelT, $P l) ↔
+        $(← repeatedOr exs) :=
+      by
+        constructor
+        { rintro ⟨l, r⟩; rcases l <;> aesop }
+        { aesop }
     )
     trace[veil.debug] "labelType: {labelType}"
     trace[veil.debug] "alInstance: {alInstance}"
-    pure (labelType, alInstance)
+    trace[veil.debug] "casesLemma: {casesLemma}"
+    pure (labelType, alInstance, casesLemma)
   elabCommand labelType
   elabCommand alInstance
+  elabCommand casesLemma
   trace[veil.info] "Label {labelTypeName} type is defined"
 
 def getIOSignatureStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (TSyntax `term) := do

@@ -45,9 +45,8 @@ open Command Term in
 def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
   assertActionDeclared nm.getId "registerIOActionDecl"
   let vd ← getActionParameters
-  let labelTypeName := mkIdent `Label
   let labelTypeArgs ← bracketedBindersToTerms $ ← (← localSpecCtx.get).spec.generic.applyGetStateArguments vd
-  let labelT ← `(term|$labelTypeName $labelTypeArgs*)
+  let labelT ← `(term|$labelIdent $labelTypeArgs*)
   Command.runTermElabM fun _ => do
     let name := nm.getId
     let br ← match br with
