@@ -33,25 +33,28 @@ class IsSubStateOf (σ : outParam Type) (σ' : Type) where
   /-- Get the small state `σ` from the big one `σ'` -/
   getFrom : σ' -> σ
 
-  setIn_getFrom_idempotent : ∀ σ', setIn (getFrom σ') σ' = σ'
-  getFrom_setIn_idempotent : ∀ σ σ', getFrom (setIn σ σ') = σ
+  setIn_getFrom_idempotent    : ∀ σ', setIn (getFrom σ') σ' = σ'
+  setIn_setIn_last            : ∀ σ₁ σ₂ σ', setIn σ₂ (setIn σ₁ σ') = setIn σ₂ σ'
+  getFrom_setIn_idempotent    : ∀ σ σ', getFrom (setIn σ σ') = σ
 
 export IsSubStateOf (setIn getFrom)
+
+attribute [wpSimp, initSimp, actSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.setIn_setIn_last IsSubStateOf.getFrom_setIn_idempotent
 
 @[wpSimp, initSimp, actSimp] instance : IsSubStateOf σ σ where
   setIn := (fun σₛ σ => σₛ)
   getFrom := id
   setIn_getFrom_idempotent := by simp
+  setIn_setIn_last         := by simp
   getFrom_setIn_idempotent := by simp
-
-attribute [wpSimp, initSimp, actSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.getFrom_setIn_idempotent
 
 def IsSubStateOf.trans {σₛ σₘ σ : Type} (S₁ : IsSubStateOf σₛ σₘ) (S₂ : IsSubStateOf σₘ σ) : IsSubStateOf σₛ σ :=
 {
   setIn := fun σₛ σ => let σₘ := (S₂.getFrom σ); S₂.setIn (S₁.setIn σₛ σₘ) σ
   getFrom := fun σ => S₁.getFrom (S₂.getFrom σ)
-  setIn_getFrom_idempotent := by simp [S₁.setIn_getFrom_idempotent, S₂.setIn_getFrom_idempotent]
-  getFrom_setIn_idempotent := by simp [S₁.getFrom_setIn_idempotent, S₂.getFrom_setIn_idempotent]
+  setIn_getFrom_idempotent := by simp [setIn_getFrom_idempotent]
+  setIn_setIn_last         := by simp [getFrom_setIn_idempotent, setIn_setIn_last]
+  getFrom_setIn_idempotent := by simp [getFrom_setIn_idempotent]
 }
 
 instance (priority := high + 1) [IsSubStateOf σₛ σ] [Monad m] : MonadStateOf σₛ (StateT σ m) where

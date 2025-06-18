@@ -1,6 +1,4 @@
 
--- NOTE: if you change this, make sure you also change
--- `findStateType` in `Tactic/Util.lean`
 class RelationalTransitionSystem (ρ : Type) (σ : Type) where
   init : ρ → σ → Prop
   assumptions : ρ → σ → Prop

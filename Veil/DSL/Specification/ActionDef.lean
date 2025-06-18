@@ -344,9 +344,6 @@ def defineAuxiliaryDeclarations (declType : DeclType) (mode : Mode) (actName : N
     let (actWpName, actWpPf) ← defineWpForAction vs actName br
     defineWpLemma vs vd actName actWpName actWpPf br
 
-    if mode == Mode.external then
-      defineUnitAct vs vd actName br
-
     unless declType = DeclType.proc do
       let (actWpSuccName, actWpSuccPf) ← defineWpSuccForAction vs actName br
       defineWpSuccLemma vs vd actName actWpSuccName actWpName actWpSuccPf br
@@ -355,11 +352,14 @@ def defineAuxiliaryDeclarations (declType : DeclType) (mode : Mode) (actName : N
         let (actWpExName, actWpExPf) ← defineWpExForAction vs actName br
         defineWpExLemma vs vd actName actWpName actWpExName actWpExPf br
 
-      let (actTwoStateName, actTwoStatePf) ← defineTwoStateAction vs actName br
-      defineTwoStateLemma vs vd actName actTwoStateName actTwoStatePf br
+      if mode == Mode.external then
+        defineUnitAct vs vd actName br
 
-      let (actTrName, actTrPf) ← defineTr vs actName br
-      defineTrLemma vs vd actName actTrName actTrPf br
+        let (actTwoStateName, actTwoStatePf) ← defineTwoStateAction vs actName br
+        defineTwoStateLemma vs vd actName actTwoStateName actTwoStatePf br
+
+        let (actTrName, actTrPf) ← defineTr vs actName br
+        defineTrLemma vs vd actName actTrName actTrPf br
 
 def registerAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) := do
   declareProcedure (toActionKind actT) act.getId

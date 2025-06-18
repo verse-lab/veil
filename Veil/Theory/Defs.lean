@@ -88,7 +88,7 @@ section TwoStateSemantics
 def VeilSpecM.toTwoState (spec : VeilSpecM ρ σ α) : TwoState ρ σ :=
   fun r₀ s₀ s₁ => spec (fun _ r s => r = r₀ ∧ s = s₁) r₀ s₀
 
-def VeilM.toTwoState (act : VeilM m ρ σ α) : TwoState ρ σ :=
+@[wpSimp] def VeilM.toTwoState (act : VeilM m ρ σ α) : TwoState ρ σ :=
   fun r₀ s₀ s₁ =>
     [AngelFail| triple (fun r s => r = r₀ ∧ s = s₀) act (fun _ r s => r = r₀ ∧ s = s₁)]
 

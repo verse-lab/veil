@@ -46,26 +46,26 @@ info: @[invProof]
       ∀ (rd : ρ) (st' : σ),
         (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st' →
           (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).init rd st' →
-            (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) st' :=
-    by ((unhygienic intros); solve_clause[initSimp]Ring.single_leader)
+            (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
+    by ((unhygienic intros); solve_clause[initSimp, actSimp]Ring.single_leader)
   ⏎
   @[invProof]
   theorem send_tr_single_leader :
       ∀ (rd : ρ) (st st' : σ),
         (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
           (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
-            (@Ring.send.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
+            (@Ring.send.ext.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
-    by solve_tr_clause Ring.send.tr Ring.single_leader
+    by solve_tr_clause Ring.send.ext.tr Ring.single_leader
   ⏎
   @[invProof]
   theorem recv_tr_single_leader :
       ∀ (rd : ρ) (st st' : σ),
         (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
           (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
-            (@Ring.recv.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
+            (@Ring.recv.ext.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
               (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
-    by solve_tr_clause Ring.recv.tr Ring.single_leader
+    by solve_tr_clause Ring.recv.ext.tr Ring.single_leader
 -/
 #guard_msgs(whitespace := lax) in
 set_option veil.vc_gen "transition" in #check_invariants?

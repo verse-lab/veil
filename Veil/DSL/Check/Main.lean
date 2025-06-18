@@ -148,15 +148,15 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
         -- Init checks
         for invName in initIndicators.reverse do
           let invStx ← `(@$(mkIdent invName) $assertionArgs*)
-          let initTpStx ← `(∀ ($rd : $genericReader) ($st' : $genericState), ($systemTp).$(mkIdent `assumptions) $rd $st' → ($systemTp).$(mkIdent `init) $rd $st' → $invStx $st')
-          let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
+          let initTpStx ← `(∀ ($rd : $genericReader) ($st' : $genericState), ($systemTp).$(mkIdent `assumptions) $rd $st' → ($systemTp).$(mkIdent `init) $rd $st' → $invStx $rd $st')
+          let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp), $(mkIdent `actSimp)] $(mkIdent invName)))
           let thmName := mkTheoremName `init invName
           let thm ← `(@[invProof] theorem $(mkIdent thmName) : $initTpStx := $body)
           theorems := theorems.push (⟨invName, .none, thmName⟩, thm)
 
         -- Action checks
         for (actName, invName) in actIndicators.reverse do
-          let trName := toTrName actName
+          let trName := toTrName (toExtName actName)
           if let .some invName := invName then
             let invStx ← `(@$(mkIdent invName) $assertionArgs*)
             let trStx ← `(@$(mkIdent trName) $actionArgs*)

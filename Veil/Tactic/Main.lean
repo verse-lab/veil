@@ -205,15 +205,15 @@ def getAbstractStateHyps : TacticM (Array (AbstractStateKind × LocalDecl)) := w
       abstractStateHyps := abstractStateHyps.push (.reader, hyp)
   return abstractStateHyps
 
+def negElimLemmas := mkSimpLemmas $ #[``compl, ``Classical.not_imp, ``Classical.not_not, ``Classical.not_forall].map mkIdent
+
 syntax concretizeState := "concretize_state" <|> "concretize_state?"
 elab tk:concretizeState : tactic => withMainContext do
   let mut tacticsToPrint := #[]
-
 -- Sometimes required to enable `subst`
-  let doubleNegTac ← `(tacticSeq|try simp only [$(mkIdent ``Classical.not_not):ident] at *)
+  let doubleNegTac ← `(tacticSeq|try simp only [$negElimLemmas,*] at *; sdestruct_hyps)
   tacticsToPrint := tacticsToPrint.push doubleNegTac
   withMainContext $ evalTactic doubleNegTac
-
   for (_, s) in (← getAbstractStateHyps) do
     let tac ← `(tacticSeq| try subst $(mkIdent s.userName))
     if (← getUnsolvedGoals).length != 0 then
@@ -249,8 +249,7 @@ def elabSimplifyClause (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIden
   -- (*) Collect executed tactics to generate suggestion
   let mut xtacs := #[]
   -- (1) Identify the type of the state
-  let stateType ← findStateType (← getLCtx)
-  let stateName := stateType.getAppFn.constName
+  let stateName ← getStateName
   -- dbg_trace "State is structure with name: {stateName}"
   -- (2) Destruct all hypotheses into components
   let destructTac ← `(tacticSeq| sdestruct_hyps)
@@ -470,13 +469,12 @@ syntax (name := solveClauseTrace) "solve_clause?" : tactic
 `initSimp` and `actSimp`) to be unfolded, and following that is the
 invariant/clause name to be proven. The latter is used to enforce
 isolates as well. -/
-syntax (name := solveClauseWith) "solve_clause" "[" ident,* "]" ident : tactic
+syntax (name := solveClauseWith) (solveClause <|> solveClauseTrace) "[" ident,* "]" ident : tactic
 elab_rules : tactic
   | `(tactic| solve_clause%$tk) => elabSolveClause tk
   | `(tactic| solve_clause?%$tk) => elabSolveClause tk (trace := true)
   | `(tactic| solve_clause%$tk [ $[$simp0],* ] $inv:ident)   => elabSolveClause tk simp0 inv.getId
-
-
+  | `(tactic| solve_clause?%$tk [ $[$simp0],* ] $inv:ident)   => elabSolveClause tk simp0 inv.getId (trace := true)
 
 elab "simplify_all" : tactic => withMainContext do
   let toDsimp := mkSimpLemmas $ #[`initSimp, `actSimp, `invSimp, `safeSimp, `smtSimp, `logicSimp].map mkIdent

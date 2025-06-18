@@ -1,7 +1,6 @@
 import Veil.DSL
 import Veil.Std
 
-/- TODO: fix this when we have invariant checking for tr
 veil module Ring
 
 
@@ -54,7 +53,7 @@ info: Initialization must establish the invariant:
   single_leader ... ✅
   inv_1 ... ✅
   indv_true ... ❌
-The following set of actions must preserve the invariant:
+The following set of actions must preserve the invariant and successfully terminate:
   send
     single_leader ... ✅
     inv_1 ... ✅
@@ -70,29 +69,29 @@ The following set of actions must preserve the invariant:
 ---
 info: @[invProof]
   theorem init_indv_true :
-      ∀ (st' : σ),
-        (@System node node_dec node_ne tot btwn σ σ_substate).assumptions st' →
-          (@System node node_dec node_ne tot btwn σ σ_substate).init st' →
-            (@Ring.indv_true node node_dec node_ne tot btwn σ σ_substate) st' :=
-    by ((unhygienic intros); solve_clause[initSimp]Ring.indv_true)
+      ∀ (rd : ρ) (st' : σ),
+        (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st' →
+          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).init rd st' →
+            (@Ring.indv_true node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
+    by ((unhygienic intros); solve_clause[initSimp, actSimp]Ring.indv_true)
   ⏎
   @[invProof]
   theorem recv_tr_single_leader :
-      ∀ (st st' : σ),
-        (@System node node_dec node_ne tot btwn σ σ_substate).assumptions st →
-          (@System node node_dec node_ne tot btwn σ σ_substate).inv st →
-            (@Ring.recv.tr node node_dec node_ne tot btwn σ σ_substate) st st' →
-              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate) st' :=
-    by solve_tr_clause Ring.recv.tr Ring.single_leader
+      ∀ (rd : ρ) (st st' : σ),
+        (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
+          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
+            (@Ring.recv.ext.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
+              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
+    by solve_tr_clause Ring.recv.ext.tr Ring.single_leader
   ⏎
   @[invProof]
   theorem ruin_inv_tr_indv_true :
-      ∀ (st st' : σ),
-        (@System node node_dec node_ne tot btwn σ σ_substate).assumptions st →
-          (@System node node_dec node_ne tot btwn σ σ_substate).inv st →
-            (@Ring.ruin_inv.tr node node_dec node_ne tot btwn σ σ_substate) st st' →
-              (@Ring.indv_true node node_dec node_ne tot btwn σ σ_substate) st' :=
-    by solve_tr_clause Ring.ruin_inv.tr Ring.indv_true
+      ∀ (rd : ρ) (st st' : σ),
+        (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
+          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
+            (@Ring.ruin_inv.ext.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
+              (@Ring.indv_true node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
+    by solve_tr_clause Ring.ruin_inv.ext.tr Ring.indv_true
   ⏎
   ⏎
 ---
@@ -106,4 +105,3 @@ error: The invariant is not inductive: 3 clauses are not preserved!
 set_option veil.vc_gen "transition" in #check_invariants!
 
 end Ring
--/
