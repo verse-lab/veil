@@ -1,9 +1,8 @@
 import Lake
 open Lake DSL System
 
--- FIXME: change to "https://github.com/leanprover-community/lean-auto.git" once they bump to v4.16.0 upstream
-require auto from git "https://github.com/dranov/lean-auto.git" @ "bump-v4.20.0-rc3"
-require smt from git "https://github.com/dranov/lean-smt.git" @ "bump-v4.20.0-rc3"
+require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "ec89836a79a3266ebd840fb0df59ca4c972a4c25"
+require smt from git "https://github.com/dranov/lean-smt.git" @ "v4.20.0"
 
 package veil
 

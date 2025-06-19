@@ -415,7 +415,7 @@ where
   let mv ← Tactic.getMainGoal
   let idents ← getPropsInContext
   let hints ← `(Smt.Tactic.smtHints|[$[$idents:ident],*])
-  let hs ← Smt.Tactic.parseHints ⟨hints⟩
+  let hs ← Smt.Tactic.elabHints ⟨hints⟩
   let withTimeout := veil.smt.timeout.get opts
   -- IMPORTANT: `prepareLeanSmtQuery` (in `Smt.prepareSmtQuery`) negates
   -- the goal (it's designed for validity checking), so we negate it here
