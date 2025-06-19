@@ -15,22 +15,15 @@ import Veil.SMT.Model
 namespace Veil.SMT
 
 -- /-- Our own version of the `smt` & `auto` tactics. -/
-syntax (name := sauto) "sauto" Smt.Tactic.smtHints Smt.Tactic.smtTimeout : tactic
+syntax (name := sauto) "sauto" Smt.Tactic.smtHints : tactic
 
 open Lean Elab Tactic
 
 /-- Converts `smtHints` into those understood by `lean-auto`. -/
 def parseAutoHints : TSyntax `smtHints → TacticM (TSyntax `Auto.hints)
-  | `(Smt.Tactic.smtHints| [ $[$hs],* ]) => `(Auto.hints| [$[$hs:term],*])
+  | `(Smt.Tactic.smtHints| [ $[$hs:term],* ]) => `(Auto.hints| [$[$hs:term],*])
   | `(Smt.Tactic.smtHints| ) => `(Auto.hints| [])
-  | _ => throwUnsupportedSyntax
-
-/- We use our own `parseTimeout` because the one in `lean-smt` has a
-  hard-coded `5` as default if no timeout is specified. -/
-def parseTimeout : TSyntax `smtTimeout → CoreM Nat
-  | `(Smt.Tactic.smtTimeout| (timeout := $n)) => return n.getNat
-  | `(Smt.Tactic.smtTimeout| ) => return (veil.smt.timeout.get (← getOptions))
-  | _ => throwUnsupportedSyntax
+  | _ => do throwError s!"Failure in parseAutoHints on {← getRef}"
 
 private def solverStr (solver : Option SmtSolver := none) : String :=
   match solver with
@@ -45,8 +38,9 @@ def unknownGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr
 def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}solver invocation failed"
 
 @[tactic sauto] def elabSauto : Tactic := fun stx => withMainContext do
+  let hints : TSyntax `smtHints := ⟨stx[1]⟩
   let mv ← Tactic.getMainGoal
-  let withTimeout ← parseTimeout ⟨stx[2]⟩
+  let withTimeout := veil.smt.timeout.get (← getOptions)
   -- If the user wants proof reconstruction, we simply call the `smt`
   -- tactic provided by `lean-smt`.
   let opts ← getOptions
@@ -54,12 +48,15 @@ def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr
     let chosenTranslator := veil.smt.translator.get opts
     -- if chosenTranslator != .leanSmt then
       -- logInfo s!"Proof reconstruction is only supported with `lean-smt`, but `veil.smt.translator = {chosenTranslator}`. Falling back to `lean-smt`."
-    Smt.Tactic.evalSmt stx
+    let hints : TSyntax ``Smt.Tactic.smtHints := ⟨stx[1]⟩
+    let smtSyntax ← `(tactic| smt $(hints):smtHints)
+    trace[veil.smt] s!"proof reconstruction is on, so evaluating {smtSyntax}"
+    Smt.Tactic.evalSmt smtSyntax
   else
     let cmdString := fun (translator : SmtTranslator) => do
       match translator with
-      | .leanAuto => Veil.SMT.prepareLeanAutoQuery mv (← Veil.SMT.parseAutoHints ⟨stx[1]⟩)
-      | .leanSmt => Veil.SMT.prepareLeanSmtQuery mv (← Smt.Tactic.parseHints ⟨stx[1]⟩)
+      | .leanAuto => Veil.SMT.prepareLeanAutoQuery mv (← Veil.SMT.parseAutoHints hints)
+      | .leanSmt => Veil.SMT.prepareLeanSmtQuery mv (← Smt.Tactic.elabHints hints)
     -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
     -- we first use `lean-auto` to generate the query, and call `lean-smt` only
     -- if the query is satisfiable and we want to print a model,
