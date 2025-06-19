@@ -9,8 +9,6 @@ type node
 notation "seq_t" => Nat
 immutable individual init_node : node
 
-notation (priority := high) t₁ "+" t₂ => Nat.add t₁ t₂
-
 @[actSimp, invSimp] abbrev next : seq_t → seq_t → Prop := λ x y => (x + 1) = y
 
 
@@ -123,7 +121,6 @@ sat trace {
   enter
   exit
 } by bmc_sat
-
 
 unsat trace {
   enter
