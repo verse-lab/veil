@@ -35,9 +35,42 @@ instance : ToString ProofKind where
     | .checkedByLean => ""
     | .trustingSolver => " (trusting solver)"
 
+instance : ToJson ProofKind where
+  toJson kind := match kind with
+    | .checkedByLean => "checkedByLean"
+    | .trustingSolver => "trustingSolver"
+
+instance : FromJson ProofKind where
+  fromJson? s := match s with
+    | "checkedByLean" => .ok .checkedByLean
+    | "trustingSolver" => .ok .trustingSolver
+    | _ => .error s!"unknown proof kind: {s}"
+
 inductive ProofResult
   | proven (kind : ProofKind)
   | notProven
+deriving Inhabited
+
+instance : ToJson ProofResult where
+  toJson res := match res with
+    | .proven kind => Json.arr #["proven", toJson kind]
+    | .notProven => "not proven"
+
+instance : FromJson ProofResult where
+  fromJson? s := match s with
+    | Json.arr #["proven", kind] => fromJson? kind >>= fun kind => .ok (.proven kind)
+    | Json.str "not proven" => .ok .notProven
+    | _ => .error s!"unknown proof result: {s}"
+
+structure CheckTheoremResult where
+  theoremId : TheoremIdentifier
+  proofResult : ProofResult
+  smtResult : SmtResult
+  timeInMs : Nat
+  modelStr : Option String
+deriving Inhabited, ToJson, FromJson
+
+abbrev CheckTheoremResultStringMarker := "[VEIL_CHECK_RESULT]\n"
 
 instance : ToString ProofResult where
   toString res := match res with
@@ -113,7 +146,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
       for invName in initIndicators.reverse do
         let invStx ← `(@$(mkIdent invName) $sectionArgs*)
         let initTpStx ← `(∀ ($st : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `init) $st → $invStx $st)
-        let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
+        let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent `initSimp)] $(mkIdent invName)))
         let thmName := mkTheoremName `init invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $initTpStx := $body)
         theorems := theorems.push (⟨invName, .none, thmName⟩, thm)
@@ -125,7 +158,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let invStx ← `(@$(mkIdent invName) $sectionArgs*)
           let trStx ← `(@$(mkIdent trName) $sectionArgs*)
           let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent trName)] $(mkIdent invName)))
+          let body ← if sorry_body then `(by sorry) else `(by ((unhygienic intros); solve_clause [$(mkIdent trName)] $(mkIdent invName)))
           pure (trTpSyntax, body)
         | .wp =>
           let extName := toExtName actName
@@ -139,14 +172,14 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let extStx ← `(@$(mkIdent extName) $sectionArgs* $args*)
           let extTpSyntax ← `(∀ ($st : $stateTp), forall? $univBinders*, ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $extStx $st $invStx)
           let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
-          let body ← if sorry_body then `(by (unhygienic intros); exact sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
+          let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName) $(mkIdent invName))
           pure (extTpSyntax, body)
         let thmName := if vcStyle == .wp then mkTheoremName actName invName else mkTrTheoremName actName invName
         let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
         theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
       return theorems
 
-def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (vcStyle : VCGenStyle) : CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
+def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators invIndicators : List (Name × Expr)) (vcStyle : VCGenStyle) (sorry_body: Bool := false): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
   let (initIndicators, acts) ← Command.runTermElabM fun _ => do
     -- prevent code duplication
     let initIndicators ← invIndicators.mapM (fun (invName, _) => resolveGlobalConstNoOverloadCore invName)
@@ -156,7 +189,7 @@ def theoremSuggestionsForIndicators (generateInitThms : Bool) (actIndicators inv
       for invName in initIndicators do
         acts := acts.push (actName, invName)
     return (initIndicators, acts)
-  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList vcStyle (sorry_body := False)
+  theoremSuggestionsForChecks (if generateInitThms then initIndicators else []) acts.toList vcStyle sorry_body
 
 def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) : CommandElabM ProofResult := do
   let env ← getEnv
@@ -188,56 +221,121 @@ def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) 
 def Lean.MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
   msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
 
+def parseStrAsJson [Monad m] [MonadError m] (str : String) : m Json := do
+  match Json.parse str with
+  | .ok json => return json
+  | .error err => throwError s!"could not parse {str} as Json: {err}"
+
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour) :
   CommandElabM Unit := do
   let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
   let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
   let (vcStyle, _checkStyle, suggestionStyle) := behaviour
-  let mut allTheorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle
+  let allTheorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle
   match behaviour with
   | (_, .noCheck, .doNotPrint) => pure ()
   | (_, .noCheck, .printUnverifiedTheorems) => throwError "[checkTheorems] Cannot print unverified theorems without checking"
   | (_, .noCheck, .printAllTheorems) => displaySuggestion stx (allTheorems.map Prod.snd)
   | (_, .checkTheoremsIndividually, _) =>
-    let mut initIdAndResults := #[]
-    let mut thmIdAndResults := #[]
-    let mut modelStrs := #[]
-    let mut theoremCheckingMsgs : Array MessageLog := #[]
-    let mut (admittedTheorems, unprovenTheorems) := (#[], #[])
-    for (thmId, cmd) in allTheorems do
+    let processThm (theoremId : TheoremIdentifier) (cmd : TSyntax `command) : CommandElabM CheckTheoremResult := do
       -- save messages before elaboration
       let origMsgs := (<- get).messages
-      -- time the theorem checking
       let startTime := ← IO.monoMsNow
-      let res ← checkIndividualTheorem thmId cmd
+      let proofResult ← checkIndividualTheorem theoremId cmd
       let endTime := ← IO.monoMsNow
+      -- messages after elaboration
       let msgs := (← get).messages
-      theoremCheckingMsgs := theoremCheckingMsgs.push msgs
-      let result ← if res.isProven then pure SmtResult.Unsat else
+      let mut modelStr : Option String := .none
+      let smtResult ← if proofResult.isProven then pure SmtResult.Unsat else
         -- The theorem is not proven; we need to figure out why:
         -- either solver returned `sat`, `unknown`, or there was an error
         let msgsTxt := String.intercalate "\n" (← msgs.toList.filterMapM (fun msg => if msg.severity == .error then msg.toString else pure none))
         let (hasSat, hasUnknown, hasFailure) := (← msgs.containsSubStr Veil.SMT.satGoalStr, ← msgs.containsSubStr Veil.SMT.unknownGoalStr, ← msgs.containsSubStr Veil.SMT.failureGoalStr)
-        if hasSat then
-          modelStrs := modelStrs.push (s!"{thmId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n")
+        modelStr := if hasSat then .some $ (s!"{theoremId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n") else .none
         pure $ match hasSat, hasUnknown, hasFailure with
         | true, false, false => SmtResult.Sat .none
         | false, true, false => SmtResult.Unknown msgsTxt
         | false, false, true => SmtResult.Failure msgsTxt
         | _, _, _ =>
-          dbg_trace s!"[{thmId.theoremName}] (isProven: {res}, hasSat: {hasSat}, hasUnknown: {hasUnknown}, hasFailure: {hasFailure}) Unexpected messages: {msgsTxt}"
+          dbg_trace s!"[{theoremId.theoremName}] (isProveproofResultsult}, hasSat: {hasSat}, hasUnknown: {hasUnknown}, hasFailure: {hasFailure}) Unexpected messages: {msgsTxt}"
           unreachable!
-      let result := (result, .some $ endTime - startTime)
-      if thmId.actName.isNone then
-        initIdAndResults := initIdAndResults.push (thmId, result)
-      else
-        thmIdAndResults := thmIdAndResults.push (thmId, result)
-      if res.isAdmitted then
-        admittedTheorems := admittedTheorems.push thmId
-      if !res.isProven then
-        unprovenTheorems := unprovenTheorems.push thmId
       -- restore messages (similar to `#guard_msgs`)
       modify fun st => { st with messages := origMsgs }
+      let checkResult := { theoremId, proofResult, smtResult, timeInMs := endTime - startTime, modelStr }
+      let jsonStr := (toJson checkResult).pretty
+      -- we use this to communicate results to the main thread
+      if Elab.async.get (← getOptions) then
+        logInfo s!"{CheckTheoremResultStringMarker}{jsonStr}"
+      return checkResult
+
+    -- Compute results for all theorems
+    let results ← do
+      if Elab.async.get (← getOptions) then
+        -- Prepare tasks for parallel execution (but don't execute them yet)
+        let cancelTk ← IO.CancelToken.new
+        let tasks : Array (Unit → BaseIO Language.SnapshotTree) ← allTheorems.mapM (fun (thmId, cmd) => do
+          wrapAsyncAsSnapshot (fun () => do let _ ← processThm thmId cmd) cancelTk (desc := s!"{thmId.theoremName}"))
+        let tasks := Array.toList $ ← tasks.mapM (fun task => BaseIO.asTask (task ()))
+        -- Execute tasks in parallel and collect results
+        let allTasks ← BaseIO.mapTasks (fun snaptree => return snaptree) tasks
+        let trees := allTasks.get
+        let results := trees.mapM (fun tree => do
+          let msgsTxt := String.intercalate "\n" (← tree.element.diagnostics.msgLog.toList.filterMapM (fun msg => do
+            let msgStr ← msg.toString
+            if msg.severity == .information && msgStr.startsWith CheckTheoremResultStringMarker then
+              pure $ msgStr.stripPrefix CheckTheoremResultStringMarker
+            else pure none))
+          let json ← parseStrAsJson msgsTxt
+          let mut checkResult : Option CheckTheoremResult := .none
+          match fromJson? json with
+          | .ok cr => checkResult := .some cr
+          | .error err => throwError s!"could not parse {msgsTxt} as CheckTheoremResult: {err}"
+          pure checkResult.get!
+        )
+        results
+      else
+        let results ← allTheorems.mapM (fun (thmId, cmd) => processThm thmId cmd)
+        pure results.toList
+
+    -- Extract information for display from results
+    let mut initIdAndResults := #[]
+    let mut thmIdAndResults := #[]
+    let mut modelStrs := #[]
+    let mut (admittedTheorems, unprovenTheorems) := (#[], #[])
+
+    -- If we're running in async mode, we need to add the theorems to the
+    -- environment manually. If we run without proof reconstruction, we
+    -- don't have to call the SMT solver again (we just admit the theorems).
+    -- With proof reconstruction, we re-do the work, unfortunately.
+    let theoremsToAdd ← do
+      if Elab.async.get (← getOptions) then
+        let sorry_body := if veil.smt.reconstructProofs.get (← getOptions) then false else true
+        pure $ (← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle sorry_body) |>.toList |> Std.HashMap.ofList
+      else
+        pure $ Std.HashMap.emptyWithCapacity 0
+
+    for result in results do
+      let {theoremId, proofResult, smtResult, timeInMs, modelStr} := result
+      -- The async code we currently have does not actually add the
+      -- theorems to the environment, so we add proven theorems manually
+      -- with a `sorry` body.
+      if proofResult.isProven && Elab.async.get (← getOptions) then
+        let .some cmd := theoremsToAdd.get? theoremId
+          | throwError s!"theorem {theoremId.theoremName} not found in allTheoremsSorry"
+        if (← resolveGlobalName theoremId.theoremName).isEmpty then
+          elabCommand $ ← `(#guard_msgs(drop warning) in $(cmd))
+      if theoremId.actName.isNone then
+          initIdAndResults := initIdAndResults.push (theoremId, (smtResult, .some timeInMs))
+      else
+        thmIdAndResults := thmIdAndResults.push (theoremId, (smtResult, .some timeInMs))
+      if let .some modelStr := modelStr then
+        modelStrs := modelStrs.push modelStr
+      if proofResult.isAdmitted then
+        admittedTheorems := admittedTheorems.push theoremId
+      if !proofResult.isProven then
+        unprovenTheorems := unprovenTheorems.push theoremId
+
+    -- Display results
     let initMsgs ← getInitCheckResultMessages initIdAndResults.toList
     let actMsgs ← getActCheckResultMessages thmIdAndResults.toList
     let checkMsgs := initMsgs ++ actMsgs
@@ -253,9 +351,6 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         | _ => true)).map (fun (id, _) => id)
       let unverifiedTheorems := (allTheorems.filter (fun (id, _) => unverifiedTheoremIds.any (fun id' => id == id'))).map Prod.snd
       displaySuggestion stx unverifiedTheorems
-    -- emit all messages collected during theorem checking
-    -- let errorMsgs := theoremCheckingMsgs.foldl (fun acc msgs => acc.append msgs) (← get).messages
-    -- modify fun st => { st with messages := errorMsgs }
     if !unprovenTheorems.isEmpty && (!veil.printCounterexamples.get (← getOptions)) then
       logInfo s!"Run with `set_option veil.printCounterexamples true` to print counter-examples."
     if !admittedTheorems.isEmpty then
