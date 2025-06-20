@@ -201,11 +201,11 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
               let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
               theorems := theorems.push (⟨invName, if actName == initializerName then .none else actName, thmName⟩, thm)
             else if actName != initializerName then
-              let (ex, True, ExId) := (mkIdent `ex, mkIdent ``True, mkIdent ``ExId)
+              let (ex, True, exId) := (mkIdent `ex, mkIdent ``True, mkIdent `ExId)
               let extName := toWpExName $ toExtName actName
               let extStx ← `(@$(mkIdent extName) $actionArgs* $ex $args*)
               let extTpSyntax ←
-                `(∀ ($ex : $ExId) ($rd : $genericReader) ($st : $genericState), forall? $univBinders*,
+                `(∀ ($ex : ExId) ($rd : $genericReader) ($st : $genericState), forall? $univBinders*,
                   ($systemTp).$(mkIdent `assumptions) $rd $st → $extStx (fun _ _ _ => $True) $rd $st)
               let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
               let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName))

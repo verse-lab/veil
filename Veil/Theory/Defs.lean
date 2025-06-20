@@ -36,7 +36,9 @@ instance : ToString Mode where
   | .internal => "internal"
   | .external => "external"
 
-abbrev ExId := Int
+-- abbrev ExId := Int
+-- workaround for [lean-smt#185](https://github.com/ufmg-smite/lean-smt/issues/185)
+notation "ExId" => Int
 
 abbrev SProp (ρ σ : Type) := ρ -> σ -> Prop
 abbrev RProp (α ρ σ : Type) := α -> SProp ρ σ
