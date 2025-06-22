@@ -23,10 +23,10 @@ def newHypotheses (oldCtx : LocalContext) (newCtx : LocalContext) : TacticM (Arr
       newHyps := newHyps.push hyp
   return newHyps
 
-def run (t: TacticM Syntax): TacticM Unit := Lean.Elab.Tactic.withMainContext do
+def Veil.run (t: TacticM Syntax): TacticM Unit := Lean.Elab.Tactic.withMainContext do
     evalTactic (<- t)
 
-def tryGoal (t: TacticM Unit): TacticM Unit := do
+def Veil.tryGoal (t: TacticM Unit): TacticM Unit := do
   t <|> return ()
 
 def getCtxNames (ctx : LocalContext) : TacticM (Array Name) := do
@@ -36,7 +36,7 @@ def getCtxNames (ctx : LocalContext) : TacticM (Array Name) := do
   return hyps
 
 /-- Run the given tactic in all goals. -/
-def allGoals [Inhabited α]
+def Veil.allGoals [Inhabited α]
   (tac : TacticM α) (comb : List α -> α := fun _ => default)  : TacticM α := do
   if (<- getUnsolvedGoals).length == 0 then
     tac

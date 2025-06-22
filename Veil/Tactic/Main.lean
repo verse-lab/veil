@@ -142,7 +142,7 @@ elab "sts_induction" : tactic => withMainContext do
     -- Inspired by `scase` in LeanSSR: https://github.com/verse-lab/lean-ssr/blob/29ba85c915de17602ba224558e6ebaf2a2845786/Ssreflect/Elim.lean#L11
     let oldHyps ← getLCtx
     evalTactic $ ← `(tactic| unhygienic cases $hnextName:ident)
-    withMainContext $ allGoals $ do
+    withMainContext $ Veil.allGoals $ do
     let newHyps ← newHypotheses oldHyps (← getLCtx)
     -- dbg_trace "newHyps: {newHyps.map (·.userName)}"
     assert! newHyps.size == 1
@@ -388,13 +388,13 @@ def bmcSat : TacticM Unit := withMainContext do
   -- Operate on a duplicated goal
   let goal' ← mkFreshExprMVar (← Tactic.getMainTarget)
   replaceMainGoal [goal'.mvarId!]
-  run `(tactic| simplify_all)
+  Veil.run `(tactic| simplify_all)
   if (← getUnsolvedGoals).length == 0 then
     originalGoal.admit (synthetic := false)
   else
     existIntoForall
     let simpLemmas := mkSimpLemmas $ #[`smtSimp].map mkIdent
-    withMainContext do run `(tactic| unhygienic intros; sdestruct_hyps; (try simp only [$simpLemmas,*]))
+    withMainContext do Veil.run `(tactic| unhygienic intros; sdestruct_hyps; (try simp only [$simpLemmas,*]))
     if (← getUnsolvedGoals).length == 0 then
       originalGoal.admit (synthetic := false)
     else

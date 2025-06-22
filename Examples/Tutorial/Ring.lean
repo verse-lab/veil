@@ -1,4 +1,6 @@
 import Veil
+import Ssreflect.Lang
+
 -- This makes the Veil DSL available in this file, and imports
 -- the Veil standard library (`Veil.Std`), which contains a number of
 -- useful first-order-logic axiomatisations of common structures.
@@ -348,7 +350,7 @@ especially to validate that our protocol specifications are non-vacuous, i.e.
 they do actually admit interesting executions. -/
 
 /- This checks that there exists an initial state. -/
-sat trace [initial_state] {} by { bmc_sat }
+sat trace [initial_state] { } by { bmc_sat }
 
 /- A trace specification consists of:
 - `sat`/`unsat` -- is the trace satisfiable?

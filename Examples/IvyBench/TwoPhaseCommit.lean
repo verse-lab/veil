@@ -95,7 +95,7 @@ invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 set_option veil.smt.solver "cvc5" in
 #check_invariants
 
-sat trace [initial_state] {} by { bmc_sat }
+sat trace [initial_state] { } by { bmc_sat }
 
 sat trace { } by { bmc_sat }
 
