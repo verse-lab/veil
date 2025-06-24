@@ -137,14 +137,9 @@ elab "sts_induction" : tactic => withMainContext do
   | none => throwError "sts_induction tactic failed: no `next` hypothesis found"
   | some hnext => pure hnext
   let hnextName := mkIdent hnext.userName
-  -- Create as many goals as `hnext` has constructors.
-  -- For CIC-style systems, `.next` has the form `∃ (_t: [TransitionType]) True`,
-  -- so we first destruct the existential quantifier.
-  if ← whnfIsAppOf hnext.type `Exists then
-    evalTactic $ ←  `(tactic| rcases $hnextName:ident with ⟨$hnextName, _⟩)
-  -- NOTE: context has changed, so we need this again
+  evalTactic $ ← `(tactic| try simp only [nextSimp] at $hnextName:ident)
   withMainContext do
-  -- (2) Destruct the `next` hypothesis into separate goals for each individual action
+  -- Destruct the `next` hypothesis into separate goals for each individual action
   -- We have two possibilities. Either:
   -- (a) `next` is a sequence of `∨`'ed propositions
   -- (b) `next` is an inductive type, in which case we can use `cases` to destruct it.
