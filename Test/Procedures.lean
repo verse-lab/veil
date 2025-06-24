@@ -1,6 +1,5 @@
 import Veil
 
-/- TODO: fix it when we add procedures and specifications
 veil module Foo
 
 type node
@@ -42,8 +41,9 @@ info: Initialization must establish the invariant:
   single_leader ... ✅
   inv_1 ... ✅
   inv_2 ... ✅
-The following set of actions must preserve the invariant:
+The following set of actions must preserve the invariant and successfully terminate:
   send
+    termination ... ✅
     single_leader ... ✅
     inv_1 ... ✅
     inv_2 ... ✅
@@ -52,4 +52,3 @@ The following set of actions must preserve the invariant:
 #check_invariants
 
 end Foo
--/

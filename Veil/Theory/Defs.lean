@@ -74,8 +74,11 @@ def VeilM.succesfullyTerminates (act : VeilM m ρ σ α) (pre : SProp ρ σ) : P
 def VeilM.preservesInvariantsOnSuccesful (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
   [DemonSucc| triple inv act (fun _ => inv)]
 
+abbrev VeilM.meetsSpecification (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
+  [DemonFail| triple pre act post]
+
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
-  [DemonFail| triple inv act (fun _ => inv)]
+  VeilM.meetsSpecification act inv (fun _ => inv)
 
 abbrev VeilM.choices (act : VeilM m ρ σ α) := ExtractNonDet WeakFindable act
 

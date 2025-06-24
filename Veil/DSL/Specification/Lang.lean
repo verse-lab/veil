@@ -430,24 +430,25 @@ def elabTransition : CommandElab := fun stx => do
 /- TODO: fix -/
 def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
   (pre post : Term) (ret : TSyntax `rcasesPat) : CommandElabM Unit := do
-  throwError "TODO: fix"
---   try
---     elabCommand $ ← Command.runTermElabM fun vs => do
---       let st := mkIdent `st
---       let thmName := mkIdent $ nm.getId ++ `spec_correct
---       let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
---       let br <- (explicitBindersIdents <$> br) |>.getD (pure #[])
---       let actionArgs ← getSectionArgumentsStx vs
---       let stx <- `(theorem $thmName $br' * : ∀ $st:ident,
---           (fun s => funcases s $pre) $st ->
---           @$nm $actionArgs* $br* $st (by rintro $ret; exact (funcases $post)) := by
---           intro
---           solve_clause)
---       trace[veil.debug] "{stx}"
---       return stx
---     trace[veil.info] "{nm} specification is verified"
---   catch e =>
---     throwError s!"Error while checking the specification of {nm}:" ++ e.toMessageData
+  try
+    elabCommand $ ← Command.runTermElabM fun vs => do
+      let thmName := mkIdent $ nm.getId ++ `spec_correct
+      let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
+      let br <- (explicitBindersIdents <$> br) |>.getD (pure #[])
+      let actionArgs ← getSectionArgumentsStx vs
+      let stx <- `(theorem $thmName $br' * :
+        VeilM.meetsSpecification (@$nm $actionArgs* $br*)
+        (fun rd st => funcases rd st $pre)
+        (by rintro $ret rd st; (exact funcases rd st $post)) := by
+          try simp only [VeilM.meetsSpecification, triple, wpSimp, loomLogicSimp]
+          try unhygienic intros
+          try concretize_state
+          try solve_clause)
+      trace[veil.debug] "{stx}"
+      return stx
+    trace[veil.info] "{nm} specification is verified"
+  catch e =>
+    throwError s!"Error while checking the specification of {nm}:" ++ e.toMessageData
 
 def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
@@ -462,7 +463,7 @@ def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (
       let (pre, binder, post) <- getPrePost spec.get!
       trace[veil.debug] "Defining specification for {nm} with pre: {pre}"
       let _ ← mkProcedureGenerators (toSpecIdent nm) br spec.get!
-      -- checkSpec nm br pre post binder
+      checkSpec nm br pre post binder
 
 def elabProcedure (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
@@ -473,7 +474,7 @@ def elabProcedure (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (s
     let (pre, binder, post) <- getPrePost spec.get!
     trace[veil.debug] "Defining specification for {nm} with pre: {pre}"
     let _ ← mkProcedureGenerators (toSpecIdent nm) br spec.get!
-    -- checkSpec nm br pre post binder
+    checkSpec nm br pre post binder
 
 elab_rules : command
   | `(command|$actT:actionKind ? action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => do
