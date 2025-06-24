@@ -105,28 +105,28 @@ def assembleNext : CommandElabM Unit := do
     let labelT ← `(term|$labelIdent $labelTypeArgs*)
     let (Next, NextAct) := (mkIdent `Next, mkIdent `NextAct)
     let acts <- spec.actions.mapM fun s => do
-      let name := mkIdent <| toUnitActName <| toExtName <| s.name
+      let name := mkIdent <| toExtName <| s.name
       `(@$name $sectionArgs*)
     let nextAct <- `(
-      @[actSimp]
+      @[nextSimp, actSimp]
       noncomputable def $NextAct $[$vd]* : $labelT -> VeilM .external $genericReader $genericState Unit :=
         fun (l : $labelT) => l.casesOn $acts*
     )
     let nextTr <- `(
-      @[actSimp] def $Next $[$vd]* :=
+      @[nextSimp, actSimp] def $Next $[$vd]* :=
         fun ($rd : $genericReader) ($st $st' : $genericState) =>
           ∃ (l : $labelT),
-          @$(mkIdent `NextAct) $sectionArgs* l |>.toTwoState $rd $st $st'
+          @$(mkIdent `NextAct) $sectionArgs* l |>.toTwoStateDerived $rd $st $st'
     )
     let nextLemma <- `(
-      lemma $(mkIdent $ `next_refine) $[$vd]* (rd : $genericReader) (st st' : $genericState) l :
+      theorem $(mkIdent $ `next_refine) $[$vd]* (rd : $genericReader) (st st' : $genericState) l :
         let next := (@$NextAct $sectionArgs* l)
         ∀ chs : next.choices,
           (next.run chs).operational rd st st' (Except.ok ()) →
           @$Next $sectionArgs* rd st st' := by
         dsimp; intros chs op; exists l
-        try cases l <;> simp [$NextAct:ident, $Next:ident] at *
-        all_goals apply VeilM.toTwoState_complete <;> solve_by_elim
+        try cases l <;> simp only [$NextAct:ident, $Next:ident] at *
+        all_goals apply VeilM.toTwoStateDerived_complete <;> solve_by_elim
     )
     pure (nextAct, nextTr, nextLemma)
   elabCommand nextAct
@@ -190,7 +190,7 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
       kind := $kindMap
     )
     let casesLemma ← `(command|set_option linter.unusedSectionVars false in
-      lemma $labelCasesIdent ($P : $labelT -> Prop) :
+      @[nextSimp] theorem $labelCasesIdent ($P : $labelT -> Prop) :
         (∃ l : $labelT, $P l) ↔
         $(← repeatedOr exs) :=
       by

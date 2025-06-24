@@ -490,12 +490,13 @@ elab "simplify_all" : tactic => withMainContext do
 /-- Tactic to solve `unsat trace` goals. -/
 elab "bmc" : tactic => withMainContext do
   let tac ← `(tactic|
-    simplify_all;
+    (try simp only [initSimp, nextSimp, actSimp, invSimp]); (try simplify_all);
     (unhygienic intros);
     sdestruct_hyps;
-    simplify_all;
+    (try simplify_all);
     -- FIXME: workaround for `lean-smt` introducing `And.left` and `And.right`
     sdestruct_hyps;
+    (try simplify_all);
     sauto_all
   )
   trace[veil.smt] "{tac}"
@@ -507,7 +508,7 @@ def bmcSat : TacticM Unit := withMainContext do
   -- Operate on a duplicated goal
   let goal' ← mkFreshExprMVar (← Tactic.getMainTarget)
   replaceMainGoal [goal'.mvarId!]
-  run `(tactic| simplify_all)
+  run `(tactic| simp only [initSimp, nextSimp, actSimp, invSimp]; simplify_all)
   if (← getUnsolvedGoals).length == 0 then
     originalGoal.admit (synthetic := false)
   else

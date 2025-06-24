@@ -180,8 +180,8 @@ action send (n next : node) = {
 }
 
 /- The `action` specification above produces a number of Lean definitions,
-including `send.tr`, which is the transition relation for the `send` action. -/
-#print send.tr
+including `send.ext.tr`, which is the transition relation for the `send` action. -/
+#print send.ext.tr
 
 /- Instead of "inlining" the condition for a node `next` to be the successor of
 `n` in all our actions, we can define a `ghost` `relation`, i.e. a derived
@@ -224,7 +224,7 @@ action recv (id n next : node) = {
       pending id next := True
 }
 
-#print recv.tr
+#print recv.ext.tr
 
 /- This is the safety property we want to establish. `L1` and `L2` are
 implicitly universally quantified, i.e. this means:
@@ -311,12 +311,12 @@ couldn't be proven. In this case: -/
 -- #check_invariants!
 @[invProof]
   theorem recv_tr_single_leader_ :
-      ∀ (st st' : σ),
-        (@System node node_dec node_ne tot btwn σ σ_substate).assumptions st →
-          (@System node node_dec node_ne tot btwn σ σ_substate).inv st →
-            (@Ring.recv.tr node node_dec node_ne tot btwn σ σ_substate) st st' →
-              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate) st' :=
-    by solve_tr_clause Ring.recv.tr Ring.single_leader
+      ∀ (rd : ρ) (st st' : σ),
+        (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
+          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
+            (@Ring.recv.ext.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
+              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
+    by solve_tr_clause Ring.recv.ext.tr Ring.single_leader
 
 /- TIP: `#check_invariants?` will print all theorems that will be checked. -/
 -- #check_invariants?
@@ -339,7 +339,7 @@ set_option veil.smt.reconstructProofs true
 prove_inv_inductive by {
   constructor
   . apply inv_init
-  intro st st' has hinv hnext
+  intro rd st st' has hinv hnext
   sts_induction <;> sdestruct_goal <;> solve_clause
 }
 

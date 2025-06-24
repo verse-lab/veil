@@ -93,6 +93,13 @@ lemma VeilM.toTwoStateDerived_sound (act : VeilM m ρ σ α) :
     unfold VeilM.toTwoState VeilM.toTwoStateDerived VeilSpecM.toTwoStateDerived
     simp [<-VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, LE.le,]
 
+lemma VeilM.toTwoStateDerived_complete (act : VeilM m ρ σ α) (chs : act.choices) :
+  (act.run chs).operational r₀ s₀ s₁ (Except.ok a) ->
+  act.toTwoStateDerived r₀ s₀ s₁ := by
+  intro h
+  rw [← VeilM.toTwoStateDerived_sound]
+  apply VeilM.toTwoState_complete act chs h
+
 open PartialCorrectness DemonicChoice ExceptionAsSuccess in
 lemma VeilM.wp_iInf {ι : Type} (act : VeilM m ρ σ α) (post : ι -> RProp α ρ σ) :
   wp act (fun a r s => iInf (fun i => post i a r s)) = ⨅ i, wp act (post i) := by

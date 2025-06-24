@@ -27,8 +27,6 @@ action send (n next : node) = {
   pending n next := true
 }
 
-#check send.ext.wpEx
-
 action recv (sender n next : node) = {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   require pending sender n

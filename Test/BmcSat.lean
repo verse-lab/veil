@@ -12,6 +12,7 @@ after_init {
 
 action set_flag = {
   flag := True;
+  return 5
 }
 
 invariant ¬ flag
@@ -32,5 +33,10 @@ sat trace {
 sat trace {
   assert False
 } by bmc_sat
+
+#guard_msgs(drop warning, drop info) in
+sat trace {
+  any 3 actions
+} by { bmc_sat }
 
 end BmcSat

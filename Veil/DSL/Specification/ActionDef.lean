@@ -98,17 +98,18 @@ def registerProcedureSpec [Monad m] [MonadEnv m] [MonadResolveName m] [MonadErro
       else t }
 
 def mkProcedureGenerators (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM (Name × Name) := do
+  let vd ← getImplicitProcedureParameters
   Command.runTermElabM fun vs => do
-    let funBinders ← match br with
-    | some br => toFunBinderArray br
-    | none => pure #[]
     let baseName := (← getCurrNamespace) ++ act.getId
-    let (genIName, _genExpI) ← genGenerator vs funBinders baseName .internal l
-    let (genEName, _genExpE) ← genGenerator vs funBinders baseName .external l
+    let (genIName, _genExpI) ← genGenerator vs vd br baseName .internal l
+    let (genEName, _genExpE) ← genGenerator vs vd br baseName .external l
     return (genIName, genEName)
   where
-    genGenerator (vs : Array Expr) (funBinders : TSyntaxArray `Lean.Parser.Term.funBinder) (baseName : Name) (mode : Mode) (l : doSeq) := do
+    genGenerator (vs : Array Expr) (vd : Array (TSyntax ``Term.bracketedBinder)) (br : Option (TSyntax `Lean.explicitBinders)) (baseName : Name) (mode : Mode) (l : doSeq) := do
       let genName := toActName baseName mode
+      let funBinders ← match br with
+      | some br => toFunBinderArray br
+      | none => pure #[]
       let genl ← match mode with
       | Mode.internal => do `(fun $funBinders* => do' .internal as $genericReader, $genericState in $l)
       | Mode.external => do `(fun $funBinders* => do' .external as $genericReader, $genericState in $l)
@@ -117,12 +118,26 @@ def mkProcedureGenerators (act : TSyntax `ident) (br : Option (TSyntax `Lean.exp
         let genExp <- withDeclName genName do elabTermAndSynthesize genl none
         let ⟨genExp, _, _⟩ <- genExp.simpAction
         let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
-        simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
+        if mode == Mode.internal then
+          simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
+        else
+          let withRetName := genName ++ `withRet
+          simpleAddDefn withRetName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}])
+          defineUnitAct vs vd genName withRetName br
         return (genName, genExp)
       catch ex =>
         trace[veil.debug] "Error generating {mode} generator for {genName}: {← ex.toMessageData.toString}"
         -- We have this as a more user-readable message
         throwError "Error in action {baseName}: {← ex.toMessageData.toString}"
+    defineUnitAct (vs : Array Expr) (vd : Array (TSyntax ``Term.bracketedBinder))
+    (outputActName : Name) (inputActName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+      let sectionArgs ← getSectionArgumentsStx vs
+      let (univBinders, args) ← match br with
+        | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
+        | none => pure (#[], #[])
+      liftCommandElabM <| elabCommand <| <- `(command|
+        @[generatorSimp, actSimp, reducible] def $(mkIdent outputActName) $vd* $univBinders* : VeilM .external $genericReader $genericState PUnit := do
+          let _ ← @$(mkIdent inputActName) $sectionArgs* $args*; pure PUnit.unit)
 
 /-- Defines a function and simplifies it using `simp` with the given simp lemma and simp sets. -/
 def defineAndSimplify (vs : Array Expr)
@@ -130,7 +145,9 @@ def defineAndSimplify (vs : Array Expr)
   (defStx : Array Term -> Array Term -> TermElabM Term)
   (unfolds : List Name)
   (simps : Array Name)
-  (br : Option (TSyntax `Lean.explicitBinders)) := do
+  (br : Option (TSyntax `Lean.explicitBinders))
+  (extraAttr : Array Name := #[])
+   := do
     let sectionArgs ← getSectionArgumentsStx vs
     let args ← match br with
       | some br => pure (← explicitBindersIdents br)
@@ -148,7 +165,7 @@ def defineAndSimplify (vs : Array Expr)
       actPf := actAndPf.proof?
     act <- mkLambdaFVarsImplicit vs act
     act <- instantiateMVars act
-    simpleAddDefn defName act (attr := #[{name := `actSimp}])
+    simpleAddDefn defName act (attr := (#[{name := `actSimp}] : Array Attribute) ++ extraAttr.map (fun x => ({name := x} : Attribute)))
     return (defName, actPf)
 
 partial
@@ -165,22 +182,22 @@ def Lean.Expr.removeFunExt (limit : Int) (actPf : Expr)  : MetaM Expr := do
 
 /-- Defines the weakest precondition for the action, generalised over the exception handler. -/
 def defineWpForAction (vs : Array Expr)
-  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) (isInit : Bool := false) : TermElabM
   (Name × Option Expr) :=
   defineAndSimplify vs (toWpName actName) (fun sectionArgs args => `(fun hd $args* post =>
     [CanRaise hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post]))
-    [] #[`wpSimp, actName, `smtSimp, `quantifierSimp] br
+    [] #[`wpSimp, actName, `smtSimp, `quantifierSimp] br (if isInit then #[`initSimp] else #[])
 
 /-- Defines the weakest precondition for the action specialised to the case where the
   exception handler is `True`. -/
 def defineWpSuccForAction (vs : Array Expr)
-  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) (isInit : Bool := false) : TermElabM
   (Name × Option Expr) :=
   let actWpName := toWpName actName
   let actWpSuccName := toWpSuccName actName
   defineAndSimplify vs actWpSuccName (fun sectionArgs args => `(fun $args* post =>
       @$(mkIdent actWpName) $sectionArgs* (fun _ => True) $args* post))
-    [actWpName] #[``if_true_right] br
+    [actWpName] #[``if_true_right] br (if isInit then #[`initSimp] else #[])
 
 /-- Defines the weakest precondition for the action specialised to the case where the
   exception handler allows all exceptions except the one given. -/
@@ -194,36 +211,25 @@ def defineWpExForAction (vs : Array Expr)
     [actWpName] #[] br
 
 def defineTwoStateAction (vs : Array Expr)
-  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) :
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) (isInit : Bool := false) :
   TermElabM (Name × Option Expr) := do
   let actWpSuccName := toWpSuccName actName
   let actTwoStateName := toTwoStateName actName
   defineAndSimplify vs actTwoStateName (fun sectionArgs args => `(
     fun $args* =>
       VeilSpecM.toTwoStateDerived <| @$(mkIdent actWpSuccName) $sectionArgs* $args*))
-    [actWpSuccName, ``VeilSpecM.toTwoStateDerived, ``Cont.inv] #[] br
+    [actWpSuccName, ``VeilSpecM.toTwoStateDerived, ``Cont.inv] #[] br (if isInit then #[`initSimp] else #[])
     --#[``Pi.compl_def, ``compl] br
 
 def defineTr (vs : Array Expr)
-  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) :
+  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) (isInit : Bool := false) :
   TermElabM (Name × Option Expr) := do
   let actTrName := toTrName actName
   let actTwoStateName := toTwoStateName actName
   defineAndSimplify vs actTrName (fun sectionArgs args => `(
     fun r s s' =>
       exists? $br ?, @$(mkIdent actTwoStateName) $sectionArgs* $args* r s s'))
-    [actTwoStateName] #[] br
-
-def defineUnitAct (vs : Array Expr) (vd : Array (TSyntax ``Term.bracketedBinder))
-  (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
-  let sectionArgs ← getSectionArgumentsStx vs
-  let (univBinders, args) ← match br with
-    | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
-    | none => pure (#[], #[])
-  liftCommandElabM <| elabCommand <| <- `(command|
-    def $(mkIdent (toUnitActName actName)) $vd* $univBinders* : VeilM .external $genericReader $genericState Unit := do
-      let _ <- @$(mkIdent actName) $sectionArgs* $args*; pure ()
-  )
+    [actTwoStateName] #[] br (if isInit then #[`initSimp] else #[])
 
 def defineEqLemma
   (vs : Array Expr)
@@ -316,6 +322,25 @@ def defineTwoStateLemma (vs : Array Expr)
     (some $ -1)
     br
 
+def defineEndToEndLemma (vs : Array Expr) (vd : Array (TSyntax ``Term.bracketedBinder))
+  (actName : Name) (actTwoStateName : Name)
+  (br : Option (TSyntax `Lean.explicitBinders)) : TermElabM Unit := do
+  let sectionArgs ← getSectionArgumentsStx vs
+  let (univBinders, args) ← match br with
+    | some br => pure (← toBracketedBinderArray br, ← explicitBindersIdents br)
+    | none => pure (#[], #[])
+  let thm ← `(command|
+  @[nextSimp] theorem $(mkIdent $ toEndToEndLemmaName actName) $vd* $univBinders* :
+    VeilM.toTwoStateDerived (@$(mkIdent actName) $sectionArgs* $args*) = @$(mkIdent actTwoStateName) $sectionArgs* $args*
+   := by
+   unfold VeilM.toTwoStateDerived
+   simp only [← $(mkIdent $ toTwoStateLemmaName actName)]
+   unfold VeilSpecM.toTwoStateDerived Cont.inv
+   simp only [← $(mkIdent $ toWpSuccLemmaName actName), ← $(mkIdent $ toWpLemmaName actName)]
+  )
+  trace[veil.info] "Defining end-to-end lemma for {actName}: {thm}"
+  liftCommandElabM <| elabCommand thm
+
 def defineTrLemma (vs : Array Expr)
   (vd : Array (TSyntax ``Term.bracketedBinder))
   (actName : Name) (actTrName : Name)
@@ -340,11 +365,13 @@ deriving DecidableEq
 def defineAuxiliaryDeclarations (declType : DeclType) (mode : Mode) (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) := do
   let vd ← getImplicitProcedureParameters
   runTermElabM fun vs => do
-    let (actWpName, actWpPf) ← defineWpForAction vs actName br
+    let isInit := declType = DeclType.init
+
+    let (actWpName, actWpPf) ← defineWpForAction vs actName br isInit
     defineWpLemma vs vd actName actWpName actWpPf br
 
     unless declType = DeclType.proc do
-      let (actWpSuccName, actWpSuccPf) ← defineWpSuccForAction vs actName br
+      let (actWpSuccName, actWpSuccPf) ← defineWpSuccForAction vs actName br isInit
       defineWpSuccLemma vs vd actName actWpSuccName actWpName actWpSuccPf br
 
       unless declType = DeclType.init do
@@ -352,12 +379,10 @@ def defineAuxiliaryDeclarations (declType : DeclType) (mode : Mode) (actName : N
         defineWpExLemma vs vd actName actWpName actWpExName actWpExPf br
 
       if mode == Mode.external then
-        defineUnitAct vs vd actName br
-
-        let (actTwoStateName, actTwoStatePf) ← defineTwoStateAction vs actName br
+        let (actTwoStateName, actTwoStatePf) ← defineTwoStateAction vs actName br isInit
         defineTwoStateLemma vs vd actName actTwoStateName actTwoStatePf br
-
-        let (actTrName, actTrPf) ← defineTr vs actName br
+        defineEndToEndLemma vs vd actName actTwoStateName br
+        let (actTrName, actTrPf) ← defineTr vs actName br isInit
         defineTrLemma vs vd actName actTrName actTrPf br
 
 def registerAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) := do

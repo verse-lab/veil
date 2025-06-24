@@ -193,6 +193,9 @@ register_simp_attr safeSimp
 /-- Attribute added to initial state specifications. -/
 register_simp_attr initSimp
 
+/-- Attribute added to `Next` constructs, to unfold them. -/
+register_simp_attr nextSimp
+
 /-- Attribute added to individual actions, as well as collections of
 actions, to unfold them. -/
 register_simp_attr actSimp

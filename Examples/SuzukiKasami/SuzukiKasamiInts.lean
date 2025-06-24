@@ -125,24 +125,22 @@ sat trace {
 unsat trace {
   enter
   enter
-  any 2 actions
 } by bmc
-
 
 set_option veil.smt.finiteModelFind false in
 #time #check_invariants
 
 @[invProof]
-  theorem enter_mutex_manual' :
-    ∀ (st st' : σ),
-      (@System node node_dec node_ne σ σ_substate).assumptions st →
-        (@System node node_dec node_ne σ σ_substate).inv st →
-          (@SuzukiKasamiNats.enter.tr node node_dec node_ne σ σ_substate) st st' →
-            (@SuzukiKasamiNats.mutex node node_dec node_ne σ σ_substate) st' :=
-    by
-    intros st st' _ inv
+  theorem enter_tr_mutex_manual' :
+    ∀ (rd : ρ) (st st' : σ),
+      (@System node node_dec node_ne σ σ_substate ρ ρ_reader).assumptions rd st →
+      (@System node node_dec node_ne σ σ_substate ρ ρ_reader).inv rd st →
+      (@SuzukiKasamiNats.enter.ext.tr node node_dec node_ne σ σ_substate ρ ρ_reader) rd st st' →
+      (@SuzukiKasamiNats.mutex node node_dec node_ne σ σ_substate ρ ρ_reader) rd st' :=
+  by
+    intros rd st st' _ inv
     concretize_state
-    simp[enter.tr, invSimp] at *
+    simp[actSimp, invSimp] at *
     rcases inv with ⟨allowed_crit, one_priv, _⟩
     rintro n priv req ⟨⟩  N M critN critM; simp only [wpSimp] at *
     apply one_priv

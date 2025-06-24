@@ -251,9 +251,9 @@ def toWpSuccLemmaName (n : Name) : Name := n ++ `wpSucc_eq
 def toWpExName (n : Name) : Name := n ++ `wpEx
 def toWpExLemmaName (n : Name) : Name := n ++ `wpEx_eq
 def toTwoStateName (n : Name) : Name := n ++ `twoState
-def toTwoStateLemmaName (n : Name) : Name := n ++ `twoState_eq
+def toTwoStateLemmaName (n : Name) : Name := n ++ `twoState_eq_wpSucc
+def toEndToEndLemmaName (n : Name) : Name := n ++ `twoState_eq
 
-def toUnitActName (n : Name) : Name := n ++ `unitAct
 
 def toIOActionDeclName (n : Name) : Name := n ++ `iodecl
 def toIOActionDeclIdent (id : Ident) : Ident := mkIdent $ toIOActionDeclName id.getId
@@ -331,6 +331,7 @@ def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
 
 def simpleAddThm (n : Name) (tp : Expr) (tac : TermElabM (TSyntax `Lean.Parser.Tactic.tacticSeq))
   (attr : Array Attribute := #[]) : TermElabM Unit := do
+  withoutErrToSorry $
   addDecl <|
     Declaration.thmDecl <|
       mkTheoremValEx n [] tp (<- elabTermAndSynthesize (<- `(by $(<- tac))) tp) []
