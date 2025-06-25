@@ -71,7 +71,7 @@ The following set of actions must preserve the invariant and successfully termin
     indv_true ... ❌
 ---
 info: @[invProof]
-  theorem tr_indv_true :
+  theorem initializer_tr_indv_true :
       TwoState.meetsSpecificationIfSuccessful
         (@initializer.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader)
         (fun rd st => (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st) fun rd st' =>

@@ -42,7 +42,7 @@ safety [single_leader] leader L → le N L
 
 /--
 info: @[invProof]
-  theorem tr_single_leader :
+  theorem initializer_tr_single_leader :
       TwoState.meetsSpecificationIfSuccessful
         (@initializer.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader)
         (fun rd st => (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st) fun rd st' =>

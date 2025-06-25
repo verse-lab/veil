@@ -135,7 +135,10 @@ def getChecksForAction (actName : Name) : CommandElabM (Array (Name × Expr) × 
     return (#[], invChecks)
 
 def mkTheoremName (actName : Name) (invName : Name) : Name := s!"{mkStrippedName actName}_{mkStrippedName invName}".toName
-def mkTrTheoremName (actName : Name) (invName : Name) : Name := mkTheoremName (toTrName actName) invName
+def mkTrTheoremName (actName : Name) (invName : Name) : Name :=
+  if actName == initializerName then
+    s!"{actName}_tr_{mkStrippedName invName}".toName
+  else mkTheoremName (toTrName actName) invName
 
 def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : List (Name × Option Name)) (vcStyle : VCGenStyle) (sorry_body: Bool := true): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
