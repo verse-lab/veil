@@ -367,6 +367,25 @@ def handleInvariants (inv : Option Ident) : TacticM (TSyntax `tactic × TSyntax 
       pure (← `(tactic| dsimp only [$[$invsToUnfold:ident],*]), ← `(tactic| clear_folded_invariants))
   return (invSimpTac, clearInvs)
 
+/-- Converts WP-style conditions to TR-style conditions, and vice-versa. -/
+syntax swapMode := "swap_mode" <|> "swap_mode?"
+elab tk:swapMode : tactic => withMainContext do
+  let goal ← getMainTarget
+  let tactic ← match_expr goal with
+  | TwoState.meetsSpecificationIfSuccessful _ _ act _ _ =>
+     -- get rid of the `.twoState` at the end
+    let name := mkNameFromComponents act.getAppFn.constName.components.dropLast
+    `(tactic| simp only [← $(mkIdent $ toEndToEndLemmaName name):ident, ← $(mkIdent ``VeilM.toTwoStateDerived_sound):ident, $(mkIdent ``TwoState.meetsSpecificationIfSuccessful_eq):ident])
+  | VeilM.meetsSpecificationIfSuccessful _ _ _ _ act _ _ =>
+    let name := act.getAppFn.constName
+    `(tactic| simp only [$(mkIdent $ toEndToEndLemmaName name):ident, $(mkIdent ``VeilM.toTwoStateDerived_sound):ident, ← $(mkIdent ``TwoState.meetsSpecificationIfSuccessful_eq):ident])
+  | _ =>
+    throwError "Goal does not consist of a `meetsSpecificationIfSuccessful` application"
+  let showSuggestion := if let `(swapMode| swap_mode?) := tk then true else false
+  if showSuggestion then
+    addSuggestion (<- getRef) tactic
+  evalTactic tactic
+
 syntax solveTr := "solve_tr_clause" <|> "solve_tr_clause?"
 elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   let (invSimpTac, clearInvs) ← handleInvariants inv
@@ -389,6 +408,13 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   if let `(solveTr| solve_tr_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
   else
+    -- act is something like either `initializer.ext.twoState` or `Ring.recv.ext.twoState`
+    let wpTheoremName := mkIdent $ mkTheoremName (dropSuffixes act.getId) inv.getId
+    let tryLift ← `(tactic| try (intros; swap_mode; apply $wpTheoremName))
+    trace[veil.debug] "tryLift (from wp to tr): {tryLift}"
+    evalTactic tryLift
+    if (← getUnsolvedGoals).length == 0 then
+      return
     evalTactic simplify
     if (← getUnsolvedGoals).length != 0 then
       withMainContext do
@@ -398,7 +424,7 @@ syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
 elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
   let (invSimpTac, clearInvs) ← handleInvariants inv
   let introExId <- if inv.isNone then `(tactic| intro $(mkIdent `exId):ident) else `(tactic| skip)
-  let (wpSimp, rd, st, st', ass, inv, ifSimp, and_imp, exists_imp) :=
+  let (wpSimp, rd, st, st', ass, inv_, ifSimp, and_imp, exists_imp) :=
       (mkIdent `wpSimp,
        mkIdent `rd,
        mkIdent `st, mkIdent `st',
@@ -420,8 +446,8 @@ elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
     intros $rd:ident $st:ident; sdestruct_hyps
     first
       -- This is for actions defined via transitions
-      | intro $ass:ident $inv:ident; intro ($st':ident : $stateTpT);
-        unhygienic cases $st':ident; revert $ass:ident $inv:ident; dsimp only
+      | intro $ass:ident $inv_:ident; intro ($st':ident : $stateTpT);
+        unhygienic cases $st':ident; revert $ass:ident $inv_:ident; dsimp only
       | try dsimp only
         try simp only [$and_imp:ident, $exists_imp:ident]
         unhygienic intros
@@ -435,6 +461,14 @@ elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
     if let `(solveWp| solve_wp_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
     else
+      -- act is something like either `initializer.ext.twoState` or `Ring.recv.ext.twoState`
+      if let .some inv := inv then
+        let trTheoremName := mkIdent $ mkTrTheoremName (dropSuffixes act.getId) inv.getId
+        let tryLift ← `(tactic| try (intros; swap_mode; apply $trTheoremName))
+        trace[veil.debug] "tryLift (from tr to wp): {tryLift}"
+        evalTactic tryLift
+        if (← getUnsolvedGoals).length == 0 then
+          return
       evalTactic simplify
       -- Simplification might solve the goal; if we try to evaluate `sauto_all` in
       -- that case, this will wrongly throw an error, which might confuse the user.

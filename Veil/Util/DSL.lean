@@ -297,6 +297,16 @@ where
   mkString (xs : List Name) : String :=
     xs.map toString |> String.intercalate "."
 
+private def veilSuffixes : Std.HashSet Name := Std.HashSet.ofList [`tr, `tr_eq, `original, `spec, `ext, `wpGen, `wp_eq, `wpSucc, `wpSucc_eq, `wpEx, `wpEx_eq, `twoState, `twoState_eq_wpSucc, `twoState_eq, `iodecl]
+private partial def dropSuffixes' (components : List Name) : List Name :=
+    if components.length > 1 && veilSuffixes.contains components.getLast! then
+      dropSuffixes' components.dropLast
+    else
+      components
+/-- Drops all the Veil-specific suffixes from the name. -/
+def dropSuffixes (n : Name) : Name :=
+  mkNameFromComponents (dropSuffixes' n.components)
+
 /-- Primes the first component of the name. -/
 def mkPrimed (f : Name) : Name :=
   let comp := f.components
@@ -317,6 +327,13 @@ where
     | _ :: xs => xs
   mkString (xs : List Name) : String :=
     xs.map toString |> stripFirst |> String.intercalate separator
+
+def mkTheoremName (actName : Name) (invName : Name) : Name := s!"{mkStrippedName actName}_{mkStrippedName invName}".toName
+def mkTrTheoremName (actName : Name) (invName : Name) : Name :=
+  if actName == initializerName then
+    s!"{actName}_tr_{mkStrippedName invName}".toName
+  else mkTheoremName (toTrName actName) invName
+
 
 def stripFirstComponent (n : Name) : Name := mkStrippedName n "."
 
