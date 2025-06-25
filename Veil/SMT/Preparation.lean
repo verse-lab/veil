@@ -135,7 +135,7 @@ attribute [logicSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
   by_cases c <;> simp_all
 
 -- This creates `Not`s that are then eliminated by `not_if`
-attribute [ifSimp] HasCompl.compl
+attribute [ifSimp] HasCompl.compl Classical.not_forall
 attribute [actSimp] HasCompl.compl Classical.not_not
 
 /-! ## distributivity -/

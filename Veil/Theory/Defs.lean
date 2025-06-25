@@ -38,7 +38,7 @@ instance : ToString Mode where
 
 -- abbrev ExId := Int
 -- workaround for [lean-smt#185](https://github.com/ufmg-smite/lean-smt/issues/185)
-notation "ExId" => Int
+macro "ExId" : term => `($(Lean.mkIdent ``Int))
 
 abbrev SProp (ρ σ : Type) := ρ -> σ -> Prop
 abbrev RProp (α ρ σ : Type) := α -> SProp ρ σ
@@ -68,17 +68,27 @@ variable {m : Mode} {ρ σ α : Type}
 
 section WeakestPreconditionsSemantics
 
-def VeilM.succesfullyTerminates (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
-  [DemonFail| triple pre act ⊤]
-
-def VeilM.preservesInvariantsOnSuccesful (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
-  [DemonSucc| triple inv act (fun _ => inv)]
-
-abbrev VeilM.meetsSpecification (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
+/-- The weakest precondition for an action that, given a precondition,
+always succeeds (doesn't throw an exception) and meets the
+post-condition. -/
+abbrev VeilM.succeedsAndMeetsSpecification (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
   [DemonFail| triple pre act post]
 
+/-- There is no code path that throws an exception. -/
+def VeilM.doesNotThrow (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
+  VeilM.succeedsAndMeetsSpecification act pre ⊤
+
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
-  VeilM.meetsSpecification act inv (fun _ => inv)
+  VeilM.succeedsAndMeetsSpecification act inv (fun _ => inv)
+
+/-- The weakest precondition for an action that, given a precondition,
+_IF_ it succeeds (doesn't throw an exception), then it meets the
+post-condition. -/
+abbrev VeilM.meetsSpecificationIfSuccessful (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
+  [DemonSucc| triple pre act post]
+
+def VeilM.preservesInvariantsIfSuccesful (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
+  VeilM.meetsSpecificationIfSuccessful act inv (fun _ => inv)
 
 abbrev VeilM.choices (act : VeilM m ρ σ α) := ExtractNonDet WeakFindable act
 
@@ -103,8 +113,11 @@ def TwoState.triple (act : TwoState ρ σ) (pre : SProp ρ σ) (post : SProp ρ 
     act r₀ s₀ s₁ ->
     post r₀ s₁
 
-def TwoState.preservesInvariantsOnSuccesful (act : TwoState ρ σ) (inv : SProp ρ σ) : Prop :=
-  act.triple inv inv
+abbrev TwoState.meetsSpecificationIfSuccessful (act : TwoState ρ σ) (pre : SProp ρ σ) (post : SProp ρ σ) : Prop :=
+  TwoState.triple act pre post
+
+def TwoState.preservesInvariantsIfSuccesful (act : TwoState ρ σ) (inv : SProp ρ σ) : Prop :=
+  TwoState.meetsSpecificationIfSuccessful act inv inv
 
 end TwoStateSemantics
 

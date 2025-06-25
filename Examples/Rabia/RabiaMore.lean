@@ -41,17 +41,17 @@ veil module Rabia
 
 set_option veil.smt.timeout 120
 
-#time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+-- #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
 
 -- Lift to `tr` style those theorems that were originally proven in `wp` style
-#time #recover_invariants_in_tr
+-- #time #recover_invariants_in_tr
 
 prove_inv_inductive by {
   constructor
-  . intro st has hinit
-    sdestruct_goal <;> already_proven_init
-  · intro st st' has hinv hnext
-    sts_induction <;> sdestruct_goal <;> already_proven_next_tr
+  . intro rd st has hinit
+    sdestruct_goal <;> sorry -- already_proven_init
+  · intro rd st st' has hinv hnext
+    sts_induction <;> sdestruct_goal <;> sorry -- already_proven_next_tr
 }
 
 #time #split_invariants

@@ -372,6 +372,7 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   let (invSimpTac, clearInvs) ← handleInvariants inv
   let ifSimp := mkIdent `ifSimp
   let simplify <- `(tacticSeq|
+    try dsimp only [$(mkIdent ``TwoState.meetsSpecificationIfSuccessful):ident, $(mkIdent ``TwoState.triple):ident]
     dsimp only [$act:ident]
     $invSimpTac:tactic
     unhygienic intros
@@ -406,8 +407,14 @@ elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
        mkIdent `exists_imp,
        mkIdent `and_imp)
   let stateTpT ← getStateTpStx
+  let name := act.getId
+  let actSimp := mkSimpLemmas $ #[toWpLemmaName name, toWpSuccLemmaName name, toWpSuccName name ].map mkIdent
   let simplify <- `(tacticSeq|
-    dsimp only [$act:ident, $wpSimp:ident]
+    try simp only [$(mkIdent ``VeilM.meetsSpecificationIfSuccessful):ident, $(mkIdent ``triple):ident, $(mkIdent ``LE.le):ident, $(mkIdent ``and_imp):ident]
+    -- this is for regular clauses
+    try simp only [$actSimp,*]
+    -- this is for termination (`.wpEx` clauses)
+    try dsimp only [$act:ident, $wpSimp:ident]
     $invSimpTac:tactic
     $introExId
     intros $rd:ident $st:ident; sdestruct_hyps

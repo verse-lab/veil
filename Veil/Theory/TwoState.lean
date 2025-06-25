@@ -115,14 +115,14 @@ lemma VeilM.wp_r_eq (act : VeilM m ρ σ α) (post : RProp α ρ σ) :
   [DemonSucc| wp act (fun a _ => post a r₀) r₀ = wp act post r₀] := by
   induction act <;> simp [wp_pure, <-VeilExecM.wp_r_eq, *]
 
-lemma TwoState.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
-  act.toTwoState.preservesInvariantsOnSuccesful inv = act.preservesInvariantsOnSuccesful inv := by
-  simp [TwoState.preservesInvariantsOnSuccesful, triple,
-    VeilM.toTwoStateDerived_sound,
-    VeilM.toTwoStateDerived, _root_.triple,
-    VeilM.preservesInvariantsOnSuccesful, LE.le]; constructor
+lemma TwoState.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM m ρ σ α) (pre post : SProp ρ σ) :
+  act.toTwoState.meetsSpecificationIfSuccessful pre post = act.meetsSpecificationIfSuccessful pre (fun _ => post) := by
+  simp [TwoState.meetsSpecificationIfSuccessful, VeilM.meetsSpecificationIfSuccessful,
+    VeilM.toTwoStateDerived_sound, VeilM.toTwoStateDerived, VeilSpecM.toTwoStateDerived,
+    triple, _root_.triple, LE.le, _root_.triple]
+  constructor
   { intro hwp r s hinv; rw [<-VeilM.wp_r_eq]
-    have : inv r = ⨅ x : { s // ¬ inv r s }, (· ≠ x.val) := by {
+    have : post r = ⨅ x : { s // ¬ post r s }, (· ≠ x.val) := by {
       ext s; simp; constructor; aesop
       intro; false_or_by_contra; aesop }
     erw [this, VeilM.wp_iInf]; simp; intro s' inv'
@@ -132,11 +132,15 @@ lemma TwoState.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m �
     open PartialCorrectness DemonicChoice ExceptionAsSuccess in
     apply wp_cons act; rotate_left; apply hwp;
     intro; simp [LE.le] }
-  introv hwp  hinv hwp'
+  introv hwp hpre hwp'
   false_or_by_contra; apply hwp';
   open PartialCorrectness DemonicChoice ExceptionAsSuccess in
-  apply wp_cons act; rotate_left; apply hwp _ _ hinv
+  apply wp_cons act; rotate_left; apply hwp _ _ hpre
   intro _ _ _; aesop
+
+lemma TwoState.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
+  act.toTwoState.preservesInvariantsIfSuccesful inv = act.preservesInvariantsIfSuccesful inv := by
+  apply TwoState.meetsSpecificationIfSuccessful_eq
 
 section DerivingSemantics
 
@@ -148,10 +152,10 @@ include genWp_sound
 
 lemma TwoState.preservesInvariantsOnSuccesful_derived (inv : SProp ρ σ) :
   (genWp (fun _ => True) |>.toTwoStateDerived.triple inv inv) ->
-  act.toTwoState.preservesInvariantsOnSuccesful inv := by
+  act.toTwoState.preservesInvariantsIfSuccesful inv := by
     intro h
     rw [VeilM.toTwoStateDerived_sound]
-    simp [TwoState.preservesInvariantsOnSuccesful,
+    simp [TwoState.preservesInvariantsIfSuccesful,
       triple, VeilM.toTwoStateDerived, VeilSpecM.toTwoStateDerived, _root_.triple, LE.le]
     intro r₀ s₀ s₁ hinv hwp; have h := h r₀ s₀ s₁ hinv
     solve_by_elim

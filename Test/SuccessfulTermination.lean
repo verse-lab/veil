@@ -108,7 +108,7 @@ info: The following set of actions must preserve the invariant and successfully 
 Counter-examples
 ================
 
-call_fail_req_termination:
+call_fail_req_doesNotThrow:
 interpreted sort Bool
 interpreted sort Int
 sort node = #[node0]

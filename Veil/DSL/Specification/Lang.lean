@@ -436,11 +436,12 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
       let br' <- (toBracketedBinderArray <$> br) |>.getD (pure #[])
       let br <- (explicitBindersIdents <$> br) |>.getD (pure #[])
       let actionArgs ← getSectionArgumentsStx vs
+      let meetsSpec := mkIdent ``VeilM.succeedsAndMeetsSpecification
       let stx <- `(theorem $thmName $br' * :
-        VeilM.meetsSpecification (@$nm $actionArgs* $br*)
+        $meetsSpec (@$nm $actionArgs* $br*)
         (fun rd st => funcases rd st $pre)
         (by rintro $ret rd st; (exact funcases rd st $post)) := by
-          try simp only [VeilM.meetsSpecification, triple, wpSimp, loomLogicSimp]
+          try simp only [$meetsSpec:ident, triple, wpSimp, loomLogicSimp]
           try unhygienic intros
           try concretize_state
           try solve_clause)

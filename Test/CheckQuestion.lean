@@ -42,30 +42,52 @@ safety [single_leader] leader L → le N L
 
 /--
 info: @[invProof]
-  theorem init_single_leader :
-      ∀ (rd : ρ) (st' : σ),
-        (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st' →
-          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).init rd st' →
-            (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
-    by ((unhygienic intros); solve_clause[initSimp, actSimp]Ring.single_leader)
+  theorem tr_single_leader :
+      TwoState.meetsSpecificationIfSuccessful
+        (@initializer.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader)
+        (fun rd st => (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st) fun rd st' =>
+        @Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
+    by solve_tr_clause initializer.ext.twoState Ring.single_leader
+  ⏎
+  @[invProof]
+  theorem send_doesNotThrow :
+      ∀ (ex : Int) (rd : ρ) (st : σ),
+        ∀ (n : node) (next : node),
+          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
+            (@Ring.send.ext.wpEx node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader ex n next) (fun _ _ _ => True)
+              rd st :=
+    by solve_wp_clause Ring.send.ext.wpEx
   ⏎
   @[invProof]
   theorem send_tr_single_leader :
-      ∀ (rd : ρ) (st st' : σ),
-        (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
-          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
-            (@Ring.send.ext.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
-              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
-    by solve_tr_clause Ring.send.ext.tr Ring.single_leader
+      ∀ (n : node) (next : node),
+        TwoState.meetsSpecificationIfSuccessful
+          (@Ring.send.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader n next)
+          (fun rd st =>
+            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st)
+              ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st))
+          fun rd st' => @Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
+    by solve_tr_clause Ring.send.ext.twoState Ring.single_leader
+  ⏎
+  @[invProof]
+  theorem recv_doesNotThrow :
+      ∀ (ex : Int) (rd : ρ) (st : σ),
+        ∀ (sender : node) (n : node) (next : node),
+          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
+            (@Ring.recv.ext.wpEx node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader ex sender n next)
+              (fun _ _ _ => True) rd st :=
+    by solve_wp_clause Ring.recv.ext.wpEx
   ⏎
   @[invProof]
   theorem recv_tr_single_leader :
-      ∀ (rd : ρ) (st st' : σ),
-        (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
-          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
-            (@Ring.recv.ext.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
-              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
-    by solve_tr_clause Ring.recv.ext.tr Ring.single_leader
+      ∀ (sender : node) (n : node) (next : node),
+        TwoState.meetsSpecificationIfSuccessful
+          (@Ring.recv.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader sender n next)
+          (fun rd st =>
+            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st)
+              ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st))
+          fun rd st' => @Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
+    by solve_tr_clause Ring.recv.ext.twoState Ring.single_leader
 -/
 #guard_msgs(whitespace := lax) in
 set_option veil.vc_gen "transition" in #check_invariants?

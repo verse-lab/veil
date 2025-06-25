@@ -24,17 +24,18 @@ lemma VeilExecM.terminates_preservesInvariants_wp (act : VeilExecM m ρ σ α) :
     rw [← @iInf_inf_eq]; simp only [meet_himp _ _ _ _ rfl, *]
 
 lemma VeilM.terminates_preservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
-  act.succesfullyTerminates inv ->
-  act.preservesInvariantsOnSuccesful inv ->
+  act.doesNotThrow inv ->
+  act.preservesInvariantsIfSuccesful inv ->
   act.succeedsAndPreservesInvariants inv := by
-  unfold VeilM.succesfullyTerminates VeilM.preservesInvariantsOnSuccesful VeilM.succeedsAndPreservesInvariants triple
+  unfold VeilM.doesNotThrow VeilM.preservesInvariantsIfSuccesful VeilM.succeedsAndPreservesInvariants
+    VeilM.succeedsAndMeetsSpecification VeilM.meetsSpecificationIfSuccessful triple
   intros h₁ h₂; apply le_trans
   apply le_inf h₁ h₂; simp [VeilM.terminates_preservesInvariants_wp]
 
 lemma VeilM.triple_sound
   (act : VeilM m ρ σ α) (inv : SProp ρ σ) (chs : act.choices) :
-  act.succesfullyTerminates inv ->
-  act.preservesInvariantsOnSuccesful inv ->
+  act.doesNotThrow inv ->
+  act.preservesInvariantsIfSuccesful inv ->
   (act.run chs).operationalTriple inv (fun _ => inv) := by
     intros term invs
     have : [DemonFail| triple inv (act.run chs) (fun _ => inv)] := by
@@ -66,8 +67,8 @@ lemma VeilM.not_raises_imp_terminates_wp (act : VeilM m ρ σ α)
 
 lemma VeilM.not_raises_imp_terminates (act : VeilM m ρ σ α) (pre : SProp ρ σ) :
   (∀ ex, act.canRaise (· ≠ ex) pre) ->
-  act.succesfullyTerminates pre := by
-  unfold VeilM.canRaise VeilM.succesfullyTerminates triple
+  act.doesNotThrow pre := by
+  unfold VeilM.canRaise VeilM.doesNotThrow triple
   simp; rw [<-le_iInf_iff (ι := ExId)]; intro h;
   have : (⊤ : RProp α ρ σ) = iInf (fun (_ : ExId) => ⊤) := by simp
   rw [this]
@@ -83,13 +84,13 @@ include genWp_sound
 
 lemma VeilM.succesfullyTerminates_derived (pre : SProp ρ σ) :
   (∀ ex, pre <= genWp (· ≠ ex) (fun _ => ⊤)) ->
-  act.succesfullyTerminates pre := by
+  act.doesNotThrow pre := by
     intro h; apply VeilM.not_raises_imp_terminates
     solve_by_elim [le_trans]
 
 lemma VeilM.preservesInvariantsOnSuccesful_derived (inv : SProp ρ σ) :
   (inv <= genWp (fun _ => True) (fun _ => inv)) ->
-  act.preservesInvariantsOnSuccesful inv := by
+  act.preservesInvariantsIfSuccesful inv := by
     intro h; solve_by_elim [le_trans]
 
 end DerivingSemantics

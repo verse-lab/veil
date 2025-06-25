@@ -21,7 +21,7 @@ info: def Test.nondet_individual.ext.wpGen : {node : Type} →
       {σ : Type} →
         [σ_substate : IsSubStateOf (State node) σ] →
           {ρ : Type} →
-            [ρ_reader : IsSubReaderOf (Reader node) ρ] → (ExId → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
+            [ρ_reader : IsSubReaderOf (Reader node) ρ] → (ℤ → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
 fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubReaderOf (Reader node) ρ] hd
     post r s =>
   ∀ (t : Prop), post PUnit.unit r (setIn { x := t, r := (getFrom s).r } s)
@@ -42,7 +42,7 @@ info: def Test.quantify_pick.ext.wpGen : {node : Type} →
         [σ_substate : IsSubStateOf (State node) σ] →
           {ρ : Type} →
             [ρ_reader : IsSubReaderOf (Reader node) ρ] →
-              (ExId → Prop) → node → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
+              (ℤ → Prop) → node → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
 fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubReaderOf (Reader node) ρ] hd n
     post r s =>
   ∀ (t : node → node → Prop),
@@ -62,7 +62,7 @@ info: def Test.double_quant.ext.wpGen : {node : Type} →
       {σ : Type} →
         [σ_substate : IsSubStateOf (State node) σ] →
           {ρ : Type} →
-            [ρ_reader : IsSubReaderOf (Reader node) ρ] → (ExId → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
+            [ρ_reader : IsSubReaderOf (Reader node) ρ] → (ℤ → Prop) → (PUnit.{1} → ρ → σ → Prop) → ρ → σ → Prop :=
 fun {node} [DecidableEq node] [Nonempty node] {σ} [IsSubStateOf (State node) σ] {ρ} [IsSubReaderOf (Reader node) ρ] hd
     post r s =>
   ∀ (t : node → node → Prop),
