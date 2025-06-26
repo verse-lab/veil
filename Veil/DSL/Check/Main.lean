@@ -13,8 +13,6 @@ open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 inductive CheckStyle
   /-- Do not check any theorems. Used to only print suggestions. -/
   | noCheck
-  /-- Check all theorems in one big check with indicator variables. -/
-  | checkTheoremsWithIndicators
   /-- Check theorems individually. -/
   | checkTheoremsIndividually
 
@@ -400,87 +398,6 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         throwError str
       else
         logWarning str
-  | (.wp, .checkTheoremsWithIndicators, _) => throwError "[checkTheorems] wp style is not supported for checkTheoremsWithIndicators"
-  | (.transition, .checkTheoremsWithIndicators, _) =>
-    let (msg, initRes, actRes) ← Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, readerTp, rd, st, st') := (← getSystemTpStx vs, ← getStateTpStx, ← getReaderTpStx, mkIdent `rd, mkIdent `st, mkIdent `st')
-      let sectionArgs ← getSectionArgumentsStx vs
-      -- get the syntax of the transitions
-      let actStxList : Array Term ← actIndicators.toArray.mapM (fun (actName, indName) => do
-        let actName ← resolveGlobalConstNoOverloadCore actName
-        let tr := mkIdent $ toTrName actName
-        let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
-        `($(mkIdent indName) ∧ (@$tr $sectionArgs* $rd $st $st'))
-      )
-      let invStxList : Array Term ← invIndicators.toArray.mapM (fun (invName, indName) => do
-        let invName ← resolveGlobalConstNoOverloadCore invName
-        let .some indName := indName.constName? | throwError s!"indicator {indName} not found"
-        `(($(mkIdent indName) → @$(mkIdent invName) $sectionArgs* $rd $st'))
-      )
-      let invariants ← repeatedAnd invStxList
-      let _actions ← repeatedOr actStxList
-      let allIndicators := List.append invIndicators actIndicators
-      let withTimeout := veil.smt.timeout.get (← getOptions)
-
-      -- Init checks
-      let initParams ← Array.mapM (fun (_, e) => do
-        return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
-      ) $ invIndicators.toArray
-      let initTpStx ← `(∀ $[$initParams]* ($rd : $readerTp) ($st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $rd $st' → ($systemTp).$(mkIdent `init) $rd $st' → $invariants)
-      trace[veil] "init check: {initTpStx}"
-      let initCmd ← translateExprToSmt $ (← elabTerm initTpStx none)
-      trace[veil.debug] "SMT init check: {initCmd}"
-      let initRes ← querySolverWithIndicators initCmd withTimeout (initChecks.map (fun a => #[a]))
-      let initMsgs ← getInitCheckResultMessages $ initRes.map (fun (l, res) => match l with
-      | [invName] => (⟨invName, .none, mkTheoremName `init invName⟩, (res, .none))
-      | _ => unreachable!)
-
-      -- Action checks
-      let actParams ← Array.mapM (fun (_, e) => do
-        return ← `(bracketedBinder| ($(mkIdent e.constName!) : Prop))
-      ) $ allIndicators.toArray
-      let actTpStx ← `(∀ $[$actParams]* ($rd : $readerTp) ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $rd $st → ($systemTp).$(mkIdent `inv) $rd $st → $_actions → $invariants)
-      trace[veil] "action check: {actTpStx}"
-      let actCmd ← translateExprToSmt $ (← elabTerm actTpStx none)
-      trace[veil.debug] "SMT action check: {actCmd}"
-      let actRes ← querySolverWithIndicators actCmd withTimeout (invChecks.map (fun (a, b) => #[a, b]))
-      let actMsgs ← getActCheckResultMessages $ actRes.map (fun (l, res) => match l with
-      | [actName, invName] => (⟨actName, invName, mkTheoremName actName invName⟩, (res, .none))
-      | _ => unreachable!)
-
-      let msg := (String.intercalate "\n" initMsgs.toList) ++ "\n" ++ (String.intercalate "\n" actMsgs.toList) ++ "\n"
-      return (msg, initRes, actRes)
-
-    -- Display result of checking
-    logInfo msg
-
-    -- Admit proven theorems
-    let provenInit := (initRes.filter (fun (_, res) => match res with
-      | .Unsat => true
-      | _ => false)).map (fun (l, _) => match l with | [invName] => invName | _ => unreachable!)
-    let provenActs := (actRes.filter (fun (_, res) => match res with
-        | .Unsat => true
-        | _ => false)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
-    let verifiedTheorems := (← theoremSuggestionsForChecks provenInit provenActs vcStyle)
-    for (name, cmd) in verifiedTheorems do
-      let resolved ← resolveGlobalName name.theoremName
-      if resolved.isEmpty then
-        elabCommand cmd
-      else
-        logInfo s!"{name.theoremName} was proven previously"
-    -- Display if needed
-    match suggestionStyle with
-    | .doNotPrint => pure ()
-    | .printAllTheorems => displaySuggestion stx (allTheorems.map Prod.snd)
-    | .printUnverifiedTheorems =>
-        let neededInit := (initRes.filter (fun (_, res) => match res with
-        | .Unsat => false
-        | _ => true)).map (fun (l, _) => match l with | [invName] => invName | _ => unreachable!)
-        let neededActs := (actRes.filter (fun (_, res) => match res with
-          | .Unsat => false
-          | _ => true)).map (fun (l, _) => match l with | [actName, invName] => (invName, actName) | _ => unreachable!)
-        let unverifiedTheorems ← theoremSuggestionsForChecks neededInit neededActs vcStyle
-        displaySuggestion stx (unverifiedTheorems.map Prod.snd) (preMsg := msg)
 
 /- ## `#check_invariants` -/
 
@@ -513,12 +430,6 @@ syntax "#check_isolates?" ident* : command
 were not proved automatically. Uses `wlp` VC style. -/
 syntax "#check_isolates!" ident* : command
 
-
-/-- Legacy code: generates a mega-query with indicator variables and
-checks each action-invariant pair with a separate `check-sat-assuming`
-query. -/
-syntax "#check_invariants_indicators" : command
-
 /-- Prints output similar to that of Ivy's `ivy_check` command. -/
 def checkInvariants (stx : Syntax) (behaviour : CheckInvariantsBehaviour)
   (isolate : NameHashSet := ∅) : CommandElabM Unit := do
@@ -543,7 +454,6 @@ elab_rules : command
   | `(command| #check_isolates $is*)  => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.default) (isolates := is)
   | `(command| #check_isolates? $is*) => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.question) (isolates := is)
   | `(command| #check_isolates! $is*) => do checkIsolate (← getRef) (behaviour := ← CheckInvariantsBehaviour.exclamation) (isolates := is)
-  | `(command| #check_invariants_indicators) => do checkInvariants (← getRef) (behaviour := (.transition, .checkTheoremsWithIndicators, .doNotPrint))
 
 /- ## `#check_invariant` -/
 syntax "#check_invariant" ident : command
