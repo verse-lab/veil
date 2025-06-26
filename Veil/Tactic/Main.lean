@@ -386,6 +386,33 @@ elab tk:swapMode : tactic => withMainContext do
     addSuggestion (<- getRef) tactic
   evalTactic tactic
 
+def elabAlreadyProven (trName : Name) : TacticM Unit := withMainContext do
+  let g ← getMainGoal
+  let ty ← g.getType
+  let ty ← instantiateMVars ty
+  let inv := ty.getAppFn'
+  let .some (invName, _) := inv.const? | throwError "the goal {ty} is not about an invariant clause? got {inv}, expect it to be a const"
+  let thmName := mkTrTheoremName (dropSuffixes trName) invName
+  if trName == initializerName then
+    let initHypName := `hinit
+    let .some _ := (← getLCtx).findFromUserName? initHypName| throwError "cannot find {initHypName}!"
+    let destructTac ← `(tactic| rcases $(mkIdent initHypName):ident with ⟨$(mkIdent `st0):ident, $(mkIdent initHypName):ident⟩)
+    trace[veil.debug] "destructTac: {destructTac}"
+    evalTactic destructTac
+  withMainContext do
+    let attempt ← `(tactic| (apply $(mkIdent thmName) <;> ((try simp_all) <;> assumption)) )
+    trace[veil.debug] "attempt: {attempt}"
+    evalTactic attempt
+
+elab "already_proven_init" : tactic => elabAlreadyProven initializerName
+
+open Tactic in
+elab "already_proven_next_tr" : tactic => withMainContext do
+  let .some ld := (← getLCtx).findFromUserName? `hnext | throwError "cannot find hnext!"
+  let tr := ld.type.getAppFn'
+  let .some (trName, _) := tr.const? | throwError "hnext is not a premise about .tr? got {tr}, expect it to be a .tr"
+  elabAlreadyProven trName
+
 syntax solveTr := "solve_tr_clause" <|> "solve_tr_clause?"
 elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   let (invSimpTac, clearInvs) ← handleInvariants inv
