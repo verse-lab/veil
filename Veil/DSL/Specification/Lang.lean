@@ -375,7 +375,7 @@ def elabInitialStateAction : CommandElab := fun stx => do
     -- define initial state predicate (on the concrete state type)
     let (rd, st, st') := (mkIdent `rd, mkIdent `st, mkIdent `st')
     let pred ← Command.runTermElabM fun vs => (do
-      let extInit := mkIdent (toTrName <| toExtName initializerName)
+      let extInit := mkIdent (toTwoStateName <| toExtName initializerName)
       let args ← getSectionArgumentsStx vs
       `(fun ($rd : $genericReader) ($st' : $genericState) => ∃ ($(toBinderIdent st) : $genericState), (@$extInit $args*) $rd $st $st'))
     trace[veil.debug] "pred: {pred}"
