@@ -7,6 +7,7 @@ import Veil.Util.DSL
 import Veil.Util.Display
 import Veil.Util.SMT
 import Veil.DSL.Specification.SpecDef
+import Veil.DSL.Check.InvariantManipulation
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
@@ -486,49 +487,3 @@ elab_rules : command
   | `(command| #check_action $actName)  => do checkAction (← getRef) actName (behaviour := ← CheckInvariantsBehaviour.default)
   | `(command| #check_action? $actName) => do checkAction (← getRef) actName (behaviour := ← CheckInvariantsBehaviour.question)
   | `(command| #check_action! $actName) => do checkAction (← getRef) actName (behaviour := ← CheckInvariantsBehaviour.exclamation)
-
-open Tactic in
-/-- Try to solve the goal using one of the already proven invariant clauses,
-    i.e. one of those marked with `@[invProof]` (via `#check_invariants`). -/
-elab "already_proven" : tactic => withMainContext do
-  let clauses := (← localSpecCtx.get).establishedClauses.toArray
-  let tacs ← clauses.mapM (fun cl => `(tactic|(try apply $(mkIdent cl) <;> assumption)))
-  let attempt ← `(tactic| solve $[| $tacs:tactic]*)
-  evalTactic attempt
-
-elab "prove_inv_init" proof:term : command => do
-  liftCoreM errorOrWarnWhenSpecIsNeeded
-  elabCommand $ <- Command.runTermElabM fun _ => do
-    let stateTp <- getStateTpStx
-    let readerTp <- getReaderTpStx
-    let invInit := mkIdent ``RelationalTransitionSystem.invInit
-    `(theorem $(mkIdent `inv_init) : $invInit (σ := $stateTp) (ρ := $readerTp) :=
-       by unfold $invInit
-          -- simp only [initSimp, invSimp]
-          intros $(mkIdent `st)
-          exact $proof)
-
-elab "prove_inv_safe" proof:term : command => do
-  liftCoreM errorOrWarnWhenSpecIsNeeded
-  elabCommand $ <- Command.runTermElabM fun _ => do
-    let stateTp <- getStateTpStx
-    let readerTp <- getReaderTpStx
-    let invSafe := mkIdent ``RelationalTransitionSystem.invSafe
-    `(theorem $(mkIdent `safety_init) : $invSafe (σ := $stateTp) (ρ := $readerTp) :=
-       by unfold $invSafe;
-          -- simp only [initSimp, safeSimp]
-          intros $(mkIdent `st);
-          exact $proof)
-
-elab "prove_inv_inductive" proof:term : command => do
-  liftCoreM errorOrWarnWhenSpecIsNeeded
-  elabCommand $ <- Command.runTermElabM fun _ => do
-    let stateTp <- getStateTpStx
-    let readerTp <- getReaderTpStx
-    let invInductive := mkIdent ``RelationalTransitionSystem.isInductive
-    let inv := mkIdent ``RelationalTransitionSystem.inv
-    `(theorem $(mkIdent `inv_inductive) : $invInductive (σ := $stateTp) (ρ := $readerTp) $inv :=
-      by unfold $invInductive;
-        --  intros $(mkIdent `st) $(mkIdent `st')
-        --  simp only [actSimp, invSimp, safeSimp]
-         exact $proof)

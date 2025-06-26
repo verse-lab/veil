@@ -70,6 +70,10 @@ def getNonGenericStateParameters : CommandElabM (Array (TSyntax `Lean.Parser.Ter
   let spec := (← localSpecCtx.get).spec
   spec.generic.applyGetNonGenericStateAndReaderArguments vd
 
+def getNonGenericStateAndReaderArguments (vs : Array α) : TermElabM (Array α) := do
+  let spec := (← localSpecCtx.get).spec
+  spec.generic.applyGetNonGenericStateAndReaderArguments vs
+
 def getSystemParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
 def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
 /-- Assumptions don't depend on the state. -/
@@ -302,6 +306,11 @@ def genericState : Ident := mkIdent genericStateName
 
 def assumptionsName : Name := `Assumptions
 def assumptionsIdent : Ident := mkIdent assumptionsName
+
+def invInductiveName : Name := `inv_inductive
+def invInductiveIdent : Ident := mkIdent invInductiveName
+
+def propInvariantName (p : Name) : Name := Name.mkSimple s!"{p}_invariant"
 
 /-- Name of the generic reader variable. -/
 def genericReaderName : Name := `ρ

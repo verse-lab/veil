@@ -1,103 +1,119 @@
 import Lean
+import Veil.Util.DSL
+import Veil.DSL.Specification.SpecDef
 import Veil.Tactic.Main
-import Veil.DSL.Check.Main
 
-/- TODO: fix this when we have time
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
--- adapted from `theoremSuggestionsForChecks`
-def theoremSuggestionsForChecks' (actIndicators : List (Name × Name)): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
-    Command.runTermElabM fun vs => do
-      let (systemTp, stateTp, st, st') := (← getSystemTpStx vs, ← getStateTpStx, mkIdent `st, mkIdent `st')
-      let sectionArgs ← getSectionArgumentsStx vs
-      let mut theorems : Array (TheoremIdentifier × TSyntax `command) := #[]
-      -- Action checks
-      for (actName, invName) in actIndicators.reverse do
-        let (tp, body) ← do
-          let trName := toTrName actName
-          let invStx ← `(@$(mkIdent invName) $sectionArgs*)
-          let trStx ← `(@$(mkIdent trName) $sectionArgs*)
-          let trTpSyntax ← `(∀ ($st $st' : $stateTp), ($systemTp).$(mkIdent `assumptions) $st → ($systemTp).$(mkIdent `inv) $st → $trStx $st $st' → $invStx $st')
-
-          let moduleName <- getCurrNamespace
-          let some args := (<- localSpecCtx.get).spec.actions.find? (moduleName ++ ·.name == actName)
-            | throwError s!"action {actName} not found"
-          let args ← match args.br with
-          | some br => explicitBindersIdents br
-          | none => pure #[]
-
-          let body ← do
-            let name1 := toActTrEqName actName
-            let name2 := mkTheoremName actName invName
-            let name3 := `forall_exists_index
-            let name4 := `TwoState_sound'_ret_unit'
-            `(tacticSeq|
-              rw [← $(mkIdent name1)] ; dsimp
-              (try simp only [$(mkIdent name3):ident])
-              have h := @$(mkIdent name2) $sectionArgs*
-              intro st st' hassu hinv $args*
-              specialize h st ; specialize h $args* ; specialize h hassu hinv
-              have hthis := $(mkIdent name4):ident _ h
-              apply hthis)
-          pure (trTpSyntax, body)
-        let thmName := mkTrTheoremName actName invName
-        let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := by $body)
-        trace[veil.debug] "{thmName} ({thmName.components}) | {thm}"
-        theorems := theorems.push (⟨invName, .some actName, thmName⟩, thm)
-      return theorems
-
--- adapted from `theoremSuggestionsForIndicators`; the only change is to call `theoremSuggestionsForChecks'` instead of the `'`-free one
-def theoremSuggestionsForIndicators' (actIndicators invIndicators : List (Name × Expr)) : CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
-  let (_, acts) ← Command.runTermElabM fun _ => do
-    -- prevent code duplication
-    let initIndicators ← invIndicators.mapM (fun (invName, _) => resolveGlobalConstNoOverloadCore invName)
-    let actIndicators ← actIndicators.mapM (fun (actName, _) => resolveGlobalConstNoOverloadCore actName)
-    let mut acts := #[]
-    for actName in actIndicators do
-      for invName in initIndicators do
-        acts := acts.push (actName, invName)
-    return (initIndicators, acts)
-  theoremSuggestionsForChecks' acts.toList
-
--- adapted from `checkInvariants` and `checkTheorems`
--- FIXME: enhance this function, and all related functions, by handling error better, avoiding repeating code, etc.
-def recoverInvariantsInTrStyle : CommandElabM Unit := do
-  let (_, invChecks) ← getAllChecks
-  let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
-  let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
-  let allTheorems ← theoremSuggestionsForIndicators' actIndicators invIndicators
-  for (thmId, cmd) in allTheorems do
-    -- if the `tr` theorem hasn't been proven yet, we can recover it from `wp`
-    if (← resolveGlobalName thmId.theoremName).isEmpty then
-      elabCommand (← `(#guard_msgs(drop warning) in $(cmd)))
-    else
-      trace[veil.info] s!"{thmId.theoremName} has already been proven in transition mode; not recovering it from wp"
-
-syntax "#recover_invariants_in_tr" : command
-
-elab_rules : command
-  | `(command| #recover_invariants_in_tr)  => recoverInvariantsInTrStyle
-
 open Tactic in
-def elabAlreadyProven (trName : Name) : TacticM Unit := withMainContext do
-  let g ← getMainGoal
-  let ty ← g.getType
-  let ty ← instantiateMVars ty      -- this is usually required
-  let inv := ty.getAppFn'
-  let .some (invName, _) := inv.const? | throwError "the goal {ty} is not about an invariant clause? got {inv}, expect it to be a const"
-  let thmName := mkTheoremName trName invName
-  let attempt ← `(tactic| (apply $(mkIdent thmName) <;> assumption) )
+/-- Try to solve the goal using one of the already proven invariant clauses,
+    i.e. one of those marked with `@[invProof]` (via `#check_invariants`). -/
+elab "already_proven" : tactic => withMainContext do
+  let clauses := (← localSpecCtx.get).establishedClauses.toArray
+  let tacs ← clauses.mapM (fun cl => `(tactic|(try apply $(mkIdent cl) <;> assumption)))
+  let attempt ← `(tactic| solve $[| $tacs:tactic]*)
   evalTactic attempt
 
-elab "already_proven_init" : tactic => elabAlreadyProven `init
+elab "prove_inv_init" proof:term : command => do
+  liftCoreM errorOrWarnWhenSpecIsNeeded
+  elabCommand $ <- Command.runTermElabM fun _ => do
+    let stateTp <- getStateTpStx
+    let readerTp <- getReaderTpStx
+    let invInit := mkIdent ``RelationalTransitionSystem.invInit
+    `(theorem $(mkIdent `inv_init) : $invInit (σ := $stateTp) (ρ := $readerTp) :=
+       by unfold $invInit
+          -- simp only [initSimp, invSimp]
+          intros $(mkIdent `st)
+          exact $proof)
 
-open Tactic in
-elab "already_proven_next_tr" : tactic => withMainContext do
-  -- being slightly smart
-  let .some ld := (← getLCtx).findFromUserName? `hnext | throwError "cannot find hnext!"
-  let tr := ld.type.getAppFn'
-  let .some (trName, _) := tr.const? | throwError "hnext is not a premise about .tr? got {tr}, expect it to be a .tr"
-  elabAlreadyProven trName
+elab "prove_inv_safe" proof:term : command => do
+  liftCoreM errorOrWarnWhenSpecIsNeeded
+  elabCommand $ <- Command.runTermElabM fun _ => do
+    let stateTp <- getStateTpStx
+    let readerTp <- getReaderTpStx
+    let invSafe := mkIdent ``RelationalTransitionSystem.invSafe
+    `(theorem $(mkIdent `safety_init) : $invSafe (σ := $stateTp) (ρ := $readerTp) :=
+       by unfold $invSafe;
+          -- simp only [initSimp, safeSimp]
+          intros $(mkIdent `st);
+          exact $proof)
+
+elab "prove_inv_inductive" proof:term : command => do
+  liftCoreM errorOrWarnWhenSpecIsNeeded
+  elabCommand $ <- Command.runTermElabM fun _ => do
+    let stateTp <- getStateTpStx
+    let readerTp <- getReaderTpStx
+    let invInductive := mkIdent ``RelationalTransitionSystem.isInductive
+    let inv := mkIdent ``RelationalTransitionSystem.inv
+    `(theorem $invInductiveIdent : $invInductive (σ := $stateTp) (ρ := $readerTp) $inv :=
+      by unfold $invInductive;
+        --  intros $(mkIdent `st) $(mkIdent `st')
+        --  simp only [actSimp, invSimp, safeSimp]
+         exact $proof)
+
+/-- Generates the theorem that the conjunction of all clauses is an
+inductive invariant. This also generates the theorem that the
+conjunction of all invariant clauses is an invariant.
+
+Call this only if the appropriate sub-theorems have been proven in
+`transition` style semantics. -/
+def genInductiveInvariantTheorem : CommandElabM Unit := do
+  liftCoreM errorOrWarnWhenSpecIsNeeded
+  let vd ← getNonGenericStateParameters
+  let (invInductive, invInv) ← Command.runTermElabM fun _ => do
+    let stateTp <- getStateTpStx
+    let readerTp <- getReaderTpStx
+    let isInductive := mkIdent ``RelationalTransitionSystem.isInductive
+    let inv := mkIdent ``RelationalTransitionSystem.inv
+    let invInductive ← `(theorem $invInductiveIdent $[$vd]* : $isInductive (σ := $stateTp) (ρ := $readerTp) $inv := by
+    constructor
+    . intro rd st has $(mkIdent `hinit)
+      sdestruct_goal <;> already_proven_init
+    . intro rd st st' has $(mkIdent `hinv) $(mkIdent `hnext)
+      sts_induction <;> sdestruct_goal <;> already_proven_next_tr)
+    trace[veil.debug] invInductive
+
+    let isInvariant := mkIdent ``RelationalTransitionSystem.isInvariant
+    let invInv ← `(theorem $(mkIdent $ propInvariantName `inv) $[$vd]* : $isInvariant (σ := $stateTp) (ρ := $readerTp) $inv := by
+      apply $(mkIdent ``RelationalTransitionSystem.inductive_is_invariant); apply $invInductiveIdent)
+    return (invInductive, invInv)
+  let moduleName ← getCurrNamespace
+  if (← resolveGlobalName (moduleName ++ invInductiveName)).isEmpty then
+    elabCommand invInductive
+  elabCommand invInv
+
+def genInvariantTheorems : CommandElabM Unit := do
+  liftCoreM errorOrWarnWhenSpecIsNeeded
+  let vd ← getNonGenericStateParameters
+  let cmds ← Command.runTermElabM fun vs => do
+    let stateTp <- getStateTpStx
+    let readerTp <- getReaderTpStx
+    let isInvariant := mkIdent ``RelationalTransitionSystem.isInvariant
+    let allClauses := (← localSpecCtx.get).spec.invariants
+    let topLevelArgs ← getNonGenericStateAndReaderArguments (← getSectionArgumentsStx vs)
+    let assertionArgs ← getSectionArgumentsStxWithConcreteState vs
+    let mut cmds := #[]
+    for clause in allClauses do
+      let clauseName := stripFirstComponent clause.name
+      let inv ← `(@$(mkIdent clause.name) $assertionArgs*)
+      let invInv ← `(theorem $(mkIdent $ propInvariantName clauseName) $[$vd]* : $isInvariant (σ := $stateTp) (ρ := $readerTp) $inv := by
+        have hx := @$(mkIdent $ propInvariantName `inv) $topLevelArgs*; revert hx
+        simp only [$(mkIdent `invSimpTopLevel):ident]; unfold $(mkIdent `Invariant)
+        simp only [← $(mkIdent ``RelationalTransitionSystem.invariant_merge):ident, $(mkIdent ``and_imp):ident]
+        intros; assumption)
+      cmds := cmds.push invInv
+    return cmds
+  for cmd in cmds do
+    trace[veil.debug] cmd
+    elabCommand cmd
+
+def generateAuxiliaryTheorems : CommandElabM Unit := do
+  genInductiveInvariantTheorem
+  genInvariantTheorems
+
+elab "#gen_auxiliary_theorems" : command => do
+  generateAuxiliaryTheorems
+
 
 -- NOTE: when run this, the user must (1) have proven `inv_inductive` using `prove_inv_inductive`
 -- and (2) ensure that the assumptions of the protocol are trivial (e.g., by putting assumptions into a typeclass)
@@ -129,7 +145,7 @@ elab "#split_invariants" : command => do
   let conjunctionThmName := moduleName ++ `inv_split_base
   Command.liftTermElabM do
     let thmName1 := ``RelationalTransitionSystem.invariant_merge
-    let thmName2 := ``RelationalTransitionSystem.invInductive_to_isInvariant
+    let thmName2 := ``RelationalTransitionSystem.inductive_is_invariant
     let thmName3 := `inv_inductive
     simpleAddThm conjunctionThmName thmType
       `(tacticSeq|
@@ -150,4 +166,3 @@ elab "#split_invariants" : command => do
           intro $tempvars* ; have hh := @$(mkIdent thmName1) $tempvars*
           revert hh ; simp only [and_imp] ; intros ; assumption
         )     -- avoid having a tactic spliting at hyp
--/

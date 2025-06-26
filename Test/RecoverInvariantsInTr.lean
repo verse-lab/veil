@@ -1,7 +1,5 @@
 import Veil
-import Veil.DSL.Check.InvariantManipulation
-
-/- TODO: fix this when we have invariant checking for tr
+-- import Veil.DSL.Check.InvariantManipulation
 
 set_option veil.gen_sound true
 set_option synthInstance.maxSize 1000000
@@ -55,19 +53,19 @@ invariant pending L L → le N L
 #gen_spec
 
 #guard_msgs(drop info, drop warning) in
-#check_invariants
+#time #check_invariants
 
-#recover_invariants_in_tr
+#guard_msgs(drop info, drop warning) in
+set_option veil.vc_gen "transition" in #check_invariants
 
 prove_inv_inductive by {
   constructor
-  . intro st has hinit
+  . intro rd st has hinit
     sdestruct_goal <;> already_proven_init
-  · intro st st' has hinv hnext
+  · intro rd st st' has hinv hnext
     sts_induction <;> sdestruct_goal <;> already_proven_next_tr
 }
 
-#split_invariants
+#gen_auxiliary_theorems
 
 end Ring
--/
