@@ -74,7 +74,7 @@ info: @[invProof]
   theorem initializer_tr_indv_true :
       TwoState.meetsSpecificationIfSuccessful
         (@initializer.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader)
-        (fun rd st => (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st) fun rd st' =>
+        (fun rd st => (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd) fun rd st' =>
         @Ring.indv_true node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
     by solve_tr_clause initializer.ext.twoState Ring.indv_true
   ⏎
@@ -84,7 +84,7 @@ info: @[invProof]
         TwoState.meetsSpecificationIfSuccessful
           (@Ring.recv.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader sender n next)
           (fun rd st =>
-            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st)
+            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd)
               ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st))
           fun rd st' => @Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
     by solve_tr_clause Ring.recv.ext.twoState Ring.single_leader
@@ -94,7 +94,7 @@ info: @[invProof]
       TwoState.meetsSpecificationIfSuccessful
         (@Ring.ruin_inv.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader)
         (fun rd st =>
-          And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st)
+          And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd)
             ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st))
         fun rd st' => @Ring.indv_true node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
     by solve_tr_clause Ring.ruin_inv.ext.twoState Ring.indv_true

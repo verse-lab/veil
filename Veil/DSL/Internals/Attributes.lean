@@ -89,6 +89,16 @@ initialize registerBuiltinAttribute {
     localSpecCtx.modify (fun s => { s with spec := {s.spec with assumptions := s.spec.assumptions.push prop}})
 }
 
+syntax (name:= trustedInvariant) "trustedInvariantDef" : attr
+initialize registerBuiltinAttribute {
+  name := `trustedInvariant
+  descr := "This is a trusted invariant clause"
+  add := fun declName _ _ => do
+    let prop := { kind := .trustedInvariant, name := declName, term := none, expr := mkConst declName }
+    localSpecCtx.modify (fun s => { s with spec := {s.spec with assumptions := s.spec.assumptions.push prop}})
+}
+
+
 syntax (name:= inv) "invDef" : attr
 initialize registerBuiltinAttribute {
   name := `inv

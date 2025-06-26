@@ -163,7 +163,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
 
         if let .some invName := invName then
           let trStx ← `(@$(mkIdent trName) $actionArgs* $args*)
-          let preStx ← if actName != initializerName then `(fun $rd $st => $(mkIdent ``And) (($systemTp).$(mkIdent `assumptions) $rd $st) (($systemTp).$(mkIdent `inv) $rd $st)) else `(fun $rd $st => ($systemTp).$(mkIdent `assumptions) $rd $st)
+          let preStx ← if actName != initializerName then `(fun $rd $st => $(mkIdent ``And) (($systemTp).$(mkIdent `assumptions) $rd) (($systemTp).$(mkIdent `inv) $rd $st)) else `(fun $rd $st => ($systemTp).$(mkIdent `assumptions) $rd)
           let postStx ← match vcStyle with
             | .transition => `(fun $rd $st' => @$(mkIdent invName) $assertionArgs* $rd $st')
             | .wp => `(fun _ $rd $st' => @$(mkIdent invName) $assertionArgs* $rd $st')
@@ -185,7 +185,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let extStx ← `(@$(mkIdent extName) $actionArgs* $ex $args*)
           let extTpSyntax ←
             `(∀ ($ex : ExId) ($rd : $genericReader) ($st : $genericState), forall? $univBinders*,
-              ($systemTp).$(mkIdent `assumptions) $rd $st → $extStx (fun _ _ _ => $True) $rd $st)
+              ($systemTp).$(mkIdent `assumptions) $rd → $extStx (fun _ _ _ => $True) $rd $st)
           let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
           let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName))
           let (tp, body) := (extTpSyntax, body)

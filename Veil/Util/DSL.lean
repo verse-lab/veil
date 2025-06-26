@@ -68,10 +68,19 @@ def getSectionArgumentsStxWithConcreteState (vs : Array Expr) : TermElabM (Array
 def getNonGenericStateParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let vd := (← getScope).varDecls
   let spec := (← localSpecCtx.get).spec
-  spec.generic.applyGetNonGenericStateArguments vd
+  spec.generic.applyGetNonGenericStateAndReaderArguments vd
 
 def getSystemParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
 def getAssertionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := getActionParameters
+/-- Assumptions don't depend on the state. -/
+def getAssumptionParameters : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let vd := (← getScope).varDecls
+  let spec := (← localSpecCtx.get).spec
+  spec.generic.applyGetNonGenericStateArguments vd
+
+def getAssumptionArguments (vs : Array Expr) : TermElabM (Array Expr) := do
+  let spec := (← localSpecCtx.get).spec
+  spec.generic.applyGetNonGenericStateArguments vs
 
 def getSystemTpStx (vs : Array Expr) : TermElabM Term := do
   let systemArgs ← getSectionArgumentsStx vs
@@ -140,7 +149,6 @@ def throwIfRefersToMutable (t : Term) : TermElabM Unit :=
         throwErrorAt ex.getRef "The assumption refers to mutable state component `{n}`!"
       else
         throwErrorAt ex.getRef "The assumption refers to unbound variable `{n}`!")
-
 /-- This is used wherever we want to define a predicate over a state
     (for instance, in `safety`, `invariant` and `relation`). Instead
     of writing `fun st => Pred` this command will pattern match over
@@ -184,6 +192,31 @@ def funcasesM (t : Term) : TermElabM Term := do
           fun $[$stateFns]* => ($t : Prop)))
   trace[veil.debug] "funcasesM: {term}"
   return term
+
+/-- Like `funcasesM`, but only destruct the reader (immutable) state. -/
+def funcasesReader (t : Term) : TermElabM Term := do
+  let readerTpExpr := (<- localSpecCtx.get).spec.generic.readerType
+  let .some sn := readerTpExpr.getAppFn.constName?
+    | throwError "{readerTpExpr} is not a constant"
+  let .some _rinfo := getStructureInfo? (<- getEnv) sn
+    | throwError "{readerTpExpr} is not a structure"
+  let readerFns := _rinfo.fieldNames.map Lean.mkIdent
+
+  let moduleName <- getCurrNamespace
+  let readerName := `Reader
+  let casesOnReader <- mkConst $ (moduleName ++ readerName ++ `casesOn)
+  let casesOnReader <- PrettyPrinter.delab casesOnReader
+  let readerTpStx ← getReaderTpStx
+  let readerTpArgs ← getReaderTpArgsStx
+  let rd := mkIdent `rd
+  let term ← `(term| (fun ($rd : $readerTpStx) =>
+      $(casesOnReader)
+      $(readerTpArgs)*
+      (motive := fun _ => Prop) (readFrom $rd) <|
+        fun $[$readerFns]* => ($t : Prop)))
+  trace[veil.debug] "funcasesReader: {term}"
+  return term
+
 
 def elabBindersAndCapitals
   (br : Array Syntax)

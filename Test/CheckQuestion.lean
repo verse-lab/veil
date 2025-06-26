@@ -45,7 +45,7 @@ info: @[invProof]
   theorem initializer_tr_single_leader :
       TwoState.meetsSpecificationIfSuccessful
         (@initializer.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader)
-        (fun rd st => (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st) fun rd st' =>
+        (fun rd st => (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd) fun rd st' =>
         @Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
     by solve_tr_clause initializer.ext.twoState Ring.single_leader
   ⏎
@@ -53,7 +53,7 @@ info: @[invProof]
   theorem send_doesNotThrow :
       ∀ (ex : Int) (rd : ρ) (st : σ),
         ∀ (n : node) (next : node),
-          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
+          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd →
             (@Ring.send.ext.wpEx node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader ex n next) (fun _ _ _ => True)
               rd st :=
     by solve_wp_clause Ring.send.ext.wpEx
@@ -64,7 +64,7 @@ info: @[invProof]
         TwoState.meetsSpecificationIfSuccessful
           (@Ring.send.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader n next)
           (fun rd st =>
-            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st)
+            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd)
               ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st))
           fun rd st' => @Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
     by solve_tr_clause Ring.send.ext.twoState Ring.single_leader
@@ -73,7 +73,7 @@ info: @[invProof]
   theorem recv_doesNotThrow :
       ∀ (ex : Int) (rd : ρ) (st : σ),
         ∀ (sender : node) (n : node) (next : node),
-          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
+          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd →
             (@Ring.recv.ext.wpEx node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader ex sender n next)
               (fun _ _ _ => True) rd st :=
     by solve_wp_clause Ring.recv.ext.wpEx
@@ -84,7 +84,7 @@ info: @[invProof]
         TwoState.meetsSpecificationIfSuccessful
           (@Ring.recv.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader sender n next)
           (fun rd st =>
-            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st)
+            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd)
               ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st))
           fun rd st' => @Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
     by solve_tr_clause Ring.recv.ext.twoState Ring.single_leader

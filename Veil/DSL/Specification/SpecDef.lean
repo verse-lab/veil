@@ -257,9 +257,12 @@ def assembleSafeties : CommandElabM Unit := do
 /-- Assembles all declared `assumption`s into a single `Assumptions`
 predicate -/
 def assembleAssumptions : CommandElabM Unit := do
-  let vd ← getAssertionParameters
+  let vd ← getAssumptionParameters
   elabCommand $ <- Command.runTermElabM fun vs => do
+    let vs ← getAssumptionArguments vs
     let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
-    let assumptions ← if exprs.isEmpty then `(fun _ _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
-    `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $genericReader -> $genericState -> Prop := $assumptions)
+    let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
+    let stx ← `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $genericReader -> Prop := $assumptions)
+    trace[veil.debug] "[assembleAssumptions]\n{stx}"
+    pure stx
   trace[veil.info] "Assumptions assembled"

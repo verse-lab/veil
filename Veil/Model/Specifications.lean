@@ -313,12 +313,23 @@ def ModuleParameters.applyGetStateArguments [Monad m] [MonadError m] (mp : Modul
   return res
 
 /-- Apply the arguments to the module, but ignoring the generic state
-(`σ` and `σ_substate`) parameters. -/
-def ModuleParameters.applyGetNonGenericStateArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
+(`σ`, `σ_substate`, `ρ`, `ρ_reader`) parameters. -/
+def ModuleParameters.applyGetNonGenericStateAndReaderArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
   if args.size < mp.parameters.size then
     throwError "Expected at least {mp.parameters.size} arguments, but got {args.size}!"
   let pairs := Array.zip (List.range' 0 args.size).toArray args
   let indices := #[mp.genericStateParam, mp.genericSubStateInstParam, mp.genericSubStateInstParam + 1, mp.genericSubStateInstParam + 2]
+  let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then none else some arg)
+  return res
+
+/-- Apply the arguments to the module, but ignoring the generic state
+(`σ`, `σ_substate`) parameters, BUT NOT the generic reader (`ρ`,
+`ρ_reader`) parameters. -/
+def ModuleParameters.applyGetNonGenericStateArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
+  if args.size < mp.parameters.size then
+    throwError "Expected at least {mp.parameters.size} arguments, but got {args.size}!"
+  let pairs := Array.zip (List.range' 0 args.size).toArray args
+  let indices := #[mp.genericStateParam, mp.genericSubStateInstParam]
   let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then none else some arg)
   return res
 

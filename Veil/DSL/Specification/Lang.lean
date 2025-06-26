@@ -527,12 +527,17 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
 
 def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
-  let vd ← getAssertionParameters
+  let vd ← if kind == .assumption then getAssumptionParameters else getAssertionParameters
   let (name, cmd) ← Command.runTermElabM fun vs => do
+    -- NOTE: we MUST NOT use `getAssumptionArguments` here,
+    -- (like this: `let vs ← if kind == .assumption then getAssumptionArguments vs else pure vs`)
+    -- because otherwise `σ` and `σ_substate` get universally quantified in the term
+    trace[veil.debug] s!"kind: {kind} | vd: {vd.size} | vs: {vs.size}"
     -- Check that the assumption does not refer to mutable state components
     if kind == .assumption then
       throwIfRefersToMutable t
-    let stx <- funcasesM t
+    let stx <- if kind == .assumption then funcasesReader t else funcasesM t
+    trace[veil.debug] s!"stx: {stx}"
     let defaultName ← match kind with
       | .safety | .invariant => pure $ Name.mkSimple s!"inv_{(<- localSpecCtx.get).spec.invariants.size}"
       | .assumption | .trustedInvariant => pure $ Name.mkSimple s!"axiom_{(<- localSpecCtx.get).spec.assumptions.size}"
@@ -553,11 +558,15 @@ def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propert
         def $(mkIdent name) $[$vd]*
           ($(mkIdent `rd) : $genericReader := by exact_reader)
           ($(mkIdent `st) : $genericState := by exact_state) : Prop := $e: term)
-      | .assumption | .trustedInvariant =>
-        `(@[assumptionDef, invSimp]
+      | .trustedInvariant =>
+        `(@[trustedInvariantDef, invSimp]
         def $(mkIdent name) $[$vd]*
           ($(mkIdent `rd) : $genericReader := by exact_reader)
           ($(mkIdent `st) : $genericState := by exact_state) : Prop := $e: term)
+      | .assumption =>
+      `(@[assumptionDef, invSimp]
+        def $(mkIdent name) $[$vd]*
+          ($(mkIdent `rd) : $genericReader := by exact_reader) : Prop := $e: term)
     -- IMPORTANT: It is incorrect to do `liftCommandElabM $ elabCommand cmd` here
     -- (I think because of how `elabBindersAndCapitals` works)
     return (name, cmd)
@@ -603,6 +612,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
     --, ioAutomatonStx
     ) <- Command.runTermElabM fun vs => do
     let systemArgs ← getSectionArgumentsStx vs
+    let assumptionsArgs ← getSectionArgumentsStx (← getAssumptionArguments vs)
     -- let stepStx ← getIOStepStx genericState labelTpStx vs
 
     let [initialState?, Assumptions, Next, Safety, Invariant] :=
@@ -611,7 +621,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
     -- RelationalTransitionSystem instance
     let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $genericReader $genericState where
         init := @$initialState? $systemArgs*
-        assumptions := @$Assumptions $systemArgs*
+        assumptions := @$Assumptions $assumptionsArgs*
         next := @$Next $systemArgs*
         safe := @$Safety $systemArgs*
         inv  := @$Invariant $systemArgs*
