@@ -25,6 +25,8 @@ relation decision (N:node) (R:round) (V:value) -- got 2b from a quorum
 
 #gen_state
 
+assumption ∀ (Q1:quorum) (Q2:quorum), ∃ (N:node), member N Q1 ∧ member N Q2
+
 after_init {
   one_a R := False
   one_b_max_vote N R1 R2 V := False
@@ -34,8 +36,6 @@ after_init {
   vote N R V := False
   decision N R V := False
 }
-
-assumption ∀ (Q1:quorum) (Q2:quorum), ∃ (N:node), member N Q1 ∧ member N Q2
 
 action send_1a (r : round) = {
   -- a proposer selects a round and sends a message asking nodes to join the round

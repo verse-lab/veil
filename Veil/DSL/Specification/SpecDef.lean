@@ -51,6 +51,11 @@ def ModuleDependency.typeMapping [Monad m] [MonadError m] [MonadQuotation m] (de
   let mapping ← dep.applyGetStateArguments pairs
   return mapping
 
+def errorIfAssumptionsDefined : CoreM Unit := do
+  let moduleName ← getCurrNamespace
+  if !(← resolveGlobalName (moduleName ++ assumptionsName)).isEmpty then
+    throwError "All assumptions must be defined before the after_init declaration!"
+
 def errorIfStateNotDefined : CoreM Unit := do
   let stateName := (← localSpecCtx.get).stateBaseName
   if stateName.isNone then
@@ -262,7 +267,7 @@ def assembleAssumptions : CommandElabM Unit := do
     let vs ← getAssumptionArguments vs
     let exprs := (<- localSpecCtx.get).spec.assumptions.toList.map (fun p => p.expr)
     let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
-    let stx ← `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $genericReader -> Prop := $assumptions)
+    let stx ← `(@[invSimp, invSimpTopLevel] def $assumptionsIdent $[$vd]* : $genericReader -> Prop := $assumptions)
     trace[veil.debug] "[assembleAssumptions]\n{stx}"
     pure stx
   trace[veil.info] "Assumptions assembled"

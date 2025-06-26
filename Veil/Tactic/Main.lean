@@ -396,7 +396,7 @@ def elabAlreadyProven (trName : Name) : TacticM Unit := withMainContext do
   if trName == initializerName then
     let initHypName := `hinit
     let .some _ := (← getLCtx).findFromUserName? initHypName| throwError "cannot find {initHypName}!"
-    let destructTac ← `(tactic| rcases $(mkIdent initHypName):ident with ⟨$(mkIdent `st0):ident, $(mkIdent initHypName):ident⟩)
+    let destructTac ← `(tactic| rcases $(mkIdent initHypName):ident with ⟨_, ⟨$(mkIdent `st0):ident, $(mkIdent initHypName):ident⟩⟩)
     trace[veil.debug] "destructTac: {destructTac}"
     evalTactic destructTac
   withMainContext do

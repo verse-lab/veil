@@ -363,8 +363,9 @@ def elabInitialStatePredicate : CommandElab := fun stx => do
 def elabInitialStateAction : CommandElab := fun stx => do
   match stx with
   | `(command|after_init { $l:doSeq }) => do
-    -- throwUnsupportedSyntax
     liftCoreM errorIfStateNotDefined
+    -- Important: we must assemble assumptions before the after_init declaration
+    assembleAssumptions
     -- Our initializer should run all sub-module initializers in the
     -- order they are included in
     let subInitializers ← (← getSubInitializers).mapM (fun (nm, _) => `(Term.doSeqItem|$nm:term))
@@ -377,7 +378,8 @@ def elabInitialStateAction : CommandElab := fun stx => do
     let pred ← Command.runTermElabM fun vs => (do
       let extInit := mkIdent (toTwoStateName <| toExtName initializerName)
       let args ← getSectionArgumentsStx vs
-      `(fun ($rd : $genericReader) ($st' : $genericState) => ∃ ($(toBinderIdent st) : $genericState), (@$extInit $args*) $rd $st $st'))
+      let assumptionsArgs ← getSectionArgumentsStx (← getAssumptionArguments vs)
+      `(fun ($rd : $genericReader) ($st' : $genericState) => @$assumptionsIdent $assumptionsArgs* $rd ∧ ∃ ($(toBinderIdent st) : $genericState), (@$extInit $args*) $rd $st $st'))
     trace[veil.debug] "pred: {pred}"
     -- this sets `stsExt.init` with `lang := none`
     elabCommand $ ← `(initial $pred)
@@ -527,6 +529,8 @@ def getPropertyNameD (stx : Option (TSyntax `propertyName)) (default : Name) :=
 
 def defineAssertion (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (t : TSyntax `term) : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
+  if kind == .assumption then
+    liftCoreM errorIfAssumptionsDefined
   let vd ← if kind == .assumption then getAssumptionParameters else getAssertionParameters
   let (name, cmd) ← Command.runTermElabM fun vs => do
     -- NOTE: we MUST NOT use `getAssumptionArguments` here,
@@ -606,7 +610,6 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleNext
   assembleInvariant
   assembleSafeties
-  assembleAssumptions
 
   let (rtsStx
     --, ioAutomatonStx
@@ -625,6 +628,7 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
         next := @$Next $systemArgs*
         safe := @$Safety $systemArgs*
         inv  := @$Invariant $systemArgs*
+        initSatisfiesAssumptions := by simp only [$(mkIdent `initSimp):ident, $(mkIdent ``and_imp):ident]; intros; assumption
         )
     -- IO Automaton instance
     -- let ioAutomatonStx ← `(instance (priority := low) $(mkIdent `IOA) $[$vd]* : $(mkIdent ``IOAutomaton) $genericState $labelTpStx where

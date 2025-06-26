@@ -300,6 +300,9 @@ def genericStateName : Name := `σ
 /-- The generic state variable. -/
 def genericState : Ident := mkIdent genericStateName
 
+def assumptionsName : Name := `Assumptions
+def assumptionsIdent : Ident := mkIdent assumptionsName
+
 /-- Name of the generic reader variable. -/
 def genericReaderName : Name := `ρ
 /-- The generic reader variable. -/

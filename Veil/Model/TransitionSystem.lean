@@ -1,10 +1,16 @@
 
 class RelationalTransitionSystem (ρ : Type) (σ : Type) where
-  init : ρ → σ → Prop
+  /-- The set of acceptable background theories -/
   assumptions : ρ → Prop
+  /-- The set of initial states, indexed by background theory they
+  operate in -/
+  init : ρ → σ → Prop
+  /-- The transition relation -/
   next : ρ → σ -> σ -> Prop
   safe : ρ → σ → Prop
   inv : ρ → σ → Prop
+
+  initSatisfiesAssumptions : ∀ (r : ρ) (s : σ), init r s → assumptions r
 
 namespace RelationalTransitionSystem
 open RelationalTransitionSystem
@@ -14,41 +20,40 @@ def invSafe [RelationalTransitionSystem ρ σ] :=
   ∀ (r : ρ) (s : σ), @assumptions ρ σ _ r -> inv r s -> safe r s
 
 /-- The set of initial states are in the invariant. -/
-def invInit [RelationalTransitionSystem ρ σ] :=
-  ∀ (r : ρ) (s : σ), @assumptions ρ σ _ r -> init r s -> inv r s
+def invInit [RelationalTransitionSystem ρ σ] (p : ρ → σ → Prop) :=
+  ∀ (r : ρ) (s : σ), @assumptions ρ σ _ r -> init r s -> p r s
 
 /-- The invariant is preserved by transition. -/
-def invConsecution [RelationalTransitionSystem ρ σ] :=
-  ∀ (r : ρ) (s1 s2 : σ), @assumptions ρ σ _ r -> inv r s1 -> next r s1 s2 -> inv r s2
+def invConsecution [RelationalTransitionSystem ρ σ] (p : ρ → σ → Prop) :=
+  ∀ (r : ρ) (s1 s2 : σ), @assumptions ρ σ _ r -> p r s1 -> next r s1 s2 -> p r s2
 
 /-- The invariant is inductive. -/
-def invInductive [sys: RelationalTransitionSystem ρ σ] :=
-  @invInit ρ σ sys ∧ @invConsecution ρ σ sys
+def isInductive [sys: RelationalTransitionSystem ρ σ] (p : ρ → σ → Prop) :=
+  @invInit ρ σ sys p ∧ @invConsecution ρ σ sys p
 
-/-- `invInductive` with the property not necessarily being `inv`. -/
-def isInductiveInvariant [sys: RelationalTransitionSystem ρ σ] (p : ρ → σ → Prop) :=
-  (∀ (r : ρ) (s : σ), @assumptions ρ σ _ r → init r s → p r s) ∧
-  (∀ (r : ρ) (s s' : σ), @assumptions ρ σ _ r → p r s → next r s s' → p r s')
-
+/-- Reachability relation, indexed by background theory -/
 inductive reachable [sys : RelationalTransitionSystem ρ σ] (r : ρ) : σ → Prop where
-  | init : ∀ (s : σ), sys.init r s → reachable r s
+  | init : ∀ (s : σ), sys.assumptions r → sys.init r s → reachable r s
   | step : ∀ (s s' : σ), reachable r s → sys.next r s s' → reachable r s'
 
+/-- Assumptions hold in all reachable states. -/
+theorem reachable_assumptions [sys : RelationalTransitionSystem ρ σ] (r : ρ) (s : σ) (h : reachable r s) : sys.assumptions r := by
+  induction h with
+  | init s has hinit => assumption
+  | step s s' h2 hn ih => assumption
+
 theorem reachable_inclusion (sys sys' : RelationalTransitionSystem ρ σ)
+  (hass_implies : ∀ (r : ρ), sys.assumptions r → sys'.assumptions r)
   (hinit_implies : ∀ (r : ρ) (st : σ), sys.init r st → sys'.init r st)
   (hnext_implies : ∀ (r : ρ) (st st' : σ), sys.next r st st' → sys'.next r st st') :
   ∀ (r : ρ) (st : σ), reachable (sys := sys) r st → reachable (sys := sys') r st := by
   intro r st h
   induction h with
-  | init s hinit => apply reachable.init ; apply hinit_implies ; assumption
+  | init s has hinit => apply reachable.init _ (hass_implies r has) (hinit_implies r s hinit)
   | step s s' h2 hn ih => apply reachable.step ; apply ih ; apply hnext_implies ; assumption
 
 /-- The property holds in all reachable states. -/
 def isInvariant [sys : RelationalTransitionSystem ρ σ] (p : ρ → σ → Prop) : Prop := ∀ (r : ρ) (s : σ), reachable r s → p r s
-
-/-- The property holds in all reachable states. Used for assumptions,
-which don't depend on the state. Proving this should be trivial. -/
-def isInvariant' [sys : RelationalTransitionSystem ρ σ] (p : ρ → Prop) : Prop := ∀ (r : ρ) (s : σ), reachable r s → p r
 
 theorem invariant_merge [sys : RelationalTransitionSystem ρ σ] (p q : ρ → σ → Prop) :
   (isInvariant p ∧ isInvariant q) ↔ (isInvariant (fun r s => p r s ∧ q r s)) := by
@@ -56,14 +61,11 @@ theorem invariant_merge [sys : RelationalTransitionSystem ρ σ] (p q : ρ → �
   next => intro ⟨ha, hb⟩ r s hh ; specialize ha _ _ hh ; specialize hb _ _ hh ; constructor <;> assumption
   next => intro h ; constructor <;> intro r s hh <;> specialize h _ _ hh <;> cases h <;> assumption
 
-theorem isInductiveInvariant_to_isInvariant [sys : RelationalTransitionSystem ρ σ] (hassu : @isInvariant' ρ σ _ sys.assumptions) (p : ρ → σ → Prop) :
-  isInductiveInvariant (sys := sys) p → isInvariant (sys := sys) p := by
-  intro ⟨ha, hb⟩ r s h
+theorem inductive_is_invariant [sys : RelationalTransitionSystem ρ σ] (p : ρ → σ → Prop) :
+  isInductive (sys := sys) p → isInvariant (sys := sys) p := by
+  intro ⟨ha, hb⟩ r s₀ h
   induction h with
-  | init s hinit => specialize hassu _ _ (.init _ hinit) ; apply ha <;> assumption
-  | step s s' h2 hn ih => specialize hassu _ _ h2 ; apply hb <;> assumption
-
-theorem invInductive_to_isInvariant [sys : RelationalTransitionSystem ρ σ] (hassu : @isInvariant' ρ σ _ sys.assumptions) :
-  invInductive (sys := sys) → isInvariant (sys := sys) sys.inv := isInductiveInvariant_to_isInvariant hassu sys.inv
+  | init s hass hinit => apply (ha _ _ hass hinit)
+  | step s s' h2 hn ih => apply (hb r _ _ (reachable_assumptions r s h2) ih hn)
 
 end RelationalTransitionSystem

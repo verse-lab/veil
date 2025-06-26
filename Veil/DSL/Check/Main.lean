@@ -615,8 +615,9 @@ elab "prove_inv_inductive" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
     let readerTp <- getReaderTpStx
-    let invInductive := mkIdent ``RelationalTransitionSystem.invInductive
-    `(theorem $(mkIdent `inv_inductive) : $invInductive (σ := $stateTp) (ρ := $readerTp) :=
+    let invInductive := mkIdent ``RelationalTransitionSystem.isInductive
+    let inv := mkIdent ``RelationalTransitionSystem.inv
+    `(theorem $(mkIdent `inv_inductive) : $invInductive (σ := $stateTp) (ρ := $readerTp) $inv :=
       by unfold $invInductive;
         --  intros $(mkIdent `st) $(mkIdent `st')
         --  simp only [actSimp, invSimp, safeSimp]

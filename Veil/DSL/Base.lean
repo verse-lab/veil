@@ -10,4 +10,4 @@ attribute [nextSimp, actSimp] RelationalTransitionSystem.next
 attribute [invSimp, safeSimp, initSimp, actSimp, invSimpTopLevel]
   RelationalTransitionSystem.invSafe RelationalTransitionSystem.invInit
   RelationalTransitionSystem.invConsecution
-  RelationalTransitionSystem.invInductive
+  RelationalTransitionSystem.isInductive
