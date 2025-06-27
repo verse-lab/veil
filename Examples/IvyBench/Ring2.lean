@@ -24,10 +24,14 @@ after_init {
   pending M N := false
 }
 
+-- TODO suspecting: just `pick` is not desirable, but `pickSuchThat`? also, `pick` then `assume` ≠ `pickSuchThat`?
 action send (n next : node) = {
+-- action send = {
   -- let n : node ← pick
   -- let next : node ← pick
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  -- let n :| (∃ next, ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z))
+  -- let next :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := true
 }
 
@@ -38,6 +42,9 @@ action recv (sender n next : node) = {
   -- let next : node ← pick
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   require pending sender n
+  -- let sender :| (∃ (n next : node), ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z))
+  -- let n :| (∃ (next : node), ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z))
+  -- let next :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   -- message may or may not be removed
   -- this models that multiple messages might be in flight
   pending sender n := *
@@ -80,9 +87,13 @@ instance between_ℤ_ring (node : Type) [DecidableEq node] [Fintype node] (f : n
     have hh1 := h _ _ h1 ; have hh2 := h _ _ h2 ; have hh3 := h _ _ h3
     omega
 
-def between_ℤ_ring' (l : List Nat) (hnodup : List.Nodup l) : Between (Fin l.length) :=
+instance between_ℤ_ring' (l : List Nat) (hnodup : List.Nodup l) : Between (Fin l.length) :=
   between_ℤ_ring (Fin _) l.get (by
     intro ⟨a, ha⟩ ⟨b, hb⟩ h1 ; simp at * ; rw [List.Nodup.getElem_inj_iff hnodup] ; assumption)
+
+instance between_ℤ_ring'' (n : Nat) (l : List Nat) (hlength : l.length = n) (hnodup : List.Nodup l) : Between (Fin n) := by
+  have a := between_ℤ_ring' l hnodup
+  rw [hlength] at a ; exact a
 
 veil module Ring2
 
@@ -91,7 +102,19 @@ variable [instb : ∀ a b c, Decidable (btwn.btw a b c)]
 
 #gen_executable
 
+-- #check Lean.
+-- #check Plausible.Gen
+
 end Ring2
+
+section tmp
+
+variable (n : Nat)    -- TODO parameter not supported ???
+
+-- #deriveGen (Ring2.Label (Fin n))
+#deriveGen (Ring2.Label (Fin 5))
+
+end tmp
 
 def simple_run (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
   Ring2.NextActExec (Fin l.length) (node_ne := by rw [← Fin.pos_iff_nonempty, List.length_pos_iff] ; exact hl)
@@ -99,6 +122,24 @@ def simple_run (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
     (σ := Ring2.State _) (ρ := Ring2.Reader _)
     (insta := by dsimp [TotalOrder.le] ; infer_instance)
     (instb := by intro a b c ; dsimp [Between.btw, between_ℤ_ring', between_ℤ_ring] ; infer_instance)
+
+-- set_option maxSynthPendingDepth 10
+-- set_option synthInstance.maxHeartbeats 1000000
+-- set_option synthInstance.maxSize 1000
+
+-- TODO why system cannot be synthesized here? due to `btwn`???
+def simple_check (l : List Nat) (hl : l.length = 5) (hnodup : List.Nodup l)
+    (r₀ : Ring2.Reader _) (s₀ : Ring2.State _)
+    (steps : Nat) (cfg : Plausible.Configuration) :=
+  @check_safety _ _ (labType := (Ring2.Label (Fin 5)))
+    (sys := Ring2.System _ (btwn := between_ℤ_ring'' _ l hl hnodup) (Ring2.State _) (Ring2.Reader _)) Ring2.Label.gen
+    (by
+      have a := (simple_run l (by rw [← List.length_pos_iff, hl] ; decide) hnodup)
+      rw [hl] at a ; exact a) r₀ s₀ steps cfg
+    -- NOTE: seems need to unfold a bunch of things before going through
+    (by
+      intro r s
+      dsimp [invSimp] ; dsimp [TotalOrder.le] ; infer_instance)
 
 section abc
 
@@ -118,5 +159,10 @@ def DivM.run (a : DivM α) :=
       |>.run Ring2.Reader.mk |>.run initstate |>.run |>.run
       |>.getD (Except.ok <| ((), initstate)) |>.getD (fun _ => ((), initstate))
       |>.snd |>.pending 0 4)
+
+#eval show IO Bool from do
+  let res ← simple_check l (by decide) (by decide) Ring2.Reader.mk initstate 3
+    ({} : Plausible.Configuration) |>.run 10
+  pure true
 
 end abc
