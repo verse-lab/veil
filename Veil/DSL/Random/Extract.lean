@@ -53,7 +53,7 @@ simproc ↓ replaceDecidableInst2 (VeilM.assert _ _) := fun e => do
     code, and by doing the replacement, we want `t` to be executable. -/
 def elabDecidableReplaceCore (idts : TSyntaxArray `ident) (t : TSyntax `term)
   (expectedType? : Option Expr) : TermElabM Simp.Result := do
-  let things ← idts.mapM (fun idt => resolveGlobalConstNoOverload idt)
+  let things ← idts.mapM resolveGlobalConstNoOverload
   let t ← deltaMore t expectedType? things
   t.simp #[``replaceDecidableInst, ``replaceDecidableInst2]
 
