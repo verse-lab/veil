@@ -610,6 +610,11 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
   assembleInvariant
   assembleSafeties
 
+  let spec := (← localSpecCtx.get).spec
+  let labelTypeBinders ← spec.generic.applyGetStateArguments vd
+  let labelTypeArgs ← bracketedBindersToTerms labelTypeBinders
+  let labelT ← `(term|$labelIdent $labelTypeArgs*)
+
   let (rtsStx
     --, ioAutomatonStx
     ) <- Command.runTermElabM fun vs => do
@@ -621,10 +626,10 @@ def instantiateSystem (name : Name) : CommandElabM Unit := do
       [initialStateName, `Assumptions, `Next, `Safety, `Invariant].map Lean.mkIdent
       | unreachable!
     -- RelationalTransitionSystem instance
-    let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $genericReader $genericState where
+    let rtsStx ← `(instance (priority := low) $(mkIdent `System) $[$vd]* : $(mkIdent ``RelationalTransitionSystem) $genericReader $genericState $labelT where
         init := @$initialState? $systemArgs*
         assumptions := @$Assumptions $assumptionsArgs*
-        next := @$Next $systemArgs*
+        nextLab := @$Next $systemArgs*
         safe := @$Safety $systemArgs*
         inv  := @$Invariant $systemArgs*
         initSatisfiesAssumptions := by simp only [$(mkIdent `initSimp):ident, $(mkIdent ``and_imp):ident]; intros; assumption

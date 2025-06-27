@@ -119,8 +119,7 @@ def assembleNext : CommandElabM Unit := do
     )
     let nextTr <- `(
       @[nextSimp, actSimp] def $Next $[$vd]* :=
-        fun ($rd : $genericReader) ($st $st' : $genericState) =>
-          ∃ (l : $labelT),
+        fun ($rd : $genericReader) ($st : $genericState) (l : $labelT) ($st' : $genericState) =>
           @$(mkIdent `NextAct) $sectionArgs* l |>.toTwoStateDerived $rd $st $st'
     )
     let nextLemma <- `(
@@ -128,7 +127,7 @@ def assembleNext : CommandElabM Unit := do
         let next := (@$NextAct $sectionArgs* l)
         ∀ chs : next.choices,
           (next.run chs).operational rd st st' (Except.ok ()) →
-          @$Next $sectionArgs* rd st st' := by
+          ∃ (l : $labelT), @$Next $sectionArgs* rd st l st' := by
         dsimp; intros chs op; exists l
         try cases l <;> simp only [$NextAct:ident, $Next:ident] at *
         all_goals apply VeilM.toTwoStateDerived_complete <;> solve_by_elim
