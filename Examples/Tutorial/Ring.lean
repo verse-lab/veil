@@ -327,7 +327,7 @@ couldn't be proven. In this case: -/
 /- Veil also provides facilities for interactively proving the safety of state
 transition systems, as shown below: -/
 
-prove_inv_init by { simp_all [initSimp, actSimp, invSimp] }
+prove_inv_init by { intro has hinit; simp_all [initSimp, actSimp, invSimp]; simp [← hinit] }
 
 prove_inv_safe by {
   sdestruct st;
