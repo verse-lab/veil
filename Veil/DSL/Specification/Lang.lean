@@ -26,13 +26,16 @@ open Lean Elab Command Term Meta Lean.Parser
 -/
 
 def elabGenericState (mutable? : Bool) : CommandElabM Unit := do
-  let genericState ←
-    if mutable? then
-      `(variable ($genericState : Type) [$genericSubStateIdent : IsSubStateOf $(← getStateTpStx) $genericState])
+  let brs ← (if mutable? then
+    return #[← `(bracketedBinder| ($genericState : Type)), ← `(bracketedBinder| [$genericSubStateIdent : IsSubStateOf $(← getStateTpStx) $genericState])]
     else
-      `(variable ($genericReader : Type) [$genericSubReaderIdent : IsSubReaderOf $(← getReaderTpStx) $genericReader])
+    return #[← `(bracketedBinder| ($genericReader : Type)), ← `(bracketedBinder| [$genericSubReaderIdent : IsSubReaderOf $(← getReaderTpStx) $genericReader])])
+  let genericState ← `(variable $brs*)
   trace[veil.debug] "genericState: {genericState}"
   elabCommand genericState
+  registerGenericParameters brs
+where registerGenericParameters (brs : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : CommandElabM Unit := do
+  localSpecCtx.modify (fun s => {s with spec.generic.genericParameters := s.spec.generic.genericParameters ++ brs})
 
 @[command_elab Veil.moduleDeclaration]
 def elabModuleDeclaration : CommandElab := fun stx => do
@@ -49,10 +52,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
       -- import the context
       localSpecCtx.modify (fun _ => ctx)
       -- re-declare the section variables
-      elabCommand $ ← `(variable $(ctx.spec.generic.parameters)*)
-      -- FIXME: handle this in a better way as part of `.parameters`
-      elabGenericState (mutable? := true)
-      elabGenericState (mutable? := false)
+      elabCommand $ ← `(variable $(ctx.spec.generic.allParameters)*)
     else
       declareSpecName name
   | _ => throwUnsupportedSyntax
@@ -231,9 +231,8 @@ def updateStateType (args' : Array (ℕ × Term))
     localSpecCtx.modify ({· with
       spec.generic.stateTypeTerm := stateTypeTerm,
       spec.generic.stateArgs := args',
-      -- for $genericState and $genericSubStateIdent
-      spec.generic.genericStateParam := vd.size,
-      spec.generic.genericSubStateInstParam := vd.size + 1 })
+      -- for $genericState
+      spec.generic.genericStateParam := vd.size})
 
 def updateReaderType : CommandElabM Unit := do
   Command.runTermElabM fun _ => do

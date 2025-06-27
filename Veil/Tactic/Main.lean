@@ -143,6 +143,8 @@ elab "sts_induction" : tactic => withMainContext do
   -- We have two possibilities. Either:
   -- (a) `next` is a sequence of `∨`'ed propositions
   -- (b) `next` is an inductive type, in which case we can use `cases` to destruct it.
+  let .some  hnext := (← getLCtx).findFromUserName? hnextName.getId
+   | throwError "hnext hypothesis disappeared after simplification"
   if ← whnfIsAppOf hnext.type `Or then
     -- FIXME: make sure we only break `Or`s, not other things
     let case_split ← `(tactic| repeat' (rcases $hnextName:ident with $hnextName | $hnextName))
@@ -393,6 +395,7 @@ def elabAlreadyProven (trName : Name) : TacticM Unit := withMainContext do
   let inv := ty.getAppFn'
   let .some (invName, _) := inv.const? | throwError "the goal {ty} is not about an invariant clause? got {inv}, expect it to be a const"
   let thmName := mkTrTheoremName (dropSuffixes trName) invName
+  trace[veil.debug] "trName: {trName} + invName: {invName} -> thmName: {thmName}"
   if trName == initializerName then
     let initHypName := `hinit
     let .some _ := (← getLCtx).findFromUserName? initHypName| throwError "cannot find {initHypName}!"
@@ -412,6 +415,22 @@ elab "already_proven_next_tr" : tactic => withMainContext do
   let tr := ld.type.getAppFn'
   let .some (trName, _) := tr.const? | throwError "hnext is not a premise about .tr? got {tr}, expect it to be a .tr"
   elabAlreadyProven trName
+
+def tryAlreadySolved (otherMode : VCGenStyle) (act : Ident) (inv : Ident) : TacticM Bool := withMainContext do
+  let trNameFn := match otherMode with
+  | .transition => mkTrTheoremName
+  | .wp => mkTheoremName
+  let existingTheorem := mkIdent $ trNameFn (dropSuffixes act.getId) inv.getId
+  if (← resolveGlobalName existingTheorem.getId).isEmpty then
+    trace[veil.debug] "No theorem {existingTheorem} found; cannot reuse proof"
+    return false
+  let assertionArgs ← bracketedBindersToTerms $ (← localSpecCtx.get).spec.generic.allParameters
+  let tryLift ← `(tactic| intros; swap_mode; exact @$existingTheorem $assertionArgs*)
+  trace[veil.debug] "tryLift (from tr to wp): {tryLift}"
+  evalTactic tryLift
+  if (← getUnsolvedGoals).length != 0 then
+    throwError "Goal is not solved by {existingTheorem}!"
+  return true
 
 syntax solveTr := "solve_tr_clause" <|> "solve_tr_clause?"
 elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
@@ -435,17 +454,12 @@ elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
   if let `(solveTr| solve_tr_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
   else
-    -- act is something like either `initializer.ext.twoState` or `Ring.recv.ext.twoState`
-    let wpTheoremName := mkIdent $ mkTheoremName (dropSuffixes act.getId) inv.getId
-    let tryLift ← `(tactic| try (intros; swap_mode; apply $wpTheoremName))
-    trace[veil.debug] "tryLift (from wp to tr): {tryLift}"
-    evalTactic tryLift
-    if (← getUnsolvedGoals).length == 0 then
-      return
-    evalTactic simplify
-    if (← getUnsolvedGoals).length != 0 then
-      withMainContext do
-        evalTactic solve
+    let alreadySolved ← tryAlreadySolved .wp act inv
+    if !alreadySolved then
+      evalTactic simplify
+      if (← getUnsolvedGoals).length != 0 then
+        withMainContext do
+          evalTactic solve
 
 syntax solveWp := "solve_wp_clause" <|> "solve_wp_clause?"
 elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
@@ -488,20 +502,15 @@ elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
     if let `(solveWp| solve_wp_clause?) := tk then
       addSuggestion (<- getRef) (← concatTacticSeq #[simplify, solve])
     else
-      -- act is something like either `initializer.ext.twoState` or `Ring.recv.ext.twoState`
-      if let .some inv := inv then
-        let trTheoremName := mkIdent $ mkTrTheoremName (dropSuffixes act.getId) inv.getId
-        let tryLift ← `(tactic| try (intros; swap_mode; apply $trTheoremName))
-        trace[veil.debug] "tryLift (from tr to wp): {tryLift}"
-        evalTactic tryLift
-        if (← getUnsolvedGoals).length == 0 then
-          return
-      evalTactic simplify
-      -- Simplification might solve the goal; if we try to evaluate `sauto_all` in
-      -- that case, this will wrongly throw an error, which might confuse the user.
-      if (← getUnsolvedGoals).length != 0 then
-        withMainContext do
-          evalTactic solve
+      let alreadySolved ←
+        match inv with
+        | none => pure false -- TODO: reuse proofs of successful termination
+        | .some inv => pure $ ← tryAlreadySolved .wp act inv
+      if !alreadySolved then
+        evalTactic simplify
+        if (← getUnsolvedGoals).length != 0 then
+          withMainContext do
+            evalTactic solve
 
 def elabSolveClause (stx : Syntax)
   (simp0 : Array Ident := #[`initSimp, `actSimp].map mkIdent)

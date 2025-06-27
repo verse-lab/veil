@@ -256,14 +256,11 @@ structure ModuleParameters where
   `#gen_spec` itself declares. -/
   parameters    : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
 
+  /-- These go after `parameters` -/
+  genericParameters : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+
   /-- Index of the generic state parameter -/
   genericStateParam : Nat
-
-  /-- Index of the `IsSubStateOf` instance parameter, which states that
-  the concrete state is a sub-state of the generic state. This should
-  always be `genericStateParam + 1`, but we store it separately for
-  convenience. -/
-  genericSubStateInstParam : Nat
 
   /-- Expression representing the type of the transition system state,
   *without* having applied the state-specific section variables. -/
@@ -280,18 +277,16 @@ structure ModuleParameters where
   section variables. -/
   readerTypeTerm : Term
 
-
   /-- Syntax representing the arguments of the state type, which need
   to be passed in order to fully instantiate it. The index is the
   position of the argument in `parameters`. These are the `Type`
   parameters that exist when `#gen_state` is called, ignoring the
   typeclass parameters. -/
   stateArgs     : Array (Nat × Term)
-
-  /-- Assertion parameters, as indices into `parameters`. These are all
-  the parameters that exist when `#gen_spec` is called. -/
-  assertionParams : Std.HashSet Nat
 deriving Inhabited
+
+def ModuleParameters.allParameters (mp : ModuleParameters) : Array (TSyntax `Lean.Parser.Term.bracketedBinder) :=
+  mp.parameters ++ mp.genericParameters
 
 def ModuleParameters.stateArguments (mp : ModuleParameters) : Array Term :=
   mp.stateArgs.map (fun (_, arg) => arg)
@@ -318,18 +313,18 @@ def ModuleParameters.applyGetNonGenericStateAndReaderArguments [Monad m] [MonadE
   if args.size < mp.parameters.size then
     throwError "Expected at least {mp.parameters.size} arguments, but got {args.size}!"
   let pairs := Array.zip (List.range' 0 args.size).toArray args
-  let indices := #[mp.genericStateParam, mp.genericSubStateInstParam, mp.genericSubStateInstParam + 1, mp.genericSubStateInstParam + 2]
+  let indices := #[mp.genericStateParam, mp.genericStateParam + 1, mp.genericStateParam + 2, mp.genericStateParam + 3]
   let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then none else some arg)
   return res
 
-/-- Apply the arguments to the module, but ignoring the generic state
-(`σ`, `σ_substate`) parameters, BUT NOT the generic reader (`ρ`,
-`ρ_reader`) parameters. -/
+/-- Apply the arguments to the module, ignoring the generic state (`σ`,
+`σ_substate`) parameters, BUT NOT the generic reader (`ρ`, `ρ_reader`)
+parameters. -/
 def ModuleParameters.applyGetNonGenericStateArguments [Monad m] [MonadError m] (mp : ModuleParameters) (args : Array α) : m (Array α) := do
   if args.size < mp.parameters.size then
     throwError "Expected at least {mp.parameters.size} arguments, but got {args.size}!"
   let pairs := Array.zip (List.range' 0 args.size).toArray args
-  let indices := #[mp.genericStateParam, mp.genericSubStateInstParam]
+  let indices := #[mp.genericStateParam, mp.genericStateParam + 1]
   let res := pairs.filterMap (fun (idx, arg) => if indices.contains idx then none else some arg)
   return res
 
@@ -338,9 +333,9 @@ def ModuleParameters.applyWithConcreteState [Monad m] [MonadError m] (mp : Modul
   let pairs := Array.zip (List.range' 0 args.size).toArray args
   let pairs := pairs.map (fun (idx, arg) =>
     if idx == mp.genericStateParam then (idx, st)
-    else if idx == mp.genericSubStateInstParam then (idx, inst)
-    else if idx == mp.genericSubStateInstParam + 1 then (idx, rd)
-    else if idx == mp.genericSubStateInstParam + 2 then (idx, instr)
+    else if idx == mp.genericStateParam + 1 then (idx, inst)
+    else if idx == mp.genericStateParam + 2 then (idx, rd)
+    else if idx == mp.genericStateParam + 3 then (idx, instr)
     else (idx, arg))
   return pairs.map (fun (_, arg) => arg)
 
@@ -392,7 +387,8 @@ structure ModuleSpecification : Type where
   the state. This basically defines a FOL signature. -/
   signature    : Array StateComponent
   /-- Axioms/assumptions that hold on the signature. Every state
-  component mentioned in an axiom must be marked `immutable`. -/
+  component mentioned in an `assumption` must be marked `immutable`. This
+  also includes the `trusted invariant`s. -/
   assumptions  : Array StateAssertion
   /-- Initial state predicate -/
   init         : StateSpecification

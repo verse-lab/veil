@@ -310,13 +310,16 @@ inductive invariant that establishes the safety of the system.
 couldn't be proven. In this case: -/
 -- #check_invariants!
 @[invProof]
-  theorem recv_tr_single_leader_ :
-      ∀ (rd : ρ) (st st' : σ),
-        (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd st →
-          (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
-            (@Ring.recv.ext.tr node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st st' →
-              (@Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader) rd st' :=
-    by solve_tr_clause Ring.recv.ext.tr Ring.single_leader
+  theorem recv_tr_single_leader' :
+      ∀ (id : node) (n : node) (next : node),
+        TwoState.meetsSpecificationIfSuccessful
+          (@Ring.recv.ext.twoState node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader id n next)
+          (fun rd st =>
+            And ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd)
+              ((@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st))
+          fun rd st' =>
+          @Ring.single_leader node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader rd st' :=
+    by solve_tr_clause Ring.recv.ext.twoState Ring.single_leader
 
 /- TIP: `#check_invariants?` will print all theorems that will be checked. -/
 -- #check_invariants?

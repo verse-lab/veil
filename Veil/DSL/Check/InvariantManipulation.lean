@@ -19,11 +19,12 @@ elab "prove_inv_init" proof:term : command => do
   elabCommand $ <- Command.runTermElabM fun _ => do
     let stateTp <- getStateTpStx
     let readerTp <- getReaderTpStx
+    let inv := mkIdent ``RelationalTransitionSystem.inv
     let invInit := mkIdent ``RelationalTransitionSystem.invInit
-    `(theorem $(mkIdent `inv_init) : $invInit (σ := $stateTp) (ρ := $readerTp) :=
+    `(theorem $(mkIdent `inv_init) : $invInit (σ := $stateTp) (ρ := $readerTp) $inv :=
        by unfold $invInit
           -- simp only [initSimp, invSimp]
-          intros $(mkIdent `st)
+          intros $(mkIdent `rd) $(mkIdent `st)
           exact $proof)
 
 elab "prove_inv_safe" proof:term : command => do
@@ -33,9 +34,9 @@ elab "prove_inv_safe" proof:term : command => do
     let readerTp <- getReaderTpStx
     let invSafe := mkIdent ``RelationalTransitionSystem.invSafe
     `(theorem $(mkIdent `safety_init) : $invSafe (σ := $stateTp) (ρ := $readerTp) :=
-       by unfold $invSafe;
+       by unfold $invSafe
           -- simp only [initSimp, safeSimp]
-          intros $(mkIdent `st);
+          intros $(mkIdent `rd) $(mkIdent `st)
           exact $proof)
 
 elab "prove_inv_inductive" proof:term : command => do

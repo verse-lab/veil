@@ -46,6 +46,8 @@ action recv = {
       pending sender next := True
 }
 
+action third = { pure () }
+
 safety [single_leader] leader L → le N L
 invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
@@ -55,8 +57,29 @@ invariant pending L L → le N L
 #guard_msgs(drop info, drop warning) in
 #time #check_invariants
 
+end Ring
+
+-- Rabia uses this "module re-opening" trick, so we test it explicitly
+#guard_msgs(drop info, drop warning) in
+veil module Ring
+
+#guard_msgs(drop info, drop warning) in
+#check initializer_single_leader
+
 #guard_msgs(drop info, drop warning) in
 set_option veil.vc_gen "transition" in #check_invariants
+
+end Ring
+
+#guard_msgs(drop info, drop warning) in
+veil module Ring
+
+prove_inv_init by { intros has hinit; simp_all [initSimp, actSimp, invSimp]; simp [← hinit] }
+
+prove_inv_safe by {
+  sdestruct st;
+  simp [invSimp]
+}
 
 prove_inv_inductive by {
   constructor
@@ -67,5 +90,10 @@ prove_inv_inductive by {
 }
 
 #gen_auxiliary_theorems
+
+#guard_msgs(drop info, drop warning) in
+#check inv_inductive
+#guard_msgs(drop info, drop warning) in
+#check single_leader_invariant
 
 end Ring

@@ -41,20 +41,22 @@ veil module Rabia
 
 set_option veil.smt.timeout 120
 
--- #time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
+#time #check_isolates wrapper1 wrapper2 wrapper3 wrapper4 wrapper5
 
 -- Lift to `tr` style those theorems that were originally proven in `wp` style
--- #time #recover_invariants_in_tr
+set_option veil.vc_gen "transition" in #time #check_invariants
 
+set_option maxHeartbeats 2000000
+-- set_option trace.veil.debug true
 prove_inv_inductive by {
   constructor
   . intro rd st has hinit
-    sdestruct_goal <;> sorry -- already_proven_init
+    sdestruct_goal <;> already_proven_init
   · intro rd st st' has hinv hnext
-    sts_induction <;> sdestruct_goal <;> sorry -- already_proven_next_tr
+    sts_induction <;> sdestruct_goal <;> already_proven_next_tr
 }
 
-#time #split_invariants
+#time #gen_auxiliary_theorems
 
 end Rabia
 
@@ -70,25 +72,29 @@ variable {node : Type} [node_dec : DecidableEq node] [node_ne : Nonempty node]
   {set_f_plus_1 : Type} [set_f_plus_1_dec : DecidableEq set_f_plus_1] [set_f_plus_1_ne : Nonempty set_f_plus_1]
   [bg : Background node set_majority set_f_plus_1]
   {proposal_value : Type} [proposal_value_dec : DecidableEq proposal_value] [proposal_value_ne : Nonempty proposal_value]
-
 abbrev phase := Nat
 
 -- we cannot make everything implicit ... at least they need to be explicit somewhere
 abbrev State' node set_majority set_f_plus_1 proposal_value := State node set_majority set_f_plus_1 phase proposal_value state_value
+abbrev Reader' node set_majority set_f_plus_1 proposal_value := Reader node set_majority set_f_plus_1 phase proposal_value state_value
+
+variable {σ : Type} [σ_substate : IsSubStateOf  (State' node set_majority set_f_plus_1 proposal_value) σ]
+  {ρ : Type} [ρ_subreader : IsSubReaderOf (Reader' node set_majority set_f_plus_1 proposal_value) ρ ]
+
 
 --  the weird namespace issue
 --  why ghost relation places the state argument at the end?
-def started_good (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
-  ∀ (p : phase), started p s → good p s
+def started_good (r : Reader' node set_majority set_f_plus_1 proposal_value) (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
+  ∀ (p : phase), started p r s → good p r s
 
---  automatically change the implicit level of the previous `.is_inv`
-theorem started_good.is_inv : RelationalTransitionSystem.isInvariant
-  (σ := State' node set_majority set_f_plus_1 proposal_value) started_good := by
-  intro s hr
-  have hgsg := Rabia.good_succ_good.is_inv _ _ _ _ _ _ _ hr
-  have hgz0 := Rabia.good_zero.is_inv _ _ _ _ _ _ _ hr
-  have hhp := Rabia.started_pred.is_inv _ _ _ _ _ _ _ hr
 
+--  automatically change the implicit level of the previous `_invariant`
+theorem started_good_invariant : RelationalTransitionSystem.isInvariant
+  (ρ := Reader' node set_majority set_f_plus_1 proposal_value) (σ := State' node set_majority set_f_plus_1 proposal_value) started_good := by
+  intro r s hr
+  have hgsg := @Rabia.good_succ_good_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
+  have hgz0 := @Rabia.good_zero_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
+  have hhp := @Rabia.started_pred_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
   intro p hstarted
   induction p with
   | zero => apply hgz0 ; exact hstarted
@@ -97,14 +103,14 @@ theorem started_good.is_inv : RelationalTransitionSystem.isInvariant
     next => apply ih ; apply hhp ; apply And.intro ; exact hstarted ; rfl
     next => apply And.intro ; rfl ; exact hstarted
 
-def validity_bc (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
+def validity_bc (r : Reader' node set_majority set_f_plus_1 proposal_value) (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
   ∀ N1 P1 V1, s.decision_bc N1 P1 V1 → ∃ N2, s.vote_rnd1 N2 0 V1
 
-theorem validity_bc.is_inv : RelationalTransitionSystem.isInvariant
-  (σ := State' node set_majority set_f_plus_1 proposal_value) validity_bc := by
-  intro s hr
-  have hdr1 := Rabia.decision_bc_vote_rnd1.is_inv _ _ _ _ _ _ _ hr
-  have hvr1_pred_r1 := Rabia.vote_rnd1_pred_rnd.is_inv _ _ _ _ _ _ _ hr
+theorem validity_bc_invariant : RelationalTransitionSystem.isInvariant
+  (ρ := Reader' node set_majority set_f_plus_1 proposal_value) (σ := State' node set_majority set_f_plus_1 proposal_value) validity_bc := by
+  intro r  s hr
+  have hdr1 := @Rabia.decision_bc_vote_rnd1_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
+  have hvr1_pred_r1 := @Rabia.vote_rnd1_pred_rnd_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
 
   suffices h : (∀ N1 P1 V1, s.vote_rnd1 N1 P1 V1 → ∃ N2, s.vote_rnd1 N2 0 V1) by
     intro n p v hh
@@ -118,19 +124,19 @@ theorem validity_bc.is_inv : RelationalTransitionSystem.isInvariant
     specialize hvr1_pred_r1 _ _ _ _ ⟨h, rfl⟩ ; rcases hvr1_pred_r1 with ⟨n'', hvr1_pred_r1⟩
     solve_by_elim
 
-def agreement_bc (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
+def agreement_bc (r : Reader' node set_majority set_f_plus_1 proposal_value) (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
   ∀ N1 P1 V1 N2 P2 V2,
     s.decision_bc N1 P1 V1 →
     s.decision_bc N2 P2 V2 →
     V1 = V2
 
-theorem agreement_bc.is_inv : RelationalTransitionSystem.isInvariant
-  (σ := State' node set_majority set_f_plus_1 proposal_value) agreement_bc := by
-  intro s hr
-  have hstarted := started_good.is_inv _ hr
-  have hvld_agree := Rabia.vl_decision_bc_agree.is_inv _ _ _ _ _ _ _ hr
-  have hdsr_agree := Rabia.decision_bc_same_round_agree.is_inv _ _ _ _ _ _ _ hr
-  have hdstarted := Rabia.decision_bc_started.is_inv _ _ _ _ _ _ _ hr
+theorem agreement_bc_invariant : RelationalTransitionSystem.isInvariant
+  (ρ := Reader' node set_majority set_f_plus_1 proposal_value) (σ := State' node set_majority set_f_plus_1 proposal_value) agreement_bc := by
+  intro r s hr
+  have hstarted := started_good_invariant r s hr
+  have hvld_agree := @Rabia.vl_decision_bc_agree_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
+  have hdsr_agree := @Rabia.decision_bc_same_round_agree_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
+  have hdstarted := @Rabia.decision_bc_started_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
 
   suffices h : (∀ N1 P1 V1 N2 P2 V2,
     P1 ≤ P2 →
@@ -149,7 +155,7 @@ theorem agreement_bc.is_inv : RelationalTransitionSystem.isInvariant
   next hneq =>
     have hlt : p1 < p2 := by unfold phase at * ; omega
     clear hle hneq
-    have hh : state_value_locked p2 vv1 s := by
+    have hh : state_value_locked p2 vv1 r s := by
       --  change these into something like `whnf`?
       dsimp [decision_bc_started] at hdstarted
       have hgood P hh := hstarted P hh |>.right |>.right
@@ -158,19 +164,19 @@ theorem agreement_bc.is_inv : RelationalTransitionSystem.isInvariant
     apply hvld_agree <;> solve_by_elim
 
 /- `agreement1` (`decision_full_val_agree`) is already proven -/
-#check Rabia.decision_full_val_agree.is_inv
+#check Rabia.decision_full_val_agree_invariant
 
-def agreement2 (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
+def agreement2 (r : Reader' node set_majority set_f_plus_1 proposal_value) (s : State' node set_majority set_f_plus_1 proposal_value) : Prop :=
   ∀ N1 P1 V1 N2 P2,
     s.decision_full_val N1 P1 V1 →
     s.decision_full_noval N2 P2 → False
 
-theorem agreement2.is_inv : RelationalTransitionSystem.isInvariant
-  (σ := State' node set_majority set_f_plus_1 proposal_value) agreement2 := by
-  intro s hr
-  have ha := Rabia.decision_full_val_inv.is_inv _ _ _ _ _ _ _ hr
-  have hb := Rabia.decision_full_noval_inv.is_inv _ _ _ _ _ _ _ hr
-  have hc := agreement_bc.is_inv _ hr
+theorem agreement2_invariant : RelationalTransitionSystem.isInvariant
+  (ρ := Reader' node set_majority set_f_plus_1 proposal_value) (σ := State' node set_majority set_f_plus_1 proposal_value) agreement2 := by
+  intro r s hr
+  have ha := @Rabia.decision_full_val_inv_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
+  have hb := @Rabia.decision_full_noval_inv_invariant node _ _ set_majority  _ _ set_f_plus_1 _ _ bg phase _ _ _ proposal_value _ _ state_value _ _ _ r s hr
+  have hc := agreement_bc_invariant r s hr
 
   intro n1 p1 vv1 n2 p2 hdec1 hdec2
   suffices state_value.v0 = state_value.v1 by contradiction
@@ -179,6 +185,6 @@ theorem agreement2.is_inv : RelationalTransitionSystem.isInvariant
   solve_by_elim
 
 /- `validity` (`decision_full_val_validity`) is already proven -/
-#check Rabia.decision_full_val_validity.is_inv
+#check Rabia.decision_full_val_validity_invariant
 
 end Rabia

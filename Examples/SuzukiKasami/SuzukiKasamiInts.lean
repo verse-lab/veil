@@ -133,7 +133,7 @@ set_option veil.smt.finiteModelFind false in
 @[invProof]
   theorem enter_tr_mutex_manual' :
     ∀ (rd : ρ) (st st' : σ),
-      (@System node node_dec node_ne σ σ_substate ρ ρ_reader).assumptions rd st →
+      (@System node node_dec node_ne σ σ_substate ρ ρ_reader).assumptions rd →
       (@System node node_dec node_ne σ σ_substate ρ ρ_reader).inv rd st →
       (@SuzukiKasamiNats.enter.ext.tr node node_dec node_ne σ σ_substate ρ ρ_reader) rd st st' →
       (@SuzukiKasamiNats.mutex node node_dec node_ne σ σ_substate ρ ρ_reader) rd st' :=
