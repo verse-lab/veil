@@ -7,6 +7,55 @@ import Lean
   that runs within `TermElabM` rather than `TacticM`.
 -/
 
+theorem foo (p : Prop) [dec : Decidable p] (dec' : Decidable p) : dec' = dec := by
+  sorry
+
+theorem decidable_irrelevance (p : Prop) (i1 i2 : Decidable p) : i1 = i2 := by
+  cases i1 <;> cases i2 <;> sorry
+
+theorem ite_decidable_irrelevance c (e1 e2 : α) (i1 i2 : Decidable c) :
+  @ite _ c i1 e1 e2 = @ite _ c i2 e1 e2 := by congr
+
+
+#check Lean.Expr.rep
+
+open Lean Meta Elab Term in
+simproc ↓ replaceDecidableInst (_) := fun e => do
+  let args := e.getAppArgs
+  let mut agrsNew := #[]
+  for arg in args do
+    match_expr  arg.consumeMData with
+    | Classical.propDecidable p =>
+      let q ← synthInstance (mkApp (mkConst ``Decidable) p)
+      -- let proof := mkAppN (mkConst ``decidable_irrelevance) #[p, arg, q]
+      agrsNew := agrsNew.push q
+    | _ =>
+      agrsNew := agrsNew.push arg
+  return .done { expr := mkAppN e.getAppFn agrsNew, proof? := none }
+
+#check Classical.propDecidable
+
+
+#check Lean.Expr.replace
+
+set_option pp.all true
+example (n : Nat) (P : (n : Nat) -> [Decidable (n = n)] -> Prop) : @P n (Classical.propDecidable _) := by
+  simp only [replaceDecidableInst]
+
+variable {node : Type} [node_dec : DecidableEq node] [node_ne : Nonempty node]
+
+def tot.le (a b : node) : Prop := sorry
+
+open Classical in
+noncomputable
+def qb (a b : node) : Bool := if tot.le a b then true else false
+
+variable [DecidableRel tot.le]
+
+example (a b : node) (P : _ -> Prop) : P (qb a b) := by
+  unfold qb
+  simp only [replaceDecidableInst]
+
 namespace Tactic
 open Lean Elab Command Tactic
 

@@ -45,15 +45,13 @@ elab "#deriveGen" t:term : command => do
 
 open Plausible
 
-variable [sys : RelationalTransitionSystem ρ σ]
+variable [sys : RelationalTransitionSystem ρ σ] [Inhabited σ]
 variable {labType : Type} (genL : Gen labType)
 variable (nextComp : labType -> VeilExecM .external ρ σ Unit)
 variable (next_refine : ∀ (rd : ρ) (st st' : σ) (l : labType),
-  (nextComp l).operational rd st st' (Except.ok ()) ->
+  (nextComp l).operational rd st st' (Except.ok ()) <->
   sys.next rd st st')
 variable (r₀ : ρ) (s₀ : σ) (hinit : sys.init r₀ s₀)
-
-#check Random Id labType
 
 def random_transition (s : σ) : Gen (DivM (Except ExId σ)) := do
   let l <- genL
@@ -62,6 +60,46 @@ def random_transition (s : σ) : Gen (DivM (Except ExId σ)) := do
     | .res (.error e) => .res (.error e)
     | .div => .div
 
+attribute [spec low] Gen.wp_rand
+
+
+-- def generateWPStep' : Elab.Tactic.TacticM Unit := Elab.Tactic.withMainContext do
+--   let goalType <- Elab.Tactic.getMainTarget
+--   let_expr WPGen _m _mInst _α _l _lInst _mPropInst x := goalType | throwError "{goalType} is not a WPGen"
+--   let spec <- findSpec x
+--   dbg_trace "spec: {spec.1}"
+--   match spec with
+--   | (spec, .wpgen) =>
+--     Elab.Tactic.evalTactic $ <- `(tactic| apply $spec)
+--   | (spec, .triple) =>
+--     Elab.Tactic.evalTactic $ <- `(tactic|
+--       eapply $(mkIdent ``WPGen.spec_triple);
+--       apply $spec
+--       )
+
+
+-- elab "wpgen_app'" : tactic => generateWPStep'
+
+include next_refine
+omit [Inhabited σ] in
+@[spec]
+lemma random_transition_spec (s : σ) :
+  triple
+    ⌜sys.reachable r₀ s⌝
+    (random_transition genL nextComp r₀ s)
+    (fun
+      | .res (.ok s') => ⌜sys.reachable r₀ s'⌝
+      | _ => ⊤) := by sorry
+  -- simp [random_transition]
+  -- mwp; intros; split <;> simp
+  -- expose_names; apply RelationalTransitionSystem.reachable.step _ _ h
+  -- simp [ReaderT.run] at heq
+  -- apply next_refine; simp [VeilExecM.operational]
+  -- rw [heq]
+
+
+
+
 structure RandomTrace (σ : Type) where
   trace : Array σ
   thrownException? : Option ExId
@@ -69,24 +107,49 @@ structure RandomTrace (σ : Type) where
   safe? : Bool
 
 def check_safety (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] : Gen (RandomTrace σ) := do
-  let mut trace := #[]
-  let mut s := s₀
-  let mut numberOfSteps := 0
-  for _ in [0:steps] do
-    let step ← random_transition genL nextComp r₀ s
+  let mut trace : RandomTrace σ := ⟨#[s₀], .none, 0, true⟩
+  for _st in [0:steps]
+  invariant ⌜ sys.reachable r₀ trace.trace.back!⌝
+  invariant ⌜sys.inv r₀ trace.trace.back! -> trace.safe? = true⌝
+  do
+    let step ← random_transition genL nextComp r₀ trace.trace.back!
     match step with
     | .res (.ok s') =>
       match <- Testable.runProp (sys.safe r₀ s') cfg true with
       | .success _ | .gaveUp _ =>
-        s := s'
-        trace := trace.push s
-        numberOfSteps := numberOfSteps + 1
-      | .failure _ _ _ =>
-        return ⟨trace, .none, numberOfSteps, false⟩
+        trace := { trace with trace := trace.trace.push s', numberOfSteps := trace.numberOfSteps + 1 }
+      | .failure _ _ _ => break
     | .res (.error e) =>
-      return ⟨trace, .some e, numberOfSteps, false⟩
+      trace := { trace with thrownException? := e, safe? := true }
+      break
     | .div => pure ()
-  return ⟨trace, .none, numberOfSteps, true⟩
+  return trace
+
+#check Elab.Tactic.allGoals
+
+lemma check_safety_triple (size : Nat) (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] :
+  sys.isInvariant sys.safe ->
+  triple ⌜sys.assumptions r₀ ∧ sys.init r₀ s₀⌝
+  (check_safety genL nextComp r₀ s₀ steps cfg)
+  (fun res => ⌜res.safe? = true⌝) := by
+  intro sf
+  dsimp [check_safety]
+  wpgen_intro
+  wpgen_step; wpgen_step; wpgen_step; wpgen_step
+  { rename_i a; rcases a with ((_|_)|_) <;> dsimp
+    wpgen_step; wpgen_step; wpgen_step
+    { rename_i a; rcases a <;> dsimp <;> repeat' wpgen_step }
+    repeat' wpgen_step }
+  wpgen_step
+  simp only [loomWpSimp, loomLogicSimp, invariants, List.foldr, id]
+  constructor
+  { intro s inv₁ inv₂; constructor; assumption
+    rintro ((ex|_)|_) <;> simp
+    {  } }
+
+
+
+
 
 lemma check_safety_sound (size : Nat) (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] :
   (ReaderT.run (check_safety genL nextComp r₀ s₀ steps cfg) ⟨size⟩ |>.run seed).1.safe? = false ->
