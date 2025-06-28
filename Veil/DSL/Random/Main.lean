@@ -53,7 +53,7 @@ variable (next_refine : ∀ (rd : ρ) (st st' : σ) (l : labType),
   sys.nextLab rd st l st')
 variable (r₀ : ρ) (s₀ : σ) (hinit : sys.init r₀ s₀)
 
-def random_transition (s : σ) : Gen (DivM (Except ExId sys.Transition)) := do
+def random_transition (s : σ) : Gen (DivM (Except ExId (RelationalTransitionSystem.Transition σ labType))) := do
   let l <- genL
   return match nextComp l |>.run r₀ s with
     | .res (.ok ⟨_, s'⟩) => .res (.ok ⟨s', l⟩)
@@ -100,19 +100,19 @@ lemma random_transition_spec (s : σ) :
   apply next_refine; simp [VeilExecM.operational, *]
 
 @[aesop safe cases]
-structure RandomTrace (ρ σ) [sys : RelationalTransitionSystem ρ σ labType] where
-  trace : sys.Trace ρ σ
+structure RandomTrace (ρ σ l : Type) where
+  trace : RelationalTransitionSystem.Trace ρ σ l
   thrownException? : Option ExId
   numberOfSteps : Nat
   safe? : Bool
 
 @[simp]
-def RandomTrace.getLast (trace : RandomTrace ρ σ) : σ := trace.trace.getLast
-def RandomTrace.push (trace : RandomTrace ρ σ) (s : σ) (l : labType) : RandomTrace ρ σ :=
-  { trace with trace := trace.trace.push s l }
+def RandomTrace.getLast (trace : RandomTrace ρ σ l) : σ := trace.trace.getLast
+def RandomTrace.push (trace : RandomTrace ρ σ l) (s : σ) (la : l) : RandomTrace ρ σ l :=
+  { trace with trace := trace.trace.push s la }
 
-def check_safety (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] : Gen (RandomTrace ρ σ) := do
-  let mut trace : RandomTrace ρ σ := ⟨⟨r₀, s₀, #[]⟩, .none, 0, true⟩
+def check_safety (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] : Gen (RandomTrace ρ σ labType) := do
+  let mut trace : RandomTrace ρ σ labType := ⟨⟨r₀, s₀, #[]⟩, .none, 0, true⟩
   for _st in [0:steps]
   invariant ⌜trace.trace.r₀ = r₀⌝
   invariant ⌜trace.trace.s₀ = s₀⌝

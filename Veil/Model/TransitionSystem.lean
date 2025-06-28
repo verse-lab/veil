@@ -81,18 +81,18 @@ theorem isInvariant_reachable [sys : RelationalTransitionSystem ρ σ l] (p : ρ
   | init s hass hinit => aesop (add safe apply reachable.init)
   | step s s' h2 hn ih => aesop (add safe apply reachable.step)
 
-structure Transition (ρ σ) [RelationalTransitionSystem ρ σ l] where
+structure Transition (σ l : Type) where
   postState : σ
   label : l
 
-abbrev StateTrace (ρ σ) [sys : RelationalTransitionSystem ρ σ l] := Array (Transition ρ σ)
+abbrev StateTrace (σ l : Type) := Array (Transition σ l)
 
-structure Trace (ρ σ) [sys : RelationalTransitionSystem ρ σ l] where
+structure Trace (ρ σ l : Type) where
   r₀ : ρ
   s₀ : σ
-  tr : StateTrace ρ σ
+  tr : StateTrace σ l
 
-def StateTrace.isValidFrom [sys : RelationalTransitionSystem ρ σ l] (r : ρ) (s : σ) (ts : StateTrace ρ σ) : Prop :=
+def StateTrace.isValidFrom [sys : RelationalTransitionSystem ρ σ l] (r : ρ) (s : σ) (ts : StateTrace σ l) : Prop :=
   match _ : ts.toList with
   | [] => True
   | ⟨s', l⟩ :: ts' => sys.nextLab r s l s' ∧ isValidFrom r s' ts'.toArray
@@ -102,34 +102,34 @@ decreasing_by
   have := congrArg List.length h
   simp at this; omega
 
-def StateTrace.push [sys : RelationalTransitionSystem ρ σ l] (ts : StateTrace ρ σ) (s : σ) (l : l) : StateTrace ρ σ :=
-  Array.push ts ⟨s, l⟩
+def StateTrace.push (ts : StateTrace σ l) (s : σ) (la : l) : StateTrace σ l :=
+  Array.push ts ⟨s, la⟩
 
-def StateTrace.getLastD  [sys : RelationalTransitionSystem ρ σ l] (s : σ) (ts : StateTrace ρ σ) : σ :=
+def StateTrace.getLastD  (s : σ) (ts : StateTrace σ l) : σ :=
   if let some ⟨s', _⟩ := ts.back? then s' else s
 
-def Trace.getLast [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ) : σ :=
+def Trace.getLast (t : Trace ρ σ l) : σ :=
   t.tr.getLastD t.s₀
 
-def Trace.push [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ) (s : σ) (l : l) : Trace ρ σ :=
-  { t with tr := t.tr.push s l }
+def Trace.push (t : Trace ρ σ l) (s : σ) (la : l) : Trace ρ σ l :=
+  { t with tr := t.tr.push s la }
 
 @[simp]
-theorem StateTrace.getLastD_push [sys : RelationalTransitionSystem ρ σ l] (s : σ) (ts : StateTrace ρ σ) (s' : σ) (l : l) :
-  (ts.push s' l).getLastD s = s' := by
+theorem StateTrace.getLastD_push (s : σ) (ts : StateTrace σ l) (s' : σ) (la : l) :
+  (ts.push s' la).getLastD s = s' := by
   simp [getLastD, push]
 
 @[simp]
-theorem Trace.getLast_push [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ) (s : σ) (l : l) :
-  (t.push s l).getLast = s := by
+theorem Trace.getLast_push (t : Trace ρ σ l) (s : σ) (la : l) :
+  (t.push s la).getLast = s := by
   simp [getLast, push]
 
 theorem StateTrace.push_isValidFrom [sys : RelationalTransitionSystem ρ σ l]
-  (r : ρ) (s : σ) (ts : StateTrace ρ σ) (s' : σ) (l : l) :
+  (r : ρ) (s : σ) (ts : StateTrace σ l) (s' : σ) (la : l) :
   ts.isValidFrom r s ->
-  sys.nextLab r (ts.getLastD s) l s' ->
-  (ts.push s' l).isValidFrom r s := by
-  unhygienic fun_induction StateTrace.isValidFrom generalizing l s'
+  sys.nextLab r (ts.getLastD s) la s' ->
+  (ts.push s' la).isValidFrom r s := by
+  unhygienic fun_induction StateTrace.isValidFrom generalizing la s'
   { cases ts_1 <;> simp at *
     simp [*]; unfold StateTrace.isValidFrom; unfold StateTrace.push;
     simp [Array.push, List.concat]
@@ -139,7 +139,7 @@ theorem StateTrace.push_isValidFrom [sys : RelationalTransitionSystem ρ σ l]
   unfold StateTrace.push; simp [Array.push]
   rw [h]; simp [List.concat]
   intro h' vl nx; constructor <;> try assumption
-  have : (push ts'.toArray s' l) = (ts' ++ [Transition.mk s' l]).toArray := by
+  have : (push ts'.toArray s' la) = (ts' ++ [Transition.mk s' la]).toArray := by
     rw [<-Array.toList_inj]
     simp [push]
   rw [<-this]; apply ih1; assumption
@@ -148,10 +148,10 @@ theorem StateTrace.push_isValidFrom [sys : RelationalTransitionSystem ρ σ l]
   simp [h, getLastD, List.getLast?_cons]
   cases ts'.getLast? <;> simp
 
-def Trace.isValid [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ) : Prop :=
+def Trace.isValid [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ l) : Prop :=
   sys.assumptions t.r₀ -> t.tr.isValidFrom t.r₀ t.s₀
 
-theorem Trace.push_isValid [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ) (s : σ) (l : l) :
+theorem Trace.push_isValid [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ l) (s : σ) (l : l) :
   t.isValid ->
   sys.nextLab t.r₀ t.getLast l s ->
   (t.push s l).isValid := by
