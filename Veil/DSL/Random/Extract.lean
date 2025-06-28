@@ -79,7 +79,7 @@ open Lean Elab Command Term Meta Lean.Parser
     `VeilExecM`. It is expected to be run inside a `veil module` with sufficiently
     many assumptions made about computable `Decidable` instances so that
     the `Decidable` replacement will be successful. -/
-def assembleNextFuncToExecM (useWeak : Bool) (extractNonDet : TSyntax `term) : CommandElabM Unit := do
+def assembleNextFuncToExecM (extractNonDet : TSyntax `term) (useWeak : Bool := true) : CommandElabM Unit := do
   let vd ← getSystemParameters
   let spec := (← localSpecCtx.get).spec
   let originalvd := spec.generic.parameters
@@ -131,9 +131,45 @@ def assembleNextFuncToExecM (useWeak : Bool) (extractNonDet : TSyntax `term) : C
   trace[veil.debug] "[assembleNextFuncToExecM] {nextActExecCmd}"
   trace[veil.info] "NextActExec defined"
 
+/-- Used for generating a function `initActExec` to generate the initial state of
+    the protocol. It is expected to be run inside a `veil module`
+    with sufficiently many assumptions made about computable `Decidable` instances
+    so that the `Decidable` replacement will be successful. -/
+def assembleInitFuncToExecM (extractNonDet : TSyntax `term) (useWeak : Bool := true) : CommandElabM Unit := do
+  let vd ← getSystemParameters
+  let spec := (← localSpecCtx.get).spec
+  let originalvd := spec.generic.parameters
+  -- `vd` might contain additional section variables
+  -- NOTE: assume that a prefix of `vd` is the same as `originalvd`, which will be provided as arguments to many things below
+  -- this assumption is just for convenience, might be relaxed later
+  unless vd.take originalvd.size == originalvd do
+    throwError "[assembleNextFuncToExecM]: the system parameters {vd} should start with {originalvd}"
+  let magicNumber := originalvd.size + 4      -- NOTE: accounting for `ρ` and `σ` stuff
+  let initActExecCmd ← Command.runTermElabM fun vs => do
+    -- prepare the usual things
+    let sectionArgs ← getSectionArgumentsStx vs
+    let sectionArgsPrefix := sectionArgs.take magicNumber
+    let initExecIdent := mkIdent `InitActExec
+    -- adapted from `assembleLabelType`
+    let mainTarget := mkIdent initializerName
+    let dependencies := Array.map Lean.mkIdent #[((mainTarget.getId |> toExtName) ++ `withRet)]
+    let extractor := mkIdent <| (if useWeak then ``NonDetT.extractWeak else ``NonDetT.extract)
+    let replacedTarget ← ``((decidable_replace% [$dependencies*] (@$mainTarget $sectionArgsPrefix*)))
+    let trm <- ``(($extractor $replacedTarget $extractNonDet))
+    let initActExecCmd ← `(
+      def $initExecIdent $[$vd]* : VeilExecM .external $genericReader $genericState Unit :=
+        $trm
+    )
+    pure initActExecCmd
+  elabCommand initActExecCmd
+  trace[veil.debug] "[assembleInitFuncToExecM] {initActExecCmd}"
+  trace[veil.info] "InitActExec defined"
+
+
 @[inherit_doc assembleNextFuncToExecM]
 elab "#gen_executable" : command => do
   let tac ← `(term| by extract_tactic ; (try apply $(Lean.mkIdent ``ExtractNonDet.pick')) ; (try apply $(Lean.mkIdent ``ExtractNonDet.pick_weak')))
-  assembleNextFuncToExecM true tac
+  assembleInitFuncToExecM tac
+  assembleNextFuncToExecM tac
 
 end label_to_executable_action

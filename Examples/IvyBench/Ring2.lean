@@ -116,6 +116,13 @@ variable (n : Nat)    -- TODO parameter not supported ???
 
 end tmp
 
+def simple_init (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
+  Ring2.InitActExec (Fin l.length) (node_ne := by rw [← Fin.pos_iff_nonempty, List.length_pos_iff] ; exact hl)
+    (btwn := between_ℤ_ring' l hnodup) (tot := by infer_instance)
+    (σ := Ring2.State _) (ρ := Ring2.Reader _)
+    (insta := by dsimp [TotalOrder.le] ; infer_instance)
+    (instb := by intro a b c ; dsimp [Between.btw, between_ℤ_ring', between_ℤ_ring] ; infer_instance)
+
 def simple_run (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
   Ring2.NextActExec (Fin l.length) (node_ne := by rw [← Fin.pos_iff_nonempty, List.length_pos_iff] ; exact hl)
     (btwn := between_ℤ_ring' l hnodup) (tot := by infer_instance)
@@ -127,15 +134,28 @@ def simple_run (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
 -- set_option synthInstance.maxHeartbeats 1000000
 -- set_option synthInstance.maxSize 1000
 
+instance : Inhabited (Ring2.Reader (Fin n)) := ⟨Ring2.Reader.mk⟩
+instance : Inhabited (Ring2.State (Fin n)) := ⟨Ring2.State.mk default default⟩
+
+def DivM.run (a : DivM α) :=
+  match a with
+  | .res x => Option.some x
+  | .div => Option.none
+
 -- TODO why system cannot be synthesized here? due to `btwn`???
 def simple_check (l : List Nat) (hl : l.length = 5) (hnodup : List.Nodup l)
-    (r₀ : Ring2.Reader _) (s₀ : Ring2.State _)
     (steps : Nat) (cfg : Plausible.Configuration) :=
   @check_safety _ _ (labType := (Ring2.Label (Fin 5)))
     (sys := Ring2.System _ (btwn := between_ℤ_ring'' _ l hl hnodup) (Ring2.State _) (Ring2.Reader _)) Ring2.Label.gen
     (by
       have a := (simple_run l (by rw [← List.length_pos_iff, hl] ; decide) hnodup)
-      rw [hl] at a ; exact a) r₀ s₀ steps cfg
+      rw [hl] at a ; exact a)
+    ⟨⟩
+    (by
+      have a := (simple_init l (by rw [← List.length_pos_iff, hl] ; decide) hnodup)
+      rw [hl] at a
+      exact DivM.run (a default default) |>.get!.getD (fun _ => default) |>.2)
+    steps cfg
     -- NOTE: seems need to unfold a bunch of things before going through
     (by
       intro r s
@@ -159,10 +179,10 @@ example [tot : TotalOrder _] [btwn : Between _] :
   sys.assumptions initreader ∧ sys.init initreader initstate := by
   dsimp [initSimp, invSimp] ; simp
 
-def DivM.run (a : DivM α) :=
-  match a with
-  | .res x => Option.some x
-  | .div => Option.none
+#eval (simple_init l (by decide) (by decide)
+      |>.run initreader |>.run test_state_1 |>.run |>.run
+      |>.getD (Except.ok <| ((), test_state_1)) |>.getD (fun _ => ((), test_state_1))
+      |>.snd |>.pending 0 4)
 
 #eval (simple_run l (by decide) (by decide)
     (Ring2.Label.recv ⟨0, by decide⟩ ⟨4, by decide⟩ ⟨1, by decide⟩)
@@ -170,8 +190,9 @@ def DivM.run (a : DivM α) :=
       |>.getD (Except.ok <| ((), test_state_1)) |>.getD (fun _ => ((), test_state_1))
       |>.snd |>.pending 0 4)
 
+
 #eval show IO Unit from do
-  let res ← simple_check l (by decide) (by decide) initreader test_state_1 10000
+  let res ← simple_check l (by decide) (by decide) 10000
     ({} : Plausible.Configuration) |>.run 1000000
   let b := res.safe?
   IO.println s!"{b}"
