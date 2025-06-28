@@ -106,7 +106,6 @@ lemma Gen.runProp_triple (p : Prop) (cfg : Configuration) [Testable p] :
 -- local add_aesop_rules safe cases [DivM, Except]
 -- local add_aesop_rules unsafe 50% apply [RelationalTransitionSystem.reachable.init]
 
-
 def check_safety (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] : Gen (RandomTrace ρ σ) := do
   let mut trace : RandomTrace ρ σ := ⟨⟨r₀, s₀, #[]⟩, .none, 0, true⟩
   for _st in [0:steps]
@@ -225,6 +224,7 @@ lemma check_safety_triple (steps : Nat) (cfg : Configuration) [∀ r s, Testable
       apply a_6
       apply a_7
       simp_all only
+
 
 def findRandom (gen : Gen α) (size : ℕ) (seed : ULift StdGen) (p : α -> Prop) [DecidablePred p] : Option α := do
   let res := ReaderT.run gen ⟨size⟩ |>.run seed
