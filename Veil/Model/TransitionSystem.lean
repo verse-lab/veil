@@ -149,15 +149,25 @@ theorem StateTrace.push_isValidFrom [sys : RelationalTransitionSystem ρ σ l]
   cases ts'.getLast? <;> simp
 
 def Trace.isValid [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ l) : Prop :=
-  sys.assumptions t.r₀ -> t.tr.isValidFrom t.r₀ t.s₀
+  sys.assumptions t.r₀ -> t.tr.isValidFrom t.r₀ t.s₀ ∧ sys.init t.r₀ t.s₀
 
 theorem Trace.push_isValid [sys : RelationalTransitionSystem ρ σ l] (t : Trace ρ σ l) (s : σ) (l : l) :
   t.isValid ->
+  sys.init t.r₀ t.s₀ ->
   sys.nextLab t.r₀ t.getLast l s ->
   (t.push s l).isValid := by
   cases t <;> simp [getLast, isValid, push]
-  intros; solve_by_elim [StateTrace.push_isValidFrom]
+  aesop (add safe apply StateTrace.push_isValidFrom)
 
+@[aesop safe apply]
+theorem Trace.isValid_empty [sys : RelationalTransitionSystem ρ σ l] (r₀ : ρ) (s₀ : σ) :
+  (sys.assumptions r₀ -> sys.init r₀ s₀) ->
+  ({ r₀ := r₀, s₀ := s₀, tr := #[] } : Trace ρ σ l).isValid := by
+  intros; simp [Trace.isValid, StateTrace.isValidFrom]
+  assumption
 
+@[simp]
+theorem Trace.getLast_empty (r₀ : ρ) (s₀ : σ) :
+  ({ r₀ := r₀, s₀ := s₀, tr := #[] } : Trace ρ σ l).getLast = s₀ := by rfl
 
 end RelationalTransitionSystem

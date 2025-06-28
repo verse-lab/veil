@@ -55,30 +55,10 @@ variable (r₀ : ρ) (s₀ : σ) (hinit : sys.init r₀ s₀)
 
 def random_transition (s : σ) : Gen (DivM (Except ExId (RelationalTransitionSystem.Transition σ labType))) := do
   let l <- genL
-  return match nextComp l |>.run r₀ s with
+  return match nextComp l r₀ s with
     | .res (.ok ⟨_, s'⟩) => .res (.ok ⟨s', l⟩)
     | .res (.error e) => .res (.error e)
     | .div => .div
-
--- attribute [spec low] Gen.wp_rand
-
-
--- def generateWPStep' : Elab.Tactic.TacticM Unit := Elab.Tactic.withMainContext do
---   let goalType <- Elab.Tactic.getMainTarget
---   let_expr WPGen _m _mInst _α _l _lInst _mPropInst x := goalType | throwError "{goalType} is not a WPGen"
---   let spec <- findSpec x
---   dbg_trace "spec: {spec.1}"
---   match spec with
---   | (spec, .wpgen) =>
---     Elab.Tactic.evalTactic $ <- `(tactic| apply $spec)
---   | (spec, .triple) =>
---     Elab.Tactic.evalTactic $ <- `(tactic|
---       eapply $(mkIdent ``WPGen.spec_triple);
---       apply $spec
---       )
-
-
--- elab "wpgen_app'" : tactic => generateWPStep'
 
 include next_refine
 @[spec]
@@ -93,26 +73,42 @@ lemma random_transition_spec (s : σ) :
   mwp; apply WPGen.spec_triple; apply Gen.wp_rand
   simp [loomWpSimp, loomLogicSimp]
   intros; split <;> simp
-  expose_names; simp [ReaderT.run] at heq
-  constructor
+  expose_names; constructor
   { apply RelationalTransitionSystem.reachable.step _ _ h; exists x
     apply next_refine; simp [VeilExecM.operational, *] }
   apply next_refine; simp [VeilExecM.operational, *]
 
 @[aesop safe cases]
-structure RandomTrace (ρ σ l : Type) where
-  trace : RelationalTransitionSystem.Trace ρ σ l
+structure RandomTrace (ρ σ) [sys : RelationalTransitionSystem ρ σ labType] where
+  trace : RelationalTransitionSystem.Trace ρ σ labType
   thrownException? : Option ExId
   numberOfSteps : Nat
   safe? : Bool
 
 @[simp]
-def RandomTrace.getLast (trace : RandomTrace ρ σ l) : σ := trace.trace.getLast
-def RandomTrace.push (trace : RandomTrace ρ σ l) (s : σ) (la : l) : RandomTrace ρ σ l :=
-  { trace with trace := trace.trace.push s la }
+def RandomTrace.getLast (trace : RandomTrace ρ σ) : σ := trace.trace.getLast
+def RandomTrace.push (trace : RandomTrace ρ σ) (s : σ) (l : labType) : RandomTrace ρ σ :=
+  { trace with trace := trace.trace.push s l }
 
-def check_safety (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] : Gen (RandomTrace ρ σ labType) := do
-  let mut trace : RandomTrace ρ σ labType := ⟨⟨r₀, s₀, #[]⟩, .none, 0, true⟩
+omit next_refine in
+@[spec]
+lemma Gen.runProp_triple (p : Prop) (cfg : Configuration) [Testable p] :
+  triple ⊤ (Testable.runProp p cfg b) (fun
+    | .success _ | .gaveUp _ => ⊤
+    | .failure _ _ _ => ⌜¬ p⌝) := by
+  apply triple_cons _ (le_refl _) _ (Gen.wp_rand _)
+  rintro (_|_|_) <;> simp [*]
+
+-- uncomment to use aesop
+-- attribute [local simp] RelationalTransitionSystem.next
+-- set_option maxHeartbeats 1000000
+-- local add_aesop_rules safe RelationalTransitionSystem.Trace.push_isValid
+-- local add_aesop_rules safe cases [DivM, Except]
+-- local add_aesop_rules unsafe 50% apply [RelationalTransitionSystem.reachable.init]
+
+
+def check_safety (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] : Gen (RandomTrace ρ σ) := do
+  let mut trace : RandomTrace ρ σ := ⟨⟨r₀, s₀, #[]⟩, .none, 0, true⟩
   for _st in [0:steps]
   invariant ⌜trace.trace.r₀ = r₀⌝
   invariant ⌜trace.trace.s₀ = s₀⌝
@@ -143,40 +139,92 @@ def check_safety (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.saf
     | .div => pure ()
   return trace
 
-omit next_refine in
-@[spec]
-lemma Gen.runProp_triple (p : Prop) (cfg : Configuration) [Testable p] :
-  triple ⊤ (Testable.runProp p cfg b) (fun
-    | .success _ | .gaveUp _ => ⊤
-    | .failure _ _ _ => ⌜¬ p⌝) := by
-  apply triple_cons _ (le_refl _) _ (Gen.wp_rand _)
-  rintro (_|_|_) <;> simp [*]
-
-attribute [simp] RelationalTransitionSystem.next
-
-set_option maxHeartbeats 1000000
-
-add_aesop_rules safe RelationalTransitionSystem.Trace.push_isValid
-
 lemma check_safety_triple (steps : Nat) (cfg : Configuration) [∀ r s, Testable (sys.safe r s)] :
-  sys.isInvariant sys.safe ->
-  triple ⌜sys.assumptions r₀ ∧ sys.init r₀ s₀⌝
-  (check_safety genL nextComp r₀ s₀ steps cfg)
-  (fun res => ⌜res.trace.isValid ∧ res.safe? = true⌝) := by
-  intro sf; dsimp [check_safety]
-  mwp
-  intro ass ini; constructor
-  { intro tr _ _ invVal invReach invSafe; constructor; assumption
-    dsimp [check_safety.match_2.splitter, check_safety.match_1.splitter]
-    rintro ((ex|_)|_) <;> aesop }
-  constructor
-  { simp [RelationalTransitionSystem.Trace.getLast,
-    RelationalTransitionSystem.StateTrace.getLastD,
-    RelationalTransitionSystem.Trace.isValid,
-    RelationalTransitionSystem.StateTrace.isValidFrom]
-    solve_by_elim }
-  aesop
-
+  triple
+  ⌜sys.assumptions r₀ ∧ sys.init r₀ s₀⌝
+    (check_safety genL nextComp r₀ s₀ steps cfg)
+  (fun res => ⌜res.trace.isValid ∧ (sys.isInvariant sys.safe -> res.safe? = true)⌝) := by
+  dsimp [check_safety]
+  mwp; dsimp [check_safety.match_2.splitter, check_safety.match_1.splitter]
+  -- this is aesop output:
+  intro a a_1
+  simp_all only [not_false_eq_true, ULift.forall, true_and]
+  apply And.intro
+  · intro b a_2 a_3 a_4 a_5 a_6 x x_1 x_2 a_7
+    subst a_2 a_3
+    cases x with
+    | res x_3 =>
+      simp_all only
+      cases x_3 with
+      | error a_2 => simp_all only [implies_true, and_self]
+      | ok a_3 =>
+        simp_all only
+        intro x x_3 x_4 a_2
+        obtain ⟨left, right⟩ := a_7
+        obtain ⟨trace, thrownException?, numberOfSteps, safe?⟩ := b
+        simp_all only
+        split at a_2
+        next x
+          a_7 =>
+          simp_all only [RelationalTransitionSystem.Trace.getLast_push, implies_true, and_self, and_true]
+          cases a_7 with
+          | inl val =>
+            apply And.intro
+            · rfl
+            · apply And.intro
+              · rfl
+              · apply RelationalTransitionSystem.Trace.push_isValid
+                · simp_all only
+                · simp_all only
+                · simp_all only
+          | inr val_1 =>
+            apply And.intro
+            · rfl
+            · apply And.intro
+              · rfl
+              · apply RelationalTransitionSystem.Trace.push_isValid
+                · simp_all only
+                · simp_all only
+                · simp_all only
+        next x
+          a_7 =>
+          simp_all only [RelationalTransitionSystem.Trace.getLast_push, implies_true, and_self, and_true]
+          apply And.intro
+          · rfl
+          · apply And.intro
+            · rfl
+            · apply RelationalTransitionSystem.Trace.push_isValid
+              · simp_all only
+              · simp_all only
+              · simp_all only
+        next x a_7 a_8
+          a_9 =>
+          simp_all only [RelationalTransitionSystem.Trace.getLast_push, Bool.false_eq_true, implies_true, and_self,
+            and_true]
+          apply And.intro
+          · rfl
+          · apply And.intro
+            · rfl
+            · apply RelationalTransitionSystem.Trace.push_isValid
+              · simp_all only
+              · simp_all only
+              · simp_all only
+    | div => simp_all only [implies_true, and_self]
+  · apply And.intro
+    · apply And.intro
+      · apply RelationalTransitionSystem.Trace.isValid_empty
+        intro a_2
+        simp_all only
+      · apply RelationalTransitionSystem.reachable.init
+        · simp_all only
+        · simp_all only
+    · intro x a_2 a_3 a_4 a_5 a_6 a_7
+      subst a_3 a_2
+      obtain ⟨trace, thrownException?, numberOfSteps, safe?⟩ := x
+      simp_all only
+      apply a_6
+      apply a_7
+      simp_all only
 
 def findRandom (gen : Gen α) (size : ℕ) (seed : ULift StdGen) (p : α -> Prop) [DecidablePred p] : Option α := do
   let res := ReaderT.run gen ⟨size⟩ |>.run seed
