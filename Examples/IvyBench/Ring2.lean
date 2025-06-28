@@ -160,9 +160,12 @@ def DivM.run (a : DivM α) :=
       |>.getD (Except.ok <| ((), initstate)) |>.getD (fun _ => ((), initstate))
       |>.snd |>.pending 0 4)
 
-#eval show IO Bool from do
-  let res ← simple_check l (by decide) (by decide) Ring2.Reader.mk initstate 3
-    ({} : Plausible.Configuration) |>.run 10
-  pure true
+#eval show IO Unit from do
+  let res ← simple_check l (by decide) (by decide) Ring2.Reader.mk initstate 1000
+    ({} : Plausible.Configuration) |>.run 100000000
+  let b := res.safe?
+  IO.println s!"{b}"
+  unless b do
+    panic! "Safety check failed"
 
 end abc
