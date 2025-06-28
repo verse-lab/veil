@@ -90,17 +90,17 @@ end tmp
 
 def simple_init (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
   Ring2.initExec (Fin l.length) (node_ne := (Fin.pos_then_inhabited <| List.length_pos_iff.mpr hl))
-    (btwn := between_ℤ_ring' l hnodup) (tot := by infer_instance)
+    (btwn := between_ring' l hnodup) (tot := by infer_instance)
     (σ := Ring2.State _) (ρ := Ring2.Reader _)
     (insta := by dsimp [TotalOrder.le] ; infer_instance)
-    (instb := by intro a b c ; dsimp [Between.btw, between_ℤ_ring', between_ℤ_ring] ; infer_instance)
+    (instb := by intro a b c ; dsimp [Between.btw, between_ring', between_ring] ; infer_instance)
 
 def simple_run (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
   Ring2.nextActExec (Fin l.length) (node_ne := (Fin.pos_then_inhabited <| List.length_pos_iff.mpr hl))
-    (btwn := between_ℤ_ring' l hnodup) (tot := by infer_instance)
+    (btwn := between_ring' l hnodup) (tot := by infer_instance)
     (σ := Ring2.State _) (ρ := Ring2.Reader _)
     (insta := by dsimp [TotalOrder.le] ; infer_instance)
-    (instb := by intro a b c ; dsimp [Between.btw, between_ℤ_ring', between_ℤ_ring] ; infer_instance)
+    (instb := by intro a b c ; dsimp [Between.btw, between_ring', between_ring] ; infer_instance)
 
 -- set_option maxSynthPendingDepth 10
 -- set_option synthInstance.maxHeartbeats 1000000
@@ -118,7 +118,7 @@ def DivM.run (a : DivM α) :=
 def simple_check (l : List Nat) (hl : l.length = 5) (hnodup : List.Nodup l)
     (steps : Nat) (cfg : Plausible.Configuration) :=
   @check_safety _ _ (labType := (Ring2.Label (Fin 5)))
-    (sys := Ring2.System _ (btwn := between_ℤ_ring'' _ l hl hnodup) (Ring2.State _) (Ring2.Reader _)) Ring2.Label.gen
+    (sys := Ring2.System _ (btwn := between_ring'' _ l hl hnodup) (Ring2.State _) (Ring2.Reader _)) Ring2.Label.gen
     (by
       have a := (simple_run l (by rw [← List.length_pos_iff, hl] ; decide) hnodup)
       rw [hl] at a ; exact a)

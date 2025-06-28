@@ -14,7 +14,10 @@ instance (n : Nat) : TotalOrder (Fin n) where
   le_antisymm := by simp ; omega
   le_total := by simp ; omega
 
-instance between_ℤ_ring (node : Type) [DecidableEq node] (f : node → Nat)
+/-- A rank-based ring topology, where each node is assigned with a unique `Nat` rank,
+    nodes are sorted by their ranks, and the ring is formed by connecting the sorted
+    list of nodes. -/
+instance between_ring (node : Type) [DecidableEq node] (f : node → Nat)
   (h : ∀ n1 n2, n1 ≠ n2 → f n1 ≠ f n2) : Between node where
   btw := fun a b c => (f a < f b ∧ f b < f c) ∨ (f c < f a ∧ f a < f b) ∨ (f b < f c ∧ f c < f a)
   btw_ring := by aesop
@@ -28,10 +31,10 @@ instance between_ℤ_ring (node : Type) [DecidableEq node] (f : node → Nat)
     have hh1 := h _ _ h1 ; have hh2 := h _ _ h2 ; have hh3 := h _ _ h3
     omega
 
-instance between_ℤ_ring' (l : List Nat) (hnodup : List.Nodup l) : Between (Fin l.length) :=
-  between_ℤ_ring (Fin _) l.get (by
+instance between_ring' (l : List Nat) (hnodup : List.Nodup l) : Between (Fin l.length) :=
+  between_ring (Fin _) l.get (by
     intro ⟨a, ha⟩ ⟨b, hb⟩ h1 ; simp at * ; rw [List.Nodup.getElem_inj_iff hnodup] ; assumption)
 
-instance between_ℤ_ring'' (n : Nat) (l : List Nat) (hlength : l.length = n) (hnodup : List.Nodup l) : Between (Fin n) := by
-  have a := between_ℤ_ring' l hnodup
+instance between_ring'' (n : Nat) (l : List Nat) (hlength : l.length = n) (hnodup : List.Nodup l) : Between (Fin n) := by
+  have a := between_ring' l hnodup
   rw [hlength] at a ; exact a
