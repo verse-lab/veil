@@ -146,8 +146,18 @@ section abc
 -- `l[i]`: the node `i` is at position `l[i]`
 local macro "l" : term => `(term| ([1, 3, 5, 4, 2]))
 
+local macro "test_state_1" : term => `(term| @Ring2.State.mk (Fin 5) (fun _ => false)
+  (fun i j => (i = 0 ∧ j = 4) ∨ (i = 4 ∧ j = 1) ∨ (i = 1 ∧ j = 3) ∨ (i = 3 ∧ j = 2) ∨ (i = 2 ∧ j = 0)))
+
 local macro "initstate" : term => `(term| @Ring2.State.mk (Fin 5) (fun _ => false)
-  (fun i j => (i = 0 ∧ j = 4) ∨ (i = 4 ∨ j = 1) ∨ (i = 1 ∨ j = 3) ∨ (i = 3 ∨ j = 2) ∨ (i = 2 ∨ j = 0)))
+  (fun _ _ => false))
+
+local macro "initreader" : term => `(term| Ring2.Reader.mk )
+
+example [tot : TotalOrder _] [btwn : Between _] :
+  letI sys := Ring2.System (Fin 5) (tot := tot) (btwn := btwn) (Ring2.State _) (Ring2.Reader _)
+  sys.assumptions initreader ∧ sys.init initreader initstate := by
+  dsimp [initSimp, invSimp] ; simp
 
 def DivM.run (a : DivM α) :=
   match a with
@@ -156,13 +166,13 @@ def DivM.run (a : DivM α) :=
 
 #eval (simple_run l (by decide) (by decide)
     (Ring2.Label.recv ⟨0, by decide⟩ ⟨4, by decide⟩ ⟨1, by decide⟩)
-      |>.run Ring2.Reader.mk |>.run initstate |>.run |>.run
-      |>.getD (Except.ok <| ((), initstate)) |>.getD (fun _ => ((), initstate))
+      |>.run initreader |>.run test_state_1 |>.run |>.run
+      |>.getD (Except.ok <| ((), test_state_1)) |>.getD (fun _ => ((), test_state_1))
       |>.snd |>.pending 0 4)
 
 #eval show IO Unit from do
-  let res ← simple_check l (by decide) (by decide) Ring2.Reader.mk initstate 1000
-    ({} : Plausible.Configuration) |>.run 100000000
+  let res ← simple_check l (by decide) (by decide) initreader test_state_1 10000
+    ({} : Plausible.Configuration) |>.run 1000000
   let b := res.safe?
   IO.println s!"{b}"
   unless b do
