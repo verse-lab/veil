@@ -231,11 +231,15 @@ def findRandom (gen : Gen α) (size : ℕ) (seed : ULift StdGen) (p : α -> Prop
   if p res.1 then some res.1 else findRandom gen size res.2 p
   partial_fixpoint
 
-instance {α : Type u} (p : α -> Prop) [SampleableExt α] [DecidablePred p] : WeakFindable p where
+class VeilSampleSize (n : outParam Nat)
+
+instance (priority := low) : VeilSampleSize 10 where
+
+instance {α : Type u} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : WeakFindable p where
   find :=
     match (ST.Ref.get IO.stdGenRef : BaseIO StdGen) |>.run () with
     | .ok stdGen _ =>
-      findRandom (SampleableExt.interpSample α) 100 (ULift.up stdGen) p
+      findRandom (SampleableExt.interpSample α) n (ULift.up stdGen) p
     | .error e _ => none
   find_some_p := by
     intro x; split <;> try simp
@@ -244,3 +248,41 @@ instance {α : Type u} (p : α -> Prop) [SampleableExt α] [DecidablePred p] : W
     apply findRandom.partial_correctness; simp
     introv ih; split_ifs; simp; rintro rfl; solve_by_elim
     solve_by_elim
+
+instance Fin.shrinkable {n : Nat} : Shrinkable (Fin n) where
+  shrink m :=
+    match n with
+    | 0 => []
+    | _ + 1 => Nat.shrink m |>.map (Fin.ofNat' _)
+
+instance Fin.sampleableExt {n : Nat} [inh : Inhabited (Fin n)] : SampleableExt (Fin n) where
+  proxy := Fin n
+  sample :=
+    match n, inh with
+    | 0, _ => return default
+    | n + 1, _ => SampleableExt.sample (α := Fin (n+1))
+  interp := id
+
+instance [Inhabited α] [FinEnum α] : Inhabited (Fin (FinEnum.card α)) where
+  default := FinEnum.equiv default
+
+instance [Inhabited α] [FinEnum α] : SampleableExt α where
+  proxy := Fin (FinEnum.card α)
+  sample := SampleableExt.sample (α := Fin (FinEnum.card α))
+  interp := FinEnum.equiv.symm
+
+instance SampleableConstFun [SampleableExt α] [Repr α] [Shrinkable α] : SampleableExt (β → α) where
+  proxy := α
+  sample := SampleableExt.interpSample (α := α)
+  interp a := fun _ => a
+
+instance SampleableFun {β α : Type} [BEq β] [Inhabited α] [SampleableExt α] [Repr α] [Shrinkable α]
+  [SampleableExt β] [Repr β] [Shrinkable β] :
+  SampleableExt (β → α) where
+  proxy := List (β × α)
+  sample := SampleableExt.interpSample (α := List (β × α))
+  interp l := fun b =>
+    if let some ⟨_, a⟩ := l.find? (·.1 == b) then a else default
+
+instance [FinEnum α] : Shrinkable α := inferInstanceAs (Shrinkable (NoShrink α))
+instance [FinEnum α] : Repr α where reprPrec a n := reprPrec (FinEnum.equiv a) n

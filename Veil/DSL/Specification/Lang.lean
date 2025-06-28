@@ -66,7 +66,7 @@ def elabTypeDeclaration : CommandElab := fun stx => do
     let dec_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_dec")
     let ne_id := Lean.mkIdent (Name.mkSimple s!"{id.getId}_ne")
     let deceq := Lean.mkIdent ``DecidableEq
-    let nemp := Lean.mkIdent ``Nonempty
+    let nemp := Lean.mkIdent ``Inhabited
     let cmd ← `(variable ($id : Type) [$dec_id : $deceq $id] [$ne_id : $nemp $id])
     elabCommand cmd
   | _ => throwUnsupportedSyntax

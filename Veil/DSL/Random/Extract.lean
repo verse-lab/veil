@@ -168,7 +168,7 @@ def assembleInitFuncToExecM (extractNonDet : TSyntax `term) (useWeak : Bool := t
 
 @[inherit_doc assembleNextFuncToExecM]
 elab "#gen_executable" : command => do
-  let tac ← `(term| by extract_tactic ; (try apply $(Lean.mkIdent ``ExtractNonDet.pick')) ; (try apply $(Lean.mkIdent ``ExtractNonDet.pick_weak')))
+  let tac ← `(term| by extract_tactic)
   assembleInitFuncToExecM tac
   assembleNextFuncToExecM tac
 
