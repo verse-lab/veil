@@ -235,19 +235,47 @@ class VeilSampleSize (n : outParam Nat)
 
 instance (priority := low) : VeilSampleSize 10 where
 
-instance {α : Type u} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : WeakFindable p where
+/-
+instance {α : Type} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : WeakFindable p where
   find :=
-    match (ST.Ref.get IO.stdGenRef : BaseIO StdGen) |>.run () with
-    | .ok stdGen _ =>
-      findRandom (SampleableExt.interpSample α) n (ULift.up stdGen) p
+    let x := ((do
+      let stdGen <- ST.Ref.get IO.stdGenRef
+      dbg_trace "{stdGen.s1} {stdGen.s2}"
+      if let some ⟨a, ⟨stdGen⟩⟩ := findRandom (SampleableExt.interpSample α) n (ULift.up stdGen) p then
+        let _ <- ST.Ref.set IO.stdGenRef stdGen
+        dbg_trace "{stdGen.s1} {stdGen.s2}"
+        return some a
+      else return none) : BaseIO (Option α)).run ()
+    match x with
+    | .ok a _ => a
+    | .error e _ => none
+  find_some_p := by sorry
+-/
+instance {α : Type} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : WeakFindable p where
+  find :=
+    let x := ((do
+      -- HACK to get to gen pseudorandom seed
+      let tm <- IO.getNumHeartbeats
+      let tm' <- IO.getNumHeartbeats
+      let stdGen := mkStdGen (tm' - tm)
+      if let some a := findRandom (SampleableExt.interpSample α) n (ULift.up stdGen) p then
+        return some a
+      else return none) : BaseIO (Option α)).run ()
+    match x with
+    | .ok a _ => a
     | .error e _ => none
   find_some_p := by
-    intro x; split <;> try simp
-    rename_i seed _ _; revert x
-    generalize ULift.up.{u, 0} seed = seed'; revert seed'
-    apply findRandom.partial_correctness; simp
-    introv ih; split_ifs; simp; rintro rfl; solve_by_elim
-    solve_by_elim
+    intro x; simp [EStateM.run, bind, EStateM.bind, dbgTrace]; split <;>
+    rename_i heq <;> revert heq <;> split <;> try simp
+    rename_i heq; revert heq; split; try simp
+    rename_i seed _ _
+    cases h: (findRandom (SampleableExt.interpSample α) n { down := _ } p) <;> try simp [pure, EStateM.pure]
+    { aesop }
+    rename_i val; revert val h
+    generalize ULift.up.{0, 0} (mkStdGen _) = seed';
+    revert seed';
+    apply findRandom.partial_correctness
+    all_goals aesop
 
 instance Fin.shrinkable {n : Nat} : Shrinkable (Fin n) where
   shrink m :=

@@ -11,6 +11,7 @@ veil module Ring2
 type node
 instantiate tot : TotalOrder node
 instantiate btwn : Between node
+instantiate repr : ToString node
 
 
 open Between TotalOrder
@@ -26,15 +27,22 @@ after_init {
 }
 
 -- TODO suspecting: just `pick` is not desirable, but `pickSuchThat`? also, `pick` then `assume` ≠ `pickSuchThat`?
-action send (n next : node) = {
--- action send = {
-  -- let n : node ← pick
-  -- let next : node ← pick
-  require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
-  -- let n :| (∃ next, ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z))
-  -- let next :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+-- action send (n next : node) = {
+-- -- action send = {
+--   -- let n : node ← pick
+--   -- let next : node ← pick
+--   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+--   -- let n :| (∃ next, ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z))
+--   -- let next :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+--   pending n next := true
+-- }
+
+action send = {
+  let ((n : node), next) :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  dbg_trace s!"send {n} {next}"
   pending n next := true
 }
+
 
 action recv (sender n next : node) = {
 -- action recv = {
@@ -49,12 +57,14 @@ action recv (sender n next : node) = {
   -- message may or may not be removed
   -- this models that multiple messages might be in flight
   pending sender n := *
+
   if (sender = n) then
     leader n := true
   else
     -- pass message to next node
     if (le n sender) then
       pending sender next := true
+  dbg_trace "passEnd"
 }
 
 safety [single_leader] leader L → le N L
@@ -69,13 +79,17 @@ end Ring2
 
 veil module Ring2
 
-variable [Fintype node] [insta : DecidableRel tot.le]
+variable [FinEnum node] [insta : DecidableRel tot.le]
 variable [instb : ∀ a b c, Decidable (btwn.btw a b c)]
+
+-- instance [Fintype node] : Plausible.SampleableExt (node × node) := by
+  -- apply @Plausible.Prod.sampleableExt
+
+attribute [-instance] instFindableOfFinEnumOfDecidablePred
 
 #gen_executable
 
--- #check Lean.
--- #check Plausible.Gen
+#print nextActExec
 
 end Ring2
 
@@ -88,15 +102,17 @@ variable (n : Nat)    -- TODO parameter not supported ???
 
 end tmp
 
-def simple_init (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
-  Ring2.initExec (Fin l.length) (node_ne := (Fin.pos_then_inhabited <| List.length_pos_iff.mpr hl))
+def simple_init (l : List Nat) (hl : 0 < l.length) (hnodup : List.Nodup l) :=
+  Ring2.initExec (Fin l.length) (node_ne := by
+    refine ⟨0, hl⟩)
     (btwn := between_ring' l hnodup) (tot := by infer_instance)
     (σ := Ring2.State _) (ρ := Ring2.Reader _)
     (insta := by dsimp [TotalOrder.le] ; infer_instance)
     (instb := by intro a b c ; dsimp [Between.btw, between_ring', between_ring] ; infer_instance)
 
-def simple_run (l : List Nat) (hl : l ≠ []) (hnodup : List.Nodup l) :=
-  Ring2.nextActExec (Fin l.length) (node_ne := (Fin.pos_then_inhabited <| List.length_pos_iff.mpr hl))
+def simple_run (l : List Nat) (hl : 0 < l.length) (hnodup : List.Nodup l) :=
+  Ring2.nextActExec (Fin l.length) (node_ne := by
+    refine ⟨0, hl⟩)
     (btwn := between_ring' l hnodup) (tot := by infer_instance)
     (σ := Ring2.State _) (ρ := Ring2.Reader _)
     (insta := by dsimp [TotalOrder.le] ; infer_instance)
@@ -120,11 +136,11 @@ def simple_check (l : List Nat) (hl : l.length = 5) (hnodup : List.Nodup l)
   @check_safety _ _ (labType := (Ring2.Label (Fin 5)))
     (sys := Ring2.System _ (btwn := between_ring'' _ l hl hnodup) (Ring2.State _) (Ring2.Reader _)) Ring2.Label.gen
     (by
-      have a := (simple_run l (by rw [← List.length_pos_iff, hl] ; decide) hnodup)
+      have a := (simple_run l (by rw [hl];decide) hnodup)
       rw [hl] at a ; exact a)
     ⟨⟩
     (by
-      have a := (simple_init l (by rw [← List.length_pos_iff, hl] ; decide) hnodup)
+      have a := (simple_init l (by rw [hl] ; decide) hnodup)
       rw [hl] at a
       exact DivM.run (a default default) |>.get!.getD (fun _ => default) |>.2)
     steps cfg
@@ -160,7 +176,8 @@ example [tot : TotalOrder _] [btwn : Between _] :
     (Ring2.Label.recv ⟨0, by decide⟩ ⟨4, by decide⟩ ⟨1, by decide⟩)
       |>.run initreader |>.run test_state_1 |>.run |>.run
       |>.getD (Except.ok <| ((), test_state_1)) |>.getD (fun _ => ((), test_state_1))
-      |>.snd |>.pending 0 4)
+      |>.snd |>.pending 0 4
+      )
 
 
 #eval show IO Unit from do
