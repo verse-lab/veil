@@ -88,6 +88,8 @@ attribute [-instance] instFindableOfFinEnumOfDecidablePred
 
 #gen_executable
 
+simple_deriving_repr_for State
+
 #print nextActExec
 
 end Ring2
@@ -181,13 +183,7 @@ example [tot : TotalOrder _] [btwn : Between _] :
 deriving instance Repr for Ring2.Label
 deriving instance Repr for Ring2.Reader
 
-open Std in
-instance [FinEnum node] : Repr (Ring2.State node) where
-  reprPrec t n := Format.bracket "{ " (Format.joinSep
-    [Format.append "leader := " (Repr.reprPrec t.leader n),
-     Format.append "pending := " (Repr.reprPrec t.pending n)] ", ") " }"
-
 #eval simple_check l (by decide) (by decide) 100
-    ({} : Plausible.Configuration) |>.run 1000
+    ({ numRetries := 1000, numInst := 10000 } : Plausible.Configuration) |>.run 1000
 
 end abc
