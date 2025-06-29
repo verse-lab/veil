@@ -94,14 +94,7 @@ simple_deriving_repr_for State
 
 end Ring2
 
-section tmp
-
-variable (n : Nat)    -- TODO parameter not supported ???
-
--- #deriveGen (Ring2.Label (Fin n))
-#deriveGen (Ring2.Label (Fin 5))
-
-end tmp
+#deriveGen Ring2.Label
 
 def simple_init (l : List Nat) (hl : 0 < l.length) (hnodup : List.Nodup l) :=
   Ring2.initExec (Fin l.length) (node_ne := by

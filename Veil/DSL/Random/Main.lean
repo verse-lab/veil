@@ -20,7 +20,15 @@ def deriveGen (inductiveTypeStx : Term) : TermElabM Syntax := do
     throwError "inductive type {inductiveType} is not an inductive type"
   let inductiveInfo := inductiveTypeConst.inductiveVal!
   let ctorsNum := inductiveInfo.numCtors
-  -- let mut matchAlts := #[]
+  -- get the names of the parameters from the type, prepare instance premises
+  let numParams := inductiveInfo.numParams
+  let .some (paramNames, _) := Nat.foldM (m := Option) numParams (fun _ _ (res, ty) => do
+    let Expr.forallE na _ body _ := ty | failure
+    pure (na :: res, body)) ([], inductiveTypeConst.type) | throwError "unknown error"
+  let paramIdents := paramNames.toArray |>.map mkIdent
+  let paramInsts : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) ←
+    paramIdents.mapM (fun pn => `(bracketedBinder| [$(mkIdent ``Plausible.SampleableExt) $pn] ))
+  -- work on each constructor
   let mut ctorNames := #[]
   let mut nums := #[]
   let mut sampleArgs := #[]
@@ -32,12 +40,15 @@ def deriveGen (inductiveTypeStx : Term) : TermElabM Syntax := do
     let ctorNumber := ctorInfo.numFields
     let mut sampleArg := #[]
     for _ in [0:ctorNumber] do
-      sampleArg := sampleArg.push $ <- `(term| (<- Plausible.SampleableExt.interpSample _))
+      sampleArg := sampleArg.push $ <- `(term| (← Plausible.SampleableExt.interpSample _))
     sampleArgs := sampleArgs.push $ sampleArg
-  `(command| def  $(mkIdent $ inductiveType ++ `gen) :
-     Plausible.Gen $inductiveTypeStx := do
-        match <- Plausible.Gen.chooseAny (Fin $(Syntax.mkNatLit ctorsNum):term) with
+  let target := Syntax.mkApp (mkIdent inductiveType) paramIdents
+  let cmd ← `(command| def $(mkIdent $ inductiveType ++ `gen) $[$paramInsts]* :
+     Plausible.Gen ($target) := do
+        match ← Plausible.Gen.chooseAny (Fin $(Syntax.mkNatLit ctorsNum):term) with
         $[| Fin.mk $nums _ => return $ctorNames $sampleArgs* ]*)
+  trace[veil.debug] "[deriveGen] {cmd}"
+  pure cmd
 
 elab "#deriveGen" t:term : command => do
   let stx <- runTermElabM (fun _ => deriveGen t)
