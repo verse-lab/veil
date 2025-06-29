@@ -84,13 +84,24 @@ theorem isInvariant_reachable [sys : RelationalTransitionSystem ρ σ l] (p : ρ
 structure Transition (σ l : Type) where
   postState : σ
   label : l
+deriving Inhabited, Repr, BEq, Lean.ToExpr
+
+instance [Repr σ] [Repr l] : ToString (Transition σ l) where
+  toString t := s!" --[{reprStr t.label}]--> {reprStr t.postState}"
 
 abbrev StateTrace (σ l : Type) := Array (Transition σ l)
+
+instance [Repr σ] [Repr l] : ToString (StateTrace σ l) where
+  toString t := String.join <| t.toList.map toString
 
 structure Trace (ρ σ l : Type) where
   r₀ : ρ
   s₀ : σ
   tr : StateTrace σ l
+deriving Inhabited, Repr, BEq, Lean.ToExpr
+
+instance [Repr ρ] [Repr σ] [Repr l] : ToString (Trace ρ σ l) where
+  toString t := s!"{reprStr t.r₀} , {reprStr t.s₀}" ++ toString t.tr
 
 def StateTrace.isValidFrom [sys : RelationalTransitionSystem ρ σ l] (r : ρ) (s : σ) (ts : StateTrace σ l) : Prop :=
   match _ : ts.toList with
