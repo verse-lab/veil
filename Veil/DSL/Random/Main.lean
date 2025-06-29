@@ -280,13 +280,22 @@ instance Fin.shrinkable {n : Nat} : Shrinkable (Fin n) where
     | 0 => []
     | _ + 1 => Nat.shrink m |>.map (Fin.ofNat' _)
 
-instance Fin.sampleableExt {n : Nat} [inh : Inhabited (Fin n)] : SampleableExt (Fin n) where
+instance [inh : Inhabited (Fin n)] : NeZero n := ⟨
+  by cases n; simp; rcases inh with ⟨⟨_, f⟩⟩; simp at f; simp
+⟩
+
+instance (priority := high) Fin.sampleableExt {n : Nat} [inh : Inhabited (Fin n)] : SampleableExt (Fin n) where
   proxy := Fin n
-  sample :=
-    match n, inh with
-    | 0, _ => return default
-    | n + 1, _ => SampleableExt.sample (α := Fin (n+1))
+  sample := do
+    let x <- Plausible.Gen.choose Nat 0 (n - 1) (Nat.zero_le _)
+    -- dbg_trace "y: {x} {n - 1}"
+    return Fin.ofNat' n x
   interp := id
+
+instance (priority := high) Fin.sampleableExtBool : SampleableExt Bool where
+  proxy := Nat
+  sample := do Gen.choose Nat 0 (<- Gen.getSize) (Nat.zero_le _)
+  interp := (· % 2 = 1)
 
 instance [Inhabited α] [FinEnum α] : Inhabited (Fin (FinEnum.card α)) where
   default := FinEnum.equiv default

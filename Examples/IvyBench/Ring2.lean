@@ -27,21 +27,21 @@ after_init {
 }
 
 -- TODO suspecting: just `pick` is not desirable, but `pickSuchThat`? also, `pick` then `assume` ≠ `pickSuchThat`?
--- action send (n next : node) = {
--- -- action send = {
---   -- let n : node ← pick
---   -- let next : node ← pick
---   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
---   -- let n :| (∃ next, ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z))
---   -- let next :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
---   pending n next := true
--- }
-
-action send = {
-  let ((n : node), next) :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
-  dbg_trace s!"send {n} {next}"
+action send (n next : node) = {
+-- action send = {
+  -- let n : node ← pick
+  -- let next : node ← pick
+  require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  -- let n :| (∃ next, ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z))
+  -- let next :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := true
 }
+
+-- action send = {
+--   let ((n : node), next) :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+--   dbg_trace s!"{n} {next}"
+--   pending n next := true
+-- }
 
 
 action recv (sender n next : node) = {
@@ -56,15 +56,14 @@ action recv (sender n next : node) = {
   -- let next :| ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   -- message may or may not be removed
   -- this models that multiple messages might be in flight
-  pending sender n := *
-
+  let lock <- pick Bool
+  pending sender n := lock
   if (sender = n) then
     leader n := true
   else
     -- pass message to next node
     if (le n sender) then
       pending sender next := true
-  dbg_trace "passEnd"
 }
 
 safety [single_leader] leader L → le N L
