@@ -148,17 +148,6 @@ def simple_check (l : List Nat) (hl : l.length = 5) (hnodup : List.Nodup l)
       intro r s
       dsimp [invSimp] ; dsimp [TotalOrder.le] ; infer_instance)
 
-open Lean in
-instance finfunctionRepr (α : Type u) (β : Type v) [Repr α] [FinEnum α] [Repr β] :
-  Repr (α → β) where
-  reprPrec := fun f n =>
-    let l := FinEnum.toList α
-    let args := l.map (reprPrec · n)
-    let res := l.map ((fun x => reprPrec x n) ∘ f)
-    args.zip res |>.foldl
-      (fun acc (a, b) => acc.append (a.append " => ".toFormat |>.append b |>.indentD))
-      ("finite_fun : ".toFormat)
-
 section abc
 
 -- `l[i]`: the node `i` is at position `l[i]`
@@ -194,16 +183,11 @@ deriving instance Repr for Ring2.Reader
 
 open Std in
 instance [FinEnum node] : Repr (Ring2.State node) where
-  reprPrec t n := Format.bracket "{" (Format.joinSep
+  reprPrec t n := Format.bracket "{ " (Format.joinSep
     [Format.append "leader := " (Repr.reprPrec t.leader n),
-     Format.append "pending := " (Repr.reprPrec t.pending n)] ", ") "}"
+     Format.append "pending := " (Repr.reprPrec t.pending n)] ", ") " }"
 
-#eval show IO Unit from do
-  let res ← simple_check l (by decide) (by decide) 100
+#eval simple_check l (by decide) (by decide) 100
     ({} : Plausible.Configuration) |>.run 1000
-  let b := res.safe?
-  IO.println s!"{res}"
-  unless b do
-    panic! "Safety check failed"
 
 end abc

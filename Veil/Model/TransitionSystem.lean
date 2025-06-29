@@ -84,24 +84,27 @@ theorem isInvariant_reachable [sys : RelationalTransitionSystem ρ σ l] (p : ρ
 structure Transition (σ l : Type) where
   postState : σ
   label : l
-deriving Inhabited, Repr, BEq, Lean.ToExpr
+deriving Inhabited, BEq
 
-instance [Repr σ] [Repr l] : ToString (Transition σ l) where
-  toString t := s!" --[{reprStr t.label}]--> {reprStr t.postState}"
+open Std in
+instance [Repr σ] [Repr l] : Repr (Transition σ l) where
+  reprPrec t n := (Format.bracket "--[" (reprPrec t.label n) "]-->" |>.indentD) ++ Format.line ++ (reprPrec t.postState n)
 
 abbrev StateTrace (σ l : Type) := Array (Transition σ l)
 
-instance [Repr σ] [Repr l] : ToString (StateTrace σ l) where
-  toString t := String.join <| t.toList.map toString
+open Std in
+instance [Repr σ] [Repr l] : Repr (StateTrace σ l) where
+  reprPrec t n := Format.join <| t.toList.map (fun x => reprPrec x n)
 
 structure Trace (ρ σ l : Type) where
   r₀ : ρ
   s₀ : σ
   tr : StateTrace σ l
-deriving Inhabited, Repr, BEq, Lean.ToExpr
+deriving Inhabited, BEq
 
-instance [Repr ρ] [Repr σ] [Repr l] : ToString (Trace ρ σ l) where
-  toString t := s!"{reprStr t.r₀} , {reprStr t.s₀}" ++ toString t.tr
+open Std in
+instance [Repr ρ] [Repr σ] [Repr l] : Repr (Trace ρ σ l) where
+  reprPrec t n := ("immutable state: " ++ reprPrec t.r₀ n ++ Format.line ++ reprPrec t.s₀ n ++ reprPrec t.tr n)
 
 def StateTrace.isValidFrom [sys : RelationalTransitionSystem ρ σ l] (r : ρ) (s : σ) (ts : StateTrace σ l) : Prop :=
   match _ : ts.toList with

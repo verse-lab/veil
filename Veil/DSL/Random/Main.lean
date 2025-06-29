@@ -84,17 +84,7 @@ structure RandomTrace (ρ σ labType) where
   thrownException? : Option ExId
   numberOfSteps : Nat
   safe? : Bool
-deriving Inhabited, Repr, BEq, Lean.ToExpr
-
-instance [Repr ρ] [Repr σ] [Repr l] : ToString (RandomTrace ρ σ l) where
-  toString t :=
-    let exid := match t.thrownException? with
-      | .none => "none"
-      | .some e => toString e
-    s!"trace : " ++ toString t.trace ++ "\n" ++
-    s!"thrownException? : {exid}\n" ++
-    s!"numberOfSteps : {t.numberOfSteps}\n" ++
-    s!"safe? : {t.safe?}"
+deriving Inhabited, Repr, BEq
 
 @[simp]
 def RandomTrace.getLast (trace : RandomTrace ρ σ labType) : σ := trace.trace.getLast

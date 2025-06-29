@@ -91,3 +91,26 @@ def getModelStr (msg : String) : String :=
 
 def Lean.MessageLog.getErrorMessages (log : MessageLog) : MessageLog :=
   { unreported := log.unreported.filter fun m => match m.severity with | MessageSeverity.error => true | _ => false }
+
+/-! Deriving `Repr` for functions over finite types. The idea is to first
+    curry the function using `finFunctionReprCurry`, and then apply `finFunctionRepr`
+    or `essentiallyFinSetRepr`.
+-/
+
+instance (priority := high) finFunctionReprCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
+  [Repr α₁] [FinEnum α₁] [Repr α₂] [FinEnum α₂] [Repr β] [inst : Repr (α₁ × α₂ → β)] :
+  Repr (α₁ → α₂ → β) where
+  reprPrec := fun f n => inst.reprPrec (fun (x, y) => f x y) n
+
+instance (priority := low) finFunctionRepr (α : Type u) (β : Type v) [Repr α] [FinEnum α] [Repr β] :
+  Repr (α → β) where
+  reprPrec := fun f n =>
+    let l := FinEnum.toList α
+    let args := l.map (reprPrec · n)
+    let res := l.map ((fun x => reprPrec x n) ∘ f)
+    args.zip res |>.foldl
+      (fun acc (a, b) => acc.append (a ++ " => " ++ b ++ Format.line))
+      ("finite_fun : ".toFormat)
+
+instance (priority := high) essentiallyFinSetRepr (α : Type u) [Repr α] [FinEnum α] : Repr (α → Bool) where
+  reprPrec := fun f => List.repr (FinEnum.toList α |>.filter f)
