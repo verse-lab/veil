@@ -86,13 +86,18 @@ variable [instb : ∀ a b c, Decidable (btwn.btw a b c)]
 
 attribute [-instance] instFindableOfFinEnumOfDecidablePred
 
-#gen_executable
+#gen_computable_actions
+#gen_computable_action_equality_proofs
 
 simple_deriving_repr_for State
 
-#print nextActExec
+#print nextActComputable
 
 end Ring2
+
+#check Ring2.replaced_actions_eq
+
+#exit
 
 #deriveGen Ring2.Label
 

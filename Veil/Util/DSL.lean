@@ -391,14 +391,14 @@ def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
   let `(term| $f:ident) := f | failure
   return (⟨f⟩, args.getArgs.map (⟨·⟩))
 
-def simpleAddThm (n : Name) (tp : Expr) (tac : TermElabM (TSyntax `Lean.Parser.Tactic.tacticSeq))
-  (attr : Array Attribute := #[]) : TermElabM Unit := do
-  withoutErrToSorry $
-  addDecl <|
-    Declaration.thmDecl <|
-      mkTheoremValEx n [] tp (<- elabTermAndSynthesize (<- `(by $(<- tac))) tp) []
-  enableRealizationsForConst n
-  applyAttributes n attr
+/-- Add a single theorem to the environment by providing its name, type and proof. -/
+def simpleAddTheorem (name : Name) (lvlParams : List Name) (type value : Expr) (nonComputable? : Bool) : CoreM Unit := do
+  let thm := Declaration.thmDecl <| mkTheoremValEx name lvlParams type value []
+  if nonComputable? then
+    addDecl <| thm
+    setEnv <| addNoncomputable (← getEnv) name
+  else
+    addAndCompile thm
 
 macro "exists?" br:explicitBinders ? "," t:term : term =>
   match br with

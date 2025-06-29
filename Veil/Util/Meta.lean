@@ -306,6 +306,12 @@ def getItemsFromDoSeq [Monad m] [MonadError m] [MonadQuotation m] (l : TSyntax `
   | _ => throwError "Unexpected doSeq: {l}"
 
 open Meta Term in
+def deltaMoreCore (t : Expr) (things : Array Name) : TermElabM Expr := do
+  let some t ← delta? t | throwError "cannot delta reduce {t}"
+  let t ← deltaExpand t fun n => n ∈ things
+  pure t
+
+open Meta Term in
 /-- Works like the `delta%` from Mathlib, but also allows delta-reducing
     definitions specified by `things`. -/
 def deltaMore (t : Term) (expectedType? : Option Expr) (things : Array Name) : TermElabM Expr := do
@@ -313,6 +319,4 @@ def deltaMore (t : Term) (expectedType? : Option Expr) (things : Array Name) : T
     elabTerm t expectedType?
   synthesizeSyntheticMVars
   let t ← instantiateMVars t
-  let some t ← delta? t | throwError "cannot delta reduce {t}"
-  let t ← deltaExpand t fun n => n ∈ things
-  pure t
+  deltaMoreCore t things
