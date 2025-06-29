@@ -13,19 +13,6 @@ lemma VeilM.assert_decidable_irrelevance
   {m : Mode} {ρ σ : Type} (p : Prop) (ex : ℤ) (i1 i2 : Decidable p) :
   @VeilM.assert m ρ σ p i1 ex = @VeilM.assert m ρ σ p i2 ex := by congr
 
--- TODO move these two somewhere else
-instance ExtractNonDet.pick' {τ : Type u} [Inhabited τ] :
-  ExtractNonDet Findable (MonadNonDet.pick (m := NonDetT m) τ) := by
-    dsimp [MonadNonDet.pick, NonDetT.pickSuchThat]; constructor
-    apply Findable.mk (some default) <;> simp
-    intro ; constructor
-
-instance ExtractNonDet.pick_weak' {τ : Type u} [Inhabited τ] :
-  ExtractNonDet WeakFindable (MonadNonDet.pick (m := NonDetT m) τ) := by
-    dsimp [MonadNonDet.pick, NonDetT.pickSuchThat]; constructor
-    apply WeakFindable.mk (some default) ; simp
-    intro ; constructor
-
 section replacement
 
 open Lean Meta Elab Term

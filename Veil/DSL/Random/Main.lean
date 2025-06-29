@@ -252,22 +252,19 @@ instance {α : Type} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [Dec
   find_some_p := by sorry
 -/
 instance {α : Type} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : WeakFindable p where
-  find :=
+  find u :=
     let x := ((do
-      -- HACK to get to gen pseudorandom seed
-      let tm <- IO.getNumHeartbeats
-      let tm' <- IO.getNumHeartbeats
-      let stdGen := mkStdGen (tm' - tm)
+      let stdGen := mkStdGen (<- IO.rand 0 100)
       if let some a := findRandom (SampleableExt.interpSample α) n (ULift.up stdGen) p then
         return some a
-      else return none) : BaseIO (Option α)).run ()
+      else return none) : BaseIO (Option α)).run u
     match x with
     | .ok a _ => a
     | .error e _ => none
   find_some_p := by
     intro x; simp [EStateM.run, bind, EStateM.bind, dbgTrace]; split <;>
     rename_i heq <;> revert heq <;> split <;> try simp
-    rename_i heq; revert heq; split; try simp
+    -- rename_i heq; revert heq; split; try simp
     rename_i seed _ _
     cases h: (findRandom (SampleableExt.interpSample α) n { down := _ } p) <;> try simp [pure, EStateM.pure]
     { aesop }

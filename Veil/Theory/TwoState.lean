@@ -11,7 +11,7 @@ instance (act : VeilM m ρ σ α) : Nonempty act.choices := by
   unhygienic induction act <;> constructor
   { exact (ExtractNonDet.pure _) }
   { exact (ExtractNonDet.vis _ _ (fun a => f_ih a |>.some)) }
-  apply ExtractNonDet.pickSuchThat;  refine ⟨.none, by simp⟩
+  apply ExtractNonDet.pickSuchThat;  refine ⟨fun _ => .none, by simp⟩
   exact fun t => f_ih t |>.some
 
 noncomputable
@@ -36,7 +36,7 @@ lemma VeilM.angel_fail_imp_assumptions (act : VeilM m ρ σ α) :
   simp [loomLogicSimp]; intros x px h
   specialize f_ih _ h; rcases f_ih with ⟨ex, h⟩
   exists (@ExtractNonDet.pickSuchThat _ _ _ _ _ _ ?_ ?_)
-  { refine ⟨.some x, by simp [*]⟩ }
+  { refine ⟨fun _ => .some x, by simp [*]⟩ }
   { exact fun b => if h : b = x then by rw [h]; exact ex else default }
   simp [ExtractNonDet.prop, VeilExecM.axiomatic, VeilM.run, NonDetT.runWeak, NonDetT.extractWeak]
   apply h
