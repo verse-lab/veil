@@ -85,8 +85,7 @@ variable [instb : ∀ a b c, Decidable (btwn.btw a b c)]
   -- apply @Plausible.Prod.sampleableExt
 
 attribute [-instance] instFindableOfFinEnumOfDecidablePred
-#gen_computable_actions
-#gen_computable_action_equality_proofs
+#gen_computable
 #gen_executable
 
 simple_deriving_repr_for State
@@ -115,32 +114,64 @@ def simple_run (l : List Nat) (hl : 0 < l.length) (hnodup : List.Nodup l) :=
 -- set_option synthInstance.maxHeartbeats 1000000
 -- set_option synthInstance.maxSize 1000
 
-instance : Inhabited (Ring2.Reader (Fin n)) := ⟨Ring2.Reader.mk⟩
-instance : Inhabited (Ring2.State (Fin n)) := ⟨Ring2.State.mk default default⟩
+deriving instance Inhabited for Ring2.Label
+deriving instance Inhabited for Ring2.State
+deriving instance Inhabited for Ring2.Reader
+
+-- instance : Inhabited (Ring2.Reader (Fin n)) := ⟨Ring2.Reader.mk⟩
+-- instance : Inhabited (Ring2.State (Fin n)) := ⟨Ring2.State.mk default default⟩
 
 def DivM.run (a : DivM α) :=
   match a with
   | .res x => Option.some x
   | .div => Option.none
 
+-- if we do not extract this out, some proofs inside instance do not match and proof would fail. not sure why
+def Ring2.Label.gen2 (l : List Nat) (hl : 0 < l.length) : Plausible.Gen (Ring2.Label (Fin l.length)) :=
+  (@Ring2.Label.gen _ (by cases l <;> simp [List.length] at hl ; dsimp ; infer_instance))
+
 -- TODO why system cannot be synthesized here? due to `btwn`???
-def simple_check (l : List Nat) (hl : l.length = 5) (hnodup : List.Nodup l)
-    (steps : Nat) (cfg : Plausible.Configuration) :=
-  @check_safety _ _ (labType := (Ring2.Label (Fin 5)))
-    (sys := Ring2.System _ (btwn := between_ring'' _ l hl hnodup) (Ring2.State _) (Ring2.Reader _)) Ring2.Label.gen
-    (by
-      have a := (simple_run l (by rw [hl];decide) hnodup)
-      rw [hl] at a ; exact a)
+def simple_check (l : List Nat) (hl : 0 < l.length) (hnodup : List.Nodup l)
+    (steps : Nat) (cfg : Plausible.Configuration) s₀ :=
+  @check_safety _ _ _
+    (sys := Ring2.System _ (node_ne := ⟨0, hl⟩) (btwn := between_ring' l hnodup) (Ring2.State _) (Ring2.Reader _))
+    (Ring2.Label.gen2 l hl)
+    (simple_run l hl hnodup)
     ⟨⟩
-    (by
-      have a := (simple_init l (by rw [hl] ; decide) hnodup)
-      rw [hl] at a
-      exact DivM.run (a default default) |>.get!.getD (fun _ => default) |>.2)
+    s₀
+    -- (DivM.run (simple_init l hl hnodup default default) |>.get!.getD (fun _ => default) |>.2)
     steps cfg
     -- NOTE: seems need to unfold a bunch of things before going through
     (by
       intro r s
       dsimp [invSimp] ; dsimp [TotalOrder.le] ; infer_instance)
+
+-- end-to-end correctness?
+#check check_safety_triple
+
+set_option maxHeartbeats 1600000 in
+example (l : List Nat) (hl : 0 < l.length) (hnodup : List.Nodup l)
+    (steps : Nat) (cfg : Plausible.Configuration) (s₀ : Ring2.State (Fin l.length)) :
+  let sys := Ring2.System _ (node_ne := ⟨0, hl⟩) (btwn := between_ring' l hnodup) (Ring2.State _) (Ring2.Reader _)
+  triple ⌜ sys.assumptions Ring2.Reader.mk ∧ sys.init Ring2.Reader.mk s₀ ⌝
+  (simple_check l hl hnodup steps cfg s₀)
+  fun res => ⌜res.trace.isValid ∧ (sys.isInvariant sys.safe → res.safe? = true)⌝ := by
+  intro sys
+  -- have instbtwn := between_ring'' _ l hl hnodup
+  have aa := (Ring2.next_exec_refine (Fin l.length) (node_ne := ⟨0, hl⟩) (btwn := between_ring' l hnodup) (Ring2.State _) (Ring2.Reader _)
+      (insta := by dsimp [TotalOrder.le] ; infer_instance)
+      (instb := by intro a b c ; dsimp [Between.btw] ; infer_instance))
+  have a := @check_safety_triple _ _ _ (sys := sys)
+    (Ring2.Label.gen2 l hl)
+    (Ring2.nextActExec _ (node_ne := ⟨0, hl⟩) (btwn := between_ring' l hnodup) _ _
+      (insta := by dsimp [TotalOrder.le] ; infer_instance)
+      (instb := by intro a b c ; dsimp [Between.btw] ; infer_instance))
+  have aaa := @a aa Ring2.Reader.mk s₀ steps cfg
+    (by
+      intro r s ; unfold sys
+      dsimp [invSimp] ; dsimp [TotalOrder.le] ; infer_instance)
+  unfold simple_check simple_run
+  exact aaa
 
 section abc
 
@@ -175,7 +206,7 @@ example [tot : TotalOrder _] [btwn : Between _] :
 deriving instance Repr for Ring2.Label
 deriving instance Repr for Ring2.Reader
 
-#eval simple_check l (by decide) (by decide) 1000
-    ({ numRetries := 1000, numInst := 10000 } : Plausible.Configuration) |>.run 1000
+#eval simple_check l (by decide) (by decide) 100
+    ({ numRetries := 1000, numInst := 10000 } : Plausible.Configuration) initstate |>.run 1000
 
 end abc
