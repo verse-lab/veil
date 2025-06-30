@@ -62,7 +62,7 @@ variable (nextComp : labType -> VeilExecM .external ρ σ Unit)
 variable (next_refine : ∀ (rd : ρ) (st st' : σ) (l : labType),
   (nextComp l).operational rd st st' (Except.ok ()) ->
   sys.nextLab rd st l st')
-variable (r₀ : ρ) (s₀ : σ) (hinit : sys.init r₀ s₀)
+variable (r₀ : ρ) (s₀ : σ)
 
 def random_transition (s : σ) : Gen (DivM (Except ExId (RelationalTransitionSystem.Transition σ labType))) := do
   let l <- genL
