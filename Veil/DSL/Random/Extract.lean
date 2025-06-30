@@ -66,12 +66,13 @@ section label_to_executable_action
 
 open Lean Elab Command Term Meta Lean.Parser
 
-/-- Used for generating `initComputable` (the computable version of the
-    `after_init`) and a function `nextActComputable'` from label to the
-    corresponding `VeilM` by replacing all `Classical.propDecidable` instances
+/-- Generate `initComputable` (the computable version of the `after_init`)
+    and `nextActComputable` (a function from the `Label` datatype to the
+    corresponding `VeilM`) by replacing all `Classical.propDecidable` instances
     inside them with the computable `Decidable` instances inferred at the point of
     running this metaprogram.
-    It is expected to be run inside a `veil module` with sufficiently
+
+    This command is expected to be run inside a `veil module` with sufficiently
     many assumptions made about computable `Decidable` instances so that
     the `Decidable` replacement will be successful. -/
 def generateReplacedActions : CommandElabM Unit := do
@@ -83,7 +84,7 @@ def generateReplacedActions : CommandElabM Unit := do
   -- this assumption is just for convenience, might be relaxed later
   unless vd.take originalvd.size == originalvd do
     throwError "[generateReplacedActions]: the system parameters {vd} should start with {originalvd}"
-  let magicNumber := originalvd.size + 4      -- NOTE: accounting for `ρ` and `σ` stuff
+  let magicNumber := originalvd.size + 4      -- NOTE: accounting for `ρ` and `σ` stuff; similar below
   let (initComputableCmd, nextActComputableCmd) ← Command.runTermElabM fun vs => do
     -- prepare the usual things
     let sectionArgs ← getSectionArgumentsStx vs
@@ -143,13 +144,33 @@ elab "#gen_computable_actions" : command => do
 -- this proof seems only doable at the meta-level (not using proof script)
 -- so, running the same term elaboration twice
 
-/-- TODO -/
+/-- Generate equality proofs about `initComputable` and `nextActComputable`. -/
 def generateReplacedActionProofs : CommandElabM Unit := do
   let vd ← getSystemParameters
   let spec := (← localSpecCtx.get).spec
   let originalvd := spec.generic.parameters
   let magicNumber := originalvd.size + 4
-  let (finalGoal, finalProof) ← Command.runTermElabM fun vs => do
+  -- for `initComputable`
+  let (initFinalGoal, initFinalProof) ← Command.runTermElabM fun vs => do
+    let init ← resolveGlobalConstNoOverloadCore initializerName
+    let initComputable ← resolveGlobalConstNoOverloadCore `initComputable
+    let lhsTerm ← mkAppOptM init ((vs.take magicNumber |>.map Option.some))
+    let rhsTerm ← mkAppOptM initComputable ((vs.map Option.some))
+    let goal ← mkEq lhsTerm rhsTerm
+    trace[veil.debug] "goal: {goal}"
+    let res ← elabDecidableReplaceCore' #[] lhsTerm
+    let proof ← res.getProof
+    trace[veil.debug] "proof: {proof}"
+    let finalProof ← mkLambdaFVars vs proof
+    check finalProof
+    let finalProof ← instantiateMVars finalProof
+    trace[veil.debug] "finalProof: {finalProof}"
+    let finalGoal ← mkForallFVars vs goal
+    let _ ← ensureHasType finalGoal finalProof
+    let finalGoal ← instantiateMVars finalGoal
+    pure (finalGoal, finalProof)
+  -- for `nextActComputable`
+  let (nextFinalGoal, nextFinalProof) ← Command.runTermElabM fun vs => do
     -- get label type
     let labelTypeBinders ← spec.generic.applyGetStateArguments vd
     let labelTypeArgs ← bracketedBindersToTerms labelTypeBinders
@@ -201,8 +222,9 @@ def generateReplacedActionProofs : CommandElabM Unit := do
     pure (finalGoal, finalProof)
   -- add the prefix
   let moduleName ← getCurrNamespace
-  Command.liftCoreM <| simpleAddTheorem (moduleName ++ `replaced_actions_eq) [] finalGoal finalProof false
-  where
+  Command.liftCoreM <| simpleAddTheorem (moduleName ++ `replaced_init_eq) [] initFinalGoal initFinalProof false
+  Command.liftCoreM <| simpleAddTheorem (moduleName ++ `replaced_actions_eq) [] nextFinalGoal nextFinalProof false
+where
   elabDecidableReplaceCore' (idts : Array Name) (t : Expr) : TermElabM Simp.Result := do
     let things ← idts.mapM resolveGlobalConstNoOverloadCore
     let t ← deltaMoreCore t things
@@ -212,24 +234,34 @@ def generateReplacedActionProofs : CommandElabM Unit := do
 elab "#gen_computable_action_equality_proofs" : command => do
   generateReplacedActionProofs
 
-/-- Used for generating `initExec` (the `VeilExecM` version of the
+/-- Doing both `#gen_computable_actions` and
+    `#gen_computable_action_equality_proofs` in one go. -/
+elab "#gen_computable" : command => do
+  generateReplacedActions
+  generateReplacedActionProofs
+
+/-- Generate `initExec` (the `VeilExecM` version of the
     `after_init`) and a function `nextActExec` from label to the
-    corresponding `VeilExecM`.
-    TODO -/
+    corresponding `VeilExecM`. Also generate a lemma similar to
+    `next_refine` for `nextActExec`. These are achieved by two steps:
+    first generate a function `nextExtract` from label to the
+    corresponding `ExtractNonDet` using the provided `extractNonDet`
+    (which can be a tactic), and then `nextActExec` is defined
+    as a thin wrapper around `nextExtract` and the lemma is proved
+    using `nextActExec` and the `next_refine` lemma.
+
+    This command is expected to be run inside a `veil module` with sufficiently
+    many assumptions made about `ExtractNonDet` so that
+    their synthesis will be successful. -/
 def generateVeilExecM (extractNonDet : TSyntax `term) (useWeak : Bool := true) : CommandElabM Unit := do
   let vd ← getSystemParameters
   let spec := (← localSpecCtx.get).spec
   let originalvd := spec.generic.parameters
   let magicNumber := originalvd.size + 4
-  let (nextExtractFuncCmd, nextActExecCmd, nextExecRefineCmd) ← Command.runTermElabM fun vs => do
+  let (initExecCmd, nextExtractFuncCmd, nextActExecCmd, nextExecRefineCmd) ← Command.runTermElabM fun vs => do
     -- prepare the usual things
     let sectionArgs ← getSectionArgumentsStx vs
     let sectionArgsPrefix := sectionArgs.take magicNumber
-
-    -- let labelTypeBinders ← spec.generic.applyGetStateArguments vd
-    -- let labelTypeArgs ← bracketedBindersToTerms labelTypeBinders
-    -- let labelT ← `(term|$labelIdent $labelTypeArgs*)
-
     -- prepare the names
     let initExecIdent := mkIdent `initExec
     let nextExtractIdent := mkIdent `nextExtract
@@ -237,40 +269,34 @@ def generateVeilExecM (extractNonDet : TSyntax `term) (useWeak : Bool := true) :
     let nextActComputable ← resolveGlobalConstNoOverloadCore `nextActComputable
     let findable := mkIdent <| (if useWeak then ``WeakFindable else ``Findable)
     let extractor := mkIdent <| (if useWeak then ``NonDetT.extractWeak else ``NonDetT.extract)
-
     -- build `initExec`
-    -- let initExecCmd ← do
-    --   let mainTarget := mkIdent initializerName
-    --   let replacedTarget ← `(decidable_replace% [] (@$mainTarget $sectionArgsPrefix*))
-    --   `(def $initExecIdent $[$vd]* : VeilExecM .external $genericReader $genericState Unit :=
-    --     ($extractor $replacedTarget $extractNonDet))
-
-    /-
-      TODO
-    -/
-    -- adapted from `assembleLabelType`
+    let initExecCmd ← do
+      let initComputable ← resolveGlobalConstNoOverloadCore `initComputable
+      let initComputableIdent := mkIdent initComputable
+      `(def $initExecIdent $[$vd]* : VeilExecM .external $genericReader $genericState Unit :=
+        ($extractor (@$initComputableIdent $sectionArgs*) $extractNonDet))
+    -- build `nextExtract`
     let a_ctions := spec.actions
     let alts ← a_ctions.mapM (fun s => do
-      let .some decl := s.actionDecl | unreachable!
-      -- for use with `casesOn` to generated the functions of `ActionLabel`
       let alt ← match s.br with
         | some br => do
           let funArgs ← toFunBinderArray br
           `(term| (fun $funArgs* => $extractNonDet))
         | none => `(term| ($extractNonDet))
       pure alt)
-
     let lIdent := mkIdent `l
     let target1 := Syntax.mkApp (← `(term| @$(mkIdent nextActComputable))) (sectionArgs ++ #[lIdent])
     let nextExtractFuncCmd ← `(
       def $nextExtractIdent $[$vd]* : ∀ $lIdent, ExtractNonDet $findable ($target1) :=
         fun l => l.casesOn $alts*
     )
+    -- build `nextActExec`
     let target2 := Syntax.mkApp (← `(term| @$nextExtractIdent)) (sectionArgs ++ #[lIdent])
     let nextActExecCmd ← `(
       def $nextActExecIdent $[$vd]* :=
         fun $lIdent => $extractor ($target1) ($target2)
     )
+    -- prove `next_exec_refine`
     let systemInQuestion ← resolveGlobalConstNoOverloadCore `System
     let nextRefineLemma ← resolveGlobalConstNoOverloadCore `next_refine
     let otherIdents := Array.map Lean.mkIdent #[`rd, `st, `st']
@@ -286,10 +312,10 @@ def generateVeilExecM (extractNonDet : TSyntax `term) (useWeak : Bool := true) :
         rw [$(mkIdent `replaced_actions_eq):ident] at htmp
         apply htmp ($target2) h
     )
-    pure (nextExtractFuncCmd, nextActExecCmd, nextExecRefineCmd)
-  -- elabCommand initExecCmd
-  -- trace[veil.debug] "[generateVeilExecM] {initExecCmd}"
-  -- trace[veil.info] "initActExec defined"
+    pure (initExecCmd, nextExtractFuncCmd, nextActExecCmd, nextExecRefineCmd)
+  elabCommand initExecCmd
+  trace[veil.debug] "[generateVeilExecM] {initExecCmd}"
+  trace[veil.info] "initExec defined"
   elabCommand nextExtractFuncCmd
   trace[veil.debug] "[generateVeilExecM] {nextExtractFuncCmd}"
   trace[veil.info] "nextExtract defined"

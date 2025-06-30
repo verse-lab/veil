@@ -85,19 +85,13 @@ variable [instb : ∀ a b c, Decidable (btwn.btw a b c)]
   -- apply @Plausible.Prod.sampleableExt
 
 attribute [-instance] instFindableOfFinEnumOfDecidablePred
-
 #gen_computable_actions
 #gen_computable_action_equality_proofs
+#gen_executable
 
 simple_deriving_repr_for State
 
-#print nextActComputable
-
 end Ring2
-
-#check Ring2.replaced_actions_eq
-
-#exit
 
 #deriveGen Ring2.Label
 
@@ -181,7 +175,7 @@ example [tot : TotalOrder _] [btwn : Between _] :
 deriving instance Repr for Ring2.Label
 deriving instance Repr for Ring2.Reader
 
-#eval simple_check l (by decide) (by decide) 100
+#eval simple_check l (by decide) (by decide) 1000
     ({ numRetries := 1000, numInst := 10000 } : Plausible.Configuration) |>.run 1000
 
 end abc
