@@ -59,7 +59,7 @@ open Plausible
 variable {labType : Type} [sys : RelationalTransitionSystem ρ σ labType]
 variable  (genL : Gen labType)
 variable (nextComp : labType -> VeilExecM .external ρ σ Unit)
-variable (next_refine : ∀ (rd : ρ) (st st' : σ) (l : labType),
+variable (next_refine : ∀ (l : labType) (rd : ρ) (st st' : σ),
   (nextComp l).operational rd st st' (Except.ok ()) ->
   sys.nextLab rd st l st')
 variable (r₀ : ρ) (s₀ : σ)
