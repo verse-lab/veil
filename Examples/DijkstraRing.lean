@@ -1,6 +1,7 @@
 import Veil
-
-veil module DijkstraRing
+import Veil.DSL.Random.ExtractUtil
+import Veil.DSL.Random.Extract
+import Veil.DSL.Random.Main
 
 class FiniteRing (t : Type) where
   -- relation: strict total order
@@ -25,8 +26,47 @@ class FiniteRing (t : Type) where
 
   -- successor on the ring
   next (x y : t) : Prop
-  next_def (x y : t) : next x y ↔ ((lt x y ∧ ∀ z, lt x z → le y z) ∨ (y = top ∧ x = bottom))
+  next_def (x y : t) : next x y ↔ ((lt x y ∧ ∀ z, lt x z → le y z) ∨ (x = top ∧ y = bottom))
 
+instance (n : Nat) : FiniteRing (Fin n.succ.succ) where
+  le := fun x y => x.val ≤ y.val
+  le_refl := by simp
+  le_trans := by simp ; omega
+  le_antisymm := by simp ; omega
+  le_total := by simp ; omega
+
+  lt := fun x y => x.val < y.val
+  le_lt := by simp ; omega
+
+  bottom := Fin.mk 0 (Nat.lt_trans (Nat.zero_lt_succ n) (Nat.le_refl _))
+  bottom_lt := by simp
+
+  top := Fin.mk n.succ (Nat.le_refl _)
+  top_gt := by rintro ⟨x, h⟩ ; exact Nat.le_of_lt_succ h
+
+  bottom_neq_top := by simp
+
+  next := fun x y =>
+    if x.val < n.succ then y.val = x.val.succ else y.val = 0
+  next_def := by
+    rintro ⟨x, hx⟩ ⟨y, hy⟩ ; simp only [Fin.mk.injEq] ; split_ifs
+    next h =>
+      constructor
+      · intro ; subst y ; left ; refine And.intro (Nat.le_refl _) ?_
+        rintro ⟨z, hz⟩ ; dsimp only [Fin.val] ; exact id
+      · rintro ( ⟨h1, h2⟩ | ⟨h1, h2⟩ )
+        · specialize h2 ⟨x.succ, Nat.succ_lt_succ h⟩ (Nat.le_refl _) ; dsimp only [Fin.val] at h2
+          exact Nat.eq_of_le_of_lt_succ h1 (Nat.lt_succ_of_le h2)
+        · subst x ; simp only [lt_self_iff_false] at h
+    next h =>
+      have a := Nat.eq_of_lt_succ_of_not_lt hx h ; subst x ; clear hx h
+      constructor
+      · intro ; subst y ; right ; constructor <;> rfl
+      · rintro ( ⟨h1, h2⟩ | ⟨h1, h2⟩ )
+        · have htmp := Nat.lt_of_le_of_lt h1 hy ; simp only [lt_self_iff_false] at htmp
+        · assumption
+
+veil module DijkstraRing
 
 type node
 instantiate ring : FiniteRing node
@@ -46,7 +86,7 @@ ghost relation hasPrivilege (s : node) :=
   ∀ (l r : node), next l s ∧ next s r →
     if s = ring.bottom then
       (x s = x r) ∧ (¬ up r)
-    else if s == ring.top then
+    else if s = ring.top then
       x s ≠ x l
     else
       (x s ≠ x l) ∨ ((x s = x r) ∧ (up s) ∧ (¬ up r))
