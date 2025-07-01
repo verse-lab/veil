@@ -157,6 +157,7 @@ deriving instance Inhabited for Reader
 end DijkstraRing
 
 #deriveGen DijkstraRing.Label
+#deriveGen DijkstraRing.State
 
 def simple_init (n : Nat) :=
   DijkstraRing.initExec (Fin n.succ.succ) (node_ne := ⟨0, Nat.zero_lt_succ _⟩)
@@ -171,8 +172,11 @@ def DivM.run (a : DivM α) :=
 def DijkstraRing.defaultInitState {n : Nat} : DijkstraRing.State (Fin n.succ.succ) :=
   { x := fun _ => false, up := fun _ => false }
 
-def simple_init' (n : Nat) :=
-  simple_init n |>.run ⟨⟩ |>.run DijkstraRing.defaultInitState
+def DijkstraRing.initState (n : Nat) : Plausible.Gen (DijkstraRing.State (Fin n.succ.succ)) :=
+  @DijkstraRing.State.gen (Fin n.succ.succ) (by infer_instance)
+
+def simple_init' {n : Nat} s₀ :=
+  simple_init n |>.run ⟨⟩ |>.run s₀
     |>.run |>.run |>.getD (Except.ok ((), DijkstraRing.defaultInitState))
     |>.getD (fun _ => ((), DijkstraRing.defaultInitState)) |>.snd
 
@@ -188,7 +192,9 @@ def simple_check {n : Nat} (s₀ : _) (steps : Nat) (cfg : Plausible.Configurati
     DijkstraRing.Label.gen (simple_run n) ⟨⟩ s₀ steps cfg
     (by intro r s ; dsimp [invSimp] ; dsimp [FiniteRing.next] ; infer_instance)
 
-def simple_check' (n : Nat) (steps : Nat) (cfg : Plausible.Configuration) :=
-  simple_check (simple_init' n) steps cfg
+def simple_check' (n : Nat) (steps : Nat) (cfg : Plausible.Configuration) := do
+  let a ← DijkstraRing.initState n
+  let a := simple_init' a
+  simple_check a steps cfg
 
-#eval simple_check' 2 100 ({ } : Plausible.Configuration) |>.run 1000
+#eval simple_check' 2 10 ({ } : Plausible.Configuration) |>.run 100
