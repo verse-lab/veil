@@ -73,8 +73,8 @@ instantiate ring : FiniteRing node
 
 open FiniteRing
 
-function x : node → Prop
-function up : node → Prop
+function x : node → Bool
+function up : node → Bool
 
 #gen_state
 
@@ -94,8 +94,8 @@ ghost relation hasPrivilege (s : node) :=
 safety [at_least_one_privilege] ∃ n, hasPrivilege n
 
 after_init {
-  up (ring.bottom) := True
-  up (ring.top) := False
+  up (ring.bottom) := true
+  up (ring.top) := false
 }
 
 action step (s : node) = {
@@ -109,14 +109,14 @@ action step (s : node) = {
           x s := ¬ x s
     else
       if x s ≠ x l then
-        x s := ¬ x s
-        up s := True
+        x s := not <| x s
+        up s := true
       if x s = x r ∧ up s ∧ (¬ up r) then
-        up s := False
+        up s := false
 }
 
 #gen_spec
-
+/-
 #check_invariants
 
 set_option veil.smt.translator "lean-smt"
@@ -135,6 +135,60 @@ unsat trace [bounded_safety] {
   any 10 actions
   assert ¬ at_least_one_privilege
 } by { bmc }
-
+-/
 
 end DijkstraRing
+
+veil module DijkstraRing
+
+variable [FinEnum node] [insta : DecidableRel ring.next]
+
+#gen_computable
+#gen_executable
+
+simple_deriving_repr_for State
+
+deriving instance Repr for Label
+deriving instance Repr for Reader
+deriving instance Inhabited for Label
+deriving instance Inhabited for State
+deriving instance Inhabited for Reader
+
+end DijkstraRing
+
+#deriveGen DijkstraRing.Label
+
+def simple_init (n : Nat) :=
+  DijkstraRing.initExec (Fin n.succ.succ) (node_ne := ⟨0, Nat.zero_lt_succ _⟩)
+    (DijkstraRing.State _) (DijkstraRing.Reader _)
+    (insta := by dsimp [FiniteRing.next] ; infer_instance)
+
+def DivM.run (a : DivM α) :=
+  match a with
+  | .res x => Option.some x
+  | .div => Option.none
+
+def DijkstraRing.defaultInitState {n : Nat} : DijkstraRing.State (Fin n.succ.succ) :=
+  { x := fun _ => false, up := fun _ => false }
+
+def simple_init' (n : Nat) :=
+  simple_init n |>.run ⟨⟩ |>.run DijkstraRing.defaultInitState
+    |>.run |>.run |>.getD (Except.ok ((), DijkstraRing.defaultInitState))
+    |>.getD (fun _ => ((), DijkstraRing.defaultInitState)) |>.snd
+
+def simple_run (n : Nat) :=
+  DijkstraRing.nextActExec (Fin n.succ.succ) (node_ne := ⟨0, Nat.zero_lt_succ _⟩)
+    (DijkstraRing.State _) (DijkstraRing.Reader _)
+    (insta := by dsimp [FiniteRing.next] ; infer_instance)
+
+def simple_check {n : Nat} (s₀ : _) (steps : Nat) (cfg : Plausible.Configuration) :=
+  @check_safety _ _ _
+    (sys := DijkstraRing.System (Fin n.succ.succ) (node_ne := ⟨0, Nat.zero_lt_succ _⟩)
+      (DijkstraRing.State _) (DijkstraRing.Reader _))
+    DijkstraRing.Label.gen (simple_run n) ⟨⟩ s₀ steps cfg
+    (by intro r s ; dsimp [invSimp] ; dsimp [FiniteRing.next] ; infer_instance)
+
+def simple_check' (n : Nat) (steps : Nat) (cfg : Plausible.Configuration) :=
+  simple_check (simple_init' n) steps cfg
+
+#eval simple_check' 2 100 ({ } : Plausible.Configuration) |>.run 1000
