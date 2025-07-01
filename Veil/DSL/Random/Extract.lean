@@ -4,35 +4,30 @@ import Veil.Util.TermSimp
 lemma decidable_irrelevance (p : Prop) (i1 i2 : Decidable p) : i1 = i2 := by
   cases i1 <;> cases i2 <;> aesop
 
--- NOTE: the following two are specialized versions of lemmas for `Decidable` replacement
--- they should be removed once the `Decidable` replacement is more generic
-lemma ite_decidable_irrelevance {α : Sort u} c (e1 e2 : α) (i1 i2 : Decidable c) :
-  @ite _ c i1 e1 e2 = @ite _ c i2 e1 e2 := by congr
-
-lemma VeilM.assert_decidable_irrelevance
-  {m : Mode} {ρ σ : Type} (p : Prop) (ex : ℤ) (i1 i2 : Decidable p) :
-  @VeilM.assert m ρ σ p i1 ex = @VeilM.assert m ρ σ p i2 ex := by congr
-
 section replacement
 
 open Lean Meta Elab Term
 
-simproc ↓ replaceDecidableInst (ite _ _ _) := fun e => do
-  let_expr ite α c h e1 e2 := e | return .continue
-  let_expr Classical.propDecidable _ := h | return .continue
-  let q ← synthInstance (mkApp (mkConst ``Decidable) c)
-  let lvl ← getLevel α
-  let proof := mkAppN (mkConst ``ite_decidable_irrelevance [lvl]) #[α, c, e1, e2, h, q]
-  let res ← mkAppOptM ``ite #[some α, some c, some q, some e1, some e2]
-  return .done { expr := res, proof? := some proof }
-
-simproc ↓ replaceDecidableInst2 (VeilM.assert _ _) := fun e => do
-  let_expr VeilM.assert m ρ σ p i1 ex := e | return .continue
-  let_expr Classical.propDecidable _ := i1 | return .continue
-  let i2 ← synthInstance (mkApp (mkConst ``Decidable) p)
-  let proof := mkAppN (mkConst ``VeilM.assert_decidable_irrelevance) #[m, ρ, σ, p, ex, i1, i2]
-  let res ← mkAppOptM ``VeilM.assert #[some m, some ρ, some σ, some p, some i2, some ex]
-  return .done { expr := res, proof? := some proof }
+simproc ↓ replaceDecidableInst (_) := fun e => do
+  -- idea: if any of the arguments is a `Classical.propDecidable`, replace it
+  -- and `visit` again; otherwise, `continue`
+  let args := e.getAppArgs'
+  let res ← args.findIdxM? fun arg => do
+    match_expr arg.consumeMData with
+    | Classical.propDecidable _ => pure true
+    | _ => pure false
+  let some idx := res | return .continue
+  let arg := args[idx]! |>.consumeMData
+  let_expr Classical.propDecidable p := arg | return .continue
+  let q ← synthInstance (mkApp (mkConst ``Decidable) p)
+  let proof := mkAppN (mkConst ``decidable_irrelevance) #[p, arg, q]
+  -- use congruence here
+  let f := e.getAppFn'
+  let fpre := mkAppN f <| args.take idx
+  let proof2 ← mkAppM ``congrArg #[fpre, proof]
+  let proof3 ← Array.foldlM (fun subproof sufarg => mkAppM ``congrFun #[subproof, sufarg])
+    proof2 (args.drop (idx + 1))
+  return .visit { expr := mkAppN f (args.set! idx q), proof? := .some proof3 }
 
 /-- Replacing all `Decidable` instances within a term `t` with those that
     are inferred at the point of running this metaprogram. `idts` specifies
@@ -43,7 +38,7 @@ def elabDecidableReplaceCore (idts : TSyntaxArray `ident) (t : TSyntax `term)
   (expectedType? : Option Expr) : TermElabM Simp.Result := do
   let things ← idts.mapM resolveGlobalConstNoOverload
   let t ← deltaMore t expectedType? things
-  t.simp #[``replaceDecidableInst, ``replaceDecidableInst2]
+  t.simp #[``replaceDecidableInst]
 
 @[inherit_doc elabDecidableReplaceCore]
 syntax (name := decidableReplaceElabStx) "decidable_replace% " "[" ident* "] " term : term
@@ -228,7 +223,7 @@ where
   elabDecidableReplaceCore' (idts : Array Name) (t : Expr) : TermElabM Simp.Result := do
     let things ← idts.mapM resolveGlobalConstNoOverloadCore
     let t ← deltaMoreCore t things
-    t.simp #[``replaceDecidableInst, ``replaceDecidableInst2]
+    t.simp #[``replaceDecidableInst]
 
 @[inherit_doc generateReplacedActionProofs]
 elab "#gen_computable_action_equality_proofs" : command => do
