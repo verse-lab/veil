@@ -64,7 +64,7 @@ def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br 
     (see [add_action_lang]) -/
     localSpecCtx.modify (fun s =>
       { s with spec.procedures :=
-        s.spec.actions.map fun t =>
+        s.spec.procedures.map fun t =>
           if t.name == nm.getId then
             { t with kind := .action actdecl }
           else t})
