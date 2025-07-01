@@ -118,6 +118,14 @@ attribute [smtSimp] Decidable.not_not decide_eq_decide Decidable.not_imp_self
   decide_eq_true_eq decide_eq_false_iff_not decide_not not_decide_eq_true
   cond_true cond_false decide_False decide_True
 
+-- Needed to simplify `Bool` into `Prop` for translation to SMT-LIB via
+-- Lean-SMT
+attribute [smtSimp] Bool.or_false Bool.or_true Bool.false_or Bool.true_or
+  Bool.or_self Bool.or_eq_true Bool.and_false Bool.and_true Bool.false_and
+  Bool.true_and Bool.and_self Bool.and_eq_true Bool.not_not Bool.not_true
+  Bool.not_false beq_true beq_false Bool.not_eq_true' Bool.not_eq_false'
+  Bool.not_eq_true Bool.not_eq_false
+
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`
 /-
 ```bash
