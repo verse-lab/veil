@@ -169,6 +169,8 @@ attribute [logicSimp] exists_eq_left' exists_eq_right' forall_eq_or_imp
   forall_apply_eq_imp_iff forall_eq_apply_imp_iff forall_apply_eq_imp_iff₂
 -/
 
+attribute [smtSimp] exists_prop
+
 /-! ## decidable -/
 attribute [logicSimp] Decidable.not_not decide_eq_decide
   Decidable.not_imp_self decide_implies decide_ite ite_then_decide_self
