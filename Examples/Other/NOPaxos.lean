@@ -11,27 +11,27 @@ type seq_t
 type replica
 
 -- Sequencer
-relation s_seq_msg_num (s : seq_t) (i : seq_t)
+relation s_seq_msg_num (s : seq_t) (i : seq_t) : Bool
 
 -- Replica
-relation r_log_len (r : replica) (i : seq_t)
-relation r_log (r : replica) (i : seq_t) (v : value)
-relation r_sess_msg_num (r : replica) (i : seq_t)
-relation r_gap_commit_reps (r : replica) (p : replica)
-relation r_current_gap_slot (r : replica) (i : seq_t)
-relation r_replica_status (r : replica) (s : r_state)
+relation r_log_len (r : replica) (i : seq_t) : Bool
+relation r_log (r : replica) (i : seq_t) (v : value) : Bool
+relation r_sess_msg_num (r : replica) (i : seq_t) : Bool
+relation r_gap_commit_reps (r : replica) (p : replica) : Bool
+relation r_current_gap_slot (r : replica) (i : seq_t) : Bool
+relation r_replica_status (r : replica) (s : r_state) : Bool
 
 -- Network
-relation m_client_request (v : value)
-relation m_marked_client_request (dest : replica) (v : value) (sessMsgNum : seq_t)
-relation m_request_reply (sender : replica) (request : value) (logSlotNum : seq_t)
-relation m_slot_lookup (dest : replica) (sender : replica) (sessMsgNum : seq_t)
-relation m_gap_commit (dest : replica) (slotNum : seq_t)
-relation m_gap_commit_rep (dest : replica) (sender : replica) (slotNum : seq_t)
+relation m_client_request (v : value) : Bool
+relation m_marked_client_request (dest : replica) (v : value) (sessMsgNum : seq_t) : Bool
+relation m_request_reply (sender : replica) (request : value) (logSlotNum : seq_t) : Bool
+relation m_slot_lookup (dest : replica) (sender : replica) (sessMsgNum : seq_t) : Bool
+relation m_gap_commit (dest : replica) (slotNum : seq_t) : Bool
+relation m_gap_commit_rep (dest : replica) (sender : replica) (slotNum : seq_t) : Bool
 
 -- Helpers
-immutable relation member (r : replica) (q : quorum)
-immutable relation leader (r : replica)
+immutable relation member (r : replica) (q : quorum) : Bool
+immutable relation leader (r : replica) : Bool
 
 individual no_op : value
 individual sequencer : seq_t
@@ -50,21 +50,21 @@ assumption [quorum_intersection] ∀ (q₁: quorum) (q₂: quorum), ∃ (r: repl
 assumption [single_leader] ∀ (R : replica), leader R ↔ R = lead
 
 after_init {
-  s_seq_msg_num S I := S = sequencer ∧ I = one;
+  s_seq_msg_num S I := decide $ S = sequencer && I = one;
 
-  r_log_len R I := I = seq.zero;
-  r_log R I V := False;
-  r_sess_msg_num R I := I = one;
-  r_gap_commit_reps R P := False;
-  r_current_gap_slot R I := I = seq.zero;
-  r_replica_status R S := S = st_normal;
+  r_log_len R I := decide $ I = seq.zero;
+  r_log R I V := false;
+  r_sess_msg_num R I := decide $ I = one;
+  r_gap_commit_reps R P := false;
+  r_current_gap_slot R I := decide $ I = seq.zero;
+  r_replica_status R S := decide $ S = st_normal;
 
-  m_client_request V := False;
-  m_marked_client_request D V SMN := False;
-  m_request_reply S V LSN := False;
-  m_slot_lookup D S SMN := False;
-  m_gap_commit D SN := False;
-  m_gap_commit_rep D S SN := False
+  m_client_request V := false;
+  m_marked_client_request D V SMN := false;
+  m_request_reply S V LSN := false;
+  m_slot_lookup D S SMN := false;
+  m_gap_commit D SN := false;
+  m_gap_commit_rep D S SN := false
 }
 
 -- Internal procedures
@@ -78,34 +78,34 @@ procedure replace_item (r : replica) (i : seq_t) (v : value) = {
   if len : (r_log_len r len) then
     if (seq.le i (← succ len)) then
       if i = (← succ len) then
-        r_log_len r I := I = i
-    r_log r i V := V = v
+        r_log_len r I := decide $ I = i
+    r_log r i V := decide $ V = v
 }
 
 procedure send_gap_commit (r : replica) = {
   if len : (r_log_len r len) then
     assert leader r; -- ensure leader r
-    assert r_replica_status r st_normal -- ensure r_replica_status r r_state.st_normal;
+    assert r_replica_status r st_normal; -- ensure r_replica_status r r_state.st_normal;
     let slot ← succ len
-    r_replica_status r S := S = st_gap_commit
-    r_gap_commit_reps r P := False
-    r_current_gap_slot r I := I = slot
-    m_gap_commit R slot := True
+    r_replica_status r S := decide $ S = st_gap_commit
+    r_gap_commit_reps r P := false
+    r_current_gap_slot r I := decide $ I = slot
+    m_gap_commit R slot := true
 }
 
 -- Transitions
 action client_send_request (v : value) = {
   require v ≠ no_op
-  m_client_request v := True
+  m_client_request v := true
 }
 
 action handle_client_request (m_value : value) (s : seq_t) = {
   require s = sequencer
   require m_client_request m_value
   if slot : (s_seq_msg_num s slot) then
-    m_marked_client_request R m_value slot := True
+    m_marked_client_request R m_value slot := true
     let k ← succ slot
-    s_seq_msg_num s I := I = k
+    s_seq_msg_num s I := decide $ I = k
 }
 
 action handle_marked_client_request (r : replica) (m_value : value) (m_sess_msg_num : seq_t) = {
@@ -114,17 +114,17 @@ action handle_marked_client_request (r : replica) (m_value : value) (m_sess_msg_
     if smn : (r_sess_msg_num r smn) then
       require r_replica_status r st_normal
       if m_sess_msg_num = smn then
-        r_log_len r I := I = smn
-        r_log r smn m_value := True
+        r_log_len r I := decide $ I = smn
+        r_log r smn m_value := true
         let k ← succ smn
-        r_sess_msg_num r I := I = k
-        m_request_reply r m_value smn := True
+        r_sess_msg_num r I := decide $ I = k
+        m_request_reply r m_value smn := true
       -- Note: we ignore the session terminated case
       if seq.lt smn m_sess_msg_num then
         if leader r then
           send_gap_commit r
         else
-          m_slot_lookup lead r smn := True
+          m_slot_lookup lead r smn := true
 }
 
 action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : seq_t) = {
@@ -140,7 +140,7 @@ action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : s
     require r_replica_status r st_normal
     if seq.le slot len then
       if v : r_log r slot v then
-        m_marked_client_request m_sender v m_sess_msg_num := True
+        m_marked_client_request m_sender v m_sess_msg_num := true
       else
         -- Nothing to undo
         pure ()
@@ -157,9 +157,9 @@ action handle_gap_commit (r : replica) (m_slot_num : seq_t) = {
       replace_item r m_slot_num no_op
       if seq.lt len m_slot_num then
         let m ← succ smn
-        r_sess_msg_num r I := I = m
-      m_gap_commit_rep lead r m_slot_num := True
-      m_request_reply r no_op m_slot_num := True
+        r_sess_msg_num r I := decide $ I = m
+      m_gap_commit_rep lead r m_slot_num := true
+      m_request_reply r no_op m_slot_num := true
 }
 
 action hangle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : seq_t) = {
@@ -177,9 +177,9 @@ action hangle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : se
   require r_replica_status r st_gap_commit
   require leader r
   require r_current_gap_slot r m_slot_num
-  r_gap_commit_reps r m_sender := True
+  r_gap_commit_reps r m_sender := true
   if ∃ (q:quorum), ∀ (p:replica), member r q ∧ member p q → r_gap_commit_reps r p then
-    r_replica_status r S := S = st_normal
+    r_replica_status r S := decide $ S = st_normal
 }
 
 invariant [sequencer_coherence] (s_seq_msg_num S I1 ∧ s_seq_msg_num S I2) → I1 = I2
