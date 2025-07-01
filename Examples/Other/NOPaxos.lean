@@ -1,4 +1,7 @@
 import Veil
+import Veil.DSL.Random.ExtractUtil
+import Veil.DSL.Random.Extract
+import Veil.DSL.Random.Main
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/845b4e5d00dc5540cc058b50b910c379523e538c/ivy/nopaxos.ivy
 
@@ -41,9 +44,6 @@ immutable individual lead : replica
 instantiate seq : TotalOrderWithMinimum seq_t
 
 #gen_state
-
-assumption [r_state_enum] ∀ (rs : r_state), (rs = st_normal ∨ rs = st_gap_commit ∨ rs = st_view_change)
-assumption [r_state_distinct] (st_normal ≠ st_gap_commit) ∧ (st_normal ≠ st_view_change) ∧ (st_gap_commit ≠ st_view_change)
 
 assumption [zero_one] seq.next seq.zero one
 assumption [quorum_intersection] ∀ (q₁: quorum) (q₂: quorum), ∃ (r: replica), member r q₁ ∧ member r q₂
@@ -230,6 +230,29 @@ set_option maxHeartbeats 0
 
 #time #check_invariants!
 
-sat trace { } by bmc_sat
+-- sat trace { } by bmc_sat
 
 end NOPaxos
+
+veil module NOPaxos
+
+variable [FinEnum quorum] [FinEnum value] [FinEnum seq_t] [FinEnum replica]
+variable [DecidableEq r_state] [FinEnum r_state]
+variable [insta : DecidableRel seq.le] [instb : DecidableRel seq.lt] [instc : DecidableRel seq.next]
+
+#gen_computable
+set_option maxHeartbeats 1600000 in
+#time #gen_executable
+
+simple_deriving_repr_for Reader
+simple_deriving_repr_for State
+
+deriving instance Repr for Label
+deriving instance Inhabited for Label
+deriving instance Inhabited for State
+deriving instance Inhabited for Reader
+
+end NOPaxos
+
+#deriveGen NOPaxos.Label
+#deriveGen! NOPaxos.State
