@@ -565,7 +565,7 @@ elab "bmc" : tactic => withMainContext do
     (try simp only [initSimp, nextSimp, actSimp, invSimp]); (try simplify_all);
     (unhygienic intros);
     sdestruct_hyps;
-    (try simplify_all);
+    (try simplify_all); (try unhygienic intros);
     -- FIXME: workaround for `lean-smt` introducing `And.left` and `And.right`
     sdestruct_hyps;
     (try simplify_all);
