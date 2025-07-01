@@ -104,11 +104,14 @@ def generateReplacedActions : CommandElabM Unit := do
       via delta-reduction).
     -/
     -- adapted from `assembleLabelType`
+    let procNames := spec.procedures.map (fun p => p.name)
     let a_ctions := spec.actions
     let alts ← a_ctions.mapM (fun s => do
       let .some decl := s.actionDecl | unreachable!
       let mainTarget := mkIdent <| toExtName <| decl.name
+      -- NOTE: this heuristic could be enhanced
       let dependencies := Array.map Lean.mkIdent #[((decl.name |> toExtName) ++ `withRet)]
+      let dependencies := dependencies ++ Array.map Lean.mkIdent procNames
       -- for use with `casesOn` to generated the functions of `ActionLabel`
       let alt ← match s.br with
         | some br => do
@@ -191,6 +194,7 @@ def generateReplacedActionProofs : CommandElabM Unit := do
       let ty ← inferType casesOn
       -- get the core proofs by rerunning `elabDecidableReplaceCore`
       let alts ← forallTelescope ty fun xs _ => do
+        let procNames := spec.procedures.map (fun p => p.name)
         let a_ctions := spec.actions
         unless a_ctions.size == xs.size do
           throwError "failed due to unknown reason"
@@ -202,6 +206,7 @@ def generateReplacedActionProofs : CommandElabM Unit := do
             let mainTarget ← resolveGlobalConstNoOverloadCore mainTarget
             let mainTarget ← mkAppOptM mainTarget ((vs.take magicNumber |>.map Option.some) ++ funArgs.map Option.some)
             let dependencies := #[((decl.name |> toExtName) ++ `withRet)]
+            let dependencies := dependencies ++ procNames
             let res ← elabDecidableReplaceCore' dependencies mainTarget
             let subproof ← res.getProof
             liftMetaM <| mkLambdaFVars funArgs subproof
