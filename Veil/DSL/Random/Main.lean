@@ -9,7 +9,7 @@ import Plausible
 
 open Lean Lean.Elab.Command Lean.Meta Lean.Elab.Term
 
-def deriveGen (inductiveTypeStx : Term) : TermElabM Syntax := do
+def deriveGen (instsForEachArg : Array Name) (inductiveTypeStx : Term) : TermElabM Syntax := do
   let inductiveTypeTerm <- elabTerm inductiveTypeStx none
   let .some inductiveType := inductiveTypeTerm.getAppFn.constName?
     | throwError "{inductiveTypeStx} is not an inductive type"
@@ -27,7 +27,7 @@ def deriveGen (inductiveTypeStx : Term) : TermElabM Syntax := do
     pure (na :: res, body)) ([], inductiveTypeConst.type) | throwError "unknown error"
   let paramIdents := paramNames.toArray |>.map mkIdent
   let paramInsts : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) ←
-    paramIdents.mapM (fun pn => `(bracketedBinder| [$(mkIdent ``Plausible.SampleableExt) $pn] ))
+    paramIdents.flatMapM (fun pn => instsForEachArg.mapM fun a => `(bracketedBinder| [$(mkIdent a) $pn] ))
   -- work on each constructor
   let mut ctorNames := #[]
   let mut nums := #[]
@@ -50,8 +50,16 @@ def deriveGen (inductiveTypeStx : Term) : TermElabM Syntax := do
   trace[veil.debug] "[deriveGen] {cmd}"
   pure cmd
 
+/-- Derive a random generator for the specified inductive type. -/
 elab "#deriveGen" t:term : command => do
-  let stx <- runTermElabM (fun _ => deriveGen t)
+  let stx <- runTermElabM (fun _ => deriveGen #[``Plausible.SampleableExt] t)
+  elabCommand stx
+
+/-- Similar to `#deriveGen`, but this requires more typeclass instance
+    arguments, so that more complicated instances of `Plausible.SampleableExt`
+    might get automatically synthesized for each constructor of the inductive type. -/
+elab "#deriveGen! " t:term : command => do
+  let stx ← runTermElabM (fun _ => deriveGen #[``Plausible.SampleableExt, ``Repr, ``DecidableEq] t)
   elabCommand stx
 
 open Plausible
@@ -317,11 +325,13 @@ instance [Inhabited α] [FinEnum α] : SampleableExt α where
   sample := SampleableExt.sample (α := Fin (FinEnum.card α))
   interp := FinEnum.equiv.symm
 
-instance SampleableConstFun [SampleableExt α] [Repr α] [Shrinkable α] : SampleableExt (β → α) where
+instance (priority := low) SampleableConstFun [SampleableExt α] [Repr α] [Shrinkable α] : SampleableExt (β → α) where
   proxy := α
   sample := SampleableExt.interpSample (α := α)
   interp a := fun _ => a
 
+/-
+-- temporarily commented out, due to the existing `Plausible.TotalFunction.Pi.sampleableExt` instance
 instance SampleableFun {β α : Type} [BEq β] [Inhabited α] [SampleableExt α] [Repr α] [Shrinkable α]
   [SampleableExt β] [Repr β] [Shrinkable β] :
   SampleableExt (β → α) where
@@ -329,6 +339,7 @@ instance SampleableFun {β α : Type} [BEq β] [Inhabited α] [SampleableExt α]
   sample := SampleableExt.interpSample (α := List (β × α))
   interp l := fun b =>
     if let some ⟨_, a⟩ := l.find? (·.1 == b) then a else default
+-/
 
 instance [FinEnum α] : Shrinkable α := inferInstanceAs (Shrinkable (NoShrink α))
 instance [FinEnum α] : Repr α where reprPrec a n := reprPrec (FinEnum.equiv a) n

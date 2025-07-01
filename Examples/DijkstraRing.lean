@@ -157,7 +157,7 @@ deriving instance Inhabited for Reader
 end DijkstraRing
 
 #deriveGen DijkstraRing.Label
-#deriveGen DijkstraRing.State
+#deriveGen! DijkstraRing.State
 
 def simple_init (n : Nat) :=
   DijkstraRing.initExec (Fin n.succ.succ) (node_ne := ⟨0, Nat.zero_lt_succ _⟩)
@@ -173,7 +173,7 @@ def DijkstraRing.defaultInitState {n : Nat} : DijkstraRing.State (Fin n.succ.suc
   { x := fun _ => false, up := fun _ => false }
 
 def DijkstraRing.initState (n : Nat) : Plausible.Gen (DijkstraRing.State (Fin n.succ.succ)) :=
-  @DijkstraRing.State.gen (Fin n.succ.succ) (by infer_instance)
+  @DijkstraRing.State.gen (Fin n.succ.succ) inferInstance inferInstance inferInstance
 
 def simple_init' {n : Nat} s₀ :=
   simple_init n |>.run ⟨⟩ |>.run s₀
@@ -197,4 +197,4 @@ def simple_check' (n : Nat) (steps : Nat) (cfg : Plausible.Configuration) := do
   let a := simple_init' a
   simple_check a steps cfg
 
-#eval simple_check' 2 10 ({ } : Plausible.Configuration) |>.run 100
+#eval simple_check' 2 100 ({ } : Plausible.Configuration) |>.run 100
