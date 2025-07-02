@@ -230,7 +230,18 @@ set_option maxHeartbeats 0
 
 #time #check_invariants!
 
--- sat trace { } by bmc_sat
+sat trace { } by bmc_sat
+
+sat trace {
+  client_send_request
+  handle_client_request
+  handle_marked_client_request
+} by bmc_sat
+
+unsat trace {
+  any 2 actions
+  handle_gap_commit
+} by bmc
 
 end NOPaxos
 

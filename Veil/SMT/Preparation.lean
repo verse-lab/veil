@@ -89,6 +89,7 @@ elab "rename_binders" : tactic => do
 fix implemented there seems unreliable. -/
 attribute [smtSimp] iff_eq_eq
 
+attribute [smtSimp] exists_prop
 attribute [smtSimp] Pi.compl_def Pi.compl_apply compl
 
 /-- Tuples are not supported in SMT-LIB, so we destruct tuple equalities. -/
@@ -113,18 +114,37 @@ attribute [smtSimp] Pi.compl_def Pi.compl_apply compl
   { rintro ⟨a, b, h⟩ ; exact ⟨⟨a, b⟩, h⟩ }
 
 /-! ## decidable -/
-attribute [smtSimp] Decidable.not_not decide_eq_decide Decidable.not_imp_self
-  decide_implies decide_ite ite_then_decide_self ite_else_decide_self
-  decide_eq_true_eq decide_eq_false_iff_not decide_not not_decide_eq_true
-  cond_true cond_false decide_False decide_True
+-- To translate using Lean-SMT, we need to get rid of all `decide`s
 
--- Needed to simplify `Bool` into `Prop` for translation to SMT-LIB via
--- Lean-SMT
-attribute [smtSimp] Bool.or_false Bool.or_true Bool.false_or Bool.true_or
-  Bool.or_self Bool.or_eq_true Bool.and_false Bool.and_true Bool.false_and
-  Bool.true_and Bool.and_self Bool.and_eq_true Bool.not_not Bool.not_true
-  Bool.not_false beq_true beq_false Bool.not_eq_true' Bool.not_eq_false'
-  Bool.not_eq_true Bool.not_eq_false
+@[smtSimp low] theorem decide_elim {_ : Decidable p} :
+  decide p ↔ p := by
+  by_cases p <;> simp_all
+
+@[smtSimp] theorem decide_eq {_ : Decidable p} (b : Bool) :
+  decide p = b ↔ p = b := by
+  by_cases p <;> simp_all
+
+@[smtSimp] theorem decide_and' {_ : Decidable p} {_ : Decidable q} (b : Bool) :
+  decide p && decide q = b ↔ (p ∧ q = b) := by
+  by_cases p <;> by_cases q <;> simp_all
+
+@[smtSimp] theorem decide_or' {_ : Decidable p} {_ : Decidable q} (b : Bool) :
+  decide p || decide q = b ↔ (p ∨ q = b) := by
+  by_cases p <;> by_cases q <;> simp_all
+
+@[smtSimp] theorem decide_ite_then {_ : Decidable p} {_ : Decidable q} (r b : Bool) :
+  (if p then decide q else r) = b ↔ (if p then q = b else r = b) := by
+  by_cases p <;> by_cases q <;> by_cases r <;> simp_all
+
+@[smtSimp] theorem decide_ite_else {_ : Decidable p} {_ : Decidable q} (r b : Bool) :
+  (if p then r else decide q) = b ↔ (if p then r = b else q = b) := by
+  by_cases p <;> by_cases q <;> by_cases r <;> simp_all
+
+-- attribute [smtSimp] Decidable.not_not decide_eq_decide Decidable.not_imp_self
+--   decide_implies decide_ite ite_then_decide_self ite_else_decide_self
+--   decide_eq_true_eq decide_eq_false_iff_not decide_not not_decide_eq_true
+--   cond_true cond_false decide_False decide_True
+  -- false_eq_decide_iff true_eq_decide_iff
 
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`
 /-
@@ -144,7 +164,10 @@ attribute [logicSimp] eq_mp_eq_cast eq_mpr_eq_cast cast_cast eq_true_eq_id
 
 -- This creates `Not`s that are then eliminated by `not_if`
 attribute [ifSimp] HasCompl.compl Classical.not_forall
-attribute [actSimp] HasCompl.compl Classical.not_not
+
+-- The `not_exists` is here as part of `initSimp` to get right of the
+-- `exists st` in the initializer for `unsat trace` queries.
+attribute [initSimp, actSimp, smtSimp] HasCompl.compl Classical.not_not not_exists Classical.not_forall
 
 /-! ## distributivity -/
 attribute [logicSimp] not_or Classical.not_imp not_and not_if -- Classical.not_forall
@@ -177,12 +200,10 @@ attribute [logicSimp] exists_eq_left' exists_eq_right' forall_eq_or_imp
   forall_apply_eq_imp_iff forall_eq_apply_imp_iff forall_apply_eq_imp_iff₂
 -/
 
-attribute [smtSimp] exists_prop
-
 /-! ## decidable -/
-attribute [logicSimp] Decidable.not_not decide_eq_decide
-  Decidable.not_imp_self decide_implies decide_ite ite_then_decide_self
-  ite_else_decide_self
+-- attribute [logicSimp] Decidable.not_not decide_eq_decide
+--   Decidable.not_imp_self decide_implies decide_ite ite_then_decide_self
+--   ite_else_decide_self
 
 /-! From `SimpLemmas.Lean`-/
 attribute [logicSimp] eq_self ne_eq ite_true ite_false dite_true

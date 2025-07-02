@@ -561,14 +561,18 @@ elab "simplify_all" : tactic => withMainContext do
 
 /-- Tactic to solve `unsat trace` goals. -/
 elab "bmc" : tactic => withMainContext do
-  let tac ← `(tactic|
-    (try simp only [initSimp, nextSimp, actSimp, invSimp]); (try simplify_all);
-    (unhygienic intros);
-    sdestruct_hyps;
-    (try simplify_all); (try unhygienic intros);
+  let tac ← `(tacticSeq|
+    try simp only [initSimp, quantifierSimp]
+    try simp only [nextSimp]
+    try simp only [actSimp, invSimp]
+    try simplify_all
+    unhygienic intros
+    sdestruct_hyps
+    try simplify_all
+    unhygienic intros
     -- FIXME: workaround for `lean-smt` introducing `And.left` and `And.right`
-    sdestruct_hyps;
-    (try simplify_all);
+    sdestruct_hyps
+    try simplify_all
     sauto_all
   )
   trace[veil.smt] "{tac}"
@@ -580,13 +584,20 @@ def bmcSat : TacticM Unit := withMainContext do
   -- Operate on a duplicated goal
   let goal' ← mkFreshExprMVar (← Tactic.getMainTarget)
   replaceMainGoal [goal'.mvarId!]
-  run `(tactic| simp only [initSimp, nextSimp, actSimp, invSimp]; simplify_all)
+  run `(tacticSeq|
+    try simp only [initSimp, quantifierSimp]
+    try simp only [nextSimp]
+    try simp only [actSimp, invSimp]
+    try simplify_all)
   if (← getUnsolvedGoals).length == 0 then
     originalGoal.admit (synthetic := false)
   else
     existIntoForall
     let simpLemmas := mkSimpLemmas $ #[`smtSimp].map mkIdent
-    withMainContext do run `(tactic| unhygienic intros; sdestruct_hyps; (try simp only [$simpLemmas,*]))
+    withMainContext do run `(tacticSeq|
+      unhygienic intros
+      sdestruct_hyps
+      try simp only [$simpLemmas,*])
     if (← getUnsolvedGoals).length == 0 then
       originalGoal.admit (synthetic := false)
     else
@@ -629,6 +640,9 @@ where
   | .Unknown reason => throwError "{Veil.SMT.unknownGoalStr solverUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
   | .Failure reason => throwError "{Veil.SMT.failureGoalStr solverUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
   | .Unsat => throwError "{Veil.SMT.satGoalStr solverUsed}"
+
+elab "UNSAFE_exists_into_forall" : tactic => bmcSat.existIntoForall
+elab "UNSAFE_admit_if_sat" : tactic => bmcSat.admitIfSat
 
 /-- Tactic to solve `sat trace` goals.
 
