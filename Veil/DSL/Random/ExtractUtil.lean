@@ -128,7 +128,6 @@ def deriveEnumInstance (name : Name) : CommandElabM Unit := do
       `(inductive $(mkIdent name) where $[$ctors]* deriving DecidableEq, Inhabited, Repr, Nonempty)
     else
       `(inductive $(mkIdent name) where deriving DecidableEq, Repr)
-  trace[veil.debug] "defineIndTypeCmd: {defineIndTypeCmd}"
   let instClauses ←
     fields.mapM fun fn => `(Lean.Parser.Term.structInstField| $(mkIdent fn):ident := $(mkIdent <| name ++ fn):ident )
   let completeRequirement := info.fieldNames.back!
@@ -140,9 +139,18 @@ def deriveEnumInstance (name : Name) : CommandElabM Unit := do
   let instClauses := instClauses.push proof1 |>.push proof2
   let instantiateCmd ←
     `(instance : $(mkIdent clsName) $(mkIdent name) where $[$instClauses]*)
-  trace[veil.debug] "instantiateCmd: {instantiateCmd}"
+  let allConstructors ← do
+    let arr := fields.map fun fn => (mkIdent <| name ++ fn)
+    `(term| [ $arr,* ] )
+  let instantiateFinEnumCmd ←
+    `(instance : $(mkIdent ``FinEnum) $(mkIdent name) :=
+      $(mkIdent ``FinEnum.ofList) $allConstructors (by simp ; exact $(mkIdent <| clsName ++ completeRequirement)))
   elabCommand defineIndTypeCmd
+  trace[veil.debug] "defineIndTypeCmd: {defineIndTypeCmd}"
   elabCommand instantiateCmd
+  trace[veil.debug] "instantiateCmd: {instantiateCmd}"
+  elabCommand instantiateFinEnumCmd
+  trace[veil.debug] "instantiateFinEnumCmd: {instantiateFinEnumCmd}"
 
 elab "deriving_enum_instance_for " name:ident : command => do
   let name := name.getId
