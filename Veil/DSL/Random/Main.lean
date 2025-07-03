@@ -251,6 +251,12 @@ def findRandom (gen : Gen α) (size : ℕ) (seed : ULift StdGen) (p : α -> Prop
   if p res.1 then some res.1 else findRandom gen size res.2 p
   partial_fixpoint
 
+def findRandomFinEnum [FinEnum α] (gen : ∀ n [Inhabited (Fin n)], Gen (Fin n)) (size : ℕ) (seed : ULift StdGen) (p : α → Prop) [DecidablePred p] : Option α := do
+  let l := FinEnum.toList α |>.filter p
+  if h : l.isEmpty then none else
+    let res := ReaderT.run (@gen l.length ⟨0, List.length_pos_iff.mpr <| List.isEmpty_eq_false_iff.mp <| eq_false_of_ne_true h⟩) ⟨size⟩ |>.run seed
+    .some <| l.get res.1
+
 class VeilSampleSize (n : outParam Nat)
 
 instance (priority := low) : VeilSampleSize 10 where
@@ -271,28 +277,15 @@ instance {α : Type} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [Dec
     | .error e _ => none
   find_some_p := by sorry
 -/
-instance {α : Type} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : WeakFindable p where
-  find u :=
-    let x := ((do
-      let stdGen := mkStdGen (<- IO.rand 0 100)
-      if let some a := findRandom (SampleableExt.interpSample α) n (ULift.up stdGen) p then
-        return some a
-      else return none) : BaseIO (Option α)).run u
-    match x with
-    | .ok a _ => a
-    | .error e _ => none
-  find_some_p := by
-    intro x; simp [EStateM.run, bind, EStateM.bind, dbgTrace]; split <;>
-    rename_i heq <;> revert heq <;> split <;> try simp
-    -- rename_i heq; revert heq; split; try simp
-    rename_i seed _ _
-    cases h: (findRandom (SampleableExt.interpSample α) n { down := _ } p) <;> try simp [pure, EStateM.pure]
-    { aesop }
-    rename_i val; revert val h
-    generalize ULift.up.{0, 0} (mkStdGen _) = seed';
-    revert seed';
-    apply findRandom.partial_correctness
-    all_goals aesop
+def findCore {α : Type} [VeilSampleSize n] (oracle : Nat → ULift.{u_1, 0} StdGen → Option α) : Option α :=
+  let x := ((do
+    let stdGen := mkStdGen (<- IO.rand 0 100)
+    if let some a := oracle n (ULift.up stdGen) then
+      return some a
+    else return none) : BaseIO (Option α)).run ()
+  match x with
+  | .ok a _ => a
+  | .error _ _ => none
 
 instance Fin.shrinkable {n : Nat} : Shrinkable (Fin n) where
   shrink m :=
@@ -311,6 +304,44 @@ instance (priority := high) Fin.sampleableExt {n : Nat} [inh : Inhabited (Fin n)
     -- dbg_trace "y: {x} {n - 1}"
     return Fin.ofNat' n x
   interp := id
+
+instance {α : Type} (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : WeakFindable p where
+  find u := findCore (fun a b => findRandom (SampleableExt.interpSample α) a b p)
+  find_some_p := by
+    intro x; simp [findCore, EStateM.run, bind, EStateM.bind, dbgTrace]; split <;>
+    rename_i heq <;> revert heq <;> split <;> try simp
+    -- rename_i heq; revert heq; split; try simp
+    rename_i seed _ _
+    cases h: (findRandom (SampleableExt.interpSample α) n { down := _ } p) <;> try simp [pure, EStateM.pure]
+    { aesop }
+    rename_i val; revert val h
+    generalize ULift.up.{0, 0} (mkStdGen _) = seed';
+    revert seed';
+    apply findRandom.partial_correctness
+    all_goals aesop
+
+instance (priority := high) Findable.byFinEnum {α : Type} [FinEnum α] (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : Findable p where
+  find u := findCore (fun a b => findRandomFinEnum (fun n => SampleableExt.interpSample (Fin n)) a b p)
+  find_some_p := by
+    intro x; simp [findCore, EStateM.run, bind, EStateM.bind] ; intro h ; split at h <;> (try contradiction)
+    rename_i heq ; split at heq <;> (try contradiction)
+    rename_i seed _ _
+    cases h : (findRandomFinEnum (fun n [Inhabited (Fin n)] => SampleableExt.interpSample (Fin n)) n { down := mkStdGen seed } p) <;> rw [h] at heq <;> simp [pure, EStateM.pure] at heq <;> rcases heq with ⟨_, _⟩ <;> subst_vars
+    { contradiction }
+    rename_i val hh ; simp at hh ; subst_vars ; simp [findRandomFinEnum] at h
+    rcases h with ⟨_, h⟩
+    have htmp := @List.mem_filter _ (fun b => decide (p b)) (FinEnum.toList α) val
+    subst_vars ; simp at htmp ; exact htmp
+  find_none := by
+    intro h x ; simp [findCore, EStateM.run, bind, EStateM.bind] at h ; split at h <;> (try contradiction)
+    rename_i heq ; split at heq <;> (try contradiction)
+    rename_i seed _ _
+    cases h : (findRandomFinEnum (fun n [Inhabited (Fin n)] => SampleableExt.interpSample (Fin n)) n { down := mkStdGen seed } p) <;> rw [h] at heq <;> simp [pure, EStateM.pure] at heq <;> rcases heq with ⟨_, _⟩ <;> subst_vars
+    on_goal 2=> contradiction
+    simp [findRandomFinEnum] at h ; apply h
+
+instance (priority := high) WeakFindable.byFinEnum {α : Type} [FinEnum α] (p : α -> Prop) [VeilSampleSize n] [SampleableExt α] [DecidablePred p] : WeakFindable p :=
+  @WeakFindable.of_Findable _ _ (Findable.byFinEnum p)
 
 instance (priority := high) Fin.sampleableExtBool : SampleableExt Bool where
   proxy := Nat
