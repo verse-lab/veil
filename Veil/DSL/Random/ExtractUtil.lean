@@ -75,6 +75,19 @@ instance between_ring'' (n : Nat) (l : List Nat) (hlength : l.length = n) (hnodu
 abbrev SimpleQuorum (n : Nat) : Type :=
   { fs : List (Fin n) // fs.Sorted (· < ·) ∧ (n / 2 + 1) ≤ fs.length }
 
+theorem SimpleQuorum.quorum_intersection {n : Nat} (q1 q2 : SimpleQuorum n) :
+  ∃ a, a ∈ q1.val ∧ a ∈ q2.val := by
+  rcases q1 with ⟨q1, hq1, hq1'⟩ ; rcases q2 with ⟨q2, hq2, hq2'⟩ ; dsimp
+  have htmp := Finset.card_inter (q1.toFinset) (q2.toFinset)
+  have hnodup1 := List.Pairwise.nodup hq1 ; have hnodup2 := List.Pairwise.nodup hq2
+  simp [List.toFinset_card_of_nodup hnodup1, List.toFinset_card_of_nodup hnodup2] at htmp
+  have htmp2 := Finset.card_le_univ (q1.toFinset ∪ q2.toFinset) ; simp at htmp2
+  have htmp3 : n / 2 + 1 + n / 2 + 1 - n ≤ (q1.toFinset ∩ q2.toFinset).card := by omega
+  rw [← Nat.div2_val] at htmp3
+  rcases (Nat.even_or_odd' n) with ⟨k, (h | h)⟩ <;> subst n <;> simp at htmp3
+  all_goals (have htmp4 : 1 ≤ (q1.toFinset ∩ q2.toFinset).card := by omega)
+  all_goals (simp at htmp4 ; rcases htmp4 with ⟨a, ha⟩ ; simp at ha ; solve_by_elim)
+
 instance (n : Nat) : Inhabited (SimpleQuorum n.succ) where
   default := ⟨List.ofFn id, by
     simp [StrictMono] ; constructor
