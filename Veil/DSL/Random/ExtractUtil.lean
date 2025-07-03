@@ -125,9 +125,9 @@ def deriveEnumInstance (name : Name) : CommandElabM Unit := do
   trace[veil.debug] "fields: {fields}"
   let defineIndTypeCmd ← do
     if ctors.size > 0 then
-      `(inductive $(mkIdent name) where $[$ctors]* deriving DecidableEq, Inhabited, Repr, Nonempty)
+      `(inductive $(mkIdent name) where $[$ctors]* deriving $(mkIdent ``DecidableEq), $(mkIdent ``Repr), $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
     else
-      `(inductive $(mkIdent name) where deriving DecidableEq, Repr)
+      `(inductive $(mkIdent name) where deriving $(mkIdent ``DecidableEq), $(mkIdent ``Repr))
   let instClauses ←
     fields.mapM fun fn => `(Lean.Parser.Term.structInstField| $(mkIdent fn):ident := $(mkIdent <| name ++ fn):ident )
   let completeRequirement := info.fieldNames.back!

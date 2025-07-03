@@ -7,7 +7,7 @@ import Examples.Rabia.Rabia
 
 inductive state_value where
   | v0 | v1 | vquestion
-deriving DecidableEq, Nonempty
+deriving DecidableEq, Inhabited, Nonempty
 
 instance : ThreeValuedType state_value where
   v0 := state_value.v0
@@ -67,11 +67,11 @@ namespace Rabia
 
 -- all implicit, required by the invariant definition
 --  make more precise? maybe `type [implicit] node`?
-variable {node : Type} [node_dec : DecidableEq node] [node_ne : Nonempty node]
-  {set_majority : Type} [set_majority_dec : DecidableEq set_majority] [set_majority_ne : Nonempty set_majority]
-  {set_f_plus_1 : Type} [set_f_plus_1_dec : DecidableEq set_f_plus_1] [set_f_plus_1_ne : Nonempty set_f_plus_1]
+variable {node : Type} [node_dec : DecidableEq node] [node_ne : Inhabited node]
+  {set_majority : Type} [set_majority_dec : DecidableEq set_majority] [set_majority_ne : Inhabited set_majority]
+  {set_f_plus_1 : Type} [set_f_plus_1_dec : DecidableEq set_f_plus_1] [set_f_plus_1_ne : Inhabited set_f_plus_1]
   [bg : Background node set_majority set_f_plus_1]
-  {proposal_value : Type} [proposal_value_dec : DecidableEq proposal_value] [proposal_value_ne : Nonempty proposal_value]
+  {proposal_value : Type} [proposal_value_dec : DecidableEq proposal_value] [proposal_value_ne : Inhabited proposal_value]
 abbrev phase := Nat
 
 -- we cannot make everything implicit ... at least they need to be explicit somewhere

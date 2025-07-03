@@ -184,7 +184,7 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
       if ctors.isEmpty then
         `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]*)
       else
-        `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]* deriving Nonempty)
+        `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
     let idFn ← `(term|fun (l : $labelT) => l.casesOn $alts*)
     let kindMap ← `(Std.HashMap.ofList [$[$kinds],*])
     let alInstance ← `(command|

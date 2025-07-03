@@ -79,7 +79,7 @@ def isHypToCollect (typ : Expr) : MetaM Bool := do
   -- We do not pass inhabitation facts to SMT, as both `lean-auto` and
   -- `lean-smt` choke on them, and solvers already assume all types are
   -- inhabited.
-  let isInhabitationFact ← whnfIsAppOf typ ``Nonempty
+  let isInhabitationFact := (← whnfIsAppOf typ ``Nonempty) || (← whnfIsAppOf typ ``Inhabited)
   return (← Meta.isProp typ) && !isInhabitationFact
 
 /-- Given a hypothesis, if it's a `Prop`, return its name. If it is

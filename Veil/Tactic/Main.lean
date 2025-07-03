@@ -66,13 +66,13 @@ elab "sdestruct_goal" : tactic => withMainContext do
 instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
 
 
-def veilSpecificNames : List Name := [``IsSubStateOf, ``IsSubReaderOf]
+def hypsToIgnore : List Name := [``IsSubStateOf, ``IsSubReaderOf, ``Inhabited, ``Nonempty]
 
-def hypIsVeilSpecific (hyp : LocalDecl) : TacticM Bool := do
+def hypShouldBeIgnored (hyp : LocalDecl) : TacticM Bool := do
   match hyp.type.getAppFn.constName? with
   | .none => pure false
   | .some sn =>
-    return veilSpecificNames.contains sn
+    return hypsToIgnore.contains sn
 
 /-- Destruct all structures in the context into their respective fields,
 recursively. Also destructs all existentials. -/
@@ -94,9 +94,7 @@ partial def elabSdestructHyps (recursive : Bool := false) (ignoreHyps : Array Lo
     let name := mkIdent hyp.userName
     if isStructure then
       let sn := hyp.type.getAppFn.constName!
-      -- We don't want to destruct `IsSubStateOf` because it's needed
-      -- to perform rewrites
-      if !veilSpecificNames.contains sn then
+      if !hypsToIgnore.contains sn then
         let dtac ← `(tactic| sdestruct $name:ident)
         evalTactic dtac
     else
@@ -168,7 +166,7 @@ typeclasses that should not be sent to the SMT solver.
 def getPropsInContext : TacticM (Array Ident) := do
   let mut props := #[]
   for hyp in (← getLCtx) do
-    if hyp.isImplementationDetail || (← hypIsVeilSpecific hyp) then
+    if hyp.isImplementationDetail || (← hypShouldBeIgnored hyp) then
       continue
     props := props.append (← collectPropertiesFromHyp hyp)
   let idents := (props.toList.eraseDups.map mkIdent).toArray

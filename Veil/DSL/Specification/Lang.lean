@@ -270,7 +270,7 @@ def assembleState (mutable? : Bool) (vd : Array (TSyntax ``Term.bracketedBinder)
     `(@[$attr:attr]
       structure $(mkIdent stName) $binders* where
         $(mkIdent `mk):ident :: $[$components]*
-      deriving $(mkIdent ``Nonempty))
+      deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
     let mut smtAttr := none
     if components.size > 0 then
       let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
