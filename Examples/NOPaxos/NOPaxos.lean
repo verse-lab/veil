@@ -12,7 +12,10 @@ type sessnum -- session number
 type value
 type quorum
 
-instantiate seq : TotalOrderWithMinimum sessnum
+instantiate seq : TotalOrderWithZero sessnum
+@[actSimp, invSimp] abbrev lt (x y : sessnum) : Prop := (seq.le x y ∧ x ≠ y)
+@[actSimp, invSimp] abbrev next (x y : sessnum) : Prop := (lt sessnum x y ∧ ∀ z, lt sessnum x z → seq.le y z)
+
 immutable individual one : sessnum
 immutable individual no_op : value
 -- We don't model view changes, so the leader is fixed
@@ -51,12 +54,15 @@ relation m_gap_commit (r : replica) (s : sessnum)
 relation m_gap_commit_reply (r : replica) (s : sessnum)
 
 -- Ghost state
+relation gh_r_received_sequenced_client_request (r : replica) (s : sessnum)
 relation gh_r_received_drop_notification (r : replica) (s : sessnum)
 relation gh_committed (s : sessnum) (v : value)
 
 #gen_state
 
-assumption [zero_one] seq.next seq.zero one
+
+
+assumption [zero_one] next sessnum seq.zero one
 assumption [quorum_intersection]
   ∀ (q1 q2 : quorum), ∃ (r : replica), member r q1 ∧ member r q2
 
@@ -77,13 +83,13 @@ after_init {
 
 procedure succ(n : sessnum) = {
   let k ← pick sessnum
-  assume seq.next n k
+  assume next sessnum n k
   return k
 }
 
 -- Clients issue a request by it them to the sequencer, which gives it a
 -- session number and broadcasts the request to all replicas.
-action client_request (v : value) (s : sessnum) = {
+action client_request (v : value) = {
   require v ≠ no_op;
   let slot := s_sess_msg_num
   m_sequenced_client_request R v slot := True
@@ -97,6 +103,7 @@ action replica_recv_sequenced_client_request (r : replica) (v : value) (mslot : 
   require ¬ gh_r_received_drop_notification r mslot
   require r ≠ leader
   assert v ≠ no_op
+  gh_r_received_sequenced_client_request r mslot := True
   if logslot : r_log_len r logslot then
     if smn : r_sess_msg_num r smn then
       require smn = mslot -- we always process operations in order
@@ -112,11 +119,11 @@ action replica_recv_sequenced_client_request (r : replica) (v : value) (mslot : 
 -- Replica `r` receives a drop notification for session number `mslot`
 action replica_recv_drop_notification (r : replica) (mslot : sessnum) = {
   require r ≠ leader
-  require ¬ gh_r_received_drop_notification r mslot -- FIXME: we should be able to remove this
+  require ¬ gh_r_received_sequenced_client_request r mslot
+  gh_r_received_drop_notification r mslot := True
   if logslot : r_log_len r logslot then
     if smn : r_sess_msg_num r smn then
       require smn = mslot -- we always process operations in order
-      gh_r_received_drop_notification r mslot := True
       assert smn = logslot
       -- Replica sends a `slot_lookup` request to the leader
       m_slot_lookup r mslot := True
@@ -128,6 +135,7 @@ action leader_recv_sequenced_client_request (v : value) (mslot : sessnum) = {
   require ¬ gh_r_received_drop_notification leader mslot
   require leader_state = st_normal
   assert v ≠ no_op
+  gh_r_received_sequenced_client_request leader mslot := True
   if logslot : r_log_len leader logslot then
     if smn : r_sess_msg_num leader smn then
       require smn = mslot -- we always process operations in order
@@ -149,7 +157,7 @@ action leader_recv_slot_lookup_normal (mr : replica) (mslot : sessnum) = {
   if len : r_log_len leader len then
     if smn : r_sess_msg_num leader smn then
       -- If we have a value for this slot, we reply to the slot lookup request
-      require seq.lt mslot len
+      require lt sessnum mslot len
       if v : r_log leader mslot v then
         m_slot_lookup_reply mr mslot v := True
 }
@@ -168,7 +176,7 @@ procedure leader_send_gap_commit (logslot : sessnum) = {
 action leader_recv_drop_notification (mslot : sessnum) = {
   require m_slot_lookup leader mslot
   require leader_state = st_normal
-  require ¬ gh_r_received_drop_notification leader mslot -- FIXME: we should be able to remove this
+  require ¬ gh_r_received_sequenced_client_request leader mslot
   gh_r_received_drop_notification leader mslot := True
   if logslot : r_log_len leader logslot then
     if smn : r_sess_msg_num leader smn then
@@ -231,19 +239,22 @@ action client_commit (s : sessnum) (v : value) = {
   gh_committed s v := True
 }
 
+-- safety [consistency]
+--   gh_committed S V ∧ gh_committed S V' → V = V'
+
 -- FIXME: define these automatically (with a `partial function` keyword)
 invariant [r_log_coherence] r_log R I V1 ∧ r_log R I V2 → V1 = V2
 invariant [r_log_len_coherence] r_log_len R I1 ∧ r_log_len R I2 → I1 = I2
 invariant [r_sess_msg_num_coherence] r_sess_msg_num R I1 ∧ r_sess_msg_num R I2 → I1 = I2
 
-invariant [r_log_len_valid] r_log R I V ∧ r_log_len R L → seq.lt I L
+invariant [r_log_len_valid] r_log R I V ∧ r_log_len R L → lt sessnum I L
 invariant [r_log_len_no_gaps]
   ∀ (r : replica) (len : sessnum),
-    r_log_len r len → ∀ (i : sessnum), seq.lt i len → ∃ (v : value), r_log r i v
+    r_log_len r len → ∀ (i : sessnum), lt sessnum i len → ∃ (v : value), r_log r i v
 
 invariant [no_spurious_sequencer_advance]
   ∀ (r : replica) (v : value) (s : sessnum),
-    m_sequenced_client_request r v s → seq.lt s s_sess_msg_num
+    m_sequenced_client_request r v s → lt sessnum s s_sess_msg_num
 
 invariant [no_op_is_not_client_request]
   ∀ (r : replica) (v : value) (s : sessnum),
@@ -263,7 +274,7 @@ invariant [log_len_eq_smn]
 set_option veil.printCounterexamples true
 set_option veil.smt.model.minimize true
 -- #time #check_action replica_recv_sequenced_client_request
-#time #check_invariants
-
+-- #time #check_invariants!
+-- #time #check_action replica_recv_gap_commit
 
 end NOPaxos

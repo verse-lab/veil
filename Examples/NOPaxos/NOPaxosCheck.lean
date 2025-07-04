@@ -2,6 +2,32 @@ import Examples.NOPaxos.NOPaxos
 
 veil module NOPaxos
 
+set_option maxHeartbeats 0
+-- set_option veil.smt.model.minimize true
+
+unsat trace [cannot_sequence_two_values_at_same_slot] {
+  client_request
+  client_request
+  assert (∃ (r r' : replica) (mslot : sessnum) (v v' : value),
+    m_sequenced_client_request r v mslot ∧
+    m_sequenced_client_request r' v' mslot ∧
+    v ≠ v')
+} by bmc
+
+unsat trace [cannot_receive_request_then_drop_in_same_slot] {
+  client_request
+  replica_recv_sequenced_client_request
+  replica_recv_drop_notification
+  assert (∃ r mslot, gh_r_received_drop_notification r mslot ∧ gh_r_received_sequenced_client_request r mslot)
+} by bmc
+
+unsat trace [cannot_drop_then_receive_request_in_same_slot] {
+  client_request
+  replica_recv_drop_notification
+  replica_recv_sequenced_client_request
+  assert (∃ r mslot, gh_r_received_drop_notification r mslot ∧ gh_r_received_sequenced_client_request r mslot)
+} by bmc
+
 sat trace [replica_can_receive_request] {
   client_request
   replica_recv_sequenced_client_request
@@ -75,5 +101,21 @@ sat trace [client_can_commit_gap_commit] {
   replica_recv_gap_commit
   client_commit
 } by bmc_sat
+
+sat trace [can_commit_twice] {
+  any 6 actions
+  client_commit
+  client_commit
+} by bmc_sat
+
+
+-- FIXME: why is this possible!?
+set_option veil.smt.timeout 300
+unsat trace [cannot_commit_inconsistently] {
+  any 6 actions
+  client_commit
+  client_commit
+  assert (∃ s v v', gh_committed s v ∧ gh_committed s v' ∧ v ≠ v')
+} by bmc
 
 end NOPaxos
