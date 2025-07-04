@@ -100,7 +100,7 @@ def getReadableModel (goalQuery : String) (withTimeout : Nat) (minimize : Bool) 
     pure none
 
 open Smt Smt.Tactic Translate in
-partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SmtSolver := none) (retryOnUnknown : Bool := false) : MetaM (SmtResult × SmtSolver):= do
+partial def querySolver (goalQuery : String) (withTimeout : Nat)  (forceSolver : Option SmtSolver := none) (retryOnUnknown : Bool := false) (solversTried : Array SmtSolver := #[]) : MetaM (SmtResult × Array SmtSolver):= do
   withTraceNode `veil.smt.perf.query (fun _ => return "querySolver") do
   let opts ← getOptions
   let solverName :=
@@ -108,6 +108,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     | some s => s
     | none => veil.smt.solver.get opts
   try
+  let solversTried := solversTried.push solverName
   trace[veil.smt.debug] "solver: {solverName}"
   let solver ← createSolver solverName withTimeout
   emitCommandStr solver goalQuery
@@ -126,7 +127,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     trace[veil.smt.debug] "stderr: {stderr}"
     let (model, _) ← Auto.Solver.SMT.getSexp stdout
     solver.kill
-    return (SmtResult.Sat s!"{model}", solverName)
+    return (SmtResult.Sat s!"{model}", solversTried)
 
   | .atom (.symb "unsat") =>
     trace[veil.smt.result] "{solverName} says Unsat"
@@ -136,14 +137,14 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     trace[veil.smt.debug] "stdout: {stdout}"
     trace[veil.smt.debug] "stderr: {stderr}"
     solver.kill
-    return (SmtResult.Unsat, solverName)
+    return (SmtResult.Unsat, solversTried)
 
   | .atom (.symb "unknown") =>
     trace[veil.smt.result] "{solverName} says Unknown"
       if retryOnUnknown then
         let newSolver := solverToTryOnUnknown solverName
         trace[veil.smt.debug] "Retrying with {newSolver}"
-        querySolver goalQuery withTimeout (forceSolver := .some newSolver) (retryOnUnknown := false)
+        querySolver goalQuery withTimeout (forceSolver := .some newSolver) (retryOnUnknown := false) solversTried
       else
         let (_, solver) ← solver.takeStdin
         let stdout ← solver.stdout.readToEnd
@@ -151,11 +152,11 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
         trace[veil.smt.debug] "stdout: {stdout}"
         trace[veil.smt.debug] "stderr: {stderr}"
         solver.kill
-        return (SmtResult.Unknown .none, solverName)
+        return (SmtResult.Unknown .none, solversTried)
 
   | _ => throwError s!"Unexpected response from solver: {checkSatResponse}"
   catch e =>
     let exMsg ← e.toMessageData.toString
-    return (.Failure s!"{exMsg}", solverName)
+    return (.Failure s!"{exMsg}", solversTried)
 
 end Veil.SMT

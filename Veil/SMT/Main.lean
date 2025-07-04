@@ -17,12 +17,20 @@ private def solverStr (solver : Option SmtSolver := none) : String :=
   | some solver => s!"{solver}: "
   | none => ""
 
+def solversStr (solversUsed : Array SmtSolver) : String :=
+  match solversUsed with
+  | #[] => ""
+  | #[solver] => solverStr solver
+  | #[solver₁, solver₂] => s!"{solver₁} and {solver₂}: "
+  | _ =>
+   " and ".intercalate (solversUsed.toList.map toString) ++ ": "
+
 /-- A string to print when the solver returns `sat`. Factored out here
 because it's used by `checkTheorems` in `Check.lean` to distinguish
 between failures and `sat` from the solver .-/
-def satGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}the goal is false"
-def unknownGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}the goal is unknown"
-def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr solver}solver invocation failed"
+def satGoalStr (solversUsed : Array SmtSolver := #[]) : String := s!"{solversStr solversUsed}the goal is false"
+def unknownGoalStr (solversUsed : Array SmtSolver := #[]) : String := s!"{solversStr solversUsed}the goal is unknown"
+def failureGoalStr (solversUsed : Array SmtSolver := #[]) : String := s!"{solversStr solversUsed}solver invocation failed"
 
 @[tactic sauto] def elabSauto : Tactic := fun stx => withMainContext do
   let hints : TSyntax `smtHints := ⟨stx[1]⟩
@@ -50,10 +58,10 @@ def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr
     -- UNLESS the `veil.smt.translator` option overrides this behaviour.
     let translatorToUse := veil.smt.translator.get opts
     let originalCmdString ← cmdString translatorToUse
-    let (res, solverUsed) ← Veil.SMT.querySolver originalCmdString withTimeout (retryOnUnknown := veil.smt.retryOnUnknown.get opts)
+    let (res, solversUsed) ← Veil.SMT.querySolver originalCmdString withTimeout (retryOnUnknown := veil.smt.retryOnUnknown.get opts) (solversTried := #[])
     match res with
     -- this shouldn't happen
-    | .Sat none => throwError s!"{satGoalStr solverUsed}"
+    | .Sat none => throwError s!"{satGoalStr solversUsed}"
     | .Sat (some modelString) =>
       -- try to generate a readable model, using `lean-smt`
       let leanSmtQueryString ← if translatorToUse == .leanSmt then pure originalCmdString else cmdString .leanSmt
@@ -61,7 +69,7 @@ def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr
       -- so please don't change the string format in the next two lines.
       let tryToMinimize := veil.smt.model.minimize.get opts
       let .some fostruct ← SMT.getReadableModel leanSmtQueryString withTimeout (minimize := tryToMinimize)
-        | throwError s!"{satGoalStr solverUsed} (could not get readable model; {modelGenerationFailureDiagnostic}):\n{modelString}"
+        | throwError s!"{satGoalStr solversUsed} (could not get readable model; {modelGenerationFailureDiagnostic}):\n{modelString}"
       -- Print that the model is not minimized if that we failed to
       -- minimize it and the user requested minimization.
       let mismatchedExpectation := tryToMinimize && !fostruct.isMinimized
@@ -69,9 +77,9 @@ def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr
         s!"\n(we could not minimize this model; {modelGenerationFailureDiagnostic})"
       else ""
       let modelString := minimizationWarning ++ fostruct.mkString
-      throwError s!"{satGoalStr solverUsed}:{modelString}"
-    | .Unknown reason => throwError "{unknownGoalStr solverUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
-    | .Failure reason => throwError "{failureGoalStr solverUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
+      throwError s!"{satGoalStr solversUsed}:{modelString}"
+    | .Unknown reason => throwError "{unknownGoalStr solversUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
+    | .Failure reason => throwError "{failureGoalStr solversUsed}{if reason.isSome then s!": {reason.get!}" else ""}"
     | .Unsat => mv.admit (synthetic := false)
 
 end Veil.SMT
