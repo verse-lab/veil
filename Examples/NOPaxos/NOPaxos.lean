@@ -60,13 +60,6 @@ assumption [zero_one] seq.next seq.zero one
 assumption [quorum_intersection]
   ∀ (q1 q2 : quorum), ∃ (r : replica), member r q1 ∧ member r q2
 
--- FIXME: define these automatically (with a `partial function` keyword)
-invariant [r_log_coherence] r_log R I V1 ∧ r_log R I V2 → V1 = V2
-invariant [r_log_len_coherence] r_log_len R I1 ∧ r_log_len R I2 → I1 = I2
-invariant [r_sess_msg_num_coherence] r_sess_msg_num R I1 ∧ r_sess_msg_num R I2 → I1 = I2
-
-invariant [r_log_len_valid] r_log R I V ∧ r_log_len R L → seq.lt I L
-
 after_init {
   s_sess_msg_num := seq.zero;
 
@@ -238,6 +231,16 @@ action client_commit (s : sessnum) (v : value) = {
   gh_committed s v := True
 }
 
+-- FIXME: define these automatically (with a `partial function` keyword)
+invariant [r_log_coherence] r_log R I V1 ∧ r_log R I V2 → V1 = V2
+invariant [r_log_len_coherence] r_log_len R I1 ∧ r_log_len R I2 → I1 = I2
+invariant [r_sess_msg_num_coherence] r_sess_msg_num R I1 ∧ r_sess_msg_num R I2 → I1 = I2
+
+invariant [r_log_len_valid] r_log R I V ∧ r_log_len R L → seq.lt I L
+invariant [r_log_len_no_gaps]
+  ∀ (r : replica) (len : sessnum),
+    r_log_len r len → ∀ (i : sessnum), seq.lt i len → ∃ (v : value), r_log r i v
+
 invariant [no_spurious_sequencer_advance]
   ∀ (r : replica) (v : value) (s : sessnum),
     m_sequenced_client_request r v s → seq.lt s s_sess_msg_num
@@ -246,10 +249,21 @@ invariant [no_op_is_not_client_request]
   ∀ (r : replica) (v : value) (s : sessnum),
     m_sequenced_client_request r v s → v ≠ no_op
 
-invariant [request_reply_implies_request_at_same_slot]
-  ∀ (r : replica) (v : value) (s : sessnum),
-    m_request_reply r v s → m_sequenced_client_request r v s
+-- invariant [log_len_le_r_sess_msg_num]
+--   ∀ (r : replica) (len smn : sessnum),
+--     r_log_len r len ∧ r_sess_msg_num r smn → seq.le len smn
+
+invariant [log_len_eq_smn]
+  ∀ (r : replica) (len smn : sessnum),
+    r_log_len r len ∧ r_sess_msg_num r smn → len = smn
 
 #time #gen_spec
+
+-- #time #check_invariants
+set_option veil.printCounterexamples true
+set_option veil.smt.model.minimize true
+-- #time #check_action replica_recv_sequenced_client_request
+#time #check_invariants
+
 
 end NOPaxos

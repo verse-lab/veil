@@ -2,13 +2,6 @@ import Examples.NOPaxos.NOPaxos
 
 veil module NOPaxos
 
-set_option veil.printCounterexamples true
-set_option veil.smt.model.minimize true
-
--- #time #check_invariants
--- #time #check_action leader_recv_drop_notification
-
-
 sat trace [replica_can_receive_request] {
   client_request
   replica_recv_sequenced_client_request
