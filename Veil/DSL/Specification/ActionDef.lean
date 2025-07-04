@@ -425,6 +425,7 @@ def defineInitialAction (l : doSeq) : CommandElabM Unit := do
   let initName := mkIdent initializerName
   let (_, actExtName) ← mkProcedureGenerators initName none l
   defineAuxiliaryDeclarations .init .external actExtName none
+  registerProcedure initName none l
 
 def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
   let (_, actIntName) ← mkProcedureGenerators proc br l

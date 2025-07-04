@@ -86,7 +86,7 @@ def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax 
     return binders
 
 /-- Convert existential binders (with explicit types) into terms (including only the identifiers). -/
-def explicitBindersIdents [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `term) := do
+def explicitBindersIdents [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) := do
   let mut vars := #[]
   match stx with
   | `(explicitBinders|$bs*) => do

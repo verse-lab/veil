@@ -109,5 +109,4 @@ error: The invariant is not inductive: 3 clauses are not preserved!
 -/
 #guard_msgs(whitespace := lax) in
 set_option veil.vc_gen "transition" in #check_invariants!
-
 end Ring

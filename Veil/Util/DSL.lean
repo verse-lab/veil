@@ -352,6 +352,30 @@ private partial def dropSuffixes' (components : List Name) : List Name :=
 def dropSuffixes (n : Name) : Name :=
   mkNameFromComponents (dropSuffixes' n.components)
 
+/-- Returns the name stripped of all the Veil-specific suffixes and of
+the module/specification name, if any. -/
+def normalizeName [Monad m] [MonadError m] (n : Name) (inSpec : Name) : m Name := do
+  let n' := dropSuffixes n
+  match n'.components with
+  | [nm] => pure nm
+  | [mod, nm] =>
+     if mod != inSpec then
+       throwError "normalized name {n'} with two components should have the first component be the specification name: {mod}"
+     pure nm
+  | _ => throwError "normalized name should only have one component: {n'}"
+
+def retrieveProcedureSpecification [Monad m] [MonadEnv m] [MonadError m] (n : Name) : m (Option ProcedureSpecification) := do
+  let n' := dropSuffixes n
+  match n'.components with
+  | [nm] =>
+    let ctx := (← localSpecCtx.get)
+    return ctx.spec.procedures.find? (·.name == nm)
+  | [mod, nm] =>
+     let .some ctx := (← globalSpecCtx.get).get? mod
+       | throwError "specification {mod} not found in the global environment when trying to retrieve procedure {n}"
+     return ctx.spec.procedures.find? (·.name == nm)
+  | _ => throwError "normalized name should only have one component: {n'}"
+
 /-- Primes the first component of the name. -/
 def mkPrimed (f : Name) : Name :=
   let comp := f.components

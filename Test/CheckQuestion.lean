@@ -54,8 +54,9 @@ info: @[invProof]
       ∀ (ex : Int) (rd : ρ) (st : σ),
         ∀ (n : node) (next : node),
           (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd →
-            (@Ring.send.ext.wpEx node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader ex n next) (fun _ _ _ => True)
-              rd st :=
+            (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
+              (@Ring.send.ext.wpEx node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader ex n next) (fun _ _ _ => True)
+                rd st :=
     by solve_wp_clause Ring.send.ext.wpEx
   ⏎
   @[invProof]
@@ -74,8 +75,9 @@ info: @[invProof]
       ∀ (ex : Int) (rd : ρ) (st : σ),
         ∀ (sender : node) (n : node) (next : node),
           (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).assumptions rd →
-            (@Ring.recv.ext.wpEx node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader ex sender n next)
-              (fun _ _ _ => True) rd st :=
+            (@System node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader).inv rd st →
+              (@Ring.recv.ext.wpEx node node_dec node_ne tot btwn σ σ_substate ρ ρ_reader ex sender n next)
+                (fun _ _ _ => True) rd st :=
     by solve_wp_clause Ring.recv.ext.wpEx
   ⏎
   @[invProof]

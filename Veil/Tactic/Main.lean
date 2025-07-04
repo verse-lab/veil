@@ -473,6 +473,9 @@ elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
        mkIdent `and_imp)
   let stateTpT ← getStateTpStx
   let name := act.getId
+  let .some action ← retrieveProcedureSpecification name
+    | throwError "Could not identify procedure specification for action {name}!"
+  let params <- (explicitBindersIdents <$> action.br) |>.getD (pure #[])
   let actSimp := mkSimpLemmas $ #[toWpLemmaName name, toWpSuccLemmaName name, toWpSuccName name ].map mkIdent
   let simplify <- `(tacticSeq|
     try simp only [$(mkIdent ``VeilM.meetsSpecificationIfSuccessful):ident, $(mkIdent ``triple):ident, $(mkIdent ``LE.le):ident, $(mkIdent ``and_imp):ident]
@@ -482,7 +485,7 @@ elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
     try dsimp only [$act:ident, $wpSimp:ident]
     $invSimpTac:tactic
     $introExId
-    intros $rd:ident $st:ident; sdestruct_hyps
+    intros $params* $rd:ident $st:ident; sdestruct_hyps
     first
       -- This is for actions defined via transitions
       | intro $ass:ident $inv_:ident; intro ($st':ident : $stateTpT);

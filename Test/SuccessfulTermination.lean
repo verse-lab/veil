@@ -91,9 +91,6 @@ error: The invariant is not inductive: one clause is not preserved!
 #check_action call_fail_req
 
 
-
-set_option veil.printCounterexamples true
-
 /--
 error: This assertion might fail when called from Ring.call_fail_req
 ---
@@ -104,17 +101,8 @@ info: The following set of actions must preserve the invariant and successfully 
     not_flag ... ✅
     inv_2 ... ✅
     inv_3 ... ✅
-
-Counter-examples
-================
-
-call_fail_req_doesNotThrow:
-interpreted sort Bool
-interpreted sort Int
-sort node = #[node0]
-exId = 2
-tot.le(node0, node0) = true
-
+---
+info: Run with `set_option veil.printCounterexamples true` to print counter-examples.
 ---
 error: The invariant is not inductive: one clause is not preserved!
 -/
