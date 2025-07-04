@@ -467,6 +467,7 @@ def run_z3(args, queryLines):
     z3.set_param("smt.random-seed", args.seed)
     z3.set_param("model", True)
     z3.set_param("model.completion", True)
+    z3.set_param("smt.macro_finder", True)
     z3.Context.__del__ = lambda self: None
     z3.Solver.__del__ = lambda self: None
     execute_with_timeout(print_model, queryLines, args)

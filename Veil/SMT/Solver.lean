@@ -42,7 +42,9 @@ def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
   let tlim_sec := withTimeout
   let seed := veil.smt.seed.get $ ← getOptions
   match name with
-  | .z3   => createAux s!"{z3Path}" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}", s!"sat.random_seed={seed}", s!"smt.random_seed={seed}"]
+  | .z3   => createAux s!"{z3Path}" #["-in", "-smt2", s!"-t:{tlim_sec * 1000}",
+    s!"sat.random_seed={seed}", s!"smt.random_seed={seed}",
+    s!"smt.macro_finder=true"]
   | .cvc5 =>
       let mut args := #["--lang", "smt", s!"--tlimit-per={tlim_sec * 1000}",
         "--seed", s!"{seed}", "--enum-inst-interleave",
