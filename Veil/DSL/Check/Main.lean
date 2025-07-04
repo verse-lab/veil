@@ -184,7 +184,9 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let extStx ← `(@$(mkIdent extName) $actionArgs* $ex $args*)
           let extTpSyntax ←
             `(∀ ($ex : ExId) ($rd : $genericReader) ($st : $genericState), forall? $univBinders*,
-              ($systemTp).$(mkIdent `assumptions) $rd → $extStx (fun _ _ _ => $True) $rd $st)
+              ($systemTp).$(mkIdent `assumptions) $rd →
+              ($systemTp).$(mkIdent `inv) $rd $st →
+              $extStx (fun _ _ _ => $True) $rd $st)
           let extTpSyntax : TSyntax `term ← TSyntax.mk <$> (Elab.liftMacroM <| expandMacros extTpSyntax)
           let body ← if sorry_body then `(by sorry) else `(by solve_wp_clause $(mkIdent extName))
           let (tp, body) := (extTpSyntax, body)
