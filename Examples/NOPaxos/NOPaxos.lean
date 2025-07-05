@@ -7,16 +7,16 @@ import Veil
 veil module NOPaxos
 
 type replica -- replica ID
-enum leader_state = { st_normal, st_gap_commit }
-type sessnum -- session number
+enum replica_state = { st_normal, st_gap_commit } -- we don't model view changes
+type seq_t
 type value
 type quorum
 
-instantiate seq : TotalOrderWithZero sessnum
-@[actSimp, invSimp] abbrev lt (x y : sessnum) : Prop := (seq.le x y ∧ x ≠ y)
-@[actSimp, invSimp] abbrev next (x y : sessnum) : Prop := (lt sessnum x y ∧ ∀ z, lt sessnum x z → seq.le y z)
+instantiate seq : TotalOrderWithZero seq_t
+@[actSimp, invSimp] abbrev lt (x y : seq_t) : Prop := (seq.le x y ∧ x ≠ y)
+@[actSimp, invSimp] abbrev next (x y : seq_t) : Prop := (lt seq_t x y ∧ ∀ z, lt seq_t x z → seq.le y z)
 
-immutable individual one : sessnum
+immutable individual one : seq_t
 immutable individual no_op : value
 -- We don't model view changes, so the leader is fixed
 immutable individual leader : replica
@@ -24,251 +24,207 @@ immutable individual leader : replica
 immutable relation member(R : replica) (Q : quorum)
 
 -- Sequencer
--- the next session number to be assigned
-individual s_sess_msg_num : sessnum
+individual s_seq_msg_num : seq_t
 
 -- Replica
-relation r_log (r : replica) (i : sessnum) (v : value)
-relation r_log_len (r : replica) (i : sessnum)
--- the number of messages (requests or drop-notification) received by `r`
-relation r_sess_msg_num (r : replica) (i : sessnum)
-
--- Leader gap commit state
-individual leader_state : leader_state
-individual leader_current_gap_slot : sessnum
--- set of replicas that the leader has received a gap commit response from
-relation leader_gap_commit_reply (r : replica)
+relation r_log_len (r : replica) (i : seq_t)
+relation r_log (r : replica) (i : seq_t) (v : value)
+relation r_sess_msg_num (r : replica) (i : seq_t)
+relation r_gap_commit_reps (r : replica) (p : replica)
+relation r_current_gap_slot (r : replica) (i : seq_t)
+relation r_replica_status (r : replica) (s : replica_state)
 
 -- Network
--- message from the sequencer to the replicas with a sequenced client request
-relation m_sequenced_client_request (dest : replica) (v : value) (s : sessnum)
--- message from a replica (or the leader) to the client with a request reply
-relation m_request_reply (src : replica) (v : value) (s : sessnum)
--- replica `src` sends a slot lookup to the `leader` (implicit `dest`) for session number `s`
-relation m_slot_lookup (src : replica) (s : sessnum)
--- leader replies to a slot lookup request from `dst` with a reply
-relation m_slot_lookup_reply (dst : replica) (s : sessnum) (v : value)
--- leader sends a gap commit to `r` for session number `s`
-relation m_gap_commit (r : replica) (s : sessnum)
--- replica `r` sends a gap commit reply to the leader for session number `s`
-relation m_gap_commit_reply (r : replica) (s : sessnum)
+relation m_client_request (v : value)
+relation m_marked_client_request  (dest : replica) (v : value) (sess_msg_num : seq_t)
+relation m_request_reply (sender : replica) (request : value) (log_slot_num : seq_t)
+relation m_slot_lookup (dest : replica) (sender : replica) (sess_msg_num : seq_t)
+relation m_gap_commit (dest : replica) (slot_num : seq_t)
+relation m_gap_commit_rep (dest : replica) (sender : replica) (slot_num : seq_t)
 
 -- Ghost state
-relation gh_r_received_sequenced_client_request (r : replica) (s : sessnum)
-relation gh_r_received_drop_notification (r : replica) (s : sessnum)
-relation gh_committed (s : sessnum) (v : value)
+relation gh_r_received_sequenced_client_request (r : replica) (s : seq_t)
+relation gh_r_received_drop_notification (r : replica) (s : seq_t)
+relation gh_committed (s : seq_t) (v : value)
 
 #gen_state
 
-
-
-assumption [zero_one] next sessnum seq.zero one
+assumption [zero_one] next seq_t seq.zero one
 assumption [quorum_intersection]
   ∀ (q1 q2 : quorum), ∃ (r : replica), member r q1 ∧ member r q2
 
 after_init {
-  s_sess_msg_num := seq.zero;
+  -- Arrays in TLA+ are 1-indexed, and we follow the same convention here
+  s_seq_msg_num := one;
 
   r_log_len R I := I = seq.zero
   r_log R I V := False
-  r_sess_msg_num R I := I = s_sess_msg_num
+  r_sess_msg_num R I := I = one
+  r_gap_commit_reps R P := False
+  r_current_gap_slot R I := I = seq.zero
+  r_replica_status R S := S = st_normal
 
-  m_sequenced_client_request R V S := False
-  m_request_reply R V S := False
+  m_client_request V := False
+  m_marked_client_request D V SMN := False
+  m_request_reply S V LSN := False
+  m_slot_lookup D S SMN := False
+  m_gap_commit D SN := False
+  m_gap_commit_rep D S SN := False
 
-  leader_state := st_normal
-
+  gh_r_received_sequenced_client_request R S := False
   gh_r_received_drop_notification R S := False
+  gh_committed S V := False
 }
 
-procedure succ(n : sessnum) = {
-  let k ← pick sessnum
-  assume next sessnum n k
+procedure succ(n : seq_t) = {
+  let k ← pick seq_t
+  assume next seq_t n k
   return k
 }
 
--- Clients issue a request by it them to the sequencer, which gives it a
--- session number and broadcasts the request to all replicas.
-action client_request (v : value) = {
-  require v ≠ no_op;
-  let slot := s_sess_msg_num
-  m_sequenced_client_request R v slot := True
+procedure replace_item (r : replica) (i : seq_t) (v : value) = {
+  let len :| r_log_len r len
+  let next_len ← succ len
+  if seq.le i next_len then
+    if i = next_len then
+      r_log_len r I := I = i
+    r_log r I V := V = v
+}
+
+action client_sends_request (v : value) = {
+  require v ≠ no_op
+  m_client_request v := True
+}
+
+-- Sequencer handles the client request
+action handle_client_request (m_value : value) (s : seq_t) = {
+  require m_client_request m_value
+  let slot := s_seq_msg_num
+  m_marked_client_request R m_value slot := True
   let next_slot ← succ slot
-  s_sess_msg_num := next_slot
+  s_seq_msg_num := next_slot
 }
 
--- Replica `r` receives a sequenced client request `v` with session number `s`.
-action replica_recv_sequenced_client_request (r : replica) (v : value) (mslot : sessnum) = {
-  require m_sequenced_client_request r v mslot
-  require ¬ gh_r_received_drop_notification r mslot
-  require r ≠ leader
-  assert v ≠ no_op
-  gh_r_received_sequenced_client_request r mslot := True
-  if logslot : r_log_len r logslot then
-    if smn : r_sess_msg_num r smn then
-      require smn = mslot -- we always process operations in order
-      assert smn = logslot
-      r_log r logslot v := True
-      let next_len ← succ logslot
-      r_log_len r I := I = next_len
-      let next_smn ← succ smn
-      r_sess_msg_num r I := I = next_smn
-      m_request_reply r v logslot := True
+procedure append_to_log (r : replica) (v : value) = {
+  let len :| r_log_len r len
+  r_log r len v := True
+  let next_len ← succ len
+  r_log_len r I := I = next_len
+  return next_len
 }
 
--- Replica `r` receives a drop notification for session number `mslot`
-action replica_recv_drop_notification (r : replica) (mslot : sessnum) = {
-  require r ≠ leader
-  require ¬ gh_r_received_sequenced_client_request r mslot
-  gh_r_received_drop_notification r mslot := True
-  if logslot : r_log_len r logslot then
-    if smn : r_sess_msg_num r smn then
-      require smn = mslot -- we always process operations in order
-      assert smn = logslot
-      -- Replica sends a `slot_lookup` request to the leader
-      m_slot_lookup r mslot := True
+procedure increase_session_number (r : replica) = {
+  let smn :| r_sess_msg_num r smn
+  let next_smn ← succ smn
+  r_sess_msg_num r I := I = next_smn
+  return next_smn
 }
 
--- Leader receives a sequenced client request `v` with session number `s`.
-action leader_recv_sequenced_client_request (v : value) (mslot : sessnum) = {
-  require m_sequenced_client_request leader v mslot
-  require ¬ gh_r_received_drop_notification leader mslot
-  require leader_state = st_normal
-  assert v ≠ no_op
-  gh_r_received_sequenced_client_request leader mslot := True
-  if logslot : r_log_len leader logslot then
-    if smn : r_sess_msg_num leader smn then
-      require smn = mslot -- we always process operations in order
-      assert smn = logslot
-      r_log leader logslot v := True
-      let next_len ← succ logslot
-      r_log_len leader I := I = next_len
-      let next_smn ← succ smn
-      r_sess_msg_num leader I := I = next_smn
-      m_request_reply leader v logslot := True
+-- Normal case of `HandleMarkedClientRequest`
+action handle_marked_client_request_normal (r : replica) (m_value : value) (m_sess_msg_num : seq_t) = {
+  require m_marked_client_request r m_value m_sess_msg_num
+  require r_replica_status r st_normal
+  let len :| r_log_len r len
+  let smn :| r_sess_msg_num r smn
+  require m_sess_msg_num = smn
+  gh_r_received_sequenced_client_request r m_sess_msg_num := True
+  let _new_smn ← increase_session_number r
+  let new_len ← append_to_log r m_value
+  m_request_reply r m_value new_len := True
 }
 
--- Leader receives a slot lookup request for session number `mslot`
--- when it's in the normal state, i.e. the leader actually received the
--- value for this slot (rather than itself receiving a drop-notification)
-action leader_recv_slot_lookup_normal (mr : replica) (mslot : sessnum) = {
-  require m_slot_lookup mr mslot
-  require leader_state = st_normal
-  if len : r_log_len leader len then
-    if smn : r_sess_msg_num leader smn then
-      -- If we have a value for this slot, we reply to the slot lookup request
-      require lt sessnum mslot len
-      if v : r_log leader mslot v then
-        m_slot_lookup_reply mr mslot v := True
+procedure send_gap_commit (r : replica) = {
+  require r = leader
+  require r_replica_status r st_normal
+  let len :| r_log_len r len
+  let slot ← succ len
+  r_replica_status r S := S = st_gap_commit
+  r_gap_commit_reps r P := False
+  r_current_gap_slot r I := I = slot
+  m_gap_commit r slot := True
 }
 
--- The leader enters the gap commit state and sends a gap commit to all
--- replicas, awaiting a quorum of replies.
-procedure leader_send_gap_commit (logslot : sessnum) = {
-  require leader_state = st_normal
-  require r_log leader logslot no_op
-  leader_state := st_gap_commit
-  leader_gap_commit_reply R := False
-  leader_current_gap_slot := logslot
-  m_gap_commit R logslot := True
+-- Drop notification case of `HandleMarkedClientRequest`
+action handle_marked_client_drop_notification (r : replica) (m_value : value) (m_sess_msg_num : seq_t) = {
+  require m_marked_client_request r m_value m_sess_msg_num
+  require r_replica_status r st_normal
+  let smn :| r_sess_msg_num r smn
+  require lt seq_t smn m_sess_msg_num
+  gh_r_received_drop_notification r m_sess_msg_num := True
+  if r = leader then
+    send_gap_commit r
+  else
+    m_slot_lookup leader r smn := True
 }
 
-action leader_recv_drop_notification (mslot : sessnum) = {
-  require m_slot_lookup leader mslot
-  require leader_state = st_normal
-  require ¬ gh_r_received_sequenced_client_request leader mslot
-  gh_r_received_drop_notification leader mslot := True
-  if logslot : r_log_len leader logslot then
-    if smn : r_sess_msg_num leader smn then
-      require smn = mslot -- we always process operations in order
-      assert smn = logslot
-      -- Insert a no-op into the log
-      r_log leader logslot no_op := True
-      let next_len ← succ logslot
-      r_log_len leader I := I = next_len
-      -- Send a gap commit to all replicas
-      leader_send_gap_commit logslot
-      -- In the TLA+ specification, the leader handles gap commit
-      -- by reusing the `HandleGapCommit` transition. This somewhat
-      -- obscures the logic, so we inline the transition here,
-      -- special-cased for this (leader recv drop notification) situation.
-      let next_smn ← succ smn
-      r_sess_msg_num leader I := I = next_smn
-      m_gap_commit_reply leader mslot := True
-      m_request_reply leader no_op mslot := True
+action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : seq_t) = {
+  require m_slot_lookup r m_sender m_sess_msg_num
+  require r_replica_status r st_normal
+  require r = leader
+  let len :| r_log_len r len
+  let smn :| r_sess_msg_num r smn
+  -- Note: in TLA+ the slot is computed as
+  -- `logSlotNum == Len(vLog[r]) + 1 - (vSessMsgNum[r] - m.sessMsgNum)`
+  -- which calculates the offset from the tail of the log;
+  -- however, with no view changes, this is equivalent to simply taking
+  -- the index of the incoming m.sessMsgNum
+  let slot := m_sess_msg_num
+  if seq.le slot len then
+    -- NOTE: cannot make this into a pick-such-that because it might not exist
+    if v : r_log r slot v then
+      m_marked_client_request m_sender v m_sess_msg_num := True
+    else
+      -- Nothing to undo
+      pure ()
+  if slot = (← succ len) then
+    send_gap_commit r
 }
 
-procedure replace_item_in_log (r : replica) (i : sessnum) (v : value) = {
-  if len : r_log_len r len then
-    require seq.le i len
-    if i = len then
-      let next_len ← succ len
-      r_log_len r I := I = next_len
-    r_log r i V := V = v
-}
 
-action replica_recv_gap_commit (r : replica) (mslot : sessnum) = {
-  require r ≠ leader
-  require m_gap_commit r mslot
-  if logslot : r_log_len r logslot then
-    if smn : r_sess_msg_num r smn then
-      require seq.le mslot logslot -- we must have filled all log slots up to `mslot`
-      replace_item_in_log r mslot no_op -- we put a no-op in the gap slot
-      -- If the replica received a drop notification for `mslot`, it
-      -- has to ignore the next request or drop-notification (but still
-      -- increment its session number), to maintain consistency between its
-      -- position in the OUM session and its log
-      if gh_r_received_drop_notification r mslot then
-        let next_smn ← succ smn
-        r_sess_msg_num r I := I = next_smn
-      m_gap_commit_reply r mslot := True
-      m_request_reply r no_op mslot := True
-}
-
-action leader_recv_gap_commit_reply (mr : replica) (mslot : sessnum) = {
-  require m_gap_commit_reply mr mslot
-  require leader_state = st_gap_commit
-  require leader_current_gap_slot = mslot
-  leader_gap_commit_reply mr := True
-  if ∃ (q:quorum), ∀ (p:replica), (member leader q ∧ member p q) → leader_gap_commit_reply mr then
-    leader_state := st_normal
-}
-
-action client_commit (s : sessnum) (v : value) = {
+action client_commit (s : seq_t) (v : value) = {
   require ∃ (q:quorum), ∀ (p:replica), member p q → m_request_reply p v s
   gh_committed s v := True
 }
 
--- safety [consistency]
---   gh_committed S V ∧ gh_committed S V' → V = V'
-
--- FIXME: define these automatically (with a `partial function` keyword)
-invariant [r_log_coherence] r_log R I V1 ∧ r_log R I V2 → V1 = V2
-invariant [r_log_len_coherence] r_log_len R I1 ∧ r_log_len R I2 → I1 = I2
-invariant [r_sess_msg_num_coherence] r_sess_msg_num R I1 ∧ r_sess_msg_num R I2 → I1 = I2
-
-invariant [r_log_len_valid] r_log R I V ∧ r_log_len R L → lt sessnum I L
-invariant [r_log_len_no_gaps]
-  ∀ (r : replica) (len : sessnum),
-    r_log_len r len → ∀ (i : sessnum), lt sessnum i len → ∃ (v : value), r_log r i v
-
-invariant [no_spurious_sequencer_advance]
-  ∀ (r : replica) (v : value) (s : sessnum),
-    m_sequenced_client_request r v s → lt sessnum s s_sess_msg_num
-
-invariant [no_op_is_not_client_request]
-  ∀ (r : replica) (v : value) (s : sessnum),
-    m_sequenced_client_request r v s → v ≠ no_op
-
--- invariant [log_len_le_r_sess_msg_num]
---   ∀ (r : replica) (len smn : sessnum),
---     r_log_len r len ∧ r_sess_msg_num r smn → seq.le len smn
-
-invariant [log_len_eq_smn]
-  ∀ (r : replica) (len smn : sessnum),
-    r_log_len r len ∧ r_sess_msg_num r smn → len = smn
+safety [consistency] gh_committed S V1 ∧ gh_committed S V2 → V1 = V2
 
 #time #gen_spec
+
+#time #check_invariants
+
+set_option veil.smt.model.minimize true
+
+sat trace [can_sequence] {
+  client_sends_request
+  handle_client_request
+} by bmc_sat
+
+sat trace [can_sequence_same_request_twice] {
+  client_sends_request
+  handle_client_request
+  handle_client_request
+  assert (∃ (r : replica) (v : value) (s s' : seq_t), s ≠ s' ∧ m_marked_client_request r v s ∧ m_marked_client_request r v s')
+} by bmc_sat
+
+sat trace [can_handle_normal] {
+  client_sends_request
+  handle_client_request
+  handle_marked_client_request_normal
+} by bmc_sat
+
+
+set_option maxHeartbeats 0
+
+sat trace [can_get_dropped] {
+  assert (∃ (r₁ r₂ : replica), r₁ ≠ r₂ ∧ ∀ r, r = r₁ ∨ r = r₂)
+  client_sends_request
+  handle_client_request
+  assert (∃ (r : replica) (v : value) (s : seq_t), m_marked_client_request r v one)
+  handle_marked_client_request_normal
+  -- handle_marked_client_drop_notification
+  -- handle_slot_lookup
+} by bmc_sat
+
 
 -- #time #check_invariants
 set_option veil.printCounterexamples true
