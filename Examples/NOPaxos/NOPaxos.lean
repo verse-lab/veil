@@ -107,7 +107,12 @@ action handle_client_request (m_value : value) (s : seq_t) = {
 
 procedure append_to_log (r : replica) (v : value) = {
   let len :| r_log_len r len
-  r_log r len v := True
+  -- TLA arrays are 1-indexed, so we replicate this here
+  if len = seq.zero then
+    r_log r seq.zero no_op := True
+    r_log r one v := True
+  else
+    r_log r len v := True
   let next_len ← succ len
   r_log_len r I := I = next_len
   return next_len
@@ -133,6 +138,7 @@ action handle_marked_client_request_normal (r : replica) (m_value : value) (m_se
   m_request_reply r m_value new_len := True
 }
 
+
 procedure send_gap_commit (r : replica) = {
   require r = leader
   require r_replica_status r st_normal
@@ -149,6 +155,9 @@ action handle_marked_client_drop_notification (r : replica) (m_value : value) (m
   require m_marked_client_request r m_value m_sess_msg_num
   require r_replica_status r st_normal
   let smn :| r_sess_msg_num r smn
+  -- NOTE: this is the condition in the TLA+ spec, but it means that
+  -- a drop notification cannot be sent for the first session number,
+  -- which seems incorrect.
   require lt seq_t smn m_sess_msg_num
   gh_r_received_drop_notification r m_sess_msg_num := True
   if r = leader then
@@ -180,6 +189,29 @@ action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : s
     send_gap_commit r
 }
 
+-- Replica r (or the leader) receives GapCommit
+action handle_gap_commit (r : replica) (m_slot_num : seq_t) = {
+  require m_gap_commit r m_slot_num
+  require r_replica_status r st_normal ∨ r_replica_status r st_gap_commit
+  let len :| r_log_len r len
+  let smn :| r_sess_msg_num r smn
+  replace_item r m_slot_num no_op
+  if lt seq_t len m_slot_num then
+    let  _new_smn ← increase_session_number r
+  m_gap_commit_rep leader r m_slot_num := True
+  m_request_reply r no_op m_slot_num := True
+}
+
+action handle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : seq_t) = {
+  require m_gap_commit_rep r m_sender m_slot_num
+  require r_replica_status r st_gap_commit
+  require r = leader
+  require r_current_gap_slot r m_slot_num
+  r_gap_commit_reps r m_sender := True
+  if ∃ (q:quorum), ∀ (p:replica),
+    member r q ∧  member p q → r_gap_commit_reps r p then
+    r_replica_status r S := S = st_normal
+}
 
 action client_commit (s : seq_t) (v : value) = {
   require ∃ (q:quorum), ∀ (p:replica), member p q → m_request_reply p v s
@@ -192,8 +224,10 @@ safety [consistency] gh_committed S V1 ∧ gh_committed S V2 → V1 = V2
 
 #time #check_invariants
 
-set_option veil.smt.model.minimize true
+-- set_option veil.smt.model.minimize true
+set_option maxHeartbeats 0
 
+/-
 sat trace [can_sequence] {
   client_sends_request
   handle_client_request
@@ -213,7 +247,13 @@ sat trace [can_handle_normal] {
 } by bmc_sat
 
 
-set_option maxHeartbeats 0
+sat trace [r_ses_number_increases] {
+  client_sends_request
+  handle_client_request
+  assert (∃ (r : replica) (v : value) (s : seq_t), m_marked_client_request r v one)
+  handle_marked_client_request_normal
+  assert (∃ (r : replica), r_sess_msg_num r one)
+} by bmc_sat
 
 sat trace [can_get_dropped] {
   assert (∃ (r₁ r₂ : replica), r₁ ≠ r₂ ∧ ∀ r, r = r₁ ∨ r = r₂)
@@ -221,10 +261,41 @@ sat trace [can_get_dropped] {
   handle_client_request
   assert (∃ (r : replica) (v : value) (s : seq_t), m_marked_client_request r v one)
   handle_marked_client_request_normal
-  -- handle_marked_client_drop_notification
+  client_sends_request
+  handle_client_request
+  handle_marked_client_drop_notification
   -- handle_slot_lookup
 } by bmc_sat
 
+sat trace [leader_can_handle_gap_commit] {
+  client_sends_request
+  handle_client_request
+  handle_marked_client_request_normal
+  client_sends_request
+  handle_client_request
+  handle_marked_client_drop_notification
+  assert (∃ (r : replica) (s : seq_t), gh_r_received_drop_notification leader s)
+  handle_gap_commit
+} by bmc_sat
+
+sat trace [leader_can_handle_gap_commit_rep] {
+  client_sends_request
+  handle_client_request
+  handle_marked_client_request_normal
+  client_sends_request
+  handle_client_request
+  handle_marked_client_drop_notification
+  assert (∃ (r : replica) (s : seq_t), gh_r_received_drop_notification leader s)
+  handle_gap_commit
+  handle_gap_commit_rep
+} by bmc_sat
+-/
+
+sat trace [can_commit] {
+  any 4 actions
+  client_commit
+  assert (∃ (s : seq_t) (v : value), gh_committed s v)
+} by bmc_sat
 
 -- #time #check_invariants
 set_option veil.printCounterexamples true
