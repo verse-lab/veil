@@ -196,6 +196,9 @@ action handle_gap_commit (r : replica) (m_slot_num : seq_t) = {
   require m_gap_commit r m_slot_num
   -- require r_replica_status r st_normal ∨ r_replica_status r st_gap_commit
   let len :| r_log_len r len
+  -- NOTE: this condition ensures that the skipping operation (the `if` block
+  -- below) is meaningful, or intuitively "not too early"
+  require seq.le m_slot_num len ∨ next seq_t len m_slot_num
   let smn :| r_sess_msg_num r smn
   replace_item r m_slot_num no_op
   if lt seq_t len m_slot_num then
@@ -221,7 +224,30 @@ action client_commit (s : seq_t) (v : value) = {
   gh_committed s v := True
 }
 
+-- invariants for functions (implemented as partial functions)
+invariant [ll_coherence] (r_log_len R I1 ∧ r_log_len R I2) → I1 = I2
+invariant [log_coherence] (r_log R I V1 ∧ r_log R I V2) → V1 = V2
+invariant [smn_coherence] (r_sess_msg_num R I1 ∧ r_sess_msg_num R I2) → I1 = I2
+invariant [cgs_coherence] (r_current_gap_slot R I1 ∧ r_current_gap_slot R I2) → I1 = I2
+invariant [status_coherence] (r_replica_status R S1 ∧ r_replica_status R S2) → S1 = S2
+
+-- sanity check
+invariant [only_leader_can_gap_status] r_replica_status R st_gap_commit → R = leader
+invariant [client_no_op] ¬ m_client_request no_op
+
+-- relations between `r_log`, `r_log_len`, `r_sess_msg_num`, `s_seq_msg_num`
+invariant [log_valid_1] (r_log R I V ∧ r_log_len R L) → seq.le I L
+-- invariant [log_valid_2] (r_log_len R I ∧ seq.le J I) → ∃ v, r_log R J v -- (commented out in source)
+
+-- NOTE: weaker than `valid_sess_msg_num`
+invariant [log_smn] (r_sess_msg_num R I ∧ seq.le I J) → ¬ r_log R J V
+invariant [valid_sess_msg_num] (r_log_len R I ∧ r_sess_msg_num R J) → next seq_t I J
+
+invariant [gh_committed_cause] gh_committed S V → m_request_reply leader V S
+invariant [leader_never_rolls_back] (m_request_reply leader V1 S ∧ m_request_reply leader V2 S) → V1 = V2
 safety [consistency] gh_committed S V1 ∧ gh_committed S V2 → V1 = V2
+
+invariant [m_request_reply_source] (m_request_reply R V S) → (m_marked_client_request R V S ∨ (V = no_op ∧ m_gap_commit R S))
 
 #time #gen_spec
 
