@@ -121,11 +121,6 @@ deriving instance Inhabited for Ring2.Reader
 -- instance : Inhabited (Ring2.Reader (Fin n)) := ⟨Ring2.Reader.mk⟩
 -- instance : Inhabited (Ring2.State (Fin n)) := ⟨Ring2.State.mk default default⟩
 
-def DivM.run (a : DivM α) :=
-  match a with
-  | .res x => Option.some x
-  | .div => Option.none
-
 -- if we do not extract this out, some proofs inside instance do not match and proof would fail. not sure why
 def Ring2.Label.gen2 (l : List Nat) (hl : 0 < l.length) : Plausible.Gen (Ring2.Label (Fin l.length)) :=
   (@Ring2.Label.gen _ (by cases l <;> simp [List.length] at hl ; dsimp ; infer_instance))
