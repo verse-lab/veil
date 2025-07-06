@@ -117,11 +117,11 @@ instance (priority := high) essentiallyFinSetRepr (α : Type u) [Repr α] [FinEn
 
 open Lean Meta Elab Term Command in
 /-- Attempt to derive a `Repr` instance for a `structure` by assuming all
-    its parameters are `FinEnum`s. This can be useful when the structure
+    its parameters are `Repr`s. This can be useful when the structure
     includes functions, which are finite when the type parameters are finite
     but by default Lean cannot derive `Repr` for them.
     Note that this command does not check if any parameter is not a `Type`. -/
-elab "simple_deriving_repr_for" t:ident : command => do
+elab "simple_deriving_repr_for " t:ident : command => do
   let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo t
   let ConstantInfo.inductInfo info1 ← getConstInfo name | throwError "no such structure {name}"
   let .some info2 := getStructureInfo? (← getEnv) name | throwError "no such structure {name}"
@@ -145,7 +145,7 @@ elab "simple_deriving_repr_for" t:ident : command => do
   -- for all parameters, assume they are `FinEnum`
   -- NOTE: this might be relaxed later
   let paramInsts : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) ←
-    paramIdents.mapM (fun pn => `(bracketedBinder| [$(mkIdent ``FinEnum) $pn] ))
+    paramIdents.mapM (fun pn => `(bracketedBinder| [$(mkIdent ``Repr) $pn] ))
   let target := Syntax.mkApp (mkIdent name) paramIdents
   -- assemble everything
   let cmd ← `(command|
