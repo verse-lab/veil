@@ -8,17 +8,52 @@ section replacement
 
 open Lean Meta Elab Term
 
+/-- A simple matcher that only checks if `e` is in the form of
+    `Classical.propDecidable _`. -/
+def replaceDecidableInstStepSimpleMatcher (e : Expr) : SimpM (Option Expr) := do
+  match_expr e with
+  | Classical.propDecidable p => pure <| .some p
+  | _ => pure none
+
+/-- A matcher that checks if `e` is of some known forms of `Decidable`
+    instances. This applies to more scenarios than the simple one. -/
+def replaceDecidableInstStepBasicMatcher (e : Expr) : SimpM (Option Expr) := do
+  unless e.containsConst (· == ``Classical.propDecidable) do
+    return none
+  let res :=
+    match_expr e with
+    | instDecidableAnd p q _ _ => some <| mkAppN (mkConst ``And) #[p, q]
+    | instDecidableOr p q _ _ => some <| mkAppN (mkConst ``Or) #[p, q]
+    | instDecidableNot p _ => some <| mkAppN (mkConst ``Not) #[p]
+    | _ => none
+  pure res
+
+/-- A matcher that checks if `e` is of type `Decidable p` using
+    `inferType`. This could be expensive. -/
+def replaceDecidableInstStepDeepMatcher (e : Expr) : SimpM (Option Expr) := do
+  let ty ← inferType e
+  let ty ← instantiateMVars ty
+  match_expr ty with
+  | Decidable p => pure <| .some p
+  | _ => pure none
+
 simproc ↓ replaceDecidableInst (_) := fun e => do
-  -- idea: if any of the arguments is a `Classical.propDecidable`, replace it
+  -- idea: if any of the arguments is a potential target, replace it
   -- and `visit` again; otherwise, `continue`
+  -- NOTE: it seems that `simp` will skip instance arguments in the recursion,
+  -- so we need to visit all arguments and implement this manually
   let args := e.getAppArgs'
-  let res ← args.findIdxM? fun arg => do
-    match_expr arg.consumeMData with
-    | Classical.propDecidable _ => pure true
-    | _ => pure false
-  let some idx := res | return .continue
+  let args' := args.zip (Array.range args.size)
+  let go (mc : Array (Expr → SimpM (Option Expr))) : SimpM (Option (Expr × Nat)) := do
+    args'.findSomeM? fun (arg, idx) => do
+      let arg := arg.consumeMData
+      let tmp := mc.map (· arg)
+      if let some res ← tmp.findSomeM? id then pure <| Option.some (res, idx) else pure none
+  let some (p, idx) ← go
+    #[replaceDecidableInstStepSimpleMatcher,
+      replaceDecidableInstStepBasicMatcher,
+      replaceDecidableInstStepDeepMatcher] | return .continue
   let arg := args[idx]! |>.consumeMData
-  let_expr Classical.propDecidable p := arg | return .continue
   let q ← synthInstance (mkApp (mkConst ``Decidable) p)
   let proof := mkAppN (mkConst ``decidable_irrelevance) #[p, arg, q]
   -- use congruence here
