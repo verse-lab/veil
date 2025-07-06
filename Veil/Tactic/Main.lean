@@ -419,17 +419,28 @@ def tryAlreadySolved (otherMode : VCGenStyle) (act : Ident) (inv : Ident) : Tact
   let trNameFn := match otherMode with
   | .transition => mkTrTheoremName
   | .wp => mkTheoremName
+  let .some action ← retrieveProcedureSpecification act.getId
+    | throwError "Could not identify procedure specification for action {act.getId}!"
+  let params <- (explicitBindersIdents <$> action.br) |>.getD (pure #[])
   let existingTheorem := mkIdent $ trNameFn (dropSuffixes act.getId) inv.getId
   if (← resolveGlobalName existingTheorem.getId).isEmpty then
     trace[veil.debug] "No theorem {existingTheorem} found; cannot reuse proof"
     return false
   let assertionArgs ← bracketedBindersToTerms $ (← localSpecCtx.get).spec.generic.allParameters
-  let tryLift ← `(tactic| intros; swap_mode; exact @$existingTheorem $assertionArgs*)
+  let tryLift ← `(tactic| unhygienic intros; swap_mode; exact @$existingTheorem $assertionArgs* $params*)
   trace[veil.debug] "tryLift (from tr to wp): {tryLift}"
   evalTactic tryLift
   if (← getUnsolvedGoals).length != 0 then
     throwError "Goal is not solved by {existingTheorem}!"
   return true
+
+elab "lift_tr_to_wp" act:ident inv:ident : tactic => withMainContext do
+  if ! (← tryAlreadySolved .transition act inv) then
+    throwError "Could not lift transition {act} to WP invariant {inv}!"
+
+elab "lift_wp_to_tr" act:ident inv:ident : tactic => withMainContext do
+  if ! (← tryAlreadySolved .wp act inv) then
+    throwError "Could not lift WP invariant {inv} to transition {act}!"
 
 syntax solveTr := "solve_tr_clause" <|> "solve_tr_clause?"
 elab tk:solveTr act:ident inv:ident : tactic => withMainContext do
@@ -507,7 +518,7 @@ elab tk:solveWp act:ident inv:ident ? : tactic => withMainContext do
       let alreadySolved ←
         match inv with
         | none => pure false -- TODO: reuse proofs of successful termination
-        | .some inv => pure $ ← tryAlreadySolved .wp act inv
+        | .some inv => pure $ ← tryAlreadySolved .transition act inv
       if !alreadySolved then
         evalTactic simplify
         if (← getUnsolvedGoals).length != 0 then
