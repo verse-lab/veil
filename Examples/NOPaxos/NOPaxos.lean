@@ -272,8 +272,25 @@ invariant [m_slot_lookup_bounded] m_slot_lookup P R S → lt seq_t S s_seq_msg_n
 -- otherwise, we show that it is impossible for the leader to reply through
 -- the two different sources
 
+invariant [log_smn_gap] (m_gap_commit R S ∧ r_sess_msg_num leader I) → seq.le S I
+-- invariant [log_smn_gap_2] (m_gap_commit R S ∧ r_log_len leader I) → (seq.le S I ∨ next seq_t I S)
+invariant [lead_gap_commits] (r_log_len leader I ∧ seq.le J I ∧ m_gap_commit R J) → r_log leader J no_op
+invariant [leader_reply_matches_log] (m_request_reply leader V I) → r_log leader I V
+invariant [log_smn_gap_normal] (m_gap_commit R S ∧ r_log_len leader I ∧ r_replica_status leader st_normal) → seq.le S I
+-- invariant [r_gap_commit_reps_source] r_gap_commit_reps R P → ∃ (s : seq_t), m_gap_commit_rep R P s
+
+-- invariant [r_gap_commit_reps_leader_only] r_gap_commit_reps R P → R = leader
+invariant [m_gap_commit_rep_to_leader_only] m_gap_commit_rep R P S → R = leader
+
+-- invariant [m_gap_commit_rep_source] m_gap_commit_rep R P S → m_gap_commit P S
+invariant [r_gap_commit_reps_source] (r_replica_status leader st_gap_commit ∧ r_current_gap_slot leader I ∧ r_gap_commit_reps leader P) → m_gap_commit_rep leader P I
+invariant [m_gap_commit_rep_len] (m_gap_commit_rep R P S ∧ r_log_len P I) → seq.le S I
+-- invariant [leader_smn_gap_status] (r_replica_status leader st_gap_commit ∧ r_current_gap_slot leader I ∧ r_log_len leader I2) → seq.le I I2 ∨ next seq_t I2 I
+invariant [m_gap_commit_slot] (r_replica_status leader st_gap_commit ∧ m_gap_commit R S ∧ r_current_gap_slot leader I) → seq.le S I
 #time #gen_spec
 
+-- set_option veil.printCounterexamples true
+-- set_option veil.smt.model.minimize true
 #time #check_invariants
 
 -- set_option veil.smt.model.minimize true
