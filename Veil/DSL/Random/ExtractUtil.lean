@@ -20,6 +20,16 @@ instance (n : Nat) : TotalOrder (Fin n) where
   le_antisymm := by simp ; omega
   le_total := by simp ; omega
 
+instance (n : Nat) : TotalOrderWithZero (Fin n.succ) where
+  le := fun x y => x.val ≤ y.val
+  le_refl := by simp
+  le_trans := by simp ; omega
+  le_antisymm := by simp ; omega
+  le_total := by simp ; omega
+
+  zero := 0
+  zero_le := by simp
+
 instance (n : Nat) : TotalOrderWithMinimum (Fin n.succ) where
   le := fun x y => x.val ≤ y.val
   le_refl := by simp
