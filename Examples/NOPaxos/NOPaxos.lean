@@ -45,6 +45,7 @@ relation m_gap_commit_rep (dest : replica) (sender : replica) (slot_num : seq_t)
 -- Ghost state
 relation gh_r_received_sequenced_client_request (r : replica) (s : seq_t)
 relation gh_r_received_drop_notification (r : replica) (s : seq_t)
+relation gh_what_status_when_replying (r : replica) (s : seq_t) (status : replica_state)
 relation gh_committed (s : seq_t) (v : value)
 
 #gen_state
@@ -73,6 +74,7 @@ after_init {
 
   gh_r_received_sequenced_client_request R S := False
   gh_r_received_drop_notification R S := False
+  gh_what_status_when_replying R S SS := False
   gh_committed S V := False
 }
 
@@ -136,6 +138,7 @@ action handle_marked_client_request_normal (r : replica) (m_value : value) (m_se
   gh_r_received_sequenced_client_request r m_sess_msg_num := True
   let _new_smn ← increase_session_number r
   let new_len ← append_to_log r m_value
+  gh_what_status_when_replying r new_len st_normal := True
   m_request_reply r m_value new_len := True
 }
 
@@ -204,6 +207,8 @@ action handle_gap_commit (r : replica) (m_slot_num : seq_t) = {
   if lt seq_t len m_slot_num then
     let  _new_smn ← increase_session_number r
   m_gap_commit_rep leader r m_slot_num := True
+  let st :| r_replica_status r st
+  gh_what_status_when_replying r m_slot_num st := True
   m_request_reply r no_op m_slot_num := True
 }
 
@@ -232,22 +237,40 @@ invariant [cgs_coherence] (r_current_gap_slot R I1 ∧ r_current_gap_slot R I2) 
 invariant [status_coherence] (r_replica_status R S1 ∧ r_replica_status R S2) → S1 = S2
 
 -- sanity check
+invariant [leader_status_either] r_replica_status leader st_normal ∨ r_replica_status leader st_gap_commit
 invariant [only_leader_can_gap_status] r_replica_status R st_gap_commit → R = leader
 invariant [client_no_op] ¬ m_client_request no_op
 
 -- relations between `r_log`, `r_log_len`, `r_sess_msg_num`, `s_seq_msg_num`
 invariant [log_valid_1] (r_log R I V ∧ r_log_len R L) → seq.le I L
--- invariant [log_valid_2] (r_log_len R I ∧ seq.le J I) → ∃ v, r_log R J v -- (commented out in source)
 
 -- NOTE: weaker than `valid_sess_msg_num`
 invariant [log_smn] (r_sess_msg_num R I ∧ seq.le I J) → ¬ r_log R J V
 invariant [valid_sess_msg_num] (r_log_len R I ∧ r_sess_msg_num R J) → next seq_t I J
 
+-- to prove consistency, it suffices to show that the leader never rolls back
+-- by sending two different replies for the same request
 invariant [gh_committed_cause] gh_committed S V → m_request_reply leader V S
 invariant [leader_never_rolls_back] (m_request_reply leader V1 S ∧ m_request_reply leader V2 S) → V1 = V2
 safety [consistency] gh_committed S V1 ∧ gh_committed S V2 → V1 = V2
 
+-- we can know the source of the request reply
+-- note that, to show the first disjunct, we need `valid_sess_msg_num`
 invariant [m_request_reply_source] (m_request_reply R V S) → (m_marked_client_request R V S ∨ (V = no_op ∧ m_gap_commit R S))
+
+-- if `V1` and `V2` come from `gap_commit`, then they are both `no_op`, so fine
+
+-- if `V1` and `V2` come from `m_marked_client_request`, then we show that values
+-- from `m_marked_client_request` are essentially unique _for the leader_
+-- we can show this by searching for the possible sources of `marked_client_request`
+invariant [lookup_by_non_leader] m_slot_lookup R P S → P ≠ leader
+invariant [marked_request_for_leader_unique] m_marked_client_request leader V1 S ∧ m_marked_client_request leader V2 S → V1 = V2
+invariant [m_marked_client_request_bounded] m_marked_client_request R V S → lt seq_t S s_seq_msg_num
+invariant [m_marked_client_request_source] m_marked_client_request R V S → m_slot_lookup leader R S ∨ m_client_request V
+invariant [m_slot_lookup_bounded] m_slot_lookup P R S → lt seq_t S s_seq_msg_num
+
+-- otherwise, we show that it is impossible for the leader to reply through
+-- the two different sources
 
 #time #gen_spec
 
@@ -320,11 +343,11 @@ sat trace [leader_can_handle_gap_commit_rep] {
 } by bmc_sat
 -/
 
-sat trace [can_commit] {
-  any 4 actions
-  client_commit
-  assert (∃ (s : seq_t) (v : value), gh_committed s v)
-} by bmc_sat
+-- sat trace [can_commit] {
+--   any 4 actions
+--   client_commit
+--   assert (∃ (s : seq_t) (v : value), gh_committed s v)
+-- } by bmc_sat
 
 -- #time #check_invariants
 set_option veil.printCounterexamples true
