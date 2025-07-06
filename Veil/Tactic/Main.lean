@@ -210,7 +210,8 @@ elab tk:concretizeState : tactic => withMainContext do
   tacticsToPrint := tacticsToPrint.push doubleNegTac
   withMainContext $ evalTactic doubleNegTac
   for (_, s) in (← getAbstractStateHyps) do
-    let tac ← `(tacticSeq| try subst $(mkIdent s.userName))
+    let name := mkIdent s.userName
+    let tac ← `(tacticSeq| (try rw [$(mkIdent ``setIn_makeExplicit):ident $name] at *); sdestruct_hyps; (try subst $name))
     if (← getUnsolvedGoals).length != 0 then
       tacticsToPrint := tacticsToPrint.push tac
       withMainContext $ evalTactic tac
@@ -219,7 +220,7 @@ elab tk:concretizeState : tactic => withMainContext do
   -- so we need to recompute them
   for (k, hyp) in (← getAbstractStateHyps) do
     let simpLemmaName := mkIdent $ ← mkFreshBinderNameForTactic stateSimpHypName
-    let concreteState := mkIdent $ hyp.userName
+    let concreteState := mkIdent $ mkConcreteStateNameFromAbstract hyp.userName
     let getter := match k with
     | .state => mkIdent ``getFrom
     | .reader => mkIdent ``readFrom

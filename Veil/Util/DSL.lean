@@ -403,6 +403,11 @@ def mkTrTheoremName (actName : Name) (invName : Name) : Name :=
     s!"{actName}_tr_{mkStrippedName invName}".toName
   else mkTheoremName (toTrName actName) invName
 
+def mkConcreteStateNameFromAbstract (n : Name) : Name := match n with
+  | `r₀ => `r₀
+  | `s₀ => `st
+  | `s₁ => `st'
+  | _ => n
 
 def stripFirstComponent (n : Name) : Name := mkStrippedName n "."
 
