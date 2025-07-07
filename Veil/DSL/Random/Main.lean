@@ -268,7 +268,7 @@ def runAsInstructed (ls : Array labType) : Option (RandomTrace ρ σ labType) :=
 
 include next_refine in
 open RelationalTransitionSystem in
-theorem runAsInstructed_correct (ls : Array labType) res :
+theorem runAsInstructed_correct_on_success (ls : Array labType) res :
   runAsInstructed nextComp r₀ s₀ ls = some res →
   res.trace.tr.isValidFrom res.trace.r₀ res.trace.s₀ ∧ res.trace.tr.size = ls.size := by
   intro h
