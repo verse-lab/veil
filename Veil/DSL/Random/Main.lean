@@ -245,6 +245,71 @@ lemma check_safety_triple (steps : Nat) (cfg : Configuration) [∀ r s, Testable
       apply a_7
       simp_all only
 
+open RelationalTransitionSystem in
+def runAsInstructedStep (l : labType) : StateT σ (ExceptT ExId DivM) (Transition σ labType) := do
+  let spre ← get
+    let res := (nextComp l) |>.run r₀ |>.run spre
+    match res with
+    | .res (.ok ⟨_, s'⟩) => do
+      set s'
+      pure <| ⟨s', l⟩
+    | .res (.error e) => throw e
+    | .div => .div
+
+-- NOTE: this thing __DOES NOT__ yet check the safety invariant!! it just runs the
+-- actions as instructed by the labels in `ls`, and returns the trace
+-- also, though it seems to handle exceptions, it does report them in the final result
+open RelationalTransitionSystem in
+def runAsInstructed (ls : Array labType) : Option (RandomTrace ρ σ labType) :=
+  let tmp := ls.mapM (runAsInstructedStep nextComp r₀) |>.run s₀
+  match tmp with
+  | .res (.ok (res, _)) => .some <| RandomTrace.mk (Trace.mk r₀ s₀ res) none res.size false
+  | _ => none
+
+include next_refine in
+open RelationalTransitionSystem in
+theorem runAsInstructed_correct (ls : Array labType) res :
+  runAsInstructed nextComp r₀ s₀ ls = some res →
+  res.trace.tr.isValidFrom res.trace.r₀ res.trace.s₀ ∧ res.trace.tr.size = ls.size := by
+  intro h
+  dsimp [runAsInstructed] at h ; split at h <;> try contradiction
+  injection h ; subst res ; dsimp ; rename_i res tmp heq
+  -- use `List` instead of `Array` to prove things
+  rw [Array.mapM_eq_mapM_toList] at heq ; rewrite (occs := .pos [2]) [Array.size_eq_length_toList]
+  generalize ls.toList = ls' at * ; clear ls ; rename' ls' => ls
+  revert s₀ res heq ; induction ls with
+  | nil =>
+    intro s₀ res heq ; simp at heq ; simp [pure, ExceptT.pure, ExceptT.mk] at heq
+    injection heq ; rename_i heq ; injection heq ; rename_i heq ; simp at heq ; rcases heq with ⟨a, b⟩ ; subst_vars
+    simp [StateTrace.isValidFrom]
+  | cons l ls ih =>
+    intro s₀ res heq
+    -- destruct first, so to make it easier to use `ih`
+    rw [List.mapM_cons] at heq ; simp only [bind_pure_comp, map_bind, Functor.map_map,
+      StateT.run_bind, StateT.run_map] at heq
+    rcases h1 : (runAsInstructedStep nextComp r₀ l).run s₀ with ( ( _ | ⟨ts, spost⟩ ) | _ )
+    all_goals (rw [h1] at heq ; dsimp [bind, ExceptT.bind, ExceptT.mk, ExceptT.bindCont.eq_1, ExceptT.bindCont.eq_2, pure] at heq ; try contradiction)
+    on_goal 1=> injection heq ; contradiction
+    rcases h2 : (List.mapM (runAsInstructedStep nextComp r₀) ls).run spost with ( ( _ | ⟨respre, _⟩ ) | _ )
+    all_goals (rw [h2] at heq ; dsimp [Functor.map, ExceptT.map, ExceptT.mk, bind, pure] at heq ; try contradiction)
+    on_goal 1=> injection heq ; contradiction
+    injection heq ; rename_i heq ; injection heq ; rename_i heq ; simp at heq ; rcases heq with ⟨a, b⟩ ; subst_vars
+    specialize ih spost respre.toArray
+    simp only [StateT.run_map, List.size_toArray] at ih ; rw [h2] at ih ; specialize ih rfl
+    rcases ih with ⟨ih1, ih2⟩ ; simp [ih2]
+    unfold StateTrace.isValidFrom
+    -- now reason about `ts` and `spost`
+    simp [runAsInstructedStep, ReaderT.run] at h1
+    rcases h : (nextComp l r₀).run s₀ with ( ( _ | ⟨_, spost⟩ ) | _ )
+    all_goals (rw [h] at h1 ; dsimp at h1 ; try contradiction)
+    on_goal 1=>
+      dsimp only [throw, throwThe, MonadExceptOf.throw, Function.comp] at h1
+      simp only [StateT.run_lift, ExceptT.mk] at h1
+      dsimp only [pure, ExceptT.pure, ExceptT.mk, bind, ExceptT.bind, ExceptT.bindCont.eq_2] at h1
+      injection h1 ; contradiction
+    simp at h1 ; simp [pure, ExceptT.pure, ExceptT.mk] at h1
+    injection h1 ; rename_i h1 ; injection h1 ; rename_i h1 ; simp at h1 ; rcases h1 with ⟨a, b⟩ ; subst_vars
+    simp [ih1] ; apply next_refine ; unfold VeilExecM.operational ; dsimp [StateT.run] at h ; rw [h] ; simp
 
 def findRandom (gen : Gen α) (size : ℕ) (seed : ULift StdGen) (p : α -> Prop) [DecidablePred p] : Option α := do
   let res := ReaderT.run gen ⟨size⟩ |>.run seed
