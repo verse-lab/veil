@@ -145,7 +145,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
 
       -- Init + Action checks
       let init := initIndicators.reverse.map (fun invName => (initializerName, some invName))
-      for (actName, invName) in init ++ actIndicators.reverse do
+      for (actName, invName) in (initializerName, none) :: init ++ actIndicators.reverse do
         let moduleName ← getCurrNamespace
         let (univBinders, args) ← do
           if actName != initializerName then
@@ -192,7 +192,7 @@ def theoremSuggestionsForChecks (initIndicators : List Name) (actIndicators : Li
           let (tp, body) := (extTpSyntax, body)
           let thmName := mkTheoremName actName `doesNotThrow
           let thm ← `(@[invProof] theorem $(mkIdent thmName) : $tp := $body)
-          theorems := theorems.push (⟨.none, actName, thmName⟩, thm)
+          theorems := theorems.push (⟨.none, if actName == initializerName then .none else actName, thmName⟩, thm)
 
       return theorems
 

@@ -374,9 +374,8 @@ def defineAuxiliaryDeclarations (declType : DeclType) (mode : Mode) (actName : N
       let (actWpSuccName, actWpSuccPf) ← defineWpSuccForAction vs actName br isInit
       defineWpSuccLemma vs vd actName actWpSuccName actWpName actWpSuccPf br
 
-      unless declType = DeclType.init do
-        let (actWpExName, actWpExPf) ← defineWpExForAction vs actName br
-        defineWpExLemma vs vd actName actWpName actWpExName actWpExPf br
+      let (actWpExName, actWpExPf) ← defineWpExForAction vs actName br
+      defineWpExLemma vs vd actName actWpName actWpExName actWpExPf br
 
       if mode == Mode.external then
         let (actTwoStateName, actTwoStatePf) ← defineTwoStateAction vs actName br isInit
