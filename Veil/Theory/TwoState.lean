@@ -115,6 +115,26 @@ lemma VeilM.wp_r_eq (act : VeilM m ρ σ α) (post : RProp α ρ σ) :
   [DemonSucc| wp act (fun a _ => post a r₀) r₀ = wp act post r₀] := by
   induction act <;> simp [wp_pure, <-VeilExecM.wp_r_eq, *]
 
+lemma VeilM.meetsSpecificationIfSuccessful_with_assumptions (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv inv' : SProp ρ σ) :
+  act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ => inv') →
+  act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ rd st => assu rd ∧ inv' rd st) := by
+  unfold VeilM.meetsSpecificationIfSuccessful triple
+  intro h rd₀ st ; specialize h rd₀ st ; dsimp at h ⊢
+  intro h' ; specialize h h' ; rcases h' with ⟨h1, h2⟩
+  rw [← VeilM.wp_r_eq] at h ⊢
+  have hq : assu rd₀ = True := by simp_all
+  rw [hq] ; simp ; assumption
+
+lemma VeilM.terminates_preservesInvariants' (act : VeilM m ρ σ α)
+  (assu : ρ → Prop) (inv : SProp ρ σ) :
+  (∀ ex, act.canRaise (· ≠ ex) (fun rd st => assu rd ∧ inv rd st)) →
+  act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ => inv) →
+  act.succeedsAndMeetsSpecification (fun rd st => assu rd ∧ inv rd st)
+    (fun _ rd st => assu rd ∧ inv rd st) := by
+  intro h1 h2 ; apply VeilM.not_raises_imp_terminates at h1
+  apply VeilM.meetsSpecificationIfSuccessful_with_assumptions at h2
+  apply VeilM.terminates_preservesInvariants _ _ h1 h2
+
 lemma TwoState.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM m ρ σ α) (pre post : SProp ρ σ) :
   act.toTwoState.meetsSpecificationIfSuccessful pre post = act.meetsSpecificationIfSuccessful pre (fun _ => post) := by
   simp [TwoState.meetsSpecificationIfSuccessful, VeilM.meetsSpecificationIfSuccessful,
