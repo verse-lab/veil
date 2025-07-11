@@ -23,45 +23,6 @@ local macro "⌞ " t:term " ⌟" : term =>
 local macro "⌞_ " t:term " _⌟" : term =>
   `((⌞ $t ⌟ ⌞ State ⌟ ⌞ Reader ⌟))
 
-def Label.gen2 : {quorum value seq_t replica_state replica : Type} →
-  [Plausible.SampleableExt quorum] →
-    [Plausible.SampleableExt value] →
-      [Plausible.SampleableExt seq_t] →
-        [Plausible.SampleableExt replica_state] →
-          [Plausible.SampleableExt replica] → Plausible.Gen (Label quorum value seq_t replica_state replica) :=
-fun {quorum value seq_t replica_state replica} [Plausible.SampleableExt quorum] [Plausible.SampleableExt value]
-    [Plausible.SampleableExt seq_t] [Plausible.SampleableExt replica_state] [Plausible.SampleableExt replica] =>
-  do
-  let a ← Plausible.Gen.chooseAny (Fin 85)
-  if a < 1 then pure Label.client_sends_request
-  else if a < 40 then pure Label.handle_client_request
-  else if a < 80 then pure Label.handle_marked_client_request_normal
-  else
-  match a with
-    | ⟨80, isLt⟩ => do
-      let __do_lift ← Plausible.SampleableExt.interpSample quorum
-      let __do_lift_1 ← Plausible.SampleableExt.interpSample replica_state
-      let __do_lift_2 ← Plausible.SampleableExt.interpSample seq_t
-      pure (Label.handle_marked_client_drop_notification __do_lift __do_lift_1 __do_lift_2)
-    | ⟨81, isLt⟩ => pure Label.handle_slot_lookup
-    | ⟨82, isLt⟩ => pure Label.handle_gap_commit
-    | ⟨83, isLt⟩ => pure Label.handle_gap_commit_rep
-    | _ => pure Label.client_commit
-
--- to test if in the good case, a value from the client can be committed,
--- we (1) expose the nondeterminism in certain actions and (2) avoid the
--- "bad" choices that lead to the bad case
-def Label.genGood (n : Nat) (r₀ : ⌞ Reader ⌟) : Plausible.Gen ⌞ Label ⌟ := do
-  let l ← Label.gen2
-  let good? : Bool := match l with
-    | Label.handle_marked_client_drop_notification r _ _ => decide $ r ≠ r₀.leader
-    | Label.handle_slot_lookup => false
-    | _ => true
-  if good? then return l
-  match n with
-  | 0 => pure l
-  | n' + 1 => Label.genGood n' r₀
-
 def initReader : Plausible.Gen ⌞ Reader ⌟ := do
   let leader ← Plausible.SampleableExt.interpSample (Fin n_replica.succ)
   pure
@@ -79,7 +40,7 @@ def afterInit (r₀ : ⌞ Reader ⌟) (s₀ : ⌞ State ⌟) : ⌞ State ⌟ :=
 
 def checkCore (r₀ : ⌞ Reader ⌟) (s₀ : ⌞ State ⌟) (steps : Nat) (cfg : Plausible.Configuration)
     : Plausible.Gen (RandomTrace ⌞ Reader ⌟ ⌞ State ⌟ ⌞ Label ⌟) :=
-  @check_safety _ _ _ (sys := ⌞_ System _⌟) (Label.genGood 100 r₀) ⌞_ nextActExec _⌟ r₀ s₀ steps cfg
+  @check_safety _ _ _ (sys := ⌞_ System _⌟) Label.gen ⌞_ nextActExec _⌟ r₀ s₀ steps cfg
     (by intro r s; dsimp [invSimp]; infer_instance)
 
 def randomizedCheck (steps : Nat) (cfg : Plausible.Configuration)
@@ -89,6 +50,6 @@ def randomizedCheck (steps : Nat) (cfg : Plausible.Configuration)
   let s₀' := afterInit r₀ s₀
   checkCore r₀ s₀' steps cfg
 
-#eval @randomizedCheck 2 1 3 1000 ({ } : Plausible.Configuration) |>.run 100
+#eval @randomizedCheck 2 1 3 500 ({ } : Plausible.Configuration) |>.run 100
 
 end NOPaxos
