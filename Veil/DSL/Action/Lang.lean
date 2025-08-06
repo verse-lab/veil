@@ -1,6 +1,5 @@
 import Lean
 import Lean.Parser
-import Veil.Model.State
 import Veil.Util.DSL
 import Veil.DSL.Base
 import Veil.DSL.Internals.StateExtensions
