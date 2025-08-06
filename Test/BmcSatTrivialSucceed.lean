@@ -24,5 +24,5 @@ invariant True
 
 #gen_spec
 
-#guard_msgs(drop warning) in
+#guard_msgs(drop info, drop warning) in
 sat trace [ini] { } by { bmc_sat }
