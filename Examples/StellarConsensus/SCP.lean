@@ -189,7 +189,7 @@ action receive_accept_commit (na nb : node) (b : ballot) (v : value) = {
     accepted_committed na b v := True
 }
 
-internal transition byzantine_step = {
+transition byzantine_step = {
   (∀ N B X, well_behaved N → voted_prepared N B X = voted_prepared' N B X) ∧
   (∀ N B X, well_behaved N → accepted_prepared N B X = accepted_prepared' N B X) ∧
   (∀ N B X, well_behaved N → voted_committed N B X = voted_committed' N B X) ∧

@@ -1,8 +1,26 @@
 import Lean
-import Veil.Model.IOAutomata
 import Veil.Util.Meta
 
 open Lean Parser
+
+abbrev ActionIdentifier := Lean.Name
+
+/-- This is an implementation detail of the DSL, used to construct the
+Label type for specifications. -/
+structure ActionDeclaration where
+  name: ActionIdentifier
+  ctor : Option (TSyntax `Lean.Parser.Command.ctor)
+deriving BEq, Inhabited
+
+instance : ToString ActionDeclaration where
+  toString a := s!"{a.name} with ctor {a.ctor}"
+
+/-- This typeclass connects the label type to the action declarations.
+We introduce this because our actions take parameters, so they carry
+strictly more information than just the action declaration. -/
+class ActionLabel (l : Type) where
+  /-- The action identifier for a given label. -/
+  id : l → ActionIdentifier
 
 inductive StateComponentKind where
   | individual
@@ -140,8 +158,8 @@ deriving Inhabited, BEq
 instance : ToString ProcedureSpecification where
   toString a := match a.kind with
     | .action decl => match a.lang with
-      | some lang => s!"{decl.kind} {decl.name} [defined via lang] {lang}"
-      | none => s!"{decl.kind} {decl.name} [defined via expr] {a.expr}"
+      | some lang => s!"action {decl.name} [defined via lang] {lang}"
+      | none => s!"action {decl.name} [defined via expr] {a.expr}"
     | .procedure decl => match a.lang with
       | some lang => s!"procedure {decl.name} [defined via lang] {lang}"
       | none => s!"procedure {decl.name} [defined via expr] {a.expr}"
@@ -159,24 +177,9 @@ def ProcedureSpecification.actionDecl (proc : ProcedureSpecification) : Option A
 def ProcedureSpecification.hasSpec (proc : ProcedureSpecification) : Bool :=
   proc.spec.isSome
 
-def ProcedureSpecification.isInternal (proc : ProcedureSpecification) : Bool :=
-  match proc.kind with
-  | .action a => a.kind == .internal
-  | .procedure _ => false
-
-def ProcedureSpecification.isInput (proc : ProcedureSpecification) : Bool :=
-  match proc.kind with
-  | .action a => a.kind == .input
-  | .procedure _ => false
-
-def ProcedureSpecification.isOutput (proc : ProcedureSpecification) : Bool :=
-  match proc.kind with
-  | .action a => a.kind == .output
-  | .procedure _ => false
-
 /-- Make an action specification without any DSL-specific information. -/
-def ActionSpecification.mkPlain (type : ActionKind) (name : Name) (expr : Expr) : ProcedureSpecification := {
-  kind := .action { kind := type, name := name, ctor := none },
+def ActionSpecification.mkPlain (name : Name) (expr : Expr) : ProcedureSpecification := {
+  kind := .action { name := name, ctor := none },
   lang := none,
   spec := none,
   expr := expr

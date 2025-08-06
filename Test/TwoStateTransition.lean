@@ -14,14 +14,14 @@ after_init {
 }
 
 #guard_msgs in
-internal transition byz = {
+transition byz = {
   (∀ (src dst : address) (r : address) (v : address),
     (¬ is_byz src ∧ (initial_msg src dst r v ↔ initial_msg' src dst r v)) ∨
     (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v)))
 }
 
 #guard_msgs in
-internal transition withargs (r : address) = {
+transition withargs (r : address) = {
   (∀ (src dst : address) (v : address),
     (¬ is_byz src ∧ (initial_msg src dst r v ↔ initial_msg' src dst r v)) ∨
     (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v)))

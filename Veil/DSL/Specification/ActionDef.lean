@@ -8,32 +8,9 @@ import Veil.Util.TermSimp
 
 open Lean Elab Command Term Meta Lean.Parser
 
-def toActionKind (stx : TSyntax `actionKind) : ActionKind :=
-  match stx with
-  | `(actionKind|input) => ActionKind.input
-  | `(actionKind|internal) => ActionKind.internal
-  | `(actionKind|output) => ActionKind.output
-  | _ => unreachable!
-
-def toActionKindIdent (stx : TSyntax `actionKind) : Ident :=
-  mkIdent $ match stx with
-  | `(actionKind|input) => ``ActionKind.input
-  | `(actionKind|internal) => ``ActionKind.internal
-  | `(actionKind|output) => ``ActionKind.output
-  | _ => unreachable!
-
-def ActionKind.stx [Monad m] [MonadQuotation m] : ActionKind → m (TSyntax `actionKind)
-  | .input => `(actionKind|input)
-  | .internal => `(actionKind|internal)
-  | .output => `(actionKind|output)
-
 def Mode.stx [Monad m] [MonadQuotation m] : Mode → m (TSyntax `term)
   | .internal => `(term|$(mkIdent ``Mode.internal))
   | .external => `(term|$(mkIdent ``Mode.external))
-
-/-- `action foo` means `internal action foo` -/
-def parseActionKindStx (stx : Option (TSyntax `actionKind)) : CommandElabM (TSyntax `actionKind) := do
-  return stx.getD $ ← `(actionKind|internal)
 
 def assertProcedureDeclared [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (op : String) : m Unit := do
   let procedureExists := (← localSpecCtx.get).spec.procedures.any fun t => t.name == nm
@@ -41,9 +18,9 @@ def assertProcedureDeclared [Monad m] [MonadEnv m] [MonadResolveName m] [MonadEr
     throwError "Procedure {nm} has not been declared (trying to {op})"
 
 open Command Term in
-/-- Record the action type and signature of this action in the `localSpecificationCtx`.  -/
-def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
-  assertActionDeclared nm.getId "registerIOActionDecl"
+/-- Record the action signature in the `localSpecificationCtx`.  -/
+def registerActionDecl (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)): CommandElabM Unit := do
+  assertProcedureDeclared nm.getId "registerActionDecl"
   let vd ← getActionParameters
   let labelTypeArgs ← bracketedBindersToTerms $ ← (← localSpecCtx.get).spec.generic.applyGetStateArguments vd
   let labelT ← `(term|$labelIdent $labelTypeArgs*)
@@ -54,7 +31,6 @@ def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br 
     | none => pure $ TSyntaxArray.mk #[]
     let ctor ← `(ctor| | $nm:ident $br* : $labelT)
     let actdecl : ActionDeclaration := {
-      kind := toActionKind actT,
       name := name,
       ctor := ctor
     }
@@ -68,10 +44,6 @@ def registerIOActionDecl (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br 
           if t.name == nm.getId then
             { t with kind := .action actdecl }
           else t})
-where assertActionDeclared (nm : Name) (op : String) := do
-  let actionExists := (← localSpecCtx.get).spec.actions.any fun t => t.name == nm
-  if !actionExists then
-    throwError "Action {nm} has not been declared (trying to {op})"
 
 def registerProcedureBinders [Monad m] [MonadEnv m] [MonadResolveName m] [MonadError m] (nm : Name) (br : Option (TSyntax `Lean.explicitBinders)) : m Unit := do
   assertProcedureDeclared nm "registerProcedureBinders"
@@ -384,21 +356,21 @@ def defineAuxiliaryDeclarations (declType : DeclType) (mode : Mode) (actName : N
         let (actTrName, actTrPf) ← defineTr vs actName br isInit
         defineTrLemma vs vd actName actTrName actTrPf br
 
-def registerAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) := do
-  declareProcedure (toActionKind actT) act.getId
-  registerIOActionDecl actT act br
+def registerAction (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) := do
+  declareProcedure act.getId
+  registerActionDecl act br
   registerProcedureBinders act.getId br
   registerProcedureSyntax act.getId l
 
 def registerProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) :
   CommandElabM Unit := do
-  declareProcedure .none proc.getId
+  declareProcedure proc.getId
   registerProcedureBinders proc.getId br
   registerProcedureSyntax proc.getId l
 
-def registerTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) : CommandElabM Unit:= do
-  declareProcedure (toActionKind actT) nm.getId
-  registerIOActionDecl actT nm br
+def registerTransition (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) : CommandElabM Unit:= do
+  declareProcedure nm.getId
+  registerActionDecl nm br
   registerProcedureBinders nm.getId br
 
 /-- Defines `act` : `VeilM m ρ σ α` monad computation, parametrised over `br`. More
@@ -414,11 +386,11 @@ specifically it defines:
   - `act.wp.eq` : equality between the weakest precondition for the internal action interpretation and
     its simplified version
 -/
-def defineAction (actT : TSyntax `actionKind) (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
+def defineAction (act : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (l : doSeq) : CommandElabM Unit := do
   let (actIntName, actExtName) ← mkProcedureGenerators act br l
   defineAuxiliaryDeclarations .act .external actExtName br
   defineAuxiliaryDeclarations .act .internal actIntName br
-  registerAction actT act br l
+  registerAction act br l
 
 def defineInitialAction (l : doSeq) : CommandElabM Unit := do
   let initName := mkIdent initializerName
@@ -431,8 +403,8 @@ def defineProcedure (proc : TSyntax `ident) (br : Option (TSyntax `Lean.explicit
   defineAuxiliaryDeclarations .proc .internal actIntName br
   registerProcedure proc br l
 
-def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
-  trace[veil.debug] "Defining {actT} transition {nm}: {tr}"
+def defineTransition (nm : TSyntax `ident) (br : Option (TSyntax `Lean.explicitBinders)) (tr : Term) : CommandElabM Unit := do
+  trace[veil.debug] "Defining transition {nm}: {tr}"
   let vd ← getImplicitProcedureParameters
   let baseName := (← getCurrNamespace) ++ nm.getId
   let origName := toOriginalIdent nm
@@ -451,7 +423,7 @@ def defineTransition (actT : TSyntax `actionKind) (nm : TSyntax `ident) (br : Op
     let genEName ← genGeneratorFromTransition vs origName baseName .external
     return (genIName, genEName)
   defineAuxiliaryDeclarations .act .external genEName br
-  registerTransition actT nm br
+  registerTransition nm br
 where
   genGeneratorFromTransition (vs : Array Expr) (origName : Ident) (baseName : Name) (mode : Mode) := do
     let genName := toActName baseName mode

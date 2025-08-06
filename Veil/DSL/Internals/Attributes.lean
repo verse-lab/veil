@@ -53,31 +53,12 @@ initialize registerBuiltinAttribute {
     localSpecCtx.modify (fun s => { s with spec := {s.spec with init := init }})
 }
 
-syntax (name:= internalActDef) "internalActDef" : attr
-syntax (name:= inputActDef) "inputActDef" : attr
-syntax (name:= outputActDef) "outputActDef" : attr
 
-open Lean.Parser.Term in
-def toActionAttribute (type : ActionKind) : AttrM (TSyntax `Lean.Parser.Term.attrInstance) :=
-  match type with
-  | .internal => `(attrInstance|internalActDef)
-  | .input => `(attrInstance|inputActDef)
-  | .output => `(attrInstance|outputActDef)
-
-open Lean.Parser.Term in
-def toActionAttribute' (type : ActionKind) : Lean.Elab.Attribute :=
-  match type with
-  | .internal => {name := `internalActDef}
-  | .input => {name := `inputActDef}
-  | .output => {name := `outputActDef}
-
-def declareProcedure [Monad m] [MonadEnv m] [MonadError m] (actT : Option ActionKind)  (declName : Name) : m Unit := do
+def declareProcedure [Monad m] [MonadEnv m] [MonadError m] (declName : Name) : m Unit := do
   let procedureExists := (← localSpecCtx.get).spec.procedures.any fun t => t.name == declName
   if procedureExists then
     throwError "A procedure or action named {declName} has already been declared!"
-  let spec := match actT with
-    | some actT => ActionSpecification.mkPlain actT declName (mkConst declName)
-    | none => ProcedureSpecification.mkPlain declName (mkConst declName)
+  let spec := ProcedureSpecification.mkPlain declName (mkConst declName)
   localSpecCtx.modify (fun s => { s with spec := {s.spec with procedures := s.spec.procedures.push spec }})
 
 syntax (name:= assumption) "assumptionDef" : attr

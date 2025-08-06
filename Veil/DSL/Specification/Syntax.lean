@@ -184,10 +184,6 @@ after executing `after_init` starting from the unspecified initial state. -/
 syntax (name := initialStateAction) kw_after_init "{" doSeq "}" : command
 
 /- ## Actions -/
-declare_syntax_cat actionKind
-syntax (name := inputAction) kw_input : actionKind
-syntax (name := internalAction) kw_internal : actionKind
-syntax (name := outputAction) kw_output : actionKind
 
 /-- Transition defined via a Veil two-state relation, which implicitly has
 access to the state variables. The post-state can be referred to with primed
@@ -205,13 +201,13 @@ transition byz = {
     (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v))) ∧
 ```
  -/
-syntax (name := transitionDefinition) (priority := high) (actionKind)? kw_transition ident explicitBinders ? "=" "{" term "}" : command
+syntax (name := transitionDefinition) (priority := high) kw_transition ident explicitBinders ? "=" "{" term "}" : command
 
 /-- An imperative action in Veil. -/
-syntax (name := actionDefinition) (actionKind)? kw_action ident (explicitBinders)? "=" "{" doSeq "}" : command
+syntax (name := actionDefinition) kw_action ident (explicitBinders)? "=" "{" doSeq "}" : command
 
 /-- An imperative action in Veil, with a specification. -/
-syntax (name := actionDefinitionWithSpec) (actionKind)? kw_action ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
+syntax (name := actionDefinitionWithSpec) kw_action ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
 
 /-- An imperative procedure in Veil. -/
 syntax (name := procedureDefinition) kw_procedure ident (explicitBinders)? "=" "{" doSeq "}" : command

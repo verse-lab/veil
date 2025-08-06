@@ -73,7 +73,7 @@ after_init {
   delivered N O R V   := False
 }
 
-internal transition byz = {
+transition byz = {
   (∀ (src dst : address) (r : round) (v : value),
     (¬ is_byz src ∧ (initial_msg src dst r v ↔ initial_msg' src dst r v)) ∨
     (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v))) ∧

@@ -163,7 +163,7 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
 
   let (labelType, alInstance, casesLemma) ← Command.runTermElabM fun _ => do
     let P := mkIdent `P
-    let (ctors, altkinds) := Array.unzip $ ← (← localSpecCtx.get).spec.actions.mapM (fun s => do
+    let (ctors, altsAndExs) := Array.unzip $ ← (← localSpecCtx.get).spec.actions.mapM (fun s => do
       let .some decl := s.actionDecl | throwError "[assembleLabelType] {s} is not an action"
       let .some ctor := decl.ctor | throwError "DSL: missing label constructor for action {s.name}"
       let name ← `(term|$(quote decl.name))
@@ -171,14 +171,12 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
       let alt ← match s.br with
         | some br => `(term|fun $(← toFunBinderArray br)* => $name)
         | none => `(term|$name)
-      let kind ← `(term|($name, $(mkIdent decl.kind.toName)))
       let constructor := mkIdent (labelTypeName.getId ++ s.name)
       let ex ← match s.br with
         | some br => `(term| (∃ $br, $P ($constructor $(← explicitBindersIdents br)*)))
         | none => `(term| $P ($constructor))
-      pure (ctor, alt, kind, ex))
-    let (alts, kindsexs) := Array.unzip altkinds
-    let (kinds, exs) := Array.unzip kindsexs
+      pure (ctor, (alt, ex)))
+    let (alts, exs) := Array.unzip altsAndExs
     trace[veil.info] "storing constructors for {name}"
     let labelType ←
       if ctors.isEmpty then
@@ -186,12 +184,10 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
       else
         `(inductive $labelTypeName $labelTypeBinders* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
     let idFn ← `(term|fun (l : $labelT) => l.casesOn $alts*)
-    let kindMap ← `(Std.HashMap.ofList [$[$kinds],*])
     let alInstance ← `(command|
     noncomputable
     instance (priority := low) $(mkIdent $ Name.mkSimple s!"{name}_ActionLabel") : ActionLabel $labelT where
       id := $idFn
-      kind := $kindMap
     )
     let casesLemma ← `(command|set_option linter.unusedSectionVars false in
       @[nextSimp] theorem $labelCasesIdent ($P : $labelT -> Prop) :
@@ -213,10 +209,8 @@ def assembleLabelType (name : Name) : CommandElabM Unit := do
 
 def getIOSignatureStx [Monad m] [MonadEnv m] [MonadQuotation m] : m (TSyntax `term) := do
   let actions := (← localSpecCtx.get).spec.actions
-  let internals := actions.filterMap (fun (s : ProcedureSpecification) => if s.isInternal then some (quote s.name) else none)
-  let inputs := actions.filterMap (fun (s : ProcedureSpecification) => if s.isInput then some (quote s.name) else none)
-  let outputs := actions.filterMap (fun (s : ProcedureSpecification) => if s.isOutput then some (quote s.name) else none)
-  let stx ← `(term|{internal := Std.HashSet.ofList [$[$internals],*], input := Std.HashSet.ofList [$[$inputs],*], output := Std.HashSet.ofList [$[$outputs],*]})
+  let allActions := actions.map (fun s => quote s.name)
+  let stx ← `(term|{internal := Std.HashSet.ofList [$[$allActions],*], input := Std.HashSet.empty, output := Std.HashSet.empty})
   return stx
 
 def getIOStepStx (stateTp : TSyntax `term) (labelT : TSyntax `term) (vs : Array Expr) : TermElabM (TSyntax `term) := do

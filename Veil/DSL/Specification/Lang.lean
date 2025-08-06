@@ -399,17 +399,16 @@ def warnIfNotFirstOrder (name : Name) : TermElabM Unit := do
   if !isFirstOrderUniv then
     logWarning s!"{name} is not first-order (and cannot be sent to SMT)"
 
-def elabNativeTransition (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (tr : TSyntax `term) : CommandElabM Unit := do
+def elabNativeTransition (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (tr : TSyntax `term) : CommandElabM Unit := do
   liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
-  let actT ← parseActionKindStx actT
-  defineTransition actT nm br tr
+  defineTransition nm br tr
   -- -- warn if this is not first-order
   Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
 
 @[command_elab Veil.transitionDefinition]
 def elabTransition : CommandElab := fun stx => do
   match stx with
-  | `(command|$actT:actionKind ? transition $nm:ident $br:explicitBinders ? = { $t:term }) => do
+  | `(command|transition $nm:ident $br:explicitBinders ? = { $t:term }) => do
     let changedFn := (fun f => t.raw.find? (·.getId.toString == (mkPrimed f).toString) |>.isSome)
     let unchangedFields ← getUnchangedFields changedFn
     trace[veil.info] "Unchanged fields: {unchangedFields}"
@@ -423,7 +422,7 @@ def elabTransition : CommandElab := fun stx => do
       unhygienic cases $st:ident
       with_rename "'" unhygienic cases $st':ident
       exact [unchanged|"'"| $unchangedFields*] ∧ ($t))
-    elabNativeTransition actT nm br trStx
+    elabNativeTransition nm br trStx
   | _ => throwUnsupportedSyntax
 
 /-! ## Actions -/
@@ -452,12 +451,11 @@ def checkSpec (nm : Ident) (br : Option (TSyntax `Lean.explicitBinders))
   catch e =>
     throwError s!"Error while checking the specification of {nm}:" ++ e.toMessageData
 
-def elabAction (actT : Option (TSyntax `actionKind)) (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
+def elabAction (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders))
   (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
     liftCoreM (do errorIfStateNotDefined; errorIfSpecAlreadyDefined)
-    let actT ← parseActionKindStx actT
     -- Create all the action-related declarations
-    defineAction actT nm br l
+    defineAction nm br l
     -- warn if this is not first-order
     Command.liftTermElabM <| warnIfNotFirstOrder nm.getId
     unless spec.isNone do
@@ -479,10 +477,10 @@ def elabProcedure (nm : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (s
     checkSpec nm br pre post binder
 
 elab_rules : command
-  | `(command|$actT:actionKind ? action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => do
-  elabAction actT nm br none l
-  | `(command|$actT:actionKind ? action $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) =>
-  elabAction actT nm br spec l
+  | `(command|action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => do
+  elabAction nm br none l
+  | `(command|action $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) =>
+  elabAction nm br spec l
   | `(command|procedure $nm:ident $br:explicitBinders ? = {$l:doSeq}) =>
   elabProcedure nm br none l
   | `(command|procedure $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) =>
