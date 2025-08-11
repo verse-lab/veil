@@ -1,162 +1,68 @@
 import Lean
-
 open Lean Elab Command
 
-/-- The directory of the file being currently compiled. -/
-syntax (name := currentDirectory) "currentDirectory!" : term
+/-! # Meta-programming utility functions
 
-open Lean Elab Elab.Term in
-@[term_elab currentDirectory] def elabCurrentFilePath : TermElab
-  | `(currentDirectory!), _ => do
-    let ctx ← readThe Lean.Core.Context
-    let srcPath := System.FilePath.mk ctx.fileName
-    let some srcDir := srcPath.parent
-      | throwError "cannot compute parent directory of '{srcPath}'"
-    return mkStrLit s!"{srcDir}"
-  | _, _ => throwUnsupportedSyntax
+  This file contains utility functions for doing meta-programming in
+  Lean, especially around manipulating syntax.
+-/
 
-/- From: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/binderIdent.20vs.20Ident -/
-def toBinderIdent (i : Ident) : TSyntax ``binderIdent := Unhygienic.run <|
-  withRef i `(binderIdent| $i:ident)
+def Lean.Expr.isBool (e : Expr) : Bool := e.isConstOf `Bool
+def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
+  let #[f, args] := stx.raw.getArgs | failure
+  let `(term| $f:ident) := f | failure
+  return (⟨f⟩, args.getArgs.map (⟨·⟩))
 
-def toIdent (bi : TSyntax ``binderIdent) : Ident :=
-  match bi with
-  | `(binderIdent|$i:ident) => i
-  | _ => unreachable!
+/-- Like `getForallArity`, but only counts the number of `default`
+(i.e. explicit) binders. -/
+partial def Lean.Expr.getForallArityExplicitBinders : Expr → Nat
+  | .mdata _ b       => getForallArityExplicitBinders b
+  | .forallE _ _ b bi => getForallArityExplicitBinders b + (if bi.isExplicit then 1 else 0)
+  | e                =>
+    if e.isHeadBetaTarget then
+      getForallArityExplicitBinders e.headBeta
+    else
+      let e' := e.cleanupAnnotations
+      if e != e' then getForallArityExplicitBinders e' else 0
 
-/-- Convert existential binders into definition binders. -/
-def toBracketedBinderArray (stx : TSyntax `Lean.explicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
-  let mut binders := #[]
-  match stx with
-  | `(explicitBinders|$bs*) => do
-    binders := binders.append (← bs.mapM helper)
-  | _ => throwError "unexpected syntax in explicit binder: {stx}"
-  return binders.flatten
-  where
-  helper (stx : TSyntax `Lean.bracketedExplicitBinders) : MetaM (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
-    let mut binders := #[]
-    match stx with
-    | `(bracketedExplicitBinders|($bis* : $tp)) => do
-      for bi in bis do
-        let id := toIdent bi
-        let fb ← `(bracketedBinder| ($id : $tp:term))
-        binders := binders.push fb
-      pure ()
-    | _ => throwError "unexpected syntax in explicit binder: {stx}"
-    return binders
-/-- Convert definition binders into existential binders. -/
-def toExplicitBinders [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m (TSyntax `Lean.bracketedExplicitBinders) := do
-  match stx with
-  | `(bracketedBinder| ($id:ident : $tp:term))
-  | `(bracketedBinder| [$id:ident : $tp:term])
-  | `(bracketedBinder| {$id:ident : $tp:term}) =>
-    return ← `(bracketedExplicitBinders|($(toBinderIdent id) : $tp))
-  | _ => throwError "unexpected syntax in explicit binder: {stx}"
+namespace Veil
 
-def ppTerm (stx : TSyntax `term) : CoreM String := do
-  let fmt ← Lean.PrettyPrinter.ppTerm ⟨stx.raw⟩
-  return fmt.pretty'
+/-- Syntax for `∀ a₀ a₁ .. aₙ, Decidable (P a₀ a₁ .. aₙ)`. -/
+def decidableNStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) (relName : Name) : m Term := do
+  let idents := (Array.range n).map fun i => mkIdent $ Name.mkSimple s!"a{i}"
+  if n == 0 then
+    `(term| $(mkIdent ``Decidable) ($(mkIdent relName)))
+  else
+    `(term| ∀ $idents*, $(mkIdent ``Decidable) ($(mkIdent relName) $idents*))
 
-def ppBracketedBinder (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : CoreM String := do
-  match stx with
-  | `(bracketedBinder| ($id:ident : $tp:term)) => return s!"({id.getId} : {← ppTerm tp})"
-  | `(bracketedBinder| [$id:ident : $tp:term]) => return s!"[{id.getId} : {← ppTerm tp}]"
-  | `(bracketedBinder| {$id:ident : $tp:term}) => return s!"\{{id.getId} : {← ppTerm tp}}"
-  | _ => throwError "unexpected syntax in explicit binder: {stx}"
+def mkVeilImplementationDetailName (n : Name) : Name :=
+  Name.mkSimple s!"__veil_{n}"
 
-/-- Convert existential binders into function binders. -/
-def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) := do
-  let mut binders := #[]
-  match stx with
-  | `(explicitBinders|$bs*) => do
-    binders := binders.append (← bs.mapM helper)
-  | _ => throwError "unexpected syntax in explicit binder: {stx}"
-  return binders.flatten
-  where
-  helper (stx : TSyntax `Lean.bracketedExplicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) := do
-    let mut binders := #[]
-    match stx with
-    | `(bracketedExplicitBinders|($bis* : $tp)) => do
-      for bi in bis do
-        let id := toIdent bi
-        let fb ← `(Lean.Parser.Term.funBinder| ($id : $tp:term))
-        binders := binders.push fb
-      pure ()
-    | _ => throwError "unexpected syntax in explicit binder: {stx}"
-    return binders
+def isVeilImplementationDetailName (n : Name) : Bool :=
+  n.isStr && n.toString.startsWith "__veil_"
 
-/-- Convert existential binders (with explicit types) into terms (including only the identifiers). -/
-def explicitBindersIdents [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) := do
-  let mut vars := #[]
-  match stx with
-  | `(explicitBinders|$bs*) => do
-    for b in bs do
-      match b with
-      | `(bracketedExplicitBinders|($bis* : $_tp)) => do
-        for bi in bis do
-          let id := toIdent bi
-          vars := vars.push id
-      | _ => throwError "unexpected syntax in explicit binder: {b}"
-  | _ => throwError "unexpected syntax in explicit binder: {stx}"
-  return vars
+def addVeilDefinition (n : Name) (e : Expr)
+  (red := Lean.ReducibilityHints.regular 0)
+  (attr : Array Attribute := #[])
+  (type : Option Expr := none) : TermElabM Unit := do
+  addDecl <|
+    Declaration.defnDecl <|
+      mkDefinitionValEx n [] (type.getD <| ← Meta.inferType e) e red
+      (DefinitionSafety.safe) []
+  enableRealizationsForConst n
+  Elab.Term.applyAttributes n attr
 
-def bracketedBinderIdent [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m (Option Ident) := do
-  match stx with
-  | `(bracketedBinder| ($id:ident : $_tp)) => return id
-  | `(bracketedBinder| [$id:ident : $_tp]) => return id
-  | `(bracketedBinder| {$id:ident : $_tp}) => return id
-  | _ => return none
+/-- A wrapper around Lean's standard `elabCommand`, which performs
+Veil-specific logging and sanity-checking. -/
+def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
+  trace[veil.debug] "{stx}"
+  elabCommand stx
 
-/-- Given a set of binders, return the terms that correspond to them.
-Typeclasses that are not named are replaced with `_`, to be inferred. -/
-def bracketedBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array Term) := do
-  let idents : Array (Option Ident) ← stx.mapM bracketedBinderIdent
-  let terms ← idents.mapM (fun mid => do
-    match mid with
-    | some id => `(term|$id)
-    | none => `(term|_))
-  return terms
-
-/-- Given a set of binders, return the terms that correspond to them.
-Typeclasses that are not named are replaced with `_`, to be inferred. -/
-def bracketedBindersToTerms' [Monad m] [MonadError m] [MonadQuotation m] (stx : Array (Nat × TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array (Nat × Term)) := do
-  let idents : Array (Nat × Option Ident)  ← stx.mapM (fun (idx, b) => do pure (idx, ← bracketedBinderIdent b))
-  let terms ← idents.mapM (fun (idx, mid) => do
-  pure (idx,
-    ← match mid with
-    | some id => `(term|$id)
-    | none => `(term|_)))
-  return terms
-
-def toBindersWithInferredTypes (stx : TSyntax `Lean.explicitBinders) [Monad m] [MonadEnv m] [MonadError m] [MonadQuotation m] : m (TSyntax `Lean.explicitBinders) := do
- let mut newBinders := #[]
-  match stx with
-  | `(explicitBinders|$bs*) => do
-    for b in bs do
-      match b with
-      | `(bracketedExplicitBinders|($bis* : $_tp)) => do
-         newBinders := newBinders.push (← `(bracketedExplicitBinders|($bis* : _)))
-      | _ => throwError "unexpected syntax in explicit binder: {b}"
-  | _ => throwError "unexpected syntax in explicit binder: {stx}"
-  return ← `(explicitBinders| $newBinders*)
-
-
-/-- Convert existential binders (with explicit types) into terms (including only the identifiers). -/
-def toBindersWithMappedTypes [Monad m] [MonadQuotation m] [MonadError m] (stx : TSyntax `Lean.explicitBinders) (mapping : Array (Term × Term)) : m (TSyntax `Lean.explicitBinders) := do
-  let mut newBinders := #[]
-  match stx with
-  | `(explicitBinders|$bs*) => do
-    for b in bs do
-      match b with
-      | `(bracketedExplicitBinders|($bis* : $tp)) => do
-        let newTp := match mapping.find? (fun (paramType, _argType) => paramType == tp) with
-          | some (_, newTp) => newTp
-          | none => tp
-        newBinders := newBinders.push $ ← `(bracketedExplicitBinders|($bis* : $newTp))
-      | _ => throwError "unexpected syntax in explicit binder: {b}"
-  | _ => throwError "unexpected syntax in explicit binder: {stx}"
-  let newStx ← `(explicitBinders|$newBinders*)
-  return newStx
+/-- Given `nm : type`, return `type` -/
+def getSimpleBinderType [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : m (TSyntax `term) := do
+  match sig with
+  | `(Lean.Parser.Command.structSimpleBinder| $_:ident : $tp:term) => pure tp
+  | _ => throwError s!"getSimpleBinderType: don't know how to handle {sig}"
 
 /-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
 def mkArrowStx [Monad m] [MonadQuotation m] [MonadError m] (tps : List Term) (terminator : Option $ TSyntax `term := none) : m (TSyntax `term) := do
@@ -169,6 +75,7 @@ def mkArrowStx [Monad m] [MonadQuotation m] [MonadError m] (tps : List Term) (te
     let cont ← mkArrowStx as terminator
     `(term| $a -> $cont)
 
+/-- Given `nm`, `(r : Int) (v : vertex)` and `Prop`, return `nm : Int -> vertex -> Prop` -/
 def complexBinderToSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (nm : TSyntax `ident) (br : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (domT : TSyntax `term) : m (TSyntax `Lean.Parser.Command.structSimpleBinder) := do
   let types ← br.mapM fun m => match m with
     | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
@@ -177,146 +84,51 @@ def complexBinderToSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (nm 
   let simple ← `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $typeStx)
   return simple
 
-/-- Given `nm : _ `, return `nm` -/
-def getSimpleBinderName [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : m Name := do
-  match sig with
-  | `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $_:term) => pure nm.getId
-  | _ => throwError s!"getSimpleBinderName: don't know how to handle {sig}"
+def binderIdentToIdent (bi : TSyntax ``binderIdent) : Ident :=
+  match bi with
+  | `(binderIdent|$i:ident) => i
+  | _ => unreachable!
 
-/-- Given `nm : type`, return `type` -/
-def getSimpleBinderType (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : CoreM (TSyntax `term) := do
-  match sig with
-  | `(Lean.Parser.Command.structSimpleBinder| $_:ident : $tp:term) => pure tp
-  | _ => throwError s!"getSimpleBinderType: don't know how to handle {sig}"
+/-- Convert existential binders into function binders. -/
+def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) :=
+  match stx with
+  | `(explicitBinders|$bs*) =>
+    bs.flatMapM fun
+      | `(bracketedExplicitBinders|($bis* : $tp)) =>
+        bis.mapM fun bi =>
+          let id := binderIdentToIdent bi
+          `(Lean.Parser.Term.funBinder| ($id : $tp:term))
+      | _ => throwError "unexpected syntax in explicit binder: {stx}"
+  | _ => throwError "unexpected syntax in explicit binder: {stx}"
 
-def createExistsBinders [Monad m] [MonadQuotation m] (vars : Array (Ident × Option Name)) : m (Array (TSyntax `Lean.bracketedExplicitBinders)) := do
-  let binders ← vars.mapM fun (var, sort) => do
-    let bi := toBinderIdent var
-    match sort with
-    | none => return ← `(bracketedExplicitBinders|($bi : _))
-    | some sort => return ← `(bracketedExplicitBinders|($bi : $(mkIdent sort)))
-  return binders
+def Option.stxArrMapM [Monad m] [MonadError m] [MonadQuotation m] (o : Option (TSyntax α)) (f : TSyntax α → m (TSyntaxArray β)) : m (TSyntaxArray β) := do
+  match o with
+  | .some stx => f stx
+  | .none => pure #[]
 
-def repeatedExists [Monad m] [MonadQuotation m] (vars : Array (Ident × Option Name)) (body : TSyntax `term) : m (TSyntax `term) := do
-  let binders ← createExistsBinders vars
-  if binders.size == 0 then return body
-  else `(term|∃ $binders*, $body)
+/-- Like `CommandElabM.liftTermElabM`, but also binds the given
+binders. We use this instead of `runTermElabM`, since we don't want to
+define section variables and thus pollute the environment (but rather
+pass only the binders we care about on a as-needed basis.) -/
+def liftTermElabMWithBinders (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (x : Array Expr → TermElabM α) : CommandElabM α :=
+  Elab.Command.liftTermElabM <| Term.elabBinders binders fun vs => x vs
 
-def createForallBinders [Monad m] [MonadQuotation m] (vars : Array (Ident × Option Name)) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  let binders ← vars.mapM fun (var, sort) => do
-    match sort with
-    | none => return ← `(bracketedBinder|($var))
-    | some sort => return ← `(bracketedBinder|($var : $(mkIdent sort)))
-  return binders
+/-- Like `throwErrorAt`, but if `stx` is `none`, use `getRef` instead. -/
+def _root_.Lean.throwErrorAtOpt [Monad m] [MonadRef m] [MonadError m] (stx : Option Syntax) (msg : MessageData) : m α := do
+  match stx with
+  | .some stx => throwErrorAt stx msg
+  | .none => throwErrorAt (← getRef) msg
 
-def repeatedForall  [Monad m] [MonadQuotation m] (vars : Array (Ident × Option Name)) (body : TSyntax `term) : m (TSyntax `term) := do
-  let binders ← createForallBinders vars
-  if binders.size == 0 then return body
-  else `(term|∀ $binders*, $body)
+scoped syntax (name := throwErrorAt') "throwErrorAt'" term:max ppSpace (interpolatedStr(term) <|> term) : term
 
-def repeatedOp [Monad m] [MonadQuotation m] (op : Name) (default : TSyntax `term) (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
-  if operands.isEmpty then return default
-  else
-    let last := operands.size - 1
-    let initT := operands[last]!
-    let acc := operands[0:last]
-    acc.foldrM (init := initT) fun operand acc => `(term|$(mkIdent op) $operand $acc)
-
-def repeatedAnd [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
-  repeatedOp `And (default := ← `(term|$(mkIdent `True))) operands
-
-def repeatedOr  [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
-  repeatedOp `Or (default := ← `(term|$(mkIdent `False))) operands
-
-/--
-Similar to the `distinct` keyword in SMT-LIB, this generates inequality
-conditions for multiple terms. Example: `distinct a b c d`=
--/
-syntax "distinct" (term:max)* : term
 macro_rules
-  | `(term|distinct $[$ids:term]*) => do
-    let mut inequalities := #[]
-    for index_left in [0:ids.size] do
-      for index_right in [index_left+1:ids.size] do
-        let elem_i := ids[index_left]!
-        let elem_j := ids[index_right]!
-        inequalities := inequalities.push (← `($elem_i ≠ $elem_j))
-    let fmla ← repeatedAnd inequalities
-    return fmla
+  | `(throwErrorAt' $ref $msg:interpolatedStr) => `(Lean.throwErrorAtOpt $ref (m! $msg))
+  | `(throwErrorAt' $ref $msg:term)            => `(Lean.throwErrorAtOpt $ref $msg)
 
-def mkOrN : List Expr → Expr
-  | [] => mkConst ``True
-  | [p] => p
-  | p :: ps => mkOr p (mkOrN ps)
+/-- Is this identifier all capital letters and digits? We use this to
+represent implicit universal quantification, i.e. `rel N` means `∀ n,
+rel n`. -/
+def isCapital (i : Lean.Syntax) : Bool :=
+  i.getId.isStr && i.getId.toString.all (fun c => c.isUpper || c.isDigit)
 
-def simpleAddDefn (n : Name) (e : Expr)
-  (red := Lean.ReducibilityHints.regular 0)
-  (attr : Array Attribute := #[])
-  (type : Option Expr := none) : TermElabM Unit := do
-  addDecl <|
-    Declaration.defnDecl <|
-      mkDefinitionValEx n [] (type.getD <| ← Meta.inferType e) e red
-      (DefinitionSafety.safe) []
-  enableRealizationsForConst n
-  Elab.Term.applyAttributes n attr
-
-def mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) : TermElabM Expr := do
-  let e <- Meta.mkLambdaFVars vs e
-  return go vs.size e
-  where go (cnt : Nat) (e : Expr) : Expr :=
-    match cnt, e with
-    | 0, _ => e
-    | _, Expr.lam n d b .default =>
-      let b := go (cnt-1) b
-      Expr.lam n d b .implicit
-    | _, Expr.lam n d b bi =>
-      let b := go (cnt-1) b
-      Expr.lam n d b bi
-    | _, _ => e
-
-open Meta in
-/-- Generates a repeated-`op` of all expressions in `exps`, each applied
-to `vs`. For instance, when called with `Or` and the list of actions,
-this gives us the `Next` transition.-/
-def combineLemmas (op : Name) (exps: List Expr) (vs : Array Expr) (name : String) : MetaM Expr := do
-    let exp0 :: exprs := exps
-      | throwError ("There are no " ++ name ++ " defined")
-    let exp0 <- etaExpand exp0
-    let exps <- lambdaTelescope exp0 fun args exp0 => do
-      let mut exps := exp0
-      for exp in exprs do
-        let exp := mkAppN exp args
-        exps <- mkAppM op #[exp, exps]
-      mkLambdaFVars args exps
-    instantiateLambda exps vs
-
-open Meta in
-partial def turnExistsIntoForall (e : Expr) : MetaM Expr := do
-  match_expr e with
-  | Exists _t eBody =>
-  lambdaBoundedTelescope eBody (maxFVars := 1) (fun ks lBody => do
-    mkForallFVars ks (← turnExistsIntoForall lBody)
-  )
-  | _ => return e
-
-def getItemsFromDoSeq [Monad m] [MonadError m] [MonadQuotation m] (l : TSyntax `Lean.Parser.Term.doSeq) : m (TSyntaxArray `Lean.Parser.Term.doSeqItem) := do
-  match l with
-  | `(doSeq|$items*) => pure items
-  | `(doSeq|{ $items* }) => pure items
-  | _ => throwError "Unexpected doSeq: {l}"
-
-open Meta Term in
-def deltaMoreCore (t : Expr) (things : Array Name) : TermElabM Expr := do
-  let some t ← delta? t | throwError "cannot delta reduce {t}"
-  let t ← deltaExpand t fun n => n ∈ things
-  pure t
-
-open Meta Term in
-/-- Works like the `delta%` from Mathlib, but also allows delta-reducing
-    definitions specified by `things`. -/
-def deltaMore (t : Term) (expectedType? : Option Expr) (things : Array Name) : TermElabM Expr := do
-  let t ← withSynthesize (postpone := .partial) do
-    elabTerm t expectedType?
-  synthesizeSyntheticMVars
-  let t ← instantiateMVars t
-  deltaMoreCore t things
+end Veil

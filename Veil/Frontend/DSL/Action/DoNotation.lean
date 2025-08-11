@@ -1,0 +1,180 @@
+import Lean
+import Lean.Parser
+import Veil.Frontend.DSL.Action.Syntax
+-- TODO FIXME: factor out Velvet syntax from Loom core
+import Veil.Frontend.DSL.Action.Semantics.WP
+import Veil.Frontend.DSL.StateExtensions
+import Veil.Frontend.DSL.Module.Util
+import Veil.Frontend.DSL.Action.TupleUpdate
+
+
+open Lean Elab Command Term Meta Lean.Parser
+
+/-! # Custom do-notation for Veil actions
+
+  This file implements a custom do-notation for Veil actions. It's
+  probably the hackiest part of Veil right now, and difficult to
+  maintain. Once the Lean FRO ships its extensible do-notation, we
+  should port over as soon as possible.
+
+-/
+
+namespace Veil
+
+abbrev doSeq := TSyntax ``Term.doSeq
+abbrev doSeqItem := TSyntax ``Term.doSeqItem
+
+
+/- See:
+ - https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/Pattern.20match.20and.20name.20binder.20.60none.60/near/514568614
+ - https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/.60reducible.60.20bug.20with.20.60namedPattern.60s.3F/near/534955024
+
+for information around how this works and different options for
+implementing this functionality. In a previous version of Veil, we used
+the `@_` trick (which allowed us to destruct everything once, which
+apparently had better performance), but since we now need to maintain
+definitional equality (to enable typeclass inference to work
+correctly), we use projections.
+-/
+
+/-- Make available the (immutable) theory with `let` binders. Only called once. -/
+def makeTheoryAvailable [Monad m] [MonadEnv m] [MonadQuotation m] (mod : Module) : m (Array doSeqItem) := do
+  let thVar := mkVeilImplementationDetailName `theory
+  let readTheory ← `(Term.doSeqItem| let $(mkIdent thVar) := (← $(mkIdent ``read)))
+  let bindFields ← mod.immutableComponents.mapM (fun f => return ← `(Term.doSeqItem| let $(mkIdent f.name) := $(mkIdent thVar).$(mkIdent f.name)))
+  return #[readTheory] ++ bindFields
+
+/-- Called in the preamble, to make available `let mut` binders for the state. Only called once. -/
+def makeStateAvailable [Monad m] [MonadEnv m] [MonadQuotation m] (mod : Module) : m (Array doSeqItem) := do
+  let stVar := mkVeilImplementationDetailName `state
+  let getState ← `(Term.doSeqItem| let mut $(mkIdent stVar) := (← $(mkIdent ``get)))
+  let bindFields ← mod.mutableComponents.mapM (fun f => return ← `(Term.doSeqItem| let mut $(mkIdent f.name) := $(mkIdent stVar).$(mkIdent f.name)))
+  return #[getState] ++ bindFields
+
+/-- Refresh the state variables. -/
+def getState [Monad m] [MonadEnv m] [MonadQuotation m] (mod : Module) : m (Array doSeqItem) := do
+  let stVar := mkVeilImplementationDetailName `state
+  let getState ← `(Term.doSeqItem| $(mkIdent stVar):ident := (← $(mkIdent ``get)))
+  let bindFields ← mod.mutableComponents.mapM (fun f => return ← `(Term.doSeqItem| $(mkIdent f.name):ident := $(mkIdent stVar).$(mkIdent f.name)))
+  return #[getState] ++ bindFields
+
+macro_rules
+  | `(assume  $t) => `(MonadNonDet.assume $t)
+  | `(pick   $t)  => `(MonadNonDet.pick $t)
+  | `(pick)       => `(MonadNonDet.pick _)
+
+mutual
+partial def expandDoSeqVeil (proc : Name) (stx : doSeq) : TermElabM (Array doSeqItem) :=
+  match stx with
+  | `(doSeq| $doS:doSeqItem*) => return Array.flatten $ ← doS.mapM (expandDoElemVeil proc)
+  | _ => throwErrorAt stx s!"unexpected syntax of Veil do-notation sequence {stx}"
+
+partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array doSeqItem) := do
+  let mod ← getCurrentModule (errMsg := "You cannot use Veil do-notation outside of a Veil module!")
+  match stx with
+  -- Ignore semicolons
+  | `(Term.doSeqItem| $stx ;) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $stx:doElem)
+  -- We don't want to introduce state updates after pure statements, so
+  -- we pass these through unchanged
+  | `(Term.doSeqItem| pure $t:term)
+  | `(Term.doSeqItem| return $t:term)
+  -- NOTE: all the expressions in `require`, `assert`, and `assume`,
+  -- `pick-such-that` and `if` need to be `Decidable` for execution.
+  | `(Term.doSeqItem| assume $t)
+  | `(Term.doSeqItem| let $_ :| $t)
+  | `(Term.doSeqItem| let $_ : $_ ← pick $_) | `(Term.doSeqItem| let $_ : $_ ← pick)
+  | `(Term.doSeqItem| let $_ ← pick $_) | `(Term.doSeqItem| let $_ ← pick)
+  => return #[stx]
+  -- We elaborate `require` and `assert` here, since we need to record
+  -- which procedure they belong to
+  | `(Term.doSeqItem| require $t) =>
+    let assertId ← mkNewAssertion proc stx
+    return #[← `(Term.doSeqItem| $(mkIdent ``VeilM.require):ident $t $(Syntax.mkNatLit assertId.toNat))]
+  | `(Term.doSeqItem| assert $t) =>
+    let assertId ← mkNewAssertion proc stx
+    return #[← `(Term.doSeqItem| $(mkIdent ``VeilM.assert):ident $t $(Syntax.mkNatLit assertId.toNat))]
+  -- Conditional boolean statements (`if`)
+  | `(Term.doSeqItem| if $t:term then $thn:doSeq else $els:doSeq) =>
+    let thn ← expandDoSeqVeil proc thn
+    let els ← expandDoSeqVeil proc els
+    let ret ← `(Term.doSeqItem| if $t then $thn* else $els*)
+    return #[ret]
+  -- Conditional existence statements (`if-some`)
+  | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
+    let fs ← `(Term.doSeqItem| let $h:ident :| $t:term)
+    let thn := fs :: thn.toList |>.toArray
+    -- TODO: should we use a `dite` here?
+    expandDoElemVeil proc $ ← `(Term.doSeqItem| if (∃ $h:ident, $t) then $thn* else $els)
+  | `(Term.doSeqItem| if $h:ident : $t:term then $thn) =>
+    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:ident : $t:term then $thn else pure ())
+  -- Non-deterministic assignments
+  | `(Term.doSeqItem| $id:ident := *) =>
+    let fr := mkIdent <| ← mkFreshUserName (Name.mkSimple s!"{id}_pick")
+    expandDoElemVeil proc $ ← `(Term.doSeqItem|$id:ident := $fr)
+  | `(Term.doSeqItem| $idts:term := *) =>
+    let some (id, _ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
+    let fr := mkIdent <| ← mkFreshUserName (Name.mkSimple s!"{id}_pick_sub")
+    expandDoElemVeil proc $ ← `(Term.doSeqItem|$id:ident := $fr)
+  -- Deterministic assignments
+  | `(Term.doSeqItem| $id:ident := $t:term) => assignState mod id t
+  -- FIXME! bug: bind does not update the state #105
+  -- | `(Term.doSeqItem| $id:ident ← $t:term) => ...
+  | `(Term.doSeqItem| $idts:term := $t:term) =>
+    let some (id, ts) := idts.isApp? | return #[stx]
+    let stx' <- withRef t `(term| $id[ $[$ts],* ↦ $t:term ])
+    let stx <- withRef stx `(Term.doSeqItem| $id:ident := $stx')
+    expandDoElemVeil proc stx
+  -- We handle `bind`s of terms specially, since we want to maintain
+  -- the same return value, even though we update the state.
+  | `(Term.doSeqItem|$t:term) =>
+    let b := mkIdent <| ← mkFreshUserName `_bind
+    let bind ← `(Term.doSeqItem| let $b:ident ← $t:term)
+    return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| pure $b:ident)]
+  -- For any other do-notation element, we pesimistically refresh the
+  -- binders for the state variables, as the state might have changed
+  | doE => return #[doE] ++ (← getState mod)
+where
+assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem) := do
+  let name := id.getId
+  -- we are assigning to a structure field (probably a child module's state)
+  let isStructureAssignment := !name.isAtomic
+  let isFieldUpdate := name ∈ (mod.signature.map (·.name))
+  if isStructureAssignment || !isFieldUpdate then
+    -- TODO: throwIfImmutable
+    let res ← `(Term.doSeqItem| $id:ident := $t:term)
+    return #[res]
+  else
+    -- TODO: throwIfImmutable
+    -- NOTE: It is very important that we return a single `doSeqItem`;
+    -- otherwise syntax highlighting gets broken very badly
+    let res ← withRef stx `(Term.doSeqItem| $id:ident ← $(mkIdent ``modifyGet):ident
+      (fun $(mkIdent `st):ident => (($t, {$(mkIdent `st) with $id:ident := $t}))))
+    return #[res]
+end
+
+def elabVeilDo (proc : Name) (mode : Term) (readerTp : Term) (stateTp : Term) (instx : doSeq) : TermElabM Expr := do
+  let mod ← getCurrentModule (errMsg := "You cannot use Veil do-notation outside of a Veil module!")
+  let doS ← getDoElems instx
+  let (doS, _) ← (expandDoSeqVeil proc (← `(doSeq| $(doS)*))).run
+  let mut preludeAssn : Array doSeqItem := #[]
+  -- TODO: make available child modules' actions using `alias.actionName`
+  -- Make available state fields as mutable variables
+  preludeAssn := preludeAssn.append (← makeStateAvailable mod)
+  -- Make available immutable fields as immutable variables; we
+  preludeAssn := preludeAssn.append (← makeTheoryAvailable mod)
+  -- Prepend the prelude assignments
+  let doS := preludeAssn.append doS
+  let outstx ← `(term| ((do $doS*) : $(mkIdent ``VeilM):ident $mode $readerTp $stateTp _))
+  trace[veil.debug] "{outstx}"
+  elabTerm outstx none
+where
+getDoElems (stx : doSeq) : TermElabM (Array doSeqItem) := do
+  let doS <- match stx with
+  | `(doSeq| $doE*) => pure doE
+  | `(doSeq| { $doE* }) => pure doE
+  | _ => throwErrorAt stx "unexpected syntax of Veil `do`-notation sequence {stx}"
+
+elab (name := VeilDo) "veil_do" name:ident "in" mode:term "in" readerTp:term "," stateTp:term "in" instx:doSeq : term => do
+  elabVeilDo name.getId mode readerTp stateTp instx
+
+end Veil
