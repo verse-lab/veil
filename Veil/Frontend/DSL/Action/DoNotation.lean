@@ -99,6 +99,8 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     let els ← expandDoSeqVeil proc els
     let ret ← `(Term.doSeqItem| if $t then $thn* else $els*)
     return #[ret]
+  | `(Term.doSeqItem| if $t:term then $thn:doSeq) =>
+    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $t then $thn:doSeq else pure ())
   -- Conditional existence statements (`if-some`)
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
     let fs ← `(Term.doSeqItem| let $h:ident :| $t:term)
@@ -109,15 +111,15 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:ident : $t:term then $thn else pure ())
   -- Non-deterministic assignments
   | `(Term.doSeqItem| $id:ident := *) =>
-    let fr := mkIdent <| ← mkFreshUserName (Name.mkSimple s!"{id}_pick")
-    expandDoElemVeil proc $ ← `(Term.doSeqItem|$id:ident := $fr)
+    let (fr, ex) ← freshPick mod id
+    return ex ++ (← expandDoElemVeil proc $ ← `(Term.doSeqItem|$id:ident := $fr))
   | `(Term.doSeqItem| $idts:term := *) =>
-    let some (id, _ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
-    let fr := mkIdent <| ← mkFreshUserName (Name.mkSimple s!"{id}_pick_sub")
-    expandDoElemVeil proc $ ← `(Term.doSeqItem|$id:ident := $fr)
+    let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
+    let (fr, ex) ← freshPick mod id
+    return ex ++ (← expandDoElemVeil proc $ ← `(Term.doSeqItem|$idts:term := $fr:ident $ts*))
   -- Deterministic assignments
   | `(Term.doSeqItem| $id:ident := $t:term) => assignState mod id t
-  -- FIXME! bug: bind does not update the state #105
+  -- FIXME bug: bind does not update the state #105
   -- | `(Term.doSeqItem| $id:ident ← $t:term) => ...
   | `(Term.doSeqItem| $idts:term := $t:term) =>
     let some (id, ts) := idts.isApp? | return #[stx]
@@ -134,6 +136,11 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   -- binders for the state variables, as the state might have changed
   | doE => return #[doE] ++ (← getState mod)
 where
+freshPick (mod : Module) (id : Ident) : TermElabM (Ident × Array doSeqItem) := do
+  let ty ← mod.getStateComponentTypeStx id.getId
+  let fr := mkIdent <| ← mkFreshUserName $ (Name.mkSimple s!"pick_{id.getId}")
+  return (fr, #[← `(Term.doSeqItem| let $fr ← pick ($ty:term))])
+
 assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem) := do
   let name := id.getId
   -- we are assigning to a structure field (probably a child module's state)
