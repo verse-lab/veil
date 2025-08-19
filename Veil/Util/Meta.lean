@@ -58,6 +58,57 @@ def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
   trace[veil.debug] "{stx}"
   elabCommand stx
 
+/--
+  Veil actions, in order to be executable, need to have `Decidable`
+  instances available for all the predicates that feed into `require`,
+  `assert`, or `assume` statements, as well as `if` conditions.
+
+  This function is a version of `elabTerm` that returns _both_ an
+  `Array` of metavariables, whose types consist of all the predicates
+  that need to be `Decidable` for this action to be executable, and the
+  elaborated term itself.
+-/
+def elabTermDecidable (stx : Term) : TermElabM (Array Expr × Expr) := do
+  /- We want to throw an error if anything fails or is missing during
+  elaboration. -/
+  Term.withoutErrToSorry $ do
+  withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
+  let e ← Term.elabTerm stx none
+  Term.synthesizeSyntheticMVars
+  let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
+  let mvars' ← mvars.filterMapM (simplifyMVarType · isDecidableInstance)
+  let e ← instantiateMVars e
+  return (mvars', e)
+where
+  isDecidableInstance (body : Expr) : TermElabM Bool := do
+    let body ← Meta.whnf body
+    let res := match body.getAppFn.constName? with
+    | .some n => n == ``Decidable
+    | .none => false
+    return res
+  /-- `mv`'s type will include arguments which are not actually needed
+  for the predicate. This method gets rid of those unnecessary
+  arguments. Moreover, it only returns those `mv`ars whose final result
+  type passes the given filter. -/
+  simplifyMVarType (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option Expr) := do
+    let ty ← Meta.inferType mv
+    Meta.forallTelescope ty fun ys body => do
+      if !(← keepBodyIf body) then return none
+      let simplified_type ← Meta.mkForallFVars ys body (usedOnly := true)
+      -- Create a new mvar to replace the old one
+      let decl ← mv.mvarId!.getDecl
+      let mv' ← Meta.mkFreshExprMVar (.some simplified_type) (kind := decl.kind) (userName := ← mkFreshUserName `dec_pred)
+      -- Assign the old mvar, to get rid of it
+      let mv_pf ← do
+        -- NOTE: `mkLambdaFVars` can behave unexpectedly when handling mvars
+        -- (e.g., automatically applying them to the body); we workaround this
+        -- by using a dummy fvar and then doing replacement
+        Meta.withLocalDeclD decl.userName simplified_type fun z => do
+          let tmp ← Meta.mkLambdaFVars ys $ mkAppN z (ys.filter fun y => y.occurs body)
+          pure $ tmp.replaceFVar z mv'
+      mv.mvarId!.assign mv_pf
+      return .some mv'
+
 /-- Given `nm : type`, return `type` -/
 def getSimpleBinderType [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : m (TSyntax `term) := do
   match sig with

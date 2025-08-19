@@ -219,8 +219,6 @@ def Module.declareStateComponent (mod : Module) (sc : StateComponent) : CommandE
   if !(← isValidStateComponentType sc.kind tp) then
     failureMsg sig sc
   let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name }
-  -- TODO: add `Decidable` instances for the state component type (only if it's immutable??)
-  let mod ← addDecidableInstanceIfNeeded mod sc tp
   return mod
 where
   failureMsg (_sig : TSyntax `Lean.Parser.Command.structSimpleBinder) (comp : StateComponent) : CommandElabM Unit := do

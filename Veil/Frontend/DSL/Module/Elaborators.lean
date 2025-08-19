@@ -66,9 +66,11 @@ def elabInstantiate : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot instantiate a typeclass outside of a Veil module!")
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
-    let tp := StateComponentType.simple (← `(Command.structSimpleBinder|$inst:ident : $tp))
-    let sc : StateComponent := { mutability := Mutability.immutable, kind := StateComponentKind.individual, name := inst.getId, «type» := tp, userSyntax := stx }
-    Module.declareStateComponent mod sc
+    -- let tp := StateComponentType.simple (← `(Command.structSimpleBinder|$inst:ident : $tp))
+    -- let sc : StateComponent := { mutability := Mutability.immutable, kind := StateComponentKind.individual, name := inst.getId, «type» := tp, userSyntax := stx }
+    -- Module.declareStateComponent mod sc
+    let param : Parameter := { kind := .typeclass .alwaysRequired, name := inst.getId, «type» := tp, userSyntax := stx }
+    pure { mod with parameters := mod.parameters.push param }
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
 
