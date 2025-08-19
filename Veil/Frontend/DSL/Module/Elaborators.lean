@@ -82,6 +82,20 @@ def elabGenState : CommandElab := fun _stx => do
   elabVeilCommand stateStx
   elabVeilCommand theoryStx
   localEnv.modifyModule (fun _ => mod)
+  generateIgnoreFn mod
+where
+  /-- Instruct the linter to not mark state variables as unused in our
+  `after_init` and `action` definitions. -/
+  generateIgnoreFn (mod : Module) : CommandElabM Unit := do
+    let cmd ← Command.runTermElabM fun _ => do
+      let fnIdents ← mod.mutableComponents.mapM (fun sc => `($(quote sc.name)))
+      let namesArrStx ← `(#[$[$fnIdents],*])
+      let id := mkIdent `id
+      let fnStx ← `(fun $id $(mkIdent `stack) _ => $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) /-&& isActionSyntax stack-/)
+      let nm := mkIdent `ignoreStateFields
+      let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
+      return ignoreFnStx
+    elabVeilCommand cmd
 
 elab_rules : command
   | `(command|action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => elabAction nm br none l
