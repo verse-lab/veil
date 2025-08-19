@@ -36,8 +36,30 @@ def elabProcedureDoNotation (vs : Array Expr) (act : Ident) (br : Option (TSynta
   try
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
-    let e ← withDeclName name do elabTermAndSynthesize stx none
-    let e ← instantiateMVars <| ← Meta.mkLambdaFVars vs e
+    let (mvars, e) ← withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
+      let e ← withDeclName name do elabTerm stx none
+      let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
+      -- simplify the types of mvars
+      let mvars' ← mvars.mapM fun x => do
+        let ty ← Meta.inferType x
+        -- heuristic: manually find which arguments of `ty` appear in `body`, and only select those
+        Meta.forallTelescope ty fun ys body => do
+          let ty' ← Meta.mkForallFVars ys body (usedOnly := true)
+          dbg_trace "after simplification: {ty'} \n"
+          -- make a new mvar and assign to achieve the "type replacement"
+          let decl ← x.mvarId!.getDecl
+          let x' ← Meta.mkFreshExprMVar (.some ty') (kind := decl.kind) (userName := decl.userName)
+          let xx ← do
+            -- NOTE: `mkLambdaFVars` can behave unexpected handling for mvars (e.g., automatically applying
+            -- it to certain arguments), so do a workaround here (first use a dummy fvar and then do replacement)
+            Meta.withLocalDeclD decl.userName ty' fun z => do
+              let tmp ← Meta.mkLambdaFVars ys <| mkAppN z (ys.filter fun y => y.occurs body)
+              pure <| tmp.replaceFVar z x'
+          x.mvarId!.assign xx
+          pure x'
+      let e ← instantiateMVars e
+      pure (mvars', e)
+    let e ← Meta.mkLambdaFVars (vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
     match mode with
     | Mode.internal => addVeilDefinition name e
     | _ => throwError "Cannot add a definition for an external action"

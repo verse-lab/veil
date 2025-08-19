@@ -186,11 +186,11 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] 
   let id := mkIdent name
   let dec_eq_type ← `(term|$(mkIdent ``DecidableEq) $id)
   let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited) $id)
-  let finenum_type ← `(term|$(mkIdent ``FinEnum) $id)
+  -- let finenum_type ← `(term|$(mkIdent ``FinEnum) $id)
   let dec_eq : Parameter := { kind := .typeclass .alwaysRequired, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
   let inhabited : Parameter := { kind := .typeclass .alwaysRequired, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
-  let finenum : Parameter := { kind := .typeclass .requiredForExecution, name := Name.mkSimple s!"{name}_finenum", «type» := finenum_type, userSyntax := userStx }
-  let params := #[param, dec_eq, inhabited, finenum]
+  -- let finenum : Parameter := { kind := .typeclass .requiredForExecution, name := Name.mkSimple s!"{name}_finenum", «type» := finenum_type, userSyntax := userStx }
+  let params := #[param, dec_eq, inhabited, /- finenum -/]
   return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insert name }
 
 def isValidStateComponentType (kind : StateComponentKind) (tp : Expr) : CommandElabM Bool := do
