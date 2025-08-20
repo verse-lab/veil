@@ -44,7 +44,7 @@ def elabStateComponent : CommandElab := fun stx => do
   | `($mutab:stateMutability ? $kind:stateComponentKind $name:ident $br:bracketedBinder* : $dom:term) =>
     defineStateComponentFromSyntax mod mutab kind name br dom (← getRef)
   | `(command|$mutab:stateMutability ? relation $name:ident $br:bracketedBinder*) => do
-    defineStateComponentFromSyntax mod mutab (← `(stateComponentKind|relation)) name br (← `(term|Prop)) (← getRef)
+    defineStateComponentFromSyntax mod mutab (← `(stateComponentKind|relation)) name br (← `(term|$(mkIdent ``Bool))) (← getRef)
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
 where

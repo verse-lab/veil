@@ -194,11 +194,15 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] 
   return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insert name }
 
 def isValidStateComponentType (kind : StateComponentKind) (tp : Expr) : CommandElabM Bool := do
-  let returnsProp ← liftTermElabM $ Meta.forallTelescope tp (fun _ b => return b.isProp || b.isBool)
+  let (returnsProp, returnsBool) ← liftTermElabM $ Meta.forallTelescope tp (fun _ b => return (b.isProp, b.isBool))
+  -- To keep actions executable without requiring `Decidable` instances
+  -- for `State` and `Theory` fields, we disallow `Prop` return types.
+  if returnsProp then
+    return false
   match kind with
   | .individual => return !tp.isArrow
-  | .relation => return returnsProp
-  | .function => return tp.isArrow && !returnsProp
+  | .relation => return returnsBool
+  | .function => return tp.isArrow
   | .module =>
     -- `tp` must be a structure
     let constName := tp.getAppFn.constName?
@@ -223,9 +227,9 @@ def Module.declareStateComponent (mod : Module) (sc : StateComponent) : CommandE
 where
   failureMsg (_sig : TSyntax `Lean.Parser.Command.structSimpleBinder) (comp : StateComponent) : CommandElabM Unit := do
     throwErrorAt comp.userSyntax match comp.kind with
-    | .individual => m!"Invalid type: individuals must not be arrow types."
-    | .relation => m!"Invalid type: relations must return Prop or Bool."
-    | .function => m!"Invalid type: functions must have arrow type and not return Prop or Bool."
+    | .individual => m!"Invalid type: individuals must not be arrow types, and cannot be Prop."
+    | .relation => m!"Invalid type: relations must return Bool."
+    | .function => m!"Invalid type: functions must have arrow type and not return Bool or Prop."
     | .module => m!"Invalid type: module state components must be structures."
   stateComponentForDecidableInstance (decName : Name) (relName : Name) (tp : Expr) : CommandElabM StateComponent := do
     let numRelArgs := tp.getForallArityExplicitBinders
