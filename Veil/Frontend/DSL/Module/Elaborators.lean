@@ -66,10 +66,7 @@ def elabInstantiate : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot instantiate a typeclass outside of a Veil module!")
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
-    -- let tp := StateComponentType.simple (← `(Command.structSimpleBinder|$inst:ident : $tp))
-    -- let sc : StateComponent := { mutability := Mutability.immutable, kind := StateComponentKind.individual, name := inst.getId, «type» := tp, userSyntax := stx }
-    -- Module.declareStateComponent mod sc
-    let param : Parameter := { kind := .typeclass .alwaysRequired, name := inst.getId, «type» := tp, userSyntax := stx }
+    let param : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := inst.getId, «type» := tp, userSyntax := stx }
     pure { mod with parameters := mod.parameters.push param }
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
@@ -102,5 +99,11 @@ elab_rules : command
 --   | `(command|procedure $nm:ident $br:explicitBinders ? = {$l:doSeq}) => elabProcedure nm br none l
 --   | `(command|action $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) => elabAction nm br spec l
 --   | `(command|procedure $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) => elabProcedure nm br spec l
+
+-- elab_rules : command
+--   | `(command|assumption $name:propertyName ? $prop:term) => defineAssertion .assumption name prop
+--   | `(command|invariant $name:propertyName ? $prop:term) => defineAssertion .invariant name prop
+--   | `(command|safety $name:propertyName ? $prop:term) => defineAssertion .safety name prop
+--   | `(command|trusted invariant $name:propertyName ? $prop:term) => defineAssertion .trustedInvariant name prop
 
 end Veil

@@ -26,8 +26,8 @@ partial def Lean.Expr.getForallArityExplicitBinders : Expr → Nat
       if e != e' then getForallArityExplicitBinders e' else 0
 
 /-- Like `Meta.mkLambdaFVars`, but makes all `default` binders implicit. -/
-def Lean.Meta.mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) : TermElabM Expr := do
-  let e <- Meta.mkLambdaFVars vs e
+def Lean.Meta.mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) (etaReduce : Bool := false) (binderInfoForMVars := BinderInfo.implicit) : TermElabM Expr := do
+  let e <- Meta.mkLambdaFVars vs e usedOnly usedLetOnly etaReduce binderInfoForMVars
   return go vs.size e
   where go (cnt : Nat) (e : Expr) : Expr :=
     match cnt, e with

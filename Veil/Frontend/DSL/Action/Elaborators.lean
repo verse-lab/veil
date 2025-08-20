@@ -37,7 +37,7 @@ def elabProcedureDoNotation (vs : Array Expr) (act : Ident) (br : Option (TSynta
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
-    let e ← Meta.mkLambdaFVarsImplicit (vs ++ mvars) e >>= instantiateMVars
+    let e ← Meta.mkLambdaFVarsImplicit (vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
     match mode with
     | Mode.internal => addVeilDefinition name e
     | _ => throwError "Cannot add a definition for an external action"
@@ -47,7 +47,7 @@ def elabProcedureDoNotation (vs : Array Expr) (act : Ident) (br : Option (TSynta
 
 def elabAction (act : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
   let mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
-  let _ ← liftTermElabMWithBinders (← mod.actionBinders) $ fun vs => elabProcedureDoNotation vs act br Mode.internal l
+  let _ ← liftTermElabMWithBinders (← mod.actionBinders act.getId) $ fun vs => elabProcedureDoNotation vs act br Mode.internal l
   return ()
 
 

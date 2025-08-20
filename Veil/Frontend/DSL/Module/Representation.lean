@@ -163,7 +163,10 @@ inductive ParameterKind where
   of this.-/
   | backgroundTheory -- i.e. `ρ`
   /-- A typeclass assumption this module makes -/
-  | typeclass (k : TypeclassAssumptionKind)
+  | moduleTypeclass (k : TypeclassAssumptionKind)
+  /-- A typeclass assumption that _this definition_ makes. These are
+  typically `Decidable` instances. -/
+  | definitionTypeclass (defName : Name) (k : TypeclassAssumptionKind)
 deriving Inhabited, BEq
 
 structure Parameter where

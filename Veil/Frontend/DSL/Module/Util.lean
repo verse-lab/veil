@@ -147,22 +147,21 @@ def Module.throwIfAlreadyDeclared [Monad m] [MonadError m] (mod : Module) (name 
 /-- Convert a `Parameter` to a `bracketedBinder` syntax. -/
 def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `Lean.Parser.Term.bracketedBinder) :=
   match p.kind with
-  | .typeclass _ => `(bracketedBinder|[$(mkIdent p.name) : $(p.type)])
+  | .moduleTypeclass _ | .definitionTypeclass _ _ => `(bracketedBinder|[$(mkIdent p.name) : $(p.type)])
   | _ => `(bracketedBinder|($(mkIdent p.name) : $(p.type)))
 
-def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := do
-  match p.kind with
-  | .typeclass _ => return mkIdent p.name
-  | _ => return mkIdent p.name
+def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
 
 def Module.sortMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
   mod.parameters.filterMapM fun p => do match p.kind with
   | .uninterpretedSort => f p
   | _ => pure .none
 
-def Module.actionMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
-  mod.parameters.filterMapM fun p => do match p.kind with
-  | _ => f p
+def Module.actionMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
+  mod.parameters.filterMapM fun p => do
+    match p.kind with
+    | .definitionTypeclass defName _ => if forAct == .some defName then f p else pure .none
+    | _ => f p
 
 def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
   mod.sortMapFn (·.binder)
@@ -170,8 +169,8 @@ def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (T
 def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
   mod.sortMapFn (·.ident)
 
-def Module.actionBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  mod.actionMapFn (·.binder)
+def Module.actionBinders [Monad m] [MonadQuotation m] (mod : Module) (forAct : Option Name := .none) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  mod.actionMapFn (·.binder) forAct
 
 def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent stateName) $(← mod.sortIdents)*)
@@ -186,11 +185,9 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] 
   let id := mkIdent name
   let dec_eq_type ← `(term|$(mkIdent ``DecidableEq) $id)
   let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited) $id)
-  -- let finenum_type ← `(term|$(mkIdent ``FinEnum) $id)
-  let dec_eq : Parameter := { kind := .typeclass .alwaysRequired, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
-  let inhabited : Parameter := { kind := .typeclass .alwaysRequired, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
-  -- let finenum : Parameter := { kind := .typeclass .requiredForExecution, name := Name.mkSimple s!"{name}_finenum", «type» := finenum_type, userSyntax := userStx }
-  let params := #[param, dec_eq, inhabited, /- finenum -/]
+  let dec_eq : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
+  let inhabited : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
+  let params := #[param, dec_eq, inhabited]
   return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insert name }
 
 def isValidStateComponentType (kind : StateComponentKind) (tp : Expr) : CommandElabM Bool := do
@@ -231,38 +228,6 @@ where
     | .relation => m!"Invalid type: relations must return Bool."
     | .function => m!"Invalid type: functions must have arrow type and not return Bool or Prop."
     | .module => m!"Invalid type: module state components must be structures."
-  stateComponentForDecidableInstance (decName : Name) (relName : Name) (tp : Expr) : CommandElabM StateComponent := do
-    let numRelArgs := tp.getForallArityExplicitBinders
-    let decTp ← `(Command.structSimpleBinder|$(mkIdent decName):ident : $(← decidableNStx numRelArgs relName))
-    return { mutability := sc.mutability, kind := StateComponentKind.individual, name := decName, «type» := StateComponentType.simple decTp, userSyntax := .missing }
-  addDecidableInstanceIfNeeded (mod : Module) (sc : StateComponent) (tp : Expr) : CommandElabM Module := do
-    if sc.mutability == Mutability.mutable then
-      return mod
-    let mut mod := mod
-    let env ← getEnv
-    let returnsProp (t : Expr) : TermElabM Bool := Meta.forallTelescope t (fun _ b => return b.isProp)
-    match tp.getAppFn.constName? with
-    | .none => do
-      if (← liftTermElabM $ returnsProp tp) then
-        let decName := Name.mkSimple s!"_{sc.name}_dec"
-        let sc' ← stateComponentForDecidableInstance decName sc.name tp
-        mod := { mod with signature := mod.signature.push sc' }
-    | .some className =>
-      let .some si := getStructureInfo? env className
-        | throwErrorAt sc.userSyntax s!"{className} is not a structure"
-      -- Decide whether to add a `Decidable` instance for each field of the structure
-      for fi in si.fieldInfo do
-        let .some proj := env.find? fi.projFn
-          | throwErrorAt sc.userSyntax s!"{fi.projFn} is not a valid projection function"
-        let shouldAddDecidableInstance ← liftTermElabM $ (do
-          let isProp ← Meta.isProp proj.type
-          return !isProp && (← returnsProp proj.type))
-        if shouldAddDecidableInstance then
-          let decName := Name.mkSimple s!"_{sc.name}_{fi.fieldName}_dec"
-          let relName := s!"{sc.name}.{fi.fieldName}".toName
-          let sc' ← stateComponentForDecidableInstance decName relName proj.type
-          mod := { mod with signature := mod.signature.push sc' }
-    return mod
 
 def Module.immutableComponents (mod : Module) : Array StateComponent :=
   mod.signature.filter fun sc => sc.mutability == Mutability.immutable
@@ -298,13 +263,13 @@ private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError 
 def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   let stx ← mod.stateDefinitionStx
   let stateStx ← mod.stateStx
-  let substate : Parameter := { kind := .typeclass .alwaysRequired, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
+  let substate : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push substate }, stx)
 
 def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   let stx ← mod.theoryDefinitionStx
   let theoryStx ← mod.theoryStx
-  let subtheory : Parameter := { kind := .typeclass .alwaysRequired, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
+  let subtheory : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push subtheory }, stx)
 
 end Veil
