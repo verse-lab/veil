@@ -119,13 +119,13 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     return ex ++ (← expandDoElemVeil proc $ ← `(Term.doSeqItem|$idts:term := $fr:ident $ts*))
   -- Deterministic assignments
   | `(Term.doSeqItem| $id:ident := $t:term) => assignState mod id t
-  -- FIXME bug: bind does not update the state #105
-  -- | `(Term.doSeqItem| $id:ident ← $t:term) => ...
+  | `(Term.doSeqItem| $id:ident ← $t:term) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $id:ident := ← $t:term)
   | `(Term.doSeqItem| $idts:term := $t:term) =>
     let some (id, ts) := idts.isApp? | return #[stx]
     let stx' <- withRef t `(term| $id[ $[$ts],* ↦ $t:term ])
     let stx <- withRef stx `(Term.doSeqItem| $id:ident := $stx')
     expandDoElemVeil proc stx
+  | `(Term.doSeqItem| $idts:term ← $t:term) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $idts:term := ← $t:term)
   -- We handle `bind`s of terms specially, since we want to maintain
   -- the same return value, even though we update the state.
   | `(Term.doSeqItem|$t:term) =>
@@ -152,11 +152,11 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
     return #[res]
   else
     -- TODO: throwIfImmutable
-    -- NOTE: It is very important that we return a single `doSeqItem`;
-    -- otherwise syntax highlighting gets broken very badly
+    let bindId := mkIdent <| ← mkFreshUserName $ (mkVeilImplementationDetailName $ Name.mkSimple s!"bind_{id.getId}")
+    let bind ← `(Term.doSeqItem| let $bindId:ident := $t:term)
     let res ← withRef stx `(Term.doSeqItem| $id:ident ← $(mkIdent ``modifyGet):ident
-      (fun $(mkIdent `st):ident => (($t, {$(mkIdent `st) with $id:ident := $t}))))
-    return #[res]
+    (fun $(mkIdent `st):ident => (($bindId, {$(mkIdent `st) with $id:ident := $bindId}))))
+    return #[bind, res]
 end
 
 def elabVeilDo (proc : Name) (mode : Term) (readerTp : Term) (stateTp : Term) (instx : doSeq) : TermElabM Expr := do
