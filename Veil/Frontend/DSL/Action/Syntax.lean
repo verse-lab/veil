@@ -53,6 +53,9 @@ We recommend giving type annotations when possible, e.g. `pick Nat`,
 as type inference failures might lead to confusing error messages. -/
 syntax (name := pickExpression) kw_pick (lineEq term) ? : term
 
+/-- Binds a variable to a value that satisfies a predicate. -/
+syntax (name := letPick) "let" term ":|" term : doElem
+
 syntax (name := havocAssignment) (priority := high) atomic(term ":=" "*") : doElem
 
 declare_syntax_cat unchanged_decl

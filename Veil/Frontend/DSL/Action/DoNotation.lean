@@ -59,9 +59,10 @@ def getState [Monad m] [MonadEnv m] [MonadQuotation m] (mod : Module) : m (Array
   return #[getState] ++ bindFields
 
 macro_rules
-  | `(assume  $t) => `(MonadNonDet.assume $t)
-  | `(pick   $t)  => `(MonadNonDet.pick $t)
-  | `(pick)       => `(MonadNonDet.pick _)
+  | `(assume  $t) => `($(mkIdent ``VeilM.assume) $t)
+  | `(pick   $t)  => `($(mkIdent ``MonadNonDet.pick) $t)
+  | `(pick)       => `($(mkIdent ``MonadNonDet.pick) _)
+  | `(doElem| let $x:term :| $p) => `(doElem| let $x:term ← $(mkIdent ``VeilM.pickSuchThat):ident _ (fun $x => $p))
 
 mutual
 partial def expandDoSeqVeil (proc : Name) (stx : doSeq) : TermElabM (Array doSeqItem) :=
