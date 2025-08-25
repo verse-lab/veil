@@ -47,10 +47,13 @@ where
     let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar)
     return { kind := .definitionTypeclass inAction, name := Name.anonymous, «type» := mvarTypeStx, userSyntax := .missing }
 
-def elabProcedureInMode (act : Ident) (mode : Mode) : (Name × Expr) := Id.run do
+def elabProcedureInMode (act : Ident) (mode : Mode) : TermElabM (Name × Expr) := do
   let originalName := act.getId
+  let toDoName := toDoName originalName
   let name := toActName originalName mode
-  let body := mkAppN (mkConst (toDoName originalName)) #[mode.expr]
+  let mut body := mkAppN (mkConst toDoName) #[mode.expr]
+  body ← body.unfold #[toDoName]
+  body ← body.dsimp #[`doSimp]
   return (name, body)
 
 def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module) (ps : ProcedureSpecification) : m Module := do
@@ -67,15 +70,14 @@ def elabAction (mod : Module) (act : Ident) (br : Option (TSyntax ``Lean.explici
   let ps := ProcedureSpecification.mk (ProcedureInfo.action act.getId) br extraParams spec l
   mod ← mod.registerProcedureSpecification ps
   -- Elaborate the definition in the Lean environment
-  liftTermElabM $ addVeilDefinitionAsync nmDo e
-  let (nmExt, eExt) := elabProcedureInMode act Mode.external
-  let (nmInt, eInt) := elabProcedureInMode act Mode.internal
   liftTermElabM $ do
+    addVeilDefinition nmDo e (attr := #[{name := `reducible}])
+    let (nmExt, eExt) ← elabProcedureInMode act Mode.external
+    let (nmInt, eInt) ← elabProcedureInMode act Mode.internal
     addVeilDefinitionAsync nmInt eInt
     addVeilDefinitionAsync nmExt eExt
-  -- Make the definitions realizable / available for use
-  let mut definitions := #[nmDo, nmInt, nmExt]
-  liftCoreM $ do
+   -- Make the definitions realizable / available for use
+    let mut definitions := #[nmExt, nmInt]
     for d in definitions do
       enableRealizationsForConst d
   return mod

@@ -40,6 +40,23 @@ def Lean.Meta.mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) (usedOnly : Boo
       Expr.lam n d b bi
     | _, _ => e
 
+def Lean.Expr.unfold (e : Expr) (defs : Array Name) : TermElabM Expr := do
+  let mut eu := e
+  for name in defs do eu := (← Meta.unfold eu name).expr
+  return eu
+
+private def mkVeilSimpCtx (simpSets : Array Name) : TermElabM Meta.Simp.Context := do
+  let simpExts ← simpSets.filterMapM (fun s => Meta.getSimpExtension? s)
+  let simpTheorems ← simpExts.mapM (·.getTheorems)
+  Meta.Simp.mkContext (simpTheorems := simpTheorems)
+
+def Lean.Expr.simp (e : Expr) (simpSets : Array Name) : TermElabM Expr := do
+  let (res, _stats) ← Meta.simp e (← mkVeilSimpCtx simpSets)
+  return res.expr
+
+def Lean.Expr.dsimp (e : Expr) (simpSets : Array Name) : TermElabM Expr := do
+  let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simpSets)
+  return expr
 namespace Veil
 
 /-- Syntax for `∀ a₀ a₁ .. aₙ, Decidable (P a₀ a₁ .. aₙ)`. -/
@@ -68,7 +85,6 @@ where
   applyOptions (s : Options) (opts : Array (Name × DataValue)) : Options :=
     opts.foldl (fun s (n, v) => s.insert n v) s
 
-
 def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
@@ -82,7 +98,7 @@ def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
       mkDefinitionValEx n [] type e red
       (DefinitionSafety.safe) []
   trace[veil.desugar] "{← `(command| def $(mkIdent n) : $(← delabVeilExpr type) := $(← delabVeilExpr e))}"
-  Elab.Term.applyAttributes n attr
+  Elab.Term.applyAttributesAt n attr AttributeApplicationTime.beforeElaboration
 
 def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   (red := Lean.ReducibilityHints.regular 0)

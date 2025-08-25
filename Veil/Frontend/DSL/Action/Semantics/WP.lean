@@ -27,11 +27,13 @@ execution. -/
 def VeilM.pickSuchThat (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)] : VeilM m ρ σ τ := do
   MonadNonDet.pickSuchThat τ p
 
+@[doSimp]
 def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
   | .internal => VeilM.assert p ex
   | .external => assume p
 
+@[doSimp]
 def VeilM.ensure (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
   | .internal => assume p
