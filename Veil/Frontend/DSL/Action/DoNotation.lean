@@ -109,7 +109,7 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     -- TODO: should we use a `dite` here?
     expandDoElemVeil proc $ ← `(Term.doSeqItem| if (∃ $h:ident, $t) then $thn* else $els)
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn) =>
-    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:ident : $t:term then $thn else pure ())
+    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:ident : $t:term then $thn else $(mkIdent ``pure):ident ())
   -- Non-deterministic assignments
   | `(Term.doSeqItem| $id:ident := *) =>
     let (fr, ex) ← freshPick mod id
@@ -132,7 +132,7 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   | `(Term.doSeqItem|$t:term) =>
     let b := mkIdent <| ← mkFreshUserName `_bind
     let bind ← `(Term.doSeqItem| let $b:ident ← $t:term)
-    return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| pure $b:ident)]
+    return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| $(mkIdent ``pure):ident $b:ident)]
   -- For any other do-notation element, we pesimistically refresh the
   -- binders for the state variables, as the state might have changed
   | doE => return #[doE] ++ (← getState mod)
@@ -160,7 +160,12 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
     return #[bind, res]
 end
 
-def elabVeilDo (proc : Name) (mode : Term) (readerTp : Term) (stateTp : Term) (instx : doSeq) : TermElabM Expr := do
+/-- The name used to parametrise the `mode` of the `VeilM` monad. This
+is intentionally a non-hygienic name, since we bind it when we
+elaborate the syntax expanded by `elabVeilDo`. -/
+def veilModeVar : Ident := mkIdent $ mkVeilImplementationDetailName `mode
+
+def elabVeilDo (proc : Name) (readerTp : Term) (stateTp : Term) (instx : doSeq) : TermElabM Expr := do
   let mod ← getCurrentModule (errMsg := "You cannot use Veil do-notation outside of a Veil module!")
   let doS ← getDoElems instx
   let (doS, _) ← (expandDoSeqVeil proc (← `(doSeq| $(doS)*))).run
@@ -172,7 +177,7 @@ def elabVeilDo (proc : Name) (mode : Term) (readerTp : Term) (stateTp : Term) (i
   preludeAssn := preludeAssn.append (← makeTheoryAvailable mod)
   -- Prepend the prelude assignments
   let doS := preludeAssn.append doS
-  let outstx ← `(term| ((do $doS*) : $(mkIdent ``VeilM):ident $mode $readerTp $stateTp _))
+  let outstx ← `(term| ((do $doS*) : $(mkIdent ``VeilM):ident $veilModeVar $readerTp $stateTp _))
   trace[veil.debug] "{outstx}"
   elabTerm outstx none
 where
@@ -182,7 +187,7 @@ getDoElems (stx : doSeq) : TermElabM (Array doSeqItem) := do
   | `(doSeq| { $doE* }) => pure doE
   | _ => throwErrorAt stx "unexpected syntax of Veil `do`-notation sequence {stx}"
 
-elab (name := VeilDo) "veil_do" name:ident "in" mode:term "in" readerTp:term "," stateTp:term "in" instx:doSeq : term => do
-  elabVeilDo name.getId mode readerTp stateTp instx
+elab (name := VeilDo) "veil_do" name:ident "in" readerTp:term "," stateTp:term "in" instx:doSeq : term => do
+  elabVeilDo name.getId readerTp stateTp instx
 
 end Veil

@@ -69,25 +69,26 @@ where
     opts.foldl (fun s (n, v) => s.insert n v) s
 
 
-def addVeilDefinitionAsync (n : Name) (e : Expr)
+def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
   (type : Option Expr := none) : TermElabM Unit := do
   let type ← match type with
   | .some t => pure t
   | .none => Meta.inferType e
-  addDecl <|
+  let addFn := if compile then addAndCompile else addDecl
+  addFn <|
     Declaration.defnDecl <|
       mkDefinitionValEx n [] type e red
       (DefinitionSafety.safe) []
   trace[veil.desugar] "{← `(command| def $(mkIdent n) : $(← delabVeilExpr type) := $(← delabVeilExpr e))}"
   Elab.Term.applyAttributes n attr
 
-def addVeilDefinition (n : Name) (e : Expr)
+def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
   (type : Option Expr := none) : TermElabM Unit := do
-  addVeilDefinitionAsync n e red attr type
+  addVeilDefinitionAsync n e compile red attr type
   enableRealizationsForConst n
 
 /-- A wrapper around Lean's standard `elabCommand`, which performs
@@ -178,17 +179,24 @@ def binderIdentToIdent (bi : TSyntax ``binderIdent) : Ident :=
   | `(binderIdent|$i:ident) => i
   | _ => unreachable!
 
-/-- Convert existential binders into function binders. -/
-def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) :=
+def explicitBindersFlatMap [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) (f : TSyntax `Lean.binderIdent → TSyntax `term → m α) : m (Array α) :=
   match stx with
   | `(explicitBinders|$bs*) =>
     bs.flatMapM fun
       | `(bracketedExplicitBinders|($bis* : $tp)) =>
-        bis.mapM fun bi =>
-          let id := binderIdentToIdent bi
-          `(Lean.Parser.Term.funBinder| ($id : $tp:term))
+        bis.mapM fun bi => f bi tp
       | _ => throwError "unexpected syntax in explicit binder: {stx}"
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
+
+/-- Convert existential binders into function binders. -/
+def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) :=
+  explicitBindersFlatMap stx fun bi tp => do
+    let id := binderIdentToIdent bi
+    `(Lean.Parser.Term.funBinder| ($id : $tp:term))
+
+/-- Convert existential binders into identifiers. -/
+def toIdentArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) :=
+  explicitBindersFlatMap stx fun bi _tp => `(ident| $(binderIdentToIdent bi))
 
 def Option.stxArrMapM [Monad m] [MonadError m] [MonadQuotation m] (o : Option (TSyntax α)) (f : TSyntax α → m (TSyntaxArray β)) : m (TSyntaxArray β) := do
   match o with
