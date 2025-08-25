@@ -29,8 +29,9 @@ open Lean Elab Command Term
 
 namespace Veil
 
-def elabProcedureDoNotation (vs : Array Expr) (act : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (mode : Mode) (l : doSeq) : TermElabM Name := do
-  let name := toActName act.getId mode
+def elabProcedureDoNotation (vs : Array Expr) (act : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (mode : Mode) (l : doSeq) : TermElabM (Name × Array Parameter × Expr) := do
+  let originalName := act.getId
+  let name := toActName originalName mode
   let brs ← Option.stxArrMapM br toFunBinderArray
   let stx ← `(fun $brs* => veil_do $act in $(← mode.stx) in $environmentTheory, $environmentState in $l)
   try
@@ -38,17 +39,36 @@ def elabProcedureDoNotation (vs : Array Expr) (act : Ident) (br : Option (TSynta
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
     let e ← Meta.mkLambdaFVarsImplicit (vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
-    match mode with
-    | Mode.internal => addVeilDefinition name e
-    | _ => throwError "Cannot add a definition for an external action"
+    return (name, ← mvars.mapM (mvarToParam originalName), e)
   catch ex =>
     throwError "Error in action {name}: {← ex.toMessageData.toString}"
-  return name
+where
+  mvarToParam (inAction : Name) (mvar : Expr) : TermElabM Parameter := do
+    let mvarTypeStx ← PrettyPrinter.delab (← Meta.inferType mvar)
+    return { kind := .definitionTypeclass inAction, name := Name.anonymous, «type» := mvarTypeStx, userSyntax := .missing }
 
-def elabAction (act : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Unit := do
-  let mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
-  let _ ← liftTermElabMWithBinders (← mod.actionBinders act.getId) $ fun vs => elabProcedureDoNotation vs act br Mode.internal l
-  return ()
+def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module) (ps : ProcedureSpecification) : m Module := do
+  mod.throwIfAlreadyDeclared ps.name
+  return { mod with procedures := mod.procedures.push ps }
+
+def elabAction (mod : Module) (act : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Module := do
+  let mut mod := mod
+  -- Obtain `extraParams` so we can register the action
+  let (nmInt, extraParams, e) ← liftTermElabMWithBinders (← mod.actionBinders act.getId) $ fun vs => elabProcedureDoNotation vs act br Mode.internal l
+  let ps := ProcedureSpecification.mk (ProcedureInfo.action act.getId) br extraParams spec l
+  mod ← mod.registerProcedureSpecification ps
+  -- Elaborate the definition in the Lean environment
+  liftTermElabM $ addVeilDefinitionAsync nmInt e
+  let nmExt ← liftTermElabMWithBinders (← mod.actionBinders act.getId) $ fun vs => do
+    let (nm, _, e) ← elabProcedureDoNotation vs act br Mode.external l
+    addVeilDefinitionAsync nm e
+    return nm
+  let mut declarations := #[nmInt, nmExt]
+  -- Make the definitions realizable / available for use
+  liftCoreM $ do
+    for d in declarations do
+      enableRealizationsForConst d
+  return mod
 
 
 end Veil

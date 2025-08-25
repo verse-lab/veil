@@ -78,7 +78,7 @@ instance : ToString StateAssertionKind where
 instance : ToString StateAssertion where
   toString sa := match sa.term with
     | some term => s!"{sa.kind} [{sa.name}] {term}"
-    | none => s!"{sa.kind} [{sa.name}] {sa.expr}"
+    | none => s!"{sa.kind} [{sa.name}]"
 
 /-! ## Procedure and actions -/
 
@@ -89,21 +89,12 @@ def ProcedureKind.isAction (kind : ProcedureInfo) : Bool :=
   | .action _ => true
   | _ => false
 
-def ProcedureKind.actionDecl (kind : ProcedureInfo) : Option ActionDeclaration :=
-  match kind with
-  | .action decl => some decl
-  | _ => none
-
-def ProcedureKind.procedureDecl (kind : ProcedureInfo) : Option ProcedureDeclaration :=
-  match kind with
-  | .procedure decl => some decl
-  | _ => none
-
-def ProcedureSpecification.name (a : ProcedureSpecification) : Name :=
-  match a.info with
-  | .action decl => decl.name
-  | .procedure decl => decl.name
+def ProcedureInfo.name : ProcedureInfo → Name
+  | .action name => name
+  | .procedure name => name
   | .initializer => initializerName
+
+def ProcedureSpecification.name (a : ProcedureSpecification) : Name := a.info.name
 
 /-- Name of the generic/environment background theory (i.e. `Reader` monad state)
 variable. -/
@@ -147,7 +138,11 @@ def Module.throwIfAlreadyDeclared [Monad m] [MonadError m] (mod : Module) (name 
 /-- Convert a `Parameter` to a `bracketedBinder` syntax. -/
 def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `Lean.Parser.Term.bracketedBinder) :=
   match p.kind with
-  | .moduleTypeclass _ | .definitionTypeclass _ _ => `(bracketedBinder|[$(mkIdent p.name) : $(p.type)])
+  | .moduleTypeclass | .definitionTypeclass _ =>
+  if p.name != Name.anonymous then
+    `(bracketedBinder|[$(mkIdent p.name) : $(p.type)])
+  else
+    `(bracketedBinder|[$(p.type)])
   | _ => `(bracketedBinder|($(mkIdent p.name) : $(p.type)))
 
 def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
@@ -157,10 +152,15 @@ def Module.sortMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter 
   | .uninterpretedSort => f p
   | _ => pure .none
 
-def Module.actionMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
-  mod.parameters.filterMapM fun p => do
+def Module.actionMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
+  let act := mod.procedures.find? (fun p => forAct == .some p.name)
+  let extraParams := match act with
+  | some act => act.extraParams
+  | none => #[]
+  let allParams := mod.parameters ++ extraParams
+  allParams.filterMapM fun p => do
     match p.kind with
-    | .definitionTypeclass defName _ => if forAct == .some defName then f p else pure .none
+    | .definitionTypeclass defName => if forAct == .some defName then f p else pure .none
     | _ => f p
 
 def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
@@ -169,7 +169,7 @@ def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (T
 def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
   mod.sortMapFn (·.ident)
 
-def Module.actionBinders [Monad m] [MonadQuotation m] (mod : Module) (forAct : Option Name := .none) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def Module.actionBinders [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forAct : Option Name := .none) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.actionMapFn (·.binder) forAct
 
 def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
@@ -185,8 +185,8 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] 
   let id := mkIdent name
   let dec_eq_type ← `(term|$(mkIdent ``DecidableEq) $id)
   let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited) $id)
-  let dec_eq : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
-  let inhabited : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
+  let dec_eq : Parameter := { kind := .moduleTypeclass, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
+  let inhabited : Parameter := { kind := .moduleTypeclass, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
   let params := #[param, dec_eq, inhabited]
   return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insert name }
 
@@ -263,13 +263,42 @@ private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError 
 def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   let stx ← mod.stateDefinitionStx
   let stateStx ← mod.stateStx
-  let substate : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
+  let substate : Parameter := { kind := .moduleTypeclass, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push substate }, stx)
 
 def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   let stx ← mod.theoryDefinitionStx
   let theoryStx ← mod.theoryStx
-  let subtheory : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
+  let subtheory : Parameter := { kind := .moduleTypeclass, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push subtheory }, stx)
+
+def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
+  match stx with
+  | `(propertyName| [$id]) => id.getId
+  | _ => unreachable!
+
+def Module.mkAssertion [Monad m] (mod : Module) (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (prop : Term) : m StateAssertion := do
+  let name := nameForAssertion mod kind name
+  let defaultSets := Std.HashSet.emptyWithCapacity.insert mod.defaultAssertionSet
+  return { kind := kind, name := name, term := prop, inSets := defaultSets }
+where
+  nameForAssertion (mod : Module) (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) : Name :=
+    match name with
+    | some name => name.getPropertyName
+    | none =>
+      let sz := (mod.assertions.filter (·.kind == kind)).size
+      Name.mkSimple $ match kind with
+      | .safety => s!"safety_{sz}"
+      | .invariant => s!"inv_{sz}"
+      | .assumption => s!"axiom_{sz}"
+      | .trustedInvariant => s!"trusted_inv_{sz}"
+
+def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
+  mod.throwIfAlreadyDeclared sc.name
+  let mut mod := { mod with assertions := mod.assertions.push sc }
+  for set in sc.inSets do
+    let currentAssertions := mod._assertionSets.getD set Std.HashSet.emptyWithCapacity
+    mod := { mod with _assertionSets := mod._assertionSets.insert set (currentAssertions.insert sc.name) }
+  return mod
 
 end Veil

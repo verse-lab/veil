@@ -81,17 +81,44 @@ instance : Inhabited StateAssertionKind where
 structure StateAssertion where
   kind : StateAssertionKind
   name : Name
-  /-- Set of isolates that were open when this invariant was defined -/
-  isolates : List Name := []
   /-- Lean term for this predicate -/
   term : Option Term
-  /-- Lean `Expr` for this predicate; this is usually a constant in the
-  environment, *without* having applied the section variables. -/
-  expr : Expr
+
+  /-- The sets of assertions that this assertion is in. -/
+  inSets : Std.HashSet Name
+deriving Inhabited
+
+/-! ## Procedure and actions -/
+
+inductive ParameterKind where
+  /-- A (FOL) sort, i.e. a Lean type. The `sort` parameters are those that
+  are used to declare the `State` type of the module. -/
+  | uninterpretedSort
+  /-- The type of the state of the _environment_ that this module
+  operates in. The module's own state will be a sub-state of this. -/
+  | environmentState -- i.e. `σ`
+  /-- The background theory of the environment that this module
+  operates in. The module's own background theory will be a sub-reader
+  of this. -/
+  | backgroundTheory -- i.e. `ρ`
+  /-- A typeclass assumption this module makes -/
+  | moduleTypeclass
+  /-- A typeclass assumption that _a particular definition_ makes.
+  These are typically `Decidable` instances. -/
+  | definitionTypeclass (defName : Name)
 deriving Inhabited, BEq
 
-/-! ## Procedure and actions
+structure Parameter where
+  kind : ParameterKind
+  name : Name
+  type : Term
+  /-- The user-written syntax that resulted in the declaration of this
+  parameter. Note that multiple parameters might be due to the same
+  user-provided syntax. -/
+  userSyntax : Syntax
+deriving Inhabited, BEq
 
+/--
   A `procedure` is a chunk of imperative code that takes arguments and
   potentially returns a value.
 
@@ -107,23 +134,15 @@ deriving Inhabited, BEq
 
 abbrev ProcedureIdentifier := Lean.Name
 
-/-- This is an implementation detail of the DSL, used to construct the
-`Label` type for specifications, which has as constructors every
-possible transition of the system described by this Veil module. -/
-structure ProcedureDeclaration where
-  name: ProcedureIdentifier
-  ctor : Option (TSyntax ``Lean.Parser.Command.ctor)
-deriving Inhabited, BEq
 
-abbrev ActionDeclaration := ProcedureDeclaration
 
 inductive ProcedureInfo
   /-- A procedure that is called by the environment to initialize the module. -/
   | initializer
   /-- Callable by the environment -/
-  | action (decl : ActionDeclaration)
+  | action (name : Name)
   /-- Not callable by the environment -/
-  | procedure (decl : ProcedureDeclaration)
+  | procedure (name : Name)
 deriving Inhabited, BEq
 
 abbrev ActionSyntax := TSyntax ``Term.doSeq
@@ -131,52 +150,15 @@ abbrev ActionSyntax := TSyntax ``Term.doSeq
 structure ProcedureSpecification where
   /-- Is this an `action` or a `procedure`? And what is its declaration? -/
   info : ProcedureInfo
-  /-- DSL expression for this action -/
-  lang : ActionSyntax
-  /-- DSL expression for the specificarion of this action -/
+  /-- Parameters of the current action. -/
+  params : Option (TSyntax ``Lean.explicitBinders) := none
+  /-- "Extra parameters" that are needed to make this action
+  executable. -/
+  extraParams : Array Parameter
+  /-- DSL expression for the specification of this action -/
   spec : Option ActionSyntax
-  /-- Arguments of the current action -/
-  br   : Option (TSyntax ``Lean.explicitBinders) := none
-deriving Inhabited, BEq
-
-inductive TypeclassAssumptionKind where
-  /-- A typeclass assumption that is needed for the module to be
-  well-defined. An example is the `Nonempty` assumption we make about
-  sorts, which is needed for the translation to SMT to be sound. -/
-  | alwaysRequired
-  /-- A typeclass assumption that is needed to execute the module's
-  actions. Examples: uninterpreted sorts must have `DecidableEq`, and
-  relations must be `DecidableRel`. Also, sorts which are quantified
-  over in the module's procedures must be `FinEnum`. -/
-  | requiredForExecution
-deriving Inhabited, BEq
-
-inductive ParameterKind where
-  /-- A (FOL) sort, i.e. a Lean type. The `sort` parameters are those that
-  are used to declare the `State` type of the module. -/
-  | uninterpretedSort
-  /-- The type of the state of the _environment_ that this module
-  operates in. The module's own state with be a sub-state of this. -/
-  | environmentState -- i.e. `σ`
-  /-- The background theory of the environment that this module
-  operates in. The module's own background theory will be a sub-state
-  of this.-/
-  | backgroundTheory -- i.e. `ρ`
-  /-- A typeclass assumption this module makes -/
-  | moduleTypeclass (k : TypeclassAssumptionKind)
-  /-- A typeclass assumption that _this definition_ makes. These are
-  typically `Decidable` instances. -/
-  | definitionTypeclass (defName : Name) (k : TypeclassAssumptionKind)
-deriving Inhabited, BEq
-
-structure Parameter where
-  kind : ParameterKind
-  name : Name
-  type : Term
-  /-- The user-written syntax that resulted in the declaration of this
-  parameter. Note that multiple parameters might be due to the same
-  user-provided syntax. -/
-  userSyntax : Syntax
+  /-- DSL expression for this action -/
+  code : ActionSyntax
 deriving Inhabited, BEq
 
 /-- Modules can depend on other modules, which must be
@@ -215,6 +197,13 @@ structure Module where
 
   /-- Implementation detail. Used to check that names are unique. -/
   protected _declarations : Std.HashSet Name
+
+  /-- Assertions can be grouped into "sets", which are checked
+  independently of each other. Sets are per-module. By default, all
+  assertions are added to the same set. -/
+  protected _assertionSets : Std.HashMap Name (Std.HashSet Name) := Std.HashMap.emptyWithCapacity
 deriving Inhabited
+
+def Module.defaultAssertionSet (mod : Module) : Name := mod.name
 
 end Veil

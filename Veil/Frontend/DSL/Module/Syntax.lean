@@ -147,7 +147,7 @@ declared state components. -/
 syntax (name := genState) "#gen_state" : command
 
 /-- Declares a state component using the `[mut] [kind] name (args) : type` syntax. -/
-syntax (name := declareStateComponent) (stateMutability)? stateComponentKind ident bracketedBinder* (":" term)? : command
+syntax (name := stateComponentDeclaration) (stateMutability)? stateComponentKind ident bracketedBinder* (":" term)? : command
 
 /-- A module abbreviation, e.g. `as rb`. -/
 syntax moduleAbbrev := (kw_as ident)
@@ -191,17 +191,15 @@ transition byz = {
  -/
 syntax (name := transitionDefinition) (priority := high) kw_transition ident explicitBinders ? "=" "{" term "}" : command
 
-/-- An imperative action in Veil. -/
-syntax (name := actionDefinition) kw_action ident (explicitBinders)? "=" "{" doSeq "}" : command
+declare_syntax_cat procedureKind
 
-/-- An imperative action in Veil, with a specification. -/
-syntax (name := actionDefinitionWithSpec) kw_action ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
+syntax (name := actionKind) kw_action : procedureKind
+syntax (name := procedureKind) kw_procedure : procedureKind
 
-/-- An imperative procedure in Veil. -/
-syntax (name := procedureDefinition) kw_procedure ident (explicitBinders)? "=" "{" doSeq "}" : command
+/-- An imperative `procedure` or `action` in Veil. -/
+syntax (name := procedureDefinition) procedureKind ident (explicitBinders)? "=" "{" doSeq "}" : command
 
-/-- An imperative procedure in Veil, with a specification. -/
-syntax (name := procedureDefinitionWithSpec) kw_procedure ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
+syntax (name := procedureDefinitionWithSpec) procedureKind ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
 
 /- ## Assertions -/
 
@@ -227,6 +225,8 @@ If you want to assume facts about `mutable` state components, use
 `trusted invariant`. -/
 syntax (name := assumptionKind) kw_assumption : propertyKind
 
+syntax (name := trustedInvariantKind) kw_trusted kw_invariant : propertyKind
+
 /-- An `invariant` is a property that we are asserting holds for all reachable
 states of the system. Invariants can refer to both `immutable` and `mutable`
 state components. -/
@@ -236,10 +236,7 @@ syntax (name := invariantKind) kw_invariant : propertyKind
 syntax (name := safetyKind) kw_safety : propertyKind
 
 /-- An assertion. -/
-syntax (name := declareAssertion) propertyKind (propertyName)? term : command
-
-/-- A trusted invariant. -/
-syntax (name := declareTrustedInvariant) kw_trusted kw_invariant (propertyName)? term : command
+syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 
 /-- Assemble the specification. -/
 syntax (name := genSpec) kw_gen_spec : command

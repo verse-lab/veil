@@ -37,7 +37,7 @@ def elabTypeDeclaration : CommandElab := fun stx => do
       localEnv.modifyModule (fun _ => mod)
   | _ => throwUnsupportedSyntax
 
-@[command_elab Veil.declareStateComponent]
+@[command_elab Veil.stateComponentDeclaration]
 def elabStateComponent : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot declare a state component outside of a Veil module!")
   let new_mod : Module ← match stx with
@@ -66,7 +66,7 @@ def elabInstantiate : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot instantiate a typeclass outside of a Veil module!")
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
-    let param : Parameter := { kind := .moduleTypeclass .alwaysRequired, name := inst.getId, «type» := tp, userSyntax := stx }
+    let param : Parameter := { kind := .moduleTypeclass, name := inst.getId, «type» := tp, userSyntax := stx }
     pure { mod with parameters := mod.parameters.push param }
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
@@ -94,16 +94,30 @@ where
       return ignoreFnStx
     elabVeilCommand cmd
 
-elab_rules : command
-  | `(command|action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => elabAction nm br none l
---   | `(command|procedure $nm:ident $br:explicitBinders ? = {$l:doSeq}) => elabProcedure nm br none l
---   | `(command|action $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) => elabAction nm br spec l
---   | `(command|procedure $nm:ident $br:explicitBinders ? = $spec:doSeq {$l:doSeq}) => elabProcedure nm br spec l
+@[command_elab Veil.procedureDefinition]
+def elabProcedure : CommandElab := fun stx => do
+  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
+  let new_mod ← match stx with
+  | `(command|action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => elabAction mod nm br .none l
+  -- | `(command|procedure $nm:ident $br:explicitBinders ? = $spec:doSeq ? {$l:doSeq}) => elabProcedure nm br spec l
+  | _ => throwUnsupportedSyntax
+  localEnv.modifyModule (fun _ => new_mod)
+  return ()
 
--- elab_rules : command
---   | `(command|assumption $name:propertyName ? $prop:term) => defineAssertion .assumption name prop
---   | `(command|invariant $name:propertyName ? $prop:term) => defineAssertion .invariant name prop
---   | `(command|safety $name:propertyName ? $prop:term) => defineAssertion .safety name prop
---   | `(command|trusted invariant $name:propertyName ? $prop:term) => defineAssertion .trustedInvariant name prop
+@[command_elab Veil.assertionDeclaration]
+def elabAssertion : CommandElab := fun stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+  -- Record the assertion in the `Module` description
+  -- TODO: handle assertion sets correctly
+  let assertion : StateAssertion ← match stx with
+  | `(command|assumption $name:propertyName ? $prop:term) => mod.mkAssertion .assumption name prop
+  | `(command|invariant $name:propertyName ? $prop:term) => mod.mkAssertion .invariant name prop
+  | `(command|safety $name:propertyName ? $prop:term) => mod.mkAssertion .safety name prop
+  | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop
+  | _ => throwUnsupportedSyntax
+  let new_mod ← mod.registerAssertion assertion
+  localEnv.modifyModule (fun _ => new_mod)
+  -- Elaborate the assertion in the Lean environment
+
 
 end Veil

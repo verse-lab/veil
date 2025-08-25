@@ -56,7 +56,7 @@ def mkVeilImplementationDetailName (n : Name) : Name :=
 def isVeilImplementationDetailName (n : Name) : Bool :=
   n.isStr && n.toString.startsWith "__veil_"
 
-def addVeilDefinition (n : Name) (e : Expr)
+def addVeilDefinitionAsync (n : Name) (e : Expr)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
   (type : Option Expr := none) : TermElabM Unit := do
@@ -64,8 +64,14 @@ def addVeilDefinition (n : Name) (e : Expr)
     Declaration.defnDecl <|
       mkDefinitionValEx n [] (type.getD <| ← Meta.inferType e) e red
       (DefinitionSafety.safe) []
-  enableRealizationsForConst n
   Elab.Term.applyAttributes n attr
+
+def addVeilDefinition (n : Name) (e : Expr)
+  (red := Lean.ReducibilityHints.regular 0)
+  (attr : Array Attribute := #[])
+  (type : Option Expr := none) : TermElabM Unit := do
+  addVeilDefinitionAsync n e red attr type
+  enableRealizationsForConst n
 
 /-- A wrapper around Lean's standard `elabCommand`, which performs
 Veil-specific logging and sanity-checking. -/
