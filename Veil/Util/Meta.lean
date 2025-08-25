@@ -109,7 +109,7 @@ where
     let ty ← Meta.inferType mv
     Meta.forallTelescope ty fun ys body => do
       if !(← keepBodyIf body) then return none
-      let simplified_type ← Meta.mkForallFVars ys body (usedOnly := true)
+      let simplified_type ← Meta.mkForallFVars ys (← Meta.whnf body) (usedOnly := true)
       -- Create a new mvar to replace the old one
       let decl ← mv.mvarId!.getDecl
       let mv' ← Meta.mkFreshExprMVar (.some simplified_type) (kind := decl.kind) (userName := ← mkFreshUserName `dec_pred)
