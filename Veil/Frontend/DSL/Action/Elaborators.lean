@@ -44,13 +44,16 @@ def elabProcedureDoNotation (vs : Array Expr) (act : Ident) (br : Option (TSynta
     throwError "Error in action {name}: {← ex.toMessageData.toString}"
 where
   mvarToParam (inAction : Name) (mvar : Expr) : TermElabM Parameter := do
-    let mvarTypeStx ← PrettyPrinter.delab (← Meta.inferType mvar)
+    let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar)
     return { kind := .definitionTypeclass inAction, name := Name.anonymous, «type» := mvarTypeStx, userSyntax := .missing }
 
 def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module) (ps : ProcedureSpecification) : m Module := do
   mod.throwIfAlreadyDeclared ps.name
   return { mod with procedures := mod.procedures.push ps }
 
+/- The implementation of this method _could_ be split into two distinct
+parts (i.e. registering the action, then elaboration the definitions),
+but that would eliminate opportunities for async elaboration. -/
 def elabAction (mod : Module) (act : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Module := do
   let mut mod := mod
   -- Obtain `extraParams` so we can register the action

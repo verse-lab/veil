@@ -56,14 +56,31 @@ def mkVeilImplementationDetailName (n : Name) : Name :=
 def isVeilImplementationDetailName (n : Name) : Bool :=
   n.isStr && n.toString.startsWith "__veil_"
 
+/-- Use this instead of `PrettyPrinter.delab` to get a correct
+representation of Veil expressions. Without these options, the
+delaboration might not correctly round-trip. -/
+def delabVeilExpr := fun e =>
+  withOptions (applyOptions · veilPrettyPrinterOptions) $ PrettyPrinter.delab e
+where
+  veilPrettyPrinterOptions : Array (Name × DataValue) :=
+    #[(`pp.deepTerms, .ofBool true), (`pp.motives.all, .ofBool true),
+    (`pp.letVarTypes, .ofBool true), (`pp.funBinderTypes, .ofBool true), (`pp.structureInstanceTypes, .ofBool true)]
+  applyOptions (s : Options) (opts : Array (Name × DataValue)) : Options :=
+    opts.foldl (fun s (n, v) => s.insert n v) s
+
+
 def addVeilDefinitionAsync (n : Name) (e : Expr)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
   (type : Option Expr := none) : TermElabM Unit := do
+  let type ← match type with
+  | .some t => pure t
+  | .none => Meta.inferType e
   addDecl <|
     Declaration.defnDecl <|
-      mkDefinitionValEx n [] (type.getD <| ← Meta.inferType e) e red
+      mkDefinitionValEx n [] type e red
       (DefinitionSafety.safe) []
+  trace[veil.desugar] "{← `(command| def $(mkIdent n) : $(← delabVeilExpr type) := $(← delabVeilExpr e))}"
   Elab.Term.applyAttributes n attr
 
 def addVeilDefinition (n : Name) (e : Expr)
@@ -76,7 +93,7 @@ def addVeilDefinition (n : Name) (e : Expr)
 /-- A wrapper around Lean's standard `elabCommand`, which performs
 Veil-specific logging and sanity-checking. -/
 def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
-  trace[veil.debug] "{stx}"
+  trace[veil.desugar] "{stx}"
   elabCommand stx
 
 /--
