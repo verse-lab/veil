@@ -49,6 +49,12 @@ frame (`unchanged`). -/
   set st'
   return ret
 
+/-- Takes a `VeilM` action, executes it, and returns `Unit`.-/
+@[doSimp, reducible]
+def VeilM.returnUnit (act : VeilM m ρ σ α) : VeilM m ρ σ Unit := do
+  let _ ← act
+  return ()
+
 @[wpSimp]
 lemma VeilExecM.wp_assume :
   wp (assume p : VeilM m ρ σ PUnit) post = fun r s => p -> post .unit r s := by

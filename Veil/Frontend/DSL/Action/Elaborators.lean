@@ -52,6 +52,9 @@ def elabProcedureInMode (act : Ident) (mode : Mode) : TermElabM (Name × Expr) :
   let toDoName := toDoName originalName
   let name := toActName originalName mode
   let mut body := mkAppN (mkConst toDoName) #[mode.expr]
+  if mode == Mode.external then
+    body ← Meta.forallTelescope (← Meta.inferType body) fun ks _ => do
+      Meta.mkLambdaFVars ks $ ← Meta.mkAppM' (mkConst ``VeilM.returnUnit) #[(mkAppN body ks)]
   body ← body.unfold #[toDoName]
   body ← body.dsimp #[`doSimp]
   return (name, body)
