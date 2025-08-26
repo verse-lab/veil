@@ -170,6 +170,11 @@ def elabVeilDo (proc : Name) (readerTp : Term) (stateTp : Term) (instx : doSeq) 
   let doS ← getDoElems instx
   let (doS, _) ← (expandDoSeqVeil proc (← `(doSeq| $(doS)*))).run
   let mut preludeAssn : Array doSeqItem := #[]
+  -- IMPORTANT: we add `let ⟨⟩ := ()` at the beginning of every
+  -- do-notation sequence; for reasons we don't understand, if this isn't
+  -- present, then type inference fails for actions returning natural
+  -- numbers of ints, e.g. `return 5`.
+  preludeAssn := preludeAssn.push (← `(Term.doSeqItem| let ⟨⟩ := ()))
   -- TODO: make available child modules' actions using `alias.actionName`
   -- Make available state fields as mutable variables
   preludeAssn := preludeAssn.append (← makeStateAvailable mod)
