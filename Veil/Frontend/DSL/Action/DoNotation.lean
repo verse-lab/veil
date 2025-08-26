@@ -77,6 +77,10 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   | `(Term.doSeqItem| $stx ;) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $stx:doElem)
   -- We don't want to introduce state updates after pure statements, so
   -- we pass these through unchanged
+  -- FIXME: we could have `pure (← state_modifying_action)`, so this isn't
+  -- sound. In general, you could even have multiple binds in a single
+  -- `term`, so this entire approach is broken and really unfixable until
+  -- Lean ships an extensible do-notation. It's best-effort for now.
   | `(Term.doSeqItem| pure $t:term)
   | `(Term.doSeqItem| return $t:term)
   -- NOTE: all the expressions in `require`, `assert`, and `assume`,
@@ -109,7 +113,7 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     -- TODO: should we use a `dite` here?
     expandDoElemVeil proc $ ← `(Term.doSeqItem| if (∃ $h:ident, $t) then $thn* else $els)
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn) =>
-    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:ident : $t:term then $thn else $(mkIdent ``pure):ident ())
+    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:ident : $t:term then $thn else pure ())
   -- Non-deterministic assignments
   | `(Term.doSeqItem| $id:ident := *) =>
     let (fr, ex) ← freshPick mod id
@@ -132,7 +136,7 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   | `(Term.doSeqItem|$t:term) =>
     let b := mkIdent <| ← mkFreshUserName `_bind
     let bind ← `(Term.doSeqItem| let $b:ident ← $t:term)
-    return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| $(mkIdent ``pure):ident $b:ident)]
+    return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| pure $b:ident)]
   -- For any other do-notation element, we pesimistically refresh the
   -- binders for the state variables, as the state might have changed
   | doE => return #[doE] ++ (← getState mod)
