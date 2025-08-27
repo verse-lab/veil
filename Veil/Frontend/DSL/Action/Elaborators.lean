@@ -66,11 +66,11 @@ def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
-def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Module := do
+def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
   let mut mod := mod
   -- Obtain `extraParams` so we can register the action
   let (nmDo, extraParams, e) ← liftTermElabMWithBinders (← mod.actionBinders pi.name) $ fun vs => elabProcedureDoNotation vs pi.name br l
-  let ps := ProcedureSpecification.mk (ProcedureInfo.action pi.name) br extraParams spec l
+  let ps := ProcedureSpecification.mk (ProcedureInfo.action pi.name) br extraParams spec l stx
   mod ← mod.registerProcedureSpecification ps
   -- Elaborate the definition in the Lean environment
   liftTermElabM $ do

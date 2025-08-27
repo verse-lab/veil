@@ -83,9 +83,11 @@ structure StateAssertion where
   name : Name
   /-- Lean term for this predicate -/
   term : Option Term
-
   /-- The sets of assertions that this assertion is in. -/
   inSets : Std.HashSet Name
+  /-- The user-written syntax that resulted in the declaration of this
+  assertion. -/
+  userSyntax : Syntax
 deriving Inhabited
 
 /-! ## Procedure and actions -/
@@ -134,8 +136,6 @@ deriving Inhabited, BEq
 
 abbrev ProcedureIdentifier := Lean.Name
 
-
-
 inductive ProcedureInfo
   /-- A procedure that is called by the environment to initialize the module. -/
   | initializer
@@ -159,6 +159,9 @@ structure ProcedureSpecification where
   spec : Option ActionSyntax
   /-- DSL expression for this action -/
   code : ActionSyntax
+  /-- The user-written syntax that resulted in the declaration of this
+  procedure. -/
+  userSyntax : Syntax
 deriving Inhabited, BEq
 
 /-- Modules can depend on other modules, which must be
@@ -175,6 +178,9 @@ structure ModuleDependency where
   /-- Instantiations of the module's parameters, i.e. the arguments
   passed to the module when it is instantiated. -/
   arguments : Array Term
+  /-- The user-written syntax that resulted in the declaration of this
+  module dependency. -/
+  userSyntax : Syntax
 deriving Inhabited, BEq
 
 structure Module where

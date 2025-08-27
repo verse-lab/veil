@@ -310,10 +310,10 @@ def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
   | `(propertyName| [$id]) => id.getId
   | _ => unreachable!
 
-def Module.mkAssertion [Monad m] (mod : Module) (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (prop : Term) : m StateAssertion := do
+def Module.mkAssertion [Monad m] (mod : Module) (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (prop : Term) (stx : Syntax) : m StateAssertion := do
   let name := nameForAssertion mod kind name
   let defaultSets := Std.HashSet.emptyWithCapacity.insert mod.defaultAssertionSet
-  return { kind := kind, name := name, term := prop, inSets := defaultSets }
+  return { kind := kind, name := name, term := prop, userSyntax := stx, inSets := defaultSets }
 where
   nameForAssertion (mod : Module) (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) : Name :=
     match name with
@@ -323,7 +323,7 @@ where
       Name.mkSimple $ match kind with
       | .safety => s!"safety_{sz}"
       | .invariant => s!"inv_{sz}"
-      | .assumption => s!"axiom_{sz}"
+      | .assumption => s!"assumption_{sz}"
       | .trustedInvariant => s!"trusted_inv_{sz}"
 
 def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
