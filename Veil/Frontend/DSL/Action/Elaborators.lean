@@ -28,11 +28,11 @@ open Lean Elab Command Term
 
 namespace Veil
 
-def elabProcedureDoNotation (vs : Array Expr) (act : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Name × Array Parameter × Expr) := do
-  let originalName := act.getId
+def elabProcedureDoNotation (vs : Array Expr) (act : Name) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Name × Array Parameter × Expr) := do
+  let originalName := act
   let name := toDoName originalName
   let brs ← Option.stxArrMapM br toFunBinderArray
-  let stx ← `(fun $brs* => veil_do $act in $environmentTheory, $environmentState in $l)
+  let stx ← `(fun $brs* => veil_do $(mkIdent act) in $environmentTheory, $environmentState in $l)
   try
     Meta.withLocalDecl veilModeVar.getId BinderInfo.default (mkConst ``Mode) fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
@@ -47,8 +47,8 @@ where
     let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar)
     return { kind := .definitionTypeclass inAction, name := Name.anonymous, «type» := mvarTypeStx, userSyntax := .missing }
 
-def elabProcedureInMode (act : Ident) (mode : Mode) : TermElabM (Name × Expr) := do
-  let originalName := act.getId
+def elabProcedureInMode (act : Name) (mode : Mode) : TermElabM (Name × Expr) := do
+  let originalName := act
   let toDoName := toDoName originalName
   let name := toActName originalName mode
   let mut body := mkAppN (mkConst toDoName) #[mode.expr]
@@ -66,17 +66,17 @@ def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
-def elabAction (mod : Module) (act : Ident) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Module := do
+def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) : CommandElabM Module := do
   let mut mod := mod
   -- Obtain `extraParams` so we can register the action
-  let (nmDo, extraParams, e) ← liftTermElabMWithBinders (← mod.actionBinders act.getId) $ fun vs => elabProcedureDoNotation vs act br l
-  let ps := ProcedureSpecification.mk (ProcedureInfo.action act.getId) br extraParams spec l
+  let (nmDo, extraParams, e) ← liftTermElabMWithBinders (← mod.actionBinders pi.name) $ fun vs => elabProcedureDoNotation vs pi.name br l
+  let ps := ProcedureSpecification.mk (ProcedureInfo.action pi.name) br extraParams spec l
   mod ← mod.registerProcedureSpecification ps
   -- Elaborate the definition in the Lean environment
   liftTermElabM $ do
     addVeilDefinition nmDo e (attr := #[{name := `reducible}])
-    let (nmExt, eExt) ← elabProcedureInMode act Mode.external
-    let (nmInt, eInt) ← elabProcedureInMode act Mode.internal
+    let (nmExt, eExt) ← elabProcedureInMode pi.name Mode.external
+    let (nmInt, eInt) ← elabProcedureInMode pi.name Mode.internal
     addVeilDefinitionAsync nmInt eInt
     addVeilDefinitionAsync nmExt eExt
    -- Make the definitions realizable / available for use
@@ -84,6 +84,5 @@ def elabAction (mod : Module) (act : Ident) (br : Option (TSyntax ``Lean.explici
     for d in definitions do
       enableRealizationsForConst d
   return mod
-
 
 end Veil

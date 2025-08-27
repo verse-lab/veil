@@ -81,16 +81,34 @@ def elabGenState : CommandElab := fun _stx => do
   mod ← mod.ensureStateIsDefined
   localEnv.modifyModule (fun _ => mod)
 
+@[command_elab Veil.initializerDefinition]
+def elabInitializer : CommandElab := fun stx => do
+  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an initializer outside of a Veil module!")
+  mod ← mod.ensureStateIsDefined
+  let new_mod ← match stx with
+  | `(command|after_init {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.initializer) .none .none l
+  | _ => throwUnsupportedSyntax
+  localEnv.modifyModule (fun _ => new_mod)
+
 @[command_elab Veil.procedureDefinition]
 def elabProcedure : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
   mod ← mod.ensureStateIsDefined
   let new_mod ← match stx with
-  | `(command|action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => elabAction mod nm br .none l
-  -- | `(command|procedure $nm:ident $br:explicitBinders ? = $spec:doSeq ? {$l:doSeq}) => elabProcedure nm br spec l
+  | `(command|action $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br .none l
+  | `(command|procedure $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.procedure nm.getId) br .none l
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
-  return ()
+
+@[command_elab Veil.procedureDefinitionWithSpec]
+def elabProcedureWithSpec : CommandElab := fun stx => do
+  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
+  mod ← mod.ensureStateIsDefined
+  let new_mod ← match stx with
+  | `(command|action $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br spec l
+  | `(command|procedure $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.procedure nm.getId) br spec l
+  | _ => throwUnsupportedSyntax
+  localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.assertionDeclaration]
 def elabAssertion : CommandElab := fun stx => do

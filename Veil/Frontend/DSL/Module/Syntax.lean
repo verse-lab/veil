@@ -169,7 +169,7 @@ syntax (name := ghostRelationDefinition) kw_ghost kw_relation ident bracketedBin
 /-- Define the initial state as an imperative program that executes on top of a
 non-deterministic initial state. The initial state is given by the post-state
 after executing `after_init` starting from the unspecified initial state. -/
-syntax (name := initialStateAction) kw_after_init "{" doSeq "}" : command
+syntax (name := initializerDefinition) kw_after_init "{" doSeq "}" : command
 
 /- ## Actions -/
 
@@ -189,7 +189,7 @@ transition byz = {
     (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v))) ∧
 ```
  -/
-syntax (name := transitionDefinition) (priority := high) kw_transition ident explicitBinders ? "=" "{" term "}" : command
+syntax (name := transitionDefinition) (priority := high) kw_transition ident explicitBinders ? "{" term "}" : command
 
 declare_syntax_cat procedureKind
 
@@ -197,9 +197,9 @@ syntax (name := actionKind) kw_action : procedureKind
 syntax (name := procedureKind) kw_procedure : procedureKind
 
 /-- An imperative `procedure` or `action` in Veil. -/
-syntax (name := procedureDefinition) procedureKind ident (explicitBinders)? "=" "{" doSeq "}" : command
+syntax (name := procedureDefinition) procedureKind ident (explicitBinders)? "{" doSeq "}" : command
 
-syntax (name := procedureDefinitionWithSpec) procedureKind ident (explicitBinders)? "=" doSeq "{" doSeq "}" : command
+syntax (name := procedureDefinitionWithSpec) procedureKind ident (explicitBinders)? doSeq "{" doSeq "}" : command
 
 /- ## Assertions -/
 
