@@ -31,6 +31,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
 @[command_elab Veil.typeDeclaration]
 def elabTypeDeclaration : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot declare a type outside of a Veil module!")
+  mod.throwIfStateAlreadyDefined
   match stx with
   | `(type $id:ident) => do
       let mod ← mod.declareUninterpretedSort id.getId (← getRef)
@@ -40,6 +41,7 @@ def elabTypeDeclaration : CommandElab := fun stx => do
 @[command_elab Veil.stateComponentDeclaration]
 def elabStateComponent : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot declare a state component outside of a Veil module!")
+  mod.throwIfStateAlreadyDefined
   let new_mod : Module ← match stx with
   | `($mutab:stateMutability ? $kind:stateComponentKind $name:ident $br:bracketedBinder* : $dom:term) =>
     defineStateComponentFromSyntax mod mutab kind name br dom (← getRef)
@@ -64,6 +66,7 @@ where
 @[command_elab Veil.instanceDeclaration]
 def elabInstantiate : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot instantiate a typeclass outside of a Veil module!")
+  mod.throwIfStateAlreadyDefined
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
     let param : Parameter := { kind := .moduleTypeclass, name := inst.getId, «type» := tp, userSyntax := stx }
@@ -73,30 +76,15 @@ def elabInstantiate : CommandElab := fun stx => do
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot #gen_state outside of a Veil module!")
-  let (mod, stateStx) ← mod.declareStateStructure
-  let (mod, theoryStx) ← mod.declareTheoryStructure
-  elabVeilCommand stateStx
-  elabVeilCommand theoryStx
+  let mut mod ← getCurrentModule (errMsg := "You cannot #gen_state outside of a Veil module!")
+  mod.throwIfStateAlreadyDefined
+  mod ← mod.ensureStateIsDefined
   localEnv.modifyModule (fun _ => mod)
-  generateIgnoreFn mod
-where
-  /-- Instruct the linter to not mark state variables as unused in our
-  `after_init` and `action` definitions. -/
-  generateIgnoreFn (mod : Module) : CommandElabM Unit := do
-    let cmd ← Command.runTermElabM fun _ => do
-      let fnIdents ← mod.mutableComponents.mapM (fun sc => `($(quote sc.name)))
-      let namesArrStx ← `(#[$[$fnIdents],*])
-      let id := mkIdent `id
-      let fnStx ← `(fun $id $(mkIdent `stack) _ => $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) /-&& isActionSyntax stack-/)
-      let nm := mkIdent `ignoreStateFields
-      let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
-      return ignoreFnStx
-    elabVeilCommand cmd
 
 @[command_elab Veil.procedureDefinition]
 def elabProcedure : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
+  mod ← mod.ensureStateIsDefined
   let new_mod ← match stx with
   | `(command|action $nm:ident $br:explicitBinders ? = {$l:doSeq}) => elabAction mod nm br .none l
   -- | `(command|procedure $nm:ident $br:explicitBinders ? = $spec:doSeq ? {$l:doSeq}) => elabProcedure nm br spec l
@@ -106,7 +94,8 @@ def elabProcedure : CommandElab := fun stx => do
 
 @[command_elab Veil.assertionDeclaration]
 def elabAssertion : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+  let mut mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+  mod ← mod.ensureStateIsDefined
   -- Record the assertion in the `Module` description
   -- TODO: handle assertion sets correctly
   let assertion : StateAssertion ← match stx with

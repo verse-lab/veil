@@ -135,6 +135,14 @@ def Module.throwIfAlreadyDeclared [Monad m] [MonadError m] (mod : Module) (name 
   if mod.isDeclared name then
     throwError s!"{name} is already declared in module {mod.name}. Cannot redeclare it!"
 
+/-- Is the state of this module defined (in the sense that it can no
+longer be changed, since some definitions already depend on it)? -/
+def Module.isStateDefined (mod : Module) : Bool := mod._stateDefined
+
+def Module.throwIfStateAlreadyDefined [Monad m] [MonadError m] (mod : Module) : m Unit := do
+  if mod.isStateDefined then
+    throwError s!"The state of module {mod.name} has already been defined. It can no longer be changed!"
+
 /-- Convert a `Parameter` to a `bracketedBinder` syntax. -/
 def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `Lean.Parser.Term.bracketedBinder) :=
   match p.kind with
@@ -271,6 +279,31 @@ def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (m
   let theoryStx ← mod.theoryStx
   let subtheory : Parameter := { kind := .moduleTypeclass, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push subtheory }, stx)
+
+/-- Crystallizes the state of the module, i.e. it defines it as a Lean
+`structure` definition, if that hasn't already happened. -/
+def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
+  if mod.isStateDefined then
+    return mod
+  let (mod, stateStx) ← mod.declareStateStructure
+  let (mod, theoryStx) ← mod.declareTheoryStructure
+  elabVeilCommand stateStx
+  elabVeilCommand theoryStx
+  generateIgnoreFn mod
+  return { mod with _stateDefined := true }
+where
+  /-- Instruct the linter to not mark state variables as unused in our
+  `after_init` and `action` definitions. -/
+  generateIgnoreFn (mod : Module) : CommandElabM Unit := do
+    let cmd ← Command.runTermElabM fun _ => do
+      let fnIdents ← mod.mutableComponents.mapM (fun sc => `($(quote sc.name)))
+      let namesArrStx ← `(#[$[$fnIdents],*])
+      let id := mkIdent `id
+      let fnStx ← `(fun $id $(mkIdent `stack) _ => $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) /-&& isActionSyntax stack-/)
+      let nm := mkIdent `ignoreStateFields
+      let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
+      return ignoreFnStx
+    elabVeilCommand cmd
 
 def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
   match stx with

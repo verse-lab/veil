@@ -198,6 +198,10 @@ structure Module where
   /-- Implementation detail. Used to check that names are unique. -/
   protected _declarations : Std.HashSet Name
 
+  /-- Implementation detail. Whether the state (and background theory)
+  of this module has been defined as a Lean `structure` definition. -/
+  protected _stateDefined : Bool := false
+
   /-- Assertions can be grouped into "sets", which are checked
   independently of each other. Sets are per-module. By default, all
   assertions are added to the same set. -/
