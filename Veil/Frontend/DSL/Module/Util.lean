@@ -1,13 +1,25 @@
 import Lean
 import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Module.Syntax
-import Veil.Util.Meta
+import Veil.Frontend.DSL.StateExtensions
 import Veil.Frontend.DSL.Util
 import Veil.Frontend.DSL.State
+import Veil.Util.Meta
 
 open Lean Parser Elab Command Term
 
-/-! ## Background theory and State -/
+/-! ## Background theory and State
+
+Implementation note: despite the fact that many methods in this file
+are in the `CommandElabM` monad, you MUST NOT use `elabCommand`,
+`elabVeilCommand`, or `modify` the environment from any method in this
+file. All the environment-modifying operations should be done in
+`Elaborators.lean`!.
+
+Methods in this file must return the changed `Module` and the `Syntax`
+to be elaborated. They MUST NOT change the environment themselves. This
+is to keep the logic well-encapsulated.
+-/
 
 namespace Veil
 
@@ -76,9 +88,7 @@ instance : ToString StateAssertionKind where
     | StateAssertionKind.safety => "safety"
 
 instance : ToString StateAssertion where
-  toString sa := match sa.term with
-    | some term => s!"{sa.kind} [{sa.name}] {term}"
-    | none => s!"{sa.kind} [{sa.name}]"
+  toString sa := s!"{sa.kind} [{sa.name}] {sa.term}"
 
 /-! ## Procedure and actions -/
 
@@ -146,7 +156,7 @@ def Module.throwIfStateAlreadyDefined [Monad m] [MonadError m] (mod : Module) : 
 /-- Convert a `Parameter` to a `bracketedBinder` syntax. -/
 def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `Lean.Parser.Term.bracketedBinder) :=
   match p.kind with
-  | .moduleTypeclass | .definitionTypeclass _ =>
+  | .moduleTypeclass _ | .definitionTypeclass _ =>
   if p.name != Name.anonymous then
     `(bracketedBinder|[$(mkIdent p.name) : $(p.type)])
   else
@@ -155,21 +165,34 @@ def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `
 
 def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
 
+def Module.theoryParameters (mod : Module) : Array Parameter :=
+  mod.parameters.filterMap fun p => match p.kind with
+  | .environmentState | .moduleTypeclass .environmentState => .none
+  | _ => .some p
+
 def Module.sortMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
   mod.parameters.filterMapM fun p => do match p.kind with
   | .uninterpretedSort => f p
   | _ => pure .none
 
-def Module.actionMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
-  let act := mod.procedures.find? (fun p => forAct == .some p.name)
-  let extraParams := match act with
-  | some act => act.extraParams
-  | none => #[]
-  let allParams := mod.parameters ++ extraParams
+private def paramsFilterMapFn [Monad m] [MonadQuotation m] (allParams : Array Parameter) (f : Parameter → m α) (forDefn : Option Name := .none) : m (Array α) := do
   allParams.filterMapM fun p => do
     match p.kind with
-    | .definitionTypeclass defName => if forAct == .some defName then f p else pure .none
+    | .definitionTypeclass defName => if forDefn == .some defName then f p else pure .none
     | _ => f p
+
+def Module.actionMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
+  let extraParams := mod.procedures.find? (fun p => forAct == .some p.name) |>.map (·.extraParams) |>.getD #[]
+  let allParams := mod.parameters ++ extraParams
+  paramsFilterMapFn allParams f forAct
+
+def Module.assertionMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAssertion : Option Name := .none) (k : StateAssertionKind) : m (Array α) := do
+  let extraParams := mod.assertions.find? (fun a => forAssertion == .some a.name) |>.map (·.extraParams) |>.getD #[]
+  let baseParams := match k with
+  | .assumption => mod.theoryParameters
+  | _ => mod.parameters
+  let allParams := baseParams ++ extraParams
+  paramsFilterMapFn allParams f forAssertion
 
 def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
   mod.sortMapFn (·.binder)
@@ -179,6 +202,9 @@ def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ide
 
 def Module.actionBinders [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forAct : Option Name := .none) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.actionMapFn (·.binder) forAct
+
+def Module.assertionBinders [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forAssertion : Option Name := .none) (k : StateAssertionKind) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  mod.assertionMapFn (·.binder) forAssertion k
 
 def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent stateName) $(← mod.sortIdents)*)
@@ -193,8 +219,8 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] 
   let id := mkIdent name
   let dec_eq_type ← `(term|$(mkIdent ``DecidableEq) $id)
   let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited) $id)
-  let dec_eq : Parameter := { kind := .moduleTypeclass, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
-  let inhabited : Parameter := { kind := .moduleTypeclass, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
+  let dec_eq : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
+  let inhabited : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
   let params := #[param, dec_eq, inhabited]
   return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insert name }
 
@@ -248,6 +274,18 @@ def Module.getStateComponentTypeStx [Monad m] [MonadQuotation m] [MonadError m] 
   | some sc => return ← sc.typeStx
   | none => throwErrorAt (← getRef) s!"State component {name} not found in module {mod.name}"
 
+def Module.getTheoryBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  mod.signature.filterMapM fun sc => do
+    match sc.mutability with
+    | .immutable => return .some $ ← `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
+    | _ => pure .none
+
+def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  mod.signature.filterMapM fun sc => do
+    match sc.mutability with
+    | .mutable => return .some $ ← `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
+    | _ => pure .none
+
 /-- Given a list of state components, return the syntax for a structure
 definition including those components. -/
 private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (name : Name) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (components : Array StateComponent) (deriveInstances : Bool := true): m Syntax := do
@@ -271,39 +309,14 @@ private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError 
 def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   let stx ← mod.stateDefinitionStx
   let stateStx ← mod.stateStx
-  let substate : Parameter := { kind := .moduleTypeclass, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
+  let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push substate }, stx)
 
 def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   let stx ← mod.theoryDefinitionStx
   let theoryStx ← mod.theoryStx
-  let subtheory : Parameter := { kind := .moduleTypeclass, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
+  let subtheory : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push subtheory }, stx)
-
-/-- Crystallizes the state of the module, i.e. it defines it as a Lean
-`structure` definition, if that hasn't already happened. -/
-def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
-  if mod.isStateDefined then
-    return mod
-  let (mod, stateStx) ← mod.declareStateStructure
-  let (mod, theoryStx) ← mod.declareTheoryStructure
-  elabVeilCommand stateStx
-  elabVeilCommand theoryStx
-  generateIgnoreFn mod
-  return { mod with _stateDefined := true }
-where
-  /-- Instruct the linter to not mark state variables as unused in our
-  `after_init` and `action` definitions. -/
-  generateIgnoreFn (mod : Module) : CommandElabM Unit := do
-    let cmd ← Command.runTermElabM fun _ => do
-      let fnIdents ← mod.mutableComponents.mapM (fun sc => `($(quote sc.name)))
-      let namesArrStx ← `(#[$[$fnIdents],*])
-      let id := mkIdent `id
-      let fnStx ← `(fun $id $(mkIdent `stack) _ => $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) /-&& isActionSyntax stack-/)
-      let nm := mkIdent `ignoreStateFields
-      let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
-      return ignoreFnStx
-    elabVeilCommand cmd
 
 def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
   match stx with
@@ -313,7 +326,7 @@ def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
 def Module.mkAssertion [Monad m] (mod : Module) (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (prop : Term) (stx : Syntax) : m StateAssertion := do
   let name := nameForAssertion mod kind name
   let defaultSets := Std.HashSet.emptyWithCapacity.insert mod.defaultAssertionSet
-  return { kind := kind, name := name, term := prop, userSyntax := stx, inSets := defaultSets }
+  return { kind := kind, name := name, extraParams := #[], term := prop, userSyntax := stx, inSets := defaultSets }
 where
   nameForAssertion (mod : Module) (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) : Name :=
     match name with
@@ -326,12 +339,75 @@ where
       | .assumption => s!"assumption_{sz}"
       | .trustedInvariant => s!"trusted_inv_{sz}"
 
-def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
+private def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
   mod.throwIfAlreadyDeclared sc.name
   let mut mod := { mod with assertions := mod.assertions.push sc }
   for set in sc.inSets do
     let currentAssertions := mod._assertionSets.getD set Std.HashSet.emptyWithCapacity
     mod := { mod with _assertionSets := mod._assertionSets.insert set (currentAssertions.insert sc.name) }
   return mod
+
+/-- This is used wherever we want to define a predicate over the
+background theory (e.g. in `assumption` definitions). Instead of
+writing `fun th => Pred`, this will pattern-match over the theory and
+make all its fields accessible for `Pred`. -/
+def withTheory (t : Term) : MetaM Term := do
+  let mut mod ← getCurrentModule
+  let theoryName := mod.name ++ theoryName
+  let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
+  let (rd, motive, Bool) := (mkIdent `rd, mkIdent `motive, mkIdent ``Bool)
+  `(term|(fun ($rd : $environmentTheory) =>
+    @$(casesOnTheory)
+    $(← mod.sortIdents)*
+    ($motive := fun _ => $Bool)
+    ($(mkIdent ``readFrom) $rd)
+    (fun $[$(← getFieldIdentsForStruct theoryName)]* => ($(mkIdent ``decide) $ $t : $Bool))))
+
+/-- This is used wherever we want to define a predicate over the
+background theory and the mutable state (e.g. in `invariant`
+definitions). Instead of writing `fun th st => Pred`, this will
+pattern-match over the theory and state and make all their fields
+accessible for `Pred`. This was previously called `funcasesM`. -/
+def withTheoryAndState (t : Term) : MetaM Term := do
+  let mut mod ← getCurrentModule
+  let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
+  let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
+  let casesOnState ← delabVeilExpr $ mkConst $ (stateName ++ `casesOn)
+  let (rd, st, motive, Bool) := (mkIdent `rd, mkIdent `st, mkIdent `motive, mkIdent ``Bool)
+  `(term|(fun ($rd : $environmentTheory) ($st : $environmentState) =>
+    @$(casesOnTheory) $(← mod.sortIdents)*
+    ($motive := fun _ => $Bool)
+    ($(mkIdent ``readFrom) $rd) <|
+    (fun $[$(← getFieldIdentsForStruct theoryName)]* =>
+      @$(casesOnState) $(← mod.sortIdents)*
+      ($motive := fun _ => $Bool)
+      ($(mkIdent ``getFrom) $st)
+      (fun $[$(← getFieldIdentsForStruct stateName)]* => ($(mkIdent ``decide) $ $t : $Bool)))))
+
+/-- Register the assertion (and any optional `Decidable` instances)
+in the module, and return the syntax to elaborate. -/
+def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM (Command × Module) := do
+  let mut mod := mod
+  let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let binders ← mod.assertionBinders base.name base.kind
+  -- We need to universally quantify capital variables, but for that to
+  -- work, the term needs to be well-typed, so all the theory and state
+  -- variables have to be bound first
+  let term ← liftTermElabMWithBinders (binders ++ (← mod.getTheoryBinders) ++ (← mod.getStateBinders)) $ fun _ => univerallyQuantifyCapitals base.term
+  -- We don't `universallyQuantifyCapitals` after `withTheory` /
+  -- `withTheoryAndState` because we want to have the universal
+  -- quantification as deeply inside the term as possible, rather than above
+  -- the binders for `rd` and `st` introduced below.
+  let term ← liftTermElabM $ match base.kind with
+    | .assumption => withTheory term
+    | _ => withTheoryAndState term
+  -- Record the `Decidable` instances that are needed for the assertion.
+  let (insts, _) ← liftTermElabMWithBinders binders $ fun _ => getRequiredDecidableInstances term
+  let extraParams : Array Parameter := insts.map (fun (decT, _) => { kind := .definitionTypeclass base.name, name := Name.anonymous, «type» := decT, userSyntax := .missing })
+  mod ← mod.registerAssertion { base with extraParams := extraParams }
+  -- This includes the required `Decidable` instances
+  let binders ← mod.assertionBinders base.name base.kind
+  let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
+  return (stx, mod)
 
 end Veil

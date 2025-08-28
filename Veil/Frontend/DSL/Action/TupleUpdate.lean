@@ -23,7 +23,7 @@ macro_rules
   | `(term| $f[$is:term,* ↦ $b ]) => do
     let mut x : Array $ Lean.TSyntax `ident := #[]
     for i in is.getElems do
-      if isCapital i && x.all (· != ⟨i.raw⟩) then
+      if isCapital i.raw.getId && x.all (· != ⟨i.raw⟩) then
         x := x.push ⟨i.raw⟩
       else
         x := x.push (<- Lean.Elab.Term.mkFreshIdent i)

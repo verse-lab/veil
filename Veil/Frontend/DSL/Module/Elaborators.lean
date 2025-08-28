@@ -69,10 +69,35 @@ def elabInstantiate : CommandElab := fun stx => do
   mod.throwIfStateAlreadyDefined
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
-    let param : Parameter := { kind := .moduleTypeclass, name := inst.getId, «type» := tp, userSyntax := stx }
+    let param : Parameter := { kind := .moduleTypeclass .userDefined, name := inst.getId, «type» := tp, userSyntax := stx }
     pure { mod with parameters := mod.parameters.push param }
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
+
+ /-- Instruct the linter to not mark state variables as unused in our
+  `after_init` and `action` definitions. -/
+private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
+  let cmd ← Command.runTermElabM fun _ => do
+    let fnIdents ← mod.mutableComponents.mapM (fun sc => `($(quote sc.name)))
+    let namesArrStx ← `(#[$[$fnIdents],*])
+    let id := mkIdent `id
+    let fnStx ← `(fun $id $(mkIdent `stack) _ => $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) /-&& isActionSyntax stack-/)
+    let nm := mkIdent `ignoreStateFields
+    let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
+    return ignoreFnStx
+  elabVeilCommand cmd
+
+/-- Crystallizes the state of the module, i.e. it defines it as a Lean
+`structure` definition, if that hasn't already happened. -/
+private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
+  if mod.isStateDefined then
+    return mod
+  let (mod, stateStx) ← mod.declareStateStructure
+  let (mod, theoryStx) ← mod.declareTheoryStructure
+  elabVeilCommand stateStx
+  elabVeilCommand theoryStx
+  generateIgnoreFn mod
+  return { mod with _stateDefined := true }
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do
@@ -114,7 +139,6 @@ def elabProcedureWithSpec : CommandElab := fun stx => do
 def elabAssertion : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
   mod ← mod.ensureStateIsDefined
-  -- Record the assertion in the `Module` description
   -- TODO: handle assertion sets correctly
   let assertion : StateAssertion ← match stx with
   | `(command|assumption $name:propertyName ? $prop:term) => mod.mkAssertion .assumption name prop stx
@@ -122,10 +146,10 @@ def elabAssertion : CommandElab := fun stx => do
   | `(command|safety $name:propertyName ? $prop:term) => mod.mkAssertion .safety name prop stx
   | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop stx
   | _ => throwUnsupportedSyntax
-  let new_mod ← mod.registerAssertion assertion
-  localEnv.modifyModule (fun _ => new_mod)
   -- Elaborate the assertion in the Lean environment
-
+  let (stx, mod') ← mod.defineAssertion assertion
+  elabVeilCommand stx
+  localEnv.modifyModule (fun _ => mod')
 
 
 end Veil

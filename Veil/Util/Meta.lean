@@ -113,17 +113,10 @@ def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
   trace[veil.desugar] "{stx}"
   elabCommand stx
 
-/--
-  Veil actions, in order to be executable, need to have `Decidable`
-  instances available for all the predicates that feed into `require`,
-  `assert`, or `assume` statements, as well as `if` conditions.
-
-  This function is a version of `elabTerm` that returns _both_ an
-  `Array` of metavariables, whose types consist of all the predicates
-  that need to be `Decidable` for this action to be executable, and the
-  elaborated term itself.
--/
-def elabTermDecidable (stx : Term) : TermElabM (Array Expr × Expr) := do
+/-- Elaborates the term (ignoring typeclass inference failures) and
+returns the set of `Decidable` instances needed to make it elaborate
+correctly. -/
+def getRequiredDecidableInstances (stx : Term) : TermElabM (Array (Term × Expr) × Expr) := do
   /- We want to throw an error if anything fails or is missing during
   elaboration. -/
   Term.withoutErrToSorry $ do
@@ -132,7 +125,6 @@ def elabTermDecidable (stx : Term) : TermElabM (Array Expr × Expr) := do
   Term.synthesizeSyntheticMVars
   let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
   let mvars' ← mvars.filterMapM (simplifyMVarType · isDecidableInstance)
-  let e ← instantiateMVars e
   return (mvars', e)
 where
   isDecidableInstance (body : Expr) : TermElabM Bool := do
@@ -145,7 +137,7 @@ where
   for the predicate. This method gets rid of those unnecessary
   arguments. Moreover, it only returns those `mv`ars whose final result
   type passes the given filter. -/
-  simplifyMVarType (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option Expr) := do
+  simplifyMVarType (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option (Term × Expr)) := do
     let ty ← Meta.inferType mv
     Meta.forallTelescope ty fun ys body => do
       if !(← keepBodyIf body) then return none
@@ -162,7 +154,24 @@ where
           let tmp ← Meta.mkLambdaFVars ys $ mkAppN z (ys.filter fun y => y.occurs body)
           pure $ tmp.replaceFVar z mv'
       mv.mvarId!.assign mv_pf
-      return .some mv'
+      let tyStx ← delabVeilExpr simplified_type
+      return .some (tyStx, mv')
+
+/--
+  Veil actions, in order to be executable, need to have `Decidable`
+  instances available for all the predicates that feed into `require`,
+  `assert`, or `assume` statements, as well as `if` conditions.
+
+  This function is a version of `elabTerm` that returns _both_ an
+  `Array` of metavariables, whose types consist of all the predicates
+  that need to be `Decidable` for this action to be executable, and the
+  elaborated term itself.
+-/
+def elabTermDecidable (stx : Term) : TermElabM (Array Expr × Expr) := do
+  let (decInsts, e) ← getRequiredDecidableInstances stx
+  let mvars := decInsts.map (fun (_tyStx, mv) => mv)
+  let e ← instantiateMVars e
+  return (mvars, e)
 
 /-- Given `nm : type`, return `type` -/
 def getSimpleBinderType [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : m (TSyntax `term) := do
@@ -241,7 +250,61 @@ macro_rules
 /-- Is this identifier all capital letters and digits? We use this to
 represent implicit universal quantification, i.e. `rel N` means `∀ n,
 rel n`. -/
-def isCapital (i : Lean.Syntax) : Bool :=
-  i.getId.isStr && i.getId.toString.all (fun c => c.isUpper || c.isDigit)
+def isCapital (i : Name) : Bool :=
+  i.isStr && i.toString.all (fun c => c.isUpper || c.isDigit)
+
+/-- You _can_ use these as `funBinder`s, but they won't have a type, so might fail strangely. -/
+def getFieldIdentsForStruct [Monad m] [MonadEnv m] [MonadError m] (n : Name) : m (Array Ident) := do
+  let .some sinfo := getStructureInfo? (← getEnv) n
+    | throwError "getFieldNamesForStruct: {n} is not a structure"
+  return sinfo.fieldNames.map (fun n => mkIdent n)
+
+/-- Modelled after `Lean.Elab.Term.withAutoBoundImplicit`, but
+customisable via `conditionToBind` and `unboundCont`.
+
+FIXME: use `withAutoBoundImplicit` instead. The only difference is that
+we return `.default` binders, rather than `.implicit`. -/
+private partial def withAutoBoundCont
+  (k : TermElabM α)
+  (conditionToBind : Name → TermElabM Bool)
+  (unboundCont : Exception → Name → TermElabM α)
+  : TermElabM α := do
+  withReader (fun ctx => { ctx with autoBoundImplicit := true, autoBoundImplicits := {} }) do
+    let rec loop (s : Term.SavedState) : TermElabM α := do
+      try
+        k
+      catch
+        | ex => match isAutoBoundImplicitLocalException? ex with
+          | some n =>
+            if ← conditionToBind n then
+            -- Restore state, declare `n`, and try again
+              s.restore
+              Meta.withLocalDecl n .default (← Meta.mkFreshTypeMVar) fun x =>
+                withReader (fun ctx => { ctx with autoBoundImplicits := ctx.autoBoundImplicits.push x } ) do
+                  loop (← saveState)
+            else unboundCont ex n
+          | none   => throw ex
+    loop (← saveState)
+
+/-- Automatically bind all variables whose names contain only capitals
+(and/or digits). -/
+private partial def withAutoBoundCapitals (k : TermElabM α) : TermElabM α := do
+  withAutoBoundCont k (fun n => return isCapital n) (fun ex n => do throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}")
+
+def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
+  -- This ensures the capitals will be bound as `fvar`s
+  withAutoBoundCapitals $ do
+    withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
+    let e ← Term.elabTerm stx none
+    let mut lctx ← getLCtx
+    -- Inspect the local context and collect the capitals
+    let capitalVars ← lctx.getFVars.filterM (fun x =>
+      match lctx.getRoundtrippingUserName? x.fvarId! with
+      | .some n => return isCapital n
+      | .none => return false)
+    -- Quantify over capitals
+    Meta.lambdaTelescope e fun _ body => do
+      let res ← delabVeilExpr $ ← Meta.mkForallFVars capitalVars body
+      return res
 
 end Veil
