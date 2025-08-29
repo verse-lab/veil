@@ -49,7 +49,7 @@ where
 
 def elabProcedureInMode (act : Name) (mode : Mode) : TermElabM (Name × Expr) := do
   let originalName := act
-  let toDoName := toDoName originalName
+  let toDoName ← resolveGlobalConstNoOverload $ mkIdent $ toDoName originalName
   let name := toActName originalName mode
   let mut body := mkAppN (mkConst toDoName) #[mode.expr]
   if mode == Mode.external then
@@ -61,7 +61,7 @@ def elabProcedureInMode (act : Name) (mode : Mode) : TermElabM (Name × Expr) :=
 
 def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module) (ps : ProcedureSpecification) : m Module := do
   mod.throwIfAlreadyDeclared ps.name
-  return { mod with procedures := mod.procedures.push ps }
+  return { mod with procedures := mod.procedures.push ps, _declarations := mod._declarations.insert ps.name }
 
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
@@ -74,11 +74,11 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   mod ← mod.registerProcedureSpecification ps
   -- Elaborate the definition in the Lean environment
   liftTermElabM $ do
-    addVeilDefinition nmDo e (attr := #[{name := `reducible}])
-    let (nmExt, eExt) ← elabProcedureInMode pi.name Mode.external
-    let (nmInt, eInt) ← elabProcedureInMode pi.name Mode.internal
-    addVeilDefinitionAsync nmInt eInt
-    addVeilDefinitionAsync nmExt eExt
+    _ ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
+    let mut (nmExt, eExt) ← elabProcedureInMode pi.name Mode.external
+    let mut (nmInt, eInt) ← elabProcedureInMode pi.name Mode.internal
+    nmInt ← addVeilDefinitionAsync nmInt eInt
+    nmExt ← addVeilDefinitionAsync nmExt eExt
    -- Make the definitions realizable / available for use
     let mut definitions := #[nmExt, nmInt]
     for d in definitions do

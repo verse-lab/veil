@@ -151,5 +151,14 @@ def elabAssertion : CommandElab := fun stx => do
   elabVeilCommand stx
   localEnv.modifyModule (fun _ => mod')
 
+@[command_elab Veil.genSpec]
+def elabGenSpec : CommandElab := fun _stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
+  let mod ← mod.ensureStateIsDefined
+  let (assumptionCmd, mod) ← mod.assembleAssumptions
+  elabVeilCommand assumptionCmd
+  let (invariantCmd, mod) ← mod.assembleInvariants
+  elabVeilCommand invariantCmd
+  localEnv.modifyModule (fun _ => mod)
 
 end Veil

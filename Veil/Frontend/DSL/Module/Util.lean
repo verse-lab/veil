@@ -128,6 +128,15 @@ def environmentSubStateIdent : Ident := subStateInstIdent environmentState
 def subReaderInstIdent (id : Ident): Ident := mkIdent $ Name.mkSimple s!"{id.getId}_reader"
 def environmentSubReaderIdent : Ident := subReaderInstIdent environmentTheory
 
+def assembledAssumptionsName : Name := `Assumptions
+/-- The conjunction of all assumption clauses. -/
+def assembledAssumptions : Ident := mkIdent assembledAssumptionsName
+
+def assembledInvariantsName : Name := `Invariants
+/-- The conjunction of all `invariant`, `safety`, and `trusted
+invariant` clauses. -/
+def assembledInvariants : Ident := mkIdent assembledInvariantsName
+
 def Parameter.environmentTheory [Monad m] [MonadQuotation m] : m Parameter :=
   return { kind := .backgroundTheory, name := environmentTheoryName, «type» := ← `(Type), userSyntax := .missing }
 
@@ -136,7 +145,7 @@ def Parameter.environmentState [Monad m] [MonadQuotation m] : m Parameter :=
 
 def Module.freshWithName [Monad m] [MonadQuotation m] (name : Name) : m Module := do
   let params := #[← Parameter.environmentTheory, ← Parameter.environmentState]
-  return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], _declarations := .emptyWithCapacity }
+  return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], _declarations := .emptyWithCapacity, _derivedDefinitions := .emptyWithCapacity }
 
 def Module.isDeclared (mod : Module) (name : Name) : Bool :=
   mod._declarations.contains name
@@ -163,6 +172,18 @@ def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `
     `(bracketedBinder|[$(p.type)])
   | _ => `(bracketedBinder|($(mkIdent p.name) : $(p.type)))
 
+/-- Convert a `Parameter` to a `Term` syntax for the equivalent
+argument. Unnamed typeclass instances are left for typeclass inference
+(i.e. `_`). -/
+def Parameter.arg [Monad m] [MonadQuotation m] (p : Parameter) : m Term := do
+  match p.kind with
+  | .moduleTypeclass _ | .definitionTypeclass _ =>
+    if p.name != Name.anonymous then
+      `(term| $(mkIdent p.name))
+    else
+      `(term| _)
+  | _ => `(term| $(mkIdent p.name))
+
 def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
 
 def Module.theoryParameters (mod : Module) : Array Parameter :=
@@ -181,18 +202,26 @@ private def paramsFilterMapFn [Monad m] [MonadQuotation m] (allParams : Array Pa
     | .definitionTypeclass defName => if forDefn == .some defName then f p else pure .none
     | _ => f p
 
-def Module.actionMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
+private def Module.actionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
   let extraParams := mod.procedures.find? (fun p => forAct == .some p.name) |>.map (·.extraParams) |>.getD #[]
   let allParams := mod.parameters ++ extraParams
   paramsFilterMapFn allParams f forAct
 
-def Module.assertionMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAssertion : Option Name := .none) (k : StateAssertionKind) : m (Array α) := do
-  let extraParams := mod.assertions.find? (fun a => forAssertion == .some a.name) |>.map (·.extraParams) |>.getD #[]
-  let baseParams := match k with
+private def Module.assertionBaseParams (mod : Module) (k : StateAssertionKind) : Array Parameter :=
+  match k with
   | .assumption => mod.theoryParameters
   | _ => mod.parameters
-  let allParams := baseParams ++ extraParams
+
+private def Module.assertionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAssertion : Option Name := .none) (k : StateAssertionKind) : m (Array α) := do
+  let extraParams := mod.assertions.find? (fun a => forAssertion == .some a.name) |>.map (·.extraParams) |>.getD #[]
+  let allParams := (mod.assertionBaseParams k) ++ extraParams
   paramsFilterMapFn allParams f forAssertion
+
+private def Module.combinedAssertionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (k : StateAssertionKind) (forAssertions : Std.HashSet Name := {}) : m (Array α) := do
+  let baseParams := mod.assertionBaseParams k
+  let extraParams := Array.flatten $ mod.assertions.filterMap (fun a => if forAssertions.contains a.name then .some a.extraParams else .none)
+  let allParams := baseParams ++ extraParams
+  allParams.mapM f
 
 def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
   mod.sortMapFn (·.binder)
@@ -201,10 +230,19 @@ def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ide
   mod.sortMapFn (·.ident)
 
 def Module.actionBinders [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forAct : Option Name := .none) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  mod.actionMapFn (·.binder) forAct
+  mod.actionParamsMapFn (·.binder) forAct
 
 def Module.assertionBinders [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forAssertion : Option Name := .none) (k : StateAssertionKind) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  mod.assertionMapFn (·.binder) forAssertion k
+  mod.assertionParamsMapFn (·.binder) forAssertion k
+
+def Module.assumptions (mod : Module) : Array StateAssertion :=
+  mod.assertions.filter (fun a => a.kind == .assumption)
+
+/-- All `invariant`s, `safety`, and `trusted invariant`s.-/
+def Module.invariants (mod : Module) : Array StateAssertion :=
+  mod.assertions.filter fun a => match a.kind with
+  | .invariant | .safety | .trustedInvariant => true
+  | _ => false
 
 def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent stateName) $(← mod.sortIdents)*)
@@ -341,7 +379,7 @@ where
 
 private def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
   mod.throwIfAlreadyDeclared sc.name
-  let mut mod := { mod with assertions := mod.assertions.push sc }
+  let mut mod := { mod with assertions := mod.assertions.push sc, _declarations := mod._declarations.insert sc.name }
   for set in sc.inSets do
     let currentAssertions := mod._assertionSets.getD set Std.HashSet.emptyWithCapacity
     mod := { mod with _assertionSets := mod._assertionSets.insert set (currentAssertions.insert sc.name) }
@@ -387,6 +425,7 @@ def withTheoryAndState (t : Term) : MetaM Term := do
 /-- Register the assertion (and any optional `Decidable` instances)
 in the module, and return the syntax to elaborate. -/
 def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM (Command × Module) := do
+  mod.throwIfAlreadyDeclared base.name
   let mut mod := mod
   let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let binders ← mod.assertionBinders base.name base.kind
@@ -409,5 +448,36 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let binders ← mod.assertionBinders base.name base.kind
   let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
   return (stx, mod)
+
+private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (kind : StateAssertionKind) (assembledName : Name) (specificBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Command × Module) := do
+  mod.throwIfAlreadyDeclared assembledName
+  let assertions := match kind with
+    | .assumption => mod.assumptions
+    | _ => mod.invariants
+  let conjunctsSet := Std.HashSet.ofArray $ assertions.map (·.name)
+  let assembledParams ← mod.combinedAssertionParamsMapFn (pure ·) kind conjunctsSet
+  let specificArgs ← bracketedBindersToTerms specificBinders
+  let apps ← assertions.mapM (fun a => do
+    let params := (mod.assertionBaseParams a.kind) ++ a.extraParams
+    let args ← params.mapM (·.arg)
+    `(term| @$(mkIdent a.name):ident $args* $specificArgs*))
+  let body ← repeatedAnd apps
+  let binders ← assembledParams.mapM (·.binder)
+  let cmd ← `(command|def $(mkIdent assembledName) $[$(binders)]* $specificBinders* := $body)
+  let derivedDef : DerivedDefinition := { name := assembledName, allParams := assembledParams, derivedFrom := conjunctsSet, stx := cmd }
+  let mod := { mod with _declarations := mod._declarations.insert assembledName, _derivedDefinitions := mod._derivedDefinitions.insert assembledName derivedDef }
+  return (cmd, mod)
+
+/-- Syntax for the conjunction of all `invariant`, `safety`, and
+`trusted invariant` clauses. This modifies the `Module` to record which
+parameters are necessary for this definition. -/
+def Module.assembleInvariants [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent `st) : $environmentState))]
+  mod.assembleAssertions .invariant assembledInvariantsName binders
+
+def Module.assembleAssumptions [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory))]
+  mod.assembleAssertions .assumption assembledAssumptionsName binders
+
 
 end Veil

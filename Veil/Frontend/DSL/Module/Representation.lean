@@ -199,6 +199,21 @@ structure ModuleDependency where
   userSyntax : Syntax
 deriving Inhabited, BEq
 
+/-- A derived definition is not directly part of the module, but
+programmatically generated/derived from some of the module's
+definitions. Examples of this are `Invariants` and `Assumptions`. -/
+structure DerivedDefinition where
+  /-- The name of this definition in the Lean environment. -/
+  name : Name
+  /-- Parameters this definition needs. Not this is NOT `extraParams`,
+  but rather all the parameters that are needed for this definition. -/
+  allParams : Array Parameter
+  /-- The definitions that this derived definition depends on. -/
+  derivedFrom : Std.HashSet Name
+  /-- The syntax of the definition that was derived. -/
+  stx : Command
+deriving Inhabited
+
 structure Module where
   /-- The name of the module -/
   name : Name
@@ -219,6 +234,9 @@ structure Module where
 
   /-- Implementation detail. Used to check that names are unique. -/
   protected _declarations : Std.HashSet Name
+
+  /-- Derived definitions that this module has. -/
+  protected _derivedDefinitions : Std.HashMap Name DerivedDefinition
 
   /-- Implementation detail. Whether the state (and background theory)
   of this module has been defined as a Lean `structure` definition. -/

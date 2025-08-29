@@ -57,6 +57,13 @@ def Lean.Expr.simp (e : Expr) (simpSets : Array Name) : TermElabM Expr := do
 def Lean.Expr.dsimp (e : Expr) (simpSets : Array Name) : TermElabM Expr := do
   let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simpSets)
   return expr
+
+def Lean.Elab.Attribute.mkStx [Monad m] [MonadQuotation m] (attr : Attribute) : m (TSyntax `Lean.Parser.Term.attrInstance) := do
+  let kindStx ← match attr.kind with
+    | AttributeKind.global => `(Lean.Parser.Term.attrKind| )
+    | AttributeKind.local  => `(Lean.Parser.Term.attrKind| local)
+    | AttributeKind.scoped => `(Lean.Parser.Term.attrKind| scoped)
+  `(Lean.Parser.Term.attrInstance| $kindStx $(Lean.mkIdent attr.name):ident)
 namespace Veil
 
 /-- Syntax for `∀ a₀ a₁ .. aₙ, Decidable (P a₀ a₁ .. aₙ)`. -/
@@ -85,27 +92,47 @@ where
   applyOptions (s : Options) (opts : Array (Name × DataValue)) : Options :=
     opts.foldl (fun s (n, v) => s.insert n v) s
 
+private def stxForVeilDefinition (red : ReducibilityHints) (attrs : Array Attribute) (baseName : Name) (type : Expr) (e : Expr) : TermElabM (TSyntax `command) := do
+  let attrs ← attrs.mapM (·.mkStx)
+  let attrs? ← if attrs.isEmpty then pure Option.none else pure $ .some $ ← `(Parser.Term.attributes| @[$attrs,*])
+  let typeStx ← delabVeilExpr type
+  let eStx ← delabVeilExpr e
+  match red with
+  | .regular _ =>
+    `(command|$[$attrs?:attributes]? def $(mkIdent baseName) : $typeStx := $eStx)
+  | .abbrev =>
+    `(command|$[$attrs?:attributes]? abbrev $(mkIdent baseName) : $typeStx := $eStx)
+  | .opaque =>
+    `(command|$[$attrs?:attributes]? opaque $(mkIdent baseName) : $typeStx := $eStx)
+
 def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
-  (type : Option Expr := none) : TermElabM Unit := do
+  (type : Option Expr := none)
+  (addNamespace : Bool := true)
+  : TermElabM Name := do
   let type ← match type with
   | .some t => pure t
   | .none => Meta.inferType e
+  let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
   let addFn := if compile then addAndCompile else addDecl
   addFn <|
     Declaration.defnDecl <|
-      mkDefinitionValEx n [] type e red
+      mkDefinitionValEx fullName [] type e red
       (DefinitionSafety.safe) []
-  trace[veil.desugar] "{← `(command| def $(mkIdent n) : $(← delabVeilExpr type) := $(← delabVeilExpr e))}"
-  Elab.Term.applyAttributesAt n attr AttributeApplicationTime.beforeElaboration
+  Elab.Term.applyAttributesAt fullName attr AttributeApplicationTime.beforeElaboration
+  trace[veil.desugar] "{← stxForVeilDefinition red attr n type e}"
+  return fullName
 
 def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
-  (type : Option Expr := none) : TermElabM Unit := do
-  addVeilDefinitionAsync n e compile red attr type
+  (type : Option Expr := none)
+  (addNamespace : Bool := true)
+  : TermElabM Name := do
+  let n ← addVeilDefinitionAsync n e compile red attr type addNamespace
   enableRealizationsForConst n
+  return n
 
 /-- A wrapper around Lean's standard `elabCommand`, which performs
 Veil-specific logging and sanity-checking. -/
@@ -199,12 +226,28 @@ def complexBinderToSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (nm 
   let simple ← `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $typeStx)
   return simple
 
-def binderIdentToIdent (bi : TSyntax ``binderIdent) : Ident :=
+def binderIdentToIdent [Monad m] [MonadError m] (bi : TSyntax ``binderIdent) : m Ident :=
   match bi with
-  | `(binderIdent|$i:ident) => i
-  | _ => unreachable!
+  | `(binderIdent|$i:ident) => pure i
+  | _ => throwError "[binderIdentToIdent] unexpected syntax: {bi}"
 
-def explicitBindersFlatMap [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) (f : TSyntax `Lean.binderIdent → TSyntax `term → m α) : m (Array α) :=
+def bracketedBinderIdent [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m (Option Ident) := do
+  match stx with
+  | `(bracketedBinder| ($id:ident : $_tp)) => return id
+  | `(bracketedBinder| [$id:ident : $_tp]) => return id
+  | `(bracketedBinder| {$id:ident : $_tp}) => return id
+  | _ => return none
+
+/-- Given a set of binders, return the terms that correspond to them.
+Typeclasses that are not named are replaced with `_`, to be inferred. -/
+def bracketedBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array Term) := do
+  let idents : Array (Option Ident) ← stx.mapM bracketedBinderIdent
+  idents.mapM (fun mid => do
+    match mid with
+    | some id => `(term|$id)
+    | none => `(term|_))
+
+def explicitBindersFlatMapM [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) (f : TSyntax `Lean.binderIdent → TSyntax `term → m α) : m (Array α) :=
   match stx with
   | `(explicitBinders|$bs*) =>
     bs.flatMapM fun
@@ -215,13 +258,13 @@ def explicitBindersFlatMap [Monad m] [MonadError m] [MonadQuotation m] (stx : TS
 
 /-- Convert existential binders into function binders. -/
 def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) :=
-  explicitBindersFlatMap stx fun bi tp => do
-    let id := binderIdentToIdent bi
+  explicitBindersFlatMapM stx fun bi tp => do
+    let id ← binderIdentToIdent bi
     `(Lean.Parser.Term.funBinder| ($id : $tp:term))
 
-/-- Convert existential binders into identifiers. -/
-def toIdentArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) :=
-  explicitBindersFlatMap stx fun bi _tp => `(ident| $(binderIdentToIdent bi))
+/-- Convert existential binders (`explicitBinders`) into identifiers. -/
+def toIdentArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) := do
+  explicitBindersFlatMapM stx fun bi _tp => do `(ident| $(← binderIdentToIdent bi))
 
 def Option.stxArrMapM [Monad m] [MonadError m] [MonadQuotation m] (o : Option (TSyntax α)) (f : TSyntax α → m (TSyntaxArray β)) : m (TSyntaxArray β) := do
   match o with
@@ -306,5 +349,22 @@ def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
     Meta.lambdaTelescope e fun _ body => do
       let res ← delabVeilExpr $ ← Meta.mkForallFVars capitalVars body
       return res
+
+def repeatedOp [Monad m] [MonadError m][MonadQuotation m] (op : Name) (operands : Array (TSyntax `term)) (default : Option (TSyntax `term) := none) : m (TSyntax `term) := do
+  if operands.isEmpty then
+    match default with
+    | .some d => return d
+    | .none => throwError "[repeatedOp {op}]: no operands and no default"
+  else
+    let last := operands.size - 1
+    let initT := operands[last]!
+    let acc := operands[0:last]
+    acc.foldrM (init := initT) fun operand acc => `(term|$(mkIdent op) $operand $acc)
+
+def repeatedAnd [Monad m] [MonadError m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
+  repeatedOp `And operands (default := ← `(term|$(mkIdent `True)))
+
+def repeatedOr  [Monad m] [MonadError m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
+  repeatedOp `Or operands (default := ← `(term|$(mkIdent `False)))
 
 end Veil
