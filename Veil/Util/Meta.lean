@@ -138,7 +138,7 @@ where
   arguments. Moreover, it only returns those `mv`ars whose final result
   type passes the given filter. -/
   simplifyMVarType (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option (Term × Expr)) := do
-    let ty ← Meta.inferType mv
+    let ty ← Meta.reduce (skipTypes := false) $ ← Meta.inferType mv
     Meta.forallTelescope ty fun ys body => do
       if !(← keepBodyIf body) then return none
       let simplified_type ← Meta.mkForallFVars ys (← Meta.whnf body) (usedOnly := true)
