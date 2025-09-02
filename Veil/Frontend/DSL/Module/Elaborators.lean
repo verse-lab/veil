@@ -99,10 +99,23 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
   generateIgnoreFn mod
   return { mod with _stateDefined := true }
 
+
+/-- Crystallizes the specification of the module, i.e. it finalizes the
+set of `procedures` and `assertions`. -/
+private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module := do
+  if mod.isSpecFinalized then
+    return mod
+  let mod ← mod.ensureStateIsDefined
+  let (assumptionCmd, mod) ← mod.assembleAssumptions
+  elabVeilCommand assumptionCmd
+  let (invariantCmd, mod) ← mod.assembleInvariants
+  elabVeilCommand invariantCmd
+  return { mod with _specFinalized := true }
+
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot #gen_state outside of a Veil module!")
-  mod.throwIfStateAlreadyDefined
+  mod.throwIfStateAlreadyDefined ; mod.throwIfSpecAlreadyFinalized
   mod ← mod.ensureStateIsDefined
   localEnv.modifyModule (fun _ => mod)
 
@@ -110,6 +123,7 @@ def elabGenState : CommandElab := fun _stx => do
 def elabInitializer : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an initializer outside of a Veil module!")
   mod ← mod.ensureStateIsDefined
+  mod.throwIfSpecAlreadyFinalized
   let new_mod ← match stx with
   | `(command|after_init {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.initializer) .none .none l stx
   | _ => throwUnsupportedSyntax
@@ -119,6 +133,7 @@ def elabInitializer : CommandElab := fun stx => do
 def elabProcedure : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
   mod ← mod.ensureStateIsDefined
+  mod.throwIfSpecAlreadyFinalized
   let new_mod ← match stx with
   | `(command|action $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br .none l stx
   | `(command|procedure $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.procedure nm.getId) br .none l stx
@@ -129,6 +144,7 @@ def elabProcedure : CommandElab := fun stx => do
 def elabProcedureWithSpec : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
   mod ← mod.ensureStateIsDefined
+  mod.throwIfSpecAlreadyFinalized
   let new_mod ← match stx with
   | `(command|action $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br spec l stx
   | `(command|procedure $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.procedure nm.getId) br spec l stx
@@ -139,6 +155,7 @@ def elabProcedureWithSpec : CommandElab := fun stx => do
 def elabAssertion : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
   mod ← mod.ensureStateIsDefined
+  mod.throwIfSpecAlreadyFinalized
   -- TODO: handle assertion sets correctly
   let assertion : StateAssertion ← match stx with
   | `(command|assumption $name:propertyName ? $prop:term) => mod.mkAssertion .assumption name prop stx
@@ -154,11 +171,7 @@ def elabAssertion : CommandElab := fun stx => do
 @[command_elab Veil.genSpec]
 def elabGenSpec : CommandElab := fun _stx => do
   let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
-  let mod ← mod.ensureStateIsDefined
-  let (assumptionCmd, mod) ← mod.assembleAssumptions
-  elabVeilCommand assumptionCmd
-  let (invariantCmd, mod) ← mod.assembleInvariants
-  elabVeilCommand invariantCmd
+  let mod ← mod.ensureSpecIsFinalized
   localEnv.modifyModule (fun _ => mod)
 
 end Veil

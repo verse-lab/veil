@@ -199,15 +199,25 @@ structure ModuleDependency where
   userSyntax : Syntax
 deriving Inhabited, BEq
 
+inductive DerivedDefinitionKind where
+  /-- This derived definition is like an `assumption`, in terms of the
+  parameters it needs. -/
+  | assumptionLike
+  /-- This derived definition is like an `invariant`, in terms of the
+  parameters it needs. -/
+  | invariantLike
+deriving Inhabited, BEq, Hashable
+
 /-- A derived definition is not directly part of the module, but
 programmatically generated/derived from some of the module's
 definitions. Examples of this are `Invariants` and `Assumptions`. -/
 structure DerivedDefinition where
   /-- The name of this definition in the Lean environment. -/
   name : Name
-  /-- Parameters this definition needs. Not this is NOT `extraParams`,
-  but rather all the parameters that are needed for this definition. -/
-  allParams : Array Parameter
+  /-- The kind of this derived definition. -/
+  kind : DerivedDefinitionKind
+  /-- Extra parameters this definition needs. -/
+  extraParams : Array Parameter
   /-- The definitions that this derived definition depends on. -/
   derivedFrom : Std.HashSet Name
   /-- The syntax of the definition that was derived. -/
@@ -239,8 +249,15 @@ structure Module where
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition
 
   /-- Implementation detail. Whether the state (and background theory)
-  of this module has been defined as a Lean `structure` definition. -/
+  of this module has been defined as a Lean `structure` definition.
+  This is done explicitly by `#gen_state`, or implicitly when a
+  `procedure`/`action` or assertion is defined. -/
   protected _stateDefined : Bool := false
+
+  /-- Implementation detail. Whether the set of `procedures` and
+  `assertions` has been fixed. This is done explicitly when `#gen_spec`
+  is executed. Derived definitions can still be added after this. -/
+  protected _specFinalized : Bool := false
 
   /-- Assertions can be grouped into "sets", which are checked
   independently of each other. Sets are per-module. By default, all
