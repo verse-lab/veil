@@ -137,6 +137,10 @@ def assembledInvariantsName : Name := `Invariants
 invariant` clauses. -/
 def assembledInvariants : Ident := mkIdent assembledInvariantsName
 
+def assembledSafetiesName : Name := `Safeties
+/-- The conjunction of all `safety` clauses. -/
+def assembledSafeties : Ident := mkIdent assembledSafetiesName
+
 def labelTypeName : Name := `Label
 def labelType : Ident := mkIdent labelTypeName
 def labelCasesName : Name := Name.append labelTypeName `cases
@@ -264,7 +268,10 @@ def Module.actions (mod : Module) : Array ProcedureSpecification :=
 def Module.invariants (mod : Module) : Array StateAssertion :=
   mod.assertions.filter fun a => match a.kind with
   | .invariant | .safety | .trustedInvariant => true
-  | _ => false
+  | .assumption => false
+
+def Module.safeties (mod : Module) : Array StateAssertion :=
+  mod.assertions.filter (fun a => a.kind == .safety)
 
 def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent stateName) $(← mod.sortIdents)*)
@@ -471,11 +478,12 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
   return (stx, mod)
 
-private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (kind : DerivedDefinitionKind) (assembledName : Name) (specificBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Command × Module) := do
+private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (kind : DerivedDefinitionKind) (assembledName : Name) (specificBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (onlySafety : Bool := false) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared assembledName
-  let (assertions, assertionKind) := match kind with
-    | .assumptionLike => (mod.assumptions, StateAssertionKind.assumption)
-    | _ => (mod.invariants, StateAssertionKind.invariant)
+  let (assertions, assertionKind) ← match kind with
+    | .assumptionLike => pure (mod.assumptions, StateAssertionKind.assumption)
+    | .invariantLike => pure (if onlySafety then mod.safeties else mod.invariants, StateAssertionKind.invariant)
+    | _ => throwError s!"[Module.assembleAssertions] invalid kind: {repr kind}"
   let conjunctsSet := Std.HashSet.ofArray $ assertions.map (·.name)
   let (baseParams, extraParams) ← mod.combinedAssertionParamsMapFn (pure ·) assertionKind conjunctsSet
   let specificArgs ← bracketedBindersToTerms specificBinders
@@ -485,7 +493,8 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
     `(term| @$(mkIdent a.name):ident $args* $specificArgs*))
   let body ← repeatedAnd apps
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
-  let cmd ← `(command|def $(mkIdent assembledName) $[$(binders)]* $specificBinders* := $body)
+  let attrs ← #[`derivedInvSimp, `invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* := $body)
   let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
   let mod := { mod with _declarations := mod._declarations.insert assembledName, _derivedDefinitions := mod._derivedDefinitions.insert assembledName derivedDef }
   return (cmd, mod)
@@ -501,11 +510,17 @@ def Module.assembleAssumptions [Monad m] [MonadQuotation m] [MonadError m] (mod 
   let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory))]
   mod.assembleAssertions .assumptionLike assembledAssumptionsName binders
 
+def Module.assembleSafeties [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent `st) : $environmentState))]
+  mod.assembleAssertions .invariantLike assembledSafetiesName binders (onlySafety := true)
+
 private def Module.labelTypeStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term := do
   `(term|$labelType $(← mod.sortIdents)*)
 
 private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  mod.throwIfAlreadyDeclared labelTypeName
   let labelT ← mod.labelTypeStx
+  let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let ctors ← mod.actions.mapM (fun a => do
     let br ← Option.stxArrMapM a.params toBracketedBinderArray
     `(Command.ctor| | $(mkIdent a.name):ident $br* : $labelT ))
@@ -514,9 +529,12 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]*)
     else
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
+  let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, extraParams := #[], derivedFrom := actionNames, stx := labelDef }
+  let mod := { mod with _declarations := mod._declarations.insert labelTypeName, _derivedDefinitions := mod._derivedDefinitions.insert labelTypeName derivedDef }
   return (labelDef, mod)
 
 private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  mod.throwIfAlreadyDeclared labelCasesName
   let P := mkIdent `P
   let labelT ← mod.labelTypeStx
   let exs ← mod.actions.mapM (fun a => do
@@ -533,6 +551,8 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
       constructor
       { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> aesop }
       { aesop })
+  let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
+  let mod := { mod with _declarations := mod._declarations.insert labelCasesName, _derivedDefinitions := mod._derivedDefinitions.insert labelCasesName derivedDef }
   return (casesLemma, mod)
 
 def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Command × Module) := do
@@ -541,6 +561,7 @@ def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadError m] (mod : Modu
   return (#[labelDef, casesLemma], mod)
 
 def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Command × Module) := do
+  mod.throwIfAlreadyDeclared assembledNextActName
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let (baseParams, extraParams) ← mod.combinedProcedureParamsMapFn (pure ·) actionNames
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
@@ -553,6 +574,8 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let label := mkIdent `label
   let casesOn := mkIdent $ Name.append label.getId `casesOn
   let nextDef ← `(command|def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
+  let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
+  let mod := { mod with _declarations := mod._declarations.insert assembledNextActName, _derivedDefinitions := mod._derivedDefinitions.insert assembledNextActName derivedDef }
   return (nextDef, mod)
 
 end Veil

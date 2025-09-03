@@ -2,6 +2,7 @@ import Lean
 import Veil.Base
 import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Action.Syntax
+import Veil.Frontend.DSL.Action.Semantics.Theorems
 import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Assertions
 import Veil.Frontend.DSL.StateExtensions

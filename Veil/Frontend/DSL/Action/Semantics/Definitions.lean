@@ -123,8 +123,14 @@ abbrev VeilM.succeedsAndMeetsSpecification (act : VeilM m ρ σ α) (pre : SProp
 def VeilM.doesNotThrow (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
   VeilM.succeedsAndMeetsSpecification act pre ⊤
 
+def VeilM.doesNotThrowAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) : Prop :=
+  VeilM.succeedsAndMeetsSpecification act (fun th st => assu th ∧ pre th st) ⊤
+
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
   VeilM.succeedsAndMeetsSpecification act inv (fun _ => inv)
+
+def VeilM.succeedsAndPreservesInvariantsAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv : SProp ρ σ) : Prop :=
+  VeilM.succeedsAndMeetsSpecification act (fun th st => assu th ∧ inv th st) (fun _ => inv)
 
 /-- The weakest precondition for an action that, given a precondition,
 _IF_ it succeeds (doesn't throw an exception), then it meets the
@@ -134,6 +140,9 @@ abbrev VeilM.meetsSpecificationIfSuccessful (act : VeilM m ρ σ α) (pre : SPro
 
 def VeilM.preservesInvariantsIfSuccesful (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
   VeilM.meetsSpecificationIfSuccessful act inv (fun _ => inv)
+
+def VeilM.preservesInvariantsIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv : SProp ρ σ) : Prop :=
+  VeilM.meetsSpecificationIfSuccessful act (fun th st => assu th ∧ inv th st) (fun _ => inv)
 
 abbrev VeilM.choices (act : VeilM m ρ σ α) := ExtractNonDet WeakFindable act
 

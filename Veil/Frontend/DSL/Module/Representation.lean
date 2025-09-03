@@ -200,13 +200,19 @@ structure ModuleDependency where
 deriving Inhabited, BEq
 
 inductive DerivedDefinitionKind where
+  /-- This derived definition is like the `State` type, in terms of the
+  parameters it needs. -/
+  | stateLike
   /-- This derived definition is like an `assumption`, in terms of the
   parameters it needs. -/
   | assumptionLike
   /-- This derived definition is like an `invariant`, in terms of the
   parameters it needs. -/
   | invariantLike
-deriving Inhabited, BEq, Hashable
+  /-- This derived definition is like an `action`, in terms of the
+  parameters it needs. -/
+  | actionLike
+deriving Inhabited, BEq, Hashable, Repr
 
 /-- A derived definition is not directly part of the module, but
 programmatically generated/derived from some of the module's

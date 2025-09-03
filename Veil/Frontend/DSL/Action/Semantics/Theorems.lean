@@ -211,26 +211,6 @@ lemma VeilM.toTransitionDerived_complete (act : VeilM m ρ σ α) (chs : act.cho
   rw [← VeilM.toTransitionDerived_sound]
   apply VeilM.toTransition_complete act chs h
 
-lemma VeilM.meetsSpecificationIfSuccessful_with_assumptions (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv inv' : SProp ρ σ) :
-  act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ => inv') →
-  act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ rd st => assu rd ∧ inv' rd st) := by
-  unfold VeilM.meetsSpecificationIfSuccessful triple
-  intro h rd₀ st ; specialize h rd₀ st ; dsimp at h ⊢
-  intro h' ; specialize h h' ; rcases h' with ⟨h1, h2⟩
-  rw [← VeilM.wp_r_eq] at h ⊢
-  have hq : assu rd₀ = True := by simp_all
-  rw [hq] ; simp ; assumption
-
-lemma VeilM.terminates_preservesInvariants' (act : VeilM m ρ σ α)
-  (assu : ρ → Prop) (inv : SProp ρ σ) :
-  (∀ ex, act.succeedsWhenIgnoring (· ≠ ex) (fun rd st => assu rd ∧ inv rd st)) →
-  act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ => inv) →
-  act.succeedsAndMeetsSpecification (fun rd st => assu rd ∧ inv rd st)
-    (fun _ rd st => assu rd ∧ inv rd st) := by
-  intro h1 h2 ; apply VeilM.not_raises_imp_terminates at h1
-  apply VeilM.meetsSpecificationIfSuccessful_with_assumptions at h2
-  apply VeilM.terminates_preservesInvariants _ _ h1 h2
-
 lemma Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM m ρ σ α) (pre post : SProp ρ σ) :
   act.toTransition.meetsSpecificationIfSuccessful pre post = act.meetsSpecificationIfSuccessful pre (fun _ => post) := by
   simp [Transition.meetsSpecificationIfSuccessful, VeilM.meetsSpecificationIfSuccessful,
@@ -259,5 +239,42 @@ lemma Transition.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m
   apply Transition.meetsSpecificationIfSuccessful_eq
 
 end TransitionSemanticsTheorems
+
+section VCTheorems
+/-! # Theorems for relating VCs -/
+
+lemma VeilM.meetsSpecificationIfSuccessful_preserves_assumptions (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv inv' : SProp ρ σ) :
+  act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ => inv') ↔
+  act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ rd st => assu rd ∧ inv' rd st) := by
+  constructor <;> (
+    unfold VeilM.meetsSpecificationIfSuccessful triple;
+    intro h rd₀ st ; specialize h rd₀ st ; dsimp at h ⊢;
+    intro h' ; specialize h h' ; rcases h' with ⟨h1, h2⟩;
+    rw [← VeilM.wp_r_eq] at h ⊢;
+    have hq : assu rd₀ = True := by simp_all)
+  · rw [hq] ; simp ; assumption
+  · open PartialCorrectness DemonicChoice ExceptionAsSuccess in
+    apply wp_cons act (fun a x st => assu rd₀ ∧ inv' rd₀ st)
+    · intro _ _ _ ⟨hassu, hinv⟩; assumption
+    · assumption
+
+theorem VeilM.doesNotThrow_preservesInvariantsAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv : SProp ρ σ) :
+  act.doesNotThrowAssuming assu inv ->
+  act.preservesInvariantsIfSuccessfulAssuming assu inv ->
+  act.succeedsAndPreservesInvariantsAssuming assu inv := by
+  unfold VeilM.doesNotThrowAssuming VeilM.preservesInvariantsIfSuccessfulAssuming VeilM.succeedsAndPreservesInvariantsAssuming
+    VeilM.succeedsAndMeetsSpecification VeilM.meetsSpecificationIfSuccessful triple
+  intros h₁ h₂; apply le_trans
+  apply le_inf h₁ h₂; simp [VeilM.terminates_preservesInvariants_wp]
+
+lemma VeilM.succeeds_decompose' (act : VeilM m ρ σ α)
+  (assu : ρ → Prop) (inv : SProp ρ σ) :
+  (∀ ex, act.succeedsWhenIgnoring (· ≠ ex) (fun rd st => assu rd ∧ inv rd st)) →
+  act.preservesInvariantsIfSuccessfulAssuming assu inv →
+  act.succeedsAndPreservesInvariantsAssuming assu inv := by
+  intro hterm hpres; apply VeilM.not_raises_imp_terminates at hterm
+  apply VeilM.doesNotThrow_preservesInvariantsAssuming _ _ _ hterm hpres
+
+end VCTheorems
 
 end Veil
