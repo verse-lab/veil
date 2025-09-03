@@ -13,11 +13,13 @@ def Mode.expr : Mode → Expr := fun
   | Mode.internal => mkConst ``Mode.internal
   | Mode.external => mkConst ``Mode.external
 
-def toDoName (n : Name) := n ++ `do
+def toDoName (n : Name) := Name.append n `do
 
 def toActName (n : Name) : Mode → Name := fun
   | Mode.internal => n
-  | Mode.external => n ++ `ext
+  | Mode.external => Name.append n `ext
+
+def toExtName (n : Name) := toActName n Mode.external
 
 def toActIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toActName id.getId mode
 

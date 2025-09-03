@@ -110,6 +110,11 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand assumptionCmd
   let (invariantCmd, mod) ← mod.assembleInvariants
   elabVeilCommand invariantCmd
+  let (labelCmds, mod) ← mod.assembleLabel
+  for cmd in labelCmds do
+    elabVeilCommand cmd
+  let (nextCmd, mod) ← mod.assembleNext
+  elabVeilCommand nextCmd
   return { mod with _specFinalized := true }
 
 @[command_elab Veil.genState]

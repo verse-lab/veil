@@ -137,6 +137,14 @@ def assembledInvariantsName : Name := `Invariants
 invariant` clauses. -/
 def assembledInvariants : Ident := mkIdent assembledInvariantsName
 
+def labelTypeName : Name := `Label
+def labelType : Ident := mkIdent labelTypeName
+def labelCasesName : Name := Name.append labelTypeName `cases
+def labelCases: Ident := mkIdent labelCasesName
+
+def assembledNextActName : Name := `NextAct
+def assembledNextAct : Ident := mkIdent assembledNextActName
+
 def Parameter.environmentTheory [Monad m] [MonadQuotation m] : m Parameter :=
   return { kind := .backgroundTheory, name := environmentTheoryName, «type» := ← `(Type), userSyntax := .missing }
 
@@ -229,6 +237,11 @@ private def Module.combinedAssertionParamsMapFn [Monad m] [MonadError m] [MonadQ
   let extraParams := Array.flatten $ mod.assertions.filterMap (fun a => if forAssertions.contains a.name then .some a.extraParams else .none)
   return (← baseParams.mapM f, ← extraParams.mapM f)
 
+private def Module.combinedProcedureParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forProcedures : Std.HashSet Name := {}) : m (Array α × Array α) := do
+  let baseParams := mod.parameters
+  let extraParams := Array.flatten $ mod.procedures.filterMap (fun a => if forProcedures.contains a.name then .some a.extraParams else .none)
+  return (← baseParams.mapM f, ← extraParams.mapM f)
+
 def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
   mod.sortMapFn (·.binder)
 
@@ -243,6 +256,9 @@ def Module.assertionBinders [Monad m] [MonadError m] [MonadQuotation m] (mod : M
 
 def Module.assumptions (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .assumption)
+
+def Module.actions (mod : Module) : Array ProcedureSpecification :=
+  mod.procedures.filter (fun p => match p.info with | .action _ => true | _ => false)
 
 /-- All `invariant`s, `safety`, and `trusted invariant`s.-/
 def Module.invariants (mod : Module) : Array StateAssertion :=
@@ -448,7 +464,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
     | _ => withTheoryAndState term
   -- Record the `Decidable` instances that are needed for the assertion.
   let (insts, _) ← liftTermElabMWithBinders binders $ fun _ => getRequiredDecidableInstances term
-  let extraParams : Array Parameter := insts.map (fun (decT, _) => { kind := .definitionTypeclass base.name, name := Name.anonymous, «type» := decT, userSyntax := .missing })
+  let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionTypeclass base.name, name := Name.mkSimple s!"{base.name}_dec_{i}", «type» := decT, userSyntax := .missing })
   mod ← mod.registerAssertion { base with extraParams := extraParams }
   -- This includes the required `Decidable` instances
   let binders ← mod.assertionBinders base.name base.kind
@@ -484,5 +500,59 @@ def Module.assembleInvariants [Monad m] [MonadQuotation m] [MonadError m] (mod :
 def Module.assembleAssumptions [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
   let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory))]
   mod.assembleAssertions .assumptionLike assembledAssumptionsName binders
+
+private def Module.labelTypeStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term := do
+  `(term|$labelType $(← mod.sortIdents)*)
+
+private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  let labelT ← mod.labelTypeStx
+  let ctors ← mod.actions.mapM (fun a => do
+    let br ← Option.stxArrMapM a.params toBracketedBinderArray
+    `(Command.ctor| | $(mkIdent a.name):ident $br* : $labelT ))
+  let labelDef ←
+    if ctors.isEmpty then
+      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]*)
+    else
+      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
+  return (labelDef, mod)
+
+private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  let P := mkIdent `P
+  let labelT ← mod.labelTypeStx
+  let exs ← mod.actions.mapM (fun a => do
+    let constructor := Lean.mkIdent $ labelTypeName ++ a.name
+    match a.params with
+    | some br => `(term| (∃ $br, $P ($constructor $(← explicitBindersToTerms br)*)))
+    | none => `(term| $P ($constructor)))
+  let label := mkIdent `label
+  let casesLemma ← `(command|set_option linter.unusedSectionVars false in
+    theorem $labelCases ($P : $labelT -> Prop) :
+      (∃ $label:ident : $labelT, $P $label) ↔
+      $(← repeatedOr exs) :=
+    by
+      constructor
+      { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> aesop }
+      { aesop })
+  return (casesLemma, mod)
+
+def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Command × Module) := do
+  let (labelDef, mod) ← mod.assembleLabelDef
+  let (casesLemma, mod) ← mod.assembleLabelCasesLemma
+  return (#[labelDef, casesLemma], mod)
+
+def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Command × Module) := do
+  let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
+  let (baseParams, extraParams) ← mod.combinedProcedureParamsMapFn (pure ·) actionNames
+  let binders ← (baseParams ++ extraParams).mapM (·.binder)
+  let acts ← mod.actions.mapM (fun s => do
+    let name := Lean.mkIdent $ toExtName s.name
+    let args ← mod.actionParamsMapFn (·.arg) s.name
+    `(@$name $args*))
+  let labelT ← mod.labelTypeStx
+  let nextT ← `(term|$labelT → $(mkIdent ``VeilM) $(mkIdent ``Mode.external) $environmentTheory $environmentState $(mkIdent ``Unit))
+  let label := mkIdent `label
+  let casesOn := mkIdent $ Name.append label.getId `casesOn
+  let nextDef ← `(command|def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
+  return (nextDef, mod)
 
 end Veil

@@ -39,13 +39,13 @@ def elabProcedureDoNotation (vs : Array Expr) (act : Name) (br : Option (TSyntax
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
     let e ← Meta.mkLambdaFVarsImplicit (#[mode] ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
-    return (name, ← mvars.mapM (mvarToParam originalName), e)
+    return (name, ← mvars.mapIdxM (fun i mvar => mvarToParam originalName mvar i), e)
   catch ex =>
     throwError "Error in action {name}: {← ex.toMessageData.toString}"
 where
-  mvarToParam (inAction : Name) (mvar : Expr) : TermElabM Parameter := do
+  mvarToParam (inAction : Name) (mvar : Expr) (i : Nat) : TermElabM Parameter := do
     let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar)
-    return { kind := .definitionTypeclass inAction, name := Name.anonymous, «type» := mvarTypeStx, userSyntax := .missing }
+    return { kind := .definitionTypeclass inAction, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
 
 def elabProcedureInMode (act : Name) (mode : Mode) : TermElabM (Name × Expr) := do
   let originalName := act
@@ -70,7 +70,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   let mut mod := mod
   -- Obtain `extraParams` so we can register the action
   let (nmDo, extraParams, e) ← liftTermElabMWithBinders (← mod.actionBinders pi.name) $ fun vs => elabProcedureDoNotation vs pi.name br l
-  let ps := ProcedureSpecification.mk (ProcedureInfo.action pi.name) br extraParams spec l stx
+  let ps := ProcedureSpecification.mk pi br extraParams spec l stx
   mod ← mod.registerProcedureSpecification ps
   -- Elaborate the definition in the Lean environment
   liftTermElabM $ do

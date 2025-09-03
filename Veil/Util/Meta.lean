@@ -262,6 +262,15 @@ def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax 
     let id ← binderIdentToIdent bi
     `(Lean.Parser.Term.funBinder| ($id : $tp:term))
 
+/-- Convert existential binders into definition binders. -/
+def toBracketedBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
+  explicitBindersFlatMapM stx fun bi tp => do
+    let id ← binderIdentToIdent bi
+    `(bracketedBinder| ($id : $tp:term))
+
+def explicitBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (Array Term) := do
+  toBracketedBinderArray stx >>= bracketedBindersToTerms
+
 /-- Convert existential binders (`explicitBinders`) into identifiers. -/
 def toIdentArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) := do
   explicitBindersFlatMapM stx fun bi _tp => do `(ident| $(← binderIdentToIdent bi))
