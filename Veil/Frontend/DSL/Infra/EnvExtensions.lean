@@ -1,14 +1,17 @@
 import Lean
 import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Assertions
+import Veil.Frontend.DSL.Infra.Assertions
+import Veil.Frontend.DSL.Infra.Metadata
+import Veil.Core.Tools.Verifier.VC
 -- Not needed for compilation, but re-exported
-import Veil.Util.StateExtensions
+import Veil.Util.EnvExtensions
 open Lean
 
 namespace Veil
 
 structure LocalEnvironment where
   currentModule : Option Module
+  vcManager : VCManager VCMetadata
 deriving Inhabited
 
 structure GlobalEnvironment where
@@ -28,6 +31,9 @@ initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment
 def localEnv.modifyModule [Monad m] [MonadEnv m] (f : Option Module → Module) : m Unit :=
   localEnv.modify (fun s => { s with currentModule := f s.currentModule })
 
+def localEnv.modifyVCManager [Monad m] [MonadEnv m] (f : VCManager VCMetadata → VCManager VCMetadata) : m Unit :=
+  localEnv.modify (fun s => { s with vcManager := f s.vcManager })
+
 initialize globalEnv : SimpleScopedEnvExtension GlobalEnvironment GlobalEnvironment ←
   registerSimpleScopedEnvExtension {
     initial := default
@@ -39,6 +45,8 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
     return mod
   else
     throwError errMsg
+
+def getVCManager [Monad m] [MonadEnv m] : m (VCManager VCMetadata) := return (← localEnv.get).vcManager
 
 def mkNewAssertion [Monad m] [MonadEnv m] [MonadError m] (proc : Name) (stx : Syntax) : m AssertionId := do
   let mod ← getCurrentModule (errMsg := "Cannot have a Veil assertion outside of a module")

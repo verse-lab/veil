@@ -1,6 +1,6 @@
 import Veil.Frontend.DSL.Action.Semantics.Definitions
-import Veil.Frontend.DSL.State
-import Veil.Frontend.DSL.Simp
+import Veil.Frontend.DSL.Infra.State
+import Veil.Frontend.DSL.Infra.Simp
 
 namespace Veil
 open PartialCorrectness DemonicChoice

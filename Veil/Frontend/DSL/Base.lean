@@ -4,10 +4,10 @@ import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Action.Syntax
 import Veil.Frontend.DSL.Action.Semantics.Theorems
 import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Assertions
-import Veil.Frontend.DSL.StateExtensions
 import Veil.Frontend.DSL.Module.Elaborators
-import Veil.Frontend.DSL.Simp
+import Veil.Frontend.DSL.Infra.Assertions
+import Veil.Frontend.DSL.Infra.EnvExtensions
+import Veil.Frontend.DSL.Infra.Simp
 
 /-! # Veil DSL
 

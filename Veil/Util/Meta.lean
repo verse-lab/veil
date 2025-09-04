@@ -376,4 +376,18 @@ def repeatedAnd [Monad m] [MonadError m] [MonadQuotation m] (operands : Array (T
 def repeatedOr  [Monad m] [MonadError m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
   repeatedOp `Or operands (default := ← `(term|$(mkIdent `False)))
 
+@[inline] macro "exists?" br:explicitBinders ? "," t:term : term =>
+  match br with
+  | some br => `(exists $br, $t)
+  | none => `($t)
+
+@[inline] macro "forall?" br:bracketedBinder* "," t:term : term =>
+  if br.size > 0 then
+    `(∀ $br*, $t)
+  else
+    `($t)
+
+def expandTermMacro [Monad m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m] (stx : Term) : m Term := do
+  TSyntax.mk <$> (Elab.liftMacroM <| expandMacros stx)
+
 end Veil

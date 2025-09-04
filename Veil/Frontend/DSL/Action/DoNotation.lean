@@ -3,7 +3,7 @@ import Lean.Parser
 import Veil.Frontend.DSL.Action.Syntax
 -- TODO FIXME: factor out Velvet syntax from Loom core
 import Veil.Frontend.DSL.Action.Semantics.WP
-import Veil.Frontend.DSL.StateExtensions
+import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.TupleUpdate
 

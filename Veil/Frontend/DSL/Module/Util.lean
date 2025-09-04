@@ -1,9 +1,9 @@
 import Lean
 import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.StateExtensions
+import Veil.Frontend.DSL.Infra.EnvExtensions
+import Veil.Frontend.DSL.Infra.State
 import Veil.Frontend.DSL.Util
-import Veil.Frontend.DSL.State
 import Veil.Util.Meta
 
 open Lean Parser Elab Command Term
@@ -106,6 +106,9 @@ def ProcedureInfo.name : ProcedureInfo → Name
 
 def ProcedureSpecification.name (a : ProcedureSpecification) : Name := a.info.name
 
+def ProcedureSpecification.binders [Monad m] [MonadQuotation m] [MonadError m] (a : ProcedureSpecification) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
+  Option.stxArrMapM a.params toBracketedBinderArray
+
 /-- Name of the generic/environment background theory (i.e. `Reader` monad state)
 variable. -/
 def environmentTheoryName : Name := `ρ
@@ -202,6 +205,19 @@ def Parameter.arg [Monad m] [MonadQuotation m] (p : Parameter) : m Term := do
       `(term| _)
   | _ => `(term| $(mkIdent p.name))
 
+/-- Like `Parameter.arg`, but uses `_` for `definitionTypeclass`. This
+is used to generate arguments in contexts in which the `Decidable`
+typeclasses should be inferred, rather than provided explicitly. -/
+def Parameter.argInferred [Monad m] [MonadQuotation m] [MonadError m] (p : Parameter) : m Term := do
+  match p.kind with
+  | .moduleTypeclass _ =>
+    if p.name != Name.anonymous then
+      `(term| $(mkIdent p.name))
+    else
+      `(term| _)
+  | .definitionTypeclass _ => `(term| _)
+  | _ => `(term| $(mkIdent p.name))
+
 def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
 
 def Module.theoryParameters (mod : Module) : Array Parameter :=
@@ -209,7 +225,7 @@ def Module.theoryParameters (mod : Module) : Array Parameter :=
   | .environmentState | .moduleTypeclass .environmentState => .none
   | _ => .some p
 
-def Module.sortMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
+def Module.sortFilterMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
   mod.parameters.filterMapM fun p => do match p.kind with
   | .uninterpretedSort => f p
   | _ => pure .none
@@ -220,7 +236,7 @@ private def paramsFilterMapFn [Monad m] [MonadQuotation m] (allParams : Array Pa
     | .definitionTypeclass defName => if forDefn == .some defName then f p else pure .none
     | _ => f p
 
-private def Module.actionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
+protected def Module.actionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAct : Option Name := .none) : m (Array α) := do
   let extraParams := mod.procedures.find? (fun p => forAct == .some p.name) |>.map (·.extraParams) |>.getD #[]
   let allParams := mod.parameters ++ extraParams
   paramsFilterMapFn allParams f forAct
@@ -246,11 +262,24 @@ private def Module.combinedProcedureParamsMapFn [Monad m] [MonadError m] [MonadQ
   let extraParams := Array.flatten $ mod.procedures.filterMap (fun a => if forProcedures.contains a.name then .some a.extraParams else .none)
   return (← baseParams.mapM f, ← extraParams.mapM f)
 
+def Module.sortParameters [Monad m] [MonadQuotation m] (mod : Module) : m (Array Parameter) := do
+  mod.sortFilterMapFn (pure ·)
+
+def Module.derivedDefinitionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forDerivedDefinition : Name) : m (Array α) := do
+  let .some dd := mod._derivedDefinitions[forDerivedDefinition]?
+    | throwError "[Module.derivedDefinitionParamsMapFn]: derived definition {forDerivedDefinition} not found"
+  let baseParams ← match dd.kind with
+  | .stateLike => mod.sortParameters
+  | .assumptionLike => pure mod.theoryParameters
+  | .invariantLike | .actionLike => pure mod.parameters
+  let allParams := baseParams ++ dd.extraParams
+  allParams.mapM f
+
 def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
-  mod.sortMapFn (·.binder)
+  mod.sortFilterMapFn (·.binder)
 
 def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
-  mod.sortMapFn (·.ident)
+  mod.sortFilterMapFn (·.ident)
 
 def Module.actionBinders [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forAct : Option Name := .none) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.actionParamsMapFn (·.binder) forAct
@@ -526,8 +555,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
   let labelT ← mod.labelTypeStx
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let ctors ← mod.actions.mapM (fun a => do
-    let br ← Option.stxArrMapM a.params toBracketedBinderArray
-    `(Command.ctor| | $(mkIdent a.name):ident $br* : $labelT ))
+    `(Command.ctor| | $(mkIdent a.name):ident $(← a.binders)* : $labelT ))
   let labelDef ←
     if ctors.isEmpty then
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]*)

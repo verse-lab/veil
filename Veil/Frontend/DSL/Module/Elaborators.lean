@@ -1,9 +1,10 @@
 import Lean
 import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.StateExtensions
+import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.Elaborators
-import Veil.Frontend.DSL.State
+import Veil.Frontend.DSL.Infra.State
+import Veil.Frontend.DSL.Module.VCGen
 
 open Lean Parser Elab Command
 
@@ -117,6 +118,8 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
     elabVeilCommand cmd
   let (nextCmd, mod) ← mod.assembleNext
   elabVeilCommand nextCmd
+  let vcManager ← mod.generateVCs
+  localEnv.modifyVCManager (fun _ => vcManager)
   return { mod with _specFinalized := true }
 
 @[command_elab Veil.genState]
