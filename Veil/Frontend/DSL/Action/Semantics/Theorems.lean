@@ -275,6 +275,25 @@ lemma VeilM.succeeds_decompose' (act : VeilM m ρ σ α)
   intro hterm hpres; apply VeilM.not_raises_imp_terminates at hterm
   apply VeilM.doesNotThrow_preservesInvariantsAssuming _ _ _ hterm hpres
 
+open PartialCorrectness DemonicChoice ExceptionAsSuccess in
+theorem triple_weaken_postcondition (act : VeilM m ρ σ α) (pre post post' : SProp ρ σ) :
+  triple pre act (fun _ => post) →
+  post ≤ post' →
+  triple pre act (fun _ => post') := by
+  intro htriple hpost
+  apply triple_cons act (le_refl pre) (fun _ => hpost) htriple
+
+open PartialCorrectness DemonicChoice ExceptionAsSuccess in
+
+theorem triple_strengthen_postcondition (act : VeilM m ρ σ α) (pre post post' : SProp ρ σ) :
+  triple pre act (fun _ => post) →
+  triple pre act (fun _ => post') →
+  triple pre act (fun _ th st => post th st ∧ post' th st) := by
+  intro htriple₁ htriple₂ th st hpre
+  specialize (htriple₁ th st hpre); specialize (htriple₂ th st hpre)
+  -- apply wp_and ??
+  sorry
+
 end VCTheorems
 
 end Veil

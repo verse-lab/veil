@@ -18,7 +18,21 @@ register_simp_attr invSimp
 or `.assumptionLike`, to unfold them. -/
 register_simp_attr derivedInvSimp
 
+/-- Attribute added to Veil actions, to unfold them. -/
+register_simp_attr actSimp
+
 /-- Attribute added to `DerivedDefinition`s that are `.actionLike`, to unfold them. -/
 register_simp_attr derivedActSimp
+
+/-- Attribute added to theorems about invariants. -/
+register_simp_attr invProof
+
+/-- To enable `assumption`s to be used as predicates. -/
+instance funOneArgBoolToProp : Coe (α → Bool) (α → Prop) where
+  coe f a := f a = true
+
+/-- To enable `invariant`s to be used as predicates. -/
+instance funTwoArgsBoolToProp : Coe (α → β → Bool) (α → β → Prop) where
+  coe f a b := f a b = true
 
 end Veil

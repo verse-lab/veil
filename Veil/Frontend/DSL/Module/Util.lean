@@ -422,12 +422,12 @@ def withTheory (t : Term) : MetaM Term := do
   let mut mod ← getCurrentModule
   let theoryName := mod.name ++ theoryName
   let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
-  let (rd, motive, Bool) := (mkIdent `rd, mkIdent `motive, mkIdent ``Bool)
-  `(term|(fun ($rd : $environmentTheory) =>
+  let (th, motive, Bool) := (mkIdent `th, mkIdent `motive, mkIdent ``Bool)
+  `(term|(fun ($th : $environmentTheory) =>
     @$(casesOnTheory)
     $(← mod.sortIdents)*
     ($motive := fun _ => $Bool)
-    ($(mkIdent ``readFrom) $rd)
+    ($(mkIdent ``readFrom) $th)
     (fun $[$(← getFieldIdentsForStruct theoryName)]* => ($(mkIdent ``decide) $ $t : $Bool))))
 
 /-- This is used wherever we want to define a predicate over the
@@ -440,11 +440,11 @@ def withTheoryAndState (t : Term) : MetaM Term := do
   let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
   let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
   let casesOnState ← delabVeilExpr $ mkConst $ (stateName ++ `casesOn)
-  let (rd, st, motive, Bool) := (mkIdent `rd, mkIdent `st, mkIdent `motive, mkIdent ``Bool)
-  `(term|(fun ($rd : $environmentTheory) ($st : $environmentState) =>
+  let (th, st, motive, Bool) := (mkIdent `th, mkIdent `st, mkIdent `motive, mkIdent ``Bool)
+  `(term|(fun ($th : $environmentTheory) ($st : $environmentState) =>
     @$(casesOnTheory) $(← mod.sortIdents)*
     ($motive := fun _ => $Bool)
-    ($(mkIdent ``readFrom) $rd) <|
+    ($(mkIdent ``readFrom) $th) <|
     (fun $[$(← getFieldIdentsForStruct theoryName)]* =>
       @$(casesOnState) $(← mod.sortIdents)*
       ($motive := fun _ => $Bool)
@@ -493,8 +493,12 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
     `(term| @$(mkIdent a.name):ident $args* $specificArgs*))
   let body ← repeatedAnd apps
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
-  let attrs ← #[`derivedInvSimp, `invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* := $body)
+  -- The `reducible` is needed such that we can apply lemmas like
+  -- `triple_strengthen_postcondition` without unfolding the definition of
+  -- `Invariants`. Note that for this to work, the definition must return
+  -- `Prop` rather than `Bool`. TODO: a Bool-specific weakening?
+  let attrs ← #[`derivedInvSimp, `invSimp, `reducible].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* : Prop := $body)
   let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
   let mod := { mod with _declarations := mod._declarations.insert assembledName, _derivedDefinitions := mod._derivedDefinitions.insert assembledName derivedDef }
   return (cmd, mod)

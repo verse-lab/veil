@@ -1,6 +1,6 @@
 import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Frontend.DSL.State
-import Veil.Frontend.DSL.SimpAttrs
+import Veil.Frontend.DSL.Simp
 
 namespace Veil
 open PartialCorrectness DemonicChoice
@@ -18,6 +18,7 @@ def VeilM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
 /-- We require the predicate to be `Decidable`, even though `assume`
 does not, in order to collect the appropriate instances needed for
 execution. -/
+@[reducible]
 def VeilM.assume (p : Prop) [Decidable p] : VeilM m ρ σ PUnit := do
   MonadNonDet.assume p
 

@@ -7,7 +7,7 @@ import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Assertions
 import Veil.Frontend.DSL.StateExtensions
 import Veil.Frontend.DSL.Module.Elaborators
-import Veil.Frontend.DSL.SimpAttrs
+import Veil.Frontend.DSL.Simp
 
 /-! # Veil DSL
 

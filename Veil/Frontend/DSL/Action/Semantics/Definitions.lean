@@ -116,19 +116,24 @@ section WeakestPreconditionsSemantics
 /-- The weakest precondition for an action that, given a precondition,
 always succeeds (doesn't throw an exception) and meets the
 post-condition. -/
-abbrev VeilM.succeedsAndMeetsSpecification (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
+@[reducible]
+def VeilM.succeedsAndMeetsSpecification (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
   [DemonFail| triple pre act post]
 
 /-- There is no code path that throws an exception. -/
+@[reducible]
 def VeilM.doesNotThrow (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
   VeilM.succeedsAndMeetsSpecification act pre ⊤
 
+@[reducible]
 def VeilM.doesNotThrowAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) : Prop :=
   VeilM.succeedsAndMeetsSpecification act (fun th st => assu th ∧ pre th st) ⊤
 
+@[reducible]
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
   VeilM.succeedsAndMeetsSpecification act inv (fun _ => inv)
 
+@[reducible]
 def VeilM.succeedsAndPreservesInvariantsAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv : SProp ρ σ) : Prop :=
   VeilM.succeedsAndMeetsSpecification act (fun th st => assu th ∧ inv th st) (fun _ => inv)
 
@@ -138,9 +143,15 @@ post-condition. -/
 abbrev VeilM.meetsSpecificationIfSuccessful (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
   [DemonSucc| triple pre act post]
 
+@[reducible]
 def VeilM.preservesInvariantsIfSuccesful (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
   VeilM.meetsSpecificationIfSuccessful act inv (fun _ => inv)
 
+@[reducible]
+def VeilM.meetsSpecificationIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre post : SProp ρ σ) : Prop :=
+  VeilM.meetsSpecificationIfSuccessful act (fun th st => assu th ∧ pre th st) (fun _ => post)
+
+@[reducible]
 def VeilM.preservesInvariantsIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv : SProp ρ σ) : Prop :=
   VeilM.meetsSpecificationIfSuccessful act (fun th st => assu th ∧ inv th st) (fun _ => inv)
 
