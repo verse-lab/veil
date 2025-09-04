@@ -61,7 +61,7 @@ def elabProcedureInMode (act : Name) (mode : Mode) : TermElabM (Name × Expr) :=
 
 def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module) (ps : ProcedureSpecification) : m Module := do
   mod.throwIfAlreadyDeclared ps.name
-  return { mod with procedures := mod.procedures.push ps, _declarations := mod._declarations.insert ps.name }
+  return { mod with procedures := mod.procedures.push ps, _declarations := mod._declarations.insert ps.name (.procedure ps.info) }
 
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),

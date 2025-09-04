@@ -10,19 +10,25 @@ namespace Veil
 
 private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (act : ProcedureSpecification) : m (VCData VCMetadata) := do
+  let dependsOn : Std.HashSet Name := {act.name, assembledAssumptionsName, assembledInvariantsName}
+  let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) .theoremLike dependsOn
   let actBinders ← act.binders
   let actArgs ← bracketedBindersToTerms actBinders
   return {
     name := Name.mkSimple s!"{act.name}_doesNotThrow",
-    params := ← mod.parameters.mapM (·.binder),
+    params := ← (thmBaseParams ++ thmExtraParams).mapM (·.binder),
     statement := ← expandTermMacro $ ← `(term|
-      forall? $(← act.binders)*,
+      forall? $actBinders*,
         $(mkIdent ``VeilM.doesNotThrowAssuming)
-          (@$(mkIdent act.name) $(← mod.actionParamsMapFn (·.argInferred) act.name)* $actArgs*)
-          (@$assembledAssumptions $(← mod.derivedDefinitionParamsMapFn (·.argInferred) assembledAssumptionsName)*)
-          (@$assembledInvariants $(← mod.derivedDefinitionParamsMapFn (·.argInferred) assembledInvariantsName)*)
+          (@$(mkIdent act.name) $(← mod.actionParamsMapFn (·.arg) act.name)* $actArgs*)
+          (@$assembledAssumptions $(← mod.derivedDefinitionParamsMapFn (·.arg) assembledAssumptionsName)*)
+          (@$assembledInvariants $(← mod.derivedDefinitionParamsMapFn (·.arg) assembledInvariantsName)*)
     ),
-    meta := default
+    meta := {
+      baseParams := thmBaseParams,
+      extraParams := thmExtraParams,
+      stmtDerivedFrom := dependsOn
+    }
   }
 
 def Module.generateVCs [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m] (mod : Module) : m (VCManager VCMetadata) := do

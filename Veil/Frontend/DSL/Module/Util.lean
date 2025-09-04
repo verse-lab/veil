@@ -167,7 +167,7 @@ def Module.isDeclared (mod : Module) (name : Name) : Bool :=
 
 def Module.throwIfAlreadyDeclared [Monad m] [MonadError m] (mod : Module) (name : Name) : m Unit := do
   if mod.isDeclared name then
-    throwError s!"{name} is already declared in module {mod.name}. Cannot redeclare it!"
+    throwError s!"{name} is already declared (as a {repr mod._declarations[name]!}) in module {mod.name}. Cannot redeclare it!"
 
 /-- Is the state of this module defined (in the sense that it can no
 longer be changed, since some definitions already depend on it)? -/
@@ -203,19 +203,6 @@ def Parameter.arg [Monad m] [MonadQuotation m] (p : Parameter) : m Term := do
       `(term| $(mkIdent p.name))
     else
       `(term| _)
-  | _ => `(term| $(mkIdent p.name))
-
-/-- Like `Parameter.arg`, but uses `_` for `definitionTypeclass`. This
-is used to generate arguments in contexts in which the `Decidable`
-typeclasses should be inferred, rather than provided explicitly. -/
-def Parameter.argInferred [Monad m] [MonadQuotation m] [MonadError m] (p : Parameter) : m Term := do
-  match p.kind with
-  | .moduleTypeclass _ =>
-    if p.name != Name.anonymous then
-      `(term| $(mkIdent p.name))
-    else
-      `(term| _)
-  | .definitionTypeclass _ => `(term| _)
   | _ => `(term| $(mkIdent p.name))
 
 def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
@@ -265,13 +252,37 @@ private def Module.combinedProcedureParamsMapFn [Monad m] [MonadError m] [MonadQ
 def Module.sortParameters [Monad m] [MonadQuotation m] (mod : Module) : m (Array Parameter) := do
   mod.sortFilterMapFn (pure ·)
 
+private def Module.derivedDefinitionBaseParams [Monad m] [MonadQuotation m] (mod : Module) (k : DerivedDefinitionKind) : m (Array Parameter) := do
+  match k with
+  | .stateLike => mod.sortParameters
+  | .assumptionLike => pure mod.theoryParameters
+  | .invariantLike | .actionLike | .theoremLike => pure mod.parameters
+
+/-- FIXME: this is `O(n^2)`-ish, so it might become a bottleneck. The
+solution is to also store an index into the appropriate array in
+`_declarations`. -/
+def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (k : DerivedDefinitionKind) (derivedFrom : Std.HashSet Name := {}) : m (Array α × Array α) := do
+  let baseParams ← mod.derivedDefinitionBaseParams k
+  let extraParams := Array.flatten $ ← (derivedFrom.toArray).filterMapM (fun dec => do
+    let .some dk := mod._declarations[dec]?
+      | throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} not found"
+    let extraParams ← (match dk with
+    -- TODO: replace all of these with a `O(1)` lookup
+    | .stateAssertion _ => return mod.assertions.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
+    | .procedure _ => return mod.procedures.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
+    | .derivedDefinition _ => return mod._derivedDefinitions.valuesArray.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
+    | _ => throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} (included in derivedFrom) has unsupported kind {repr dk}")
+    pure $ Array.flatten extraParams
+  )
+  return (← baseParams.mapM f, ← extraParams.mapM f)
+
+/-- For an **existing** derived definition, return the parameters it
+needs. Use `mkDerivedDefinitionsParamsMapFn` if the derived definition
+is not yet in the module. -/
 def Module.derivedDefinitionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forDerivedDefinition : Name) : m (Array α) := do
   let .some dd := mod._derivedDefinitions[forDerivedDefinition]?
     | throwError "[Module.derivedDefinitionParamsMapFn]: derived definition {forDerivedDefinition} not found"
-  let baseParams ← match dd.kind with
-  | .stateLike => mod.sortParameters
-  | .assumptionLike => pure mod.theoryParameters
-  | .invariantLike | .actionLike => pure mod.parameters
+  let baseParams ← mod.derivedDefinitionBaseParams dd.kind
   let allParams := baseParams ++ dd.extraParams
   allParams.mapM f
 
@@ -318,7 +329,8 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] 
   let dec_eq : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
   let inhabited : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
   let params := #[param, dec_eq, inhabited]
-  return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insert name }
+  let newDecls := #[(name, NameKind.moduleParameter)] ++ params.map (fun p => (p.name, NameKind.moduleParameter))
+  return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insertMany newDecls }
 
 def isValidStateComponentType (kind : StateComponentKind) (tp : Expr) : CommandElabM Bool := do
   let (returnsProp, returnsBool) ← liftTermElabM $ Meta.forallTelescope tp (fun _ b => return (b.isProp, b.isBool))
@@ -349,7 +361,7 @@ def Module.declareStateComponent (mod : Module) (sc : StateComponent) : CommandE
   | _ => throwErrorAt sc.userSyntax "Unsupported syntax for state component"
   if !(← isValidStateComponentType sc.kind tp) then
     failureMsg sig sc
-  let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name }
+  let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name (.stateComponent sc.mutability sc.kind) }
   return mod
 where
   failureMsg (_sig : TSyntax `Lean.Parser.Command.structSimpleBinder) (comp : StateComponent) : CommandElabM Unit := do
@@ -403,16 +415,18 @@ private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError 
   structureDefinitionStx theoryName (← mod.sortBinders) mod.immutableComponents (deriveInstances := false)
 
 def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
+  mod.throwIfAlreadyDeclared environmentSubStateName
   let stx ← mod.stateDefinitionStx
   let stateStx ← mod.stateStx
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate }, stx)
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stx)
 
 def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
+  mod.throwIfAlreadyDeclared environmentSubTheoryName
   let stx ← mod.theoryDefinitionStx
   let theoryStx ← mod.theoryStx
   let subtheory : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push subtheory }, stx)
+  return ({ mod with parameters := mod.parameters.push subtheory, _declarations := mod._declarations.insert environmentSubTheoryName .moduleParameter }, stx)
 
 def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
   match stx with
@@ -437,7 +451,7 @@ where
 
 private def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
   mod.throwIfAlreadyDeclared sc.name
-  let mut mod := { mod with assertions := mod.assertions.push sc, _declarations := mod._declarations.insert sc.name }
+  let mut mod := { mod with assertions := mod.assertions.push sc, _declarations := mod._declarations.insert sc.name (.stateAssertion sc.kind) }
   for set in sc.inSets do
     let currentAssertions := mod._assertionSets.getD set Std.HashSet.emptyWithCapacity
     mod := { mod with _assertionSets := mod._assertionSets.insert set (currentAssertions.insert sc.name) }
@@ -529,7 +543,7 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
   let attrs ← #[`derivedInvSimp, `invSimp, `reducible].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* : Prop := $body)
   let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
-  let mod := { mod with _declarations := mod._declarations.insert assembledName, _derivedDefinitions := mod._derivedDefinitions.insert assembledName derivedDef }
+  let mod := { mod with _declarations := mod._declarations.insert assembledName (.derivedDefinition kind), _derivedDefinitions := mod._derivedDefinitions.insert assembledName derivedDef }
   return (cmd, mod)
 
 /-- Syntax for the conjunction of all `invariant`, `safety`, and
@@ -562,7 +576,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
     else
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
   let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, extraParams := #[], derivedFrom := actionNames, stx := labelDef }
-  let mod := { mod with _declarations := mod._declarations.insert labelTypeName, _derivedDefinitions := mod._derivedDefinitions.insert labelTypeName derivedDef }
+  let mod := { mod with _declarations := mod._declarations.insert labelTypeName (.derivedDefinition derivedDef.kind), _derivedDefinitions := mod._derivedDefinitions.insert labelTypeName derivedDef }
   return (labelDef, mod)
 
 private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
@@ -584,7 +598,7 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
       { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> aesop }
       { aesop })
   let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
-  let mod := { mod with _declarations := mod._declarations.insert labelCasesName, _derivedDefinitions := mod._derivedDefinitions.insert labelCasesName derivedDef }
+  let mod := { mod with _declarations := mod._declarations.insert labelCasesName (.derivedDefinition derivedDef.kind), _derivedDefinitions := mod._derivedDefinitions.insert labelCasesName derivedDef }
   return (casesLemma, mod)
 
 def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Command × Module) := do
@@ -607,7 +621,7 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let casesOn := mkIdent $ Name.append label.getId `casesOn
   let nextDef ← `(command|def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
   let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
-  let mod := { mod with _declarations := mod._declarations.insert assembledNextActName, _derivedDefinitions := mod._derivedDefinitions.insert assembledNextActName derivedDef }
+  let mod := { mod with _declarations := mod._declarations.insert assembledNextActName (.derivedDefinition derivedDef.kind), _derivedDefinitions := mod._derivedDefinitions.insert assembledNextActName derivedDef }
   return (nextDef, mod)
 
 end Veil

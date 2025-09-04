@@ -19,7 +19,7 @@ inductive Mutability where
   /-- Mutability is inherited from the child module. This is only
   allowed for `module` state components. -/
   | inherit
-deriving Inhabited, BEq
+deriving Inhabited, BEq, Hashable, Repr
 
 inductive StateComponentKind where
   /-- A first-order constant -/
@@ -34,7 +34,7 @@ inductive StateComponentKind where
   multiple children of the same `Module` type exist, only one instance
   of the background theory will be lifted. -/
   | module
-deriving Inhabited, BEq
+deriving Inhabited, BEq, Hashable, Repr
 
 /-- How is the type (i.e. Lean type) of the state component given? -/
 inductive StateComponentType where
@@ -114,7 +114,7 @@ inductive StateAssertionKind
   it can refer to `mutable` state. It differs from an `invariant` in
   that is only assumed, not checked. -/
   | trustedInvariant
-deriving BEq, Hashable
+deriving BEq, Hashable, Repr
 
 instance : Inhabited StateAssertionKind where
   default := StateAssertionKind.invariant
@@ -159,7 +159,7 @@ inductive ProcedureInfo
   | action (name : Name)
   /-- Not callable by the environment -/
   | procedure (name : Name)
-deriving Inhabited, BEq
+deriving Inhabited, BEq, Hashable, Repr
 
 abbrev ActionSyntax := TSyntax ``Term.doSeq
 
@@ -212,6 +212,9 @@ inductive DerivedDefinitionKind where
   /-- This derived definition is like an `action`, in terms of the
   parameters it needs. -/
   | actionLike
+  /-- This derived definition is like a `theorem` in terms of the
+  parameters it needs. -/
+  | theoremLike
 deriving Inhabited, BEq, Hashable, Repr
 
 /-- A derived definition is not directly part of the module, but
@@ -229,6 +232,15 @@ structure DerivedDefinition where
   /-- The syntax of the definition that was derived. -/
   stx : Command
 deriving Inhabited
+
+inductive NameKind where
+  /-- Don't include `extraParams` here! -/
+  | moduleParameter
+  | stateComponent (m : Mutability) (k : StateComponentKind)
+  | stateAssertion (k : StateAssertionKind)
+  | procedure (info : ProcedureInfo)
+  | derivedDefinition (k : DerivedDefinitionKind)
+deriving Inhabited, BEq, Hashable, Repr
 
 structure Module where
   /-- The name of the module -/
@@ -249,7 +261,7 @@ structure Module where
   assertions : Array StateAssertion
 
   /-- Implementation detail. Used to check that names are unique. -/
-  protected _declarations : Std.HashSet Name
+  protected _declarations : Std.HashMap Name NameKind
 
   /-- Derived definitions that this module has. -/
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition
