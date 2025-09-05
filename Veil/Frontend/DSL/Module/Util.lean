@@ -233,7 +233,7 @@ private def Module.assertionBaseParams (mod : Module) (k : StateAssertionKind) :
   | .assumption => mod.theoryParameters
   | _ => mod.parameters
 
-private def Module.assertionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAssertion : Option Name := .none) (k : StateAssertionKind) : m (Array α) := do
+protected def Module.assertionParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forAssertion : Option Name := .none) (k : StateAssertionKind) : m (Array α) := do
   let extraParams := mod.assertions.find? (fun a => forAssertion == .some a.name) |>.map (·.extraParams) |>.getD #[]
   let allParams := (mod.assertionBaseParams k) ++ extraParams
   paramsFilterMapFn allParams f forAssertion
@@ -309,6 +309,15 @@ def Module.invariants (mod : Module) : Array StateAssertion :=
   mod.assertions.filter fun a => match a.kind with
   | .invariant | .safety | .trustedInvariant => true
   | .assumption => false
+
+/-- All `invariant`s and `safety`s.-/
+def Module.checkableInvariants (mod : Module) : Array StateAssertion :=
+  mod.assertions.filter fun a => match a.kind with
+  | .invariant | .safety => true
+  | .trustedInvariant | .assumption => false
+
+def Module.trustedInvariants (mod : Module) : Array StateAssertion :=
+  mod.assertions.filter (fun a => a.kind == .trustedInvariant)
 
 def Module.safeties (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .safety)

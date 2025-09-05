@@ -72,7 +72,7 @@ deriving Inhabited
   its upstream dependencies. Returns the updated VCManager and the new
   VC.
 -/
-def VCManager.addVC (mgr : VCManager VCMetaT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) : (VCManager VCMetaT × VerificationCondition VCMetaT) := Id.run do
+def VCManager.addVC (mgr : VCManager VCMetaT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) : (VCManager VCMetaT × VCId) := Id.run do
   let uid := mgr._nextId
   let vc := { uid := uid, name := vc.name, params := vc.params, statement := vc.statement, meta := vc.meta }
   -- Add ourselves downstream of all our dependencies
@@ -86,4 +86,9 @@ def VCManager.addVC (mgr : VCManager VCMetaT) (vc : VCData VCMetaT) (dependsOn :
     downstream := downstream,
     _nextId := mgr._nextId + 1
   }
-  (mgr', vc)
+  (mgr', uid)
+
+instance [ToString VCMetaT] : ToString (VCManager VCMetaT) where
+  toString mgr :=
+    let nodes := mgr.nodes.toList.map (fun (uid, vc) => s!"[{uid}] {vc.name} depends on {mgr.upstream[uid]!.toList.map (fun dep => s!"{dep}")} (in-degree: {mgr.inDegree[uid]!}) {vc.meta}")
+    s!"{String.intercalate "\n" nodes}"
