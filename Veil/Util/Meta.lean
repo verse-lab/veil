@@ -111,6 +111,7 @@ private def stxForVeilDefinition (red : ReducibilityHints) (attrs : Array Attrib
 def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
+  (applyAttrTime : Option AttributeApplicationTime := .some .beforeElaboration)
   (type : Option Expr := none)
   (addNamespace : Bool := true)
   : TermElabM Name := do
@@ -123,18 +124,22 @@ def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
     Declaration.defnDecl <|
       mkDefinitionValEx fullName [] type e red
       (DefinitionSafety.safe) []
-  Elab.Term.applyAttributesAt fullName attr AttributeApplicationTime.beforeElaboration
+  if let .some time := applyAttrTime then
+    Elab.Term.applyAttributesAt fullName attr time
   trace[veil.desugar] "{← stxForVeilDefinition red attr n type e}"
   return fullName
 
 def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   (red := Lean.ReducibilityHints.regular 0)
   (attr : Array Attribute := #[])
+  (applyAttrTime : Option AttributeApplicationTime := .some .beforeElaboration)
   (type : Option Expr := none)
   (addNamespace : Bool := true)
   : TermElabM Name := do
-  let n ← addVeilDefinitionAsync n e compile red attr type addNamespace
+  let n ← addVeilDefinitionAsync n e compile red attr applyAttrTime type addNamespace
   enableRealizationsForConst n
+  if applyAttrTime.isNone then
+    Elab.Term.applyAttributes n attr
   return n
 
 /-- A wrapper around Lean's standard `elabCommand`, which performs

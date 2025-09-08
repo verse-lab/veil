@@ -61,6 +61,7 @@ private def simplifyAndDefine
     let e' ← mkLambdaFVars xs e2
     pure (e', proof2.replaceFVars xs)
   let fullDefName ← addVeilDefinition defName e' (attr := attrs)
+    (applyAttrTime := if attrs.isEmpty then .some .beforeElaboration else .none)
   return (fullDefName, pree, partialProof)
 
 /-- Given `pree = fun xs => body`, `defName =delta= fun xs => body'`
@@ -81,8 +82,9 @@ private def proveEqAboutBody
   let proof ← instantiateMVars proof
   -- CHECK separate the following out to be a subprocedure?
   addDecl <| Declaration.thmDecl <| mkTheoremValEx theoremName [] theoremStatement proof []
-  applyAttributesAt theoremName attrs .beforeElaboration
   enableRealizationsForConst theoremName
+  unless attrs.isEmpty do
+    applyAttributes theoremName attrs
 
 def defineWpForAction (preSimp : Array Expr → Expr → TermElabM (Expr × Expr)) (unfoldSelf? : Bool) (sourceName defName : Name) := do
   let (hdIdent, postIdent) := (mkIdent `hd, mkIdent `post)
