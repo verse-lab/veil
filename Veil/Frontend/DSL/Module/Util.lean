@@ -109,6 +109,9 @@ def ProcedureSpecification.name (a : ProcedureSpecification) : Name := a.info.na
 def ProcedureSpecification.binders [Monad m] [MonadQuotation m] [MonadError m] (a : ProcedureSpecification) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
   Option.stxArrMapM a.params toBracketedBinderArray
 
+def DerivedDefinition.binders [Monad m] [MonadQuotation m] [MonadError m] (dd : DerivedDefinition) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
+  Option.stxArrMapM dd.params toBracketedBinderArray
+
 /-- Name of the generic/environment background theory (i.e. `Reader` monad state)
 variable. -/
 def environmentTheoryName : Name := `ρ
@@ -357,7 +360,7 @@ def Module.declareStateComponent (mod : Module) (sc : StateComponent) : CommandE
   | _ => throwErrorAt sc.userSyntax "Unsupported syntax for state component"
   if !(← isValidStateComponentType sc.kind tp) then
     failureMsg sig sc
-  let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name (.stateComponent sc.mutability sc.kind) }
+  let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name sc.declarationKind }
   return mod
 where
   failureMsg (_sig : TSyntax `Lean.Parser.Command.structSimpleBinder) (comp : StateComponent) : CommandElabM Unit := do
@@ -447,7 +450,7 @@ where
 
 private def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
   mod.throwIfAlreadyDeclared sc.name
-  let mut mod := { mod with assertions := mod.assertions.push sc, _declarations := mod._declarations.insert sc.name (.stateAssertion sc.kind) }
+  let mut mod := { mod with assertions := mod.assertions.push sc, _declarations := mod._declarations.insert sc.name sc.declarationKind }
   for set in sc.inSets do
     let currentAssertions := mod._assertionSets.getD set Std.HashSet.emptyWithCapacity
     mod := { mod with _assertionSets := mod._assertionSets.insert set (currentAssertions.insert sc.name) }
@@ -496,7 +499,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   mod.throwIfAlreadyDeclared base.name
   let mut mod := mod
   let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let binders ← mod.declarationAllParamsMapFn (·.binder) base.name (.stateAssertion base.kind)
+  let binders ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
   -- We need to universally quantify capital variables, but for that to
   -- work, the term needs to be well-typed, so all the theory and state
   -- variables have to be bound first
@@ -513,7 +516,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionTypeclass base.name, name := Name.mkSimple s!"{base.name}_dec_{i}", «type» := decT, userSyntax := .missing })
   mod ← mod.registerAssertion { base with extraParams := extraParams }
   -- This includes the required `Decidable` instances
-  let binders ← mod.declarationAllParamsMapFn (·.binder) base.name (.stateAssertion base.kind)
+  let binders ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
   let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
   return (stx, mod)
 
@@ -527,7 +530,7 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition kind conjunctsSet)
   let specificArgs ← bracketedBindersToTerms specificBinders
   let apps ← assertions.mapM (fun a => do
-    let params ← mod.declarationAllParams a.name (.stateAssertion a.kind)
+    let params ← mod.declarationAllParams a.name a.declarationKind
     let args ← params.mapM (·.arg)
     `(term| @$(mkIdent a.name):ident $args* $specificArgs*))
   let body ← repeatedAnd apps
@@ -538,7 +541,7 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
   -- `Prop` rather than `Bool`. TODO: a Bool-specific weakening?
   let attrs ← #[`derivedInvSimp, `invSimp, `reducible].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* : Prop := $body)
-  let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
+  let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, params := none, extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
   let mod := { mod with _declarations := mod._declarations.insert assembledName (.derivedDefinition kind conjunctsSet), _derivedDefinitions := mod._derivedDefinitions.insert assembledName derivedDef }
   return (cmd, mod)
 
@@ -571,7 +574,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]*)
     else
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
-  let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, extraParams := #[], derivedFrom := actionNames, stx := labelDef }
+  let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := none, extraParams := #[], derivedFrom := actionNames, stx := labelDef }
   let mod := { mod with _declarations := mod._declarations.insert labelTypeName (.derivedDefinition derivedDef.kind actionNames), _derivedDefinitions := mod._derivedDefinitions.insert labelTypeName derivedDef }
   return (labelDef, mod)
 
@@ -593,7 +596,7 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
       constructor
       { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> aesop }
       { aesop })
-  let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
+  let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, params := none, extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
   let mod := { mod with _declarations := mod._declarations.insert labelCasesName (.derivedDefinition derivedDef.kind {labelTypeName}), _derivedDefinitions := mod._derivedDefinitions.insert labelCasesName derivedDef }
   return (casesLemma, mod)
 
@@ -609,14 +612,15 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
   let acts ← mod.actions.mapM (fun s => do
     let name := Lean.mkIdent $ toExtName s.name
-    let args ← (← mod.declarationAllParams s.name (.procedure s.info)).mapM (·.arg)
+    let args ← (← mod.declarationAllParams s.name s.declarationKind).mapM (·.arg)
     `(@$name $args*))
   let labelT ← mod.labelTypeStx
   let nextT ← `(term|$labelT → $(mkIdent ``VeilM) $(mkIdent ``Mode.external) $environmentTheory $environmentState $(mkIdent ``Unit))
   let label := mkIdent `label
   let casesOn := mkIdent $ Name.append label.getId `casesOn
   let nextDef ← `(command|def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
-  let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
+  let nextParam ← `(explicitBinders| ($label:ident : $labelT))
+  let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, params := nextParam, extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
   let mod := { mod with _declarations := mod._declarations.insert assembledNextActName (.derivedDefinition derivedDef.kind actionNames), _derivedDefinitions := mod._derivedDefinitions.insert assembledNextActName derivedDef }
   return (nextDef, mod)
 

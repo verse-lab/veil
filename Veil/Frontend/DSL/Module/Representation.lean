@@ -174,6 +174,8 @@ structure StateComponent where
   userSyntax : Syntax
 deriving Inhabited, BEq
 
+def StateComponent.declarationKind (sc : StateComponent) : DeclarationKind := .stateComponent sc.mutability sc.kind
+
 structure StateAssertion where
   kind : StateAssertionKind
   name : Name
@@ -188,6 +190,8 @@ structure StateAssertion where
   assertion. -/
   userSyntax : Syntax
 deriving Inhabited
+
+def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
 
 /--
   A `procedure` is a chunk of imperative code that takes arguments and
@@ -208,7 +212,8 @@ abbrev ActionSyntax := TSyntax ``Term.doSeq
 structure ProcedureSpecification where
   /-- Is this an `action` or a `procedure`? And what is its declaration? -/
   info : ProcedureInfo
-  /-- Parameters of the current action. -/
+  /-- Parameters of the current action, i.e. the arguments the action
+  _actually_ takes, e.g. `(n:node)`. -/
   params : Option (TSyntax ``Lean.explicitBinders) := none
   /-- "Extra parameters" that are needed to make this action
   executable. -/
@@ -221,6 +226,8 @@ structure ProcedureSpecification where
   procedure. -/
   userSyntax : Syntax
 deriving Inhabited, BEq
+
+def ProcedureSpecification.declarationKind (ps : ProcedureSpecification) : DeclarationKind := .procedure ps.info
 
 /-- Modules can depend on other modules, which must be
 fully-instantiated with arguments provided for all the module
@@ -249,6 +256,10 @@ structure DerivedDefinition where
   name : Name
   /-- The kind of this derived definition. -/
   kind : DerivedDefinitionKind
+  /-- Params that this derived definition actually takes. This
+  corresponds to the `params` field of `ProcedureSpecification`, and is
+  used for `actionLike` derived definitions. -/
+  params : Option (TSyntax ``Lean.explicitBinders)
   /-- Extra parameters this definition needs. -/
   extraParams : Array Parameter
   /-- The definitions that this derived definition depends on. -/
@@ -277,11 +288,11 @@ structure Module where
   /-- The assertions that this module makes -/
   assertions : Array StateAssertion
 
-  /-- Implementation detail. Used to check that names are unique. -/
-  protected _declarations : Std.HashMap Name DeclarationKind
-
   /-- Derived definitions that this module has. -/
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition
+
+  /-- Implementation detail. Used to check that names are unique. -/
+  protected _declarations : Std.HashMap Name DeclarationKind
 
   /-- Implementation detail. Whether the state (and background theory)
   of this module has been defined as a Lean `structure` definition.
