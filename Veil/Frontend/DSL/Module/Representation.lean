@@ -9,7 +9,38 @@ namespace Veil
 
 -/
 
-/-! ## Background theory and State -/
+/-! ## Metadata -/
+
+inductive ModuleTypeClassKind where
+  /-- This typeclass assumption relates to the background theory of the
+  environment that this module operates in. We put every assumption
+  about the sorts into this kind, even though those sorts might not in
+  fact be used in the immutable theory. -/
+  | backgroundTheory
+  /-- This typeclass assumption relates to the state of the environment
+  that this module operates in. -/
+  | environmentState
+  /-- This typeclass assumption was made explicitly by the user. -/
+  | userDefined
+deriving Inhabited, BEq
+
+inductive ParameterKind where
+  /-- A (FOL) sort, i.e. a Lean type. The `sort` parameters are those that
+  are used to declare the `State` type of the module. -/
+  | uninterpretedSort
+  /-- The type of the state of the _environment_ that this module
+  operates in. The module's own state will be a sub-state of this. -/
+  | environmentState -- i.e. `σ`
+  /-- The background theory of the environment that this module
+  operates in. The module's own background theory will be a sub-reader
+  of this. -/
+  | backgroundTheory -- i.e. `ρ`
+  /-- A typeclass assumption this module makes -/
+  | moduleTypeclass (kind : ModuleTypeClassKind)
+  /-- A typeclass assumption that _a particular definition_ makes.
+  These are typically `Decidable` instances. -/
+  | definitionTypeclass (defName : Name)
+deriving Inhabited, BEq
 
 inductive Mutability where
   /-- This should go in the `mutable` state. -/
@@ -44,62 +75,14 @@ inductive StateComponentType where
   | complex (binders : TSyntaxArray ``Term.bracketedBinder) (dom : Term)
 deriving Inhabited, BEq
 
-structure StateComponent where
-  /-- Is this state component mutable or immutable? -/
-  mutability : Mutability
-  /-- Is this an `individual`, a `relation`, or ` function`?-/
-  kind       : StateComponentKind
-  /-- The name of the state component -/
-  name       : Name
-  /-- The Lean syntax that declares the type of this state component -/
-  type       : StateComponentType
-  /-- The user-written syntax that resulted in the declaration of this
-  state component. -/
-  userSyntax : Syntax
-deriving Inhabited, BEq
-
-inductive ModuleTypeClassKind where
-  /-- This typeclass assumption relates to the background theory of the
-  environment that this module operates in. We put every assumption
-  about the sorts into this kind, even though those sorts might not in
-  fact be used in the immutable theory. -/
-  | backgroundTheory
-  /-- This typeclass assumption relates to the state of the environment
-  that this module operates in. -/
-  | environmentState
-  /-- This typeclass assumption was made explicitly by the user. -/
-  | userDefined
-deriving Inhabited, BEq
-
-inductive ParameterKind where
-  /-- A (FOL) sort, i.e. a Lean type. The `sort` parameters are those that
-  are used to declare the `State` type of the module. -/
-  | uninterpretedSort
-  /-- The type of the state of the _environment_ that this module
-  operates in. The module's own state will be a sub-state of this. -/
-  | environmentState -- i.e. `σ`
-  /-- The background theory of the environment that this module
-  operates in. The module's own background theory will be a sub-reader
-  of this. -/
-  | backgroundTheory -- i.e. `ρ`
-  /-- A typeclass assumption this module makes -/
-  | moduleTypeclass (kind : ModuleTypeClassKind)
-  /-- A typeclass assumption that _a particular definition_ makes.
-  These are typically `Decidable` instances. -/
-  | definitionTypeclass (defName : Name)
-deriving Inhabited, BEq
-
-structure Parameter where
-  kind : ParameterKind
-  name : Name
-  type : Term
-  /-- The user-written syntax that resulted in the declaration of this
-  parameter. Note that multiple parameters might be due to the same
-  user-provided syntax. -/
-  userSyntax : Syntax
-deriving Inhabited, BEq
-
-/-! ## Assertions about state (or background theory) -/
+inductive ProcedureInfo
+  /-- A procedure that is called by the environment to initialize the module. -/
+  | initializer
+  /-- Callable by the environment -/
+  | action (name : Name)
+  /-- Not callable by the environment -/
+  | procedure (name : Name)
+deriving Inhabited, BEq, Hashable, Repr
 
 inductive StateAssertionKind
   /-- A property of the immutable background theory. -/
@@ -119,6 +102,78 @@ deriving BEq, Hashable, Repr
 instance : Inhabited StateAssertionKind where
   default := StateAssertionKind.invariant
 
+inductive DerivedDefinitionKind where
+  /-- This derived definition is like the `State` type, in terms of the
+  parameters it needs. -/
+  | stateLike
+  /-- This derived definition is like an `assumption`, in terms of the
+  parameters it needs. -/
+  | assumptionLike
+  /-- This derived definition is like an `invariant`, in terms of the
+  parameters it needs. -/
+  | invariantLike
+  /-- This derived definition is like an `action`, in terms of the
+  parameters it needs. -/
+  | actionLike
+  /-- This derived definition is like a `theorem` in terms of the
+  parameters it needs. -/
+  | theoremLike
+deriving Inhabited, BEq, Hashable, Repr
+
+inductive DeclarationKind where
+  /-- Don't include `extraParams` here! -/
+  | moduleParameter
+  | stateComponent (m : Mutability) (k : StateComponentKind)
+  | stateAssertion (k : StateAssertionKind)
+  | procedure (info : ProcedureInfo)
+  | derivedDefinition (k : DerivedDefinitionKind) (derivedFrom : Std.HashSet Name)
+deriving Inhabited
+
+instance : BEq DeclarationKind where
+  beq a b :=
+    match a, b with
+    | .moduleParameter, .moduleParameter => true
+    | .stateComponent a b, .stateComponent c d => a == c && b == d
+    | .stateAssertion a, .stateAssertion b => a == b
+    | .procedure a, .procedure b => a == b
+    | .derivedDefinition a b, .derivedDefinition c d => a == c && b.all (fun x => d.contains x) && d.all (fun x => b.contains x)
+    | _, _ => false
+
+instance : Repr DeclarationKind where
+  reprPrec a _ :=
+    match a with
+    | .moduleParameter => "moduleParameter"
+    | .stateComponent a b => s!"stateComponent {repr a} {repr b}"
+    | .stateAssertion a => s!"stateAssertion {repr a}"
+    | .procedure a => s!"procedure {repr a}"
+    | .derivedDefinition a b => s!"derivedDefinition {repr a} (derivedFrom: {repr b.toArray})"
+
+/-! ## Actual representations -/
+
+structure Parameter where
+  kind : ParameterKind
+  name : Name
+  type : Term
+  /-- The user-written syntax that resulted in the declaration of this
+  parameter. Note that multiple parameters might be due to the same
+  user-provided syntax. -/
+  userSyntax : Syntax
+deriving Inhabited, BEq
+
+structure StateComponent where
+  /-- Is this state component mutable or immutable? -/
+  mutability : Mutability
+  /-- Is this an `individual`, a `relation`, or ` function`?-/
+  kind       : StateComponentKind
+  /-- The name of the state component -/
+  name       : Name
+  /-- The Lean syntax that declares the type of this state component -/
+  type       : StateComponentType
+  /-- The user-written syntax that resulted in the declaration of this
+  state component. -/
+  userSyntax : Syntax
+deriving Inhabited, BEq
+
 structure StateAssertion where
   kind : StateAssertionKind
   name : Name
@@ -134,8 +189,6 @@ structure StateAssertion where
   userSyntax : Syntax
 deriving Inhabited
 
-/-! ## Procedure and actions -/
-
 /--
   A `procedure` is a chunk of imperative code that takes arguments and
   potentially returns a value.
@@ -149,17 +202,6 @@ deriving Inhabited
   | `procedure` | `action`        |
   | `action`    | `export action` |
  -/
-
-abbrev ProcedureIdentifier := Lean.Name
-
-inductive ProcedureInfo
-  /-- A procedure that is called by the environment to initialize the module. -/
-  | initializer
-  /-- Callable by the environment -/
-  | action (name : Name)
-  /-- Not callable by the environment -/
-  | procedure (name : Name)
-deriving Inhabited, BEq, Hashable, Repr
 
 abbrev ActionSyntax := TSyntax ``Term.doSeq
 
@@ -199,24 +241,6 @@ structure ModuleDependency where
   userSyntax : Syntax
 deriving Inhabited, BEq
 
-inductive DerivedDefinitionKind where
-  /-- This derived definition is like the `State` type, in terms of the
-  parameters it needs. -/
-  | stateLike
-  /-- This derived definition is like an `assumption`, in terms of the
-  parameters it needs. -/
-  | assumptionLike
-  /-- This derived definition is like an `invariant`, in terms of the
-  parameters it needs. -/
-  | invariantLike
-  /-- This derived definition is like an `action`, in terms of the
-  parameters it needs. -/
-  | actionLike
-  /-- This derived definition is like a `theorem` in terms of the
-  parameters it needs. -/
-  | theoremLike
-deriving Inhabited, BEq, Hashable, Repr
-
 /-- A derived definition is not directly part of the module, but
 programmatically generated/derived from some of the module's
 definitions. Examples of this are `Invariants` and `Assumptions`. -/
@@ -233,14 +257,7 @@ structure DerivedDefinition where
   stx : Command
 deriving Inhabited
 
-inductive NameKind where
-  /-- Don't include `extraParams` here! -/
-  | moduleParameter
-  | stateComponent (m : Mutability) (k : StateComponentKind)
-  | stateAssertion (k : StateAssertionKind)
-  | procedure (info : ProcedureInfo)
-  | derivedDefinition (k : DerivedDefinitionKind)
-deriving Inhabited, BEq, Hashable, Repr
+def DerivedDefinition.declarationKind (dd : DerivedDefinition) : DeclarationKind := .derivedDefinition dd.kind dd.derivedFrom
 
 structure Module where
   /-- The name of the module -/
@@ -261,7 +278,7 @@ structure Module where
   assertions : Array StateAssertion
 
   /-- Implementation detail. Used to check that names are unique. -/
-  protected _declarations : Std.HashMap Name NameKind
+  protected _declarations : Std.HashMap Name DeclarationKind
 
   /-- Derived definitions that this module has. -/
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition

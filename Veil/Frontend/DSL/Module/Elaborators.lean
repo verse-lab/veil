@@ -120,6 +120,8 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand nextCmd
   let vcManager ← mod.generateVCs
   trace[veil.debug] "VCManager:\n{vcManager}"
+  for t in (← vcManager.theorems) do
+    trace[veil.debug] "{t}"
   localEnv.modifyVCManager (fun _ => vcManager)
   return { mod with _specFinalized := true }
 

@@ -11,7 +11,7 @@ namespace Veil
 private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (act : ProcedureSpecification) (specName : Name) (vcName : Name) (vcKind : VCKind) (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]): m (VCData VCMetadata) := do
   let dependsOn := extraDeps.insertMany #[act.name, assembledAssumptionsName, assembledInvariantsName]
-  let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) .theoremLike dependsOn
+  let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .theoremLike dependsOn)
   let actBinders ← act.binders
   return {
     name := vcName,
@@ -19,9 +19,9 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
     statement := ← expandTermMacro $ ← `(term|
       forall? $actBinders*,
         $(mkIdent specName)
-          (@$(mkIdent act.name) $(← mod.actionParamsMapFn (·.arg) act.name)* $(← bracketedBindersToTerms actBinders)*)
-          (@$assembledAssumptions $(← mod.derivedDefinitionParamsMapFn (·.arg) assembledAssumptionsName)*)
-          (@$assembledInvariants $(← mod.derivedDefinitionParamsMapFn (·.arg) assembledInvariantsName)*)
+          (@$(mkIdent act.name) $(← mod.declarationAllParamsMapFn (·.arg) act.name (.procedure act.info))* $(← bracketedBindersToTerms actBinders)*)
+          (@$assembledAssumptions $(← mod.declarationAllParamsMapFn (·.arg) assembledAssumptionsName (.derivedDefinition .assumptionLike dependsOn))*)
+          (@$assembledInvariants $(← mod.declarationAllParamsMapFn (·.arg) assembledInvariantsName (.derivedDefinition .invariantLike dependsOn))*)
           $extraTerms:term*
     ),
     meta := {
@@ -39,7 +39,7 @@ private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] 
 private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (act : ProcedureSpecification) (invariantClause : Name) : m (VCData VCMetadata) := do
   let extraDeps := {invariantClause}
-  let extraTerms := #[← `(term| (@$(mkIdent invariantClause) $(← mod.assertionParamsMapFn (·.arg) invariantClause .invariant)*) )]
+  let extraTerms := #[← `(term| (@$(mkIdent invariantClause) $(← mod.declarationAllParamsMapFn (·.arg) invariantClause (.stateAssertion .invariant))*) )]
   mkVCForSpecTheorem mod act ``VeilM.meetsSpecificationIfSuccessfulAssuming (Name.mkSimple s!"{act.name}_{invariantClause}") .primary extraDeps extraTerms
 
 private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]

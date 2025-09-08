@@ -69,7 +69,8 @@ but that would eliminate opportunities for async elaboration. -/
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
   let mut mod := mod
   -- Obtain `extraParams` so we can register the action
-  let (nmDo, extraParams, e) ← liftTermElabMWithBinders (← mod.actionBinders pi.name) $ fun vs => elabProcedureDoNotation vs pi.name br l
+  let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
+  let (nmDo, extraParams, e) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi.name br l
   let ps := ProcedureSpecification.mk pi br extraParams spec l stx
   mod ← mod.registerProcedureSpecification ps
   -- Elaborate the definition in the Lean environment

@@ -88,6 +88,9 @@ def VCManager.addVC (mgr : VCManager VCMetaT) (vc : VCData VCMetaT) (dependsOn :
   }
   (mgr', uid)
 
+def VCManager.theorems [Monad m] [MonadQuotation m] (mgr : VCManager VCMetaT) : m (Array Command) :=
+  mgr.nodes.valuesArray.mapM (·.theoremStx)
+
 instance [ToString VCMetaT] : ToString (VCManager VCMetaT) where
   toString mgr :=
     let nodes := mgr.nodes.toList.map (fun (uid, vc) => s!"[{uid}] {vc.name} depends on {mgr.upstream[uid]!.toList.map (fun dep => s!"{dep}")} (in-degree: {mgr.inDegree[uid]!}) {vc.meta}")
