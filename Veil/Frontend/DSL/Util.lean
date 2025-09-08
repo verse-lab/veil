@@ -23,5 +23,18 @@ def toExtName (n : Name) := toActName n Mode.external
 
 def toActIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toActName id.getId mode
 
+def toWpName (n : Name) : Name := n ++ `wpGen
+def toWpEqName (n : Name) : Name := n ++ `wp_eq
+def toWpSuccName (n : Name) : Name := n ++ `wpSucc
+def toWpSuccEqName (n : Name) : Name := n ++ `wpSucc_eq
+def toWpExName (n : Name) : Name := n ++ `wpEx
+def toWpExEqName (n : Name) : Name := n ++ `wpEx_eq
+
+def toTransitionName (n : Name) : Name := n ++ `tr
+def toTransitionEqName (n : Name) : Name := n ++ `tr_eq_wpSucc
+def toExQuantifiedTransitionName (n : Name) : Name := n ++ `exTr
+def toExQuantifiedTransitionEqName (n : Name) : Name := n ++ `exTr_eq
+
+-- def toEndToEndEqName (n : Name) : Name := n ++ `twoState_eq
 
 end Veil

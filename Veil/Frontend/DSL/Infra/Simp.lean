@@ -5,6 +5,15 @@ namespace Veil
 /-- Attribute added to `Wp` constructs, to unfold them. -/
 register_simp_attr wpSimp
 
+/-- Attribute added to `wp` equations of monadic constructs and actions/procedures. -/
+register_simp_attr wpEqSimp
+
+/-- Attribute added to `.wpgen` definitions of actions/procedures. -/
+register_simp_attr wpDefUnfoldSimp
+
+/-- Attribute added to definitions/theorems related to `IsSubStateOf` and `IsSubReaderOf`. -/
+register_simp_attr substateSimp
+
 /-- Implementation detail. Tagged to `act.do` and constructs that
 should be unfolded when elaborating action's definitions. -/
 register_simp_attr doSimp

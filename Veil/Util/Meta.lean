@@ -45,14 +45,17 @@ def Lean.Expr.unfold (e : Expr) (defs : Array Name) : TermElabM Expr := do
   for name in defs do eu := (← Meta.unfold eu name).expr
   return eu
 
+def Veil.getSimpTheoremsBy (simpSets : Array Name) : CoreM (Array Meta.SimpTheorems) := do
+  let simpExts ← simpSets.filterMapM (Meta.getSimpExtension? ·)
+  simpExts.mapM (·.getTheorems)
+
 private def mkVeilSimpCtx (simpSets : Array Name) : TermElabM Meta.Simp.Context := do
-  let simpExts ← simpSets.filterMapM (fun s => Meta.getSimpExtension? s)
-  let simpTheorems ← simpExts.mapM (·.getTheorems)
+  let simpTheorems ← Veil.getSimpTheoremsBy simpSets
   Meta.Simp.mkContext (simpTheorems := simpTheorems)
 
-def Lean.Expr.simp (e : Expr) (simpSets : Array Name) : TermElabM Expr := do
-  let (res, _stats) ← Meta.simp e (← mkVeilSimpCtx simpSets)
-  return res.expr
+def Lean.Expr.simp (e : Expr) (simpSets : Array Name) : TermElabM Meta.Simp.Result := do
+  let (res, _stats) ← Meta.simp e (← mkVeilSimpCtx simpSets) (discharge? := none)
+  return res
 
 def Lean.Expr.dsimp (e : Expr) (simpSets : Array Name) : TermElabM Expr := do
   let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simpSets)

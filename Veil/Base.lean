@@ -27,5 +27,6 @@ initialize
   registerTraceClass `veil.warning
   registerTraceClass `veil.debug
   registerTraceClass `veil.desugar
+  registerTraceClass `veil.wp
 
 /-! ## Options -/

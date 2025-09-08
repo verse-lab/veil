@@ -1,6 +1,7 @@
 import Lean
 import Veil.Frontend.DSL.Action.Syntax
 import Veil.Frontend.DSL.Action.DoNotation
+import Veil.Frontend.DSL.Action.AuxDeclarations
 import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
 
@@ -68,22 +69,26 @@ parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
   let mut mod := mod
+  let actName := pi.name
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
-  let (nmDo, extraParams, e) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi.name br l
+  let (nmDo, extraParams, e) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs actName br l
   let ps := ProcedureSpecification.mk pi br extraParams spec l stx
   mod ← mod.registerProcedureSpecification ps
   -- Elaborate the definition in the Lean environment
   liftTermElabM $ do
-    _ ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
-    let mut (nmExt, eExt) ← elabProcedureInMode pi.name Mode.external
-    let mut (nmInt, eInt) ← elabProcedureInMode pi.name Mode.internal
-    nmInt ← addVeilDefinitionAsync nmInt eInt
-    nmExt ← addVeilDefinitionAsync nmExt eExt
+    let nmDoFull ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
+    defineAuxiliaryDeclarations pi Option.none br nmDo nmDoFull
+    let (nmExt, eExt) ← elabProcedureInMode actName Mode.external
+    let (nmInt, eInt) ← elabProcedureInMode actName Mode.internal
+    let nmIntFull ← addVeilDefinitionAsync nmInt eInt
+    let nmExtFull ← addVeilDefinitionAsync nmExt eExt
    -- Make the definitions realizable / available for use
-    let mut definitions := #[nmExt, nmInt]
+    let mut definitions := #[nmExtFull, nmIntFull]
     for d in definitions do
       enableRealizationsForConst d
+    defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmIntFull
+    defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExtFull
   return mod
 
 end Veil
