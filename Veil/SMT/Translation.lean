@@ -12,13 +12,13 @@ def prepareLeanSmtQuery (mv' : MVarId) (hs : List Expr) : MetaM String := do
   let mv := (← mkFreshExprMVar (← mv'.getType)).mvarId!
   mv.withContext do
     withTraceNode `veil.smt.perf.translate (fun _ => return "prepareQuery") do
-    Smt.withProcessedHints mv hs fun mv hs => mv.withContext do
-    let (hs, mv) ← Smt.Preprocess.elimIff mv hs
+    let ⟨_map₁, hs₁, mv₂⟩ ← Smt.Preprocess.pushHintsToCtx mv hs.toArray
+    let ⟨_map, hs, mv⟩ ← Smt.Preprocess.elimIff mv₂ hs₁
     mv.withContext do
     let goalType : Q(Prop) ← mv.getType
     -- 2. Generate the SMT query.
     let (fvNames₁, _fvNames₂) ← Smt.genUniqueFVarNames
-    let cmds ← Smt.prepareSmtQuery hs goalType fvNames₁
+    let cmds ← Smt.prepareSmtQuery hs.toList goalType fvNames₁
     let cmdString := s!"{Smt.Translate.Command.cmdsAsQuery cmds}"
     trace[veil.smt.debug] "goal:\n{goalType}"
     trace[veil.smt] "query:\n{cmdString}"

@@ -56,7 +56,9 @@ def failureGoalStr (solver : Option SmtSolver := none) : String := s!"{solverStr
     let cmdString := fun (translator : SmtTranslator) => do
       match translator with
       | .leanAuto => Veil.SMT.prepareLeanAutoQuery mv (← Veil.SMT.parseAutoHints hints)
-      | .leanSmt => Veil.SMT.prepareLeanSmtQuery mv (← Smt.Tactic.elabHints hints)
+      | .leanSmt =>
+        let (_map, hs) ← Smt.Tactic.elabHints ⟨hints⟩
+        Veil.SMT.prepareLeanSmtQuery mv hs.toList
     -- Due to [ufmg-smite#126](https://github.com/ufmg-smite/lean-smt/issues/126),
     -- we first use `lean-auto` to generate the query, and call `lean-smt` only
     -- if the query is satisfiable and we want to print a model,

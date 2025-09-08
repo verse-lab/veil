@@ -112,6 +112,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
   emitCommand solver .checkSat
   let stdout ← solver.stdout.getLine
   trace[veil.smt.debug] "[checkSat] stdout: {stdout}"
+  trace[veil.smt.debug] "[checkSat] stderr {← solver.stderr.readToEnd}"
   let (checkSatResponse, _) ← Auto.Solver.SMT.getSexp stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>

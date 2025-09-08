@@ -415,7 +415,7 @@ where
   let mv ← Tactic.getMainGoal
   let idents ← getPropsInContext
   let hints ← `(Smt.Tactic.smtHints|[$[$idents:ident],*])
-  let hs ← Smt.Tactic.elabHints ⟨hints⟩
+  let (_map, hs) ← Smt.Tactic.elabHints ⟨hints⟩
   let withTimeout := veil.smt.timeout.get opts
   -- IMPORTANT: `prepareLeanSmtQuery` (in `Smt.prepareSmtQuery`) negates
   -- the goal (it's designed for validity checking), so we negate it here
@@ -423,7 +423,7 @@ where
   -- NOTE: we don't respect `veil.smt.translator` here, since we want to
   -- print a readable model, which requires `lean-smt`.
   let mv' ← mkFreshExprMVar (mkNot $ ← Tactic.getMainTarget)
-  let leanSmtQueryString ← Veil.SMT.prepareLeanSmtQuery mv'.mvarId! hs
+  let leanSmtQueryString ← Veil.SMT.prepareLeanSmtQuery mv'.mvarId! hs.toList
   let (res, solverUsed) ← Veil.SMT.querySolver leanSmtQueryString withTimeout (retryOnUnknown := true)
   match res with
   | .Sat .none => mv.admit (synthetic := false)

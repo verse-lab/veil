@@ -114,7 +114,7 @@ fix implemented there seems unreliable. -/
 attribute [smtSimp] Decidable.not_not decide_eq_decide Decidable.not_imp_self
   decide_implies decide_ite ite_then_decide_self ite_else_decide_self
   decide_eq_true_eq decide_eq_false_iff_not decide_not not_decide_eq_true
-  cond_true cond_false decide_False decide_True
+  cond_true cond_false decide_false decide_true
 
 -- These are from `SimpLemmas.lean` and `PropLemmas.lean`
 /-
@@ -184,6 +184,6 @@ attribute [logicSimp] eq_self ne_eq ite_true ite_false dite_true
   Bool.not_false beq_true beq_false Bool.not_eq_true' Bool.not_eq_false'
   Bool.not_eq_true Bool.not_eq_false decide_eq_true_eq
   decide_eq_false_iff_not decide_not not_decide_eq_true heq_eq_eq
-  cond_true cond_false beq_self_eq_true bne_self_eq_false decide_False
-  decide_True bne_iff_ne beq_eq_false_iff_ne bne_eq_false_iff_eq
+  cond_true cond_false beq_self_eq_true bne_self_eq_false decide_false
+  decide_true bne_iff_ne beq_eq_false_iff_ne bne_eq_false_iff_eq
   Nat.le_zero_eq

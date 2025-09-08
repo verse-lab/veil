@@ -1,8 +1,8 @@
 import Lake
 open Lake DSL System
 
-require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "ec89836a79a3266ebd840fb0df59ca4c972a4c25"
-require smt from git "https://github.com/dranov/lean-smt.git" @ "v4.20.0"
+require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "44f10182970b653a84649337514dd2a2d45b1509"
+require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "639e0417651be92f0d4991aca861c52fd34c9c1a"
 
 package veil
 
@@ -72,7 +72,8 @@ def Lake.unzip (file : FilePath) (dir : FilePath) : LogIO PUnit := do
     args := #["-d", dir.toString, file.toString]
   }
 
-def Lake.copyFile (src : FilePath) (dst : FilePath) : LogIO PUnit := do
+/-- We use `cp` because it sets up the file permissions correctly. -/
+def copyFile' (src : FilePath) (dst : FilePath) : LogIO PUnit := do
   proc (quiet := true) {
     cmd := "cp"
     args := #[src.toString, dst.toString]
@@ -103,7 +104,7 @@ def downloadSolver (solver : Solver) (pkg : Package) (oFile : FilePath) : JobM P
     IO.FS.removeDirAll extractedPath
   unzip zipPath pkg.buildDir
   let binPath := extractedPath/ "bin" / s!"{solver}"
-  copyFile binPath oFile
+  copyFile' binPath oFile
   if ← oFile.pathExists then
     logInfo s!"{solver} is now at {oFile}"
   else
