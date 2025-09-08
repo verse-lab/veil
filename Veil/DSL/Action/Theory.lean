@@ -260,11 +260,11 @@ theorem lift_transition_big_step {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (tr :
   := by
   unfold Wp.lift BigStep.toWp Wp.toBigStep Wp.toWlp
   funext st r' st'
-  simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
+  simp only [not_forall, Decidable.not_not, eq_iff_iff]
   constructor
   {
     rintro ⟨rr, rs, liftedR, heq⟩
-    simp only [heq, IsSubStateOf.setIn_getFrom_idempotent, IsSubStateOf.getFrom_setIn_idempotent, and_true]
+    simp only [heq, IsSubStateOf.getFrom_setIn_idempotent, and_true]
     apply liftedR
   }
   · rintro ⟨baseR, heq⟩; exists r', (getFrom st'), baseR
@@ -279,11 +279,11 @@ theorem lift_transition {σ σ'} [IsSubStateOf σ σ'] (m : Mode) (tr : TwoState
   := by
   unfold Wp.lift Function.toWp Wp.toTwoState Wp.toWlp
   funext st st'
-  simp only [implies_true, not_forall, not_imp, Decidable.not_not, true_and, eq_iff_iff]
+  simp only [not_forall, Decidable.not_not, eq_iff_iff]
   constructor
   {
     rintro ⟨rs, liftedR, heq⟩
-    simp only [heq, IsSubStateOf.setIn_getFrom_idempotent, IsSubStateOf.getFrom_setIn_idempotent, and_true]
+    simp only [heq, IsSubStateOf.getFrom_setIn_idempotent, and_true]
     apply liftedR
   }
   · rintro ⟨baseR, heq⟩; exists (getFrom st'), baseR
@@ -454,8 +454,8 @@ These instances show that all our actions are `LawfulAction`s.
 -/
 
 instance pure_lawful : LawfulAction (Wp.pure (σ := σ) (m := m) r) where
-  inter := by simp [pure, actSimp]
-  impl  := by intros; simp_all [pure, actSimp]
+  inter := by simp [actSimp]
+  impl  := by intros; simp_all [actSimp]
 
 instance bind_lawful (act : Wp m' σ ρ) (act' : ρ -> Wp m σ ρ') [LawfulAction act] [∀ r, LawfulAction (act' r)] : LawfulAction (Wp.bind (m := m) act act') where
   inter := by
@@ -504,8 +504,8 @@ instance (r : σ -> σ -> Prop) : LawfulAction (r.toWp (m := m)) where
   impl := by intros; simp_all [actSimp]
 
 instance get_lawful : LawfulAction (Wp.get (m := m) (σ := σ)) where
-  inter := by intros; simp_all [get, getThe,MonadStateOf.get, Wp.get]
-  impl := by intros; simp_all [get, getThe,MonadStateOf.get,Wp.get]
+  inter := by intros; simp_all [Wp.get]
+  impl := by intros; simp_all [Wp.get]
 
 instance set_lawful (s : σ) : LawfulAction (Wp.set s (m := m)) where
   inter := by intros; simp_all [Wp.set]

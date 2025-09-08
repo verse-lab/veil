@@ -46,7 +46,9 @@ def getQueryForGoal : TacticM String := withMainContext do
   let cmdString ←
     match translatorToUse with
     | .leanAuto => Veil.SMT.prepareLeanAutoQuery mv (← Veil.SMT.parseAutoHints ⟨stx[1]⟩)
-    | .leanSmt => Veil.SMT.prepareLeanSmtQuery mv (← Smt.Tactic.elabHints ⟨stx[1]⟩)
+    | .leanSmt =>
+      let (_map, hs) ← Smt.Tactic.elabHints ⟨stx[1]⟩
+      Veil.SMT.prepareLeanSmtQuery mv hs.toList
   return cmdString
 
 open Lean Elab Command Term Meta Tactic
