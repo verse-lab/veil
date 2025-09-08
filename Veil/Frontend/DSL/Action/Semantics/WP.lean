@@ -56,6 +56,12 @@ def VeilM.returnUnit (act : VeilM m ρ σ α) : VeilM m ρ σ Unit := do
   let _ ← act
   return ()
 
+omit hd [IsHandler hd] in
+theorem VeilM.wp_returnUnit {hd' : ExId → Prop} {act : VeilM m ρ σ α} {q : VeilSpecM ρ σ α}
+  (h : ∀ post_, [IgnoreEx hd'| wp act post_] = q post_) post :
+  [IgnoreEx hd'| wp (VeilM.returnUnit act : VeilM m ρ σ Unit) post] = q (fun _ => post ()) := by
+  simp only [wp_bind, wp_pure, h]
+
 @[wpSimp ↓]
 lemma VeilExecM.wp_assume :
   wp (assume p : VeilM m ρ σ PUnit) post = fun r s => p -> post .unit r s := by

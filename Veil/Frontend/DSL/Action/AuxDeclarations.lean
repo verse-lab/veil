@@ -142,22 +142,41 @@ Considerations:
   - We know that `wp act` is definitionally equal to `wp (@act.do Mode.internal)`.
   - So using `act.do.wp_eq`, we can rewrite `wp act` to `@act.do.wpGen Mode.internal`.
     By configuring `preSimp?`, we can easily insert this step.
-  Note that `act.do` is marked `reducible`, otherwise we only need the first step.
+  For `wp act.ext post`, it is definitionally equal to
+  `wp (VeilM.returnUnit $ @act.do Mode.external) post`, which can be rewritten into
+  `@act.do.wpGen Mode.external (fun _ => post ())` using `wp_bind`, `wp_pure`
+  and `act.do.wp_eq`. For convenience, we prove a specialized theorem for
+  doing all these at once.
+
+  Note that `act.do` is marked `reducible`, otherwise we only need to do the
+  first step of rewriting, and then rely on the core WP generation procedure.
+  A possible alternative is to "hide" `act.do` behind another semireducible
+  definition and then proceed.
 -/
 
 private def switchToDoWp (sourceName : Name) (mode : Mode) (xs : Array Expr) : TermElabM (Expr × Expr) := do
   let doName := toDoName sourceName.getRoot
   let wpEqThmName ← resolveGlobalConstNoOverloadCore (toWpEqName doName)
   let wpEqThmInfo ← getConstInfo wpEqThmName
-  let wpEq ← instantiateForall wpEqThmInfo.type #[mode.expr] >>= (instantiateForall · xs)
-  let .some (_, _, rhs) := wpEq.eq? | throwError "The theorem {wpEqThmName} is not an equality!"
-  let proof1 := (mkAppN (mkApp (← mkConstWithFreshMVarLevels wpEqThmName) mode.expr) xs)
-  let proof1 ← instantiateMVars proof1
+  let partiallyAppliedThm := mkApp (← mkConstWithFreshMVarLevels wpEqThmName) mode.expr
+  let (eq, proof) ← match mode with
+  | .external =>
+    -- here leverage the fact that the last argument of `xs` is `post`
+    let proof ← mkAppM ``VeilM.wp_returnUnit #[mkAppN partiallyAppliedThm xs.pop, xs.back!]
+    let wpEq' ← inferType proof
+    let wpEq' ← instantiateMVars wpEq'
+    pure (wpEq', proof)
+  | .internal =>
+    let wpEq ← instantiateForall wpEqThmInfo.type #[mode.expr] >>= (instantiateForall · xs)
+    pure (wpEq, mkAppN partiallyAppliedThm xs)
+  let .some (_, _, rhs) := eq.eq? | throwError "{eq} is not an equality!"
+  let proof ← instantiateMVars proof
   trace[veil.debug] "[{decl_name%}] rhs: {rhs}"
-  -- do the main WP generation
-  let (rhs', proof2) ← wpGenBySimprocCore rhs
+  -- `act.do.wpGen` should be simplified, so here only do `dsimp`
+  let rhs' ← whnfD rhs
+  let rhs' ← rhs'.dsimp #[]
   trace[veil.debug] "[{decl_name%}] rhs': {rhs'}"
-  return (rhs', ← mkEqTrans proof1 proof2)
+  return (rhs', proof)
 
 /-- `sourceName` should be short (e.g., `act.do`), while `fullSourceName` should be
     fully qualified (e.g., `MyModule.act.do`).
