@@ -81,7 +81,7 @@ private def proveEqAboutBody
   let theoremStatement ← instantiateMVars theoremStatement
   let proof ← instantiateMVars proof
   -- CHECK separate the following out to be a subprocedure?
-  addDecl <| Declaration.thmDecl <| mkTheoremValEx theoremName [] theoremStatement proof []
+  addAndCompile <| Declaration.thmDecl <| mkTheoremValEx theoremName [] theoremStatement proof []
   enableRealizationsForConst theoremName
   unless attrs.isEmpty do
     applyAttributes theoremName attrs
@@ -94,7 +94,9 @@ def defineWpForAction (preSimp : Array Expr → Expr → TermElabM (Expr × Expr
     (if unfoldSelf? then #[sourceName] else #[])
     (Option.some preSimp)
     #[]
-    (attrs := #[{name := `wpDefUnfoldSimp}])
+    (attrs := ← do
+      let tmp ← `(Parser.Term.attrInstance| wpDefUnfoldSimp)
+      elabAttrs (#[tmp]))
 
 /-- Defines the weakest precondition for the action specialised to the case where the
   exception handler is `True`. -/
@@ -192,7 +194,10 @@ def defineAuxiliaryDeclarations
       | some m => (fun xs _ => switchToDoWp sourceName m xs)
       | none => (fun _ => wpGenBySimprocCore)
     let (fullWpName, pree, partialProof) ← defineWpForAction preSimp? mode?.isNone fullSourceName wpName
-    proveEqAboutBody pree partialProof fullWpName (toWpEqName sourceName) (attrs := #[{name := `wpEqSimp}])
+    proveEqAboutBody pree partialProof fullWpName (toWpEqName sourceName)
+      (attrs := ← do
+        let tmp ← `(Parser.Term.attrInstance| wpEqSimp ↓)
+        elabAttrs (#[tmp]))
     pure fullWpName
 
   unless pi matches .procedure _ do
