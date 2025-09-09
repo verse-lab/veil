@@ -1,3 +1,4 @@
+import Veil.Frontend.DSL.Infra.Simp
 
 class IsSubReaderOf (ρ : outParam Type) (ρ' : Type) where
   /-- Get the small state `ρ` from the big one `ρ'` -/
@@ -8,7 +9,7 @@ export IsSubReaderOf (readFrom)
 instance (priority := high) [IsSubReaderOf σₛ σ] [Monad m] : MonadReaderOf σₛ (ReaderT σ m) where
   read := readFrom <$> read
 
--- @[wpSimp, initSimp, actSimp]
+@[wpSimp, actSimp]
 instance : IsSubReaderOf ρ ρ where
   readFrom := id
 
@@ -39,9 +40,9 @@ class IsSubStateOf (σ : outParam Type) (σ' : Type) where
 
 export IsSubStateOf (setIn getFrom)
 
--- attribute [wpSimp, initSimp, actSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.setIn_setIn_last IsSubStateOf.getFrom_setIn_idempotent
+attribute [wpSimp,actSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.setIn_setIn_last IsSubStateOf.getFrom_setIn_idempotent
 
--- @[wpSimp, initSimp, actSimp]
+@[wpSimp, actSimp]
 instance : IsSubStateOf σ σ where
   setIn := (fun σₛ σ => σₛ)
   getFrom := id

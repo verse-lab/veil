@@ -8,6 +8,7 @@ import Veil.Frontend.DSL.Module.Elaborators
 import Veil.Frontend.DSL.Infra.Assertions
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Infra.Simp
+import Veil.Frontend.DSL.Tactic
 
 /-! # Veil DSL
 

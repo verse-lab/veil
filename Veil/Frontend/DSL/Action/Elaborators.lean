@@ -87,6 +87,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
     let mut definitions := #[nmExtFull, nmIntFull]
     for d in definitions do
       enableRealizationsForConst d
+      Elab.Term.applyAttributes d #[{name := `actSimp}]
     defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmIntFull
     defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExtFull
   return mod

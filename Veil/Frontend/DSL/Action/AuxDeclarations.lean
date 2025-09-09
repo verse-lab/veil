@@ -61,7 +61,6 @@ private def simplifyAndDefine
     let e' ← mkLambdaFVars xs e2
     pure (e', proof2.replaceFVars xs)
   let fullDefName ← addVeilDefinition defName e' (attr := attrs)
-    (applyAttrTime := if attrs.isEmpty then .some .beforeElaboration else .none)
   return (fullDefName, pree, partialProof)
 
 /-- Given `pree = fun xs => body`, `defName =delta= fun xs => body'`
