@@ -3,7 +3,7 @@ open Lake DSL System
 
 
 require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "9c13e6716532971258ad2b376aa95929ef1b1763"
-require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "0a9304e340c331c1215ca9e646c99e1cab42c892"
+require smt from git "https://github.com/dranov/lean-smt.git" @ "ad81cb11665ac41859e5f4b69833e022554166e7"
 require Loom from git "https://github.com/verse-lab/loom-dev.git" @ "6a04b73096c5ac8b23713c08eff07a07263055a3"
 
 package veil

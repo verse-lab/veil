@@ -36,6 +36,10 @@ register_simp_attr derivedActSimp
 /-- Attribute added to theorems about invariants. -/
 register_simp_attr invProof
 
+/-- Lemmas to perform simplification of `if` expressions, before `split_ifs` is
+called. -/
+register_simp_attr ifSimp
+
 /-- To enable `assumption`s to be used as predicates. -/
 instance funOneArgBoolToProp : Coe (α → Bool) (α → Prop) where
   coe f a := f a = true

@@ -146,6 +146,12 @@ def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
   trace[veil.desugar] "{stx}"
   elabCommand stx
 
+/-- Is this type a `Decidable` instance? -/
+def isDecidableInstance (type : Expr) : TermElabM Bool := do
+  let ty ← Meta.reduce (skipTypes := false) type
+  Meta.forallTelescope ty fun _ body => do
+    return (← Meta.whnf body).getAppFn.constName? == some ``Decidable
+
 /-- Elaborates the term (ignoring typeclass inference failures) and
 returns the set of `Decidable` instances needed to make it elaborate
 correctly. -/
@@ -157,15 +163,11 @@ def getRequiredDecidableInstances (stx : Term) : TermElabM (Array (Term × Expr)
   let e ← Term.elabTerm stx none
   Term.synthesizeSyntheticMVars
   let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
-  let mvars' ← mvars.filterMapM (simplifyMVarType · isDecidableInstance)
+  let mvars' ← mvars.filterMapM (simplifyMVarType · isBodyDecidable)
   return (mvars', e)
 where
-  isDecidableInstance (body : Expr) : TermElabM Bool := do
-    let body ← Meta.whnf body
-    let res := match body.getAppFn.constName? with
-    | .some n => n == ``Decidable
-    | .none => false
-    return res
+  isBodyDecidable (body : Expr) : TermElabM Bool := do
+    return (← Meta.whnf body).getAppFn.constName? == some ``Decidable
   /-- `mv`'s type will include arguments which are not actually needed
   for the predicate. This method gets rid of those unnecessary
   arguments. Moreover, it only returns those `mv`ars whose final result
@@ -188,7 +190,7 @@ where
           pure $ tmp.replaceFVar z mv'
       mv.mvarId!.assign mv_pf
       let tyStx ← delabVeilExpr simplified_type
-      return .some (tyStx, mv')
+      return (tyStx, mv')
 
 /--
   Veil actions, in order to be executable, need to have `Decidable`
