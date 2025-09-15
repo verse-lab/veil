@@ -18,7 +18,7 @@ structure VCIdentifier where
   uid : VCId
 deriving Inhabited, BEq, Hashable
 
-structure VCData (VCMetaT : Type) where
+structure VCStatement where
   /-- Name of this VC. If the VC gets proven, this will be the name of
   the `theorem` in the Lean environment. -/
   name : Name
@@ -28,28 +28,47 @@ structure VCData (VCMetaT : Type) where
   convenience in generating `theorem` statements, we keep the binders
   separately, in the `params` field. -/
   statement : Term
+deriving Inhabited, BEq
+
+/-- A way of discharging / proving a VC.-/
+structure VCDischarger (ResultMetaT : Type) where
+  /-- Optionally, a VC discharger can provide term (e.g. a proof script) that
+  can be shown to the user, e.g. when a VC's corresponding `theorem` is
+  pretty-printed. -/
+  term : Option Term := none
+  /-- A cancellation token for the discharger. -/
+  cancelTk : IO.CancelToken
+  /-- A task that discharges the VC, which will eventually return the witness and
+  the metadata associated with the discharge attempt. Running the resulting
+  `BaseIO` action causes the task to be started eagerly. -/
+  discharger : BaseIO (Task (Except Exception (Expr × Option ResultMetaT)))
+
+structure VCData (VCMetaT : Type) extends VCStatement where
   /-- Metadata associated with this VC, provided by the frontend. -/
   meta : VCMetaT
 deriving Inhabited
 
-structure VerificationCondition (VCMetaT : Type) extends VCIdentifier, (VCData VCMetaT)
+structure VerificationCondition (VCMetaT ResultMetaT : Type) extends VCIdentifier, VCData VCMetaT where
+  /-- Dischargers for this VC. More can be added after the VC is created, and
+  the system will pick up new dischargers and re-attempt to discharge the VC.-/
+  dischargers : Array (VCDischarger ResultMetaT)
 deriving Inhabited
 
-instance : BEq (VerificationCondition VCMetaT) where
+instance : BEq (VerificationCondition VCMetaT ResultMetaT) where
   beq a b :=
     a.uid == b.uid &&
     a.statement == b.statement
 
-instance : Hashable (VerificationCondition VCMetaT) where
+instance : Hashable (VerificationCondition VCMetaT ResultMetaT) where
   hash x := hash x.uid
 
-def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] (vc : VerificationCondition VCMetaT) : m Command := do
+def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] (vc : VerificationCondition VCMetaT ResultMetaT) : m Command := do
   `(command| theorem $(mkIdent vc.name) $(vc.params)* : $(vc.statement) := by sorry)
 
 -- Based on [RustDagcuter](https://github.com/busyster996/RustDagcuter)
-structure VCManager (VCMetaT : Type) where
+structure VCManager (VCMetaT ResultMetaT: Type) where
   /-- All VCs, indexed by their ID. -/
-  nodes : HashMap VCId (VerificationCondition VCMetaT)
+  nodes : HashMap VCId (VerificationCondition VCMetaT ResultMetaT)
 
   /-- Dependencies of each VC, i.e. VCs that must be proven before this
   VC can be proven. -/
@@ -72,9 +91,9 @@ deriving Inhabited
   its upstream dependencies. Returns the updated VCManager and the new
   VC.
 -/
-def VCManager.addVC (mgr : VCManager VCMetaT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) : (VCManager VCMetaT × VCId) := Id.run do
+def VCManager.addVC (mgr : VCManager VCMetaT ResultMetaT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (VCDischarger ResultMetaT) := #[]) : (VCManager VCMetaT ResultMetaT × VCId) := Id.run do
   let uid := mgr._nextId
-  let vc := { uid := uid, name := vc.name, params := vc.params, statement := vc.statement, meta := vc.meta }
+  let vc := {vc with uid := uid, dischargers := initialDischargers}
   -- Add ourselves downstream of all our dependencies
   let mut downstream := mgr.downstream
   for parent in dependsOn do
@@ -88,10 +107,21 @@ def VCManager.addVC (mgr : VCManager VCMetaT) (vc : VCData VCMetaT) (dependsOn :
   }
   (mgr', uid)
 
-def VCManager.theorems [Monad m] [MonadQuotation m] (mgr : VCManager VCMetaT) : m (Array Command) :=
+def VCManager.addDischarger (mgr : VCManager VCMetaT ResultMetaT) (vcId : VCId) (discharger : VCDischarger ResultMetaT) : VCManager VCMetaT ResultMetaT :=
+  match mgr.nodes[vcId]? with
+  | some vc => { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push discharger } }
+  | none => mgr
+
+open Lean.Elab.Command in
+def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultMetaT) (vcId : VCId) (mk : VCStatement → CommandElabM (VCDischarger ResultMetaT)) : CommandElabM (VCManager VCMetaT ResultMetaT) := do
+  match mgr.nodes[vcId]? with
+  | some vc => pure { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push (← mk vc.toVCStatement) } }
+  | none => pure mgr
+
+def VCManager.theorems [Monad m] [MonadQuotation m] (mgr : VCManager VCMetaT ResultMetaT) : m (Array Command) :=
   mgr.nodes.valuesArray.mapM (·.theoremStx)
 
-instance [ToString VCMetaT] : ToString (VCManager VCMetaT) where
+instance [ToString VCMetaT] : ToString (VCManager VCMetaT ResultMetaT) where
   toString mgr :=
     let nodes := mgr.nodes.toList.map (fun (uid, vc) => s!"[{uid}] {vc.name} depends on {mgr.upstream[uid]!.toList.map (fun dep => s!"{dep}")} (in-degree: {mgr.inDegree[uid]!}) {vc.meta}")
     s!"{String.intercalate "\n" nodes}"

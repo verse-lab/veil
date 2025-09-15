@@ -1,5 +1,6 @@
 import Lean
 import Veil.Frontend.DSL.Module.Representation
+import Smt
 open Lean
 
 namespace Veil
@@ -33,5 +34,8 @@ instance : ToString VCMetadata where
   toString metadata :=
     s!"(kind: {metadata.kind})"
 
+inductive DischargerMetadata where
+  | cvc5 (result : Option Smt.cvc5Result)
+deriving Inhabited
 
 end Veil

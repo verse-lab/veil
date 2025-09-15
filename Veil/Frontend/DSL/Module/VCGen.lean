@@ -4,12 +4,30 @@ import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Util.Meta
 
-open Lean Elab
+open Lean Elab Term Command
 
 namespace Veil
 
+def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (cancelTk? : Option IO.CancelToken := none): CommandElabM (VCDischarger DischargerMetadata) := do
+  let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
+  let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
+    liftTermElabMWithBinders vcStatement.params fun _vs => do
+      /- We want to throw an error if anything fails or is missing during elaboration. -/
+      withoutErrToSorry $ do
+        let statementType ← elabTermEnsuringType vcStatement.statement (Expr.sort levelZero)
+        let body ← elabTermEnsuringType term statementType
+        return (body, Option.none)
+  ) cancelTk
+  let discharger := EIO.asTask (mk vcStatement)
+  return {
+    term := term,
+    cancelTk := cancelTk,
+    discharger := discharger
+  }
+
 private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-  (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (specName : Name) (vcName : Name) (vcKind : VCKind) (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]): m (VCData VCMetadata) := do
+  (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (specName : Name) (vcName : Name) (vcKind : VCKind)
+  (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]): m (VCData VCMetadata) := do
   let dependsOn := extraDeps.insertMany #[actName, assembledAssumptionsName, assembledInvariantsName]
   let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .theoremLike dependsOn)
   return {
@@ -49,9 +67,8 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (vcKind : VCKind) : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind actBinders ``VeilM.succeedsAndPreservesInvariantsAssuming (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
 
-
-def Module.generateVCs [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m] (mod : Module) : m (VCManager VCMetadata) := do
-  let mut vcManager := default
+def Module.generateVCs  (mod : Module) : CommandElabM (VCManager VCMetadata DischargerMetadata) := do
+  let mut vcManager : VCManager VCMetadata DischargerMetadata := default
   -- We need to build the VCs "bottom-up", i.e. from the "smallest"
   -- statements to the "largest".
   let actsToCheck := mod.procedures.filter (fun s => match s.info with
@@ -66,6 +83,7 @@ def Module.generateVCs [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [Monad
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
     (vcManager, doesNotThrowVC) := vcManager.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind (← act.binders) .primary) {}
+    vcManager ← vcManager.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by sorry))
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
     -- Assuming the `Invariants`, this action preserves every invariant clause
