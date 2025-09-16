@@ -1,4 +1,5 @@
 import Lean
+import Std.Sync.Channel
 open Lean Std
 
 /-!
@@ -12,6 +13,7 @@ built on top of these types.
 -/
 
 abbrev VCId := Nat
+abbrev DischargerId := Nat
 
 structure VCIdentifier where
   /-- A unique ID for this VC. -/
@@ -30,45 +32,96 @@ structure VCStatement where
   statement : Term
 deriving Inhabited, BEq
 
+/-- A discharger, if successful, produces a witness for the VC's statement. -/
+abbrev Witness := Expr
+/-- Dischargers also produce a front-end specific data, which can be produced
+either when the discharger is successful or when it fails (or both). We use
+this, for example, to return a counter-example from the SMT solver. -/
+abbrev DischargerData (ResultT : Type) := ResultT
+
+structure DischargerIdentifier where
+  /-- The ID of the VC that this discharger is discharging. -/
+  vcId : VCId
+  /-- This is the index of within the `vcId`'s `dischargers` array. -/
+  dischargerId : DischargerId
+deriving Inhabited, BEq, Hashable
+
+inductive DischargerResult (ResultT : Type) where
+  /-- The discharger finished successfully, i.e. produced a witness & data. -/
+  | success (witness : Witness) (data : DischargerData ResultT)
+  /-- The discharger failed, i.e. did not produce a witness, but did produce
+  data, e.g. a counter-example. -/
+  | failure (data : DischargerData ResultT)
+  /-- The discharger threw an error. -/
+  | error (ex : Exception)
+deriving Inhabited
+
+instance [ToMessageData ResultT] : ToMessageData (DischargerResult ResultT) where
+  toMessageData res :=
+    match res with
+    | .success expr data => m!"success {expr} {data}"
+    | .failure data => m!"failure {data}"
+    | .error ex => m!"error {ex.toMessageData}"
+
+inductive DischargeStatus (ResultT : Type) where
+  /-- The discharger task has not been started yet. -/
+  | notStarted
+  /-- The discharger is running, i.e. started but hasn't finished yet. -/
+  | running
+  /-- The discharger finished -/
+  | finished (res : DischargerResult ResultT)
+deriving Inhabited
+
+/-- A notification from a discharger to the VCManager. -/
+abbrev DischargerNotification (ResultT : Type) := (DischargerIdentifier × DischargerResult ResultT)
+abbrev DischargerTask (ResultT : Type) := Task (Except Exception (DischargerResult ResultT))
+
 /-- A way of discharging / proving a VC.-/
-structure VCDischarger (ResultMetaT : Type) where
+structure VCDischarger (ResultT : Type) where
+  id : DischargerIdentifier
   /-- Optionally, a VC discharger can provide term (e.g. a proof script) that
   can be shown to the user, e.g. when a VC's corresponding `theorem` is
   pretty-printed. -/
   term : Option Term := none
   /-- A cancellation token for the discharger. -/
   cancelTk : IO.CancelToken
-  /-- A task that discharges the VC, which will eventually return the witness and
-  the metadata associated with the discharge attempt. Running the resulting
-  `BaseIO` action causes the task to be started eagerly. -/
-  discharger : BaseIO (Task (Except Exception (Expr × Option ResultMetaT)))
+  /-- The discharger.  -/
+  task : Option (DischargerTask ResultT)
+  /-- Creates a task that discharges the VC. It's the task responsibility to
+  return to the VCManager a `VCDischargeStatus`. This is done via the `ch`
+  field of the `VCManager`. Running the resulting `BaseIO` action causes the
+  task to be started eagerly. The task should be stored in the `task` field for
+  later access. -/
+  private mkTask : BaseIO (DischargerTask ResultT)
 
 structure VCData (VCMetaT : Type) extends VCStatement where
   /-- Metadata associated with this VC, provided by the frontend. -/
-  meta : VCMetaT
+  metadata : VCMetaT
 deriving Inhabited
 
-structure VerificationCondition (VCMetaT ResultMetaT : Type) extends VCIdentifier, VCData VCMetaT where
+structure VerificationCondition (VCMetaT ResultT : Type) extends VCIdentifier, VCData VCMetaT where
   /-- Dischargers for this VC. More can be added after the VC is created, and
   the system will pick up new dischargers and re-attempt to discharge the VC.-/
-  dischargers : Array (VCDischarger ResultMetaT)
+  dischargers : Array (VCDischarger ResultT)
+  /-- The ID of the (first) discharger that successfully discharged the VC. -/
+  successful : Option DischargerId := none
 deriving Inhabited
 
-instance : BEq (VerificationCondition VCMetaT ResultMetaT) where
+instance : BEq (VerificationCondition VCMetaT ResultT) where
   beq a b :=
     a.uid == b.uid &&
     a.statement == b.statement
 
-instance : Hashable (VerificationCondition VCMetaT ResultMetaT) where
+instance : Hashable (VerificationCondition VCMetaT ResultT) where
   hash x := hash x.uid
 
-def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] (vc : VerificationCondition VCMetaT ResultMetaT) : m Command := do
+def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] (vc : VerificationCondition VCMetaT ResultT) : m Command := do
   `(command| theorem $(mkIdent vc.name) $(vc.params)* : $(vc.statement) := by sorry)
 
 -- Based on [RustDagcuter](https://github.com/busyster996/RustDagcuter)
-structure VCManager (VCMetaT ResultMetaT: Type) where
+structure VCManager (VCMetaT ResultT: Type) where
   /-- All VCs, indexed by their ID. -/
-  nodes : HashMap VCId (VerificationCondition VCMetaT ResultMetaT)
+  nodes : HashMap VCId (VerificationCondition VCMetaT ResultT)
 
   /-- Dependencies of each VC, i.e. VCs that must be proven before this
   VC can be proven. -/
@@ -84,16 +137,26 @@ structure VCManager (VCMetaT ResultMetaT: Type) where
   downstream : HashMap VCId (HashSet VCId)
 
   protected _nextId : VCId := 0
+  protected ch : Option (Std.Channel (DischargerNotification ResultT)) := none
 deriving Inhabited
 
-/--
-  Adds a new verification condition (VC) to the VCManager, along with
-  its upstream dependencies. Returns the updated VCManager and the new
-  VC.
--/
+/-- Create a new VCManager. This should be preferred instead of `default`, as
+this initializes the channel for communicating the discharge status of VCs. -/
+def VCManager.new : BaseIO (VCManager VCMetaT ResultMetaT) := do
+  return {
+    nodes := HashMap.emptyWithCapacity,
+    upstream := HashMap.emptyWithCapacity,
+    inDegree := HashMap.emptyWithCapacity,
+    downstream := HashMap.emptyWithCapacity,
+    _nextId := 0,
+    ch := some (← Std.Channel.new),
+  }
+
+/-- Adds a new verification condition (VC) to the VCManager, along with its
+upstream dependencies. Returns the updated VCManager and the new VC. -/
 def VCManager.addVC (mgr : VCManager VCMetaT ResultMetaT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (VCDischarger ResultMetaT) := #[]) : (VCManager VCMetaT ResultMetaT × VCId) := Id.run do
   let uid := mgr._nextId
-  let vc := {vc with uid := uid, dischargers := initialDischargers}
+  let vc := {vc with uid := uid, dischargers := initialDischargers, successful := none}
   -- Add ourselves downstream of all our dependencies
   let mut downstream := mgr.downstream
   for parent in dependsOn do
@@ -107,21 +170,84 @@ def VCManager.addVC (mgr : VCManager VCMetaT ResultMetaT) (vc : VCData VCMetaT) 
   }
   (mgr', uid)
 
-def VCManager.addDischarger (mgr : VCManager VCMetaT ResultMetaT) (vcId : VCId) (discharger : VCDischarger ResultMetaT) : VCManager VCMetaT ResultMetaT :=
-  match mgr.nodes[vcId]? with
-  | some vc => { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push discharger } }
-  | none => mgr
-
 open Lean.Elab.Command in
-def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultMetaT) (vcId : VCId) (mk : VCStatement → CommandElabM (VCDischarger ResultMetaT)) : CommandElabM (VCManager VCMetaT ResultMetaT) := do
+def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultMetaT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (DischargerNotification ResultMetaT) → CommandElabM (VCDischarger ResultMetaT)) : CommandElabM (VCManager VCMetaT ResultMetaT) := do
+  let .some ch := mgr.ch | throwError "VCManager.mkAddDischarger called without a channel"
   match mgr.nodes[vcId]? with
-  | some vc => pure { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push (← mk vc.toVCStatement) } }
+  | some vc => do
+    let id : DischargerIdentifier := {vcId, dischargerId := vc.dischargers.size}
+    pure { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push (← mk vc.toVCStatement id ch) } }
   | none => pure mgr
 
 def VCManager.theorems [Monad m] [MonadQuotation m] (mgr : VCManager VCMetaT ResultMetaT) : m (Array Command) :=
   mgr.nodes.valuesArray.mapM (·.theoremStx)
 
-instance [ToString VCMetaT] : ToString (VCManager VCMetaT ResultMetaT) where
-  toString mgr :=
-    let nodes := mgr.nodes.toList.map (fun (uid, vc) => s!"[{uid}] {vc.name} depends on {mgr.upstream[uid]!.toList.map (fun dep => s!"{dep}")} (in-degree: {mgr.inDegree[uid]!}) {vc.meta}")
-    s!"{String.intercalate "\n" nodes}"
+def VCDischarger.run (discharger : VCDischarger ResultMetaT) : BaseIO (VCDischarger ResultMetaT) := do
+  match discharger.task with
+  | some _ => return discharger
+  -- This will start the task eagerly
+  | none =>
+    let task ← discharger.mkTask
+    return { discharger with task := some task }
+
+def VCDischarger.status (discharger : VCDischarger ResultT) : BaseIO (DischargeStatus ResultT) := do
+  match discharger.task with
+  | none => return .notStarted
+  | some task =>
+    match ← IO.hasFinished task with
+    | false => return .running
+    | true => do
+      match task.get with
+      | .ok res => return .finished res
+      | .error ex => return .finished (.error ex)
+
+def VCDischarger.isSuccessful (discharger : VCDischarger ResultMetaT) : BaseIO Bool := do
+  match (← discharger.status) with
+  | .finished (.success _ _) => return true
+  | _ => return false
+
+/-- Find the next discharger to try. Once this function returns `none`, it will
+not return `some` again unless new dischargers are added. -/
+def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT ResultMetaT) : BaseIO (Option (VCDischarger ResultMetaT)) := do
+  match vc.successful with
+  | some _ => return .none
+  | none =>
+    for discharger in vc.dischargers do
+      match ← discharger.status with
+      | .notStarted => return some discharger
+      | .finished (.success _ _) | .running => return none
+      | .finished (.failure _) | .finished (.error _) => continue
+    return none
+
+def VCManager.readyTasks (mgr : VCManager VCMetaT ResultMetaT) : CoreM (List (VerificationCondition VCMetaT ResultMetaT × VCDischarger ResultMetaT)) := do
+  let ready ← mgr.inDegree.toList.filterMapM (fun (vcId, inDegree) => do
+    let .some vc := mgr.nodes[vcId]? | throwError "VCManager.executeOne: VC {vcId} not found"
+    if inDegree != 0 then pure none else
+      match ← vc.nextDischarger? with
+      | some discharger => pure (some (vc, discharger))
+      | none => pure none)
+  return ready
+
+def VCManager.executeTask (mgr : VCManager VCMetaT ResultMetaT) (vc : VerificationCondition VCMetaT ResultMetaT) (discharger : VCDischarger ResultMetaT) : CoreM (VCManager VCMetaT ResultMetaT) := do
+  let discharger' ← discharger.run
+  return { mgr with nodes := mgr.nodes.insert vc.uid { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }}
+
+def VCManager.executeOne (mgr : VCManager VCMetaT ResultMetaT) : CoreM (VCManager VCMetaT ResultMetaT) := do
+  let ready ← mgr.readyTasks
+  match ready with
+  | [] => return mgr
+  | (vc, discharger) :: _ => mgr.executeTask vc discharger
+
+def VCManager.executeAll (mgr : VCManager VCMetaT ResultMetaT) : CoreM (VCManager VCMetaT ResultMetaT) := do
+  let mut mgr' := mgr
+  while true do
+    let ready ← mgr'.readyTasks
+    match ready with
+    | [] => return mgr'
+    | (vc, discharger) :: _ => mgr' ← mgr'.executeTask vc discharger
+  return mgr'
+
+instance [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultMetaT) where
+  toMessageData mgr :=
+    let nodes := mgr.nodes.toList.map (fun (uid, vc) => m!"[{uid}] {vc.name} depends on {mgr.upstream[uid]!.toList.map (fun dep => m!"{dep}")} (in-degree: {mgr.inDegree[uid]!}) {vc.metadata}")
+    MessageData.joinSep nodes "\n"

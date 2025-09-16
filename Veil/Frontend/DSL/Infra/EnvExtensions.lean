@@ -11,7 +11,7 @@ namespace Veil
 
 structure LocalEnvironment where
   currentModule : Option Module
-  vcManager : VCManager VCMetadata DischargerMetadata
+  vcManager : VCManager VCMetadata VeilResult
 deriving Inhabited
 
 structure GlobalEnvironment where
@@ -24,14 +24,14 @@ def GlobalEnvironment.containsModule (genv : GlobalEnvironment) (name : Name) : 
 
 initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment ←
   registerSimpleScopedEnvExtension {
-    initial := default
+    initial := { currentModule := none, vcManager := ← VCManager.new }
     addEntry := fun _ s' => s'
   }
 
 def localEnv.modifyModule [Monad m] [MonadEnv m] (f : Option Module → Module) : m Unit :=
   localEnv.modify (fun s => { s with currentModule := f s.currentModule })
 
-def localEnv.modifyVCManager [Monad m] [MonadEnv m] (f : VCManager VCMetadata DischargerMetadata → VCManager VCMetadata DischargerMetadata) : m Unit :=
+def localEnv.modifyVCManager [Monad m] [MonadEnv m] (f : VCManager VCMetadata VeilResult → VCManager VCMetadata VeilResult) : m Unit :=
   localEnv.modify (fun s => { s with vcManager := f s.vcManager })
 
 initialize globalEnv : SimpleScopedEnvExtension GlobalEnvironment GlobalEnvironment ←
@@ -46,7 +46,7 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
   else
     throwError errMsg
 
-def getVCManager [Monad m] [MonadEnv m] : m (VCManager VCMetadata DischargerMetadata) := return (← localEnv.get).vcManager
+def getVCManager [Monad m] [MonadEnv m] : m (VCManager VCMetadata VeilResult) := return (← localEnv.get).vcManager
 
 def mkNewAssertion [Monad m] [MonadEnv m] [MonadError m] (proc : Name) (stx : Syntax) : m AssertionId := do
   let mod ← getCurrentModule (errMsg := "Cannot have a Veil assertion outside of a module")

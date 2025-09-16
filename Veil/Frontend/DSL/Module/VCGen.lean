@@ -8,21 +8,40 @@ open Lean Elab Term Command
 
 namespace Veil
 
-def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (cancelTk? : Option IO.CancelToken := none): CommandElabM (VCDischarger DischargerMetadata) := do
+def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (DischargerNotification VeilResult)) (cancelTk? : Option IO.CancelToken := none): CommandElabM (VCDischarger VeilResult) := do
   let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
   let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
-    liftTermElabMWithBinders vcStatement.params fun _vs => do
-      /- We want to throw an error if anything fails or is missing during elaboration. -/
-      withoutErrToSorry $ do
-        let statementType ← elabTermEnsuringType vcStatement.statement (Expr.sort levelZero)
-        let body ← elabTermEnsuringType term statementType
-        return (body, Option.none)
+    -- NOTE: `trace` here will never be displayed and `dbg_trace` will show up
+    -- as errors in the LSP output
+    -- dbg_trace "Starting discharger task for {vcStatement.name}"
+    let res ← (
+      /- We wrap in `try`/`catch` because we want to reify exceptions ourselves
+      into `DischargerResult` -/
+      try
+        liftTermElabMWithBinders vcStatement.params fun vs => do
+          /- We want to throw an error if anything fails or is missing during
+          elaboration. -/
+          withoutErrToSorry $ do
+            let statementType ← elabTermEnsuringType vcStatement.statement (Expr.sort levelZero)
+            let body ← withSynthesize $ elabTermEnsuringType term statementType
+            let witness ← Meta.mkLambdaFVars vs body
+            return .success witness Option.none
+      catch ex =>
+        -- TODO: identify SMT failure and get counter-example from the solver
+        return .error ex)
+    -- Send the result to the VCManager
+    -- dbg_trace "Sending result for {vcStatement.name}: {← (toMessageData res).toString}"
+    let _ ← ch.send (dischargerId, res)
+    -- And also record it in the task for good measure
+    return res
   ) cancelTk
-  let discharger := EIO.asTask (mk vcStatement)
+  let mkTask := EIO.asTask (mk vcStatement)
   return {
+    id := dischargerId,
     term := term,
     cancelTk := cancelTk,
-    discharger := discharger
+    task := Option.none,
+    mkTask := mkTask
   }
 
 private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
@@ -41,7 +60,7 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
           (@$assembledInvariants $(← mod.declarationAllParamsMapFn (·.arg) assembledInvariantsName (.derivedDefinition .invariantLike dependsOn))*)
           $extraTerms:term*
     ),
-    meta := {
+    metadata := {
       kind := vcKind,
       baseParams := thmBaseParams,
       extraParams := thmExtraParams,
@@ -67,8 +86,8 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (vcKind : VCKind) : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind actBinders ``VeilM.succeedsAndPreservesInvariantsAssuming (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
 
-def Module.generateVCs  (mod : Module) : CommandElabM (VCManager VCMetadata DischargerMetadata) := do
-  let mut vcManager : VCManager VCMetadata DischargerMetadata := default
+def Module.generateVCs (mod : Module) : CommandElabM (VCManager VCMetadata VeilResult) := do
+  let mut vcManager := (← localEnv.get).vcManager
   -- We need to build the VCs "bottom-up", i.e. from the "smallest"
   -- statements to the "largest".
   let actsToCheck := mod.procedures.filter (fun s => match s.info with

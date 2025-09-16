@@ -34,8 +34,16 @@ instance : ToString VCMetadata where
   toString metadata :=
     s!"(kind: {metadata.kind})"
 
-inductive DischargerMetadata where
+inductive SolverResult where
   | cvc5 (result : Option Smt.cvc5Result)
 deriving Inhabited
+
+abbrev VeilResult := Option SolverResult
+
+instance : ToMessageData SolverResult where
+  toMessageData result :=
+    match result with
+    | .cvc5 (.some _) => m!"cvc5 result"
+    | .cvc5 (.none) => m!"none"
 
 end Veil
