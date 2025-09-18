@@ -21,14 +21,18 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
       into `DischargerResult` -/
       try
         let startTime ← IO.monoMsNow
+        dbg_trace "({startTime}) [Discharger] Starting task for {vcStatement.name} on thread ID {← IO.getTID}"
         liftTermElabMWithBinders vcStatement.params fun vs => do
           /- We want to throw an error if anything fails or is missing during
           elaboration. -/
           withoutErrToSorry $ do
+            dbg_trace "({← IO.monoMsNow}) [Discharger] Elaborating term for {vcStatement.name} on thread ID {← IO.getTID}"
             let statementType ← elabTermEnsuringType vcStatement.statement (Expr.sort levelZero)
             let body ← withSynthesize $ elabTermEnsuringType term statementType
             let witness ← Meta.mkLambdaFVars vs body
-            return .success witness Option.none ((← IO.monoMsNow) - startTime)
+            let endTime ← IO.monoMsNow
+            dbg_trace "({endTime})[Discharger] Finished task for {vcStatement.name} on thread ID {← IO.getTID} in {endTime - startTime}ms"
+            return .success witness Option.none (endTime - startTime)
       catch ex =>
         -- TODO: identify SMT failure and get counter-example from the solver
         return .error ex)
@@ -38,7 +42,7 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
     -- And also record it in the task for good measure
     return res
   ) cancelTk
-  let mkTask := EIO.asTask (mk vcStatement)
+  let mkTask := EIO.asTask (mk vcStatement) Task.Priority.dedicated
   return {
     id := dischargerId,
     term := term,
@@ -104,7 +108,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
     doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind (← act.binders) .primary) {}
-    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by veil_solve))
+    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by sleep 1000; sorry))
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
     -- Assuming the `Invariants`, this action preserves every invariant clause
@@ -112,19 +116,19 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     for invariantClause in mod.checkableInvariants do
       let mut clauseVC := default
       clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind (← act.binders) invariantClause.name .primary) {}
-      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm $ ← `(by veil_solve))
+      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm $ ← `(by sleep 1000; sorry))
       clausesVCsByInv := clausesVCsByInv.insert invariantClause.name ((clausesVCsByInv.getD invariantClause.name {}).insert clauseVC)
       clauseVCsForAct := clauseVCsForAct.insert clauseVC
 
     -- Per-action overall invariant preservation VC
     let mut preservesInvariantsVC := default
     preservesInvariantsVC ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) clauseVCsForAct
-    Verifier.mkAddDischarger preservesInvariantsVC (VCDischarger.fromTerm $ ← `(by veil_solve))
+    Verifier.mkAddDischarger preservesInvariantsVC (VCDischarger.fromTerm $ ← `(by sleep 1000; sorry))
     preservesInvariantsVCs := preservesInvariantsVCs.insert preservesInvariantsVC
 
     let mut succeedsAndPreservesInvariantsVC := default
     succeedsAndPreservesInvariantsVC ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) {doesNotThrowVC, preservesInvariantsVC}
-    Verifier.mkAddDischarger succeedsAndPreservesInvariantsVC (VCDischarger.fromTerm $ ← `(by veil_solve))
+    Verifier.mkAddDischarger succeedsAndPreservesInvariantsVC (VCDischarger.fromTerm $ ← `(by sleep 1000; sorry))
     succeedsAndPreservesInvariantsVCs := succeedsAndPreservesInvariantsVCs.insert succeedsAndPreservesInvariantsVC
 
   -- `NextAct` theorems

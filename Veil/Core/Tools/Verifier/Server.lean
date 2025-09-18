@@ -15,36 +15,38 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
     while true do
       -- blocks until we get a notification
       let .fromDischarger dischargerId res := (← dch.recv).get | continue
-      let mgr := (← getVCManager)
+      -- let mgr := (← getVCManager)
       let timeStr := res.time.map (fun time => s!" ({time}ms)") |>.getD ""
       dbg_trace "[Manager][dischargerLoop] RECV {res.kindString} notification from discharger {dischargerId} {timeStr}"
   ) cancelTk
   -- This starts the task
-  let _ ← EIO.asTask (dischargerLoop ()) Task.Priority.dedicated
+  -- let _ ← EIO.asTask (dischargerLoop ()) Task.Priority.dedicated
 
   let frontEndLoop ← Command.wrapAsync (fun () => do
     while true do
       let .fromFrontend := (← fch.recv).get | continue
       dbg_trace "[Manager][frontEndLoop] RECV notification from frontend"
-      let mgr ← liftCoreM $ (← getVCManager).executeAll
+      let mgr ← liftCoreM $ (← getVCManager).startAll
       setVCManager mgr
   ) cancelTk
   -- This starts the task
-  let _ ← EIO.asTask (frontEndLoop ()) Task.Priority.dedicated
+  -- let _ ← EIO.asTask (frontEndLoop ()) Task.Priority.dedicated
 
 def sendFrontendNotification (notification : ManagerNotification VeilResult := .fromFrontend) : CommandElabM Unit := do
   let .some fch := (← getVCManager).fromFrontend | throwError "sendFrontendNotification called without a fromFrontend channel"
   let _ ← fch.send notification
 
-def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger VeilResult) := #[]) : CommandElabM VCId := do
+def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger VeilResult) := #[]) (sendNotification : Bool := false): CommandElabM VCId := do
   let (mgr', uid) := (← getVCManager).addVC vc dependsOn initialDischargers
   setVCManager mgr'
-  sendFrontendNotification
+  if sendNotification then
+    sendFrontendNotification
   return uid
 
-def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VeilResult) → CommandElabM (Discharger VeilResult)) : CommandElabM Unit := do
+  def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VeilResult) → CommandElabM (Discharger VeilResult)) (sendNotification : Bool := false) : CommandElabM Unit := do
   let mgr' ← (← getVCManager).mkAddDischarger vcId mk
   setVCManager mgr'
-  sendFrontendNotification
+  if sendNotification then
+    sendFrontendNotification
 
 end Veil.Verifier

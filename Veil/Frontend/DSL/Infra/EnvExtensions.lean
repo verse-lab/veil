@@ -37,7 +37,7 @@ initialize vcManagerEnv : PersistentEnvExtension Unit VCManagerEnvironment VCMan
     addImportedFn := fun _ => return { mgr := ← VCManager.new }
     addEntryFn := fun _old new => new
     exportEntriesFnEx := fun _ _ _ => #[]
-    asyncMode := .sync
+    asyncMode := .mainOnly
   }
 
 initialize globalEnv : SimpleScopedEnvExtension GlobalEnvironment GlobalEnvironment ←

@@ -22,10 +22,12 @@ structure DischargerIdentifier where
   vcId : VCId
   /-- This is the index of within the `vcId`'s `dischargers` array. -/
   dischargerId : DischargerId
+  /-- The name of the discharger. -/
+  name : Name
 deriving Inhabited, BEq, Hashable
 
 instance : ToString DischargerIdentifier where
-  toString id := s!"{id.vcId}.{id.dischargerId}"
+  toString id := s!"{id.name} ({id.vcId}.{id.dischargerId})"
 
 structure VCStatement where
   /-- Name of this VC. If the VC gets proven, this will be the name of
@@ -222,7 +224,8 @@ def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (m
   let .some ch := mgr.fromDischargers | throwError "VCManager.mkAddDischarger called without a channel"
   match mgr.nodes[vcId]? with
   | some vc => do
-    let id : DischargerIdentifier := {vcId, dischargerId := vc.dischargers.size}
+    let dischargerId := vc.dischargers.size
+    let id : DischargerIdentifier := {vcId, dischargerId, name := Name.mkSimple s!"{vc.name}_{dischargerId}" }
     pure { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push (← mk vc.toVCStatement id ch) } }
   | none => pure mgr
 
@@ -275,7 +278,7 @@ def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT) : CoreM (List (Verifi
       | none => pure none)
   return ready
 
-def VCManager.executeTask (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) (discharger : Discharger ResultT) : CoreM (VCManager VCMetaT ResultT) := do
+def VCManager.startTask (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) (discharger : Discharger ResultT) : CoreM (VCManager VCMetaT ResultT) := do
   let discharger' ← discharger.run
   return { mgr with nodes := mgr.nodes.insert vc.uid { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }}
 
@@ -283,15 +286,14 @@ def VCManager.executeOne (mgr : VCManager VCMetaT ResultT) : CoreM (VCManager VC
   let ready ← mgr.readyTasks
   match ready with
   | [] => return mgr
-  | (vc, discharger) :: _ => mgr.executeTask vc discharger
+  | (vc, discharger) :: _ => mgr.startTask vc discharger
 
-def VCManager.executeAll (mgr : VCManager VCMetaT ResultT) : CoreM (VCManager VCMetaT ResultT) := do
+def VCManager.startAll (mgr : VCManager VCMetaT ResultT) : CoreM (VCManager VCMetaT ResultT) := do
   let mut mgr' := mgr
-  while true do
-    let ready ← mgr'.readyTasks
-    match ready with
-    | [] => return mgr'
-    | (vc, discharger) :: _ => mgr' ← mgr'.executeTask vc discharger
+  let ready ← mgr'.readyTasks
+  for (vc, discharger) in ready do
+     mgr' ← mgr'.startTask vc discharger
+  dbg_trace "({← IO.monoMsNow})[VCManager.startAll] finished starting all tasks"
   return mgr'
 
 instance [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where

@@ -121,8 +121,10 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand nextCmd
   mod.generateVCs
   trace[veil.debug] "VCManager:\n{← getVCManager}"
-  Verifier.runManager
-  Verifier.sendFrontendNotification .fromFrontend
+  -- Verifier.runManager
+  -- Verifier.sendFrontendNotification .fromFrontend
+  let mgr ← liftCoreM $ (← getVCManager).startAll
+  setVCManager mgr
   return { mod with _specFinalized := true }
 
 @[command_elab Veil.genState]
