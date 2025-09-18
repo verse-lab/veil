@@ -3,6 +3,8 @@ import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Util.Meta
+import Veil.Core.Tools.Verifier.Server
+import Veil.Frontend.DSL.Tactic
 
 open Lean Elab Term Command
 
@@ -18,6 +20,7 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
       /- We wrap in `try`/`catch` because we want to reify exceptions ourselves
       into `DischargerResult` -/
       try
+        let startTime ← IO.monoMsNow
         liftTermElabMWithBinders vcStatement.params fun vs => do
           /- We want to throw an error if anything fails or is missing during
           elaboration. -/
@@ -25,7 +28,7 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
             let statementType ← elabTermEnsuringType vcStatement.statement (Expr.sort levelZero)
             let body ← withSynthesize $ elabTermEnsuringType term statementType
             let witness ← Meta.mkLambdaFVars vs body
-            return .success witness Option.none
+            return .success witness Option.none ((← IO.monoMsNow) - startTime)
       catch ex =>
         -- TODO: identify SMT failure and get counter-example from the solver
         return .error ex)
@@ -86,8 +89,7 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (vcKind : VCKind) : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind actBinders ``VeilM.succeedsAndPreservesInvariantsAssuming (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
 
-def Module.generateVCs (mod : Module) : CommandElabM (VCManager VCMetadata VeilResult) := do
-  let mut vcManager := (← getVCManager)
+def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   -- We need to build the VCs "bottom-up", i.e. from the "smallest"
   -- statements to the "largest".
   let actsToCheck := mod.procedures.filter (fun s => match s.info with
@@ -101,36 +103,38 @@ def Module.generateVCs (mod : Module) : CommandElabM (VCManager VCMetadata VeilR
   for act in actsToCheck do
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
-    (vcManager, doesNotThrowVC) := vcManager.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind (← act.binders) .primary) {}
-    vcManager ← vcManager.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by sorry))
+    doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind (← act.binders) .primary) {}
+    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by veil_solve))
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
     -- Assuming the `Invariants`, this action preserves every invariant clause
     let mut clauseVCsForAct : Std.HashSet VCId := {}
     for invariantClause in mod.checkableInvariants do
       let mut clauseVC := default
-      (vcManager, clauseVC) := vcManager.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind (← act.binders) invariantClause.name .primary) {}
+      clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind (← act.binders) invariantClause.name .primary) {}
+      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm $ ← `(by veil_solve))
       clausesVCsByInv := clausesVCsByInv.insert invariantClause.name ((clausesVCsByInv.getD invariantClause.name {}).insert clauseVC)
       clauseVCsForAct := clauseVCsForAct.insert clauseVC
 
     -- Per-action overall invariant preservation VC
     let mut preservesInvariantsVC := default
-    (vcManager, preservesInvariantsVC) := vcManager.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) clauseVCsForAct
+    preservesInvariantsVC ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) clauseVCsForAct
+    Verifier.mkAddDischarger preservesInvariantsVC (VCDischarger.fromTerm $ ← `(by veil_solve))
     preservesInvariantsVCs := preservesInvariantsVCs.insert preservesInvariantsVC
 
     let mut succeedsAndPreservesInvariantsVC := default
-    (vcManager, succeedsAndPreservesInvariantsVC) := vcManager.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) {doesNotThrowVC, preservesInvariantsVC}
+    succeedsAndPreservesInvariantsVC ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) {doesNotThrowVC, preservesInvariantsVC}
+    Verifier.mkAddDischarger succeedsAndPreservesInvariantsVC (VCDischarger.fromTerm $ ← `(by veil_solve))
     succeedsAndPreservesInvariantsVCs := succeedsAndPreservesInvariantsVCs.insert succeedsAndPreservesInvariantsVC
 
   -- `NextAct` theorems
   let .some dd := mod._derivedDefinitions[assembledNextActName]?
     | throwError s!"[Module.generateVCs] derived definition {assembledNextActName} not found"
-  (vcManager, _) := vcManager.addVC ( ← mkDoesNotThrowVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) doesNotThrowVCs
-  for invariantClause in mod.checkableInvariants do
-    (vcManager, _) := vcManager.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod assembledNextActName dd.declarationKind (← dd.binders) invariantClause.name .derived) (clausesVCsByInv[invariantClause.name]!)
-  (vcManager, _) := vcManager.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) preservesInvariantsVCs
-  (vcManager, _) := vcManager.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) succeedsAndPreservesInvariantsVCs
+  let _ ← Verifier.addVC ( ← mkDoesNotThrowVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) doesNotThrowVCs
 
-  return vcManager
+  for invariantClause in mod.checkableInvariants do
+    let _ ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod assembledNextActName dd.declarationKind (← dd.binders) invariantClause.name .derived) (clausesVCsByInv[invariantClause.name]!)
+  let _ ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) preservesInvariantsVCs
+  let _ ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) succeedsAndPreservesInvariantsVCs
 
 end Veil

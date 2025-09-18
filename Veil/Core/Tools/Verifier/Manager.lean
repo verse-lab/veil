@@ -48,32 +48,37 @@ abbrev DischargerData (ResultT : Type) := ResultT
 
 inductive DischargerResult (ResultT : Type) where
   /-- The discharger finished successfully, i.e. produced a witness & data. -/
-  | success (witness : Witness) (data : DischargerData ResultT)
+  | success (witness : Witness) (data : DischargerData ResultT) (time : Nat)
   /-- The discharger failed, i.e. did not produce a witness, but did produce
   data, e.g. a counter-example. -/
-  | failure (data : DischargerData ResultT)
+  | failure (data : DischargerData ResultT) (time : Nat)
   /-- The discharger threw an error. -/
   | error (ex : Exception)
 deriving Inhabited
 
+def DischargerResult.time (res : DischargerResult ResultT) : Option Nat :=
+  match res with
+  | .success _ _ time | .failure _ time => some time
+  | .error _ => none
+
 def DischargerResult.kindString (res : DischargerResult ResultT) : String :=
   match res with
-  | .success _ _ => "success"
-  | .failure _ => "failure"
+  | .success _ _ _ => "success"
+  | .failure _ _ => "failure"
   | .error _ => "error"
 
 instance [ToString ResultT] : ToString (DischargerResult ResultT) where
   toString res :=
     match res with
-    | .success expr data => s!"success {expr} {data}"
-    | .failure data => s!"failure {data}"
+    | .success expr data time => s!"success {expr} {data} ({time}ms)"
+    | .failure data time => s!"failure {data} ({time}ms)"
     | .error _ex => s!"exception thrown"
 
 instance [ToMessageData ResultT] : ToMessageData (DischargerResult ResultT) where
   toMessageData res :=
     match res with
-    | .success expr data => m!"success {expr} {data}"
-    | .failure data => m!"failure {data}"
+    | .success expr data time => m!"success {expr} {data} ({time}ms)"
+    | .failure data time => m!"failure {data} ({time}ms)"
     | .error ex => m!"error {ex.toMessageData}"
 
 inductive DischargeStatus (ResultT : Type) where
@@ -245,7 +250,7 @@ def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatu
 
 def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
   match (← discharger.status) with
-  | .finished (.success _ _) => return true
+  | .finished (.success _ _ _) => return true
   | _ => return false
 
 /-- Find the next discharger to try. Once this function returns `none`, it will
@@ -257,8 +262,8 @@ def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT Re
     for discharger in vc.dischargers do
       match ← discharger.status with
       | .notStarted => return some discharger
-      | .finished (.success _ _) | .running => return none -- we wait for the discharger to finish
-      | .finished (.failure _) | .finished (.error _) => continue
+      | .finished (.success _ _ _) | .running => return none -- we wait for the discharger to finish
+      | .finished (.failure _ _) | .finished (.error _) => continue
     return none
 
 def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT) : CoreM (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
