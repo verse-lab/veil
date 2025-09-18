@@ -1,8 +1,8 @@
 import Lake
 open Lake DSL System
 
-require smt from git "https://github.com/dranov/lean-smt.git" @ "7949b2a0d0d51e1b1141777756ba0c8430ca93ed"
-require Loom from git "https://github.com/verse-lab/loom-dev.git" @ "5ac117cf7814ea95bebcef4f91052991921b060a"
+require smt from git "https://github.com/dranov/lean-smt.git" @ "f779f505f38f4f08a2270beed2f1252c12822381"
+require Loom from git "https://github.com/verse-lab/loom-dev.git" @ "7f5a558583b49b4b336eda72604bc297fe98e22c"
 
 package veil
 
