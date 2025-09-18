@@ -2,15 +2,9 @@ import Lean
 import Std.Sync.Channel
 open Lean Std
 
-/-!
-Data structures for representing and scheduling elaboration of theorems
-in a dependency DAG, with support for equivalence classes of inter-derivable
-theorems to avoid redundant SMT calls.
+namespace Veil
 
-This module defines only the core data structures and basic helpers. The
-execution engine (parallel scheduling, solver invocation, etc.) can be
-built on top of these types.
--/
+section DataStructures
 
 abbrev VCId := Nat
 abbrev DischargerId := Nat
@@ -19,6 +13,19 @@ structure VCIdentifier where
   /-- A unique ID for this VC. -/
   uid : VCId
 deriving Inhabited, BEq, Hashable
+
+instance : ToString VCIdentifier where
+  toString id := s!"{id.uid}"
+
+structure DischargerIdentifier where
+  /-- The ID of the VC that this discharger is discharging. -/
+  vcId : VCId
+  /-- This is the index of within the `vcId`'s `dischargers` array. -/
+  dischargerId : DischargerId
+deriving Inhabited, BEq, Hashable
+
+instance : ToString DischargerIdentifier where
+  toString id := s!"{id.vcId}.{id.dischargerId}"
 
 structure VCStatement where
   /-- Name of this VC. If the VC gets proven, this will be the name of
@@ -39,13 +46,6 @@ either when the discharger is successful or when it fails (or both). We use
 this, for example, to return a counter-example from the SMT solver. -/
 abbrev DischargerData (ResultT : Type) := ResultT
 
-structure DischargerIdentifier where
-  /-- The ID of the VC that this discharger is discharging. -/
-  vcId : VCId
-  /-- This is the index of within the `vcId`'s `dischargers` array. -/
-  dischargerId : DischargerId
-deriving Inhabited, BEq, Hashable
-
 inductive DischargerResult (ResultT : Type) where
   /-- The discharger finished successfully, i.e. produced a witness & data. -/
   | success (witness : Witness) (data : DischargerData ResultT)
@@ -55,6 +55,19 @@ inductive DischargerResult (ResultT : Type) where
   /-- The discharger threw an error. -/
   | error (ex : Exception)
 deriving Inhabited
+
+def DischargerResult.kindString (res : DischargerResult ResultT) : String :=
+  match res with
+  | .success _ _ => "success"
+  | .failure _ => "failure"
+  | .error _ => "error"
+
+instance [ToString ResultT] : ToString (DischargerResult ResultT) where
+  toString res :=
+    match res with
+    | .success expr data => s!"success {expr} {data}"
+    | .failure data => s!"failure {data}"
+    | .error _ex => s!"exception thrown"
 
 instance [ToMessageData ResultT] : ToMessageData (DischargerResult ResultT) where
   toMessageData res :=
@@ -77,7 +90,7 @@ abbrev DischargerNotification (ResultT : Type) := (DischargerIdentifier × Disch
 abbrev DischargerTask (ResultT : Type) := Task (Except Exception (DischargerResult ResultT))
 
 /-- A way of discharging / proving a VC.-/
-structure VCDischarger (ResultT : Type) where
+structure Discharger (ResultT : Type) where
   id : DischargerIdentifier
   /-- Optionally, a VC discharger can provide term (e.g. a proof script) that
   can be shown to the user, e.g. when a VC's corresponding `theorem` is
@@ -102,7 +115,7 @@ deriving Inhabited
 structure VerificationCondition (VCMetaT ResultT : Type) extends VCIdentifier, VCData VCMetaT where
   /-- Dischargers for this VC. More can be added after the VC is created, and
   the system will pick up new dischargers and re-attempt to discharge the VC.-/
-  dischargers : Array (VCDischarger ResultT)
+  dischargers : Array (Discharger ResultT)
   /-- The ID of the (first) discharger that successfully discharged the VC. -/
   successful : Option DischargerId := none
 deriving Inhabited
@@ -115,8 +128,30 @@ instance : BEq (VerificationCondition VCMetaT ResultT) where
 instance : Hashable (VerificationCondition VCMetaT ResultT) where
   hash x := hash x.uid
 
-def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] (vc : VerificationCondition VCMetaT ResultT) : m Command := do
-  `(command| theorem $(mkIdent vc.name) $(vc.params)* : $(vc.statement) := by sorry)
+def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] [MonadError m] (vc : VerificationCondition VCMetaT ResultT) : m Command := do
+  let defaultDischargedBy ← `(term|by sorry)
+  let dischargedBy : Term ← match vc.successful with
+  | some dischargerId => do
+    let .some discharger := vc.dischargers[dischargerId]?
+      | throwError "VerificationCondition.theoremStx: successful discharger {dischargerId} not found for VC {vc.uid}"
+    pure $ discharger.term.getD defaultDischargedBy
+  | none => pure defaultDischargedBy
+  `(command| theorem $(mkIdent vc.name) $(vc.params)* : $(vc.statement) := $dischargedBy)
+
+end DataStructures
+
+section VCManager
+
+inductive ManagerNotification (ResultT : Type) where
+  | fromDischarger (dischargerId : DischargerIdentifier) (res : DischargerResult ResultT)
+  | fromFrontend
+deriving Inhabited
+
+instance [ToString ResultT] : ToString (ManagerNotification ResultT) where
+  toString res :=
+    match res with
+    | .fromDischarger dischargerId res => s!"fromDischarger {dischargerId} {res}"
+    | .fromFrontend => s!"fromFrontend"
 
 -- Based on [RustDagcuter](https://github.com/busyster996/RustDagcuter)
 structure VCManager (VCMetaT ResultT: Type) where
@@ -137,24 +172,31 @@ structure VCManager (VCMetaT ResultT: Type) where
   downstream : HashMap VCId (HashSet VCId)
 
   protected _nextId : VCId := 0
-  protected ch : Option (Std.Channel (DischargerNotification ResultT)) := none
+
+  /-- Notifications from dischargers to the VCManager that a discharger has
+  finished. NOTE: Do not change after the VCManager is created! -/
+  protected fromDischargers : Option (Std.Channel (ManagerNotification ResultT)) := none
+  /-- Notifications from the frontend to the VCManager that a VC or discharger
+  has been added. NOTE: Do not change after the VCManager is created! -/
+  protected fromFrontend : Option (Std.Channel (ManagerNotification ResultT)) := none
 deriving Inhabited
 
 /-- Create a new VCManager. This should be preferred instead of `default`, as
 this initializes the channel for communicating the discharge status of VCs. -/
-def VCManager.new : BaseIO (VCManager VCMetaT ResultMetaT) := do
+def VCManager.new : BaseIO (VCManager VCMetaT ResultT) := do
   return {
     nodes := HashMap.emptyWithCapacity,
     upstream := HashMap.emptyWithCapacity,
     inDegree := HashMap.emptyWithCapacity,
     downstream := HashMap.emptyWithCapacity,
     _nextId := 0,
-    ch := some (← Std.Channel.new),
+    fromDischargers := some (← Std.Channel.new),
+    fromFrontend := some (← Std.Channel.new),
   }
 
 /-- Adds a new verification condition (VC) to the VCManager, along with its
 upstream dependencies. Returns the updated VCManager and the new VC. -/
-def VCManager.addVC (mgr : VCManager VCMetaT ResultMetaT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (VCDischarger ResultMetaT) := #[]) : (VCManager VCMetaT ResultMetaT × VCId) := Id.run do
+def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger ResultT) := #[]) : (VCManager VCMetaT ResultT × VCId) := Id.run do
   let uid := mgr._nextId
   let vc := {vc with uid := uid, dischargers := initialDischargers, successful := none}
   -- Add ourselves downstream of all our dependencies
@@ -171,18 +213,18 @@ def VCManager.addVC (mgr : VCManager VCMetaT ResultMetaT) (vc : VCData VCMetaT) 
   (mgr', uid)
 
 open Lean.Elab.Command in
-def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultMetaT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (DischargerNotification ResultMetaT) → CommandElabM (VCDischarger ResultMetaT)) : CommandElabM (VCManager VCMetaT ResultMetaT) := do
-  let .some ch := mgr.ch | throwError "VCManager.mkAddDischarger called without a channel"
+def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do
+  let .some ch := mgr.fromDischargers | throwError "VCManager.mkAddDischarger called without a channel"
   match mgr.nodes[vcId]? with
   | some vc => do
     let id : DischargerIdentifier := {vcId, dischargerId := vc.dischargers.size}
     pure { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push (← mk vc.toVCStatement id ch) } }
   | none => pure mgr
 
-def VCManager.theorems [Monad m] [MonadQuotation m] (mgr : VCManager VCMetaT ResultMetaT) : m (Array Command) :=
+def VCManager.theorems [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
   mgr.nodes.valuesArray.mapM (·.theoremStx)
 
-def VCDischarger.run (discharger : VCDischarger ResultMetaT) : BaseIO (VCDischarger ResultMetaT) := do
+def Discharger.run (discharger : Discharger ResultT) : BaseIO (Discharger ResultT) := do
   match discharger.task with
   | some _ => return discharger
   -- This will start the task eagerly
@@ -190,7 +232,7 @@ def VCDischarger.run (discharger : VCDischarger ResultMetaT) : BaseIO (VCDischar
     let task ← discharger.mkTask
     return { discharger with task := some task }
 
-def VCDischarger.status (discharger : VCDischarger ResultT) : BaseIO (DischargeStatus ResultT) := do
+def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatus ResultT) := do
   match discharger.task with
   | none => return .notStarted
   | some task =>
@@ -201,25 +243,25 @@ def VCDischarger.status (discharger : VCDischarger ResultT) : BaseIO (DischargeS
       | .ok res => return .finished res
       | .error ex => return .finished (.error ex)
 
-def VCDischarger.isSuccessful (discharger : VCDischarger ResultMetaT) : BaseIO Bool := do
+def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
   match (← discharger.status) with
   | .finished (.success _ _) => return true
   | _ => return false
 
 /-- Find the next discharger to try. Once this function returns `none`, it will
 not return `some` again unless new dischargers are added. -/
-def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT ResultMetaT) : BaseIO (Option (VCDischarger ResultMetaT)) := do
+def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT ResultT) : BaseIO (Option (Discharger ResultT)) := do
   match vc.successful with
   | some _ => return .none
   | none =>
     for discharger in vc.dischargers do
       match ← discharger.status with
       | .notStarted => return some discharger
-      | .finished (.success _ _) | .running => return none
+      | .finished (.success _ _) | .running => return none -- we wait for the discharger to finish
       | .finished (.failure _) | .finished (.error _) => continue
     return none
 
-def VCManager.readyTasks (mgr : VCManager VCMetaT ResultMetaT) : CoreM (List (VerificationCondition VCMetaT ResultMetaT × VCDischarger ResultMetaT)) := do
+def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT) : CoreM (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
   let ready ← mgr.inDegree.toList.filterMapM (fun (vcId, inDegree) => do
     let .some vc := mgr.nodes[vcId]? | throwError "VCManager.executeOne: VC {vcId} not found"
     if inDegree != 0 then pure none else
@@ -228,17 +270,17 @@ def VCManager.readyTasks (mgr : VCManager VCMetaT ResultMetaT) : CoreM (List (Ve
       | none => pure none)
   return ready
 
-def VCManager.executeTask (mgr : VCManager VCMetaT ResultMetaT) (vc : VerificationCondition VCMetaT ResultMetaT) (discharger : VCDischarger ResultMetaT) : CoreM (VCManager VCMetaT ResultMetaT) := do
+def VCManager.executeTask (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) (discharger : Discharger ResultT) : CoreM (VCManager VCMetaT ResultT) := do
   let discharger' ← discharger.run
   return { mgr with nodes := mgr.nodes.insert vc.uid { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }}
 
-def VCManager.executeOne (mgr : VCManager VCMetaT ResultMetaT) : CoreM (VCManager VCMetaT ResultMetaT) := do
+def VCManager.executeOne (mgr : VCManager VCMetaT ResultT) : CoreM (VCManager VCMetaT ResultT) := do
   let ready ← mgr.readyTasks
   match ready with
   | [] => return mgr
   | (vc, discharger) :: _ => mgr.executeTask vc discharger
 
-def VCManager.executeAll (mgr : VCManager VCMetaT ResultMetaT) : CoreM (VCManager VCMetaT ResultMetaT) := do
+def VCManager.executeAll (mgr : VCManager VCMetaT ResultT) : CoreM (VCManager VCMetaT ResultT) := do
   let mut mgr' := mgr
   while true do
     let ready ← mgr'.readyTasks
@@ -247,7 +289,11 @@ def VCManager.executeAll (mgr : VCManager VCMetaT ResultMetaT) : CoreM (VCManage
     | (vc, discharger) :: _ => mgr' ← mgr'.executeTask vc discharger
   return mgr'
 
-instance [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultMetaT) where
+instance [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where
   toMessageData mgr :=
     let nodes := mgr.nodes.toList.map (fun (uid, vc) => m!"[{uid}] {vc.name} depends on {mgr.upstream[uid]!.toList.map (fun dep => m!"{dep}")} (in-degree: {mgr.inDegree[uid]!}) {vc.metadata}")
     MessageData.joinSep nodes "\n"
+
+end VCManager
+
+end Veil

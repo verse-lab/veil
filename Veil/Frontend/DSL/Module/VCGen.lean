@@ -8,7 +8,7 @@ open Lean Elab Term Command
 
 namespace Veil
 
-def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (DischargerNotification VeilResult)) (cancelTk? : Option IO.CancelToken := none): CommandElabM (VCDischarger VeilResult) := do
+def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification VeilResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger VeilResult) := do
   let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
   let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
     -- NOTE: `trace` here will never be displayed and `dbg_trace` will show up
@@ -31,7 +31,7 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
         return .error ex)
     -- Send the result to the VCManager
     -- dbg_trace "Sending result for {vcStatement.name}: {← (toMessageData res).toString}"
-    let _ ← ch.send (dischargerId, res)
+    let _ ← ch.send (.fromDischarger dischargerId res)
     -- And also record it in the task for good measure
     return res
   ) cancelTk
@@ -87,7 +87,7 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
   mkVCForSpecTheorem mod actName actKind actBinders ``VeilM.succeedsAndPreservesInvariantsAssuming (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
 
 def Module.generateVCs (mod : Module) : CommandElabM (VCManager VCMetadata VeilResult) := do
-  let mut vcManager := (← localEnv.get).vcManager
+  let mut vcManager := (← getVCManager)
   -- We need to build the VCs "bottom-up", i.e. from the "smallest"
   -- statements to the "largest".
   let actsToCheck := mod.procedures.filter (fun s => match s.info with

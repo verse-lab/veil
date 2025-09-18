@@ -5,6 +5,7 @@ import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.Elaborators
 import Veil.Frontend.DSL.Infra.State
 import Veil.Frontend.DSL.Module.VCGen
+import Veil.Core.Tools.Verifier.Server
 
 open Lean Parser Elab Command
 
@@ -123,7 +124,10 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   trace[veil.debug] "VCManager:\n{vcManager}"
   -- for t in (← vcManager.theorems) do
   --   trace[veil.debug] "{t}"
-  localEnv.modifyVCManager (fun _ => vcManager)
+  setVCManager vcManager
+  -- start the manager task
+  runManager
+  sendFrontendNotification .fromFrontend
   return { mod with _specFinalized := true }
 
 @[command_elab Veil.genState]

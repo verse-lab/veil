@@ -40,10 +40,10 @@ deriving Inhabited
 
 abbrev VeilResult := Option SolverResult
 
-instance : ToMessageData SolverResult where
-  toMessageData result :=
+instance : ToString SolverResult where
+  toString result :=
     match result with
-    | .cvc5 (.some _) => m!"cvc5 result"
-    | .cvc5 (.none) => m!"none"
+    | .cvc5 (.some _) => "cvc5 result"
+    | .cvc5 (.none) => "none"
 
 end Veil
