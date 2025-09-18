@@ -1,8 +1,8 @@
 import Lake
 open Lake DSL System
 
-require smt from git "https://github.com/dranov/lean-smt.git" @ "veil-2.0-refactor"
-require Loom from git "https://github.com/verse-lab/loom-dev.git" @ "6a04b73096c5ac8b23713c08eff07a07263055a3"
+require smt from git "https://github.com/dranov/lean-smt.git" @ "7949b2a0d0d51e1b1141777756ba0c8430ca93ed"
+require Loom from git "https://github.com/verse-lab/loom-dev.git" @ "5ac117cf7814ea95bebcef4f91052991921b060a"
 
 package veil
 
@@ -72,7 +72,7 @@ def Lake.unzip (file : FilePath) (dir : FilePath) : LogIO PUnit := do
     args := #["-d", dir.toString, file.toString]
   }
 
-def Lake.copyFile (src : FilePath) (dst : FilePath) : LogIO PUnit := do
+def copyFile' (src : FilePath) (dst : FilePath) : LogIO PUnit := do
   proc (quiet := true) {
     cmd := "cp"
     args := #[src.toString, dst.toString]
@@ -103,7 +103,7 @@ def downloadSolver (solver : Solver) (pkg : Package) (oFile : FilePath) : JobM P
     IO.FS.removeDirAll extractedPath
   unzip zipPath pkg.buildDir
   let binPath := extractedPath/ "bin" / s!"{solver}"
-  copyFile binPath oFile
+  copyFile' binPath oFile
   if ← oFile.pathExists then
     logInfo s!"{solver} is now at {oFile}"
   else

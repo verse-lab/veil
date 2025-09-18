@@ -27,7 +27,7 @@ partial def Lean.Expr.getForallArityExplicitBinders : Expr → Nat
 
 /-- Like `Meta.mkLambdaFVars`, but makes all `default` binders implicit. -/
 def Lean.Meta.mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) (etaReduce : Bool := false) (binderInfoForMVars := BinderInfo.implicit) : TermElabM Expr := do
-  let e <- Meta.mkLambdaFVars vs e usedOnly usedLetOnly etaReduce binderInfoForMVars
+  let e <- Meta.mkLambdaFVars vs e usedOnly usedLetOnly etaReduce (binderInfoForMVars := binderInfoForMVars)
   return go vs.size e
   where go (cnt : Nat) (e : Expr) : Expr :=
     match cnt, e with
@@ -330,7 +330,7 @@ private partial def withAutoBoundCont
   (unboundCont : Exception → Name → TermElabM α)
   : TermElabM α := do
   withReader (fun ctx => { ctx with autoBoundImplicit := true, autoBoundImplicits := {} }) do
-    let rec loop (s : Term.SavedState) : TermElabM α := do
+    let rec loop (s : Term.SavedState) : TermElabM α := withIncRecDepth do
       try
         k
       catch

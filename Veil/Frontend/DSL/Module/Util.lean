@@ -384,8 +384,12 @@ def Module.getStateComponentTypeStx [Monad m] [MonadQuotation m] [MonadError m] 
 def Module.getTheoryBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.signature.filterMapM fun sc => do
     match sc.mutability with
-    | .immutable => return .some $ ← `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
+    | .immutable => return .some $ ← mkBinder sc
     | _ => pure .none
+  where
+    -- FIXME: this is a workaround for [lean4#10429](https://github.com/leanprover/lean4/pull/10429)
+    mkBinder (sc : StateComponent) : m (TSyntax `Lean.Parser.Term.bracketedBinder) := do
+      `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
 
 def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.signature.filterMapM fun sc => do
