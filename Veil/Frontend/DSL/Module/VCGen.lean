@@ -16,11 +16,11 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
     -- NOTE: `trace` here will never be displayed and `dbg_trace` will show up
     -- as errors in the LSP output
     -- dbg_trace "Starting discharger task for {vcStatement.name}"
-    let res ← (
+    let res ← ( do
       /- We wrap in `try`/`catch` because we want to reify exceptions ourselves
       into `DischargerResult` -/
+      let startTime ← IO.monoMsNow
       try
-        let startTime ← IO.monoMsNow
         dbg_trace "({startTime}) [Discharger] Starting task for {vcStatement.name} on thread ID {← IO.getTID}"
         liftTermElabMWithBinders vcStatement.params fun vs => do
           /- We want to throw an error if anything fails or is missing during
@@ -31,9 +31,11 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
             let body ← withSynthesize $ elabTermEnsuringType term statementType
             let witness ← Meta.mkLambdaFVars vs body
             let endTime ← IO.monoMsNow
-            dbg_trace "({endTime})[Discharger] Finished task for {vcStatement.name} on thread ID {← IO.getTID} in {endTime - startTime}ms"
+            dbg_trace "({endTime})[Discharger] Successfully finished task for {vcStatement.name} on thread ID {← IO.getTID} in {endTime - startTime}ms"
             return .success witness Option.none (endTime - startTime)
       catch ex =>
+        let endTime ← IO.monoMsNow
+        dbg_trace "({endTime})[Discharger] Failed task for {vcStatement.name} on thread ID {← IO.getTID} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
         -- TODO: identify SMT failure and get counter-example from the solver
         return .error ex)
     -- Send the result to the VCManager
@@ -54,15 +56,18 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
 private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (specName : Name) (vcName : Name) (vcKind : VCKind)
   (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]): m (VCData VCMetadata) := do
+  -- FIXME: make all the name-related/parameter functions work with `ext` names
   let dependsOn := extraDeps.insertMany #[actName, assembledAssumptionsName, assembledInvariantsName]
   let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .theoremLike dependsOn)
+  -- NOTE: the VCs are stated in terms of `act.ext`, not `act`
+  let extName := toExtName actName
   return {
     name := vcName,
     params := ← (thmBaseParams ++ thmExtraParams).mapM (·.binder),
     statement := ← expandTermMacro $ ← `(term|
       forall? $actBinders*,
         $(mkIdent specName)
-          (@$(mkIdent actName) $(← mod.declarationAllParamsMapFn (·.arg) actName actKind)* $(← bracketedBindersToTerms actBinders)*)
+          (@$(mkIdent extName) $(← mod.declarationAllParamsMapFn (·.arg) actName actKind)* $(← bracketedBindersToTerms actBinders)*)
           (@$assembledAssumptions $(← mod.declarationAllParamsMapFn (·.arg) assembledAssumptionsName (.derivedDefinition .assumptionLike dependsOn))*)
           (@$assembledInvariants $(← mod.declarationAllParamsMapFn (·.arg) assembledInvariantsName (.derivedDefinition .invariantLike dependsOn))*)
           $extraTerms:term*
@@ -108,7 +113,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
     doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind (← act.binders) .primary) {}
-    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by sleep 1000; sorry))
+    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by veil_solve))
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
     -- Assuming the `Invariants`, this action preserves every invariant clause
@@ -116,19 +121,17 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     for invariantClause in mod.checkableInvariants do
       let mut clauseVC := default
       clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind (← act.binders) invariantClause.name .primary) {}
-      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm $ ← `(by sleep 1000; sorry))
+      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm $ ← `(by veil_solve))
       clausesVCsByInv := clausesVCsByInv.insert invariantClause.name ((clausesVCsByInv.getD invariantClause.name {}).insert clauseVC)
       clauseVCsForAct := clauseVCsForAct.insert clauseVC
 
     -- Per-action overall invariant preservation VC
     let mut preservesInvariantsVC := default
     preservesInvariantsVC ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) clauseVCsForAct
-    Verifier.mkAddDischarger preservesInvariantsVC (VCDischarger.fromTerm $ ← `(by sleep 1000; sorry))
     preservesInvariantsVCs := preservesInvariantsVCs.insert preservesInvariantsVC
 
     let mut succeedsAndPreservesInvariantsVC := default
     succeedsAndPreservesInvariantsVC ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) {doesNotThrowVC, preservesInvariantsVC}
-    Verifier.mkAddDischarger succeedsAndPreservesInvariantsVC (VCDischarger.fromTerm $ ← `(by sleep 1000; sorry))
     succeedsAndPreservesInvariantsVCs := succeedsAndPreservesInvariantsVCs.insert succeedsAndPreservesInvariantsVC
 
   -- `NextAct` theorems
