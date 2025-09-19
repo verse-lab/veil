@@ -50,7 +50,7 @@ lemma VeilExecM.wp_r_eq (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
 
 lemma VeilM.wp_r_eq (act : VeilM m ρ σ α) (post : RProp α ρ σ) :
   [DemonSucc| wp act (fun a _ => post a r₀) r₀ = wp act post r₀] := by
-  induction act <;> simp [wp_pure, ←VeilExecM.wp_r_eq, *]
+  induction act <;> simp [←VeilExecM.wp_r_eq, *]
 
 section PartialCorrectnessTheorems
 open PartialCorrectness
@@ -154,36 +154,37 @@ noncomputable instance (act : VeilM m ρ σ α) : Inhabited act.choices := by
 open Classical in
 lemma VeilM.angel_fail_imp_assumptions (act : VeilM m ρ σ α) :
   [AngelFail| wp act post r s] <= ∃ chs, (act.run chs).axiomatic r s post := by
-  unhygienic induction act generalizing r s <;> simp [ExtractNonDet.prop, -top_le_iff]
+  unhygienic induction act generalizing r s <;> simp [-top_le_iff]
   { intro; exists (ExtractNonDet.pure _); }
   { open TotalCorrectness ExceptionAsFailure in
-    rw [ReaderT.wp_eq]; simp [StateT.wp_eq, wp_tot_eq, wp_part_eq, DivM.wp_eq]
+    rw [ReaderT.wp_eq]; simp only [StateT.wp_eq, wp_tot_eq, «Prop».bot_eq_false, DivM.wp_eq]
     split; simp; split; <;> (try simp); intro h
     rename_i bs _
     specialize f_ih _ h; rcases f_ih with ⟨ex, h⟩
     exists (ExtractNonDet.vis _ _ (fun b => if h : b = bs.1 then by rw [h]; exact ex else default))
-    simp [ExtractNonDet.prop];
-    simp [VeilExecM.axiomatic, VeilM.run, NonDetT.runWeak, NonDetT.extractWeak,
-      bind, ReaderT.bind, StateT.bind, StateT.map, ExceptT.bind, ExceptT.mk, ExceptT.bindCont]
+    simp only [eq_mpr_eq_cast]
+    simp only [VeilExecM.axiomatic, run, NonDetT.runWeak, NonDetT.extractWeak, NonDetT.extractGen,
+      bind, ReaderT.bind, StateT.bind, ExceptT.bind, ExceptT.mk, monadLift_self, ExceptT.bindCont]
     simp [*]; apply h }
   simp [loomLogicSimp]; intros x px h
   specialize f_ih _ h; rcases f_ih with ⟨ex, h⟩
   exists (@ExtractNonDet.pickSuchThat _ _ _ _ _ _ ?_ ?_)
   { refine ⟨fun _ => .some x, by simp [*]⟩ }
   { exact fun b => if h : b = x then by rw [h]; exact ex else default }
-  simp [ExtractNonDet.prop, VeilExecM.axiomatic, VeilM.run, NonDetT.runWeak, NonDetT.extractWeak]
+  simp only [VeilExecM.axiomatic, run, NonDetT.runWeak, NonDetT.extractWeak, NonDetT.extractGen,
+    ↓reduceDIte, eq_mpr_eq_cast, cast_eq]
   apply h
 
 lemma VeilM.toTransition_sound (act : VeilM m ρ σ α) :
   act.toTransition r₀ s₀ s₁ ->
   ∃ chs a, (act.run chs).operational r₀ s₀ s₁ (Except.ok a) := by
   intro h; specialize h r₀ s₀
-  simp [VeilM.toTransition, VeilSpecM.toTransition] at h
+  simp only [and_self, le_Prop_eq, forall_const] at h
   have h := act.angel_fail_imp_assumptions h
   rcases h with ⟨chs, h⟩;
   simp [VeilExecM.axiomatic] at h
   exists chs; revert h
-  simp only [VeilExecM.axiomatic, VeilExecM.operational]
+  simp only [VeilExecM.operational]
   rcases act.run chs r₀ s₀ with ((_|⟨a, s₁⟩)|_) <;> simp only [IsEmpty.forall_iff]
   rintro rfl; exists a
 
@@ -194,8 +195,8 @@ lemma VeilM.toTransition_complete (act : VeilM m ρ σ α) (chs : act.choices) :
   open AngelicChoice TotalCorrectness ExceptionAsFailure in
   apply ExtractNonDet.extract_refines_triple (inst := chs)
   intro r s; simp; rintro rfl rfl
-  revert h; simp [triple, VeilExecM.operational, VeilM.run, NonDetT.runWeak, VeilExecM.wp_eq,
-    TotalCorrectness.DivM.wp_eq]
+  revert h; simp only [VeilExecM.operational, run, NonDetT.runWeak, reduceCtorEq, false_and,
+    Except.ok.injEq, VeilExecM.wp_eq, true_and, DivM.wp_eq]
   cases (NonDetT.extractWeak act chs r s) <;> simp [*]
   split <;> aesop
 
@@ -282,17 +283,6 @@ theorem triple_weaken_postcondition (act : VeilM m ρ σ α) (pre post post' : S
   triple pre act (fun _ => post') := by
   intro htriple hpost
   apply triple_cons act (le_refl pre) (fun _ => hpost) htriple
-
-open PartialCorrectness DemonicChoice ExceptionAsSuccess in
-
-theorem triple_strengthen_postcondition (act : VeilM m ρ σ α) (pre post post' : SProp ρ σ) :
-  triple pre act (fun _ => post) →
-  triple pre act (fun _ => post') →
-  triple pre act (fun _ th st => post th st ∧ post' th st) := by
-  intro htriple₁ htriple₂ th st hpre
-  specialize (htriple₁ th st hpre); specialize (htriple₂ th st hpre)
-  -- apply wp_and ??
-  sorry
 
 end VCTheorems
 
