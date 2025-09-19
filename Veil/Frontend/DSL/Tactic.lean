@@ -8,13 +8,20 @@ import Veil.Backend.SMT.Preprocessing
 open Lean Elab Tactic Meta Simp Tactic.TryThis Parser.Tactic
 namespace Veil
 
-/-- A wrapper around Lean's standard `evalTactic`, which performs
-Veil-specific logging. This should be called whenever a Veil-specific
-tactic evaluates a non-Veil-specific tactic, such that we can desugar
-the whole tactic invocation. -/
-def veilEvalTactic (stx : Syntax) : Tactic.TacticM Unit := do
-  trace[veil.desugar] "{stx}"
-  Tactic.evalTactic stx
+/-- A wrapper around Lean's standard `evalTactic`. ALWAYS use this instead of
+`evalTactic`.
+
+This has two purposes:
+  - it uses `withoutRecover`, ensuring errors/exceptions are not silently swallowed
+  - it performs Veil-specific logging when `isDesugared` is `true`
+
+We set `isDesugared` to `false` when we are calling `evalTactic` _on_ a
+Veil-specific tactic — i.e. tactics which are sugar for other tactics. -/
+def veilEvalTactic (stx : Syntax) (isDesugared : Bool := true) : Tactic.TacticM Unit := do
+  if isDesugared then
+    trace[veil.desugar] "{stx}"
+  -- The `withoutRecover` ensures errors/exceptions are not silently swallowed
+  withoutRecover $ Tactic.evalTactic stx
 
 
 /-- Like `withMainContext`, but does nothing if there are no unsolved goals (as
@@ -63,6 +70,9 @@ syntax (name := veil_smt_trace) "veil_smt?" : tactic
 
 syntax (name := veil_if) "veil_split_ifs" : tactic
 syntax (name := veil_solve) "veil_solve" : tactic
+
+/-- Tactic for debugging purposes. Just throws an error. -/
+syntax (name := veil_fail) "veil_fail" : tactic
 
 attribute [ifSimp] ite_true ite_false dite_true dite_false ite_self
   if_true_left if_true_right if_false_left if_false_right
@@ -146,7 +156,7 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
       let sn := hyp.type.getAppFn.constName!
       if !hypsToIgnore.contains sn then
         let dtac ← `(tactic| veil_destruct $name:ident)
-        evalTactic dtac
+        veilEvalTactic dtac (isDesugared := false)
     else
       let hypType ← Meta.whnf hyp.type
       if hypType.isAppOf ``Exists then
@@ -238,31 +248,39 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| (veil_simp [$(mkIdent `wpSimp):ident, $(mkIdent `invSimp):ident] at *; veil_concretize_state; veil_destruct; veil_simp [$(mkIdent `smtSimp):ident] at *))
+  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `loomLogicSimp):ident] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *))
   evalTactic tac
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
   let tac ← `(tactic| veil_wp; veil_intros ; veil_split_ifs <;> (veil_fol ; veil_smt))
-  evalTactic tac
+  veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSplitIfs : TacticM Unit := veilWithMainContext do
-  evalTactic $ ← `(tactic| veil_simp only [$(mkIdent `ifSimp):ident] at *)
+  veilEvalTactic (← `(tactic| veil_simp only [$(mkIdent `ifSimp):ident] at *)) (isDesugared := false)
   veilEvalTactic $ ← `(tactic| try split_ifs)
 
+def elabVeilFail : TacticM Unit := veilWithMainContext do
+  throwError "veil_fail: failing on purpose"
+
+def withTiming (name : String) (tac : TacticM Unit) : TacticM Unit := do
+  let startTime ← IO.monoMsNow; tac; let endTime ← IO.monoMsNow
+  trace[veil.debug] s!"tactic {name} took {endTime - startTime}ms"
+
 elab_rules : tactic
-  | `(tactic| veil_rename_hyp $[$xs:term => $ys:ident],*) => elabVeilRenameHyp xs ys
-  | `(tactic| veil_destruct $ids:ident*) => elabVeilDestructSpecificHyp ids
-  | `(tactic| veil_clear $ids:ident*) => elabVeilClearHyps ids
-  | `(tactic| veil_destruct_goal) => elabVeilDestructGoal
-  | `(tactic| veil_concretize_state) => elabVeilConcretizeState
-  | `(tactic| veil_smt%$tk) => elabVeilSmt tk
-  | `(tactic| veil_smt?%$tk) => elabVeilSmt tk true
-  | `(tactic| veil_simp $[only%$o]? $[[$[$params],*]]? $[$loc]?) => elabVeilSimp (trace? := false) o params loc
-  | `(tactic| veil_simp? $[only%$o]? $[[$[$params],*]]? $[$loc]?) => elabVeilSimp (trace? := true) o params loc
-  | `(tactic| veil_wp) => elabVeilWp
-  | `(tactic| veil_intros) => elabVeilIntros
-  | `(tactic| veil_fol) => elabVeilFol
-  | `(tactic| veil_solve) => elabVeilSolve
-  | `(tactic| veil_split_ifs) => elabVeilSplitIfs
+  | `(tactic| veil_rename_hyp $[$xs:term => $ys:ident],*) => do withTiming "veil_rename_hyp" $ elabVeilRenameHyp xs ys
+  | `(tactic| veil_destruct $ids:ident*) => do withTiming "veil_destruct" $ elabVeilDestructSpecificHyp ids
+  | `(tactic| veil_clear $ids:ident*) => do withTiming "veil_clear" $ elabVeilClearHyps ids
+  | `(tactic| veil_destruct_goal) => do withTiming "veil_destruct_goal" elabVeilDestructGoal
+  | `(tactic| veil_concretize_state) => do withTiming "veil_concretize_state" elabVeilConcretizeState
+  | `(tactic| veil_smt%$tk) => do withTiming "veil_smt" $ elabVeilSmt tk
+  | `(tactic| veil_smt?%$tk) => do withTiming "veil_smt?" $ elabVeilSmt tk true
+  | `(tactic| veil_simp $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp" $ elabVeilSimp (trace? := false) o params loc
+  | `(tactic| veil_simp? $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp?" $ elabVeilSimp (trace? := true) o params loc
+  | `(tactic| veil_wp) => do withTiming "veil_wp" elabVeilWp
+  | `(tactic| veil_intros) => do withTiming "veil_intros" elabVeilIntros
+  | `(tactic| veil_fol) => do withTiming "veil_fol" elabVeilFol
+  | `(tactic| veil_solve) => do withTiming "veil_solve" elabVeilSolve
+  | `(tactic| veil_split_ifs) => do withTiming "veil_split_ifs" elabVeilSplitIfs
+  | `(tactic| veil_fail) => elabVeilFail
 
 end Veil
