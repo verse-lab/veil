@@ -4,6 +4,7 @@ import Veil.Frontend.DSL.Module.Util
 import Veil.Util.Meta
 import Smt
 import Veil.Backend.SMT.Preprocessing
+import Veil.Backend.SMT.Quantifiers
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis Parser.Tactic
 namespace Veil
@@ -248,7 +249,7 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `loomLogicSimp):ident] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *))
+  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `loomLogicSimp):ident] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_simp only [$(mkIdent `quantifierSimp):ident]; veil_intros))
   evalTactic tac
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
