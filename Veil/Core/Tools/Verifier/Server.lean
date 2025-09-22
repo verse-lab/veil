@@ -23,12 +23,12 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         if res.isSuccessful then
           mgr := {mgr with _totalSolved := mgr._totalSolved + 1}
         dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {timeStr} (solved: {mgr._totalSolved}/{mgr.nodes.size} in {(← IO.monoMsNow) - startTime}ms)"
-        mgr ← liftCoreM $ mgr.start (howMany := 1)
+        mgr ← mgr.start (howMany := 1)
         ref.set mgr)
       | .startAll => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         -- dbg_trace "[Manager] RECV startAll notification"
-        mgr ← liftCoreM $ mgr.start (howMany := 8)
+        mgr ← mgr.start (howMany := 8)
         ref.set mgr
       )
   ) cancelTk

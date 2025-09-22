@@ -270,26 +270,26 @@ def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT Re
       | .finished (.failure _ _) | .finished (.error _ _) => continue
     return none
 
-def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT) : CoreM (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
+def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT) : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
   let ready ← mgr.inDegree.toList.filterMapM (fun (vcId, inDegree) => do
-    let .some vc := mgr.nodes[vcId]? | throwError "VCManager.executeOne: VC {vcId} not found"
+    let .some vc := mgr.nodes[vcId]? | panic! "VCManager.readyTasks: VC {vcId} not found"
     if inDegree != 0 then pure none else
       match ← vc.nextDischarger? with
       | some discharger => pure (some (vc, discharger))
       | none => pure none)
   return ready
 
-def VCManager.startTask (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) (discharger : Discharger ResultT) : CoreM (VCManager VCMetaT ResultT) := do
+def VCManager.startTask (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) (discharger : Discharger ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
   let discharger' ← discharger.run
   return { mgr with nodes := mgr.nodes.insert vc.uid { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }}
 
-def VCManager.executeOne (mgr : VCManager VCMetaT ResultT) : CoreM (VCManager VCMetaT ResultT) := do
+def VCManager.executeOne (mgr : VCManager VCMetaT ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
   let ready ← mgr.readyTasks
   match ready with
   | [] => return mgr
   | (vc, discharger) :: _ => mgr.startTask vc discharger
 
-def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0): CoreM (VCManager VCMetaT ResultT) := do
+def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0): BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr' := mgr
   let ready ← mgr'.readyTasks
   let toExecute := if howMany == 0 then ready else ready.take howMany
