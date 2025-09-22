@@ -31,14 +31,11 @@ initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment
     addEntry := fun _ s' => s'
   }
 
-initialize vcManagerEnv : PersistentEnvExtension Unit VCManagerEnvironment VCManagerEnvironment ←
-  registerPersistentEnvExtension {
-    mkInitial := return { mgr := ← VCManager.new }
-    addImportedFn := fun _ => return { mgr := ← VCManager.new }
-    addEntryFn := fun _old new => new
-    exportEntriesFnEx := fun _ _ _ => #[]
-    asyncMode := .mainOnly
-  }
+/-- A channel for communicating with the VCManager. -/
+initialize vcManagerCh : Std.Channel (ManagerNotification VeilResult) ← Std.Channel.new
+
+/-- Holds the state of the VCManager for the current file. -/
+initialize vcManager : IO.Ref (VCManager VCMetadata VeilResult) ← IO.mkRef (← VCManager.new vcManagerCh)
 
 initialize globalEnv : SimpleScopedEnvExtension GlobalEnvironment GlobalEnvironment ←
   registerSimpleScopedEnvExtension {
@@ -54,11 +51,6 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
     return mod
   else
     throwError errMsg
-
-def getVCManager [Monad m] [MonadEnv m] : m (VCManager VCMetadata VeilResult) := return (← vcManagerEnv.get).mgr
-
-def setVCManager [Monad m] [MonadEnv m] (mgr : VCManager VCMetadata VeilResult) : m Unit := do
-  vcManagerEnv.modify (fun _ => { mgr := mgr })
 
 def mkNewAssertion [Monad m] [MonadEnv m] [MonadError m] (proc : Name) (stx : Syntax) : m AssertionId := do
   let mod ← getCurrentModule (errMsg := "Cannot have a Veil assertion outside of a module")

@@ -8,44 +8,43 @@ open Lean Elab Command Std
 This should only be called once! -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
   let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
-  let .some dch := (← getVCManager).fromDischargers | throwError "runManager called without a fromDischargers channel"
-  let .some fch := (← getVCManager).fromFrontend | throwError "runManager called without a fromFrontend channel"
-
-  let dischargerLoop ← Command.wrapAsync (fun () => do
+  let managerLoop ← Command.wrapAsync (fun () => do
+    let mut totalDischarged := 0
+    let mut startTime ← IO.monoMsNow
     while true do
       -- blocks until we get a notification
-      let .fromDischarger dischargerId res := (← dch.recv).get | continue
-      -- let mgr := (← getVCManager)
-      let timeStr := res.time.map (fun time => s!" ({time}ms)") |>.getD ""
-      dbg_trace "[Manager][dischargerLoop] RECV {res.kindString} notification from discharger {dischargerId} {timeStr}"
+      -- NOTE: this `get` is really problematic, as it increases the threadpool size
+      let notification := (← vcManagerCh.recv).get
+      match notification with
+      | .dischargerResult dischargerId res =>
+        let mgr := (← vcManager.get)
+        let timeStr := res.time.map (fun time => s!"{time}ms") |>.getD ""
+        totalDischarged := totalDischarged + 1
+        -- dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {timeStr} (solved: {totalDischarged}/{mgr.nodes.size} in {(← IO.monoMsNow) - startTime}ms)"
+        let mgr' ← liftCoreM $ mgr.start (howMany := 1)
+        vcManager.set mgr'
+      | .startAll =>
+        let mgr := (← vcManager.get)
+        -- dbg_trace "[Manager] RECV startAll notification"
+        let mgr' ← liftCoreM $ mgr.start (howMany := 8)
+        vcManager.set mgr'
   ) cancelTk
   -- This starts the task
-  -- let _ ← EIO.asTask (dischargerLoop ()) Task.Priority.dedicated
+  let _ ← EIO.asTask (managerLoop ()) Task.Priority.dedicated
 
-  let frontEndLoop ← Command.wrapAsync (fun () => do
-    while true do
-      let .fromFrontend := (← fch.recv).get | continue
-      dbg_trace "[Manager][frontEndLoop] RECV notification from frontend"
-      let mgr ← liftCoreM $ (← getVCManager).startAll
-      setVCManager mgr
-  ) cancelTk
-  -- This starts the task
-  -- let _ ← EIO.asTask (frontEndLoop ()) Task.Priority.dedicated
-
-def sendFrontendNotification (notification : ManagerNotification VeilResult := .fromFrontend) : CommandElabM Unit := do
-  let .some fch := (← getVCManager).fromFrontend | throwError "sendFrontendNotification called without a fromFrontend channel"
-  let _ ← fch.send notification
+def sendFrontendNotification (notification : ManagerNotification VeilResult := .startAll) : CommandElabM Unit := do
+  let _ ← vcManagerCh.send notification
 
 def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger VeilResult) := #[]) (sendNotification : Bool := false): CommandElabM VCId := do
-  let (mgr', uid) := (← getVCManager).addVC vc dependsOn initialDischargers
-  setVCManager mgr'
+  let (mgr', uid) := (← vcManager.get).addVC vc dependsOn initialDischargers
+  vcManager.set mgr'
   if sendNotification then
     sendFrontendNotification
   return uid
 
-  def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VeilResult) → CommandElabM (Discharger VeilResult)) (sendNotification : Bool := false) : CommandElabM Unit := do
-  let mgr' ← (← getVCManager).mkAddDischarger vcId mk
-  setVCManager mgr'
+def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VeilResult) → CommandElabM (Discharger VeilResult)) (sendNotification : Bool := false) : CommandElabM Unit := do
+  let mgr' ← (← vcManager.get).mkAddDischarger vcId mk
+  vcManager.set mgr'
   if sendNotification then
     sendFrontendNotification
 
