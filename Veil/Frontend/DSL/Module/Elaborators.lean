@@ -121,8 +121,13 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand nextCmd
   Verifier.runManager
   mod.generateVCs
-  vcManager.atomically (fun res => do trace[veil.debug] "VCManager:\n{← res.get}")
   Verifier.startAll
+  let _waitUntilDone := (← frontendCh.recv).get
+  dbg_trace "({← IO.monoMsNow}) [Elaborator] RECV done notification"
+  vcManager.atomically (fun res => do
+   let mgr ← res.get
+   dbg_trace "({← IO.monoMsNow}) [Elaborator] doneWith: {mgr._doneWith.toArray}"
+   trace[veil.debug] "({← IO.monoMsNow}) VCManager:\n{mgr}")
   return { mod with _specFinalized := true }
 
 @[command_elab Veil.genState]

@@ -34,6 +34,9 @@ initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment
 /-- A channel for communicating with the VCManager. -/
 initialize vcManagerCh : Std.Channel (ManagerNotification VeilResult) ← Std.Channel.new
 
+/-- A channel for communicating with the frontend. -/
+initialize frontendCh : Std.Channel Unit ← Std.Channel.new
+
 /-- Holds the state of the VCManager for the current file. -/
 initialize vcManager : Std.Mutex (VCManager VCMetadata VeilResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
 
@@ -55,6 +58,14 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
     return mod
   else
     throwError errMsg
+
+namespace Frontend
+
+open Lean.Elab.Command in
+def notifyDone  : CommandElabM Unit := do
+  let _ ← frontendCh.send ()
+
+end Frontend
 
 def mkNewAssertion [Monad m] [MonadEnv m] [MonadError m] (proc : Name) (stx : Syntax) : m AssertionId := do
   let mod ← getCurrentModule (errMsg := "Cannot have a Veil assertion outside of a module")

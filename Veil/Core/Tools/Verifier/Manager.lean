@@ -154,7 +154,7 @@ end DataStructures
 section VCManager
 
 inductive ManagerNotification (ResultT : Type) where
-  | dischargerResult (dischargerId : DischargerIdentifier) (res : DischargerResult ResultT)
+  | dischargerResult (id : DischargerIdentifier) (res : DischargerResult ResultT)
   /-- Issued by the frontend to reset the VCManager. -/
   | reset
   /-- Issued by the frontend to start all ready tasks. -/
@@ -167,6 +167,27 @@ instance [ToString ResultT] : ToString (ManagerNotification ResultT) where
     | .dischargerResult dischargerId res => s!"dischargerResult {dischargerId} {res}"
     | .reset => s!"reset"
     | .startAll => s!"startAll"
+
+inductive VCStatus where
+  /-- The VC has been proven (shown to be true). -/
+  | proven
+  /-- The VC has been disproven (shown to be false). -/
+  | disproven
+  /-- The VC is still unknown (not proven or disproven). -/
+  | unknown
+  /-- All dischargers returned an error/threw an exception. -/
+  | error
+deriving Inhabited, BEq, Hashable
+
+instance : ToString VCStatus where
+  toString status :=
+    match status with
+    | .proven => "✅"
+    | .disproven => "❌"
+    | .unknown => "❓"
+    | .error => "💥"
+
+def VCStatus.emoji (status : VCStatus) : String := toString status
 
 -- Based on [RustDagcuter](https://github.com/busyster996/RustDagcuter)
 structure VCManager (VCMetaT ResultT: Type) where
@@ -189,6 +210,9 @@ structure VCManager (VCMetaT ResultT: Type) where
   protected _nextId : VCId := 0
   protected _totalDischarged : Nat := 0
   protected _totalSolved : Nat := 0
+
+  protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
+
   /-- Channel for communicating with the VCManager. -/
   protected ch : Option (Std.Channel (ManagerNotification ResultT)) := none
 deriving Inhabited
@@ -201,6 +225,7 @@ def VCManager.new (ch : Std.Channel (ManagerNotification ResultT)) : BaseIO (VCM
     upstream := HashMap.emptyWithCapacity,
     inDegree := HashMap.emptyWithCapacity,
     downstream := HashMap.emptyWithCapacity,
+    _doneWith := HashMap.emptyWithCapacity,
     _nextId := 0,
     ch := ch,
   }
@@ -302,9 +327,42 @@ def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0): Base
     dbg_trace "[VCManager.start] finished scheduling {toExecute.length} ready tasks (out of {ready.length} total ready)"
   return mgr'
 
-instance [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where
+def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
+  let mut mgr := mgr
+  let vcId := id.vcId
+  let mut .some vc := mgr.nodes[vcId]? | panic! "VCManager.markDischarger: VC {vcId} not found"
+  let mut vcStatus := .unknown
+  -- Update downstream in-degrees
+  match res with
+  | .success _ _ _ => do
+    mgr := { mgr with nodes := mgr.nodes.insert vcId { vc with successful := some id.dischargerId }}
+    vcStatus := .proven
+    let downstream := match mgr.downstream[vcId]? with
+    | some downstream => downstream
+    | none => HashSet.emptyWithCapacity 0
+    for downstreamVc in downstream do
+      let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | panic! "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"
+      mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
+  | .failure _ _ => vcStatus := .disproven
+  | .error _ _ => vcStatus := .error
+  -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
+  if (← vc.nextDischarger?).isNone then
+    mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
+  return mgr
+
+def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
+  match mgr._doneWith[vcId]? with
+  | some vcStatus => vcStatus.emoji
+  | none => "❓❓❓"
+
+instance (priority := low) printDependencies [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where
   toMessageData mgr :=
     let nodes := mgr.nodes.toList.map (fun (uid, vc) => m!"[{uid}] {vc.name} depends on {mgr.upstream[uid]!.toList.map (fun dep => m!"{dep}")} (in-degree: {mgr.inDegree[uid]!}) {vc.metadata}")
+    MessageData.joinSep nodes "\n"
+
+instance printResults [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where
+    toMessageData mgr :=
+    let nodes := mgr.nodes.toList.map (fun (uid, vc) => m!"[{uid}] {vc.name} {mgr.statusEmoji vc.uid}")
     MessageData.joinSep nodes "\n"
 
 end VCManager

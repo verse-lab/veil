@@ -6,11 +6,11 @@ namespace Veil.Verifier
 
 open Lean Elab Command Std
 
-def sendFrontendNotification (notification : ManagerNotification VeilResult) : CommandElabM Unit := do
+def sendNotification (notification : ManagerNotification VeilResult) : CommandElabM Unit := do
   let _ ← vcManagerCh.send notification
 
-def reset : CommandElabM Unit := sendFrontendNotification .reset
-def startAll : CommandElabM Unit := sendFrontendNotification .startAll
+def reset : CommandElabM Unit := sendNotification .reset
+def startAll : CommandElabM Unit := sendNotification .startAll
 
 /-- Starts a separate task (on a dedicated thread) that runs the VCManager.
 If this is called multiple times, each call will reset the VC manager. -/
@@ -32,7 +32,13 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
           mgr := {mgr with _totalSolved := mgr._totalSolved + 1}
         dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {timeStr} (solved: {mgr._totalSolved}/{mgr.nodes.size} in {(← IO.monoMsNow) - startTime}ms)"
         mgr ← mgr.start (howMany := 1)
-        ref.set mgr)
+        mgr ← mgr.markDischarger dischargerId res
+        ref.set mgr
+        -- If we're done with all VCs, send a notification to the frontend
+        if mgr._doneWith.size == mgr.nodes.size then
+          dbg_trace "[Manager] SEND done notification"
+          dbg_trace "({← IO.monoMsNow}) [Manager] doneWith: {mgr._doneWith.toArray}"
+          Frontend.notifyDone)
       | .startAll => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         dbg_trace "[Manager] RECV startAll notification"
@@ -49,7 +55,6 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
       -- This starts the task
       let _ ← EIO.asTask (managerLoop ()) Task.Priority.dedicated
     else
-      -- This clears the VC manager
       reset
     ref.set true
   )
