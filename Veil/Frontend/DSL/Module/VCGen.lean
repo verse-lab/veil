@@ -11,7 +11,7 @@ open Lean Elab Term Command
 namespace Veil
 
 def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification VeilResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger VeilResult) := do
-  let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
+  let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
   let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
     -- NOTE: `trace` here will never be displayed and `dbg_trace` will show up
     -- as errors in the LSP output

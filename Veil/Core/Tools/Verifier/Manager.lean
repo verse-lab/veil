@@ -155,6 +155,8 @@ section VCManager
 
 inductive ManagerNotification (ResultT : Type) where
   | dischargerResult (dischargerId : DischargerIdentifier) (res : DischargerResult ResultT)
+  /-- Issued by the frontend to reset the VCManager. -/
+  | reset
   /-- Issued by the frontend to start all ready tasks. -/
   | startAll
 deriving Inhabited
@@ -163,6 +165,7 @@ instance [ToString ResultT] : ToString (ManagerNotification ResultT) where
   toString res :=
     match res with
     | .dischargerResult dischargerId res => s!"dischargerResult {dischargerId} {res}"
+    | .reset => s!"reset"
     | .startAll => s!"startAll"
 
 -- Based on [RustDagcuter](https://github.com/busyster996/RustDagcuter)

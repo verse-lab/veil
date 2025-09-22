@@ -5,12 +5,20 @@ import Std.Sync.Mutex
 namespace Veil.Verifier
 
 open Lean Elab Command Std
+
+def sendFrontendNotification (notification : ManagerNotification VeilResult) : CommandElabM Unit := do
+  let _ ← vcManagerCh.send notification
+
+def reset : CommandElabM Unit := sendFrontendNotification .reset
+def startAll : CommandElabM Unit := sendFrontendNotification .startAll
+
 /-- Starts a separate task (on a dedicated thread) that runs the VCManager.
-This should only be called once! -/
+If this is called multiple times, each call will reset the VC manager. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
   let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
   let managerLoop ← Command.wrapAsync (fun () => do
     let mut startTime ← IO.monoMsNow
+    dbg_trace "[Manager] Starting manager loop"
     while true do
       -- blocks until we get a notification
       -- NOTE: this `get` is really problematic, as it increases the threadpool size
@@ -27,16 +35,24 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         ref.set mgr)
       | .startAll => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
-        -- dbg_trace "[Manager] RECV startAll notification"
+        dbg_trace "[Manager] RECV startAll notification"
         mgr ← mgr.start (howMany := 8)
-        ref.set mgr
-      )
+        ref.set mgr)
+      | .reset => vcManager.atomically (fun ref => do
+        let mut mgr ← ref.get
+        dbg_trace "[Manager] RECV reset notification"
+        mgr ← VCManager.new vcManagerCh
+        ref.set mgr)
   ) cancelTk
-  -- This starts the task
-  let _ ← EIO.asTask (managerLoop ()) Task.Priority.dedicated
-
-def sendFrontendNotification (notification : ManagerNotification VeilResult := .startAll) : CommandElabM Unit := do
-  let _ ← vcManagerCh.send notification
+  vcServerStarted.atomically (fun ref => do
+    if !(← ref.get) then
+      -- This starts the task
+      let _ ← EIO.asTask (managerLoop ()) Task.Priority.dedicated
+    else
+      -- This clears the VC manager
+      reset
+    ref.set true
+  )
 
 def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger VeilResult) := #[]) (sendNotification : Bool := false): CommandElabM VCId := do
   let uid ← vcManager.atomically (fun ref => do
@@ -45,7 +61,7 @@ def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischarger
     return uid
   )
   if sendNotification then
-    sendFrontendNotification
+    startAll
   return uid
 
 def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VeilResult) → CommandElabM (Discharger VeilResult)) (sendNotification : Bool := false) : CommandElabM Unit := do
@@ -54,6 +70,6 @@ def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier →
     ref.set mgr'
   )
   if sendNotification then
-    sendFrontendNotification
+    startAll
 
 end Veil.Verifier

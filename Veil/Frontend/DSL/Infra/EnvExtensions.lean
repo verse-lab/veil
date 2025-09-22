@@ -37,6 +37,10 @@ initialize vcManagerCh : Std.Channel (ManagerNotification VeilResult) ← Std.Ch
 /-- Holds the state of the VCManager for the current file. -/
 initialize vcManager : Std.Mutex (VCManager VCMetadata VeilResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
 
+/-- This is to ensure we don't keep spawning server processes when `#gen_spec`
+is re-elaborated in the editor. -/
+initialize vcServerStarted : Std.Mutex Bool ← Std.Mutex.new false
+
 initialize globalEnv : SimpleScopedEnvExtension GlobalEnvironment GlobalEnvironment ←
   registerSimpleScopedEnvExtension {
     initial := default
