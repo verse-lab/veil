@@ -37,7 +37,7 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
         let endTime ← IO.monoMsNow
         -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
         -- TODO: identify SMT failure and get counter-example from the solver
-        return .error ex)
+        return .error ex (endTime - startTime))
     -- Send the result to the VCManager
     -- dbg_trace "Sending result for {vcStatement.name}: {← (toMessageData res).toString}"
     let _ ← ch.send (.dischargerResult dischargerId res)

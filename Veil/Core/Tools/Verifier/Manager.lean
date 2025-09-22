@@ -58,6 +58,11 @@ inductive DischargerResult (ResultT : Type) where
   | error (ex : Exception) (time : Nat)
 deriving Inhabited
 
+def DischargerResult.isSuccessful (res : DischargerResult ResultT) : Bool :=
+  match res with
+  | .success _ _ _ => true
+  | .failure _ _ | .error _ _ => false
+
 def DischargerResult.time (res : DischargerResult ResultT) : Option Nat :=
   match res with
   | .success _ _ time | .failure _ time | .error _ time => some time
@@ -179,7 +184,8 @@ structure VCManager (VCMetaT ResultT: Type) where
   downstream : HashMap VCId (HashSet VCId)
 
   protected _nextId : VCId := 0
-
+  protected _totalDischarged : Nat := 0
+  protected _totalSolved : Nat := 0
   /-- Channel for communicating with the VCManager. -/
   protected ch : Option (Std.Channel (ManagerNotification ResultT)) := none
 deriving Inhabited
@@ -289,7 +295,8 @@ def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0): Core
   let toExecute := if howMany == 0 then ready else ready.take howMany
   for (vc, discharger) in toExecute do
      mgr' ← mgr'.startTask vc discharger
-  dbg_trace "[VCManager.start] finished scheduling {toExecute.length} ready tasks (out of {ready.length} total ready)"
+  if toExecute.length > 0 then
+    dbg_trace "[VCManager.start] finished scheduling {toExecute.length} ready tasks (out of {ready.length} total ready)"
   return mgr'
 
 instance [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where

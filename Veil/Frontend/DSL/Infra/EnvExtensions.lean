@@ -35,7 +35,7 @@ initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment
 initialize vcManagerCh : Std.Channel (ManagerNotification VeilResult) ← Std.Channel.new
 
 /-- Holds the state of the VCManager for the current file. -/
-initialize vcManager : IO.Ref (VCManager VCMetadata VeilResult) ← IO.mkRef (← VCManager.new vcManagerCh)
+initialize vcManager : Std.Mutex (VCManager VCMetadata VeilResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
 
 initialize globalEnv : SimpleScopedEnvExtension GlobalEnvironment GlobalEnvironment ←
   registerSimpleScopedEnvExtension {
