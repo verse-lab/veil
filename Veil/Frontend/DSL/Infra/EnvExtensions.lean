@@ -37,8 +37,13 @@ initialize vcManagerCh : Std.Channel (ManagerNotification SmtResult) ← Std.Cha
 /-- Holds the state of the VCManager for the current file. -/
 initialize vcManager : Std.Mutex (VCManager VCMetadata SmtResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
 
-/-- A channel for communicating with the frontend. Unfortunately, I think we're hitting a compiler bug that makes this necessary -/
-initialize frontendCh : Std.Channel (VCManager VCMetadata SmtResult) ← Std.Channel.new
+/-- Prompt the frontend to read the VCManager, e.g. to print the VCs. We use a
+`Condvar` instead of `Channel` because channels on the frontend thread (which
+is cancellable) are subject to potential race conditions. For instance,
+multiple `#gen_spec`s can be running in parallel, and one of them will "eat"
+the notification from a channel, which causes the other to wait forever. With a
+`Condvar`, we can `notifyAll` and check the predicate/condition holds. -/
+initialize frontendNotification : Std.Condvar ← Std.Condvar.new
 
 /-- This is to ensure we don't keep spawning server processes when `#gen_spec`
 is re-elaborated in the editor. -/
@@ -62,8 +67,8 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
 namespace Frontend
 
 open Lean.Elab.Command in
-def notifyDone (mgr : VCManager VCMetadata SmtResult) : CommandElabM Unit := do
-  let _ ← frontendCh.send mgr
+def notifyDone : CommandElabM Unit := do
+  frontendNotification.notifyAll
 
 end Frontend
 

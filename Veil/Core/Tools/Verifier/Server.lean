@@ -17,7 +17,7 @@ If this is called multiple times, each call will reset the VC manager. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
   let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
   let managerLoop ← Command.wrapAsync (fun () => do
-    dbg_trace "[Manager] Starting manager loop"
+    -- dbg_trace "[Manager] Starting manager loop"
     while true do
       -- blocks until we get a notification
       -- NOTE: this `get` is really problematic, as it increases the threadpool size
@@ -26,39 +26,39 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
       | .dischargerResult dischargerId res => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         if dischargerId.managerId != mgr._managerId then
-          dbg_trace "[Manager] RECV dischargerResult from manager ID {dischargerId.managerId} (our ID: {mgr._managerId}); ignoring"
+          -- dbg_trace "[Manager] RECV dischargerResult from manager ID {dischargerId.managerId} (our ID: {mgr._managerId}); ignoring"
           return
-        let timeStr := res.time.map (fun time => s!"{time}ms") |>.getD ""
+        -- let _timeStr := res.time.map (fun time => s!"{time}ms") |>.getD ""
         mgr := {mgr with _totalDischarged := mgr._totalDischarged + 1}
         if res.isSuccessful then
           mgr := {mgr with _totalSolved := mgr._totalSolved + 1}
-        dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {timeStr} (solved: {mgr._totalSolved}/{mgr.nodes.size})"
+        -- dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {_timeStr} (solved: {mgr._totalSolved}/{mgr.nodes.size})"
         mgr ← mgr.start (howMany := 1)
         mgr ← mgr.markDischarger dischargerId res
         ref.set mgr
         -- If we're done with all VCs, send a notification to the frontend
         if mgr._doneWith.size == mgr.nodes.size then
-          dbg_trace "[Manager] SEND done notification"
-          dbg_trace "({← IO.monoMsNow}) [Manager] doneWith: {mgr._doneWith.toArray}"
-          Frontend.notifyDone mgr)
+          -- dbg_trace "[Manager] SEND done notification"
+          -- dbg_trace "({← IO.monoMsNow}) [Manager] doneWith: {mgr._doneWith.toArray}"
+          Frontend.notifyDone)
       | .startAll => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
-        dbg_trace "[Manager] RECV startAll notification"
+        -- dbg_trace "[Manager] RECV startAll notification"
         mgr ← mgr.start (howMany := 8)
         ref.set mgr)
       | .reset => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
-        dbg_trace "[Manager] RECV reset notification"
+        -- dbg_trace "[Manager] RECV reset notification"
         mgr ← VCManager.new vcManagerCh
         ref.set mgr)
   ) cancelTk
   vcServerStarted.atomically (fun ref => do
     if !(← ref.get) then
       -- This starts the task
-      dbg_trace "[Manager] Starting manager loop"
+      -- dbg_trace "[Manager] Starting manager loop"
       let _ ← EIO.asTask (managerLoop ()) Task.Priority.dedicated
     else
-      dbg_trace "[Manager] Manager loop already started; resetting state"
+      -- dbg_trace "[Manager] Manager loop already started; resetting state"
       reset
     ref.set true
   )

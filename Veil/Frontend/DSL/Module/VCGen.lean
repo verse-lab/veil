@@ -92,7 +92,8 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
         return dischargerResult
       finally
         if ← cancelTk.isSet then
-          dbg_trace "{← IO.monoMsNow} @ thread {← IO.getTID} [Discharger] Task {dischargerId} was cancelled"
+          pure ()
+          -- dbg_trace "{← IO.monoMsNow} @ thread {← IO.getTID} [Discharger] Task {dischargerId} was cancelled"
     )
     -- Send the result to the VCManager
     -- dbg_trace "Sending result for {vcStatement.name}: {← (toMessageData res).toString}"
