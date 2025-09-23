@@ -6,7 +6,7 @@ namespace Veil.Verifier
 
 open Lean Elab Command Std
 
-def sendNotification (notification : ManagerNotification VeilResult) : CommandElabM Unit := do
+def sendNotification (notification : ManagerNotification SmtResult) : CommandElabM Unit := do
   let _ ← vcManagerCh.send notification
 
 def reset : CommandElabM Unit := sendNotification .reset
@@ -38,7 +38,7 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         if mgr._doneWith.size == mgr.nodes.size then
           dbg_trace "[Manager] SEND done notification"
           dbg_trace "({← IO.monoMsNow}) [Manager] doneWith: {mgr._doneWith.toArray}"
-          Frontend.notifyDone)
+          Frontend.notifyDone mgr)
       | .startAll => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         dbg_trace "[Manager] RECV startAll notification"
@@ -53,13 +53,15 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
   vcServerStarted.atomically (fun ref => do
     if !(← ref.get) then
       -- This starts the task
+      dbg_trace "[Manager] Starting manager loop"
       let _ ← EIO.asTask (managerLoop ()) Task.Priority.dedicated
     else
+      dbg_trace "[Manager] Manager loop already started; resetting state"
       reset
     ref.set true
   )
 
-def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger VeilResult) := #[]) (sendNotification : Bool := false): CommandElabM VCId := do
+def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger SmtResult) := #[]) (sendNotification : Bool := false): CommandElabM VCId := do
   let uid ← vcManager.atomically (fun ref => do
     let (mgr', uid) := (← ref.get).addVC vc dependsOn initialDischargers
     ref.set mgr'
@@ -69,7 +71,7 @@ def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischarger
     startAll
   return uid
 
-def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VeilResult) → CommandElabM (Discharger VeilResult)) (sendNotification : Bool := false) : CommandElabM Unit := do
+def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification SmtResult) → CommandElabM (Discharger SmtResult)) (sendNotification : Bool := false) : CommandElabM Unit := do
   vcManager.atomically (fun ref => do
     let mgr' ← (← ref.get).mkAddDischarger vcId mk
     ref.set mgr'

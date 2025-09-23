@@ -46,46 +46,53 @@ abbrev Witness := Expr
 /-- Dischargers also produce a front-end specific data, which can be produced
 either when the discharger is successful or when it fails (or both). We use
 this, for example, to return a counter-example from the SMT solver. -/
-abbrev DischargerData (ResultT : Type) := ResultT
+abbrev DischargerData (ResultT : Type) := Option ResultT
 
 inductive DischargerResult (ResultT : Type) where
   /-- The discharger finished successfully, i.e. produced a witness & data. -/
-  | success (witness : Witness) (data : DischargerData ResultT) (time : Nat)
-  /-- The discharger failed, i.e. did not produce a witness, but did produce
-  data, e.g. a counter-example. -/
-  | failure (data : DischargerData ResultT) (time : Nat)
+  | proven (witness : Witness) (data : DischargerData ResultT) (time : Nat)
+  /-- The discharger disproved the VC, i.e. produced a counter-example. -/
+  | disproven (data : DischargerData ResultT) (time : Nat)
+  /-- The discharger did not prove or disprove the VC, i.e. the result is
+  inconclusive -/
+  | unknown (data : DischargerData ResultT) (time : Nat)
   /-- The discharger threw an error. -/
-  | error (ex : Exception) (time : Nat)
-deriving Inhabited
+  | error (ex : Array Exception) (time : Nat)
+
+instance : Inhabited (DischargerResult ResultT) where
+  default := .error #[] default
 
 def DischargerResult.isSuccessful (res : DischargerResult ResultT) : Bool :=
   match res with
-  | .success _ _ _ => true
-  | .failure _ _ | .error _ _ => false
+  | .proven _ _ _ => true
+  | .disproven _ _ | .unknown _ _ | .error _ _ => false
 
 def DischargerResult.time (res : DischargerResult ResultT) : Option Nat :=
   match res with
-  | .success _ _ time | .failure _ time | .error _ time => some time
+  | .proven _ _ time | .disproven _ time | .unknown _ time | .error _ time => some time
 
 def DischargerResult.kindString (res : DischargerResult ResultT) : String :=
   match res with
-  | .success _ _ _ => "success"
-  | .failure _ _ => "failure"
+  | .proven _ _ _ => "proven"
+  | .disproven _ _ => "disproven"
+  | .unknown _ _ => "unknown"
   | .error _ _ => "error"
 
 instance [ToString ResultT] : ToString (DischargerResult ResultT) where
   toString res :=
     match res with
-    | .success expr data time => s!"success {expr} {data} ({time}ms)"
-    | .failure data time => s!"failure {data} ({time}ms)"
+    | .proven expr data time => s!"proven {expr} {data} ({time}ms)"
+    | .disproven data time => s!"disproven {data} ({time}ms)"
+    | .unknown data time => s!"unknown {data} ({time}ms)"
     | .error _ex time => s!"exception thrown ({time}ms)"
 
 instance [ToMessageData ResultT] : ToMessageData (DischargerResult ResultT) where
   toMessageData res :=
     match res with
-    | .success expr data time => m!"success {expr} {data} ({time}ms)"
-    | .failure data time => m!"failure {data} ({time}ms)"
-    | .error ex time => m!"error {ex.toMessageData} ({time}ms)"
+    | .proven expr data time => m!"proven {expr} {data} ({time}ms)"
+    | .disproven data time => m!"disproven {data} ({time}ms)"
+    | .unknown data time => m!"unknown {data} ({time}ms)"
+    | .error exs time => m!"error {exs.map (·.toMessageData)} ({time}ms)"
 
 inductive DischargeStatus (ResultT : Type) where
   /-- The discharger task has not been started yet. -/
@@ -278,11 +285,11 @@ def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatu
     | true => do
       match task.get with
       | .ok res => return .finished res
-      | .error ex => return .finished (.error ex default)
+      | .error ex => return .finished (.error #[ex] default)
 
 def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
   match (← discharger.status) with
-  | .finished (.success _ _ _) => return true
+  | .finished (.proven _ _ _) => return true
   | _ => return false
 
 /-- Find the next discharger to try. Once this function returns `none`, it will
@@ -294,8 +301,12 @@ def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT Re
     for discharger in vc.dischargers do
       match ← discharger.status with
       | .notStarted => return some discharger
-      | .finished (.success _ _ _) | .running => return none -- we wait for the discharger to finish
-      | .finished (.failure _ _) | .finished (.error _ _) => continue
+      -- if the discharger is still running, wait for it to finish
+      | .running => return none
+      -- if the discharger is finished the VC is proven or disproven, we're done
+      | .finished (.proven _ _ _)  | .finished (.disproven _ _) => return none
+      | .finished (.unknown _ _) => continue
+      | .finished (.error _ _) => continue
     return none
 
 def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT) : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
@@ -324,7 +335,8 @@ def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0): Base
   for (vc, discharger) in toExecute do
      mgr' ← mgr'.startTask vc discharger
   if toExecute.length > 0 then
-    dbg_trace "[VCManager.start] finished scheduling {toExecute.length} ready tasks (out of {ready.length} total ready)"
+    pure ()
+    -- dbg_trace "[VCManager.start] finished scheduling {toExecute.length} ready tasks (out of {ready.length} total ready)"
   return mgr'
 
 def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
@@ -334,16 +346,17 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
   let mut vcStatus := .unknown
   -- Update downstream in-degrees
   match res with
-  | .success _ _ _ => do
-    mgr := { mgr with nodes := mgr.nodes.insert vcId { vc with successful := some id.dischargerId }}
+  | .proven _ _ _ => do
     vcStatus := .proven
+    mgr := { mgr with nodes := mgr.nodes.insert vcId { vc with successful := some id.dischargerId }}
     let downstream := match mgr.downstream[vcId]? with
     | some downstream => downstream
     | none => HashSet.emptyWithCapacity 0
     for downstreamVc in downstream do
       let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | panic! "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"
       mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
-  | .failure _ _ => vcStatus := .disproven
+  | .disproven _ _ => vcStatus := .disproven
+  | .unknown _ _ => vcStatus := .unknown
   | .error _ _ => vcStatus := .error
   -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
   if (← vc.nextDischarger?).isNone then

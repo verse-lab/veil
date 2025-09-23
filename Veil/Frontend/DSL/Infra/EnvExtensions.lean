@@ -14,7 +14,7 @@ structure LocalEnvironment where
 deriving Inhabited
 
 structure VCManagerEnvironment where
-  mgr : VCManager VCMetadata VeilResult
+  mgr : VCManager VCMetadata SmtResult
 deriving Inhabited
 
 structure GlobalEnvironment where
@@ -32,13 +32,13 @@ initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment
   }
 
 /-- A channel for communicating with the VCManager. -/
-initialize vcManagerCh : Std.Channel (ManagerNotification VeilResult) ← Std.Channel.new
-
-/-- A channel for communicating with the frontend. -/
-initialize frontendCh : Std.Channel Unit ← Std.Channel.new
+initialize vcManagerCh : Std.Channel (ManagerNotification SmtResult) ← Std.Channel.new
 
 /-- Holds the state of the VCManager for the current file. -/
-initialize vcManager : Std.Mutex (VCManager VCMetadata VeilResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
+initialize vcManager : Std.Mutex (VCManager VCMetadata SmtResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
+
+/-- A channel for communicating with the frontend. Unfortunately, I think we're hitting a compiler bug that makes this necessary -/
+initialize frontendCh : Std.Channel (VCManager VCMetadata SmtResult) ← Std.Channel.new
 
 /-- This is to ensure we don't keep spawning server processes when `#gen_spec`
 is re-elaborated in the editor. -/
@@ -62,8 +62,8 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
 namespace Frontend
 
 open Lean.Elab.Command in
-def notifyDone  : CommandElabM Unit := do
-  let _ ← frontendCh.send ()
+def notifyDone (mgr : VCManager VCMetadata SmtResult) : CommandElabM Unit := do
+  let _ ← frontendCh.send mgr
 
 end Frontend
 

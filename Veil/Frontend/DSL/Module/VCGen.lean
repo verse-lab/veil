@@ -10,13 +10,63 @@ open Lean Elab Term Command
 
 namespace Veil
 
-def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification VeilResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger VeilResult) := do
+private def collectSmtOutputs (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (expectedName : Name) : CoreM (Array SmtOutput) := do
+  let _ ← ch.close
+  let mut outputs := #[]
+  while true do
+    let Option.some ((name, index), output) := (← ch.recv).get | break
+    if name != expectedName then
+      throwError s!"Expected {expectedName}, got {name} from channel"
+    outputs := outputs.push ((name, index), output)
+  return outputs
+
+private def overallSmtResult (name : Name) (outputs : Array SmtOutput) : CoreM (Option SmtResult) := do
+  let mut (errors, sat, unknown, unsat) := (#[], #[], #[], #[])
+  for output in outputs do
+    match output with
+    | (_, .exception ex) => errors := errors.push ex
+    | (_, .result (.sat ce)) => sat := sat.push ce
+    | (_, .result (.unknown reason)) => unknown := unknown.push reason
+    | (_, .result (.unsat _ core)) => unsat := unsat.push core
+    | _ => pure ()
+  let res ← (do
+    if errors.size > 0 then
+      return .some $ .error errors
+    if sat.size > 0 then
+      return .some $ .sat sat
+    if unknown.size > 0 then
+      return .some $ .unknown unknown
+    if errors.size == 0 && sat.size == 0 && unknown.size == 0 then
+      return .some $ .unsat unsat
+    return .none)
+  -- dbg_trace "{name}: {errors.size} errors, {sat.size} sat, {unknown.size} unknown, {unsat.size} unsat -> {← (toMessageData res).toString}"
+  return res
+
+private def mkDischargerResult (expectedName : Name) (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (data : Witness ⊕ Exception) (time : Nat) : CoreM (DischargerResult SmtResult) := do
+  let outputs ← collectSmtOutputs ch expectedName
+  let result ← overallSmtResult expectedName outputs
+  match result with
+  | .some result => match result with
+    | .error exs => return .error exs time
+    | .sat _ => return .disproven result time
+    | .unknown _ => return .unknown result time
+    | .unsat _ => do
+      match data with
+      | .inl witness => return .proven witness result time
+      | _ => throwError "mkDischargerResult: overallSmtResult is unsat, but no witness provided"
+  | .none =>
+    match data with
+    | .inl witness => return .proven witness .none time
+    | .inr ex => return .error #[ex] time
+
+def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification SmtResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
+  let smtCh ← Std.CloseableChannel.new
   let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
     -- NOTE: `trace` here will never be displayed and `dbg_trace` will show up
     -- as errors in the LSP output
     -- dbg_trace "Starting discharger task for {vcStatement.name}"
-    let res ← ( do
+    let res ← (do
       /- We wrap in `try`/`catch` because we want to reify exceptions ourselves
       into `DischargerResult` -/
       let startTime ← IO.monoMsNow
@@ -28,16 +78,19 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
           withoutErrToSorry $ do
             -- dbg_trace "{← IO.monoMsNow} @ thread {← IO.getTID} [Discharger] Elaborating term for {vcStatement.name}"
             let statementType ← elabTermEnsuringType vcStatement.statement (Expr.sort levelZero)
+            let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
             let body ← withSynthesize $ elabTermEnsuringType term statementType
             let witness ← Meta.mkLambdaFVars vs body
             let endTime ← IO.monoMsNow
+            let dischargerResult ← mkDischargerResult dischargerId.name smtCh (.inl witness) (endTime - startTime)
             -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Successfully finished task for {vcStatement.name} in {endTime - startTime}ms"
-            return .success witness Option.none (endTime - startTime)
+            return dischargerResult
       catch ex =>
         let endTime ← IO.monoMsNow
+        let dischargerResult ← liftCoreM $  mkDischargerResult dischargerId.name smtCh (.inr ex) (endTime - startTime)
         -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
-        -- TODO: identify SMT failure and get counter-example from the solver
-        return .error ex (endTime - startTime))
+        return dischargerResult
+    )
     -- Send the result to the VCManager
     -- dbg_trace "Sending result for {vcStatement.name}: {← (toMessageData res).toString}"
     let _ ← ch.send (.dischargerResult dischargerId res)
@@ -113,7 +166,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
     doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind (← act.binders) .primary) {}
-    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by sorry))
+    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by veil_solve))
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
     -- Assuming the `Invariants`, this action preserves every invariant clause

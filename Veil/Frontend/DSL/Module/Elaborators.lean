@@ -122,12 +122,15 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   Verifier.runManager
   mod.generateVCs
   Verifier.startAll
-  let _waitUntilDone := (← frontendCh.recv).get
-  dbg_trace "({← IO.monoMsNow}) [Elaborator] RECV done notification"
-  vcManager.atomically (fun res => do
-   let mgr ← res.get
-   dbg_trace "({← IO.monoMsNow}) [Elaborator] doneWith: {mgr._doneWith.toArray}"
-   trace[veil.debug] "({← IO.monoMsNow}) VCManager:\n{mgr}")
+  -- NOTE: we do this synchronously for now, sending over the entire VCManager to
+  -- the frontend thread because the state doesn't seem to be actually updated
+  -- correctly on the frontend thread. I suspect this is related to the
+  -- [#10429](https://github.com/leanprover/lean4/pull/10429) bug I reported.
+  let mgr := (← frontendCh.recv).get
+  dbg_trace "[Frontend] RECV VCManager"
+  logInfo m!"{mgr}"
+  for thm in (← mgr.theorems) do
+    trace[veil.debug] m!"{thm}"
   return { mod with _specFinalized := true }
 
 @[command_elab Veil.genState]
