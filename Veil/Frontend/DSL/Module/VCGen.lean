@@ -90,6 +90,9 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
         let dischargerResult ← liftCoreM $  mkDischargerResult dischargerId.name smtCh (.inr ex) (endTime - startTime)
         -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
         return dischargerResult
+      finally
+        if ← cancelTk.isSet then
+          dbg_trace "{← IO.monoMsNow} @ thread {← IO.getTID} [Discharger] Task {dischargerId} was cancelled"
     )
     -- Send the result to the VCManager
     -- dbg_trace "Sending result for {vcStatement.name}: {← (toMessageData res).toString}"

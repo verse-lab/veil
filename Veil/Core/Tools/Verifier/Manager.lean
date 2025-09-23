@@ -7,6 +7,7 @@ namespace Veil
 section DataStructures
 
 abbrev VCId := Nat
+abbrev ManagerId := Nat
 abbrev DischargerId := Nat
 
 structure VCIdentifier where
@@ -18,6 +19,9 @@ instance : ToString VCIdentifier where
   toString id := s!"{id.uid}"
 
 structure DischargerIdentifier where
+  /-- The ID of the VCManager that this discharger is associated with. Used to
+  ignore dischargers from other managers (e.g. after a `reset`). -/
+  managerId : ManagerId
   /-- The ID of the VC that this discharger is discharging. -/
   vcId : VCId
   /-- This is the index of within the `vcId`'s `dischargers` array. -/
@@ -27,7 +31,7 @@ structure DischargerIdentifier where
 deriving Inhabited, BEq, Hashable
 
 instance : ToString DischargerIdentifier where
-  toString id := s!"{id.name} (VC #{id.vcId})"
+  toString id := s!"{id.name} (VC #{id.vcId} ∈ mgr {id.managerId})"
 
 structure VCStatement where
   /-- Name of this VC. If the VC gets proven, this will be the name of
@@ -214,11 +218,12 @@ structure VCManager (VCMetaT ResultT: Type) where
   update in-degrees when a task completes. -/
   downstream : HashMap VCId (HashSet VCId)
 
-  protected _nextId : VCId := 0
+  protected _nextVcId : VCId := 0
   protected _totalDischarged : Nat := 0
   protected _totalSolved : Nat := 0
 
   protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
+  protected _managerId : ManagerId := 0
 
   /-- Channel for communicating with the VCManager. -/
   protected ch : Option (Std.Channel (ManagerNotification ResultT)) := none
@@ -226,21 +231,22 @@ deriving Inhabited
 
 /-- Create a new VCManager. This should be preferred instead of `default`, as
 this initializes the channel for communicating the discharge status of VCs. -/
-def VCManager.new (ch : Std.Channel (ManagerNotification ResultT)) : BaseIO (VCManager VCMetaT ResultT) := do
+def VCManager.new (ch : Std.Channel (ManagerNotification ResultT)) (currentManagerId : ManagerId := 0) : BaseIO (VCManager VCMetaT ResultT) := do
   return {
     nodes := HashMap.emptyWithCapacity,
     upstream := HashMap.emptyWithCapacity,
     inDegree := HashMap.emptyWithCapacity,
     downstream := HashMap.emptyWithCapacity,
     _doneWith := HashMap.emptyWithCapacity,
-    _nextId := 0,
+    _nextVcId := 0,
+    _managerId := currentManagerId + 1,
     ch := ch,
   }
 
 /-- Adds a new verification condition (VC) to the VCManager, along with its
 upstream dependencies. Returns the updated VCManager and the new VC. -/
 def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger ResultT) := #[]) : (VCManager VCMetaT ResultT × VCId) := Id.run do
-  let uid := mgr._nextId
+  let uid := mgr._nextVcId
   let vc := {vc with uid := uid, dischargers := initialDischargers, successful := none}
   -- Add ourselves downstream of all our dependencies
   let mut downstream := mgr.downstream
@@ -251,7 +257,7 @@ def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dep
     upstream := (mgr.upstream.insert uid dependsOn),
     inDegree := (mgr.inDegree.insert uid dependsOn.size),
     downstream := downstream,
-    _nextId := mgr._nextId + 1
+    _nextVcId := mgr._nextVcId + 1
   }
   (mgr', uid)
 
@@ -261,7 +267,7 @@ def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (m
   match mgr.nodes[vcId]? with
   | some vc => do
     let dischargerId := vc.dischargers.size
-    let id : DischargerIdentifier := {vcId, dischargerId, name := Name.mkSimple s!"{vc.name}_{dischargerId}" }
+    let id : DischargerIdentifier := {vcId, dischargerId, name := Name.mkSimple s!"{vc.name}_{dischargerId}", managerId := mgr._managerId }
     pure { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push (← mk vc.toVCStatement id ch) } }
   | none => pure mgr
 

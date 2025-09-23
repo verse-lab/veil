@@ -17,7 +17,6 @@ If this is called multiple times, each call will reset the VC manager. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
   let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
   let managerLoop ← Command.wrapAsync (fun () => do
-    let mut startTime ← IO.monoMsNow
     dbg_trace "[Manager] Starting manager loop"
     while true do
       -- blocks until we get a notification
@@ -26,11 +25,14 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
       match notification with
       | .dischargerResult dischargerId res => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
+        if dischargerId.managerId != mgr._managerId then
+          dbg_trace "[Manager] RECV dischargerResult from manager ID {dischargerId.managerId} (our ID: {mgr._managerId}); ignoring"
+          return
         let timeStr := res.time.map (fun time => s!"{time}ms") |>.getD ""
         mgr := {mgr with _totalDischarged := mgr._totalDischarged + 1}
         if res.isSuccessful then
           mgr := {mgr with _totalSolved := mgr._totalSolved + 1}
-        dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {timeStr} (solved: {mgr._totalSolved}/{mgr.nodes.size} in {(← IO.monoMsNow) - startTime}ms)"
+        dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {timeStr} (solved: {mgr._totalSolved}/{mgr.nodes.size})"
         mgr ← mgr.start (howMany := 1)
         mgr ← mgr.markDischarger dischargerId res
         ref.set mgr
