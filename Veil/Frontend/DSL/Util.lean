@@ -23,7 +23,7 @@ def toExtName (n : Name) := toActName n Mode.external
 
 def toActIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toActName id.getId mode
 
-def toWpName (n : Name) : Name := n ++ `wpGen
+def toWpName (n : Name) : Name := n ++ `wp
 def toWpEqName (n : Name) : Name := n ++ `wp_eq
 def toWpSuccName (n : Name) : Name := n ++ `wpSucc
 def toWpSuccEqName (n : Name) : Name := n ++ `wpSucc_eq

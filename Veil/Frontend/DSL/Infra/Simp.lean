@@ -51,4 +51,68 @@ instance funTwoArgsBoolToProp : Coe (α → β → Bool) (α → β → Prop) wh
 /-- Used to hoist higher-order quantification to the top of the goal. -/
 register_simp_attr quantifierSimp
 
+namespace Simp
+open Lean Elab
+
+/-- `simps` can be either the names of simp sets (simp attributes) or the names
+of theorems and/or definitions in the global environment. -/
+def mkVeilSimpCtx (simps : Array Name) : MetaM Meta.Simp.Context := do
+  let simpSetTheorems ← getSimpTheoremsFromSimpSets simps
+  Meta.Simp.mkContext (simpTheorems := simpSetTheorems)
+where
+  getSimpTheoremsFromSimpSets (simps : Array Name) : CoreM (Array Meta.SimpTheorems) := do
+    let simpExts ← simps.filterMapM (Meta.getSimpExtension? ·)
+    simpExts.mapM (·.getTheorems)
+  getSimpTheoremsFromConst (simps : Array Name) : MetaM (Meta.SimpTheorems) := do
+    -- based on `Lean.Elab.Tactic.elabDeclToUnfoldOrTheorem`
+    let simps : Array (Array Meta.SimpTheorem ⊕ Array Meta.SimpEntry) ← simps.filterMapM (fun name => do
+      let [fqn] ← resolveGlobalConst (mkIdent name) | return none
+      let info ← getConstVal fqn
+      if (← Meta.isProp info.type) then
+        -- TODO: `post := false` means `↓`, `inv := true` means `←`
+        let thms ← Meta.mkSimpTheoremFromConst fqn (post := true) (inv := false)
+        return some (.inl thms)
+      else
+        let simpEntries ← Meta.mkSimpEntryOfDeclToUnfold fqn
+        return (some (.inr simpEntries)))
+    let simpTheorems  := simps.filterMap (fun s =>  match s with | .inl thms => some thms | .inr _ => none) |>.flatten
+    let simpEntries := simps.filterMap (fun s =>  match s with | .inr entries => some entries | .inl _ => none) |>.flatten
+    let s := simpTheorems.foldl (init := default) (fun thms thm => thms.addSimpTheorem thm)
+    let s := simpEntries.foldl (init := s) (fun thms entry => thms.addSimpEntry entry)
+    return s
+
+def EqualityProof := Option Expr
+/-- This not exactly a `Simproc`, since we don't return intermediate `Step`s. -/
+def Simplifier := Expr → MetaM Meta.Simp.Result
+
+/-- A simplifier that does nothing. -/
+def Simplifier.id : Simplifier := fun e => return { expr := e }
+
+/-- Sequentially compose two simplifiers. -/
+def Simplifier.andThen (s1 : Simplifier) (s2 : Simplifier) : Simplifier := fun e => do
+  let res1 ← s1 e
+  let res2 ← s2 res1.expr
+  res1.mkEqTrans res2
+
+def Argument := Ident
+def SyntaxTemplate := Array Argument → TermElabM Term
+def Elaborator := SyntaxTemplate → TermElabM Expr
+
+def unfold (defs : Array Name) : Simplifier := fun e => do
+  let mut res : Meta.Simp.Result := { expr := e }
+  for name in defs do
+    let res' ← Meta.unfold res.expr name
+    res ← res.mkEqTrans res'
+  return res
+
+def simp (simps : Array Name) : Simplifier := fun e => do
+  let (res, _stats) ← Meta.simp e (← mkVeilSimpCtx simps) (discharge? := none)
+  return res
+
+def dsimp (simps : Array Name) : Simplifier := fun e => do
+  let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simps)
+  return { expr := expr }
+
+end Simp
+
 end Veil

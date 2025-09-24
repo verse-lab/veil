@@ -67,24 +67,21 @@ lemma VeilExecM.wp_assume :
   wp (assume p : VeilM m ρ σ PUnit) post = fun r s => p -> post .unit r s := by
   simp [MonadNonDet.wp_assume, loomLogicSimp, himp];
 
+/-- This formulation avoid a blowup in formula size by avoiding copies of `post`. -/
 @[wpSimp ↓]
 lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId) :
   wp (require p ex : VeilM m ρ σ Unit) post =
-    -- avoid having copies of `post`, which might lead to formula size blowup;
-    -- distribute `wp` inside the `casesOn` to allow WP generation for both branches;
-    -- eta-expand `wp` to match the LHS of WP equations and allow rewriting;
-    -- lift `p` out of the pattern match to avoid term duplication
-    letI wpI := fun p_ [Decidable p_] post_ => wp (VeilM.assert p_ ex : VeilM .internal ρ σ Unit) post_
-    letI wpE := fun p_ [Decidable p_] post_ => wp (VeilM.assume p_    : VeilM .external ρ σ Unit) post_
-    -- alternatively, use `m.casesOn`, but that will be simplified into `m.rec`, which is not very good
+    letI wpI := fun _p [Decidable _p] _post => wp (VeilM.assert _p ex : VeilM .internal ρ σ Unit) _post
+    letI wpE := fun _p [Decidable _p] _post => wp (VeilM.assume _p    : VeilM .external ρ σ Unit) _post
     (match m with | .internal => wpI | .external => wpE) p post := by
   cases m <;> rfl
 
+/-- This formulation avoid a blowup in formula size by avoiding copies of `post`. -/
 @[wpSimp ↓]
 lemma VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId) :
   wp (ensure p ex : VeilM m ρ σ Unit) post =
-    letI wpI := fun p_ [Decidable p_] post_ => wp (VeilM.assume p_    : VeilM .internal ρ σ Unit) post_
-    letI wpE := fun p_ [Decidable p_] post_ => wp (VeilM.assert p_ ex : VeilM .external ρ σ Unit) post_
+    letI wpI := fun _p [Decidable _p] _post => wp (VeilM.assume _p    : VeilM .internal ρ σ Unit) _post
+    letI wpE := fun _p [Decidable _p] _post => wp (VeilM.assert _p ex : VeilM .external ρ σ Unit) _post
     (match m with | .internal => wpI | .external => wpE) p post := by
   cases m <;> rfl
 
