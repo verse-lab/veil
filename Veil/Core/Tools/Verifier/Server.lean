@@ -12,6 +12,8 @@ def sendNotification (notification : ManagerNotification SmtResult) : CommandEla
 def reset : CommandElabM Unit := sendNotification .reset
 def startAll : CommandElabM Unit := sendNotification .startAll
 
+def numCores : Nat := 8
+
 /-- Starts a separate task (on a dedicated thread) that runs the VCManager.
 If this is called multiple times, each call will reset the VC manager. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
@@ -28,23 +30,21 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         if dischargerId.managerId != mgr._managerId then
           -- dbg_trace "[Manager] RECV dischargerResult from manager ID {dischargerId.managerId} (our ID: {mgr._managerId}); ignoring"
           return
-        -- let _timeStr := res.time.map (fun time => s!"{time}ms") |>.getD ""
         mgr := {mgr with _totalDischarged := mgr._totalDischarged + 1}
         if res.isSuccessful then
           mgr := {mgr with _totalSolved := mgr._totalSolved + 1}
-        -- dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {_timeStr} (solved: {mgr._totalSolved}/{mgr.nodes.size})"
+        -- dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {res.time}ms (solved: {mgr._totalSolved}/{mgr.nodes.size})"
         mgr ← mgr.start (howMany := 1)
         mgr ← mgr.markDischarger dischargerId res
         ref.set mgr
         -- If we're done with all VCs, send a notification to the frontend
         if mgr._doneWith.size == mgr.nodes.size then
-          -- dbg_trace "[Manager] SEND done notification"
-          -- dbg_trace "({← IO.monoMsNow}) [Manager] doneWith: {mgr._doneWith.toArray}"
+          -- dbg_trace "[Manager] SEND done notification doneWith: {mgr._doneWith.toArray}"
           Frontend.notifyDone)
       | .startAll => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         -- dbg_trace "[Manager] RECV startAll notification"
-        mgr ← mgr.start (howMany := 8)
+        mgr ← mgr.start (howMany := numCores)
         ref.set mgr)
       | .reset => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
@@ -56,7 +56,7 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
     if !(← ref.get) then
       -- This starts the task
       -- dbg_trace "[Manager] Starting manager loop"
-      let _ ← EIO.asTask (managerLoop ()) Task.Priority.dedicated
+      let _ ← EIO.asTask (managerLoop ())
     else
       -- dbg_trace "[Manager] Manager loop already started; resetting state"
       reset

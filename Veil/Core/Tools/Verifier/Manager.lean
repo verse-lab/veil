@@ -71,9 +71,9 @@ def DischargerResult.isSuccessful (res : DischargerResult ResultT) : Bool :=
   | .proven _ _ _ => true
   | .disproven _ _ | .unknown _ _ | .error _ _ => false
 
-def DischargerResult.time (res : DischargerResult ResultT) : Option Nat :=
+def DischargerResult.time (res : DischargerResult ResultT) : Nat :=
   match res with
-  | .proven _ _ time | .disproven _ time | .unknown _ time | .error _ time => some time
+  | .proven _ _ time | .disproven _ time | .unknown _ time | .error _ time => time
 
 def DischargerResult.kindString (res : DischargerResult ResultT) : String :=
   match res with
