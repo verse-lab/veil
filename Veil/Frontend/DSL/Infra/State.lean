@@ -6,10 +6,12 @@ class IsSubReaderOf (ρ : outParam Type) (ρ' : Type) where
 
 export IsSubReaderOf (readFrom)
 
+attribute [wpSimp ↓, actSimp, invSimp] IsSubReaderOf.readFrom
+
 instance (priority := high) [IsSubReaderOf σₛ σ] [Monad m] : MonadReaderOf σₛ (ReaderT σ m) where
   read := readFrom <$> read
 
-@[wpSimp, actSimp, invSimp]
+@[wpSimp ↓, actSimp, invSimp]
 instance : IsSubReaderOf ρ ρ where
   readFrom := id
 
@@ -40,7 +42,7 @@ class IsSubStateOf (σ : outParam Type) (σ' : Type) where
 
 export IsSubStateOf (setIn getFrom)
 
-attribute [wpSimp,actSimp, invSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.setIn_setIn_last IsSubStateOf.getFrom_setIn_idempotent
+attribute [wpSimp ↓, actSimp, invSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.setIn_setIn_last IsSubStateOf.getFrom_setIn_idempotent
 
 @[wpSimp, actSimp, invSimp]
 instance : IsSubStateOf σ σ where

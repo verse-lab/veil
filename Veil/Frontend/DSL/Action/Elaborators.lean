@@ -1,7 +1,7 @@
 import Lean
 import Veil.Frontend.DSL.Action.Syntax
 import Veil.Frontend.DSL.Action.DoNotation
--- import Veil.Frontend.DSL.Action.AuxDeclarations
+import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
 
@@ -31,7 +31,7 @@ namespace Veil
 
 abbrev FullyQualifiedName := Name
 /-- Get the fully qualified name of an _existing_ definition. -/
-def getFullyQualifiedName (name : Name) : TermElabM FullyQualifiedName := do
+def getFullyQualifiedName [Monad m] [MonadResolveName m] [MonadEnv m] [MonadError m] (name : Name) : m FullyQualifiedName := do
   resolveGlobalConstNoOverload (mkIdent name)
 
 /-- If `mode?` is `none`, the name is the `.do`-definition of the action, i.e.
@@ -45,10 +45,8 @@ def ProcedureInfo.nameInMode (pi : ProcedureInfo) (mode? : Option Mode) : Name :
 namespace AuxiliaryDefinitions
 open Veil Veil.Simp
 
-private def elaborateAndSimplify (elaborate : Elaborator) (template : SyntaxTemplate) (simplify : Simplifier) : TermElabM Meta.Simp.Result := do
-  let expr ← elaborate template
-  let res ← simplify expr
-  return res
+def Argument := Ident
+def SyntaxTemplate := Array Argument → TermElabM Term
 
 /-- Template for defining the WP of an action. -/
 private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
@@ -56,43 +54,43 @@ private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
   (fun args : Array Ident =>
     `(fun $handler $post => [IgnoreEx $handler| $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post]))
 
-private def defineWp (pi : ProcedureInfo) (mode? : Option Mode) : TermElabM Unit := do
-  let fqn ← getFullyQualifiedName (pi.nameInMode mode?)
-  let template := wpTemplate fqn
-  -- TODO: use the proper pre-simplifier
-  let presimp := match mode? with
-    | .none => Simplifier.id
-    | .some mode => Simplifier.id
-
+/-- This defines `act.do.wp`. Our aim is to reduce all `wp` goals related to
+`act` to applications of this definition. The rationale is that we can apply
+heavy-duty simplification to this definition _only_ and benefit from it in all
+contexts. -/
+private def defineWp (ps : ProcedureSpecification) : TermElabM Unit := do
+  let fqn ← getFullyQualifiedName (ps.info.nameInMode .none)
+  let defterm ← (wpTemplate fqn) (← ps.params.stxArrMapM toIdentArray)
+  let e ← instantiateMVars <| ← withoutErrToSorry <| elabTermAndSynthesize defterm none
+  let res ← Simp.simp #[`wpSimp] { unfoldPartialApp := true } e
+  trace[veil.debug] "{ps.name}\n{e}\n~>\n{res.expr}"
   return
 
-private def defineAuxiliaryDeclarations (pi : ProcedureInfo) (mode? : Option Mode) : TermElabM Unit := do
-  let fqn ← getFullyQualifiedName (pi.nameInMode mode?)
+private def defineAuxiliaryDeclarations (ps : ProcedureSpecification) (mode? : Option Mode) : TermElabM Unit := do
+  defineWp ps
 
 end AuxiliaryDefinitions
 
 /-! ## Procedure elaboration -/
 
-def elabProcedureDoNotation (vs : Array Expr) (act : Name) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Name × Array Parameter × Expr) := do
-  let originalName := act
-  let name := toDoName originalName
+def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Name × Array Parameter × Expr) := do
   let brs ← Option.stxArrMapM br toFunBinderArray
-  let stx ← `(fun $brs* => veil_do $(mkIdent act) in $environmentTheory, $environmentState in $l)
+  let stx ← `(fun $brs* => veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
   try
     Meta.withLocalDecl veilModeVar.getId BinderInfo.default (mkConst ``Mode) fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
     let e ← Meta.mkLambdaFVarsImplicit (#[mode] ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
-    return (name, ← mvars.mapIdxM (fun i mvar => mvarToParam originalName mvar i), e)
+    return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)
   catch ex =>
-    throwError "Error in action {name}: {← ex.toMessageData.toString}"
+    throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
 where
   mvarToParam (inAction : Name) (mvar : Expr) (i : Nat) : TermElabM Parameter := do
     let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar)
     return { kind := .definitionTypeclass inAction, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
 
-def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : TermElabM (Name × Expr) := do
+def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : MetaM (Name × Expr) := do
   let doNm_fullyQualified ← getFullyQualifiedName $ (pi.nameInMode .none)
   let mut body := mkAppN (mkConst doNm_fullyQualified) #[mode.expr]
   /- The external mode of an action always returns `Unit`. -/
@@ -106,18 +104,27 @@ def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module
   mod.throwIfAlreadyDeclared ps.name
   return { mod with procedures := mod.procedures.push ps, _declarations := mod._declarations.insert ps.name (.procedure ps.info) }
 
+def Module.registerDerivedActionDefinition [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (base : ProcedureSpecification) (derivedName : Name) : m Module := do
+  mod.throwIfAlreadyDeclared derivedName
+  let derivedDef : DerivedDefinition := { name := derivedName, kind := .actionLike, params := base.params, extraParams := base.extraParams, derivedFrom := {base.name}, stx := .none }
+  let mod := { mod with _declarations := mod._declarations.insert derivedName (.derivedDefinition derivedDef.kind {base.name}), _derivedDefinitions := mod._derivedDefinitions.insert derivedName derivedDef }
+  return mod
+
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
   let mut mod := mod
-  let actName := pi.name
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
-  let (nmDo, extraParams, e) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs actName br l
+  let (nmDo, extraParams, e) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
   let ps := ProcedureSpecification.mk pi br extraParams spec l stx
+  -- We register the `internal` view of the action as the "real" one
   mod ← mod.registerProcedureSpecification ps
-  -- Elaborate the definition in the Lean environment
+  -- The `.do` and `.ext` views are marked as derived definitions
+  mod ← mod.registerDerivedActionDefinition ps (pi.nameInMode none)
+  mod ← mod.registerDerivedActionDefinition ps (pi.nameInMode $ some .external)
+  -- Elaborate the definitions in the Lean environment
   liftTermElabM $ do
     let _ ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
     -- defineAuxiliaryDeclarations pi Option.none br nmDo nmDoFull
@@ -130,6 +137,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
     for d in definitions do
       enableRealizationsForConst d
       Elab.Term.applyAttributes d #[{name := `actSimp}]
+    -- AuxiliaryDefinitions.defineAuxiliaryDeclarations ps Option.none
     -- defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmIntFull
     -- defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExtFull
   return mod

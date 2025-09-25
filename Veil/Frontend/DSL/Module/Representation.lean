@@ -227,7 +227,8 @@ structure ProcedureSpecification where
   userSyntax : Syntax
 deriving Inhabited, BEq
 
-def ProcedureSpecification.declarationKind (ps : ProcedureSpecification) : DeclarationKind := .procedure ps.info
+def ProcedureInfo.declarationKind (pi : ProcedureInfo) : DeclarationKind := .procedure pi
+def ProcedureSpecification.declarationKind (ps : ProcedureSpecification) : DeclarationKind := ps.info.declarationKind
 
 /-- Modules can depend on other modules, which must be
 fully-instantiated with arguments provided for all the module
@@ -265,7 +266,7 @@ structure DerivedDefinition where
   /-- The definitions that this derived definition depends on. -/
   derivedFrom : Std.HashSet Name
   /-- The syntax of the definition that was derived. -/
-  stx : Command
+  stx : Option Command
 deriving Inhabited
 
 def DerivedDefinition.declarationKind (dd : DerivedDefinition) : DeclarationKind := .derivedDefinition dd.kind dd.derivedFrom

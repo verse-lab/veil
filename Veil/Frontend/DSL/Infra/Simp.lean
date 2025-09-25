@@ -56,17 +56,19 @@ open Lean Elab
 
 /-- `simps` can be either the names of simp sets (simp attributes) or the names
 of theorems and/or definitions in the global environment. -/
-def mkVeilSimpCtx (simps : Array Name) : MetaM Meta.Simp.Context := do
-  let simpSetTheorems ← getSimpTheoremsFromSimpSets simps
-  Meta.Simp.mkContext (simpTheorems := simpSetTheorems)
+def mkVeilSimpCtx (simps : Array Name) (config : Meta.Simp.Config := {}): MetaM Meta.Simp.Context := do
+  let simpsets ← getSimpTheoremsFromSimpSets simps
+  let simps ← getSimpTheoremsFromConsts simps
+  let congrTheorems ← Meta.getSimpCongrTheorems
+  Meta.Simp.mkContext config (simpTheorems := simpsets ++ #[simps]) (congrTheorems := congrTheorems)
 where
   getSimpTheoremsFromSimpSets (simps : Array Name) : CoreM (Array Meta.SimpTheorems) := do
     let simpExts ← simps.filterMapM (Meta.getSimpExtension? ·)
     simpExts.mapM (·.getTheorems)
-  getSimpTheoremsFromConst (simps : Array Name) : MetaM (Meta.SimpTheorems) := do
+  getSimpTheoremsFromConsts (simps : Array Name) : MetaM (Meta.SimpTheorems) := do
     -- based on `Lean.Elab.Tactic.elabDeclToUnfoldOrTheorem`
     let simps : Array (Array Meta.SimpTheorem ⊕ Array Meta.SimpEntry) ← simps.filterMapM (fun name => do
-      let [fqn] ← resolveGlobalConst (mkIdent name) | return none
+      let [(fqn, _)] ← resolveGlobalName name | return none
       let info ← getConstVal fqn
       if (← Meta.isProp info.type) then
         -- TODO: `post := false` means `↓`, `inv := true` means `←`
@@ -94,23 +96,22 @@ def Simplifier.andThen (s1 : Simplifier) (s2 : Simplifier) : Simplifier := fun e
   let res2 ← s2 res1.expr
   res1.mkEqTrans res2
 
-def Argument := Ident
-def SyntaxTemplate := Array Argument → TermElabM Term
-def Elaborator := SyntaxTemplate → TermElabM Expr
-
 def unfold (defs : Array Name) : Simplifier := fun e => do
   let mut res : Meta.Simp.Result := { expr := e }
   for name in defs do
     let res' ← Meta.unfold res.expr name
     res ← res.mkEqTrans res'
+  trace[veil.debug] "unfold {defs}\n{e}\n~>\n{res.expr}"
   return res
 
-def simp (simps : Array Name) : Simplifier := fun e => do
-  let (res, _stats) ← Meta.simp e (← mkVeilSimpCtx simps) (discharge? := none)
+def simp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
+  let (res, _stats) ← Meta.simp e (← mkVeilSimpCtx simps config) (discharge? := none)
+  trace[veil.debug] "simp {simps}\n{e}\n~>\n{res.expr}"
   return res
 
-def dsimp (simps : Array Name) : Simplifier := fun e => do
-  let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simps)
+def dsimp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
+  let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simps config)
+  trace[veil.debug] "dsimp {simps}\n{e}\n~>\n{expr}"
   return { expr := expr }
 
 end Simp

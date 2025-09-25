@@ -53,7 +53,7 @@ private def simplifyAndDefine
       | some f => f xs body
       | none => pure (body, ← mkEqRefl body)
     let (e2, proof2) ← if simps.isEmpty then pure (e1, proof1) else do
-      let simpResult ← e1.simp simps
+      let simpResult ← (Simp.simp simps) e1
       let proof2 ← match simpResult.proof? with
         | some pf => mkEqTrans proof1 pf
         | none => pure proof1
@@ -175,9 +175,9 @@ private def switchToDoWp (sourceName : Name) (mode : Mode) (xs : Array Expr) : T
   trace[veil.debug] "[{decl_name%}] rhs: {rhs}"
   -- `act.do.wpGen` should be simplified, so here only do `dsimp`
   let rhs' ← whnfD rhs
-  let rhs' ← rhs'.dsimp #[]
-  trace[veil.debug] "[{decl_name%}] rhs': {rhs'}"
-  return (rhs', proof)
+  let rhs' ← (Simp.dsimp #[]) rhs'
+  trace[veil.debug] "[{decl_name%}] rhs': {rhs'.expr}"
+  return (rhs'.expr, proof)
 
 /-- `sourceName` should be short (e.g., `act.do`), while `fullSourceName` should be
     fully qualified (e.g., `MyModule.act.do`).

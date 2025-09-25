@@ -1,6 +1,7 @@
 import Lean
 import Veil.Frontend.DSL.Action.Semantics.WP
 import Veil.Util.Meta
+import Veil.Frontend.DSL.Infra.Simp
 
 namespace Veil
 
@@ -33,9 +34,7 @@ def wpGenBySimprocCore (e : Expr) : TermElabM (Expr × Expr) := do
   -- After rewriting using various `wp_eq` theorems, we might end up with
   -- `foo.wpGen`, `bar.wpGen`, etc. To unfold them, we can either declare them as
   -- `reducible`, or register them to be unfolded, as using `wpDefUnfoldSimp` here.
-  let simpThms ← getSimpTheoremsBy #[`substateSimp, `wpDefUnfoldSimp]
-  let congrTheorems ← getSimpCongrTheorems
-  let ctx ← Meta.Simp.mkContext (simpTheorems := simpThms) (congrTheorems := congrTheorems)
+  let ctx ← Simp.mkVeilSimpCtx #[`substateSimp, `wpDefUnfoldSimp]
   -- Some definitions like `foo.wpGen` will be only partially applied
   -- __after doing WP generation and before further simplification__,
   -- so need to enable this option to unfold them; otherwise the unfold lemmas will __not__ be used.
