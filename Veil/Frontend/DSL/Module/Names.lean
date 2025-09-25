@@ -1,7 +1,14 @@
 import Lean
+import Veil.Util.Meta
 open Lean
 
 namespace Veil
+
+/-- The name used to parametrise the `mode` of the `VeilM` monad. This
+is intentionally a non-hygienic name, since we bind it when we
+elaborate the syntax expanded by `elabVeilDo`. -/
+def veilModeVar : Ident := mkIdent $ mkVeilImplementationDetailName `mode
+
 
 /-- Name of the generic/environment background theory (i.e. `Reader` monad state)
 variable. -/

@@ -111,22 +111,25 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
   }
 
 private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-  (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (specName : Name) (vcName : Name) (vcKind : VCKind)
+  (mod : Module) (actName : Name) (actKind : DeclarationKind) (specName : Name) (vcName : Name) (vcKind : VCKind)
   (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]): m (VCData VCMetadata) := do
   -- FIXME: make all the name-related/parameter functions work with `ext` names
   let dependsOn := extraDeps.insertMany #[actName, assembledAssumptionsName, assembledInvariantsName]
   let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .theoremLike dependsOn)
   -- NOTE: the VCs are stated in terms of `act.ext`, not `act`
   let extName := toExtName actName
+  let ((_, allModArgs), (actBinders, actArgs)) ← mod.declarationSplitBindersArgs actName actKind
+  let (_, assArgs) ← mod.declarationAllBindersArgs assembledAssumptionsName (.derivedDefinition .assumptionLike dependsOn)
+  let (_, invArgs) ← mod.declarationAllBindersArgs assembledInvariantsName (.derivedDefinition .invariantLike dependsOn)
   return {
     name := vcName,
     params := ← (thmBaseParams ++ thmExtraParams).mapM (·.binder),
     statement := ← expandTermMacro $ ← `(term|
       forall? $actBinders*,
         $(mkIdent specName)
-          (@$(mkIdent extName) $(← mod.declarationAllParamsMapFn (·.arg) actName actKind)* $(← bracketedBindersToTerms actBinders)*)
-          (@$assembledAssumptions $(← mod.declarationAllParamsMapFn (·.arg) assembledAssumptionsName (.derivedDefinition .assumptionLike dependsOn))*)
-          (@$assembledInvariants $(← mod.declarationAllParamsMapFn (·.arg) assembledInvariantsName (.derivedDefinition .invariantLike dependsOn))*)
+          (@$(mkIdent extName) $allModArgs* $actArgs*)
+          (@$assembledAssumptions $assArgs*)
+          (@$assembledInvariants $invArgs*)
           $extraTerms:term*
     ),
     metadata := {
@@ -138,22 +141,22 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
   }
 
 private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-  (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (vcKind : VCKind) : m (VCData VCMetadata) := do
-  mkVCForSpecTheorem mod actName actKind actBinders ``VeilM.doesNotThrowAssuming (Name.mkSimple s!"{actName}_doesNotThrow") vcKind
+  (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : VCKind) : m (VCData VCMetadata) := do
+  mkVCForSpecTheorem mod actName actKind ``VeilM.doesNotThrowAssuming (Name.mkSimple s!"{actName}_doesNotThrow") vcKind
 
 private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-  (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (invariantClause : Name) (vcKind : VCKind) : m (VCData VCMetadata) := do
+  (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name) (vcKind : VCKind) : m (VCData VCMetadata) := do
   let extraDeps := {invariantClause}
-  let extraTerms := #[← `(term| (@$(mkIdent invariantClause) $(← mod.declarationAllParamsMapFn (·.arg) invariantClause (.stateAssertion .invariant))*) )]
-  mkVCForSpecTheorem mod actName actKind actBinders ``VeilM.meetsSpecificationIfSuccessfulAssuming (Name.mkSimple s!"{actName}_{invariantClause}") vcKind extraDeps extraTerms
+  let extraTerms := #[← `(term| (@$(mkIdent invariantClause) $(← mod.declarationAllArgs invariantClause (.stateAssertion .invariant))*) )]
+  mkVCForSpecTheorem mod actName actKind ``VeilM.meetsSpecificationIfSuccessfulAssuming (Name.mkSimple s!"{actName}_{invariantClause}") vcKind extraDeps extraTerms
 
 private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-  (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (vcKind : VCKind) : m (VCData VCMetadata) := do
-  mkVCForSpecTheorem mod actName actKind actBinders ``VeilM.preservesInvariantsIfSuccessfulAssuming (Name.mkSimple s!"{actName}_preservesInvariants") vcKind
+  (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : VCKind) : m (VCData VCMetadata) := do
+  mkVCForSpecTheorem mod actName actKind ``VeilM.preservesInvariantsIfSuccessfulAssuming (Name.mkSimple s!"{actName}_preservesInvariants") vcKind
 
 private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-  (mod : Module) (actName : Name) (actKind : DeclarationKind) (actBinders : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (vcKind : VCKind) : m (VCData VCMetadata) := do
-  mkVCForSpecTheorem mod actName actKind actBinders ``VeilM.succeedsAndPreservesInvariantsAssuming (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
+  (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : VCKind) : m (VCData VCMetadata) := do
+  mkVCForSpecTheorem mod actName actKind ``VeilM.succeedsAndPreservesInvariantsAssuming (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
 
 def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   -- We need to build the VCs "bottom-up", i.e. from the "smallest"
@@ -169,7 +172,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   for act in actsToCheck do
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
-    doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind (← act.binders) .primary) {}
+    doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind .primary) {}
     Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by veil_solve))
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
@@ -177,28 +180,28 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     let mut clauseVCsForAct : Std.HashSet VCId := {}
     for invariantClause in mod.checkableInvariants do
       let mut clauseVC := default
-      clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind (← act.binders) invariantClause.name .primary) {}
+      clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind invariantClause.name .primary) {}
       Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm $ ← `(by veil_solve))
       clausesVCsByInv := clausesVCsByInv.insert invariantClause.name ((clausesVCsByInv.getD invariantClause.name {}).insert clauseVC)
       clauseVCsForAct := clauseVCsForAct.insert clauseVC
 
   --   -- Per-action overall invariant preservation VC
   --   let mut preservesInvariantsVC := default
-  --   preservesInvariantsVC ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) clauseVCsForAct
+  --   preservesInvariantsVC ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod act.name act.declarationKind .derived) clauseVCsForAct
   --   preservesInvariantsVCs := preservesInvariantsVCs.insert preservesInvariantsVC
 
   --   let mut succeedsAndPreservesInvariantsVC := default
-  --   succeedsAndPreservesInvariantsVC ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod act.name act.declarationKind (← act.binders) .derived) {doesNotThrowVC, preservesInvariantsVC}
+  --   succeedsAndPreservesInvariantsVC ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod act.name act.declarationKind .derived) {doesNotThrowVC, preservesInvariantsVC}
   --   succeedsAndPreservesInvariantsVCs := succeedsAndPreservesInvariantsVCs.insert succeedsAndPreservesInvariantsVC
 
   -- -- `NextAct` theorems
   -- let .some dd := mod._derivedDefinitions[assembledNextActName]?
   --   | throwError s!"[Module.generateVCs] derived definition {assembledNextActName} not found"
-  -- let _ ← Verifier.addVC ( ← mkDoesNotThrowVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) doesNotThrowVCs
+  -- let _ ← Verifier.addVC ( ← mkDoesNotThrowVC mod assembledNextActName dd.declarationKind  .derived) doesNotThrowVCs
 
   -- for invariantClause in mod.checkableInvariants do
-  --   let _ ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod assembledNextActName dd.declarationKind (← dd.binders) invariantClause.name .derived) (clausesVCsByInv[invariantClause.name]!)
-  -- let _ ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) preservesInvariantsVCs
-  -- let _ ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind (← dd.binders) .derived) succeedsAndPreservesInvariantsVCs
+  --   let _ ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod assembledNextActName dd.declarationKind invariantClause.name .derived) (clausesVCsByInv[invariantClause.name]!)
+  -- let _ ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind .derived) preservesInvariantsVCs
+  -- let _ ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind .derived) succeedsAndPreservesInvariantsVCs
 
 end Veil

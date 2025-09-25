@@ -40,6 +40,8 @@ inductive ParameterKind where
   /-- A typeclass assumption that _a particular definition_ makes.
   These are typically `Decidable` instances. -/
   | definitionTypeclass (defName : Name)
+  /-- For `.do` definitions of actions, this is the mode parameter. -/
+  | mode
 deriving Inhabited, BEq
 
 inductive Mutability where
@@ -115,6 +117,10 @@ inductive DerivedDefinitionKind where
   /-- This derived definition is like an `action`, in terms of the
   parameters it needs. -/
   | actionLike
+  /-- This derived definition is like a `.do` definition of an action, in terms
+  of the parameters it needs. This means the same base parameters as if
+  definition was `actionLike`, but the first parameter is the mode parameter.-/
+  | actionDoLike
   /-- This derived definition is like a `theorem` in terms of the
   parameters it needs. -/
   | theoremLike

@@ -164,11 +164,6 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
     return #[bind, res]
 end
 
-/-- The name used to parametrise the `mode` of the `VeilM` monad. This
-is intentionally a non-hygienic name, since we bind it when we
-elaborate the syntax expanded by `elabVeilDo`. -/
-def veilModeVar : Ident := mkIdent $ mkVeilImplementationDetailName `mode
-
 def elabVeilDo (proc : Name) (readerTp : Term) (stateTp : Term) (instx : doSeq) : TermElabM Expr := do
   let mod ← getCurrentModule (errMsg := "You cannot use Veil do-notation outside of a Veil module!")
   let doS ← getDoElems instx

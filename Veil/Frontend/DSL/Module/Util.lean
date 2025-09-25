@@ -119,6 +119,9 @@ def Parameter.environmentTheory [Monad m] [MonadQuotation m] : m Parameter :=
 def Parameter.environmentState [Monad m] [MonadQuotation m] : m Parameter :=
   return { kind := .environmentState, name := environmentStateName, «type» := ← `(Type), userSyntax := .missing }
 
+def Parameter.mode [Monad m] [MonadQuotation m] : m Parameter :=
+  return { kind := .mode, name := veilModeVar.getId, «type» := mkIdent ``Mode, userSyntax := .missing }
+
 def Module.freshWithName [Monad m] [MonadQuotation m] (name : Name) : m Module := do
   let params := #[← Parameter.environmentTheory, ← Parameter.environmentState]
   return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], _declarations := .emptyWithCapacity, _derivedDefinitions := .emptyWithCapacity }
@@ -192,27 +195,72 @@ where
     | .stateLike => sortParameters mod
     | .assumptionLike => pure (theoryParameters mod)
     | .invariantLike | .actionLike | .theoremLike => pure mod.parameters
+    | .actionDoLike => pure $ #[← Parameter.mode] ++ mod.parameters
 
-/-- For an **existing** declaration, return the parameters it needs. -/
-def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter) := do
+/-- For an **existing** declaration, return the parameters it needs, split into
+three components:
+  - base parameters (imposed by the module on this particular definition)
+  - "extra" parameters (decidable instances required to make this definition
+  executable)
+  - actual parameters (the parameters that the definition actually takes)
+ -/
+def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter × Option (TSyntax `Lean.explicitBinders)) := do
   let baseParams ← mod.declarationBaseParams k
-  let extraParams ← (do
+  let (extraParams, actualParams) ← (do
     match k with
     | .derivedDefinition _ _ =>
       let .some dd := mod._derivedDefinitions[forDeclaration]?
-        | throwError "[Module.declarationParams]: derived definition {forDeclaration} not found"
-      pure dd.extraParams
-    | .stateAssertion _ => return Array.flatten $ mod.assertions.filterMap (fun a => if forDeclaration == a.name then .some a.extraParams else .none)
-    | .procedure _ => return Array.flatten $ mod.procedures.filterMap (fun a => if forDeclaration == a.name then .some a.extraParams else .none)
-    | _ => throwError "[Module.declarationParams]: declaration {forDeclaration} has unsupported kind {repr k}")
-  return (baseParams, extraParams)
+        | throwError "[Module.declarationSplitParams]: derived definition {forDeclaration} not found"
+      pure (dd.extraParams, dd.params)
+    | .stateAssertion _ => do
+        let sa := mod.assertions.find? (fun a => a.name == forDeclaration)
+          -- FIXME: we seem to use `declarationSplitParams` to define
+          -- assertions (so they don't exist); we shouldn't do that
+          -- | throwError "[Module.declarationSplitParams]: assertion {forDeclaration} not found"
+        let extraParams := (sa.map (·.extraParams)).getD #[]
+        pure (extraParams, .none)
+    | .procedure _ => do
+        let .some proc := mod.procedures.find? (fun a => a.name == forDeclaration)
+          | throwError "[Module.declarationSplitParams]: procedure {forDeclaration} not found"
+        pure (proc.extraParams, proc.params)
+    | _ => throwError "[Module.declarationSplitParams]: declaration {forDeclaration} has unsupported kind {repr k}")
+  -- dbg_trace "declarationSplitParams: {repr k} {forDeclaration} -> baseParams {baseParams.map (·.name)} extraParams {extraParams.map (·.name)}"
+  return (baseParams, extraParams, actualParams)
 
-def Module.declarationAllParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter) := do
-  let (baseParams, extraParams) ← mod.declarationSplitParams forDeclaration k
-  return baseParams ++ extraParams
+/-- Returns a pair consisting of:
+- `modParams`: the parameters that the module imposes on this declaration,
+including "extra" parameters (decidable instances)
+- `actualParams`: the parameters that the declaration "actually" takes
+-/
+def Module.declarationAllParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Option (TSyntax `Lean.explicitBinders)) := do
+  let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams forDeclaration k
+  return (baseParams ++ extraParams, actualParams)
 
-def Module.declarationAllParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forDeclaration : Name) (k : DeclarationKind) : m (Array α) := do
-  (← mod.declarationAllParams forDeclaration k).mapM f
+def Module.declarationAllParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forDeclaration : Name) (k : DeclarationKind) : m (Array α × Option (TSyntax `Lean.explicitBinders)) := do
+  let (allModParams, actualParams) ← mod.declarationAllParams forDeclaration k
+  return (← allModParams.mapM f, actualParams)
+
+/-- Utility function to get the binders and arguments for a declaration, split
+between those imposed by the module and those the declaration "actually" has.
+-/
+def Module.declarationSplitBindersArgs [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m ((Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term) × (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term)) := do
+  let (allModParams, specificParams) ← mod.declarationAllParams forDeclaration k
+  let (allModBinders, allModArgs) := (← allModParams.mapM (·.binder), ← allModParams.mapM (·.ident))
+  let (specificBinders, specificArgs) := (← Option.stxArrMapM specificParams toBracketedBinderArray, ← Option.stxArrMapM specificParams explicitBindersToTerms)
+  return ((allModBinders, allModArgs), (specificBinders, specificArgs))
+
+/-- Utility function to get all the binders and arguments for a declaration -/
+def Module.declarationAllBindersArgs {m} [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term) := do
+  let ((allModBinders, allModArgs), (specificBinders, specificArgs)) ← mod.declarationSplitBindersArgs forDeclaration k
+  return (allModBinders ++ specificBinders, allModArgs ++ specificArgs)
+
+def Module.declarationAllBinders {m} [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let ((allModBinders, _), (specificBinders, _)) ← mod.declarationSplitBindersArgs forDeclaration k
+  return allModBinders ++ specificBinders
+
+def Module.declarationAllArgs {m} [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Term) := do
+  let ((_, allModArgs), (_, specificArgs)) ← mod.declarationSplitBindersArgs forDeclaration k
+  return allModArgs ++ specificArgs
 
 /-- Create parameters for a derived definition which **does not
 exist**. FIXME: this is `O(n^2)`-ish, so it might become a bottleneck.
@@ -231,8 +279,7 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotat
     | .procedure _ => return mod.procedures.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | .derivedDefinition _ _ => return mod._derivedDefinitions.valuesArray.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | _ => throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} (included in derivedFrom) has unsupported kind")
-    pure $ Array.flatten extraParams
-  )
+    pure $ Array.flatten extraParams)
   return (← baseParams.mapM f, ← extraParams.mapM f)
 
 private def Module.sortFilterMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
@@ -461,7 +508,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   mod.throwIfAlreadyDeclared base.name
   let mut mod := mod
   let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let binders ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
+  let (binders, _) ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
   -- We need to universally quantify capital variables, but for that to
   -- work, the term needs to be well-typed, so all the theory and state
   -- variables have to be bound first
@@ -478,7 +525,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionTypeclass base.name, name := Name.mkSimple s!"{base.name}_dec_{i}", «type» := decT, userSyntax := .missing })
   mod ← mod.registerAssertion { base with extraParams := extraParams }
   -- This includes the required `Decidable` instances
-  let binders ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
+  let (binders, _) ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
   let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
   return (stx, mod)
 
@@ -492,7 +539,7 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition kind conjunctsSet)
   let specificArgs ← bracketedBindersToTerms specificBinders
   let apps ← assertions.mapM (fun a => do
-    let params ← mod.declarationAllParams a.name a.declarationKind
+    let (params, _) ← mod.declarationAllParams a.name a.declarationKind
     let args ← params.mapM (·.arg)
     `(term| @$(mkIdent a.name):ident $args* $specificArgs*))
   let body ← repeatedAnd apps
@@ -574,7 +621,8 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
   let acts ← mod.actions.mapM (fun s => do
     let name := Lean.mkIdent $ toExtName s.name
-    let args ← (← mod.declarationAllParams s.name s.declarationKind).mapM (·.arg)
+    let (params, _) ← mod.declarationAllParams s.name s.declarationKind
+    let args ← params.mapM (·.arg)
     `(@$name $args*))
   let labelT ← mod.labelTypeStx
   let nextT ← `(term|$labelT → $(mkIdent ``VeilM) $(mkIdent ``Mode.external) $environmentTheory $environmentState $(mkIdent ``Unit))

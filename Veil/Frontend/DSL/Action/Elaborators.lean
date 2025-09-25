@@ -41,33 +41,39 @@ def ProcedureInfo.nameInMode (pi : ProcedureInfo) (mode? : Option Mode) : Name :
   | .none => toDoName pi.name
   | .some mode => toActName pi.name mode
 
+
 /-! ## Auxiliary definitions-/
 namespace AuxiliaryDefinitions
 open Veil Veil.Simp
 
-def Argument := Ident
+def Argument := Term
 def SyntaxTemplate := Array Argument → TermElabM Term
 
 /-- Template for defining the WP of an action. -/
 private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
   let (handler, post) := (mkVeilImplementationDetailIdent `handler, mkVeilImplementationDetailIdent `post)
-  (fun args : Array Ident =>
+  (fun args : Array Term =>
     `(fun $handler $post => [IgnoreEx $handler| $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post]))
 
 /-- This defines `act.do.wp`. Our aim is to reduce all `wp` goals related to
 `act` to applications of this definition. The rationale is that we can apply
 heavy-duty simplification to this definition _only_ and benefit from it in all
 contexts. -/
-private def defineWp (ps : ProcedureSpecification) : TermElabM Unit := do
-  let fqn ← getFullyQualifiedName (ps.info.nameInMode .none)
-  let defterm ← (wpTemplate fqn) (← ps.params.stxArrMapM toIdentArray)
-  let e ← instantiateMVars <| ← withoutErrToSorry <| elabTermAndSynthesize defterm none
-  let res ← Simp.simp #[`wpSimp] { unfoldPartialApp := true } e
-  trace[veil.debug] "{ps.name}\n{e}\n~>\n{res.expr}"
+private def defineWp (mod : Module) (nmDo : Name) (dk : DeclarationKind) : TermElabM Unit := do
+  let fqn ← getFullyQualifiedName nmDo
+  let (allBinders, allArgs) ← mod.declarationAllBindersArgs nmDo dk
+  let defterm ← (wpTemplate fqn) allArgs
+  trace[veil.debug] "{nmDo}\n{defterm}"
+  let res ← elabBinders allBinders $ fun _vs => (do
+    let e ← do instantiateMVars <| ← withoutErrToSorry <| elabTermAndSynthesize defterm none
+    trace[veil.debug] "{nmDo}\n{e}"
+    let res ← Simp.simp #[`wpSimp] { unfoldPartialApp := true } e
+    trace[veil.debug] "{nmDo}\n{e}\n~>\n{res.expr}"
+    pure res)
   return
 
-private def defineAuxiliaryDeclarations (ps : ProcedureSpecification) (mode? : Option Mode) : TermElabM Unit := do
-  defineWp ps
+private def define (mod : Module) (nmDo : Name) (dk : DeclarationKind) : TermElabM Unit := do
+  defineWp mod nmDo dk
 
 end AuxiliaryDefinitions
 
@@ -82,7 +88,8 @@ def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option 
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
     let e ← Meta.mkLambdaFVarsImplicit (#[mode] ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
-    return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)
+    let res ← (Simp.dsimp #[`doSimp]) e
+    return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), res.expr)
   catch ex =>
     throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
 where
@@ -104,26 +111,29 @@ def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module
   mod.throwIfAlreadyDeclared ps.name
   return { mod with procedures := mod.procedures.push ps, _declarations := mod._declarations.insert ps.name (.procedure ps.info) }
 
-def Module.registerDerivedActionDefinition [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (base : ProcedureSpecification) (derivedName : Name) : m Module := do
+private def Module.registerDerivedActionDefinition [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (base : ProcedureSpecification) (mode? : Option Mode) : m (Module × DeclarationKind) := do
+  let derivedName := base.info.nameInMode mode?
   mod.throwIfAlreadyDeclared derivedName
-  let derivedDef : DerivedDefinition := { name := derivedName, kind := .actionLike, params := base.params, extraParams := base.extraParams, derivedFrom := {base.name}, stx := .none }
-  let mod := { mod with _declarations := mod._declarations.insert derivedName (.derivedDefinition derivedDef.kind {base.name}), _derivedDefinitions := mod._derivedDefinitions.insert derivedName derivedDef }
-  return mod
+  let derivedDefKind := match mode? with | .none => .actionDoLike | .some _ => .actionLike
+  let declKind := .derivedDefinition derivedDefKind {base.name}
+  let derivedDef : DerivedDefinition := { name := derivedName, kind := derivedDefKind, params := base.params, extraParams := base.extraParams, derivedFrom := {base.name}, stx := .none }
+  let mod := { mod with _declarations := mod._declarations.insert derivedName declKind, _derivedDefinitions := mod._derivedDefinitions.insert derivedName derivedDef }
+  return (mod, declKind)
 
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
-  let mut mod := mod
+  let mod := mod
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
   let (nmDo, extraParams, e) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
   let ps := ProcedureSpecification.mk pi br extraParams spec l stx
   -- We register the `internal` view of the action as the "real" one
-  mod ← mod.registerProcedureSpecification ps
+  let mod ← mod.registerProcedureSpecification ps
   -- The `.do` and `.ext` views are marked as derived definitions
-  mod ← mod.registerDerivedActionDefinition ps (pi.nameInMode none)
-  mod ← mod.registerDerivedActionDefinition ps (pi.nameInMode $ some .external)
+  let (mod, doKind) ← mod.registerDerivedActionDefinition ps .none
+  let (mod, _) ← mod.registerDerivedActionDefinition ps Mode.external
   -- Elaborate the definitions in the Lean environment
   liftTermElabM $ do
     let _ ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
@@ -137,7 +147,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
     for d in definitions do
       enableRealizationsForConst d
       Elab.Term.applyAttributes d #[{name := `actSimp}]
-    -- AuxiliaryDefinitions.defineAuxiliaryDeclarations ps Option.none
+    AuxiliaryDefinitions.define mod nmDo doKind
     -- defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmIntFull
     -- defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExtFull
   return mod
