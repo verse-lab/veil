@@ -67,13 +67,13 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
   let res ← elabBinders allBinders $ fun _vs => (do
     let e ← withoutErrToSorry <| elabTermAndSynthesize defterm none
     trace[veil.debug] "{nm}\n{e}"
-    -- FIXME: `quantifierSimp` will not push quantifiers all the way here. Making
-    -- `quantifierSimp` work over the `.do` definition would be great, but it likely
-    -- requires writing a simproc to push over `require` and `ensure`
-    -- FIXME: why aren't the state lemmas applying correctly?
-    -- it's probably due to us not setting up typeclass instances properly
+    -- FIXME: `quantifierSimp` will not push quantifiers all the way here for
+    -- `.do` Making it do so likely requires writing a simproc to push over
+    -- `require` and `ensure``
     let cfg := { unfoldPartialApp := true }
-    let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp] cfg) |>.andThen (Simp.simp #[`quantifierSimp])
+    -- This works, but seems to be a bit slower:
+    -- let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp, `quantifierSimp] cfg)
+    let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp] cfg) |>.andThen (Simp.simp #[`quantifierSimp]) |>.andThen (Simp.simp #[`substateSimp])
     let res ← simp e
     trace[veil.debug] "{nm}\n{e}\n~>\n{res.expr}"
     let e' ← Meta.mkLambdaFVars _vs res.expr
@@ -146,8 +146,8 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   let (mod, extKind) ← mod.registerDerivedActionDefinition ps Mode.external
   -- Elaborate the definitions in the Lean environment
   liftTermElabM $ do
-    let _ ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
-    -- defineAuxiliaryDeclarations pi Option.none br nmDo nmDoFull
+    let nmDo_fullyQualified ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
+    -- defineAuxiliaryDeclarations pi Option.none br nmDo nmDo_fullyQualified
     let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
     let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
     let nmInt_fullyQualified ← addVeilDefinitionAsync nmInt eInt
@@ -161,7 +161,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
     -- AuxiliaryDefinitions.define mod nmDo doKind
     AuxiliaryDefinitions.define mod nmExt extKind
     -- defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmIntFull
-    -- defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExtFull
+    -- defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExt_fullyQualified
   return mod
 
 end Veil

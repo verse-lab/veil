@@ -103,12 +103,14 @@ def unfold (defs : Array Name) : Simplifier := fun e => do
 
 def simp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
   let (res, _stats) ← Meta.simp e (← mkVeilSimpCtx simps config) (discharge? := none)
-  trace[veil.debug] "simp {simps}\n{e}\n~>\n{res.expr}"
+  let _usedTheorems := _stats.usedTheorems.toArray.map (·.key)
+  trace[veil.debug] "simp {simps} (used: {_usedTheorems}):\n{e}\n~>\n{res.expr}"
   return res
 
 def dsimp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
   let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simps config)
-  trace[veil.debug] "dsimp {simps}\n{e}\n~>\n{expr}"
+  let _usedTheorems := _stats.usedTheorems.toArray.map (·.key)
+  trace[veil.debug] "dsimp {simps} (used: {_usedTheorems}):\n{e}\n~>\n{expr}"
   return { expr := expr }
 
 end Simp
