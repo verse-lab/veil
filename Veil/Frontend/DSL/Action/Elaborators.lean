@@ -88,7 +88,7 @@ def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option 
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
     let e ← Meta.mkLambdaFVarsImplicit (#[mode] ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
-    let res ← (Simp.dsimp #[`doSimp]) e
+    let res ← (Simp.dsimp #[]) e
     return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), res.expr)
   catch ex =>
     throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
@@ -104,7 +104,7 @@ def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : MetaM (Name × Expr
   if mode == Mode.external then
     body ← Meta.forallTelescope (← Meta.inferType body) fun ks _ => do
       Meta.mkLambdaFVars ks $ ← Meta.mkAppM' (mkConst ``VeilM.returnUnit) #[(mkAppN body ks)]
-  let res ← (Simp.unfold #[doNm_fullyQualified]).andThen (Simp.dsimp #[`doSimp]) body
+  let res ← (Simp.unfold #[doNm_fullyQualified]).andThen (Simp.dsimp #[]) body
   return (pi.nameInMode mode, res.expr)
 
 def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module) (ps : ProcedureSpecification) : m Module := do
@@ -147,7 +147,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
     for d in definitions do
       enableRealizationsForConst d
       Elab.Term.applyAttributes d #[{name := `actSimp}]
-    AuxiliaryDefinitions.define mod nmDo doKind
+    -- AuxiliaryDefinitions.define mod nmDo doKind
     -- defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmIntFull
     -- defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExtFull
   return mod

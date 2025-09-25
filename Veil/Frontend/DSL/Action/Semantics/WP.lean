@@ -28,13 +28,11 @@ execution. -/
 def VeilM.pickSuchThat (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)] : VeilM m ρ σ τ := do
   MonadNonDet.pickSuchThat τ p
 
-@[doSimp]
 def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
   | .internal => VeilM.assert p ex
   | .external => assume p
 
-@[doSimp]
 def VeilM.ensure (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
   | .internal => assume p
@@ -51,7 +49,7 @@ frame (`unchanged`). -/
   return ret
 
 /-- Takes a `VeilM` action, executes it, and returns `Unit`.-/
-@[doSimp, reducible]
+@[reducible]
 def VeilM.returnUnit (act : VeilM m ρ σ α) : VeilM m ρ σ Unit := do
   let _ ← act
   return ()

@@ -14,10 +14,6 @@ register_simp_attr wpDefUnfoldSimp
 /-- Attribute added to definitions/theorems related to `IsSubStateOf` and `IsSubReaderOf`. -/
 register_simp_attr substateSimp
 
-/-- Implementation detail. Tagged to `act.do` and constructs that
-should be unfolded when elaborating action's definitions. -/
-register_simp_attr doSimp
-
 /-- Attribute added to `StateAssertion`s, to unfold them. Despite what
 the might suggest, this is also added to `safety`, `trusted invariant`,
 and `assumption` assertions. -/
