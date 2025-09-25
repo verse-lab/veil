@@ -53,10 +53,11 @@ open Lean Elab
 /-- `simps` can be either the names of simp sets (simp attributes) or the names
 of theorems and/or definitions in the global environment. -/
 def mkVeilSimpCtx (simps : Array Name) (config : Meta.Simp.Config := {}): MetaM Meta.Simp.Context := do
+  let simpOnlyTheorems ← Tactic.simpOnlyBuiltins.foldlM (·.addConst ·) ({} : Meta.SimpTheorems)
+  let constSimps ← getSimpTheoremsFromConsts simps
   let simpsets ← getSimpTheoremsFromSimpSets simps
-  let simps ← getSimpTheoremsFromConsts simps
   let congrTheorems ← Meta.getSimpCongrTheorems
-  Meta.Simp.mkContext config (simpTheorems := simpsets ++ #[simps]) (congrTheorems := congrTheorems)
+  Meta.Simp.mkContext config (simpTheorems := #[simpOnlyTheorems, constSimps] ++ simpsets) (congrTheorems := congrTheorems)
 where
   getSimpTheoremsFromSimpSets (simps : Array Name) : CoreM (Array Meta.SimpTheorems) := do
     let simpExts ← simps.filterMapM (Meta.getSimpExtension? ·)

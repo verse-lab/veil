@@ -59,16 +59,25 @@ private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
 `act` to applications of this definition. The rationale is that we can apply
 heavy-duty simplification to this definition _only_ and benefit from it in all
 contexts. -/
-private def defineWp (mod : Module) (nmDo : Name) (dk : DeclarationKind) : TermElabM Unit := do
-  let fqn ← getFullyQualifiedName nmDo
-  let (allBinders, allArgs) ← mod.declarationAllBindersArgs nmDo dk
+private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit := do
+  let fqn ← getFullyQualifiedName nm
+  let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
   let defterm ← (wpTemplate fqn) allArgs
-  trace[veil.debug] "{nmDo}\n{defterm}"
+  trace[veil.debug] "{nm}\n{defterm}"
   let res ← elabBinders allBinders $ fun _vs => (do
-    let e ← do instantiateMVars <| ← withoutErrToSorry <| elabTermAndSynthesize defterm none
-    trace[veil.debug] "{nmDo}\n{e}"
-    let res ← Simp.simp #[`wpSimp] { unfoldPartialApp := true } e
-    trace[veil.debug] "{nmDo}\n{e}\n~>\n{res.expr}"
+    let e ← withoutErrToSorry <| elabTermAndSynthesize defterm none
+    trace[veil.debug] "{nm}\n{e}"
+    -- FIXME: `quantifierSimp` will not push quantifiers all the way here. Making
+    -- `quantifierSimp` work over the `.do` definition would be great, but it likely
+    -- requires writing a simproc to push over `require` and `ensure`
+    -- FIXME: why aren't the state lemmas applying correctly?
+    -- it's probably due to us not setting up typeclass instances properly
+    let cfg := { unfoldPartialApp := true }
+    let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp] cfg) |>.andThen (Simp.simp #[`quantifierSimp])
+    let res ← simp e
+    trace[veil.debug] "{nm}\n{e}\n~>\n{res.expr}"
+    let e' ← Meta.mkLambdaFVars _vs res.expr
+    trace[veil.debug] "{← delabVeilExpr e'}"
     pure res)
   return
 
@@ -97,7 +106,7 @@ where
     let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar)
     return { kind := .definitionTypeclass inAction, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
 
-def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : MetaM (Name × Expr) := do
+def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : TermElabM (Name × Expr) := do
   let doNm_fullyQualified ← getFullyQualifiedName $ (pi.nameInMode .none)
   let mut body := mkAppN (mkConst doNm_fullyQualified) #[mode.expr]
   /- The external mode of an action always returns `Unit`. -/
@@ -133,7 +142,8 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   let mod ← mod.registerProcedureSpecification ps
   -- The `.do` and `.ext` views are marked as derived definitions
   let (mod, doKind) ← mod.registerDerivedActionDefinition ps .none
-  let (mod, _) ← mod.registerDerivedActionDefinition ps Mode.external
+  let intKind := ps.declarationKind
+  let (mod, extKind) ← mod.registerDerivedActionDefinition ps Mode.external
   -- Elaborate the definitions in the Lean environment
   liftTermElabM $ do
     let _ ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
@@ -147,7 +157,9 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
     for d in definitions do
       enableRealizationsForConst d
       Elab.Term.applyAttributes d #[{name := `actSimp}]
+    -- TODO: do this asynchronously
     -- AuxiliaryDefinitions.define mod nmDo doKind
+    AuxiliaryDefinitions.define mod nmExt extKind
     -- defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmIntFull
     -- defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExtFull
   return mod

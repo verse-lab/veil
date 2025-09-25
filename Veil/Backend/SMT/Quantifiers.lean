@@ -13,8 +13,13 @@ instance (t₁ : Type) (t₂ : Prop) : IsHigherOrder (t₁ -> t₂) := ⟨⟩
 
 def isHigherOrder (e : Expr) : MetaM Bool := do
   let t ← inferType e
-  let isHO := (!t.isProp) && (e.isArrow || e.isAppOf stateName || e.isAppOf theoryName)
+  let isHO := (!t.isProp) && (e.isArrow || (← isStructureApp e))
   return isHO
+  where isStructureApp (e : Expr) : MetaM Bool := do
+    let e ← whnfD e
+    match e.getAppFn with
+    | .const n _ => return isStructure (← getEnv) n
+    | _ => return false
 
 section EnablerTheorems
 theorem if_app {α β : Type} {_ : Decidable c} (t e : α -> β) (a : α) :
