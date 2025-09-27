@@ -240,8 +240,9 @@ def elabVeilSimp (trace? : Bool) (o : Option Syntax) (params : Option (Array (TS
   veilEvalTactic simpCall
 
 def elabVeilWp : TacticM Unit := veilWithMainContext do
-  -- TODO: replace with application of pre-simplified WP
-  let tac ← `(tactic| veil_simp only [$(mkIdent `actSimp):ident, $(mkIdent `wpSimp):ident, $(mkIdent ``triple):ident])
+  -- NOTE: In some cases (e.g. for `doesNotThrow`), we get internal Loom
+  -- definitions like `⊤`. `loomLogicSimp` ensures these are unfolded.
+  let tac ← `(tactic| veil_simp only [$(mkIdent `wpSimp):ident,  $(mkIdent `loomLogicSimp):ident])
   evalTactic tac
 
 def elabVeilIntros : TacticM Unit := veilWithMainContext do
@@ -249,12 +250,11 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
-  -- TODO: why is `loomLogicSimp` needed???
-  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `loomLogicSimp):ident] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
+  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident,] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
   evalTactic tac
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
-  let tac ← `(tactic| veil_wp; veil_intros ; veil_split_ifs <;> (veil_fol ; veil_smt))
+  let tac ← `(tactic| veil_intros; veil_wp; veil_fol; veil_smt)
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSplitIfs : TacticM Unit := veilWithMainContext do
