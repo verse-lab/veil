@@ -243,7 +243,7 @@ def elabVeilWp : TacticM Unit := veilWithMainContext do
   -- NOTE: In some cases (e.g. for `doesNotThrow`), we get internal Loom
   -- definitions like `⊤`. `loomLogicSimp` ensures these are unfolded.
   let tac ← `(tactic| veil_simp only [$(mkIdent `wpSimp):ident,  $(mkIdent `loomLogicSimp):ident])
-  evalTactic tac
+  veilEvalTactic tac (isDesugared := false)
 
 def elabVeilIntros : TacticM Unit := veilWithMainContext do
   let tac ← `(tactic| unhygienic intros; try intro $(mkIdent `th) $(mkIdent `st) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩;)
@@ -251,7 +251,7 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
   let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident,] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
-  evalTactic tac
+  veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
   let tac ← `(tactic| veil_intros; veil_wp; veil_fol; veil_smt)
