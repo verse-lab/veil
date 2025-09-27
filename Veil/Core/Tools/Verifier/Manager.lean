@@ -45,6 +45,17 @@ structure VCStatement where
   statement : Term
 deriving Inhabited, BEq
 
+open Elab Term in
+/-- The type of the VC's statement as an `Expr`. -/
+def VCStatement.type (vc : VCStatement) : TermElabM Expr := do
+  Term.elabBinders vc.params fun vs => do
+  let body ← instantiateMVars $ ← withSynthesize (postpone := .no) $
+    withoutErrToSorry $ elabTerm vc.statement (Expr.sort levelZero)
+  let typ ← Meta.mkForallFVars vs body
+  if typ.hasMVar || typ.hasFVar || typ.hasSorry then
+    throwError "VCStatement.type: {vc.name}'s type is not fully determined"
+  return typ
+
 /-- A discharger, if successful, produces a witness for the VC's statement. -/
 abbrev Witness := Expr
 /-- Dischargers also produce a front-end specific data, which can be produced

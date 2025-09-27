@@ -72,7 +72,7 @@ def delabVeilExpr := fun e =>
   withOptions (applyOptions · veilPrettyPrinterOptions) $ PrettyPrinter.delab e
 where
   veilPrettyPrinterOptions : Array (Name × DataValue) :=
-    #[(`pp.deepTerms, .ofBool true), (`pp.motives.all, .ofBool true),
+    #[(`pp.deepTerms, .ofBool true), (`pp.motives.all, .ofBool true), (`pp.universes, .ofBool true),
     (`pp.letVarTypes, .ofBool true), (`pp.funBinderTypes, .ofBool true), (`pp.structureInstanceTypes, .ofBool true)]
   applyOptions (s : Options) (opts : Array (Name × DataValue)) : Options :=
     opts.foldl (fun s (n, v) => s.insert n v) s

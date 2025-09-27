@@ -18,11 +18,12 @@ private def collectSmtOutputs (ch : Std.CloseableChannel ((Name × ℕ) × Smt.A
   while true do
     let Option.some ((name, index), output) := (← ch.recv).get | break
     if name != expectedName then
-      throwError s!"Expected {expectedName}, got {name} from channel"
+      let s := s!"Expected {expectedName}, got {name} from channel"
+      dbg_trace s; throwError s
     outputs := outputs.push ((name, index), output)
   return outputs
 
-private def overallSmtResult (name : Name) (outputs : Array SmtOutput) : CoreM (Option SmtResult) := do
+private def overallSmtResult (_name : Name) (outputs : Array SmtOutput) : CoreM (Option SmtResult) := do
   let mut (errors, sat, unknown, unsat) := (#[], #[], #[], #[])
   for output in outputs do
     match output with
@@ -38,10 +39,11 @@ private def overallSmtResult (name : Name) (outputs : Array SmtOutput) : CoreM (
       return .some $ .sat sat
     if unknown.size > 0 then
       return .some $ .unknown unknown
-    if errors.size == 0 && sat.size == 0 && unknown.size == 0 then
+    if errors.size == 0 && sat.size == 0 && unknown.size == 0 && unsat.size > 0 then
       return .some $ .unsat unsat
+    -- the SMT solver wasn't involved in proving this goal
     return .none)
-  -- dbg_trace "{name}: {errors.size} errors, {sat.size} sat, {unknown.size} unknown, {unsat.size} unsat -> {← (toMessageData res).toString}"
+  -- dbg_trace "{_name}: {errors.size} errors, {sat.size} sat, {unknown.size} unknown, {unsat.size} unsat -> {← (toMessageData res).toString}"
   return res
 
 private def mkDischargerResult (expectedName : Name) (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (data : Witness ⊕ Exception) (time : Nat) : CoreM (DischargerResult SmtResult) := do
@@ -55,7 +57,9 @@ private def mkDischargerResult (expectedName : Name) (ch : Std.CloseableChannel 
     | .unsat _ => do
       match data with
       | .inl witness => return .proven witness result time
-      | _ => throwError "mkDischargerResult: overallSmtResult is unsat, but no witness provided"
+      | _ =>
+        let s := "mkDischargerResult: overallSmtResult is unsat, but no witness provided"
+        dbg_trace s; throwError s
   | .none =>
     match data with
     | .inl witness => return .proven witness .none time
@@ -73,24 +77,23 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
       into `DischargerResult` -/
       let startTime ← IO.monoMsNow
       try
-        -- dbg_trace "{← IO.monoMsNow} @ thread {← IO.getTID} [Discharger] Starting task for {vcStatement.name}"
-        liftTermElabMWithBinders vcStatement.params fun vs => do
-          /- We want to throw an error if anything fails or is missing during
-          elaboration. -/
-          withoutErrToSorry $ do
-            -- dbg_trace "{← IO.monoMsNow} @ thread {← IO.getTID} [Discharger] Elaborating term for {vcStatement.name}"
-            let statementType ← elabTermEnsuringType vcStatement.statement (Expr.sort levelZero)
-            let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
-            let body ← withSynthesize $ elabTermEnsuringType term statementType
-            let witness ← Meta.mkLambdaFVars vs body
-            let endTime ← IO.monoMsNow
-            let dischargerResult ← mkDischargerResult dischargerId.name smtCh (.inl witness) (endTime - startTime)
-            -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Successfully finished task for {vcStatement.name} in {endTime - startTime}ms"
-            return dischargerResult
+      liftTermElabM $ do
+        -- dbg_trace "{← IO.monoMsNow} @ thread {← IO.getTID} [Discharger] Elaborating term for {vcStatement.name}"
+        let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
+        -- FIXME: how to properly check that this elaborated correctly?
+        let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
+          withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+        let endTime ← IO.monoMsNow
+        if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
+          -- dbg_trace "{dischargerId.name}: provided term does not solve the VC (has mvars: {witness.hasMVar} | has fvars: {witness.hasFVar} | has synthetic sorry: {witness.hasSyntheticSorry})"
+          throwError "unsolved goals"
+        let dischargerResult ← mkDischargerResult dischargerId.name smtCh (.inl witness) (endTime - startTime)
+        -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Successfully finished task for {vcStatement.name} in {endTime - startTime}ms"
+        return dischargerResult
       catch ex =>
         let endTime ← IO.monoMsNow
-        let dischargerResult ← liftCoreM $  mkDischargerResult dischargerId.name smtCh (.inr ex) (endTime - startTime)
         -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
+        let dischargerResult ← liftCoreM $  mkDischargerResult dischargerId.name smtCh (.inr ex) (endTime - startTime)
         return dischargerResult
       finally
         if ← cancelTk.isSet then

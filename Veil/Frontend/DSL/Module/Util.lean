@@ -328,8 +328,8 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] 
   let typeT ← `(term|Type)
   let param : Parameter := { kind := .uninterpretedSort, name := name, «type» := typeT, userSyntax := userStx }
   let id := mkIdent name
-  let dec_eq_type ← `(term|$(mkIdent ``DecidableEq) $id)
-  let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited) $id)
+  let dec_eq_type ← `(term|$(mkIdent ``DecidableEq).{1} $id)
+  let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited).{1} $id)
   let dec_eq : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
   let inhabited : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
   let params := #[param, dec_eq, inhabited]
