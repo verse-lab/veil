@@ -11,7 +11,9 @@ open Lean Elab Term Command
 namespace Veil
 
 private def collectSmtOutputs (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (expectedName : Name) : CoreM (Array SmtOutput) := do
-  let _ ← ch.close
+  -- Calling `close` will throw an exception if the channel is already closed.
+  -- We ignore it here because we want to continue with our logic.
+  try let _ ← ch.close catch _ => pure ()
   let mut outputs := #[]
   while true do
     let Option.some ((name, index), output) := (← ch.recv).get | break
