@@ -53,15 +53,10 @@ def HO_forall_push_left_impl : Simp.Simproc := fun e => do
 
 simproc HO_forall_push_left (∀_ _, _) := HO_forall_push_left_impl
 attribute [quantifierSimp] HO_forall_push_left
-
 attribute [quantifierSimp] forall_const forall_eq forall_eq
-
--- To enable some of the lemmas below; FIXME: do we need more of these?
--- attribute [quantifierSimp] and_imp not_and
 
 section forall_and
 set_option linter.unusedSectionVars false
-open Classical
 variable [IsHigherOrder α] [ne : Nonempty α] {p q : α → Prop} {b : Prop}
 
 /-! Hoist `∀` quantifiers to the top of the goal. -/
@@ -94,20 +89,19 @@ attribute [quantifierSimp] forall_imp_left
 end forall_imp
 
 section IteForallPushOutTheorems
-open Classical
 
 open Lean Elab Tactic in
 elab "prove_ite_forall_push_out" p:term : tactic => withMainContext do evalTactic $ ←
 `(tactic|apply propext; by_cases h : $p; { simp only [if_pos h, forall_const] }; { simp only [if_neg h, forall_const] })
 
-theorem ite_then_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) (q : α → Prop) : (if c then ∀ t, q t else r) = (∀ t, if c then q t else r) := by prove_ite_forall_push_out c
+theorem ite_then_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) [Decidable c] (q : α → Prop) : (if c then ∀ t, q t else r) = (∀ t, if c then q t else r) := by prove_ite_forall_push_out c
 attribute [quantifierSimp] ite_then_forall_push_out
 
-theorem ite_else_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) (q : α → Prop) : (if c then r else ∀ t, q t) = (∀ t, if c then r else q t) := by prove_ite_forall_push_out c
+theorem ite_else_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) [Decidable c] (q : α → Prop) : (if c then r else ∀ t, q t) = (∀ t, if c then r else q t) := by prove_ite_forall_push_out c
 attribute [quantifierSimp] ite_else_forall_push_out
 
 -- FIXME George: does this trigger?
-theorem ite_both_forall_push_out [IsHigherOrder α] [ne : Nonempty α] [ne' : Nonempty β] (p : α → Prop) (q : β → Prop) :
+theorem ite_both_forall_push_out [IsHigherOrder α] [ne : Nonempty α] [ne' : Nonempty β] (p : α → Prop) (q : β → Prop) [Decidable c] :
   (if c then ∀ a, p a else ∀ b, q b) = (∀ (a : α) (b : β), if c then p a else q b) := by prove_ite_forall_push_out c
 attribute [quantifierSimp] ite_both_forall_push_out
 end IteForallPushOutTheorems

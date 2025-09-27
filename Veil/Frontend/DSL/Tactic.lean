@@ -249,7 +249,8 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `loomLogicSimp):ident] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_simp only [$(mkIdent `quantifierSimp):ident]; veil_intros))
+  -- TODO: why is `loomLogicSimp` needed???
+  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `loomLogicSimp):ident] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
   evalTactic tac
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
