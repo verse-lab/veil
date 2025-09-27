@@ -55,30 +55,55 @@ private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
   (fun args : Array Term =>
     `(fun $handler $post => [IgnoreEx $handler| $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post]))
 
-/-- This defines `act.do.wp`. Our aim is to reduce all `wp` goals related to
-`act` to applications of this definition. The rationale is that we can apply
-heavy-duty simplification to this definition _only_ and benefit from it in all
-contexts. -/
+/-- **Pre-compute** the `wp` for the given action, store it in the `act.wp`
+definition, and prove `act.wp_eq` which states that this definition is equal to
+`wp act post`.
+
+We can then rewrite/simp using `act.wp_eq` to not have to recompute the WP
+for every VC. This is an optimisation — Veil would work without it, but it
+would be significantly slower. -/
 private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit := do
   let fqn ← getFullyQualifiedName nm
   let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
-  let defterm ← (wpTemplate fqn) allArgs
-  trace[veil.debug] "{nm}\n{defterm}"
-  let res ← elabBinders allBinders $ fun _vs => (do
-    let e ← withoutErrToSorry <| elabTermAndSynthesize defterm none
-    trace[veil.debug] "{nm}\n{e}"
-    -- FIXME: `quantifierSimp` will not push quantifiers all the way here for
-    -- `.do` Making it do so likely requires writing a simproc to push over
-    -- `require` and `ensure``
-    let cfg := { unfoldPartialApp := true }
-    -- This works, but seems to be a bit slower:
-    -- let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp, `quantifierSimp] cfg)
-    let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp] cfg) |>.andThen (Simp.simp #[`quantifierSimp]) |>.andThen (Simp.simp #[`substateSimp])
-    let res ← simp e
-    trace[veil.debug] "{nm}\n{e}\n~>\n{res.expr}"
-    let e' ← Meta.mkLambdaFVars _vs res.expr
-    trace[veil.debug] "{← delabVeilExpr e'}"
-    pure res)
+  let wpDef ← wpTemplate fqn allArgs
+  elabBinders allBinders $ fun vs => do -- `vs` are the fvars for the definition binders
+    -- Warning to future maintainers: this code performs nitty-gritty simplification,
+    -- and we've spent a long time on it. It appears that it's difficult to do this
+    -- any other way. Trying to significantly rewrite this code is likely going to
+    -- take more time than you'd like or expect.
+    -- (1) Elaborate the template for the WP definition, parametrised by
+    -- `handler` and `post`
+    let e ← withoutErrToSorry $ elabTermAndSynthesize wpDef none
+    trace[veil.debug] "e: {e}"
+    -- (2) Simplify the _body_ of the WP definition and return the simplified
+    -- body _and_ the simplified full expression (with lambdas). See note (*)
+    -- for why we simplify the body rather than the full expression directly.
+    Meta.lambdaTelescope e fun xs body => do -- `xs` are `handler` and `post`, respectively
+      -- let cfg := { unfoldPartialApp := true } -- TODO: is this still needed? I don't think so.
+      let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp]) |>.andThen (Simp.simp #[`quantifierSimp]) |>.andThen (Simp.simp #[`substateSimp])
+      let resBody ← simp body
+      -- (3) Construct the expression for `act.wp`
+      -- The expression for `act.wp`; **TODO** register as a derived definition
+      let wpExpr ← instantiateMVars $ ← Meta.mkLambdaFVars vs (← resBody.addLambdas xs).expr
+      let wpSimpAttrLow ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ low)
+      let wpDef_fqn ← addVeilDefinition (toWpName nm) wpExpr (attr := #[{name := `reducible}, wpSimpAttrLow])
+      -- We want to prove:
+      -- `∀ ($handler) ($post), $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post = @$(mkIdent wpDefName) $args* $handler $post`
+      -- But elaborating this here is cumbersome, since we would need a type
+      -- annotation for the return type of the action, as well as typelcass
+      -- instances. So instead of constructing this equality at the syntax level,
+      -- we construct it directly as an `Expr`.
+      -- (*) it's easier to construct the proof here with the body
+      let #[_handler, _post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
+      let lhs := body -- `$(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post`
+      let rhs ← Meta.mkAppOptM wpDef_fqn $ (vs ++ xs).map Option.some -- `@$(mkIdent wpDefName) $args* $handler $post`
+      let eqStatement ← Meta.mkEq lhs rhs
+      -- Because `lhs = body`, `resBody` is a proof of `eqStatement`!
+      let eqStatement ← instantiateMVars $ ← Meta.mkForallFVars (vs ++ xs) eqStatement
+      let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) (← resBody.getProof)
+      let wpSimpAttrHigh ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ high)
+      let _wpEq_fqn ← addVeilTheorem (toWpEqName nm) eqStatement eqProof (attr := #[wpSimpAttrHigh])
+
   return
 
 private def define (mod : Module) (nmDo : Name) (dk : DeclarationKind) : TermElabM Unit := do
@@ -146,7 +171,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   let (mod, extKind) ← mod.registerDerivedActionDefinition ps Mode.external
   -- Elaborate the definitions in the Lean environment
   liftTermElabM $ do
-    let nmDo_fullyQualified ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
+    let _nmDo_fullyQualified ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
     -- defineAuxiliaryDeclarations pi Option.none br nmDo nmDo_fullyQualified
     let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
     let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
@@ -159,8 +184,9 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
       Elab.Term.applyAttributes d #[{name := `actSimp}]
     -- TODO: do this asynchronously
     -- AuxiliaryDefinitions.define mod nmDo doKind
+    AuxiliaryDefinitions.define mod nmInt intKind
     AuxiliaryDefinitions.define mod nmExt extKind
-    -- defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmIntFull
+    -- defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmInt_fullyQualified
     -- defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExt_fullyQualified
   return mod
 

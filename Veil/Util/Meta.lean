@@ -119,8 +119,14 @@ def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   : TermElabM Name := do
   let n ← addVeilDefinitionAsync n e compile red attr type addNamespace
   enableRealizationsForConst n
-  Elab.Term.applyAttributes n attr
+  Term.applyAttributes n attr
   return n
+
+def addVeilTheorem (n : Name) (statement : Expr) (proof : Expr) (attr : Array Attribute := #[]) : TermElabM Unit := do
+  let decl := Declaration.thmDecl (mkTheoremValEx n [] statement proof [])
+  addDecl decl
+  enableRealizationsForConst n
+  Term.applyAttributes n attr
 
 /-- A wrapper around Lean's standard `elabCommand`, which performs
 Veil-specific logging and sanity-checking. -/
