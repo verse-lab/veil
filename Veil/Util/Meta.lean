@@ -147,9 +147,13 @@ def getRequiredDecidableInstances (stx : Term) : TermElabM (Array (Term × Expr)
   /- We want to throw an error if anything fails or is missing during
   elaboration. -/
   Term.withoutErrToSorry $ do
+  -- We elaborate the `stx` ignoring typeclass inference failures, but ensuring we
+  -- do synthesize all the metavariables that we can (not postponing them). This
+  -- is to ensure the resulting expression is 'complete' (i.e. doesn't have holes,
+  -- except for the `Decidable` instances, which will be passed explicitly).
   withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
   let e ← Term.elabTerm stx none
-  Term.synthesizeSyntheticMVars
+  Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
   let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
   let mvars' ← mvars.filterMapM (simplifyMVarType · isBodyDecidable)
   return (mvars', e)
@@ -226,6 +230,18 @@ def binderIdentToIdent [Monad m] [MonadError m] (bi : TSyntax ``binderIdent) : m
   match bi with
   | `(binderIdent|$i:ident) => pure i
   | _ => throwError "[binderIdentToIdent] unexpected syntax: {bi}"
+
+section Binders
+open Lean.Parser
+
+def Term.explicitBinderF := Term.explicitBinder (requireType := false)
+def Term.implicitBinderF := Term.implicitBinder (requireType := false)
+
+/-- Transforms an explicit binder into an implicit one. -/
+def mkImplicitBinder [Monad m] [MonadQuotation m] : TSyntax `Lean.Parser.Term.bracketedBinder -> m (TSyntax `Lean.Parser.Term.bracketedBinder)
+  | `(Term.explicitBinderF| ($id:ident : $tp:term)) => do `(Term.bracketedBinderF| {$id:ident : $tp:term})
+  | stx => return stx
+end Binders
 
 def bracketedBinderIdent [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m (Option Ident) := do
   match stx with

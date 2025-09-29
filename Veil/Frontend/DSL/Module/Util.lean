@@ -414,11 +414,13 @@ private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (
     `(structure $(mkIdent name) $params* where
       $(mkIdent `mk):ident :: $[$fields]*)
 
-/-- Syntax for defining the mutable state of a module as a `structure`. -/
+/-- Syntax for *defining* the mutable state of a module as a `structure`. The
+syntax for the type is `mod.stateStx`. -/
 private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
   structureDefinitionStx stateName (← mod.sortBinders) mod.mutableComponents (deriveInstances := true)
 
-/-- Syntax for defining the immutable background theory of a module as a `structure`. -/
+/-- Syntax for *defining* the immutable background theory of a module as a
+`structure`. The syntax for the type is `mod.theoryStx`. -/
 private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
   structureDefinitionStx theoryName (← mod.sortBinders) mod.immutableComponents (deriveInstances := false)
 
@@ -465,34 +467,63 @@ private def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc
     mod := { mod with _assertionSets := mod._assertionSets.insert set (currentAssertions.insert sc.name) }
   return mod
 
+section AssertionElab
+
+syntax (name := veil_exact_theory) "veil_exact_theory" : tactic
+syntax (name := veil_exact_state) "veil_exact_state" : tactic
+
+open Tactic in
+/-- Reconstruct a `Theory` term from the hypotheses in the context. -/
+def elabExactTheory : TacticM Unit := do
+  let mod ← getCurrentModule
+  let comp := mod.immutableComponents.map (Lean.mkIdent ·.name)
+  let constr <- `(term| (⟨$[$comp],*⟩ : $(← mod.theoryStx)))
+  trace[veil.debug] "theory constr: {constr}"
+  Tactic.evalTactic $ ← `(tactic| exact $constr)
+
+open Tactic in
+def elabExactState : TacticM Unit := do
+  let mod ← getCurrentModule
+  let comp := mod.mutableComponents.map (Lean.mkIdent ·.name)
+  let constr <- `(term| (⟨$[$comp],*⟩ : $(← mod.stateStx)))
+  trace[veil.debug] "state constr: {constr}"
+  Tactic.evalTactic $ ← `(tactic| exact $constr)
+
+elab_rules : tactic
+  | `(tactic| veil_exact_theory) => elabExactTheory
+  | `(tactic| veil_exact_state) => elabExactState
+
 /-- This is used wherever we want to define a predicate over the
 background theory (e.g. in `assumption` definitions). Instead of
 writing `fun th => Pred`, this will pattern-match over the theory and
 make all its fields accessible for `Pred`. -/
-def withTheory (t : Term) : MetaM Term := do
+def withTheory (t : Term) :  MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
   let mut mod ← getCurrentModule
   let theoryName := mod.name ++ theoryName
   let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
   let (th, motive, Bool) := (mkIdent `th, mkIdent `motive, mkIdent ``Bool)
-  `(term|(fun ($th : $environmentTheory) =>
+  let fn ← `(term|(fun ($th : $environmentTheory) =>
     @$(casesOnTheory)
     $(← mod.sortIdents)*
     ($motive := fun _ => $Bool)
     ($(mkIdent ``readFrom) $th)
     (fun $[$(← getFieldIdentsForStruct theoryName)]* => ($(mkIdent ``decide) $ $t : $Bool))))
+  -- See NOTE(SUBTLE) to see why this is not actually ill-typed.
+  let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory))]
+  return (binders, ← `(term|$fn $th))
 
 /-- This is used wherever we want to define a predicate over the
 background theory and the mutable state (e.g. in `invariant`
 definitions). Instead of writing `fun th st => Pred`, this will
 pattern-match over the theory and state and make all their fields
 accessible for `Pred`. This was previously called `funcasesM`. -/
-def withTheoryAndState (t : Term) : MetaM Term := do
+def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
   let mut mod ← getCurrentModule
   let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
   let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
   let casesOnState ← delabVeilExpr $ mkConst $ (stateName ++ `casesOn)
   let (th, st, motive, Bool) := (mkIdent `th, mkIdent `st, mkIdent `motive, mkIdent ``Bool)
-  `(term|(fun ($th : $environmentTheory) ($st : $environmentState) =>
+  let fn ← `(term|(fun ($th : $environmentTheory) ($st : $environmentState) =>
     @$(casesOnTheory) $(← mod.sortIdents)*
     ($motive := fun _ => $Bool)
     ($(mkIdent ``readFrom) $th) <|
@@ -501,6 +532,21 @@ def withTheoryAndState (t : Term) : MetaM Term := do
       ($motive := fun _ => $Bool)
       ($(mkIdent ``getFrom) $st)
       (fun $[$(← getFieldIdentsForStruct stateName)]* => ($(mkIdent ``decide) $ $t : $Bool)))))
+  -- NOTE(SUBTLE): `by veil_exact_theory` and `by veil_exact_state` work in a
+  -- counter-intuitive way when applied to assertions. Concretely, these tactics
+  -- always construct a term of type `Theory` and `State` respectively (rather
+  -- than `ρ` or `σ` — the generic types). In other words, `$th :
+  -- $environmentTheory := by veil_exact_theory` is ILL TYPED. However, since in
+  -- `defineAssertion` we make the `ρ` and `σ` arguments _implicit_, and these
+  -- binders are _explicit_ (and thus evaluated first), `by veil_exact_theory`
+  -- effectively "forces" the `ρ` and `σ` arguments to be instantiated with the
+  -- _concrete_ `Theory` and `State`. Basically, whenever these default arguments
+  -- are evaluated (i.e. not provided explicitly), the assertion is forced to be
+  -- evaluated with `ρ := Theory` and `σ := State`.
+  let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory)), ← `(bracketedBinder| ($st : $environmentState := by veil_exact_state))]
+  return (binders, ← `(term|$fn $th $st))
+
+end AssertionElab
 
 /-- Register the assertion (and any optional `Decidable` instances)
 in the module, and return the syntax to elaborate. -/
@@ -517,15 +563,22 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   -- `withTheoryAndState` because we want to have the universal
   -- quantification as deeply inside the term as possible, rather than above
   -- the binders for `rd` and `st` introduced below.
-  let term ← liftTermElabM $ match base.kind with
+  let (thstBinders, term) ← liftTermElabM $ match base.kind with
     | .assumption => withTheory term
     | _ => withTheoryAndState term
   -- Record the `Decidable` instances that are needed for the assertion.
-  let (insts, _) ← liftTermElabMWithBinders binders $ fun _ => getRequiredDecidableInstances term
+  let (insts, _) ← liftTermElabMWithBinders (binders ++ thstBinders) $ fun _ => getRequiredDecidableInstances term
   let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionTypeclass base.name, name := Name.mkSimple s!"{base.name}_dec_{i}", «type» := decT, userSyntax := .missing })
   mod ← mod.registerAssertion { base with extraParams := extraParams }
   -- This includes the required `Decidable` instances
   let (binders, _) ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
+  -- NOTE(SUBTLE): we do something counter-intuitive here. Making the `ρ` and `σ`
+  -- arguments implicit ensures that whenever the default values for `thstBinders`
+  -- are evaluated (i.e. not provided explicitly), the assertion is forced to be
+  -- evaluated with `ρ := Theory` and `σ := State`. This makes it possible to do
+  -- things like `assert invariant` in action without having to provide any
+  -- explicit arguments.
+  let binders := (← binders.mapM mkImplicitBinder) ++ thstBinders
   let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
   return (stx, mod)
 
