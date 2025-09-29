@@ -194,7 +194,7 @@ where
     match k with
     | .stateLike => sortParameters mod
     | .assumptionLike => pure (theoryParameters mod)
-    | .invariantLike | .actionLike | .theoremLike => pure mod.parameters
+    | .invariantLike | .actionLike | .theoremLike | .ghost => pure mod.parameters
     | .actionDoLike => pure $ #[← Parameter.mode] ++ mod.parameters
 
 /-- For an **existing** declaration, return the parameters it needs, split into
@@ -213,12 +213,9 @@ def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (m
         | throwError "[Module.declarationSplitParams]: derived definition {forDeclaration} not found"
       pure (dd.extraParams, dd.params)
     | .stateAssertion _ => do
-        let sa := mod.assertions.find? (fun a => a.name == forDeclaration)
-          -- FIXME: we seem to use `declarationSplitParams` to define
-          -- assertions (so they don't exist); we shouldn't do that
-          -- | throwError "[Module.declarationSplitParams]: assertion {forDeclaration} not found"
-        let extraParams := (sa.map (·.extraParams)).getD #[]
-        pure (extraParams, .none)
+        let .some sa := mod.assertions.find? (fun a => a.name == forDeclaration)
+          | throwError "[Module.declarationSplitParams]: assertion {forDeclaration} not found"
+        pure (sa.extraParams, .none)
     | .procedure _ => do
         let .some proc := mod.procedures.find? (fun a => a.name == forDeclaration)
           | throwError "[Module.declarationSplitParams]: procedure {forDeclaration} not found"
@@ -274,6 +271,7 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotat
     let .some dk := mod._declarations[dec]?
       | throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} not found"
     let extraParams ← (match dk with
+    -- FIXME: replace these `filterMap` calls with a `find?`, similar to `declarationSplitParams`
     -- TODO: replace all of these with a `O(1)` lookup
     | .stateAssertion _ => return mod.assertions.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | .procedure _ => return mod.procedures.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
@@ -546,6 +544,30 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory)), ← `(bracketedBinder| ($st : $environmentState := by veil_exact_state))]
   return (binders, ← `(term|$fn $th $st))
 
+/-- Implicitly quantifies capital variables and elaborates the term with all
+state and theory variables bound (or just theory if `justTheory` is true). -/
+private def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) (justTheory : Bool := false) : TermElabM (Array Parameter × Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
+ let baseParams ← mod.declarationBaseParams dk
+ let binders ← baseParams.mapM (·.binder)
+ let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
+
+  -- We need to universally quantify capital variables, but for that to work, the
+  -- term needs to be well-typed, so all term's parameters, as well as the theory
+  -- and state variables (i.e. the fields) have to be bound first.
+  -- trace[veil.debug] "before UQC (paramBinders: {paramBinders}): {term}"
+  let term ← elabBinders (binders ++ paramBinders ++ (← mod.getTheoryBinders) ++ (← mod.getStateBinders)) $ fun _ => univerallyQuantifyCapitals term
+  trace[veil.debug] "AFTER UQC: {term}"
+  -- We don't `universallyQuantifyCapitals` after `withTheory` /
+  -- `withTheoryAndState` because we want to have the universal
+  -- quantification as deeply inside the term as possible, rather than above
+  -- the binders for `rd` and `st` introduced below.
+  let (thstBinders, term) ← if justTheory then withTheory term else withTheoryAndState term
+  -- Record the `Decidable` instances that are needed for the assertion.
+  let (insts, _) ← elabBinders (binders ++ paramBinders ++ thstBinders) $ fun _ => getRequiredDecidableInstances term
+  trace[veil.debug] "insts: {insts.map (·.1)}"
+  let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionTypeclass name, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT, userSyntax := .missing })
+  return (extraParams, thstBinders, term)
+
 end AssertionElab
 
 /-- Register the assertion (and any optional `Decidable` instances)
@@ -553,22 +575,8 @@ in the module, and return the syntax to elaborate. -/
 def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM (Command × Module) := do
   mod.throwIfAlreadyDeclared base.name
   let mut mod := mod
-  let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let (binders, _) ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
-  -- We need to universally quantify capital variables, but for that to
-  -- work, the term needs to be well-typed, so all the theory and state
-  -- variables have to be bound first
-  let term ← liftTermElabMWithBinders (binders ++ (← mod.getTheoryBinders) ++ (← mod.getStateBinders)) $ fun _ => univerallyQuantifyCapitals base.term
-  -- We don't `universallyQuantifyCapitals` after `withTheory` /
-  -- `withTheoryAndState` because we want to have the universal
-  -- quantification as deeply inside the term as possible, rather than above
-  -- the binders for `rd` and `st` introduced below.
-  let (thstBinders, term) ← liftTermElabM $ match base.kind with
-    | .assumption => withTheory term
-    | _ => withTheoryAndState term
-  -- Record the `Decidable` instances that are needed for the assertion.
-  let (insts, _) ← liftTermElabMWithBinders (binders ++ thstBinders) $ fun _ => getRequiredDecidableInstances term
-  let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionTypeclass base.name, name := Name.mkSimple s!"{base.name}_dec_{i}", «type» := decT, userSyntax := .missing })
+  let justTheory := match base.kind with | .assumption => true | _ => false
+  let (extraParams, thstBinders, term) ← liftTermElabM $ mod.mkVeilTerm base.name base.declarationKind (params := .none) base.term (justTheory := justTheory)
   mod ← mod.registerAssertion { base with extraParams := extraParams }
   -- This includes the required `Decidable` instances
   let (binders, _) ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
@@ -579,7 +587,29 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   -- things like `assert invariant` in action without having to provide any
   -- explicit arguments.
   let binders := (← binders.mapM mkImplicitBinder) ++ thstBinders
+  let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
+  return (stx, mod)
+
+def Module.registerDerivedDefinition [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (ddef : DerivedDefinition) : m Module := do
+  mod.throwIfAlreadyDeclared ddef.name
+  return { mod with _declarations := mod._declarations.insert ddef.name ddef.declarationKind, _derivedDefinitions := mod._derivedDefinitions.insert ddef.name ddef }
+
+def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) : CommandElabM (Command × Module) := do
+  mod.throwIfAlreadyDeclared name
+  let kind? := .stateAssertion .invariant -- a ghost relation is a predicate that depends on the state
+  let ddKind := .derivedDefinition .ghost (Std.HashSet.emptyWithCapacity 0)
+  let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) ddKind
+  let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
+  let (extraParams, thstBinders, term) ← liftTermElabM $ mod.mkVeilTerm name kind? params term (justTheory := false)
+  -- See NOTE(SUBTLE).
+  let baseBinders ← (baseParams ).mapM (·.binder)
+  let binders := (← baseBinders.mapM mkImplicitBinder) ++ paramBinders ++ thstBinders ++ (← extraParams.mapM (·.binder))
+  let stx ← `(abbrev $(mkIdent name) $[$binders]* := $term)
+  trace[veil.debug] "stx: {stx}"
+  -- FIXME: we should probably add `thstBinders` to `params`?
+  let ddef : DerivedDefinition := { name := name, kind := .ghost, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
+  let mod ← mod.registerDerivedDefinition ddef
   return (stx, mod)
 
 private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (kind : DerivedDefinitionKind) (assembledName : Name) (specificBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (onlySafety : Bool := false) : m (Command × Module) := do
@@ -604,7 +634,7 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
   let attrs ← #[`derivedInvSimp, `invSimp, `reducible].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* : Prop := $body)
   let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, params := none, extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
-  let mod := { mod with _declarations := mod._declarations.insert assembledName (.derivedDefinition kind conjunctsSet), _derivedDefinitions := mod._derivedDefinitions.insert assembledName derivedDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
   return (cmd, mod)
 
 /-- Syntax for the conjunction of all `invariant`, `safety`, and
@@ -637,7 +667,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
     else
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
   let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := none, extraParams := #[], derivedFrom := actionNames, stx := labelDef }
-  let mod := { mod with _declarations := mod._declarations.insert labelTypeName (.derivedDefinition derivedDef.kind actionNames), _derivedDefinitions := mod._derivedDefinitions.insert labelTypeName derivedDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
   return (labelDef, mod)
 
 private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
@@ -659,7 +689,7 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
       { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> aesop }
       { aesop })
   let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, params := none, extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
-  let mod := { mod with _declarations := mod._declarations.insert labelCasesName (.derivedDefinition derivedDef.kind {labelTypeName}), _derivedDefinitions := mod._derivedDefinitions.insert labelCasesName derivedDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
   return (casesLemma, mod)
 
 def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Command × Module) := do
@@ -684,7 +714,7 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let nextDef ← `(command|def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
   let nextParam ← `(explicitBinders| ($label:ident : $labelT))
   let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, params := nextParam, extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
-  let mod := { mod with _declarations := mod._declarations.insert assembledNextActName (.derivedDefinition derivedDef.kind actionNames), _derivedDefinitions := mod._derivedDefinitions.insert assembledNextActName derivedDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
   return (nextDef, mod)
 
 end Veil

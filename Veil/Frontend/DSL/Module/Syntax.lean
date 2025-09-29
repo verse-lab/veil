@@ -162,7 +162,7 @@ syntax (name := declareDependency) kw_includes ident term:max* moduleAbbrev : co
   relation R (r : round) (v : value) := [definition]
   ```
 -/
-syntax (name := ghostRelationDefinition) kw_ghost kw_relation ident bracketedBinder* ":=" term : command
+syntax (name := ghostRelationDefinition) kw_ghost kw_relation ident explicitBinders ? ":=" term : command
 
 /- ## Initial state -/
 

@@ -182,6 +182,9 @@ where
           pure $ tmp.replaceFVar z mv'
       mv.mvarId!.assign mv_pf
       let tyStx ← delabVeilExpr simplified_type
+      -- if simplified_type.hasMVar then
+        -- throwError "(type still has mvars after simplification):\n{simplified_type}"
+      -- trace[veil.debug] "simplifyMVarType {mv}:\n{ty}\n~~> {simplified_type}"
       return (tyStx, mv')
 
 /--
@@ -356,16 +359,19 @@ private partial def withAutoBoundCapitals (k : TermElabM α) : TermElabM α := d
   withAutoBoundCont k (fun n => return isCapital n) (fun ex n => do throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}")
 
 def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
+  let originalFVars := (← getLCtx).getFVars
   -- This ensures the capitals will be bound as `fvar`s
   withAutoBoundCapitals $ do
     withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
     let e ← Term.elabTerm stx none
     let mut lctx ← getLCtx
-    -- Inspect the local context and collect the capitals
-    let capitalVars ← lctx.getFVars.filterM (fun x =>
+    -- Inspect the local context and collect the capitals that weren't already
+    -- bound when we started.
+    let capitalVars := lctx.getFVars.filter (fun x =>
+      (!originalFVars.contains x) && (
       match lctx.getRoundtrippingUserName? x.fvarId! with
-      | .some n => return isCapital n
-      | .none => return false)
+      | .some n => isCapital n
+      | .none => false))
     -- Quantify over capitals
     Meta.lambdaTelescope e fun _ body => do
       let res ← delabVeilExpr $ ← Meta.mkForallFVars capitalVars body

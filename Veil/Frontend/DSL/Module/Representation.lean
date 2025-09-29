@@ -124,6 +124,8 @@ inductive DerivedDefinitionKind where
   /-- This derived definition is like a `theorem` in terms of the
   parameters it needs. -/
   | theoremLike
+  /-- This is a ghost relation, i.e. a predicate over state. -/
+  | ghost
 deriving Inhabited, BEq, Hashable, Repr
 
 inductive DeclarationKind where

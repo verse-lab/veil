@@ -151,7 +151,7 @@ private def Module.registerDerivedActionDefinition [Monad m] [MonadError m] [Mon
   let derivedDefKind := match mode? with | .none => .actionDoLike | .some _ => .actionLike
   let declKind := .derivedDefinition derivedDefKind {base.name}
   let derivedDef : DerivedDefinition := { name := derivedName, kind := derivedDefKind, params := base.params, extraParams := base.extraParams, derivedFrom := {base.name}, stx := .none }
-  let mod := { mod with _declarations := mod._declarations.insert derivedName declKind, _derivedDefinitions := mod._derivedDefinitions.insert derivedName derivedDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
   return (mod, declKind)
 
 /- The implementation of this method _could_ be split into two distinct
