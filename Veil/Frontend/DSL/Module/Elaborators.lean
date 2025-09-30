@@ -121,17 +121,16 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand nextCmd
   Verifier.runManager
   mod.generateVCs
+  return { mod with _specFinalized := true }
+
+@[command_elab Veil.checkInvariants]
+def elabCheckInvariants : CommandElab := fun _stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
+  let _ ← mod.ensureSpecIsFinalized
   Verifier.startAll
   vcManager.atomicallyOnce frontendNotification
     (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
-    (fun ref => do
-      let mgr ← ref.get
-      -- dbg_trace "[Frontend] RECV VCManager"
-      logInfo m!"{mgr}"
-      -- for thm in (← mgr.theorems) do
-      --   trace[veil.debug] m!"{thm}"
-    )
-  return { mod with _specFinalized := true }
+    (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}")
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do

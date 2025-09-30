@@ -241,4 +241,6 @@ syntax (name := assertionDeclaration) propertyKind (propertyName)? term : comman
 /-- Assemble the specification. -/
 syntax (name := genSpec) kw_gen_spec : command
 
+syntax (name := checkInvariants) "#check_invariants" : command
+
 end Veil
