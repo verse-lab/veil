@@ -7,7 +7,7 @@ import Veil
 veil module NOPaxos
 
 type replica -- replica ID
-enum replica_state = { st_normal, st_gap_commit } -- we don't model view changes
+enum replica_state { st_normal, st_gap_commit } -- we don't model view changes
 type seq_t
 type value
 type quorum
@@ -78,13 +78,13 @@ after_init {
   gh_committed S V := False
 }
 
-procedure succ(n : seq_t) = {
+procedure succ(n : seq_t) {
   let k ← pick seq_t
   assume next seq_t n k
   return k
 }
 
-procedure replace_item (r : replica) (i : seq_t) (v : value) = {
+procedure replace_item (r : replica) (i : seq_t) (v : value) {
   let len :| r_log_len r len
   let next_len ← succ len
   if seq.le i next_len then
@@ -93,13 +93,13 @@ procedure replace_item (r : replica) (i : seq_t) (v : value) = {
     r_log r i V := V = v
 }
 
-action client_sends_request (v : value) = {
+action client_sends_request (v : value) {
   require v ≠ no_op
   m_client_request v := True
 }
 
 -- Sequencer handles the client request
-action handle_client_request (m_value : value) = {
+action handle_client_request (m_value : value) {
   require m_client_request m_value
   let slot := s_seq_msg_num
   m_marked_client_request R m_value slot := True
@@ -107,7 +107,7 @@ action handle_client_request (m_value : value) = {
   s_seq_msg_num := next_slot
 }
 
-procedure append_to_log (r : replica) (v : value) = {
+procedure append_to_log (r : replica) (v : value) {
   let len :| r_log_len r len
   -- TLA arrays are 1-indexed, so we replicate this here
   let next_len ← succ len
@@ -116,7 +116,7 @@ procedure append_to_log (r : replica) (v : value) = {
   return next_len
 }
 
-procedure increase_session_number (r : replica) = {
+procedure increase_session_number (r : replica) {
   let smn :| r_sess_msg_num r smn
   let next_smn ← succ smn
   r_sess_msg_num r I := I = next_smn
@@ -124,7 +124,7 @@ procedure increase_session_number (r : replica) = {
 }
 
 -- Normal case of `HandleMarkedClientRequest`
-action handle_marked_client_request_normal (r : replica) (m_value : value) (m_sess_msg_num : seq_t) = {
+action handle_marked_client_request_normal (r : replica) (m_value : value) (m_sess_msg_num : seq_t) {
   require m_marked_client_request r m_value m_sess_msg_num
   require r_replica_status r st_normal
   let smn :| r_sess_msg_num r smn
@@ -136,7 +136,7 @@ action handle_marked_client_request_normal (r : replica) (m_value : value) (m_se
 }
 
 
-procedure send_gap_commit (r : replica) = {
+procedure send_gap_commit (r : replica) {
   require r = leader
   require r_replica_status r st_normal
   let len :| r_log_len r len
@@ -148,7 +148,7 @@ procedure send_gap_commit (r : replica) = {
 }
 
 -- Drop notification case of `HandleMarkedClientRequest`
-action handle_marked_client_drop_notification (r : replica) (m_value : value) (m_sess_msg_num : seq_t) = {
+action handle_marked_client_drop_notification (r : replica) (m_value : value) (m_sess_msg_num : seq_t) {
   require m_marked_client_request r m_value m_sess_msg_num
   require r_replica_status r st_normal
   let smn :| r_sess_msg_num r smn
@@ -163,7 +163,7 @@ action handle_marked_client_drop_notification (r : replica) (m_value : value) (m
     m_slot_lookup leader r smn := True
 }
 
-action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : seq_t) = {
+action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : seq_t) {
   require m_slot_lookup r m_sender m_sess_msg_num
   require r_replica_status r st_normal
   require r = leader
@@ -188,7 +188,7 @@ action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : s
 }
 
 -- Replica r (or the leader) receives GapCommit
-action handle_gap_commit (r : replica) (m_slot_num : seq_t) = {
+action handle_gap_commit (r : replica) (m_slot_num : seq_t) {
   require m_gap_commit r m_slot_num
   let len :| r_log_len r len
   -- NOTE: this condition ensures that the skipping operation (the `if` block
@@ -203,7 +203,7 @@ action handle_gap_commit (r : replica) (m_slot_num : seq_t) = {
   m_request_reply r no_op m_slot_num := True
 }
 
-action handle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : seq_t) = {
+action handle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : seq_t) {
   require m_gap_commit_rep r m_sender m_slot_num
   require r_replica_status r st_gap_commit
   require r = leader
@@ -214,7 +214,7 @@ action handle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : se
     r_replica_status r S := S = st_normal
 }
 
-action client_commit (s : seq_t) (v : value) = {
+action client_commit (s : seq_t) (v : value) {
   require ∃ (q:quorum), ∀ (p:replica), member p q → m_request_reply p v s
   require m_request_reply leader v s
   gh_committed s v := True

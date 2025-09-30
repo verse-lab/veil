@@ -35,14 +35,14 @@ after_init {
 }
 
 
-action send_1a = {
+action send_1a {
   -- a proposer selects a round and sends a message asking nodes to join the round
   let r : round ← pick
   require r ≠ none;
   one_a r := True
 }
 
-action join_round (n:node) (r:round) = {
+action join_round (n:node) (r:round) {
     -- receive 1a and answer with 1b
     require r ≠ none;
     require one_a r;
@@ -58,7 +58,7 @@ action join_round (n:node) (r:round) = {
     one_b_max_vote n r maxr v := True
 }
 
-action propose (r : round) (q: quorum) = {
+action propose (r : round) (q: quorum) {
     -- receive a quorum of 1b's and send a 2a (proposal)
     require r ≠ none;
     require ∀ V, ¬ proposal r V;
@@ -76,7 +76,7 @@ action propose (r : round) (q: quorum) = {
 
 }
 
-action cast_vote (n:node) (v:value) (r:round) = {
+action cast_vote (n:node) (v:value) (r:round) {
     -- receive a 2a and send 2b
     require r ≠ none;
     require ¬(∃ (r':round) (rMAX:round) (v':value), one_b_max_vote n r' rMAX v' ∧ ¬ tot.le r' r);
@@ -84,7 +84,7 @@ action cast_vote (n:node) (v:value) (r:round) = {
     vote n r v := True
 }
 
-action decide (n:node) (r:round) (v:value) (q:quorum) = {
+action decide (n:node) (r:round) (v:value) (q:quorum) {
     -- get 2b from a quorum
     require r ≠ none;
     require ∀ N, member N q -> vote N r v;

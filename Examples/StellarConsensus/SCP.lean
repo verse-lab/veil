@@ -120,11 +120,11 @@ after_init {
   received_accept_commit N1 N2 B V := False;
 }
 
-action nomination_update (n : node) (v : value) = {
+action nomination_update (n : node) (v : value) {
   nomination_output n V := V = v;
 }
 
-action change_ballot (n : node) (b : ballot) = {
+action change_ballot (n : node) (b : ballot) {
   require ¬ left_ballot n b ∧ ¬ started n b
   left_ballot n B := lt B b
   started n b := True
@@ -137,7 +137,7 @@ action change_ballot (n : node) (b : ballot) = {
   voted_prepared n b vmax := True;
 }
 
-action receive_vote_prepare (na nb : node) (b : ballot) (v : value) = {
+action receive_vote_prepare (na nb : node) (b : ballot) (v : value) {
   require voted_prepared nb b v
   received_vote_prepare na nb b v := True
   if (∃ Q, is_quorum Q ∧ member na Q ∧
@@ -147,7 +147,7 @@ action receive_vote_prepare (na nb : node) (b : ballot) (v : value) = {
     accepted_prepared na b v := True
 }
 
-action receive_accept_prepare (na nb : node) (b : ballot) (v : value) = {
+action receive_accept_prepare (na nb : node) (b : ballot) (v : value) {
   require accepted_prepared nb b v
   received_accept_prepare na nb b v := True
   if (∃ Q, is_quorum Q ∧ member na Q ∧
@@ -163,7 +163,7 @@ action receive_accept_prepare (na nb : node) (b : ballot) (v : value) = {
     accepted_prepared na b v := True
 }
 
-action receive_vote_commit (na nb : node) (b : ballot) (v : value) = {
+action receive_vote_commit (na nb : node) (b : ballot) (v : value) {
   require voted_committed nb b v
   received_vote_commit na nb b v := True
   if (∃ Q, is_quorum Q ∧ member na Q ∧
@@ -174,7 +174,7 @@ action receive_vote_commit (na nb : node) (b : ballot) (v : value) = {
     accepted_committed na b v := True
 }
 
-action receive_accept_commit (na nb : node) (b : ballot) (v : value) = {
+action receive_accept_commit (na nb : node) (b : ballot) (v : value) {
   require accepted_committed nb b v
   received_accept_commit na nb b v := True
   if (∃ Q, is_quorum Q ∧ member na Q ∧
@@ -189,7 +189,7 @@ action receive_accept_commit (na nb : node) (b : ballot) (v : value) = {
     accepted_committed na b v := True
 }
 
-transition byzantine_step = {
+transition byzantine_step {
   (∀ N B X, well_behaved N → voted_prepared N B X = voted_prepared' N B X) ∧
   (∀ N B X, well_behaved N → accepted_prepared N B X = accepted_prepared' N B X) ∧
   (∀ N B X, well_behaved N → voted_committed N B X = voted_committed' N B X) ∧

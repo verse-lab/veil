@@ -22,12 +22,12 @@ after_init {
   pending M N := false
 }
 
-action send (n next : node) = {
+action send (n next : node) {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := true
 }
 
-action recv (sender n next : node) = {
+action recv (sender n next : node) {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   require pending sender n
   -- message may or may not be removed

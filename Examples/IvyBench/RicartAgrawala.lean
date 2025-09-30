@@ -20,13 +20,13 @@ after_init {
   holds N := False
 }
 
-action request (requester: node) (responder : node) = {
+action request (requester: node) (responder : node) {
   require ¬ requested requester responder;
   require requester ≠ responder;
   requested requester responder := True
 }
 
-action reply (requester: node) (responder: node) = {
+action reply (requester: node) (responder: node) {
     require ¬ replied requester responder;
     require ¬ holds responder;
     require ¬ replied responder requester;
@@ -36,12 +36,12 @@ action reply (requester: node) (responder: node) = {
     replied requester responder := True
 }
 
-action enter (requester: node) = {
+action enter (requester: node) {
   require ∀ N, (N ≠ requester) → replied requester N;
   holds requester := True
 }
 
-action leave (requester : node) = {
+action leave (requester : node) {
   require holds requester;
   holds requester := False;
   replied requester N := False

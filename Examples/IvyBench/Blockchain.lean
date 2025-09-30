@@ -10,19 +10,19 @@ type time
 
 instantiate tot : TotalOrder time
 
-immutable relation leader : node → time → Prop
+immutable relation leader : node → time → Bool
 
-relation honest : node → Prop
-relation broadcastable : node → block → time → Prop
-relation broadcasted : node → Prop
+relation honest : node → Bool
+relation broadcastable : node → block → time → Bool
+relation broadcasted : node → Bool
 
-relation block_found : node → block → time → Prop
-relation block_confirmed : node → block → time → Prop
+relation block_found : node → block → time → Bool
+relation block_confirmed : node → block → time → Bool
 
-immutable relation transaction_time : transaction → time → Prop
+immutable relation transaction_time : transaction → time → Bool
 
-relation transaction_in_block : transaction → block → Prop
-relation transaction_confirmed : transaction → node → Prop
+relation transaction_in_block : transaction → block → Bool
+relation transaction_confirmed : transaction → node → Bool
 
 #gen_state
 
@@ -31,43 +31,43 @@ assumption leader N T1 ∧ leader N T2 → T1 = T2
 assumption transaction_time TR T1 ∧ transaction_time TR T2 → T1 = T2
 
 after_init {
-    block_found N B T := False;
-    block_confirmed N B T := False;
-    transaction_in_block TR B := False;
-    transaction_confirmed TR N := False;
-    broadcasted N := False;
-    broadcastable N B T := False
+    block_found N B T := false;
+    block_confirmed N B T := false;
+    transaction_in_block TR B := false;
+    transaction_confirmed TR N := false;
+    broadcasted N := false;
+    broadcastable N B T := false
 }
 
-action find_block (n : node) (b : block) (t: time) = {
+action find_block (n : node) (b : block) (t: time) {
   require leader n t;
-  block_found n b t := True
+  block_found n b t := true
 }
 
-action add_transaction (tr : transaction) (b : block) = {
-  transaction_in_block tr b := True
+action add_transaction (tr : transaction) (b : block) {
+  transaction_in_block tr b := true
 }
 
-action begin_broadcast (n : node) (b : block) (t : time) = {
+action begin_broadcast (n : node) (b : block) (t : time) {
   require leader n t ∧ block_found n b t ∧ ¬ broadcasted n;
-  broadcastable n b t := True
+  broadcastable n b t := true
 }
 
-action begin_broadcast_adversary (n : node) (b : block) (t : time) = {
+action begin_broadcast_adversary (n : node) (b : block) (t : time) {
   require ¬ honest n;
-  broadcastable n b t := True
+  broadcastable n b t := true
 }
 
-action byzantine_broadcast (n : node) (b : block) (t : time) = {
+action byzantine_broadcast (n : node) (b : block) (t : time) {
   require broadcastable n b t;
   require ∀ TR T, honest n ∧ transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n → transaction_in_block TR b;
   require ∀ TR T, honest n ∧ transaction_in_block TR b → transaction_time TR T ∧ tot.le T t ∧ ¬ transaction_confirmed TR n;
   --  why doesn't `block_confirmed N B t := *` work here?
   -- let havoc <- pick
   block_confirmed N B t := *
-  broadcasted n := True;
-  broadcastable n b t := False;
-  transaction_confirmed TR N := transaction_confirmed TR N ∨ ((transaction_in_block TR b ∧ honest n) ∨ (¬ honest n ∧ transaction_confirmed TR N))
+  broadcasted n := true;
+  broadcastable n b t := false;
+  transaction_confirmed TR N := decide $ transaction_confirmed TR N ∨ ((transaction_in_block TR b ∧ honest n) ∨ (¬ honest n ∧ transaction_confirmed TR N))
   --
   assume ∀ N B1 B2, honest N → ¬ (B1 ≠ B2 ∧ block_confirmed N B1 t ∧ block_confirmed N B2 t);
   assume ∀ N1 N2 B, honest N1 ∧ honest N2 → (block_confirmed N1 b t ∧ block_confirmed N2 b t) ∨ (¬ block_confirmed N1 B t ∧ ¬ block_confirmed N2 B t);
@@ -75,7 +75,7 @@ action byzantine_broadcast (n : node) (b : block) (t : time) = {
 
 }
 
-action sabotage (n: node) = {
+action sabotage (n: node) {
     require ¬ honest n;
     block_confirmed n B T := *;
     transaction_confirmed TR n := *
@@ -101,8 +101,6 @@ invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI1  ∨ ¬ honest 
 invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ leader N1 TI1  ∨ ¬ leader N1 TI2)
 invariant (tot.le TI1 TI2  ∧ TI1 ≠ TI2) -> (¬ transaction_time TR1 TI1  ∨ ¬ transaction_time TR1 TI2)
 
-#gen_spec
-
-#time #check_invariants
+#time #gen_spec
 
 end Blockchain

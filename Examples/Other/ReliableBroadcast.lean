@@ -73,7 +73,7 @@ after_init {
   delivered N O R V   := False
 }
 
-transition byz = {
+transition byz {
   (∀ (src dst : address) (r : round) (v : value),
     (¬ is_byz src ∧ (initial_msg src dst r v ↔ initial_msg' src dst r v)) ∨
     (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v))) ∧
@@ -85,20 +85,20 @@ transition byz = {
     (is_byz src ∧ (vote_msg src dst originator r v → vote_msg' src dst originator r v)))
 }
 
-action broadcast (n : address) (r : round) (v : value) = {
+action broadcast (n : address) (r : round) (v : value) {
   require ¬ sent n r;
   initial_msg n N r v := True;
   sent n r := True
 }
 
-action echo (n : address) (originator : address) (r : round) (v : value) = {
+action echo (n : address) (originator : address) (r : round) (v : value) {
   require initial_msg originator n r v;
   require ∀ V, ¬ echoed n originator r V;
   echoed n originator r v := True;
   echo_msg n DST originator r v := True
 }
 
-action vote (n : address) (originator : address) (r : round) (v : value) = {
+action vote (n : address) (originator : address) (r : round) (v : value) {
   -- received 2f + 1 echo messages OR f + 1 vote messages
   require (∃ (q : nodeset), nset.supermajority q ∧
               ∀ (src : address), nset.member src q → echo_msg src n originator r v) ∨
@@ -109,7 +109,7 @@ action vote (n : address) (originator : address) (r : round) (v : value) = {
   vote_msg n DST originator r v := True
 }
 
-action deliver (n : address) (originator : address) (r : round) (v : value) = {
+action deliver (n : address) (originator : address) (r : round) (v : value) {
   -- received 2f + 1 votes
   require (∃ (q : nodeset), nset.supermajority q ∧
               ∀ (src : address), nset.member src q → vote_msg src n originator r v);

@@ -18,115 +18,115 @@ class RingTopology (t : Type) where
 type node
 instantiate ring : RingTopology node
 
-relation a : node → Prop
-relation s1 : node → node → Prop
-relation in_s1 : node → Prop
-relation s2 : node → node → Prop
-relation in_s2 : node → Prop
-relation p : node → node → Prop
+relation a : node → Bool
+relation s1 : node → node → Bool
+relation in_s1 : node → Bool
+relation s2 : node → node → Bool
+relation in_s2 : node → Bool
+relation p : node → node → Bool
 
 immutable individual org : node
 immutable individual other : node
-relation reach : node → Prop
-relation error : node → Prop
+relation reach : node → Bool
+relation error : node → Bool
 
 #gen_state
 
 assumption other ≠ org
 
 after_init {
-  a X := X = org ∨ X = other;
-  s1 X Y := (X = org ∧ Y = other) ∨ (X = other ∧ Y = org);
-  in_s1 X := X = org ∨ X = other;
-  s2 X Y := False;
-  in_s2 X := False;
-  p X Y := (X = org ∧ Y = other) ∨ (X = other ∧ Y = org);
-  reach X := X = org;
-  error X := False
+  a X := decide $ X = org ∨ X = other;
+  s1 X Y := decide $ (X = org ∧ Y = other) ∨ (X = other ∧ Y = org);
+  in_s1 X := decide $ X = org ∨ X = other;
+  s2 X Y := false;
+  in_s2 X := false;
+  p X Y := decide $ (X = org ∧ Y = other) ∨ (X = other ∧ Y = org);
+  reach X := decide $ X = org;
+  error X := false
 }
 
-action join (x : node) (y : node) = {
+action join (x : node) (y : node) {
   require ¬ a x;
   require ∀ Y, a Y;
   require ¬ ring.btw x org y;
-  a x := True;
-  s1 x Y := y = Y;
-  in_s1 x := True;
-  s2 x Y := False;
-  in_s2 x := False;
-  p x Y := False
+  a x := true;
+  s1 x Y := y == Y;
+  in_s1 x := true;
+  s2 x Y := false;
+  in_s2 x := false;
+  p x Y := false
 }
 
-action stabilize (x : node) (y : node) (z : node) = {
+action stabilize (x : node) (y : node) (z : node) {
   require a x;
   require s1 x y;
   require a y;
   require p y z;
   require ring.btw x z y;
-  s1 x Z := Z = z;
-  in_s1 x := True;
-  s2 x Y := Y = y;
-  in_s2 x := True
+  s1 x Z := decide $ Z = z;
+  in_s1 x := true;
+  s2 x Y := decide $ Y = y;
+  in_s2 x := true
 }
 
-action notify (x : node) (y : node) (z : node) = {
+action notify (x : node) (y : node) (z : node) {
   require a x;
   require s1 x y;
   require a y;
   require ∀ X, p y z ∨ ¬ p y X;
   require ring.btw z x y;
-  p y X := X = x
+  p y X := decide $ X = x
 }
 
-action inherit (x : node) (y : node) (z : node) = {
+action inherit (x : node) (y : node) (z : node) {
   require a x;
   require s1 x y;
   require a y;
   require s1 y z;
-  s2 x Z := Z = z;
-  in_s2 x := True
+  s2 x Z := decide $ Z = z;
+  in_s2 x := true
 }
 
-action remove (x : node) (y : node) (z : node) = {
+action remove (x : node) (y : node) (z : node) {
   require a x;
   require s1 x y;
   require ¬ a y;
   require s2 x z;
-  s1 x Z := Z = z;
-  in_s1 x := True;
-  s2 x Y := False;
-  in_s2 x := False
+  s1 x Z := decide $ Z = z;
+  in_s1 x := true;
+  s2 x Y := false;
+  in_s2 x := false
 }
 
-action fail (x : node) = {
+action fail (x : node) {
   require a x;
   require x ≠ org;
   require ∀ Y, (s1 Y x → in_s2 Y);
   require ∀ Y Z, s1 Y x ∧ s2 Y Z → a Z;
   require ∀ X Y, s1 X Y ∧ s2 X x → (Y ≠ x ∧ a Y);
-  a x := False;
-  p x Y := False;
-  s1 x Y := False;
-  in_s1 x := False;
-  s2 x Y := False;
-  in_s2 x := False
+  a x := false;
+  p x Y := false;
+  s1 x Y := false;
+  in_s1 x := false;
+  s2 x Y := false;
+  in_s2 x := false
 }
 
-action reach_org (x : node) (y : node) (z : node) = {
+action reach_org (x : node) (y : node) (z : node) {
   require (s1 x y ∧ a y ∧ reach y) ∨ (s1 x y ∧ ¬ a y ∧ s2 x z ∧ a z ∧ reach z);
-  reach x := True
+  reach x := true
 }
 
-action remove_org (x : node) (y : node) (z : node) = {
+action remove_org (x : node) (y : node) (z : node) {
   require x ≠ org;
   require s1 x y;
   require ¬ a y ∨ ¬ reach y;
   require ∀ Z, (¬ a y) → (¬ s2 x Z ∨ s2 x z);
   require (¬ a y ∧ s2 x z) → (¬ a z ∨ ¬ reach z);
-  reach x := False
+  reach x := false
 }
 
-action test (x : node) = {
+action test (x : node) {
   require ∀ X Y, (s1 X Y ∧ a Y ∧ reach Y) → reach X;
   require ∀ X Y Z, (s1 X Y ∧ ¬ a Y ∧ s2 X Z ∧ a Z ∧ reach Z) → reach X;
   require ∀ Y, (ring.btw x Y org ∧ a Y) → reach x;
@@ -134,7 +134,7 @@ action test (x : node) = {
   require ¬ reach x;
   require in_s1 x → ∃ y, s1 x y;
   require in_s2 x → ∃ y, s2 x y;
-  error x := True
+  error x := true
 }
 
 safety [no_error] ¬ error N
@@ -157,8 +157,6 @@ invariant [manual_15] a X ∧ p Y X ∧ s1 X Y → a Y
 invariant [manual_16] ¬ ring.btw X org Y ∨ ¬ s1 X Y
 invariant [manual_17] ¬ (s1 V0 V1 ∧ V1 ≠ org ∧ s2 V0 V2 ∧ ring.btw V0 org V2)
 
-#gen_spec
-
-#time #check_invariants
+#time #gen_spec
 
 end ChordRing

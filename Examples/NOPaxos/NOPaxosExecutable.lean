@@ -10,7 +10,7 @@ import Veil.DSL.Random.Main
 veil module NOPaxos
 
 type replica -- replica ID
-enum replica_state = { st_normal, st_gap_commit } -- we don't model view changes
+enum replica_state { st_normal, st_gap_commit } -- we don't model view changes
 type seq_t
 type value
 type quorum
@@ -77,12 +77,12 @@ after_init {
   gh_committed S V := false
 }
 
-procedure succ(n : seq_t) = {
+procedure succ(n : seq_t) {
   let k :| next seq_t n k
   return k
 }
 
-procedure replace_item (r : replica) (i : seq_t) (v : value) = {
+procedure replace_item (r : replica) (i : seq_t) (v : value) {
   let len :| r_log_len r len
   let next_len ← succ len
   if seq.le i next_len then
@@ -91,17 +91,17 @@ procedure replace_item (r : replica) (i : seq_t) (v : value) = {
     r_log r i V := decide $ V = v
 }
 
--- action client_sends_request (v : value) = {
+-- action client_sends_request (v : value) {
 --   require v ≠ no_op
-action client_sends_request = {
+action client_sends_request {
   let v :| v ≠ no_op
   m_client_request v := true
 }
 
 -- Sequencer handles the client request
--- action handle_client_request (m_value : value) = {
+-- action handle_client_request (m_value : value) {
 --   require m_client_request m_value
-action handle_client_request = {
+action handle_client_request {
   let m_value :| m_client_request m_value
   let slot := s_seq_msg_num
   m_marked_client_request R m_value slot := true
@@ -109,7 +109,7 @@ action handle_client_request = {
   s_seq_msg_num := next_slot
 }
 
-procedure append_to_log (r : replica) (v : value) = {
+procedure append_to_log (r : replica) (v : value) {
   let len :| r_log_len r len
   -- TLA arrays are 1-indexed, so we replicate this here
   let next_len ← succ len
@@ -118,7 +118,7 @@ procedure append_to_log (r : replica) (v : value) = {
   return next_len
 }
 
-procedure increase_session_number (r : replica) = {
+procedure increase_session_number (r : replica) {
   let smn :| r_sess_msg_num r smn
   let next_smn ← succ smn
   r_sess_msg_num r I := decide $ I = next_smn
@@ -126,10 +126,10 @@ procedure increase_session_number (r : replica) = {
 }
 
 -- Normal case of `HandleMarkedClientRequest`
--- action handle_marked_client_request_normal (r : replica) (m_value : value) (m_sess_msg_num : seq_t) = {
+-- action handle_marked_client_request_normal (r : replica) (m_value : value) (m_sess_msg_num : seq_t) {
 --   require m_marked_client_request r m_value m_sess_msg_num
 --   require r_replica_status r st_normal
-action handle_marked_client_request_normal = {
+action handle_marked_client_request_normal {
   let (r, m_value, m_sess_msg_num) :| (m_marked_client_request r m_value m_sess_msg_num ∧ r_replica_status r st_normal)
   let smn :| r_sess_msg_num r smn
   require m_sess_msg_num = smn
@@ -139,7 +139,7 @@ action handle_marked_client_request_normal = {
 }
 
 
-procedure send_gap_commit (r : replica) = {
+procedure send_gap_commit (r : replica) {
   require r = leader
   require r_replica_status r st_normal
   let len :| r_log_len r len
@@ -151,10 +151,10 @@ procedure send_gap_commit (r : replica) = {
 }
 
 -- Drop notification case of `HandleMarkedClientRequest`
-action handle_marked_client_drop_notification (r : replica) (m_value : value) (m_sess_msg_num : seq_t) = {
+action handle_marked_client_drop_notification (r : replica) (m_value : value) (m_sess_msg_num : seq_t) {
   require m_marked_client_request r m_value m_sess_msg_num
   require r_replica_status r st_normal
--- action handle_marked_client_drop_notification = {
+-- action handle_marked_client_drop_notification {
 --   let (r, m_value, m_sess_msg_num) :| (m_marked_client_request r m_value m_sess_msg_num ∧ r_replica_status r st_normal)
   let smn :| r_sess_msg_num r smn
   -- NOTE: this is the condition in the TLA+ spec, but it means that
@@ -167,11 +167,11 @@ action handle_marked_client_drop_notification (r : replica) (m_value : value) (m
     m_slot_lookup leader r smn := true
 }
 
--- action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : seq_t) = {
+-- action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : seq_t) {
 --   require m_slot_lookup r m_sender m_sess_msg_num
 --   require r_replica_status r st_normal
 --   require r = leader
-action handle_slot_lookup = {
+action handle_slot_lookup {
   let (r, m_sender, m_sess_msg_num) :| (m_slot_lookup r m_sender m_sess_msg_num ∧ r_replica_status r st_normal ∧ r = leader)
   let len :| r_log_len r len
   let smn :| r_sess_msg_num r smn
@@ -194,9 +194,9 @@ action handle_slot_lookup = {
 }
 
 -- Replica r (or the leader) receives GapCommit
--- action handle_gap_commit (r : replica) (m_slot_num : seq_t) = {
+-- action handle_gap_commit (r : replica) (m_slot_num : seq_t) {
 --   require m_gap_commit r m_slot_num
-action handle_gap_commit = {
+action handle_gap_commit {
   let (r, m_slot_num) :| m_gap_commit r m_slot_num
   let len :| r_log_len r len
   -- NOTE: this condition ensures that the skipping operation (the `if` block
@@ -210,12 +210,12 @@ action handle_gap_commit = {
   m_request_reply r no_op m_slot_num := true
 }
 
--- action handle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : seq_t) = {
+-- action handle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : seq_t) {
 --   require m_gap_commit_rep r m_sender m_slot_num
 --   require r_replica_status r st_gap_commit
 --   require r = leader
 --   require r_current_gap_slot r m_slot_num
-action handle_gap_commit_rep = {
+action handle_gap_commit_rep {
   let (r, m_sender, m_slot_num) :| (m_gap_commit_rep r m_sender m_slot_num ∧ r_replica_status r st_gap_commit ∧ r = leader ∧ r_current_gap_slot r m_slot_num)
   r_gap_commit_reps r m_sender := true
   if (r_gap_commit_reps r r) ∧ (∃ (q:quorum), ∀ (p:replica),
@@ -223,10 +223,10 @@ action handle_gap_commit_rep = {
     r_replica_status r S := decide $ S = st_normal
 }
 
--- action client_commit (s : seq_t) (v : value) = {
+-- action client_commit (s : seq_t) (v : value) {
 --   require ∃ (q:quorum), ∀ (p:replica), member p q → m_request_reply p v s
 --   require m_request_reply leader v s
-action client_commit = {
+action client_commit {
   let (s, v) :| ((∃ (q:quorum), ∀ (p:replica), member p q → m_request_reply p v s) ∧ m_request_reply leader v s)
   gh_committed s v := true
 }

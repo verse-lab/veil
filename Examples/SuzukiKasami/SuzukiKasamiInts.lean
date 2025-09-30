@@ -49,7 +49,7 @@ after_init {
   crit N := False
 }
 
-action request (n : node) = {
+action request (n : node) {
   require ¬ n_requesting n;
   n_requesting n := True;
   if (¬ n_have_privilege n) then
@@ -59,7 +59,7 @@ action request (n : node) = {
 }
 
 -- node `n` receiving a request from `m` with sequence number `r`
-action rcv_request (n : node) (m : node) (r : seq_t) = {
+action rcv_request (n : node) (m : node) (r : seq_t) {
   require reqs n m r;
   n_RN n m := if Nat.le r (n_RN n m) then n_RN n m else r;
   if (n_have_privilege n ∧ ¬ n_requesting n ∧ next (t_LN (n_token_seq n) m) (n_RN n m)) then
@@ -70,21 +70,21 @@ action rcv_request (n : node) (m : node) (r : seq_t) = {
     t_q k N := t_q (n_token_seq n) N
 }
 
-action rcv_privilege (n: node) (t: seq_t) = {
+action rcv_privilege (n: node) (t: seq_t) {
   require t_for t n;
   require Nat.lt (n_token_seq n) t;
   n_have_privilege n := True;
   n_token_seq n := t
 }
 
-action enter (n : node) = {
+action enter (n : node) {
     require n_have_privilege n
     require n_requesting n
     -- Add n to crit
     crit n := True
 }
 
-action exit (n : node) = {
+action exit (n : node) {
   require crit n;
   crit n := False;
   n_requesting n := False;

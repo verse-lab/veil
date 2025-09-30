@@ -43,7 +43,7 @@ after_init {
 }
 
 -- master action
-action configure_round (r : round) (c : config) = {
+action configure_round (r : round) (c : config) {
   require ∀ C, ¬ configure_round_msg r C
   require tot.le master_complete r
   require complete_of c = master_complete
@@ -51,20 +51,20 @@ action configure_round (r : round) (c : config) = {
   configure_round_msg r c := True
 }
 
-action mark_complete (r : round) = {
+action mark_complete (r : round) {
   require complete_msg r
   if ¬ tot.le r master_complete then
     master_complete := r
 }
 
 -- nodes actions
-action send_1a (r : round) (c : config) (cr : round) = {
+action send_1a (r : round) (c : config) (cr : round) {
   require configure_round_msg r c
   require cr = complete_of c
   one_a r R := one_a r R ∨ (tot.le cr R ∧ ¬ tot.le r R)
  }
 
- action join_round (n : node) (r : round) (rp : round) = {
+ action join_round (n : node) (r : round) (rp : round) {
   require one_a r rp
   require ¬ (∃ r' rp' v, join_ack_msg n r' rp' v ∧ ¬ tot.le r' r)
   let mut v : value ← pick
@@ -75,7 +75,7 @@ action send_1a (r : round) (c : config) (cr : round) = {
   join_ack_msg n r rp v := True
  }
 
-action propose (r : round) (c : config) (cr : round) = {
+action propose (r : round) (c : config) (cr : round) {
   quorum_of_round R := *
   require configure_round_msg r c
   require complete_of c = cr
@@ -99,14 +99,14 @@ action propose (r : round) (c : config) (cr : round) = {
   proposal r v := True
 }
 
-action cast_vote (n : node) (v : value) (r : round) = {
+action cast_vote (n : node) (v : value) (r : round) {
   require v ≠ none
   require ¬ (∃ (r' : round) (rp : round) (v' : value), join_ack_msg n r' rp v' ∧ ¬ tot.le r' r)
   require proposal r v
   vote n r v := True
 }
 
-action decide (n : node) (r : round) (c : config) (v : value) (q : quorum) = {
+action decide (n : node) (r : round) (c : config) (v : value) (q : quorum) {
   require v ≠ none
   require configure_round_msg r c
   require quorumin q c

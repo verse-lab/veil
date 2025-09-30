@@ -160,7 +160,7 @@ after_init {
 }
 
 #print initialState?
--- `fun st' => st' = { leader := fun N => False, pending := fun M N => False }`
+-- `fun st' => st' { leader := fun N => False, pending := fun M N => False }`
 
 /-
 _Actions_ in Veil are imperative code fragments that modify the state. Veil
@@ -171,7 +171,7 @@ Here we define an action `send`, with parameters `n` and `next` of type `node`,
 that specifies what node `n` does when it initiates the protocol, i.e. it sends
 a message containing its own ID to its successor (`next`).
 -/
-action send (n next : node) = {
+action send (n next : node) {
   /- A `require` statement specifies a condition that must be satisfied for the
   action to take effect / trigger. Here we encode that `next` is indeed the
   successor of `n` in the ring. -/
@@ -193,7 +193,7 @@ ghost relation isNext (n next : node) :=
 #print isNext
 
 /- `n` receives a message containing `id`, and potentially forwards it to `next`. -/
-action recv (id n next : node) = {
+action recv (id n next : node) {
   require isNext n next
   require pending id n
   /- We use non-deterministic assignment to model that the message may or may

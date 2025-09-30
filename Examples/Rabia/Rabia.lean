@@ -69,7 +69,7 @@ after_init {
   coin P V := False
 }
 
-action initial_proposal = {
+action initial_proposal {
   let n : node ← pick
   let v : proposal_value ← pick
   assume ¬ ∃ V : proposal_value, propose n V
@@ -80,7 +80,7 @@ action initial_proposal = {
   propose n v := True
 }
 
-action decide_bc_decide_full_val = {
+action decide_bc_decide_full_val {
   let n : node ← pick
   let p : phase ← pick
   let q : set_majority ← pick
@@ -89,14 +89,14 @@ action decide_bc_decide_full_val = {
     decision_full_val n p v := True
 }
 
-action decide_bc_decide_full_noval = {
+action decide_bc_decide_full_noval {
   let n : node ← pick
   let p : phase ← pick
   assume decision_bc n p v0
   decision_full_noval n p := True
 }
 
-action initial_vote1 = {
+action initial_vote1 {
   let n : node ← pick
   let q : set_majority ← pick
   assume ∃ V : proposal_value, propose n V
@@ -113,7 +113,7 @@ action initial_vote1 = {
     in_phase n zero := True
 }
 
-action phase_rnd1 = {
+action phase_rnd1 {
   let n : node ← pick
   let p : phase ← pick
   let q : set_majority ← pick
@@ -127,7 +127,7 @@ action phase_rnd1 = {
     vote_rnd2 n p vquestion := True
 }
 
-action phase_rnd2 = {
+action phase_rnd2 {
   let n : node ← pick
   let p : phase ← pick
   let psucc : phase ← pick

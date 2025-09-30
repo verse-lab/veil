@@ -7,9 +7,9 @@ veil module DecentralizedLock
 type node
 type time
 
-immutable relation le : time -> time -> Prop
-relation has_lock : node -> Prop
-relation msg : node -> time -> Prop
+immutable relation le : time -> time -> Bool
+relation has_lock : node -> Bool
+relation msg : node -> time -> Bool
 function epoch : node -> time
 
 immutable individual first : node
@@ -26,23 +26,23 @@ assumption ∀ (x : time), le zero x
 assumption ∀ (x : time), le x max
 
 after_init {
-  has_lock X := X = first;
-  msg Y T := False;
+  has_lock X := decide $ X = first;
+  msg Y T := false;
   epoch X := zero
 }
 
-action take_lock (x : node) (y : node) (t : time) = {
+action take_lock (x : node) (y : node) (t : time) {
     require msg y t;
     require ¬ le t (epoch y);
-    has_lock y := True;
+    has_lock y := true;
     epoch y := t
 }
 
-action release_lock (x : node) (y : node) (t : time) = {
+action release_lock (x : node) (y : node) (t : time) {
     require has_lock x;
     require ¬ le t (epoch x);
-    has_lock x := False;
-    msg y t := True
+    has_lock x := false;
+    msg y t := true
 }
 
 safety [mutex] ¬ (has_lock X ∧ has_lock Y ∧ X ≠ Y)
@@ -51,10 +51,6 @@ invariant [manual_1] ¬ (X ≠ Y ∧ (has_lock X ∨ (msg X T ∧ ¬ le T (epoch
 invariant [manual_2] ¬ (has_lock X ∧ (msg X T ∧ ¬ le T (epoch X)))
 invariant [manual_3] ¬ (S ≠ T ∧ msg Y S ∧ msg Y T ∧ ¬ le T (epoch Y) ∧ ¬ le S (epoch Y))
 
-#gen_spec
-
-#time #check_invariants
-
-
+#time #gen_spec
 
 end DecentralizedLock

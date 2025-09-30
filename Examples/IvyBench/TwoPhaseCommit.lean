@@ -30,7 +30,7 @@ after_init {
   abort_flag := False
 }
 
-action vote1 (n : node) = {
+action vote1 (n : node) {
   require alive n;
   require ¬vote_no n;
   require ¬decide_commit n;
@@ -38,7 +38,7 @@ action vote1 (n : node) = {
   vote_yes n := True
 }
 
-action vote2(n: node) = {
+action vote2(n: node) {
   require alive n;
   require ¬vote_yes n;
   require ¬decide_commit n;
@@ -48,33 +48,33 @@ action vote2(n: node) = {
   decide_abort n := True
 }
 
-action fail(n: node) = {
+action fail(n: node) {
   require alive n;
   alive n := False;
   abort_flag := True
 }
 
-action go1 = {
+action go1 {
   require ∀ N, ¬go_commit N;
   require ∀ N, ¬go_abort N;
   require ∀ N, vote_yes N;
   go_commit N := True
 }
 
-action go2 = {
+action go2 {
   require ∀ N, ¬go_commit N;
   require ∀ N, ¬go_abort N;
   require exists n, vote_no n ∨ ¬alive n;
   go_abort N := True
 }
 
-action commit(n: node) = {
+action commit(n: node) {
   require alive n;
   require go_commit n;
   decide_commit n := True
 }
 
-action abort(n: node) = {
+action abort(n: node) {
   require alive n;
   require go_abort n;
   decide_abort n := True
