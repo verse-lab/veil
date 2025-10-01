@@ -547,10 +547,9 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
 /-- Implicitly quantifies capital variables and elaborates the term with all
 state and theory variables bound (or just theory if `justTheory` is true). -/
 private def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) (justTheory : Bool := false) : TermElabM (Array Parameter × Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
- let baseParams ← mod.declarationBaseParams dk
- let binders ← baseParams.mapM (·.binder)
- let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
-
+  let baseParams ← mod.declarationBaseParams dk
+  let binders ← baseParams.mapM (·.binder)
+  let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
   -- We need to universally quantify capital variables, but for that to work, the
   -- term needs to be well-typed, so all term's parameters, as well as the theory
   -- and state variables (i.e. the fields) have to be bound first.

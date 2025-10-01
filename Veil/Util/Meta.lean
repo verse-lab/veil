@@ -377,21 +377,21 @@ def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
       let res ← delabVeilExpr $ ← Meta.mkForallFVars capitalVars body
       return res
 
-def repeatedOp [Monad m] [MonadError m][MonadQuotation m] (op : Name) (operands : Array (TSyntax `term)) (default : Option (TSyntax `term) := none) : m (TSyntax `term) := do
+def repeatedOp [Monad m] [MonadQuotation m] (op : Name) (operands : Array (TSyntax `term)) (default : Option (TSyntax `term) := none) : m (TSyntax `term) := do
   if operands.isEmpty then
     match default with
     | .some d => return d
-    | .none => throwError "[repeatedOp {op}]: no operands and no default"
+    | .none => panic! "[repeatedOp {op}]: no operands and no default"
   else
     let last := operands.size - 1
     let initT := operands[last]!
     let acc := operands[0:last]
     acc.foldrM (init := initT) fun operand acc => `(term|$(mkIdent op) $operand $acc)
 
-def repeatedAnd [Monad m] [MonadError m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
+def repeatedAnd [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
   repeatedOp `And operands (default := ← `(term|$(mkIdent `True)))
 
-def repeatedOr  [Monad m] [MonadError m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
+def repeatedOr  [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
   repeatedOp `Or operands (default := ← `(term|$(mkIdent `False)))
 
 @[inline] macro "exists?" br:explicitBinders ? "," t:term : term =>
@@ -404,6 +404,23 @@ def repeatedOr  [Monad m] [MonadError m] [MonadQuotation m] (operands : Array (T
     `(∀ $br*, $t)
   else
     `($t)
+
+/--
+Similar to the `distinct` keyword in SMT-LIB, this generates inequality
+conditions for multiple terms. Example: `distinct a b c d`=
+-/
+syntax "distinct" (term:max)* : term
+macro_rules
+  | `(term|distinct $[$ids:term]*) => do
+    let mut inequalities := #[]
+    for index_left in [0:ids.size] do
+      for index_right in [index_left+1:ids.size] do
+        let elem_i := ids[index_left]!
+        let elem_j := ids[index_right]!
+        inequalities := inequalities.push (← `($elem_i ≠ $elem_j))
+    let fmla ← repeatedAnd inequalities
+    return fmla
+
 
 def expandTermMacro [Monad m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m] (stx : Term) : m Term := do
   TSyntax.mk <$> (Elab.liftMacroM <| expandMacros stx)

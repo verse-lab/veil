@@ -37,6 +37,11 @@ instance total_order_fin_enum (t : Type) [fe : FinEnum t] : TotalOrder t where
     apply heq
   le_total := by simp [(total_order_fin fe.card).le_total]
 
+class TotalOrderWithZero (t : Type) extends TotalOrder t where
+  -- zero
+  zero : t
+  zero_le (x : t) : le zero x
+
 /-- Ring topology -/
 class Between (node : Type) where
   -- relation: btw represents a ring

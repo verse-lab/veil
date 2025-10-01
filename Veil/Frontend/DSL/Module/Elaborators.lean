@@ -76,6 +76,35 @@ def elabInstantiate : CommandElab := fun stx => do
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
 
+@[command_elab Veil.enumDeclaration]
+def elabEnumDeclaration : CommandElab := fun stx => do
+  match stx with
+  | `(enum $id:ident = { $[$elems:ident],* }) => do
+    -- Declare the uninterpreted sort
+    elabCommand $ ← `(type $id)
+    -- Declare a class for the enum type
+    let variants ← elems.mapM (fun elem => `(Command.structSimpleBinder|$elem:ident : $id))
+    let (class_name, ax_distinct, ax_complete) := (mkIdent (Name.mkSimple s!"{id.getId}_Enum"), mkIdent $ Name.mkSimple s!"{id.getId}_distinct", mkIdent $ Name.mkSimple s!"{id.getId}_complete")
+    let ax_distinct ← `(Command.structSimpleBinder|$ax_distinct:ident : distinct $[$elems]*)
+    let x := mkIdent $ Name.mkSimple s!"{id.getId}_x"
+    let ax_complete ← `(Command.structSimpleBinder|$ax_complete:ident : ∀ ($x : $id), $(← isEqualToOneOf x elems))
+    let class_decl ← `(
+      class $class_name ($id : outParam Type) where
+        $[$variants]*
+        $ax_distinct
+        $ax_complete
+    )
+    elabCommand class_decl
+    let instanceName := mkIdent $ Name.mkSimple s!"{id.getId}_isEnum"
+    let instanceV ← `(command|instantiate $instanceName : @$class_name $id)
+    elabCommand instanceV
+    elabCommand $ ← `(open $class_name:ident)
+  | _ => throwUnsupportedSyntax
+where
+isEqualToOneOf {m} [Monad m] [MonadQuotation m] (x : TSyntax `term) (xs : Array (TSyntax `term)) : m (TSyntax `term) := do
+  let equalities ← xs.mapM (fun elem => `($x = $(elem)))
+  repeatedOr equalities
+
  /-- Instruct the linter to not mark state variables as unused in our
   `after_init` and `action` definitions. -/
 private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
