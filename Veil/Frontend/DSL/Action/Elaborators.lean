@@ -166,28 +166,23 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   -- We register the `internal` view of the action as the "real" one
   let mod ← mod.registerProcedureSpecification ps
   -- The `.do` and `.ext` views are marked as derived definitions
-  let (mod, doKind) ← mod.registerDerivedActionDefinition ps .none
+  let (mod, _doKind) ← mod.registerDerivedActionDefinition ps .none
   let intKind := ps.declarationKind
   let (mod, extKind) ← mod.registerDerivedActionDefinition ps Mode.external
   -- Elaborate the definitions in the Lean environment
   liftTermElabM $ do
     let _nmDo_fullyQualified ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
-    -- defineAuxiliaryDeclarations pi Option.none br nmDo nmDo_fullyQualified
-    let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
     let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
-    let nmInt_fullyQualified ← addVeilDefinitionAsync nmInt eInt
-    let nmExt_fullyQualified ← addVeilDefinitionAsync nmExt eExt
-   -- Make the definitions realizable / available for use
-    let mut definitions := #[nmExt_fullyQualified, nmInt_fullyQualified]
-    for d in definitions do
-      enableRealizationsForConst d
-      Elab.Term.applyAttributes d #[{name := `actSimp}]
-    -- TODO: do this asynchronously
-    -- AuxiliaryDefinitions.define mod nmDo doKind
+    let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
     AuxiliaryDefinitions.define mod nmInt intKind
-    AuxiliaryDefinitions.define mod nmExt extKind
-    -- defineAuxiliaryDeclarations pi (Option.some .internal) br nmInt nmInt_fullyQualified
-    -- defineAuxiliaryDeclarations pi (Option.some .external) br nmExt nmExt_fullyQualified
+
+    -- Procedures are never considered in their external view, so save some
+    -- time by not elaborating those definitions.
+    if pi matches .initializer | .action _ then do
+      let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
+      let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
+      AuxiliaryDefinitions.define mod nmExt extKind
   return mod
+
 
 end Veil
