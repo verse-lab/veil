@@ -126,6 +126,127 @@ def IteratedProd.patCmp {ts : List Type} (dec : ∀ ty ∈ ts, DecidableEq ty)
 
 end Iterated
 
+section SingleField
+
+variable (fieldComponents : List Type) (FieldBase : Type)
+
+local macro "⌞" t1:ident t2:ident* "⌟" : term => `($t1 $(Lean.mkIdent `fieldComponents) $t2:ident*)
+local macro "⌞_" t1:ident t2:ident* "⌟" : term => `(⌞ $t1 $(Lean.mkIdent `FieldBase) $t2:ident* ⌟)
+
+abbrev FieldUpdatePat : Type := IteratedProd <| List.map Option <| fieldComponents
+
+abbrev CanonicalField : Type := IteratedArrow FieldBase fieldComponents
+
+abbrev FieldUpdateDescr := List (⌞ FieldUpdatePat ⌟ × ⌞_ CanonicalField ⌟)
+
+def fieldUpdate
+  {fieldComponents : List Type}
+  {FieldBase : Type}
+  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty)
+  (favs : ⌞_ FieldUpdateDescr ⌟)
+  (vbase : ⌞_ CanonicalField ⌟)
+  (args : IteratedProd fieldComponents) : FieldBase :=
+  favs.foldr (fun (fa, v) acc =>
+    if fa.patCmp dec args then v.uncurry args else acc) (vbase.uncurry args)
+
+class FieldRepresentation (FieldTypeConcrete : Type) where
+  get : FieldTypeConcrete → ⌞_ CanonicalField ⌟
+  set : ⌞_ FieldUpdateDescr ⌟ → FieldTypeConcrete → FieldTypeConcrete
+
+class LawfulFieldRepresentation (FieldTypeConcrete : Type)
+  (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟) where
+  get_set_idempotent :
+    ∀ -- TODO not sure this should be made here in the argument, but using
+      -- the fact that all `DecidableEq` instances are equal, this will not
+      -- matter much?
+      (dec : ∀ ty ∈ fieldComponents, DecidableEq ty)
+      (fc : FieldTypeConcrete)
+      (favs : ⌞_ FieldUpdateDescr ⌟),
+      inst.get (inst.set favs fc) = IteratedArrow.curry (fieldUpdate dec favs (inst.get fc))
+  set_append :
+    ∀ (fc : FieldTypeConcrete)
+      (favs₁ favs₂ : ⌞_ FieldUpdateDescr ⌟),
+      inst.set favs₂ (inst.set favs₁ fc) = inst.set (favs₂ ++ favs₁) fc
+  set_nil :
+    ∀ {fc : FieldTypeConcrete}, inst.set [] fc = fc
+  set_get_idempotent :
+    ∀ (fc : FieldTypeConcrete) (fa : FieldUpdatePat fieldComponents),
+      inst.set [(fa, inst.get fc)] fc = fc
+
+instance canonicalFieldRepresentation {fieldComponents : List Type} {FieldBase : Type}
+  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty) :
+  (⌞_ FieldRepresentation ⌟) (⌞_ CanonicalField ⌟) where
+  get fc := fc
+  set favs fc := IteratedArrow.curry (fieldUpdate dec favs fc)
+
+instance canonicalFieldRepresentationLawful
+  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty) :
+  LawfulFieldRepresentation fieldComponents FieldBase (⌞_ CanonicalField ⌟)
+    -- TODO why synthesis fails here? is it because there is no `semiOutParam`, `outParam` or because of `dec`?
+    -- also, due to the synthesis failure, `inst` cannot be declared using `[]`
+    (inst := canonicalFieldRepresentation dec) where
+  get_set_idempotent := by
+    introv ; simp [FieldRepresentation.get, FieldRepresentation.set]
+    congr ; funext ; grind only   -- ?
+  set_get_idempotent := by
+    introv ; simp +unfoldPartialApp [fieldUpdate, FieldRepresentation.set, FieldRepresentation.get, IteratedArrow.curry_uncurry]
+  set_append := by
+    introv ; simp +unfoldPartialApp [fieldUpdate, FieldRepresentation.set, IteratedArrow.uncurry_curry]
+  set_nil := by
+    introv ; simp +unfoldPartialApp [FieldRepresentation.set, fieldUpdate, IteratedArrow.curry_uncurry]
+
+class FieldRepresentationEquivCanonical
+  (FieldTypeConcrete : Type)
+  (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟)
+  (getBack : ⌞_ CanonicalField ⌟ → FieldTypeConcrete) where
+  getBack_get_id : ∀ fc, getBack (inst.get fc) = fc
+  get_getBack_id : ∀ cf, inst.get (getBack cf) = cf
+  set : ∀ (dec : ∀ ty ∈ fieldComponents, DecidableEq ty) favs cf,
+    inst.get (inst.set favs (getBack cf)) = IteratedArrow.curry (fieldUpdate dec favs cf)
+
+theorem FieldRepresentationEquivCanonical.set' {fieldComponents : List Type} {FieldBase : Type}
+  {FieldTypeConcrete : Type}
+  [inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟]
+  {getBack : ⌞_ CanonicalField ⌟ → FieldTypeConcrete}
+  (h : ⌞_ FieldRepresentationEquivCanonical FieldTypeConcrete inst getBack ⌟)
+  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty) (favs fc) :
+  getBack (IteratedArrow.curry (fieldUpdate dec favs (inst.get fc))) = inst.set favs fc := by
+  have h1 := h.set dec favs (inst.get fc)
+  rw [h.getBack_get_id] at h1 ; rw [← h1, h.getBack_get_id]
+
+instance FieldRepresentationEquivCanonical.toLawful
+  (FieldTypeConcrete : Type)
+  (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟)
+  (getBack : ⌞_ CanonicalField ⌟ → FieldTypeConcrete)
+  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty)
+  (inst2 : ⌞_ FieldRepresentationEquivCanonical FieldTypeConcrete inst getBack ⌟)
+  : LawfulFieldRepresentation fieldComponents FieldBase FieldTypeConcrete
+    (inst := inst) where
+  set_nil := by
+    introv ; rw [← inst2.set' dec]
+    simp +unfoldPartialApp [fieldUpdate, IteratedArrow.curry_uncurry, inst2.getBack_get_id]
+  set_append := by
+    introv
+    rewrite (occs := .pos [3]) [← inst2.set' dec]
+    have tmp := (⌞_ canonicalFieldRepresentationLawful dec ⌟).set_append (fc := inst.get fc) favs₁ favs₂
+    dsimp only [FieldRepresentation.set] at tmp
+    rw [← tmp]
+    rewrite (occs := .pos [2]) [← inst2.get_getBack_id (IteratedArrow.curry _)]
+    rw [inst2.set' dec] ; rw [inst2.set' dec]
+  get_set_idempotent := by
+    introv ; rewrite (occs := .pos [1]) [← inst2.getBack_get_id fc, inst2.set dec] ; rfl
+  set_get_idempotent := by
+    introv
+    rewrite (occs := .pos [2, 3]) [← inst2.getBack_get_id fc]
+    rewrite (occs := .pos [1]) [← inst2.getBack_get_id (FieldRepresentation.set _ _)]
+    rw [inst2.set dec]
+    have tmp := (⌞_ canonicalFieldRepresentationLawful dec ⌟).set_get_idempotent (fc := inst.get fc) fa
+    rewrite (occs := .pos [3]) [← tmp] ; rfl
+
+end SingleField
+
+#exit
+
 section FieldDefinitions
 
 variable {FieldLabel : Type} (fieldComponents : FieldLabel → List Type)
@@ -154,10 +275,12 @@ def fieldUpdate
   favs.foldr (fun (fa, v) acc =>
     if fa.patCmp dec args then v.uncurry args else acc) (vbase.uncurry args)
 
+/-
 -- TODO this might have the not-necessarily-separate issue
 class StateRepresentation (St : Type u) (FieldType : FieldLabel → Type) where
   getField : (f : FieldLabel) → St → FieldType f
   setField : {f : FieldLabel} → St → FieldType f → St
+-/
 
 class FieldRepresentation (FieldTypeConcrete : FieldLabel → Type) where
   get : {f : FieldLabel} → FieldTypeConcrete f → ⌞_ CanonicalField f ⌟
