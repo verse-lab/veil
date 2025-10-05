@@ -2,6 +2,7 @@ import Std
 import Mathlib.Tactic.Basic
 import Mathlib.Tactic.ProxyType
 import Mathlib.Tactic.CongrExclamation
+import Mathlib.Data.FinEnum
 
 /-! # Generic Interface for State Representation
 
@@ -75,14 +76,68 @@ TODO
 namespace Veil
 
 -- NOTE: Currently, the following does not consider universe polymorphism.
+-- TODO any way to specialize all these dependently-typed definitions to make them faster?
+-- maybe some are not necessary since these are only used for proofs?
 
 section Iterated
 
 abbrev IteratedProd (ts : List Type) : Type :=
   ts.foldr Prod Unit
 
+abbrev IteratedProd' (ts : List Type) : Type :=
+  match ts with
+  | [] => Unit
+  | t :: ts' => t × IteratedProd ts'
+
 abbrev IteratedArrow (base : Type) (ts : List Type) : Type :=
   ts.foldr (· → ·) base
+
+-- TODO what about the representation in the form of `IteratedProd (ts.map ...)`?
+
+abbrev List.typesAllDecidableEq (ts : List Type) := ∀ ty ∈ ts, DecidableEq ty
+
+abbrev List.typesAllHashable (ts : List Type) := ∀ ty ∈ ts, Hashable ty
+
+abbrev List.typesAllFinEnum (ts : List Type) := ∀ ty ∈ ts, FinEnum ty
+
+-- TODO deriving `Ord` for `IteratedProd` and `IteratedProd'`
+
+instance instDecidableEqIteratedProd (inst : List.typesAllDecidableEq ts) : DecidableEq (IteratedProd ts) :=
+  match ts with
+  | [] => inferInstanceAs (DecidableEq Unit)
+  | t :: ts' =>
+    let : DecidableEq t := inst t (by simp)
+    let inst' : List.typesAllDecidableEq ts' := fun ty h => inst ty (by simp ; exact Or.inr h)
+    let := instDecidableEqIteratedProd inst'
+    inferInstanceAs (DecidableEq (t × IteratedProd ts'))
+
+instance instDecidableEqIteratedProd' (inst : List.typesAllDecidableEq ts) : DecidableEq (IteratedProd' ts) :=
+  match ts with
+  | [] => inferInstanceAs (DecidableEq Unit)
+  | _ :: _ => instDecidableEqIteratedProd inst
+
+instance instHashableIteratedProd (inst : List.typesAllHashable ts) : Hashable (IteratedProd ts) :=
+  match ts with
+  | [] => inferInstanceAs (Hashable Unit)
+  | t :: ts' =>
+    let : Hashable t := inst t (by simp)
+    let inst' : List.typesAllHashable ts' := fun ty h => inst ty (by simp ; exact Or.inr h)
+    let := instHashableIteratedProd inst'
+    inferInstanceAs (Hashable (t × IteratedProd ts'))
+
+instance instHashableIteratedProd' (inst : List.typesAllHashable ts) : Hashable (IteratedProd' ts) :=
+  match ts with
+  | [] => inferInstanceAs (Hashable Unit)
+  | _ :: _ => instHashableIteratedProd inst
+
+def IteratedProd.cartesianProduct (ts : List Type)
+  -- slight lazy
+  (elements : IteratedProd (ts.map (Unit → List ·))) : List (IteratedProd ts) :=
+  match ts, elements with
+  | [], _ => [()]
+  | _ :: ts', (lis, elements) =>
+    let res := IteratedProd.cartesianProduct ts' elements
+    List.product (lis ()) res
 
 def IteratedArrow.curry {base : Type} {ts : List Type}
   (k : (IteratedProd ts) → base) : IteratedArrow base ts :=
@@ -116,13 +171,17 @@ theorem IteratedArrow.uncurry_curry {base : Type} {ts : List Type}
     rcases args with ⟨a, args⟩
     simp [IteratedArrow.curry, IteratedArrow.uncurry, ih]
 
-def IteratedProd.patCmp {ts : List Type} (dec : ∀ ty ∈ ts, DecidableEq ty)
-  (po : IteratedProd (ts.map Option)) (p : IteratedProd ts) : Bool :=
+-- TODO any existing way to define this kind of shortcutting comparison function?
+-- TODO any way to avoid inserting such local proofs? will they affect performance?
+def IteratedProd.patCmp {ts : List Type} {T : Type → Type}
+  (cmp : ∀ {ty : Type} [DecidableEq ty], T ty → ty → Bool)
+  (dec : List.typesAllDecidableEq ts)
+  (po : IteratedProd (ts.map T)) (p : IteratedProd ts) : Bool :=
   match ts, po, p with
   | [], (), () => true
   | t :: _, (o, po'), (x, p') =>
-    (o.elim true (fun y => @decide (y = x) (dec t (by simp) _ _)))
-    && IteratedProd.patCmp (fun ty h => dec ty (by simp ; exact (Or.inr h))) po' p'
+    (@cmp _ (dec t (by simp)) o x)
+    && IteratedProd.patCmp cmp (fun ty h => dec ty (by simp ; exact (Or.inr h))) po' p'
 
 end Iterated
 
@@ -142,12 +201,14 @@ abbrev FieldUpdateDescr := List (⌞ FieldUpdatePat ⌟ × ⌞_ CanonicalField �
 def fieldUpdate
   {fieldComponents : List Type}
   {FieldBase : Type}
-  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty)
+  (dec : List.typesAllDecidableEq fieldComponents)
   (favs : ⌞_ FieldUpdateDescr ⌟)
   (vbase : ⌞_ CanonicalField ⌟)
   (args : IteratedProd fieldComponents) : FieldBase :=
-  favs.foldr (fun (fa, v) acc =>
-    if fa.patCmp dec args then v.uncurry args else acc) (vbase.uncurry args)
+  favs.foldr (init := vbase.uncurry args) fun (fa, v) acc =>
+    if fa.patCmp (fun o x => o.elim true (fun y => decide (y = x))) dec args
+    then v.uncurry args
+    else acc
 
 class FieldRepresentation (FieldTypeConcrete : Type) where
   get : FieldTypeConcrete → ⌞_ CanonicalField ⌟
@@ -159,7 +220,7 @@ class LawfulFieldRepresentation (FieldTypeConcrete : Type)
     ∀ -- TODO not sure this should be made here in the argument, but using
       -- the fact that all `DecidableEq` instances are equal, this will not
       -- matter much?
-      (dec : ∀ ty ∈ fieldComponents, DecidableEq ty)
+      (dec : List.typesAllDecidableEq fieldComponents)
       (fc : FieldTypeConcrete)
       (favs : ⌞_ FieldUpdateDescr ⌟),
       inst.get (inst.set favs fc) = IteratedArrow.curry (fieldUpdate dec favs (inst.get fc))
@@ -174,13 +235,13 @@ class LawfulFieldRepresentation (FieldTypeConcrete : Type)
       inst.set [(fa, inst.get fc)] fc = fc
 
 instance canonicalFieldRepresentation {fieldComponents : List Type} {FieldBase : Type}
-  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty) :
+  (dec : List.typesAllDecidableEq fieldComponents) :
   (⌞_ FieldRepresentation ⌟) (⌞_ CanonicalField ⌟) where
-  get fc := fc
+  get := id
   set favs fc := IteratedArrow.curry (fieldUpdate dec favs fc)
 
 instance canonicalFieldRepresentationLawful
-  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty) :
+  (dec : List.typesAllDecidableEq fieldComponents) :
   LawfulFieldRepresentation fieldComponents FieldBase (⌞_ CanonicalField ⌟)
     -- TODO why synthesis fails here? is it because there is no `semiOutParam`, `outParam` or because of `dec`?
     -- also, due to the synthesis failure, `inst` cannot be declared using `[]`
@@ -201,7 +262,7 @@ class FieldRepresentationEquivCanonical
   (getBack : ⌞_ CanonicalField ⌟ → FieldTypeConcrete) where
   getBack_get_id : ∀ fc, getBack (inst.get fc) = fc
   get_getBack_id : ∀ cf, inst.get (getBack cf) = cf
-  set : ∀ (dec : ∀ ty ∈ fieldComponents, DecidableEq ty) favs cf,
+  set : ∀ (dec : List.typesAllDecidableEq fieldComponents) favs cf,
     inst.get (inst.set favs (getBack cf)) = IteratedArrow.curry (fieldUpdate dec favs cf)
 
 theorem FieldRepresentationEquivCanonical.set' {fieldComponents : List Type} {FieldBase : Type}
@@ -209,7 +270,7 @@ theorem FieldRepresentationEquivCanonical.set' {fieldComponents : List Type} {Fi
   [inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟]
   {getBack : ⌞_ CanonicalField ⌟ → FieldTypeConcrete}
   (h : ⌞_ FieldRepresentationEquivCanonical FieldTypeConcrete inst getBack ⌟)
-  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty) (favs fc) :
+  (dec : List.typesAllDecidableEq fieldComponents) (favs fc) :
   getBack (IteratedArrow.curry (fieldUpdate dec favs (inst.get fc))) = inst.set favs fc := by
   have h1 := h.set dec favs (inst.get fc)
   rw [h.getBack_get_id] at h1 ; rw [← h1, h.getBack_get_id]
@@ -218,7 +279,7 @@ instance FieldRepresentationEquivCanonical.toLawful
   (FieldTypeConcrete : Type)
   (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟)
   (getBack : ⌞_ CanonicalField ⌟ → FieldTypeConcrete)
-  (dec : ∀ ty ∈ fieldComponents, DecidableEq ty)
+  (dec : List.typesAllDecidableEq fieldComponents)
   (inst2 : ⌞_ FieldRepresentationEquivCanonical FieldTypeConcrete inst getBack ⌟)
   : LawfulFieldRepresentation fieldComponents FieldBase FieldTypeConcrete
     (inst := inst) where
@@ -243,122 +304,113 @@ instance FieldRepresentationEquivCanonical.toLawful
     have tmp := (⌞_ canonicalFieldRepresentationLawful dec ⌟).set_get_idempotent (fc := inst.get fc) fa
     rewrite (occs := .pos [3]) [← tmp] ; rfl
 
+section HashSetOrMapAsField
+
+-- HMM might be interesting to use a hybrid representation; e.g.,
+-- a pair of hashset/map and a function
+
+instance (priority := high + 1)
+  : FieldRepresentation [] FieldBase FieldBase where
+  get := id
+  set favs fc := List.head? favs |>.elim fc Prod.snd
+
+abbrev HashSetForIteratedProd {ts : List Type}
+  (instd : List.typesAllDecidableEq ts)
+  (insth : List.typesAllHashable ts) :=
+  @Std.HashSet (IteratedProd ts)
+    (@instBEqOfDecidableEq _ (instDecidableEqIteratedProd instd))
+    (instHashableIteratedProd insth)
+
+-- NOTE: It might be overly strong to require `FinEnum` here. In general,
+-- a footprint can be computed from the `fieldUpdatePattern`, and we only
+-- need to impose the finiteness condition on the footprint.
+-- However, using `FinEnum` is much easier to implement, so we start with
+-- it first.
+
+-- CHECK will writing this in a recursive way, instead of constructing
+-- all things to be (potentially) modified, be more efficient?
+
+-- CHECK another chance to make things more efficient is to exploit
+-- some properties of the description. for example, if the description
+-- is `false`, then we only need to examine the entries that are already
+-- in the hashset.
+-- this might be related to how queries are optimized in database queries.
+
+def HashSetForIteratedProd.update {ts : List Type}
+  {instd : List.typesAllDecidableEq ts}
+  {insth : List.typesAllHashable ts}
+  (instfin : List.typesAllFinEnum ts)
+  (fa : FieldUpdatePat ts)
+  (v : CanonicalField ts Bool)
+  (hs : HashSetForIteratedProd instd insth) : HashSetForIteratedProd instd insth :=
+  sorry
+  -- let prods := IteratedProd.cartesianProduct ts (fun ty h => @FinEnum.toList ty (instfin ty h))
+  -- let mut hs := hs
+  -- for p in prods do
+  --   if !hs.contains p then
+  --     hs := hs.insert p
+  -- sorry
+
+  -- (dec : List.typesAllDecidableEq ts)
+  -- (favs : List (IteratedProd (List.map Option ts) × IteratedArrow FieldBase ts))
+
+  -- (args : IteratedProd ts) : FieldBase :=
+  -- favs.foldr (init := if hs.contains args then true else false) fun (fa, v) acc =>
+  --   if fa.patCmp (fun o x => o.elim true (fun y => decide (y = x))) dec args
+  --   then v.uncurry args
+  --   else acc
+
+-- NOTE: At the implementation level, usually there will be only one update
+-- pattern and one value, so currently do not consider optimization for the
+-- multiple patterns & values case.
+-- TODO there are two ways of implementation: (1) `fold` and (2) `let mut` with loop.
+-- which is faster? do both use the object linearly?
+def HashSetForIteratedProd.updateMulti {ts : List Type}
+  {instd : List.typesAllDecidableEq ts}
+  {insth : List.typesAllHashable ts}
+  (instfin : List.typesAllFinEnum ts)
+  (favs : FieldUpdateDescr ts Bool)
+  (hs : HashSetForIteratedProd instd insth) : HashSetForIteratedProd instd insth := Id.run do
+  let mut res := hs
+  for (fa, v) in favs do
+    res := res.update instfin fa v
+  return res
+
+abbrev HashSetForIteratedProd' {ts : List Type}
+  (instd : List.typesAllDecidableEq ts)
+  (insth : List.typesAllHashable ts) :=
+  @Std.HashSet (IteratedProd' ts)
+    (@instBEqOfDecidableEq _ (instDecidableEqIteratedProd' instd))
+    (instHashableIteratedProd' insth)
+
+-- TODO this is very awkward ... due to the use of `IteratedArrow.curry`,
+-- we cannot directly use `IteratedProd'` here
+-- also, might also need to reflect on the interface of `get`; does it
+-- introduce unnecessary overhead?
+instance (priority := high)
+  (instd : List.typesAllDecidableEq fieldComponents)
+  (insth : List.typesAllHashable fieldComponents)
+  (instfin : List.typesAllFinEnum fieldComponents)
+  : FieldRepresentation fieldComponents Bool
+  (HashSetForIteratedProd instd insth) where
+  get fc := IteratedArrow.curry fun args => Std.HashSet.contains fc args
+  set favs fc := fc.updateMulti instfin favs
+
+#check Std.TreeSet
+
+end HashSetOrMapAsField
+
+-- section TreeSetOrMapAsField
+
+-- instance (priority := high) : FieldRepresentation fieldComponents Bool
+--   (Std.TreeSet (IteratedProd' fieldComponents)) where
+--   get : FieldTypeConcrete → ⌞_ CanonicalField ⌟
+--   set : ⌞_ FieldUpdateDescr ⌟ → FieldTypeConcrete → FieldTypeConcrete
+
+-- #check Std.TreeSet
+
+-- end TreeSetOrMapAsField
+
 end SingleField
-
-#exit
-
-section FieldDefinitions
-
-variable {FieldLabel : Type} (fieldComponents : FieldLabel → List Type)
-  (FieldBase : FieldLabel → Type) (f : FieldLabel)
-
-local macro "⌞" t1:ident t2:ident* "⌟" : term => `($t1 $(Lean.mkIdent `fieldComponents) $t2:ident*)
-local macro "⌞_" t1:ident t2:ident* "⌟" : term => `($t1 $(Lean.mkIdent `fieldComponents) $(Lean.mkIdent `FieldBase) $t2:ident*)
-
-abbrev FieldUpdatePat : Type := IteratedProd <| List.map Option <| fieldComponents f
-
-abbrev CanonicalField : Type := IteratedArrow (FieldBase f) (fieldComponents f)
-
-abbrev CanonicalFields : Type := ∀ f, ⌞_ CanonicalField f ⌟
-
-abbrev FieldUpdateDescr :=
-  List (⌞ FieldUpdatePat f ⌟ × ⌞_ CanonicalField f ⌟)
-
-def fieldUpdate
-  {fieldComponents : FieldLabel → List Type}
-  {FieldBase : FieldLabel → Type}
-  {f : FieldLabel}
-  (dec : ∀ ty ∈ fieldComponents f, DecidableEq ty)
-  (favs : ⌞_ FieldUpdateDescr f ⌟)
-  (vbase : ⌞_ CanonicalField f ⌟)
-  (args : IteratedProd (fieldComponents f)) : FieldBase f :=
-  favs.foldr (fun (fa, v) acc =>
-    if fa.patCmp dec args then v.uncurry args else acc) (vbase.uncurry args)
-
-/-
--- TODO this might have the not-necessarily-separate issue
-class StateRepresentation (St : Type u) (FieldType : FieldLabel → Type) where
-  getField : (f : FieldLabel) → St → FieldType f
-  setField : {f : FieldLabel} → St → FieldType f → St
--/
-
-class FieldRepresentation (FieldTypeConcrete : FieldLabel → Type) where
-  get : {f : FieldLabel} → FieldTypeConcrete f → ⌞_ CanonicalField f ⌟
-  set : {f : FieldLabel} → ⌞_ FieldUpdateDescr f ⌟ → FieldTypeConcrete f → FieldTypeConcrete f
-
-class LawfulStateRepresentation (St : Type u) (FieldType : FieldLabel → Type)
-  [inst : StateRepresentation St FieldType] where
-  getField_setField_idempotent :
-    ∀ {f : FieldLabel} (st : St) (fc : FieldType f),
-      inst.getField _ (inst.setField st fc) = fc
-  setField_setField_last :
-    ∀ {f : FieldLabel} (st : St) (fc₁ fc₂ : FieldType f),
-      inst.setField (inst.setField st fc₁) fc₂ = inst.setField st fc₂
-  setField_getField_idempotent :
-    ∀ (f : FieldLabel) (st : St),
-      inst.setField st (inst.getField f st) = st
-
-class LawfulFieldRepresentation (FieldTypeConcrete : FieldLabel → Type)
-  (inst : FieldRepresentation fieldComponents FieldBase FieldTypeConcrete) where
-  get_set_idempotent :
-    ∀ {f : FieldLabel}
-      -- TODO not sure this should be made here in the argument, but using
-      -- the fact that all `DecidableEq` instances are equal, this will not
-      -- matter much?
-      (dec : ∀ ty ∈ fieldComponents f, DecidableEq ty)
-      (fc : FieldTypeConcrete f)
-      (favs : ⌞_ FieldUpdateDescr f ⌟),
-      inst.get (inst.set favs fc) = IteratedArrow.curry (fieldUpdate dec favs (inst.get fc))
-  set_append :
-    ∀ (f : FieldLabel) (fc : FieldTypeConcrete f)
-      (favs₁ favs₂ : ⌞_ FieldUpdateDescr f ⌟),
-      inst.set favs₂ (inst.set favs₁ fc) = inst.set (favs₂ ++ favs₁) fc
-  set_nil :
-    ∀ {f : FieldLabel} {fc : FieldTypeConcrete f}, inst.set [] fc = fc
-  set_get_idempotent :
-    ∀ (f : FieldLabel) (fc : FieldTypeConcrete f) (fa : FieldUpdatePat fieldComponents f),
-      inst.set [(fa, inst.get fc)] fc = fc
-
--- side question: is it possible to prove something about `StateRepresentation`,
--- by proving something about the canonical representation?
--- this seems to be related to the idea of parametricity?
-
-variable [DecidableEq FieldLabel] in
-instance canonicalStateRepresentation : StateRepresentation (⌞_ CanonicalFields ⌟) (⌞_ CanonicalField ⌟) where
-  getField f st := st f
-  setField {f} st fc := fun l => if h : f = l then h ▸ fc else st l
-
-variable [DecidableEq FieldLabel] in
-instance : LawfulStateRepresentation (⌞_ CanonicalFields ⌟) (⌞_ CanonicalField ⌟) where
-  getField_setField_idempotent := by
-    introv ; simp [StateRepresentation.getField, StateRepresentation.setField]
-  setField_setField_last := by
-    introv ; simp [StateRepresentation.setField]
-    funext f ; split <;> ((try subst_eqs) ; (try simp))
-  setField_getField_idempotent := by
-    introv ; simp [StateRepresentation.setField, StateRepresentation.getField]
-    funext f ; split <;> ((try subst_eqs) ; (try simp))
-
-instance canonicalFieldRepresentation (dec : ∀ f, ∀ ty ∈ fieldComponents f, DecidableEq ty) :
-  FieldRepresentation fieldComponents FieldBase (⌞_ CanonicalField ⌟) where
-  get fc := fc
-  set {f} favs fc := IteratedArrow.curry (fieldUpdate (dec f) favs fc)
-
-instance (dec : ∀ f, ∀ ty ∈ fieldComponents f, DecidableEq ty) :
-  LawfulFieldRepresentation fieldComponents FieldBase (⌞_ CanonicalField ⌟)
-    -- TODO why synthesis fails here? is it because there is no `semiOutParam`, `outParam` or because of `dec`?
-    -- also, due to the synthesis failure, `inst` cannot be declared using `[]`
-    (inst := canonicalFieldRepresentation fieldComponents FieldBase dec) where
-  get_set_idempotent := by
-    introv ; simp [FieldRepresentation.get, FieldRepresentation.set]
-    congr ; funext ; grind only   -- ?
-  set_get_idempotent := by
-    introv ; simp +unfoldPartialApp [fieldUpdate, FieldRepresentation.set, FieldRepresentation.get, IteratedArrow.curry_uncurry]
-  set_append := by
-    introv ; simp +unfoldPartialApp [fieldUpdate, FieldRepresentation.set, IteratedArrow.uncurry_curry]
-  set_nil := by
-    introv ; simp +unfoldPartialApp [FieldRepresentation.set, fieldUpdate, IteratedArrow.curry_uncurry]
-
-end FieldDefinitions
 
 end Veil
