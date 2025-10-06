@@ -36,6 +36,8 @@ register_simp_attr invProof
 called. -/
 register_simp_attr ifSimp
 
+register_simp_attr fieldRepresentationSimp
+
 /-- To enable `assumption`s to be used as predicates. -/
 instance funOneArgBoolToProp : Coe (α → Bool) (α → Prop) where
   coe f a := f a = true
@@ -112,6 +114,27 @@ def dsimp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier :=
   let _usedTheorems := _stats.usedTheorems.toArray.map (·.key)
   trace[veil.debug] "dsimp {simps} (used: {_usedTheorems}):\n{e}\n~>\n{expr}"
   return { expr := expr }
+
+open Meta Elab Term in
+def elabInlineDSimp (idts : TSyntaxArray `ident) (t : TSyntax `term) (expectedType? : Option Expr) : TermElabM Simp.Result := do
+  let things := idts.map Syntax.getId
+  let t ← withSynthesize (postpone := .partial) do
+    elabTerm t expectedType?
+  synthesizeSyntheticMVars
+  let t ← instantiateMVars t
+  let res ← dsimp things {} t
+  return res
+
+syntax (name := inlineDSimpStx) "dsimp% " "[" ident* "] " term : term
+
+open Meta Elab Term in
+@[term_elab inlineDSimpStx]
+def elabDecidableReplace : TermElab := fun stx expectedType? =>
+  match stx with
+  | `(dsimp% [ $idts:ident* ] $t) => do
+    let res ← elabInlineDSimp idts t expectedType?
+    pure res.expr
+  | _ => throwUnsupportedSyntax
 
 end Simp
 

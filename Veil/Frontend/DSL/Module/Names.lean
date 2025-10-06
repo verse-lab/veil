@@ -62,5 +62,9 @@ def lawfulFieldRepresentation : Ident := mkIdent lawfulFieldRepresentationName
 
 def structureFieldLabelTypeName (base : Name) : Name := base ++ labelTypeName
 def structureFieldLabelType (base : Name) : Ident := mkIdent <| structureFieldLabelTypeName base
+def fieldToComponentsName (base : Name) : Name := structureFieldLabelTypeName base ++ `toComponents
+def fieldToComponents (base : Name) : Ident := mkIdent <| fieldToComponentsName base
+def fieldToBaseName (base : Name) : Name := structureFieldLabelTypeName base ++ `toBase
+def fieldToBase (base : Name) : Ident := mkIdent <| fieldToBaseName base
 
 end Veil

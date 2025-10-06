@@ -470,16 +470,13 @@ private def declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] 
       pure (← `([ $res,* ]), d)
   let (components, bases) := bundled.unzip
   let l := mkIdent `l
-  let tyName := structureFieldLabelTypeName base
-  let casesOnName := tyName ++ `casesOn
-  let toComponents := tyName ++ `toComponents
-  let toBase := tyName ++ `toBase
-  let params := params.push (← `(bracketedBinder| ($l : $(mkIdent tyName))))
-  let stx1 ← `(def $(mkIdent toComponents) $params* : List Type :=
+  let casesOnName := structureFieldLabelTypeName base ++ `casesOn
+  let params := params.push (← `(bracketedBinder| ($l : $(structureFieldLabelType base))))
+  let stx1 ← `(def $(fieldToComponents base) $params* : List Type :=
     $(mkIdent casesOnName) $l $components*)
-  let stx2 ← `(def $(mkIdent toBase) $params* : Type :=
+  let stx2 ← `(def $(fieldToBase base) $params* : Type :=
     $(mkIdent casesOnName) $l $bases*)
-  return ((toComponents, stx1), (toBase, stx2))
+  return ((fieldToComponentsName base, stx1), (fieldToBaseName base, stx2))
 
 def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
   let components := mod.mutableComponents
@@ -601,15 +598,19 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
   let casesOnState ← delabVeilExpr $ mkConst $ (stateName ++ `casesOn)
   let (th, st, motive) := (mkIdent `th, mkIdent `st, mkIdent `motive)
+  let body ← if !mod._useStateRepTC then pure t else
+    let fields ← getFieldIdentsForStruct stateName
+    fields.foldrM (init := t) fun f b => do
+      `(let $f:ident := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
   let fn ← `(term|(fun ($th : $environmentTheory) ($st : $environmentState) =>
     @$(casesOnTheory) $(← mod.sortIdents)*
     ($motive := fun _ => Prop)
     ($(mkIdent ``readFrom) $th) <|
     (fun $[$(← getFieldIdentsForStruct theoryName)]* =>
-      @$(casesOnState) $(← mod.sortIdents)*
+      @$(casesOnState) $(← mod.sortIdents mod._useStateRepTC)*
       ($motive := fun _ => Prop)
       ($(mkIdent ``getFrom) $st)
-      (fun $[$(← getFieldIdentsForStruct stateName)]* => $t))))
+      (fun $[$(← getFieldIdentsForStruct stateName)]* => ($body)))))
   -- NOTE(SUBTLE): `by veil_exact_theory` and `by veil_exact_state` work in a
   -- counter-intuitive way when applied to assertions. Concretely, these tactics
   -- always construct a term of type `Theory` and `State` respectively (rather

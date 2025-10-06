@@ -44,18 +44,37 @@ def makeTheoryAvailable [Monad m] [MonadEnv m] [MonadQuotation m] (mod : Module)
   let bindFields ← mod.immutableComponents.mapM (fun f => return ← `(Term.doSeqItem| let $(mkIdent f.name) := $(mkIdent thVar).$(mkIdent f.name)))
   return #[readTheory] ++ bindFields
 
+private abbrev concreteFieldFromName (nm : Name) : Ident := mkIdent <| Name.mkSimple s!"{nm}_conc"
+
 /-- Called in the preamble, to make available `let mut` binders for the state. Only called once. -/
-def makeStateAvailable [Monad m] [MonadEnv m] [MonadQuotation m] (mod : Module) : m (Array doSeqItem) := do
+def makeStateAvailable [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array doSeqItem) := do
   let stVar := mkVeilImplementationDetailName `state
   let getState ← `(Term.doSeqItem| let mut $(mkIdent stVar) := (← $(mkIdent ``get)))
-  let bindFields ← mod.mutableComponents.mapM (fun f => return ← `(Term.doSeqItem| let mut $(mkIdent f.name) := $(mkIdent stVar).$(mkIdent f.name)))
+  let bindFields ← mod.mutableComponents.flatMapM fun f => do
+    if mod._useStateRepTC then
+      let concreteField := concreteFieldFromName f.name
+      -- annotating the type here is necessary to avoid unification issues
+      let ty ← f.typeStx
+      let b1 ← `(Term.doSeqItem| let mut $concreteField := $(mkIdent stVar).$(mkIdent f.name))
+      let b2 ← `(Term.doSeqItem| let mut $(mkIdent f.name) : $ty := ($fieldRepresentation _).$(mkIdent `get) $concreteField)
+      return #[b1, b2]
+    else
+      return #[← `(Term.doSeqItem| let mut $(mkIdent f.name) := $(mkIdent stVar).$(mkIdent f.name))]
   return #[getState] ++ bindFields
 
 /-- Refresh the state variables. -/
-def getState [Monad m] [MonadEnv m] [MonadQuotation m] (mod : Module) : m (Array doSeqItem) := do
+def getState [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array doSeqItem) := do
   let stVar := mkVeilImplementationDetailName `state
   let getState ← `(Term.doSeqItem| $(mkIdent stVar):ident := (← $(mkIdent ``get)))
-  let bindFields ← mod.mutableComponents.mapM (fun f => return ← `(Term.doSeqItem| $(mkIdent f.name):ident := $(mkIdent stVar).$(mkIdent f.name)))
+  let bindFields ← mod.mutableComponents.flatMapM fun f => do
+    if mod._useStateRepTC then
+      -- slightly repeating code, but anyway
+      let concreteField := concreteFieldFromName f.name
+      let b1 ← `(Term.doSeqItem| $concreteField:ident := $(mkIdent stVar).$(mkIdent f.name))
+      let b2 ← `(Term.doSeqItem| $(mkIdent f.name):ident := ($fieldRepresentation _).$(mkIdent `get) $concreteField)
+      return #[b1, b2]
+    else
+      return #[← `(Term.doSeqItem| $(mkIdent f.name):ident := $(mkIdent stVar).$(mkIdent f.name))]
   return #[getState] ++ bindFields
 
 macro_rules
@@ -136,7 +155,7 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   | `(Term.doSeqItem|$t:term) =>
     let b := mkIdent <| ← mkFreshUserName `_bind
     let bind ← `(Term.doSeqItem| let $b:ident ← $t:term)
-    return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| pure $b:ident)]
+    return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| $(mkIdent ``pure):ident $b:ident)]
   -- For any other do-notation element, we pesimistically refresh the
   -- binders for the state variables, as the state might have changed
   | doE => return #[doE] ++ (← getState mod)
@@ -150,14 +169,44 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
   let name := id.getId
   -- we are assigning to a structure field (probably a child module's state)
   let isStructureAssignment := !name.isAtomic
-  let isFieldUpdate := name ∈ (mod.signature.map (·.name))
-  if isStructureAssignment || !isFieldUpdate then
+  let component := mod.signature.find? (·.name = name)
+  if isStructureAssignment || component.isNone then
     -- TODO: throwIfImmutable
     let res ← `(Term.doSeqItem| $id:ident := $t:term)
     return #[res]
   else
+    let .some component := component | unreachable!
     -- TODO: throwIfImmutable
     let bindId := mkIdent <| ← mkFreshUserName $ (mkVeilImplementationDetailName $ Name.mkSimple s!"bind_{id.getId}")
+    if mod._useStateRepTC then
+      let (pat, v) := match t with
+        | `(term| $f:ident [ $[$idxs],* ↦ $v ]) =>
+          if f.getId = name then (idxs, v) else (#[], t)
+        | _ => (#[], t)
+      -- NOTE: here slightly deviates from how `pat` is handled in `TupleUpdate`;
+      -- namely, turn every Capital identifier into `none`
+      -- NOTE: the actual pattern size might be smaller than `pat.size`, since
+      -- the base can be a function; we shrink the size according to how
+      -- `toComponents` is generated
+      let componentsSize := match component.type with
+        | .simple _ => 0
+        | .complex b _ => b.size
+      let actualPatSize := min pat.size componentsSize
+      let patOpt ← pat.take actualPatSize |>.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
+      let funBinders : Array (TSyntax `Lean.Parser.Term.funBinder) ←
+        pat.mapM fun i => if isCapital i.raw.getId then `(Term.funBinder| $(⟨i.raw⟩):ident ) else `(Term.funBinder| _ )
+      let vPadded ← if funBinders.isEmpty then pure v else `(fun $[$funBinders]* => ($v))
+      let components ← `($(fieldToComponents stateName)
+        $(← mod.sortIdents):ident*
+        $(mkIdent <| structureFieldLabelTypeName stateName ++ name):ident)
+      let patTerm ← `(dsimp% [$(mkIdent `fieldRepresentationSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
+      let concreteField := concreteFieldFromName name
+      let bind ← `(Term.doSeqItem| let $bindId:ident := ($fieldRepresentation _).$(mkIdent `setSingle) ($patTerm) ($vPadded) $concreteField)
+      let modifyGetConcrete ← withRef stx `(Term.doSeqItem| $concreteField:ident ← $(mkIdent ``modifyGet):ident
+        (fun $(mkIdent `st):ident => (($bindId, {$(mkIdent `st) with $id:ident := $bindId}))))
+      -- this line also appeared above
+      let getAgain ← `(Term.doSeqItem| $(mkIdent name):ident := ($fieldRepresentation _).$(mkIdent `get) $concreteField)
+      return #[bind, modifyGetConcrete, getAgain]
     let bind ← `(Term.doSeqItem| let $bindId:ident := $t:term)
     let res ← withRef stx `(Term.doSeqItem| $id:ident ← $(mkIdent ``modifyGet):ident
     (fun $(mkIdent `st):ident => (($bindId, {$(mkIdent `st) with $id:ident := $bindId}))))
@@ -193,5 +242,7 @@ getDoElems (stx : doSeq) : TermElabM (Array doSeqItem) := do
 
 elab (name := VeilDo) "veil_do" name:ident "in" readerTp:term "," stateTp:term "in" instx:doSeq : term => do
   elabVeilDo name.getId readerTp stateTp instx
+
+attribute [fieldRepresentationSimp] FieldUpdatePat.pad IteratedArrow.curry IteratedProd.default HAppend.hAppend IteratedProd.append Eq.mp
 
 end Veil

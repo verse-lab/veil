@@ -95,6 +95,24 @@ abbrev IteratedProd' (ts : List Type) : Type :=
 abbrev IteratedArrow (base : Type) (ts : List Type) : Type :=
   ts.foldr (· → ·) base
 
+def IteratedProd.append {ts1 ts2 : List Type}
+  (p1 : IteratedProd ts1) (p2 : IteratedProd ts2) : IteratedProd (ts1 ++ ts2) :=
+  match ts1, p1 with
+  | [], _ => p2
+  | _ :: _, (a, p1) => (a, IteratedProd.append p1 p2)
+
+instance : HAppend (IteratedProd ts1) (IteratedProd ts2)
+  (IteratedProd (ts1 ++ ts2)) where
+  hAppend := IteratedProd.append
+
+def IteratedProd.default {ts : List Type}
+  {T : Type → Type}
+  (default : ∀ (ty : Type), T ty)
+  : IteratedProd (ts.map T) :=
+  match ts with
+  | [] => ()
+  | t :: _ => (default t, IteratedProd.default default)
+
 def IteratedArrow.curry {base : Type} {ts : List Type}
   (k : (IteratedProd ts) → base) : IteratedArrow base ts :=
   match ts with
@@ -269,6 +287,13 @@ abbrev CanonicalField : Type := IteratedArrow FieldBase fieldComponents
 
 abbrev FieldUpdateDescr := List (⌞ FieldUpdatePat ⌟ × ⌞_ CanonicalField ⌟)
 
+def FieldUpdatePat.pad (n : Nat) : IteratedArrow (FieldUpdatePat fieldComponents)
+    (fieldComponents.take n |>.map Option) :=
+  IteratedArrow.curry fun args => (by
+    let res := args ++ IteratedProd.default (ts := fieldComponents.drop n) (@Option.none)
+    simp at res
+    exact res)
+
 def FieldUpdatePat.match
   {fieldComponents : List Type}
   (dec : IteratedProd (fieldComponents.map DecidableEq))
@@ -312,6 +337,13 @@ theorem FieldUpdatePat.footprint_match_iff
 class FieldRepresentation (FieldTypeConcrete : Type) where
   get : FieldTypeConcrete → ⌞_ CanonicalField ⌟
   set : ⌞_ FieldUpdateDescr ⌟ → FieldTypeConcrete → FieldTypeConcrete
+
+-- a handy notation
+abbrev FieldRepresentation.setSingle {fieldComponents : List Type}
+  {FieldBase FieldTypeConcrete : Type}
+  [self : ⌞_ FieldRepresentation FieldTypeConcrete ⌟]
+  (fa : ⌞ FieldUpdatePat ⌟) (v : ⌞_ CanonicalField ⌟) (fc : FieldTypeConcrete) : FieldTypeConcrete :=
+  self.set [(fa, v)] fc
 
 -- TODO can this be declared as `instance`?
 def FieldRepresentation.mkFromSingleSet {fieldComponents : List Type}
