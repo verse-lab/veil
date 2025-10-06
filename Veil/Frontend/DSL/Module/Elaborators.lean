@@ -123,15 +123,23 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
-  let (mod, stxs) ← mod.declareStateFieldLabelTypeAndDispatchers
-  let (mod, stateStx) ← mod.declareFieldsAbstractedStateStructure
-  let (mod, theoryStx) ← mod.declareTheoryStructure
-  for stx in stxs do
-    elabVeilCommand stx
-  elabVeilCommand stateStx
-  elabVeilCommand theoryStx
-  generateIgnoreFn mod
-  return { mod with _stateDefined := true }
+  if mod._useStateRepTC then
+    let (mod, stxs) ← mod.declareStateFieldLabelTypeAndDispatchers
+    let (mod, stateStx) ← mod.declareFieldsAbstractedStateStructure
+    let (mod, theoryStx) ← mod.declareTheoryStructure
+    for stx in stxs do
+      elabVeilCommand stx
+    elabVeilCommand stateStx
+    elabVeilCommand theoryStx
+    generateIgnoreFn mod
+    return { mod with _stateDefined := true }
+  else
+    let (mod, stateStx) ← mod.declareStateStructure
+    let (mod, theoryStx) ← mod.declareTheoryStructure
+    elabVeilCommand stateStx
+    elabVeilCommand theoryStx
+    generateIgnoreFn mod
+    return { mod with _stateDefined := true }
 
 
 /-- Crystallizes the specification of the module, i.e. it finalizes the

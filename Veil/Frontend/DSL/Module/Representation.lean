@@ -326,6 +326,8 @@ structure Module where
   independently of each other. Sets are per-module. By default, all
   assertions are added to the same set. -/
   protected _assertionSets : Std.HashMap Name (Std.HashSet Name) := Std.HashMap.emptyWithCapacity
+
+  protected _useStateRepTC : Bool := false
 deriving Inhabited
 
 def Module.defaultAssertionSet (mod : Module) : Name := mod.name
