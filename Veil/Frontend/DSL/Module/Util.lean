@@ -4,6 +4,7 @@ import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Infra.State
+import Veil.Frontend.DSL.Infra.GenericInterface
 import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
 
@@ -481,13 +482,25 @@ private def declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] 
   return ((toComponents, stx1), (toBase, stx2))
 
 def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
-  let (name0, stx0) ← declareStructureFieldLabelType stateName mod.mutableComponents
-  let ((name1, stx1), (name2, stx2)) ← declareFieldDispatchers stateName mod.mutableComponents (← mod.sortBinders)
+  let components := mod.mutableComponents
+  let (name0, stx0) ← declareStructureFieldLabelType stateName components
+  let ((name1, stx1), (name2, stx2)) ← declareFieldDispatchers stateName components (← mod.sortBinders)
   for name in [name0, name1, name2] do
     mod.throwIfAlreadyDeclared name
   -- add the `fieldConcreteType` parameter
   let fieldConcreteTypeParam ← Parameter.fieldConcreteType
-  return ({ mod with parameters := mod.parameters.push fieldConcreteTypeParam, _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter }, #[stx0, stx1, stx2])
+  -- add the related typeclasses
+  let f := mkIdent `f
+  let paramsArgs ← mod.sortIdents
+  let toComponentsTerm ← `(($(mkIdent name1) $paramsArgs* $f))
+  let toBaseTerm ← `(($(mkIdent name2) $paramsArgs* $f))
+  let fieldConcreteTypeApplied ← `(($fieldConcreteType $f))
+  let fieldRepType ← `(∀ $f, $(mkIdent ``FieldRepresentation) $toComponentsTerm $toBaseTerm $fieldConcreteTypeApplied)
+  let fieldRep : Parameter := { kind := .moduleTypeclass .fieldRepresentation, name := fieldRepresentationName, «type» := fieldRepType, userSyntax := .missing }
+  let lawfulFieldRepType ← `(∀ $f, $(mkIdent ``LawfulFieldRepresentation) $toComponentsTerm $toBaseTerm $fieldConcreteTypeApplied ($fieldRepresentation $f))
+  let lawfulFieldRep : Parameter := { kind := .moduleTypeclass .lawfulFieldRepresentation, name := lawfulFieldRepresentationName, «type» := lawfulFieldRepType, userSyntax := .missing }
+  return ({ mod with parameters := mod.parameters ++ #[fieldConcreteTypeParam, fieldRep, lawfulFieldRep] ,
+                     _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter }, #[stx0, stx1, stx2])
 
 def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubStateName

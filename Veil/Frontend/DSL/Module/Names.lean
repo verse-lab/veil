@@ -55,6 +55,10 @@ def assembledNextAct : Ident := mkIdent assembledNextActName
 
 def fieldConcreteTypeName : Name := `χ
 def fieldConcreteType : Ident := mkIdent fieldConcreteTypeName
+def fieldRepresentationName : Name := `χ_rep
+def fieldRepresentation : Ident := mkIdent fieldRepresentationName
+def lawfulFieldRepresentationName : Name := `χ_rep_lawful
+def lawfulFieldRepresentation : Ident := mkIdent lawfulFieldRepresentationName
 
 def structureFieldLabelTypeName (base : Name) : Name := base ++ labelTypeName
 def structureFieldLabelType (base : Name) : Ident := mkIdent <| structureFieldLabelTypeName base
