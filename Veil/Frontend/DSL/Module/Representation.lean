@@ -20,6 +20,10 @@ inductive ModuleTypeClassKind where
   /-- This typeclass assumption relates to the state of the environment
   that this module operates in. -/
   | environmentState
+  /-- Should look like: `∀ f, FieldRepresentation (State.Label.toComponents f) (State.Label.toBase f) fc` -/
+  | fieldRepresentation
+  /-- Should look like: `∀ f, LawfulFieldRepresentation _ _ _ (... f)` -/
+  | lawfulFieldRepresentation
   /-- This typeclass assumption was made explicitly by the user. -/
   | userDefined
 deriving Inhabited, BEq
@@ -35,6 +39,8 @@ inductive ParameterKind where
   operates in. The module's own background theory will be a sub-reader
   of this. -/
   | backgroundTheory -- i.e. `ρ`
+  /-- Just as the name indicates. -/
+  | fieldConcreteType -- i.e. `fc`
   /-- A typeclass assumption this module makes -/
   | moduleTypeclass (kind : ModuleTypeClassKind)
   /-- A typeclass assumption that _a particular definition_ makes.

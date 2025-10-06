@@ -53,5 +53,10 @@ def labelCases: Ident := mkIdent labelCasesName
 def assembledNextActName : Name := `NextAct
 def assembledNextAct : Ident := mkIdent assembledNextActName
 
+def fieldConcreteTypeName : Name := `χ
+def fieldConcreteType : Ident := mkIdent fieldConcreteTypeName
+
+def structureFieldLabelTypeName (base : Name) : Name := base ++ labelTypeName
+def structureFieldLabelType (base : Name) : Ident := mkIdent <| structureFieldLabelTypeName base
 
 end Veil

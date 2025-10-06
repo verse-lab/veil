@@ -122,6 +122,9 @@ def Parameter.environmentState [Monad m] [MonadQuotation m] : m Parameter :=
 def Parameter.mode [Monad m] [MonadQuotation m] : m Parameter :=
   return { kind := .mode, name := veilModeVar.getId, «type» := mkIdent ``Mode, userSyntax := .missing }
 
+def Parameter.fieldConcreteType [Monad m] [MonadQuotation m] : m Parameter :=
+  return { kind := .fieldConcreteType, name := fieldConcreteTypeName, «type» := ← `($(structureFieldLabelType stateName) → Type), userSyntax := .missing }
+
 def Module.freshWithName [Monad m] [MonadQuotation m] (name : Name) : m Module := do
   let params := #[← Parameter.environmentTheory, ← Parameter.environmentState]
   return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], _declarations := .emptyWithCapacity, _derivedDefinitions := .emptyWithCapacity }
@@ -285,11 +288,14 @@ private def Module.sortFilterMapFn [Monad m] [MonadQuotation m] (mod : Module) (
   | .uninterpretedSort => f p
   | _ => pure .none
 
-def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
-  mod.sortFilterMapFn (·.binder)
+def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) (withFieldConcreteType? : Bool := false) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
+  mod.sortFilterMapFn (·.binder) >>= (fun x => if withFieldConcreteType? then
+    Parameter.fieldConcreteType >>= Parameter.binder >>= (pure <| x.push ·)
+  else pure x)
 
-def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
-  mod.sortFilterMapFn (·.ident)
+def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) (withFieldConcreteType? : Bool := false) : m (Array Ident) := do
+  mod.sortFilterMapFn (·.ident) >>= (fun x =>
+    pure (if withFieldConcreteType? then x.push fieldConcreteType else x))
 
 def Module.assumptions (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .assumption)
@@ -315,8 +321,8 @@ def Module.trustedInvariants (mod : Module) : Array StateAssertion :=
 def Module.safeties (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .safety)
 
-def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
-  return ← `(term| @$(mkIdent stateName) $(← mod.sortIdents)*)
+def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (withFieldConcreteType? : Bool := false) : m Term :=
+  return ← `(term| @$(mkIdent stateName) $(← mod.sortIdents withFieldConcreteType?)*)
 
 def Module.theoryStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent theoryName) $(← mod.sortIdents)*)
@@ -402,8 +408,8 @@ def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Mo
 
 /-- Given a list of state components, return the syntax for a structure
 definition including those components. -/
-private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (name : Name) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (components : Array StateComponent) (deriveInstances : Bool := true): m Syntax := do
-  let fields ← components.mapM StateComponent.getSimpleBinder
+private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (name : Name) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (deriveInstances : Bool := true)
+  (fields : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)) : m Syntax := do
   if deriveInstances then
     `(structure $(mkIdent name) $params* where
         $(mkIdent `mk):ident :: $[$fields]*
@@ -415,17 +421,78 @@ private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (
 /-- Syntax for *defining* the mutable state of a module as a `structure`. The
 syntax for the type is `mod.stateStx`. -/
 private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
-  structureDefinitionStx stateName (← mod.sortBinders) mod.mutableComponents (deriveInstances := true)
+  structureDefinitionStx stateName (← mod.sortBinders) (deriveInstances := true)
+    (← mod.mutableComponents.mapM fun sc => sc.getSimpleBinder)
+
+/-- Similar to `Module.stateDefinitionStx` but each field of `State` is
+abstracted by a function from its label to a certain type. -/
+private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
+  let stateLabelTypeName := structureFieldLabelTypeName stateName
+  let fields ← mod.mutableComponents.mapM fun sc => do
+    let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
+    `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $ty)
+  structureDefinitionStx stateName (← mod.sortBinders true) (deriveInstances := false) fields
 
 /-- Syntax for *defining* the immutable background theory of a module as a
 `structure`. The syntax for the type is `mod.theoryStx`. -/
 private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
-  structureDefinitionStx theoryName (← mod.sortBinders) mod.immutableComponents (deriveInstances := false)
+  structureDefinitionStx theoryName (← mod.sortBinders) (deriveInstances := false)
+    (← mod.immutableComponents.mapM fun sc => sc.getSimpleBinder)
 
 def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
   let stx ← mod.stateDefinitionStx
   let stateStx ← mod.stateStx
+  let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stx)
+
+/-- Declare an inductive type with each constructor corresponding to each
+field of `State` (i.e., each `State` component). -/
+private def declareStructureFieldLabelType [Monad m] [MonadQuotation m] [MonadError m] (base : Name) (components : Array StateComponent) : m (Name × TSyntax `command) := do
+  let fields ← components.mapM fun sc => `(Command.ctor| | $(mkIdent sc.name):ident )
+  let name := structureFieldLabelTypeName base
+  let res ← `(inductive $(mkIdent name) : Type where $[$fields]*)
+  return (name, res)
+
+/-- Declare dispatchers that given the label for a specific field, returns
+the types of its arguments and its codomain. -/
+private def declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (base : Name) (components : Array StateComponent) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) : m ((Name × TSyntax `command) × (Name × TSyntax `command)) := do
+  let bundled ← components.mapM fun sc => do
+    match sc.type with
+    | .simple t => -- FIXME: improve this later
+      pure (← `([]), ← getSimpleBinderType t)
+    | .complex b d =>
+      -- overlapped with `complexBinderToSimpleBinder`
+      let res ← b.mapM fun m => match m with
+        | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
+        | _ => throwError "unable to extract type from binder {m}"
+      pure (← `([ $res,* ]), d)
+  let (components, bases) := bundled.unzip
+  let l := mkIdent `l
+  let tyName := structureFieldLabelTypeName base
+  let casesOnName := tyName ++ `casesOn
+  let toComponents := tyName ++ `toComponents
+  let toBase := tyName ++ `toBase
+  let params := params.push (← `(bracketedBinder| ($l : $(mkIdent tyName))))
+  let stx1 ← `(def $(mkIdent toComponents) $params* : List Type :=
+    $(mkIdent casesOnName) $l $components*)
+  let stx2 ← `(def $(mkIdent toBase) $params* : Type :=
+    $(mkIdent casesOnName) $l $bases*)
+  return ((toComponents, stx1), (toBase, stx2))
+
+def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
+  let (name0, stx0) ← declareStructureFieldLabelType stateName mod.mutableComponents
+  let ((name1, stx1), (name2, stx2)) ← declareFieldDispatchers stateName mod.mutableComponents (← mod.sortBinders)
+  for name in [name0, name1, name2] do
+    mod.throwIfAlreadyDeclared name
+  -- add the `fieldConcreteType` parameter
+  let fieldConcreteTypeParam ← Parameter.fieldConcreteType
+  return ({ mod with parameters := mod.parameters.push fieldConcreteTypeParam, _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter }, #[stx0, stx1, stx2])
+
+def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
+  mod.throwIfAlreadyDeclared environmentSubStateName
+  let stx ← mod.fieldsAbstractedStateDefinitionStx
+  let stateStx ← mod.stateStx true
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stx)
 

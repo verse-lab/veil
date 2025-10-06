@@ -123,8 +123,11 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
-  let (mod, stateStx) ← mod.declareStateStructure
+  let (mod, stxs) ← mod.declareStateFieldLabelTypeAndDispatchers
+  let (mod, stateStx) ← mod.declareFieldsAbstractedStateStructure
   let (mod, theoryStx) ← mod.declareTheoryStructure
+  for stx in stxs do
+    elabVeilCommand stx
   elabVeilCommand stateStx
   elabVeilCommand theoryStx
   generateIgnoreFn mod
