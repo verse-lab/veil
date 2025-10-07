@@ -210,6 +210,13 @@ instance instHashableIteratedProd' (inst : List.typesAll Hashable ts) : Hashable
 
 end ListTypeAll
 
+section IteratedProdInstances
+
+macro "infer_instance_for_iterated_prod" : tactic =>
+  `(tactic| repeat' (first | constructor | infer_instance ))
+
+end IteratedProdInstances
+
 -- TODO any existing way to define this kind of shortcutting comparison function?
 -- maybe something like `fold₂`? or use thunks?
 def IteratedProd.patCmp {ts : List Type} {T : Type → Type}

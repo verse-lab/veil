@@ -36,7 +36,8 @@ register_simp_attr invProof
 called. -/
 register_simp_attr ifSimp
 
-register_simp_attr fieldRepresentationSimp
+register_simp_attr fieldRepresentationPatSimp
+register_simp_attr fieldRepresentationGetSetSimp
 
 /-- To enable `assumption`s to be used as predicates. -/
 instance funOneArgBoolToProp : Coe (α → Bool) (α → Prop) where

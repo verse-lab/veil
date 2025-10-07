@@ -199,7 +199,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       let components ← `($(fieldToComponents stateName)
         $(← mod.sortIdents):ident*
         $(mkIdent <| structureFieldLabelTypeName stateName ++ name):ident)
-      let patTerm ← `(dsimp% [$(mkIdent `fieldRepresentationSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
+      let patTerm ← `(dsimp% [$(mkIdent `fieldRepresentationPatSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
       let concreteField := concreteFieldFromName name
       let bind ← `(Term.doSeqItem| let $bindId:ident := ($fieldRepresentation _).$(mkIdent `setSingle) ($patTerm) ($vPadded) $concreteField)
       let modifyGetConcrete ← withRef stx `(Term.doSeqItem| $concreteField:ident ← $(mkIdent ``modifyGet):ident
@@ -243,6 +243,11 @@ getDoElems (stx : doSeq) : TermElabM (Array doSeqItem) := do
 elab (name := VeilDo) "veil_do" name:ident "in" readerTp:term "," stateTp:term "in" instx:doSeq : term => do
   elabVeilDo name.getId readerTp stateTp instx
 
-attribute [fieldRepresentationSimp] FieldUpdatePat.pad IteratedArrow.curry IteratedProd.default HAppend.hAppend IteratedProd.append Eq.mp
+attribute [fieldRepresentationPatSimp] FieldUpdatePat.pad IteratedArrow.curry IteratedProd.default HAppend.hAppend IteratedProd.append Eq.mp
+attribute [fieldRepresentationGetSetSimp] FieldUpdateDescr.fieldUpdate FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
+attribute [fieldRepresentationGetSetSimp] List.foldr Option.elim
+  Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff
+  Bool.false_eq_true false_and
+attribute [fieldRepresentationGetSetSimp ↓] reduceIte
 
 end Veil

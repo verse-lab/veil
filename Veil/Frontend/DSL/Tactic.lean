@@ -57,6 +57,7 @@ syntax (name := veil_destruct) "veil_destruct" (colGt ident)* : tactic
 syntax (name := veil_destruct_goal) "veil_destruct_goal" : tactic
 
 syntax (name := veil_concretize_state) "veil_concretize_state" : tactic
+syntax (name := veil_concretize_fields) "veil_concretize_fields" : tactic
 
 syntax (name := veil_intros) "veil_intros" : tactic
 syntax (name := veil_fol) "veil_fol" : tactic
@@ -95,7 +96,7 @@ def elabVeilRenameHyp (xs ys : Array Syntax) := do
 /-- Hypotheses which should not be touched by our tactics and which
 should not be sent to the SMT solver. -/
 def hypsToIgnore : List Name := [``IsSubReaderOf, ``IsSubStateOf,
-  ``Inhabited, ``Nonempty, ``DecidableEq, ``Decidable]
+  ``Inhabited, ``Nonempty, ``DecidableEq, ``Decidable, ``FieldRepresentation, ``LawfulFieldRepresentation]
 
 /-- Get all the names of the propositions found in the context. This
 ignores some Veil-specific typeclasses that should not be sent to the
@@ -111,7 +112,7 @@ def getPropsInContext : TacticM (Array Ident) := do
   return idents
   where
     hypShouldBeIgnored (hyp : LocalDecl) : TacticM Bool := do
-      let isIgnored := match hyp.type.getAppFn.constName? with
+      let isIgnored := match hyp.type.getForallBody.getAppFn.constName? with
         | .none => false
         | .some sn => hypsToIgnore.contains sn
       let typ ← whnf hyp.type
@@ -206,6 +207,49 @@ where
         abstractStateHyps := abstractStateHyps.push (.backgroundTheory, hyp)
     return abstractStateHyps
 
+/-- Similar idea to `elabVeilConcretizeState`, but for fields when
+`FieldRepresentation` is used. This also does simplification using
+`LawfulFieldRepresentation` and unfolds the `fieldUpdate`s. -/
+def elabVeilConcretizeFields : TacticM Unit := veilWithMainContext do
+  let lctx ← getLCtx
+  let some hyp := lctx.findDecl? (fun decl =>
+    if decl.type.getForallBody.getAppFn.constName? == Option.some ``FieldRepresentation
+    then .some decl else .none) | return
+  let some lawfulRep := lctx.findDecl? (fun decl =>
+    if decl.type.getForallBody.getAppFn.constName? == Option.some ``LawfulFieldRepresentation
+    then .some (mkIdent decl.userName) else .none) | return
+  -- get the state label type
+  let .forallE _ dom _ _ := hyp.type | return
+  let some labelTypeName := dom.constName? | return
+  -- get the state from the hypothesis by ... some hack
+  let stateTypeName := labelTypeName.getPrefix
+  let some stHyp := lctx.findDecl? (fun decl =>
+    if decl.type.getAppFn'.constName? == Option.some stateTypeName
+    then .some decl else .none) | return
+  let fields ← getFieldIdentsForStruct stateTypeName
+  -- (1) do basic simplification using `LawfulFieldRepresentation`
+  let mut tacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq) := #[]
+  tacs := tacs.push <| ← do
+    let tmp := #[``FieldRepresentation.setSingle, ``LawfulFieldRepresentationSet.set_append, ``List.singleton_append].map Lean.mkIdent
+    `(tacticSeq| veil_simp only [$[$tmp:ident],*])
+  -- (2) simplify using `get_set_idempotent`
+  let simpTerms ← fields.mapM fun f =>
+    `(($lawfulRep .$f).$(mkIdent `get_set_idempotent) (by infer_instance_for_iterated_prod))
+  tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$[$simpTerms:term],*] at *)
+  -- (3) simplify the resulting things
+  let localSimpTerms := #[fieldToComponents stateName, fieldToBase stateName]
+  tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$(mkIdent `fieldRepresentationGetSetSimp):ident, $[$localSimpTerms:ident],*] at *)
+  -- (4) concretize the `FieldRepresentation.get`-ed fields
+  let rep := mkIdent hyp.userName
+  let st := mkIdent stHyp.userName
+  for f in fields do
+    let f : Ident := ⟨f.raw⟩
+    let tmpField := mkIdent <| mkVeilImplementationDetailName f.getId
+    tacs := tacs.push <| ← `(tacticSeq| generalize (($rep _).$(mkIdent `get)) $st.$f = $tmpField at * ; dsimp [$[$localSimpTerms:ident],*] at $tmpField:ident ; veil_rename_hyp $tmpField:ident => $f:ident)
+
+  for t in tacs do
+    veilWithMainContext $ veilEvalTactic t
+
 def elabVeilSmt (stx : Syntax) (trace : Bool := false) : TacticM Unit := veilWithMainContext do
   let idents ← getPropsInContext
   let solverOptions ← `(term| [("finite-model-find", "true"), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
@@ -250,7 +294,7 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident,] at *; veil_concretize_state; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
+  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident,] at *; veil_concretize_state; veil_concretize_fields; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
@@ -274,6 +318,7 @@ elab_rules : tactic
   | `(tactic| veil_clear $ids:ident*) => do withTiming "veil_clear" $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do withTiming "veil_destruct_goal" elabVeilDestructGoal
   | `(tactic| veil_concretize_state) => do withTiming "veil_concretize_state" elabVeilConcretizeState
+  | `(tactic| veil_concretize_fields) => do withTiming "veil_concretize_fields" elabVeilConcretizeFields
   | `(tactic| veil_smt%$tk) => do withTiming "veil_smt" $ elabVeilSmt tk
   | `(tactic| veil_smt?%$tk) => do withTiming "veil_smt?" $ elabVeilSmt tk true
   | `(tactic| veil_simp $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp" $ elabVeilSimp (trace? := false) o params loc
