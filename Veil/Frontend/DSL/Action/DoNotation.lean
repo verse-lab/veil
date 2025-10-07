@@ -189,10 +189,10 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       -- the base can be a function; we shrink the size according to how
       -- `toComponents` is generated
       let componentsSize := mod._fieldRepMetaData.get? name |>.elim 0 (·.size)
-      let (patOpt, patResidue) := (pat.take componentsSize, pat.drop componentsSize)
-      let patOpt ← patOpt.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
+      let (patUsed, patResidue) := (pat.take componentsSize, pat.drop componentsSize)
+      let patOpt ← patUsed.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
       let funBinders : Array (TSyntax `Lean.Parser.Term.funBinder) ←
-        patOpt.mapM fun i => if isCapital i.raw.getId then `(Term.funBinder| $(⟨i.raw⟩):ident ) else `(Term.funBinder| _ )
+        patUsed.mapM fun i => if isCapital i.raw.getId then `(Term.funBinder| $(⟨i.raw⟩):ident ) else `(Term.funBinder| _ )
       let v ← if patResidue.isEmpty then pure v else `($(mkIdent name):ident [ $[$patResidue],* ↦ $v ])
       let vPadded ← if funBinders.isEmpty then pure v else `(fun $[$funBinders]* => ($v))
       let components ← `($(fieldToComponents stateName)
