@@ -123,7 +123,7 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
-  if mod._useStateRepTC then
+  if mod._useFieldRepTC then
     let (mod, stxs) ← mod.declareStateFieldLabelTypeAndDispatchers
     let (mod, stateStx) ← mod.declareFieldsAbstractedStateStructure
     let (mod, theoryStx) ← mod.declareTheoryStructure

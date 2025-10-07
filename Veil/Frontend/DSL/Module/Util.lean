@@ -602,7 +602,7 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
   let casesOnState ← delabVeilExpr $ mkConst $ (stateName ++ `casesOn)
   let (th, st, motive) := (mkIdent `th, mkIdent `st, mkIdent `motive)
-  let body ← if !mod._useStateRepTC then pure t else
+  let body ← if !mod._useFieldRepTC then pure t else
     let fields ← getFieldIdentsForStruct stateName
     fields.foldrM (init := t) fun f b => do
       `(let $f:ident := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
@@ -611,7 +611,7 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
     ($motive := fun _ => Prop)
     ($(mkIdent ``readFrom) $th) <|
     (fun $[$(← getFieldIdentsForStruct theoryName)]* =>
-      @$(casesOnState) $(← mod.sortIdents mod._useStateRepTC)*
+      @$(casesOnState) $(← mod.sortIdents mod._useFieldRepTC)*
       ($motive := fun _ => Prop)
       ($(mkIdent ``getFrom) $st)
       (fun $[$(← getFieldIdentsForStruct stateName)]* => ($body)))))

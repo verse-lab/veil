@@ -327,7 +327,7 @@ structure Module where
   assertions are added to the same set. -/
   protected _assertionSets : Std.HashMap Name (Std.HashSet Name) := Std.HashMap.emptyWithCapacity
 
-  protected _useStateRepTC : Bool := false
+  protected _useFieldRepTC : Bool := true
 
   protected _fieldRepMetaData : Std.HashMap Name (Array Term) := Std.HashMap.emptyWithCapacity
 deriving Inhabited

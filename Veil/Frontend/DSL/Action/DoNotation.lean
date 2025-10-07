@@ -51,7 +51,7 @@ def makeStateAvailable [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] 
   let stVar := mkVeilImplementationDetailName `state
   let getState ← `(Term.doSeqItem| let mut $(mkIdent stVar) := (← $(mkIdent ``get)))
   let bindFields ← mod.mutableComponents.flatMapM fun f => do
-    if mod._useStateRepTC then
+    if mod._useFieldRepTC then
       let concreteField := concreteFieldFromName f.name
       -- annotating the type here is necessary to avoid unification issues
       let ty ← f.typeStx
@@ -67,7 +67,7 @@ def getState [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] (mod : Mod
   let stVar := mkVeilImplementationDetailName `state
   let getState ← `(Term.doSeqItem| $(mkIdent stVar):ident := (← $(mkIdent ``get)))
   let bindFields ← mod.mutableComponents.flatMapM fun f => do
-    if mod._useStateRepTC then
+    if mod._useFieldRepTC then
       -- slightly repeating code, but anyway
       let concreteField := concreteFieldFromName f.name
       let b1 ← `(Term.doSeqItem| $concreteField:ident := $(mkIdent stVar).$(mkIdent f.name))
@@ -178,7 +178,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
     -- let .some component := component | unreachable!
     -- TODO: throwIfImmutable
     let bindId := mkIdent <| ← mkFreshUserName $ (mkVeilImplementationDetailName $ Name.mkSimple s!"bind_{id.getId}")
-    if mod._useStateRepTC then
+    if mod._useFieldRepTC then
       let (pat, v) := match t with
         | `(term| $f:ident [ $[$idxs],* ↦ $v ]) =>
           if f.getId = name then (idxs, v) else (#[], t)
