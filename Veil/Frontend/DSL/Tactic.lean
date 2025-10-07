@@ -232,9 +232,9 @@ def elabVeilConcretizeFields : TacticM Unit := veilWithMainContext do
   tacs := tacs.push <| ← do
     let tmp := #[``FieldRepresentation.setSingle, ``LawfulFieldRepresentationSet.set_append, ``List.singleton_append].map Lean.mkIdent
     `(tacticSeq| veil_simp only [$[$tmp:ident],*])
-  -- (2) simplify using `get_set_idempotent`
+  -- (2) simplify using `get_set_idempotent'`
   let simpTerms ← fields.mapM fun f =>
-    `(($lawfulRep .$f).$(mkIdent `get_set_idempotent) (by infer_instance_for_iterated_prod))
+    `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
   tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$[$simpTerms:term],*] at *)
   -- (3) simplify the resulting things
   let localSimpTerms := #[fieldToComponents stateName, fieldToBase stateName]
