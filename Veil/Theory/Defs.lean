@@ -62,7 +62,7 @@ section Theory
 macro "[DemonSucc|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice ExceptionAsSuccess in $t)
 macro "[DemonFail|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice ExceptionAsFailure in $t)
 macro "[AngelFail|" t:term "]" : term =>  `(open TotalCorrectness AngelicChoice ExceptionAsFailure in $t)
-macro "[CanRaise" ex:term "|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice in let _ : IsHandler (ε := ExId) $ex := ⟨⟩; $t)
+macro "[IgnoreEx" ex:term "|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice in let _ : IsHandler (ε := ExId) $ex := ⟨⟩; $t)
 
 variable {m : Mode} {ρ σ α : Type}
 
@@ -148,14 +148,14 @@ end OperationalSemantics
 
 section DerivingSemantics
 
-def VeilM.canRaise (ex : Set ExId) (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
-  [CanRaise ex| triple pre act (fun _ => ⊤)]
+def VeilM.succeedsWhenIgnoring (ex : Set ExId) (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
+  [IgnoreEx ex| triple pre act (fun _ => ⊤)]
 
 def VeilSpecM.toTwoStateDerived (spec : VeilSpecM ρ σ α) : TwoState ρ σ :=
   fun r₀ s₀ s₁ => spec.inv (fun _ r s => r = r₀ ∧ s = s₁) r₀ s₀
 
 def VeilM.toTwoStateDerived (act : VeilM m ρ σ α) : TwoState ρ σ :=
-  [CanRaise (fun _ => True)| VeilSpecM.toTwoStateDerived <| wp act]
+  [IgnoreEx (fun _ => True)| VeilSpecM.toTwoStateDerived <| wp act]
 
 def TwoState.toVeilM (act : TwoState ρ σ) : VeilM m ρ σ Unit := do
   let st' ← pick σ

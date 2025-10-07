@@ -185,7 +185,7 @@ def defineWpForAction (vs : Array Expr)
   (actName : Name) (br : Option (TSyntax `Lean.explicitBinders)) (isInit : Bool := false) : TermElabM
   (Name × Option Expr) :=
   defineAndSimplify vs (toWpName actName) (fun sectionArgs args => `(fun hd $args* post =>
-    [CanRaise hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post]))
+    [IgnoreEx hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post]))
     [] #[`wpSimp, actName, `smtSimp, `quantifierSimp] br (if isInit then #[`initSimp] else #[])
 
 /-- Defines the weakest precondition for the action specialised to the case where the
@@ -267,7 +267,7 @@ def defineWpLemma (vs : Array Expr)
     (toWpLemmaName actName)
     (fun vd univBinders sectionArgs args =>
     `(forall $vd* hd $univBinders* post,
-      [CanRaise hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post =
+      [IgnoreEx hd| wp (@$(mkIdent actName) $sectionArgs* $args*) post =
       @$(mkIdent actWpName) $sectionArgs* hd $args* post]))
     actPf
     (some 1)

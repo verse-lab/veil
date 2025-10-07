@@ -5,7 +5,7 @@ lemma VeilExecM.wp_eq (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [DemonFail| wp act post = fun r s => wp (m := DivM) (act r s) (fun | .ok as => post as.1 r as.2 | .error _ => False)] ∧
   [DemonSucc| wp act post = fun r s => wp (m := DivM) (act r s) (fun | .ok as => post as.1 r as.2 | .error _ => True)] ∧
   [AngelFail| wp act post = fun r s => wp (m := DivM) (act r s) (fun | .ok as => post as.1 r as.2 | .error _ => False)] ∧
-  (∀ hd, [CanRaise hd| wp act post = fun r s => wp (m := DivM) (act r s) (fun | .ok as => post as.1 r as.2 | .error e => hd e)]) := by
+  (∀ hd, [IgnoreEx hd| wp act post = fun r s => wp (m := DivM) (act r s) (fun | .ok as => post as.1 r as.2 | .error e => hd e)]) := by
     simp [ReaderT.wp_eq, StateT.wp_eq, wp_tot_eq, wp_part_eq, wp_except_handler_eq, loomLogicSimp];
     (repeat' constructor) <;> congr! <;> ext <;> split <;> simp
 
@@ -51,13 +51,13 @@ lemma VeilM.triple_sound
 
 lemma VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
-  ⨅ ex, [CanRaise (· ≠ ex)| wp act (invEx ex)] <= [DemonFail| wp act (iInf invEx)] := by
+  ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] <= [DemonFail| wp act (iInf invEx)] := by
   intro r s; simp [VeilExecM.wp_eq, DivM.wp_eq]
   cases (act r s) <;> aesop (add safe simp loomLogicSimp)
 
 lemma VeilM.not_raises_imp_terminates_wp (act : VeilM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
-  ⨅ ex, [CanRaise (· ≠ ex)| wp act (invEx ex)] <= [DemonFail| wp act (iInf invEx)] := by
+  ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] <= [DemonFail| wp act (iInf invEx)] := by
   dsimp; unhygienic induction act <;> simp [-le_iInf_iff]
   { apply le_trans; apply VeilExecM.not_raises_imp_terminates_wp;
     open ExceptionAsFailure in apply wp_cons; intro y
@@ -66,9 +66,9 @@ lemma VeilM.not_raises_imp_terminates_wp (act : VeilM m ρ σ α)
   by_cases h : p i <;> simp [h,f_ih]
 
 lemma VeilM.not_raises_imp_terminates (act : VeilM m ρ σ α) (pre : SProp ρ σ) :
-  (∀ ex, act.canRaise (· ≠ ex) pre) ->
+  (∀ ex, act.succeedsWhenIgnoring (· ≠ ex) pre) ->
   act.doesNotThrow pre := by
-  unfold VeilM.canRaise VeilM.doesNotThrow triple
+  unfold VeilM.succeedsWhenIgnoring VeilM.doesNotThrow triple
   simp; rw [<-le_iInf_iff (ι := ExId)]; intro h;
   have : (⊤ : RProp α ρ σ) = iInf (fun (_ : ExId) => ⊤) := by simp
   rw [this]
@@ -78,7 +78,7 @@ section DerivingSemantics
 
 variable (act : VeilM m ρ σ α)
   (genWp : (ExId -> Prop) -> VeilSpecM ρ σ α)
-  (genWp_sound : ∀ hd, genWp hd <= [CanRaise hd| wp act])
+  (genWp_sound : ∀ hd, genWp hd <= [IgnoreEx hd| wp act])
 
 include genWp_sound
 

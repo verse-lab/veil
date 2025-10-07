@@ -76,13 +76,13 @@ lemma VeilM.toTwoState_complete (act : VeilM m ρ σ α) (chs : act.choices) :
   split <;> aesop
 
 lemma VeilExecM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
-  [CanRaise (fun _ => True)| iwp act post] = [AngelFail| wp act post] := by
+  [IgnoreEx (fun _ => True)| iwp act post] = [AngelFail| wp act post] := by
   simp [iwp, VeilExecM.wp_eq, TotalCorrectness.DivM.wp_eq, PartialCorrectness.DivM.wp_eq]
   ext r s; simp; cases (act r s) <;> simp [loomLogicSimp]
   rename_i x; cases x <;> simp
 
 lemma VeilM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilM m ρ σ α) (post : RProp α ρ σ) :
-  [CanRaise (fun _ => True)| iwp act post] = [AngelFail| wp act post] := by
+  [IgnoreEx (fun _ => True)| iwp act post] = [AngelFail| wp act post] := by
   unhygienic induction act <;> simp [iwp]
   { rw [<-VeilExecM.raises_true_imp_wp_eq_angel_fail_iwp]
     simp [iwp, <-f_ih, @Pi.compl_def] }
@@ -127,7 +127,7 @@ lemma VeilM.meetsSpecificationIfSuccessful_with_assumptions (act : VeilM m ρ σ
 
 lemma VeilM.terminates_preservesInvariants' (act : VeilM m ρ σ α)
   (assu : ρ → Prop) (inv : SProp ρ σ) :
-  (∀ ex, act.canRaise (· ≠ ex) (fun rd st => assu rd ∧ inv rd st)) →
+  (∀ ex, act.succeedsWhenIgnoring (· ≠ ex) (fun rd st => assu rd ∧ inv rd st)) →
   act.meetsSpecificationIfSuccessful (fun rd st => assu rd ∧ inv rd st) (fun _ => inv) →
   act.succeedsAndMeetsSpecification (fun rd st => assu rd ∧ inv rd st)
     (fun _ rd st => assu rd ∧ inv rd st) := by
@@ -166,7 +166,7 @@ section DerivingSemantics
 
 variable (act : VeilM m ρ σ α)
   (genWp : (ExId -> Prop) -> VeilSpecM ρ σ α)
-  (genWp_sound : ∀ hd, genWp hd <= [CanRaise hd| wp act])
+  (genWp_sound : ∀ hd, genWp hd <= [IgnoreEx hd| wp act])
 
 include genWp_sound
 
