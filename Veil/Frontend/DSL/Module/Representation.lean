@@ -328,6 +328,8 @@ structure Module where
   protected _assertionSets : Std.HashMap Name (Std.HashSet Name) := Std.HashMap.emptyWithCapacity
 
   protected _useStateRepTC : Bool := false
+
+  protected _fieldRepMetaData : Std.HashMap Name (Array Term) := Std.HashMap.emptyWithCapacity
 deriving Inhabited
 
 def Module.defaultAssertionSet (mod : Module) : Name := mod.name

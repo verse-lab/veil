@@ -175,7 +175,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
     let res ← `(Term.doSeqItem| $id:ident := $t:term)
     return #[res]
   else
-    let .some component := component | unreachable!
+    -- let .some component := component | unreachable!
     -- TODO: throwIfImmutable
     let bindId := mkIdent <| ← mkFreshUserName $ (mkVeilImplementationDetailName $ Name.mkSimple s!"bind_{id.getId}")
     if mod._useStateRepTC then
@@ -188,9 +188,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       -- NOTE: the actual pattern size might be smaller than `pat.size`, since
       -- the base can be a function; we shrink the size according to how
       -- `toComponents` is generated
-      let componentsSize := match component.type with
-        | .simple _ => 0
-        | .complex b _ => b.size
+      let componentsSize := mod._fieldRepMetaData.get? name |>.elim 0 (·.size)
       let (patOpt, patResidue) := (pat.take componentsSize, pat.drop componentsSize)
       let patOpt ← patOpt.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
       let funBinders : Array (TSyntax `Lean.Parser.Term.funBinder) ←

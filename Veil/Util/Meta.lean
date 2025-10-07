@@ -226,6 +226,16 @@ def getSimpleBinderType [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Com
   | `(Lean.Parser.Command.structSimpleBinder| $_:ident : $tp:term) => pure tp
   | _ => throwError s!"getSimpleBinderType: don't know how to handle {sig}"
 
+/-- Given `t : type1 → type2 → .. → typeN → codomain`,
+    return `([type1, type2, .., typeN], codomain)`.
+    Best efforts. A better way would be to use elaboration. -/
+partial def splitForallArgsCodomain [Monad m] [MonadError m] [MonadQuotation m] (t : Term) : m (Array Term × Term) := do
+  let rec go (t : Term) (acc : Array Term) : m (Array Term × Term) := do
+    match t with
+    | `(term| $a → $b) | `(term| ($_:ident : $a) → $b) | `(term| ∀ ($_:ident : $a), $b) => go b (acc.push a)
+    | _ => return (acc, t)
+  go t #[]
+
 /-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
 def mkArrowStx [Monad m] [MonadQuotation m] [MonadError m] (tps : List Term) (terminator : Option $ TSyntax `term := none) : m (TSyntax `term) := do
   match tps with

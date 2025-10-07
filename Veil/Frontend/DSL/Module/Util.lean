@@ -457,18 +457,8 @@ private def declareStructureFieldLabelType [Monad m] [MonadQuotation m] [MonadEr
 
 /-- Declare dispatchers that given the label for a specific field, returns
 the types of its arguments and its codomain. -/
-private def declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (base : Name) (components : Array StateComponent) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) : m ((Name × TSyntax `command) × (Name × TSyntax `command)) := do
-  let bundled ← components.mapM fun sc => do
-    match sc.type with
-    | .simple t => -- FIXME: improve this later
-      pure (← `([]), ← getSimpleBinderType t)
-    | .complex b d =>
-      -- overlapped with `complexBinderToSimpleBinder`
-      let res ← b.mapM fun m => match m with
-        | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
-        | _ => throwError "unable to extract type from binder {m}"
-      pure (← `([ $res,* ]), d)
-  let (components, bases) := bundled.unzip
+private def declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (base : Name) (argTypes : Array (Array Term)) (bases : Array Term) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) : m ((Name × TSyntax `command) × (Name × TSyntax `command)) := do
+  let components ← argTypes.mapM fun tps => `([ $[$tps],* ])
   let l := mkIdent `l
   let casesOnName := structureFieldLabelTypeName base ++ `casesOn
   let params := params.push (← `(bracketedBinder| ($l : $(structureFieldLabelType base))))
@@ -478,10 +468,23 @@ private def declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] 
     $(mkIdent casesOnName) $l $bases*)
   return ((fieldToComponentsName base, stx1), (fieldToBaseName base, stx2))
 
+private def analyzeTypesOfStateComponents [Monad m] [MonadQuotation m] [MonadError m] (components : Array StateComponent) : m (Array (Array Term × Term)) := do
+  components.mapM fun sc => do
+    match sc.type with
+    | .simple t => getSimpleBinderType t >>= splitForallArgsCodomain
+    | .complex b d =>
+      -- overlapped with `complexBinderToSimpleBinder`
+      let res ← b.mapM fun m => match m with
+        | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
+        | _ => throwError "unable to extract type from binder {m}"
+      pure (res, d)
+
 def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
   let components := mod.mutableComponents
+  let (argTypes, bases) ← Array.unzip <$> analyzeTypesOfStateComponents components
+  let argTypesAsMap : Std.HashMap Name (Array Term) := Std.HashMap.ofList (components.zipWith (fun sc args => (sc.name, args)) argTypes |>.toList)
   let (name0, stx0) ← declareStructureFieldLabelType stateName components
-  let ((name1, stx1), (name2, stx2)) ← declareFieldDispatchers stateName components (← mod.sortBinders)
+  let ((name1, stx1), (name2, stx2)) ← declareFieldDispatchers stateName argTypes bases (← mod.sortBinders)
   for name in [name0, name1, name2] do
     mod.throwIfAlreadyDeclared name
   -- add the `fieldConcreteType` parameter
@@ -497,7 +500,8 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   let lawfulFieldRepType ← `(∀ $f, $(mkIdent ``LawfulFieldRepresentation) $toComponentsTerm $toBaseTerm $fieldConcreteTypeApplied ($fieldRepresentation $f))
   let lawfulFieldRep : Parameter := { kind := .moduleTypeclass .lawfulFieldRepresentation, name := lawfulFieldRepresentationName, «type» := lawfulFieldRepType, userSyntax := .missing }
   return ({ mod with parameters := mod.parameters ++ #[fieldConcreteTypeParam, fieldRep, lawfulFieldRep] ,
-                     _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter }, #[stx0, stx1, stx2])
+                     _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter ,
+                     _fieldRepMetaData := argTypesAsMap }, #[stx0, stx1, stx2])
 
 def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
