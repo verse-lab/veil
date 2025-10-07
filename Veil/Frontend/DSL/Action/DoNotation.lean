@@ -70,8 +70,11 @@ def getState [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] (mod : Mod
     if mod._useFieldRepTC then
       -- slightly repeating code, but anyway
       let concreteField := concreteFieldFromName f.name
+      let ty ← f.typeStx
       let b1 ← `(Term.doSeqItem| $concreteField:ident := $(mkIdent stVar).$(mkIdent f.name))
-      let b2 ← `(Term.doSeqItem| $(mkIdent f.name):ident := ($fieldRepresentation _).$(mkIdent `get) $concreteField)
+      -- NOTE: it seems that the type annotation syntax is not allowed here,
+      -- so use the `id` hack
+      let b2 ← `(Term.doSeqItem| $(mkIdent f.name):ident := @$(mkIdent ``id) ($ty) (($fieldRepresentation _).$(mkIdent `get) $concreteField))
       return #[b1, b2]
     else
       return #[← `(Term.doSeqItem| $(mkIdent f.name):ident := $(mkIdent stVar).$(mkIdent f.name))]
@@ -175,7 +178,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
     let res ← `(Term.doSeqItem| $id:ident := $t:term)
     return #[res]
   else
-    -- let .some component := component | unreachable!
+    let .some component := component | unreachable!
     -- TODO: throwIfImmutable
     let bindId := mkIdent <| ← mkFreshUserName $ (mkVeilImplementationDetailName $ Name.mkSimple s!"bind_{id.getId}")
     if mod._useFieldRepTC then
@@ -203,8 +206,8 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       let bind ← `(Term.doSeqItem| let $bindId:ident := ($fieldRepresentation _).$(mkIdent `setSingle) ($patTerm) ($vPadded) $concreteField)
       let modifyGetConcrete ← withRef stx `(Term.doSeqItem| $concreteField:ident ← $(mkIdent ``modifyGet):ident
         (fun $(mkIdent `st):ident => (($bindId, {$(mkIdent `st) with $id:ident := $bindId}))))
-      -- this line also appeared above
-      let getAgain ← `(Term.doSeqItem| $(mkIdent name):ident := ($fieldRepresentation _).$(mkIdent `get) $concreteField)
+      -- this line also appeared above in `getState`
+      let getAgain ← `(Term.doSeqItem| $(mkIdent name):ident := @$(mkIdent ``id) ($(← component.typeStx)) (($fieldRepresentation _).$(mkIdent `get) $concreteField))
       return #[bind, modifyGetConcrete, getAgain]
     let bind ← `(Term.doSeqItem| let $bindId:ident := $t:term)
     let res ← withRef stx `(Term.doSeqItem| $id:ident ← $(mkIdent ``modifyGet):ident

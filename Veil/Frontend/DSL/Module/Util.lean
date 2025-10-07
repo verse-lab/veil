@@ -604,8 +604,13 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   let (th, st, motive) := (mkIdent `th, mkIdent `st, mkIdent `motive)
   let body ← if !mod._useFieldRepTC then pure t else
     let fields ← getFieldIdentsForStruct stateName
-    fields.foldrM (init := t) fun f b => do
-      `(let $f:ident := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
+    -- annotate types here, otherwise there can be issues like: for `f a`
+    -- where `f` has a complicated type but definitionally equal to `node → Bool`,
+    -- coercions will not be inserted to make `f a` into `Prop`
+    -- (notice that `decide` expects a `Prop` argument here)
+    let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
+    fields.zip fieldTypes |>.foldrM (init := t) fun (f, ty) b => do
+      `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
   let fn ← `(term|(fun ($th : $environmentTheory) ($st : $environmentState) =>
     @$(casesOnTheory) $(← mod.sortIdents)*
     ($motive := fun _ => Prop)
