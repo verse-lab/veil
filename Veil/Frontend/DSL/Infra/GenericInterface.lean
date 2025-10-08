@@ -423,7 +423,7 @@ end ListTypeAll
 section IteratedProdInstances
 
 macro "infer_instance_for_iterated_prod" : tactic =>
-  `(tactic| repeat' (first | constructor | infer_instance ))
+  `(tactic| repeat' (first | infer_instance | constructor ))
 
 end IteratedProdInstances
 
