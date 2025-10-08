@@ -3,6 +3,8 @@ import Mathlib.Tactic.Basic
 import Mathlib.Tactic.ProxyType
 import Mathlib.Tactic.CongrExclamation
 import Mathlib.Data.FinEnum
+import Mathlib.Data.UInt
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 
 /-! # Generic Interface for State Representation
 
@@ -567,3 +569,160 @@ end HashSetAsField
 end SingleField
 
 end Veil
+
+/-
+There are multiple things:
+- equality comparison (`BEq`? `DecidableEq`?)
+- finiteness inheritance (`FinEnum`?) namely,
+  how to relate the finiteness of (1) the state, (2) the state
+  representation, (3) the transition system?
+- hashability (`Hashable`?) and lawfulness (`LawfulHashable`?)
+- the abilities above, and their time/space complexities
+
+For comparison:
+- `DecidableEq` might be impossible sometimes (e.g., when the data
+  structure is too complicated)
+- Sometimes it is possible for `Ext`-data structures, but might be
+  expensive in time/space (for map, need to enumerate; for tree,
+  need to pay extra price)
+  - Usually in this case, the data structure is equivalent to
+    the _underlying_ state
+- Usually possible for some kind of `EquivBEq`
+  - Usually in this case, the data structure is equivalent to
+    the _underlying_ state _modulo this equivalence_
+
+For finiteness:
+- Usually inherited from the _underlying_ state through some kind
+  of equivalence
+- (We might care about this when we want to (1) enumerate states,
+  or (2) state a correctness theorem that _directly_ involves the
+  exhaustiveness of the state space)
+  - CHECK If we do not, what can we do? Is there any "refinement" there?
+
+For hashability:
+- Kind of orthogonal to the above two; lawfulness is usually
+  feasible. The key is the complexity (incremental?)
+
+-/
+
+-- just playing. maybe the following is all trivial
+
+class FinsetLike (β : Type v) [Membership α β] where
+  insert : (a : α) → (b : β) → a ∉ b → β
+  erase : (a : α) → (b : β) → a ∈ b → β
+
+/-
+class FinsetLikeEnumerate (β : Type v) [Membership α β] [inst : FinsetLike β] where
+  enumerate : β → Finset α
+  enumerate_mem_iff : ∀ (a : α) (b : β), a ∈ b ↔ a ∈ enumerate b
+
+class LawfulFinsetLike /- (α : outParam (Type u)) -/ (β : Type v)
+  [Membership α β] [inst : FinsetLike β] [DecidableEq α] where
+  insert_mem_iff : ∀ (a : α) (b : β) (h : a ∉ b),
+    ∀ x, x ∈ inst.insert a b h ↔ x = a ∨ x ∈ b
+  erase_mem_iff : ∀ (a : α) (b : β) (h : a ∈ b),
+    ∀ x, x ∈ inst.erase a b h ↔ x ≠ a ∧ x ∈ b
+-/
+
+class LawfulFinsetLike /- (α : outParam (Type u)) -/ (β : Type v)
+  [Membership α β] [inst : FinsetLike β] [DecidableEq α] where
+  toFinset : β → Finset α
+  toFinset_mem_iff : ∀ (a : α) (b : β), a ∈ b ↔ a ∈ toFinset b
+  insert_toFinset :
+    ∀ (a : α) (b : β) (h : a ∉ b), toFinset (inst.insert a b h) = insert a (toFinset b)
+  erase_toFinset :
+    ∀ (a : α) (b : β) (h : a ∈ b), toFinset (inst.erase a b h) = (toFinset b).erase a
+
+class HashAsAddCommGroup (α : Type u) (ι : Type w) where
+  op : α → ι
+
+instance [Hashable α] : HashAsAddCommGroup α UInt64 where
+  op := hash
+
+-- "lifting" a data structure to allow hashing while updating
+-- (i.e., incremental hashing)
+
+-- CAVEAT: `β × UInt64` is not enough; it does not carry any invariant
+-- that is required for proving the `LawfulHashable` of the whole thing;
+-- to maintain this invariant, need `LawfulFinsetLike`
+-- CAVEAT: the update of `hashval` depends on the membership, so need to
+-- do something about this
+structure HashCompanioned (β : Type v) (ι : Type w)
+  [DecidableEq α] [Membership α β]
+  [FinsetLike β] [LawfulFinsetLike β]
+  [AddCommGroup ι] [insth : HashAsAddCommGroup α ι] where
+  inner : β
+  hashval : ι
+  invariant : hashval = (∑ a ∈ LawfulFinsetLike.toFinset inner, insth.op a)
+
+section
+
+variable {α : Type u} {β : Type v} {ι : Type w}
+  [DecidableEq α] [Membership α β]
+  [FinsetLike β] [instl : LawfulFinsetLike β]
+  [AddCommGroup ι] [insth : HashAsAddCommGroup α ι]
+
+instance : Membership α (HashCompanioned β ι) where
+  mem b a := a ∈ b.inner
+
+def HashCompanioned.insert (a : α) (b : HashCompanioned β ι) (h : a ∉ b) : HashCompanioned β ι :=
+  { inner := FinsetLike.insert a b.inner h
+    hashval := HashAsAddCommGroup.op a + b.hashval
+    invariant := by
+      rw [b.invariant, instl.insert_toFinset]
+      have h' : a ∉ instl.toFinset b.inner := by rw [← instl.toFinset_mem_iff] ; exact h
+      rw [Finset.sum_insert' (M := ι) h']
+  }
+
+def HashCompanioned.erase (a : α) (b : HashCompanioned β ι) (h : a ∈ b) : HashCompanioned β ι :=
+  { inner := FinsetLike.erase a b.inner h
+    hashval := b.hashval - HashAsAddCommGroup.op a
+    invariant := by
+      rw [b.invariant, instl.erase_toFinset]
+      have h' : a ∈ instl.toFinset b.inner := by rw [← instl.toFinset_mem_iff] ; exact h
+      rw [Finset.sum_erase_eq_sub h']
+  }
+
+instance : FinsetLike (HashCompanioned β ι) where
+  insert := HashCompanioned.insert
+  erase := HashCompanioned.erase
+
+-- an easy lift
+instance : LawfulFinsetLike (HashCompanioned β ι) where
+  toFinset b := instl.toFinset b.inner
+  toFinset_mem_iff a b := instl.toFinset_mem_iff a b.inner
+  insert_toFinset a b h := instl.insert_toFinset a b.inner h
+  erase_toFinset a b h := instl.erase_toFinset a b.inner h
+
+instance [Hashable α] : Hashable (HashCompanioned β UInt64) where
+  hash := HashCompanioned.hashval
+
+instance : β ≃ HashCompanioned β ι where
+  toFun b := { inner := b, hashval := (∑ a ∈ LawfulFinsetLike.toFinset b, insth.op a), invariant := rfl }
+  invFun b := b.inner
+  left_inv b := rfl
+  right_inv b := by dsimp ; rcases b with ⟨i, h, inv⟩ ; subst h ; congr
+
+-- `LawfulHashable` should be derivable from some weaker `BEq`,
+-- not necessarily `DecidableEq`, especially there is no well-defined
+-- `DecidableEq`
+variable [DecidableEq β] [DecidableEq ι]
+
+instance : DecidableEq (HashCompanioned β ι) :=
+  fun a b =>
+    let ⟨i1, h1, inv1⟩ := a
+    let ⟨i2, h2, inv2⟩ := b
+    let q : Decidable (i1 = i2) := inferInstance
+    match q with
+    | isTrue _ =>
+      let qq : Decidable (h1 = h2) := inferInstance
+      match qq with
+      | isTrue _ => isTrue (by grind)
+      | isFalse _ => isFalse (by grind)
+    | isFalse _ => isFalse (by grind)
+
+-- for `DecidableEq`, this is free
+instance [Hashable α] : LawfulHashable (HashCompanioned β UInt64) :=
+  inferInstance
+
+end
