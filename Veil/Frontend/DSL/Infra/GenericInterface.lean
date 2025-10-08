@@ -77,6 +77,214 @@ TODO
 
 namespace Veil
 
+section DataStructure
+
+/-
+There are multiple things:
+- equality comparison (`BEq`? `DecidableEq`?)
+- finiteness inheritance (`FinEnum`?) namely,
+  how to relate the finiteness of (1) the state, (2) the state
+  representation, (3) the transition system?
+- hashability (`Hashable`?) and lawfulness (`LawfulHashable`?)
+- the abilities above, and their time/space complexities
+
+For comparison:
+- `DecidableEq` might be impossible sometimes (e.g., when the data
+  structure is too complicated)
+- Sometimes it is possible for `Ext`-data structures, but might be
+  expensive in time/space (for map, need to enumerate; for tree,
+  need to pay extra price)
+  - Usually in this case, the data structure is equivalent to
+    the _underlying_ state
+- Usually possible for some kind of `EquivBEq`
+  - Usually in this case, the data structure is equivalent to
+    the _underlying_ state _modulo this equivalence_
+
+For finiteness:
+- Usually inherited from the _underlying_ state through some kind
+  of equivalence
+- (We might care about this when we want to (1) enumerate states,
+  or (2) state a correctness theorem that _directly_ involves the
+  exhaustiveness of the state space)
+  - CHECK If we do not, what can we do? Is there any "refinement" there?
+
+For hashability:
+- Kind of orthogonal to the above two; lawfulness is usually
+  feasible. The key is the complexity (incremental?)
+
+-/
+
+-- just playing. maybe the following is all trivial
+
+class FinsetLike (β : Type v) [Membership α β] where
+  insert : (a : α) → (b : β) → a ∉ b → β
+  erase : (a : α) → (b : β) → a ∈ b → β
+
+/-
+class FinsetLikeEnumerate (β : Type v) [Membership α β] [inst : FinsetLike β] where
+  enumerate : β → Finset α
+  enumerate_mem_iff : ∀ (a : α) (b : β), a ∈ b ↔ a ∈ enumerate b
+
+class LawfulFinsetLike /- (α : outParam (Type u)) -/ (β : Type v)
+  [Membership α β] [inst : FinsetLike β] [DecidableEq α] where
+  insert_mem_iff : ∀ (a : α) (b : β) (h : a ∉ b),
+    ∀ x, x ∈ inst.insert a b h ↔ x = a ∨ x ∈ b
+  erase_mem_iff : ∀ (a : α) (b : β) (h : a ∈ b),
+    ∀ x, x ∈ inst.erase a b h ↔ x ≠ a ∧ x ∈ b
+-/
+
+class LawfulFinsetLike /- (α : outParam (Type u)) -/ (β : Type v)
+  [Membership α β] [inst : FinsetLike β] [DecidableEq α] where
+  toFinset : β → Finset α
+  toFinset_mem_iff : ∀ (a : α) (b : β), a ∈ b ↔ a ∈ toFinset b
+  insert_toFinset :
+    ∀ (a : α) (b : β) (h : a ∉ b), toFinset (inst.insert a b h) = insert a (toFinset b)
+  erase_toFinset :
+    ∀ (a : α) (b : β) (h : a ∈ b), toFinset (inst.erase a b h) = (toFinset b).erase a
+
+class HashAsAddCommGroup (α : Type u) (ι : Type w) where
+  op : α → ι
+
+instance [Hashable α] : HashAsAddCommGroup α UInt64 where
+  op := hash
+
+-- "lifting" a data structure to allow hashing while updating
+-- (i.e., incremental hashing)
+
+-- CAVEAT: `β × UInt64` is not enough; it does not carry any invariant
+-- that is required for proving the `LawfulHashable` of the whole thing;
+-- to maintain this invariant, need `LawfulFinsetLike`
+-- CAVEAT: the update of `hashval` depends on the membership, so need to
+-- do something about this
+structure HashCompanioned (β : Type v) (ι : Type w)
+  [DecidableEq α] [Membership α β]
+  [FinsetLike β] [LawfulFinsetLike β]
+  [AddCommGroup ι] [insth : HashAsAddCommGroup α ι] where
+  inner : β
+  hashval : ι
+  invariant : hashval = (∑ a ∈ LawfulFinsetLike.toFinset inner, insth.op a)
+
+section HashCompanioned
+
+variable {α : Type u} {β : Type v} {ι : Type w}
+  [DecidableEq α] [Membership α β]
+  [FinsetLike β] [instl : LawfulFinsetLike β]
+  [AddCommGroup ι] [insth : HashAsAddCommGroup α ι]
+
+instance : Membership α (HashCompanioned β ι) where
+  mem b a := a ∈ b.inner
+
+def HashCompanioned.insert (a : α) (b : HashCompanioned β ι) (h : a ∉ b) : HashCompanioned β ι :=
+  { inner := FinsetLike.insert a b.inner h
+    hashval := HashAsAddCommGroup.op a + b.hashval
+    invariant := by
+      rw [b.invariant, instl.insert_toFinset]
+      have h' : a ∉ instl.toFinset b.inner := by rw [← instl.toFinset_mem_iff] ; exact h
+      rw [Finset.sum_insert' (M := ι) h']
+  }
+
+def HashCompanioned.erase (a : α) (b : HashCompanioned β ι) (h : a ∈ b) : HashCompanioned β ι :=
+  { inner := FinsetLike.erase a b.inner h
+    hashval := b.hashval - HashAsAddCommGroup.op a
+    invariant := by
+      rw [b.invariant, instl.erase_toFinset]
+      have h' : a ∈ instl.toFinset b.inner := by rw [← instl.toFinset_mem_iff] ; exact h
+      rw [Finset.sum_erase_eq_sub h']
+  }
+
+instance : FinsetLike (HashCompanioned β ι) where
+  insert := HashCompanioned.insert
+  erase := HashCompanioned.erase
+
+-- an easy lift
+instance : LawfulFinsetLike (HashCompanioned β ι) where
+  toFinset b := instl.toFinset b.inner
+  toFinset_mem_iff a b := instl.toFinset_mem_iff a b.inner
+  insert_toFinset a b h := instl.insert_toFinset a b.inner h
+  erase_toFinset a b h := instl.erase_toFinset a b.inner h
+
+instance [Hashable α] : Hashable (HashCompanioned β UInt64) where
+  hash := HashCompanioned.hashval
+
+instance : β ≃ HashCompanioned β ι where
+  toFun b := { inner := b, hashval := (∑ a ∈ LawfulFinsetLike.toFinset b, insth.op a), invariant := rfl }
+  invFun b := b.inner
+  left_inv b := rfl
+  right_inv b := by dsimp ; rcases b with ⟨i, h, inv⟩ ; subst h ; congr
+
+-- `LawfulHashable` should be derivable from some weaker `BEq`,
+-- not necessarily `DecidableEq`, especially there is no well-defined
+-- `DecidableEq`
+variable [DecidableEq β] [DecidableEq ι]
+
+instance : DecidableEq (HashCompanioned β ι) :=
+  fun a b =>
+    let ⟨i1, h1, inv1⟩ := a
+    let ⟨i2, h2, inv2⟩ := b
+    let q : Decidable (i1 = i2) := inferInstance
+    match q with
+    | isTrue _ =>
+      let qq : Decidable (h1 = h2) := inferInstance
+      match qq with
+      | isTrue _ => isTrue (by grind)
+      | isFalse _ => isFalse (by grind)
+    | isFalse _ => isFalse (by grind)
+
+-- for `DecidableEq`, this is free
+instance [Hashable α] : LawfulHashable (HashCompanioned β UInt64) :=
+  inferInstance
+
+end HashCompanioned
+
+section DerivedOperations
+
+variable {α : Type u} {β : Type v}
+  [instm : Membership α β] [inst : FinsetLike β]
+  [instdm : DecidableRel instm.mem]
+
+-- CHECK there are two ways of implementation: (1) `fold` and (2) `let mut` with loop.
+-- which is faster? do both use the object linearly?
+-- CHECK will typeclass affect things like reference counting?
+def FinsetLike.batchUpdate (as : List α) (v : α → Bool) (mp : β) : β := Id.run do
+  let mut res := mp
+  for a in as do
+    let in?' := v a
+    if in? : a ∈ res then
+      if !in?' then
+        res := inst.erase a res in?
+    else
+      if in?' then
+        res := inst.insert a res in?
+  return res
+
+end DerivedOperations
+
+section FinsetLikeInstances
+
+variable {α : Type u} [BEq α] [Hashable α]
+
+instance : FinsetLike (Std.HashSet α) where
+  insert a b _ := b.insert a
+  erase a b _ := b.erase a
+
+end FinsetLikeInstances
+
+section LawfulFinsetLikeInstances
+
+variable {α : Type u} [DecidableEq α] [Hashable α]
+
+instance : LawfulFinsetLike (Std.HashSet α) where
+  toFinset b := List.toFinset b.toList
+  toFinset_mem_iff a b := by simp
+  insert_toFinset a b h := by
+    ext a ; simp [FinsetLike.insert] ; aesop
+  erase_toFinset a b h := by
+    ext a ; simp [FinsetLike.erase] ; aesop
+
+end LawfulFinsetLikeInstances
+
+end DataStructure
+
 -- NOTE: Currently, the following does not consider universe polymorphism.
 -- TODO any way to specialize all these dependently-typed definitions to make them faster?
 -- maybe some are not necessary since these are only used for proofs?
@@ -445,7 +653,7 @@ theorem LawfulFieldRepresentation.get_set_idempotent' {fieldComponents : List Ty
     simp at tmp ; rw [← tmp, inst2.get_set_idempotent dec, ih]
     apply (canonicalFieldRepresentationLawful _ _ dec).set_append
 
-section HashSetAsField
+section FieldRepresentationInstances
 
 instance (priority := high + 1)
   : FieldRepresentation [] FieldBase FieldBase where
@@ -459,13 +667,6 @@ instance (priority := high + 1)
     introv ; simp [FieldRepresentation.set]
     rcases favs₂ with _ | ⟨fav₂, _⟩ <;> simp
   get_set_idempotent := by introv ; rfl
-
-omit fieldComponents
-
-variable {fieldComponents : List Type}
-  [instd : DecidableEq (IteratedProd fieldComponents)]
-  [insth : Hashable (IteratedProd fieldComponents)]
-  (instfin : IteratedProd (fieldComponents.map FinEnum))  -- TODO add a tactic for automatically constructing this (or, these)
 
 -- CHECK It might be interesting to use a hybrid representation; e.g.,
 -- mixing the use of hashmap and function? For a fully map representation,
@@ -487,73 +688,61 @@ variable {fieldComponents : List Type}
 -- CHECK will writing this in a recursive way, instead of constructing
 -- all things to be (potentially) modified, be more efficient?
 
--- TODO there are two ways of implementation: (1) `fold` and (2) `let mut` with loop.
--- which is faster? do both use the object linearly?
+omit fieldComponents
 
-def HashSetForIteratedProd.update
-  (fa : FieldUpdatePat fieldComponents)
-  (v : CanonicalField fieldComponents Bool)
-  (hs : HashSetForIteratedProd fieldComponents) : HashSetForIteratedProd fieldComponents := Id.run do
-  let elements := fa.footprintRaw instfin
-  let vv := v.uncurry
-  let prods := elements.cartesianProduct
-  let mut res := hs
-  for p in prods do
-    let in? := res.contains p
-    let in?' := vv p
-    if in? && !in?' then
-      res := res.erase p
-    else if !in? && in?' then
-      res := res.insert p
-  return res
+variable {fieldComponents : List Type}
+  [instd : DecidableEq (IteratedProd fieldComponents)]
+  [instm : Membership (IteratedProd fieldComponents) β]
+  [inst : FinsetLike β]
+  [instl : LawfulFinsetLike β]
+  [instdm : DecidableRel instm.mem]
+  (instfin : IteratedProd (fieldComponents.map FinEnum))
 
--- TODO this is very awkward ... due to the use of `IteratedArrow.curry`,
--- we cannot directly use `IteratedProd'` here. but will this redundant
--- `Unit` cause performance issue?
--- also, might also need to reflect on the interface of `get`; does it
--- introduce unnecessary overhead?
-instance (priority := high) instHashSetForIteratedProdAsFieldRepresentation
-  : FieldRepresentation fieldComponents Bool (HashSetForIteratedProd fieldComponents) :=
+instance instFinsetLikeAsFieldRep : FieldRepresentation fieldComponents Bool β :=
   FieldRepresentation.mkFromSingleSet
-    (get := fun fc => IteratedArrow.curry fc.contains)
-    (setSingle := HashSetForIteratedProd.update instfin)
+    (get := fun fc => IteratedArrow.curry (instm.mem fc))
+    (setSingle := fun fa v fc =>
+      FinsetLike.batchUpdate (fa.footprintRaw instfin).cartesianProduct v.uncurry fc)
 
-instance (priority := high) instHashSetForIteratedProdLawfulFieldRepresentation
-  : LawfulFieldRepresentation fieldComponents Bool
-    (HashSetForIteratedProd fieldComponents)
+instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation fieldComponents Bool β
     -- TODO this is awkward; synthesis fails here, and the `equiv.symm` is weird
-    (instHashSetForIteratedProdAsFieldRepresentation instfin) where
+    (instFinsetLikeAsFieldRep instfin) where
   toLawfulFieldRepresentationSet :=
     LawfulFieldRepresentationSet.mkFromSingleSet ..
   get_set_idempotent := by
     introv ; rcases fav with ⟨fa, v⟩
-    simp [instHashSetForIteratedProdAsFieldRepresentation, FieldRepresentation.mkFromSingleSet,
-      CanonicalField.set, FieldRepresentation.set, HashSetForIteratedProd.update, Id.run]
-    congr! 1
+    simp +unfoldPartialApp [instFinsetLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
+      CanonicalField.set, FieldRepresentation.set, FinsetLike.batchUpdate, Id.run,
+      IteratedArrow.uncurry_curry, FieldUpdateDescr.fieldUpdate]
+    simp [← (FieldUpdatePat.footprint_match_iff instfin dec)]
+    congr! 1 ; ext args ; rw [Bool.eq_iff_iff] ; simp
     conv =>
       enter [1, 1]
       conv =>
         enter [3, p, r] ; simp [pure]
-        repeat rw [← apply_ite ForInStep.yield]
-        conv => enter [1] ; rw [← Id.run_pure (ite ..)] ; dsimp only [pure]
+        conv => enter [2] ; intro h ; rw [← apply_ite ForInStep.yield]
+        conv => enter [3] ; intro h ; rw [← apply_ite ForInStep.yield]
+        repeat rw [← apply_dite ForInStep.yield]
+        conv => enter [1] ; rw [← Id.run_pure (dite ..)] ; dsimp only [pure]
         rw [← Id.run_map _ ForInStep.yield]
       apply List.idRun_forIn_yield_eq_foldl
-    ext args ; simp +unfoldPartialApp [IteratedArrow.uncurry_curry, FieldUpdateDescr.fieldUpdate]
-    simp [← (FieldUpdatePat.footprint_match_iff instfin dec)]
     -- `foldr` is more convenient for induction here
     rw [List.foldl_eq_foldr_reverse]
-    rewrite (occs := .neg [1]) [← List.reverse_reverse (IteratedProd.cartesianProduct ..)]
+    conv => enter [2, 1] ; rw [← List.mem_reverse]
     generalize (fa.footprintRaw instfin).cartesianProduct.reverse = prods
-    simp only [List.mem_reverse]
     generalize e : (fun x y => _) = ff
     induction prods with
     | nil => simp
     | cons p prods ih =>
       simp [ite_or, ← ih] ; clear ih
       generalize (List.foldr ..) = acc
-      subst ff ; simp [Id.run] ; split_ifs <;> grind
+      subst ff ; simp [Id.run] ; split_ifs <;> (try solve | grind)
+      · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.erase_toFinset]
+      · simp [instl.toFinset_mem_iff, instl.erase_toFinset] ; simp_all
+      · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.insert_toFinset]
+      · simp [instl.toFinset_mem_iff, instl.insert_toFinset] ; simp_all
 
-end HashSetAsField
+end FieldRepresentationInstances
 
 -- section TreeSetOrMapAsField
 
@@ -569,160 +758,3 @@ end HashSetAsField
 end SingleField
 
 end Veil
-
-/-
-There are multiple things:
-- equality comparison (`BEq`? `DecidableEq`?)
-- finiteness inheritance (`FinEnum`?) namely,
-  how to relate the finiteness of (1) the state, (2) the state
-  representation, (3) the transition system?
-- hashability (`Hashable`?) and lawfulness (`LawfulHashable`?)
-- the abilities above, and their time/space complexities
-
-For comparison:
-- `DecidableEq` might be impossible sometimes (e.g., when the data
-  structure is too complicated)
-- Sometimes it is possible for `Ext`-data structures, but might be
-  expensive in time/space (for map, need to enumerate; for tree,
-  need to pay extra price)
-  - Usually in this case, the data structure is equivalent to
-    the _underlying_ state
-- Usually possible for some kind of `EquivBEq`
-  - Usually in this case, the data structure is equivalent to
-    the _underlying_ state _modulo this equivalence_
-
-For finiteness:
-- Usually inherited from the _underlying_ state through some kind
-  of equivalence
-- (We might care about this when we want to (1) enumerate states,
-  or (2) state a correctness theorem that _directly_ involves the
-  exhaustiveness of the state space)
-  - CHECK If we do not, what can we do? Is there any "refinement" there?
-
-For hashability:
-- Kind of orthogonal to the above two; lawfulness is usually
-  feasible. The key is the complexity (incremental?)
-
--/
-
--- just playing. maybe the following is all trivial
-
-class FinsetLike (β : Type v) [Membership α β] where
-  insert : (a : α) → (b : β) → a ∉ b → β
-  erase : (a : α) → (b : β) → a ∈ b → β
-
-/-
-class FinsetLikeEnumerate (β : Type v) [Membership α β] [inst : FinsetLike β] where
-  enumerate : β → Finset α
-  enumerate_mem_iff : ∀ (a : α) (b : β), a ∈ b ↔ a ∈ enumerate b
-
-class LawfulFinsetLike /- (α : outParam (Type u)) -/ (β : Type v)
-  [Membership α β] [inst : FinsetLike β] [DecidableEq α] where
-  insert_mem_iff : ∀ (a : α) (b : β) (h : a ∉ b),
-    ∀ x, x ∈ inst.insert a b h ↔ x = a ∨ x ∈ b
-  erase_mem_iff : ∀ (a : α) (b : β) (h : a ∈ b),
-    ∀ x, x ∈ inst.erase a b h ↔ x ≠ a ∧ x ∈ b
--/
-
-class LawfulFinsetLike /- (α : outParam (Type u)) -/ (β : Type v)
-  [Membership α β] [inst : FinsetLike β] [DecidableEq α] where
-  toFinset : β → Finset α
-  toFinset_mem_iff : ∀ (a : α) (b : β), a ∈ b ↔ a ∈ toFinset b
-  insert_toFinset :
-    ∀ (a : α) (b : β) (h : a ∉ b), toFinset (inst.insert a b h) = insert a (toFinset b)
-  erase_toFinset :
-    ∀ (a : α) (b : β) (h : a ∈ b), toFinset (inst.erase a b h) = (toFinset b).erase a
-
-class HashAsAddCommGroup (α : Type u) (ι : Type w) where
-  op : α → ι
-
-instance [Hashable α] : HashAsAddCommGroup α UInt64 where
-  op := hash
-
--- "lifting" a data structure to allow hashing while updating
--- (i.e., incremental hashing)
-
--- CAVEAT: `β × UInt64` is not enough; it does not carry any invariant
--- that is required for proving the `LawfulHashable` of the whole thing;
--- to maintain this invariant, need `LawfulFinsetLike`
--- CAVEAT: the update of `hashval` depends on the membership, so need to
--- do something about this
-structure HashCompanioned (β : Type v) (ι : Type w)
-  [DecidableEq α] [Membership α β]
-  [FinsetLike β] [LawfulFinsetLike β]
-  [AddCommGroup ι] [insth : HashAsAddCommGroup α ι] where
-  inner : β
-  hashval : ι
-  invariant : hashval = (∑ a ∈ LawfulFinsetLike.toFinset inner, insth.op a)
-
-section
-
-variable {α : Type u} {β : Type v} {ι : Type w}
-  [DecidableEq α] [Membership α β]
-  [FinsetLike β] [instl : LawfulFinsetLike β]
-  [AddCommGroup ι] [insth : HashAsAddCommGroup α ι]
-
-instance : Membership α (HashCompanioned β ι) where
-  mem b a := a ∈ b.inner
-
-def HashCompanioned.insert (a : α) (b : HashCompanioned β ι) (h : a ∉ b) : HashCompanioned β ι :=
-  { inner := FinsetLike.insert a b.inner h
-    hashval := HashAsAddCommGroup.op a + b.hashval
-    invariant := by
-      rw [b.invariant, instl.insert_toFinset]
-      have h' : a ∉ instl.toFinset b.inner := by rw [← instl.toFinset_mem_iff] ; exact h
-      rw [Finset.sum_insert' (M := ι) h']
-  }
-
-def HashCompanioned.erase (a : α) (b : HashCompanioned β ι) (h : a ∈ b) : HashCompanioned β ι :=
-  { inner := FinsetLike.erase a b.inner h
-    hashval := b.hashval - HashAsAddCommGroup.op a
-    invariant := by
-      rw [b.invariant, instl.erase_toFinset]
-      have h' : a ∈ instl.toFinset b.inner := by rw [← instl.toFinset_mem_iff] ; exact h
-      rw [Finset.sum_erase_eq_sub h']
-  }
-
-instance : FinsetLike (HashCompanioned β ι) where
-  insert := HashCompanioned.insert
-  erase := HashCompanioned.erase
-
--- an easy lift
-instance : LawfulFinsetLike (HashCompanioned β ι) where
-  toFinset b := instl.toFinset b.inner
-  toFinset_mem_iff a b := instl.toFinset_mem_iff a b.inner
-  insert_toFinset a b h := instl.insert_toFinset a b.inner h
-  erase_toFinset a b h := instl.erase_toFinset a b.inner h
-
-instance [Hashable α] : Hashable (HashCompanioned β UInt64) where
-  hash := HashCompanioned.hashval
-
-instance : β ≃ HashCompanioned β ι where
-  toFun b := { inner := b, hashval := (∑ a ∈ LawfulFinsetLike.toFinset b, insth.op a), invariant := rfl }
-  invFun b := b.inner
-  left_inv b := rfl
-  right_inv b := by dsimp ; rcases b with ⟨i, h, inv⟩ ; subst h ; congr
-
--- `LawfulHashable` should be derivable from some weaker `BEq`,
--- not necessarily `DecidableEq`, especially there is no well-defined
--- `DecidableEq`
-variable [DecidableEq β] [DecidableEq ι]
-
-instance : DecidableEq (HashCompanioned β ι) :=
-  fun a b =>
-    let ⟨i1, h1, inv1⟩ := a
-    let ⟨i2, h2, inv2⟩ := b
-    let q : Decidable (i1 = i2) := inferInstance
-    match q with
-    | isTrue _ =>
-      let qq : Decidable (h1 = h2) := inferInstance
-      match qq with
-      | isTrue _ => isTrue (by grind)
-      | isFalse _ => isFalse (by grind)
-    | isFalse _ => isFalse (by grind)
-
--- for `DecidableEq`, this is free
-instance [Hashable α] : LawfulHashable (HashCompanioned β UInt64) :=
-  inferInstance
-
-end
