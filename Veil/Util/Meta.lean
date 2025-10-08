@@ -79,11 +79,12 @@ def _root_.Lean.Syntax.inheritSourceSpanFrom (derivedStx : TSyntax α) (original
 /-- Use this instead of `PrettyPrinter.delab` to get a correct
 representation of Veil expressions. Without these options, the
 delaboration might not correctly round-trip. -/
-def delabVeilExpr := fun e => do
+def delabVeilExpr (e : Expr) (withExplicitInstances? : Bool := false) := do
   let stx ← withOptions (applyOptions · veilPrettyPrinterOptions) $ PrettyPrinter.delab e
   return Syntax.inheritSourceSpanFrom stx (← getRef)
 where
   veilPrettyPrinterOptions : Array (Name × DataValue) :=
+    (if withExplicitInstances? then #[(`pp.explicit, .ofBool true), (`pp.instances, .ofBool true)] else #[]) ++
     #[(`pp.deepTerms, .ofBool true), (`pp.motives.all, .ofBool true), (`pp.universes, .ofBool true),
     (`pp.letVarTypes, .ofBool true), (`pp.funBinderTypes, .ofBool true), (`pp.structureInstanceTypes, .ofBool true)]
   applyOptions (s : Options) (opts : Array (Name × DataValue)) : Options :=
@@ -232,7 +233,9 @@ def getSimpleBinderType [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Com
 partial def splitForallArgsCodomain [Monad m] [MonadError m] [MonadQuotation m] (t : Term) : m (Array Term × Term) := do
   let rec go (t : Term) (acc : Array Term) : m (Array Term × Term) := do
     match t with
-    | `(term| $a → $b) | `(term| ($_:ident : $a) → $b) | `(term| ∀ ($_:ident : $a), $b) => go b (acc.push a)
+    | `(term| $a → $b)
+    | `(term| ($_:ident : $a) → $b) | `(term| [$_:ident : $a] → $b) | `(term| [$a:term] → $b) | `(term| {$_:ident : $a} → $b)
+    | `(term| ∀ ($_:ident : $a), $b) | `(term| ∀ [$_:ident : $a], $b) | `(term| ∀ [$a:term], $b) | `(term| ∀ {$_:ident : $a}, $b) => go b (acc.push a)
     | _ => return (acc, t)
   go t #[]
 
