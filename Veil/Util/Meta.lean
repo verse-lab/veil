@@ -65,11 +65,23 @@ def mkVeilImplementationDetailIdent (n : Name) : Ident :=
 def isVeilImplementationDetailName (n : Name) : Bool :=
   n.isStr && n.toString.startsWith "__veil_"
 
+/-- **If** `derivedStx` doesn't have an informative source span, inherit the
+source span from `originalStx`. -/
+def _root_.Lean.Syntax.inheritSourceSpanFrom (derivedStx : TSyntax α) (originalStx : Syntax) : TSyntax α :=
+  let alreadyHaveInfo := match derivedStx.raw.getPos? with
+  | .some pos => pos.byteIdx != 1 -- i.e. not the dummy position
+  | .none => false
+  if alreadyHaveInfo then
+    derivedStx
+  else
+    ⟨derivedStx.raw.setInfo originalStx.getHeadInfo⟩
+
 /-- Use this instead of `PrettyPrinter.delab` to get a correct
 representation of Veil expressions. Without these options, the
 delaboration might not correctly round-trip. -/
-def delabVeilExpr := fun e =>
-  withOptions (applyOptions · veilPrettyPrinterOptions) $ PrettyPrinter.delab e
+def delabVeilExpr := fun e => do
+  let stx ← withOptions (applyOptions · veilPrettyPrinterOptions) $ PrettyPrinter.delab e
+  return Syntax.inheritSourceSpanFrom stx (← getRef)
 where
   veilPrettyPrinterOptions : Array (Name × DataValue) :=
     #[(`pp.deepTerms, .ofBool true), (`pp.motives.all, .ofBool true), (`pp.universes, .ofBool true),
@@ -380,6 +392,7 @@ def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
     -- at the correct location.
     let binders ← capitalVars.mapM fun (n, type) => do `(bracketedBinder| ($(mkIdent n) : $(← delabVeilExpr type)))
     let res ← `(term| ∀ $binders*, $stx)
+    let res := Syntax.inheritSourceSpanFrom res stx
     return res
 
 

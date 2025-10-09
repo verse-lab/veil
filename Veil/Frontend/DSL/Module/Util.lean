@@ -554,18 +554,18 @@ private def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind
   -- term needs to be well-typed, so all term's parameters, as well as the theory
   -- and state variables (i.e. the fields) have to be bound first.
   -- trace[veil.debug] "before UQC (paramBinders: {paramBinders}): {term}"
-  let term ← elabBinders (binders ++ paramBinders ++ (← mod.getTheoryBinders) ++ (← mod.getStateBinders)) $ fun _ => univerallyQuantifyCapitals term
-  trace[veil.debug] "AFTER UQC: {term}"
+  let term' ← elabBinders (binders ++ paramBinders ++ (← mod.getTheoryBinders) ++ (← mod.getStateBinders)) $ fun _ => univerallyQuantifyCapitals term
   -- We don't `universallyQuantifyCapitals` after `withTheory` /
   -- `withTheoryAndState` because we want to have the universal
   -- quantification as deeply inside the term as possible, rather than above
   -- the binders for `rd` and `st` introduced below.
-  let (thstBinders, term) ← if justTheory then withTheory term else withTheoryAndState term
+  let (thstBinders, term') ← if justTheory then withTheory term' else withTheoryAndState term'
+  let term' := Syntax.inheritSourceSpanFrom term' term
   -- Record the `Decidable` instances that are needed for the assertion.
-  let (insts, _) ← elabBinders (binders ++ paramBinders ++ thstBinders) $ fun _ => getRequiredDecidableInstances term
+  let (insts, _) ← elabBinders (binders ++ paramBinders ++ thstBinders) $ fun _ => getRequiredDecidableInstances term'
   trace[veil.debug] "insts: {insts.map (·.1)}"
   let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionTypeclass name, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT, userSyntax := .missing })
-  return (extraParams, thstBinders, term)
+  return (extraParams, thstBinders, term')
 
 end AssertionElab
 
