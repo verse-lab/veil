@@ -363,19 +363,25 @@ def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
   -- This ensures the capitals will be bound as `fvar`s
   withAutoBoundCapitals $ do
     withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
-    let e ← Term.elabTerm stx none
+    -- NOTE: even though we don't use the result, this will throw an exception
+    -- for unbound variables, which is what `withAutoBoundCapitals` requires
+    let _ ← Term.elabTerm stx none
     let mut lctx ← getLCtx
     -- Inspect the local context and collect the capitals that weren't already
     -- bound when we started.
-    let capitalVars := lctx.getFVars.filter (fun x =>
-      (!originalFVars.contains x) && (
+    let capitalVars := lctx.getFVars.filterMap (fun x =>
+      if originalFVars.contains x then none else
       match lctx.getRoundtrippingUserName? x.fvarId! with
-      | .some n => isCapital n
-      | .none => false))
+      | .some n => if isCapital n then some (n, (lctx.getFVar! x).type) else none
+      | .none => none)
     -- Quantify over capitals
-    Meta.lambdaTelescope e fun _ body => do
-      let res ← delabVeilExpr $ ← Meta.mkForallFVars capitalVars body
-      return res
+    -- It's important to do this at the `Syntax` rather than `Expr` level,
+    -- because we want to preserve `SourceInfo`, such that errors are reported
+    -- at the correct location.
+    let binders ← capitalVars.mapM fun (n, type) => do `(bracketedBinder| ($(mkIdent n) : $(← delabVeilExpr type)))
+    let res ← `(term| ∀ $binders*, $stx)
+    return res
+
 
 def repeatedOp [Monad m] [MonadQuotation m] (op : Name) (operands : Array (TSyntax `term)) (default : Option (TSyntax `term) := none) : m (TSyntax `term) := do
   if operands.isEmpty then
