@@ -233,9 +233,12 @@ def getSimpleBinderType [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Com
 partial def splitForallArgsCodomain [Monad m] [MonadError m] [MonadQuotation m] (t : Term) : m (Array Term × Term) := do
   let rec go (t : Term) (acc : Array Term) : m (Array Term × Term) := do
     match t with
-    | `(term| $a → $b)
-    | `(term| ($_:ident : $a) → $b) | `(term| [$_:ident : $a] → $b) | `(term| [$a:term] → $b) | `(term| {$_:ident : $a} → $b)
-    | `(term| ∀ ($_:ident : $a), $b) | `(term| ∀ [$_:ident : $a], $b) | `(term| ∀ [$a:term], $b) | `(term| ∀ {$_:ident : $a}, $b) => go b (acc.push a)
+    | `(term| $a → $b) | `(term| [$_:ident : $a] → $b) | `(term| [$a:term] → $b)
+    | `(term| ∀ [$_:ident : $a], $b) | `(term| ∀ [$a:term], $b)
+      => go b (acc.push a)
+    | `(term| ($[$idts:ident]* : $a) → $b) | `(term| {$[$idts:ident]* : $a} → $b)
+    | `(term| ∀ ($[$idts:ident]* : $a), $b) | `(term| ∀ {$[$idts:ident]* : $a}, $b)
+      => go b (acc ++ Array.replicate idts.size a)
     | _ => return (acc, t)
   go t #[]
 
