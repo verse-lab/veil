@@ -183,10 +183,6 @@ def allResults (r₀ : ⌞ Theory ⌟) (s₀ : ⌞State⌟) (l : ⌞ Label ⌟) 
 instance : Repr (State (Fin (Nat.succ 2)) (FieldConcreteType (Fin (Nat.succ 2)))) := by
   infer_instance
 
-instance : Repr (State (Fin (Nat.succ 2)) (FieldConcreteType (Fin (Nat.succ 2)))) := by
-  infer_instance
-
-#eval @allResults 2 {} initState (Label.send 0 0) |>.map Prod.fst
-#eval @allResults 2 {} initState (Label.send 0 0) |>.map Prod.snd
+#eval @allResults 2 {} initState (Label.send 0 0)
 
 end Ring
