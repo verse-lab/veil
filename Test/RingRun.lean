@@ -71,41 +71,41 @@ variable [FinEnum node] [Hashable node]
 -- variable [insta : DecidableRel tot.le] -- [∀ a b c, Decidable (btwn.btw a b c)]
 
 def instFinEnumForComponents (f : State.Label)
-  : (IteratedProd <| List.map FinEnum <| (⌞? State.Label.toComponents ⌟) f) := by
+  : (IteratedProd <| List.map FinEnum <| (⌞? State.Label.toDomain ⌟) f) := by
   cases f <;>
     infer_instance_for_iterated_prod
 
 instance instDecidableEqForComponents' (f : State.Label)
-  : DecidableEq (IteratedProd <| (⌞? State.Label.toComponents ⌟) f) := by
+  : DecidableEq (IteratedProd <| (⌞? State.Label.toDomain ⌟) f) := by
   cases f <;>
-    dsimp only [IteratedProd, List.foldr, State.Label.toComponents] <;>
+    dsimp only [IteratedProd, List.foldr, State.Label.toDomain] <;>
     infer_instance
 
 instance instHashableForComponents (f : State.Label)
-  : Hashable (IteratedProd <| (⌞? State.Label.toComponents ⌟) f) := by
+  : Hashable (IteratedProd <| (⌞? State.Label.toDomain ⌟) f) := by
   cases f <;>
-    dsimp only [IteratedProd, List.foldr, State.Label.toComponents] <;>
+    dsimp only [IteratedProd, List.foldr, State.Label.toDomain] <;>
     infer_instance
 
 -- need to use `abbrev` to allow typeclass inference
 abbrev FieldConcreteType (f : State.Label) : Type :=
-  Std.HashSet (IteratedProd <| (⌞? State.Label.toComponents ⌟) f)
+  Std.HashSet (IteratedProd <| (⌞? State.Label.toDomain ⌟) f)
 
 instance instReprForComponents [Repr node] (f : State.Label)
   : Repr ((⌞? FieldConcreteType ⌟) f) := by
   cases f <;>
-    dsimp only [IteratedProd, List.foldr, FieldConcreteType, State.Label.toComponents] <;>
+    dsimp only [IteratedProd, List.foldr, FieldConcreteType, State.Label.toDomain] <;>
     infer_instance
 
--- #simp [FieldConcreteType, State.Label.toComponents, State.Label.toBase] FieldConcreteType Nat .leader
-  -- Veil.CanonicalField (State.Label.toComponents Nat .pending) (State.Label.toBase Nat .pending)
+-- #simp [FieldConcreteType, State.Label.toDomain, State.Label.toCodomain] FieldConcreteType Nat .leader
+  -- Veil.CanonicalField (State.Label.toDomain Nat .pending) (State.Label.toCodomain Nat .pending)
 
 instance : Inhabited ((⌞? State ⌟) (⌞? FieldConcreteType ⌟)) := by
   constructor ; constructor <;> exact default
 
 instance rep (f : State.Label) : FieldRepresentation
-  ((⌞? State.Label.toComponents ⌟) f)
-  ((⌞? State.Label.toBase ⌟) f)
+  ((⌞? State.Label.toDomain ⌟) f)
+  ((⌞? State.Label.toCodomain ⌟) f)
   ((⌞? FieldConcreteType ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
   match f with
   | State.Label.leader =>
@@ -114,8 +114,8 @@ instance rep (f : State.Label) : FieldRepresentation
     instFinsetLikeAsFieldRep ((⌞? instFinEnumForComponents ⌟) State.Label.pending)
 
 instance lawful (f : State.Label) : LawfulFieldRepresentation
-  ((⌞? State.Label.toComponents ⌟) f)
-  ((⌞? State.Label.toBase ⌟) f)
+  ((⌞? State.Label.toDomain ⌟) f)
+  ((⌞? State.Label.toCodomain ⌟) f)
   ((⌞? FieldConcreteType ⌟) f)
   ((⌞? rep ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
   match f with

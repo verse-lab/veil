@@ -237,7 +237,7 @@ def elabVeilConcretizeFields : TacticM Unit := veilWithMainContext do
     `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
   tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$[$simpTerms:term],*] at *)
   -- (3) simplify the resulting things
-  let localSimpTerms := #[fieldToComponents stateName, fieldToBase stateName]
+  let localSimpTerms := #[fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
   tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$(mkIdent `fieldRepresentationGetSetSimp):ident, $[$localSimpTerms:ident],*] at *)
   -- (4) concretize the `FieldRepresentation.get`-ed fields
   let rep := mkIdent hyp.userName

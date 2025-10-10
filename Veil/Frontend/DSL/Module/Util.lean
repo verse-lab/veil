@@ -462,11 +462,11 @@ private def declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] 
   let l := mkIdent `l
   let casesOnName := structureFieldLabelTypeName base ++ `casesOn
   let params := params.push (← `(bracketedBinder| ($l : $(structureFieldLabelType base))))
-  let stx1 ← `(def $(fieldToComponents base) $params* : List Type :=
+  let stx1 ← `(def $(fieldLabelToDomain base) $params* : List Type :=
     $(mkIdent casesOnName) $l $components*)
-  let stx2 ← `(def $(fieldToBase base) $params* : Type :=
+  let stx2 ← `(def $(fieldLabelToCodomain base) $params* : Type :=
     $(mkIdent casesOnName) $l $bases*)
-  return ((fieldToComponentsName base, stx1), (fieldToBaseName base, stx2))
+  return ((fieldLabelToDomainName base, stx1), (fieldLabelToCodomainName base, stx2))
 
 private def analyzeTypesOfStateComponents [Monad m] [MonadQuotation m] [MonadError m] (components : Array StateComponent) : m (Array (Array Term × Term)) := do
   components.mapM fun sc => do
@@ -492,12 +492,12 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   -- add the related typeclasses
   let f := mkIdent `f
   let paramsArgs ← mod.sortIdents
-  let toComponentsTerm ← `(($(mkIdent name1) $paramsArgs* $f))
-  let toBaseTerm ← `(($(mkIdent name2) $paramsArgs* $f))
+  let toDomainTerm ← `(($(mkIdent name1) $paramsArgs* $f))
+  let toCodomainTerm ← `(($(mkIdent name2) $paramsArgs* $f))
   let fieldConcreteTypeApplied ← `(($fieldConcreteType $f))
-  let fieldRepType ← `(∀ $f, $(mkIdent ``FieldRepresentation) $toComponentsTerm $toBaseTerm $fieldConcreteTypeApplied)
+  let fieldRepType ← `(∀ $f, $(mkIdent ``FieldRepresentation) $toDomainTerm $toCodomainTerm $fieldConcreteTypeApplied)
   let fieldRep : Parameter := { kind := .moduleTypeclass .fieldRepresentation, name := fieldRepresentationName, «type» := fieldRepType, userSyntax := .missing }
-  let lawfulFieldRepType ← `(∀ $f, $(mkIdent ``LawfulFieldRepresentation) $toComponentsTerm $toBaseTerm $fieldConcreteTypeApplied ($fieldRepresentation $f))
+  let lawfulFieldRepType ← `(∀ $f, $(mkIdent ``LawfulFieldRepresentation) $toDomainTerm $toCodomainTerm $fieldConcreteTypeApplied ($fieldRepresentation $f))
   let lawfulFieldRep : Parameter := { kind := .moduleTypeclass .lawfulFieldRepresentation, name := lawfulFieldRepresentationName, «type» := lawfulFieldRepType, userSyntax := .missing }
   return ({ mod with parameters := mod.parameters ++ #[fieldConcreteTypeParam, fieldRep, lawfulFieldRep] ,
                      _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter ,

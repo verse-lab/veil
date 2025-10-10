@@ -20,7 +20,7 @@ inductive ModuleTypeClassKind where
   /-- This typeclass assumption relates to the state of the environment
   that this module operates in. -/
   | environmentState
-  /-- Should look like: `∀ f, FieldRepresentation (State.Label.toComponents f) (State.Label.toBase f) fc` -/
+  /-- Should look like: `∀ f, FieldRepresentation (State.Label.toDomain f) (State.Label.toCodomain f) fc` -/
   | fieldRepresentation
   /-- Should look like: `∀ f, LawfulFieldRepresentation _ _ _ (... f)` -/
   | lawfulFieldRepresentation

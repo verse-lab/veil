@@ -302,8 +302,8 @@ abbrev IteratedProd' (ts : List Type) : Type :=
   | [] => Unit
   | t :: ts' => t × IteratedProd ts'
 
-abbrev IteratedArrow (base : Type) (ts : List Type) : Type :=
-  ts.foldr (· → ·) base
+abbrev IteratedArrow (codomain : Type) (ts : List Type) : Type :=
+  ts.foldr (· → ·) codomain
 
 def IteratedProd.append {ts1 ts2 : List Type}
   (p1 : IteratedProd ts1) (p2 : IteratedProd ts2) : IteratedProd (ts1 ++ ts2) :=
@@ -323,21 +323,21 @@ def IteratedProd.default {ts : List Type}
   | [] => ()
   | t :: _ => (default t, IteratedProd.default default)
 
-def IteratedArrow.curry {base : Type} {ts : List Type}
-  (k : (IteratedProd ts) → base) : IteratedArrow base ts :=
+def IteratedArrow.curry {codomain : Type} {ts : List Type}
+  (k : (IteratedProd ts) → codomain) : IteratedArrow codomain ts :=
   match ts with
   | [] => k ()
   | t :: _ =>
     fun (x : t) => IteratedArrow.curry (fun xs => k (x, xs))
 
-def IteratedArrow.uncurry {base : Type} {ts : List Type}
-  (f : IteratedArrow base ts) (args : IteratedProd ts) : base :=
+def IteratedArrow.uncurry {codomain : Type} {ts : List Type}
+  (f : IteratedArrow codomain ts) (args : IteratedProd ts) : codomain :=
   match ts, f, args with
   | [], f, () => f
   | _ :: _, f, (x, xs) => IteratedArrow.uncurry (f x) xs
 
-theorem IteratedArrow.curry_uncurry {base : Type} {ts : List Type}
-  (a : IteratedArrow base ts) :
+theorem IteratedArrow.curry_uncurry {codomain : Type} {ts : List Type}
+  (a : IteratedArrow codomain ts) :
   IteratedArrow.curry (fun args => a.uncurry args) = a := by
   induction ts with
   | nil => simp [IteratedArrow.curry, IteratedArrow.uncurry]
@@ -345,8 +345,8 @@ theorem IteratedArrow.curry_uncurry {base : Type} {ts : List Type}
     simp [IteratedArrow.curry, IteratedArrow.uncurry]
     funext x ; specialize ih (a x) ; rw [ih]
 
-theorem IteratedArrow.uncurry_curry {base : Type} {ts : List Type}
-  (k : (IteratedProd ts) → base) :
+theorem IteratedArrow.uncurry_curry {codomain : Type} {ts : List Type}
+  (k : (IteratedProd ts) → codomain) :
   IteratedArrow.uncurry (IteratedArrow.curry k) = k := by
   funext args
   induction ts with
@@ -358,12 +358,12 @@ theorem IteratedArrow.uncurry_curry {base : Type} {ts : List Type}
 
 -- CHECK not sure if this is actually "fold"
 def IteratedProd.fold {ts : List Type} {T₁ T₂ : Type → Type}
-  (base : T₂ Unit)
+  (codomain : T₂ Unit)
   (prod : ∀ {tya tyb : Type}, T₁ tya → T₂ tyb → T₂ (tya × tyb))
   (elements : IteratedProd (ts.map T₁)) : T₂ (IteratedProd ts) :=
   match ts, elements with
-  | [], _ => base
-  | _ :: _, (lis, elements) => prod lis <| IteratedProd.fold base prod elements
+  | [], _ => codomain
+  | _ :: _, (lis, elements) => prod lis <| IteratedProd.fold codomain prod elements
 
 def IteratedProd.map {ts : List Type} {T₁ T₂ : Type → Type}
   (map : ∀ {ty : Type}, T₁ ty → T₂ ty)
@@ -484,10 +484,10 @@ instance instHashSetForIteratedProdEquivIteratedArrowToBool :
 /-
 abbrev HashMapForIteratedProd (ts : List Type)
   [instd : DecidableEq (IteratedProd ts)]
-  [insth : Hashable (IteratedProd ts)] (base : Type) := Std.HashMap (IteratedProd ts) base
+  [insth : Hashable (IteratedProd ts)] (codomain : Type) := Std.HashMap (IteratedProd ts) codomain
 
 instance instHashMapForIteratedProdEquivIteratedArrow :
-  HashMapForIteratedProd ts base ≃ IteratedArrow base ts where
+  HashMapForIteratedProd ts codomain ≃ IteratedArrow codomain ts where
 -/
 
 end HashMapAndSet
@@ -496,54 +496,54 @@ end Iterated
 
 section SingleField
 
-variable (fieldComponents : List Type) (FieldBase : Type)
+variable (fieldDomain : List Type) (FieldCodomain : Type)
 
-local macro "⌞" t1:ident t2:ident* "⌟" : term => `($t1 $(Lean.mkIdent `fieldComponents) $t2:ident*)
-local macro "⌞_" t1:ident t2:ident* "⌟" : term => `(⌞ $t1 $(Lean.mkIdent `FieldBase) $t2:ident* ⌟)
+local macro "⌞" t1:ident t2:ident* "⌟" : term => `($t1 $(Lean.mkIdent `fieldDomain) $t2:ident*)
+local macro "⌞_" t1:ident t2:ident* "⌟" : term => `(⌞ $t1 $(Lean.mkIdent `FieldCodomain) $t2:ident* ⌟)
 
-abbrev FieldUpdatePat : Type := IteratedProd (fieldComponents.map Option)
+abbrev FieldUpdatePat : Type := IteratedProd (fieldDomain.map Option)
 
-abbrev CanonicalField : Type := IteratedArrow FieldBase fieldComponents
+abbrev CanonicalField : Type := IteratedArrow FieldCodomain fieldDomain
 
 abbrev FieldUpdateDescr := List (⌞ FieldUpdatePat ⌟ × ⌞_ CanonicalField ⌟)
 
-def FieldUpdatePat.pad (n : Nat) : IteratedArrow (FieldUpdatePat fieldComponents)
-    (fieldComponents.take n |>.map Option) :=
+def FieldUpdatePat.pad (n : Nat) : IteratedArrow (FieldUpdatePat fieldDomain)
+    (fieldDomain.take n |>.map Option) :=
   IteratedArrow.curry fun args => (by
-    let res := args ++ IteratedProd.default (ts := fieldComponents.drop n) (@Option.none)
+    let res := args ++ IteratedProd.default (ts := fieldDomain.drop n) (@Option.none)
     simp at res
     exact res)
 
 def FieldUpdatePat.match
-  {fieldComponents : List Type}
-  (dec : IteratedProd (fieldComponents.map DecidableEq))
-  (fa : FieldUpdatePat fieldComponents) args :=
+  {fieldDomain : List Type}
+  (dec : IteratedProd (fieldDomain.map DecidableEq))
+  (fa : FieldUpdatePat fieldDomain) args :=
   IteratedProd.patCmp (fun o x => o.elim true (fun y => decide (y = x))) dec fa args
 
 def FieldUpdateDescr.fieldUpdate
-  {fieldComponents : List Type}
-  {FieldBase : Type}
-  (dec : IteratedProd (fieldComponents.map DecidableEq))
+  {fieldDomain : List Type}
+  {FieldCodomain : Type}
+  (dec : IteratedProd (fieldDomain.map DecidableEq))
   (favs : ⌞_ FieldUpdateDescr ⌟)
   (vbase : ⌞_ CanonicalField ⌟)
-  (args : IteratedProd fieldComponents) : FieldBase :=
+  (args : IteratedProd fieldDomain) : FieldCodomain :=
   favs.foldr (init := vbase.uncurry args) fun (fa, v) acc => if fa.match dec args then v.uncurry args else acc
 
 def FieldUpdatePat.footprintRaw
-  {fieldComponents : List Type}
-  (instfin : IteratedProd (fieldComponents.map FinEnum))
-  (fa : FieldUpdatePat fieldComponents) :=
+  {fieldDomain : List Type}
+  (instfin : IteratedProd (fieldDomain.map FinEnum))
+  (fa : FieldUpdatePat fieldDomain) :=
   instfin.zipWith fa fun fin b =>
     b.elim (fun (_ : Unit) => fin.toList _) (fun x _ => [x])
 
 theorem FieldUpdatePat.footprint_match_iff
-  {fieldComponents : List Type}
-  (instfin : IteratedProd (fieldComponents.map FinEnum))
-  (dec : IteratedProd (fieldComponents.map DecidableEq))
-  {fa : FieldUpdatePat fieldComponents} :
+  {fieldDomain : List Type}
+  (instfin : IteratedProd (fieldDomain.map FinEnum))
+  (dec : IteratedProd (fieldDomain.map DecidableEq))
+  {fa : FieldUpdatePat fieldDomain} :
   ∀ args, args ∈ (fa.footprintRaw instfin).cartesianProduct ↔ fa.match dec args := by
   intro args
-  induction fieldComponents
+  induction fieldDomain
   all_goals (simp [FieldUpdatePat] at fa ; simp [IteratedProd] at instfin dec args)
   next => simp [IteratedProd.cartesianProduct, IteratedProd.fold, FieldUpdatePat.match] ; rfl
   next t ts ih =>
@@ -559,15 +559,15 @@ class FieldRepresentation (FieldTypeConcrete : Type) where
   set : ⌞_ FieldUpdateDescr ⌟ → FieldTypeConcrete → FieldTypeConcrete
 
 -- a handy notation
-abbrev FieldRepresentation.setSingle {fieldComponents : List Type}
-  {FieldBase FieldTypeConcrete : Type}
+abbrev FieldRepresentation.setSingle {fieldDomain : List Type}
+  {FieldCodomain FieldTypeConcrete : Type}
   [self : ⌞_ FieldRepresentation FieldTypeConcrete ⌟]
   (fa : ⌞ FieldUpdatePat ⌟) (v : ⌞_ CanonicalField ⌟) (fc : FieldTypeConcrete) : FieldTypeConcrete :=
   self.set [(fa, v)] fc
 
 -- TODO can this be declared as `instance`?
-def FieldRepresentation.mkFromSingleSet {fieldComponents : List Type}
-  {FieldBase : Type} {FieldTypeConcrete : Type}
+def FieldRepresentation.mkFromSingleSet {fieldDomain : List Type}
+  {FieldCodomain : Type} {FieldTypeConcrete : Type}
   (get : FieldTypeConcrete → ⌞_ CanonicalField ⌟)
   (setSingle : ⌞ FieldUpdatePat ⌟ → ⌞_ CanonicalField ⌟ → FieldTypeConcrete → FieldTypeConcrete) :
   ⌞_ FieldRepresentation FieldTypeConcrete ⌟ where
@@ -584,8 +584,8 @@ class LawfulFieldRepresentationSet (FieldTypeConcrete : Type)
   set_nil :
     ∀ {fc : FieldTypeConcrete}, inst.set [] fc = fc
 
-theorem LawfulFieldRepresentationSet.mkFromSingleSet {fieldComponents : List Type}
-  {FieldBase : Type} {FieldTypeConcrete : Type}
+theorem LawfulFieldRepresentationSet.mkFromSingleSet {fieldDomain : List Type}
+  {FieldCodomain : Type} {FieldTypeConcrete : Type}
   (get : FieldTypeConcrete → ⌞_ CanonicalField ⌟)
   (setSingle : ⌞ FieldUpdatePat ⌟ → ⌞_ CanonicalField ⌟ → FieldTypeConcrete → FieldTypeConcrete) :
   (⌞_ LawfulFieldRepresentationSet FieldTypeConcrete ⌟)
@@ -595,8 +595,8 @@ theorem LawfulFieldRepresentationSet.mkFromSingleSet {fieldComponents : List Typ
   set_nil := by
     introv ; simp [FieldRepresentation.mkFromSingleSet, FieldRepresentation.set]
 
-def CanonicalField.set {fieldComponents : List Type} {FieldBase : Type}
-  (dec : IteratedProd (fieldComponents.map DecidableEq))
+def CanonicalField.set {fieldDomain : List Type} {FieldCodomain : Type}
+  (dec : IteratedProd (fieldDomain.map DecidableEq))
   (favs : ⌞_ FieldUpdateDescr ⌟)
   (fc : ⌞_ CanonicalField ⌟) : ⌞_ CanonicalField ⌟ :=
   IteratedArrow.curry (favs.fieldUpdate dec fc)
@@ -608,23 +608,23 @@ class LawfulFieldRepresentation (FieldTypeConcrete : Type)
     ∀ -- TODO not sure this should be made here in the argument, but using
       -- the fact that all `DecidableEq` instances are equal, this will not
       -- matter much?
-      (dec : IteratedProd (fieldComponents.map DecidableEq))
+      (dec : IteratedProd (fieldDomain.map DecidableEq))
       (fc : FieldTypeConcrete) fav,
       inst.get (inst.set [fav] fc) = (inst.get fc).set dec [fav]
   -- NOTE: temporarily disabling this law, since it is not used
   -- set_get_idempotent :
-  --   ∀ (fc : FieldTypeConcrete) (fa : FieldUpdatePat fieldComponents),
+  --   ∀ (fc : FieldTypeConcrete) (fa : FieldUpdatePat fieldDomain),
   --     inst.set [(fa, inst.get fc)] fc = fc
 
-instance canonicalFieldRepresentation {fieldComponents : List Type} {FieldBase : Type}
-  (dec : IteratedProd (fieldComponents.map DecidableEq)) :
+instance canonicalFieldRepresentation {fieldDomain : List Type} {FieldCodomain : Type}
+  (dec : IteratedProd (fieldDomain.map DecidableEq)) :
   (⌞_ FieldRepresentation ⌟) (⌞_ CanonicalField ⌟) where
   get := id
   set favs fc := fc.set dec favs
 
 instance canonicalFieldRepresentationLawful
-  (dec : IteratedProd (fieldComponents.map DecidableEq)) :
-  LawfulFieldRepresentation fieldComponents FieldBase (⌞_ CanonicalField ⌟)
+  (dec : IteratedProd (fieldDomain.map DecidableEq)) :
+  LawfulFieldRepresentation fieldDomain FieldCodomain (⌞_ CanonicalField ⌟)
     -- TODO why synthesis fails here? is it because there is no `semiOutParam`, `outParam` or because of `dec`?
     -- also, due to the synthesis failure, `inst` cannot be declared using `[]`
     (inst := canonicalFieldRepresentation dec) where
@@ -639,11 +639,11 @@ instance canonicalFieldRepresentationLawful
     introv ; simp +unfoldPartialApp [CanonicalField.set, FieldRepresentation.set, FieldUpdateDescr.fieldUpdate, IteratedArrow.curry_uncurry]
 
 /-- Strengthen `get_set_idempotent` to `FieldUpdateDescr`. -/
-theorem LawfulFieldRepresentation.get_set_idempotent' {fieldComponents : List Type} {FieldBase : Type}
+theorem LawfulFieldRepresentation.get_set_idempotent' {fieldDomain : List Type} {FieldCodomain : Type}
   {FieldTypeConcrete : Type}
   {inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟}
   (inst2 : ⌞_ LawfulFieldRepresentation FieldTypeConcrete inst ⌟)
-  (dec : IteratedProd (fieldComponents.map DecidableEq)) favs fc :
+  (dec : IteratedProd (fieldDomain.map DecidableEq)) favs fc :
     inst.get (inst.set favs fc) = (inst.get fc).set dec favs := by
   induction favs with
   | nil => simp +unfoldPartialApp [inst2.set_nil, CanonicalField.set,
@@ -656,12 +656,12 @@ theorem LawfulFieldRepresentation.get_set_idempotent' {fieldComponents : List Ty
 section FieldRepresentationInstances
 
 instance (priority := high + 1)
-  : FieldRepresentation [] FieldBase FieldBase where
+  : FieldRepresentation [] FieldCodomain FieldCodomain where
   get := id
   set favs fc := List.head? favs |>.elim fc Prod.snd
 
 instance (priority := high + 1)
-  : LawfulFieldRepresentation [] FieldBase FieldBase inferInstance where
+  : LawfulFieldRepresentation [] FieldCodomain FieldCodomain inferInstance where
   set_nil := by introv ; simp [FieldRepresentation.set]
   set_append := by
     introv ; simp [FieldRepresentation.set]
@@ -688,23 +688,23 @@ instance (priority := high + 1)
 -- CHECK will writing this in a recursive way, instead of constructing
 -- all things to be (potentially) modified, be more efficient?
 
-omit fieldComponents
+omit fieldDomain
 
-variable {fieldComponents : List Type}
-  [instd : DecidableEq (IteratedProd fieldComponents)]
-  [instm : Membership (IteratedProd fieldComponents) β]
+variable {fieldDomain : List Type}
+  [instd : DecidableEq (IteratedProd fieldDomain)]
+  [instm : Membership (IteratedProd fieldDomain) β]
   [inst : FinsetLike β]
   [instl : LawfulFinsetLike β]
   [instdm : DecidableRel instm.mem]
-  (instfin : IteratedProd (fieldComponents.map FinEnum))
+  (instfin : IteratedProd (fieldDomain.map FinEnum))
 
-instance instFinsetLikeAsFieldRep : FieldRepresentation fieldComponents Bool β :=
+instance instFinsetLikeAsFieldRep : FieldRepresentation fieldDomain Bool β :=
   FieldRepresentation.mkFromSingleSet
     (get := fun fc => IteratedArrow.curry (instm.mem fc))
     (setSingle := fun fa v fc =>
       FinsetLike.batchUpdate (fa.footprintRaw instfin).cartesianProduct v.uncurry fc)
 
-instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation fieldComponents Bool β
+instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation fieldDomain Bool β
     -- TODO this is awkward; synthesis fails here, and the `equiv.symm` is weird
     (instFinsetLikeAsFieldRep instfin) where
   toLawfulFieldRepresentationSet :=
@@ -746,8 +746,8 @@ end FieldRepresentationInstances
 
 -- section TreeSetOrMapAsField
 
--- instance (priority := high) : FieldRepresentation fieldComponents Bool
---   (Std.TreeSet (IteratedProd' fieldComponents)) where
+-- instance (priority := high) : FieldRepresentation fieldDomain Bool
+--   (Std.TreeSet (IteratedProd' fieldDomain)) where
 --   get : FieldTypeConcrete → ⌞_ CanonicalField ⌟
 --   set : ⌞_ FieldUpdateDescr ⌟ → FieldTypeConcrete → FieldTypeConcrete
 

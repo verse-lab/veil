@@ -190,7 +190,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       -- namely, turn every Capital identifier into `none`
       -- NOTE: the actual pattern size might be smaller than `pat.size`, since
       -- the base can be a function; we shrink the size according to how
-      -- `toComponents` is generated
+      -- `toDomain` is generated
       let componentsSize := mod._fieldRepMetaData.get? name |>.elim 0 (·.size)
       let (patUsed, patResidue) := (pat.take componentsSize, pat.drop componentsSize)
       let patOpt ← patUsed.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
@@ -198,7 +198,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
         patUsed.mapM fun i => if isCapital i.raw.getId then `(Term.funBinder| $(⟨i.raw⟩):ident ) else `(Term.funBinder| _ )
       let v ← if patResidue.isEmpty then pure v else `($(mkIdent name):ident [ $[$patResidue],* ↦ $v ])
       let vPadded ← if funBinders.isEmpty then pure v else `(fun $[$funBinders]* => ($v))
-      let components ← `($(fieldToComponents stateName)
+      let components ← `($(fieldLabelToDomain stateName)
         $(← mod.sortIdents):ident*
         $(mkIdent <| structureFieldLabelTypeName stateName ++ name):ident)
       let patTerm ← `(dsimp% [$(mkIdent `fieldRepresentationPatSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
