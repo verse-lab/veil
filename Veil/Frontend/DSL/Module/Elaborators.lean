@@ -206,7 +206,8 @@ def elabGhostRelationDefinition : CommandElab := fun stx => do
   mod ← mod.ensureStateIsDefined
   mod.throwIfSpecAlreadyFinalized
   let (cmd, new_mod) ← match stx with
-  | `(command|ghost relation $nm:ident $br:explicitBinders ? := $t:term) => mod.defineGhostRelation nm.getId br t
+  | `(command|ghost relation $nm:ident $br:explicitBinders ? := $t:term) => mod.defineGhostRelation nm.getId br t (justTheory := false)
+  | `(command|theory ghost relation $nm:ident $br:explicitBinders ? := $t:term) => mod.defineGhostRelation nm.getId br t (justTheory := true)
   | _ => throwUnsupportedSyntax
   elabVeilCommand cmd
   localEnv.modifyModule (fun _ => new_mod)

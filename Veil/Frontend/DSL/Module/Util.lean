@@ -193,7 +193,7 @@ where
   derivedDefinitionBaseParams (mod : Module) (k : DerivedDefinitionKind) : m (Array Parameter) := do
     match k with
     | .stateLike => sortParameters mod
-    | .assumptionLike => pure (theoryParameters mod)
+    | .assumptionLike | .theoryGhost => pure (theoryParameters mod)
     | .invariantLike | .actionLike | .theoremLike | .ghost => pure mod.parameters
     | .actionDoLike => pure $ #[← Parameter.mode] ++ mod.parameters
 
@@ -594,13 +594,13 @@ def Module.registerDerivedDefinition [Monad m] [MonadError m] [MonadQuotation m]
   mod.throwIfAlreadyDeclared ddef.name
   return { mod with _declarations := mod._declarations.insert ddef.name ddef.declarationKind, _derivedDefinitions := mod._derivedDefinitions.insert ddef.name ddef }
 
-def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) : CommandElabM (Command × Module) := do
+def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) (justTheory : Bool := false) : CommandElabM (Command × Module) := do
   mod.throwIfAlreadyDeclared name
   let kind? := .stateAssertion .invariant -- a ghost relation is a predicate that depends on the state
-  let ddKind := .derivedDefinition .ghost (Std.HashSet.emptyWithCapacity 0)
+  let ddKind := .derivedDefinition (if justTheory then .theoryGhost else .ghost) (Std.HashSet.emptyWithCapacity 0)
   let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) ddKind
   let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
-  let (extraParams, thstBinders, term) ← liftTermElabM $ mod.mkVeilTerm name kind? params term (justTheory := false)
+  let (extraParams, thstBinders, term) ← liftTermElabM $ mod.mkVeilTerm name kind? params term justTheory
   -- See NOTE(SUBTLE).
   let baseBinders ← (baseParams ).mapM (·.binder)
   let binders := (← baseBinders.mapM mkImplicitBinder) ++ paramBinders ++ thstBinders ++ (← extraParams.mapM (·.binder))

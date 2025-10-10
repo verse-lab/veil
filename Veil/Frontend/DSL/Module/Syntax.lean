@@ -35,6 +35,7 @@ syntax (name := kw_individual) "individual" : veilKeyword
 syntax (name := kw_relation) "relation" : veilKeyword
 syntax (name := kw_function) "function" : veilKeyword
 
+syntax (name := kw_theory) "theory" : veilKeyword
 syntax (name := kw_ghost) "ghost" : veilKeyword
 
 syntax (name := kw_includes) "includes" : veilKeyword
@@ -157,12 +158,16 @@ syntax (name := declareDependency) kw_includes ident term:max* moduleAbbrev : co
 
 /- ## Ghost relations -/
 
-/-- Define a ghost relation, i.e. a predicate over state. Example:
+/-- Define a ghost relation. By default, `ghost relation`s depend on both the
+background theory and the state. If you want to define a ghost relation that
+only depends on the background theory, define a `theory ghost relation`. Example:
+
   ```lean
-  relation R (r : round) (v : value) := [definition]
+  ghost relation R (r : round) (v : value) := [definition]
+  theory ghost relation V (v : value) := [definition]
   ```
 -/
-syntax (name := ghostRelationDefinition) kw_ghost kw_relation ident explicitBinders ? ":=" term : command
+syntax (name := ghostRelationDefinition) kw_theory ? kw_ghost kw_relation ident explicitBinders ? ":=" term : command
 
 /- ## Initial state -/
 
