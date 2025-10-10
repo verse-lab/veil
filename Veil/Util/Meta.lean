@@ -370,6 +370,20 @@ private partial def withAutoBoundCont
 private partial def withAutoBoundCapitals (k : TermElabM α) : TermElabM α := do
   withAutoBoundCont k (fun n => return isCapital n) (fun ex n => do throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}")
 
+@[inline] macro "exists?" br:explicitBinders ? "," t:term : term =>
+  match br with
+  | some br => `(exists $br, $t)
+  | none => `($t)
+
+@[inline] macro "forall?" br:bracketedBinder* "," t:term : term =>
+  if br.size > 0 then
+    `(∀ $br*, $t)
+  else
+    `($t)
+
+def expandTermMacro [Monad m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m] (stx : Term) : m Term := do
+  TSyntax.mk <$> (Elab.liftMacroM <| expandMacros stx)
+
 def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
   let originalFVars := (← getLCtx).getFVars
   -- This ensures the capitals will be bound as `fvar`s
@@ -391,10 +405,9 @@ def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
     -- because we want to preserve `SourceInfo`, such that errors are reported
     -- at the correct location.
     let binders ← capitalVars.mapM fun (n, type) => do `(bracketedBinder| ($(mkIdent n) : $(← delabVeilExpr type)))
-    let res ← `(term| ∀ $binders*, $stx)
+    let res ← expandTermMacro $ ← `(term| forall? $binders*, $stx)
     let res := Syntax.inheritSourceSpanFrom res stx
     return res
-
 
 def repeatedOp [Monad m] [MonadQuotation m] (op : Name) (operands : Array (TSyntax `term)) (default : Option (TSyntax `term) := none) : m (TSyntax `term) := do
   if operands.isEmpty then
@@ -413,17 +426,6 @@ def repeatedAnd [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) 
 def repeatedOr  [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) : m (TSyntax `term) := do
   repeatedOp `Or operands (default := ← `(term|$(mkIdent `False)))
 
-@[inline] macro "exists?" br:explicitBinders ? "," t:term : term =>
-  match br with
-  | some br => `(exists $br, $t)
-  | none => `($t)
-
-@[inline] macro "forall?" br:bracketedBinder* "," t:term : term =>
-  if br.size > 0 then
-    `(∀ $br*, $t)
-  else
-    `($t)
-
 /--
 Similar to the `distinct` keyword in SMT-LIB, this generates inequality
 conditions for multiple terms. Example: `distinct a b c d`=
@@ -439,9 +441,5 @@ macro_rules
         inequalities := inequalities.push (← `($elem_i ≠ $elem_j))
     let fmla ← repeatedAnd inequalities
     return fmla
-
-
-def expandTermMacro [Monad m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m] (stx : Term) : m Term := do
-  TSyntax.mk <$> (Elab.liftMacroM <| expandMacros stx)
 
 end Veil
