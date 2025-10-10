@@ -193,9 +193,14 @@ where
           let tmp ← Meta.mkLambdaFVars ys $ mkAppN z (ys.filter fun y => y.occurs body)
           pure $ tmp.replaceFVar z mv'
       mv.mvarId!.assign mv_pf
+      -- IMPORTANT: the type might have _delayed assignment metavariables_ if an
+      -- assertion (which has default argument values provided by
+      -- `veil_exact_theory` and `by veil_exact_state`) appears under a binder
+      -- (e.g. `∀` quantification). We don't handle this, so we throw an error.
+      let tyMVars ← Meta.getMVars simplified_type
+      if !tyMVars.isEmpty then
+        throwError "(type still has mvars after simplification):\n{simplified_type}"
       let tyStx ← delabVeilExpr simplified_type
-      -- if simplified_type.hasMVar then
-        -- throwError "(type still has mvars after simplification):\n{simplified_type}"
       -- trace[veil.debug] "simplifyMVarType {mv}:\n{ty}\n~~> {simplified_type}"
       return (tyStx, mv')
 
