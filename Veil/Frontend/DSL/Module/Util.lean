@@ -499,13 +499,13 @@ def withTheory (t : Term) :  MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBi
   let mut mod ← getCurrentModule
   let theoryName := mod.name ++ theoryName
   let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
-  let (th, motive, Bool) := (mkIdent `th, mkIdent `motive, mkIdent ``Bool)
+  let (th, motive) := (mkIdent `th, mkIdent `motive)
   let fn ← `(term|(fun ($th : $environmentTheory) =>
     @$(casesOnTheory)
     $(← mod.sortIdents)*
-    ($motive := fun _ => $Bool)
+    ($motive := fun _ => Prop)
     ($(mkIdent ``readFrom) $th)
-    (fun $[$(← getFieldIdentsForStruct theoryName)]* => ($(mkIdent ``decide) $ $t : $Bool))))
+    (fun $[$(← getFieldIdentsForStruct theoryName)]* => $t)))
   -- See NOTE(SUBTLE) to see why this is not actually ill-typed.
   let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory))]
   return (binders, ← `(term|$fn $th))
@@ -520,16 +520,16 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
   let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
   let casesOnState ← delabVeilExpr $ mkConst $ (stateName ++ `casesOn)
-  let (th, st, motive, Bool) := (mkIdent `th, mkIdent `st, mkIdent `motive, mkIdent ``Bool)
+  let (th, st, motive) := (mkIdent `th, mkIdent `st, mkIdent `motive)
   let fn ← `(term|(fun ($th : $environmentTheory) ($st : $environmentState) =>
     @$(casesOnTheory) $(← mod.sortIdents)*
-    ($motive := fun _ => $Bool)
+    ($motive := fun _ => Prop)
     ($(mkIdent ``readFrom) $th) <|
     (fun $[$(← getFieldIdentsForStruct theoryName)]* =>
       @$(casesOnState) $(← mod.sortIdents)*
-      ($motive := fun _ => $Bool)
+      ($motive := fun _ => Prop)
       ($(mkIdent ``getFrom) $st)
-      (fun $[$(← getFieldIdentsForStruct stateName)]* => ($(mkIdent ``decide) $ $t : $Bool)))))
+      (fun $[$(← getFieldIdentsForStruct stateName)]* => $t))))
   -- NOTE(SUBTLE): `by veil_exact_theory` and `by veil_exact_state` work in a
   -- counter-intuitive way when applied to assertions. Concretely, these tactics
   -- always construct a term of type `Theory` and `State` respectively (rather
@@ -604,7 +604,8 @@ def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TS
   -- See NOTE(SUBTLE).
   let baseBinders ← (baseParams ).mapM (·.binder)
   let binders := (← baseBinders.mapM mkImplicitBinder) ++ paramBinders ++ thstBinders ++ (← extraParams.mapM (·.binder))
-  let stx ← `(abbrev $(mkIdent name) $[$binders]* := $term)
+  let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let stx ← `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
   trace[veil.debug] "stx: {stx}"
   -- FIXME: we should probably add `thstBinders` to `params`?
   let ddef : DerivedDefinition := { name := name, kind := .ghost, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
