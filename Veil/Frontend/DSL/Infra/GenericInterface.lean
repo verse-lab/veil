@@ -242,6 +242,12 @@ variable {α : Type u} {β : Type v}
   [instm : Membership α β] [inst : FinsetLike β]
   [instdm : DecidableRel instm.mem]
 
+def FinsetLike.update (a : α) (in?' : Bool) (mp : β) : β :=
+  if in? : a ∈ mp then
+    if !in?' then inst.erase a mp in? else mp
+  else
+    if in?' then inst.insert a mp in? else mp
+
 -- CHECK there are two ways of implementation: (1) `fold` and (2) `let mut` with loop.
 -- which is faster? do both use the object linearly?
 -- CHECK will typeclass affect things like reference counting?
@@ -256,6 +262,22 @@ def FinsetLike.batchUpdate (as : List α) (v : α → Bool) (mp : β) : β := Id
       if in?' then
         res := inst.insert a res in?
   return res
+
+-- a fairly "raw" proof about for-loop
+theorem FinsetLike.batchUpdate_eq_foldl_update (as : List α) (v : α → Bool) (mp : β) :
+  inst.batchUpdate as v mp = as.foldl (init := mp) fun acc a => inst.update a (v a) acc := by
+  simp [batchUpdate, Id.run]
+  conv =>
+    enter [1]
+    conv =>
+      enter [3, p, r] ; simp [pure]
+      conv => enter [2] ; intro h ; rw [← apply_ite ForInStep.yield]
+      conv => enter [3] ; intro h ; rw [← apply_ite ForInStep.yield]
+      repeat rw [← apply_dite ForInStep.yield]
+      conv => enter [1] ; rw [← Id.run_pure (dite ..)] ; dsimp only [pure]
+      rw [← Id.run_map _ ForInStep.yield]
+    apply List.idRun_forIn_yield_eq_foldl
+  congr ; ext b a ; simp [Id.run, update]
 
 end DerivedOperations
 
@@ -386,6 +408,38 @@ def IteratedProd.zipWith {ts : List Type} {T₁ T₂ T₃ : Type → Type}
 def IteratedProd.cartesianProduct {ts : List Type}
   (elements : IteratedProd (ts.map (Unit → List ·))) :=
   IteratedProd.fold [()] (List.product <| · ()) elements
+
+-- NOTE: this should have some effect like deforestation, compared to using
+-- `cartesianProduct` directly
+-- TODO this might be too ... specific? or for monad?
+def IteratedProd.foldMap {α : Type} {ts : List Type}
+  (init : α) (f : IteratedArrow (α → α) ts)
+  (elements : IteratedProd <| ts.map (Unit → List ·)) : α :=
+  match ts, elements with
+  | [], _ => f init
+  | _ :: _, (lis, elements) =>
+    let liss := lis ()
+    liss.foldl (init := init) fun a b =>
+      IteratedProd.foldMap a (f b) elements
+
+theorem IteratedProd.foldMap_eq_cartesianProduct {α : Type} {ts : List Type}
+  (init : α) (f : IteratedArrow (α → α) ts) (g : α → IteratedProd ts → α)
+  (eq : ∀ a p, f.uncurry p a = g a p)
+  (elements : IteratedProd <| ts.map (Unit → List ·)) :
+  IteratedProd.foldMap init f elements =
+    elements.cartesianProduct.foldl (init := init) g := by
+  induction ts generalizing init with
+  | nil => simp [IteratedProd.foldMap, IteratedProd.cartesianProduct, IteratedProd.fold] ; apply eq
+  | cons t ts ih =>
+    rcases elements with ⟨lis, elements⟩
+    simp [IteratedProd.foldMap, IteratedProd.cartesianProduct, IteratedProd.fold, ih]
+    generalize (fold [()] (fun {tya tyb} x => (x ()).product) elements) = subprods
+    generalize (lis ()) = lis'
+    clear *- eq
+    -- is this induction actually needed? or use some theorem?
+    induction lis' generalizing init with
+    | nil => rfl
+    | cons x lis' ih => simp [List.product, ih, List.foldl_map, ← eq] ; rfl
 
 section ListTypeAll
 
@@ -685,9 +739,6 @@ instance (priority := high + 1)
 -- a footprint can be computed from the `fieldUpdatePattern`, and we only
 -- need to impose the finiteness condition on the footprint.
 
--- CHECK will writing this in a recursive way, instead of constructing
--- all things to be (potentially) modified, be more efficient?
-
 omit fieldDomain
 
 variable {fieldDomain : List Type}
@@ -698,11 +749,28 @@ variable {fieldDomain : List Type}
   [instdm : DecidableRel instm.mem]
   (instfin : IteratedProd (fieldDomain.map FinEnum))
 
+def FieldRepresentation.Finset.setSingle
+  (fa : FieldUpdatePat fieldDomain)
+  (v : CanonicalField fieldDomain Bool) (fc : β) :=
+  inst.batchUpdate (fa.footprintRaw instfin).cartesianProduct v.uncurry fc
+
+def FieldRepresentation.Finset.setSingle'
+  (fa : FieldUpdatePat fieldDomain)
+  (v : CanonicalField fieldDomain Bool) (fc : β) :=
+  let vv := v.uncurry
+  IteratedProd.foldMap fc (IteratedArrow.curry fun args fc' =>
+    inst.update args (vv args) fc') (fa.footprintRaw instfin)
+
+omit instd instl in
+theorem FieldRepresentation.Finset.setSingle_eq fa v (fc : β) :
+  setSingle instfin fa v fc = setSingle' instfin fa v fc := by
+  unfold setSingle setSingle'
+  simp only [FinsetLike.batchUpdate_eq_foldl_update, IteratedProd.foldMap_eq_cartesianProduct, IteratedArrow.uncurry_curry]
+
 instance instFinsetLikeAsFieldRep : FieldRepresentation fieldDomain Bool β :=
   FieldRepresentation.mkFromSingleSet
     (get := fun fc => IteratedArrow.curry (instm.mem fc))
-    (setSingle := fun fa v fc =>
-      FinsetLike.batchUpdate (fa.footprintRaw instfin).cartesianProduct v.uncurry fc)
+    (setSingle := FieldRepresentation.Finset.setSingle' instfin)
 
 instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation fieldDomain Bool β
     -- TODO this is awkward; synthesis fails here, and the `equiv.symm` is weird
@@ -712,31 +780,23 @@ instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation fieldDomain Bo
   get_set_idempotent := by
     introv ; rcases fav with ⟨fa, v⟩
     simp +unfoldPartialApp [instFinsetLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
-      CanonicalField.set, FieldRepresentation.set, FinsetLike.batchUpdate, Id.run,
-      IteratedArrow.uncurry_curry, FieldUpdateDescr.fieldUpdate]
+      CanonicalField.set, FieldRepresentation.set, FieldRepresentation.Finset.setSingle',
+      IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry]
     simp [← (FieldUpdatePat.footprint_match_iff instfin dec)]
     congr! 1 ; ext args ; rw [Bool.eq_iff_iff] ; simp
-    conv =>
-      enter [1, 1]
-      conv =>
-        enter [3, p, r] ; simp [pure]
-        conv => enter [2] ; intro h ; rw [← apply_ite ForInStep.yield]
-        conv => enter [3] ; intro h ; rw [← apply_ite ForInStep.yield]
-        repeat rw [← apply_dite ForInStep.yield]
-        conv => enter [1] ; rw [← Id.run_pure (dite ..)] ; dsimp only [pure]
-        rw [← Id.run_map _ ForInStep.yield]
-      apply List.idRun_forIn_yield_eq_foldl
     -- `foldr` is more convenient for induction here
     rw [List.foldl_eq_foldr_reverse]
     conv => enter [2, 1] ; rw [← List.mem_reverse]
     generalize (fa.footprintRaw instfin).cartesianProduct.reverse = prods
+    unfold FinsetLike.update
+    generalize (v.uncurry) = vv
     generalize e : (fun x y => _) = ff
     induction prods with
     | nil => simp
     | cons p prods ih =>
       simp [ite_or, ← ih] ; clear ih
       generalize (List.foldr ..) = acc
-      subst ff ; simp [Id.run] ; split_ifs <;> (try solve | grind)
+      subst ff ; dsimp ; split_ifs <;> (try solve | grind)
       · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.erase_toFinset]
       · simp [instl.toFinset_mem_iff, instl.erase_toFinset] ; simp_all
       · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.insert_toFinset]
