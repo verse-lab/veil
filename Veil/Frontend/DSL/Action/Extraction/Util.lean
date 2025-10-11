@@ -37,7 +37,17 @@ instance (priority := high) essentiallyFinSetRepr (α : Type u) [Repr α] [FinEn
 open Lean Meta Elab Term Command
 
 private inductive SimpleDerivingReprForCase where
-  | fromParams | fromFields
+  | fromParams | fromFields (aggregate : Bool)
+
+/-- This is specialized for the case where each field has type
+    `χ State.Label.y`. DO NOT use this for any other purpose. -/
+private def tryAggregate (aggregate : Bool) (tys : Array Term) : MetaM (Option Term) := do
+  if !aggregate || tys.isEmpty then return none
+  let ty := tys[0]!
+  let f := mkIdent `f
+  match ty with
+  | `( $χ $_ ) => `(∀ $f, $(mkIdent ``Repr) ($χ $f))
+  | _ => return none
 
 private def simpleDerivingReprForCore (t : Ident) (case : SimpleDerivingReprForCase) : MetaM (TSyntax `command) := do
   let name ← realizeGlobalConstNoOverloadWithInfo t
@@ -61,21 +71,25 @@ private def simpleDerivingReprForCore (t : Ident) (case : SimpleDerivingReprForC
     match case with
     | .fromParams =>
       paramIdents.mapM (fun pn => `(bracketedBinder| [$(mkIdent ``Repr) $pn] ))
-    | .fromFields =>
+    | .fromFields agg =>
       let ctorTypes ← fields.mapM fun fn => do
         let fnName ← realizeGlobalConstNoOverloadCore (name ++ fn)
         let fnInfo ← getConstInfo fnName
         -- have to resort to delaboration here ... not sure how to do with `Expr`
+        -- NOTE: "first drop and then delab" does not work, since there can be loose bvars
         let ty ← delabVeilExpr fnInfo.type
         let (res, base) ← splitForallArgsCodomain ty
         let res' := res.drop (1 + paramIdents.size) -- drop the `self` argument and parameters
         mkArrowStx res'.toList base
-      ctorTypes.mapM (fun ctorTy => `(bracketedBinder| [$(mkIdent ``Repr) ($ctorTy)] ))
+      match (← tryAggregate agg ctorTypes) with
+      | some aggTy => let tmp ← `(bracketedBinder| [$aggTy] ) ; pure #[tmp]
+      | none =>
+        ctorTypes.mapM (fun ctorTy => `(bracketedBinder| [$(mkIdent ``Repr) ($ctorTy)] ))
   let target := Syntax.mkApp (mkIdent name) paramIdents
   -- assemble everything
   `(command|
     instance $[$instArgs]* : $(mkIdent ``Repr) $target where
-      reprPrec $t:ident $n:ident := $(mkIdent ``Std.Format.bracket) "{ "
+      $(mkIdent `reprPrec):ident $t:ident $n:ident := $(mkIdent ``Std.Format.bracket) "{ "
         ($(mkIdent ``Std.Format.joinSep) [$fieldReprs,*] ", ") " }")
 
 /-- Attempt to derive a `Repr` instance for a `structure` by assuming all
@@ -89,7 +103,7 @@ elab "simple_deriving_repr_for " t:ident : command => do
 
 /-- Similar to `simple_deriving_repr_for` but assumes all field types are `Repr`. -/
 elab "simple_deriving_repr_for' " t:ident : command => do
-  let cmd ← liftTermElabM <| simpleDerivingReprForCore t .fromFields
+  let cmd ← liftTermElabM <| simpleDerivingReprForCore t (.fromFields true)
   elabVeilCommand cmd
 
 end Veil

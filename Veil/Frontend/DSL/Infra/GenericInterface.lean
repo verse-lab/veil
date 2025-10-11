@@ -319,10 +319,44 @@ section Iterated
 abbrev IteratedProd (ts : List Type) : Type :=
   ts.foldr Prod Unit
 
-abbrev IteratedProd' (ts : List Type) : Type :=
+def IteratedProd' (ts : List Type) : Type :=
   match ts with
   | [] => Unit
-  | t :: ts' => t × IteratedProd ts'
+  | [t] => t
+  | t :: ts' => t × IteratedProd' ts'
+
+def IteratedProd.toIteratedProd' {ts : List Type}
+  (a : IteratedProd ts) : IteratedProd' ts :=
+  match ts, a with
+  | [], _ => ()
+  | [_], (x, _) => x
+  | _ :: _ :: _, (x, xs) => (x, IteratedProd.toIteratedProd' xs)
+
+def IteratedProd.ofIteratedProd' {ts : List Type}
+  (a : IteratedProd' ts) : IteratedProd ts :=
+  match ts, a with
+  | [], _ => ()
+  | [_], x => (x, ())
+  | _ :: _ :: _, (x, xs) => (x, IteratedProd.ofIteratedProd' xs)
+
+def IteratedProd'.equiv {ts : List Type} : IteratedProd ts ≃ IteratedProd' ts where
+  toFun := IteratedProd.toIteratedProd'
+  invFun := IteratedProd.ofIteratedProd'
+  left_inv := by
+    simp [Function.LeftInverse]
+    induction ts with
+    | nil => intros ; rfl
+    | cons t ts ih =>
+      rintro ⟨x, xs⟩ ; rcases ts with _ | ⟨_, _⟩ <;> try rfl
+      simp [IteratedProd.toIteratedProd', IteratedProd.ofIteratedProd'] ; apply ih
+  right_inv := by
+    simp [Function.RightInverse, Function.LeftInverse]
+    induction ts with
+    | nil => intros ; rfl
+    | cons t ts ih =>
+      intro a ; rcases ts with _ | ⟨_, _⟩ <;> try rfl
+      rcases a with ⟨x, xs⟩
+      simp [IteratedProd.toIteratedProd', IteratedProd.ofIteratedProd'] ; congr 1 ; apply ih
 
 abbrev IteratedArrow (codomain : Type) (ts : List Type) : Type :=
   ts.foldr (· → ·) codomain
@@ -457,20 +491,9 @@ instance instDecidableEqIteratedProd (inst : List.typesAll DecidableEq ts) :
   DecidableEq (IteratedProd ts) :=
     inst.toIteratedProd.fold (inferInstanceAs (DecidableEq Unit)) (@instDecidableEqProd)
 
--- TODO the code for `IteratedProd'` is a repetitive
-instance instDecidableEqIteratedProd' (inst : List.typesAll DecidableEq ts) : DecidableEq (IteratedProd' ts) :=
-  match ts with
-  | [] => inferInstanceAs (DecidableEq Unit)
-  | _ :: _ => instDecidableEqIteratedProd inst
-
 instance instHashableIteratedProd (inst : List.typesAll Hashable ts) :
   Hashable (IteratedProd ts) :=
     inst.toIteratedProd.fold (inferInstanceAs (Hashable Unit)) (@instHashableProd)
-
-instance instHashableIteratedProd' (inst : List.typesAll Hashable ts) : Hashable (IteratedProd' ts) :=
-  match ts with
-  | [] => inferInstanceAs (Hashable Unit)
-  | _ :: _ => instHashableIteratedProd inst
 
 end ListTypeAll
 
@@ -742,46 +765,52 @@ instance (priority := high + 1)
 omit fieldDomain
 
 variable {fieldDomain : List Type}
-  [instd : DecidableEq (IteratedProd fieldDomain)]
-  [instm : Membership (IteratedProd fieldDomain) β]
+  [instd : DecidableEq α]
+  [instm : Membership α β]
   [inst : FinsetLike β]
   [instl : LawfulFinsetLike β]
   [instdm : DecidableRel instm.mem]
+  (equiv : IteratedProd fieldDomain ≃ α)
   (instfin : IteratedProd (fieldDomain.map FinEnum))
 
 def FieldRepresentation.Finset.setSingle
   (fa : FieldUpdatePat fieldDomain)
   (v : CanonicalField fieldDomain Bool) (fc : β) :=
-  inst.batchUpdate (fa.footprintRaw instfin).cartesianProduct v.uncurry fc
+  inst.batchUpdate
+    ((fa.footprintRaw instfin).cartesianProduct.map equiv) (v.uncurry ∘ equiv.symm) fc
 
 def FieldRepresentation.Finset.setSingle'
   (fa : FieldUpdatePat fieldDomain)
   (v : CanonicalField fieldDomain Bool) (fc : β) :=
   let vv := v.uncurry
-  IteratedProd.foldMap fc (IteratedArrow.curry fun args fc' =>
-    inst.update args (vv args) fc') (fa.footprintRaw instfin)
+  IteratedProd.foldMap fc (IteratedArrow.curry fun arg fc' =>
+    inst.update (equiv arg) (vv arg) fc') (fa.footprintRaw instfin)
 
 omit instd instl in
 theorem FieldRepresentation.Finset.setSingle_eq fa v (fc : β) :
-  setSingle instfin fa v fc = setSingle' instfin fa v fc := by
+  setSingle equiv instfin fa v fc = setSingle' equiv instfin fa v fc := by
   unfold setSingle setSingle'
-  simp only [FinsetLike.batchUpdate_eq_foldl_update, IteratedProd.foldMap_eq_cartesianProduct, IteratedArrow.uncurry_curry]
+  simp [FinsetLike.batchUpdate_eq_foldl_update, IteratedProd.foldMap_eq_cartesianProduct, IteratedArrow.uncurry_curry,
+    List.foldl_map, Function.comp_apply]
 
 instance instFinsetLikeAsFieldRep : FieldRepresentation fieldDomain Bool β :=
   FieldRepresentation.mkFromSingleSet
-    (get := fun fc => IteratedArrow.curry (instm.mem fc))
-    (setSingle := FieldRepresentation.Finset.setSingle' instfin)
+    (get := fun fc => IteratedArrow.curry (instm.mem fc ∘ equiv))
+    (setSingle := FieldRepresentation.Finset.setSingle' equiv instfin)
 
+-- hope this does not introduce any trouble
+open Classical in
 instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation fieldDomain Bool β
     -- TODO this is awkward; synthesis fails here, and the `equiv.symm` is weird
-    (instFinsetLikeAsFieldRep instfin) where
+    (instFinsetLikeAsFieldRep equiv instfin) where
   toLawfulFieldRepresentationSet :=
     LawfulFieldRepresentationSet.mkFromSingleSet ..
   get_set_idempotent := by
     introv ; rcases fav with ⟨fa, v⟩
     simp +unfoldPartialApp [instFinsetLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
       CanonicalField.set, FieldRepresentation.set, FieldRepresentation.Finset.setSingle',
-      IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry]
+      IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
+      Function.comp]
     simp [← (FieldUpdatePat.footprint_match_iff instfin dec)]
     congr! 1 ; ext args ; rw [Bool.eq_iff_iff] ; simp
     -- `foldr` is more convenient for induction here

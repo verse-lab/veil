@@ -15,6 +15,7 @@ open Between TotalOrder
 
 relation leader : node -> Bool
 relation pending (a : node) (b : node) : Bool
+relation useless : node → node → node → node → Bool
 -- veil_change
 #gen_state
 
@@ -52,6 +53,7 @@ invariant pending L L → le N L
 
 #gen_spec
 
+-- a syntax for filling sort arguments
 open Lean Meta Elab Command Veil in
 scoped elab "⌞? " t:term " ⌟" : term => do
   let lenv ← localEnv.get
@@ -81,20 +83,48 @@ instance instDecidableEqForComponents' (f : State.Label)
     dsimp only [IteratedProd, List.foldr, State.Label.toDomain] <;>
     infer_instance
 
+instance instDecidableEqForComponents'' (f : State.Label)
+  : DecidableEq (IteratedProd' <| (⌞? State.Label.toDomain ⌟) f) := by
+  cases f <;>
+    dsimp only [IteratedProd', State.Label.toDomain] <;>
+    infer_instance
+
 instance instHashableForComponents (f : State.Label)
   : Hashable (IteratedProd <| (⌞? State.Label.toDomain ⌟) f) := by
   cases f <;>
     dsimp only [IteratedProd, List.foldr, State.Label.toDomain] <;>
     infer_instance
 
+instance instHashableForComponents' (f : State.Label)
+  : Hashable (IteratedProd' <| (⌞? State.Label.toDomain ⌟) f) := by
+  cases f <;>
+    dsimp only [IteratedProd', State.Label.toDomain] <;>
+    infer_instance
+
+structure FourNodes where
+  a : node
+  b : node
+  c : node
+  d : node
+deriving DecidableEq, Repr, Inhabited, Nonempty, Hashable
+
+def FourNodes.equiv_IteratedProd :
+  IteratedProd ((⌞? State.Label.toDomain ⌟) State.Label.useless) ≃
+  FourNodes node where
+  toFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1⟩
+  invFun p := (p.a, (p.b, (p.c, (p.d, ()))))
+
 -- need to use `abbrev` to allow typeclass inference
 abbrev FieldConcreteType (f : State.Label) : Type :=
-  Std.HashSet (IteratedProd <| (⌞? State.Label.toDomain ⌟) f)
+  match f with
+  | State.Label.leader => Std.HashSet (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.leader)
+  | State.Label.pending => Std.HashSet (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.pending)
+  | State.Label.useless => Std.HashSet (⌞? FourNodes ⌟)
 
 instance instReprForComponents [Repr node] (f : State.Label)
   : Repr ((⌞? FieldConcreteType ⌟) f) := by
   cases f <;>
-    dsimp only [IteratedProd, List.foldr, FieldConcreteType, State.Label.toDomain] <;>
+    dsimp only [IteratedProd, IteratedProd', List.foldr, FieldConcreteType, State.Label.toDomain] <;>
     infer_instance
 
 -- #simp [FieldConcreteType, State.Label.toDomain, State.Label.toCodomain] FieldConcreteType Nat .leader
@@ -109,9 +139,11 @@ instance rep (f : State.Label) : FieldRepresentation
   ((⌞? FieldConcreteType ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
   match f with
   | State.Label.leader =>
-    instFinsetLikeAsFieldRep ((⌞? instFinEnumForComponents ⌟) State.Label.leader)
+    instFinsetLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.leader)
   | State.Label.pending =>
-    instFinsetLikeAsFieldRep ((⌞? instFinEnumForComponents ⌟) State.Label.pending)
+    instFinsetLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.pending)
+  | State.Label.useless =>
+    instFinsetLikeAsFieldRep (⌞? FourNodes.equiv_IteratedProd ⌟) ((⌞? instFinEnumForComponents ⌟) State.Label.useless)
 
 instance lawful (f : State.Label) : LawfulFieldRepresentation
   ((⌞? State.Label.toDomain ⌟) f)
@@ -120,9 +152,11 @@ instance lawful (f : State.Label) : LawfulFieldRepresentation
   ((⌞? rep ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
   match f with
   | State.Label.leader =>
-    instFinsetLikeLawfulFieldRep ((⌞? instFinEnumForComponents ⌟) State.Label.leader)
+    instFinsetLikeLawfulFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.leader)
   | State.Label.pending =>
-    instFinsetLikeLawfulFieldRep ((⌞? instFinEnumForComponents ⌟) State.Label.pending)
+    instFinsetLikeLawfulFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.pending)
+  | State.Label.useless =>
+    instFinsetLikeLawfulFieldRep (⌞? FourNodes.equiv_IteratedProd ⌟) ((⌞? instFinEnumForComponents ⌟) State.Label.useless)
 
 end
 
