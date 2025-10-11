@@ -37,7 +37,8 @@ called. -/
 register_simp_attr ifSimp
 
 register_simp_attr fieldRepresentationPatSimp
-register_simp_attr fieldRepresentationGetSetSimp
+register_simp_attr fieldRepresentationSetSimpPre
+register_simp_attr fieldRepresentationSetSimpPost
 
 /-- To enable `assumption`s to be used as predicates. -/
 instance funOneArgBoolToProp : Coe (α → Bool) (α → Prop) where
@@ -104,11 +105,14 @@ def unfold (defs : Array Name) : Simplifier := fun e => do
   trace[veil.debug] "unfold {defs}\n{e}\n~>\n{res.expr}"
   return res
 
-def simp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
-  let (res, _stats) ← Meta.simp e (← mkVeilSimpCtx simps config) (discharge? := none)
+def simpCore (ctx : Meta.Simp.Context) (simps : Array Name := #[]) : Simplifier := fun e => do
+  let (res, _stats) ← Meta.simp e ctx (discharge? := none)
   let _usedTheorems := _stats.usedTheorems.toArray.map (·.key)
   trace[veil.debug] "simp {simps} (used: {_usedTheorems}):\n{e}\n~>\n{res.expr}"
   return res
+
+def simp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
+  simpCore (← mkVeilSimpCtx simps config) simps e
 
 def dsimp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
   let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simps config)
@@ -126,13 +130,13 @@ def elabInlineDSimp (idts : TSyntaxArray `ident) (t : TSyntax `term) (expectedTy
   let res ← dsimp things {} t
   return res
 
-syntax (name := inlineDSimpStx) "dsimp% " "[" ident* "] " term : term
+syntax (name := inlineDSimpStx) "dsimp% " "[" ident,* "] " term : term
 
 open Meta Elab Term in
 @[term_elab inlineDSimpStx]
 def elabDecidableReplace : TermElab := fun stx expectedType? =>
   match stx with
-  | `(dsimp% [ $idts:ident* ] $t) => do
+  | `(dsimp% [ $[$idts:ident],* ] $t) => do
     let res ← elabInlineDSimp idts t expectedType?
     pure res.expr
   | _ => throwUnsupportedSyntax

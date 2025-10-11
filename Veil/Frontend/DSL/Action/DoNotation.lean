@@ -246,10 +246,9 @@ elab (name := VeilDo) "veil_do" name:ident "in" readerTp:term "," stateTp:term "
   elabVeilDo name.getId readerTp stateTp instx
 
 attribute [fieldRepresentationPatSimp] FieldUpdatePat.pad IteratedArrow.curry IteratedProd.default HAppend.hAppend IteratedProd.append Eq.mp
-attribute [fieldRepresentationGetSetSimp] CanonicalField.set FieldUpdateDescr.fieldUpdate FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
-attribute [fieldRepresentationGetSetSimp] List.foldr Option.elim
-  Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff
-  Bool.false_eq_true false_and
-attribute [fieldRepresentationGetSetSimp ↓] reduceIte
+attribute [fieldRepresentationSetSimpPre] FieldRepresentation.setSingle LawfulFieldRepresentationSet.set_append List.singleton_append
+attribute [fieldRepresentationSetSimpPost] CanonicalField.set FieldUpdateDescr.fieldUpdate FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
+attribute [fieldRepresentationSetSimpPost] List.foldr Option.elim Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
+attribute [fieldRepresentationSetSimpPost ↓] reduceIte
 
 end Veil

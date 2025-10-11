@@ -463,4 +463,35 @@ macro_rules
     let fmla ← repeatedAnd inequalities
     return fmla
 
+-- adapted from `elabSimpTheorem` in `Lean/Elab/Tactic/Simp.lean`
+def elabSimpTheoremFromTerm (config : Meta.ConfigWithKey) (id : Meta.Origin) (stx : Syntax)
+    (post : Bool) (inv : Bool) : TermElabM (Option (Array Meta.SimpEntry)) := do
+  let thm? ← Term.withoutModifyingElabMetaStateWithInfo <| withRef stx do
+    let e ← Term.elabTerm stx .none
+    Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
+    let e ← instantiateMVars e
+    if e.hasSyntheticSorry then
+      return .none
+    let e := e.eta
+    if e.hasMVar then
+      let r ← Meta.abstractMVars e
+      return some (r.paramNames, r.expr)
+    else
+      return some (#[], e)
+  if let some (levelParams, proof) := thm? then
+    let thms ← Meta.mkSimpTheoremFromExpr id levelParams proof (post := post) (inv := inv) (config := config)
+    let res := thms.map (Meta.SimpEntry.thm ·)
+    return .some res
+  else
+    return .none
+
+-- adapted from `elabOpenDecl` in `Lean/Elab/Tactic/BuiltinTactic.lean`
+def evalOpen (decl : TSyntax `Lean.Parser.Command.openDecl) (k : MetaM α) : MetaM α := do
+  try
+    pushScope
+    let openDecls ← elabOpenDecl decl
+    withTheReader Core.Context (fun ctx => { ctx with openDecls := openDecls }) k
+  finally
+    popScope
+
 end Veil

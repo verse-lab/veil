@@ -209,8 +209,12 @@ where
 
 /-- Similar idea to `elabVeilConcretizeState`, but for fields when
 `FieldRepresentation` is used. This also does simplification using
-`LawfulFieldRepresentation` and unfolds the `fieldUpdate`s. -/
+`LawfulFieldRepresentation` and unfolds the `fieldUpdate`s.
+Note that even parts of the simplication have been done during WP
+generation, it might still be necessary here since the post-condition
+might contain `get` and we need to use laws to eliminate `get (set ...)`. -/
 def elabVeilConcretizeFields : TacticM Unit := veilWithMainContext do
+  -- TODO how to eliminate the code repetition wrt. the WP generation?
   let lctx ← getLCtx
   let some hyp := lctx.findDecl? (fun decl =>
     if decl.type.getForallBody.getAppFn.constName? == Option.some ``FieldRepresentation
@@ -229,16 +233,14 @@ def elabVeilConcretizeFields : TacticM Unit := veilWithMainContext do
   let fields ← getFieldIdentsForStruct stateTypeName
   -- (1) do basic simplification using `LawfulFieldRepresentation`
   let mut tacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq) := #[]
-  tacs := tacs.push <| ← do
-    let tmp := #[``FieldRepresentation.setSingle, ``LawfulFieldRepresentationSet.set_append, ``List.singleton_append].map Lean.mkIdent
-    `(tacticSeq| veil_simp only [$[$tmp:ident],*])
+  tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$(mkIdent `fieldRepresentationSetSimpPre):ident])
   -- (2) simplify using `get_set_idempotent'`
   let simpTerms ← fields.mapM fun f =>
     `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
-  tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$[$simpTerms:term],*] at *)
+  tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$[$simpTerms:term],*] at *)
   -- (3) simplify the resulting things
   let localSimpTerms := #[fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
-  tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$(mkIdent `fieldRepresentationGetSetSimp):ident, $[$localSimpTerms:ident],*] at *)
+  tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `fieldRepresentationSetSimpPost):ident, $[$localSimpTerms:ident],*] at *)
   -- (4) concretize the `FieldRepresentation.get`-ed fields
   let rep := mkIdent hyp.userName
   let st := mkIdent stHyp.userName

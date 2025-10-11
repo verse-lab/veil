@@ -55,6 +55,55 @@ private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
   (fun args : Array Term =>
     `(fun $handler $post => [IgnoreEx $handler| $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post]))
 
+/-- Perform simplification using `get_set_idempotent'`. This requires
+some special handling since these `simp` theorems might only be given
+in terms of `Expr`s. -/
+private def simpGetSetForFieldRepTC (ctx : Meta.Simp.Context) : TermElabM Meta.Simp.Context := do
+  let lctx ← getLCtx
+  let some hyp := lctx.findDecl? (fun decl =>
+    if decl.type.getForallBody.getAppFn.constName? == Option.some ``FieldRepresentation
+    then .some decl else .none) | return ctx
+  let some lawfulRep := lctx.findDecl? (fun decl =>
+    if decl.type.getForallBody.getAppFn.constName? == Option.some ``LawfulFieldRepresentation
+    then .some (mkIdent decl.userName) else .none) | return ctx
+  -- get the state label type
+  let .forallE _ dom _ _ := hyp.type | return ctx
+  let some labelTypeName := dom.constName? | return ctx
+  -- get the state from the hypothesis by ... some hack
+  let stateTypeName := labelTypeName.getPrefix
+  let fields ← getFieldIdentsForStruct stateTypeName
+  let indexConfig := ctx.indexConfig
+  -- the following manipulation comes from `elabSimpArgs` in `Lean/Elab/Tactic/Simp.lean`
+  let simpThms ← fields.filterMapM fun f => do
+    let stx ← `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
+    let name ← mkFreshUserName (f.getId ++ `get_set_idempotent')
+    let thms ← elabSimpTheoremFromTerm indexConfig (.stx name Syntax.missing)
+      stx (post := false) (inv := false)
+    pure thms
+  let mut thmsArray := ctx.simpTheorems
+  let mut thms      := thmsArray[0]!
+  for entries in simpThms do
+    for entry in entries do
+      -- thms := thms.uneraseSimpEntry entry
+      thms := thms.addSimpEntry entry
+  let ctx' := ctx.setSimpTheorems (thmsArray.set! 0 thms)
+  return ctx'
+
+-- NOTE: The uses of `open Classical` below is mainly for allowing
+-- rewriting based simplification where the target term is depended by
+-- instances like `Decidable`. For the whole term after rewriting to
+-- typecheck, these instances need to be reconstructed, which might
+-- fail due to unknown reasons. By opening `Classical`, we provide
+-- default instances for `Decidable`, so the reconstruction will
+-- always succeed. This is a bit of a hack, but it works for now.
+private def evalOpenClassical (k : MetaM α) : MetaM α := do
+  evalOpen (← `(Parser.Command.openDecl| $(mkIdent `Classical):ident)) k
+
+private def simplifierGetSetForFieldRepTC : TermElabM Simplifier := do
+  let ctx ← mkVeilSimpCtx #[]
+  let ctx' ← simpGetSetForFieldRepTC ctx
+  return (evalOpenClassical ∘ Simp.simpCore ctx')
+
 /-- **Pre-compute** the `wp` for the given action, store it in the `act.wp`
 definition, and prove `act.wp_eq` which states that this definition is equal to
 `wp act post`.
@@ -81,6 +130,16 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
     Meta.lambdaTelescope e fun xs body => do -- `xs` are `handler` and `post`, respectively
       -- let cfg := { unfoldPartialApp := true } -- TODO: is this still needed? I don't think so.
       let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp]) |>.andThen (Simp.simp #[`quantifierSimp]) |>.andThen (Simp.simp #[`substateSimp])
+      let simp ← if mod._useFieldRepTC
+        then
+          let ss ← simplifierGetSetForFieldRepTC
+          -- (1) do basic simplification using `LawfulFieldRepresentation`
+          pure <| (simp |>.andThen (Simp.simp #[`fieldRepresentationSetSimpPre])
+            -- (2) simplify using `get_set_idempotent'`
+            |>.andThen ss
+            -- (3) simplify the resulting things
+            |>.andThen (evalOpenClassical ∘ Simp.simp #[fieldLabelToDomainName stateName, fieldLabelToCodomainName stateName, `fieldRepresentationSetSimpPost]))
+        else pure <| simp
       let resBody ← simp body
       -- (3) Construct the expression for `act.wp`
       -- The expression for `act.wp`; **TODO** register as a derived definition
