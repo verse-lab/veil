@@ -283,9 +283,13 @@ end DerivedOperations
 
 section FinsetLikeInstances
 
-variable {α : Type u} [BEq α] [Hashable α]
+variable {α : Type u}
 
-instance : FinsetLike (Std.HashSet α) where
+instance [BEq α] [Hashable α] : FinsetLike (Std.HashSet α) where
+  insert a b _ := b.insert a
+  erase a b _ := b.erase a
+
+instance {cmp : α → α → Ordering} : FinsetLike (Std.TreeSet α cmp) where
   insert a b _ := b.insert a
   erase a b _ := b.erase a
 
@@ -293,9 +297,19 @@ end FinsetLikeInstances
 
 section LawfulFinsetLikeInstances
 
-variable {α : Type u} [DecidableEq α] [Hashable α]
+variable {α : Type u}
 
-instance : LawfulFinsetLike (Std.HashSet α) where
+instance [DecidableEq α] [Hashable α] : LawfulFinsetLike (Std.HashSet α) where
+  toFinset b := List.toFinset b.toList
+  toFinset_mem_iff a b := by simp
+  insert_toFinset a b h := by
+    ext a ; simp [FinsetLike.insert] ; aesop
+  erase_toFinset a b h := by
+    ext a ; simp [FinsetLike.erase] ; aesop
+
+instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
+  [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
+  : LawfulFinsetLike (Std.TreeSet α cmp) where
   toFinset b := List.toFinset b.toList
   toFinset_mem_iff a b := by simp
   insert_toFinset a b h := by
