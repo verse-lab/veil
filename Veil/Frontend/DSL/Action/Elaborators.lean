@@ -181,8 +181,9 @@ def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option 
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
     let e ← Meta.mkLambdaFVarsImplicit (#[mode] ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
-    let res ← (Simp.dsimp #[]) e
-    return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), res.expr)
+    -- NOTE: Doing `dsimp` on `act.do`, `act` or `act.ext` will inline
+    -- `let` bindings, which _might_ lead to performance issues
+    return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)
   catch ex =>
     throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
 where
@@ -197,7 +198,7 @@ def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : TermElabM (Name × 
   if mode == Mode.external then
     body ← Meta.forallTelescope (← Meta.inferType body) fun ks _ => do
       Meta.mkLambdaFVars ks $ ← Meta.mkAppM' (mkConst ``VeilM.returnUnit) #[(mkAppN body ks)]
-  let res ← (Simp.unfold #[doNm_fullyQualified]).andThen (Simp.dsimp #[]) body
+  let res ← (Simp.unfold #[doNm_fullyQualified]) body
   return (pi.nameInMode mode, res.expr)
 
 def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module) (ps : ProcedureSpecification) : m Module := do
