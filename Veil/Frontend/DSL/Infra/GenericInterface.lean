@@ -322,8 +322,6 @@ end LawfulFinsetLikeInstances
 end DataStructure
 
 -- NOTE: Currently, the following does not consider universe polymorphism.
--- TODO any way to specialize all these dependently-typed definitions to make them faster?
--- maybe some are not necessary since these are only used for proofs?
 
 section Iterated
 

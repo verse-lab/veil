@@ -126,6 +126,15 @@ def Parameter.mode [Monad m] [MonadQuotation m] : m Parameter :=
 def Parameter.fieldConcreteType [Monad m] [MonadQuotation m] : m Parameter :=
   return { kind := .fieldConcreteType, name := fieldConcreteTypeName, «type» := ← `($(structureFieldLabelType stateName) → Type), userSyntax := .missing }
 
+def Parameter.isRelatedToFieldRep (param : Parameter) : Bool :=
+  match param.kind with
+  | .fieldConcreteType => true
+  | .moduleTypeclass a =>
+    match a with
+    | .fieldRepresentation | .lawfulFieldRepresentation => true
+    | _ => false
+  | _ => false
+
 def Module.freshWithName [Monad m] [MonadQuotation m] (name : Name) : m Module := do
   let params := #[← Parameter.environmentTheory, ← Parameter.environmentState]
   return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], _declarations := .emptyWithCapacity, _derivedDefinitions := .emptyWithCapacity }
@@ -742,7 +751,7 @@ def Module.assembleSafeties [Monad m] [MonadQuotation m] [MonadError m] (mod : M
   let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent `st) : $environmentState))]
   mod.assembleAssertions .invariantLike assembledSafetiesName binders (onlySafety := true)
 
-private def Module.labelTypeStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term := do
+def Module.labelTypeStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term := do
   `(term|$labelType $(← mod.sortIdents)*)
 
 private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do

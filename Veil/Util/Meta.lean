@@ -319,6 +319,15 @@ def toBracketedBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TS
 def explicitBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (Array Term) := do
   toBracketedBinderArray stx >>= bracketedBindersToTerms
 
+open Lean.Parser.Term in
+def bracketedBinderToFunBinder [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax ``bracketedBinder) : m (TSyntax ``funBinder) := do
+  match stx with
+  | `(bracketedBinder| ($id:ident : $tp:term)) => `(funBinder| ($id:ident : $tp:term))
+  | `(bracketedBinder| [$id:ident : $tp:term]) => `(funBinder| [$id:ident : $tp:term])
+  | `(bracketedBinder| [$tp:term]) => `(funBinder| [$tp:term])
+  | `(bracketedBinder| {$id:ident : $tp:term}) => `(funBinder| {$id:ident : $tp:term})
+  | _ => throwError "bracketedBinderToFunBinder: unexpected syntax {stx}"
+
 /-- Convert existential binders (`explicitBinders`) into identifiers. -/
 def toIdentArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) := do
   explicitBindersFlatMapM stx fun bi _tp => do `(ident| $(← binderIdentToIdent bi))
