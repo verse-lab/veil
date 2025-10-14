@@ -45,6 +45,7 @@ action recv (sender n next : node) {
     -- pass message to next node
     if (le n sender) then
       pending sender next := true
+  useless A sender C next := pending C A
 }
 
 safety [single_leader] leader L → le N L
@@ -52,6 +53,9 @@ safety [single_leader] leader L → le N L
 invariant pending L L → le N L
 
 #gen_spec
+
+set_option pp.explicit false
+set_option pp.instances false
 
 -- a syntax for filling sort arguments
 open Lean Meta Elab Command Veil in
@@ -67,7 +71,7 @@ veil_variables
 
 omit χ χ_rep χ_rep_lawful
 
-open Veil
+open Veil Extract
 
 variable [FinEnum node] [Hashable node]
 -- variable [insta : DecidableRel tot.le] -- [∀ a b c, Decidable (btwn.btw a b c)]
@@ -160,19 +164,15 @@ instance lawful (f : State.Label) : LawfulFieldRepresentation
 
 end
 
-set_option pp.explicit false
-set_option pp.instances false
+-- code optimization by controlled `dsimp`
+attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet]
+  FourNodes.equiv_IteratedProd in
+-- attribute [local dsimpFieldRepresentationGet] FourNodes.equiv_IteratedProd in
+#specialize_nextact with FieldConcreteType
+  injection_begin [FinEnum node] [Hashable node] injection_end => NextAct'
 
-open Lean Meta Elab Term Command Veil in
-run_cmd do
-  let fnName ← liftCoreM <| realizeGlobalConstNoOverloadCore ``State.leader
-  let fnInfo ← getConstInfo fnName
-  logInfo m!"{fnInfo.type}"
+#print NextAct'
 
-#check (type_of% (@State.leader Nat (fun _ => Nat)))
--- simple_deriving_repr_for Theory
-set_option trace.veil.desugar true
-set_option trace.veil.debug true
 simple_deriving_repr_for' State
 
 deriving instance Repr for Label
@@ -180,13 +180,9 @@ deriving instance Repr for Label
 -- deriving instance Inhabited for State
 -- deriving instance Inhabited for Reader
 
-set_option trace.veil.desugar true
-#time #gen_executable_list! Std.Format
-  injection_begin [FinEnum node] injection_end
-
--- #print initMultiExec
--- #print nextMultiExtract
--- #print nextActMultiExec
+#gen_executable_list! log_entry_being Std.Format
+  targeting NextAct'
+  injection_begin [FinEnum node] [Hashable node] injection_end
 
 end Ring
 
@@ -201,6 +197,9 @@ local macro "⌞State⌟" : term =>
   `(((⌞ State ⌟) ⌞ FieldConcreteType ⌟))
 
 local macro "⌞_ " t:term " _⌟" : term =>
+  `((⌞ $t (⌞ Theory ⌟) (⌞State⌟) ⌟))
+
+local macro "⌞__ " t:term " __⌟" : term =>
   `((⌞ $t (⌞ Theory ⌟) (⌞State⌟) ⌟) ⌞ FieldConcreteType ⌟)
 
 local instance (n : Nat) : DecidableRel (TotalOrder.le (t := Fin n.succ)) := by
@@ -209,7 +208,7 @@ local instance (n : Nat) : DecidableRel (TotalOrder.le (t := Fin n.succ)) := by
 def initState : ⌞State⌟ := default
 
 def afterInit (r₀ : ⌞ Theory ⌟) (s₀ : ⌞State⌟) :=
-  ⌞_ initMultiExec _⌟ |>.run r₀ |>.run s₀
+  ⌞__ initMultiExec __⌟ |>.run r₀ |>.run s₀
 
 def allResults (r₀ : ⌞ Theory ⌟) (s₀ : ⌞State⌟) (l : ⌞ Label ⌟) :=
   ⌞_ nextActMultiExec _⌟ l r₀ s₀
@@ -217,6 +216,6 @@ def allResults (r₀ : ⌞ Theory ⌟) (s₀ : ⌞State⌟) (l : ⌞ Label ⌟) 
 instance : Repr (State (Fin (Nat.succ 2)) (FieldConcreteType (Fin (Nat.succ 2)))) := by
   infer_instance
 
-#eval @allResults 2 {} initState (Label.send 0 0)
+#time #eval @allResults 2 {} initState (Label.send 0 0)
 
 end Ring
