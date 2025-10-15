@@ -19,10 +19,6 @@ relation useless : node → node → node → node → Bool
 -- veil_change
 #gen_state
 
--- __IMPORTANT: add this before writing any action/invariant__
-set_option pp.explicit true
-set_option pp.instances true
-
 after_init {
   leader N := false
   pending M N := false
@@ -53,9 +49,6 @@ safety [single_leader] leader L → le N L
 invariant pending L L → le N L
 
 #gen_spec
-
-set_option pp.explicit false
-set_option pp.instances false
 
 -- a syntax for filling sort arguments
 open Lean Meta Elab Command Veil in

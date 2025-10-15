@@ -188,7 +188,7 @@ def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option 
     throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
 where
   mvarToParam (inAction : Name) (mvar : Expr) (i : Nat) : TermElabM Parameter := do
-    let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar)
+    let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar) true
     return { kind := .definitionTypeclass inAction, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
 
 def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : TermElabM (Name × Expr) := do
