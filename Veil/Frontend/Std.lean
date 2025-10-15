@@ -37,7 +37,14 @@ instance total_order_fin_enum (t : Type) [fe : FinEnum t] : TotalOrder t where
     apply heq
   le_total := by simp [(total_order_fin fe.card).le_total]
 
-class TotalOrderWithZero (t : Type) extends TotalOrder t where
+class TotalOrderWithZero (t : Type) where
+  -- relation: total order
+  le (x y : t) : Prop
+  -- axioms
+  le_refl       (x : t) : le x x
+  le_trans  (x y z : t) : le x y → le y z → le x z
+  le_antisymm (x y : t) : le x y → le y x → x = y
+  le_total    (x y : t) : le x y ∨ le y x
   -- zero
   zero : t
   zero_le (x : t) : le zero x
