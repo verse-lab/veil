@@ -14,6 +14,7 @@ attribute [dsimpFieldRepresentationGet ↓] FieldRepresentation.get FieldReprese
   Equiv.coe_fn_mk Function.comp IteratedProd'.equiv IteratedProd.toIteratedProd'
 attribute [dsimpFieldRepresentationSet ↓] FieldRepresentation.setSingle FieldRepresentation.mkFromSingleSet instFinsetLikeAsFieldRep FieldRepresentation.Finset.setSingle'
   IteratedArrow.curry IteratedProd'.equiv Equiv.coe_fn_mk IteratedProd.toIteratedProd' IteratedArrow.uncurry List.foldr
+  IteratedProd.foldMap FieldUpdatePat.footprintRaw IteratedProd.zipWith Option.elim List.foldl
 
 -- ad-hoc subprocedure for finding the target `State.Label.toDomain/toCodomain`
 private def getLocalDSimpTargets (a b : Expr) : Array Name := Id.run do

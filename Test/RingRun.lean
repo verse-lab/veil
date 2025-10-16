@@ -158,8 +158,10 @@ instance lawful (f : State.Label) : LawfulFieldRepresentation
 end
 
 -- code optimization by controlled `dsimp`
+-- set_option trace.Compiler.result true in
 attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet]
-  FourNodes.equiv_IteratedProd in
+  FourNodes.equiv_IteratedProd
+  instFinEnumForComponents in
 -- attribute [local dsimpFieldRepresentationGet] FourNodes.equiv_IteratedProd in
 #specialize_nextact with FieldConcreteType
   injection_begin [FinEnum node] [Hashable node] injection_end => NextAct'

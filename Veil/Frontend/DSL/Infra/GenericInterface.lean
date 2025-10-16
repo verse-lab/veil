@@ -242,6 +242,7 @@ variable {α : Type u} {β : Type v}
   [instm : Membership α β] [inst : FinsetLike β]
   [instdm : DecidableRel instm.mem]
 
+@[specialize]
 def FinsetLike.update (a : α) (in?' : Bool) (mp : β) : β :=
   if in? : a ∈ mp then
     if !in?' then inst.erase a mp in? else mp
