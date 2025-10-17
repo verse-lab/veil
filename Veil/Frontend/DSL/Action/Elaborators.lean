@@ -123,7 +123,7 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
     -- (1) Elaborate the template for the WP definition, parametrised by
     -- `handler` and `post`
     let e ← withoutErrToSorry $ elabTermAndSynthesize wpDef none
-    trace[veil.debug] "e: {e}"
+    trace[veil.debug] "[{decl_name%}] e: {e}"
     -- (2) Simplify the _body_ of the WP definition and return the simplified
     -- body _and_ the simplified full expression (with lambdas). See note (*)
     -- for why we simplify the body rather than the full expression directly.
@@ -181,6 +181,9 @@ def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option 
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
     let e ← Meta.mkLambdaFVarsImplicit (#[mode] ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
+    -- `e` should not contain any metavariable; capture the error here
+    if e.hasMVar then
+      throwError "mvar(s) exist in the elaborated expression. Consider adding more type annotations."
     -- NOTE: Doing `dsimp` on `act.do`, `act` or `act.ext` will inline
     -- `let` bindings, which _might_ lead to performance issues
     return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)

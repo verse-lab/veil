@@ -24,6 +24,7 @@ namespace Veil
 abbrev doSeq := TSyntax ``Term.doSeq
 abbrev doSeqItem := TSyntax ``Term.doSeqItem
 
+syntax "let" term ":" term ":|" term : doElem
 
 /- See:
  - https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/Pattern.20match.20and.20name.20binder.20.60none.60/near/514568614
@@ -85,6 +86,7 @@ macro_rules
   | `(pick   $t)  => `($(mkIdent ``MonadNonDet.pick) $t)
   | `(pick)       => `($(mkIdent ``MonadNonDet.pick) _)
   | `(doElem| let $x:term :| $p) => `(doElem| let $x:term ← $(mkIdent ``VeilM.pickSuchThat):ident _ (fun $x => $p))
+  | `(doElem| let $x:term : $ty:term :| $p) => `(doElem| let $x:term ← $(mkIdent ``VeilM.pickSuchThat):ident $ty (fun $x => $p))
 
 mutual
 partial def expandDoSeqVeil (proc : Name) (stx : doSeq) : TermElabM (Array doSeqItem) :=
