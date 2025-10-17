@@ -201,7 +201,11 @@ where
     sortFilterMapFn mod (pure ·)
   theoryParameters (mod : Module) : Array Parameter :=
     mod.parameters.filterMap fun p => match p.kind with
-    | .environmentState | .moduleTypeclass .environmentState => .none
+    | .environmentState | .fieldConcreteType => .none
+    | .moduleTypeclass kd =>
+      match kd with
+      | .environmentState | .fieldRepresentation | .lawfulFieldRepresentation => .none
+      | _ => .some p
     | _ => .some p
   derivedDefinitionBaseParams (mod : Module) (k : DerivedDefinitionKind) : m (Array Parameter) := do
     match k with
