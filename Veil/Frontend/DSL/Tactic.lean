@@ -295,7 +295,7 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident,] at *; veil_concretize_state; veil_concretize_fields; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
+  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at *; veil_concretize_state; veil_concretize_fields; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
