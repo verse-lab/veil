@@ -185,13 +185,12 @@ private inductive GenericStateKind
 def elabVeilConcretizeState : TacticM Unit := veilWithMainContext do
   let mut tacticsToExecute := #[]
   for (k, hyp) in (← getAbstractStateHyps) do
-    let simpLemmaName := mkIdent $ ← mkFreshUserName stateSimpHypName
     let existingName := mkIdent $ hyp.userName
     let concreteState := mkIdent $ mkVeilImplementationDetailName existingName.getId
     let getter := match k with
     | .environmentState => mkIdent ``getFrom
     | .backgroundTheory => mkIdent ``readFrom
-    let concretize ← `(tacticSeq|try (rcases (@$(mkIdent ``exists_eq') _ ($(getter) $existingName)) with ⟨$concreteState, $simpLemmaName⟩; simp only [$simpLemmaName:ident] at *; clear $existingName; veil_rename_hyp $concreteState => $existingName; clear $simpLemmaName))
+    let concretize ← `(tacticSeq|try (generalize ($(getter) $existingName) = $concreteState at * ; veil_rename_hyp $concreteState => $existingName))
     tacticsToExecute := tacticsToExecute.push concretize
   for t in tacticsToExecute do
     veilWithMainContext $ veilEvalTactic t
