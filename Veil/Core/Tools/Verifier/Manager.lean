@@ -49,9 +49,9 @@ open Elab Term in
 /-- The type of the VC's statement as an `Expr`. -/
 def VCStatement.type (vc : VCStatement) : TermElabM Expr := do
   Term.elabBinders vc.params fun vs => do
-  let body ← instantiateMVars $ ← withSynthesize (postpone := .no) $
+  let body ← withSynthesize (postpone := .no) $
     withoutErrToSorry $ elabTerm vc.statement (Expr.sort levelZero)
-  let typ ← Meta.mkForallFVars vs body
+  let typ ← Meta.mkForallFVars vs body >>= instantiateMVars
   if typ.hasMVar || typ.hasFVar || typ.hasSorry then
     throwError "VCStatement.type: {vc.name}'s type is not fully determined"
   return typ
