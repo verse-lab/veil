@@ -128,8 +128,10 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
     -- body _and_ the simplified full expression (with lambdas). See note (*)
     -- for why we simplify the body rather than the full expression directly.
     Meta.lambdaTelescope e fun xs body => do -- `xs` are `handler` and `post`, respectively
-      -- let cfg := { unfoldPartialApp := true } -- TODO: is this still needed? I don't think so.
-      let simp := (Simp.unfold #[fqn]) |>.andThen (Simp.simp #[`wpSimp]) |>.andThen (Simp.simp #[`quantifierSimp]) |>.andThen (Simp.simp #[`substateSimp])
+      -- NOTE: `unfoldPartialApp` is required when some `foo.wp` is only partially
+      -- applied (e.g., `(if ... then foo.wp else ...) th st`). In other words,
+      -- if `foo.wp` becomes fully applied after simplification, `unfoldPartialApp` is not necessary.
+      let simp := (Simp.unfold #[fqn]) |>.andThen (evalOpenClassical ∘ Simp.simp #[`wpSimp] { unfoldPartialApp := true : Meta.Simp.Config }) |>.andThen (evalOpenClassical ∘ Simp.simp #[`quantifierSimp]) |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp])
       let simp ← if mod._useFieldRepTC
         then
           let ss ← simplifierGetSetForFieldRepTC
