@@ -55,6 +55,15 @@ private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
   (fun args : Array Term =>
     `(fun $handler $post => [IgnoreEx $handler| $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post]))
 
+open Lean Meta Elab Command Veil in
+elab "veil_variables" : command => do
+  let lenv ← localEnv.get
+  let some mod := lenv.currentModule | throwError s!"Not in a module"
+  let binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder) ← mod.parameters.mapM (·.binder)
+  for binder in binders do
+    let varUIds ← (← getBracketedBinderIds binder) |>.mapM (withFreshMacroScope ∘ MonadQuotation.addMacroScope)
+    modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds }
+
 /-- Perform simplification using `get_set_idempotent'`. This requires
 some special handling since these `simp` theorems might only be given
 in terms of `Expr`s. -/
