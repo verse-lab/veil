@@ -290,7 +290,7 @@ def elabVeilSimp (trace? : Bool) (cfg : TSyntax ``Lean.Parser.Tactic.optConfig) 
 def elabVeilWp : TacticM Unit := veilWithMainContext do
   -- NOTE: In some cases (e.g. for `doesNotThrow`), we get internal Loom
   -- definitions like `⊤`. `loomLogicSimp` ensures these are unfolded.
-  let tac ← `(tactic| veil_simp only [$(mkIdent `wpSimp):ident,  $(mkIdent `loomLogicSimp):ident])
+  let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `wpSimp):ident,  $(mkIdent `loomLogicSimp):ident])
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilIntros : TacticM Unit := veilWithMainContext do
@@ -298,7 +298,7 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at *; veil_concretize_state; veil_concretize_fields; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
+  let tac ← `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
