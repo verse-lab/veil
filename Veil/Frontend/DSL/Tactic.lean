@@ -58,10 +58,10 @@ syntax (name := veil_destruct) "veil_destruct" (colGt ident)* : tactic
 syntax (name := veil_destruct_goal) "veil_destruct_goal" : tactic
 
 syntax (name := veil_concretize_state) "veil_concretize_state" : tactic
-syntax (name := veil_concretize_fields) "veil_concretize_fields" : tactic
+syntax (name := veil_concretize_fields) "veil_concretize_fields" ("!")? : tactic
 
 syntax (name := veil_intros) "veil_intros" : tactic
-syntax (name := veil_fol) "veil_fol" : tactic
+syntax (name := veil_fol) "veil_fol" ("!")? : tactic
 
 syntax (name := veil_simp) "veil_simp" simpTraceArgsRest : tactic
 syntax (name := veil_simp_trace) "veil_simp?" simpTraceArgsRest : tactic
@@ -85,7 +85,7 @@ syntax (name := veil_smt) "veil_smt" : tactic
 syntax (name := veil_smt_trace) "veil_smt?" : tactic
 
 syntax (name := veil_if) "veil_split_ifs" : tactic
-syntax (name := veil_solve) "veil_solve" : tactic
+syntax (name := veil_solve) "veil_solve" ("!")? : tactic
 
 /-- Tactic for debugging purposes. Just throws an error. -/
 syntax (name := veil_fail) "veil_fail" : tactic
@@ -226,7 +226,7 @@ where
 Note that even parts of the simplication have been done during WP
 generation, it might still be necessary here since the post-condition
 might contain `get` and we need to use laws to eliminate `get (set ...)`. -/
-def elabVeilConcretizeFields : TacticM Unit := veilWithMainContext do
+def elabVeilConcretizeFields (aggressive : Bool) : TacticM Unit := veilWithMainContext do
   -- TODO how to eliminate the code repetition wrt. the WP generation?
   let lctx ← getLCtx
   let some hyp := lctx.findDecl? (fun decl =>
@@ -244,16 +244,17 @@ def elabVeilConcretizeFields : TacticM Unit := veilWithMainContext do
     if decl.type.getAppFn'.constName? == Option.some stateTypeName
     then .some decl else .none) | return
   let fields ← getFieldIdentsForStruct stateTypeName
-  -- (1) do basic simplification using `LawfulFieldRepresentation`
   let mut tacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq) := #[]
-  tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$(mkIdent `fieldRepresentationSetSimpPre):ident])
-  -- (2) simplify using `get_set_idempotent'`
-  let simpTerms ← fields.mapM fun f =>
-    `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
-  tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$[$simpTerms:term],*] at *)
-  -- (3) simplify the resulting things
   let localSimpTerms := #[fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
-  tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `fieldRepresentationSetSimpPost):ident, $[$localSimpTerms:ident],*] at *)
+  if !aggressive then
+    -- (1) do basic simplification using `LawfulFieldRepresentation`
+    tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$(mkIdent `fieldRepresentationSetSimpPre):ident])
+    -- (2) simplify using `get_set_idempotent'`
+    let simpTerms ← fields.mapM fun f =>
+      `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
+    tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$[$simpTerms:term],*] at *)
+    -- (3) simplify the resulting things
+    tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `fieldRepresentationSetSimpPost):ident, $[$localSimpTerms:ident],*] at *)
   -- (4) concretize the `FieldRepresentation.get`-ed fields
   let rep := mkIdent hyp.userName
   let st := mkIdent stHyp.userName
@@ -316,12 +317,16 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   let tac ← `(tactic| unhygienic intros; try intro $(mkIdent `th) $(mkIdent `st) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩;)
   veilEvalTactic tac
 
-def elabVeilFol : TacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
+def elabVeilFol (aggressive : Bool) : TacticM Unit := veilWithMainContext do
+  let tac ← if aggressive
+    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_concretize_state; veil_concretize_fields !; veil_destruct; dsimp only at *; veil_intros))
+    else `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
-def elabVeilSolve : TacticM Unit := veilWithMainContext do
-  let tac ← `(tactic| veil_intros; veil_wp; veil_neutralize_decidable_inst; veil_fol; veil_smt)
+def elabVeilSolve (aggressive : Bool) : TacticM Unit := veilWithMainContext do
+  let tac ← if aggressive
+    then `(tactic| veil_intros; veil_wp; veil_neutralize_decidable_inst; veil_fol !; veil_smt)
+    else `(tactic| veil_intros; veil_wp; veil_neutralize_decidable_inst; veil_fol; veil_smt)
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSplitIfs : TacticM Unit := veilWithMainContext do
@@ -341,7 +346,7 @@ elab_rules : tactic
   | `(tactic| veil_clear $ids:ident*) => do withTiming "veil_clear" $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do withTiming "veil_destruct_goal" elabVeilDestructGoal
   | `(tactic| veil_concretize_state) => do withTiming "veil_concretize_state" elabVeilConcretizeState
-  | `(tactic| veil_concretize_fields) => do withTiming "veil_concretize_fields" elabVeilConcretizeFields
+  | `(tactic| veil_concretize_fields $[!%$agg]?) => do withTiming "veil_concretize_fields" (elabVeilConcretizeFields (agg.isSome))
   | `(tactic| veil_smt%$tk) => do withTiming "veil_smt" $ elabVeilSmt tk
   | `(tactic| veil_smt?%$tk) => do withTiming "veil_smt?" $ elabVeilSmt tk true
   | `(tactic| veil_simp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp" $ elabVeilSimp (trace? := false) cfg o params loc
@@ -349,8 +354,8 @@ elab_rules : tactic
   | `(tactic| veil_wp) => do withTiming "veil_wp" elabVeilWp
   | `(tactic| veil_neutralize_decidable_inst) => do withTiming "veil_neutralize_decidable_inst" elabVeilNeutralizeDecidableInst
   | `(tactic| veil_intros) => do withTiming "veil_intros" elabVeilIntros
-  | `(tactic| veil_fol) => do withTiming "veil_fol" elabVeilFol
-  | `(tactic| veil_solve) => do withTiming "veil_solve" elabVeilSolve
+  | `(tactic| veil_fol $[!%$agg]?) => do withTiming "veil_fol" (elabVeilFol (agg.isSome))
+  | `(tactic| veil_solve $[!%$agg]?) => do withTiming "veil_solve" (elabVeilSolve (agg.isSome))
   | `(tactic| veil_split_ifs) => do withTiming "veil_split_ifs" elabVeilSplitIfs
   | `(tactic| veil_fail) => elabVeilFail
 
