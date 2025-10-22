@@ -182,7 +182,6 @@ attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet]
   injection_begin  injection_end
 
 
-#Concretize
 simple_deriving_repr_for' State
 deriving instance Repr for Label
 deriving instance Inhabited for Theory
@@ -192,9 +191,8 @@ instance [Hashable α] [BEq α] : Hashable (Std.HashSet α) where
     /- `Hash collision `-/
     s.fold (init := 0) fun acc a => acc + (hash a)
 
+#Concretize
 #assembleInsts
-#print instBEqStateConcrete
-#print instHashableStateConcrete
 
 instance : (rd : TheoryConcrete) → (st : StateConcrete) → Decidable ((fun ρ σ => Unsolved ρ σ) rd st) :=
   by

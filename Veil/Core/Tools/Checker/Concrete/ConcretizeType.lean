@@ -2,7 +2,8 @@ import Lean
 import Veil.Core.Tools.Checker.Concrete.State
 import Mathlib.Data.FinEnum
 import Mathlib.Tactic.ProxyType
-open Lean Elab Command Tactic Meta Term
+import Veil.Util.Meta
+open Lean Elab Command Tactic Meta Term Veil
 
 -- #ConcretizeType command implementation
 syntax (name := concretizeTypeCmd) "#Concretize" term,* : command
@@ -23,7 +24,7 @@ def getLabelList : CommandElabM Unit := do
     let labelConcreteIdent := mkIdent labelConcreteName
     `(def $labelListIdent := (FinEnum.ofEquiv _ (Equiv.symm (proxy_equiv%($labelConcreteIdent)))).toList)
   trace[veil.debug] "[getLabelList] {labelListCmd}"
-  elabCommand labelListCmd
+  elabVeilCommand labelListCmd
 
 
 elab "#Concretize" args:term,* : command => do
@@ -71,10 +72,10 @@ elab "#Concretize" args:term,* : command => do
       let fieldConcreteInstTerm ← `(term | $(mkIdent `FieldConcreteType) $termArray*)
       `(command| @[reducible] def $(mkIdent stateConcreteName) := ($assembledState) $fieldConcreteInstTerm)
 
-    elabCommand theoryCmd
-    elabCommand labelCmd
-    elabCommand fieldConcreteInstCmd
-    elabCommand stateCmd
+    elabVeilCommand theoryCmd
+    elabVeilCommand labelCmd
+    elabVeilCommand fieldConcreteInstCmd
+    elabVeilCommand stateCmd
 
     -- build `initVeilMultiExecM`
     let initCmd ← do
@@ -92,8 +93,8 @@ elab "#Concretize" args:term,* : command => do
           /-$(mkIdent `FieldConcreteTypeInst)-/ ) )
       `(command| def $(mkIdent `nextVeilMultiExecM) := $assembledNextM)
 
-    elabCommand initCmd
-    elabCommand nextCmd
+    elabVeilCommand initCmd
+    elabVeilCommand nextCmd
     getLabelList
 
 
@@ -117,7 +118,7 @@ def assembleBEqInstance (fieldNames : Array Name): CommandElabM Unit := do
     `(command|
         instance : BEq $(mkIdent `StateConcrete) where
           beq := fun $s1 $s2 => $beqBody)
-  elabCommand BEqInstCmd
+  elabVeilCommand BEqInstCmd
 
 
 def assembleHashableInst (fieldNames : Array Name) : CommandElabM Unit := do
@@ -143,7 +144,7 @@ def assembleHashableInst (fieldNames : Array Name) : CommandElabM Unit := do
     `(command|
         instance : Hashable $(mkIdent `StateConcrete) where
           hash := fun $s => hash $body)
-  elabCommand HashableInstCmd
+  elabVeilCommand HashableInstCmd
 where
   mkTuple (xs : Array (TSyntax `term)) : MacroM (TSyntax `term) := do
     match xs.size with

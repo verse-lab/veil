@@ -66,14 +66,14 @@ after_init {
   r_sess_msg_num R I := I == one
   r_gap_commit_reps R P := false
   r_current_gap_slot R I := I == seq.zero
-  r_replica_status R S := S == st_normal
+  -- r_replica_status R S := S == st_normal
 
-  m_client_request V := false
-  m_marked_client_request D V SMN := false
-  m_request_reply S V LSN := false
-  m_slot_lookup D S SMN := false
-  m_gap_commit D SN := false
-  m_gap_commit_rep D S SN := false
+  -- m_client_request V := false
+  -- m_marked_client_request D V SMN := false
+  -- m_request_reply S V LSN := false
+  -- m_slot_lookup D S SMN := false
+  -- m_gap_commit D SN := false
+  -- m_gap_commit_rep D S SN := false
 
   gh_r_received_sequenced_client_request R S := false
   gh_r_received_drop_notification R S := false
@@ -104,8 +104,8 @@ action handle_client_request (m_value : value) {
   require m_client_request m_value
   let slot := s_seq_msg_num
   m_marked_client_request R m_value slot := true
-  let next_slot ← succ slot
-  s_seq_msg_num := next_slot
+  -- let next_slot ← succ slot
+  -- s_seq_msg_num := next_slot
 }
 
 procedure append_to_log (r : replica) (v : value) {
@@ -131,9 +131,9 @@ action handle_marked_client_request_normal (r : replica) (m_value : value) (m_se
   let smn :| r_sess_msg_num r smn
   require m_sess_msg_num = smn
   gh_r_received_sequenced_client_request r m_sess_msg_num := true
-  let _new_smn ← increase_session_number r
-  let new_len ← append_to_log r m_value
-  m_request_reply r m_value new_len := true
+  -- let _new_smn ← increase_session_number r
+  -- let new_len ← append_to_log r m_value
+  -- m_request_reply r m_value new_len := true
 }
 
 
@@ -143,9 +143,9 @@ procedure send_gap_commit (r : replica) {
   let len :| r_log_len r len
   let slot ← succ len
   r_replica_status r S := S == st_gap_commit
-  r_gap_commit_reps r P := false
-  r_current_gap_slot r I := I == slot
-  m_gap_commit R slot := true
+  -- r_gap_commit_reps r P := false
+  -- r_current_gap_slot r I := I == slot
+  -- m_gap_commit R slot := true
 }
 
 -- Drop notification case of `HandleMarkedClientRequest`
@@ -164,45 +164,46 @@ action handle_marked_client_drop_notification (r : replica) (m_value : value) (m
     m_slot_lookup leader r smn := true
 }
 
-action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : seq_t) {
-  require m_slot_lookup r m_sender m_sess_msg_num
-  require r_replica_status r st_normal
-  require r = leader
-  let len :| r_log_len r len
-  let smn :| r_sess_msg_num r smn
-  -- Note: in TLA+ the slot is computed as
-  -- `logSlotNum == Len(vLog[r]) + 1 - (vSessMsgNum[r] - m.sessMsgNum)`
-  -- which calculates the offset from the tail of the log;
-  -- however, with no view changes, this is equivalent to simply taking
-  -- the index of the incoming m.sessMsgNum
-  -- (i.e., with no view changes, we should have `vSessMsgNum[r]` = `Len(vLog[r]) + 1`)
-  let slot := m_sess_msg_num
-  if seq.le slot len then
-    -- NOTE: cannot make this into a pick-such-that because it might not exist
-    if v : r_log r slot v then
-      m_marked_client_request m_sender v m_sess_msg_num := true
-    else
-      -- Nothing to undo
-      pure ()
-  if slot = (← succ len) then
-    send_gap_commit r
-}
+-- action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : seq_t) {
+--   require m_slot_lookup r m_sender m_sess_msg_num
+--   require r_replica_status r st_normal
+--   require r = leader
+--   let len :| r_log_len r len
+--   let smn :| r_sess_msg_num r smn
+--   -- Note: in TLA+ the slot is computed as
+--   -- `logSlotNum == Len(vLog[r]) + 1 - (vSessMsgNum[r] - m.sessMsgNum)`
+--   -- which calculates the offset from the tail of the log;
+--   -- however, with no view changes, this is equivalent to simply taking
+--   -- the index of the incoming m.sessMsgNum
+--   -- (i.e., with no view changes, we should have `vSessMsgNum[r]` = `Len(vLog[r]) + 1`)
+--   let slot := m_sess_msg_num
+--   if seq.le slot len then
+--     -- NOTE: cannot make this into a pick-such-that because it might not exist
+--     if v : r_log r slot v then
+--       m_marked_client_request m_sender v m_sess_msg_num := true
+--     else
+--       -- Nothing to undo
+--       pure ()
+--   if slot = (← succ len) then
+--     send_gap_commit r
+-- }
+
 
 -- Replica r (or the leader) receives GapCommit
-action handle_gap_commit (r : replica) (m_slot_num : seq_t) {
-  require m_gap_commit r m_slot_num
-  let len :| r_log_len r len
-  -- NOTE: this condition ensures that the skipping operation (the `if` block
-  -- below) is meaningful, or intuitively "neither too early nor too late"
-  require seq.le m_slot_num len ∨ next len m_slot_num
-  let smn :| r_sess_msg_num r smn
-  replace_item r m_slot_num no_op
-  if lt len m_slot_num then
-    let  _new_smn ← increase_session_number r
-  m_gap_commit_rep leader r m_slot_num := true
-  let st :| r_replica_status r st
-  m_request_reply r no_op m_slot_num := true
-}
+-- action handle_gap_commit (r : replica) (m_slot_num : seq_t) {
+--   require m_gap_commit r m_slot_num
+--   let len :| r_log_len r len
+--   -- NOTE: this condition ensures that the skipping operation (the `if` block
+--   -- below) is meaningful, or intuitively "neither too early nor too late"
+--   require seq.le m_slot_num len ∨ next len m_slot_num
+--   let smn :| r_sess_msg_num r smn
+--   replace_item r m_slot_num no_op
+--   if lt len m_slot_num then
+--     let  _new_smn ← increase_session_number r
+--   m_gap_commit_rep leader r m_slot_num := true
+--   let st :| r_replica_status r st
+--   m_request_reply r no_op m_slot_num := true
+-- }
 
 action handle_gap_commit_rep (r : replica) (m_sender : replica) (m_slot_num : seq_t) {
   require m_gap_commit_rep r m_sender m_slot_num
@@ -518,7 +519,9 @@ instance : Hashable replica_state where
     | .st_normal => hash 0
     | .st_gap_commit => hash 1
 
-#Concretize (Fin 1), replica_state, (Fin 1), (Fin 1), (Fin 1)
+#Concretize (Fin 1), replica_state, (Fin 1), (Fin 2), (Fin 1)
+
+simple_deriving_repr_for' State
 
 simple_deriving_repr_for' State
 deriving instance Repr for Label
@@ -530,19 +533,23 @@ instance [Hashable α] [BEq α] : Hashable (Std.HashSet α) where
     s.fold (init := 0) fun acc a => acc + (hash a)
 
 
--- instance : BEq (FieldConcreteType (Fin 1) replica_state (Fin 1) (Fin 1) (Fin 1) State.Label.s_seq_msg_num) :=
--- by
---   dsimp [FieldConcreteType, State.Label.toCodomain] ;
---   infer_instance
+instance : BEq (FieldConcreteType (Fin 1) replica_state (Fin 1) (Fin 2) (Fin 1) State.Label.s_seq_msg_num) :=
+by
+  dsimp [FieldConcreteType, State.Label.toCodomain] ;
+  infer_instance
+
+instance : Hashable (FieldConcreteType (Fin 1) replica_state (Fin 1) (Fin 2) (Fin 1) State.Label.s_seq_msg_num) :=
+by
+  dsimp [FieldConcreteType, State.Label.toCodomain]
+  infer_instance
 
 #assembleInsts
 
 #print instBEqStateConcrete
 #print instHashableStateConcrete
 
-theorem ttt: FieldConcreteType (Fin 1) replica_state (Fin 1) (Fin 1) (Fin 1) State.Label.s_seq_msg_num → True := by
-  dsimp [FieldConcreteType, State.Label.toCodomain]
-
+-- theorem ttt: FieldConcreteType (Fin 1) replica_state (Fin 1) (Fin 1) (Fin 1) State.Label.s_seq_msg_num → True := by
+--   dsimp [FieldConcreteType, State.Label.toCodomain]
 
 instance : (rd : TheoryConcrete) → (st : StateConcrete)
     → Decidable ((fun ρ σ => lead_gap_commits ρ σ) rd st) := by
@@ -552,8 +559,30 @@ instance : (rd : TheoryConcrete) → (st : StateConcrete)
 
 #check lead_gap_commits
 
+-- def rd₀ :=   { one := 1, no_op := 0, member := fun a b => a ∈ b.val,leader := 0 }
+
 #print nextVeilMultiExecM
-def modelCheckerResult' := (runModelCheckerx {one := 0, no_op := 0, leader := 0, member := fun x y=> true} labelList initVeilMultiExecM nextVeilMultiExecM (fun ρ σ => true)).snd
-#eval! modelCheckerResult'
+-- def st₀ := (((afterInit initVeilMultiExecM { one := 1, no_op := 0, member := fun a b => a = b,leader := 0 } default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
+-- #check st₀
+
+instance : OfNat (FieldConcreteType (Fin 1) replica_state (Fin 1) (Fin 2) (Fin 1)
+                             State.Label.s_seq_msg_num) 0 where
+  ofNat := (0 : Fin 1)
+
+#print initVeilMultiExecM
+
+    -- { one := ⟨1, Nat.succ_le_succ <| Nat.succ_le_succ <| Nat.zero_le _⟩
+    --   no_op := ⟨0, Nat.zero_lt_succ _⟩
+    --   member := fun a b => a ∈ b.val
+    --   leader := leader }
+
+def rd₀ : TheoryConcrete :=
+  { one := 1, no_op := 0, member := fun a b => a == b, leader := 0 }
+def st₀ := (((afterInit initVeilMultiExecM rd₀ default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
+#eval st₀
+
+def modelCheckerResult' := (runModelCheckerx st₀ rd₀ labelList nextVeilMultiExecM (fun ρ σ => true)).snd
+
+#eval modelCheckerResult'
 
 end NOPaxos

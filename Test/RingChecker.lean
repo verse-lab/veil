@@ -203,6 +203,7 @@ instance : (rd : TheoryConcrete) → (st : StateConcrete)
   infer_instance
 
 #check single_leader
+
 def modelCheckerResult' := (runModelCheckerx {} labelList initVeilMultiExecM nextVeilMultiExecM (fun ρ σ => single_leader ρ σ)).snd
 #eval modelCheckerResult'
 

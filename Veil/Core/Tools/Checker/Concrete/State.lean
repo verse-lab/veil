@@ -125,6 +125,7 @@ def BFSAlgorithmx {κ κᵣ ρ σᵣ : Type}
   [Inhabited σᵣ] [Inhabited ρ] [Repr κ]
   [IsSubStateOf ℂ σᵣ] [IsSubReaderOf ℝ ρ]
   [Hashable σᵣ] [BEq σᵣ]
+  [Repr σᵣ]
   : StateT (SearchContext σᵣ σᵣ) Id Unit := do
   CheckerM.addToSeen st₀
   -- CheckerM.addToSeen (hash st₀)
@@ -135,8 +136,8 @@ def BFSAlgorithmx {κ κᵣ ρ σᵣ : Type}
     let current_state_opt ← CheckerM.dequeueState
     match current_state_opt with
     | none =>
-      dbg_trace "[BFS] explored all states, total {count}"
-      -- search_continue := false
+      -- dbg_trace "[BFS] explored all states, total {count}"
+      search_continue := false
       return ()
     | some st =>
       -- let canMoveLabels := canMoveLabel rd st
@@ -144,15 +145,19 @@ def BFSAlgorithmx {κ κᵣ ρ σᵣ : Type}
       for i in List.finRange canMoveLabels.length do
         match canMoveLabels[i]? with
         | none =>
-          dbg_trace "[BFS] explored all states, total {count}"
+          -- dbg_trace "[BFS] explored all states, total {count}"
           continue
         | some label =>
           let list_st'_opt := getAllStatesFromExceptT ((nonDetNexts mapVeilMultiExec rd st label).map Prod.snd)
+          -- dbg_trace "[BFS] {list_st'_opt.length} successors for label {reprStr label}"
           -- let mut print_flag := false
           for st'_opt in list_st'_opt do
             match st'_opt with
-            | none => continue   -- divergence
+            | none =>
+              -- dbg_trace "[BFS] divergence encountered, {reprStr label}"
+              continue   -- divergence
             | some st' =>
+              -- dbg_trace "[BFS] Current State: {reprStr st}"
               let already_seen ← CheckerM.wasSeen st'
               -- let already_seen ← CheckerM.wasSeen (hash st')
               if !already_seen then
@@ -164,6 +169,7 @@ def BFSAlgorithmx {κ κᵣ ρ σᵣ : Type}
                 else
                   -- CheckerM.addCounterExample (hash st')
                   CheckerM.addCounterExample st'
+                  -- dbg_trace "[BFS] invariant violated after {count} states explored, on label {reprStr label}"
                   search_continue := false
                   return ()
 
@@ -179,6 +185,7 @@ def runModelCheckerx {κ κᵣ ρ σᵣ : Type}
   [Inhabited σᵣ] [Inhabited ρ]
   [IsSubStateOf ℂ σᵣ] [IsSubReaderOf ℝ ρ]
   [BEq σᵣ] [Hashable σᵣ] [Repr κ]
+  [Repr σᵣ]
   : Id (Unit × (SearchContext σᵣ σᵣ)) := do
   let cfg := SearchContext.empty
   let restrictions := (fun (_ : ρ) (_ : σᵣ) => true)
