@@ -15,6 +15,8 @@ import Veil.DSL.Specification.ActionDef
 
 open Lean Elab Command Term Meta Lean.Parser
 
+namespace Veil
+
 /-!
   # Specification Language Semantics
 
@@ -541,3 +543,5 @@ def genSpec : CommandElabM Unit := do
 
 elab_rules : command
   | `(command|#gen_spec) => genSpec
+
+end Veil

@@ -16,7 +16,7 @@ action nondet_individual = {
 
 /--
 info: def Test.nondet_individual : {node : Type} →
-  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wp Mode.internal (State node) PUnit :=
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Veil.Wp Veil.Mode.internal (State node) PUnit :=
 fun {node} [DecidableEq node] [Nonempty node] s post => ∀ (t : Prop), post PUnit.unit { x := t, r := s.r }
 -/
 #guard_msgs in
@@ -29,7 +29,7 @@ action quantify_fresh (n : node) = {
 
 /--
 info: def Test.quantify_fresh : {node : Type} →
-  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → node → Wp Mode.internal (State node) PUnit :=
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → node → Veil.Wp Veil.Mode.internal (State node) PUnit :=
 fun {node} [DecidableEq node] [Nonempty node] n s post =>
   ∀ (t : node → node → Prop), post PUnit.unit { x := s.x, r := fun x N => if x = n then t n N else s.r x N }
 -/
@@ -42,7 +42,7 @@ action double_quant = {
 
 /--
 info: def Test.double_quant : {node : Type} →
-  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Wp Mode.internal (State node) PUnit :=
+  [node_dec : DecidableEq node] → [node_ne : Nonempty node] → Veil.Wp Veil.Mode.internal (State node) PUnit :=
 fun {node} [DecidableEq node] [Nonempty node] s post =>
   ∀ (t : node → node → Prop), post PUnit.unit { x := s.x, r := fun N x => if x = N then t N N else s.r N x }
 -/

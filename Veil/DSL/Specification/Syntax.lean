@@ -258,6 +258,6 @@ syntax (name := declareAssertion) propertyKind (propertyName)? term : command
 syntax (name := declareTrustedInvariant) kw_trusted kw_invariant (propertyName)? term : command
 
 /-- Assemble the specification. -/
-syntax (name := genSpec) kw_gen_spec : command
+syntax (name := genSpecCmd) kw_gen_spec : command
 
 end Veil

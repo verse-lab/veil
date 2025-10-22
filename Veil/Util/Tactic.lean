@@ -3,6 +3,8 @@ import Veil.Util.DSL
 
 open Lean Lean.Elab.Tactic
 
+namespace Veil
+
 /-- Is `typ` an application of `n`, after normalisation? -/
 def whnfIsAppOf (typ : Expr) (n : Name) : MetaM Bool := do
   let norm ← Meta.whnf typ
@@ -122,3 +124,5 @@ def mkSimpName (n : Ident) :=
      mkNode `Lean.Parser.Tactic.simpLemma #[Syntax.node default nullKind #[], Syntax.node default nullKind #[], Syntax.ident SourceInfo.none default n.getId []]
 def namesToLemmas (simpIds : Array (TSyntax `Lean.Parser.Tactic.simpLemma)) : Syntax.TSepArray `Lean.Parser.Tactic.simpLemma "," := Syntax.TSepArray.ofElems simpIds
 def mkSimpLemmas (simpIds : Array Ident) : Syntax.TSepArray `Lean.Parser.Tactic.simpLemma "," := namesToLemmas (simpIds.map mkSimpName)
+
+end Veil

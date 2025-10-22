@@ -11,6 +11,8 @@ open Lean Meta Elab Tactic
 
 variable {n : Type → Type}  [Monad n] [MonadControlT MetaM n] [MonadLiftT MetaM n]
 
+namespace Veil
+
 private def higherOrderQuantifiedTypes' (e : Expr) (existentialOnly? : Bool := false) : QuantElimM (n := n) (Array (QuantType × Name × Expr)) := do
   let _ ← forEachExprSane e (fun e => do
     match e with
@@ -29,15 +31,15 @@ private def higherOrderQuantifiedTypes' (e : Expr) (existentialOnly? : Bool := f
     if ← isHigherOrder e then
       modify (fun s => { s with quantifiedTypes := (qt, nm, e) :: s.quantifiedTypes })
 
-def Lean.Expr.higherOrderQuantifiers (e : Expr) (existentialOnly? : Bool := false) : n (Array (QuantType × Name × Expr)) := do
+def higherOrderQuantifiers (e : Expr) (existentialOnly? : Bool := false) : n (Array (QuantType × Name × Expr)) := do
   let (types, _st) ← (higherOrderQuantifiedTypes' e existentialOnly?).run default
   return types
 
-def Lean.Expr.hasHigherOrderQuantification (e : Expr) (existentialOnly? : Bool := false) : n Bool := do
-  return (← e.higherOrderQuantifiers existentialOnly?).size > 0
+def hasHigherOrderQuantification (e : Expr) (existentialOnly? : Bool := false) : n Bool := do
+  return (← higherOrderQuantifiers e existentialOnly?).size > 0
 
 def getHOQuat (e : Expr) (mode : checkMode := .hypothesis) : n (Array (QuantType × Name × Expr)) :=
-  quantMetaTelescopeReducing e mode fun _ => Lean.Expr.higherOrderQuantifiers
+  quantMetaTelescopeReducing e mode fun _ => higherOrderQuantifiers
 
 def logHOQuantsErorrs (hoqs : Array (QuantType × Name × Expr)) (pos : Option Name := none) : TacticM Unit := do
   let loc := match pos with
@@ -55,3 +57,5 @@ def goalSmTTranslatable? : TacticM Unit := do
         logHOQuantsErorrs quants h.userName
 
 elab "is_translatable_to_smt?" : tactic => goalSmTTranslatable?
+
+end Veil

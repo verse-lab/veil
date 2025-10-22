@@ -10,6 +10,11 @@ import Veil.DSL.Specification.SpecDef
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
+def Lean.MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
+  msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
+
+namespace Veil
+
 inductive CheckStyle
   /-- Do not check any theorems. Used to only print suggestions. -/
   | noCheck
@@ -217,9 +222,6 @@ def checkIndividualTheorem (thmId : TheoremIdentifier) (cmd : TSyntax `command) 
     setEnv env
   let result := if isProven then .proven proofKind else .notProven
   return result
-
-def Lean.MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
-  msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
 
 def parseStrAsJson [Monad m] [MonadError m] (str : String) : m Json := do
   match Json.parse str with
@@ -582,3 +584,5 @@ elab "prove_inv_inductive" proof:term : command => do
         --  intros $(mkIdent `st) $(mkIdent `st')
         --  simp only [actSimp, invSimp, safeSimp]
          exact $proof)
+
+end Veil

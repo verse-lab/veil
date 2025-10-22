@@ -2,6 +2,8 @@ import Lean
 import Veil.Util.DSL
 import Veil.SMT.Main
 
+namespace Veil
+
 open Lean Elab Meta Tactic TryThis
 
 def displaySuggestion (stx : Syntax) (theorems : Array (TSyntax `command)) (preMsg : Option String := none) := do
@@ -88,3 +90,5 @@ def getModelStr (msg : String) : String :=
 
 def Lean.MessageLog.getErrorMessages (log : MessageLog) : MessageLog :=
   { unreported := log.unreported.filter fun m => match m.severity with | MessageSeverity.error => true | _ => false }
+
+end Veil

@@ -5,6 +5,8 @@ import Veil.Util.DSL
 import Veil.Model.TransitionSystem
 import Veil.DSL.Specification.SpecDef
 
+namespace Veil
+
 declare_syntax_cat expected_smt_result
 syntax (name := expected_sat) "sat" : expected_smt_result
 syntax (name := expected_unsat) "unsat" : expected_smt_result
@@ -66,7 +68,7 @@ def parseTraceSpec [Monad m] [MonadExceptOf Exception m] [MonadError m] (stx : S
 
 open Lean.Parser.Term in
 
-def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec) (pf : TSyntax `term)
+def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax ``traceSpec) (pf : TSyntax `term)
   : CommandElabM Unit := do
   liftCoreM errorIfStateNotDefined
   let vd ← getAssertionParameters
@@ -138,3 +140,5 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
 elab_rules : command
   | `(command| $r:expected_smt_result trace [ $name ] { $spec:traceSpec } $pf) => elabTraceSpec r name spec pf
   | `(command| $r:expected_smt_result trace { $spec:traceSpec } $pf) => elabTraceSpec r none spec pf
+
+end Veil

@@ -3,6 +3,8 @@ import Auto
 import Veil.Util.Meta
 import Batteries.Data.Array.Basic
 
+namespace Veil
+
 abbrev SortName := Lean.Name
 abbrev UninterpretedValue := Lean.Name
 
@@ -315,9 +317,9 @@ def Interpretation.toString (interp : Interpretation) (decl : Declaration) : Id 
       match decl with
       | Declaration.Constant c => out := out ++ s!"{c.name} = {val}\n"
       | Declaration.Relation r =>
-          -- out := out ++ s!"{r.name}{args.funcArgsString} = {val}\n"
-          if val.isTrue then out := out ++ s!"{r.name}{args.funcArgsString} = true\n"
-      | Declaration.Function f => out := out ++ s!"{f.name}{args.funcArgsString} = {val}\n"
+          -- out := out ++ s!"{r.name}{Array.funcArgsString args} = {val}\n"
+          if val.isTrue then out := out ++ s!"{r.name}{Array.funcArgsString args} = true\n"
+      | Declaration.Function f => out := out ++ s!"{f.name}{Array.funcArgsString args} = {val}\n"
   | .Symbolic str => out := out ++ s!"{decl.name} = {str}\n"
   return out
 
@@ -526,3 +528,5 @@ def extractStructure (model : Sexpr) : MetaM FirstOrderStructure := do
   for inst in instructions do
     struct := (← parseInstruction inst struct)
   return struct
+
+end Veil

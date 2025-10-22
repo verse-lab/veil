@@ -13,6 +13,7 @@ import Lean.Meta.Basic
 
 open Lean Meta Elab Tactic
 
+namespace Veil
 
 /-- Typeclass that gets inferred if a type is Higher Order. -/
 class IsHigherOrder.{u} (t : Sort u)
@@ -52,7 +53,7 @@ partial def forallLambdaLetTelescope (type : Expr) (k : Array Expr → Expr → 
 
 def allHOQuantIsTopLevelForAll (t : Expr) : MetaM Bool := do
   let t ← Meta.reduceAll t
-  forallLambdaLetTelescope t (fun _ body => do return !(← body.hasHigherOrderQuantification)) true
+  forallLambdaLetTelescope t (fun _ body => do return !(← hasHigherOrderQuantification body)) true
 
 /-! ## Existential Quantifiers
 
@@ -258,3 +259,5 @@ attribute [quantifierSimp] and_true true_and and_false false_and or_true
   true_or or_false false_or iff_true true_iff iff_false false_iff
 
 end UniversalQuantifierTheorems
+
+end Veil

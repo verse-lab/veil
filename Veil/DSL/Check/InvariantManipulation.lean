@@ -4,6 +4,8 @@ import Veil.DSL.Check.Main
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
+namespace Veil
+
 -- adapted from `theoremSuggestionsForChecks`
 def theoremSuggestionsForChecks' (actIndicators : List (Name × Name)): CommandElabM (Array (TheoremIdentifier × TSyntax `command)) := do
     Command.runTermElabM fun vs => do
@@ -28,8 +30,8 @@ def theoremSuggestionsForChecks' (actIndicators : List (Name × Name)): CommandE
           let body ← do
             let name1 := toActTrEqName actName
             let name2 := mkTheoremName actName invName
-            let name3 := `forall_exists_index
-            let name4 := `TwoState_sound'_ret_unit'
+            let name3 := ``forall_exists_index
+            let name4 := ``TwoState_sound'_ret_unit'
             `(tacticSeq|
               rw [← $(mkIdent name1)] ; dsimp
               (try simp only [$(mkIdent name3):ident])
@@ -149,3 +151,5 @@ elab "#split_invariants" : command => do
           intro $tempvars* ; have hh := @$(mkIdent thmName1) $tempvars*
           revert hh ; simp only [and_imp] ; intros ; assumption
         )     -- avoid having a tactic spliting at hyp
+
+end Veil

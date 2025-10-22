@@ -1,6 +1,8 @@
 import Lean
 import Veil.DSL.Internals.StateExtensions
 
+namespace Veil
+
 open Lean
 
 /-! ## Attributes
@@ -105,3 +107,5 @@ initialize registerBuiltinAttribute {
   add := fun declName _ _ => do
     localSpecCtx.modify (fun s => { s with establishedClauses := s.establishedClauses ++ [declName]})
 }
+
+end Veil

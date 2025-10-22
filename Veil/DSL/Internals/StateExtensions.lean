@@ -1,6 +1,8 @@
 import Lean
 import Veil.Model.Specifications
 
+namespace Veil
+
 open Lean
 
 /-! # DSL Environment Extensions -/
@@ -70,3 +72,5 @@ def registerModuleSpecification : AttrM Unit := do
     throwError "Specification {n} has already been declared"
   trace[veil] "Globally declaring specification {n}"
   globalSpecCtx.add (n, lctx)
+
+end Veil

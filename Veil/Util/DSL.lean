@@ -3,6 +3,17 @@ import Veil.Model.State
 import Veil.DSL.Internals.StateExtensions
 import Veil.DSL.Action.Theory
 
+def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
+  let #[f, args] := stx.raw.getArgs | failure
+  let `(term| $f:ident) := f | failure
+  return (⟨f⟩, args.getArgs.map (⟨·⟩))
+
+def List.removeDuplicates [BEq α] (xs : List α) : List α :=
+  xs.foldl (init := []) fun acc x =>
+    if acc.contains x then acc else x :: acc
+
+namespace Veil
+
 open Lean Elab Command Term Meta Lean.Parser
 
 def isTypeClassBinder : TSyntax `Lean.Parser.Term.bracketedBinder → Bool
@@ -253,15 +264,6 @@ where
 
 def stripFirstComponent (n : Name) : Name := mkStrippedName n "."
 
-def List.removeDuplicates [BEq α] (xs : List α) : List α :=
-  xs.foldl (init := []) fun acc x =>
-    if acc.contains x then acc else x :: acc
-
-def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
-  let #[f, args] := stx.raw.getArgs | failure
-  let `(term| $f:ident) := f | failure
-  return (⟨f⟩, args.getArgs.map (⟨·⟩))
-
 def simpleAddThm (n : Name) (tp : Expr) (tac : TermElabM (TSyntax `Lean.Parser.Tactic.tacticSeq))
   (attr : Array Attribute := #[]) : TermElabM Unit := do
   addDecl <|
@@ -280,3 +282,5 @@ macro "forall?" br:bracketedBinder* "," t:term : term =>
     `(∀ $br*, $t)
   else
     `($t)
+
+end Veil

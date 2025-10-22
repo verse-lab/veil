@@ -8,6 +8,8 @@ import Veil.Util.TermSimp
 
 open Lean Elab Command Term Meta Lean.Parser
 
+namespace Veil
+
 def wpUnfold := [``Wp.bind, ``Wp.pure, ``Wp.get, ``Wp.set, ``Wp.modifyGet,
   ``Wp.assert, ``Wp.assume, ``Wp.require, ``Wp.spec, ``Wp.lift, ``Wp.toTwoState]
 
@@ -384,7 +386,7 @@ def defineDepsProcedures : CommandElabM Unit := do
       let (genIName, genEName) ← liftProcedureGenerators liftedName liftedBinders stateTpT actBaseName depArgs
       match procToLift.kind with
       | .action decl =>
-        let actionKind ← decl.kind.stx
+        let actionKind ← Veil.ActionKind.stx decl.kind
         defineActionFromGenerators actionKind liftedName liftedBinders genIName genEName
       | .procedure _ => defineProcedureFromGenerator liftedName liftedBinders genIName
 
@@ -442,3 +444,5 @@ where
     let genExp <- instantiateMVars <| <- mkLambdaFVarsImplicit vs genExp
     simpleAddDefn genName genExp (attr := #[{name := `generatorSimp}, {name := `actSimp}, {name := `reducible}]) («type» := ← inferType genExp)
     return (genName, genExp)
+
+end Veil

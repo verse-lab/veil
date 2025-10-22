@@ -9,6 +9,8 @@ import Veil.SMT.Main
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis
 
+namespace Veil
+
 -- Copied from Mathlib's [`rename'` tactic ](https://github.com/leanprover-community/mathlib4/blob/25ffff65d07b0c88e418c1ecf26701808e521196/Mathlib/Tactic/Rename.lean#L22-L25)
 syntax renameArg := term " => " ident
 syntax (name := renameHyp) "rename_hyp " renameArg,+ : tactic
@@ -448,3 +450,5 @@ instantiate the existential quantifiers, and thus avoid the need to
 trust the solver, but this is not implemented yet.
 -/
 elab "bmc_sat" : tactic => bmcSat
+
+end Veil

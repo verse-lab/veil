@@ -2,6 +2,8 @@ import Lean
 import Veil.Model.IOAutomata
 import Veil.Util.Meta
 
+namespace Veil
+
 open Lean Parser
 
 inductive StateComponentKind where
@@ -306,3 +308,5 @@ def ModuleSpecification.transitionCtors (spec : ModuleSpecification) : CoreM (Ar
 
 instance : ToString ModuleSpecification where
   toString spec := s!"ModuleSpecification {spec.name}"
+
+end Veil

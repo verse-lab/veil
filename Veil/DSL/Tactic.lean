@@ -5,6 +5,8 @@ import Veil.DSL.Action.Lang -- TODO: can we remove this?
 
 open Lean Lean.Elab
 
+namespace Veil
+
 /--
   `exact_state` is usually used after `funcases` ar `funcasesM`. At this point the goal should
   contain all state fields as hypotheses. This tactic will then construct the
@@ -68,3 +70,5 @@ def simplifyTerm (t : TSyntax `term) : TermElabM (TSyntax `term) := do
         simp only [$smtSimp:ident, $logicSimp:ident];
         simp only [$quantifierSimp:ident]) => $t; exact t) | exact $t)
   return t'
+
+end Veil

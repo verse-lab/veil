@@ -9,6 +9,8 @@ import Veil.DSL.Action.Theory
 
 open Lean Elab Command Term Meta Lean.Parser
 
+namespace Veil
+
 /-! # Action Language
 
 This file defines the syntax for the imperative language we use to
@@ -363,5 +365,7 @@ attribute [actSimp] Bind.bind Pure.pure
 attribute [ifSimp] ite_self ite_then_self ite_else_self if_true_left
   if_true_right if_false_left if_false_right
 
+
+end Veil
 
 end Veil

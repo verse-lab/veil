@@ -1,5 +1,6 @@
 import Veil.DSL.Base
 
+namespace Veil
 /-!
   # Action Language
 
@@ -247,7 +248,7 @@ def BigStep.toWp {σ} (act : BigStep σ ρ) : Wp .internal σ ρ :=
 /-- Transforms any two-state formula into `Wp`. Used for casting
 `transition`s into `action`s. -/
 @[actSimp]
-def Function.toWp (m : Mode) (r : TwoState σ) : Wp m σ Unit :=
+def _root_.Function.toWp (m : Mode) (r : TwoState σ) : Wp m σ Unit :=
   fun s post => ∀ s', r s s' -> post () s'
 
 /-- This theorem lets us lift a transition in a way that does not introduce
@@ -696,3 +697,5 @@ instance (act : Wp .external σ ρ) (act' : ρ -> Wp .external σ ρ')
 end GenBigStepInstances
 
 end Theory
+
+end Veil

@@ -1,5 +1,6 @@
 import Lean
 
+namespace Veil
 open Lean Elab Command
 
 /-- The directory of the file being currently compiled. -/
@@ -282,3 +283,5 @@ def getItemsFromDoSeq [Monad m] [MonadError m] [MonadQuotation m] (l : TSyntax `
   | `(doSeq|$items*) => pure items
   | `(doSeq|{ $items* }) => pure items
   | _ => throwError "Unexpected doSeq: {l}"
+
+end Veil

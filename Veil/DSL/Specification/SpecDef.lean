@@ -6,6 +6,8 @@ import Veil.Util.DSL
 
 open Lean Elab Command Term Meta Lean.Parser
 
+namespace Veil
+
 def declareSpecName (n : Name) : CommandElabM Unit := do
   let ctx ← localSpecCtx.get
   let existingName := ctx.spec.name
@@ -140,3 +142,5 @@ def assembleAssumptions : CommandElabM Unit := do
     let assumptions ← if exprs.isEmpty then `(fun _ => True) else PrettyPrinter.delab $ ← combineLemmas ``And exprs vs "assumptions"
     `(@[invSimp, invSimpTopLevel] def $(mkIdent `Assumptions) $[$vd]* : $stateTp -> Prop := $assumptions)
   trace[veil.info] "Assumptions assembled"
+
+end Veil

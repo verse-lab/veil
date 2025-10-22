@@ -8,6 +8,8 @@ import Veil.SMT.Preparation
 
 open Lean Meta Elab Tactic
 
+namespace Veil
+
 private def getDefInfoTemp (info : ConstantInfo) : MetaM (Option ConstantInfo) := do
   match (← getTransparency) with
   | .all => return some info
@@ -249,3 +251,5 @@ def forEachExprSane (e : Expr) (f : Expr → n Unit) : n Unit :=
   forEachExprSane' e fun e => do
     f e
     return true
+
+end Veil
