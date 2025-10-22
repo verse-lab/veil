@@ -1,8 +1,8 @@
 import Lake
 open Lake DSL System
 
-require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "44f10182970b653a84649337514dd2a2d45b1509"
-require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "639e0417651be92f0d4991aca861c52fd34c9c1a"
+require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "2c088e7617d6e2018386de23b5df3b127fae4634"
+require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "d6c048b99c80e93c42e7fb03ba5b14a74b00a836"
 
 package veil
 
