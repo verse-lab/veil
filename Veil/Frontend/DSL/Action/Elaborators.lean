@@ -55,6 +55,22 @@ private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
   (fun args : Array Term =>
     `(fun $handler $post => [IgnoreEx $handler| $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post]))
 
+private def elabSimpArgForTerms (ctx : Meta.Simp.Context) (simps : Array (TSyntax `term × Name)) : TermElabM Meta.Simp.Context := do
+  -- the following manipulation comes from `elabSimpArgs` in `Lean/Elab/Tactic/Simp.lean`
+  let indexConfig := ctx.indexConfig
+  let simpThms ← simps.filterMapM fun (stx, name) => do
+    let thms ← elabSimpTheoremFromTerm indexConfig (.stx name Syntax.missing)
+      stx (post := false) (inv := false)
+    pure thms
+  let mut thmsArray := ctx.simpTheorems
+  let mut thms      := thmsArray[0]!
+  for entries in simpThms do
+    for entry in entries do
+      -- thms := thms.uneraseSimpEntry entry
+      thms := thms.addSimpEntry entry
+  let ctx' := ctx.setSimpTheorems (thmsArray.set! 0 thms)
+  return ctx'
+
 /-- Perform simplification using `get_set_idempotent'`. This requires
 some special handling since these `simp` theorems might only be given
 in terms of `Expr`s. -/
@@ -72,22 +88,11 @@ private def simpGetSetForFieldRepTC (ctx : Meta.Simp.Context) : TermElabM Meta.S
   -- get the state from the hypothesis by ... some hack
   let stateTypeName := labelTypeName.getPrefix
   let fields ← getFieldIdentsForStruct stateTypeName
-  let indexConfig := ctx.indexConfig
-  -- the following manipulation comes from `elabSimpArgs` in `Lean/Elab/Tactic/Simp.lean`
-  let simpThms ← fields.filterMapM fun f => do
+  let simps ← fields.mapM fun f => do
     let stx ← `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
     let name ← mkFreshUserName (f.getId ++ `get_set_idempotent')
-    let thms ← elabSimpTheoremFromTerm indexConfig (.stx name Syntax.missing)
-      stx (post := false) (inv := false)
-    pure thms
-  let mut thmsArray := ctx.simpTheorems
-  let mut thms      := thmsArray[0]!
-  for entries in simpThms do
-    for entry in entries do
-      -- thms := thms.uneraseSimpEntry entry
-      thms := thms.addSimpEntry entry
-  let ctx' := ctx.setSimpTheorems (thmsArray.set! 0 thms)
-  return ctx'
+    pure (stx, name)
+  elabSimpArgForTerms ctx simps
 
 -- NOTE: The uses of `open Classical` below is mainly for allowing
 -- rewriting based simplification where the target term is depended by
@@ -155,7 +160,7 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
       -- instances. So instead of constructing this equality at the syntax level,
       -- we construct it directly as an `Expr`.
       -- (*) it's easier to construct the proof here with the body
-      let #[_handler, _post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
+      let #[_handler, post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
       let lhs := body -- `$(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post`
       let rhs ← Meta.mkAppOptM wpDef_fqn $ (vs ++ xs).map Option.some -- `@$(mkIdent wpDefName) $args* $handler $post`
       let eqStatement ← Meta.mkEq lhs rhs
@@ -164,6 +169,51 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
       let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) (← resBody.getProof)
       let wpSimpAttrHigh ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ high)
       let _wpEq_fqn ← addVeilTheorem (toWpEqName nm) eqStatement eqProof (attr := #[wpSimpAttrHigh])
+
+      if mod._useLocalRPropTC then
+      if dk matches .derivedDefinition .actionLike _ then
+        -- this is a hack
+        let vs' := vs.take mod.parameters.size
+        let localRPropTCFqn ← resolveGlobalConstNoOverloadCore localRPropTCName
+        let localRPropTCArg ← Meta.mkAppOptM localRPropTCFqn (vs'.map Option.some |>.push none |>.push post)
+        -- trace[veil.debug] "[{decl_name%}] LocalRPropTC arg: {localRPropTCArg}"
+        Meta.withLocalDecl `localRPropTC BinderInfo.instImplicit localRPropTCArg fun inst => do
+          let simp : Simplifier ← do
+            let ctx ← mkVeilSimpCtx #[]
+            let simpTerm ← `(term| $(mkIdent `LocalRProp.core_eq) ($(mkIdent `self) := by assumption))
+            let arr := #[(simpTerm, (← mkFreshUserName `LocalRProp.core_eq))]
+            let ctx' ← elabSimpArgForTerms ctx arr
+            pure <| Simp.simpCore ctx'
+          -- TODO repeating below!!!!
+          let simp := simp.andThen (evalOpenClassical ∘ Simp.simp #[`wpSimp] { unfoldPartialApp := true : Meta.Simp.Config }) |>.andThen (evalOpenClassical ∘ Simp.simp #[`quantifierSimp]) |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp])
+          let simp ← if mod._useFieldRepTC
+            then
+              let ss ← simplifierGetSetForFieldRepTC
+              -- (1) do basic simplification using `LawfulFieldRepresentation`
+              pure <| (simp |>.andThen (Simp.simp #[`fieldRepresentationSetSimpPre])
+                -- (2) simplify using `get_set_idempotent'`
+                |>.andThen ss
+                -- (3) simplify the resulting things
+                |>.andThen (evalOpenClassical ∘ Simp.simp #[fieldLabelToDomainName stateName, fieldLabelToCodomainName stateName, `fieldRepresentationSetSimpPost]))
+            else pure <| simp
+          let resBody' ← simp resBody.expr
+          -- trace[veil.debug] "[{decl_name%}] simplified wp with LocalRPropTC: {resBody'.expr}"
+
+          let fvars := (vs ++ xs).push inst
+          let wpExpr' ← instantiateMVars $ ← Meta.mkLambdaFVars fvars resBody'.expr
+          -- let wpSimpAttrMed ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ (low + 100))
+          let wpDef_fqn' ← addVeilDefinition (toWpLOName nm) wpExpr' (attr := #[{name := `reducible}, wpSimpAttrLow])
+
+          let lhs := body -- `$(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post`
+          let rhs ← Meta.mkAppOptM wpDef_fqn' $ fvars.map Option.some -- `@$(mkIdent wpDefName) $args* $handler $post`
+          let eqStatement ← Meta.mkEq lhs rhs
+          -- Because `lhs = body`, `resBody` is a proof of `eqStatement`!
+          let eqStatement ← instantiateMVars $ ← Meta.mkForallFVars fvars eqStatement
+          let resBody' ← resBody.mkEqTrans resBody'
+          -- NOTE: The proof term can be reduced by reusing the previous `wp_eq` theorem
+          let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars fvars (← resBody'.getProof)
+          let wpSimpAttrHigher ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ (high + 100))
+          let _wpEq_fqn ← addVeilTheorem (toWpLOEqName nm) eqStatement eqProof (attr := #[wpSimpAttrHigher])
 
   return
 

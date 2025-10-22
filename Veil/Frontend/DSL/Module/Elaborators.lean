@@ -123,7 +123,8 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
-  if mod._useFieldRepTC then
+  let mod ← if mod._useFieldRepTC
+  then
     let (mod, stxs) ← mod.declareStateFieldLabelTypeAndDispatchers
     let (mod, stateStx) ← mod.declareFieldsAbstractedStateStructure
     let (mod, theoryStx) ← mod.declareTheoryStructure
@@ -132,14 +133,19 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     elabVeilCommand stateStx
     elabVeilCommand theoryStx
     generateIgnoreFn mod
-    return { mod with _stateDefined := true }
+    pure { mod with _stateDefined := true }
   else
     let (mod, stateStx) ← mod.declareStateStructure
     let (mod, theoryStx) ← mod.declareTheoryStructure
     elabVeilCommand stateStx
     elabVeilCommand theoryStx
     generateIgnoreFn mod
-    return { mod with _stateDefined := true }
+    pure { mod with _stateDefined := true }
+  if mod._useLocalRPropTC then
+    let (localRPropTCStx, stx2) ← liftTermElabM mod.declareLocalRPropTC
+    elabVeilCommand localRPropTCStx
+    elabVeilCommand stx2
+  pure mod
 
 
 /-- Crystallizes the specification of the module, i.e. it finalizes the
@@ -236,8 +242,9 @@ def elabAssertion : CommandElab := fun stx => do
   | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop stx
   | _ => throwUnsupportedSyntax
   -- Elaborate the assertion in the Lean environment
-  let (stx, mod') ← mod.defineAssertion assertion
+  let (stx, stx2, mod') ← mod.defineAssertion assertion
   elabVeilCommand stx
+  if let some stx2 := stx2 then elabVeilCommand stx2
   localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]

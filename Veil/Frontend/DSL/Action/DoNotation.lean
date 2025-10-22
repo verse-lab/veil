@@ -251,6 +251,6 @@ attribute [fieldRepresentationPatSimp] FieldUpdatePat.pad IteratedArrow.curry It
 attribute [fieldRepresentationSetSimpPre] FieldRepresentation.setSingle LawfulFieldRepresentationSet.set_append List.singleton_append
 attribute [fieldRepresentationSetSimpPost] CanonicalField.set FieldUpdateDescr.fieldUpdate FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
 attribute [fieldRepresentationSetSimpPost] List.foldr Option.elim Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
-attribute [fieldRepresentationSetSimpPost ↓] reduceIte ite_true ite_false
+attribute [fieldRepresentationSetSimpPost ↓] reduceIte ite_true ite_false and_true true_and
 
 end Veil

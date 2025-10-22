@@ -67,4 +67,7 @@ def fieldLabelToDomain (base : Name) : Ident := mkIdent <| fieldLabelToDomainNam
 def fieldLabelToCodomainName (base : Name) : Name := structureFieldLabelTypeName base ++ `toCodomain
 def fieldLabelToCodomain (base : Name) : Ident := mkIdent <| fieldLabelToCodomainName base
 
+def localRPropTCName : Name := `LocalRProp
+def localRPropTC : Ident := mkIdent localRPropTCName
+
 end Veil
