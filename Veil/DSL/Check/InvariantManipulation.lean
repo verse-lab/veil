@@ -64,8 +64,8 @@ def theoremSuggestionsForIndicators' (actIndicators invIndicators : List (Name �
 -- FIXME: enhance this function, and all related functions, by handling error better, avoiding repeating code, etc.
 def recoverInvariantsInTrStyle : CommandElabM Unit := do
   let (_, invChecks) ← getAllChecks
-  let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
-  let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
+  let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList |> List.removeDuplicates
+  let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList |> List.removeDuplicates
   let allTheorems ← theoremSuggestionsForIndicators' actIndicators invIndicators
   for (thmId, cmd) in allTheorems do
     -- if the `tr` theorem hasn't been proven yet, we can recover it from `wp`

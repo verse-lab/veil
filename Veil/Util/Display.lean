@@ -87,8 +87,4 @@ def getModelStr (msg : String) : String :=
   | [model, _] => model
   | _ => resWithErr
 
-
-def Lean.MessageLog.getErrorMessages (log : MessageLog) : MessageLog :=
-  { unreported := log.unreported.filter fun m => match m.severity with | MessageSeverity.error => true | _ => false }
-
 end Veil

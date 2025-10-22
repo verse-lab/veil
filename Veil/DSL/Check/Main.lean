@@ -10,9 +10,6 @@ import Veil.DSL.Specification.SpecDef
 
 open Lean Elab Command Term Meta Lean.Parser Tactic.TryThis Lean.Core
 
-def Lean.MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
-  msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
-
 namespace Veil
 
 inductive CheckStyle
@@ -228,10 +225,17 @@ def parseStrAsJson [Monad m] [MonadError m] (str : String) : m Json := do
   | .ok json => return json
   | .error err => throwError s!"could not parse {str} as Json: {err}"
 
+def MessageLog.containsSubStr (msgs : MessageLog) (substr : String) : CommandElabM Bool := do
+  msgs.toList.anyM (fun msg => return String.isSubStrOf substr (← msg.data.toString))
+
+def List.removeDuplicates [BEq α] (xs : List α) : List α :=
+  xs.foldl (init := []) fun acc x =>
+    if acc.contains x then acc else x :: acc
+
 def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: Array ((Name × Expr) × (Name × Expr))) (behaviour : CheckInvariantsBehaviour) :
   CommandElabM Unit := do
-  let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList.removeDuplicates
-  let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList.removeDuplicates
+  let actIndicators := (invChecks.map (fun (_, (act_name, ind_name)) => (act_name, ind_name))).toList |> List.removeDuplicates
+  let invIndicators := (invChecks.map (fun ((inv_name, ind_name), _) => (inv_name, ind_name))).toList |> List.removeDuplicates
   let (vcStyle, _checkStyle, suggestionStyle) := behaviour
   let allTheorems ← theoremSuggestionsForIndicators (!initChecks.isEmpty) actIndicators invIndicators vcStyle
   match behaviour with
@@ -252,7 +256,7 @@ def checkTheorems (stx : Syntax) (initChecks: Array (Name × Expr)) (invChecks: 
         -- The theorem is not proven; we need to figure out why:
         -- either solver returned `sat`, `unknown`, or there was an error
         let msgsTxt := String.intercalate "\n" (← msgs.toList.filterMapM (fun msg => if msg.severity == .error then msg.toString else pure none))
-        let (hasSat, hasUnknown, hasFailure) := (← msgs.containsSubStr Veil.SMT.satGoalStr, ← msgs.containsSubStr Veil.SMT.unknownGoalStr, ← msgs.containsSubStr Veil.SMT.failureGoalStr)
+        let (hasSat, hasUnknown, hasFailure) := (← MessageLog.containsSubStr msgs Veil.SMT.satGoalStr, ← MessageLog.containsSubStr msgs Veil.SMT.unknownGoalStr, ← MessageLog.containsSubStr msgs Veil.SMT.failureGoalStr)
         modelStr := if hasSat then .some $ (s!"{theoremId.theoremName}" ++ (getModelStr msgsTxt) ++ "\n") else .none
         pure $ match hasSat, hasUnknown, hasFailure with
         | true, false, false => SmtResult.Sat .none

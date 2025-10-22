@@ -3,18 +3,15 @@ import Veil.Model.State
 import Veil.DSL.Internals.StateExtensions
 import Veil.DSL.Action.Theory
 
-def Lean.TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
+namespace Veil
+
+open Lean Elab Command Term Meta Lean.Parser
+
+def TSyntax.isApp? (stx : Term) : Option (Ident × Array Term) := do
   let #[f, args] := stx.raw.getArgs | failure
   let `(term| $f:ident) := f | failure
   return (⟨f⟩, args.getArgs.map (⟨·⟩))
 
-def List.removeDuplicates [BEq α] (xs : List α) : List α :=
-  xs.foldl (init := []) fun acc x =>
-    if acc.contains x then acc else x :: acc
-
-namespace Veil
-
-open Lean Elab Command Term Meta Lean.Parser
 
 def isTypeClassBinder : TSyntax `Lean.Parser.Term.bracketedBinder → Bool
   | `(bracketedBinder| $_:instBinder) => true

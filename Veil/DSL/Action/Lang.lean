@@ -204,7 +204,7 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
     modify (·.push ⟨fr, typeStx.getD (<- `(_))⟩)
     expandDoElemVeil $ <- `(Term.doSeqItem|$id:ident := $fr)
   | `(Term.doSeqItem| $idts:term := *) =>
-    let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
+    let some (id, ts) := TSyntax.isApp? idts | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
     let typeStx ← (<- localSpecCtx.get) |>.spec.getStateComponentTypeStx (id.getId)
     let fr := mkIdent <| <- mkFreshUserName `fresh
     modify (·.push ⟨fr, typeStx.getD (<- `(_))⟩)
@@ -232,7 +232,7 @@ partial def expandDoElemVeil (stx : doSeqItem) : VeilM (Array doSeqItem) := do
       expandDoElemVeil $ <- withRef stx `(Term.doSeqItem| $base:ident := { $base with $suff:ident := $t })
   | `(Term.doSeqItem| $idts:term := $t:term) =>
     trace[veil.debug] "[expand assignment with args] {stx}"
-    let some (id, ts) := idts.isApp? | return #[stx]
+    let some (id, ts) := TSyntax.isApp? idts | return #[stx]
     let stx' <- withRef t `(term| $id[ $[$ts],* ↦ $t:term ])
     let stx <- withRef stx `(Term.doSeqItem| $id:ident := $stx')
     expandDoElemVeil stx

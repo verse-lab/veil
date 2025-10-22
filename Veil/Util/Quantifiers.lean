@@ -70,7 +70,7 @@ private partial def isClassQuick? : Expr → MetaM (LOption Name)
       | _ => return .undef
     | _            => return .none
 
-def _root_.Lean.Expr.isExists (e : Expr) : Bool :=
+def isExists (e : Expr) : Bool :=
   match_expr e with
   | Exists _ _ => true
   | _          => false
@@ -146,7 +146,7 @@ mutual
           withNewLocalInstancesImp fvars j do
             if reducing then
               let newType ← whnf type
-              if newType.isExists then
+              if isExists newType then
                 process lctx fvars fvars.size newType
               else
                 k fvars type
@@ -156,7 +156,7 @@ mutual
 
   private partial def existsTelescopeReducingAux (type : Expr) (k : Array Expr → Expr → MetaM α) (cleanupAnnotations : Bool) : MetaM α := do
       let newType ← whnf type
-      if newType.isExists then
+      if isExists newType then
         existsTelescopeReducingAuxAux true newType k cleanupAnnotations
       else
         k #[] type

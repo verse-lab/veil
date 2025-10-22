@@ -1,5 +1,8 @@
 import Lean
 
+
+namespace Veil
+
 /-
   This file provides facilities for running tactics on terms. In
   particular, it provides a version of `Tactic.run` that returns a
@@ -39,8 +42,8 @@ end Tactic
 
 def veilSimpMaxSteps := 10 * Lean.Meta.Simp.defaultMaxSteps
 
-open Lean.Elab Tactic Lean.Meta
-def Lean.Expr.runSimp (e : Expr) (stx : TermElabM (TSyntax `tactic)) : TermElabM Simp.Result := do
+open Lean Lean.Elab Tactic Lean.Meta
+def runSimp (e : Expr) (stx : TermElabM (TSyntax `tactic)) : TermElabM Simp.Result := do
   let stx ← stx
   let mv := (← mkFreshExprMVar e)
   let (res, [_l]) ← Tactic.run mv.mvarId! (do
@@ -52,15 +55,17 @@ def Lean.Expr.runSimp (e : Expr) (stx : TermElabM (TSyntax `tactic)) : TermElabM
   ) | throwError "[runSimp] expected exactly one goal after simplification"
   return res.1
 
-def Lean.Expr.simpWp (e : Expr) : TermElabM Simp.Result := do
+def simpWp (e : Expr) : TermElabM Simp.Result := do
   let stx := `(tactic| simp only [wpSimp])
-  e.runSimp stx
+  runSimp e stx
 
-def Lean.Expr.simpAction (e : Expr) : TermElabM Simp.Result := do
+def simpAction (e : Expr) : TermElabM Simp.Result := do
   let stx := `(tactic| simp only [actSimp, smtSimp, quantifierSimp])
-  e.runSimp stx
+  runSimp e stx
 
-def Lean.Expr.runUnfold (e : Expr) (defs : List Name) : TermElabM Expr := do
+def runUnfold (e : Expr) (defs : List Name) : TermElabM Expr := do
   let mut eu := e
   for name in defs do eu := (<- unfold eu name).expr
   return eu
+
+end Veil
