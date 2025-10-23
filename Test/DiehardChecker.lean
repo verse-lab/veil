@@ -283,8 +283,11 @@ deriving instance Inhabited for Theory
 
 def modelCheckerResult' := (runModelCheckerx {} labelList initVeilMultiExecM nextVeilMultiExecM (fun ρ σ => not_solved ρ σ)).snd
 #eval modelCheckerResult'
-#html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
 
+
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => not_solved ρ σ) { }).snd
+#eval modelCheckerResult'.seen.length
+#html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
 
 
 end DieHard

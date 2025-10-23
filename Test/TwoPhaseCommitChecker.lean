@@ -246,9 +246,14 @@ simple_deriving_repr_for' State
 deriving instance Repr for Label
 deriving instance Inhabited for Theory
 
-def modelCheckerResult' := (runModelCheckerx {one := 1} labelList initVeilMultiExecM nextVeilMultiExecM (fun ρ σ => manual_1 ρ σ)).snd
-#time #eval modelCheckerResult'.seen.length
 
+
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => true) {one := 1}).snd
+#eval modelCheckerResult'.seen.length
+
+
+def modelCheckerResultx := (runModelCheckerxx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => true) {one := 1}).snd
+#eval modelCheckerResultx.seen.length
 
 
 

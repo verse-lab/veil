@@ -65,7 +65,7 @@ after_init {
   r_log R I V := false
   r_sess_msg_num R I := I == one
   r_gap_commit_reps R P := false
-  r_current_gap_slot R I := I == seq.zero
+  -- r_current_gap_slot R I := I == seq.zero
   -- r_replica_status R S := S == st_normal
 
   -- m_client_request V := false
@@ -581,8 +581,18 @@ def rd₀ : TheoryConcrete :=
 def st₀ := (((afterInit initVeilMultiExecM rd₀ default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
 #eval st₀
 
-def modelCheckerResult' := (runModelCheckerx st₀ rd₀ labelList nextVeilMultiExecM (fun ρ σ => true)).snd
 
-#eval modelCheckerResult'
+#check nextVeilMultiExecM
+
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => true) rd₀).snd
+#eval modelCheckerResult'.seen.length
+
+-- def modelCheckerResultxx := (runModelCheckerxx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => true) rd₀).snd
+-- #eval modelCheckerResultxx.seen.length
+
+
+
+#html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
+
 
 end NOPaxos

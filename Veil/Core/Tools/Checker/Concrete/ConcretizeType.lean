@@ -22,7 +22,8 @@ def getLabelList : CommandElabM Unit := do
   let labelListCmd ← liftTermElabM do
     let labelListIdent := mkIdent `labelList
     let labelConcreteIdent := mkIdent labelConcreteName
-    `(def $labelListIdent := (FinEnum.ofEquiv _ (Equiv.symm (proxy_equiv%($labelConcreteIdent)))).toList)
+    `(command|
+      def $labelListIdent := (FinEnum.ofEquiv _ (Equiv.symm (proxy_equiv%($labelConcreteIdent)))).toList)
   trace[veil.debug] "[getLabelList] {labelListCmd}"
   elabVeilCommand labelListCmd
 
@@ -96,7 +97,6 @@ elab "#Concretize" args:term,* : command => do
     elabVeilCommand initCmd
     elabVeilCommand nextCmd
     getLabelList
-
 
 def assembleBEqInstance (fieldNames : Array Name): CommandElabM Unit := do
   -- build `BEq` instance for `StateConcrete`
