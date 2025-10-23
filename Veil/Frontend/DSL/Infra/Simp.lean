@@ -43,6 +43,8 @@ register_simp_attr fieldRepresentationSetSimpPost
 register_simp_attr dsimpFieldRepresentationGet
 register_simp_attr dsimpFieldRepresentationSet
 
+register_simp_attr loomLogicSimpForVeil
+
 /-- To enable `assumption`s to be used as predicates. -/
 instance funOneArgBoolToProp : Coe (α → Bool) (α → Prop) where
   coe f a := f a = true

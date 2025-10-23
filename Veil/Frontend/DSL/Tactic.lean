@@ -307,10 +307,12 @@ def elabVeilSimp (trace? : Bool) (cfg : TSyntax ``Lean.Parser.Tactic.optConfig) 
   -- FIXME: the suggestion won't work properly for `simp?` because `evalTactic` does `withRef`
   veilEvalTactic simpCall
 
+attribute [loomLogicSimpForVeil ↓] topE topPureE
+
 def elabVeilWp : TacticM Unit := veilWithMainContext do
   -- NOTE: In some cases (e.g. for `doesNotThrow`), we get internal Loom
   -- definitions like `⊤`. `loomLogicSimp` ensures these are unfolded.
-  let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `wpSimp):ident,  $(mkIdent `loomLogicSimp):ident])
+  let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `loomLogicSimpForVeil):ident])
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilIntros : TacticM Unit := veilWithMainContext do
