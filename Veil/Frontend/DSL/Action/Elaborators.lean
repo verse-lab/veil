@@ -116,7 +116,7 @@ definition, and prove `act.wp_eq` which states that this definition is equal to
 We can then rewrite/simp using `act.wp_eq` to not have to recompute the WP
 for every VC. This is an optimisation — Veil would work without it, but it
 would be significantly slower. -/
-private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit := do
+private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationKind) : TermElabM Unit := do
   let fqn ← getFullyQualifiedName nm
   let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
   let wpDef ← wpTemplate fqn allArgs
@@ -172,6 +172,7 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
 
       if mod._useLocalRPropTC then
       if dk matches .derivedDefinition .actionLike _ then
+      if mode matches .external then
         -- this is a hack
         let vs' := vs.take mod.parameters.size
         let localRPropTCFqn ← resolveGlobalConstNoOverloadCore localRPropTCName
@@ -217,8 +218,8 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
 
   return
 
-private def define (mod : Module) (nmDo : Name) (dk : DeclarationKind) : TermElabM Unit := do
-  defineWp mod nmDo dk
+private def define (mod : Module) (nmDo : Name) (mode : Mode) (dk : DeclarationKind) : TermElabM Unit := do
+  defineWp mod nmDo mode dk
 
 end AuxiliaryDefinitions
 
@@ -289,14 +290,14 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
     let _nmDo_fullyQualified ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
     let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
     let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
-    AuxiliaryDefinitions.define mod nmInt intKind
+    AuxiliaryDefinitions.define mod nmInt .internal intKind
 
     -- Procedures are never considered in their external view, so save some
     -- time by not elaborating those definitions.
     if pi matches .initializer | .action _ then do
       let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
       let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
-      AuxiliaryDefinitions.define mod nmExt extKind
+      AuxiliaryDefinitions.define mod nmExt .external extKind
   return mod
 
 
