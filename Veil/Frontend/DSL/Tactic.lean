@@ -331,10 +331,6 @@ def elabVeilSplitIfs : TacticM Unit := veilWithMainContext do
 def elabVeilFail : TacticM Unit := veilWithMainContext do
   throwError "veil_fail: failing on purpose"
 
-def withTiming (name : String) (tac : TacticM Unit) : TacticM Unit := do
-  let startTime ← IO.monoMsNow; tac; let endTime ← IO.monoMsNow
-  trace[veil.debug] s!"tactic {name} took {endTime - startTime}ms"
-
 elab_rules : tactic
   | `(tactic| veil_rename_hyp $[$xs:term => $ys:ident],*) => do withTiming "veil_rename_hyp" $ elabVeilRenameHyp xs ys
   | `(tactic| veil_destruct $ids:ident*) => do withTiming "veil_destruct" $ elabVeilDestructSpecificHyp ids
