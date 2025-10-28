@@ -35,8 +35,8 @@ The State defintion of the model checker:
 -/
 structure SearchContext (α β : Type) [Inhabited α] [Inhabited β] [BEq β] [Hashable β] where
   -- seen : Std.HashSet β
-  seen : List β
-  sq   : fQueue α
+  seen : Std.HashSet β
+  sq   : fQueue (α × β)
   log  : List (β  × β  × String)
   counterexample : List β
 deriving Inhabited, Repr
@@ -50,30 +50,24 @@ def SearchContext.empty {α β} [Inhabited α] [Inhabited β] [BEq β] [Hashable
 
 
 namespace CheckerM
-def get : StateT σ Id σ  := StateT.get
-def set {σ} : σ → StateT σ Id Unit :=
-  fun s' _ => pure (⟨⟩, s')
-def modify (f : σ → σ ) : StateT σ Id Unit := do
-  let s ← get
-  set (f s)
 
 /-- Enqueue state to queue -/
-def enqueueState (s : α)
+def enqueueState (s : α) (sigₛ : β)
   [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
   : StateT (SearchContext α β ) Id Unit :=
-  modify (fun cs => { cs with sq := fQueue.enqueue cs.sq s })
+  modify (fun cs => { cs with sq := fQueue.enqueue cs.sq (s, sigₛ) })
 
 /-- Dequeue state from queue -/
 def dequeueState [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
-  : StateT (SearchContext α  β) Id (Option α) := do
+  : StateT (SearchContext α  β) Id (Option (α × β)) := do
   let cs ← get
   match fQueue.dequeue? cs.sq with
-  | some (s, q_tail) =>
-    set { cs with sq := q_tail }
-    return some s
+  | some ((s, sigₛ), q_tail) =>
+    StateT.set { cs with sq := q_tail }
+    return some (s, sigₛ)
   | none => return none
 
-/-- Check if state has been seen -/
+/- Check if state has been seen -/
 def wasSeen (s : β) [Inhabited α] [Inhabited β] [BEq β]
 [Hashable β]
   : StateT (SearchContext α β) Id Bool := do
@@ -81,14 +75,15 @@ def wasSeen (s : β) [Inhabited α] [Inhabited β] [BEq β]
   return cs.seen.contains s
 
 /-- Add state to seen list -/
--- def addToSeen (s : β) [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
---   : StateT (SearchContext α β) Id Unit :=
---   modify (fun cs =>
---     { cs with seen := cs.seen.insert s })
 def addToSeen (s : β) [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
   : StateT (SearchContext α β) Id Unit :=
   modify (fun cs =>
-    { cs with seen := cs.seen ++ [s] })
+    { cs with seen := cs.seen.insert s })
+
+-- def addToSeen (s : β) [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
+--   : StateT (SearchContext α β) Id Unit :=
+--   modify (fun cs =>
+--     { cs with seen := s :: cs.seen })
 
 /-- Add transition to log -/
 def addTransitionToLog {α β} [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
@@ -102,6 +97,7 @@ def addCounterExample (cex : β) [Inhabited α] [Inhabited β] [BEq β] [Hashabl
   : StateT (SearchContext α β) Id Unit :=
   modify (fun cs =>
     { cs with counterexample := cex :: cs.counterexample })
+
 end CheckerM
 
 /-

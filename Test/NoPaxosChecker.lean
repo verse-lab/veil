@@ -590,8 +590,6 @@ def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExe
 -- def modelCheckerResultxx := (runModelCheckerxx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => true) rd₀).snd
 -- #eval modelCheckerResultxx.seen.length
 
-
-
 #html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
 
 

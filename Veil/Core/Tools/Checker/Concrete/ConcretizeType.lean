@@ -118,6 +118,7 @@ def assembleBEqInstance (fieldNames : Array Name): CommandElabM Unit := do
     `(command|
         instance : BEq $(mkIdent `StateConcrete) where
           beq := fun $s1 $s2 => $beqBody)
+  dbg_trace s!"BEqInstCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic BEqInstCmd}"
   elabVeilCommand BEqInstCmd
 
 
@@ -144,6 +145,7 @@ def assembleHashableInst (fieldNames : Array Name) : CommandElabM Unit := do
     `(command|
         instance : Hashable $(mkIdent `StateConcrete) where
           hash := fun $s => hash $body)
+  dbg_trace s!"tryVlsUnfold : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic HashableInstCmd}"
   elabVeilCommand HashableInstCmd
 where
   mkTuple (xs : Array (TSyntax `term)) : MacroM (TSyntax `term) := do

@@ -281,12 +281,11 @@ simple_deriving_repr_for' State
 deriving instance Repr for Label
 deriving instance Inhabited for Theory
 
-def modelCheckerResult' := (runModelCheckerx {} labelList initVeilMultiExecM nextVeilMultiExecM (fun ρ σ => not_solved ρ σ)).snd
-#eval modelCheckerResult'
 
+def view := fun (st : StateConcrete) => hash st
 
-def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => not_solved ρ σ) { }).snd
-#eval modelCheckerResult'.seen.length
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => not_solved ρ σ) {} id).snd
+#time #eval modelCheckerResult'
 #html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
 
 

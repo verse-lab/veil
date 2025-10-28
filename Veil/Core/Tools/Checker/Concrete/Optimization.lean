@@ -102,12 +102,22 @@ def permutateEquivalent_ef [Ord process] [Ord seq_t] [Ord pc_state]
                 nxt := nxt',
                 pc := pc' }
 
-def e0 : Equivalent (Fin 2) (Fin 2) (Fin 2) :=
-  { num := Std.TreeSet.ofList [(1, 0), (1, 1)] _,
+-- structure Equivalent (process : Type) (seq_t : Type) (pc_state : Type)
+--   [Ord process] [Ord seq_t] [Ord pc_state] where
+--   num : Std.TreeSet (process × seq_t)
+--   flag : Std.TreeSet process
+--   unchecked : Std.TreeSet (process × process)
+--   max : Std.TreeSet (process × seq_t)
+--   nxt : Std.TreeSet (process × process)
+--   pc : Std.TreeSet (process × pc_state)
+-- deriving Hashable, BEq
+
+def e0 : Equivalent (Fin 3) (Fin 2) (Fin 2) :=
+  { num := Std.TreeSet.ofList [(2, 1), (1, 1)] _,
     flag := Std.TreeSet.ofList [0] _,
     unchecked := Std.TreeSet.ofList [(0, 1)] _,
     max := Std.TreeSet.ofList [(0, 0), (1, 1)] _,
-    nxt := Std.TreeSet.ofList [(0, 1), (1, 0)] _,
+    nxt := Std.TreeSet.ofList [(2, 2), (0, 1)] _,
     pc := Std.TreeSet.ofList [(0, 0), (1, 1)] _ }
 
 def e1 : Equivalent (Fin 2) (Fin 2) (Fin 2) :=
@@ -124,6 +134,7 @@ def showPermuted (xs : List α) (σs : List (Equiv.Perm α)) : List (List α) :=
   σs.map (fun σ => xs.map σ)
 
 def permutationDomain := permsOfList (FinEnum.toList (Fin 2))
+#eval permutationDomain.length
 
 #eval permutateEquivalent e0 (permutationDomain[1])
 #eval (permutateEquivalent_ef e1 (permutationDomain[1])) == e1

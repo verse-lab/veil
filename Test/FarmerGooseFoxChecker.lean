@@ -202,8 +202,9 @@ instance : (rd : TheoryConcrete) → (st : StateConcrete) → Decidable ((fun ρ
   infer_instance
 
 
-def modelCheckerResult' := (runModelCheckerx {} labelList initVeilMultiExecM nextVeilMultiExecM (fun ρ σ => Unsolved ρ σ)).snd
-#eval modelCheckerResult'
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => Unsolved ρ σ) {} id).snd
+#time #eval modelCheckerResult'
 #html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
+
 
 end FarmerGooseFox

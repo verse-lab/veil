@@ -24,10 +24,10 @@ def deriveEnumInstance (name : Name) : CommandElabM Unit := do
     fields.mapM fun fn => `(Lean.Parser.Term.structInstField| $(mkIdent fn):ident := $(mkIdent <| name ++ fn):ident )
   let completeRequirement := info.fieldNames.back!
   let distinctRequirement := info.fieldNames.pop.back!
-  let proof1 ← `(Lean.Parser.Term.structInstField| $(mkIdent distinctRequirement):ident := (by decide) )
+  let proof1 ← `(Lean.Parser.Term.structInstField| $(mkIdent distinctRequirement):ident := (by (first | decide | grind)) )
   let proof2 ← do
     let x := mkIdent `x
-    `(Lean.Parser.Term.structInstField| $(mkIdent completeRequirement):ident := (by intro $x:ident ; cases $x:ident <;> decide) )
+    `(Lean.Parser.Term.structInstField| $(mkIdent completeRequirement):ident := (by intro $x:ident ; cases $x:ident <;> (first | decide | grind)) )
   let instClauses := instClauses.push proof1 |>.push proof2
   let instantiateCmd ←
     `(instance : $(mkIdent clsName) $(mkIdent name) where $[$instClauses]*)
