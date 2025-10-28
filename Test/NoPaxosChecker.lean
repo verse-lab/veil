@@ -578,19 +578,5 @@ instance : OfNat (FieldConcreteType (Fin 1) replica_state (Fin 1) (Fin 2) (Fin 1
 
 def rd₀ : TheoryConcrete :=
   { one := 1, no_op := 0, member := fun a b => a == b, leader := 0 }
-def st₀ := (((afterInit initVeilMultiExecM rd₀ default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
-#eval st₀
-
-
-#check nextVeilMultiExecM
-
-def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => true) rd₀).snd
-#eval modelCheckerResult'.seen.length
-
--- def modelCheckerResultxx := (runModelCheckerxx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => true) rd₀).snd
--- #eval modelCheckerResultxx.seen.length
-
-#html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
-
 
 end NOPaxos
