@@ -659,16 +659,21 @@ def minOrd? [Ord α] : List α → Option α
     some <| xs.foldl cmpf x
 
 
+/- `View` used to implement the symmetric reduction.
+When the function is defined as `id`, then model checker
+will store and show all the original states, rather than hash value.
+-/
 def view (st : StateConcrete):=
     let group := permutationDomain.map (fun σ => applyPermutate st σ)
     let lexicographicallySmall := group |> minOrd?
     match lexicographicallySmall with
     | none => hash st
     | .some smallest => hash smallest
-    -- hash st
+
+
 
 def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => true) {} view).snd
-#time #eval modelCheckerResult'.seen.size
+#time #eval modelCheckerResult'
 
 
 /-
