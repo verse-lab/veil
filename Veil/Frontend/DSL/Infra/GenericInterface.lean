@@ -148,6 +148,7 @@ class HashAsAddCommGroup (α : Type u) (ι : Type w) where
 instance [Hashable α] : HashAsAddCommGroup α UInt64 where
   op := hash
 
+-- TODO maybe adapt this to map structures as well, later
 -- "lifting" a data structure to allow hashing while updating
 -- (i.e., incremental hashing)
 
@@ -319,6 +320,95 @@ instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
     ext a ; simp [FinsetLike.erase] ; aesop
 
 end LawfulFinsetLikeInstances
+
+
+
+
+
+-- NOTE: We should be able to unify partial `FinmapLike` and `FinsetLike`,
+-- but for total map, we need a different interface.
+
+class TotalMapLike (α : outParam (Type u)) (β : outParam (Type v)) (γ : Type w) where
+  get : γ → α → β
+  insert : α → β → γ → γ
+
+class LawfulTotalMapLike /- (α : outParam (Type u)) (β : outParam (Type v)) -/ (γ : Type w)
+  [inst : TotalMapLike α β γ] [DecidableEq α] where
+  insert_get : ∀ (a a' : α) (b : β) (mp : γ),
+    inst.get (inst.insert a b mp) a' = if a = a' then b else inst.get mp a'
+
+abbrev ArrayAsTotalMap (n : Nat) (β : Type v) :=
+  { mp : Array β // n = mp.size }
+
+instance [Inhabited β] : Inhabited (ArrayAsTotalMap n β) :=
+  ⟨⟨Array.replicate n default, Eq.symm Array.size_replicate⟩⟩
+
+abbrev TotalHashMap (α : Type u) (β : Type v) [BEq α] [Hashable α] :=
+  { mp : Std.HashMap α β // ∀ a, a ∈ mp }
+
+instance [FinEnum α] [DecidableEq α] [Hashable α] [LawfulHashable α] [Inhabited β] : Inhabited (TotalHashMap α β) :=
+  ⟨⟨Std.HashMap.ofList ((FinEnum.toList α).map (fun a => (a, default))),
+    by intro a ; rw [Std.HashMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp⟩⟩
+
+abbrev TotalTreeMap (α : Type u) (β : Type v) (cmp : α → α → Ordering := by exact compare) :=
+  { mp : Std.TreeMap α β cmp // ∀ a, a ∈ mp }
+
+instance {cmp : α → α → Ordering} [FinEnum α] [Std.LawfulEqCmp cmp] [Std.TransCmp cmp] [DecidableEq α] [Inhabited β] : Inhabited (TotalTreeMap α β cmp) :=
+  ⟨⟨Std.TreeMap.ofList ((FinEnum.toList α).map (fun a => (a, default))) cmp,
+    by intro a ; rw [Std.TreeMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp⟩⟩
+
+section TotalMapLikeInstances
+
+variable {β : Type v}
+
+instance : TotalMapLike (Fin n) β (ArrayAsTotalMap n β) where
+  get mp a := mp.val[a.val]'(mp.property ▸ a.prop)
+  insert a b mp := ⟨mp.val.set a.val b (mp.property ▸ a.prop),
+    (Eq.symm (Array.size_set (xs := mp.val) (i := a.val) (mp.property ▸ a.prop))) ▸ mp.prop⟩
+
+variable {α : Type u}
+
+instance [BEq α] [EquivBEq α] [Hashable α] [LawfulHashable α] : TotalMapLike α β (TotalHashMap α β) where
+  get mp a := mp.val[a]'(mp.property a)
+  insert a b mp := ⟨mp.val.insert a b,
+    fun a => Std.HashMap.mem_insert.mpr (Or.inr (mp.property a))⟩
+
+instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : TotalMapLike α β (TotalTreeMap α β cmp) where
+  get mp a := mp.val[a]'(mp.property a)
+  insert a b mp := ⟨mp.val.insert a b,
+    fun a => Std.TreeMap.mem_insert.mpr (Or.inr (mp.property a))⟩
+
+end TotalMapLikeInstances
+
+section LawfulTotalMapLikeInstances
+
+variable {β : Type v}
+
+instance : LawfulTotalMapLike (ArrayAsTotalMap n β) where
+  insert_get a a' b mp := by
+    dsimp [TotalMapLike.get, TotalMapLike.insert]
+    simp [Array.getElem_set, Fin.val_inj]
+
+variable {α : Type u}
+
+instance [DecidableEq α] [Hashable α] [LawfulHashable α] : LawfulTotalMapLike (TotalHashMap α β) where
+  insert_get a a' b mp := by
+    dsimp [TotalMapLike.get, TotalMapLike.insert]
+    rw [Std.HashMap.getElem_insert] ; simp ; congr
+
+instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
+  [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
+  : LawfulTotalMapLike (TotalTreeMap α β cmp) where
+  insert_get a a' b mp := by
+    dsimp [TotalMapLike.get, TotalMapLike.insert]
+    rw [Std.TreeMap.getElem_insert] ; simp ; congr
+
+end LawfulTotalMapLikeInstances
+
+
+
+
+
 
 end DataStructure
 
@@ -775,7 +865,9 @@ instance (priority := high + 1)
 -- a footprint can be computed from the `fieldUpdatePattern`, and we only
 -- need to impose the finiteness condition on the footprint.
 
-omit fieldDomain
+section FinsetLike
+
+omit fieldDomain FieldCodomain
 
 variable {fieldDomain : List Type}
   [instd : DecidableEq α]
@@ -843,6 +935,57 @@ instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation fieldDomain Bo
       · simp [instl.toFinset_mem_iff, instl.erase_toFinset] ; simp_all
       · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.insert_toFinset]
       · simp [instl.toFinset_mem_iff, instl.insert_toFinset] ; simp_all
+
+end FinsetLike
+
+section TotalMapLike
+
+omit fieldDomain FieldCodomain
+
+variable {fieldDomain : List Type} {FieldCodomain : Type}
+  [instd : DecidableEq α]
+  [inst : TotalMapLike α FieldCodomain γ]
+  [instl : LawfulTotalMapLike γ]
+  (equiv : IteratedProd fieldDomain ≃ α)
+  (instfin : IteratedProd (fieldDomain.map FinEnum))
+
+def FieldRepresentation.TotalMapLike.setSingle'
+  (fa : FieldUpdatePat fieldDomain)
+  (v : CanonicalField fieldDomain FieldCodomain) (fc : γ) :=
+  let vv := v.uncurry
+  IteratedProd.foldMap fc (IteratedArrow.curry fun arg fc' =>
+    inst.insert (equiv arg) (vv arg) fc') (fa.footprintRaw instfin)
+
+instance instTotalMapLikeAsFieldRep : FieldRepresentation fieldDomain FieldCodomain γ :=
+  FieldRepresentation.mkFromSingleSet
+    (get := fun fc => IteratedArrow.curry (inst.get fc ∘ equiv))
+    (setSingle := FieldRepresentation.TotalMapLike.setSingle' equiv instfin)
+
+open Classical in
+instance instTotalMapLikeLawfulFieldRep : LawfulFieldRepresentation fieldDomain FieldCodomain γ
+    -- TODO this is awkward; synthesis fails here, and the `equiv.symm` is weird
+    (instTotalMapLikeAsFieldRep equiv instfin) where
+  toLawfulFieldRepresentationSet :=
+    LawfulFieldRepresentationSet.mkFromSingleSet ..
+  get_set_idempotent := by
+    -- TODO this proof seems repetitive
+    introv ; rcases fav with ⟨fa, v⟩
+    simp +unfoldPartialApp [instTotalMapLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
+      CanonicalField.set, FieldRepresentation.set, FieldRepresentation.TotalMapLike.setSingle',
+      IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
+      Function.comp]
+    simp [← (FieldUpdatePat.footprint_match_iff instfin dec)]
+    congr! 1 ; ext args
+    -- `foldr` is more convenient for induction here
+    rw [List.foldl_eq_foldr_reverse]
+    conv => enter [2, 1] ; rw [← List.mem_reverse]
+    generalize (fa.footprintRaw instfin).cartesianProduct.reverse = prods
+    generalize (v.uncurry) = vv
+    induction prods with
+    | nil => simp
+    | cons p prods ih => simp [ite_or, ← ih, instl.insert_get] ; grind
+
+end TotalMapLike
 
 end FieldRepresentationInstances
 
