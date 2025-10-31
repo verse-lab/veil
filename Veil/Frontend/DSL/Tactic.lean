@@ -5,6 +5,7 @@ import Veil.Util.Meta
 import Smt
 import Veil.Backend.SMT.Preprocessing
 import Veil.Backend.SMT.Quantifiers
+import Veil.Util.ReplacingInstances
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis Parser.Tactic
 namespace Veil
@@ -66,6 +67,19 @@ syntax (name := veil_simp) "veil_simp" simpTraceArgsRest : tactic
 syntax (name := veil_simp_trace) "veil_simp?" simpTraceArgsRest : tactic
 
 syntax (name := veil_wp) "veil_wp" : tactic
+
+/-- Neutralize all `Decidable` instances in the goal by replacing them
+with `Classical.propDecidable`. Without this, the `Decidable` instances
+in the local context might prevent `veil_concretize_state` or
+`veil_concretize_fields` from abstracting states/fields in the `if` conditions.
+
+NOTE: This is not done at the stage of WP generation since `veil_wp` uses
+`simp [wpSimp]` to simplify the goal, which, at the same time, _seems_ to
+replace the noncomputable `Decidable` instances with those in the local context.
+Therefore, unless we do not use `simp [wpSimp]`, the changes made to `Decidable`
+instances during WP generation will be reverted, and this tactic is still
+required in verification. -/
+syntax (name := veil_neutralize_decidable_inst) "veil_neutralize_decidable_inst" : tactic
 
 syntax (name := veil_smt) "veil_smt" : tactic
 syntax (name := veil_smt_trace) "veil_smt?" : tactic
@@ -251,6 +265,10 @@ def elabVeilConcretizeFields : TacticM Unit := veilWithMainContext do
   for t in tacs do
     veilWithMainContext $ veilEvalTactic t
 
+@[inherit_doc veil_neutralize_decidable_inst]
+def elabVeilNeutralizeDecidableInst : TacticM Unit := veilWithMainContext do
+  veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident]; veil_clear)
+
 def elabVeilSmt (stx : Syntax) (trace : Bool := false) : TacticM Unit := veilWithMainContext do
   let idents ← getPropsInContext
   let solverOptions ← `(term| [("finite-model-find", "true"), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
@@ -266,7 +284,8 @@ def elabVeilClearHyps (ids : Array (TSyntax `ident)) : TacticM Unit := veilWithM
   let lctx ← getLCtx
   for decl in lctx do
     if decl.isImplementationDetail then continue
-    if ← isDecidableInstance decl.type then
+    -- if ← isDecidableInstance decl.type then
+    if decl.type.getForallBody.getAppFn'.isConstOf ``Decidable then
       toClear := toClear.push (mkIdent decl.userName)
   for id in toClear do
     veilEvalTactic $ ← `(tactic| try clear $id:ident)
@@ -275,8 +294,11 @@ def elabVeilClearHyps (ids : Array (TSyntax `ident)) : TacticM Unit := veilWithM
 def elabVeilDestructGoal : TacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| repeat' constructor)
 
-def elabVeilSimp (trace? : Bool) (o : Option Syntax) (params : Option (Array (TSyntax [`Lean.Parser.Tactic.simpStar, `Lean.Parser.Tactic.simpErase, `Lean.Parser.Tactic.simpLemma]))) (loc : Option (TSyntax `Lean.Parser.Tactic.location)) : TacticM Unit := veilWithMainContext do
-  let cfg ← `(optConfig| ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)))
+def elabVeilSimp (trace? : Bool) (cfg : TSyntax ``Lean.Parser.Tactic.optConfig) (o : Option Syntax) (params : Option (Array (TSyntax [`Lean.Parser.Tactic.simpStar, `Lean.Parser.Tactic.simpErase, `Lean.Parser.Tactic.simpLemma]))) (loc : Option (TSyntax `Lean.Parser.Tactic.location)) : TacticM Unit := veilWithMainContext do
+  let cfg ← match cfg with
+    | `(optConfig| $[$cfgItems:configItem]* ) =>
+      `(optConfig| ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) $[$cfgItems:configItem]* )
+    | _ => `(optConfig| ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) )
   let discharger : Option (TSyntax `Lean.Parser.Tactic.discharger) := Option.none
   let simpCall ← match trace? with
     | true => `(tactic| simp? $cfg:optConfig $[$discharger]? $[only%$o]? $[[$[$params],*]]? $[$loc]?)
@@ -287,7 +309,7 @@ def elabVeilSimp (trace? : Bool) (o : Option Syntax) (params : Option (Array (TS
 def elabVeilWp : TacticM Unit := veilWithMainContext do
   -- NOTE: In some cases (e.g. for `doesNotThrow`), we get internal Loom
   -- definitions like `⊤`. `loomLogicSimp` ensures these are unfolded.
-  let tac ← `(tactic| veil_simp only [$(mkIdent `wpSimp):ident,  $(mkIdent `loomLogicSimp):ident])
+  let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `wpSimp):ident,  $(mkIdent `loomLogicSimp):ident])
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilIntros : TacticM Unit := veilWithMainContext do
@@ -295,11 +317,11 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilFol : TacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| (veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at *; veil_concretize_state; veil_concretize_fields; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident] at *; veil_intros))
+  let tac ← `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSolve : TacticM Unit := veilWithMainContext do
-  let tac ← `(tactic| veil_intros; veil_wp; veil_fol; veil_smt)
+  let tac ← `(tactic| veil_intros; veil_wp; veil_neutralize_decidable_inst; veil_fol; veil_smt)
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSplitIfs : TacticM Unit := veilWithMainContext do
@@ -308,10 +330,6 @@ def elabVeilSplitIfs : TacticM Unit := veilWithMainContext do
 
 def elabVeilFail : TacticM Unit := veilWithMainContext do
   throwError "veil_fail: failing on purpose"
-
-def withTiming (name : String) (tac : TacticM Unit) : TacticM Unit := do
-  let startTime ← IO.monoMsNow; tac; let endTime ← IO.monoMsNow
-  trace[veil.debug] s!"tactic {name} took {endTime - startTime}ms"
 
 elab_rules : tactic
   | `(tactic| veil_rename_hyp $[$xs:term => $ys:ident],*) => do withTiming "veil_rename_hyp" $ elabVeilRenameHyp xs ys
@@ -322,9 +340,10 @@ elab_rules : tactic
   | `(tactic| veil_concretize_fields) => do withTiming "veil_concretize_fields" elabVeilConcretizeFields
   | `(tactic| veil_smt%$tk) => do withTiming "veil_smt" $ elabVeilSmt tk
   | `(tactic| veil_smt?%$tk) => do withTiming "veil_smt?" $ elabVeilSmt tk true
-  | `(tactic| veil_simp $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp" $ elabVeilSimp (trace? := false) o params loc
-  | `(tactic| veil_simp? $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp?" $ elabVeilSimp (trace? := true) o params loc
+  | `(tactic| veil_simp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp" $ elabVeilSimp (trace? := false) cfg o params loc
+  | `(tactic| veil_simp? $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp?" $ elabVeilSimp (trace? := true) cfg o params loc
   | `(tactic| veil_wp) => do withTiming "veil_wp" elabVeilWp
+  | `(tactic| veil_neutralize_decidable_inst) => do withTiming "veil_neutralize_decidable_inst" elabVeilNeutralizeDecidableInst
   | `(tactic| veil_intros) => do withTiming "veil_intros" elabVeilIntros
   | `(tactic| veil_fol) => do withTiming "veil_fol" elabVeilFol
   | `(tactic| veil_solve) => do withTiming "veil_solve" elabVeilSolve

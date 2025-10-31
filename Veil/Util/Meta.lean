@@ -48,6 +48,11 @@ def Lean.Elab.Attribute.mkStx [Monad m] [MonadQuotation m] (attr : Attribute) : 
   `(Lean.Parser.Term.attrInstance| $kindStx $(Lean.mkIdent attr.name):ident)
 namespace Veil
 
+def withTiming [Monad m] [MonadTrace m] [MonadOptions m] [MonadRef m] [MonadLiftT BaseIO m] [AddMessageContext m] (name : String) (tac : m α) : m α := do
+  let startTime ← IO.monoMsNow; let res ← tac; let endTime ← IO.monoMsNow
+  trace[veil.debug] s!"{name} took {endTime - startTime}ms"
+  return res
+
 /-- Syntax for `∀ a₀ a₁ .. aₙ, Decidable (P a₀ a₁ .. aₙ)`. -/
 def decidableNStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) (relName : Name) : m Term := do
   let idents := (Array.range n).map fun i => mkIdent $ Name.mkSimple s!"a{i}"

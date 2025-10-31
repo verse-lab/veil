@@ -63,4 +63,8 @@ attribute [smtSimp] decide_eq_true_eq decide_eq_false_iff_not
 attribute [smtSimp] ite_true ite_false dite_true dite_false ite_self
   if_true_left if_true_right if_false_left if_false_right
 
+-- Dealing with the mix of `==` and `decide (· = ·)`
+attribute [smtSimp] Bool.ite_eq_true_distrib Bool.ite_eq_false_distrib
+  Bool.ite_eq_false beq_iff_eq beq_eq_false_iff_ne BEq.rfl
+
 end Veil
