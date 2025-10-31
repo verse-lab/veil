@@ -12,6 +12,7 @@ def deriveEnumInstance (name : Name) : CommandElabM Unit := do
   let .some info := getStructureInfo? (← getEnv) clsName | throwError "no such structure {clsName}"
   -- NOTE: assume the last two are the propositions to satisfy
   let fields := info.fieldNames.pop.pop
+  trace[veil.debug] "info.fieldName: {info.fieldNames}"
   let ctors : Array (TSyntax ``Lean.Parser.Command.ctor) ←
     fields.mapM fun fn => `(Lean.Parser.Command.ctor| | $(mkIdent fn):ident )
   trace[veil.debug] "fields: {fields}"

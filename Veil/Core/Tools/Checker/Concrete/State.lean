@@ -90,12 +90,13 @@ partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ) : State
   while true do
     let .some (st, fpSt) := (← dequeueState) | return ()
     for label in allLabels do
+      -- dbg_trace s!"Exploring label: {repr label}"
       let execs := nonDetNexts nextVeilMultiExecM rd st label
       -- dbg_trace s!"received {(execs.length)} successors"
       let succs := getAllStatesFromExceptT (execs.map Prod.snd)
       for succ? in succs do
         let .some st' := succ? | continue -- divergence
-        -- dbg_trace s!"Exploring state: {repr st'}"
+        -- dbg_trace s!"Exploring state after executing {repr label}: {repr st'}"
         let fingerprint := view st'
         unless (← wasSeen fingerprint) do
           addToSeen fingerprint

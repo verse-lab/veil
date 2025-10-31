@@ -157,6 +157,10 @@ invariant [manual_15] a X ∧ p Y X ∧ s1 X Y → a Y
 invariant [manual_16] ¬ ring.btw X org Y ∨ ¬ s1 X Y
 invariant [manual_17] ¬ (s1 V0 V1 ∧ V1 ≠ org ∧ s2 V0 V2 ∧ ring.btw V0 org V2)
 
+
+-- set_option maxHeartbeats 2000000
 #time #gen_spec
+
+-- #check_invariants
 
 end ChordRing
