@@ -210,7 +210,12 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       let vPadded ← do
         let funBinders : Array (TSyntax `Lean.Parser.Term.funBinder) ←
           patUsed.mapM fun i => if isCapital i.raw.getId then `(Term.funBinder| $(⟨i.raw⟩):ident ) else `(Term.funBinder| _ )
-        let v' ← if patResidue.isEmpty then pure v else `($(mkIdent name):ident [ $[$patResidue],* ↦ $v ])
+        let v' ←
+          if patResidue.isEmpty
+          then pure v
+          else
+            let old := Syntax.mkApp (← `($(mkIdent name):ident)) patUsed
+            `($old [ $[$patResidue],* ↦ $v ])
         if funBinders.isEmpty then pure v' else `(fun $[$funBinders]* => ($v'))
       let patTerm ← do
         let patOpt ← patUsed.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
