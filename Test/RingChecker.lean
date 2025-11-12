@@ -205,7 +205,7 @@ instance : (rd : TheoryConcrete) → (st : StateConcrete)
 #check single_leader
 
 
-def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => single_leader ρ σ) {} id).snd
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => single_leader ρ σ) ((fun ρ σ => true)) {} id).snd
 #time #eval modelCheckerResult'
 #html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
 

@@ -1,6 +1,14 @@
 import Veil
+import Lean.Data.Json
 import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
+
+import Test.modelCheckerView
+import ProofWidgets.Component.HtmlDisplay
+
+
+--------------------------------- MODULE 1_mutex -------------------------------
+
 -- ----- MODULE 0_mutex -----
 
 veil module Mutex
@@ -25,6 +33,8 @@ veil module Mutex
 --         locked := TRUE;
 --         return;
 --     };
+-- bug:
+--     locked := FALSE;
 -- wait_until:
 --     while (TRUE)
 --     {
@@ -35,6 +45,7 @@ veil module Mutex
 --         if (locked = FALSE)
 --         {
 --             locked := TRUE;
+--             has_woken[self] := TRUE;  \* drop
 --             return;
 --         };
 --     check_has_woken:
@@ -56,7 +67,7 @@ veil module Mutex
 -- wake_one_loop:
 --     while (TRUE)
 --     {
---         if (Len(wait_queue_wakers) /= 0)
+--         if (wait_queue_num_wakers /= 0)
 --         {
 --             waker := Head(wait_queue_wakers);
 --             wait_queue_wakers := Tail(wait_queue_wakers);
@@ -89,23 +100,25 @@ veil module Mutex
 
 -- }
 -- *)
--- \* BEGIN TRANSLATION (chksum(pcal) = "b0b421b7" /\ chksum(tla) = "c2205e03")
--- VARIABLES
--- 1. locked,
--- 2. wait_queue_num_wakers,
--- 3. wait_queue_wakers,
--- 4. has_woken,
--- 5. pc,
--- 6. stack,
--- 7. waker
---
+-- \* BEGIN TRANSLATION (chksum(pcal) = "2541ee33" /\ chksum(tla) = "55930485")
+-- VARIABLES locked, wait_queue_num_wakers, wait_queue_wakers, has_woken, pc,
+--           stack, waker
 type process
 -- type seq_t
 individual locked : Bool
-enum states = { pre_check_lock, wait_until, enqueue_waker,
-                check_lock, check_has_woken,
-                release_lock, wake_one, wake_one_loop,
-                wake_up, start, cs, Done }
+enum states = { pre_check_lock,
+                bug,
+                wait_until,
+                enqueue_waker,
+                check_lock,
+                check_has_woken,
+                release_lock,
+                wake_one,
+                wake_one_loop,
+                wake_up,
+                start,
+                cs,
+                Done }
 
 -- instantiate seq : TotalOrderWithZero seq_t
 -- immutable individual one : seq_t
@@ -118,32 +131,15 @@ relation has_woken (th: process)
 relation pc (self: process) (st: states)
 immutable individual none : process
 
-/-
-Decompose the structure into two relations:
-- `stack_pc` : process → seq_t → states
-- `stack_waker` : process → seq_t → process.
-
-To model the list, we use two individuals, which represent
-the head and tail of the list respectively.
-
-[ procedure |->  "unlock",
-  pc        |->  "Done",
-  waker     |->  waker[self] ]
--/
-function stack_pc : process → List states
-
-
-function stack_waker : process → List process
-relation waker (self: process) (waker: process)
-
-#gen_state
--- theory ghost relation lt (x y : seq_t) := (seq.le x y ∧ x ≠ y)
--- theory ghost relation next (x y : seq_t) := (lt x y ∧ ∀ z, lt x z → seq.le y z)
 -- vars == << locked, wait_queue_num_wakers, wait_queue_wakers, has_woken, pc,
 --            stack, waker >>
+function stack_pc : process → List states
+function stack_waker : process → List process
+
+relation waker (self: process) (waker: process)
 
 -- ProcSet == (Procs)
-
+#gen_state
 -- Init == (* Global variables *)
 --         /\ locked = FALSE
 --         /\ wait_queue_num_wakers = 0
@@ -153,32 +149,16 @@ relation waker (self: process) (waker: process)
 --         /\ waker = [ self \in ProcSet |-> NONE]
 --         /\ stack = [self \in ProcSet |-> << >>]
 --         /\ pc = [self \in ProcSet |-> "start"]
-
 after_init {
+  -- Global variables
   locked := false
-
   wait_queue_wakers := []
   has_woken P := false
-  waker P W := false
-
+  pc P S := S == start
+  -- Procedure unlock
+  waker P W := W == none
   stack_pc P := []
   stack_waker P := []
-  pc P S := S == start
-}
-
--- start(self) == /\ pc[self] = "start"
---                /\ stack' = [stack EXCEPT ![self] = << [ procedure |->  "lock",
---                                                         pc        |->  "cs" ] >>
---                                                     \o stack[self]]
---                /\ pc' = [pc EXCEPT ![self] = "pre_check_lock"]
---                /\ UNCHANGED << locked, wait_queue_num_wakers,
---                                wait_queue_wakers, has_woken, waker >>
-action _start (self : process) {
-  require pc self start
-  stack_pc self := cs :: (stack_pc self)
-  let random_waker ← pick process
-  stack_waker self := random_waker :: stack_waker self
-  pc self S := S == pre_check_lock
 }
 
 
@@ -187,7 +167,7 @@ action _start (self : process) {
 --                               THEN /\ locked' = TRUE
 --                                    /\ pc' = [pc EXCEPT ![self] = Head(stack[self]).pc]
 --                                    /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
---                               ELSE /\ pc' = [pc EXCEPT ![self] = "wait_until"]
+--                               ELSE /\ pc' = [pc EXCEPT ![self] = "bug"]
 --                                    /\ UNCHANGED << locked, stack >>
 --                         /\ UNCHANGED << wait_queue_num_wakers,
 --                                         wait_queue_wakers, has_woken, waker >>
@@ -195,17 +175,26 @@ action _pre_check_lock (self : process) {
   require pc self pre_check_lock
   if locked == false then
     locked := true
-    /- We use `tail_stack_pc_state` to keep track of the `top` of the stack -/
-    -- let head_stack_pc_state :| stack_pc self tail_stack_pc head_stack_pc_state
-    -- pc self head_stack_pc_state := true
-    -- tail_stack_pc ← dec tail_stack_pc
-    -- tail_stack_waker ← succ tail_stack_waker
+
     let head_stack_pc_state := (stack_pc self).head!
     pc self S := S == head_stack_pc_state
     stack_pc self := (stack_pc self).tail
     stack_waker self := (stack_waker self).tail
   else
-    pc self S := S == wait_until
+    pc self S := S == bug
+}
+
+
+
+-- bug(self) == /\ pc[self] = "bug"
+--              /\ locked' = FALSE
+--              /\ pc' = [pc EXCEPT ![self] = "wait_until"]
+--              /\ UNCHANGED << wait_queue_num_wakers, wait_queue_wakers,
+--                              has_woken, stack, waker >>
+action _bug (self : process) {
+  require pc self bug
+  locked := false
+  pc self S := S == wait_until
 }
 
 -- wait_until(self) == /\ pc[self] = "wait_until"
@@ -232,16 +221,18 @@ action _enqueue_waker (self : process) {
 -- check_lock(self) == /\ pc[self] = "check_lock"
 --                     /\ IF locked = FALSE
 --                           THEN /\ locked' = TRUE
+--                                /\ has_woken' = [has_woken EXCEPT ![self] = TRUE]
 --                                /\ pc' = [pc EXCEPT ![self] = Head(stack[self]).pc]
 --                                /\ stack' = [stack EXCEPT ![self] = Tail(stack[self])]
 --                           ELSE /\ pc' = [pc EXCEPT ![self] = "check_has_woken"]
---                                /\ UNCHANGED << locked, stack >>
+--                                /\ UNCHANGED << locked, has_woken, stack >>
 --                     /\ UNCHANGED << wait_queue_num_wakers, wait_queue_wakers,
---                                     has_woken, waker >>
+--                                     waker >>
 action _check_lock (self : process) {
   require pc self check_lock
-  if !locked then
+  if locked == false then
     locked := true
+    has_woken self := true
     let head_stack_pc_state := (stack_pc self).head!
     pc self S := S == head_stack_pc_state
     stack_pc self := (stack_pc self).tail
@@ -256,17 +247,16 @@ action _check_lock (self : process) {
 --                          /\ pc' = [pc EXCEPT ![self] = "wait_until"]
 --                          /\ UNCHANGED << locked, wait_queue_num_wakers,
 --                                          wait_queue_wakers, stack, waker >>
-action check_has_woken (self : process) {
+action _check_has_woken (self : process) {
   require pc self check_has_woken
   require has_woken self
   has_woken self := false
   pc self S := S == wait_until
 }
 
--- lock(self) == pre_check_lock(self) \/ wait_until(self)
+-- lock(self) == pre_check_lock(self) \/ bug(self) \/ wait_until(self)
 --                  \/ enqueue_waker(self) \/ check_lock(self)
 --                  \/ check_has_woken(self)
-
 
 -- release_lock(self) == /\ pc[self] = "release_lock"
 --                       /\ locked' = FALSE
@@ -278,7 +268,6 @@ action _release_lock (self : process) {
   locked := false
   pc self S := S == wake_one
 }
-
 
 -- wake_one(self) == /\ pc[self] = "wake_one"
 --                   /\ IF wait_queue_num_wakers = 0
@@ -303,8 +292,9 @@ action _wake_one (self : process) {
     pc self S := S == wake_one_loop
 }
 
+
 -- wake_one_loop(self) == /\ pc[self] = "wake_one_loop"
---                        /\ IF Len(wait_queue_wakers) /= 0
+--                        /\ IF wait_queue_num_wakers /= 0
 --                              THEN /\ waker' = [waker EXCEPT ![self] = Head(wait_queue_wakers)]
 --                                   /\ wait_queue_wakers' = Tail(wait_queue_wakers)
 --                                   /\ wait_queue_num_wakers' = wait_queue_num_wakers - 1
@@ -316,7 +306,6 @@ action _wake_one (self : process) {
 --                                   /\ UNCHANGED << wait_queue_num_wakers,
 --                                                   wait_queue_wakers >>
 --                        /\ UNCHANGED << locked, has_woken >>
-
 action _wake_one_loop (self : process) {
   require pc self wake_one_loop
   if wait_queue_wakers.length != 0 then
@@ -347,26 +336,11 @@ action _wake_one_loop (self : process) {
 --                                  wait_queue_wakers >>
 action _wake_up (self : process) {
   require pc self wake_up
-
   if ∃t, waker self t then
+  -- assert ` ∃t, waker self t then`
     let waker_self :| waker self waker_self
 
     /- Condition 1: -/
-    if has_woken waker_self == false then
-      has_woken waker_self := true
-      let head_stack_pc_state := (stack_pc self).head!
-      pc self S := S == head_stack_pc_state
-      stack_pc self := (stack_pc self).tail
-
-      let headwaker_stack_waker := (stack_waker self).head!
-      waker self W := W == headwaker_stack_waker
-      stack_waker self := (stack_waker self).tail
-    else
-      pc self S := S == wake_one_loop
-
-  else
-    /- Exception handle -/
-    let waker_self := none
     if has_woken waker_self == false then
       has_woken waker_self := true
       let head_stack_pc_state := (stack_pc self).head!
@@ -385,6 +359,21 @@ action _wake_up (self : process) {
 -- unlock(self) == release_lock(self) \/ wake_one(self) \/ wake_one_loop(self)
 --                    \/ wake_up(self)
 
+-- start(self) == /\ pc[self] = "start"
+--                /\ stack' = [stack EXCEPT ![self] = << [ procedure |->  "lock",
+--                                                         pc        |->  "cs" ] >>
+--                                                     \o stack[self]]
+--                /\ pc' = [pc EXCEPT ![self] = "pre_check_lock"]
+--                /\ UNCHANGED << locked, wait_queue_num_wakers,
+--                                wait_queue_wakers, has_woken, waker >>
+action _start (self : process) {
+  require pc self start
+  -- let t := stack_pc self
+  stack_pc self := cs :: (stack_pc self)
+  let random_waker ← pick process
+  stack_waker self := random_waker :: (stack_waker self)
+  pc self S := S == pre_check_lock
+}
 
 -- cs(self) == /\ pc[self] = "cs"
 --             /\ TRUE
@@ -396,19 +385,13 @@ action _wake_up (self : process) {
 --             /\ pc' = [pc EXCEPT ![self] = "release_lock"]
 --             /\ UNCHANGED << locked, wait_queue_num_wakers, wait_queue_wakers,
 --                             has_woken >>
-action _cs(self : process) {
+action _cs (self : process) {
   require pc self cs
   stack_pc self := Done :: (stack_pc self)
-  if ∃t, waker self t then
-    let waker_self :| waker self waker_self
-    stack_waker self := waker_self :: (stack_waker self)
-    waker self W := false
-
-  else
-    let waker_self := none
-    stack_waker self := waker_self :: (stack_waker self)
-    waker self W := false
-
+  -- assert `∃t, waker self t`
+  let waker_self :| waker self waker_self
+  stack_waker self := waker_self :: (stack_waker self)
+  waker self W := W == none
   pc self S := S == release_lock
 }
 
@@ -440,9 +423,13 @@ action _cs(self : process) {
 -- StarvationFree == \A i \in Procs :
 --                         Trying(i) ~> (pc[i] = "cs")
 
+-- =============================================================================
 
 invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 
+termination [AllDone] ∀ S, pc S Done
+
+set_option maxHeartbeats 250000
 #gen_spec
 
 
@@ -462,7 +449,6 @@ veil_variables
 omit χ χ_rep χ_rep_lawful
 
 open Veil Extract
-
 
 
 variable [FinEnum process] [Hashable process] [Ord process]
@@ -490,19 +476,23 @@ variable [Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord (process ×
 variable [Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord (process × List process))))]
 
 
-#print State.Label.toDomain
-
-example (f : State.Label) : (⌞? State.Label.toDomain ⌟) f = [ℕ]:= by
-  unfold State.Label.toDomain
-
-example (f : State.Label) : ((⌞? State.Label.toCodomain ⌟) f) = ℕ := by
-  unfold State.Label.toCodomain
-  simp
 
 def instFinEnumForComponents (f : State.Label)
   : (IteratedProd <| List.map FinEnum <| (⌞? State.Label.toDomain ⌟) f) := by
   cases f <;>
     infer_instance_for_iterated_prod
+
+instance instFinEnumForCodomain [FinEnum (List process)] [FinEnum (List states)] (f : State.Label)
+  : (FinEnum ((⌞? State.Label.toCodomain ⌟) f)) := by
+  cases f <;>
+    dsimp only [IteratedProd, List.foldr, State.Label.toCodomain, State.Label.toCtorIdx] <;>
+    infer_instance
+
+instance instFinEnumForComponents' (f : State.Label)
+  : FinEnum (IteratedProd' <| (⌞? State.Label.toDomain ⌟) f) := by
+  cases f <;>
+    dsimp only [IteratedProd', List.foldr, State.Label.toDomain] <;>
+    infer_instance
 
 instance instDecidableEqForComponents' (f : State.Label)
   : DecidableEq (IteratedProd <| (⌞? State.Label.toDomain ⌟) f) := by
@@ -510,28 +500,11 @@ instance instDecidableEqForComponents' (f : State.Label)
     dsimp only [IteratedProd, List.foldr, State.Label.toDomain] <;>
     infer_instance
 
-instance instDecidableEqForComponents'' (f : State.Label)
-  : DecidableEq (IteratedProd' <| (⌞? State.Label.toDomain ⌟) f) := by
-  cases f <;>
-    dsimp only [IteratedProd', State.Label.toDomain] <;>
-    infer_instance
-
-instance instHashableForComponents (f : State.Label)
-  : Hashable (IteratedProd <| (⌞? State.Label.toDomain ⌟) f) := by
-  cases f <;>
-    dsimp only [IteratedProd, List.foldr, State.Label.toDomain] <;>
-    infer_instance
-
-instance instHashableForComponents' (f : State.Label)
-  : Hashable (IteratedProd' <| (⌞? State.Label.toDomain ⌟) f) := by
-  cases f <;>
-    dsimp only [IteratedProd', State.Label.toDomain] <;>
-    infer_instance
-
-
-instance [Ord α] [Ord β] : Ord (α × β) where
-  compare x y := match x, y with
-    | (a, b), (a', b') => compare a a' |>.then (compare b b')
+-- instance instDecidableEqForComponents'' (f : State.Label)
+--   : DecidableEq (IteratedProd' <| (⌞? State.Label.toDomain ⌟) f) := by
+--   cases f <;>
+--     dsimp only [IteratedProd', State.Label.toDomain] <;>
+--     infer_instance
 
 instance instOrderForComponents' (f : State.Label)
   : Ord (IteratedProd' <| (⌞? State.Label.toDomain ⌟) f) := by
@@ -539,11 +512,6 @@ instance instOrderForComponents' (f : State.Label)
     dsimp only [IteratedProd', State.Label.toDomain] <;>
     infer_instance
 
-
-instance (f : State.Label) : Ord (IteratedProd' (State.Label.toDomain process states f)) := by
-  cases f <;>
-    dsimp only [IteratedProd', State.Label.toDomain, State.Label.toCodomain] <;>
-    infer_instance
 
 #reduce (⌞? State.Label.toDomain ⌟) State.Label.stack_pc
 
@@ -559,14 +527,12 @@ abbrev FieldConcreteType (f : State.Label) : Type :=
     Std.TreeSet (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.pc)
   /- `stack_pc` is a `function` field -/
   | State.Label.stack_pc =>
-    -- Std.TreeSet (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.stack_pc)
-    -- Std.TreeSet (process × List process)
-    Std.TreeMap (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.stack_pc)
+    TotalTreeMap (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.stack_pc)
     ((⌞? State.Label.toCodomain ⌟) State.Label.stack_pc)
   /- `stack_stack` is a `function` field -/
   | State.Label.stack_waker =>
-    -- Std.TreeSet (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.stack_waker)
-    Std.TreeSet (process × List process)
+    TotalTreeMap (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.stack_waker)
+    ((⌞? State.Label.toCodomain ⌟) State.Label.stack_waker)
   /- `stack_` is a `relation` -/
   | State.Label.waker =>
     Std.TreeSet (IteratedProd' <| (⌞? State.Label.toDomain ⌟) State.Label.waker)
@@ -578,12 +544,20 @@ instance instReprForComponents [Repr process] [Repr states] (f : State.Label)
     dsimp only [IteratedProd', FieldConcreteType, State.Label.toDomain, State.Label.toCodomain] <;>
     infer_instance
 
+
 instance : Inhabited ((⌞? State ⌟) (⌞? FieldConcreteType ⌟)) := by
   constructor ; constructor <;>
   dsimp only [FieldConcreteType, State.Label.toCodomain] <;>
-  exact default
+  -- exact default
+  -- infer_instance_for_iterated_prod
+  try exact default
+  -- set_option trace.Meta.synthInstance.answer true in
+  -- apply instInhabitedTotalTreeMapOfFinEnumOfLawfulEqCmpOfTransCmpOfDecidableEq.default
 
 
+
+open TotalMapLike
+#check instTotalMapLikeAsFieldRep
 instance rep (f : State.Label) : FieldRepresentation
   ((⌞? State.Label.toDomain ⌟) f)
   ((⌞? State.Label.toCodomain ⌟) f)
@@ -600,15 +574,14 @@ instance rep (f : State.Label) : FieldRepresentation
     instFinsetLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.has_woken)
   | State.Label.pc =>
     instFinsetLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.pc)
-  | State.Label.stack_pc =>  by
-    -- instFinsetLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.stack_pc)
-    dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain] ;
-    infer_instance
+  | State.Label.stack_pc =>
+    instTotalMapLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.stack_pc)
   | State.Label.stack_waker =>
-    instFinsetLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.stack_waker)
+    instTotalMapLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.stack_waker)
   | State.Label.waker =>
     instFinsetLikeAsFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.waker)
 
+#check instTotalMapLikeAsFieldRep
 
 instance lawful (f : State.Label): LawfulFieldRepresentation
   ((⌞? State.Label.toDomain ⌟) f)
@@ -678,38 +651,25 @@ attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet]
     [Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord (process × process))))]
   injection_end
 
+
 set_option trace.veil.debug true in
 set_option trace.veil.info true in
 deriving_enum_instance_for states
-#print Mutex.State
-#print Mutex.states
 
 
-instance : FinEnum states :=
-      FinEnum.ofList
-        [states.pre_check_lock, states.wait_until, states.enqueue_waker, states.check_lock, states.check_has_woken,
-          states.release_lock, states.wake_one, states.wake_one_loop, states.wake_up, states.start, states.cs,
-          states.Done]
-        (by simp; exact Mutex.states_Enum.states_complete)
+-----------------------------------------------------------------------------
+/- For each `enum` type, firstly we need to give its `Ord` instance,
+then we can derive `Std.OrientedCmp`, `Std.TransCmp`, and `Std.LawfulEqCmp`  -/
 
 instance : Ord states where
   compare s1 s2 :=
     compare (s1.toCtorIdx) (s2.toCtorIdx)
 
-instance : Hashable states where
-  hash s := hash s.toCtorIdx
-
-instance [Ord α] [FinEnum α]: BEq (Std.TreeSet α) where
-  beq s1 s2 :=
-    s1.toArray == s2.toArray
-
-
-instance :  Std.OrientedCmp (Ord.compare (self := inferInstanceAs (Ord states))) := by
+instance : Std.OrientedCmp (Ord.compare (self := inferInstanceAs (Ord states))) := by
   apply Std.OrientedCmp.mk
   unfold compare inferInstanceAs instOrdStates
   intro a b; cases a <;>
     cases b <;> rfl
-
 
 instance : Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord states))) := by
   apply Std.TransCmp.mk
@@ -722,174 +682,107 @@ instance : Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord states))) := 
     /- Here need manually prove -/
     (first | omega | assumption | contradiction)
 
-
 instance : Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord states))) := by
   apply Std.LawfulEqCmp.mk
   unfold compare inferInstanceAs instOrdStates
   intro a b; cases a <;>
     cases b <;> simp
 
-instance (n : Nat): TotalOrderWithZero (Fin n.succ) where
-  le := fun x y => x.val ≤ y.val
-  le_refl := by simp
-  le_trans := by simp ; omega
-  le_antisymm := by simp ; omega
-  le_total := by simp ; omega
-  zero := ⟨0, by simp⟩
-  zero_le := by simp
+-----------------------------------------------------------------------------
 
 
-
-#Concretize (Fin 3), states
-
-#print State
-
-
-
-instance [FinEnum α] [Ord α] [Hashable α]
+-----------------------------------------------------------------------------
+/- We need to give `BEq` instance for each `FieldConcreteType` explicitly. -/
+instance [BEq α] [Ord α]
   : BEq (FieldConcreteType α states State.Label.locked) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Ord α]
   : BEq (FieldConcreteType α states State.Label.wait_queue_wakers) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+
+instance [BEq α] [Ord α]
   : BEq (FieldConcreteType α states State.Label.has_woken) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Ord α]
   : BEq (FieldConcreteType α states State.Label.pc) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Ord α]
   : BEq (FieldConcreteType α states State.Label.stack_pc) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Ord α]
   : BEq (FieldConcreteType α states State.Label.stack_waker) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Ord α]
   : BEq (FieldConcreteType α states State.Label.waker) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
+-----------------------------------------------------------------------------
 
 
-instance [Hashable α] [BEq α] [Ord α]: Hashable (Std.TreeSet α) where
-  hash s := hash s.toArray
+-----------------------------------------------------------------------------
+/- We need to give `Hashable` instance for each `FieldConcreteType` explicitly. -/
+instance : Hashable states where
+  hash s := hash s.toCtorIdx
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [Ord α] [Hashable α]
   : Hashable (FieldConcreteType α states State.Label.locked) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [Ord α] [Hashable α]
   : Hashable (FieldConcreteType α states State.Label.wait_queue_wakers) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Hashable α] [Ord α]
   : Hashable (FieldConcreteType α states State.Label.has_woken) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Hashable α] [Ord α]
   : Hashable (FieldConcreteType α states State.Label.pc) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α][Hashable α] [Ord α]
   : Hashable (FieldConcreteType α states State.Label.stack_pc) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Hashable α] [Ord α]
   : Hashable (FieldConcreteType α states State.Label.stack_waker) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
 
-instance [FinEnum α] [Ord α] [Hashable α]
+instance [BEq α] [Hashable α] [Ord α]
   : Hashable (FieldConcreteType α states State.Label.waker) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance_for_iterated_prod
+-----------------------------------------------------------------------------
 
-
-
+#Concretize (Fin 2), states
 #assembleInsts
-
 
 simple_deriving_repr_for' State
 deriving instance Repr for Label
 deriving instance Inhabited for Theory
 
 
-instance [FinEnum α] [Ord α] : Ord (Std.TreeSet α) where
-  compare s1 s2 := compare s1.toArray s2.toArray
-
-
-
-instance [FinEnum α] [Ord α]
-  : Ord (FieldConcreteType α states State.Label.locked) := by
-  dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
-  infer_instance_for_iterated_prod
-
-instance [FinEnum α] [Ord α]
-  : Ord (FieldConcreteType α states State.Label.wait_queue_wakers) := by
-  dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
-  infer_instance_for_iterated_prod
-
-instance [FinEnum α] [Ord α]
-  : Ord (FieldConcreteType α states State.Label.locked) := by
-  dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
-  infer_instance_for_iterated_prod
-
-instance [FinEnum α] [Ord α]
-  : Ord (FieldConcreteType α states State.Label.has_woken) := by
-  dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
-  infer_instance_for_iterated_prod
-
-instance [FinEnum α] [Ord α]
-  : Ord (FieldConcreteType α states State.Label.pc) := by
-  dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
-  infer_instance_for_iterated_prod
-
-instance [FinEnum α] [Ord α]
-  : Ord (FieldConcreteType α states State.Label.stack_pc) := by
-  dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
-  infer_instance_for_iterated_prod
-
-instance [FinEnum α] [Ord α]
-  : Ord (FieldConcreteType α states State.Label.stack_waker) := by
-  dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
-  infer_instance_for_iterated_prod
-
-instance [FinEnum α] [Ord α]
-  : Ord (FieldConcreteType α states State.Label.waker) := by
-  dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
-  infer_instance_for_iterated_prod
-
-instance: Ord StateConcrete where
-  compare a b :=
-    compare a.locked b.locked |>.then
-    (compare a.wait_queue_wakers b.wait_queue_wakers) |>.then
-    (compare a.has_woken b.has_woken) |>.then
-    (compare a.pc b.pc) |>.then
-    (compare a.stack_pc b.stack_pc) |>.then
-    (compare a.stack_waker b.stack_waker) |>.then
-    (compare a.waker b.waker)
-
-
 def view (st : StateConcrete):=
-    -- hash st
-    st
-
+    hash st
+    -- st
 
 instance : (rd : TheoryConcrete) → (st : StateConcrete)
     → Decidable ((fun ρ σ => mutual_exclusion ρ σ) rd st) := by
@@ -897,12 +790,128 @@ instance : (rd : TheoryConcrete) → (st : StateConcrete)
   unfold mutual_exclusion
   infer_instance
 
+instance : (rd : TheoryConcrete) → (st : StateConcrete)
+    → Decidable ((fun ρ σ => AllDone ρ σ) rd st) := by
+  intro rd st
+  unfold AllDone
+  infer_instance
 
-
-def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => mutual_exclusion ρ σ) {none := 0} view).snd
-#time #eval modelCheckerResult'.seen.size
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => mutual_exclusion ρ σ) ((fun ρ σ => AllDone ρ σ)) {none := 0} view).snd
+-- #time #eval modelCheckerResult'
+-- #eval (collectTrace' modelCheckerResult')
 #html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
 
+def linearModelCheckerResult' := (runLinearChecker initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => mutual_exclusion ρ σ) {none := 0} (id) (collectTrace' modelCheckerResult')).snd
+-- #time #eval linearModelCheckerResult'.log.reverse
 
+#eval recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace' modelCheckerResult')
+-- #check labSeq
+
+
+open Lean
+instance jsonOfTreeSet [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
+  toJson s := Json.arr <| s.toArray.map toJson
+
+instance jsonOfTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Std.TreeMap α β) where
+  toJson m := Json.arr <| m.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
+
+instance jsonOfTotalTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Veil.TotalTreeMap α β) where
+  toJson m := Json.arr <| m.val.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
+
+instance [Repr α]: ToJson α where
+  toJson := fun a => Json.str (toString (repr a))
+
+instance [ToJson α] [ToJson β]: ToJson (α × β) where
+  toJson := fun ⟨a, b⟩ => Json.arr #[toJson a, toJson b]
+
+instance [ToJson α]: ToJson (List α) where
+  toJson := fun xs => Json.arr (xs.toArray.map toJson)
+
+instance [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
+  toJson s := Json.arr (s.toArray.map toJson)
+
+instance [Ord α] [ToJson α] [ToJson β]: ToJson (Std.TreeMap α β) where
+  toJson m := Json.arr (m.toArray.map (fun (k,v) => Json.arr #[toJson k, toJson v]))
+
+instance [Ord α] [ToJson α] [ToJson β]: ToJson (Veil.TotalTreeMap α β) where
+  toJson m := Json.arr (m.val.toArray.map (fun (k,v) => Json.arr #[toJson k, toJson v]))
+
+-- instance : ToJson (FieldConcreteType (Fin 2) states State.Label.locked) := by
+--   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
+--   infer_instance_for_iterated_prod
+
+
+-- instance [ToJson α]: ToJson (Veil.IteratedProd' (State.Label.toDomain α states State.Label.pc)) := by
+--   dsimp only [Veil.IteratedProd', State.Label.toDomain];
+--   infer_instance_for_iterated_prod
+
+-- instance [ToJson α]: ToJson (Veil.IteratedProd' (State.Label.toDomain α states State.Label.has_woken)) := by
+--   dsimp only [Veil.IteratedProd', State.Label.toDomain];
+--   infer_instance_for_iterated_prod
+
+-- instance [ToJson α] : ToJson (Veil.IteratedProd' (State.Label.toDomain α states State.Label.waker)) := by
+--   dsimp only [Veil.IteratedProd', State.Label.toDomain];
+--   infer_instance_for_iterated_prod
+
+-- instance [ToJson α] : ToJson (Veil.IteratedProd' (State.Label.toDomain α states State.Label.stack_pc)) := by
+--   dsimp only [Veil.IteratedProd', State.Label.toDomain];
+--   infer_instance_for_iterated_prod
+
+-- instance [ToJson α] : ToJson (Veil.IteratedProd' (State.Label.toDomain α states State.Label.stack_waker)) := by
+--   dsimp only [Veil.IteratedProd', State.Label.toDomain];
+--   infer_instance_for_iterated_prod
+
+-- instance [ToJson α] : ToJson (State.Label.toCodomain α states State.Label.stack_waker) := by
+--   dsimp only [State.Label.toCodomain];
+--   infer_instance_for_iterated_prod
+
+-- instance [ToJson α] : ToJson (State.Label.toCodomain α states State.Label.stack_pc) := by
+--   dsimp only [State.Label.toCodomain];
+--   infer_instance_for_iterated_prod
+
+instance (f : State.Label) [ToJson α] : ToJson (State.Label.toCodomain α states f) := by
+cases f <;>
+  dsimp only [State.Label.toCodomain];
+  infer_instance_for_iterated_prod
+
+instance (f : State.Label) [ToJson α] : ToJson (Veil.IteratedProd' (State.Label.toDomain α states f)) := by
+cases f <;>
+  dsimp only [Veil.IteratedProd', State.Label.toDomain];
+  infer_instance_for_iterated_prod
+
+
+def jsonOfTrace {σₛ κ : Type} [ToJson σₛ] [ToJson κ] [Repr κ] (tr : Trace σₛ κ) : Json :=
+  let states : Array Json :=
+    #[ Json.mkObj [("index", toJson 0), ("fields", toJson tr.start),  ("action", "after_init") ]] ++
+    (tr.steps.toArray.mapIdx (fun i st =>
+      let idx := i + 1
+      Json.mkObj [("index", toJson idx), ("fields", toJson st.next), ("action", toString (repr st.label))]
+    ))
+  Json.arr states
+
+
+instance jsonOfState : ToJson StateConcrete where
+  toJson := fun s =>
+    Json.mkObj
+    [ ("locked",            Lean.toJson s.locked)
+    , ("wait_queue_wakers", Lean.toJson s.wait_queue_wakers)
+    , ("has_woken",         Lean.toJson s.has_woken)
+    , ("pc",                Lean.toJson s.pc)
+    , ("stack_pc",          Lean.toJson s.stack_pc)
+    , ("stack_waker",       Lean.toJson s.stack_waker)
+    , ("waker",             Lean.toJson s.waker)
+    ]
+
+def labelToJson {κ} [ToString κ] (k : κ) : Json := Lean.toJson (toString k)
+
+#time #eval jsonOfTrace (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace' modelCheckerResult'))
+
+def statesJson : Json :=
+  jsonOfTrace (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace' modelCheckerResult'))
+
+
+open ProofWidgets
+open scoped ProofWidgets.Jsx
+#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
 
 end Mutex

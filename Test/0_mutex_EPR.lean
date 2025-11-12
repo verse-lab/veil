@@ -458,3 +458,52 @@ invariant [mutual_exclusion] pc I cs ∧ pc J cs → I = J
 -- #check_invariants
 -- =============================================================================
 end Mutex
+
+
+-- instance [Ord α]: Repr (FieldConcreteType α states State.Label.locked) := by
+--   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
+--   infer_instance_for_iterated_prod
+
+-- instance [Repr α] [Ord α]: Repr (FieldConcreteType α states State.Label.wait_queue_wakers) := by
+--   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
+--   infer_instance_for_iterated_prod
+
+-- instance [Repr α] [Ord α]: Repr (FieldConcreteType α states State.Label.has_woken) := by
+--   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
+--   infer_instance_for_iterated_prod
+
+-- instance [Repr α] [Ord α]: Repr (FieldConcreteType α states State.Label.pc) := by
+--   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
+--   infer_instance_for_iterated_prod
+
+-- instance [Repr α] [Ord α]: Repr (FieldConcreteType α states State.Label.stack_pc) := by
+--   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
+--   infer_instance_for_iterated_prod
+
+-- instance [Repr α] [Ord α]: Repr (FieldConcreteType α states State.Label.stack_waker) := by
+--   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
+--   infer_instance_for_iterated_prod
+
+-- instance [Repr α] [Ord α]: Repr (FieldConcreteType α states State.Label.waker) := by
+--   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
+--   infer_instance_for_iterated_prod
+
+
+-- instance : Repr StateConcrete where
+--   reprPrec st _:= Id.run do
+--     let lock := st.locked
+--     let wakers := st.wait_queue_wakers
+--     let hw := st.has_woken
+--     let pc_map := st.pc
+--     let spc_map := st.stack_pc
+--     let sw_map := st.stack_waker
+--     let waker_map := st.waker
+--     let s := "\n"
+--           ++ "  locked: " ++ (if lock == true then "🔒" else "🔑") ++ "\n"
+--           ++ "  wait_queue_wakers: " ++ repr wakers ++ "\n"
+--           ++ "  has_woken: " ++ repr hw ++ "\n"
+--           ++ "  pc: " ++ repr pc_map ++ "\n"
+--           ++ "  stack_pc: " ++ repr spc_map ++ "\n"
+--           ++ "  stack_waker: " ++ repr sw_map ++ "\n"
+--           ++ "  waker: " ++ repr waker_map ++ "\n"
+--     return s

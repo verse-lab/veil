@@ -92,6 +92,7 @@ private def simpleDerivingReprForCore (t : Ident) (case : SimpleDerivingReprForC
       $(mkIdent `reprPrec):ident $t:ident $n:ident := $(mkIdent ``Std.Format.bracket) "{ "
         ($(mkIdent ``Std.Format.joinSep) [$fieldReprs,*] ", ") " }")
 
+
 /-- Attempt to derive a `Repr` instance for a `structure` by assuming all
     its parameters are `Repr`s. This can be useful when the structure
     includes functions, which are finite when the type parameters are finite

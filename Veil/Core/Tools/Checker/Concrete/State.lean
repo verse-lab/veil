@@ -3,20 +3,19 @@ import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Core.Tools.Checker.Concrete.DataStructure
 import Veil.Frontend.DSL.Action.Extraction.Basic
 
+-- import Loom.MonadAlgebras.Instances.StateT
+-- import Loom.MonadAlgebras.Instances.ExceptT
+-- -- import Loom.MonadAlgebras.NonDetT.Extract
+-- import Loom.MonadAlgebras.WP.Tactic
+-- import Loom.MonadAlgebras.WP.DoNames'
+-- import Mathlib.Tactic.Common
+-- import Mathlib.Tactic.Linarith
+-- import Lean
 
-import Loom.MonadAlgebras.Instances.StateT
-import Loom.MonadAlgebras.Instances.ExceptT
--- import Loom.MonadAlgebras.NonDetT.Extract
-import Loom.MonadAlgebras.WP.Tactic
-import Loom.MonadAlgebras.WP.DoNames'
-import Mathlib.Tactic.Common
-import Mathlib.Tactic.Linarith
-import Lean
-
--- import CaseStudies.Cashmere.Syntax_Cashmere
-import Loom.MonadAlgebras.WP.Tactic
-open Lean.Elab.Term.DoNames
-open ExceptionAsFailure
+-- -- import CaseStudies.Cashmere.Syntax_Cashmere
+-- import Loom.MonadAlgebras.WP.Tactic
+-- open Lean.Elab.Term.DoNames
+-- open ExceptionAsFailure
 
 open Veil
 
@@ -45,72 +44,111 @@ def getStateFromExceptT (c : ExceptT ε DivM (α × σ)) : Option σ :=
 def getAllStatesFromExceptT (c : List (ExceptT ε DivM (α × σ))) : List (Option σ) :=
   c.map getStateFromExceptT
 
-
 /- Corresponds to `after_init` action, used for initialization -/
 variable (initVeilMultiExecM : VeilMultiExecM κᵣ ℤ ρ σᵣ Unit)
+variable (nextVeilMultiExecM : κ → VeilMultiExecM κᵣ ℤ ρ σᵣ Unit)
 abbrev TsilE (κᵣ σᵣ : Type) := TsilT (ExceptT ℤ (PeDivM (List κᵣ))) (Unit × σᵣ)
-/- Initialization, usually s₀ is a __default__ value from [Inhabited]. -/
+
 def afterInit (rd : ρ) (s₀ : σᵣ) : TsilE κᵣ σᵣ :=
   ((initVeilMultiExecM |> ReaderT.run) rd |> StateT.run) s₀
 
-
-/- Corresponds to `action` -/
-variable (nextVeilMultiExecM : κ → VeilMultiExecM κᵣ ℤ ρ σᵣ Unit)
 /- Get all possible next states from current state `s` under label `l`. -/
 def nonDetNexts (rd : ρ) (st : σᵣ) (l : κ) : TsilE κᵣ σᵣ :=
   nextVeilMultiExecM l rd st
 
-class MonadWasSeen (β : Type) (m : Type → Type u) where
-  wasSeen : β → m Bool
 
 
-/- `σₛ` is the type fingerprint, used for storage. -/
-variable {σₛ : Type}
-variable [Inhabited σₛ]
-variable [BEq σₛ] [Hashable σₛ]
+/-
+We do not require `Repr` instances for `σᵣ` and `κ` here, aimming to
+seperate the concerns of model checking algorithm and representation.
 
-/- All possible labels -/
-variable (allLabels : List κ)
-/- Invariant to be checked -/
-variable (INV : ρ → σᵣ → Prop)
-variable [dec_inv: ∀rd : ρ, ∀st : σᵣ, Decidable (INV rd st)]
-/- `κ` need [Repr] instance, which is used in log -/
-variable [Repr κ]
-/- `σᵣ` need [Repr] instance, which is used in log -/
-variable [Repr σᵣ]
-/- `σᵣ` need [Inhabited] instance, which is used in initialization -/
+`σₛ` is the type fingerprint, used for storage.
+`σₛ` is usually in HashSet, which requires `Ord` and `Hashable` instance.
+
+`σᵣ` need `Inhabited` instance, which is used in initialization.
+
+TODO: If we hope to allow use `symmetric reduction`, then `σᵣ` requires
+`Ord` instance, to make it comparable between each other.
+
+-/
 variable [Inhabited σᵣ]
+variable {σₛ : Type}
+variable [BEq σₛ] [Hashable σₛ]
+variable (allLabels : List κ)
+variable (INV : ρ → σᵣ → Prop)
+variable (Terminate : ρ → σᵣ → Prop)
+variable [dec_inv: ∀rd : ρ, ∀st : σᵣ, Decidable (INV rd st)]
+variable [dec_term: ∀rd : ρ, ∀st : σᵣ, Decidable (Terminate rd st)]
 variable [IsSubStateOf ℂ σᵣ] [IsSubReaderOf ℝ ρ]
 
 open CheckerM in
-partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ) : StateT (SearchContext σᵣ σₛ) Id Unit := do
+partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ)
+  : StateT (SearchContext σᵣ σₛ κ) Id Unit := do
   let fpSt₀ := view st₀
   addToSeen fpSt₀
   enqueueState st₀ fpSt₀
   while true do
     let .some (st, fpSt) := (← dequeueState) | return ()
+    let mut emptyflag := true
     for label in allLabels do
       -- dbg_trace s!"Exploring label: {repr label}"
       let execs := nonDetNexts nextVeilMultiExecM rd st label
       -- dbg_trace s!"received {(execs.length)} successors"
       let succs := getAllStatesFromExceptT (execs.map Prod.snd)
       for succ? in succs do
+        emptyflag := false
         let .some st' := succ? | continue -- divergence
         -- dbg_trace s!"Exploring state after executing {repr label}: {repr st'}"
         let fingerprint := view st'
         unless (← wasSeen fingerprint) do
           addToSeen fingerprint
-          addTransitionToLog fpSt fingerprint s!"{repr label}"
+          addTransitionToLog fpSt fingerprint label
           if decide (INV rd st') then
             enqueueState st' fingerprint
           else
             addCounterExample fingerprint
             return ()
+    /- If there are no successors and `st` is not terminating, then this is a deadlock -/
+    if emptyflag && !decide (Terminate rd st) then
+      addCounterExample fpSt
+      return ()
+
 
 /-- Run BFS starting from `st₀` with reader `rd`, checking `INV` under `restrictions`. -/
-def runModelCheckerx (rd : ρ) (view : σᵣ → σₛ) : Id (Unit × (SearchContext σᵣ σₛ)) := do
+def runModelCheckerx (rd : ρ) (view : σᵣ → σₛ) : Id (Unit × (SearchContext σᵣ σₛ κ)) := do
   let cfg := SearchContext.empty
   let restrictions := (fun (_ : ρ) (_ : σᵣ) => true)
   let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
   -- dbg_trace s!"Initial state: {repr st₀}"
-  (bfsSearch nextVeilMultiExecM allLabels INV st₀ rd view) |>.run cfg
+  (bfsSearch nextVeilMultiExecM allLabels INV Terminate st₀ rd view) |>.run cfg
+
+
+structure Step (σᵣ κ: Type) where
+  label : κ
+  next  : σᵣ
+deriving Repr, Inhabited
+
+structure Trace (σᵣ κ : Type) where
+  start : σᵣ
+  steps : List (Step σᵣ κ)
+deriving Repr, Inhabited
+
+
+open CheckerM in
+def recoverTrace (rd : ρ) (linearLabels : List κ) [Repr κ]
+  : Trace σᵣ κ := Id.run do
+  if linearLabels.isEmpty then return { start := default, steps := [] }
+
+  let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
+  let mut steps : List (Step σᵣ κ) := []
+  let mut curSt := st₀
+  for ll in linearLabels do
+    let execs := nonDetNexts nextVeilMultiExecM rd curSt ll
+    -- dbg_trace s!"recoverTrace: label {repr ll}, got {execs.length} execs"
+    -- assert! execs.length ≤ 1
+    let succ? := (execs |>.map Prod.snd |>.map getStateFromExceptT)[0]!
+    let .some st' := succ? | assert! false -- divergence
+    steps := steps.append [{ label := ll, next := st' }]
+    curSt := st'
+  let tr : Trace σᵣ κ := { start := st₀, steps := steps }
+  return tr

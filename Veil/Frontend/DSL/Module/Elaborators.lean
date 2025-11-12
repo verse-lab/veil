@@ -97,6 +97,7 @@ def elabEnumDeclaration : CommandElab := fun stx => do
     elabCommand class_decl
     let instanceName := mkIdent $ Name.mkSimple s!"{id.getId}_isEnum"
     let instanceV ← `(command|instantiate $instanceName : @$class_name $id)
+    dbg_trace "Elaborated enum instance: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instanceV}"
     elabCommand instanceV
     elabCommand $ ← `(open $class_name:ident)
   | _ => throwUnsupportedSyntax
@@ -151,6 +152,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   let (assumptionCmd, mod) ← mod.assembleAssumptions
   elabVeilCommand assumptionCmd
   let (invariantCmd, mod) ← mod.assembleInvariants
+  dbg_trace "Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
   elabVeilCommand invariantCmd
   let (safetyCmd, mod) ← mod.assembleSafeties
   elabVeilCommand safetyCmd
@@ -234,10 +236,12 @@ def elabAssertion : CommandElab := fun stx => do
   | `(command|invariant $name:propertyName ? $prop:term) => mod.mkAssertion .invariant name prop stx
   | `(command|safety $name:propertyName ? $prop:term) => mod.mkAssertion .safety name prop stx
   | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop stx
+  | `(command|termination $name:propertyName ? $prop:term) => mod.mkAssertion .termination name prop stx
   | _ => throwUnsupportedSyntax
   -- Elaborate the assertion in the Lean environment
   let (stx, mod') ← mod.defineAssertion assertion
   elabVeilCommand stx
+  dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
   localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]

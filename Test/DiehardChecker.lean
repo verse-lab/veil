@@ -142,8 +142,11 @@ scoped elab "⌞? " t:term " ⌟" : term => do
   let some mod := lenv.currentModule | throwError s!"Not in a module"
   Term.elabTerm (← `(term| $t $(← mod.sortIdents)*)) none
 
+
+
 #time #check_invariants
 section
+
 
 veil_variables
 
@@ -181,12 +184,15 @@ instance instHashableForComponents' (f : State.Label)
     dsimp only [IteratedProd', State.Label.toDomain] <;>
     infer_instance
 
+#print State
 
-abbrev FieldConcreteType (f : State.Label) : Type :=
-  match f with
-  | State.Label.big => ((⌞? State.Label.toCodomain ⌟) State.Label.big)
-  | State.Label.tmp => ((⌞? State.Label.toCodomain ⌟) State.Label.tmp)
-  | State.Label.small => ((⌞? State.Label.toCodomain ⌟) State.Label.small)
+-- abbrev FieldConcreteType (f : State.Label) : Type := by
+--   cases f with
+--   | big => exact ((⌞? State.Label.toCodomain ⌟) State.Label.big)
+--   | tmp => exact ((⌞? State.Label.toCodomain ⌟) State.Label.tmp)
+--   | small => exact ((⌞? State.Label.toCodomain ⌟) State.Label.small)
+specify_FieldConcreteType
+
 
 instance instReprForComponents (f : State.Label)
   : Repr ((⌞? FieldConcreteType ⌟) f) := by
@@ -194,41 +200,45 @@ instance instReprForComponents (f : State.Label)
     dsimp only [IteratedProd', FieldConcreteType, State.Label.toDomain, State.Label.toCodomain] <;>
     infer_instance
 
-instance : Inhabited ((⌞? State ⌟) (⌞? FieldConcreteType ⌟)) := by
-  constructor ; constructor <;>
-  dsimp only [FieldConcreteType, State.Label.toCodomain] <;>
-  exact default
 
-instance rep (f : State.Label) : FieldRepresentation
-  ((⌞? State.Label.toDomain ⌟) f)
-  ((⌞? State.Label.toCodomain ⌟) f)
-  ((⌞? FieldConcreteType ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
-  match f with
-  | State.Label.big => by
-      dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain] ;
-      infer_instance
-  | State.Label.tmp => by
-      dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain] ;
-      infer_instance
-  | State.Label.small => by
-      dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain] ;
-      infer_instance
+-- instance : Inhabited ((⌞? State ⌟) (⌞? FieldConcreteType ⌟)) := by
+--   constructor ; constructor <;>
+--   dsimp only [FieldConcreteType, State.Label.toCodomain] <;>
+--   exact default
+deriving_inhabited_state
+
+-- instance rep (f : State.Label) : FieldRepresentation
+--   ((⌞? State.Label.toDomain ⌟) f)
+--   ((⌞? State.Label.toCodomain ⌟) f)
+--   ((⌞? FieldConcreteType ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
+--   match f with
+--   | State.Label.big => by
+--       dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain] ;
+--       infer_instance
+--   | State.Label.tmp => by
+--       dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain] ;
+--       infer_instance
+--   | State.Label.small => by
+--       dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain] ;
+--       infer_instance
+/- instRepForFieldRepresentation -/
+deriving_rep_fieldRepresentation
 
 
 instance lawful (f : State.Label) : LawfulFieldRepresentation
   ((⌞? State.Label.toDomain ⌟) f)
   ((⌞? State.Label.toCodomain ⌟) f)
   ((⌞? FieldConcreteType ⌟) f)
-  ((⌞? rep ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
+  ((⌞? instRepForFieldRepresentation ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
   match f with
   | State.Label.big => by
-      dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, rep, id]
+      dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, instRepForFieldRepresentation, id]
       infer_instance
   | State.Label.tmp => by
-    dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, rep, id]
+    dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, instRepForFieldRepresentation, id]
     infer_instance
   | State.Label.small => by
-      dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, rep, id]
+      dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, instRepForFieldRepresentation, id]
       infer_instance
 
 end
@@ -244,7 +254,12 @@ attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet]
   injection_begin
   injection_end
 
+-- #GetInvariants
+
 #Concretize
+
+#print Theory
+#print TheoryConcrete
 
 instance : BEq (FieldConcreteType State.Label.big) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain] ;
@@ -284,7 +299,7 @@ deriving instance Inhabited for Theory
 
 def view := fun (st : StateConcrete) => hash st
 
-def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => not_solved ρ σ) {} id).snd
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => not_solved ρ σ) ((fun ρ σ => true)) {} id).snd
 #time #eval modelCheckerResult'
 #html createExpandedGraphDisplay (collectTrace modelCheckerResult').1 (collectTrace modelCheckerResult').2
 

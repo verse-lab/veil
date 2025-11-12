@@ -2,52 +2,54 @@ import Veil.Core.Tools.Checker.Concrete.State
 import Veil.Core.Tools.Checker.Concrete.DataStructure
 import Veil.Core.Tools.Checker.Concrete.Util
 import Veil.Core.Tools.Checker.Concrete.ConcretizeType
+import Veil.Core.Tools.Checker.Concrete.Runlib
+import Veil.Core.Tools.Checker.Concrete.modelCheckerView
 
-open Lean Meta Elab Command in
-/-- Given the name of an `enum` type defined in a `veil module`, generates
-    the corresponding inductive type and proves that this inductive type
-    is an instance of the underlying typeclass of that `enum` type. -/
-def deriveEnumInstance (name : Name) : CommandElabM Unit := do
-  let clsName ← resolveGlobalConstNoOverloadCore (name.appendAfter "_Enum")
-  let .some info := getStructureInfo? (← getEnv) clsName | throwError "no such structure {clsName}"
-  -- NOTE: assume the last two are the propositions to satisfy
-  let fields := info.fieldNames.pop.pop
-  trace[veil.debug] "info.fieldName: {info.fieldNames}"
-  let ctors : Array (TSyntax ``Lean.Parser.Command.ctor) ←
-    fields.mapM fun fn => `(Lean.Parser.Command.ctor| | $(mkIdent fn):ident )
-  trace[veil.debug] "fields: {fields}"
-  let defineIndTypeCmd ← do
-    if ctors.size > 0 then
-      `(inductive $(mkIdent name) where $[$ctors]* deriving $(mkIdent ``DecidableEq), $(mkIdent ``Repr), $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
-    else
-      `(inductive $(mkIdent name) where deriving $(mkIdent ``DecidableEq), $(mkIdent ``Repr))
-  let instClauses ←
-    fields.mapM fun fn => `(Lean.Parser.Term.structInstField| $(mkIdent fn):ident := $(mkIdent <| name ++ fn):ident )
-  let completeRequirement := info.fieldNames.back!
-  let distinctRequirement := info.fieldNames.pop.back!
-  let proof1 ← `(Lean.Parser.Term.structInstField| $(mkIdent distinctRequirement):ident := (by (first | decide | grind)) )
-  let proof2 ← do
-    let x := mkIdent `x
-    `(Lean.Parser.Term.structInstField| $(mkIdent completeRequirement):ident := (by intro $x:ident ; cases $x:ident <;> (first | decide | grind)) )
-  let instClauses := instClauses.push proof1 |>.push proof2
-  let instantiateCmd ←
-    `(instance : $(mkIdent clsName) $(mkIdent name) where $[$instClauses]*)
-  let allConstructors ← do
-    let arr := fields.map fun fn => (mkIdent <| name ++ fn)
-    `(term| [ $arr,* ] )
-  let instantiateFinEnumCmd ←
-    `(instance : $(mkIdent ``FinEnum) $(mkIdent name) :=
-      $(mkIdent ``FinEnum.ofList) $allConstructors (by simp ; exact $(mkIdent <| clsName ++ completeRequirement)))
-  elabCommand defineIndTypeCmd
-  trace[veil.debug] "defineIndTypeCmd: {defineIndTypeCmd}"
-  elabCommand instantiateCmd
-  trace[veil.debug] "instantiateCmd: {instantiateCmd}"
-  elabCommand instantiateFinEnumCmd
-  trace[veil.debug] "instantiateFinEnumCmd: {instantiateFinEnumCmd}"
+-- open Lean Meta Elab Command in
+-- /-- Given the name of an `enum` type defined in a `veil module`, generates
+--     the corresponding inductive type and proves that this inductive type
+--     is an instance of the underlying typeclass of that `enum` type. -/
+-- def deriveEnumInstance (name : Name) : CommandElabM Unit := do
+--   let clsName ← resolveGlobalConstNoOverloadCore (name.appendAfter "_Enum")
+--   let .some info := getStructureInfo? (← getEnv) clsName | throwError "no such structure {clsName}"
+--   -- NOTE: assume the last two are the propositions to satisfy
+--   let fields := info.fieldNames.pop.pop
+--   trace[veil.debug] "info.fieldName: {info.fieldNames}"
+--   let ctors : Array (TSyntax ``Lean.Parser.Command.ctor) ←
+--     fields.mapM fun fn => `(Lean.Parser.Command.ctor| | $(mkIdent fn):ident )
+--   trace[veil.debug] "fields: {fields}"
+--   let defineIndTypeCmd ← do
+--     if ctors.size > 0 then
+--       `(inductive $(mkIdent name) where $[$ctors]* deriving $(mkIdent ``DecidableEq), $(mkIdent ``Repr), $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
+--     else
+--       `(inductive $(mkIdent name) where deriving $(mkIdent ``DecidableEq), $(mkIdent ``Repr))
+--   let instClauses ←
+--     fields.mapM fun fn => `(Lean.Parser.Term.structInstField| $(mkIdent fn):ident := $(mkIdent <| name ++ fn):ident )
+--   let completeRequirement := info.fieldNames.back!
+--   let distinctRequirement := info.fieldNames.pop.back!
+--   let proof1 ← `(Lean.Parser.Term.structInstField| $(mkIdent distinctRequirement):ident := (by (first | decide | grind)) )
+--   let proof2 ← do
+--     let x := mkIdent `x
+--     `(Lean.Parser.Term.structInstField| $(mkIdent completeRequirement):ident := (by intro $x:ident ; cases $x:ident <;> (first | decide | grind)) )
+--   let instClauses := instClauses.push proof1 |>.push proof2
+--   let instantiateCmd ←
+--     `(instance : $(mkIdent clsName) $(mkIdent name) where $[$instClauses]*)
+--   let allConstructors ← do
+--     let arr := fields.map fun fn => (mkIdent <| name ++ fn)
+--     `(term| [ $arr,* ] )
+--   let instantiateFinEnumCmd ←
+--     `(instance : $(mkIdent ``FinEnum) $(mkIdent name) :=
+--       $(mkIdent ``FinEnum.ofList) $allConstructors (by simp ; exact $(mkIdent <| clsName ++ completeRequirement)))
+--   elabCommand defineIndTypeCmd
+--   trace[veil.debug] "defineIndTypeCmd: {defineIndTypeCmd}"
+--   elabCommand instantiateCmd
+--   trace[veil.debug] "instantiateCmd: {instantiateCmd}"
+--   elabCommand instantiateFinEnumCmd
+--   trace[veil.debug] "instantiateFinEnumCmd: {instantiateFinEnumCmd}"
 
-elab "deriving_enum_instance_for " name:ident : command => do
-  let name := name.getId
-  deriveEnumInstance name
+-- elab "deriving_enum_instance_for " name:ident : command => do
+--   let name := name.getId
+--   deriveEnumInstance name
 
 
 

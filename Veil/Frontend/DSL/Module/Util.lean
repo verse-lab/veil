@@ -64,9 +64,9 @@ instance : ToString StateComponent where
   toString sc := s!"{sc.mutability} {sc.kind} {sc.name} {sc.type}"
 
 def StateComponentType.stx [Monad m] [MonadQuotation m] [MonadError m] (sct : StateComponentType) : m (TSyntax `term) := do
-  match sct with
-  | .simple t => getSimpleBinderType t
-  | .complex b d => getSimpleBinderType $ ← complexBinderToSimpleBinder (mkIdent Name.anonymous) b d
+    match sct with
+    | .simple t => getSimpleBinderType t
+    | .complex b d => getSimpleBinderType $ ← complexBinderToSimpleBinder (mkIdent Name.anonymous) b d
 
 /-- Returns, e.g., `initial_msg : address → address → round → value → Prop` -/
 def StateComponent.getSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (sc : StateComponent) : m (TSyntax ``Command.structSimpleBinder) := do
@@ -88,6 +88,7 @@ instance : ToString StateAssertionKind where
     | StateAssertionKind.invariant => "invariant"
     | StateAssertionKind.trustedInvariant => "trusted invariant"
     | StateAssertionKind.safety => "safety"
+    | StateAssertionKind.termination => "termination"
 
 instance : ToString StateAssertion where
   toString sa := s!"{sa.kind} [{sa.name}] {sa.term}"
@@ -190,6 +191,7 @@ def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadError m] (mo
   | .stateComponent _ _ => sortParameters mod
   | .stateAssertion .assumption => pure (theoryParameters mod)
   | .stateAssertion .invariant | .stateAssertion .safety | .stateAssertion .trustedInvariant => pure mod.parameters
+  | .stateAssertion .termination => pure mod.parameters -- the same as `invariant`
   | .procedure _ => pure mod.parameters
   | .derivedDefinition k _ => derivedDefinitionBaseParams mod k
 where
@@ -321,12 +323,20 @@ def Module.actions (mod : Module) : Array ProcedureSpecification :=
 def Module.invariants (mod : Module) : Array StateAssertion :=
   mod.assertions.filter fun a => match a.kind with
   | .invariant | .safety | .trustedInvariant => true
+  | .termination => false
+  | .assumption => false
+
+def Module.terminations (mod : Module) : Array StateAssertion :=
+  mod.assertions.filter fun a => match a.kind with
+  | .invariant | .safety | .trustedInvariant => false
+  | .termination => true
   | .assumption => false
 
 /-- All `invariant`s and `safety`s.-/
 def Module.checkableInvariants (mod : Module) : Array StateAssertion :=
   mod.assertions.filter fun a => match a.kind with
   | .invariant | .safety => true
+  | .termination => false
   | .trustedInvariant | .assumption => false
 
 def Module.trustedInvariants (mod : Module) : Array StateAssertion :=
@@ -417,7 +427,11 @@ def Module.getTheoryBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : M
 def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.signature.filterMapM fun sc => do
     match sc.mutability with
-    | .mutable => return .some $ ← `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
+    | .mutable =>
+      dbg_trace "getStateBinders: adding binder for state component {sc.name} of type {← sc.typeStx}"
+      let (res, base) ← splitForallArgsCodomain (← sc.typeStx)
+      dbg_trace "  splitForallArgsCodomain: base = {base}, res = {res}"
+      return .some $ ← `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
     | _ => pure .none
 
 /-- Given a list of state components, return the syntax for a structure
@@ -550,6 +564,7 @@ where
       | .invariant => s!"inv_{sz}"
       | .assumption => s!"assumption_{sz}"
       | .trustedInvariant => s!"trusted_inv_{sz}"
+      | .termination => s!"termination_{sz}"
 
 private def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
   mod.throwIfAlreadyDeclared sc.name

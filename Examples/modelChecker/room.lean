@@ -138,113 +138,13 @@ invariant [current_key_registration]
 #gen_spec
 
 
--- section
+#prepareExecution
 
--- veil_variables
-
--- omit χ χ_rep χ_rep_lawful
-
--- open Veil Extract
-
--- deriving_FinOrdToJson_Domain
-
--- specify_FieldConcreteType
-
--- deriving_BEq_FieldConcreteType
-
--- deriving_Repr_FieldConcreteType
-
--- deriving_Hashable_FieldConcreteType
-
--- deriving_rep_FieldRepresentation
-
--- deriving_lawful_FieldRepresentation
-
--- deriving_Inhabited_State
-
--- -- deriving_Decidable_Props
-
--- -- instance (rd : ρ) (st : σ) [FinEnum seq_t] [FinEnum Room] [FinEnum Guest] [FinEnum Position] [FinEnum Occupied]
--- --     [∀a b, Decidable (lt a b (th := rd))]
--- --     [Ord seq_t] [Ord Room] [Ord Guest] [Ord Position] [Ord Occupied]
--- --     : Decidable (no_future_keys rd st) := by
--- --     dsimp only [no_future_keys]
--- --     infer_instance_for_iterated_prod
-
--- end
-
--- gen_NextAct
--- gen_executable_NextAct
-
-deriving_FinOrdToJson_Domain
-
-specify_FieldConcreteType
-
--- deriving_BEq_FieldConcreteType
-instance instBEqForFieldConcreteType_assignedKey (seq_t : Type) (Room : Type) (Guest : Type) (Position : Type)
-    (Occupied : Type)
-    [seq_t_dec_eq : DecidableEq.{1} seq_t]
-    [Room_dec_eq : DecidableEq.{1} Room]
-    [Guest_dec_eq : DecidableEq.{1} Guest]
-    [Position_dec_eq : DecidableEq.{1} Position]
-    [Occupied_dec_eq : DecidableEq.{1} Occupied]
-    [Ord seq_t] [Ord Room] [Ord Guest] [Ord Position] [Ord Occupied] :
-    (BEq (FieldConcreteType seq_t Room Guest Position Occupied State.Label.assignedKey)) :=
-  by
-  dsimp only [FieldConcreteType, Veil.IteratedProd', State.Label.toDomain, State.Label.toCodomain]
-  repeat'
-    (first
-      | infer_instance
-      | constructor)
-
-deriving_Hashable_FieldConcreteType
-
-deriving_rep_FieldRepresentation
-
-deriving_lawful_FieldRepresentation
-
-deriving_Inhabited_State
-
-gen_NextAct
-
-gen_executable_NextAct
--- deriving_enum_instance_for Room
--- deriving_ord_hashable_for_enum Room
--- deriving_propCmp_for_enum Room
-
--- deriving_enum_instance_for Guest
--- deriving_ord_hashable_for_enum Guest
--- deriving_propCmp_for_enum Guest
-
--- deriving_enum_instance_for Position
--- deriving_ord_hashable_for_enum Position
--- deriving_propCmp_for_enum Position
-
--- deriving_enum_instance_for Occupied
--- deriving_ord_hashable_for_enum Occupied
--- deriving_propCmp_for_enum Occupied
-deriving_Enum_Insts
-
-#Concretize (Fin 2), Room, Guest, Position, Occupied
-
-deriving_BEqHashable_ConcreteState
-
-simple_deriving_repr_for' State
-deriving instance Repr for Label
-deriving instance Inhabited for Theory
-deriving_toJson_for_state
-deriving_DecidableProps_state
-
+#finitizeTypes(Fin 2), Room, Guest, Position, Occupied
 
 
 def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => no_future_keys ρ σ) ((fun ρ σ => true)) {one := 1} hash).snd
-
--- #eval modelCheckerResult'
-
-def statesJson : Lean.Json :=
-  Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {one := 1} (collectTrace' modelCheckerResult'))
-
-
+def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {one := 1} (collectTrace' modelCheckerResult'))
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />

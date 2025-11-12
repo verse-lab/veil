@@ -119,9 +119,7 @@ section
 
 veil_variables
 
-open Veil
-
-omit χ χ_rep χ_rep_lawful
+-- omit χ χ_rep χ_rep_lawful
 
 deriving_FinOrdToJson_Domain
 
@@ -133,26 +131,6 @@ deriving_Hashable_FieldConcreteType
 
 deriving_rep_FieldRepresentation
 
--- instance : instFinsetLikeLawfulFieldRep Veil.IteratedProd'.equiv ((instFinEnumForToDomain pc_state process) State.Label.c) := by
---   dsimp only [pc_rep, pc.toDomain, Veil.IteratedProd'.equiv, instFinEnumForToDomain]
---   infer_instance
-
-
-instance [Ord pc_state] [Ord process]
-  [Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord (process))))]
-  [Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord (process))))]
-  [DecidableEq (process)]
-: LawfulFinsetLike (FieldConcreteType pc_state process State.Label.c) := by
-  dsimp only [FieldConcreteType, Veil.IteratedProd', State.Label.toDomain, State.Label.toCodomain]
-  infer_instance_for_iterated_prod
-
--- variable [Ord pc_state] [Ord process]
--- variable [Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord (process))))]
--- variable [Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord (process))))]
--- variable [DecidableEq (process)]
-
--- #synth LawfulFinsetLike (FieldConcreteType pc_state process State.Label.c)
-
 deriving_lawful_FieldRepresentation
 
 deriving_Inhabited_State
@@ -161,40 +139,100 @@ deriving_Decidable_Props
 
 end
 
-gen_NextAct
+gen_nextAct
 
 gen_executable_NextAct
 
-
 deriving_enum_instance_for process
-
-deriving_ord_hashable_for_enum process
-
-deriving_propCmp_for_enum process
 
 deriving_enum_instance_for pc_state
 
-deriving_ord_hashable_for_enum pc_state
+instance : Ord process where
+  compare s1 s2 :=
+    compare (s1.toCtorIdx) (s2.toCtorIdx)
 
-deriving_propCmp_for_enum pc_state
+instance : Ord pc_state where
+  compare s1 s2 :=
+    compare (s1.toCtorIdx) (s2.toCtorIdx)
+
+
+instance : Hashable pc_state where
+  hash s := hash s.toCtorIdx
+
+instance : Hashable process where
+  hash s := hash s.toCtorIdx
+
+
+
+instance : Std.ReflCmp (Ord.compare (self := inferInstanceAs (Ord pc_state))) := by
+  apply Std.ReflCmp.mk
+  unfold compare
+  intro a; cases a <;> rfl
+
+instance : Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord pc_state))):= by
+  apply Std.LawfulEqCmp.mk
+  unfold compare inferInstanceAs instOrdPc_state
+  intro a b; cases a <;>
+    cases b <;> simp
+
+instance : Std.ReflCmp (Ord.compare (self := inferInstanceAs (Ord process))) := by
+  apply Std.ReflCmp.mk
+  unfold compare
+  intro a; cases a <;> rfl
+
+instance : Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord process))):= by
+  apply Std.LawfulEqCmp.mk
+  unfold compare inferInstanceAs instOrdProcess
+  intro a b; cases a <;>
+    cases b <;> simp
+
+
+instance :  Std.OrientedCmp (Ord.compare (self := inferInstanceAs (Ord pc_state))) := by
+  apply Std.OrientedCmp.mk
+  unfold compare inferInstanceAs instOrdPc_state
+  intro a b; cases a <;>
+    cases b <;> rfl
+
+
+instance : Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord pc_state))) := by
+  apply Std.TransCmp.mk
+  unfold compare inferInstanceAs instOrdPc_state pc_state.toCtorIdx
+  decide
+
+instance : Std.OrientedCmp (Ord.compare (self := inferInstanceAs (Ord process))) := by
+  apply Std.OrientedCmp.mk
+  unfold compare inferInstanceAs instOrdProcess
+  intro a b; cases a <;>
+    cases b <;> rfl
+
+instance : Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord process))) := by
+  apply Std.TransCmp.mk
+  unfold compare inferInstanceAs instOrdProcess
+  decide
 
 #Concretize pc_state, process
 
-deriving_BEqHashable_ConcreteState
+
+#assembleInsts
 
 
--- simple_deriving_repr_for' State
+simple_deriving_repr_for' State
 deriving instance Repr for Label
--- deriving instance Inhabited for Theory
-
-deriving_toJson_for_state
+deriving instance Inhabited for Theory
 
 
 def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => Inv_P2 ρ σ) ((fun ρ σ => true)) {} hash).snd
 
+deriving_toJson_for_state
 
-def statesJson : Lean.Json :=
-  Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {} (collectTrace' modelCheckerResult'))
+open Lean
+
+def statesJson : Json :=
+  toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {} (collectTrace' modelCheckerResult'))
+
+#check statesJson
+
+#eval statesJson
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />

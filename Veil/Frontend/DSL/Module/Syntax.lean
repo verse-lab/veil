@@ -240,6 +240,10 @@ syntax (name := invariantKind) kw_invariant : propertyKind
 /-- `safety` is a synonym for `invariant`. As a co-/
 syntax (name := safetyKind) kw_safety : propertyKind
 
+/--`termination` is also a synonym for `invariant`, but only used for model checker,
+which would not be emitted to VC generator while verification. -/
+syntax (name := terminationKind) "termination" : propertyKind
+
 /-- An assertion. -/
 syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 

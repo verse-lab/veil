@@ -61,8 +61,16 @@ elab "veil_variables" : command => do
   let some mod := lenv.currentModule | throwError s!"Not in a module"
   let binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder) ← mod.parameters.mapM (·.binder)
   for binder in binders do
+    match binder with
+    | `(bracketedBinder| ($id:ident : $ty:term) )
+    | `(bracketedBinder| [$id:ident : $ty:term] )
+      =>
+      let varId := id.getId
+      dbg_trace s!"{varId} :  {← liftTermElabM <| Lean.PrettyPrinter.formatTerm ty}"
+    | _ => throwError "unsupported veil_variables binder syntax"
     let varUIds ← (← getBracketedBinderIds binder) |>.mapM (withFreshMacroScope ∘ MonadQuotation.addMacroScope)
-    modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds }
+    dbg_trace s!"with unique IDs: {varUIds}"
+    modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds}
 
 /-- Perform simplification using `get_set_idempotent'`. This requires
 some special handling since these `simp` theorems might only be given

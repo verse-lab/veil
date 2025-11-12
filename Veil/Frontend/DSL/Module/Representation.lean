@@ -105,6 +105,7 @@ inductive StateAssertionKind
   it can refer to `mutable` state. It differs from an `invariant` in
   that is only assumed, not checked. -/
   | trustedInvariant
+  | termination
 deriving BEq, Hashable, Repr
 
 instance : Inhabited StateAssertionKind where

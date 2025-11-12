@@ -391,38 +391,38 @@ def permutationDomain := permsOfList (FinEnum.toList (Fin 2))
 
 #eval showPermuted [0, 1, 2] permutationDomain
 
-instance [FinEnum α] [Ord α] : Ord (Std.TreeSet α) where
+instance [Ord α] : Ord (Std.TreeSet α) where
   compare s1 s2 := compare s1.toArray s2.toArray
 
-instance [FinEnum α] [Ord α] : Ord (FieldConcreteType α State.Label.vote_yes) := by
+instance [Ord α] : Ord (FieldConcreteType α State.Label.vote_yes) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance
 
-instance [FinEnum α] [Ord α] : Ord (FieldConcreteType α State.Label.vote_no) := by
+instance [Ord α] : Ord (FieldConcreteType α State.Label.vote_no) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance
 
-instance [FinEnum α] [Ord α] : Ord (FieldConcreteType α State.Label.alive) := by
+instance [Ord α] : Ord (FieldConcreteType α State.Label.alive) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance
 
-instance [FinEnum α] [Ord α] : Ord (FieldConcreteType α State.Label.go_commit) := by
+instance [Ord α] : Ord (FieldConcreteType α State.Label.go_commit) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance
 
-instance [FinEnum α] [Ord α] : Ord (FieldConcreteType α State.Label.go_abort) := by
+instance [Ord α] : Ord (FieldConcreteType α State.Label.go_abort) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance
 
-instance [FinEnum α] [Ord α] : Ord (FieldConcreteType α State.Label.decide_commit) := by
+instance [Ord α] : Ord (FieldConcreteType α State.Label.decide_commit) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance
 
-instance [FinEnum α] [Ord α] : Ord (FieldConcreteType α State.Label.decide_abort) := by
+instance [Ord α] : Ord (FieldConcreteType α State.Label.decide_abort) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
   infer_instance
 
-instance [FinEnum α] [Ord α] : Ord (FieldConcreteType α State.Label.abort_flag) := by
+instance [Ord α] : Ord (FieldConcreteType α State.Label.abort_flag) := by
   dsimp only [FieldConcreteType, State.Label.toCodomain];
   infer_instance
 

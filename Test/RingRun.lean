@@ -27,6 +27,7 @@ after_init {
 action send (n next : node) {
   -- require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   pending n next := true
+  assert false
 }
 
 action recv (sender n next : node) {
@@ -147,15 +148,19 @@ instance lawful (f : State.Label) : LawfulFieldRepresentation
   ((⌞? State.Label.toCodomain ⌟) f)
   ((⌞? FieldConcreteType ⌟) f)
   ((⌞? rep ⌟) f) :=-- by cases f <;> apply instFinsetLikeAsFieldRep <;> apply instFinEnumForComponents
-  match f with
-  | State.Label.leader =>
-    instFinsetLikeLawfulFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.leader)
-  | State.Label.pending =>
-    instFinsetLikeLawfulFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.pending)
-  | State.Label.useless =>
-    instFinsetLikeLawfulFieldRep (⌞? FourNodes.equiv_IteratedProd ⌟) ((⌞? instFinEnumForComponents ⌟) State.Label.useless)
+  -- match f with
+  -- | State.Label.leader =>
+  --   instFinsetLikeLawfulFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.leader)
+  -- | State.Label.pending =>
+  --   instFinsetLikeLawfulFieldRep (IteratedProd'.equiv) ((⌞? instFinEnumForComponents ⌟) State.Label.pending)
+  -- | State.Label.useless =>
+  --   instFinsetLikeLawfulFieldRep (⌞? FourNodes.equiv_IteratedProd ⌟) ((⌞? instFinEnumForComponents ⌟) State.Label.useless)
+  by cases f <;>
+    apply instFinsetLikeLawfulFieldRep <;>
+    apply instFinEnumForComponents
 
 end
+
 
 -- code optimization by controlled `dsimp`
 -- set_option trace.Compiler.result true in
@@ -191,6 +196,10 @@ local macro "⌞ " t:term " ⌟" : term =>
 local macro "⌞State⌟" : term =>
   `(((⌞ State ⌟) ⌞ FieldConcreteType ⌟))
 
+#check ((⌞ State ⌟) (⌞ FieldConcreteType ⌟))
+
+#print State
+
 local macro "⌞_ " t:term " _⌟" : term =>
   `((⌞ $t (⌞ Theory ⌟) (⌞State⌟) ⌟))
 
@@ -211,6 +220,6 @@ def allResults (r₀ : ⌞ Theory ⌟) (s₀ : ⌞State⌟) (l : ⌞ Label ⌟) 
 instance : Repr (State (Fin (Nat.succ 2)) (FieldConcreteType (Fin (Nat.succ 2)))) := by
   infer_instance
 
-#time #eval @allResults 2 {} initState (Label.send 0 0)
+#time #eval @allResults 2 {} initState (Label.send 0 1)
 
 end Ring

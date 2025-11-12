@@ -8,7 +8,7 @@ open Lean Elab Command Tactic Meta Term
 open ProofWidgets Jsx
 
 /- Collect the trace from the model checker. -/
-def collectTrace [Inhabited α] [Inhabited β] [BEq β] [Repr β] [Hashable β] (res : SearchContext α β)
+def collectTrace [BEq β] [Repr β] [Hashable β] [Repr κ] (res : SearchContext α β κ)
 : Array GraphDisplay.Vertex × Array GraphDisplay.Edge := Id.run do
   -- The bad states found by the model checker.
   let unsafeV := res.counterexample
@@ -18,7 +18,7 @@ def collectTrace [Inhabited α] [Inhabited β] [BEq β] [Repr β] [Hashable β] 
   -- goal is the list of states that need to be explored
   let mut goal := unsafeV.toArray
   -- T is the list of edges in the trace
-  let mut T : Array (β × β × String) := #[]
+  let mut T : Array (β × β × κ) := #[]
   -- seen is the list of states that have been seen, i.e., vertices in the trace.
   let mut seen : Array β := #[]
 
@@ -52,8 +52,8 @@ def collectTrace [Inhabited α] [Inhabited β] [BEq β] [Repr β] [Hashable β] 
         GraphDisplay.mkCircle,
       details? := Html.text s!"{stateStr}" : GraphDisplay.Vertex })
 
-
-  let graph_edges := T.map (fun (source, target, label) =>
+  let G := T.map (fun (src, tar, label) => (src, tar, s!"{repr label}")) -- convert label to string
+  let graph_edges := G.map (fun (source, target, label) =>
     let simplifiedLabel :=
       -- Extract event name from labels like "Peterson.Label.evtA1 (Peterson.process.P1)"
       if (label.splitOn "Label.").length > 1 then
@@ -77,6 +77,35 @@ def collectTrace [Inhabited α] [Inhabited β] [BEq β] [Repr β] [Hashable β] 
   return (vertices, graph_edges)
 
 
+/- Collect the trace from the model checker. -/
+def collectTrace' [BEq β] [Repr β] [Hashable β] [Repr κ] (res : SearchContext α β κ)
+: List κ := Id.run do
+  -- The bad states found by the model checker.
+  let unsafeV := res.counterexample
+  -- All the logs from the model checker.
+  let edges := res.log
+  let mut next_round := true
+  -- goal is the list of states that need to be explored
+  let mut goal := unsafeV
+  -- T is the list of edges in the trace
+  let mut T : List (β × β × κ) := []
+  -- seen is the list of states that have been seen, i.e., vertices in the trace.
+  let mut seen : List β := []
+
+  -- Backward search to construct the counterexample trace
+  while next_round do
+    let l := edges.filter (fun (_, target, _) => goal.contains target)
+    seen := seen ++ goal.filter (fun x => !seen.contains x)
+    T := l ++ T
+    let new_sources := l.map (fun (source, _, _) => source)
+    let new_goal := new_sources.filter (fun x => !seen.contains x)
+    goal := new_goal
+    if goal.isEmpty then
+      next_round := false
+
+  return T.map (fun (_, _, act) => act)
+
+
 /-- Create the expanded graph display. -/
 def createExpandedGraphDisplay (vertices : Array GraphDisplay.Vertex) (edges : Array GraphDisplay.Edge) : Html :=
   <GraphDisplay
@@ -84,7 +113,7 @@ def createExpandedGraphDisplay (vertices : Array GraphDisplay.Vertex) (edges : A
     edges={edges}
     forces={#[
       .link { distance? := some 60, strength? := some 0.2 },     -- Add link distance, reduce strength
-      .manyBody { strength? := some (-70) },                     -- Add strong repulsion, prevent nodes from clustering
+      .manyBody { strength? := some (-50) },                     -- Add strong repulsion, prevent nodes from clustering
       .center { x? := some 0, y? := some 0, strength? := some 0.1 }, -- Add weak center force
       .collide { radius? := some 20, strength? := some 1.0 }      -- Prevent nodes from overlapping
     ]}

@@ -26,23 +26,59 @@ def toList {α} (q : fQueue α) : List α :=
   q.front ++ q.back.reverse
 end fQueue
 
-/--
+/-
 The State defintion of the model checker:
 - α is the original type of the state, i.e., State used in Veil DSL.
 - β is the type of the state that we used to store, e.g., StateConcrete.
 - log is the list of transitions that have been seen.
 - counterexample is the list of states that have been seen and are not valid.
 -/
-structure SearchContext (α β : Type) [Inhabited α] [Inhabited β] [BEq β] [Hashable β] where
-  -- seen : Std.HashSet β
+
+
+structure SearchContext (α β κ : Type) [BEq β] [Hashable β] where
   seen : Std.HashSet β
   sq   : fQueue (α × β)
-  log  : List (β  × β  × String)
+  log  : List (β × β × κ)
   counterexample : List β
-deriving Inhabited, Repr
+deriving Inhabited
 
 
-def SearchContext.empty {α β} [Inhabited α] [Inhabited β] [BEq β] [Hashable β] : SearchContext α β :=
+
+-- instance [Repr β] [Repr κ] : Repr (List (β × β × κ)) where
+--   reprPrec xs _ :=
+--     match xs with
+--     | [] => "[]"
+--     | (a, b, c) :: rest =>
+--       let headStr := s!"{repr a} \n──[ {repr c} ]──>\n {repr b}"
+--       let tailStrs :=
+--         rest.map (fun (_, b, c) =>
+--           s!"\n──[ {repr c} ]──>\n {repr b}"
+--         )
+--       s!"[{headStr}{String.join tailStrs}]"
+
+instance [Repr β] [Repr κ] : Repr (List (β × β × κ)) where
+  reprPrec xs _ :=
+    match xs with
+    | [] => "[]"
+    | (a, b, c) :: rest =>
+      let headStr := s!"\n  index:{0}{repr a} \n──[ {repr c} ]──>\n  index:{1}{repr b}"
+      let tailStrs :=
+        (List.zip (List.range rest.length) rest).map (fun (i, (a, b, c)) =>
+          s!"\n──[ {repr c} ]──>\n  index:{i + 2}{repr b}"
+        )
+      s!"[{headStr}{String.join tailStrs}]"
+
+
+
+instance [BEq β] [Hashable β] [Repr κ] [Repr α] [Repr β] : Repr (SearchContext α β κ) where
+  reprPrec ctx _ :=
+    "{ seen := " ++ repr ctx.seen.toList ++
+    ", sq := " ++ repr ctx.sq ++
+    ", log := " ++ repr ctx.log ++
+    ", counterexample := " ++ repr ctx.counterexample ++ " }"
+
+
+def SearchContext.empty {α β} [BEq β] [Hashable β] : SearchContext α β κ :=
   { seen := {},
     sq := fQueue.empty,
     log := [],
@@ -52,14 +88,13 @@ def SearchContext.empty {α β} [Inhabited α] [Inhabited β] [BEq β] [Hashable
 namespace CheckerM
 
 /-- Enqueue state to queue -/
-def enqueueState (s : α) (sigₛ : β)
-  [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
-  : StateT (SearchContext α β ) Id Unit :=
+def enqueueState (s : α) (sigₛ : β) [BEq β] [Hashable β]
+  : StateT (SearchContext α β κ) Id Unit :=
   modify (fun cs => { cs with sq := fQueue.enqueue cs.sq (s, sigₛ) })
 
 /-- Dequeue state from queue -/
-def dequeueState [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
-  : StateT (SearchContext α  β) Id (Option (α × β)) := do
+def dequeueState [BEq β] [Hashable β]
+  : StateT (SearchContext α β κ) Id (Option (α × β)) := do
   let cs ← get
   match fQueue.dequeue? cs.sq with
   | some ((s, sigₛ), q_tail) =>
@@ -68,15 +103,15 @@ def dequeueState [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
   | none => return none
 
 /- Check if state has been seen -/
-def wasSeen (s : β) [Inhabited α] [Inhabited β] [BEq β]
+def wasSeen (s : β) [BEq β]
 [Hashable β]
-  : StateT (SearchContext α β) Id Bool := do
+  : StateT (SearchContext α β κ) Id Bool := do
   let cs ← get
   return cs.seen.contains s
 
 /-- Add state to seen list -/
-def addToSeen (s : β) [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
-  : StateT (SearchContext α β) Id Unit :=
+def addToSeen (s : β) [BEq β] [Hashable β]
+  : StateT (SearchContext α β κ) Id Unit :=
   modify (fun cs =>
     { cs with seen := cs.seen.insert s })
 
@@ -86,15 +121,15 @@ def addToSeen (s : β) [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
 --     { cs with seen := s :: cs.seen })
 
 /-- Add transition to log -/
-def addTransitionToLog {α β} [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
-  (s : β) (s' : β) (tr_info : String)
-  : StateT (SearchContext α β) Id Unit :=
+def addTransitionToLog {α β} [BEq β] [Hashable β]
+  (s : β) (s' : β) (lab : κ)
+  : StateT (SearchContext α β κ) Id Unit :=
   modify (fun cs =>
-    { cs with log := (s, s', tr_info) :: cs.log  })
+    { cs with log := (s, s', lab) :: cs.log  })
 
 /-- Add counterexample -/
-def addCounterExample (cex : β) [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
-  : StateT (SearchContext α β) Id Unit :=
+def addCounterExample (cex : β) [BEq β] [Hashable β]
+  : StateT (SearchContext α β κ) Id Unit :=
   modify (fun cs =>
     { cs with counterexample := cex :: cs.counterexample })
 
