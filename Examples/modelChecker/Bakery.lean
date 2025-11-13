@@ -128,12 +128,19 @@ invariant [resource_mutex] ∀c1 c2, c1 ≠ c2 → ¬(∃s, alloc c1 s ∧ alloc
 #finitizeTypes (Fin 5), (Fin 3)
 
 
-def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => resource_mutex ρ σ) ((fun ρ σ => true)) default hash).snd
-def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM default (collectTrace' modelCheckerResult'))
+
+
+def view (st : StateConcrete) := hash st
+def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => resource_mutex ρ σ)
+def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
+def cfg : TheoryConcrete := default
+
+
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList detect_prop terminationC cfg view).snd
+def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
 #eval modelCheckerResult'.seen.size
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
-
 
 end SimpleAllocator

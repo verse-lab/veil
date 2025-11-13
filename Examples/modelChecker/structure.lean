@@ -2,9 +2,18 @@ import Veil
 import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
 -- ----- MODULE 0_mutex -----
-
 veil module Mutex
 
+-- \* BEGIN TRANSLATION (chksum(pcal) = "b0b421b7" /\ chksum(tla) = "c2205e03")
+-- VARIABLES
+-- 1. locked,
+-- 2. wait_queue_num_wakers,
+-- 3. wait_queue_wakers,
+-- 4. has_woken,
+-- 5. pc,
+-- 6. stack,
+-- 7. waker
+--
 type process
 -- type seq_t
 individual locked : Bool
@@ -13,11 +22,8 @@ enum states = { pre_check_lock, wait_until, enqueue_waker,
                 release_lock, wake_one, wake_one_loop,
                 wake_up, start, cs, Done }
 
--- instantiate states_isEnum : @states_Enum states
-
 -- instantiate seq : TotalOrderWithZero seq_t
 -- immutable individual one : seq_t
-
 -- individual wait_queue_num_wakers : seq_t
 
 individual wait_queue_wakers : List process
@@ -26,10 +32,25 @@ relation has_woken (th: process)
 relation pc (self: process) (st: states)
 immutable individual none : process
 
-function stack_pc : process → List states
+/-
+Decompose the structure into two relations:
+- `stack_pc` : process → seq_t → states
+- `stack_waker` : process → seq_t → process.
 
+To model the list, we use two individuals, which represent
+the head and tail of the list respectively.
 
-function stack_waker : process → List process
+[ procedure |->  "unlock",
+  pc        |->  "Done",
+  waker     |->  waker[self] ]
+-/
+
+structure Cell (states process : Type) where
+  pc : states
+  waker : process
+deriving DecidableEq, Inhabited, BEq, Hashable, Ord, Repr, Lean.ToJson
+
+function stack : process → List (Cell states process)
 relation waker (self: process) (waker: process)
 
 #gen_state
@@ -57,8 +78,9 @@ after_init {
   has_woken P := false
   waker P W := W == none
 
-  stack_pc P := []
-  stack_waker P := []
+  -- stack_pc P := []
+  -- stack_waker P := []
+  stack P := []
   pc P S := S == start
 }
 
@@ -72,9 +94,10 @@ after_init {
 action _start (self : process) {
   require pc self start
   -- let t := stack_pc self
-  stack_pc self := cs :: (stack_pc self)
+  -- stack_pc self := cs :: (stack_pc self)
   let random_waker ← pick process
-  stack_waker self := random_waker :: (stack_waker self)
+  -- stack_waker self := random_waker :: (stack_waker self)
+  stack self := { pc := cs, waker := random_waker } :: (stack self)
   pc self S := S == pre_check_lock
 }
 
@@ -92,11 +115,10 @@ action _pre_check_lock (self : process) {
   require pc self pre_check_lock
   if locked == false then
     locked := true
-
-    let head_stack_pc_state := (stack_pc self).head!
+    -- assert stack self ≠ []
+    let head_stack_pc_state := (stack self).head!.pc
     pc self S := S == head_stack_pc_state
-    stack_pc self := (stack_pc self).tail
-    stack_waker self := (stack_waker self).tail
+    stack self := (stack self).tail
   else
     pc self S := S == wait_until
 }
@@ -135,10 +157,10 @@ action _check_lock (self : process) {
   require pc self check_lock
   if locked == false then
     locked := true
-    let head_stack_pc_state := (stack_pc self).head!
+    -- assert stack self ≠ []
+    let head_stack_pc_state := (stack self).head!.pc
     pc self S := S == head_stack_pc_state
-    stack_pc self := (stack_pc self).tail
-    stack_waker self := (stack_waker self).tail
+    stack self := (stack self).tail
   else
     pc self S := S == check_has_woken
 }
@@ -185,13 +207,12 @@ action _release_lock (self : process) {
 action _wake_one (self : process) {
   require pc self wake_one
   if wait_queue_wakers.length == 0 then
-    let head_stack_pc_state := (stack_pc self).head!
+    -- assert stack self ≠ []
+    let head_stack_pc_state := (stack self).head!.pc
     pc self S := S == head_stack_pc_state
-    let headwaker_stack_waker := (stack_waker self).head!
+    let headwaker_stack_waker := (stack self).head!.waker
     waker self W := W == headwaker_stack_waker
-
-    stack_pc self := (stack_pc self).tail
-    stack_waker self := (stack_waker self).tail
+    stack self := (stack self).tail
   else
     pc self S := S == wake_one_loop
 }
@@ -218,13 +239,13 @@ action _wake_one_loop (self : process) {
     wait_queue_wakers := wait_queue_wakers.tail
     pc self S := S == wake_up
   else
-    let head_stack_pc_state := (stack_pc self).head!
+    let head_stack_pc_state := (stack self).head!.pc
     pc self S := S == head_stack_pc_state
-    stack_pc self := (stack_pc self).tail
+    -- stack self := (stack self).tail
 
-    let headwaker_stack_waker := (stack_waker self).head!
+    let headwaker_stack_waker := (stack self).head!.waker
     waker self W := W == headwaker_stack_waker
-    stack_waker self := (stack_waker self).tail
+    stack self := (stack self).tail
 }
 
 
@@ -247,30 +268,30 @@ action _wake_up (self : process) {
     /- Condition 1: -/
     if has_woken waker_self == false then
       has_woken waker_self := true
-      let head_stack_pc_state := (stack_pc self).head!
+      let head_stack_pc_state := (stack self).head!.pc
       pc self S := S == head_stack_pc_state
-      stack_pc self := (stack_pc self).tail
 
-      let headwaker_stack_waker := (stack_waker self).head!
+      let headwaker_stack_waker := (stack self).head!.waker
       waker self W := W == headwaker_stack_waker
-      stack_waker self := (stack_waker self).tail
+
+      stack self := (stack self).tail
     else
       pc self S := S == wake_one_loop
 
-  else
-    /- Exception handle -/
-    let waker_self := none
-    if has_woken waker_self == false then
-      has_woken waker_self := true
-      let head_stack_pc_state := (stack_pc self).head!
-      pc self S := S == head_stack_pc_state
-      stack_pc self := (stack_pc self).tail
+  -- else
+  --   /- Exception handle -/
+  --   let waker_self := none
+  --   if has_woken waker_self == false then
+  --     has_woken waker_self := true
+  --     let head_stack_pc_state := (stack_pc self).head!
+  --     pc self S := S == head_stack_pc_state
+  --     stack_pc self := (stack_pc self).tail
 
-      let headwaker_stack_waker := (stack_waker self).head!
-      waker self W := W == headwaker_stack_waker
-      stack_waker self := (stack_waker self).tail
-    else
-      pc self S := S == wake_one_loop
+  --     let headwaker_stack_waker := (stack_waker self).head!
+  --     waker self W := W == headwaker_stack_waker
+  --     stack_waker self := (stack_waker self).tail
+  --   else
+  --     pc self S := S == wake_one_loop
 
 }
 
@@ -279,45 +300,53 @@ action _wake_up (self : process) {
 --                    \/ wake_up(self)
 
 
-
+-- cs(self) == /\ pc[self] = "cs"
+--             /\ TRUE
+--             /\ stack' = [stack EXCEPT ![self] = << [ procedure |->  "unlock",
+--                                                      pc        |->  "Done",
+--                                                      waker     |->  waker[self] ] >>
+--                                                  \o stack[self]]
+--             /\ waker' = [waker EXCEPT ![self] = NONE]
+--             /\ pc' = [pc EXCEPT ![self] = "release_lock"]
+--             /\ UNCHANGED << locked, wait_queue_num_wakers, wait_queue_wakers,
+--                             has_woken >>
 action _cs(self : process) {
   require pc self cs
-  stack_pc self := Done :: (stack_pc self)
+  -- stack_pc self := Done :: (stack_pc self)
   if ∃t, waker self t then
     let waker_self :| waker self waker_self
-    stack_waker self := waker_self :: (stack_waker self)
+    -- stack_waker self := waker_self :: (stack_waker self)
     -- waker self W := false
     waker self W := W == none
-
-  else
-    let waker_self := none
-    stack_waker self := waker_self :: (stack_waker self)
-    waker self W := W == none
+    stack self := { pc := Done, waker := waker_self } :: (stack self)
+  -- else
+  --   let waker_self := none
+  --   stack_waker self := waker_self :: (stack_waker self)
+  --   waker self W := W == none
 
   pc self S := S == release_lock
 }
 
-
-termination [allDone] pc P Done
+termination [allDone] pc S Done
 invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 
 
 #gen_spec
 
+
 #prepareExecution
 
 #finitizeTypes (Fin 3), states
 
--- Step 3: Run the model checker
+
+
 def view (st : StateConcrete) := hash st
+def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => mutual_exclusion ρ σ)
+def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => allDone ρ σ)
+def cfg : TheoryConcrete := {none := 0}
 
-def modelCheckerResult' :=
-   (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => mutual_exclusion ρ σ) ((fun ρ σ => allDone ρ σ)) {none := 0} view).snd
-
-def statesJson : Lean.Json :=
-  Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace' modelCheckerResult'))
-
-#eval statesJson
+def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
+def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
