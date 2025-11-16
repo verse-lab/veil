@@ -41,6 +41,12 @@ def ProcedureInfo.nameInMode (pi : ProcedureInfo) (mode? : Option Mode) : Name :
   | .none => toDoName pi.name
   | .some mode => toActName pi.name mode
 
+/-- `[unchanged|s| id1 id2 ...]` expands to
+`id1 = id1s ∧ id2 = id2s ∧ ...`, where `idxs` is the name `idx` with `s` appended. -/
+macro_rules
+  | `([unchanged|$s:str| $id:ident]) => `($id = $(mkIdent <| id.getId.appendAfter s.getString))
+  | `([unchanged|$s| $id $ids*]) => `([unchanged|$s| $id] ∧ [unchanged|$s| $ids*])
+  | `([unchanged|$_|]) => `(True)
 
 /-! ## Auxiliary definitions-/
 namespace AuxiliaryDefinitions
@@ -225,27 +231,39 @@ end AuxiliaryDefinitions
 
 /-! ## Procedure elaboration -/
 
-def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Name × Array Parameter × Expr) := do
+private def withVeilModeVar (bi : BinderInfo) (k : Expr → TermElabM α) : TermElabM α :=
+  Meta.withLocalDecl veilModeVar.getId bi (mkConst ``Mode) k
+
+/-- Elaborate `body` under `br`, and obtain its extra parameters. -/
+def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (body : Term) (addModeArg : Bool := true) : TermElabM (Array Parameter × Expr) := do
   let brs ← Option.stxArrMapM br toFunBinderArray
-  let stx ← `(fun $brs* => veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
+  let stx ← `(fun $brs* => ($body))
   try
-    Meta.withLocalDecl veilModeVar.getId BinderInfo.default (mkConst ``Mode) fun mode => do
+    withVeilModeVar BinderInfo.default fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
-    let e ← Meta.mkLambdaFVarsImplicit (#[mode] ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
+    let e ← Meta.mkLambdaFVarsImplicit ((if addModeArg then #[mode] else #[]) ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
     -- `e` should not contain any metavariable; capture the error here
     if e.hasMVar then
       throwError "mvar(s) exist in the elaborated expression. Consider adding more type annotations."
     -- NOTE: Doing `dsimp` on `act.do`, `act` or `act.ext` will inline
     -- `let` bindings, which _might_ lead to performance issues
-    return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)
+    return (← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)
   catch ex =>
     throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
 where
   mvarToParam (inAction : Name) (mvar : Expr) (i : Nat) : TermElabM Parameter := do
     let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar) true
     return { kind := .definitionTypeclass inAction, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
+
+def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Array Parameter × Expr) := do
+  let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
+  elabProcedureCore vs pi br body
+
+def elabTransitionTerm (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (t : Term) : TermElabM (Array Parameter × Expr) := do
+  let body ← `(@$(mkIdent ``id) ($(mkIdent ``Transition) $environmentTheory $environmentState) ($t))
+  elabProcedureCore vs pi br body (addModeArg := false)
 
 def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : TermElabM (Name × Expr) := do
   let doNm_fullyQualified ← getFullyQualifiedName $ (pi.nameInMode .none)
@@ -273,12 +291,8 @@ private def Module.registerDerivedActionDefinition [Monad m] [MonadError m] [Mon
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
-def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
-  let mod := mod
-  -- Obtain `extraParams` so we can register the action
-  let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
-  let (nmDo, extraParams, e) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
-  let ps := ProcedureSpecification.mk pi br extraParams spec l stx
+def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
+  (eDo : Expr) (ps : ProcedureSpecification) : CommandElabM Module := do
   -- We register the `internal` view of the action as the "real" one
   let mod ← mod.registerProcedureSpecification ps
   -- The `.do` and `.ext` views are marked as derived definitions
@@ -287,7 +301,8 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   let (mod, extKind) ← mod.registerDerivedActionDefinition ps Mode.external
   -- Elaborate the definitions in the Lean environment
   liftTermElabM $ do
-    let _nmDo_fullyQualified ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
+    let nmDo := pi.nameInMode .none
+    let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
     let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
     let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
     AuxiliaryDefinitions.define mod nmInt .internal intKind
@@ -300,5 +315,32 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
       AuxiliaryDefinitions.define mod nmExt .external extKind
   return mod
 
+def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
+  -- Obtain `extraParams` so we can register the action
+  let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
+  let (extraParams, eDo) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
+  let ps := ProcedureSpecification.mk pi br extraParams spec l stx
+  mod.defineProcedureCore pi eDo ps
+
+def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders)) (t : Term) (stx : Syntax) : CommandElabM Module := do
+  -- Obtain `extraParams` so we can register the action
+  let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
+  let (extraParams, eTr) ← liftTermElabMWithBinders actionBinders $ fun vs => elabTransitionTerm vs pi br t
+  let eDo ← liftTermElabM do
+    let tmp ← withVeilModeVar BinderInfo.implicit fun mode => do
+      Meta.lambdaTelescope eTr fun xs eTrBody => do
+        -- get rid of the `id` wrapper; we can do this via `dsimp`-like
+        -- things, but this is more direct
+        let eTrBody := match_expr eTrBody with
+          | id _ a => a
+          | _ => eTrBody
+        let body ← Meta.mkAppOptM ``Transition.toVeilM #[.some mode, .none, .none, .some eTrBody]
+        let body ← (Simp.dsimp #[``Transition.toVeilM]) body
+        Meta.mkLambdaFVars (#[mode] ++ xs) body.expr
+    instantiateMVars tmp
+  -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
+  let ps := ProcedureSpecification.mk pi br extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
+  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName pi.name) eTr
+  mod.defineProcedureCore pi eDo ps
 
 end Veil

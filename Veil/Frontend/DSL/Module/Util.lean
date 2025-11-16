@@ -335,6 +335,72 @@ def Module.trustedInvariants (mod : Module) : Array StateAssertion :=
 def Module.safeties (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .safety)
 
+/-- Recursively get all fields that are available in this module
+(including fields from child modules). -/
+def Module.getFieldsRecursively [Monad m] [MonadEnv m] [MonadError m] (mod : Module) : m (Array Name) := do
+  let res ← go mod Name.anonymous
+  return res
+where
+  go (mod : Module) (path : Name) : m (Array Name) := do
+    let mut fields := #[]
+    for comp in mod.signature do
+      match comp.kind with
+      | .module =>
+        -- FIXME: Not fully sure how to obtain the child module name here.
+        -- Maybe need to extend the definition of `StateComponent`?
+        /-
+        let .some modName := comp.moduleName
+          | throwError s!"(internal error) {comp} has no module name in its StateComponent definition"
+        let spec' := (← globalSpecCtx.get)[modName]!.spec
+        fields := fields ++ (← go spec' (path.push comp.name))
+        -/
+        pure ()
+      | _ => fields := fields.push (path.appendCore comp.name)
+    return fields
+
+/-- Throw an error if the field (which we're trying to assign to) was
+declared immutable. -/
+def Module.throwIfImmutable [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) (nm : Name) (isTransition : Bool := false) : m Unit := do
+  -- NOTE: This code supports two modes of operation:
+  -- (a) child modules' state is immutable in the parent
+  -- (b) child modules' state mutability annotations are inherited in the parent
+  let .some sc := mod.signature.find? (·.name == nm.getRoot)
+    | throwError "trying to assign to undeclared state component {nm}"
+  if sc.kind == StateComponentKind.module && sc.isImmutable then -- (a)
+    throwError "cannot assign to {nm}: child module's ({sc.name}) state is immutable in the parent ({mod.name})"
+  else -- (b)
+    let (modules, field, innerMostMod) ← getInnerMostModule mod nm
+    trace[veil.debug] "{nm} ({sc}) → assigning to field {ppModules modules}.{field} (declared in module {innerMostMod.name})"
+    let .some sc' := innerMostMod.signature.find? (·.name == field)
+      | throwError "trying to assign to undeclared state component {nm} (fully qualified name: {ppModules modules}.{field})"
+    if sc'.isImmutable then
+      let msg := if isTransition then "the transition might modify" else "trying to assign to"
+      let explanation := if isTransition then s!" (since it mentions its primed version {sc'.name.appendAfter "'"})" else ""
+      throwError "{sc'.kind} {sc'.name} in module {innerMostMod.name} was declared immutable, but {msg} it{explanation}!"
+where
+  ppModules (modules : Array Name) := ".".intercalate $ Array.toList $ modules.map (·.toString)
+  getInnerMostModule (mod : Module) (nm : Name) : m (Array Name × Name × Module) := do
+    let mut curMod := mod
+    let field := nm.updatePrefix .anonymous
+    let mut path := nm.components.dropLast
+    -- This contains the full names of the modules in the path to the field
+    let mut modules : Array Name := #[]
+    while true do
+      let scName :: path' := path
+        | break
+      let .some sc := curMod.signature.find? (·.name == scName)
+        | throwError "trying to assign to {nm}, but {scName} is not a declared field in {ppModules modules}"
+      -- FIXME: Not fully sure how to obtain the child module name here.
+      -- Maybe need to extend the definition of `StateComponent`?
+      -- let .some subMod := sc.moduleName
+      --   | throwError "(internal error) {sc} has no module name in its StateComponent definition"
+      -- modules := modules.push topModule
+      path := path'
+      -- match (← globalSpecCtx.get)[subMod]? with
+      -- | .some mod => curMod := mod.spec
+      -- | .none => throwError "trying to assign to {nm}, but {subMod} (the module type of {sc} in {path}) is not a declared module"
+    return (modules, field, curMod)
+
 def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (withFieldConcreteType? : Bool := false) : m Term :=
   return ← `(term| @$(mkIdent stateName) $(← mod.sortIdents withFieldConcreteType?)*)
 
@@ -585,52 +651,65 @@ elab_rules : tactic
   | `(tactic| veil_exact_theory) => elabExactTheory
   | `(tactic| veil_exact_state) => elabExactState
 
+inductive TheoryAndStateTermTemplateArgKind where
+  | theory | state (suffix : Option String)
+
+/-- Given `t : Prop` which accesses fields of theory and/or state,
+returns the proper "wrapper" term which pattern-matches over theory
+and/or and state, thus making all their fields accessible in `t`.
+`t` can depend on the field names of theory and state. The pattern-matches
+are generated according to `targets`. -/
+def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (TheoryAndStateTermTemplateArgKind × Ident))
+  (t : Array Ident /- field names of theory -/ →
+       Array Ident /- field names of state -/ →
+       MetaM (TSyntax `term))
+  : MetaM (TSyntax `term) := do
+  let motive := mkIdent `motive
+  let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
+  let casesOnTheory := theoryName ++ `casesOn
+  let casesOnState := stateName ++ `casesOn
+  let theoryFields ← getFieldIdentsForStruct theoryName
+  let stateFields ← getFieldIdentsForStruct stateName
+  let t ← t theoryFields stateFields
+  targets.foldrM (init := t) fun (kind, i) body => do
+    match kind with
+    | .theory =>
+      `(term|
+        @$(mkIdent casesOnTheory) $(← mod.sortIdents)*
+        ($motive := fun _ => Prop)
+        ($(mkIdent ``readFrom) $i)
+        (fun $[$theoryFields]* => ($body)))
+    | .state suffix =>
+      let sfs : Array Ident := match suffix with
+        | .some suf => stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
+        | .none => stateFields
+      let body' ← if !mod._useFieldRepTC then pure body else
+        -- annotate types here, otherwise there can be issues like: for `f a`
+        -- where `f` has a complicated type but definitionally equal to `node → Bool`,
+        -- coercions will not be inserted to make `f a` into `Prop`
+        -- (notice that `decide` expects a `Prop` argument here)
+        let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
+        sfs.zip fieldTypes |>.foldrM (init := body) fun (f, ty) b => do
+          `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
+      `(term|
+        @$(mkIdent casesOnState) $(← mod.sortIdents mod._useFieldRepTC)*
+        ($motive := fun _ => Prop)
+        ($(mkIdent ``getFrom) $i)
+        (fun $[$sfs]* => ($body')))
+
 /-- This is used wherever we want to define a predicate over the
 background theory (e.g. in `assumption` definitions). Instead of
 writing `fun th => Pred`, this will pattern-match over the theory and
 make all its fields accessible for `Pred`. -/
 def withTheory (t : Term) :  MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
   let mut mod ← getCurrentModule
-  let theoryName := mod.name ++ theoryName
-  let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
-  let (th, motive) := (mkIdent `th, mkIdent `motive)
-  let fn ← `(term|(fun ($th : $environmentTheory) =>
-    @$(casesOnTheory)
-    $(← mod.sortIdents)*
-    ($motive := fun _ => Prop)
-    ($(mkIdent ``readFrom) $th)
-    (fun $[$(← getFieldIdentsForStruct theoryName)]* => $t)))
+  let th := mkIdent `th
+  let fn ← do
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th)] (fun _ _ => pure t)
+    `(term| (fun ($th : $environmentTheory) => $tmp))
   -- See NOTE(SUBTLE) to see why this is not actually ill-typed.
   let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory))]
   return (binders, ← `(term|$fn $th))
-
-private def Module.withTheoryAndStateTermTemplate (mod : Module) (th st : Ident)
-  (t : Array Ident /- field names of theory -/ → Array Ident /- field names of state -/ → MetaM (TSyntax `term))
-  : MetaM (TSyntax `term) := do
-  let motive := mkIdent `motive
-  let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
-  let casesOnTheory ← delabVeilExpr $ mkConst $ (theoryName ++ `casesOn)
-  let casesOnState ← delabVeilExpr $ mkConst $ (stateName ++ `casesOn)
-  let theoryFields ← getFieldIdentsForStruct theoryName
-  let stateFields ← getFieldIdentsForStruct stateName
-  let t ← t theoryFields stateFields
-  let body ← if !mod._useFieldRepTC then pure t else
-    -- annotate types here, otherwise there can be issues like: for `f a`
-    -- where `f` has a complicated type but definitionally equal to `node → Bool`,
-    -- coercions will not be inserted to make `f a` into `Prop`
-    -- (notice that `decide` expects a `Prop` argument here)
-    let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
-    stateFields.zip fieldTypes |>.foldrM (init := t) fun (f, ty) b => do
-      `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
-  `(term|
-    @$(casesOnTheory) $(← mod.sortIdents)*
-    ($motive := fun _ => Prop)
-    ($(mkIdent ``readFrom) $th) <|
-    (fun $[$theoryFields]* =>
-      @$(casesOnState) $(← mod.sortIdents mod._useFieldRepTC)*
-      ($motive := fun _ => Prop)
-      ($(mkIdent ``getFrom) $st)
-      (fun $[$stateFields]* => ($body))))
 
 /-- This is used wherever we want to define a predicate over the
 background theory and the mutable state (e.g. in `invariant`
@@ -641,7 +720,7 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   let mut mod ← getCurrentModule
   let (th, st) := (mkIdent `th, mkIdent `st)
   let fn ← do
-    let tmp ← mod.withTheoryAndStateTermTemplate th st (fun _ _ => pure t)
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st)] (fun _ _ => pure t)
     `(term| (fun ($th : $environmentTheory) ($st : $environmentState) => $tmp))
   -- NOTE(SUBTLE): `by veil_exact_theory` and `by veil_exact_state` work in a
   -- counter-intuitive way when applied to assertions. Concretely, these tactics
@@ -697,7 +776,7 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   -- build the type of `core_eq`
   let a := mkIdent `a ; let th := mkIdent `th ; let st := mkIdent `st
   let coreEqType ← do
-    let body ← mod.withTheoryAndStateTermTemplate th st fun theoryFieldNames stateFieldNames =>
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st)] fun theoryFieldNames stateFieldNames =>
       pure <| Syntax.mkApp core (#[a] ++ theoryFieldNames ++ stateFieldNames)
     `(term| ∀ ($a : $α) ($th : $environmentTheory) ($st : $environmentState),
     $(mkIdent `post) $a $th $st = $body)

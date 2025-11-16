@@ -178,12 +178,12 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
   let isStructureAssignment := !name.isAtomic
   let component := mod.signature.find? (·.name = name)
   if isStructureAssignment || component.isNone then
-    -- TODO: throwIfImmutable
+    mod.throwIfImmutable name
     let res ← `(Term.doSeqItem| $id:ident := $t:term)
     return #[res]
   else
     let .some component := component | unreachable!
-    -- TODO: throwIfImmutable
+    mod.throwIfImmutable name
     let bindId := mkIdent <| ← mkFreshUserName $ (mkVeilImplementationDetailName $ Name.mkSimple s!"bind_{id.getId}")
     if mod._useFieldRepTC then
       /-

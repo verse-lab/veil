@@ -75,3 +75,21 @@ instance ordered_ring (node : Type) (rank : node → Nat) (rank_inj : ∀ n1 n2,
     by_cases h3 : b = c ; subst_vars ; simp
     have hh1 := rank_inj _ _ h1 ; have hh2 := rank_inj _ _ h2 ; have hh3 := rank_inj _ _ h3
     omega
+
+class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset : outParam Type) where
+  is_byz : node → Prop
+  member (a : node) (s : nset) : Prop
+  is_empty (s : nset) : Prop
+
+  greater_than_third (s : nset) : Prop  -- f + 1 nodes
+  supermajority (s : nset) : Prop       -- 2f + 1 nodes
+
+  supermajorities_intersect_in_honest :
+    ∀ (s1 s2 : nset), supermajority s1 → supermajority s2 →
+      ∃ (a : node), member a s1 ∧ member a s2 ∧ ¬ is_byz a
+  greater_than_third_one_honest :
+    ∀ (s : nset), greater_than_third s → ∃ (a : node), member a s ∧ ¬ is_byz a
+  supermajority_greater_than_third :
+    ∀ (s : nset), supermajority s → greater_than_third s
+  greater_than_third_nonempty :
+    ∀ (s : nset), greater_than_third s → ¬ is_empty s
