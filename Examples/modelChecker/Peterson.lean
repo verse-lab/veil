@@ -126,7 +126,7 @@ invariant [progress_critical]
 
 -- #check_invariants
 
-#prepareExecution
+#gen_exec
 
 #finitizeTypes Phase, Process
 
@@ -136,13 +136,7 @@ def modelCheckerResult' :=
   (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => mutual_exclusion ρ σ) ((fun ρ σ => true)) {} view).snd
 
 #eval modelCheckerResult'.seen.size
-open Lean
-
-def statesJson : Json :=
-  toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {} (collectTrace' modelCheckerResult'))
-#eval statesJson
--- #eval statesJson
-
+def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {} (collectTrace' modelCheckerResult'))
 #eval statesJson
 open ProofWidgets
 open scoped ProofWidgets.Jsx

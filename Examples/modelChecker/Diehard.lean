@@ -66,7 +66,7 @@ invariant [not_solved] big ≠ 4
 #time #check_invariants
 
 
-#prepareExecution
+#gen_exec
 
 #finitizeTypes
 

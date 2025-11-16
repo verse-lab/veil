@@ -29,6 +29,7 @@ variable {ℂ ℝ 𝔸: Type}
 variable {κ κᵣ ρ σᵣ α: Type}
 variable {ε σ: Type}
 
+
 def DivM.run (a : DivM α) : Option α :=
   match a with
   | .res x => .some x
@@ -119,26 +120,25 @@ def runModelCheckerx (rd : ρ) (view : σᵣ → σₛ) : Id (Unit × (SearchCon
   let cfg := SearchContext.empty
   let restrictions := (fun (_ : ρ) (_ : σᵣ) => true)
   let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
-  -- dbg_trace s!"Initial state: {repr st₀}"
   (bfsSearch nextVeilMultiExecM allLabels INV Terminate st₀ rd view) |>.run cfg
 
 
-structure Step (σᵣ κ: Type) where
-  label : κ
-  next  : σᵣ
-deriving Repr, Inhabited
 
-structure Trace (σᵣ κ : Type) where
-  start : σᵣ
-  steps : List (Step σᵣ κ)
-deriving Repr, Inhabited
+-- structure Step (σᵣ κ: Type) where
+--   label : κ
+--   next  : σᵣ
+-- deriving Repr, Inhabited
+
+-- structure Trace (σᵣ κ : Type) where
+--   start : σᵣ
+--   steps : List (Step σᵣ κ)
+-- deriving Repr, Inhabited
 
 
 open CheckerM in
-def recoverTrace (rd : ρ) (linearLabels : List κ) [Repr κ]
-  : Trace σᵣ κ := Id.run do
-  if linearLabels.isEmpty then return { start := default, steps := [] }
-
+def recoverTrace (rd : ρ) (linearLabels : List κ) [Repr κ] : Trace σᵣ κ := Id.run do
+  if linearLabels.isEmpty then
+    return { start := default, steps := [] }
   let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
   let mut steps : List (Step σᵣ κ) := []
   let mut curSt := st₀

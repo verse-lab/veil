@@ -87,8 +87,7 @@ invariant [unsolved] ¬ (goat_pos = far ∧ wolf_pos = far ∧ cabbage_pos = far
 #gen_spec
 
 
-#prepareExecution
-
+#gen_exec
 #finitizeTypes position
 
 

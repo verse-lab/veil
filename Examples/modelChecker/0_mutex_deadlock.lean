@@ -304,8 +304,7 @@ invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 
 #gen_spec
 
-#prepareExecution
-
+#gen_exec
 #finitizeTypes (Fin 3), states
 
 -- Step 3: Run the model checker
@@ -314,10 +313,7 @@ def view (st : StateConcrete) := hash st
 def modelCheckerResult' :=
    (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => mutual_exclusion ρ σ) ((fun ρ σ => allDone ρ σ)) {none := 0} view).snd
 
-def statesJson : Lean.Json :=
-  Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace' modelCheckerResult'))
-
-#eval statesJson
+def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace' modelCheckerResult'))
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />

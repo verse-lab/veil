@@ -1,10 +1,6 @@
 import Veil
 import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
-
-import Veil.Core.Tools.Checker.Concrete.modelCheckerView
-import ProofWidgets.Component.HtmlDisplay
-
 veil module SimpleAllocator
 -- ------------------------ MODULE SimpleAllocator -------------------------
 -- (***********************************************************************)
@@ -123,9 +119,10 @@ invariant [resource_mutex] ∀c1 c2, c1 ≠ c2 → ¬(∃s, alloc c1 s ∧ alloc
 -- (** THEOREM SimpleAllocator2 => ClientsWillObtain       **)
 -- (** THEOREM SimpleAllocator2 => InfOftenSatisfied       **)
 -- =========================================================================
-#prepareExecution
+#gen_exec
 
 #finitizeTypes (Fin 5), (Fin 3)
+
 
 
 
@@ -137,8 +134,10 @@ def cfg : TheoryConcrete := default
 
 
 def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList detect_prop terminationC cfg view).snd
-def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
 #eval modelCheckerResult'.seen.size
+#eval collectTrace' modelCheckerResult'
+def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
+#eval statesJson
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />

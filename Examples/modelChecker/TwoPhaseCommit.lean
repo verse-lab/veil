@@ -202,7 +202,7 @@ action RMRcvAbortMsg (r : node) {
 --   (* Commit protocol implements the specification TCSpec of the            *)
 --   (* Transaction Commit protocol.                                          *)
 --   (*************************************************************************)
-#prepareExecution
+#gen_exec
 #finitizeTypes (Fin 5), rmStateType, tmStateType
 
 def view (st : StateConcrete) := hash st

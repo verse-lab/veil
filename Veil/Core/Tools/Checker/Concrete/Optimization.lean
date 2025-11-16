@@ -136,12 +136,12 @@ def showPermuted (xs : List α) (σs : List (Equiv.Perm α)) : List (List α) :=
 def permutationDomain := permsOfList (FinEnum.toList (Fin 2))
 #eval permutationDomain.length
 
-#eval permutateEquivalent e0 (permutationDomain[1])
+-- #eval permutateEquivalent e0 (permutationDomain[1])
 #eval (permutateEquivalent_ef e1 (permutationDomain[1])) == e1
 
 #eval showPermuted [0, 1] permutationDomain
 
-#eval compare e0 e1
+-- #eval compare e0 e1
 
 
 

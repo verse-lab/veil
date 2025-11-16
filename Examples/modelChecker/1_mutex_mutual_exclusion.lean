@@ -428,8 +428,7 @@ set_option maxHeartbeats 250000
 #gen_spec
 
 
-#prepareExecution
-
+#gen_exec
 #finitizeTypes (Fin 3), states
 
 

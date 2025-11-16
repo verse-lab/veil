@@ -181,7 +181,7 @@ invariant [Txlifecycle] (  ∀t, tx t → (∀k, (∃v, store k v ≠ snapshotSt
 -- #time #check_invariants
 
 
-#prepareExecution
+#gen_exec
 
 #finitizeTypes key, value, txId
 -- #finitizeTypes (Fin 2), value, (Fin 2)

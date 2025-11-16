@@ -1,7 +1,6 @@
 import Veil
 import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
-import ProofWidgets.Component.HtmlDisplay
 
 veil module Rooms
 
@@ -14,7 +13,6 @@ enum Guest = {Olivier, Bruno, Aquinas}
 enum Position = {noroom, room}
 enum Occupied = {nobody, body}
 
-
 immutable individual one : seq_t
 relation assignedKey : Guest → Position → Bool
 relation registered : Room → Guest → Bool
@@ -22,6 +20,7 @@ relation roomKey : Room → Room → seq_t → Bool
 relation guestKeys : Guest → Room → seq_t → Bool
 relation inside : Room → Occupied → Bool
 
+#print Room_Enum
 
 #gen_state
 
@@ -82,7 +81,6 @@ action EnterRoom(g : Guest) (r : Room) {
 }
 
 
-
 action LeaveRoom (g : Guest) (r : Room) {
   require assignedKey g room
   require inside r body
@@ -137,10 +135,11 @@ invariant [current_key_registration]
 
 #gen_spec
 
+#time #check_invariants
 
-#prepareExecution
+#gen_exec
 
-#finitizeTypes(Fin 2), Room, Guest, Position, Occupied
+#finitizeTypes (Fin 2), Room, Guest, Position, Occupied
 
 
 def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => no_future_keys ρ σ) ((fun ρ σ => true)) {one := 1} hash).snd

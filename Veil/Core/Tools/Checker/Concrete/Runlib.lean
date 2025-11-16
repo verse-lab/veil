@@ -3,7 +3,7 @@ import Veil.Frontend.Std
 import Veil.Core.Tools.Checker.Concrete.State
 import Veil.Frontend.DSL.Infra.GenericInterface
 
-
+open Lean
 /--
 `BEq` instances for `Std.TreeMap` and `Std.TreeSet`.
 
@@ -62,8 +62,9 @@ instance [Ord α] [Ord β]: Ord (Veil.TotalTreeMap α β) where
   compare s1 s2 := compare s1.val.toArray s2.val.toArray
 
 
-/- `ToJson` instances -/
-open Lean
+/--
+`ToJson` instances
+-/
 instance [Repr α]: ToJson α where
   toJson := fun a => Json.str (toString (repr a))
 
@@ -85,17 +86,17 @@ instance jsonOfTotalTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Veil.Tota
 instance jsonOfTrace {σₛ κ : Type} [ToJson σₛ] [ToJson κ] : ToJson (Trace σₛ κ) where
   toJson := fun tr =>
     let states : Array Json :=
-      #[ Json.mkObj [("index", toJson 0),
-        ("fields", toJson tr.start),
-        ("action", "after_init") ]] ++
+      #[ Json.mkObj
+        [ ("index", toJson 0),
+          ("fields", toJson tr.start),
+          ("action", "after_init") ]] ++
       (tr.steps.toArray.mapIdx (fun i st =>
         let idx := i + 1
-        Json.mkObj [("index", toJson idx),
-        ("fields", toJson st.next),
-        ("action", toJson st.label)]
-      ))
+        Json.mkObj
+        [ ("index", toJson idx),
+          ("fields", toJson st.next),
+          ("action", toJson st.label)]))
     Json.arr states
-
 
 
 

@@ -26,15 +26,13 @@ def toList {α} (q : fQueue α) : List α :=
   q.front ++ q.back.reverse
 end fQueue
 
-/-
+/--
 The State defintion of the model checker:
 - α is the original type of the state, i.e., State used in Veil DSL.
 - β is the type of the state that we used to store, e.g., StateConcrete.
 - log is the list of transitions that have been seen.
 - counterexample is the list of states that have been seen and are not valid.
 -/
-
-
 structure SearchContext (α β κ : Type) [BEq β] [Hashable β] where
   seen : Std.HashSet β
   sq   : fQueue (α × β)
@@ -42,6 +40,22 @@ structure SearchContext (α β κ : Type) [BEq β] [Hashable β] where
   counterexample : List β
 deriving Inhabited
 
+/--
+A step in the trace of execution, which contains the label and the next state.
+-/
+structure Step (σᵣ κ: Type) where
+  label : κ
+  next  : σᵣ
+deriving Repr, Inhabited
+
+/--
+Trace of execution is modeled as a series of steps starting from an initial state,
+which is used for showing counterexamples in the frontend.
+-/
+structure Trace (σᵣ κ : Type) where
+  start : σᵣ
+  steps : List (Step σᵣ κ)
+deriving Repr, Inhabited
 
 
 -- instance [Repr β] [Repr κ] : Repr (List (β × β × κ)) where

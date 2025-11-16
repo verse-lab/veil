@@ -221,8 +221,7 @@ invariant [MutualExclusion] P1 ≠ P2 → ¬ (pc P1 cs ∧ pc P2 cs)
 
 -- =============================================================================
 
-#prepareExecution
-
+#gen_exec
 #finitizeTypes (Fin 3), states
 
 

@@ -334,7 +334,7 @@ invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 #gen_spec
 
 
-#prepareExecution
+#gen_exec
 
 #finitizeTypes (Fin 3), states
 
@@ -347,6 +347,7 @@ def cfg : TheoryConcrete := {none := 0}
 
 def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
 def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
+#eval statesJson
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
