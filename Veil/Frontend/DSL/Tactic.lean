@@ -360,7 +360,10 @@ where
 
 def elabVeilFol (aggressive : Bool) : TacticM Unit := veilWithMainContext do
   let tac ← if aggressive
-    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_intro_ho; veil_concretize_state; veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros))
+    -- NOTE: The `subst_eqs` is for equalities between higher-order stuff,
+    -- especially relations produced after `concretize_fields`. This can
+    -- happen for unchanged fields in transitions.
+    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_intro_ho; veil_concretize_state; veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs)))
     else `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_intro_ho; veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
