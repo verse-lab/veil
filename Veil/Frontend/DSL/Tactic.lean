@@ -61,6 +61,10 @@ syntax (name := veil_concretize_state) "veil_concretize_state" : tactic
 syntax (name := veil_concretize_fields) "veil_concretize_fields" ("!")? : tactic
 
 syntax (name := veil_intros) "veil_intros" : tactic
+/-- Do `intros` to bring all higher-order values (e.g., values of structures
+into the local context. This is useful when such values are at the heading
+`∀`s and we want to subsequently eliminate them. -/
+syntax (name := veil_intro_ho) "veil_intro_ho" : tactic
 syntax (name := veil_fol) "veil_fol" ("!")? : tactic
 
 syntax (name := veil_simp) "veil_simp" simpTraceArgsRest : tactic
@@ -333,10 +337,29 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
   let tac ← `(tactic| unhygienic intros; try intro $(mkIdent `th) $(mkIdent `st) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩;)
   veilEvalTactic tac
 
+-- NOTE: For now, this is effectively `introv` (but not exactly, since
+-- `introv` does not skip over mdata); if the goal is properly HO-lifted,
+-- then this should bring all higher-order values into the local context.
+-- We can change this later if we want more sophisticated behavior.
+partial def elabVeilIntroHO : TacticM Unit := veilWithMainContext do
+  introsDep
+where
+  introsDep : TacticM Unit := do
+    let t ← getMainTarget
+    let t := t.consumeMData
+    match t with
+    | Expr.forallE _ _ e _ =>
+      if e.hasLooseBVars then
+        liftMetaTactic fun goal ↦ do
+          let (_, goal) ← goal.intro1P
+          pure [goal]
+        introsDep
+    | _ => pure ()
+
 def elabVeilFol (aggressive : Bool) : TacticM Unit := veilWithMainContext do
   let tac ← if aggressive
-    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_concretize_state; veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros))
-    else `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
+    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_intro_ho; veil_concretize_state; veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros))
+    else `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_intro_ho; veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSolve (aggressive : Bool) : TacticM Unit := veilWithMainContext do
@@ -368,6 +391,7 @@ elab_rules : tactic
   | `(tactic| veil_wp) => do withTiming "veil_wp" elabVeilWp
   | `(tactic| veil_neutralize_decidable_inst) => do withTiming "veil_neutralize_decidable_inst" elabVeilNeutralizeDecidableInst
   | `(tactic| veil_intros) => do withTiming "veil_intros" elabVeilIntros
+  | `(tactic| veil_intro_ho) => do withTiming "veil_intro_ho" elabVeilIntroHO
   | `(tactic| veil_fol $[!%$agg]?) => do withTiming "veil_fol" (elabVeilFol (agg.isSome))
   | `(tactic| veil_solve $[!%$agg]?) => do withTiming "veil_solve" (elabVeilSolve (agg.isSome))
   | `(tactic| veil_split_ifs) => do withTiming "veil_split_ifs" elabVeilSplitIfs
