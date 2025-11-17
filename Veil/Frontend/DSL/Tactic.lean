@@ -66,6 +66,9 @@ syntax (name := veil_fol) "veil_fol" ("!")? : tactic
 syntax (name := veil_simp) "veil_simp" simpTraceArgsRest : tactic
 syntax (name := veil_simp_trace) "veil_simp?" simpTraceArgsRest : tactic
 
+syntax (name := veil_dsimp) "veil_dsimp" dsimpTraceArgsRest : tactic
+syntax (name := veil_dsimp_trace) "veil_dsimp?" dsimpTraceArgsRest : tactic
+
 syntax (name := veil_wp) "veil_wp" : tactic
 
 /-- Neutralize all `Decidable` instances in the goal by replacing them
@@ -295,16 +298,27 @@ def elabVeilClearHyps (ids : Array (TSyntax `ident)) : TacticM Unit := veilWithM
 def elabVeilDestructGoal : TacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| repeat' constructor)
 
+private def disableFailIfUnchangedInSimpConfig (cfg : TSyntax ``Lean.Parser.Tactic.optConfig) : CoreM (TSyntax ``Lean.Parser.Tactic.optConfig) := do
+  match cfg with
+  | `(optConfig| $[$cfgItems:configItem]* ) =>
+    `(optConfig| ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) $[$cfgItems:configItem]* )
+  | _ => `(optConfig| ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) )
+
 def elabVeilSimp (trace? : Bool) (cfg : TSyntax ``Lean.Parser.Tactic.optConfig) (o : Option Syntax) (params : Option (Array (TSyntax [`Lean.Parser.Tactic.simpStar, `Lean.Parser.Tactic.simpErase, `Lean.Parser.Tactic.simpLemma]))) (loc : Option (TSyntax `Lean.Parser.Tactic.location)) : TacticM Unit := veilWithMainContext do
-  let cfg ← match cfg with
-    | `(optConfig| $[$cfgItems:configItem]* ) =>
-      `(optConfig| ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) $[$cfgItems:configItem]* )
-    | _ => `(optConfig| ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) )
+  let cfg ← disableFailIfUnchangedInSimpConfig cfg
   let discharger : Option (TSyntax `Lean.Parser.Tactic.discharger) := Option.none
   let simpCall ← match trace? with
     | true => `(tactic| simp? $cfg:optConfig $[$discharger]? $[only%$o]? $[[$[$params],*]]? $[$loc]?)
     | false => `(tactic| simp $cfg:optConfig $[$discharger]? $[only%$o]? $[[$[$params],*]]? $[$loc]?)
   -- FIXME: the suggestion won't work properly for `simp?` because `evalTactic` does `withRef`
+  veilEvalTactic simpCall
+
+def elabVeilDSimp (trace? : Bool) (cfg : TSyntax ``Lean.Parser.Tactic.optConfig) (o : Option Syntax) (params : Option (Array (TSyntax [`Lean.Parser.Tactic.simpErase, `Lean.Parser.Tactic.simpLemma]))) (loc : Option (TSyntax `Lean.Parser.Tactic.location)) : TacticM Unit := veilWithMainContext do
+  let cfg ← disableFailIfUnchangedInSimpConfig cfg
+  let simpCall ← match trace? with
+    | true => `(tactic| dsimp? $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?)
+    | false => `(tactic| dsimp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?)
+  -- FIXME: the same issue as above?
   veilEvalTactic simpCall
 
 attribute [loomLogicSimpForVeil ↓] topE topPureE
@@ -321,7 +335,7 @@ def elabVeilIntros : TacticM Unit := veilWithMainContext do
 
 def elabVeilFol (aggressive : Bool) : TacticM Unit := veilWithMainContext do
   let tac ← if aggressive
-    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_concretize_state; veil_concretize_fields !; veil_destruct; dsimp only at *; veil_intros))
+    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_concretize_state; veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros))
     else `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
@@ -349,6 +363,8 @@ elab_rules : tactic
   | `(tactic| veil_smt?%$tk) => do withTiming "veil_smt?" $ elabVeilSmt tk true
   | `(tactic| veil_simp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp" $ elabVeilSimp (trace? := false) cfg o params loc
   | `(tactic| veil_simp? $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp?" $ elabVeilSimp (trace? := true) cfg o params loc
+  | `(tactic| veil_dsimp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_dsimp" $ elabVeilDSimp (trace? := false) cfg o params loc
+  | `(tactic| veil_dsimp? $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_dsimp?" $ elabVeilDSimp (trace? := true) cfg o params loc
   | `(tactic| veil_wp) => do withTiming "veil_wp" elabVeilWp
   | `(tactic| veil_neutralize_decidable_inst) => do withTiming "veil_neutralize_decidable_inst" elabVeilNeutralizeDecidableInst
   | `(tactic| veil_intros) => do withTiming "veil_intros" elabVeilIntros
