@@ -247,9 +247,10 @@ def elabVeilConcretizeFields (aggressive : Bool) : TacticM Unit := veilWithMainC
   let some labelTypeName := dom.constName? | return
   -- get the state from the hypothesis by ... some hack
   let stateTypeName := labelTypeName.getPrefix
-  let some stHyp := lctx.findDecl? (fun decl =>
+  let stHyps := lctx.foldl (init := []) fun acc decl =>
     if decl.type.getAppFn'.constName? == Option.some stateTypeName
-    then .some decl else .none) | return
+    then decl :: acc else acc
+  if stHyps.isEmpty then return
   let fields ← getFieldIdentsForStruct stateTypeName
   let mut tacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq) := #[]
   let localSimpTerms := #[fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
@@ -264,11 +265,12 @@ def elabVeilConcretizeFields (aggressive : Bool) : TacticM Unit := veilWithMainC
     tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `fieldRepresentationSetSimpPost):ident, $[$localSimpTerms:ident],*] at *)
   -- (4) concretize the `FieldRepresentation.get`-ed fields
   let rep := mkIdent hyp.userName
-  let st := mkIdent stHyp.userName
-  for f in fields do
-    let f : Ident := ⟨f.raw⟩
-    let tmpField := mkIdent <| mkVeilImplementationDetailName f.getId
-    tacs := tacs.push <| ← `(tacticSeq| generalize (($rep _).$(mkIdent `get)) $st.$f = $tmpField at * ; dsimp [$[$localSimpTerms:ident],*] at $tmpField:ident ; veil_rename_hyp $tmpField:ident => $f:ident)
+  for stHyp in stHyps do
+    let st := mkIdent stHyp.userName
+    for f in fields do
+      let f : Ident := ⟨f.raw⟩
+      let tmpField := mkIdent <| mkVeilImplementationDetailName f.getId
+      tacs := tacs.push <| ← `(tacticSeq| generalize (($rep _).$(mkIdent `get)) $st.$f = $tmpField at * ; dsimp [$[$localSimpTerms:ident],*] at $tmpField:ident ; veil_rename_hyp $tmpField:ident => $f:ident)
 
   for t in tacs do
     veilWithMainContext $ veilEvalTactic t
