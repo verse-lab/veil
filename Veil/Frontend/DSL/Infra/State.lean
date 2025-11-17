@@ -11,8 +11,8 @@ attribute [wpSimp, substateSimp ↓, actSimp] IsSubReaderOf.readFrom
 instance (priority := high) [IsSubReaderOf σₛ σ] [Monad m] : MonadReaderOf σₛ (ReaderT σ m) where
   read := readFrom <$> read
 
-@[wpSimp ↓, actSimp]
-instance : IsSubReaderOf ρ ρ where
+@[wpSimp ↓, substateSimp ↓, actSimp]
+instance instIsSubReaderOfRefl : IsSubReaderOf ρ ρ where
   readFrom := id
 
 /-- To support inter-operation between `action`s defined in different
@@ -44,8 +44,8 @@ export IsSubStateOf (setIn getFrom)
 
 attribute [wpSimp, substateSimp ↓, actSimp] id IsSubStateOf.setIn_getFrom_idempotent IsSubStateOf.setIn_setIn_last IsSubStateOf.getFrom_setIn_idempotent
 
-@[wpSimp, actSimp]
-instance : IsSubStateOf σ σ where
+@[wpSimp, substateSimp ↓, actSimp]
+instance instIsSubStateOfRefl : IsSubStateOf σ σ where
   setIn := (fun σₛ σ => σₛ)
   getFrom := id
   setIn_getFrom_idempotent := by simp
