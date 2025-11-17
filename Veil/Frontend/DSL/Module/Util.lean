@@ -766,7 +766,9 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   let params := mod.parameters
   let mut binders ← params.mapM (·.binder)
   -- build binders
-  let α := mkIdent `α ; let post := mkIdent `post ; let core := mkIdent `core ; let core_eq := mkIdent `core_eq
+  let α ← Lean.mkIdent <$> mkFreshUserName `α
+  let post ← Lean.mkIdent <$> mkFreshUserName `post
+  let core := mkIdent `core ; let core_eq := mkIdent `core_eq
   binders := binders.push (← `(bracketedBinder| {$α : Type} ))
   binders := binders.push (← `(bracketedBinder| ($post : $(mkIdent ``RProp) $α $environmentTheory $environmentState) ))
   -- build the type of `core`
@@ -774,12 +776,14 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   let stateFields ← mod.mutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
   let coreType ← mkArrowStx (α :: (theoryFields ++ stateFields).toList) (← `(term| Prop ))
   -- build the type of `core_eq`
-  let a := mkIdent `a ; let th := mkIdent `th ; let st := mkIdent `st
+  let a ← Lean.mkIdent <$> mkFreshUserName `a
+  let th ← Lean.mkIdent <$> mkFreshUserName `th
+  let st ← Lean.mkIdent <$> mkFreshUserName `st
   let coreEqType ← do
     let body ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st)] fun theoryFieldNames stateFieldNames =>
       pure <| Syntax.mkApp core (#[a] ++ theoryFieldNames ++ stateFieldNames)
     `(term| ∀ ($a : $α) ($th : $environmentTheory) ($st : $environmentState),
-    $(mkIdent `post) $a $th $st = $body)
+    $post $a $th $st = $body)
   let cmd1 ← `(command| class $localRPropTC $[$binders]* where
       $core:ident : $coreType
       $core_eq:ident : $coreEqType)
