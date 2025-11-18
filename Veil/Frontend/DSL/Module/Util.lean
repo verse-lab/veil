@@ -667,7 +667,7 @@ def elabExactState : TacticM Unit := withMainContext do
   let lctx ← getLCtx
   let some ldecls := comp.mapM (m := Option) lctx.findFromUserName?
     | throwError "not all state components are available in the local context"
-  let actualFields ← if mod._useFieldRepTC
+  let actualFields : Array Term ← if mod._useFieldRepTC
     then
       -- find the concrete field from the _values_ of `ldecls`
       -- here, only use some simple heuristics to do the matching
@@ -677,22 +677,18 @@ def elabExactState : TacticM Unit := withMainContext do
         let v := match_expr v with
           | id _ vv => vv | _ => v
         match_expr v with
-        | Veil.FieldRepresentation.get _ _ _ _ cf => pure cf
+        | Veil.FieldRepresentation.get _ _ _ _ cf =>
+          if let .fvar fv := cf
+          then let nm ← fv.getUserName ; `(term| $(mkIdent nm) )
+          else delabVeilExpr cf
         | _ => throwError "unable to extract concrete field from state component {ldecl.userName}"
     else
-      pure <| ldecls.map LocalDecl.toExpr
-  -- NOTE: It is very weird that if not doing it using `exact`,
-  -- then some meta-variable (e.g., `IsSubStateOf` arguments) synthesis
-  -- will fail.
-  /-
-  let stateNameFull ← resolveGlobalConstNoOverloadCore stateName
-  let some ctor := getStructureLikeCtor? (← getEnv) stateNameFull
-    | throwError "unable to find constructor for state structure {stateNameFull}"
-  let st ← Meta.mkAppM ctor.name actualFields
-  closeMainGoalUsing `veil_exact_state fun _ _ => pure st
-  -/
-  let fieldIdents ← actualFields.mapM fun a => delabVeilExpr a
-  let constr ← `(term| (⟨$[$fieldIdents],*⟩ : $(← mod.stateStx mod._useFieldRepTC)))
+      ldecls.mapM fun a => `(term| $(mkIdent a.userName) )
+  -- NOTE: It is very weird that if not doing it using `exact`
+  -- (e.g., instead constructing the state `Expr` and using
+  -- `closeMainGoalUsing`), then some meta-variable (e.g.,
+  -- `IsSubStateOf` arguments) synthesis will fail.
+  let constr ← `(term| (⟨$[$actualFields],*⟩ : $(← mod.stateStx mod._useFieldRepTC)))
   trace[veil.debug] "state constr: {constr}"
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
