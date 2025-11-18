@@ -1,5 +1,4 @@
 import Veil
-import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
 veil module AwsDNSRace
 
@@ -184,6 +183,7 @@ invariant [uniqueDelete] plan_deleted C F ∧ plan_deleted C T → F = T
 #finitizeTypes ENACTORS
 #eval labelList
 
+
 def view (st : StateConcrete) := hash st
 def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => NeverDeleteActive ρ σ)
 def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
@@ -197,3 +197,5 @@ def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextV
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+
+end AwsDNSRace

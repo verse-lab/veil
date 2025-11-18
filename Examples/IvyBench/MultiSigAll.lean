@@ -1,4 +1,6 @@
 import Veil
+import Veil.Frontend.DSL.Action.Extraction.Extract
+import Veil.Core.Tools.Checker.Concrete.Main
 
 -- https://github.com/aman-goel/ivybench/blob/d2c9298fdd099001c71a34bc2e118db6f07d8404/multisig/ivy/multisig-all.ivy
 
@@ -81,5 +83,24 @@ invariant [ic3po_global2] collect V1 D1 V2 D2 → proposed V1 D1 V2 D2
 invariant [ic3po_global3] sig V1 D1 V2 D2 S1 → sig_auth S1
 
 #time #gen_spec
+
+#gen_exec
+
+#finitizeTypes (Fin 2), (Fin 2), (Fin 2), (Fin 1), (Fin 1)
+
+def view (st : StateConcrete) := hash st
+def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => ic3po_global2 ρ σ)
+def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
+def cfg : TheoryConcrete := {}
+
+def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
+#eval modelCheckerResult'.seen.size
+def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
+#eval statesJson
+open ProofWidgets
+open scoped ProofWidgets.Jsx
+#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+
+
 
 end MultiSigAll

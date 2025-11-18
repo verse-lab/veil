@@ -1,4 +1,5 @@
 import Veil
+import Veil.Core.Tools.Checker.Concrete.Main
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy
 
@@ -14,22 +15,22 @@ instantiate seq : TotalOrderWithMinimum seq_t
 -- State
 
 --- Nodes
-relation n_have_privilege : node → Prop
-relation n_requesting : node → Prop
+function n_have_privilege : node → Bool
+relation n_requesting : node → Bool
 function n_RN : node → node → seq_t
 -- the sequence number of the most recently granted request by `node`
 function n_token_seq : node → seq_t
 
 --- Requests
-relation reqs : node → node → seq_t → Prop
+relation reqs : node → node → seq_t → Bool
 
 --- Tokens
-relation t_for : seq_t → node → Prop
+relation t_for : seq_t → node → Bool
 function t_LN : seq_t → node → seq_t
-relation t_q : seq_t → node → Prop
+relation t_q : seq_t → node → Bool
 
 --- Critical section
-relation crit : node → Prop
+relation crit : node → Bool
 
 #gen_state
 
@@ -40,28 +41,28 @@ action succ (n : seq_t) {
 }
 
 after_init {
-  n_have_privilege N := N = init_node;
-  n_requesting N := False;
+  n_have_privilege N := N == init_node;
+  n_requesting N := false;
   n_RN N M := seq.zero;
   let one : seq_t ← succ seq.zero;
   n_token_seq N := if N = init_node then one else seq.zero;
 
-  reqs N M I := False;
+  reqs N M I := false;
 
-  t_for I N := (seq.next seq.zero I) ∧ N = init_node;
+  t_for I N := decide $ (seq.next seq.zero I) ∧ N == init_node;
   t_LN I N := seq.zero;
-  t_q I N := False;
+  t_q I N := false;
 
-  crit N := False
+  crit N := false
 }
 
 action request (n : node) {
   require ¬ n_requesting n;
-  n_requesting n := True;
+  n_requesting n := true;
   if (¬ n_have_privilege n) then
     let k ← succ (n_RN n n)
     n_RN n n := k;
-    reqs N n (n_RN n n) := N ≠ n
+    reqs N n (n_RN n n) := decide $ N ≠ n
 }
 
 -- node `n` receiving a request from `m` with sequence number `r`
@@ -69,9 +70,9 @@ action rcv_request (n : node) (m : node) (r : seq_t) {
   require reqs n m r;
   n_RN n m := if seq.le r (n_RN n m) then n_RN n m else r;
   if (n_have_privilege n ∧ ¬ n_requesting n ∧ seq.next (t_LN (n_token_seq n) m) (n_RN n m)) then
-    n_have_privilege n := False;
+    n_have_privilege n := false;
     let k : seq_t ← succ (n_token_seq n)
-    t_for k m := True;
+    t_for k m := true;
     t_LN k N := t_LN (n_token_seq n) N;
     t_q k N := t_q (n_token_seq n) N
 }
@@ -79,7 +80,7 @@ action rcv_request (n : node) (m : node) (r : seq_t) {
 action rcv_privilege (n: node) (t: seq_t) {
   require t_for t n;
   require seq.lt (n_token_seq n) t;
-  n_have_privilege n := True;
+  n_have_privilege n := true;
   n_token_seq n := t
 }
 
@@ -87,20 +88,20 @@ action enter (n : node) {
     require n_have_privilege n
     require n_requesting n
     -- Add n to crit
-    crit n := True
+    crit n := true
 }
 
 action exit (n : node) {
   require crit n;
-  crit n := False;
-  n_requesting n := False;
+  crit n := false;
+  n_requesting n := false;
   t_LN (n_token_seq n) n := n_RN n n;
-  t_q (n_token_seq n) N := seq.next (t_LN (n_token_seq n) N) (n_RN n N);
+  t_q (n_token_seq n) N := decide $ seq.next (t_LN (n_token_seq n) N) (n_RN n N);
   if m : (t_q (n_token_seq n) m) then
-    t_q (n_token_seq n) m := False;
-    n_have_privilege n := False;
+    t_q (n_token_seq n) m := false;
+    n_have_privilege n := false;
     let k : seq_t ← succ (n_token_seq n)
-    t_for k m := True;
+    t_for k m := true;
     t_LN k N := t_LN (n_token_seq n) N;
     t_q k N := t_q (n_token_seq n) N
 }
@@ -123,6 +124,20 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.
 
 #gen_spec
 
-#time #check_invariants
+-- #time #check_invariants
+
+-- #gen_exec
+deriving_FinOrdToJson_Domain
+specify_FieldConcreteType
+deriving_BEq_FieldConcreteType
+deriving_Hashable_FieldConcreteType
+deriving_rep_FieldRepresentation
+
+deriving_lawful_FieldRepresentation
+
+
+deriving_Inhabited_State
+gen_NextAct
+-- gen_executable_NextAct
 
 end SuzukiKasami

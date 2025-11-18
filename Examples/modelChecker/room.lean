@@ -24,6 +24,7 @@ relation inside : Room → Occupied → Bool
 
 #gen_state
 
+set_option trace.veil.debug true
 theory ghost relation lt (x y : seq_t) := (seq.le x y ∧ x ≠ y)
 theory ghost relation next (x y : seq_t) := (lt x y ∧ ∀ z, lt x z → seq.le y z)
 
@@ -50,7 +51,6 @@ after_init {
 action CheckIn (g : Guest) (r : Room) {
   require ∀g, registered r g = false
   registered r g := true
-
   /- Read the value `<<y, n>>` from `roomKey[r]`-/
   let n ← pick seq_t
   let y ← pick Room
@@ -70,7 +70,6 @@ action EnterRoom(g : Guest) (r : Room) {
   require inside r nobody
   -- Cardinality(guestKeys[g]) > 0 \* At least one key must be hold
   require ∃a b, guestKeys g a b
-
   /- Pick a random key so that old keys might be chosen -/
   let n ← pick seq_t
   let y ← pick Room
@@ -109,13 +108,12 @@ safety [maunual_1] registered R G1 ∧ registered R G2 → G1 = G2
 safety [maunual_2] ∀g, assignedKey g room → (∃r y n, (roomKey r y n ∧ guestKeys g y n) ∧ inside r body ∧ registered r g)
 safety [maunual_3] ∀r, inside r body → (∃g y n, (roomKey r y n ∧ guestKeys g y n) ∧ assignedKey g room ∧ registered r g)
 
-
-invariant [key_inside_is_registered]
-  ∀ r g, inside r body ∧ assignedKey g room ∧ (∃ a b, guestKeys g a b ∧ roomKey r a b) → registered r g
-
 invariant [unique_assigned_key] assignedKey G P ∧ assignedKey G Q → P = Q
 invariant [unique_inside] inside R P1 ∧ inside R P2 → P1 = P2
 invariant [unique_roomKey] roomKey R Q M ∧ roomKey R P N → Q = P ∧ M = N
+invariant [key_inside_is_registered]
+  ∀ r g, inside r body ∧ assignedKey g room ∧ (∃ a b, guestKeys g a b ∧ roomKey r a b) → registered r g
+
 invariant [roomKey_room_agrees] ∀ r y n, roomKey r y n → y = r
 invariant [roomKey_exists] ∀ r, ∃ n, roomKey r r n
 
@@ -138,11 +136,10 @@ invariant [current_key_registration]
 #time #check_invariants
 
 #gen_exec
-
 #finitizeTypes (Fin 2), Room, Guest, Position, Occupied
 
 
-def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => no_future_keys ρ σ) ((fun ρ σ => true)) {one := 1} hash).snd
+def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => maunual_2 ρ σ) ((fun ρ σ => true)) {one := 1} hash).snd
 def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {one := 1} (collectTrace' modelCheckerResult'))
 open ProofWidgets
 open scoped ProofWidgets.Jsx

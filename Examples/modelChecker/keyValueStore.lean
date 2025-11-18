@@ -1,9 +1,6 @@
 import Veil
-import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
 
-import Veil.Core.Tools.Checker.Concrete.modelCheckerView
-import ProofWidgets.Component.HtmlDisplay
 /-
 Key-Value Store with Snapshot Isolation
 
@@ -180,12 +177,10 @@ invariant [Txlifecycle] (  ∀t, tx t → (∀k, (∃v, store k v ≠ snapshotSt
 #gen_spec
 -- #time #check_invariants
 
-
 #gen_exec
 
 #finitizeTypes key, value, txId
 -- #finitizeTypes (Fin 2), value, (Fin 2)
-
 
 
 def view (st : StateConcrete) := hash st

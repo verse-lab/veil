@@ -25,7 +25,7 @@ relation decision (N:node) (R:round) (V:value) -- got 2b from a quorum
 
 #gen_state
 
-assumption ∀ (Q1:quorum) (Q2:quorum), ∃ (N:node), member N Q1 ∧ member N Q2
+assumption ∀ (q1:quorum) (q2:quorum), ∃ (n:node), member n q1 ∧ member n q2
 
 after_init {
   one_a R :=  false

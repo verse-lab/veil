@@ -1,7 +1,6 @@
 import Veil
-import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
-import ProofWidgets.Component.HtmlDisplay
+
 
 veil module DieHard
 

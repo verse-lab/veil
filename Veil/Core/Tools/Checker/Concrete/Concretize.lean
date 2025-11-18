@@ -98,9 +98,10 @@ def Veil.Module.getStateDomains [Monad m] [MonadQuotation m] [MonadError m] (mod
     | .mutable =>
       let (res, base) ← splitForallArgsCodomain (← sc.typeStx)
       match sc.kind with
-      | .individual =>  return .some (sc.name, #[base])
-      | .function   =>  return .some (sc.name, res.append #[base])
-      | .relation   =>  return .some (sc.name, res)
+      -- | .individual =>  return .some (sc.name, #[base])
+      -- | .function   =>  return .some (sc.name, res.append #[base])
+      -- | .relation   =>  return .some (sc.name, res)
+      | .function   =>  return .some (sc.name, res)
       | _           =>  return .none
     | _ => return .none
 
@@ -328,7 +329,11 @@ def deriveHashableInstForFieldConcreteType : CommandElab := fun stx => do
     elabVeilCommand lfc
 
 
-
+def mkProdFromArray (xs : Array (TSyntax `term)) : TermElabM (TSyntax `term) := do
+  match xs.toList with
+  | []      =>  `(term| Unit)
+  | [t]     =>  return ←`(term | ($t))
+  | t :: ts =>  ts.foldlM (init := t) fun acc b => `(term| ($acc × ($b)))
 
 -- instance rep
 --   [FinEnum process]
@@ -355,9 +360,22 @@ def deriveRepInstForFieldReprentation (mod : Veil.Module) : CommandElabM (TSynta
   let sortIdents ← mod.sortIdents false
   let finEnumInsts ← mod.instBinders ``FinEnum
   let ordInsts ← mod.instBinders ``Ord
-  let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
-  let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
-  let binders := typeBinders ++ concatArrays #[finEnumInsts, ordInsts, lawfulInsts, transInsts]
+
+  /- It seems that we do not need `propCmp` instances for each sort ident.
+  We only need `transCmp` for the prod type of `Domain` for `.function`. -/
+  -- let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
+  -- let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
+  -- let mut binders := typeBinders ++ concatArrays #[finEnumInsts, ordInsts, lawfulInsts, transInsts]
+  let mut binders := typeBinders ++ concatArrays #[finEnumInsts, ordInsts]
+
+  let stateDomains ← mod.getStateDomains
+  for (_, doms) in stateDomains do
+    let productDomain ← mkProdFromArray doms |> liftTermElabM
+    -- let lawfulInst ← `(bracketedBinder| [$(mkIdent ``Std.LawfulEqCmp) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $productDomain) ))])
+    let transInst ← `(bracketedBinder| [$(mkIdent ``Std.TransCmp) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $productDomain) ))])
+    -- binders := binders.push lawfulInst
+    binders := binders.push transInst
+
 
   let dsimpTerms : Array Ident := #[
     mkIdent `FieldConcreteType,
@@ -760,12 +778,6 @@ elab "deriving_propCmp_for_enum" name:ident : command => do
 --     [Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord (process × process))))]
 --     [Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord (process × process))))]
 --   injection_end => NextAct'
-def mkProdFromArray (xs : Array (TSyntax `term)) : TermElabM (TSyntax `term) := do
-  match xs.toList with
-  | []      =>  `(term| Unit)
-  | [t]     =>  return ←`(term | ($t))
-  | t :: ts =>  ts.foldlM (init := t) fun acc b => `(term| ($acc × ($b)))
-
 
 -- instance [Ord seq_t] [Ord Room] [Ord Guest] [Ord Position] [Ord Occupied]
 -- [Repr seq_t] [Repr Room] [Repr Guest] [Repr Position] [Repr Occupied] :
@@ -1298,7 +1310,7 @@ syntax (name := veilMakeExecutable) "#gen_exec" : command
 
 macro_rules
   | `(command| #gen_exec) => do
-    `(-- Step 1: Make symbolic model executable by deriving required instances
+    `(-- Make symbolic model executable by deriving required instances
       simple_deriving_repr_for' $(mkIdent `State)
       deriving instance $(mkIdent ``Repr) for $(mkIdent `Label)
       deriving instance $(mkIdent ``Inhabited) for $(mkIdent `Theory)
@@ -1309,8 +1321,12 @@ macro_rules
       deriving_rep_FieldRepresentation
       deriving_lawful_FieldRepresentation
       deriving_Inhabited_State
+      -- ExtractMultiExecM
       gen_NextAct
-      gen_executable_NextAct)
+      gen_executable_NextAct
+      -- Concretize all enum typs
+      deriving_Enum_Insts
+      )
 
 
 syntax (name := veilFinitizeTypes) "#finitizeTypes" term,* : command
@@ -1318,7 +1334,6 @@ syntax (name := veilFinitizeTypes) "#finitizeTypes" term,* : command
 macro_rules
   | `(command| #finitizeTypes $args:term,*) => do
     `(-- Step 2: Finitize abstract types to enable model checking
-      deriving_Enum_Insts
       #Concretize $args,*
       deriving_BEqHashable_ConcreteState
       deriving_toJson_for_state

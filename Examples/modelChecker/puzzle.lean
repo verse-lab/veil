@@ -1,7 +1,5 @@
 import Veil
-import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
-import ProofWidgets.Component.HtmlDisplay
 
 veil module RiverCrossing
 
@@ -36,8 +34,8 @@ after_init {
 
 action FarmerAndWolf {
   require (goat_pos = wolf_pos → farmer_pos = goat_pos) ∧ (goat_pos = cabbage_pos → farmer_pos = goat_pos)
+  -- require safety_constraint
   require farmer_pos = wolf_pos
-
   if farmer_pos = far then
     farmer_pos := near
     wolf_pos := near

@@ -33,18 +33,11 @@ relation pc (self: process) (st: states)
 immutable individual none : process
 
 /-
-Decompose the structure into two relations:
-- `stack_pc` : process → seq_t → states
-- `stack_waker` : process → seq_t → process.
-
-To model the list, we use two individuals, which represent
-the head and tail of the list respectively.
-
+We use the structure Cell to model the record in TLA+.
 [ procedure |->  "unlock",
   pc        |->  "Done",
   waker     |->  waker[self] ]
 -/
-
 structure Cell (states process : Type) where
   pc : states
   waker : process
@@ -241,8 +234,6 @@ action _wake_one_loop (self : process) {
   else
     let head_stack_pc_state := (stack self).head!.pc
     pc self S := S == head_stack_pc_state
-    -- stack self := (stack self).tail
-
     let headwaker_stack_waker := (stack self).head!.waker
     waker self W := W == headwaker_stack_waker
     stack self := (stack self).tail
@@ -337,7 +328,6 @@ invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 #gen_exec
 
 #finitizeTypes (Fin 3), states
-
 
 
 def view (st : StateConcrete) := hash st
