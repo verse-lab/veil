@@ -513,4 +513,9 @@ def evalOpen (decl : TSyntax `Lean.Parser.Command.openDecl) (k : MetaM α) : Met
   finally
     popScope
 
+/-- Returns `(fun $binders* => $body)`, but takes care of the case
+where `binders` is empty. -/
+def mkFunSyntax [Monad m] [MonadQuotation m] (binders : TSyntaxArray `Lean.Parser.Term.funBinder) (body : TSyntax `term) : m (TSyntax `term) := do
+  if binders.isEmpty then pure body else `(fun $binders* => ($body))
+
 end Veil

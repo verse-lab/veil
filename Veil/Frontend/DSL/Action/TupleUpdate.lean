@@ -46,7 +46,8 @@ macro_rules
     let x := x.map Prod.fst
     let tuple1 <- `(term| [veil_tupl| $is: term *])
     let tuple2 <- `(term| [veil_tupl| $[$x: ident] * ] )
-    let stx <- `(fun $[$x:ident]* => if $tuple2 = $tuple1 then $b else $f:term $x *)
+    let body ← `(if $tuple2 = $tuple1 then $b else $f:term $x *)
+    let stx <- mkFunSyntax x body
     -- dbg_trace toString stx
     return stx
 

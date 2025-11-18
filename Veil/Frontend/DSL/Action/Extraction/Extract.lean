@@ -83,7 +83,7 @@ def buildingTermWithχSpecialized
   -- build the while `def`
   let body1 ← do
     let binders := sufBinders ++ extraBinders
-    if binders.isEmpty then pure finalBody else `(fun $[$binders]* => $finalBody)
+    mkFunSyntax binders finalBody
   -- let body2 ← do
   let body2 ← `(
     letI $fieldConcreteType : $χ_ty := $χ
@@ -190,7 +190,7 @@ def generateVeilMultiExecMCore (κ extractNonDet : TSyntax `term)
     match a.params with
     | some br =>
       let tmp ← explicitBindersToTerms br
-      `(term| (fun $tmp* => $extractNonDet))
+      mkFunSyntax tmp extractNonDet
     | none => `(term| ($extractNonDet)))
   let (binders?, overallArgs, target1, nextExtractFuncCmd) ← do
     if let some tg := target then

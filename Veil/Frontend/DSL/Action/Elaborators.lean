@@ -237,7 +237,7 @@ private def withVeilModeVar (bi : BinderInfo) (k : Expr → TermElabM α) : Term
 /-- Elaborate `body` under `br`, and obtain its extra parameters. -/
 def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (body : Term) (addModeArg : Bool := true) : TermElabM (Array Parameter × Expr) := do
   let brs ← Option.stxArrMapM br toFunBinderArray
-  let stx ← `(fun $brs* => ($body))
+  let stx ← mkFunSyntax brs body
   try
     withVeilModeVar BinderInfo.default fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/

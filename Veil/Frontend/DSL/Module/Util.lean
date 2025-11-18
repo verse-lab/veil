@@ -694,11 +694,12 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
   targets.foldrM (init := t) fun (kind, i) body => do
     match kind with
     | .theory =>
+      let tmp ← mkFunSyntax theoryFields body
       `(term|
         @$(mkIdent casesOnTheory) $(← mod.sortIdents)*
         ($motive := fun _ => Prop)
         ($(mkIdent ``readFrom) $i)
-        (fun $[$theoryFields]* => ($body)))
+        ($tmp))
     | .state suffix =>
       let sfs : Array Ident := match suffix with
         | .some suf => stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
@@ -711,11 +712,12 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
         let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
         sfs.zip fieldTypes |>.foldrM (init := body) fun (f, ty) b => do
           `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
+      let tmp ← mkFunSyntax sfs body'
       `(term|
         @$(mkIdent casesOnState) $(← mod.sortIdentsForTheoryOrState mod._useFieldRepTC)*
         ($motive := fun _ => Prop)
         ($(mkIdent ``getFrom) $i)
-        (fun $[$sfs]* => ($body')))
+        ($tmp))
 
 /-- This is used wherever we want to define a predicate over the
 background theory (e.g. in `assumption` definitions). Instead of
