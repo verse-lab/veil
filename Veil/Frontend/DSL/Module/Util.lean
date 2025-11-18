@@ -819,6 +819,18 @@ private def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind
 
 end AssertionElab
 
+/-- Declare the `LocalRProp` typeclass for the module.
+Its general form is:
+```lean
+class LocalRPropTC /- module parameters -/ {α : Type} (post : RProp α ρ σ)
+where
+  core : α →
+    /- types of fields of `Theory`, connected with `→` -/ →
+    /- types of _canonical_ fields of `State`, connected with `→` -/ → Prop
+  core_eq : ∀ (a : α) (th : ρ) (st : σ),
+    post a th st = core a /- fields of `Theory` -/ /- _canonical_ fields of `State` -/
+```
+-/
 def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   -- this can be given fewer parameters, but for simplicity we give it all of them
   let params := mod.parameters
@@ -830,9 +842,10 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   binders := binders.push (← `(bracketedBinder| {$α : Type} ))
   binders := binders.push (← `(bracketedBinder| ($post : $(mkIdent ``RProp) $α $environmentTheory $environmentState) ))
   -- build the type of `core`
-  let theoryFields ← mod.immutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
-  let stateFields ← mod.mutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
-  let coreType ← mkArrowStx (α :: (theoryFields ++ stateFields).toList) (← `(term| Prop ))
+  let coreType ← do
+    let theoryFields ← mod.immutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
+    let stateFields ← mod.mutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
+    mkArrowStx (α :: (theoryFields ++ stateFields).toList) (← `(term| Prop ))
   -- build the type of `core_eq`
   let a ← Lean.mkIdent <$> mkFreshUserName `a
   let th ← Lean.mkIdent <$> mkFreshUserName `th
@@ -848,14 +861,20 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   let cmd2 ← `(command| attribute [$(mkIdent `wpSimp):ident] $(mkIdent <| localRPropTCName ++ `core):ident)
   return (cmd1, cmd2)
 
-def Module.proveLocalityForAssertion (mod : Module) (base : StateAssertion) (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (body : Term) : CommandElabM Command := do
-  let a := mkIdent `a ; let th := mkIdent `th ; let st := mkIdent `st
+/-- Define an instance of `LocalRProp` for the given assertion.
+Currently, this only supports proving by `rfl`. -/
+def Module.proveLocalityForAssertion (mod : Module) (base : StateAssertion) (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (body : Term) : MetaM Command := do
+  let a ← Lean.mkIdent <$> mkFreshUserName `a
+  let th ← Lean.mkIdent <$> mkFreshUserName `th
+  let st ← Lean.mkIdent <$> mkFreshUserName `st
   let localRPropTCType ← do
-    let localRPropTCParams := mod.parameters
-    let mut args ← localRPropTCParams.mapM (·.arg)
+    let mut args ← mod.parameters.mapM (·.arg)
+    -- fix `α` to be `Unit` since for now we only use `LocalRProp` to
+    -- speed up invariants checking
     args := args.push (← `(term| _ ))
-    let args' ← bracketedBindersToTerms binders
-    let post ← `(term| (fun (_ : $(mkIdent ``Unit)) => @$(mkIdent base.name) $args'*))
+    let post ← do
+      let args' ← bracketedBindersToTerms binders
+      `(term| (fun (_ : $(mkIdent ``Unit)) => @$(mkIdent base.name) $args'*))
     args := args.push post
     `(term| (@$localRPropTC $args*))
   let core ← do
@@ -888,7 +907,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let binders := preBinders ++ thstBinders
   let stx2 ← match base.kind with
     | .assumption => pure none
-    | _ => if mod._useLocalRPropTC then (Option.some <$> mod.proveLocalityForAssertion base preBinders body) else pure none
+    | _ => if mod._useLocalRPropTC then (Option.some <$> (liftTermElabM $ mod.proveLocalityForAssertion base preBinders body)) else pure none
   let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
   return (stx, stx2, mod)
