@@ -223,7 +223,7 @@ def elabTransition : CommandElab := fun stx => do
     let trStx ← do
       let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
       let unchangedFields := unchangedFields.map Lean.mkIdent
-      let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st), (.state "'", st')]
+      let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
         (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
       `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $tmp))
     mod.defineTransition (ProcedureInfo.action nm.getId) br trStx stx

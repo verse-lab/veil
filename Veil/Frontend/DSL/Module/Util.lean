@@ -660,10 +660,39 @@ def elabExactTheory : TacticM Unit := do
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
 open Tactic in
-def elabExactState : TacticM Unit := do
+def elabExactState : TacticM Unit := withMainContext do
   let mod ← getCurrentModule
-  let comp := mod.mutableComponents.map (Lean.mkIdent ·.name)
-  let constr <- `(term| (⟨$[$comp],*⟩ : $(← mod.stateStx)))
+  let comp := mod.mutableComponents.map (·.name)
+  -- find all available state components in the local context
+  let lctx ← getLCtx
+  let some ldecls := comp.mapM (m := Option) lctx.findFromUserName?
+    | throwError "not all state components are available in the local context"
+  let actualFields ← if mod._useFieldRepTC
+    then
+      -- find the concrete field from the _values_ of `ldecls`
+      -- here, only use some simple heuristics to do the matching
+      ldecls.mapM fun ldecl => do
+        let some v := ldecl.value? true
+          | throwError "state component {ldecl.userName} has no value in the local context"
+        let v := match_expr v with
+          | id _ vv => vv | _ => v
+        match_expr v with
+        | Veil.FieldRepresentation.get _ _ _ _ cf => pure cf
+        | _ => throwError "unable to extract concrete field from state component {ldecl.userName}"
+    else
+      pure <| ldecls.map LocalDecl.toExpr
+  -- NOTE: It is very weird that if not doing it using `exact`,
+  -- then some meta-variable (e.g., `IsSubStateOf` arguments) synthesis
+  -- will fail.
+  /-
+  let stateNameFull ← resolveGlobalConstNoOverloadCore stateName
+  let some ctor := getStructureLikeCtor? (← getEnv) stateNameFull
+    | throwError "unable to find constructor for state structure {stateNameFull}"
+  let st ← Meta.mkAppM ctor.name actualFields
+  closeMainGoalUsing `veil_exact_state fun _ _ => pure st
+  -/
+  let fieldIdents ← actualFields.mapM fun a => delabVeilExpr a
+  let constr ← `(term| (⟨$[$fieldIdents],*⟩ : $(← mod.stateStx mod._useFieldRepTC)))
   trace[veil.debug] "state constr: {constr}"
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
@@ -672,7 +701,20 @@ elab_rules : tactic
   | `(tactic| veil_exact_state) => elabExactState
 
 inductive TheoryAndStateTermTemplateArgKind where
-  | theory | state (suffix : Option String)
+  | theory
+  /-- When the concrete field representation is not used,
+  `suffix` is the suffix to append to each field after
+  destructing a state.
+
+  When the concrete field representation is used,
+  `suffixConc` is the suffix to append to each field after
+  destructing a state, and `suffix` is the suffix appended to
+  each field's _original name_ (i.e., not the one after appending
+  `suffixConc`) after applying `FieldRepresentation.get` to
+  the concrete field.
+
+  When either is `none`, no suffix is appended in the corresponding case. -/
+  | state (suffix suffixConc : Option String)
 
 /-- Given `t : Prop` which accesses fields of theory and/or state,
 returns the proper "wrapper" term which pattern-matches over theory
@@ -690,6 +732,8 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
   let casesOnState := stateName ++ `casesOn
   let theoryFields ← getFieldIdentsForStruct theoryName
   let stateFields ← getFieldIdentsForStruct stateName
+  let stateFieldsWithSuffix suf : Array Ident :=
+    stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
   let t ← t theoryFields stateFields
   targets.foldrM (init := t) fun (kind, i) body => do
     match kind with
@@ -700,19 +744,19 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
         ($motive := fun _ => Prop)
         ($(mkIdent ``readFrom) $i)
         ($tmp))
-    | .state suffix =>
-      let sfs : Array Ident := match suffix with
-        | .some suf => stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
-        | .none => stateFields
+    | .state suffix suffixConc =>
+      let sfs := suffix.elim stateFields stateFieldsWithSuffix
+      let sfsConc := suffixConc.elim stateFields stateFieldsWithSuffix
       let body' ← if !mod._useFieldRepTC then pure body else
         -- annotate types here, otherwise there can be issues like: for `f a`
         -- where `f` has a complicated type but definitionally equal to `node → Bool`,
         -- coercions will not be inserted to make `f a` into `Prop`
         -- (notice that `decide` expects a `Prop` argument here)
         let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
-        sfs.zip fieldTypes |>.foldrM (init := body) fun (f, ty) b => do
-          `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
-      let tmp ← mkFunSyntax sfs body'
+        let bundled := sfs.zip fieldTypes |>.zip sfsConc
+        bundled.foldrM (init := body) fun ((f, ty), fConc) b => do
+          `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $fConc:ident ; $b)
+      let tmp ← mkFunSyntax (if !mod._useFieldRepTC then sfs else sfsConc) body'
       `(term|
         @$(mkIdent casesOnState) $(← mod.sortIdentsForTheoryOrState mod._useFieldRepTC)*
         ($motive := fun _ => Prop)
@@ -742,7 +786,7 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   let mut mod ← getCurrentModule
   let (th, st) := (mkIdent `th, mkIdent `st)
   let fn ← do
-    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st)] (fun _ _ => pure t)
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] (fun _ _ => pure t)
     `(term| (fun ($th : $environmentTheory) ($st : $environmentState) => $tmp))
   -- NOTE(SUBTLE): `by veil_exact_theory` and `by veil_exact_state` work in a
   -- counter-intuitive way when applied to assertions. Concretely, these tactics
@@ -798,7 +842,7 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   let th ← Lean.mkIdent <$> mkFreshUserName `th
   let st ← Lean.mkIdent <$> mkFreshUserName `st
   let coreEqType ← do
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st)] fun theoryFieldNames stateFieldNames =>
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] fun theoryFieldNames stateFieldNames =>
       pure <| Syntax.mkApp core (#[a] ++ theoryFieldNames ++ stateFieldNames)
     `(term| ∀ ($a : $α) ($th : $environmentTheory) ($st : $environmentState),
     $post $a $th $st = $body)
