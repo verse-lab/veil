@@ -489,11 +489,13 @@ def Module.getTheoryBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : M
     mkBinder (sc : StateComponent) : m (TSyntax `Lean.Parser.Term.bracketedBinder) := do
       `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
 
+/-
 def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.signature.filterMapM fun sc => do
     match sc.mutability with
     | .mutable => return .some $ ← `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
     | _ => pure .none
+-/
 
 /-- Given a list of state components, return the syntax for a structure
 definition including those components. -/
@@ -760,15 +762,11 @@ private def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind
   let baseParams ← mod.declarationBaseParams dk
   let binders ← baseParams.mapM (·.binder)
   let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
-  -- We need to universally quantify capital variables, but for that to work, the
-  -- term needs to be well-typed, so all term's parameters, as well as the theory
-  -- and state variables (i.e. the fields) have to be bound first.
-  -- trace[veil.debug] "before UQC (paramBinders: {paramBinders}): {term}"
-  let body ← elabBinders (binders ++ paramBinders ++ (← mod.getTheoryBinders) ++ (← mod.getStateBinders)) $ fun _ => univerallyQuantifyCapitals term
   -- We don't `universallyQuantifyCapitals` after `withTheory` /
   -- `withTheoryAndState` because we want to have the universal
   -- quantification as deeply inside the term as possible, rather than above
   -- the binders for `rd` and `st` introduced below.
+  let body ← `(uqc% ($term:term))
   let (thstBinders, term') ← if justTheory then withTheory body else withTheoryAndState body
   let term' := Syntax.inheritSourceSpanFrom term' term
   -- Record the `Decidable` instances that are needed for the assertion.
