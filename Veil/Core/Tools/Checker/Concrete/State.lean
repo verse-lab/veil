@@ -83,8 +83,7 @@ variable [dec_term: ∀rd : ρ, ∀st : σᵣ, Decidable (Terminate rd st)]
 variable [IsSubStateOf ℂ σᵣ] [IsSubReaderOf ℝ ρ]
 
 open CheckerM in
-partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ)
-  : StateT (SearchContext σᵣ σₛ κ) Id Unit := do
+partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ) : StateT (SearchContext σᵣ σₛ κ) Id Unit := do
   let fpSt₀ := view st₀
   addToSeen fpSt₀
   enqueueState st₀ fpSt₀

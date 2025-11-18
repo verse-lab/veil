@@ -219,8 +219,7 @@ theorem norm_idem {α} (q : fQueue α) :
       -- When front is non-empty, norm q = q, so norm (norm q) = norm q = q, contradiction
       simp [fQueue.norm]
 
-theorem norm_eq_self_of_front_ne_nil {α} {q : fQueue α}
-    (h : q.front ≠ []) :
+theorem norm_eq_self_of_front_ne_nil {α} {q : fQueue α} (h : q.front ≠ []) :
     fQueue.norm q = q := by
   cases q with
   | mk f b =>
@@ -230,21 +229,21 @@ theorem norm_eq_self_of_front_ne_nil {α} {q : fQueue α}
 
 
 @[simp]
-theorem toList_empty {α} : fQueue.toList (fQueue.empty : fQueue α) = ([] : List α) := by
+theorem toList_empty {α : Type} : fQueue.toList (fQueue.empty : fQueue α) = ([] : List α) := by
   simp [fQueue.empty, fQueue.toList]
 
 @[simp]
-theorem dequeue?_empty {α} : fQueue.dequeue? (fQueue.empty : fQueue α) = none := by
+theorem dequeue?_empty {α : Type} : fQueue.dequeue? (fQueue.empty : fQueue α) = none := by
   simp [fQueue.empty, fQueue.dequeue?, fQueue.norm]
 
 
 @[simp]
-theorem toList_enqueue {α} (q : fQueue α) (x : α) :
+theorem toList_enqueue {α : Type} (q : fQueue α) (x : α) :
     fQueue.toList (fQueue.enqueue q x) = fQueue.toList q ++ [x] := by
   simp [fQueue.toList, fQueue.enqueue, List.reverse_cons, List.append_assoc]
 
 
-theorem dequeue?_spec {α} (q : fQueue α) :
+theorem dequeue?_spec {α : Type} (q : fQueue α) :
     match fQueue.dequeue? q with
     | none => fQueue.toList q = []
     | some (x, q') => fQueue.toList q = x :: fQueue.toList q' := by
