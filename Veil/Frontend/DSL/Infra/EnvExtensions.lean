@@ -81,4 +81,19 @@ def mkNewAssertion [Monad m] [MonadEnv m] [MonadError m] (proc : Name) (stx : Sy
   globalEnv.modify (fun gctx => { gctx with assertions := actx' })
   return actx.maxId
 
+section DevelopingTools
+
+open Lean Meta Elab Command in
+elab "veil_set_option " o:ident v:term : command => do
+  let lenv ← localEnv.get
+  let some mod := lenv.currentModule | throwError s!"Not in a module"
+  let v ← liftTermElabM <| Term.elabTerm v (mkConst ``Bool)
+  let b := if v == mkConst ``Bool.true then true else false
+  match o.getId with
+  | `useFieldRepTC => localEnv.modifyModule (fun _ => { mod with _useFieldRepTC := b })
+  | `useLocalRPropTC => localEnv.modifyModule (fun _ => { mod with _useLocalRPropTC := b })
+  | _ => throwError s!"Unsupported option {o}"
+
+end DevelopingTools
+
 end Veil

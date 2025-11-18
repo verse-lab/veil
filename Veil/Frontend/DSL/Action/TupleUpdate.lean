@@ -19,14 +19,31 @@ def veil_tuplElab : TermElab := fun stx type? => do
     elabTerm newStx type?
   | _ => throwUnsupportedSyntax
 
+def TupleUpdate.findFirstAppearance [Monad m] [MonadQuotation m] (arr : Array (TSyntax `term)) (base : Array (TSyntax `term) := #[]) :
+  m (Array (Ident × Option Nat)) := do
+  let mut res : Array (Ident × Option Nat) := #[]
+  let mut x := base
+  for i in arr do
+    if isCapital i.raw.getId then
+      let n := x.findIdx? (· == ⟨i.raw⟩)
+      match n with
+      | some idx =>
+        let i' ← Lean.Elab.Term.mkFreshIdent i
+        res := res.push (i', some idx)
+        x := x.push i'
+      | none =>
+        res := res.push (⟨i.raw⟩, none)
+        x := x.push ⟨i.raw⟩
+    else
+      let i' ← Lean.Elab.Term.mkFreshIdent i
+      res := res.push (i', none)
+      x := x.push i'
+  return res
+
 macro_rules
   | `(term| $f[$is:term,* ↦ $b ]) => do
-    let mut x : Array $ Lean.TSyntax `ident := #[]
-    for i in is.getElems do
-      if isCapital i.raw.getId && x.all (· != ⟨i.raw⟩) then
-        x := x.push ⟨i.raw⟩
-      else
-        x := x.push (<- Lean.Elab.Term.mkFreshIdent i)
+    let x ← TupleUpdate.findFirstAppearance is.getElems
+    let x := x.map Prod.fst
     let tuple1 <- `(term| [veil_tupl| $is: term *])
     let tuple2 <- `(term| [veil_tupl| $[$x: ident] * ] )
     let stx <- `(fun $[$x:ident]* => if $tuple2 = $tuple1 then $b else $f:term $x *)

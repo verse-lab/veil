@@ -169,6 +169,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.procedures.filter (fun s => match s.info with
     | .action _ | .initializer => true
     | .procedure _ => false)
+  let solverTactic ← if mod._useLocalRPropTC then `(by veil_solve !) else `(by veil_solve)
   let mut doesNotThrowVCs : Std.HashSet VCId := {}
   let mut clausesVCsByInv : Std.HashMap Name (Std.HashSet VCId) := {}
   let mut preservesInvariantsVCs : Std.HashSet VCId := {}
@@ -178,7 +179,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
     doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind .primary) {}
-    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm $ ← `(by veil_solve))
+    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm solverTactic)
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
     -- Assuming the `Invariants`, this action preserves every invariant clause
@@ -186,7 +187,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     for invariantClause in mod.checkableInvariants do
       let mut clauseVC := default
       clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind invariantClause.name .primary) {}
-      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm $ ← `(by veil_solve))
+      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm solverTactic)
       clausesVCsByInv := clausesVCsByInv.insert invariantClause.name ((clausesVCsByInv.getD invariantClause.name {}).insert clauseVC)
       clauseVCsForAct := clauseVCsForAct.insert clauseVC
 

@@ -41,6 +41,12 @@ def ProcedureInfo.nameInMode (pi : ProcedureInfo) (mode? : Option Mode) : Name :
   | .none => toDoName pi.name
   | .some mode => toActName pi.name mode
 
+/-- `[unchanged|s| id1 id2 ...]` expands to
+`id1 = id1s ∧ id2 = id2s ∧ ...`, where `idxs` is the name `idx` with `s` appended. -/
+macro_rules
+  | `([unchanged|$s:str| $id:ident]) => `($id = $(mkIdent <| id.getId.appendAfter s.getString))
+  | `([unchanged|$s| $id $ids*]) => `([unchanged|$s| $id] ∧ [unchanged|$s| $ids*])
+  | `([unchanged|$_|]) => `(True)
 
 /-! ## Auxiliary definitions-/
 namespace AuxiliaryDefinitions
@@ -54,6 +60,7 @@ private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
   let (handler, post) := (mkVeilImplementationDetailIdent `handler, mkVeilImplementationDetailIdent `post)
   (fun args : Array Term =>
     `(fun $handler $post => [IgnoreEx $handler| $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post]))
+
 
 open Lean Meta Elab Command Veil in
 elab "veil_variables" : command => do
@@ -72,6 +79,22 @@ elab "veil_variables" : command => do
     dbg_trace s!"with unique IDs: {varUIds}"
     modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds}
 
+private def elabSimpArgForTerms (ctx : Meta.Simp.Context) (simps : Array (TSyntax `term × Name)) : TermElabM Meta.Simp.Context := do
+  -- the following manipulation comes from `elabSimpArgs` in `Lean/Elab/Tactic/Simp.lean`
+  let indexConfig := ctx.indexConfig
+  let simpThms ← simps.filterMapM fun (stx, name) => do
+    let thms ← elabSimpTheoremFromTerm indexConfig (.stx name Syntax.missing)
+      stx (post := false) (inv := false)
+    pure thms
+  let mut thmsArray := ctx.simpTheorems
+  let mut thms      := thmsArray[0]!
+  for entries in simpThms do
+    for entry in entries do
+      -- thms := thms.uneraseSimpEntry entry
+      thms := thms.addSimpEntry entry
+  let ctx' := ctx.setSimpTheorems (thmsArray.set! 0 thms)
+  return ctx'
+
 /-- Perform simplification using `get_set_idempotent'`. This requires
 some special handling since these `simp` theorems might only be given
 in terms of `Expr`s. -/
@@ -89,22 +112,11 @@ private def simpGetSetForFieldRepTC (ctx : Meta.Simp.Context) : TermElabM Meta.S
   -- get the state from the hypothesis by ... some hack
   let stateTypeName := labelTypeName.getPrefix
   let fields ← getFieldIdentsForStruct stateTypeName
-  let indexConfig := ctx.indexConfig
-  -- the following manipulation comes from `elabSimpArgs` in `Lean/Elab/Tactic/Simp.lean`
-  let simpThms ← fields.filterMapM fun f => do
+  let simps ← fields.mapM fun f => do
     let stx ← `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
     let name ← mkFreshUserName (f.getId ++ `get_set_idempotent')
-    let thms ← elabSimpTheoremFromTerm indexConfig (.stx name Syntax.missing)
-      stx (post := false) (inv := false)
-    pure thms
-  let mut thmsArray := ctx.simpTheorems
-  let mut thms      := thmsArray[0]!
-  for entries in simpThms do
-    for entry in entries do
-      -- thms := thms.uneraseSimpEntry entry
-      thms := thms.addSimpEntry entry
-  let ctx' := ctx.setSimpTheorems (thmsArray.set! 0 thms)
-  return ctx'
+    pure (stx, name)
+  elabSimpArgForTerms ctx simps
 
 -- NOTE: The uses of `open Classical` below is mainly for allowing
 -- rewriting based simplification where the target term is depended by
@@ -128,7 +140,7 @@ definition, and prove `act.wp_eq` which states that this definition is equal to
 We can then rewrite/simp using `act.wp_eq` to not have to recompute the WP
 for every VC. This is an optimisation — Veil would work without it, but it
 would be significantly slower. -/
-private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit := do
+private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationKind) : TermElabM Unit := do
   let fqn ← getFullyQualifiedName nm
   let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
   let wpDef ← wpTemplate fqn allArgs
@@ -172,7 +184,7 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
       -- instances. So instead of constructing this equality at the syntax level,
       -- we construct it directly as an `Expr`.
       -- (*) it's easier to construct the proof here with the body
-      let #[_handler, _post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
+      let #[_handler, post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
       let lhs := body -- `$(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post`
       let rhs ← Meta.mkAppOptM wpDef_fqn $ (vs ++ xs).map Option.some -- `@$(mkIdent wpDefName) $args* $handler $post`
       let eqStatement ← Meta.mkEq lhs rhs
@@ -182,36 +194,94 @@ private def defineWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermEla
       let wpSimpAttrHigh ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ high)
       let _wpEq_fqn ← addVeilTheorem (toWpEqName nm) eqStatement eqProof (attr := #[wpSimpAttrHigh])
 
+      if mod._useLocalRPropTC then
+      if dk matches .derivedDefinition .actionLike _ then
+      if mode matches .external then
+        -- this is a hack
+        let vs' := vs.take mod.parameters.size
+        let localRPropTCFqn ← resolveGlobalConstNoOverloadCore localRPropTCName
+        let localRPropTCArg ← Meta.mkAppOptM localRPropTCFqn (vs'.map Option.some |>.push none |>.push post)
+        -- trace[veil.debug] "[{decl_name%}] LocalRPropTC arg: {localRPropTCArg}"
+        Meta.withLocalDecl `localRPropTC BinderInfo.instImplicit localRPropTCArg fun inst => do
+          let simp : Simplifier ← do
+            let ctx ← mkVeilSimpCtx #[]
+            let simpTerm ← `(term| $(mkIdent `LocalRProp.core_eq) ($(mkIdent `self) := by assumption))
+            let arr := #[(simpTerm, (← mkFreshUserName `LocalRProp.core_eq))]
+            let ctx' ← elabSimpArgForTerms ctx arr
+            pure <| Simp.simpCore ctx'
+          -- TODO repeating below!!!!
+          let simp := simp.andThen (evalOpenClassical ∘ Simp.simp #[`wpSimp] { unfoldPartialApp := true : Meta.Simp.Config }) |>.andThen (evalOpenClassical ∘ Simp.simp #[`quantifierSimp]) |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp])
+          let simp ← if mod._useFieldRepTC
+            then
+              let ss ← simplifierGetSetForFieldRepTC
+              -- (1) do basic simplification using `LawfulFieldRepresentation`
+              pure <| (simp |>.andThen (Simp.simp #[`fieldRepresentationSetSimpPre])
+                -- (2) simplify using `get_set_idempotent'`
+                |>.andThen ss
+                -- (3) simplify the resulting things
+                |>.andThen (evalOpenClassical ∘ Simp.simp #[fieldLabelToDomainName stateName, fieldLabelToCodomainName stateName, `fieldRepresentationSetSimpPost]))
+            else pure <| simp
+          let resBody' ← simp resBody.expr
+          -- trace[veil.debug] "[{decl_name%}] simplified wp with LocalRPropTC: {resBody'.expr}"
+
+          let fvars := (vs ++ xs).push inst
+          let wpExpr' ← instantiateMVars $ ← Meta.mkLambdaFVars fvars resBody'.expr
+          -- let wpSimpAttrMed ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ (low + 100))
+          let wpDef_fqn' ← addVeilDefinition (toWpLOName nm) wpExpr' (attr := #[{name := `reducible}, wpSimpAttrLow])
+
+          let lhs := body -- `$(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post`
+          let rhs ← Meta.mkAppOptM wpDef_fqn' $ fvars.map Option.some -- `@$(mkIdent wpDefName) $args* $handler $post`
+          let eqStatement ← Meta.mkEq lhs rhs
+          -- Because `lhs = body`, `resBody` is a proof of `eqStatement`!
+          let eqStatement ← instantiateMVars $ ← Meta.mkForallFVars fvars eqStatement
+          let resBody' ← resBody.mkEqTrans resBody'
+          -- NOTE: The proof term can be reduced by reusing the previous `wp_eq` theorem
+          let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars fvars (← resBody'.getProof)
+          let wpSimpAttrHigher ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ (high + 100))
+          let _wpEq_fqn ← addVeilTheorem (toWpLOEqName nm) eqStatement eqProof (attr := #[wpSimpAttrHigher])
+
   return
 
-private def define (mod : Module) (nmDo : Name) (dk : DeclarationKind) : TermElabM Unit := do
-  defineWp mod nmDo dk
+private def define (mod : Module) (nmDo : Name) (mode : Mode) (dk : DeclarationKind) : TermElabM Unit := do
+  defineWp mod nmDo mode dk
 
 end AuxiliaryDefinitions
 
 /-! ## Procedure elaboration -/
 
-def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Name × Array Parameter × Expr) := do
+private def withVeilModeVar (bi : BinderInfo) (k : Expr → TermElabM α) : TermElabM α :=
+  Meta.withLocalDecl veilModeVar.getId bi (mkConst ``Mode) k
+
+/-- Elaborate `body` under `br`, and obtain its extra parameters. -/
+def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (body : Term) (addModeArg : Bool := true) : TermElabM (Array Parameter × Expr) := do
   let brs ← Option.stxArrMapM br toFunBinderArray
-  let stx ← `(fun $brs* => veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
+  let stx ← `(fun $brs* => ($body))
   try
-    Meta.withLocalDecl veilModeVar.getId BinderInfo.default (mkConst ``Mode) fun mode => do
+    withVeilModeVar BinderInfo.default fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
     let (mvars, e) ← elabTermDecidable stx
-    let e ← Meta.mkLambdaFVarsImplicit (#[mode] ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
+    let e ← Meta.mkLambdaFVarsImplicit ((if addModeArg then #[mode] else #[]) ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
     -- `e` should not contain any metavariable; capture the error here
     if e.hasMVar then
       throwError "mvar(s) exist in the elaborated expression. Consider adding more type annotations."
     -- NOTE: Doing `dsimp` on `act.do`, `act` or `act.ext` will inline
     -- `let` bindings, which _might_ lead to performance issues
-    return ((pi.nameInMode .none), ← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)
+    return (← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)
   catch ex =>
     throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
 where
   mvarToParam (inAction : Name) (mvar : Expr) (i : Nat) : TermElabM Parameter := do
     let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar) true
     return { kind := .definitionTypeclass inAction, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
+
+def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Array Parameter × Expr) := do
+  let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
+  elabProcedureCore vs pi br body
+
+def elabTransitionTerm (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (t : Term) : TermElabM (Array Parameter × Expr) := do
+  let body ← `(@$(mkIdent ``id) ($(mkIdent ``Transition) $environmentTheory $environmentState) ($t))
+  elabProcedureCore vs pi br body (addModeArg := false)
 
 def elabProcedureInMode (pi : ProcedureInfo) (mode : Mode) : TermElabM (Name × Expr) := do
   let doNm_fullyQualified ← getFullyQualifiedName $ (pi.nameInMode .none)
@@ -239,12 +309,8 @@ private def Module.registerDerivedActionDefinition [Monad m] [MonadError m] [Mon
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
-def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
-  let mod := mod
-  -- Obtain `extraParams` so we can register the action
-  let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
-  let (nmDo, extraParams, e) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
-  let ps := ProcedureSpecification.mk pi br extraParams spec l stx
+def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
+  (eDo : Expr) (ps : ProcedureSpecification) : CommandElabM Module := do
   -- We register the `internal` view of the action as the "real" one
   let mod ← mod.registerProcedureSpecification ps
   -- The `.do` and `.ext` views are marked as derived definitions
@@ -253,18 +319,46 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   let (mod, extKind) ← mod.registerDerivedActionDefinition ps Mode.external
   -- Elaborate the definitions in the Lean environment
   liftTermElabM $ do
-    let _nmDo_fullyQualified ← addVeilDefinition nmDo e (attr := #[{name := `reducible}])
+    let nmDo := pi.nameInMode .none
+    let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
     let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
     let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
-    AuxiliaryDefinitions.define mod nmInt intKind
+    AuxiliaryDefinitions.define mod nmInt .internal intKind
 
     -- Procedures are never considered in their external view, so save some
     -- time by not elaborating those definitions.
     if pi matches .initializer | .action _ then do
       let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
       let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
-      AuxiliaryDefinitions.define mod nmExt extKind
+      AuxiliaryDefinitions.define mod nmExt .external extKind
   return mod
 
+def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
+  -- Obtain `extraParams` so we can register the action
+  let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
+  let (extraParams, eDo) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
+  let ps := ProcedureSpecification.mk pi br extraParams spec l stx
+  mod.defineProcedureCore pi eDo ps
+
+def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders)) (t : Term) (stx : Syntax) : CommandElabM Module := do
+  -- Obtain `extraParams` so we can register the action
+  let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
+  let (extraParams, eTr) ← liftTermElabMWithBinders actionBinders $ fun vs => elabTransitionTerm vs pi br t
+  let eDo ← liftTermElabM do
+    let tmp ← withVeilModeVar BinderInfo.implicit fun mode => do
+      Meta.lambdaTelescope eTr fun xs eTrBody => do
+        -- get rid of the `id` wrapper; we can do this via `dsimp`-like
+        -- things, but this is more direct
+        let eTrBody := match_expr eTrBody with
+          | id _ a => a
+          | _ => eTrBody
+        let body ← Meta.mkAppOptM ``Transition.toVeilM #[.some mode, .none, .none, .some eTrBody]
+        let body ← (Simp.dsimp #[``Transition.toVeilM]) body
+        Meta.mkLambdaFVars (#[mode] ++ xs) body.expr
+    instantiateMVars tmp
+  -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
+  let ps := ProcedureSpecification.mk pi br extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
+  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName pi.name) eTr
+  mod.defineProcedureCore pi eDo ps
 
 end Veil

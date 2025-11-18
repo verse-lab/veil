@@ -54,7 +54,9 @@ def makeStateAvailable [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] 
   let bindFields ← mod.mutableComponents.flatMapM fun f => do
     if mod._useFieldRepTC then
       let concreteField := concreteFieldFromName f.name
-      -- annotating the type here is necessary to avoid unification issues
+      -- If we are using the field representation typeclass, we need to make
+      -- both concrete fields and their abstracted versions (through `.get`) available.
+      -- Annotating the type here is necessary to avoid unification issues.
       let ty ← f.typeStx
       let b1 ← `(Term.doSeqItem| let mut $concreteField := $(mkIdent stVar).$(mkIdent f.name))
       let b2 ← `(Term.doSeqItem| let mut $(mkIdent f.name) : $ty := ($fieldRepresentation _).$(mkIdent `get) $concreteField)
@@ -73,8 +75,8 @@ def getState [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] (mod : Mod
       let concreteField := concreteFieldFromName f.name
       let ty ← f.typeStx
       let b1 ← `(Term.doSeqItem| $concreteField:ident := $(mkIdent stVar).$(mkIdent f.name))
-      -- NOTE: it seems that the type annotation syntax is not allowed here,
-      -- so use the `id` hack
+      -- NOTE: It seems that the type annotation syntax is not allowed on the
+      -- LHS of an assignment, so use the `id` hack.
       let b2 ← `(Term.doSeqItem| $(mkIdent f.name):ident := @$(mkIdent ``id) ($ty) (($fieldRepresentation _).$(mkIdent `get) $concreteField))
       return #[b1, b2]
     else
@@ -176,34 +178,55 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
   let isStructureAssignment := !name.isAtomic
   let component := mod.signature.find? (·.name = name)
   if isStructureAssignment || component.isNone then
-    -- TODO: throwIfImmutable
+    mod.throwIfImmutable name
     let res ← `(Term.doSeqItem| $id:ident := $t:term)
     return #[res]
   else
     let .some component := component | unreachable!
-    -- TODO: throwIfImmutable
+    mod.throwIfImmutable name
     let bindId := mkIdent <| ← mkFreshUserName $ (mkVeilImplementationDetailName $ Name.mkSimple s!"bind_{id.getId}")
     if mod._useFieldRepTC then
+      /-
+      The processing below:
+      - Analyze the pattern to get the list of pattern arguments `pat`
+        and the base value `v`
+      - `componentsSize`: the number of arguments that the field expects
+      - Let `pat = patUsed ++ patResidue`, where `patUsed` has size at
+        most `componentsSize`
+
+      When `patUsed.size < componentsSize`, we need to "pad" the pattern
+      with `none`s to make it "full".
+
+      `patResidue` can be non-empty, since the codomain of the field can
+      be a function. When `patResidue` is non-empty, we need to "spill"
+      them to the base value `v`. See the `v'` below.
+      -/
       let (pat, v) := match t with
         | `(term| $f:ident [ $[$idxs],* ↦ $v ]) =>
           if f.getId = name then (idxs, v) else (#[], t)
         | _ => (#[], t)
-      -- NOTE: here slightly deviates from how `pat` is handled in `TupleUpdate`;
-      -- namely, turn every Capital identifier into `none`
-      -- NOTE: the actual pattern size might be smaller than `pat.size`, since
-      -- the base can be a function; we shrink the size according to how
-      -- `toDomain` is generated
+      let _ ← do
+        let x ← TupleUpdate.findFirstAppearance pat
+        if x.any (·.2.isSome) then
+          throwErrorAt stx s!"When using field representation typeclass, you cannot use the same capitalized identifier more than once in the assignment:\n\n{name} {pat}\n\nsince it can lead to unexpected semantics."
       let componentsSize := mod._fieldRepMetaData.get? name |>.elim 0 (·.size)
       let (patUsed, patResidue) := (pat.take componentsSize, pat.drop componentsSize)
-      let patOpt ← patUsed.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
-      let funBinders : Array (TSyntax `Lean.Parser.Term.funBinder) ←
-        patUsed.mapM fun i => if isCapital i.raw.getId then `(Term.funBinder| $(⟨i.raw⟩):ident ) else `(Term.funBinder| _ )
-      let v ← if patResidue.isEmpty then pure v else `($(mkIdent name):ident [ $[$patResidue],* ↦ $v ])
-      let vPadded ← if funBinders.isEmpty then pure v else `(fun $[$funBinders]* => ($v))
-      let components ← `($(fieldLabelToDomain stateName)
-        $(← mod.sortIdents):ident*
-        $(mkIdent <| structureFieldLabelTypeName stateName ++ name):ident)
-      let patTerm ← `(veil_dsimp% [$(mkIdent `fieldRepresentationPatSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
+      let vPadded ← do
+        let funBinders : Array (TSyntax `Lean.Parser.Term.funBinder) ←
+          patUsed.mapM fun i => if isCapital i.raw.getId then `(Term.funBinder| $(⟨i.raw⟩):ident ) else `(Term.funBinder| _ )
+        let v' ←
+          if patResidue.isEmpty
+          then pure v
+          else
+            let old := Syntax.mkApp (← `($(mkIdent name):ident)) patUsed
+            `($old [ $[$patResidue],* ↦ $v ])
+        if funBinders.isEmpty then pure v' else `(fun $[$funBinders]* => ($v'))
+      let patTerm ← do
+        let patOpt ← patUsed.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
+        let components ← `($(fieldLabelToDomain stateName)
+          $(← mod.sortIdents):ident*
+          $(mkIdent <| structureFieldLabelTypeName stateName ++ name):ident)
+        `(veil_dsimp% [$(mkIdent `fieldRepresentationPatSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
       let concreteField := concreteFieldFromName name
       let bind ← `(Term.doSeqItem| let $bindId:ident := ($fieldRepresentation _).$(mkIdent `setSingle) ($patTerm) ($vPadded) $concreteField)
       let modifyGetConcrete ← withRef stx `(Term.doSeqItem| $concreteField:ident ← $(mkIdent ``modifyGet):ident
@@ -251,6 +274,6 @@ attribute [fieldRepresentationPatSimp] FieldUpdatePat.pad IteratedArrow.curry It
 attribute [fieldRepresentationSetSimpPre] FieldRepresentation.setSingle LawfulFieldRepresentationSet.set_append List.singleton_append
 attribute [fieldRepresentationSetSimpPost] CanonicalField.set FieldUpdateDescr.fieldUpdate FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
 attribute [fieldRepresentationSetSimpPost] List.foldr Option.elim Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
-attribute [fieldRepresentationSetSimpPost ↓] reduceIte ite_true ite_false
+attribute [fieldRepresentationSetSimpPost ↓] reduceIte ite_true ite_false and_true true_and
 
 end Veil

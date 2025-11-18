@@ -330,6 +330,8 @@ structure Module where
 
   protected _useFieldRepTC : Bool := true
 
+  protected _useLocalRPropTC : Bool := true
+
   protected _fieldRepMetaData : Std.HashMap Name (Array Term) := Std.HashMap.emptyWithCapacity
 deriving Inhabited
 

@@ -19,6 +19,7 @@ def toActName (n : Name) : Mode → Name := fun
   | Mode.internal => n
   | Mode.external => Name.append n `ext
 
+-- TODO These names should be put together with the other names
 def toExtName (n : Name) := toActName n Mode.external
 
 def toActIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toActName id.getId mode
@@ -36,5 +37,9 @@ def toExQuantifiedTransitionName (n : Name) : Name := n ++ `exTr
 def toExQuantifiedTransitionEqName (n : Name) : Name := n ++ `exTr_eq
 
 -- def toEndToEndEqName (n : Name) : Name := n ++ `twoState_eq
+
+-- LO: Locally Optimized
+def toWpLOName (n : Name) : Name := n ++ `wplo
+def toWpLOEqName (n : Name) : Name := n ++ `wplo_eq
 
 end Veil

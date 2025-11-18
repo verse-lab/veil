@@ -124,7 +124,8 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
-  if mod._useFieldRepTC then
+  let mod ← if mod._useFieldRepTC
+  then
     let (mod, stxs) ← mod.declareStateFieldLabelTypeAndDispatchers
     let (mod, stateStx) ← mod.declareFieldsAbstractedStateStructure
     let (mod, theoryStx) ← mod.declareTheoryStructure
@@ -133,14 +134,19 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     elabVeilCommand stateStx
     elabVeilCommand theoryStx
     generateIgnoreFn mod
-    return { mod with _stateDefined := true }
+    pure { mod with _stateDefined := true }
   else
     let (mod, stateStx) ← mod.declareStateStructure
     let (mod, theoryStx) ← mod.declareTheoryStructure
     elabVeilCommand stateStx
     elabVeilCommand theoryStx
     generateIgnoreFn mod
-    return { mod with _stateDefined := true }
+    pure { mod with _stateDefined := true }
+  if mod._useLocalRPropTC then
+    let (localRPropTCStx, stx2) ← liftTermElabM mod.declareLocalRPropTC
+    elabVeilCommand localRPropTCStx
+    elabVeilCommand stx2
+  pure mod
 
 
 /-- Crystallizes the specification of the module, i.e. it finalizes the
@@ -202,6 +208,33 @@ def elabProcedure : CommandElab := fun stx => do
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
 
+@[command_elab Veil.transitionDefinition]
+def elabTransition : CommandElab := fun stx => do
+  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a transition outside of a Veil module!")
+  mod ← mod.ensureStateIsDefined
+  mod.throwIfSpecAlreadyFinalized
+  let new_mod ← match stx with
+  | `(command|transition $nm:ident $br:explicitBinders ? { $t:term }) =>
+    -- check immutability of changed fields
+    let changedFn (f : Name) := t.raw.find? (·.getId == f.appendAfter "'") |>.isSome
+    let fields ← mod.getFieldsRecursively
+    let (changedFields, unchangedFields) := fields.partition changedFn
+    for f in changedFields do
+      mod.throwIfImmutable f (isTransition := true)
+    -- obtain the "real" transition term
+    let trStx ← do
+      let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
+      let unchangedFields := unchangedFields.map Lean.mkIdent
+      let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st), (.state "'", st')]
+        (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
+      `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $tmp))
+    mod.defineTransition (ProcedureInfo.action nm.getId) br trStx stx
+    -- FIXME: Is this required?
+    -- -- warn if this is not first-order
+    -- Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
+  | _ => throwUnsupportedSyntax
+  localEnv.modifyModule (fun _ => new_mod)
+
 @[command_elab Veil.procedureDefinitionWithSpec]
 def elabProcedureWithSpec : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
@@ -239,9 +272,13 @@ def elabAssertion : CommandElab := fun stx => do
   | `(command|termination $name:propertyName ? $prop:term) => mod.mkAssertion .termination name prop stx
   | _ => throwUnsupportedSyntax
   -- Elaborate the assertion in the Lean environment
-  let (stx, mod') ← mod.defineAssertion assertion
+  let (stx, stx2, mod') ← mod.defineAssertion assertion
   elabVeilCommand stx
-  dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
+-- <<<<<<< HEAD
+--   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
+-- =======
+  if let some stx2 := stx2 then elabVeilCommand stx2
+-- >>>>>>> origin/reducing-simp
   localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]
