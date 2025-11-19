@@ -284,4 +284,21 @@ def elabGenSpec : CommandElab := fun _stx => do
   let mod ← mod.ensureSpecIsFinalized
   localEnv.modifyModule (fun _ => mod)
 
+open Lean Meta Elab Command Veil in
+/-- Developer tool. Import all module parameters into section scope. -/
+elab "veil_variables" : command => do
+  let mod ← getCurrentModule
+  let binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder) ← mod.parameters.mapM (·.binder)
+  for binder in binders do
+    match binder with
+    | `(bracketedBinder| ($id:ident : $ty:term) )
+    | `(bracketedBinder| [$id:ident : $ty:term] )
+      =>
+      let varId := id.getId
+      dbg_trace s!"{varId} :  {← liftTermElabM <| Lean.PrettyPrinter.formatTerm ty}"
+    | _ => throwError "unsupported veil_variables binder syntax"
+    let varUIds ← (← getBracketedBinderIds binder) |>.mapM (withFreshMacroScope ∘ MonadQuotation.addMacroScope)
+    dbg_trace s!"with unique IDs: {varUIds}"
+    modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds}
+
 end Veil

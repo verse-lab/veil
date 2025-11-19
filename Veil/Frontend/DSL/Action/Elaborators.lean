@@ -61,24 +61,6 @@ private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
   (fun args : Array Term =>
     `(fun $handler $post => [IgnoreEx $handler| $(mkIdent ``wp) (@$(mkIdent sourceAction) $args*) $post]))
 
-
-open Lean Meta Elab Command Veil in
-elab "veil_variables" : command => do
-  let lenv ← localEnv.get
-  let some mod := lenv.currentModule | throwError s!"Not in a module"
-  let binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder) ← mod.parameters.mapM (·.binder)
-  for binder in binders do
-    match binder with
-    | `(bracketedBinder| ($id:ident : $ty:term) )
-    | `(bracketedBinder| [$id:ident : $ty:term] )
-      =>
-      let varId := id.getId
-      dbg_trace s!"{varId} :  {← liftTermElabM <| Lean.PrettyPrinter.formatTerm ty}"
-    | _ => throwError "unsupported veil_variables binder syntax"
-    let varUIds ← (← getBracketedBinderIds binder) |>.mapM (withFreshMacroScope ∘ MonadQuotation.addMacroScope)
-    dbg_trace s!"with unique IDs: {varUIds}"
-    modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds}
-
 private def elabSimpArgForTerms (ctx : Meta.Simp.Context) (simps : Array (TSyntax `term × Name)) : TermElabM Meta.Simp.Context := do
   -- the following manipulation comes from `elabSimpArgs` in `Lean/Elab/Tactic/Simp.lean`
   let indexConfig := ctx.indexConfig
