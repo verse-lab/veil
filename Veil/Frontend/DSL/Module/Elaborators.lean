@@ -274,11 +274,8 @@ def elabAssertion : CommandElab := fun stx => do
   -- Elaborate the assertion in the Lean environment
   let (stx, stx2, mod') ← mod.defineAssertion assertion
   elabVeilCommand stx
--- <<<<<<< HEAD
 --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
--- =======
   if let some stx2 := stx2 then elabVeilCommand stx2
--- >>>>>>> origin/reducing-simp
   localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]

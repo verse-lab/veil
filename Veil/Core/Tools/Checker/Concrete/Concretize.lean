@@ -212,6 +212,7 @@ def specifyFieldConcreteType : CommandElab := fun stx => do
               $relCases:matchAlt*
               $funCases:matchAlt*
     )
+  dbg_trace s!"specify_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic fieldConcreteTypeCmd}"
   elabVeilCommand fieldConcreteTypeCmd
 
 
@@ -357,7 +358,7 @@ syntax (name := deriveRepInstForFieldRepr) "deriving_rep_FieldRepresentation" : 
 def deriveRepInstForFieldReprentation (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
   /- Make sure `deriveFinEnumInstForToDomain` has been run before this command. -/
   let typeBinders ← mod.typeExplicitBinders
-  let sortIdents ← mod.sortIdents false
+  let sortIdents ← mod.sortIdents
   let finEnumInsts ← mod.instBinders ``FinEnum
   let ordInsts ← mod.instBinders ``Ord
 
@@ -444,7 +445,7 @@ syntax (name := deriveLawfulInstForFieldRepr) "deriving_lawful_FieldRepresentati
 
 def deriveLawfulInstForFieldRepresentation (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
   /- Make sure `deriveFinEnumInstForToDomain` and `deriveRepInstForFieldReprentation` have been run before this command. -/
-  let sortIdents ← mod.sortIdents false
+  let sortIdents ← mod.sortIdents
   let finEnumInsts ← mod.instBinders ``FinEnum
   let ordInsts ← mod.instBinders ``Ord
   let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
@@ -511,7 +512,7 @@ def deriveLawfulInstForFieldReprCmd : CommandElab := fun stx => do
 syntax (name := derivingInhabitedInst) "deriving_Inhabited_State" : command
 
 def deriveInhabitedInstForState (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
-  let sortIdents ← mod.sortIdents false
+  let sortIdents ← mod.sortIdents
   let typeBinders ← mod.typeExplicitBinders
   let ordInsts ← mod.instBinders ``Ord
   let finEnumInst ← mod.instBinders ``FinEnum
@@ -537,7 +538,8 @@ def deriveInhabitedInstForState (mod : Veil.Module) : CommandElabM (TSyntax `com
   return ←
     `(command |
       instance $(mkIdent `instInhabitedFieldConcreteTypeForState):ident $[$binders]*
-      : $(mkIdent ``Inhabited) ( ($stateIdent $(sortIdents)*) ( $fieldConcreteTypeIdent:ident $(sortIdents)* ) ) :=
+      -- : $(mkIdent ``Inhabited) ( ($stateIdent $(sortIdents)*) ( $fieldConcreteTypeIdent:ident $(sortIdents)* ) ) :=
+      : $(mkIdent ``Inhabited) ( $stateIdent ( $fieldConcreteTypeIdent:ident $(sortIdents)* ) ) :=
       by
         constructor; constructor <;>
         dsimp only [$[$dsimpTerms:ident],*] <;>
@@ -1162,7 +1164,8 @@ elab "#Concretize" args:term,* : command => do
 
     -- build `StateConcrete`
     let stateCmd ← do
-      let assembledState ← `(term| @$(mkIdent stateName) $termArray*)
+      -- let assembledState ← `(term| @$(mkIdent stateName) $termArray*)
+      let assembledState ←`(term| @$(mkIdent stateName))
       let fieldConcreteInstTerm ← `(term | $(mkIdent `FieldConcreteType) $termArray*)
       -- dbg_trace s!"StateConcrete assembledState: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledState}"
       `(command| @[reducible] def $(mkIdent stateConcreteName) := ($assembledState) $fieldConcreteInstTerm)
@@ -1228,17 +1231,16 @@ def deriveHashableForState (mod : Veil.Module) : CommandElabM Unit := do
       let rhs ← `(term| $(mkIdent ``hash) $s.$(mkIdent f))
       pure (f, rhs))
 
-  -- 3) build final body: hash (rhs₁, rhs₂, ..., rhsₙ)
+  -- build final body: hash (rhs₁, rhs₂, ..., rhsₙ)
   let hashIds : Array (TSyntax `term) :=
     fieldNames.map (fun f => (mkIdent f : TSyntax `term))
   let finalBody : TSyntax `term ← liftMacroM <| mkTuple hashIds
 
-  -- 4) from right to left: let xₙ := rhsₙ; ...; let x₁ := rhs₁; finalBody
+  -- from right to left: let xₙ := rhsₙ; ...; let x₁ := rhs₁; finalBody
   let body : TSyntax `term ←
     binds.foldrM (init := finalBody) (fun (f, rhs) acc =>
       `(term| let $(mkIdent f) := $rhs; $acc))
 
-  -- 5) assemble instance (use lambda to bind parameters to avoid binder category mismatch)
   let HashableInstCmd : TSyntax `command ←
     `(command|
         instance : $(mkIdent ``Hashable) $(mkIdent `StateConcrete) where

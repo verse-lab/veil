@@ -44,7 +44,7 @@ action recv (sender n next : node) {
 
 -- safety [single_leader] leader L → le N L
 -- invariant pending S D ∧ btw S N D → le N S
--- invariant pending L L → le N L
+invariant pending L L → le N L
 invariant [unique_lead] leader N ∧ leader M → N = M
 
 #gen_spec
@@ -89,3 +89,4 @@ open scoped ProofWidgets.Jsx
 
 
 end Ring
+--

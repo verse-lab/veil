@@ -298,14 +298,46 @@ action _cs(self : process) {
 }
 
 
-termination [allDone] pc P Done
 invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
-
+termination [allDone]∀p, pc p Done
 
 #gen_spec
 
-#gen_exec
-#finitizeTypes (Fin 3), states
+-- #gen_exec
+simple_deriving_repr_for' State
+deriving instance Repr for Label
+deriving instance Inhabited for Theory
+deriving_FinOrdToJson_Domain
+specify_FieldConcreteType
+deriving_BEq_FieldConcreteType
+deriving_Hashable_FieldConcreteType
+deriving_rep_FieldRepresentation
+deriving_lawful_FieldRepresentation
+
+
+deriving_Inhabited_State
+-- #print State
+-- instance instInhabitedFieldConcreteTypeForState (process : Type) (states : Type) [process_ord : Ord process]
+--     [states_ord : Ord states] [process_inhabited : Inhabited.{1} process] [states_inhabited : Inhabited.{1} states]
+--     [process_dec_eq : DecidableEq.{1} process] [states_dec_eq : DecidableEq.{1} states]
+--     [process_fin_enum : FinEnum process] [states_fin_enum : FinEnum states]
+--     [process_lawful_cmp : Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord process)))]
+--     [states_lawful_cmp : Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord states)))]
+--     [process_trans_cmp : Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord process)))]
+--     [states_trans_cmp : Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord states)))] :
+--     Inhabited (State (FieldConcreteType process states)) := by
+--     constructor;
+--     constructor <;> dsimp only [FieldConcreteType, State.Label.toDomain, State.Label.toCodomain, Veil.IteratedProd'] <;>
+--     try exact Inhabited.default
+gen_NextAct
+gen_executable_NextAct
+deriving_Enum_Insts
+
+-- #finitizeTypes (Fin 3), states
+#Concretize (Fin 3), states
+deriving_BEqHashable_ConcreteState
+deriving_toJson_for_state
+deriving_DecidableProps_state
 
 -- Step 3: Run the model checker
 def view (st : StateConcrete) := hash st

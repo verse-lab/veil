@@ -1,6 +1,6 @@
 import Veil
 import Veil.Frontend.DSL.Action.Extraction.Extract
-import Veil.Core.Tools.Checker.Concrete.Main
+-- import Veil.Core.Tools.Checker.Concrete.Main
 
 --------------------------------- MODULE 1_mutex -------------------------------
 
@@ -422,12 +422,13 @@ action _cs (self : process) {
 
 invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 
-termination [AllDone] ∀ S, pc S Done
+invariant [AllDone] pc S Done = true
+
 
 set_option maxHeartbeats 250000
 #gen_spec
 
-
+#exit
 #gen_exec
 #finitizeTypes (Fin 3), states
 

@@ -125,7 +125,7 @@ theorem decide_coherence (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : De
         [value_inhabited : Inhabited value] (quorum : Type) [quorum_dec_eq : DecidableEq quorum]
         [quorum_inhabited : Inhabited quorum] (round : Type) [round_dec_eq : DecidableEq round]
         [round_inhabited : Inhabited round] [tot : TotalOrder round]
-        [σ_sub : IsSubStateOf (@State node value quorum round) σ]
+        [σ_sub : IsSubStateOf (@State σ node value quorum round) σ]
         [ρ_sub : IsSubReaderOf (@Theory node value quorum round) ρ]
         [vote_proposed_dec_0 :
           (proposal : round → value → Bool) →
