@@ -25,7 +25,7 @@ relation decision (N:node) (R:round) (V:value) -- got 2b from a quorum
 
 #gen_state
 
-assumption ∀ (q1:quorum) (q2:quorum), ∃ (n:node), member n q1 ∧ member n q2
+assumption ∀ (Q1:quorum) (Q2:quorum), ∃ (N:node), member N Q1 ∧ member N Q2
 
 after_init {
   one_a R :=  false
@@ -109,7 +109,7 @@ invariant [none_prop] ¬ vote N none V
 
 -- # Properties of choosable and proposal
 invariant [choosable_proposal] ∀ (R1:round) (R2:round) (V1:value) (V2:value) (Q:quorum), ¬ tot.le R2 R1 ∧ proposal R2 V2 ∧ V1 ≠ V2 ->
-    ∃ n:node, member n Q ∧ left_rnd n R1 ∧ ¬vote n paxosR1 V1
+    ∃ n:node, member n Q ∧ left_rnd n R1 ∧ ¬vote n R1 V1
 
 -- # properties of one_b, left_rnd
 -- #conjecture one_b_max_vote(N,R,RMAX,V) -> one_b(N,R)

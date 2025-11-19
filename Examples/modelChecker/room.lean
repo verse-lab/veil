@@ -138,6 +138,9 @@ invariant [current_key_registration]
 #gen_exec
 #finitizeTypes (Fin 2), Room, Guest, Position, Occupied
 
+#print State
+
+#print StateConcrete
 
 def modelCheckerResult' := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => maunual_2 ρ σ) ((fun ρ σ => true)) {one := 1} hash).snd
 def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {one := 1} (collectTrace' modelCheckerResult'))

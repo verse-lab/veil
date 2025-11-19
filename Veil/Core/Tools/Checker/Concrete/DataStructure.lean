@@ -28,7 +28,8 @@ end fQueue
 
 /--
 The State defintion of the model checker:
-- α is the original type of the state, i.e., State used in Veil DSL.
+
+- α is the original type of the state, i.e., State used in veil's syntax.
 - β is the type of the state that we used to store, e.g., StateConcrete.
 - log is the list of transitions that have been seen.
 - counterexample is the list of states that have been seen and are not valid.
@@ -298,7 +299,7 @@ theorem dequeue?_eq_none_iff_toList_nil {α} (q : fQueue α) :
         contradiction
 
 /-- if `toList q = x :: xs`，then `dequeue? q = some (x, q')` and `toList q' = xs`。 -/
-theorem dequeue?_cons_view {α} {q : fQueue α} {x : α} {xs : List α}
+theorem dequeue?_cons_view {α : Type} {q : fQueue α} {x : α} {xs : List α}
     (h : fQueue.toList q = x :: xs) :
     ∃ q', fQueue.dequeue? q = some (x, q') ∧ fQueue.toList q' = xs := by
   cases h' : fQueue.dequeue? q with
@@ -316,8 +317,7 @@ theorem dequeue?_cons_view {α} {q : fQueue α} {x : α} {xs : List α}
     simp [xy_eq.symm, xs_eq]
 
 
-theorem fQueue_dequeue_mem
-    {α : Type} [Inhabited α]
+theorem fQueue_dequeue_mem {α : Type} [Inhabited α]
     (sq : fQueue α) (st : α) (sq' : fQueue α)
     (h_dequeue : fQueue.dequeue? sq = some (st, sq'))
     : st ∈ fQueue.toList sq := by

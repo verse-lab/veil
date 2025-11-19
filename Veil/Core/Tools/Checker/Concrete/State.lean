@@ -70,7 +70,6 @@ seperate the concerns of model checking algorithm and representation.
 
 TODO: If we hope to allow use `symmetric reduction`, then `σᵣ` requires
 `Ord` instance, to make it comparable between each other.
-
 -/
 variable [Inhabited σᵣ]
 variable {σₛ : Type}
@@ -80,10 +79,12 @@ variable (INV : ρ → σᵣ → Prop)
 variable (Terminate : ρ → σᵣ → Prop)
 variable [dec_inv: ∀rd : ρ, ∀st : σᵣ, Decidable (INV rd st)]
 variable [dec_term: ∀rd : ρ, ∀st : σᵣ, Decidable (Terminate rd st)]
-variable [IsSubStateOf ℂ σᵣ] [IsSubReaderOf ℝ ρ]
+variable [IsSubStateOf ℂ σᵣ]
+variable [IsSubReaderOf ℝ ρ]
 
 open CheckerM in
-partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ) : StateT (SearchContext σᵣ σₛ κ) Id Unit := do
+partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ)
+: StateT (SearchContext σᵣ σₛ κ) Id Unit := do
   let fpSt₀ := view st₀
   addToSeen fpSt₀
   enqueueState st₀ fpSt₀
@@ -91,14 +92,11 @@ partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ) : State
     let .some (st, fpSt) := (← dequeueState) | return ()
     let mut emptyflag := true
     for label in allLabels do
-      -- dbg_trace s!"Exploring label: {repr label}"
       let execs := nonDetNexts nextVeilMultiExecM rd st label
-      -- dbg_trace s!"received {(execs.length)} successors"
       let succs := getAllStatesFromExceptT (execs.map Prod.snd)
       for succ? in succs do
         emptyflag := false
         let .some st' := succ? | continue -- divergence
-        -- dbg_trace s!"Exploring state after executing {repr label}: {repr st'}"
         let fingerprint := view st'
         unless (← wasSeen fingerprint) do
           addToSeen fingerprint
