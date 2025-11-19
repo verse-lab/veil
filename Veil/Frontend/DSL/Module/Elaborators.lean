@@ -97,7 +97,7 @@ def elabEnumDeclaration : CommandElab := fun stx => do
     elabCommand class_decl
     let instanceName := mkIdent $ Name.mkSimple s!"{id.getId}_isEnum"
     let instanceV ← `(command|instantiate $instanceName : @$class_name $id)
-    dbg_trace "Elaborated enum instance: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instanceV}"
+    trace[veil.debug] "Elaborated enum instance: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instanceV}"
     elabCommand instanceV
     elabCommand $ ← `(open $class_name:ident)
   | _ => throwUnsupportedSyntax
@@ -158,7 +158,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   let (assumptionCmd, mod) ← mod.assembleAssumptions
   elabVeilCommand assumptionCmd
   let (invariantCmd, mod) ← mod.assembleInvariants
-  dbg_trace "Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
+  trace[veil.debug] "Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
   elabVeilCommand invariantCmd
   let (safetyCmd, mod) ← mod.assembleSafeties
   elabVeilCommand safetyCmd
@@ -295,10 +295,10 @@ elab "veil_variables" : command => do
     | `(bracketedBinder| [$id:ident : $ty:term] )
       =>
       let varId := id.getId
-      dbg_trace s!"{varId} :  {← liftTermElabM <| Lean.PrettyPrinter.formatTerm ty}"
+      trace[veil.debug] s!"{varId} :  {← liftTermElabM <| Lean.PrettyPrinter.formatTerm ty}"
     | _ => throwError "unsupported veil_variables binder syntax"
     let varUIds ← (← getBracketedBinderIds binder) |>.mapM (withFreshMacroScope ∘ MonadQuotation.addMacroScope)
-    dbg_trace s!"with unique IDs: {varUIds}"
+    trace[veil.debug] s!"with unique IDs: {varUIds}"
     modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds}
 
 end Veil
