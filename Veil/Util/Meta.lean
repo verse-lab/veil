@@ -419,30 +419,35 @@ private partial def withAutoBoundCapitals (k : TermElabM α) : TermElabM α := d
 def expandTermMacro [Monad m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m] (stx : Term) : m Term := do
   TSyntax.mk <$> (Elab.liftMacroM <| expandMacros stx)
 
-def univerallyQuantifyCapitals (stx : Term) : TermElabM Term := do
-  let originalFVars := (← getLCtx).getFVars
-  -- This ensures the capitals will be bound as `fvar`s
-  withAutoBoundCapitals $ do
+/-- All capitalized variables inside `uqc%` will be automatically
+universally quantified. Example: `uqc% (Nat.le N M)` becomes `∀ N M, Nat.le N M`. -/
+syntax (name := univerallyQuantifyCapitalsStx) "uqc% " term : term
+
+@[term_elab univerallyQuantifyCapitalsStx]
+def elabUniverallyQuantifyCapitals : Term.TermElab := fun stx expectedType? => do
+  match stx with
+  | `(term| uqc% $t:term) =>
+    let originalFVarIds := (← getLCtx).getFVarIds
+    -- This ensures the capitals will be bound as `fvar`s
+    withAutoBoundCapitals $ do
+    -- CHECK can we get rid of the next line?
     withTheReader Term.Context (fun ctx => { ctx with ignoreTCFailures := true }) do
     -- NOTE: even though we don't use the result, this will throw an exception
     -- for unbound variables, which is what `withAutoBoundCapitals` requires
-    let _ ← Term.elabTerm stx none
-    let mut lctx ← getLCtx
+    let e ← Term.elabTerm t expectedType?
+    let lctx ← getLCtx
     -- Inspect the local context and collect the capitals that weren't already
     -- bound when we started.
-    let capitalVars := lctx.getFVars.filterMap (fun x =>
-      if originalFVars.contains x then none else
-      match lctx.getRoundtrippingUserName? x.fvarId! with
-      | .some n => if isCapital n then some (n, (lctx.getFVar! x).type) else none
-      | .none => none)
+    let mut capitalVars : Array Expr := #[]
+    for ldecl in lctx do
+      let x := ldecl.fvarId
+      if originalFVarIds.contains x then continue
+      match lctx.getRoundtrippingUserName? x with
+      | .some n => if isCapital n then capitalVars := capitalVars.push (.fvar x)
+      | .none => pure ()
     -- Quantify over capitals
-    -- It's important to do this at the `Syntax` rather than `Expr` level,
-    -- because we want to preserve `SourceInfo`, such that errors are reported
-    -- at the correct location.
-    let binders ← capitalVars.mapM fun (n, type) => do `(bracketedBinder| ($(mkIdent n) : $(← delabVeilExpr type)))
-    let res ← expandTermMacro $ ← `(term| forall? $binders*, $stx)
-    let res := Syntax.inheritSourceSpanFrom res stx
-    return res
+    Meta.mkForallFVars capitalVars e
+  | _ => throwUnsupportedSyntax
 
 def repeatedOp [Monad m] [MonadQuotation m] (op : Name) (operands : Array (TSyntax `term)) (default : Option (TSyntax `term) := none) : m (TSyntax `term) := do
   if operands.isEmpty then
@@ -507,5 +512,10 @@ def evalOpen (decl : TSyntax `Lean.Parser.Command.openDecl) (k : MetaM α) : Met
     withTheReader Core.Context (fun ctx => { ctx with openDecls := openDecls }) k
   finally
     popScope
+
+/-- Returns `(fun $binders* => $body)`, but takes care of the case
+where `binders` is empty. -/
+def mkFunSyntax [Monad m] [MonadQuotation m] (binders : TSyntaxArray `Lean.Parser.Term.funBinder) (body : TSyntax `term) : m (TSyntax `term) := do
+  if binders.isEmpty then pure body else `(fun $binders* => ($body))
 
 end Veil

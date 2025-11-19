@@ -304,14 +304,23 @@ private def Module.sortFilterMapFn [Monad m] [MonadQuotation m] (mod : Module) (
   | .uninterpretedSort => f p
   | _ => pure .none
 
-def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) (withFieldConcreteType? : Bool := false) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
-  mod.sortFilterMapFn (·.binder) >>= (fun x => if withFieldConcreteType? then
-    Parameter.fieldConcreteType >>= Parameter.binder >>= (pure <| x.push ·)
-  else pure x)
+def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
+  mod.sortFilterMapFn (·.binder)
 
-def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) (withFieldConcreteType? : Bool := false) : m (Array Ident) := do
-  mod.sortFilterMapFn (·.ident) >>= (fun x =>
-    pure (if withFieldConcreteType? then x.push fieldConcreteType else x))
+def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
+  mod.sortFilterMapFn (·.ident)
+
+/-- Almost the same as `Module.sortBinders`, but this is _only_ for sort parameters
+of theory or states, or their related definitions (e.g., `casesOn` functions). -/
+def Module.sortBindersForTheoryOrState [Monad m] [MonadQuotation m] (mod : Module) (forStateWithFieldConcreteType? : Bool := false) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  if forStateWithFieldConcreteType?
+  then Parameter.fieldConcreteType >>= Parameter.binder >>= (pure #[·])
+  else mod.sortBinders
+
+/-- Almost the same as `Module.sortIdents`, but this is _only_ for sort parameters
+of theory or states, or their related definitions (e.g., `casesOn` functions). -/
+def Module.sortIdentsForTheoryOrState [Monad m] [MonadQuotation m] (mod : Module) (forStateWithFieldConcreteType? : Bool := false) : m (Array Ident) := do
+  if forStateWithFieldConcreteType? then pure #[fieldConcreteType] else mod.sortIdents
 
 def Module.assumptions (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .assumption)
@@ -412,7 +421,7 @@ where
     return (modules, field, curMod)
 
 def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (withFieldConcreteType? : Bool := false) : m Term :=
-  return ← `(term| @$(mkIdent stateName) $(← mod.sortIdents withFieldConcreteType?)*)
+  return ← `(term| @$(mkIdent stateName) $(← mod.sortIdentsForTheoryOrState withFieldConcreteType?)*)
 
 def Module.theoryStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent theoryName) $(← mod.sortIdents)*)
@@ -490,6 +499,7 @@ def Module.getTheoryBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : M
     mkBinder (sc : StateComponent) : m (TSyntax `Lean.Parser.Term.bracketedBinder) := do
       `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
 
+/-
 def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.signature.filterMapM fun sc => do
     match sc.mutability with
@@ -499,6 +509,7 @@ def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Mo
       dbg_trace "  splitForallArgsCodomain: base = {base}, res = {res}"
       return .some $ ← `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
     | _ => pure .none
+-/
 
 /-- Given a list of state components, return the syntax for a structure
 definition including those components. -/
@@ -515,22 +526,23 @@ private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (
 /-- Syntax for *defining* the mutable state of a module as a `structure`. The
 syntax for the type is `mod.stateStx`. -/
 private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
-  structureDefinitionStx stateName (← mod.sortBinders) (deriveInstances := true)
+  structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.mutableComponents.mapM fun sc => sc.getSimpleBinder)
 
 /-- Similar to `Module.stateDefinitionStx` but each field of `State` is
-abstracted by a function from its label to a certain type. -/
+abstracted by a function from its label to a certain type. Note that
+in this case, `deriveInstances` has to be `false`. -/
 private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
   let stateLabelTypeName := structureFieldLabelTypeName stateName
   let fields ← mod.mutableComponents.mapM fun sc => do
     let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
     `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $ty)
-  structureDefinitionStx stateName (← mod.sortBinders true) (deriveInstances := false) fields
+  structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState true) (deriveInstances := false) fields
 
 /-- Syntax for *defining* the immutable background theory of a module as a
 `structure`. The syntax for the type is `mod.theoryStx`. -/
 private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
-  structureDefinitionStx theoryName (← mod.sortBinders) (deriveInstances := false)
+  structureDefinitionStx theoryName (← mod.sortBindersForTheoryOrState false) (deriveInstances := false)
     (← mod.immutableComponents.mapM fun sc => sc.getSimpleBinder)
 
 def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
@@ -561,6 +573,8 @@ private def declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] 
     $(mkIdent casesOnName) $l $bases*)
   return ((fieldLabelToDomainName base, stx1), (fieldLabelToCodomainName base, stx2))
 
+/-- For each `sc` in `components`, analyze its type to extract the arguments
+(domain) and codomain. -/
 private def analyzeTypesOfStateComponents [Monad m] [MonadQuotation m] [MonadError m] (components : Array StateComponent) : m (Array (Array Term × Term)) := do
   components.mapM fun sc => do
     match sc.type with
@@ -572,9 +586,13 @@ private def analyzeTypesOfStateComponents [Monad m] [MonadQuotation m] [MonadErr
         | _ => throwError "unable to extract type from binder {m}"
       pure (res, d)
 
+/-- Return the syntax for declaring `State.Label` and dispatchers; also
+update the module to include the new parameters for concrete field type,
+`FieldRepresentation` and `LawfulFieldRepresentation`. -/
 def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
   let components := mod.mutableComponents
   let (argTypes, bases) ← Array.unzip <$> analyzeTypesOfStateComponents components
+  -- this might be useful later, so store it as metadata in the module
   let argTypesAsMap : Std.HashMap Name (Array Term) := Std.HashMap.ofList (components.zipWith (fun sc args => (sc.name, args)) argTypes |>.toList)
   let (name0, stx0) ← declareStructureFieldLabelType stateName components
   let ((name1, stx1), (name2, stx2)) ← declareFieldDispatchers stateName argTypes bases (← mod.sortBinders)
@@ -582,7 +600,7 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
     mod.throwIfAlreadyDeclared name
   -- add the `fieldConcreteType` parameter
   let fieldConcreteTypeParam ← Parameter.fieldConcreteType
-  -- add the related typeclasses
+  -- add the `FieldRepresentation` and `LawfulFieldRepresentation` typeclass parameters
   let f := mkIdent `f
   let paramsArgs ← mod.sortIdents
   let toDomainTerm ← `(($(mkIdent name1) $paramsArgs* $f))
@@ -596,6 +614,8 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
                      _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter ,
                      _fieldRepMetaData := argTypesAsMap }, #[stx0, stx1, stx2])
 
+/-- Similar to `Module.declareStateStructure` but here `FieldRepresentation`
+is involved. -/
 def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
   let stx ← mod.fieldsAbstractedStateDefinitionStx
@@ -655,10 +675,35 @@ def elabExactTheory : TacticM Unit := do
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
 open Tactic in
-def elabExactState : TacticM Unit := do
+def elabExactState : TacticM Unit := withMainContext do
   let mod ← getCurrentModule
-  let comp := mod.mutableComponents.map (Lean.mkIdent ·.name)
-  let constr <- `(term| (⟨$[$comp],*⟩ : $(← mod.stateStx)))
+  let comp := mod.mutableComponents.map (·.name)
+  -- find all available state components in the local context
+  let lctx ← getLCtx
+  let some ldecls := comp.mapM (m := Option) lctx.findFromUserName?
+    | throwError "not all state components are available in the local context"
+  let actualFields : Array Term ← if mod._useFieldRepTC
+    then
+      -- find the concrete field from the _values_ of `ldecls`
+      -- here, only use some simple heuristics to do the matching
+      ldecls.mapM fun ldecl => do
+        let some v := ldecl.value? true
+          | throwError "state component {ldecl.userName} has no value in the local context"
+        let v := match_expr v with
+          | id _ vv => vv | _ => v
+        match_expr v with
+        | Veil.FieldRepresentation.get _ _ _ _ cf =>
+          if let .fvar fv := cf
+          then let nm ← fv.getUserName ; `(term| $(mkIdent nm) )
+          else delabVeilExpr cf
+        | _ => throwError "unable to extract concrete field from state component {ldecl.userName}"
+    else
+      ldecls.mapM fun a => `(term| $(mkIdent a.userName) )
+  -- NOTE: It is very weird that if not doing it using `exact`
+  -- (e.g., instead constructing the state `Expr` and using
+  -- `closeMainGoalUsing`), then some meta-variable (e.g.,
+  -- `IsSubStateOf` arguments) synthesis will fail.
+  let constr ← `(term| (⟨$[$actualFields],*⟩ : $(← mod.stateStx mod._useFieldRepTC)))
   trace[veil.debug] "state constr: {constr}"
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
@@ -667,7 +712,20 @@ elab_rules : tactic
   | `(tactic| veil_exact_state) => elabExactState
 
 inductive TheoryAndStateTermTemplateArgKind where
-  | theory | state (suffix : Option String)
+  | theory
+  /-- When the concrete field representation is not used,
+  `suffix` is the suffix to append to each field after
+  destructing a state.
+
+  When the concrete field representation is used,
+  `suffixConc` is the suffix to append to each field after
+  destructing a state, and `suffix` is the suffix appended to
+  each field's _original name_ (i.e., not the one after appending
+  `suffixConc`) after applying `FieldRepresentation.get` to
+  the concrete field.
+
+  When either is `none`, no suffix is appended in the corresponding case. -/
+  | state (suffix suffixConc : Option String)
 
 /-- Given `t : Prop` which accesses fields of theory and/or state,
 returns the proper "wrapper" term which pattern-matches over theory
@@ -685,32 +743,36 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
   let casesOnState := stateName ++ `casesOn
   let theoryFields ← getFieldIdentsForStruct theoryName
   let stateFields ← getFieldIdentsForStruct stateName
+  let stateFieldsWithSuffix suf : Array Ident :=
+    stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
   let t ← t theoryFields stateFields
   targets.foldrM (init := t) fun (kind, i) body => do
     match kind with
     | .theory =>
+      let tmp ← mkFunSyntax theoryFields body
       `(term|
         @$(mkIdent casesOnTheory) $(← mod.sortIdents)*
         ($motive := fun _ => Prop)
         ($(mkIdent ``readFrom) $i)
-        (fun $[$theoryFields]* => ($body)))
-    | .state suffix =>
-      let sfs : Array Ident := match suffix with
-        | .some suf => stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
-        | .none => stateFields
+        ($tmp))
+    | .state suffix suffixConc =>
+      let sfs := suffix.elim stateFields stateFieldsWithSuffix
+      let sfsConc := suffixConc.elim stateFields stateFieldsWithSuffix
       let body' ← if !mod._useFieldRepTC then pure body else
         -- annotate types here, otherwise there can be issues like: for `f a`
         -- where `f` has a complicated type but definitionally equal to `node → Bool`,
         -- coercions will not be inserted to make `f a` into `Prop`
         -- (notice that `decide` expects a `Prop` argument here)
         let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
-        sfs.zip fieldTypes |>.foldrM (init := body) fun (f, ty) b => do
-          `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $f:ident ; $b)
+        let bundled := sfs.zip fieldTypes |>.zip sfsConc
+        bundled.foldrM (init := body) fun ((f, ty), fConc) b => do
+          `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $fConc:ident ; $b)
+      let tmp ← mkFunSyntax (if !mod._useFieldRepTC then sfs else sfsConc) body'
       `(term|
-        @$(mkIdent casesOnState) $(← mod.sortIdents mod._useFieldRepTC)*
+        @$(mkIdent casesOnState) $(← mod.sortIdentsForTheoryOrState mod._useFieldRepTC)*
         ($motive := fun _ => Prop)
         ($(mkIdent ``getFrom) $i)
-        (fun $[$sfs]* => ($body')))
+        ($tmp))
 
 /-- This is used wherever we want to define a predicate over the
 background theory (e.g. in `assumption` definitions). Instead of
@@ -735,7 +797,7 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   let mut mod ← getCurrentModule
   let (th, st) := (mkIdent `th, mkIdent `st)
   let fn ← do
-    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st)] (fun _ _ => pure t)
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] (fun _ _ => pure t)
     `(term| (fun ($th : $environmentTheory) ($st : $environmentState) => $tmp))
   -- NOTE(SUBTLE): `by veil_exact_theory` and `by veil_exact_state` work in a
   -- counter-intuitive way when applied to assertions. Concretely, these tactics
@@ -757,15 +819,11 @@ private def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind
   let baseParams ← mod.declarationBaseParams dk
   let binders ← baseParams.mapM (·.binder)
   let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
-  -- We need to universally quantify capital variables, but for that to work, the
-  -- term needs to be well-typed, so all term's parameters, as well as the theory
-  -- and state variables (i.e. the fields) have to be bound first.
-  -- trace[veil.debug] "before UQC (paramBinders: {paramBinders}): {term}"
-  let body ← elabBinders (binders ++ paramBinders ++ (← mod.getTheoryBinders) ++ (← mod.getStateBinders)) $ fun _ => univerallyQuantifyCapitals term
   -- We don't `universallyQuantifyCapitals` after `withTheory` /
   -- `withTheoryAndState` because we want to have the universal
   -- quantification as deeply inside the term as possible, rather than above
   -- the binders for `rd` and `st` introduced below.
+  let body ← `(uqc% ($term:term))
   let (thstBinders, term') ← if justTheory then withTheory body else withTheoryAndState body
   let term' := Syntax.inheritSourceSpanFrom term' term
   -- Record the `Decidable` instances that are needed for the assertion.
@@ -776,6 +834,18 @@ private def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind
 
 end AssertionElab
 
+/-- Declare the `LocalRProp` typeclass for the module.
+Its general form is:
+```lean
+class LocalRPropTC /- module parameters -/ {α : Type} (post : RProp α ρ σ)
+where
+  core : α →
+    /- types of fields of `Theory`, connected with `→` -/ →
+    /- types of _canonical_ fields of `State`, connected with `→` -/ → Prop
+  core_eq : ∀ (a : α) (th : ρ) (st : σ),
+    post a th st = core a /- fields of `Theory` -/ /- _canonical_ fields of `State` -/
+```
+-/
 def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   -- this can be given fewer parameters, but for simplicity we give it all of them
   let params := mod.parameters
@@ -787,15 +857,16 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   binders := binders.push (← `(bracketedBinder| {$α : Type} ))
   binders := binders.push (← `(bracketedBinder| ($post : $(mkIdent ``RProp) $α $environmentTheory $environmentState) ))
   -- build the type of `core`
-  let theoryFields ← mod.immutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
-  let stateFields ← mod.mutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
-  let coreType ← mkArrowStx (α :: (theoryFields ++ stateFields).toList) (← `(term| Prop ))
+  let coreType ← do
+    let theoryFields ← mod.immutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
+    let stateFields ← mod.mutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
+    mkArrowStx (α :: (theoryFields ++ stateFields).toList) (← `(term| Prop ))
   -- build the type of `core_eq`
   let a ← Lean.mkIdent <$> mkFreshUserName `a
   let th ← Lean.mkIdent <$> mkFreshUserName `th
   let st ← Lean.mkIdent <$> mkFreshUserName `st
   let coreEqType ← do
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none, st)] fun theoryFieldNames stateFieldNames =>
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] fun theoryFieldNames stateFieldNames =>
       pure <| Syntax.mkApp core (#[a] ++ theoryFieldNames ++ stateFieldNames)
     `(term| ∀ ($a : $α) ($th : $environmentTheory) ($st : $environmentState),
     $post $a $th $st = $body)
@@ -805,14 +876,20 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   let cmd2 ← `(command| attribute [$(mkIdent `wpSimp):ident] $(mkIdent <| localRPropTCName ++ `core):ident)
   return (cmd1, cmd2)
 
-def Module.proveLocalityForAssertion (mod : Module) (base : StateAssertion) (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (body : Term) : CommandElabM Command := do
-  let a := mkIdent `a ; let th := mkIdent `th ; let st := mkIdent `st
+/-- Define an instance of `LocalRProp` for the given assertion.
+Currently, this only supports proving by `rfl`. -/
+def Module.proveLocalityForAssertion (mod : Module) (base : StateAssertion) (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (body : Term) : MetaM Command := do
+  let a ← Lean.mkIdent <$> mkFreshUserName `a
+  let th ← Lean.mkIdent <$> mkFreshUserName `th
+  let st ← Lean.mkIdent <$> mkFreshUserName `st
   let localRPropTCType ← do
-    let localRPropTCParams := mod.parameters
-    let mut args ← localRPropTCParams.mapM (·.arg)
+    let mut args ← mod.parameters.mapM (·.arg)
+    -- fix `α` to be `Unit` since for now we only use `LocalRProp` to
+    -- speed up invariants checking
     args := args.push (← `(term| _ ))
-    let args' ← bracketedBindersToTerms binders
-    let post ← `(term| (fun (_ : $(mkIdent ``Unit)) => @$(mkIdent base.name) $args'*))
+    let post ← do
+      let args' ← bracketedBindersToTerms binders
+      `(term| (fun (_ : $(mkIdent ``Unit)) => @$(mkIdent base.name) $args'*))
     args := args.push post
     `(term| (@$localRPropTC $args*))
   let core ← do
@@ -845,7 +922,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let binders := preBinders ++ thstBinders
   let stx2 ← match base.kind with
     | .assumption => pure none
-    | _ => if mod._useLocalRPropTC then (Option.some <$> mod.proveLocalityForAssertion base preBinders body) else pure none
+    | _ => if mod._useLocalRPropTC then (Option.some <$> (liftTermElabM $ mod.proveLocalityForAssertion base preBinders body)) else pure none
   let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
   return (stx, stx2, mod)

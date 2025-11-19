@@ -220,7 +220,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
           else
             let old := Syntax.mkApp (← `($(mkIdent name):ident)) patUsed
             `($old [ $[$patResidue],* ↦ $v ])
-        if funBinders.isEmpty then pure v' else `(fun $[$funBinders]* => ($v'))
+        mkFunSyntax funBinders v'
       let patTerm ← do
         let patOpt ← patUsed.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
         let components ← `($(fieldLabelToDomain stateName)
