@@ -233,5 +233,4 @@ open scoped ProofWidgets.Jsx
 
 
 
-
 end TwoPhaseCommit

@@ -197,7 +197,7 @@ def genConcreteStateStx : CommandElabM (TSyntax `command) := do
         | throwError "Could not resolve projection constant for field {fieldName} in structure {structInfo.structName}"
 
       /- e.g., `projName := `Bakery.State.unchecked` -/
-      dbg_trace s!"Resolved projection name: {projName}"
+      trace[veil.debug] s!"Resolved projection name: {projName}"
       let some cinfo := env.find? projName
         | throwError "Internal error: constant info for {projName} not found"
       -- let fieldTypeStr ← Command.runTermElabM fun _ => do

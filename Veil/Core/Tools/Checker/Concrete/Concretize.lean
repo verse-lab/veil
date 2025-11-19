@@ -212,7 +212,7 @@ def specifyFieldConcreteType : CommandElab := fun stx => do
               $relCases:matchAlt*
               $funCases:matchAlt*
     )
-  dbg_trace s!"specify_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic fieldConcreteTypeCmd}"
+  trace[veil.debug] s!"specify_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic fieldConcreteTypeCmd}"
   elabVeilCommand fieldConcreteTypeCmd
 
 
@@ -284,7 +284,7 @@ def deriveBEqInstForFieldConcreteType : CommandElab := fun stx => do
 
   for lfIdent in labelFields do
     let lfc ← deriveBEqInstForLabelField mod lfIdent
-    dbg_trace s!"deriving_BEq_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lfc}"
+    trace[veil.debug] s!"deriving_BEq_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lfc}"
     elabVeilCommand lfc
 
 
@@ -326,7 +326,7 @@ def deriveHashableInstForFieldConcreteType : CommandElab := fun stx => do
   let labelFields ← mod.stateFieldNames
   for lfIdent in labelFields do
     let lfc ← deriveHashableInstForLabelField mod lfIdent
-    dbg_trace s!"deriving_Hashable_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lfc}"
+    trace[veil.debug] s!"deriving_Hashable_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lfc}"
     elabVeilCommand lfc
 
 
@@ -405,7 +405,7 @@ def deriveRepInstForFieldReprentation (mod : Veil.Module) : CommandElabM (TSynta
 def deriveRepInstForFieldReprCmd : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
   let instCmd ← deriveRepInstForFieldReprentation mod
-  dbg_trace s!"deriving_rep_fieldRepresentation : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
+  trace[veil.debug] s!"deriving_rep_fieldRepresentation : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
   elabVeilCommand instCmd
 
 
@@ -490,7 +490,7 @@ def deriveLawfulInstForFieldRepresentation (mod : Veil.Module) : CommandElabM (T
 def deriveLawfulInstForFieldReprCmd : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
   let instCmd ← deriveLawfulInstForFieldRepresentation mod
-  dbg_trace s!"deriving_lawful_fieldRepresentation : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
+  trace[veil.debug] s!"deriving_lawful_fieldRepresentation : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
   elabVeilCommand instCmd
 
 
@@ -550,7 +550,7 @@ def deriveInhabitedInstForState (mod : Veil.Module) : CommandElabM (TSyntax `com
 def deriveInhabitedInstCmd : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
   let instCmd ← deriveInhabitedInstForState mod
-  dbg_trace s!"deriving_inhabited_state : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
+  trace[veil.debug] s!"deriving_inhabited_state : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
   elabVeilCommand instCmd
 
 
@@ -585,7 +585,7 @@ def genNextAct' (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
 def elabGenNextAct : CommandElab := fun stx => do
   let mod ← getCurrentModule
   let instCmd ← genNextAct' mod
-  dbg_trace "{← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
+  trace[veil.debug] "{← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
   elabVeilCommand instCmd
 
 
@@ -620,7 +620,7 @@ def genExecutableList (mod : Veil.Module) : CommandElabM (TSyntax `command) := d
 def elabGenExecutableNextAct : CommandElab := fun stx => do
   let mod ← getCurrentModule
   let instCmd ← genExecutableList mod
-  dbg_trace "{← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
+  trace[veil.debug] "{← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
   elabVeilCommand instCmd
 
 
@@ -677,7 +677,7 @@ def deriveEnumOrdHashable (name : Name) : CommandElabM Unit := do
     instance $(mkIdent <| Name.appendBefore name "instOrd"):ident : $(mkIdent ``Ord) $(mkIdent name) where
       $(mkIdent `compare):ident $(mkIdent `s1):ident $(mkIdent `s2):ident :=
         $(mkIdent ``compare) $(mkIdent `s1.toCtorIdx) $(mkIdent `s2.toCtorIdx))
-  dbg_trace "ordInst: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic ordInst}"
+  trace[veil.debug] "ordInst: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic ordInst}"
   elabVeilCommand ordInst
 
   let hashableInst ← `(command|
@@ -685,7 +685,7 @@ def deriveEnumOrdHashable (name : Name) : CommandElabM Unit := do
       $(mkIdent `hash):ident $(mkIdent `s):ident :=
         $(mkIdent ``hash) $(mkIdent `s.toCtorIdx))
 
-  dbg_trace "hashableInst: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic hashableInst}"
+  trace[veil.debug] "hashableInst: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic hashableInst}"
   elabVeilCommand hashableInst
 
 elab "deriving_ord_hashable_for_enum" name:ident : command => do
@@ -713,7 +713,7 @@ def deriveEnumPropCmpInsts (name : Name) : CommandElabM Unit := do
       unfold $(mkIdent `compare) $(mkIdent `inferInstanceAs) $(mkIdent <| Name.appendBefore name "instOrd")
       intro $(mkIdent `a) $(mkIdent `b); cases $(mkIdent `a):ident <;>
         cases $(mkIdent `b):ident <;> rfl)
-  dbg_trace "orientedCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic orientedCmp}"
+  trace[veil.debug] "orientedCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic orientedCmp}"
   elabVeilCommand orientedCmp
 
   let transCmp ← `(command|
@@ -721,7 +721,7 @@ def deriveEnumPropCmpInsts (name : Name) : CommandElabM Unit := do
       apply $(mkIdent ``Std.TransCmp.mk)
       unfold $(mkIdent `compare) $(mkIdent `inferInstanceAs) $(mkIdent <| Name.appendBefore name "instOrd")
       decide)
-  dbg_trace "transCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic transCmp}"
+  trace[veil.debug] "transCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic transCmp}"
   elabVeilCommand transCmp
 
   let lawfulCmp ← `(command|
@@ -730,7 +730,7 @@ def deriveEnumPropCmpInsts (name : Name) : CommandElabM Unit := do
       unfold $(mkIdent `compare) $(mkIdent `inferInstanceAs) $(mkIdent <| Name.appendBefore name "instOrd")
       intro $(mkIdent `a) $(mkIdent `b); cases $(mkIdent `a):ident <;>
         cases $(mkIdent `b):ident <;> simp)
-  dbg_trace "lawfulCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lawfulCmp}"
+  trace[veil.debug] "lawfulCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lawfulCmp}"
   elabVeilCommand lawfulCmp
 
 
@@ -744,7 +744,7 @@ def elabDeriveEnumInsts : CommandElab := fun stx => do
     let enumTypeIdents ← mod.typeIdents (isEnum := true)
     for t in enumTypeIdents do
       let name := t.getId
-      dbg_trace s!"Processing enum type: {name}"
+      trace[veil.debug] s!"Processing enum type: {name}"
       deriveEnumInstance name
       deriveEnumOrdHashable name
       deriveEnumPropCmpInsts name
@@ -812,7 +812,7 @@ def deriveReprInstForFieldConcreteTypeCmd : CommandElab := fun stx => do
   for lfIdent in labelFields do
     let lfName := Name.append `State.Label lfIdent
     let lfc ← deriveReprInstForFieldConcreteType mod lfName
-    -- dbg_trace s!"deriving_Repr_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lfc}"
+    -- trace[veil.debug] s!"deriving_Repr_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lfc}"
     elabVeilCommand lfc
 
 
@@ -871,7 +871,7 @@ def deriveToJsonInstDomain (mod : Veil.Module) (toDomain : Bool := true): Comman
               dsimp only [$[$dsimpTerms:ident],*]
               <;> infer_instance
     )
-  dbg_trace s!"toJsonCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic toJsonCmd}"
+  trace[veil.debug] s!"toJsonCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic toJsonCmd}"
   elabVeilCommand toJsonCmd
 
 
@@ -1014,25 +1014,25 @@ def GetFieldsNameFieldsName : CommandElab := fun stx => do
   -- deriving Inhabited, BEq
   for s in sig do
     let sc := s.type
-    dbg_trace s!"Field: {s.name}, Kind: {s.kind}, Mutability: {s.mutability}"
+    trace[veil.debug] s!"Field: {s.name}, Kind: {s.kind}, Mutability: {s.mutability}"
     match sc with
     | .simple t =>
-      dbg_trace s!"simple Type: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic t}"
+      trace[veil.debug] s!"simple Type: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic t}"
     | .complex binders dom =>
       let stx ← `(def $(mkIdent `NameT):ident $[$binders]* := $dom:term)
-      dbg_trace s!"Complex Type: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}\n"
+      trace[veil.debug] s!"Complex Type: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}\n"
       -- let fmt ← PrettyPrinter.ppCategory Parser.Category.term stx
 
     for (name, res) in (← mod.getStateDomains) do
-      dbg_trace s!"State Domain Field: {name}, Domains: {res}"
+      trace[veil.debug] s!"State Domain Field: {name}, Domains: {res}"
 
-  -- dbg_trace s!"Field Names: {fieldNames}"
-  -- dbg_trace s!"Field Mutability: {mutability}"
+  -- trace[veil.debug] s!"Field Names: {fieldNames}"
+  -- trace[veil.debug] s!"Field Mutability: {mutability}"
 
   -- let enumTypes ← mod.typeIdents true
   -- let nonEnumTypes ← mod.typeIdents false
-  -- dbg_trace s!"Enum Types: {enumTypes}"
-  -- dbg_trace s!"Non-enum Types: {nonEnumTypes}"
+  -- trace[veil.debug] s!"Enum Types: {enumTypes}"
+  -- trace[veil.debug] s!"Non-enum Types: {nonEnumTypes}"
   deriveFinEnumInstForToDomain mod
   deriveFinEnumInstForToDomain' mod
   deriveOrdInstForDomain mod (toDomain := true)
@@ -1058,7 +1058,7 @@ def deriveDecidableForProps : CommandElab := fun stx => do
       -- let (extraParams, thstBinders, term) ← liftTermElabM $ mod.mkVeilTerm base.name base.declarationKind (params := .none) base.term (justTheory := justTheory)
       -- This includes the required `Decidable` instances
       -- let (binders, _) ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
-      -- dbg_trace s!"Invariant binders: {binders}"
+      -- trace[veil.debug] s!"Invariant binders: {binders}"
       -- let binders := (← binders.mapM mkImplicitBinder)
       -- let binders := binders.filter (fun x => !(isTypeBinder x))
       let sortIdents ← mod.sortIdents
@@ -1076,7 +1076,7 @@ def deriveDecidableForProps : CommandElab := fun stx => do
           infer_instance
       )
       elabVeilCommand stx
-      dbg_trace s!"Elaborated invariant definition: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
+      trace[veil.debug] s!"Elaborated invariant definition: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
   | _ => throwUnsupportedSyntax
 
 
@@ -1104,7 +1104,7 @@ def deriveDecidablePropsForConcreteState : CommandElab := fun stx => do
           infer_instance
       )
       elabVeilCommand stx
-      dbg_trace s!"Elaborated invariant definition for Concrete State: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
+      trace[veil.debug] s!"Elaborated invariant definition for Concrete State: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
   | _ => throwUnsupportedSyntax
 
 
@@ -1148,13 +1148,13 @@ elab "#Concretize" args:term,* : command => do
     -- build `TheoryConcrete`
     let theoryCmd ← do
       let assembledTheory ←`(term| @$(mkIdent theoryName) $termArray*)
-      -- dbg_trace s!"TheoryConcrete assembledTheory: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledTheory}"
+      -- trace[veil.debug] s!"TheoryConcrete assembledTheory: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledTheory}"
       `(command| @[reducible] def $(mkIdent theoryConcreteName) := $assembledTheory)
 
     -- build `LabelConcrete`
     let labelCmd ← do
       let assembledLabel ←`(term| @$(mkIdent labelTypeName) $termArray*)
-      -- dbg_trace s!"LabelConcrete assembledLabel: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledLabel}"
+      -- trace[veil.debug] s!"LabelConcrete assembledLabel: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledLabel}"
       `(command| @[reducible] def $(mkIdent labelConcreteName) := $assembledLabel)
 
     -- build `FieldConcreteTypeInst`
@@ -1167,7 +1167,7 @@ elab "#Concretize" args:term,* : command => do
       -- let assembledState ← `(term| @$(mkIdent stateName) $termArray*)
       let assembledState ←`(term| @$(mkIdent stateName))
       let fieldConcreteInstTerm ← `(term | $(mkIdent `FieldConcreteType) $termArray*)
-      -- dbg_trace s!"StateConcrete assembledState: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledState}"
+      -- trace[veil.debug] s!"StateConcrete assembledState: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledState}"
       `(command| @[reducible] def $(mkIdent stateConcreteName) := ($assembledState) $fieldConcreteInstTerm)
 
     elabVeilCommand theoryCmd
@@ -1218,7 +1218,7 @@ def deriveBEqForState (mod : Veil.Module) : CommandElabM Unit := do
     `(command|
         instance : $(mkIdent ``BEq) $(mkIdent `StateConcrete) where
           $(mkIdent `beq):ident := fun $s1 $s2 => $beqBody)
-  dbg_trace s!"BEqInstCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic BEqInstCmd}"
+  trace[veil.debug] s!"BEqInstCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic BEqInstCmd}"
   elabVeilCommand BEqInstCmd
 
 
@@ -1245,7 +1245,7 @@ def deriveHashableForState (mod : Veil.Module) : CommandElabM Unit := do
     `(command|
         instance : $(mkIdent ``Hashable) $(mkIdent `StateConcrete) where
           $(mkIdent `hash):ident := fun $s => $(mkIdent ``hash) $body)
-  dbg_trace s!"tryVlsUnfold : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic HashableInstCmd}"
+  trace[veil.debug] s!"tryVlsUnfold : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic HashableInstCmd}"
   elabVeilCommand HashableInstCmd
 where
   mkTuple (xs : Array (TSyntax `term)) : MacroM (TSyntax `term) := do
@@ -1295,7 +1295,7 @@ def deriveToJsonForState (mod : Veil.Module) : CommandElabM Unit := do
     `(command|
       instance $instToJsonIdent:ident : $(mkIdent ``ToJson) $(mkIdent `StateConcrete) where
         $(mkIdent `toJson):ident := $toJsonRhs)
-  dbg_trace s!"toJsonCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic traceToJsonInst}"
+  trace[veil.debug] s!"toJsonCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic traceToJsonInst}"
   elabVeilCommand traceToJsonInst
 
 syntax (name := derivingToJsonForState) "deriving_toJson_for_state" : command
