@@ -1051,8 +1051,9 @@ def Module.registerDerivedDefinition [Monad m] [MonadError m] [MonadQuotation m]
 def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) (justTheory : Bool := false) : CommandElabM (Command × Module) := do
   mod.throwIfAlreadyDeclared name
   let kind? := .stateAssertion .invariant -- a ghost relation is a predicate that depends on the state
-  let ddKind := .derivedDefinition (if justTheory then .theoryGhost else .ghost) (Std.HashSet.emptyWithCapacity 0)
-  let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) ddKind
+  let ddKind : DerivedDefinitionKind := if justTheory then .theoryGhost else .ghost
+  let dk := .derivedDefinition ddKind (Std.HashSet.emptyWithCapacity 0)
+  let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) dk
   let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
   let (extraParams, thstBinders, term, _) ← liftTermElabM $ mod.mkVeilTerm name kind? params term justTheory
   -- See NOTE(SUBTLE).
@@ -1062,7 +1063,7 @@ def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TS
   let stx ← `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
   trace[veil.debug] "stx: {stx}"
   -- FIXME: we should probably add `thstBinders` to `params`?
-  let ddef : DerivedDefinition := { name := name, kind := .ghost, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
+  let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
   let mod ← mod.registerDerivedDefinition ddef
   return (stx, mod)
 
