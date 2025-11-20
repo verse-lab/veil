@@ -72,20 +72,20 @@ instantiate bg : Background node nset
 open TotalOrderWithMinimum Background
 
 -- parts for the protocol
-relation voted_prepared : node → ballot → value → Prop
-relation accepted_prepared : node → ballot → value → Prop
-relation confirmed_prepared : node → ballot → value → Prop
-relation voted_committed : node → ballot → value → Prop
-relation accepted_committed : node → ballot → value → Prop
-relation confirmed_committed : node → ballot → value → Prop
-relation nomination_output : node → value → Prop
-relation started : node → ballot → Prop
-relation left_ballot : node → ballot → Prop
+relation voted_prepared : node → ballot → value → Bool
+relation accepted_prepared : node → ballot → value → Bool
+relation confirmed_prepared : node → ballot → value → Bool
+relation voted_committed : node → ballot → value → Bool
+relation accepted_committed : node → ballot → value → Bool
+relation confirmed_committed : node → ballot → value → Bool
+relation nomination_output : node → value → Bool
+relation started : node → ballot → Bool
+relation left_ballot : node → ballot → Bool
 
-relation received_vote_prepare : node → node → ballot → value → Prop
-relation received_accept_prepare : node → node → ballot → value → Prop
-relation received_vote_commit : node → node → ballot → value → Prop
-relation received_accept_commit : node → node → ballot → value → Prop
+relation received_vote_prepare : node → node → ballot → value → Bool
+relation received_accept_prepare : node → node → ballot → value → Bool
+relation received_vote_commit : node → node → ballot → value → Bool
+relation received_accept_commit : node → node → ballot → value → Bool
 
 #gen_state
 
@@ -105,88 +105,88 @@ assumption [intact_is_quorum]
 -/
 
 after_init {
-  voted_prepared N B V := False;
-  accepted_prepared N B V := False;
-  confirmed_prepared N B V := False;
-  voted_committed N B V := False;
-  accepted_committed N B V := False;
-  confirmed_committed N B V := False;
-  nomination_output N X := False;
-  left_ballot N B := False;
-  started N B := False;
-  received_vote_prepare N1 N2 B V := False;
-  received_vote_commit N1 N2 B V := False;
-  received_accept_prepare N1 N2 B V := False;
-  received_accept_commit N1 N2 B V := False;
+  voted_prepared N B V := false;
+  accepted_prepared N B V := false;
+  confirmed_prepared N B V := false;
+  voted_committed N B V := false;
+  accepted_committed N B V := false;
+  confirmed_committed N B V := false;
+  nomination_output N X := false;
+  left_ballot N B := false;
+  started N B := false;
+  received_vote_prepare N1 N2 B V := false;
+  received_vote_commit N1 N2 B V := false;
+  received_accept_prepare N1 N2 B V := false;
+  received_accept_commit N1 N2 B V := false;
 }
 
 action nomination_update (n : node) (v : value) {
-  nomination_output n V := V = v;
+  nomination_output n V := decide $ V = v;
 }
 
 action change_ballot (n : node) (b : ballot) {
   require ¬ left_ballot n b ∧ ¬ started n b
-  left_ballot n B := lt B b
-  started n b := True
+  left_ballot n B := decide $ lt B b
+  started n b := true
   let bmax : ballot ← pick
   let vmax : value ← pick
   require
     ((∀ B V, lt B b → ¬ confirmed_prepared n B V) ∧ nomination_output n vmax) ∨
     (lt bmax b ∧ confirmed_prepared n bmax vmax ∧
       (∀ B V, lt B b ∧ confirmed_prepared n B V → le B bmax))
-  voted_prepared n b vmax := True;
+  voted_prepared n b vmax := true;
 }
 
 action receive_vote_prepare (na nb : node) (b : ballot) (v : value) {
   require voted_prepared nb b v
-  received_vote_prepare na nb b v := True
+  received_vote_prepare na nb b v := true
   if (∃ Q, is_quorum Q ∧ member na Q ∧
       (∀ N, member N Q → (received_vote_prepare na N b v ∨ received_accept_prepare na N b v)))
     ∧ (∀ B V, ¬ (accepted_committed na B V ∧ lt B b ∧ V ≠ v))
     ∧ (∀ V, ¬ accepted_prepared na b V) then
-    accepted_prepared na b v := True
+    accepted_prepared na b v := true
 }
 
 action receive_accept_prepare (na nb : node) (b : ballot) (v : value) {
   require accepted_prepared nb b v
-  received_accept_prepare na nb b v := True
+  received_accept_prepare na nb b v := true
   if (∃ Q, is_quorum Q ∧ member na Q ∧
       (∀ N, member N Q → received_accept_prepare na N b v)) then
-    confirmed_prepared na b v := True
+    confirmed_prepared na b v := true
     if ¬ left_ballot na b then
-      voted_committed na b v := True
+      voted_committed na b v := true
   if ((∃ Q, is_quorum Q ∧ member na Q ∧
         (∀ N, member N Q → (received_vote_prepare na N b v ∨ received_accept_prepare na N b v)))
       ∨ (∃ S, blocks_slices S na ∧ (∀ N, member N S → received_accept_prepare na N b v)))
     ∧ (∀ B V, ¬ (accepted_committed na B V ∧ lt B b ∧ V ≠ v))
     ∧ (∀ V, ¬ accepted_prepared na b V) then
-    accepted_prepared na b v := True
+    accepted_prepared na b v := true
 }
 
 action receive_vote_commit (na nb : node) (b : ballot) (v : value) {
   require voted_committed nb b v
-  received_vote_commit na nb b v := True
+  received_vote_commit na nb b v := true
   if (∃ Q, is_quorum Q ∧ member na Q ∧
       (∀ N, member N Q → (received_vote_commit na N b v ∨ received_accept_commit na N b v)))
     ∧ (∀ B V, ¬ (accepted_prepared na B V ∧ lt b B ∧ V ≠ v))
     ∧ (∀ V, ¬ accepted_committed na b V)
     ∧ confirmed_prepared na b v then
-    accepted_committed na b v := True
+    accepted_committed na b v := true
 }
 
 action receive_accept_commit (na nb : node) (b : ballot) (v : value) {
   require accepted_committed nb b v
-  received_accept_commit na nb b v := True
+  received_accept_commit na nb b v := true
   if (∃ Q, is_quorum Q ∧ member na Q ∧
       (∀ N, member N Q → received_accept_commit na N b v)) then
-    confirmed_committed na b v := True
+    confirmed_committed na b v := true
   if ((∃ Q, is_quorum Q ∧ member na Q ∧
         (∀ N, member N Q → (received_vote_commit na N b v ∨ received_accept_commit na N b v)))
       ∨ (∃ S, blocks_slices S na ∧ (∀ N, member N S → received_accept_commit na N b v)))
     ∧ (∀ B V, ¬ (accepted_prepared na B V ∧ lt b B ∧ V ≠ v))
     ∧ (∀ V, ¬ accepted_committed na b V)
     ∧ confirmed_prepared na b v then
-    accepted_committed na b v := True
+    accepted_committed na b v := true
 }
 
 transition byzantine_step {
@@ -225,8 +225,10 @@ invariant ∀ N N2 B V, well_behaved N ∧ received_accept_prepare N N2 B V ∧ 
 
 invariant ∀ N B V1 V2, well_behaved N ∧ accepted_prepared N B V1 ∧ accepted_prepared N B V2 → V1 = V2
 
+set_option maxHeartbeats 6400000
 #gen_spec
 
+#time run_cmd do Lean.evalConst (Bool → Nat) ``Bool.toNat
 #time #check_invariants
 
 end SCP
