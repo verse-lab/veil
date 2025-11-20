@@ -281,16 +281,18 @@ def elabVeilConcretizeFields (aggressive : Bool) : TacticM Unit := veilWithMainC
 def elabVeilNeutralizeDecidableInst : TacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident]; veil_clear)
 
-private def smallScaleAxiomatizationSimpSet : Array Name :=
-  #[``id, ``instIsSubStateOfRefl, ``instIsSubReaderOfRefl,
-   ``Veil.replaceLocalRProp, `LocalRProp.core]
+private def smallScaleAxiomatizationSimpSet (withLocalRPropTC? : Bool) : Array Name :=
+  let base := #[``id, ``instIsSubStateOfRefl, ``instIsSubReaderOfRefl]
+  if withLocalRPropTC? then
+    base.push ``Veil.replaceLocalRProp |>.push `LocalRProp.core
+  else base.push `ghostRelSimp
 
 /-- Perform "small-scale axiomatization" for a ghost relation `nmFull` based
 on its application `target`. Returns the local `let`-declaration for the
 ghost relation (with only its specific arguments being abstracted over),
 the local `have`-declaration for the equality lemma, and the number of
 specific arguments. -/
-private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull : Name) (target : Expr) : TacticM (Option (Expr × Expr × Nat)) := veilWithMainContext do
+private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull : Name) (target : Expr) (withLocalRPropTC? : Bool) : TacticM (Option (Expr × Expr × Nat)) := veilWithMainContext do
   -- Note that this is currently done in a very hacky way, might need better
   -- support on the segmentation of parameters. It could be possible to
   -- generalize this logic of "abstracting over specific arguments that appear
@@ -301,6 +303,7 @@ private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull
   let baseArgs := args.take nBaseParams
   let suffixArgs := args.drop (args.size - nExtraParams - 2)  -- 2: for theory and state
   let nm' ← mkFreshBinderNameForTactic nm
+  let nm' := nm'.appendAfter "_axiomatized"
   -- heavily exploit the arguments structure
   let body ← do
     let preBody := mkAppN target.getAppFn' baseArgs
@@ -340,9 +343,9 @@ private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull
 
   -- step 3: do some simplification (this makes this code a bit too specific, but anyway)
   -- for now, only do `dsimp` here
-  let newEq' ← (Simp.dsimp smallScaleAxiomatizationSimpSet) newEq
+  let newEq' ← (Simp.dsimp <| smallScaleAxiomatizationSimpSet withLocalRPropTC?) newEq
   -- create the `have` binding
-  let eqName ← mkFreshBinderNameForTactic (nm.appendAfter "_eq")
+  let eqName ← mkFreshBinderNameForTactic (nm'.appendAfter "_eq")
   -- simulating `have eqName : newEq := proof`; not sure why there is no direct API for this?
   let (fv, mv') ← mv.let eqName proof newEq'.expr
   let mv'' ← mv'.clearValue fv
@@ -366,7 +369,7 @@ of the equation lemma, after proper argument instantiation and simplification.
 This tactic returns a `HashMap` from each involved ghost relation's full name
 to its corresponding local `let`-declaration (as an `Expr`, essentially a fvar)
 and the number of its specific arguments. -/
-private def ghostRelationSSACore (derivedDefns : Std.HashMap Name DerivedDefinition) (nBaseParams : Nat) (e : Expr) : TacticM (Std.HashMap Name (Expr × Nat)) := veilWithMainContext do
+private def ghostRelationSSACore (derivedDefns : Std.HashMap Name DerivedDefinition) (nBaseParams : Nat) (e : Expr) (withLocalRPropTC? : Bool) : TacticM (Std.HashMap Name (Expr × Nat)) := veilWithMainContext do
   let nms := e.getUsedConstantsAsSet
   let mut info : Array (Name × Expr × Nat) := #[]
   for (nm, dd) in derivedDefns do
@@ -379,7 +382,7 @@ private def ghostRelationSSACore (derivedDefns : Std.HashMap Name DerivedDefinit
     let nExtraParams := dd.extraParams.size
     let some target := findValidFullApplication nmFull nExtraParams e
       | continue
-    if let some (grfv, _, nn) ← smallScaleAxiomatization nBaseParams nExtraParams nm nmFull target then
+    if let some (grfv, _, nn) ← smallScaleAxiomatization nBaseParams nExtraParams nm nmFull target withLocalRPropTC? then
       info := info.push (nmFull, grfv, nn)
   return Std.HashMap.ofList info.toList
 where
@@ -405,7 +408,7 @@ def ghostRelationSSA (mod : Module) (hyp : Name) : TacticM Unit := veilWithMainC
   let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .ghost (Std.HashSet.emptyWithCapacity 0))
   let ldecl ← getLocalDeclFromUserName hyp
   let ty := ldecl.type
-  let info ← ghostRelationSSACore mod._derivedDefinitions baseParams.size ty
+  let info ← ghostRelationSSACore mod._derivedDefinitions baseParams.size ty mod._useLocalRPropTC
   withMainContext do
   let ty' ← foldingByDefEq baseParams.size info ty
   let mv ← getMainGoal
@@ -442,10 +445,12 @@ where
       clearValues mv' fvs'
 
 def elabGhostRelationSSA (hyp : Ident) : TacticM Unit := veilWithMainContext do
-  ghostRelationSSA (← getCurrentModule) hyp.getId
+  let mod ← getCurrentModule
+  ghostRelationSSA mod hyp.getId
   -- do some simplification for the goal
-  let simps := smallScaleAxiomatizationSimpSet.map Lean.mkIdent
-  veilEvalTactic $ ← `(tactic| veil_dsimp only [$[$simps:ident],*])
+  let simps := smallScaleAxiomatizationSimpSet mod._useLocalRPropTC |>.map Lean.mkIdent
+  withMainContext do
+  veilEvalTactic $ ← `(tactic| expose_names ; veil_dsimp only [$[$simps:ident],*])
 
 def elabVeilSmt (stx : Syntax) (trace : Bool := false) : TacticM Unit := veilWithMainContext do
   let idents ← getPropsInContext

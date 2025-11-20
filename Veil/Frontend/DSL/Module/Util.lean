@@ -1059,7 +1059,7 @@ def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TS
   -- See NOTE(SUBTLE).
   let baseBinders ← (baseParams ).mapM (·.binder)
   let binders := (← baseBinders.mapM mkImplicitBinder) ++ paramBinders ++ thstBinders ++ (← extraParams.mapM (·.binder))
-  let attrs ← #[(if justTheory then `invSimp else `derivedInvSimp)].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let attrs ← #[(if justTheory then `invSimp else `ghostRelSimp)].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let stx ← `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
   trace[veil.debug] "stx: {stx}"
   -- FIXME: we should probably add `thstBinders` to `params`?
