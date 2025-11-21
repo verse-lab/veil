@@ -20,15 +20,31 @@ inductive ModuleTypeClassKind where
   /-- This typeclass assumption relates to the state of the environment
   that this module operates in. -/
   | environmentState
-  /-- Should look like: `∀ f, FieldRepresentation (State.Label.toDomain f) (State.Label.toCodomain f) fc` -/
+  /-- `∀ f, FieldRepresentation (State.Label.toDomain f) (State.Label.toCodomain f) (χ f)` -/
   | fieldRepresentation
-  /-- Should look like: `∀ f, LawfulFieldRepresentation _ _ _ (... f)` -/
+  /-- `∀ f, LawfulFieldRepresentation (State.Label.toDomain f) (State.Label.toCodomain f) (χ f) (χ_rep f)` -/
   | lawfulFieldRepresentation
-  /-- This typeclass assumption was made explicitly by the user. -/
+  /-- This typeclass assumption was made explicitly by the user via
+  `instantiate`. -/
   | userDefined
-deriving Inhabited, BEq
+deriving Inhabited, BEq, Repr
 
+inductive DefinitionParameterKind where
+  /-- An explicit parameter, e.g. `(n : node)` -/
+  | explicit
+  /-- An implicit parameter, e.g. `{m : Mode}` -/
+  | implicit
+  /-- A typeclass parameter, e.g. `[Decidable P]` -/
+  | typeclass
+deriving Inhabited, BEq, Repr
+
+/-- Veil definitions can have parameters, and there are many kinds of
+parameters. All of these (except `definitionParameter`) are, in some sense,
+parameters of the module (i.e. parameters that all definitions in the module
+inherit). -/
 inductive ParameterKind where
+  /-- For `.do` definitions of actions, this is the mode parameter. -/
+  | mode
   /-- A (FOL) sort, i.e. a Lean type. The `sort` parameters are those that
   are used to declare the `State` type of the module. -/
   | uninterpretedSort
@@ -39,16 +55,14 @@ inductive ParameterKind where
   operates in. The module's own background theory will be a sub-reader
   of this. -/
   | backgroundTheory -- i.e. `ρ`
-  /-- Just as the name indicates. -/
-  | fieldConcreteType -- i.e. `fc`
+  /-- The `χ : State.Label → Type` parameter. It defines the concrete type of
+  the state components. -/
+  | fieldConcreteType -- i.e. `χ`
   /-- A typeclass assumption this module makes -/
   | moduleTypeclass (kind : ModuleTypeClassKind)
-  /-- A typeclass assumption that _a particular definition_ makes.
-  These are typically `Decidable` instances. -/
-  | definitionTypeclass (defName : Name)
-  /-- For `.do` definitions of actions, this is the mode parameter. -/
-  | mode
-deriving Inhabited, BEq
+  /-- A parameter that _a particular definition_ makes. -/
+  | definitionParameter (defName : Name) (kind : DefinitionParameterKind)
+deriving Inhabited, BEq, Repr
 
 inductive Mutability where
   /-- This should go in the `mutable` state. -/
@@ -167,10 +181,16 @@ instance : Repr DeclarationKind where
 
 /-! ## Actual representations -/
 
+inductive ParameterDefault where
+  | term (term : Term)
+  | tactic (tactic : TSyntax ``Tactic.tacticSeq)
+deriving Inhabited, BEq, Repr
+
 structure Parameter where
   kind : ParameterKind
   name : Name
   type : Term
+  default : Option ParameterDefault := .none
   /-- The user-written syntax that resulted in the declaration of this
   parameter. Note that multiple parameters might be due to the same
   user-provided syntax. -/
@@ -231,7 +251,7 @@ structure ProcedureSpecification where
   info : ProcedureInfo
   /-- Parameters of the current action, i.e. the arguments the action
   _actually_ takes, e.g. `(n:node)`. -/
-  params : Option (TSyntax ``Lean.explicitBinders) := none
+  params : Array Parameter
   /-- "Extra parameters" that are needed to make this action
   executable. -/
   extraParams : Array Parameter
@@ -277,7 +297,7 @@ structure DerivedDefinition where
   /-- Params that this derived definition actually takes. This
   corresponds to the `params` field of `ProcedureSpecification`, and is
   used for `actionLike` derived definitions. -/
-  params : Option (TSyntax ``Lean.explicitBinders)
+  params : Array Parameter
   /-- Extra parameters this definition needs. -/
   extraParams : Array Parameter
   /-- The definitions that this derived definition depends on. -/

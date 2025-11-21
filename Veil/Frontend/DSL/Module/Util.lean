@@ -109,12 +109,6 @@ def ProcedureInfo.name : ProcedureInfo → Name
 
 def ProcedureSpecification.name (a : ProcedureSpecification) : Name := a.info.name
 
-def ProcedureSpecification.binders [Monad m] [MonadQuotation m] [MonadError m] (a : ProcedureSpecification) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
-  Option.stxArrMapM a.params toBracketedBinderArray
-
-def DerivedDefinition.binders [Monad m] [MonadQuotation m] [MonadError m] (dd : DerivedDefinition) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
-  Option.stxArrMapM dd.params toBracketedBinderArray
-
 def Parameter.environmentTheory [Monad m] [MonadQuotation m] : m Parameter :=
   return { kind := .backgroundTheory, name := environmentTheoryName, «type» := ← `(Type), userSyntax := .missing }
 
@@ -130,10 +124,7 @@ def Parameter.fieldConcreteType [Monad m] [MonadQuotation m] : m Parameter :=
 def Parameter.isRelatedToFieldRep (param : Parameter) : Bool :=
   match param.kind with
   | .fieldConcreteType => true
-  | .moduleTypeclass a =>
-    match a with
-    | .fieldRepresentation | .lawfulFieldRepresentation => true
-    | _ => false
+  | .moduleTypeclass .fieldRepresentation | .moduleTypeclass .lawfulFieldRepresentation => true
   | _ => false
 
 def Module.freshWithName [Monad m] [MonadQuotation m] (name : Name) : m Module := do
@@ -164,19 +155,35 @@ def Module.throwIfSpecAlreadyFinalized [Monad m] [MonadError m] (mod : Module) :
 /-- Convert a `Parameter` to a `bracketedBinder` syntax. -/
 def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `Lean.Parser.Term.bracketedBinder) :=
   match p.kind with
-  | .moduleTypeclass _ | .definitionTypeclass _ =>
-  if p.name != Name.anonymous then
-    `(bracketedBinder|[$(mkIdent p.name) : $(p.type)])
-  else
-    `(bracketedBinder|[$(p.type)])
-  | _ => `(bracketedBinder|($(mkIdent p.name) : $(p.type)))
+  | .moduleTypeclass _ | .definitionParameter _ .typeclass =>
+    if p.name != Name.anonymous then
+      `(bracketedBinder|[$(mkIdent p.name) : $(p.type)])
+    else
+      `(bracketedBinder|[$(p.type)])
+  | .definitionParameter _ .implicit => `(bracketedBinder|{$(mkIdent p.name) : $(p.type)})
+  | _ =>
+    match p.default with
+    | .none => `(bracketedBinder|($(mkIdent p.name) : $(p.type)))
+    | .some (.term defValue) => `(bracketedBinder|($(mkIdent p.name) : $(p.type) := $defValue))
+    | .some (.tactic tactic) => `(bracketedBinder|($(mkIdent p.name) : $(p.type) := by $tactic:tacticSeq))
+
+def Parameter.bracketedExplicitBinder [Monad m] [MonadQuotation m] [MonadError m] (p : Parameter) : m (TSyntax ``Lean.bracketedExplicitBinders) := do
+  match p.kind with
+  | .definitionParameter _ .explicit => `(bracketedExplicitBinders|($(identToBinderIdent $ mkIdent p.name) : $(p.type)))
+  | _ => throwError "[Parameter.bracketedExplicitBinder]: unexpected parameter kind: {repr p.kind}"
+
+def ProcedureSpecification.binders [Monad m] [MonadQuotation m] [MonadError m] (a : ProcedureSpecification) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
+  a.params.mapM (·.binder)
+
+def DerivedDefinition.binders [Monad m] [MonadQuotation m] [MonadError m] (dd : DerivedDefinition) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
+  dd.params.mapM (·.binder)
 
 /-- Convert a `Parameter` to a `Term` syntax for the equivalent
 argument. Unnamed typeclass instances are left for typeclass inference
 (i.e. `_`). -/
 def Parameter.arg [Monad m] [MonadQuotation m] (p : Parameter) : m Term := do
   match p.kind with
-  | .moduleTypeclass _ | .definitionTypeclass _ =>
+  | .moduleTypeclass _ | .definitionParameter _ .typeclass =>
     if p.name != Name.anonymous then
       `(term| $(mkIdent p.name))
     else
@@ -184,6 +191,28 @@ def Parameter.arg [Monad m] [MonadQuotation m] (p : Parameter) : m Term := do
   | _ => `(term| $(mkIdent p.name))
 
 def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
+
+def explicitBindersToParameters [Monad m] [MonadQuotation m] [MonadError m] (stx : Option (TSyntax ``Lean.explicitBinders)) (forDef : Name) : m (Array Parameter) := do
+  match stx with
+  | .none => pure #[]
+  | .some stx => explicitBindersFlatMapM stx fun bi tp => do
+      let id ← binderIdentToIdent bi
+      pure { kind := .definitionParameter forDef .explicit, name := id.getId, «type» := tp, userSyntax := stx }
+
+def parametersToExplicitBinders [Monad m] [MonadQuotation m] [MonadError m] (params : Array Parameter) : m (TSyntax ``Lean.explicitBinders) := do
+  `(explicitBinders| $(← params.mapM (·.bracketedExplicitBinder))*)
+
+def bracketedBinderToParameter [Monad m] [MonadQuotation m] [MonadError m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) (forDef : Name) : m Parameter := do
+  match stx with
+  | `(bracketedBinder| ($id:ident : $tp)) => return { kind := .definitionParameter forDef .explicit, name := id.getId, «type» := tp, userSyntax := stx }
+  -- explicit binder with default value (provided by either a term or a tactic), e.g. for `th` and `st` in ghost relations
+  | `(Term.explicitBinderF| ($id:ident : $tp:term := $defValue:term)) =>
+    return { kind := .definitionParameter forDef .explicit, name := id.getId, «type» := tp, default := .some (.term defValue), userSyntax := stx }
+  | `(Term.explicitBinderF| ($id:ident : $tp:term := by $tactic:tacticSeq)) =>
+    return { kind := .definitionParameter forDef .explicit, name := id.getId, «type» := tp, default := .some (.tactic tactic), userSyntax := stx }
+  | `(bracketedBinder| {$id:ident : $tp}) => return { kind := .definitionParameter forDef .implicit, name := id.getId, «type» := tp, userSyntax := stx }
+  | `(bracketedBinder| [$id:ident : $tp]) => return { kind := .definitionParameter forDef .typeclass, name := id.getId, «type» := tp, userSyntax := stx }
+  | _ => throwError "[bracketedBinderToParameter]: unexpected syntax: {stx}"
 
 def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (k : DeclarationKind) : m (Array Parameter) := do
   match k with
@@ -223,7 +252,7 @@ three components:
   executable)
   - actual parameters (the parameters that the definition actually takes)
  -/
-def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter × Option (TSyntax `Lean.explicitBinders)) := do
+def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter × Array Parameter) := do
   let baseParams ← mod.declarationBaseParams k
   let (extraParams, actualParams) ← (do
     match k with
@@ -234,7 +263,7 @@ def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (m
     | .stateAssertion _ => do
         let .some sa := mod.assertions.find? (fun a => a.name == forDeclaration)
           | throwError "[Module.declarationSplitParams]: assertion {forDeclaration} not found"
-        pure (sa.extraParams, .none)
+        pure (sa.extraParams, #[])
     | .procedure _ => do
         let .some proc := mod.procedures.find? (fun a => a.name == forDeclaration)
           | throwError "[Module.declarationSplitParams]: procedure {forDeclaration} not found"
@@ -248,11 +277,11 @@ def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (m
 including "extra" parameters (decidable instances)
 - `actualParams`: the parameters that the declaration "actually" takes
 -/
-def Module.declarationAllParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Option (TSyntax `Lean.explicitBinders)) := do
+def Module.declarationAllParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter) := do
   let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams forDeclaration k
   return (baseParams ++ extraParams, actualParams)
 
-def Module.declarationAllParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forDeclaration : Name) (k : DeclarationKind) : m (Array α × Option (TSyntax `Lean.explicitBinders)) := do
+def Module.declarationAllParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forDeclaration : Name) (k : DeclarationKind) : m (Array α × Array Parameter) := do
   let (allModParams, actualParams) ← mod.declarationAllParams forDeclaration k
   return (← allModParams.mapM f, actualParams)
 
@@ -262,7 +291,7 @@ between those imposed by the module and those the declaration "actually" has.
 def Module.declarationSplitBindersArgs [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m ((Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term) × (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term)) := do
   let (allModParams, specificParams) ← mod.declarationAllParams forDeclaration k
   let (allModBinders, allModArgs) := (← allModParams.mapM (·.binder), ← allModParams.mapM (·.ident))
-  let (specificBinders, specificArgs) := (← Option.stxArrMapM specificParams toBracketedBinderArray, ← Option.stxArrMapM specificParams explicitBindersToTerms)
+  let (specificBinders, specificArgs) := (← specificParams.mapM (·.binder), ← specificParams.mapM (·.arg))
   return ((allModBinders, allModArgs), (specificBinders, specificArgs))
 
 /-- Utility function to get all the binders and arguments for a declaration -/
@@ -829,7 +858,7 @@ private def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind
   -- Record the `Decidable` instances that are needed for the assertion.
   let (insts, _) ← elabBinders (binders ++ paramBinders ++ thstBinders) $ fun _ => getRequiredDecidableInstances term'
   trace[veil.debug] "insts: {insts.map (·.1)}"
-  let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionTypeclass name, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT, userSyntax := .missing })
+  let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionParameter name .typeclass, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT, userSyntax := .missing })
   return (extraParams, thstBinders, term', body)
 
 end AssertionElab
@@ -1052,17 +1081,20 @@ def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TS
   mod.throwIfAlreadyDeclared name
   let kind? := .stateAssertion .invariant -- a ghost relation is a predicate that depends on the state
   let ddKind : DerivedDefinitionKind := if justTheory then .theoryGhost else .ghost
-  let dk := .derivedDefinition ddKind (Std.HashSet.emptyWithCapacity 0)
+  let dk : DeclarationKind := .derivedDefinition ddKind (Std.HashSet.emptyWithCapacity 0)
   let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) dk
-  let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
   let (extraParams, thstBinders, term, _) ← liftTermElabM $ mod.mkVeilTerm name kind? params term justTheory
-  -- See NOTE(SUBTLE).
+  let params := (← explicitBindersToParameters params name) ++ (← thstBinders.mapM (bracketedBinderToParameter · name))
   let baseBinders ← (baseParams ).mapM (·.binder)
-  let binders := (← baseBinders.mapM mkImplicitBinder) ++ paramBinders ++ thstBinders ++ (← extraParams.mapM (·.binder))
+  -- FIXME: for the following line, we implicitly assume that this is the order in
+  -- which binders get generated for the definition. We should instead first
+  -- create a definition without `stx`, use the relevant functions to get the
+  -- binders, and then create the syntax.
+  -- See NOTE(SUBTLE).
+  let binders := (← baseBinders.mapM mkImplicitBinder) ++ (← params.mapM (·.binder)) ++ (← extraParams.mapM (·.binder))
   let attrs ← #[(if justTheory then `invSimp else `ghostRelSimp)].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let stx ← `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
   trace[veil.debug] "stx: {stx}"
-  -- FIXME: we should probably add `thstBinders` to `params`?
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
   let mod ← mod.registerDerivedDefinition ddef
   return (stx, mod)
@@ -1088,7 +1120,7 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
   -- `Prop` rather than `Bool`. TODO: a Bool-specific weakening?
   let attrs ← #[`derivedInvSimp, `invSimp, `reducible].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* : Prop := $body)
-  let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, params := none, extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
+  let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, params := #[], extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (cmd, mod)
 
@@ -1121,7 +1153,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]*)
     else
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
-  let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := none, extraParams := #[], derivedFrom := actionNames, stx := labelDef }
+  let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := actionNames, stx := labelDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (labelDef, mod)
 
@@ -1132,8 +1164,10 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
   let exs ← mod.actions.mapM (fun a => do
     let constructor := Lean.mkIdent $ labelTypeName ++ a.name
     match a.params with
-    | some br => `(term| (∃ $br, $P ($constructor $(← explicitBindersToTerms br)*)))
-    | none => `(term| $P ($constructor)))
+    | #[] => `(term| $P ($constructor))
+    | params =>
+      let br ← parametersToExplicitBinders params
+      `(term| (∃ $br, $P ($constructor $(← explicitBindersToTerms br)*))))
   let label := mkIdent `label
   let casesLemma ← `(command|set_option linter.unusedSectionVars false in
     theorem $labelCases ($P : $labelT -> Prop) :
@@ -1143,7 +1177,7 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
       constructor
       { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> aesop }
       { aesop })
-  let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, params := none, extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
+  let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (casesLemma, mod)
 
@@ -1167,8 +1201,8 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let label := mkIdent `label
   let casesOn := mkIdent $ Name.append label.getId `casesOn
   let nextDef ← `(command|def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
-  let nextParam ← `(explicitBinders| ($label:ident : $labelT))
-  let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, params := nextParam, extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
+  let nextParam := { kind := .definitionParameter assembledNextActName .explicit, name := label.getId, «type» := labelT, userSyntax := .missing }
+  let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, params := #[nextParam], extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (nextDef, mod)
 
