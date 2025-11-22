@@ -88,6 +88,8 @@ instances during WP generation will be reverted, and this tactic is still
 required in verification. -/
 syntax (name := veil_neutralize_decidable_inst) "veil_neutralize_decidable_inst" : tactic
 
+syntax (name := veil_ghost_relation_ssa) "veil_ghost_relation_ssa" "at" ident : tactic
+
 syntax (name := veil_smt) "veil_smt" : tactic
 syntax (name := veil_smt_trace) "veil_smt?" : tactic
 
@@ -279,6 +281,177 @@ def elabVeilConcretizeFields (aggressive : Bool) : TacticM Unit := veilWithMainC
 def elabVeilNeutralizeDecidableInst : TacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident]; veil_clear)
 
+private def smallScaleAxiomatizationSimpSet (withLocalRPropTC? : Bool) : Array Name :=
+  let base := #[``id, ``instIsSubStateOfRefl, ``instIsSubReaderOfRefl]
+  if withLocalRPropTC? then
+    base.push ``Veil.replaceLocalRProp |>.push `LocalRProp.core
+  else base.push `ghostRelSimp
+
+/-- Perform "small-scale axiomatization" for a ghost relation `nmFull` based
+on its application `target`. Returns the local `let`-declaration for the
+ghost relation (with only its specific arguments being abstracted over),
+the local `have`-declaration for the equality lemma, and the number of
+specific arguments. -/
+private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull : Name) (target : Expr) (withLocalRPropTC? : Bool) : TacticM (Option (Expr × Expr × Nat)) := veilWithMainContext do
+  -- Note that this is currently done in a very hacky way, might need better
+  -- support on the segmentation of parameters. It could be possible to
+  -- generalize this logic of "abstracting over specific arguments that appear
+  -- in certain positions only".
+
+  -- step 1: abstract over the first application of `nmFull`
+  let args := target.getAppArgs'
+  let baseArgs := args.take nBaseParams
+  let suffixArgs := args.drop (args.size - nExtraParams - 2)  -- 2: for theory and state
+  let nm' ← mkFreshBinderNameForTactic nm
+  let nm' := nm'.appendAfter "_axiomatized"
+  -- heavily exploit the arguments structure
+  let body ← do
+    let preBody := mkAppN target.getAppFn' baseArgs
+    let ty ← inferType preBody
+    forallBoundedTelescope ty (args.size - nExtraParams - 2 - nBaseParams) fun newVarExprs _ => do
+      let preBody2 := mkAppN preBody (newVarExprs ++ suffixArgs)
+      -- FIXME: if `extraParams` depend on arguments replaced by `newVarExprs`, this might not work
+      mkLambdaFVars newVarExprs preBody2
+  let bodyTy ← inferType body
+  -- create the `let` binding, simulating `let nm' : bodyTy := body`
+  let mv ← getMainGoal
+  mv.withContext do
+  let (fv, mv') ← mv.let nm' body bodyTy
+  let grfv := Expr.fvar fv    -- the local `let`-declaration
+  replaceMainGoal [mv']
+  let mv := mv'
+  mv.withContext do
+
+  -- step 2: instantiate the equation lemma
+  let some eqs ← getEqnsFor? nmFull
+    -- | throwError "unexpected error: could not find equation lemmas for {nmFull}"
+    | return none
+  let some eq := eqs[0]?    -- the first one should be enough
+    -- | throwError "unexpected error: no equation lemmas for {nmFull}"
+    | return none
+  let (newEq, proof) ← forallTelescope bodyTy fun xs _ => do
+    let eqApplied ← mkAppOptM eq ((baseArgs ++ xs ++ suffixArgs) |>.map Option.some)
+    let eqAppliedTy ← inferType eqApplied
+    let eqAppliedTy ← instantiateMVars eqAppliedTy
+    let some (_, _, newEqRHS) := eqAppliedTy.eq?
+      | throwError "unexpected error: equation lemma for {nmFull} does not have equality type: got {eqAppliedTy}"
+    let newEqLHS := mkAppN grfv xs
+    let newEq ← mkEq newEqLHS newEqRHS
+    let newEq ← mkForallFVars xs newEq
+    let proof ← mkLambdaFVars xs eqApplied
+    pure (newEq, proof)
+
+  -- step 3: do some simplification (this makes this code a bit too specific, but anyway)
+  -- for now, only do `dsimp` here
+  let newEq' ← (Simp.dsimp <| smallScaleAxiomatizationSimpSet withLocalRPropTC?) newEq
+  -- create the `have` binding
+  let eqName ← mkFreshBinderNameForTactic (nm'.appendAfter "_eq")
+  -- simulating `have eqName : newEq := proof`; not sure why there is no direct API for this?
+  let (fv, mv') ← mv.let eqName proof newEq'.expr
+  let mv'' ← mv'.clearValue fv
+  let eqfv := Expr.fvar fv
+  replaceMainGoal [mv'']
+
+  pure (some (grfv, eqfv, args.size - nExtraParams - 2 - nBaseParams))
+
+/-- For every ghost relation in `derivedDefns` that is used in `e`, this tactic
+first tries creating a local `let`-declaration for it with only its own specific
+arguments being the arguments. For example, a ghost relation `foo` can appear in `e`
+in the form of a full application `foo (base parameters) a b (theory) (state) (extra params)`,
+where `(theory)` and `(state)` are _ground_ terms (e.g., `Theory` and `State`
+elements for the current module), then the local declaration will be
+`foo' := fun a b => foo (base parameters) a b (theory) (state) (extra params)`.
+
+Then this tactic tries using the equation lemma of `foo` to introduce an equality
+`∀ a b, foo' a b = <rhs>` into the local context, where `rhs` is the right-hand side
+of the equation lemma, after proper argument instantiation and simplification.
+
+This tactic returns a `HashMap` from each involved ghost relation's full name
+to its corresponding local `let`-declaration (as an `Expr`, essentially a fvar)
+and the number of its specific arguments. -/
+private def ghostRelationSSACore (derivedDefns : Std.HashMap Name DerivedDefinition) (nBaseParams : Nat) (e : Expr) (withLocalRPropTC? : Bool) : TacticM (Std.HashMap Name (Expr × Nat)) := veilWithMainContext do
+  let nms := e.getUsedConstantsAsSet
+  let mut info : Array (Name × Expr × Nat) := #[]
+  for (nm, dd) in derivedDefns do
+    unless dd.kind matches .ghost do
+      continue
+    -- maybe the full name should be stored as metadata
+    let nmFull ← resolveGlobalConstNoOverloadCore nm
+    unless nms.contains nmFull do
+      continue
+    let nExtraParams := dd.extraParams.size
+    let some target := findValidFullApplication nmFull nExtraParams e
+      | continue
+    if let some (grfv, _, nn) ← smallScaleAxiomatization nBaseParams nExtraParams nm nmFull target withLocalRPropTC? then
+      info := info.push (nmFull, grfv, nn)
+  return Std.HashMap.ofList info.toList
+where
+  findValidFullApplication (nmFull : Name) (nExtraParams : Nat) (e : Expr) := e.findExt? fun e' => Id.run do
+    unless e'.getAppFn'.constName? == some nmFull do
+      return .visit
+    -- do a very simple checking that the theory and state must be ground
+    let args := e'.getAppRevArgs'.drop nExtraParams
+    unless args.size ≥ nBaseParams + 2 do
+      return .done
+    if args[0]!.hasLooseBVars || args[1]!.hasLooseBVars then
+      return .done
+    return .found
+
+/-- Small-scale axiomatization for ghost relations. Its first part is
+done in `ghostRelationSSACore` (please refer to its docstring for details).
+The second part is to "fold back" the usages of ghost relations into
+their local `let`-declarations, and finally clear the bodies of these
+local declarations to complete the axiomatization.
+
+Currently, it is only performed over one hypothesis. -/
+def ghostRelationSSA (mod : Module) (hyp : Name) : TacticM Unit := veilWithMainContext do
+  let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .ghost (Std.HashSet.emptyWithCapacity 0))
+  let ldecl ← getLocalDeclFromUserName hyp
+  let ty := ldecl.type
+  let info ← ghostRelationSSACore mod._derivedDefinitions baseParams.size ty mod._useLocalRPropTC
+  withMainContext do
+  let ty' ← foldingByDefEq baseParams.size info ty
+  let mv ← getMainGoal
+  -- NOTE: Since `hyp` is above the newly introduced `let`-declarations,
+  -- we need to change the order.
+  let mv' ← mv.replaceLocalDeclDefEq ldecl.fvarId ty'  -- or `changeLocalDecl`?
+  let (_, mv'') ← mv'.withReverted #[ldecl.fvarId] fun mvv fvars => mvv.withContext do
+    -- finally, clear the bodies of the local `let`-declarations
+    let fvs := info.fold (init := []) fun acc _ (grfv, _) => grfv :: acc
+    let mvv' ← clearValues mvv fvs
+    pure ((), fvars.map Option.some, mvv')
+  replaceMainGoal [mv'']
+where
+  /-- Fold back the usages of ghost relations based on definitional equality. -/
+  foldingByDefEq (nBaseParams : Nat) (info : Std.HashMap Name (Expr × Nat)) (target : Expr) : MetaM Expr :=
+    Meta.transform target (skipConstInApp := true)
+      (pre := fun e' => do
+        let some nm := e'.getAppFn'.constName? | return .continue
+        let some (grfv, nSpecificArgs) := info[nm]? | return .continue
+        let args := e'.getAppArgs'
+        let specificArgs := args.drop nBaseParams |>.take nSpecificArgs
+        -- check if we can replace `e'` with `grfv specificArgs`
+        let target := mkAppN grfv specificArgs
+        if ← isDefEq e' target then
+          trace[veil.debug] "folding {e'} to {target}"
+          return .done target
+        return .done e'
+      )
+  clearValues (mv : MVarId) (fvs : List Expr) : MetaM MVarId :=
+    match fvs with
+    | [] => return mv
+    | fv :: fvs' => do
+      let mv' ← mv.clearValue fv.fvarId!
+      clearValues mv' fvs'
+
+def elabGhostRelationSSA (hyp : Ident) : TacticM Unit := veilWithMainContext do
+  let mod ← getCurrentModule
+  ghostRelationSSA mod hyp.getId
+  -- do some simplification for the goal
+  let simps := smallScaleAxiomatizationSimpSet mod._useLocalRPropTC |>.map Lean.mkIdent
+  withMainContext do
+  veilEvalTactic $ ← `(tactic| expose_names ; veil_dsimp only [$[$simps:ident],*])
+
 def elabVeilSmt (stx : Syntax) (trace : Bool := false) : TacticM Unit := veilWithMainContext do
   let idents ← getPropsInContext
   let solverOptions ← `(term| [("finite-model-find", "true"), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
@@ -363,8 +536,8 @@ def elabVeilFol (aggressive : Bool) : TacticM Unit := veilWithMainContext do
     -- NOTE: The `subst_eqs` is for equalities between higher-order stuff,
     -- especially relations produced after `concretize_fields`. This can
     -- happen for unchanged fields in transitions.
-    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_intro_ho; veil_concretize_state; veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs)))
-    else `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_intro_ho; veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
+    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_intro_ho; veil_ghost_relation_ssa at $(mkIdent `hinv); veil_concretize_state; veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs)))
+    else `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_intro_ho; veil_ghost_relation_ssa at $(mkIdent `hinv); veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSolve (aggressive : Bool) : TacticM Unit := veilWithMainContext do
@@ -395,6 +568,7 @@ elab_rules : tactic
   | `(tactic| veil_dsimp? $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_dsimp?" $ elabVeilDSimp (trace? := true) cfg o params loc
   | `(tactic| veil_wp) => do withTiming "veil_wp" elabVeilWp
   | `(tactic| veil_neutralize_decidable_inst) => do withTiming "veil_neutralize_decidable_inst" elabVeilNeutralizeDecidableInst
+  | `(tactic| veil_ghost_relation_ssa at $hyp:ident) => do withTiming "veil_ghost_relation_ssa" (elabGhostRelationSSA hyp)
   | `(tactic| veil_intros) => do withTiming "veil_intros" elabVeilIntros
   | `(tactic| veil_intro_ho) => do withTiming "veil_intro_ho" elabVeilIntroHO
   | `(tactic| veil_fol $[!%$agg]?) => do withTiming "veil_fol" (elabVeilFol (agg.isSome))

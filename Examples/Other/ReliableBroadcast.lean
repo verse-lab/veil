@@ -31,10 +31,10 @@ type round
 type value
 
 --  immutable relation?
-variable (is_byz : address → Prop)
+-- variable (is_byz : address → Prop)
 
-instantiate nset : NodeSet address is_byz nodeset
-open NodeSet
+instantiate nset : ByzNodeSet address nodeset
+open ByzNodeSet
 
 -- TODO: we might want to replace the second condition in `vote` to use this
 -- /-- A fraction of nodes (f + 1) with at least one honest member. -/
@@ -63,14 +63,14 @@ relation delivered (n : address) (originator : address) (in_round : round) (v : 
 ghost relation initial_value (n : address) (r : round) (v : value) := ∀ dst, initial_msg n dst r v
 
 after_init {
-  initial_msg O D R V := False;
-  echo_msg S D O R V  := False;
-  vote_msg S D O R V  := False;
+  initial_msg O D R V := false;
+  echo_msg S D O R V  := false;
+  vote_msg S D O R V  := false;
 
-  sent N R            := False;
-  echoed N O R V      := False;
-  voted N O R V       := False;
-  delivered N O R V   := False
+  sent N R            := false;
+  echoed N O R V      := false;
+  voted N O R V       := false;
+  delivered N O R V   := false
 }
 
 transition byz {
@@ -87,15 +87,15 @@ transition byz {
 
 action broadcast (n : address) (r : round) (v : value) {
   require ¬ sent n r;
-  initial_msg n N r v := True;
-  sent n r := True
+  initial_msg n N r v := true;
+  sent n r := true
 }
 
 action echo (n : address) (originator : address) (r : round) (v : value) {
   require initial_msg originator n r v;
   require ∀ V, ¬ echoed n originator r V;
-  echoed n originator r v := True;
-  echo_msg n DST originator r v := True
+  echoed n originator r v := true;
+  echo_msg n DST originator r v := true
 }
 
 action vote (n : address) (originator : address) (r : round) (v : value) {
@@ -105,15 +105,15 @@ action vote (n : address) (originator : address) (r : round) (v : value) {
           (∃ (q : nodeset), nset.greater_than_third q ∧
               ∀ (src : address), nset.member src q → vote_msg src n originator r v);
   require ∀ V, ¬ voted n originator r V;
-  voted n originator r v := True;
-  vote_msg n DST originator r v := True
+  voted n originator r v := true;
+  vote_msg n DST originator r v := true
 }
 
 action deliver (n : address) (originator : address) (r : round) (v : value) {
   -- received 2f + 1 votes
   require (∃ (q : nodeset), nset.supermajority q ∧
               ∀ (src : address), nset.member src q → vote_msg src n originator r v);
-  delivered n originator r v := True
+  delivered n originator r v := true
 }
 
 /- If a value is voted for, it is the value that was initially proposed by the originator. -/
@@ -198,6 +198,8 @@ invariant [honest_non_conflicting_votes]
 
 #gen_spec
 
+#time run_cmd do Lean.evalConst (Bool → Nat) ``Bool.toNat
+-- set_option trace.veil.debug true in
 #time #check_invariants
 
 end ReliableBroadcast

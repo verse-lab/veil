@@ -23,6 +23,10 @@ register_simp_attr invSimp
 or `.assumptionLike`, to unfold them. -/
 register_simp_attr derivedInvSimp
 
+/-- Attribute added to `DerivedDefinition`s that are `.ghost`,
+to unfold them. -/
+register_simp_attr ghostRelSimp
+
 /-- Attribute added to Veil actions, to unfold them. -/
 register_simp_attr actSimp
 
