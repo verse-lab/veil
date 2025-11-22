@@ -531,13 +531,33 @@ where
         introsDep
     | _ => pure ()
 
+register_option veil.doNotUnfoldGhostRel : Bool := {
+  defValue := false
+  descr := "If true, `veil_solve` will not unfold ghost relations during simplification,
+and use small-scale axiomatization instead.
+Note that this option should be set before `#gen_spec`;
+otherwise it will not take effect. "
+}
+
 def elabVeilFol (aggressive : Bool) : TacticM Unit := veilWithMainContext do
-  let tac ← if aggressive
-    -- NOTE: The `subst_eqs` is for equalities between higher-order stuff,
-    -- especially relations produced after `concretize_fields`. This can
-    -- happen for unchanged fields in transitions.
-    then `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at * ); veil_intro_ho; veil_ghost_relation_ssa at $(mkIdent `hinv); veil_concretize_state; veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs)))
-    else `(tacticSeq| ((open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident, $(mkIdent `quantifierSimp):ident] at * ); veil_intro_ho; veil_ghost_relation_ssa at $(mkIdent `hinv); veil_concretize_state; veil_concretize_fields; veil_destruct; (open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros))
+  let tac ← do
+    let classicalIdent := mkIdent `Classical
+    let doNotUnfoldGhostRel? := (← getOptions).getBool `veil.doNotUnfoldGhostRel
+    let initialSimps := if aggressive
+      then #[`invSimp, `smtSimp]
+      else #[`substateSimp, `invSimp, `smtSimp, `quantifierSimp]
+    let initialSimps := if doNotUnfoldGhostRel? then initialSimps else initialSimps.push `ghostRelSimp
+    let initialSimps := initialSimps.map Lean.mkIdent
+    let ghostRelTac ← if doNotUnfoldGhostRel?
+      then `(tactic| veil_ghost_relation_ssa at $(mkIdent `hinv):ident)
+      else `(tactic| skip )
+    let endingTac ← if aggressive
+      -- NOTE: The `subst_eqs` is for equalities between higher-order stuff,
+      -- especially relations produced after `concretize_fields`. This can
+      -- happen for unchanged fields in transitions.
+      then `(tactic| (veil_concretize_fields !; veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs) ))
+      else `(tactic| (veil_concretize_fields; veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros ))
+    `(tacticSeq| ((open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at * ); veil_intro_ho; $ghostRelTac; veil_concretize_state; $endingTac))
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilSolve (aggressive : Bool) : TacticM Unit := veilWithMainContext do

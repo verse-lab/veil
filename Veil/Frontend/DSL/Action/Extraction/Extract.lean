@@ -188,10 +188,10 @@ def generateVeilMultiExecMCore (κ extractNonDet : TSyntax `term)
   let labelT ← mod.labelTypeStx
   let alts ← mod.actions.mapM (fun a => do
     match a.params with
-    | some br =>
-      let tmp ← explicitBindersToTerms br
-      mkFunSyntax tmp extractNonDet
-    | none => `(term| ($extractNonDet)))
+    | #[] => `(term| ($extractNonDet))
+    | params => do
+      let tmp ← params.mapM (·.arg)
+      mkFunSyntax tmp extractNonDet)
   let (binders?, overallArgs, target1, nextExtractFuncCmd) ← do
     if let some tg := target then
       let overallArgs ← do

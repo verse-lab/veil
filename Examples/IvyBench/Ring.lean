@@ -10,7 +10,6 @@ type node
 instantiate tot : TotalOrder node
 instantiate btwn : Between node
 
-
 open Between TotalOrder
 
 relation leader : node -> Bool
@@ -33,7 +32,8 @@ action recv (sender n next : node) {
   require pending sender n
   -- message may or may not be removed
   -- this models that multiple messages might be in flight
-  pending sender n := *
+  let b ← pick Bool
+  pending sender n := b  -- FIXME: `pending sender n := *` has bad execution performance
   if (sender = n) then
     leader n := true
   else
@@ -42,33 +42,19 @@ action recv (sender n next : node) {
       pending sender next := true
 }
 
--- safety [single_leader] leader L → le N L
--- invariant pending S D ∧ btw S N D → le N S
+safety [single_leader] leader N ∧ leader M → N = M
+invariant [leader_greatest] leader L → le N L
+invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
-invariant [unique_lead] leader N ∧ leader M → N = M
+
 
 #gen_spec
 
--- #time #check_invariants
-
-instance instBetweenFinEnum (n : Nat): Between (Fin n) where
-  btw a b c := (a.val < b.val ∧ b.val < c.val) ∨ (c.val < a.val ∧ a.val < b.val) ∨ (b.val < c.val ∧ c.val < a.val)
-  btw_ring a b c := by aesop
-  btw_trans w x y z := by omega
-  btw_side w x y := by omega
-  btw_total w x y := by omega
-
-instance (n' : Nat) (n next : Fin n') : Decidable (∀ (Z : Fin n'), (n = next → False) ∧ (Z ≠ n ∧ Z ≠ next → btw n next Z)) := by
-  dsimp [instBetweenFinEnum, Between.btw]
-  apply inferInstance
-
-instance (n' : Nat) : (sender n : Fin n') → Decidable (le n sender) := by
-  dsimp [TotalOrder.le]
-  infer_instance
-
+#time #check_invariants
 
 #gen_exec
 
+-- <<<<<<< HEAD
 #finitizeTypes (Fin 2)
 
 /-
@@ -79,6 +65,7 @@ number (N) | states   | time(ms)
  4         | 10256    | 8328
  5         | 101024   | 83139
 -/
+-- #finitizeTypes (Fin 5)
 
 #check nextActMultiExec
 -- def nextVeilMultiExecM := ((nextActMultiExec TheoryConcrete StateConcrete) (Fin 3))
@@ -86,10 +73,9 @@ number (N) | states   | time(ms)
 
 #check nextVeilMultiExecM
 def view (st : StateConcrete) := hash st
-def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => unique_lead ρ σ)
+def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => single_leader ρ σ)
 def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
 def cfg : TheoryConcrete := {}
-
 
 def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
 -- #time #eval modelCheckerResult'.seen.size
@@ -99,8 +85,6 @@ def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextV
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
-
-
 
 end Ring
 --

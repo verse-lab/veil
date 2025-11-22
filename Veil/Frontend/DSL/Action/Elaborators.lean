@@ -255,7 +255,7 @@ def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
 where
   mvarToParam (inAction : Name) (mvar : Expr) (i : Nat) : TermElabM Parameter := do
     let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar) true
-    return { kind := .definitionTypeclass inAction, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
+    return { kind := .definitionParameter inAction .typeclass, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
 
 def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Array Parameter × Expr) := do
   let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
@@ -319,7 +319,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
   let (extraParams, eDo) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
-  let ps := ProcedureSpecification.mk pi br extraParams spec l stx
+  let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams spec l stx
   mod.defineProcedureCore pi eDo ps
 
 def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders)) (t : Term) (stx : Syntax) : CommandElabM Module := do
@@ -339,7 +339,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
         Meta.mkLambdaFVars (#[mode] ++ xs) body.expr
     instantiateMVars tmp
   -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
-  let ps := ProcedureSpecification.mk pi br extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
+  let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
   let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName pi.name) eTr
   mod.defineProcedureCore pi eDo ps
 

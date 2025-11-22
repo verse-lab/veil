@@ -267,6 +267,10 @@ def complexBinderToSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (nm 
   let simple ← `(Lean.Parser.Command.structSimpleBinder| $nm:ident : $typeStx)
   return simple
 
+/- From: https://leanprover.zulipchat.com/#narrow/stream/270676-lean4/topic/binderIdent.20vs.20Ident -/
+def identToBinderIdent (i : Ident) : TSyntax ``binderIdent := Unhygienic.run <|
+  withRef i `(binderIdent| $i:ident)
+
 def binderIdentToIdent [Monad m] [MonadError m] (bi : TSyntax ``binderIdent) : m Ident :=
   match bi with
   | `(binderIdent|$i:ident) => pure i
