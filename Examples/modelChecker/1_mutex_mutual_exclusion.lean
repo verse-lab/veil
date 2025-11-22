@@ -1,106 +1,14 @@
 import Veil
-import Veil.Frontend.DSL.Action.Extraction.Extract
--- import Veil.Core.Tools.Checker.Concrete.Main
-
---------------------------------- MODULE 1_mutex -------------------------------
-
--- ----- MODULE 0_mutex -----
+-- import Veil.Frontend.DSL.Action.Extraction.Extract
+import Veil.Core.Tools.Checker.Concrete.Main
 
 veil module Mutex
--- EXTENDS Integers, FiniteSets, Sequences, TLC
 
--- CONSTANTS NumProcs, NONE
-
--- Procs == 1..NumProcs
-
--- (*--algorithm mutex
--- {
--- variables locked = FALSE;
---           wait_queue_num_wakers = 0;
---           wait_queue_wakers = <<>>;
---           has_woken = [x \in Procs |-> FALSE];
-
--- procedure lock()
--- {
--- pre_check_lock:
---     if (locked = FALSE)
---     {
---         locked := TRUE;
---         return;
---     };
--- bug:
---     locked := FALSE;
--- wait_until:
---     while (TRUE)
---     {
---     enqueue_waker:
---         wait_queue_num_wakers := wait_queue_num_wakers + 1;
---         wait_queue_wakers := Append(wait_queue_wakers, self);
---     check_lock:
---         if (locked = FALSE)
---         {
---             locked := TRUE;
---             has_woken[self] := TRUE;  \* drop
---             return;
---         };
---     check_has_woken:
---         await has_woken[self];
---         has_woken[self] := FALSE;
---     };
--- }
-
--- procedure unlock()
--- variables waker = NONE;
--- {
--- release_lock:
---     locked := FALSE;
--- wake_one:
---     if (wait_queue_num_wakers = 0)
---     {
---         return;
---     };
--- wake_one_loop:
---     while (TRUE)
---     {
---         if (wait_queue_num_wakers /= 0)
---         {
---             waker := Head(wait_queue_wakers);
---             wait_queue_wakers := Tail(wait_queue_wakers);
---             wait_queue_num_wakers := wait_queue_num_wakers - 1;
---         }
---         else
---         {
---             return;
---         };
---     wake_up:
---         if (has_woken[waker] = FALSE)
---         {
---             has_woken[waker] := TRUE;
---             return;
---         }
---     }
--- }
-
--- fair process (proc \in Procs)
--- {
--- start:
--- \*    while (TRUE)
--- \*    {
---         call lock();
---     cs:
---         skip;
---         call unlock();
--- \*    };
--- }
-
--- }
--- *)
--- \* BEGIN TRANSLATION (chksum(pcal) = "2541ee33" /\ chksum(tla) = "55930485")
--- VARIABLES locked, wait_queue_num_wakers, wait_queue_wakers, has_woken, pc,
---           stack, waker
 type process
--- type seq_t
+
+
 individual locked : Bool
+
 enum states = { pre_check_lock,
                 bug,
                 wait_until,
@@ -115,10 +23,6 @@ enum states = { pre_check_lock,
                 cs,
                 Done }
 
--- instantiate seq : TotalOrderWithZero seq_t
--- immutable individual one : seq_t
-
--- individual wait_queue_num_wakers : seq_t
 
 individual wait_queue_wakers : List process
 
@@ -126,8 +30,6 @@ relation has_woken (th: process)
 relation pc (self: process) (st: states)
 immutable individual none : process
 
--- vars == << locked, wait_queue_num_wakers, wait_queue_wakers, has_woken, pc,
---            stack, waker >>
 function stack_pc : process → List states
 function stack_waker : process → List process
 
@@ -135,17 +37,8 @@ relation waker (self: process) (waker: process)
 
 -- ProcSet == (Procs)
 #gen_state
--- Init == (* Global variables *)
---         /\ locked = FALSE
---         /\ wait_queue_num_wakers = 0
---         /\ wait_queue_wakers = <<>>
---         /\ has_woken = [x \in Procs |-> FALSE]
---         (* Procedure unlock *)
---         /\ waker = [ self \in ProcSet |-> NONE]
---         /\ stack = [self \in ProcSet |-> << >>]
---         /\ pc = [self \in ProcSet |-> "start"]
+
 after_init {
-  -- Global variables
   locked := false
   wait_queue_wakers := []
   has_woken P := false
@@ -428,9 +321,9 @@ invariant [AllDone] pc S Done = true
 set_option maxHeartbeats 250000
 #gen_spec
 
-#exit
+
 #gen_exec
-#finitizeTypes (Fin 3), states
+#finitize_types (Fin 2), states
 
 
 

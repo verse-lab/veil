@@ -4,8 +4,6 @@ import Veil.Core.Tools.Checker.Concrete.Util
 -- import Veil.Core.Tools.Checker.Concrete.ConcretizeType
 import Veil.Core.Tools.Checker.Concrete.Concretize
 import Veil.Core.Tools.Checker.Concrete.Runlib
-import Veil.Core.Tools.Checker.Concrete.modelCheckerView
-import ProofWidgets.Component.HtmlDisplay
 
 -- open Lean Meta Elab Command in
 -- /-- Given the name of an `enum` type defined in a `veil module`, generates

@@ -180,21 +180,19 @@ invariant [uniqueDelete] plan_deleted C F ∧ plan_deleted C T → F = T
 -- #check_invariants
 #gen_exec
 
-#finitizeTypes ENACTORS
-#eval labelList
+#finitize_types ENACTORS
+#set_theory {max_plan := 5, plan_age_threshold := 2}
+#run_checker NeverDeleteActive
 
-#print Theory
+-- def view (st : StateConcrete) := hash st
+-- def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => NeverDeleteActive ρ σ)
+-- def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
+-- def cfg : TheoryConcrete := {max_plan := 5, plan_age_threshold := 2}
 
-def view (st : StateConcrete) := hash st
-def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => NeverDeleteActive ρ σ)
-def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
-def cfg : TheoryConcrete := {max_plan := 5, plan_age_threshold := 2}
-
-
-def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
--- #time #eval modelCheckerResult'.seen.size
-def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
-#eval statesJson
+-- def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
+-- #time #eval modelCheckerResult.seen.size
+-- def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
+-- #eval statesJson
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />

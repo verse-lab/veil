@@ -10,6 +10,9 @@ import Mathlib.Tactic.ProxyType
 
 import Veil.Util.Meta
 
+import Veil.Core.Tools.Checker.Concrete.modelCheckerView
+import ProofWidgets.Component.HtmlDisplay
+
 import Lean.Parser.Term
 open Lean Elab Command Veil
 
@@ -1421,12 +1424,50 @@ macro_rules
       )
 
 
-syntax (name := veilFinitizeTypes) "#finitizeTypes" term,* : command
+syntax (name := veilFinitizeTypes) "#finitize_types" term,* : command
 
 macro_rules
-  | `(command| #finitizeTypes $args:term,*) => do
+  | `(command| #finitize_types $args:term,*) => do
     `(-- Step 2: Finitize abstract types to enable model checking
       #Concretize $args,*
       deriving_BEqHashable_ConcreteState
       deriving_toJson_for_state
       deriving_DecidableProps_state)
+
+syntax (name := veilSetTheory) "#set_theory" term : command
+elab "#set_theory" theoryConcrete:term : command => do
+  -- let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+  let setTheoryCmd ← liftTermElabM do
+    `(command| def $(mkIdent `concreteTheory) : $(mkIdent `TheoryConcrete) := $theoryConcrete)
+  elabVeilCommand setTheoryCmd
+
+-- def modelCheckerResult :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList prop terminationC concreteTheory hash).snd
+-- def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM concreteTheory (collectTrace' modelCheckerResult))
+syntax (name := runModelChecker) "#run_model_checker" term : command
+
+
+-- def prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => manual_7 ρ σ)
+-- def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
+elab "#run_checker" propTerm:term : command => do
+  let prop ← `(term| fun $(mkIdent `rd) $(mkIdent `st) => $propTerm $(mkIdent `rd) $(mkIdent `st))
+  let terminate ← `(term| fun $(mkIdent `rd) $(mkIdent `st) => true)
+  let runfuncName := mkIdent `runModelCheckerx
+  -- let terminate ← (`term| fun (rd : TheoryConcrete) (st : StateConcrete) => true)
+  let runModelCheckerCmd ← liftTermElabM do
+    `(command|
+      def $(mkIdent `modelCheckerResult) := ($runfuncName $(mkIdent `initVeilMultiExecM) $(mkIdent `nextVeilMultiExecM) $(mkIdent `labelList) $prop $terminate $(mkIdent `concreteTheory) $(mkIdent ``hash)).snd
+    )
+  elabVeilCommand runModelCheckerCmd
+
+  -- def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM concreteTheory (collectTrace' modelCheckerResult))
+  let statesJsonCmd ← liftTermElabM do
+    `(command|
+      def $(mkIdent `statesJson) : $(mkIdent ``Lean.Json) := $(mkIdent ``Lean.toJson) ( $(mkIdent `recoverTrace) $(mkIdent `initVeilMultiExecM) $(mkIdent `nextVeilMultiExecM) $(mkIdent `concreteTheory) ( $(mkIdent `collectTrace') $(mkIdent `modelCheckerResult) ) )
+    )
+  elabVeilCommand statesJsonCmd
+
+  -- #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+  -- let openProofWidgetsCmd ← `(command| open $(mkIdent `ProofWidgets):ident)
+  -- let openProofWidgetsScopedCmd ← `(command| open scoped $(mkIdent `ProofWidgets.Jsx):ident)
+  -- elabVeilCommand openProofWidgetsCmd
+  -- elabVeilCommand openProofWidgetsScopedCmd
