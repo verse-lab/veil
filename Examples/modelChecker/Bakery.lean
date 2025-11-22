@@ -278,20 +278,20 @@ invariant [p1_non_zero_num] pc I e4 ∨ pc I w1 ∨ pc I w2 ∨ pc I cs → ¬(n
 invariant [p2_flag_e2_e3] pc I e2 ∨ pc I e3 → flag I
 invariant [p3_nxt_not_self] pc I w2 → ¬ (nxt I I)
 invariant [p4_unchecked_not_self] pc I w1 ∨ pc I w2 → ¬(unchecked I I)
--- invariant [p5_critical_section] pc I w1 ∨ pc I w2 → ∀j, (j ≠ I ∧ ¬unchecked I j) → before I j
+invariant [p5_critical_section] pc I w1 ∨ pc I w2 → ∀j, (j ≠ I ∧ ¬unchecked I j) → before I j
 invariant [p6_nxt_e2_e3]
   pc I w2 ∧
   ((∃ni, nxt I ni ∧ pc ni e2 ∧ ¬unchecked ni I) ∨ (∃ni, nxt I ni ∧ pc ni e3)) →
   (∃numi nxti maxnxti, num I numi ∧ nxt I nxti ∧ max nxti maxnxti ∧ seq.le numi maxnxti)
--- invariant [p7_cs_precedes_all] pc I cs → ∀j, (j ≠ I) → before I j
+invariant [p7_cs_precedes_all] pc I cs → ∀j, (j ≠ I) → before I j
 
 /- Ensures no two processes are in critical section simultaneously. -/
 safety [mutual_exclusion] pc I cs ∧ pc J cs → I = J
 
-set_option maxHeartbeats 250000
+-- set_option maxHeartbeats 250000
 #gen_spec
 
--- #check_invariants
+#check_invariants
 -- #exit
 
 end Bakery
