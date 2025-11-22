@@ -1,4 +1,5 @@
 import Veil
+import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
 -- ----- MODULE 0_mutex -----
 
@@ -31,6 +32,7 @@ function stack_pc : process → List states
 function stack_waker : process → List process
 relation waker (self: process) (waker: process)
 
+veil_set_option useFieldRepTC false
 #gen_state
 -- theory ghost relation lt (x y : seq_t) := (seq.le x y ∧ x ≠ y)
 -- theory ghost relation next (x y : seq_t) := (lt x y ∧ ∀ z, lt x z → seq.le y z)
@@ -302,60 +304,50 @@ termination [allDone]∀p, pc p Done
 
 #gen_spec
 
--- #gen_exec
+
 simple_deriving_repr_for' State
 deriving instance Repr for Label
 deriving instance Inhabited for Theory
-deriving_FinOrdToJson_Domain
-specify_FieldConcreteType
-deriving_BEq_FieldConcreteType
-deriving_Hashable_FieldConcreteType
-deriving_rep_FieldRepresentation
-deriving_lawful_FieldRepresentation
+
+#print NextAct
+
+#gen_executable_list!log_entry_being Std.Format targeting NextAct
+injection_begin
+injection_end
 
 
-deriving_Inhabited_State
--- #print State
--- instance instInhabitedFieldConcreteTypeForState (process : Type) (states : Type) [process_ord : Ord process]
---     [states_ord : Ord states] [process_inhabited : Inhabited.{1} process] [states_inhabited : Inhabited.{1} states]
---     [process_dec_eq : DecidableEq.{1} process] [states_dec_eq : DecidableEq.{1} states]
---     [process_fin_enum : FinEnum process] [states_fin_enum : FinEnum states]
---     [process_lawful_cmp : Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord process)))]
---     [states_lawful_cmp : Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord states)))]
---     [process_trans_cmp : Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord process)))]
---     [states_trans_cmp : Std.TransCmp (Ord.compare (self := inferInstanceAs (Ord states)))] :
---     Inhabited (State (FieldConcreteType process states)) := by
---     constructor;
---     constructor <;> dsimp only [FieldConcreteType, State.Label.toDomain, State.Label.toCodomain, Veil.IteratedProd'] <;>
---     try exact Inhabited.default
-gen_NextAct
-gen_executable_NextAct
 deriving_Enum_Insts
-
--- #finitizeTypes (Fin 3), states
-#Concretize (Fin 2), states
-deriving_BEqHashable_ConcreteState
-deriving_toJson_for_state
+#Concretize_without_FieldTy (Fin 7)
+deriving_BEq_ConcreteState
 deriving_DecidableProps_state
-
--- Step 3: Run the model checker
-def view (st : StateConcrete) := hash st
 /-
-number (N) | states   | time (ms)
+number (N) | states   | time(ms)
 -----------|----------|----------
- 2         | 183      | 369
- 3         | 10953    | 14655
-
+ 3         | 106      | 135
+ 4         | 322      | 322
+ 5         | 970      | 1552
+ 6         | 2954     | 21092
+ 7         | 8746     | 232457
 -/
-def modelCheckerResult' :=
-   (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun ρ σ => mutual_exclusion ρ σ) ((fun ρ σ => allDone ρ σ)) {none := 0} view).snd
-#time #eval modelCheckerResult'.seen.size
--- #eval modelCheckerResult'.counterexample.length
--- #exit
-def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace' modelCheckerResult'))
+
+instance : Hashable StateConcrete where
+  hash s := hash ""
+
+def view (st : StateConcrete) := st
+@[reducible]
+def detect_prop : TheoryConcrete → StateConcrete → Prop := (fun ρ σ => timesSwitchedlessEqual2 ρ σ)
+@[reducible]
+def terminationC : TheoryConcrete → StateConcrete → Prop := (fun ρ σ => true)
+def cfg : TheoryConcrete := {cardPrisoner := 7}
+
+
+def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
+-- #time #eval modelCheckerResult'.seen.size
+#exit
+def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
+-- #eval statesJson
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
-
 
 end Mutex

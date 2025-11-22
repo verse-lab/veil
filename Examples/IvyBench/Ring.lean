@@ -71,7 +71,20 @@ instance (n' : Nat) : (sender n : Fin n') → Decidable (le n sender) := by
 
 #finitizeTypes (Fin 2)
 
+/-
+number (N) | states   | time(ms)
+-----------|----------|----------
+ 2         | 116      | 922
+ 3         | 1064     | 1477
+ 4         | 10256    | 8328
+ 5         | 101024   | 83139
+-/
 
+#check nextActMultiExec
+-- def nextVeilMultiExecM := ((nextActMultiExec TheoryConcrete StateConcrete) (Fin 3))
+
+
+#check nextVeilMultiExecM
 def view (st : StateConcrete) := hash st
 def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => unique_lead ρ σ)
 def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
@@ -79,7 +92,8 @@ def cfg : TheoryConcrete := {}
 
 
 def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
-#time #eval modelCheckerResult'.seen.size
+-- #time #eval modelCheckerResult'.seen.size
+
 def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
 #eval statesJson
 open ProofWidgets

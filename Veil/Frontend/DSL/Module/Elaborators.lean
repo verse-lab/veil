@@ -158,9 +158,10 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   let (assumptionCmd, mod) ← mod.assembleAssumptions
   elabVeilCommand assumptionCmd
   let (invariantCmd, mod) ← mod.assembleInvariants
-  trace[veil.debug] "Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
+  trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
   elabVeilCommand invariantCmd
   let (safetyCmd, mod) ← mod.assembleSafeties
+  trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
   elabVeilCommand safetyCmd
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do

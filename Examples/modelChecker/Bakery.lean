@@ -71,7 +71,14 @@ ghost relation pc_e4_w1_w2 (i j : process) :=
 ghost relation before (i j : process) :=
   num_gt_zero i ∧ (pc_ncs_e1_exit j ∨ pc_ex i j ∨ pc_e3 i j ∨ pc_e4_w1_w2 i j)
 
-
+-- Init == (* Global variables *)
+--         /\ num = [i \in Procs |-> 0]
+--         /\ flag = [i \in Procs |-> FALSE]
+--         (* Process p *)
+--         /\ unchecked = [self \in Procs |-> {}]
+--         /\ max = [self \in Procs |-> 0]
+--         /\ nxt = [self \in Procs |-> 1]
+--         /\ pc = [self \in ProcSet |-> "ncs"]
 after_init {
   num P N := N == seq.zero
   flag P := false
@@ -82,12 +89,24 @@ after_init {
 }
 
 
+-- ncs(self) == /\ pc[self] = "ncs"
+--              /\ pc' = [pc EXCEPT ![self] = "e1"]
+--              /\ UNCHANGED << num, flag, unchecked, max, nxt >>
 action evtNCS (self : process) {
   require pc self ncs
   pc self S := S == e1
 }
 
 
+-- e1(self) == /\ pc[self] = "e1"
+--             /\ \/ /\ flag' = [flag EXCEPT ![self] = ~ flag[self]]
+--                   /\ pc' = [pc EXCEPT ![self] = "e1"]
+--                   /\ UNCHANGED <<unchecked, max>>
+--                \/ /\ flag' = [flag EXCEPT ![self] = TRUE]
+--                   /\ unchecked' = [unchecked EXCEPT ![self] = Procs \ {self}]
+--                   /\ max' = [max EXCEPT ![self] = 0]
+--                   /\ pc' = [pc EXCEPT ![self] = "e2"]
+--             /\ UNCHANGED << num, nxt >>
 action evtE1_branch1 (self : process) {
   require pc self e1
   flag self := !(flag self)
@@ -95,15 +114,28 @@ action evtE1_branch1 (self : process) {
 }
 
 
-action evtE1_branch2 (self : process) {
+action _evtE1_branch2 (self : process) {
   require pc self e1
   flag self := true
+  -- unchecked self self := false
   unchecked self Q := if Q = self then false else true
-  max self N := decide $ N = seq.zero
-  pc self S :=decide $  S = e2
+  max self N := N == seq.zero
+  pc self S := S == e2
 }
 
 
+-- e2(self) == /\ pc[self] = "e2"
+--             /\ IF unchecked[self] # {}
+--                   THEN /\ \E i \in unchecked[self]:
+--                             /\ unchecked' = [unchecked EXCEPT ![self] = unchecked[self] \ {i}]
+--                             /\ IF num[i] > max[self]
+--                                   THEN /\ max' = [max EXCEPT ![self] = num[i]]
+--                                   ELSE /\ TRUE
+--                                        /\ max' = max
+--                        /\ pc' = [pc EXCEPT ![self] = "e2"]
+--                   ELSE /\ pc' = [pc EXCEPT ![self] = "e3"]
+--                        /\ UNCHANGED << unchecked, max >>
+--             /\ UNCHANGED << num, flag, nxt >>
 action evtE2 (self : process) {
   require pc self e2
   if (∃i, unchecked self i) then
@@ -119,12 +151,21 @@ action evtE2 (self : process) {
 }
 
 
+-- e3(self) == /\ pc[self] = "e3"
+--             /\ \/ /\ \E k \in Nat:
+--                        num' = [num EXCEPT ![self] = k]
+--                   /\ pc' = [pc EXCEPT ![self] = "e3"]
+--                \/ /\ \E i \in {j \in Nat : j > max[self]}:
+--                        num' = [num EXCEPT ![self] = i]
+--                   /\ pc' = [pc EXCEPT ![self] = "e4"]
+--             /\ UNCHANGED << flag, unchecked, max, nxt >>
 action evtE3_branch1 (self : process) {
   require pc self e3
   let k ← pick seq_t
   num self N := decide $ N = k
   pc self S := decide $ S = e3
 }
+
 
 
 action evtE3_branch2 (self : process) {
@@ -136,6 +177,14 @@ action evtE3_branch2 (self : process) {
 }
 
 
+-- e4(self) == /\ pc[self] = "e4"
+--             /\ \/ /\ flag' = [flag EXCEPT ![self] = ~ flag[self]]
+--                   /\ pc' = [pc EXCEPT ![self] = "e4"]
+--                   /\ UNCHANGED unchecked
+--                \/ /\ flag' = [flag EXCEPT ![self] = FALSE]
+--                   /\ unchecked' = [unchecked EXCEPT ![self] = Procs \ {self}]
+--                   /\ pc' = [pc EXCEPT ![self] = "w1"]
+--             /\ UNCHANGED << num, max, nxt >>
 action evtE4_branch1 (self : process) {
   require pc self e4
   flag self := !flag self
@@ -147,10 +196,20 @@ action evtE4_branch2 (self : process) {
   require pc self e4
   flag self := false
   unchecked self Q := if Q = self then false else true
+  -- unchecked self self := false
   pc self S := decide $ S = w1  -- w1 == p5
 }
 
 
+-- w1(self) == /\ pc[self] = "w1"
+--             /\ IF unchecked[self] # {}
+--                   THEN /\ \E i \in unchecked[self]:
+--                             nxt' = [nxt EXCEPT ![self] = i]
+--                        /\ ~ flag[nxt'[self]]
+--                        /\ pc' = [pc EXCEPT ![self] = "w2"]
+--                   ELSE /\ pc' = [pc EXCEPT ![self] = "cs"]
+--                        /\ nxt' = nxt
+--             /\ UNCHANGED << num, flag, unchecked, max >>
 action evtW1 (self : process) {
   require pc self w1
   if (∃i, unchecked self i) then
@@ -162,6 +221,13 @@ action evtW1 (self : process) {
     pc self S := decide $ S = cs
 }
 
+
+-- w2(self) == /\ pc[self] = "w2"
+--             /\ \/ num[nxt[self]] = 0
+--                \/ <<num[self], self>> \prec <<num[nxt[self]], nxt[self]>>
+--             /\ unchecked' = [unchecked EXCEPT ![self] = unchecked[self] \ {nxt[self]}]
+--             /\ pc' = [pc EXCEPT ![self] = "w1"]
+--             /\ UNCHANGED << num, flag, max, nxt >>
 action evtW2 (self : process) {
   require pc self w2
   let nxt_self :| nxt self nxt_self
@@ -172,11 +238,24 @@ action evtW2 (self : process) {
   pc self S := decide $ S = w1
 }
 
+
+-- cs(self) == /\ pc[self] = "cs"
+--             /\ TRUE
+--             /\ pc' = [pc EXCEPT ![self] = "exit"]
+--             /\ UNCHANGED << num, flag, unchecked, max, nxt >>
 action evtCS (self : process) {
   require pc self cs
   pc self S := decide $ S = exit
 }
 
+
+-- exit(self) == /\ pc[self] = "exit"
+--               /\ \/ /\ \E k \in Nat:
+--                          num' = [num EXCEPT ![self] = k]
+--                     /\ pc' = [pc EXCEPT ![self] = "exit"]
+--                  \/ /\ num' = [num EXCEPT ![self] = 0]
+--                     /\ pc' = [pc EXCEPT ![self] = "ncs"]
+--               /\ UNCHANGED << flag, unchecked, max, nxt >>
 action evtExit_branch1 (self : process) {
   require pc self exit
   let k ← pick seq_t
@@ -190,7 +269,7 @@ action evtExit_branch2 (self : process) {
   pc self S := decide $ S = ncs
 }
 
--- invariant [pc_total] ∀ p, pc p ncs ∨ pc p e1 ∨ pc p e2 ∨ pc p e3 ∨ pc p cs ∨ pc p e4 ∨ pc p w1 ∨ pc p w2 ∨ pc p exit
+invariant [pc_total] ∀ p, pc p ncs ∨ pc p e1 ∨ pc p e2 ∨ pc p e3 ∨ pc p cs ∨ pc p e4 ∨ pc p w1 ∨ pc p w2 ∨ pc p exit
 invariant [local_max_unique] max P N ∧ max P M → N = M
 invariant [local_num_unique] num P N ∧ num P M → N = M
 invariant [local_pc_unique] pc P S ∧ pc P T → S = T
@@ -199,19 +278,20 @@ invariant [p1_non_zero_num] pc I e4 ∨ pc I w1 ∨ pc I w2 ∨ pc I cs → ¬(n
 invariant [p2_flag_e2_e3] pc I e2 ∨ pc I e3 → flag I
 invariant [p3_nxt_not_self] pc I w2 → ¬ (nxt I I)
 invariant [p4_unchecked_not_self] pc I w1 ∨ pc I w2 → ¬(unchecked I I)
-invariant [p5_critical_section] pc I w1 ∨ pc I w2 → ∀j, (j ≠ I ∧ ¬unchecked I j) → before I j
+-- invariant [p5_critical_section] pc I w1 ∨ pc I w2 → ∀j, (j ≠ I ∧ ¬unchecked I j) → before I j
 invariant [p6_nxt_e2_e3]
   pc I w2 ∧
   ((∃ni, nxt I ni ∧ pc ni e2 ∧ ¬unchecked ni I) ∨ (∃ni, nxt I ni ∧ pc ni e3)) →
   (∃numi nxti maxnxti, num I numi ∧ nxt I nxti ∧ max nxti maxnxti ∧ seq.le numi maxnxti)
-invariant [p7_cs_precedes_all] pc I cs → ∀j, (j ≠ I) → before I j
+-- invariant [p7_cs_precedes_all] pc I cs → ∀j, (j ≠ I) → before I j
 
 /- Ensures no two processes are in critical section simultaneously. -/
 safety [mutual_exclusion] pc I cs ∧ pc J cs → I = J
 
+set_option maxHeartbeats 250000
 #gen_spec
 
--- #check_invariant mutual_exclusion
+-- #check_invariants
 -- #exit
 
 end Bakery

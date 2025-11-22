@@ -1100,7 +1100,8 @@ def deriveDecidablePropsForConcreteState : CommandElab := fun stx => do
       let binder := explicitBinder
       let stx ← `(
         instance $[$binder]* : $(mkIdent ``Decidable) ($(mkIdent base.name) $(mkIdent `rd) $(mkIdent `st)) := by
-          dsimp [$(mkIdent base.name):ident, $(mkIdent `FieldConcreteType):ident, $(mkIdent `State.Label.toDomain):ident, $(mkIdent `State.Label.toCodomain):ident];
+          unfold $(mkIdent base.name):ident
+          try dsimp [$(mkIdent base.name):ident, $(mkIdent `FieldConcreteType):ident, $(mkIdent `State.Label.toDomain):ident, $(mkIdent `State.Label.toCodomain):ident];
           infer_instance
       )
       elabVeilCommand stx
@@ -1128,6 +1129,25 @@ def getLabelList : CommandElabM Unit := do
     `(command|
       def $labelListIdent := ($(mkIdent ``FinEnum.ofEquiv) _ ($(mkIdent ``Equiv.symm) (proxy_equiv%($labelConcreteIdent)))).toList)
   trace[veil.debug] "[getLabelList] {labelListCmd}"
+  elabVeilCommand labelListCmd
+
+
+def getLabelListWithoutFieldTy : CommandElabM Unit := do
+  trace[veil.info] "[getLabelListWithoutFieldTy] Starting label list generation"
+  -- Check if labelList already exists
+  let labelListDefName := (← getCurrNamespace) ++ `labelList
+  if (← getEnv).contains labelListDefName then
+    trace[veil.info] "[getLabelListWithoutFieldTy] labelList already exists, skipping"
+    return
+
+  let labelConcreteName ← resolveGlobalConstNoOverloadCore `LabelConcrete
+  -- Generate labelList definition using the pattern from BakeryMC.lean
+  let labelListCmd ← liftTermElabM do
+    let labelListIdent := mkIdent `labelList
+    let labelConcreteIdent := mkIdent labelConcreteName
+    `(command|
+      def $labelListIdent := ($(mkIdent ``FinEnum.ofEquiv) _ ($(mkIdent ``Equiv.symm) (proxy_equiv%($labelConcreteIdent)))).toList)
+  trace[veil.debug] "[getLabelListWithoutFieldTy] {labelListCmd}"
   elabVeilCommand labelListCmd
 
 
@@ -1181,6 +1201,71 @@ elab "#Concretize" args:term,* : command => do
         ((( $(mkIdent `initMultiExec) $(mkIdent `TheoryConcrete) $(mkIdent `StateConcrete) )
         $termArray* )
         $(mkIdent `FieldConcreteTypeInst) ) )
+      `(command| def $(mkIdent `initVeilMultiExecM) := $assembledInitM)
+
+    -- build `nextVeilMultiExecM`
+    let nextCmd ← do
+      let assembledNextM ←`(term|
+        ( (( $(mkIdent `nextActMultiExec) $(mkIdent `TheoryConcrete) $(mkIdent `StateConcrete) )
+            $termArray* )
+          /-$(mkIdent `FieldConcreteTypeInst)-/ ) )
+      `(command| def $(mkIdent `nextVeilMultiExecM) := $assembledNextM)
+    dbg_trace "nextCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic nextCmd}"
+    elabVeilCommand initCmd
+    elabVeilCommand nextCmd
+    getLabelList
+
+
+elab "#Concretize_without_FieldTy" args:term,* : command => do
+    -- let env ← getEnv
+    let termArray := args.getElems
+
+    let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+    /- The `State`, `Theory` and `Label` can only be used after `#gen_spec` run -/
+    if !Module.isSpecFinalized mod then
+      throwError "The module specification should be finalized before concretizing types."
+    -- let FieldConcreteTypeName ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo (mkIdent `FieldConcreteType)
+
+    let theoryConcreteName := `TheoryConcrete
+    let stateConcreteName := `StateConcrete
+    let labelConcreteName := `LabelConcrete
+
+    -- build `TheoryConcrete`
+    let theoryCmd ← do
+      let assembledTheory ←`(term| @$(mkIdent theoryName) $termArray*)
+      trace[veil.debug] s!"TheoryConcrete assembledTheory: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledTheory}"
+      `(command| @[reducible] def $(mkIdent theoryConcreteName) := $assembledTheory)
+
+    -- build `LabelConcrete`
+    let labelCmd ← do
+      let assembledLabel ←`(term| @$(mkIdent labelTypeName) $termArray*)
+      trace[veil.debug] s!"LabelConcrete assembledLabel: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledLabel}"
+      `(command| @[reducible] def $(mkIdent labelConcreteName) := $assembledLabel)
+
+    -- -- build `FieldConcreteTypeInst`
+    -- let fieldConcreteInstCmd ← do
+    --   let assembledFieldConcreteInst ←`(term | $(mkIdent FieldConcreteTypeName) $termArray*)
+    --   `(command| @[reducible] def $(mkIdent `FieldConcreteTypeInst) := $assembledFieldConcreteInst)
+
+    -- build `StateConcrete`
+    let stateCmd ← do
+      -- let assembledState ← `(term| @$(mkIdent stateName) $termArray*)
+      let assembledState ←`(term| @$(mkIdent stateName) $termArray*)
+      -- let fieldConcreteInstTerm ← `(term | $(mkIdent `FieldConcreteType) $termArray*)
+      -- trace[veil.debug] s!"StateConcrete assembledState: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledState}"
+      `(command| @[reducible] def $(mkIdent stateConcreteName) := $assembledState)
+
+    elabVeilCommand theoryCmd
+    elabVeilCommand labelCmd
+    -- elabVeilCommand fieldConcreteInstCmd
+    elabVeilCommand stateCmd
+
+    -- build `initVeilMultiExecM`
+    let initCmd ← do
+      let assembledInitM ←`(term|
+        ((( $(mkIdent `initMultiExec) $(mkIdent `TheoryConcrete) $(mkIdent `StateConcrete) )
+        $termArray* )
+       /- $(mkIdent `FieldConcreteTypeInst)-/ ) )
       `(command| def $(mkIdent `initVeilMultiExecM) := $assembledInitM)
 
     -- build `nextVeilMultiExecM`
@@ -1258,7 +1343,9 @@ where
         acc ← `(term| ($acc, $(xs[i]!)))
       return acc
 
-
+elab "deriving_BEq_ConcreteState" : command => do
+  let mod ← getCurrentModule
+  deriveBEqForState mod
 
 
 elab "deriving_BEqHashable_ConcreteState" : command => do
@@ -1310,6 +1397,9 @@ def deriveToJsonForStateElab : CommandElab := fun stx => do
 
 syntax (name := veilMakeExecutable) "#gen_exec" : command
 
+/--
+Generate all required instances and definitions to make the symbolic model executable.
+-/
 macro_rules
   | `(command| #gen_exec) => do
     `(-- Make symbolic model executable by deriving required instances

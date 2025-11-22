@@ -183,6 +183,7 @@ invariant [uniqueDelete] plan_deleted C F ∧ plan_deleted C T → F = T
 #finitizeTypes ENACTORS
 #eval labelList
 
+#print Theory
 
 def view (st : StateConcrete) := hash st
 def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => NeverDeleteActive ρ σ)

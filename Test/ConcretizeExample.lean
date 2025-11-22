@@ -11,7 +11,7 @@ type node
 /- `thread` is not used in this model.
 I put it here to explain what we do for the `enum` declaration.
 -/
-enum thread = {T1, T2, T3}
+-- enum thread = {T1, T2, T3}
 
 relation vote_yes : node -> Bool
 relation vote_no : node -> Bool
@@ -76,7 +76,7 @@ action go2 {
 
 action commit(n: node) {
   require alive n;
-  -- require go_commit n;
+  require go_commit n;
   decide_commit n := true
 }
 
@@ -132,13 +132,11 @@ deriving instance Inhabited for Theory
 `Ord` and `ToJson` instance (used to generate json logs passed to frontend interface).  -/
 deriving_FinOrdToJson_Domain
 
-
 /- Specify the data type of each field in `concrete state`.
 By default, `relation` fields are concretized to `TreeSet α`, and
 `function` fields are concretized to `TreeMap α β`.
 -/
 specify_FieldConcreteType
-
 
 /- Therefore, we need necessary instances before we can run the model checker.
 For instance, if a field is concretized to `TreeSet α`, we need to make sure that `α` has
@@ -158,15 +156,13 @@ deriving_lawful_FieldRepresentation
 -/
 deriving_Inhabited_State
 
-
-
-/- Generate `initMultiExec` and `initMultiExec` (print them to see the details).
+/- Generate `initMultiExec` and `nextActMultiExec` (print them to see the details).
 Basically, they will be used to be assembled into `initVeilMultiExecM` and `nextVeilMultiExecM`,
 which enabled the state transitions.
 -/
 gen_NextAct
+set_option trace.veil.debug true
 gen_executable_NextAct
-
 
 /-
 Roughly, `deriving_Enum_Insts` do the following 2 things:
@@ -175,7 +171,6 @@ Roughly, `deriving_Enum_Insts` do the following 2 things:
 -/
 -- #print thread
 deriving_Enum_Insts
-#print thread
 
 
 --─------------------------------ Model Checking Configuration (`#finitizeTypes`) --------------------------
@@ -201,15 +196,21 @@ used for concrete model checking. And we also derive `BEq`, `Hashable`, `ToJson`
 We can also use `#Concretize thread, thread` here, although it is weird. It means that we concretize
 the `node` type to `thread` type.
 -/
-#Concretize (Fin 2), thread
+#Concretize (Fin 5)
 -- #Concretize thread, thread
-
-
+-- 101024 -- 72860ms
+-- 4 -- 10256 -- 7783ms
 deriving_BEqHashable_ConcreteState
 deriving_toJson_for_state
 deriving_DecidableProps_state
-
-
+/-
+number (N) | states   | time(ms)
+-----------|----------|----------
+ 2         | 116      | 922
+ 3         | 1064     | 1477
+ 4         | 10256    | 8328
+ 5         | 101024   | 83139
+-/
 
 /-
 Similar to wiring `.cfg` file in TLA+, user need to specify:
@@ -218,18 +219,19 @@ Similar to wiring `.cfg` file in TLA+, user need to specify:
 3. `terminationC`: which termination condition to be checked during model checking
 4. `cfg`: corresponding to `immutable individual/relation/function` in veil module.
 -/
-def view (st : StateConcrete) := hash st
+-- def view (st : StateConcrete) := hash st
+def view (st : StateConcrete) := st
 def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => safety_0 ρ σ)
 def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
 def cfg : TheoryConcrete := {}
 
 def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
--- #eval modelCheckerResult'.seen.size
+#time #eval modelCheckerResult'.seen.size
 def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
-#eval statesJson
+-- #eval statesJson
 open ProofWidgets
 open scoped ProofWidgets.Jsx
-#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+-- #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
 
 
 

@@ -35,7 +35,8 @@ veil module Prisoners
 --     (***********************************************************************)
 --     (* The set of all prisoners.                                           *)
 --     (***********************************************************************)
-enum prisoner = {P1, P2, P3, P4, P5, P6}
+-- enum prisoner = {P1, P2, P3, P4, P5, P6}
+type prisoner
 
 immutable individual cardPrisoner : Nat
 --   Counter
@@ -186,17 +187,34 @@ invariant [countBounded] count ≤ 2 * (cardPrisoner - 1)
 
 #gen_exec
 
-#finitizeTypes prisoner
-#eval labelList
+-- #finitizeTypes prisoner
+#finitizeTypes (Fin 3)
 
 def view (st : StateConcrete) := hash st
 def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => timesSwitchedlessEqual2 ρ σ)
 def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
-def cfg : TheoryConcrete := {cardPrisoner := 5}
+def cfg : TheoryConcrete := {cardPrisoner := 3}
 
+/-
+number (N) | states   | time (ms)
+-----------|----------|----------
+ 3         | 106      | 165
+ 4         | 322      | 198
+ 5         | 970      | 468
+ 6         | 2954     | 753
+ 7         | 8746     | 2292
 
+number (N) | states   | time(ms)
+-----------|----------|----------
+ 3         | 106      | 135
+ 4         | 322      | 322
+ 5         | 970      | 1552
+ 6         | 2954     | 21092
+ 7         | 8746     | 232457
+-/
 def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
 #time #eval modelCheckerResult'.seen.size
+#exit
 def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
 #eval statesJson
 open ProofWidgets

@@ -134,12 +134,7 @@ action _EnactorApplyStep (self : ENACTORS) {
     enactor_pc self := 0
 }
 
--- Cleanup(my_plan, old) ==
---     [j \in 1..MAX_PLAN |->
---         IF (my_plan - j >= PLAN_AGE_THRESHOLD)
---            THEN TRUE
---            ELSE old[j]
---     ]
+
 
 -- EnactorCleanupStep(self) ==
 --     /\ enactor_pc[self] = 2
@@ -156,11 +151,15 @@ action _EnactorApplyStep (self : ENACTORS) {
 --   return m
 -- }
 
+-- Cleanup(my_plan, old) ==
+--     [j \in 1..MAX_PLAN |->
+--         IF (my_plan - j >= PLAN_AGE_THRESHOLD)
+--            THEN TRUE
+--            ELSE old[j]
+--     ]
 action _EnactorCleanupStep (self : ENACTORS) {
   require enactor_pc self == 2
   let my_plan := enactor_processing self
-  -- plan_deleted N := if seq.le (plus_threshold N) my_plan then true else plan_deleted N
-  -- my_plan - N ≥ plan_age_threshold
   let plan_deleted_updated := domain.filter (fun p => my_plan - p ≥ plan_age_threshold)
   plan_deleted := domain.filter (fun p => plan_deleted_updated.contains p ∨ plan_deleted.contains p)
   enactor_processing self := 0
