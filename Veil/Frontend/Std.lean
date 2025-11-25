@@ -6,6 +6,8 @@ import Mathlib.Data.FinEnum
 instance Fin.pos_then_inhabited {n : Nat} (h : 0 < n) : Inhabited (Fin n) where
   default := Fin.mk 0 h
 
+instance : FinEnum Bool := FinEnum.ofNodupList [true, false] (by decide) (by decide)
+
 /-! ## Total order -/
 
 /-- The type `t` is a total order with an `le` relation. -/

@@ -1,5 +1,5 @@
 import Veil.Frontend.DSL.Action.Semantics.Definitions
-import Veil.Frontend.DSL.Infra.State
+import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Infra.Simp
 
 namespace Veil

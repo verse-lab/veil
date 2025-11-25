@@ -2,7 +2,8 @@ import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.Elaborators
 import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Action.Extraction.Extract
+import Veil.Frontend.DSL.Action.Extract
+import Veil.Frontend.DSL.State.Repr
 import Veil.Core.Tools.Checker.Concrete.State
 
 import Mathlib.Data.FinEnum
@@ -1123,9 +1124,9 @@ Generate all required instances and definitions to make the symbolic model execu
 macro_rules
   | `(command| #gen_exec) => do
     `(-- Make symbolic model executable by deriving required instances
-      simple_deriving_repr_for' $(mkIdent `State)
-      deriving instance $(mkIdent ``Repr) for $(mkIdent `Label)
-      deriving instance $(mkIdent ``Inhabited) for $(mkIdent `Theory)
+      -- simple_deriving_repr_for' $(mkIdent `State)
+      -- deriving instance $(mkIdent ``Repr) for $(mkIdent `Label)
+      -- deriving instance $(mkIdent ``Inhabited) for $(mkIdent `Theory)
       deriving_FinOrdToJson_Domain
       specify_FieldConcreteType
       deriving_BEq_FieldConcreteType
@@ -1173,4 +1174,3 @@ elab "#run_checker" propTerm:term : command => do
       def $(mkIdent `statesJson) : $(mkIdent ``Lean.Json) := $(mkIdent ``Lean.toJson) ( $(mkIdent `recoverTrace) $(mkIdent `initVeilMultiExecM) $(mkIdent `nextVeilMultiExecM) $(mkIdent `concreteTheory) ( $(mkIdent `collectTrace') $(mkIdent `modelCheckerResult) ) )
     )
   elabVeilCommand statesJsonCmd
-

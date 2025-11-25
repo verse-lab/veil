@@ -1,4 +1,4 @@
-import Veil.Frontend.DSL.Action.Extraction.Basic
+import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Util.Meta
 
 /-! # Utilities for Displaying -/
@@ -93,18 +93,18 @@ private def simpleDerivingReprForCore (t : Ident) (case : SimpleDerivingReprForC
         ($(mkIdent ``Std.Format.joinSep) [$fieldReprs,*] ", ") " }")
 
 
-/-- Attempt to derive a `Repr` instance for a `structure` by assuming all
-    its parameters are `Repr`s. This can be useful when the structure
-    includes functions, which are finite when the type parameters are finite
-    but by default Lean cannot derive `Repr` for them.
-    Note that this command does not check if any parameter is not a `Type`. -/
-elab "simple_deriving_repr_for " t:ident : command => do
-  let cmd ← liftTermElabM <| simpleDerivingReprForCore t .fromParams
-  elabVeilCommand cmd
+-- /-- Attempt to derive a `Repr` instance for a `structure` by assuming all
+--     its parameters are `Repr`s. This can be useful when the structure
+--     includes functions, which are finite when the type parameters are finite
+--     but by default Lean cannot derive `Repr` for them.
+--     Note that this command does not check if any parameter is not a `Type`. -/
+-- elab "simple_deriving_repr_for " t:ident : command => do
+--   let cmd ← liftTermElabM <| simpleDerivingReprForCore t .fromParams
+--   elabVeilCommand cmd
 
-/-- Similar to `simple_deriving_repr_for` but assumes all field types are `Repr`. -/
-elab "simple_deriving_repr_for' " t:ident : command => do
-  let cmd ← liftTermElabM <| simpleDerivingReprForCore t (.fromFields true)
-  elabVeilCommand cmd
+-- /-- Similar to `simple_deriving_repr_for` but assumes all field types are `Repr`. -/
+-- elab "simple_deriving_repr_for' " t:ident : command => do
+--   let cmd ← liftTermElabM <| simpleDerivingReprForCore t (.fromFields true)
+--   elabVeilCommand cmd
 
 end Veil

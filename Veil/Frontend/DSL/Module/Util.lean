@@ -3,8 +3,8 @@ import Veil.Frontend.DSL.Module.Names
 import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.Infra.State
-import Veil.Frontend.DSL.Infra.GenericInterface
+import Veil.Frontend.DSL.State.SubState
+import Veil.Frontend.DSL.State.GenericInterface
 import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
 
@@ -571,7 +571,7 @@ private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation 
 /-- Syntax for *defining* the immutable background theory of a module as a
 `structure`. The syntax for the type is `mod.theoryStx`. -/
 private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
-  structureDefinitionStx theoryName (← mod.sortBindersForTheoryOrState false) (deriveInstances := false)
+  structureDefinitionStx theoryName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.immutableComponents.mapM fun sc => sc.getSimpleBinder)
 
 def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
@@ -1150,9 +1150,9 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
     `(Command.ctor| | $(mkIdent a.name):ident $(← a.binders)* : $labelT ))
   let labelDef ←
     if ctors.isEmpty then
-      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]*)
+      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Repr))
     else
-      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
+      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty), $(mkIdent ``Repr))
   let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := actionNames, stx := labelDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (labelDef, mod)

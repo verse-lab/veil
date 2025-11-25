@@ -3,7 +3,7 @@ import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.Elaborators
-import Veil.Frontend.DSL.Infra.State
+import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.Tools.Verifier.Server
 

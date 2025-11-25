@@ -1,7 +1,6 @@
-import Veil.Frontend.DSL.Infra.State
+import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Core.Tools.Checker.Concrete.DataStructure
-import Veil.Frontend.DSL.Action.Extraction.Basic
 
 open Veil
 

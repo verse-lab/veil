@@ -1,7 +1,7 @@
 import Std
 import Veil.Frontend.Std
 import Veil.Core.Tools.Checker.Concrete.State
-import Veil.Frontend.DSL.Infra.GenericInterface
+import Veil.Frontend.DSL.State.GenericInterface
 
 open Lean
 /--
@@ -157,13 +157,3 @@ instance (n : Nat) : DecidableRel (TotalOrderWithMinimum.lt (t := Fin n.succ)) :
 instance (n : Nat) : DecidableRel (TotalOrderWithMinimum.next (t := Fin n.succ)) := by
   dsimp [TotalOrderWithMinimum.next]
   infer_instance_for_iterated_prod
-
-
-
-
-
-
-
-
-
-

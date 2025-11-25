@@ -1,7 +1,7 @@
 import Std
-import Mathlib.Tactic.Basic
-import Mathlib.Tactic.ProxyType
-import Mathlib.Tactic.CongrExclamation
+-- import Mathlib.Tactic.Basic
+-- import Mathlib.Tactic.ProxyType
+-- import Mathlib.Tactic.CongrExclamation
 import Mathlib.Data.FinEnum
 import Mathlib.Data.UInt
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic

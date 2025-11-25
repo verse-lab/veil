@@ -1,4 +1,5 @@
 import Loom.MonadAlgebras.NonDetT'.Extract
+import Loom.MonadAlgebras.NonDetT'.ExtractList
 
 /-!
   # Action Language
@@ -40,8 +41,15 @@ abbrev RProp (α ρ σ : Type) := α -> SProp ρ σ
 
 /-! Our language is parametric over the mutable state, immutable state, and return type. -/
 set_option linter.unusedVariables false in
+/-- Executable semantics of _deterministic_ Veil actions. -/
 abbrev VeilExecM (m : Mode) (ρ σ α : Type) := ReaderT ρ (StateT σ (ExceptT ExId DivM)) α
+/-- Denotation of _non-deterministic_ Veil actions. -/
 abbrev VeilM (m : Mode) (ρ σ α : Type) := NonDetT (VeilExecM m ρ σ) α
+/-- Executable semantics of _non-deterministic_ Veil actions, which works by
+returning a _list_ of all possible results (either exceptions or post-states &
+return values). -/
+abbrev VeilMultiExecM κ ε ρ σ α :=
+  ReaderT ρ (StateT σ (TsilT (ExceptT ε (PeDivM (List κ))))) α
 
 abbrev VeilSpecM (ρ σ α : Type) := Cont (SProp ρ σ) α
 abbrev Transition (ρ σ : Type) := ρ -> σ -> σ -> Prop

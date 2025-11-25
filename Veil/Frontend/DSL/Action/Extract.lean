@@ -1,5 +1,3 @@
-import Veil.Frontend.DSL.Action.Extraction.Basic
-import Veil.Frontend.DSL.Action.Extraction.Util
 import Veil.Frontend.DSL.Module.Util
 
 open Lean Elab Command Term Meta Lean.Parser
