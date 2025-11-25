@@ -28,9 +28,6 @@ deriving Hashable, BEq
 instance [Ord α] : Ord (Std.TreeSet α) where
   compare s1 s2 := compare (s1.toArray) (s2.toArray)
 
--- instance [Ord α] [Ord β] : Ord (Std.TreeSet (α × β)) where
---   compare s1 s2 :=
---     compare (s1.toArray) (s2.toArray)
 
 instance [Ord process] [Ord seq_t] [Ord pc_state]
 : Ord (Equivalent process seq_t pc_state) where
@@ -70,7 +67,6 @@ class Permutable (α : Type) where
 def permutateEquivalent_ef [Ord process] [Ord seq_t] [Ord pc_state]
   (e : Equivalent process seq_t pc_state)
   (σ : Equiv.Perm process) : Equivalent process seq_t pc_state :=
-  -- Return a lexicographically smallest state fingerprint.
   let num' := mapTreeSet (fun (p, s) => (σ p, s)) e.num
   if compare num' e.num == .gt then
     e
@@ -102,15 +98,6 @@ def permutateEquivalent_ef [Ord process] [Ord seq_t] [Ord pc_state]
                 nxt := nxt',
                 pc := pc' }
 
--- structure Equivalent (process : Type) (seq_t : Type) (pc_state : Type)
---   [Ord process] [Ord seq_t] [Ord pc_state] where
---   num : Std.TreeSet (process × seq_t)
---   flag : Std.TreeSet process
---   unchecked : Std.TreeSet (process × process)
---   max : Std.TreeSet (process × seq_t)
---   nxt : Std.TreeSet (process × process)
---   pc : Std.TreeSet (process × pc_state)
--- deriving Hashable, BEq
 
 def e0 : Equivalent (Fin 3) (Fin 2) (Fin 2) :=
   { num := Std.TreeSet.ofList [(2, 1), (1, 1)] _,
@@ -136,12 +123,10 @@ def showPermuted (xs : List α) (σs : List (Equiv.Perm α)) : List (List α) :=
 def permutationDomain := permsOfList (FinEnum.toList (Fin 2))
 #eval permutationDomain.length
 
--- #eval permutateEquivalent e0 (permutationDomain[1])
 #eval (permutateEquivalent_ef e1 (permutationDomain[1])) == e1
 
 #eval showPermuted [0, 1] permutationDomain
 
--- #eval compare e0 e1
 
 
 
@@ -277,9 +262,6 @@ def s1 : Std.TreeSet (Nat × Nat) := Std.TreeSet.empty.insert (0, 1) |>.insert (
 def s2 : Std.TreeSet (Nat × Nat) := Std.TreeSet.empty.insert (1, 1) |>.insert (2, 2)
 #eval s1.toArray
 #eval s2.toArray
--- instance [Ord α] [Ord β] : Ord (Std.TreeSet (α × β)) where
---   compare s1 s2 :=
---     compare (s1.toArray) (s2.toArray) -- O(n)
 
 
 #eval compare s1 s2

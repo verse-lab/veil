@@ -159,52 +159,11 @@ instance (n : Nat) : DecidableRel (TotalOrderWithMinimum.next (t := Fin n.succ))
   infer_instance_for_iterated_prod
 
 
--- instance [Ord α]
---   : Ord (FieldConcreteType α states State.Label.locked) := by
---   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
---   infer_instance_for_iterated_prod
 
--- instance [Ord α]
---   : Ord (FieldConcreteType α states State.Label.wait_queue_wakers) := by
---   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
---   infer_instance_for_iterated_prod
 
--- instance [Ord α]
---   : Ord (FieldConcreteType α states State.Label.locked) := by
---   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
---   infer_instance_for_iterated_prod
 
--- instance [Ord α]
---   : Ord (FieldConcreteType α states State.Label.has_woken) := by
---   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
---   infer_instance_for_iterated_prod
 
--- instance [Ord α]
---   : Ord (FieldConcreteType α states State.Label.pc) := by
---   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
---   infer_instance_for_iterated_prod
 
--- instance [Ord α]
---   : Ord (FieldConcreteType α states State.Label.stack_pc) := by
---   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
---   infer_instance_for_iterated_prod
 
--- instance [Ord α]
---   : Ord (FieldConcreteType α states State.Label.stack_waker) := by
---   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
---   infer_instance_for_iterated_prod
 
--- instance [Ord α]
---   : Ord (FieldConcreteType α states State.Label.waker) := by
---   dsimp only [FieldConcreteType, State.Label.toCodomain, State.Label.toDomain, Veil.IteratedProd'];
---   infer_instance_for_iterated_prod
 
--- instance: Ord StateConcrete where
---   compare a b :=
---     compare a.locked b.locked |>.then
---     (compare a.wait_queue_wakers b.wait_queue_wakers) |>.then
---     (compare a.has_woken b.has_woken) |>.then
---     (compare a.pc b.pc) |>.then
---     (compare a.stack_pc b.stack_pc) |>.then
---     (compare a.stack_waker b.stack_waker) |>.then
---     (compare a.waker b.waker)

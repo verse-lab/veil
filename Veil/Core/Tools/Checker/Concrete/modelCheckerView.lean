@@ -13,7 +13,6 @@ capable of parsing structured text into interactive state displays.
 /-- Props for the ModelCheckerView component -/
 structure ModelCheckerViewProps where
   /-- Raw text output from model checker -/
-  -- text : String
   trace : Json
   /-- Layout orientation: "vertical" or "horizontal" -/
   layout : String := "vertical"

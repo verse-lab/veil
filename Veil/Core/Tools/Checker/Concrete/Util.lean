@@ -1,7 +1,6 @@
 import ProofWidgets.Component.GraphDisplay
 import ProofWidgets.Component.HtmlDisplay
 import Veil.Core.Tools.Checker.Concrete.DataStructure
--- import Veil.FrontEnd.DSL.Module.Elaborators
 import Lean
 
 open Lean Elab Command Tactic Meta Term
@@ -122,15 +121,6 @@ def createExpandedGraphDisplay (vertices : Array GraphDisplay.Vertex) (edges : A
 
 
 /- Below are functions for implementing an external frontend to display the model checker results. -/
--- instance [Inhabited α] [Inhabited β] [BEq β] [Hashable β] [ToString β]: ToString (SearchContext α β) where
---   toString cs :=
---   let edges  := cs.log.map
---     (fun (s1, s2, act) => s!"[\"{s1}\", \"{s2}\", \"{act}\"]")
---   let vertices := cs.seen.toList.map (fun v => s!"\"{v}\"")
---   let unsafeV := cs.counterexample.map (fun v => s!"\"{v}\"")
---   "{ \"vertices\": " ++ s!"{vertices}" ++
---   ", \"edges\": " ++ s!"{edges}" ++
---   ", \"unsafeV\": " ++s!"{unsafeV}" ++ "}"
 
 def genConcreteStateStx : CommandElabM (TSyntax `command) := do
   let env ← getEnv
@@ -143,9 +133,6 @@ def genConcreteStateStx : CommandElabM (TSyntax `command) := do
         sInfo := some structInfo
         trace[veil.debug] "Found State structure: {stateName}"
         break
-  -- let name := `State
-  -- let ConstantInfo.inductInfo info1 ← getConstInfo name | throwError "no such structure {name}"
-  -- let .some structInfo := getStructureInfo? (← getEnv) name | throwError "no such structure {name}"
   let some structInfo := sInfo | throwError "Could not find State structure in any namespace"
   let some cst := env.find? structInfo.structName
     | throwError "Internal error: structure constant {structInfo.structName} not found"
@@ -175,8 +162,6 @@ def genConcreteStateStx : CommandElabM (TSyntax `command) := do
         let binder ← `(bracketedBinder| ($paramIdent : $tySyntax))
         /- `[Ord α]` instance should be provided, as we use `TreeSet`. -/
         let instOrd ← `(bracketedBinder| [Ord $paramIdent])
-        -- trace[veil.info] s!"binder: {binder}"
-        -- pure #[binder, instOrd]
         pure #[binder]
       pure binderPairs.flatten
 
@@ -200,7 +185,6 @@ def genConcreteStateStx : CommandElabM (TSyntax `command) := do
       trace[veil.debug] s!"Resolved projection name: {projName}"
       let some cinfo := env.find? projName
         | throwError "Internal error: constant info for {projName} not found"
-      -- let fieldTypeStr ← Command.runTermElabM fun _ => do
       let pinfo? ← Lean.getProjectionFnInfo? projName
       let some pinfo := pinfo?
         | throwError "Failed to get projection metadata for {projName}"
@@ -236,9 +220,7 @@ def genConcreteStateStx : CommandElabM (TSyntax `command) := do
             /- If the return type is not `Bool`, we need to add it to the tuple type. -/
             if !body.isConstOf `Bool then
               tupleType ← mkAppM ``Prod #[tupleType, body]
-              -- let cmplam ← ...
           /- [TODO]: use Std.TreeSet instead of List -/
-          -- let treeSetExpr ← mkAppM ``Std.TreeSet #[tupleType]
           let treeSetExpr ← mkAppM ``List #[tupleType]
           pure treeSetExpr
 
@@ -262,14 +244,8 @@ where
       | Expr.forallE name _ body _ => name :: extractParamNames body (count - 1)
       | _ => []
 
--- open Veil in
 elab "#createConcreteStateStructure" : command => do
   let structStx ← genConcreteStateStx
-  -- let mod ← getCurrentModule (errMsg := "You cannot declare a type outside of a Veil module!")
-  -- -- mod.throwIfAlreadyDeclared environmentSubStateName
-  -- -- let stx ← mod.stateDefinitionStx
-  -- let stateStx ← mod.stateStx
-  -- trace[veil.debug] s!"Original state structure: {stateStx}"
   trace[veil.debug] s!"Generated structure command: {structStx}"
   elabCommand structStx
 
@@ -279,14 +255,6 @@ elab "#createConcreteStateStructure" : command => do
 open Lean Meta Elab Term Command in
 elab "simple_deriving_hashable_for " t:ident : command => do
   let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo t
-  -- let ConstantInfo.inductInfo info1 ← getConstInfo name | throwError "no such structure {name}"
-  -- let .some info2 := getStructureInfo? (← getEnv) name | throwError "no such structure {name}"
-  -- let numParams := info1.numParams
-  -- let .some (_, _) := Nat.foldM (m := Option) numParams (fun _ _ (res, ty) => do
-  --   let Expr.forallE na _ body _ := ty | failure
-  --   pure (na :: res, body)) ([], info1.type) | throwError "unknown error"
-  -- let paramIdents := paramNames.toArray |>.map mkIdent
-  -- let fields := info2.fieldNames
   let instanceCmd ← Command.runTermElabM fun _ => do
     `(instance [Repr $t]: Hashable $t where
         hash s := hash (toString (reprStr s)))

@@ -3,20 +3,6 @@ import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Core.Tools.Checker.Concrete.DataStructure
 import Veil.Frontend.DSL.Action.Extraction.Basic
 
--- import Loom.MonadAlgebras.Instances.StateT
--- import Loom.MonadAlgebras.Instances.ExceptT
--- -- import Loom.MonadAlgebras.NonDetT.Extract
--- import Loom.MonadAlgebras.WP.Tactic
--- import Loom.MonadAlgebras.WP.DoNames'
--- import Mathlib.Tactic.Common
--- import Mathlib.Tactic.Linarith
--- import Lean
-
--- -- import CaseStudies.Cashmere.Syntax_Cashmere
--- import Loom.MonadAlgebras.WP.Tactic
--- open Lean.Elab.Term.DoNames
--- open ExceptionAsFailure
-
 open Veil
 
 variable {ℂ ℝ 𝔸: Type}
@@ -119,19 +105,6 @@ def runModelCheckerx (rd : ρ) (view : σᵣ → σₛ) : Id (Unit × (SearchCon
   let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
   (bfsSearch nextVeilMultiExecM allLabels INV Terminate st₀ rd view) |>.run cfg
 
-
-
--- structure Step (σᵣ κ: Type) where
---   label : κ
---   next  : σᵣ
--- deriving Repr, Inhabited
-
--- structure Trace (σᵣ κ : Type) where
---   start : σᵣ
---   steps : List (Step σᵣ κ)
--- deriving Repr, Inhabited
-
-
 open CheckerM in
 def recoverTrace (rd : ρ) (linearLabels : List κ) [Repr κ] : Trace σᵣ κ := Id.run do
   if linearLabels.isEmpty then
@@ -141,10 +114,8 @@ def recoverTrace (rd : ρ) (linearLabels : List κ) [Repr κ] : Trace σᵣ κ :
   let mut curSt := st₀
   for ll in linearLabels do
     let execs := nonDetNexts nextVeilMultiExecM rd curSt ll
-    -- dbg_trace s!"recoverTrace: label {repr ll}, got {execs.length} execs"
-    -- assert! execs.length ≤ 1
     let succ? := (execs |>.map Prod.snd |>.map getStateFromExceptT)[0]!
-    let .some st' := succ? | assert! false -- divergence
+    let .some st' := succ? | assert! false
     steps := steps.append [{ label := ll, next := st' }]
     curSt := st'
   let tr : Trace σᵣ κ := { start := st₀, steps := steps }

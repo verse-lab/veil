@@ -1,7 +1,6 @@
 import Veil.Core.Tools.Checker.Concrete.State
 import Veil.Core.Tools.Checker.Concrete.DataStructure
 
-import Veil.Core.Semantics.TransitionSystem
 /-
 
 - `soundness`:

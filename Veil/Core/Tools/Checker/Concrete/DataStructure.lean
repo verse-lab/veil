@@ -58,19 +58,6 @@ structure Trace (σᵣ κ : Type) where
   steps : List (Step σᵣ κ)
 deriving Repr, Inhabited
 
-
--- instance [Repr β] [Repr κ] : Repr (List (β × β × κ)) where
---   reprPrec xs _ :=
---     match xs with
---     | [] => "[]"
---     | (a, b, c) :: rest =>
---       let headStr := s!"{repr a} \n──[ {repr c} ]──>\n {repr b}"
---       let tailStrs :=
---         rest.map (fun (_, b, c) =>
---           s!"\n──[ {repr c} ]──>\n {repr b}"
---         )
---       s!"[{headStr}{String.join tailStrs}]"
-
 instance [Repr β] [Repr κ] : Repr (List (β × β × κ)) where
   reprPrec xs _ :=
     match xs with
@@ -129,11 +116,6 @@ def addToSeen (s : β) [BEq β] [Hashable β]
   : StateT (SearchContext α β κ) Id Unit :=
   modify (fun cs =>
     { cs with seen := cs.seen.insert s })
-
--- def addToSeen (s : β) [Inhabited α] [Inhabited β] [BEq β] [Hashable β]
---   : StateT (SearchContext α β) Id Unit :=
---   modify (fun cs =>
---     { cs with seen := s :: cs.seen })
 
 /-- Add transition to log -/
 def addTransitionToLog {α β} [BEq β] [Hashable β]
