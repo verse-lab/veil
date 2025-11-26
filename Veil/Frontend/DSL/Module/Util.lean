@@ -3,8 +3,7 @@ import Veil.Frontend.DSL.Module.Names
 import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.State.SubState
-import Veil.Frontend.DSL.State.GenericInterface
+import Veil.Frontend.DSL.State
 import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
 

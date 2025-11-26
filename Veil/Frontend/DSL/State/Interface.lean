@@ -1,0 +1,227 @@
+import Veil.Frontend.DSL.State.Types
+import Mathlib.Data.FinEnum
+
+/-!
+
+# Interface for State Representation
+
+In Veil, we need to keep different (equivalent) representations of the state of
+transition systems, to enable different use-cases. For example:
+
+- symbolic verification needs a _functional_ representation of data, which fits
+within uninterpreted fragment of FOL, on which SMT solvers perform well
+- explicit state model checking needs a _concrete_ (using `TreeSet` and
+`TreeMap`) representation of data, which gives fast reads and writes during
+updates, and which can be efficiently hashed (to check for duplicate states
+during model checking)
+
+The _semantics_ of Veil `action`s and `transition`s should be independent of
+which representation is used. To enable this, this files defines an interface
+for state representations (in the form of type classes).
+
+Inspired by Ivy, Veil uses the concept of "field update patterns" to describe
+updates to a field. For instance, `rel N x := true` means to set `rel n x` to
+`true` for all `n`. This file reifies these patterns to support encoding them
+generically, and then executing them for different actual state
+representations.
+
+-/
+
+namespace Veil
+
+section Interface
+
+variable (FieldDomain : List Type) (FieldCodomain : Type)
+/-- This describes the "canonical" (i.e. functional) representation of a field. -/
+abbrev CanonicalField : Type := IteratedArrow FieldCodomain FieldDomain
+
+local macro "⌞" t1:ident t2:ident* "⌟" : term => `($t1 $(Lean.mkIdent `FieldDomain) $t2:ident*)
+local macro "⌞_" t1:ident t2:ident* "⌟" : term => `(⌞ $t1 $(Lean.mkIdent `FieldCodomain) $t2:ident* ⌟)
+
+section UpdatePatterns
+
+/-- A field update pattern specifies which components are accessed. -/
+abbrev FieldUpdatePat : Type := IteratedProd (FieldDomain.map Option)
+abbrev FieldUpdateDescr := List (⌞ FieldUpdatePat ⌟ × ⌞_ CanonicalField ⌟)
+
+
+def FieldUpdatePat.pad (n : Nat) : IteratedArrow (FieldUpdatePat FieldDomain)
+  (FieldDomain.take n |>.map Option) :=
+  IteratedArrow.curry fun args => (by
+    let res := args ++ IteratedProd.default (ts := FieldDomain.drop n) (@Option.none)
+    rw [List.map_take, List.map_drop, List.take_append_drop] at res
+    exact res)
+
+def FieldUpdatePat.match
+  {FieldDomain : List Type}
+  (dec : IteratedProd (FieldDomain.map DecidableEq))
+  (fa : FieldUpdatePat FieldDomain) args :=
+  IteratedProd.patCmp (fun o x => o.elim true (fun y => decide (y = x))) dec fa args
+
+def FieldUpdateDescr.fieldUpdate
+  {FieldDomain : List Type}
+  {FieldCodomain : Type}
+  (dec : IteratedProd (FieldDomain.map DecidableEq))
+  (favs : ⌞_ FieldUpdateDescr ⌟)
+  (vbase : ⌞_ CanonicalField ⌟)
+  (args : IteratedProd FieldDomain) : FieldCodomain :=
+  favs.foldr (init := vbase.uncurry args) fun (fa, v) acc => if fa.match dec args then v.uncurry args else acc
+
+def CanonicalField.set {FieldDomain : List Type} {FieldCodomain : Type}
+  (dec : IteratedProd (FieldDomain.map DecidableEq))
+  (favs : ⌞_ FieldUpdateDescr ⌟)
+  (fc : ⌞_ CanonicalField ⌟) : ⌞_ CanonicalField ⌟ :=
+  IteratedArrow.curry (favs.fieldUpdate dec fc)
+
+def FieldUpdatePat.footprintRaw
+  {FieldDomain : List Type}
+  (instfin : IteratedProd (FieldDomain.map FinEnum))
+  (fa : FieldUpdatePat FieldDomain) :=
+  instfin.zipWith fa fun fin b =>
+    b.elim (fun (_ : Unit) => fin.toList _) (fun x _ => [x])
+
+theorem FieldUpdatePat.footprint_match_iff
+  {FieldDomain : List Type}
+  (instfin : IteratedProd (FieldDomain.map FinEnum))
+  (dec : IteratedProd (FieldDomain.map DecidableEq))
+  {fa : FieldUpdatePat FieldDomain} :
+  ∀ args, args ∈ (fa.footprintRaw instfin).cartesianProduct ↔ fa.match dec args := by
+  intro args
+  induction FieldDomain
+  all_goals (simp [FieldUpdatePat] at fa ; simp [IteratedProd] at instfin dec args)
+  next => simp [IteratedProd.cartesianProduct, IteratedProd.fold, FieldUpdatePat.match] ; rfl
+  next t ts ih =>
+    rcases fa with ⟨b, fa⟩ ; rcases instfin with ⟨fin, instfin⟩
+    rcases dec with ⟨d, dec⟩ ; rcases args with ⟨a, args⟩
+    simp [IteratedProd.cartesianProduct, FieldUpdatePat.match, IteratedProd.patCmp]
+    unfold FieldUpdatePat.match at ih ; rw [← ih instfin] ; clear ih
+    simp [IteratedProd.cartesianProduct, FieldUpdatePat.footprintRaw, IteratedProd.zipWith, IteratedProd.fold]
+    intro _ ; rcases b with _ | b <;> simp ; grind
+end UpdatePatterns
+
+section RepresentationInterface
+
+class FieldRepresentation (FieldTypeConcrete : Type) where
+  get : FieldTypeConcrete → ⌞_ CanonicalField ⌟
+  set : ⌞_ FieldUpdateDescr ⌟ → FieldTypeConcrete → FieldTypeConcrete
+
+class LawfulFieldRepresentationSet (FieldTypeConcrete : Type)
+  (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟) where
+  -- NOTE: If `set` is defined as `foldr` of `setSingle`, then the following
+  -- two laws automatically hold.
+  set_append :
+    ∀ (favs₁ favs₂ : ⌞_ FieldUpdateDescr ⌟) (fc : FieldTypeConcrete),
+      inst.set favs₂ (inst.set favs₁ fc) = inst.set (favs₂ ++ favs₁) fc
+  set_nil :
+    ∀ {fc : FieldTypeConcrete}, inst.set [] fc = fc
+
+class LawfulFieldRepresentation (FieldTypeConcrete : Type)
+  (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟)
+  extends ⌞_ LawfulFieldRepresentationSet FieldTypeConcrete inst ⌟ where
+  get_set_idempotent :
+    ∀ -- TODO not sure this should be made here in the argument, but using
+      -- the fact that all `DecidableEq` instances are equal, this will not
+      -- matter much?
+      (dec : IteratedProd (FieldDomain.map DecidableEq))
+      (fc : FieldTypeConcrete) fav,
+      inst.get (inst.set [fav] fc) = (inst.get fc).set dec [fav]
+  -- NOTE: temporarily disabling this law, since it is not used
+  -- set_get_idempotent :
+  --   ∀ (fc : FieldTypeConcrete) (fa : FieldUpdatePat fieldDomain),
+  --     inst.set [(fa, inst.get fc)] fc = fc
+
+-- Handy notation
+abbrev FieldRepresentation.setSingle {FieldDomain : List Type}
+  {FieldCodomain FieldTypeConcrete : Type}
+  [self : ⌞_ FieldRepresentation FieldTypeConcrete ⌟]
+  (fa : ⌞ FieldUpdatePat ⌟)
+  (v : ⌞_ CanonicalField ⌟)
+  (fc : FieldTypeConcrete) : FieldTypeConcrete :=
+  self.set [(fa, v)] fc
+
+def FieldRepresentation.mkFromSingleSet {FieldDomain : List Type}
+  {FieldCodomain : Type} {FieldTypeConcrete : Type}
+  (get : FieldTypeConcrete → ⌞_ CanonicalField ⌟)
+  (setSingle : ⌞ FieldUpdatePat ⌟ → ⌞_ CanonicalField ⌟ → FieldTypeConcrete → FieldTypeConcrete) :
+  ⌞_ FieldRepresentation FieldTypeConcrete ⌟ where
+  get := get
+  set favs fc := favs.foldr (init := fc) fun (fa, v) acc => setSingle fa v acc
+
+theorem LawfulFieldRepresentationSet.mkFromSingleSet {FieldDomain : List Type}
+  {FieldCodomain : Type} {FieldTypeConcrete : Type}
+  (get : FieldTypeConcrete → ⌞_ CanonicalField ⌟)
+  (setSingle : ⌞ FieldUpdatePat ⌟ → ⌞_ CanonicalField ⌟ → FieldTypeConcrete → FieldTypeConcrete) :
+  (⌞_ LawfulFieldRepresentationSet FieldTypeConcrete ⌟)
+    (FieldRepresentation.mkFromSingleSet get setSingle) where
+  set_append := by
+    introv ; simp [FieldRepresentation.mkFromSingleSet, FieldRepresentation.set]
+  set_nil := by
+    introv ; simp [FieldRepresentation.mkFromSingleSet, FieldRepresentation.set]
+
+end RepresentationInterface
+
+section CanonicalFieldRepresentation
+/-!
+# Canonical Field Representation
+
+The canonical field representation is the functional representation of a field.
+It is represented as an iterated arrow from the codomain to the domain. This is
+the "default" representation of a field, and used for translation to SMT.
+
+-/
+
+instance canonicalFieldRepresentation {FieldDomain : List Type} {FieldCodomain : Type}
+  (dec : IteratedProd (FieldDomain.map DecidableEq)) :
+  (⌞_ FieldRepresentation ⌟) (⌞_ CanonicalField ⌟) where
+  get := id
+  set favs fc := fc.set dec favs
+
+instance canonicalFieldRepresentationLawful
+  (dec : IteratedProd (FieldDomain.map DecidableEq)) :
+  LawfulFieldRepresentation FieldDomain FieldCodomain (⌞_ CanonicalField ⌟)
+    -- TODO why synthesis fails here? is it because there is no `semiOutParam`, `outParam` or because of `dec`?
+    -- also, due to the synthesis failure, `inst` cannot be declared using `[]`
+    (inst := canonicalFieldRepresentation dec) where
+  get_set_idempotent := by
+    introv ; simp [FieldRepresentation.get, FieldRepresentation.set]
+    congr ; apply IteratedProd.map_DecidableEq_eq
+  -- set_get_idempotent := by
+  --   introv ; simp +unfoldPartialApp [CanonicalField.set, FieldUpdateDescr.fieldUpdate, FieldRepresentation.set, FieldRepresentation.get, IteratedArrow.curry_uncurry]
+  set_append := by
+    introv ; simp +unfoldPartialApp [CanonicalField.set, FieldUpdateDescr.fieldUpdate, FieldRepresentation.set, IteratedArrow.uncurry_curry]
+  set_nil := by
+    introv ; simp +unfoldPartialApp [CanonicalField.set, FieldRepresentation.set, FieldUpdateDescr.fieldUpdate, IteratedArrow.curry_uncurry]
+
+/-- Strengthen `get_set_idempotent` to `FieldUpdateDescr`. -/
+theorem LawfulFieldRepresentation.get_set_idempotent' {FieldDomain : List Type} {FieldCodomain : Type}
+  {FieldTypeConcrete : Type}
+  {inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟}
+  (inst2 : ⌞_ LawfulFieldRepresentation FieldTypeConcrete inst ⌟)
+  (dec : IteratedProd (FieldDomain.map DecidableEq)) favs fc :
+    inst.get (inst.set favs fc) = (inst.get fc).set dec favs := by
+  induction favs with
+  | nil => simp +unfoldPartialApp [inst2.set_nil, CanonicalField.set,
+    FieldUpdateDescr.fieldUpdate, IteratedArrow.curry_uncurry]
+  | cons fav favs ih =>
+    have tmp := inst2.set_append favs [fav]
+    simp at tmp ; rw [← tmp, inst2.get_set_idempotent dec, ih]
+    apply (canonicalFieldRepresentationLawful _ _ dec).set_append
+
+instance (priority := high + 1)
+  : FieldRepresentation [] FieldCodomain FieldCodomain where
+  get := id
+  set favs fc := List.head? favs |>.elim fc Prod.snd
+
+instance (priority := high + 1)
+  : LawfulFieldRepresentation [] FieldCodomain FieldCodomain inferInstance where
+  set_nil := by introv ; simp [FieldRepresentation.set]
+  set_append := by
+    introv ; simp [FieldRepresentation.set]
+    rcases favs₂ with _ | ⟨fav₂, _⟩ <;> simp
+  get_set_idempotent := by introv ; rfl
+
+end CanonicalFieldRepresentation
+
+end Interface
+
+end Veil
