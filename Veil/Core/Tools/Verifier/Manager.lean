@@ -211,6 +211,16 @@ instance : ToString VCStatus where
 
 def VCStatus.emoji (status : VCStatus) : String := toString status
 
+def VCStatus.kindString (status : VCStatus) : String :=
+  match status with
+  | .proven => "proven"
+  | .disproven => "disproven"
+  | .unknown => "unknown"
+  | .error => "error"
+
+instance : Lean.ToJson VCStatus where
+  toJson status := Lean.Json.str status.kindString
+
 -- Based on [RustDagcuter](https://github.com/busyster996/RustDagcuter)
 structure VCManager (VCMetaT ResultT: Type) where
   /-- All VCs, indexed by their ID. -/
@@ -230,7 +240,10 @@ structure VCManager (VCMetaT ResultT: Type) where
   downstream : HashMap VCId (HashSet VCId)
 
   protected _nextVcId : VCId := 0
+  /-- Number of dischargers that have finished executing. -/
   protected _totalDischarged : Nat := 0
+  /-- Number of dischargers that have finished successfully. This is equal to
+  the number of VCs that have been proven. -/
   protected _totalSolved : Nat := 0
 
   protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
@@ -394,6 +407,25 @@ instance printResults [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT
     toMessageData mgr :=
     let nodes := mgr.nodes.toList.map (fun (uid, vc) => m!"[{uid}] {vc.name} {mgr.statusEmoji vc.uid}")
     MessageData.joinSep nodes "\n"
+
+instance [ToJson VCMetaT] : ToJson (VCManager VCMetaT ResultT) where
+  toJson mgr :=
+    let vcArray := mgr.nodes.toArray.map fun (uid, vc) =>
+      let jsonStatus := match mgr._doneWith[uid]? with
+        | some vcStatus =>  Lean.toJson vcStatus
+        | none => Lean.Json.null
+      Lean.Json.mkObj [
+        ("id", Lean.toJson uid),
+        ("name", Lean.toJson vc.name.toString),
+        ("status", jsonStatus),
+        ("metadata", Lean.toJson vc.metadata)
+      ]
+    Lean.Json.mkObj [
+      ("vcs", Lean.Json.arr vcArray),
+      ("totalVCs", Lean.toJson mgr.nodes.size),
+      ("totalDischarged", Lean.toJson mgr._totalDischarged),
+      ("totalSolved", Lean.toJson mgr._totalSolved)
+    ]
 
 end VCManager
 

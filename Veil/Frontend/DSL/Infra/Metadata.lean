@@ -20,9 +20,19 @@ instance : ToString VCKind where
     | .primary => "primary"
     | .derived => "derived"
 
+instance : ToJson VCKind where
+  toJson kind :=
+    match kind with
+    | .primary => "primary"
+    | .derived => "derived"
+
 structure VCMetadata where
   /-- The kind of this VC. -/
   kind : VCKind
+  /-- The action that this VC is about. -/
+  action: Name
+  /-- The property that this VC is about. -/
+  property: Name
   baseParams : Array Parameter
   extraParams : Array Parameter
   /-- The declarations that this VC's _statement_ depends on. The proof
@@ -33,6 +43,15 @@ deriving Inhabited
 instance : ToString VCMetadata where
   toString metadata :=
     s!"(kind: {metadata.kind})"
+
+instance : ToJson VCMetadata where
+  toJson metadata :=
+    Json.mkObj [
+      ("kind", toJson metadata.kind),
+      ("action", toJson metadata.action),
+      ("property", toJson metadata.property),
+      ("stmtDerivedFrom", toJson (metadata.stmtDerivedFrom.toArray))
+    ]
 
 abbrev SmtOutput := (Name × Nat) × Smt.AsyncOutput
 -- abbrev VeilResult := Array SmtOutput

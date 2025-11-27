@@ -179,7 +179,7 @@ def elabCheckInvariants : CommandElab := fun _stx => do
   Verifier.startAll
   vcManager.atomicallyOnce frontendNotification
     (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
-    (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}")
+    (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson mgr}")
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do
