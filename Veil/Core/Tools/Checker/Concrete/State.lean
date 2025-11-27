@@ -1,6 +1,9 @@
-import Veil.Frontend.DSL.State.SubState
+
+import Veil.Frontend.DSL.Infra.State
 import Veil.Frontend.DSL.Action.Semantics.Definitions
+import Veil.Frontend.DSL.Action.Extraction.Basic
 import Veil.Core.Tools.Checker.Concrete.DataStructure
+-- import Veil.Core.Tools.Checker.Concrete.Datas
 
 open Veil
 
@@ -30,9 +33,14 @@ def getStateFromExceptT (c : ExceptT ε DivM (α × σ)) : Option σ :=
 def getAllStatesFromExceptT (c : List (ExceptT ε DivM (α × σ))) : List (Option σ) :=
   c.map getStateFromExceptT
 
+/-- Extract all valid states from a VeilMultiExecM computation -/
+def extractValidStates (exec : VeilMultiExecM κᵣ ℤ ρ σᵣ Unit) (rd : ρ) (st : σᵣ) : List (Option σᵣ) :=
+  exec rd st |>.map Prod.snd |> getAllStatesFromExceptT
+
 /- Corresponds to `after_init` action, used for initialization -/
 variable (initVeilMultiExecM : VeilMultiExecM κᵣ ℤ ρ σᵣ Unit)
 variable (nextVeilMultiExecM : κ → VeilMultiExecM κᵣ ℤ ρ σᵣ Unit)
+
 abbrev TsilE (κᵣ σᵣ : Type) := TsilT (ExceptT ℤ (PeDivM (List κᵣ))) (Unit × σᵣ)
 
 def afterInit (rd : ρ) (s₀ : σᵣ) : TsilE κᵣ σᵣ :=
@@ -42,6 +50,10 @@ def afterInit (rd : ρ) (s₀ : σᵣ) : TsilE κᵣ σᵣ :=
 def nonDetNexts (rd : ρ) (st : σᵣ) (l : κ) : TsilE κᵣ σᵣ :=
   nextVeilMultiExecM l rd st
 
+def adjExec (rd : ρ) (st : σᵣ) (l : κ) :=
+  let execs := nextVeilMultiExecM l rd st
+  let succs := getAllStatesFromExceptT (execs.map Prod.snd)
+  succs
 
 
 /-
@@ -68,16 +80,19 @@ variable [IsSubStateOf ℂ σᵣ]
 variable [IsSubReaderOf ℝ ρ]
 
 open CheckerM in
-partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ)
+partial def bfsSearch
+--  (st₀ : σᵣ)
+ (rd : ρ) (view : σᵣ → σₛ)
 : StateT (SearchContext σᵣ σₛ κ) Id Unit := do
-  let fpSt₀ := view st₀
-  addToSeen fpSt₀
-  enqueueState st₀ fpSt₀
+  -- let fpSt₀ := view st₀
+  -- addToSeen fpSt₀
+  -- enqueueState st₀ fpSt₀
   while true do
     let .some (st, fpSt) := (← dequeueState) | return ()
     let mut emptyflag := true
     for label in allLabels do
-      let execs := nonDetNexts nextVeilMultiExecM rd st label
+      -- let execs := nonDetNexts nextVeilMultiExecM rd st label
+      let execs := nextVeilMultiExecM label rd st
       let succs := getAllStatesFromExceptT (execs.map Prod.snd)
       for succ? in succs do
         emptyflag := false
@@ -99,23 +114,45 @@ partial def bfsSearch (st₀ : σᵣ) (rd : ρ) (view : σᵣ → σₛ)
 
 /-- Run BFS starting from `st₀` with reader `rd`, checking `INV` under `restrictions`. -/
 def runModelCheckerx (rd : ρ) (view : σᵣ → σₛ) : Id (Unit × (SearchContext σᵣ σₛ κ)) := do
-  let cfg := SearchContext.empty
-  let restrictions := (fun (_ : ρ) (_ : σᵣ) => true)
-  let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
-  (bfsSearch nextVeilMultiExecM allLabels INV Terminate st₀ rd view) |>.run cfg
+  let mut cfg := SearchContext.empty
+  -- let restrictions := (fun (_ : ρ) (_ : σᵣ) => true)
+  -- let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
+  let succs0 := (initVeilMultiExecM rd default |>.map Prod.snd) |> getAllStatesFromExceptT
+  for succ? in succs0 do
+    let .some st₀ := succ? | continue -- divergence
+    cfg := {cfg with seen := cfg.seen.insert (view st₀) }
+    if decide (INV rd st₀) then
+      cfg := {cfg with sq := cfg.sq.enqueue (st₀, view st₀) }
+    else
+      cfg := {cfg with counterexample := cfg.counterexample.append [view st₀] }
+      return ((), cfg)
+  (bfsSearch nextVeilMultiExecM allLabels INV Terminate rd view) |>.run cfg
+
+
 
 open CheckerM in
-def recoverTrace (rd : ρ) (linearLabels : List κ) [Repr κ] : Trace σᵣ κ := Id.run do
-  if linearLabels.isEmpty then
+def recoverTrace [Hashable σᵣ] [Repr κ]
+  (rd : ρ) (traces : List (Trace UInt64 κ)) : Trace σᵣ κ := Id.run do
+  if traces.isEmpty then
     return { start := default, steps := [] }
-  let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
+
+  let trace := traces[0]!
+
+  -- Helper: find state by hash from valid successors
+  let findByHash (succs : List (Option σᵣ)) (targetHash : UInt64) (fallback : σᵣ) : σᵣ :=
+    succs.filterMap id |>.find? (fun s => hash s == targetHash) |>.getD fallback
+
+  -- Recover initial state
+  let initSuccs := extractValidStates initVeilMultiExecM rd default
+  let start := findByHash initSuccs trace.start default
+
+  -- Recover trace steps
+  let mut curSt := start
   let mut steps : List (Step σᵣ κ) := []
-  let mut curSt := st₀
-  for ll in linearLabels do
-    let execs := nonDetNexts nextVeilMultiExecM rd curSt ll
-    let succ? := (execs |>.map Prod.snd |>.map getStateFromExceptT)[0]!
-    let .some st' := succ? | assert! false
-    steps := steps.append [{ label := ll, next := st' }]
-    curSt := st'
-  let tr : Trace σᵣ κ := { start := st₀, steps := steps }
-  return tr
+  for step in trace.steps do
+    let succs := extractValidStates (nextVeilMultiExecM step.label) rd curSt
+    let nextSt := findByHash succs step.next curSt
+    curSt := nextSt
+    steps := steps.append [{ label := step.label, next := nextSt }]
+
+  return { start := start, steps := steps }
