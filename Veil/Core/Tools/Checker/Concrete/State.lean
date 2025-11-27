@@ -1,7 +1,5 @@
-
-import Veil.Frontend.DSL.Infra.State
+import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Action.Semantics.Definitions
-import Veil.Frontend.DSL.Action.Extraction.Basic
 import Veil.Core.Tools.Checker.Concrete.DataStructure
 -- import Veil.Core.Tools.Checker.Concrete.Datas
 
@@ -80,23 +78,15 @@ variable [IsSubStateOf ℂ σᵣ]
 variable [IsSubReaderOf ℝ ρ]
 
 open CheckerM in
-partial def bfsSearch
---  (st₀ : σᵣ)
- (rd : ρ) (view : σᵣ → σₛ)
-: StateT (SearchContext σᵣ σₛ κ) Id Unit := do
-  -- let fpSt₀ := view st₀
-  -- addToSeen fpSt₀
-  -- enqueueState st₀ fpSt₀
+partial def bfsSearch (rd : ρ) (view : σᵣ → σₛ) : StateT (SearchContext σᵣ σₛ κ) Id Unit := do
   while true do
     let .some (st, fpSt) := (← dequeueState) | return ()
-    let mut emptyflag := true
+    let mut hasSuccessor := false
     for label in allLabels do
-      -- let execs := nonDetNexts nextVeilMultiExecM rd st label
-      let execs := nextVeilMultiExecM label rd st
-      let succs := getAllStatesFromExceptT (execs.map Prod.snd)
+      let succs := extractValidStates (nextVeilMultiExecM label) rd st
       for succ? in succs do
-        emptyflag := false
-        let .some st' := succ? | continue -- divergence
+        let .some st' := succ? | continue
+        hasSuccessor := true
         let fingerprint := view st'
         unless (← wasSeen fingerprint) do
           addToSeen fingerprint
@@ -106,26 +96,23 @@ partial def bfsSearch
           else
             addCounterExample fingerprint
             return ()
-    /- If there are no successors and `st` is not terminating, then this is a deadlock -/
-    if emptyflag && !decide (Terminate rd st) then
+    -- Deadlock: no successors and state is not terminating
+    if !hasSuccessor && !decide (Terminate rd st) then
       addCounterExample fpSt
       return ()
 
 
-/-- Run BFS starting from `st₀` with reader `rd`, checking `INV` under `restrictions`. -/
+/-- Run BFS model checker starting from initial states, checking invariant `INV` -/
 def runModelCheckerx (rd : ρ) (view : σᵣ → σₛ) : Id (Unit × (SearchContext σᵣ σₛ κ)) := do
   let mut cfg := SearchContext.empty
-  -- let restrictions := (fun (_ : ρ) (_ : σᵣ) => true)
-  -- let st₀ := (((afterInit initVeilMultiExecM rd default |>.map Prod.snd).map getStateFromExceptT)[0]!).getD default
-  let succs0 := (initVeilMultiExecM rd default |>.map Prod.snd) |> getAllStatesFromExceptT
-  for succ? in succs0 do
-    let .some st₀ := succ? | continue -- divergence
-    cfg := {cfg with seen := cfg.seen.insert (view st₀) }
+  -- Initialize with all valid initial states
+  for st₀ in extractValidStates initVeilMultiExecM rd default |>.filterMap id do
+    let fingerprint := view st₀
+    cfg := {cfg with seen := cfg.seen.insert fingerprint }
     if decide (INV rd st₀) then
-      cfg := {cfg with sq := cfg.sq.enqueue (st₀, view st₀) }
+      cfg := {cfg with sq := cfg.sq.enqueue (st₀, fingerprint) }
     else
-      cfg := {cfg with counterexample := cfg.counterexample.append [view st₀] }
-      return ((), cfg)
+      return ((), {cfg with counterexample := [fingerprint] })
   (bfsSearch nextVeilMultiExecM allLabels INV Terminate rd view) |>.run cfg
 
 

@@ -1,11 +1,6 @@
--- import ProofWidgets.Component.GraphDisplay
-import ProofWidgets.Component.HtmlDisplay
 import Veil.Core.Tools.Checker.Concrete.DataStructure
-
 import Lean
 
-open Lean Elab Command Tactic Meta Term
-open ProofWidgets Jsx
 
 partial def buildSteps [BEq β] [Hashable β]
   (edges : Std.HashMap β (β × κ)) (cur : β)

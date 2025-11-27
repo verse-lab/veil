@@ -1,5 +1,4 @@
 import Veil
-
 import Veil.Core.Tools.Checker.Concrete.Main
 veil module AwsDNSRace
 -- ------------------------------ MODULE AwsDNSRace ------------------------------
@@ -202,7 +201,7 @@ invariant [NeverDeleteActive]
 -- #check_invariants
 #gen_exec
 
-#finitizeTypes ENACTORS
+#finitize_types ENACTORS
 #eval labelList
 
 def view (st : StateConcrete) := hash st

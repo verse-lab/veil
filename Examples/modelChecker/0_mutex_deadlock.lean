@@ -333,7 +333,7 @@ gen_executable_NextAct
 deriving_Enum_Insts
 
 -- #finitizeTypes (Fin 3), states
-#Concretize (Fin 2), states
+#Concretize (Fin 3), states
 deriving_BEqHashable_ConcreteState
 deriving_toJson_for_state
 deriving_DecidableProps_state

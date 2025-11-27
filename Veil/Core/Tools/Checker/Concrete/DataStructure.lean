@@ -37,7 +37,9 @@ The State defintion of the model checker:
 structure SearchContext (α β κ : Type) [BEq β] [Hashable β] where
   seen : Std.HashSet β
   sq   : fQueue (α × β)
-  log  : List (β × β × κ)
+  /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
+  will make it easier to reconstruct counterexample trace. -/
+  log : Std.HashMap β (β × κ)
   counterexample : List β
 deriving Inhabited
 
@@ -71,7 +73,6 @@ instance [Repr β] [Repr κ] : Repr (List (β × β × κ)) where
       s!"[{headStr}{String.join tailStrs}]"
 
 
-
 instance [BEq β] [Hashable β] [Repr κ] [Repr α] [Repr β] : Repr (SearchContext α β κ) where
   reprPrec ctx _ :=
     "{ seen := " ++ repr ctx.seen.toList ++
@@ -83,7 +84,7 @@ instance [BEq β] [Hashable β] [Repr κ] [Repr α] [Repr β] : Repr (SearchCont
 def SearchContext.empty {α β} [BEq β] [Hashable β] : SearchContext α β κ :=
   { seen := {},
     sq := fQueue.empty,
-    log := [],
+    log := Std.HashMap.emptyWithCapacity,
     counterexample := [] }
 
 
@@ -122,7 +123,7 @@ def addTransitionToLog {α β} [BEq β] [Hashable β]
   (s : β) (s' : β) (lab : κ)
   : StateT (SearchContext α β κ) Id Unit :=
   modify (fun cs =>
-    { cs with log := (s, s', lab) :: cs.log  })
+    { cs with log := cs.log.insert s' (s, lab) })
 
 /-- Add counterexample -/
 def addCounterExample (cex : β) [BEq β] [Hashable β]
@@ -243,12 +244,9 @@ theorem dequeue?_spec {α : Type} (q : fQueue α) :
         | nil =>
           simp [fQueue.norm] at h
           cases qb with
-          | nil =>
-            simp
-          | cons _ _ =>
-            simp at h
+          | nil => simp
+          | cons _ _ => simp at h
         | cons _ _ =>
-          -- q.front is non-empty, norm q = q, but h says norm q's front is empty, contradiction
           simp [fQueue.norm] at h
     | cons x xs =>
       simp only [fQueue.toList]
@@ -312,20 +310,15 @@ theorem fQueue_dequeue_mem {α : Type} [Inhabited α]
       simp only at h_dequeue
       contradiction
     | cons x xs =>
-      -- If front = x :: xs, then dequeue? returns some (x, ⟨xs, b'⟩)
       simp only [Option.some.injEq, Prod.mk.injEq] at h_dequeue
-      -- h_dequeue : x = st ∧ ⟨xs, b'⟩ = sq'
       obtain ⟨h_st_eq, _⟩ := h_dequeue
-      -- Now show st ∈ toList sq
-      rw [← h_st_eq]  -- Reduce to showing x ∈ toList sq
+      rw [← h_st_eq]
       unfold fQueue.toList
-      -- Need to show: `x ∈ sq.front ++ sq.back.reverse`
       unfold fQueue.norm at h_norm
       cases sq with
       | mk front back =>
         cases front with
         | nil =>
-          -- sq.front = [], so norm sq = ⟨back.reverse, []⟩
           simp only [fQueue.mk.injEq] at h_norm
           obtain ⟨h_back_eq, _⟩ := h_norm
           have x_mem_back_rev : x ∈ back.reverse := by
@@ -333,12 +326,10 @@ theorem fQueue_dequeue_mem {α : Type} [Inhabited α]
             simp
           simp [x_mem_back_rev]
         | cons y ys =>
-          -- sq.front = y :: ys, so norm sq = ⟨y :: ys, back⟩
           simp only [fQueue.mk.injEq] at h_norm
           obtain ⟨h_front_eq, _⟩ := h_norm
           have x_eq_y : x = y := by
             injection h_front_eq with h_eq _
             exact h_eq.symm
-          -- Goal: x ∈ (y :: ys) ++ back.reverse
           rw [x_eq_y]
           simp [List.mem_append]

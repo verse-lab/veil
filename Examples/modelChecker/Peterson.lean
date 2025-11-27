@@ -1,5 +1,5 @@
 import Veil
-
+-- import Veil.Frontend.DSL.Action.Extraction.Extract
 import Veil.Core.Tools.Checker.Concrete.Main
 
 import Veil.Core.Tools.Checker.Concrete.modelCheckerView
@@ -128,7 +128,7 @@ invariant [progress_critical]
 
 #gen_exec
 
-#finitizeTypes Phase, Process
+#finitize_types Phase, Process
 
 def view (st : StateConcrete) := hash st
 
