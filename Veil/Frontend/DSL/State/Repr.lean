@@ -103,8 +103,8 @@ private def simpleDerivingReprForCore (t : Ident) (case : SimpleDerivingReprForC
 --   elabVeilCommand cmd
 
 -- /-- Similar to `simple_deriving_repr_for` but assumes all field types are `Repr`. -/
--- elab "simple_deriving_repr_for' " t:ident : command => do
---   let cmd ← liftTermElabM <| simpleDerivingReprForCore t (.fromFields true)
---   elabVeilCommand cmd
+elab "simple_deriving_repr_for' " t:ident : command => do
+  let cmd ← liftTermElabM <| simpleDerivingReprForCore t (.fromFields true)
+  elabVeilCommand cmd
 
 end Veil

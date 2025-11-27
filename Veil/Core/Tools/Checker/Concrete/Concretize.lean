@@ -1124,7 +1124,7 @@ Generate all required instances and definitions to make the symbolic model execu
 macro_rules
   | `(command| #gen_exec) => do
     `(-- Make symbolic model executable by deriving required instances
-      -- simple_deriving_repr_for' $(mkIdent `State)
+      simple_deriving_repr_for' $(mkIdent `State)
       -- deriving instance $(mkIdent ``Repr) for $(mkIdent `Label)
       -- deriving instance $(mkIdent ``Inhabited) for $(mkIdent `Theory)
       deriving_FinOrdToJson_Domain

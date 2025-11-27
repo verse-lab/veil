@@ -194,7 +194,6 @@ action _cs (self : process) {
 invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 termination [AllDone] pc S Done = true
 
-
 set_option maxHeartbeats 250000
 #gen_spec
 
@@ -213,6 +212,7 @@ Here, we use `Fin 2` to represent two processes in the system. -/
 
 /- Display the number of states explored by the model checker. -/
 #eval modelCheckerResult.seen.size
+#eval modelCheckerResult.log
 
 
 /- Display the counterexample trace using ProofWidgets, if any found by the model checker.

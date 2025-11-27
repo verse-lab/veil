@@ -1,5 +1,5 @@
 import Veil
-import Veil.Frontend.DSL.Action.Extraction.Extract
+
 import Veil.Core.Tools.Checker.Concrete.Main
 -- ----- MODULE 0_mutex -----
 veil module Mutex
