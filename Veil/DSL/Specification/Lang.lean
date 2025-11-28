@@ -209,7 +209,7 @@ def assembleState : CommandElabM Unit := do
     `(@[stateDef]
       structure $(mkIdent stName) $(getStateParametersBinders vd)* where
         $(mkIdent `mk):ident :: $[$components]*
-      deriving $(mkIdent ``Nonempty))
+      deriving $(mkIdent ``Nonempty):ident)
     let injEqLemma := (mkIdent $ stName ++ `mk ++ `injEq)
     let smtAttr ← `(attribute [smtSimp] $injEqLemma)
     let isHOInst ← `(instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stName}_ho") $(getStateParametersBinders vd)* : IsHigherOrder (@$(mkIdent stName) $(← getStateArgumentsStx vd vs)*) := ⟨⟩)

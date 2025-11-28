@@ -1,16 +1,16 @@
 import Lake
 open Lake DSL System
 
-require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "2c088e7617d6e2018386de23b5df3b127fae4634"
-require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "d6c048b99c80e93c42e7fb03ba5b14a74b00a836"
+require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "36d85bf6372f1a35fb5487325d1ef965b33c6296"
+require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "3c6b049eb0ccf7c331f3686e12e5f5b666bdd30a"
 
 package veil
 
 -- ## Dependencies
 -- IMPORTANT: If you change any of these, also change `dependencies.toml`
-def z3.version := "4.14.0"
-def cvc5.version := "1.2.1"
-def uv.version := "0.6.2"
+def z3.version := "4.15.4"
+def cvc5.version := "1.3.1"
+def uv.version := "0.9.13"
 -- Changes to this file trigger re-downloading dependencies
 -- FIXME: changing one version triggers re-downloading ALL dependencies
 def dependencyFile := "dependencies.toml"
@@ -19,9 +19,9 @@ def z3.baseUrl := "https://github.com/Z3Prover/z3/releases/download"
 def z3.arch := if System.Platform.target.startsWith "x86_64" then "x64" else "arm64"
 def z3.platform :=
   if System.Platform.isWindows then "win"
-  else if System.Platform.isOSX then "osx-13.7.2"
+  else if System.Platform.isOSX then "osx-13.7.6"
   -- linux x64
-  else if System.Platform.target.startsWith "x86_64" then "glibc-2.35"
+  else if System.Platform.target.startsWith "x86_64" then "glibc-2.39"
   -- linux arm64
   else if System.Platform.target.startsWith "aarch64" then "glibc-2.34"
   else panic! s!"Unsupported platform: {System.Platform.target}"
@@ -69,7 +69,7 @@ def Lake.unzip (file : FilePath) (dir : FilePath) : LogIO PUnit := do
   IO.FS.createDirAll dir
   proc (quiet := true) {
     cmd := "unzip"
-    args := #["-d", dir.toString, file.toString]
+    args := #["-q", "-d", dir.toString, file.toString]
   }
 
 /-- We use `cp` because it sets up the file permissions correctly. -/
@@ -126,7 +126,7 @@ target downloadDependencies pkg : Array FilePath := do
 @[default_target]
 lean_lib «Veil» {
   globs := #[`Veil, .submodules `Veil]
-  precompileModules := true
+  -- precompileModules := true
   extraDepTargets := #[``downloadDependencies]
 }
 

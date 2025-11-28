@@ -11,6 +11,12 @@ import Veil.SMT.Quantifiers.Check
 import Lean.Util.MonadCache
 import Lean.Meta.Basic
 
+-- FIXME: `Mathlib.Tactic.Push` defines `Classical.not_imp._simp_3`, and this file
+-- defines the same (by tagging it with `quantifierSimp`). I think the new module
+-- system (which we haven't yet switched to) generates a duplicate definition (in
+-- the files that import us downstream) if this file is not aware of that one.
+import Mathlib.Data.Set.Basic
+
 open Lean Meta Elab Tactic
 
 namespace Veil
@@ -254,7 +260,7 @@ end IteForallPushOutTheorems
 
 
 attribute [quantifierSimp] if_false_left if_false_right if_app
-attribute [quantifierSimp] and_imp not_imp and_self eq_self ne_eq implies_true false_implies
+attribute [quantifierSimp] and_imp Classical.not_imp and_self eq_self ne_eq implies_true false_implies
 attribute [quantifierSimp] and_true true_and and_false false_and or_true
   true_or or_false false_or iff_true true_iff iff_false false_iff
 
