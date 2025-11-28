@@ -34,9 +34,6 @@ initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment
 /-- A channel for communicating with the VCManager. -/
 initialize vcManagerCh : Std.Channel (ManagerNotification SmtResult) ← Std.Channel.new
 
-/-- Holds the state of the VCManager for the current file. -/
-initialize vcManager : Std.Mutex (VCManager VCMetadata SmtResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
-
 /-- Prompt the frontend to read the VCManager, e.g. to print the VCs. We use a
 `Condvar` instead of `Channel` because channels on the frontend thread (which
 is cancellable) are subject to potential race conditions. For instance,
