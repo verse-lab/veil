@@ -30,17 +30,10 @@ We always need `Hashable` instance. When we run the model checker,
 we always store the hashable value of state representation `σᵣ` in `HashSet`.
 -/
 instance [Hashable α] [BEq α] [Ord α]: Hashable (Std.TreeSet α) where
-  hash s := hash s.toArray
-
-instance [Hashable α] [BEq α] [Ord α]: Hashable (Std.TreeSet α) where
-  hash := fun s => hash s.toArray
+  hash s := s.foldl (fun r a => mixHash r (hash a)) 7
 
 instance [Ord α] [Hashable α] [Hashable β] : Hashable (Std.TreeMap α β) where
-  hash s := hash s.toArray
-
-instance [Ord α] [Hashable α] [Hashable β]: Hashable (Veil.TotalTreeMap α β) where
-  hash s := hash s.val.toArray
-
+  hash s := s.foldl (fun r a b => mixHash r (mixHash (hash a) (hash b))) 7
 
 /--
 `Ord` instances for `Std.TreeMap` and `Std.TreeSet`
