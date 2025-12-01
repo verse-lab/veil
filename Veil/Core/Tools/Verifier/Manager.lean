@@ -247,6 +247,10 @@ structure VCManager (VCMetaT ResultT: Type) where
   protected _totalSolved : Nat := 0
 
   protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
+
+  /-- Store discharger results for each VC, indexed by (VCId, DischargerId). -/
+  protected _dischargerResults : HashMap (VCId × DischargerId) (DischargerResult ResultT) := HashMap.emptyWithCapacity
+
   protected _managerId : ManagerId := 0
 
   /-- Channel for communicating with the VCManager. -/
@@ -262,6 +266,7 @@ def VCManager.new (ch : Std.Channel (ManagerNotification ResultT)) (currentManag
     inDegree := HashMap.emptyWithCapacity,
     downstream := HashMap.emptyWithCapacity,
     _doneWith := HashMap.emptyWithCapacity,
+    _dischargerResults := HashMap.emptyWithCapacity,
     _nextVcId := 0,
     _managerId := currentManagerId + 1,
     ch := ch,
@@ -374,6 +379,8 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
   let vcId := id.vcId
   let mut .some vc := mgr.nodes[vcId]? | panic! "VCManager.markDischarger: VC {vcId} not found"
   let mut vcStatus := .unknown
+  -- Store the discharger result for JSON serialization
+  mgr := { mgr with _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res }
   -- Update downstream in-degrees
   match res with
   | .proven _ _ _ => do
@@ -408,23 +415,80 @@ instance printResults [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT
     let nodes := mgr.nodes.toList.map (fun (uid, vc) => m!"[{uid}] {vc.name} {mgr.statusEmoji vc.uid}")
     MessageData.joinSep nodes "\n"
 
+/-- Calculate total time for a VC by summing all completed dischargers; returns none if none finished -/
+def VCManager.vcTotalTime (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Option Nat := do
+  let vc ← mgr.nodes[vcId]?
+  let times := (List.range vc.dischargers.size).filterMap fun i =>
+    mgr._dischargerResults[(vcId, i)]?.map (·.time)
+  if times.isEmpty then none else some (times.foldl (· + ·) 0)
+
+/-- Get time for successful discharger (if VC is proven) -/
+def VCManager.vcSuccessfulTime (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Option Nat := Id.run do
+  let .some vc := mgr.nodes[vcId]? | return none
+  match vc.successful with
+  | none => return none
+  | some dischargerId =>
+    match mgr._dischargerResults[(vcId, dischargerId)]? with
+    | some res => return some res.time
+    | none => return none
+
+/-- Build discharger details array for JSON -/
+def VCManager.vcDischargerDetails (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Array Json := Id.run do
+  let .some vc := mgr.nodes[vcId]? | return #[]
+  vc.dischargers.mapIdx fun idx discharger =>
+    let dischargerId := idx
+    let statusAndTime := match mgr._dischargerResults[(vcId, dischargerId)]? with
+      | some res => (res.kindString, some res.time)
+      | none => ("notStarted", none)
+    Json.mkObj [
+      ("id", toJson dischargerId),
+      ("name", toJson discharger.id.name.toString),
+      ("status", Json.str statusAndTime.1),
+      ("time", match statusAndTime.2 with | some t => toJson t | none => Json.null)
+    ]
+
 instance [ToJson VCMetaT] : ToJson (VCManager VCMetaT ResultT) where
   toJson mgr :=
     let vcArray := mgr.nodes.toArray.map fun (uid, vc) =>
       let jsonStatus := match mgr._doneWith[uid]? with
         | some vcStatus =>  Lean.toJson vcStatus
         | none => Lean.Json.null
+
+      -- Get successful discharger info
+      let successfulDischargerId := match vc.successful with
+        | some id => toJson id
+        | none => Json.null
+
+      -- Build timing object using stored discharger results
+      let timingObj := Json.mkObj [
+        ("totalTime", match mgr.vcTotalTime uid with
+          | some t => toJson t
+          | none => Json.null),
+        ("successfulDischargerId", successfulDischargerId),
+        ("successfulDischargerTime", match mgr.vcSuccessfulTime uid with
+          | some t => toJson t
+          | none => Json.null),
+        ("dischargers", Json.arr (mgr.vcDischargerDetails uid))
+      ]
+
       Lean.Json.mkObj [
         ("id", Lean.toJson uid),
         ("name", Lean.toJson vc.name.toString),
         ("status", jsonStatus),
-        ("metadata", Lean.toJson vc.metadata)
+        ("metadata", Lean.toJson vc.metadata),
+        ("timing", timingObj)
       ]
+
+    -- Calculate total time across all VCs
+    let totalTime := mgr.nodes.toArray.foldl (init := 0) fun acc (uid, _) =>
+      acc + ((mgr.vcTotalTime uid).getD 0)
+
     Lean.Json.mkObj [
       ("vcs", Lean.Json.arr vcArray),
       ("totalVCs", Lean.toJson mgr.nodes.size),
       ("totalDischarged", Lean.toJson mgr._totalDischarged),
-      ("totalSolved", Lean.toJson mgr._totalSolved)
+      ("totalSolved", Lean.toJson mgr._totalSolved),
+      ("totalTime", Lean.toJson totalTime)
     ]
 
 end VCManager

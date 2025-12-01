@@ -6,10 +6,19 @@ require Loom from git "https://github.com/verse-lab/loom-dev.git" @ "extract-lis
 
 package veil
 
+/-- The TypeScript widget modules in `Core/UI`. -/
+input_dir widgetJsSrcs where
+  path := "." / "Veil" / "Core" / "UI"
+  filter := .extension <| .mem #["ts", "tsx", "js", "jsx"]
+  text := true
+
+
 @[default_target]
 lean_lib «Veil» {
   globs := #[`Veil, .submodules `Veil]
   -- precompileModules := true
+  needs := #[widgetJsSrcs]
+
 }
 
 @[default_target, test_driver]

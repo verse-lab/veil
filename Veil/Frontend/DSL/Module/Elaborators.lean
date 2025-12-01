@@ -6,6 +6,7 @@ import Veil.Frontend.DSL.Action.Elaborators
 import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.Tools.Verifier.Server
+import Veil.Core.UI.Verifier.VerificationResults
 
 open Lean Parser Elab Command
 
@@ -173,13 +174,25 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   return { mod with _specFinalized := true }
 
 @[command_elab Veil.checkInvariants]
-def elabCheckInvariants : CommandElab := fun _stx => do
+def elabCheckInvariants : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
   let _ ← mod.ensureSpecIsFinalized
   Verifier.startAll
+  Verifier.displayStreamingResults stx getResults
   Verifier.vcManager.atomicallyOnce frontendNotification
     (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
-    (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson mgr}")
+    (fun ref => do
+      let mgr ← ref.get
+      logInfo m!"{toJson mgr}"
+      )
+  where
+  getResults : CoreM (Json × Verifier.StreamingStatus) := do
+    Verifier.vcManager.atomically
+      (fun ref => do
+        let mgr ← ref.get
+        let json := Lean.toJson mgr
+        let isDone := mgr._doneWith.size == mgr.nodes.size
+        return (json, if isDone then .done else .running))
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do
