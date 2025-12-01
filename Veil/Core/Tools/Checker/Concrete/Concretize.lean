@@ -5,6 +5,7 @@ import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Action.Extract
 import Veil.Frontend.DSL.State.Repr
 import Veil.Core.Tools.Checker.Concrete.State
+import Veil.Core.Tools.Checker.Concrete.ConcretizeUtil
 
 import Mathlib.Data.FinEnum
 import Mathlib.Tactic.ProxyType
@@ -16,6 +17,7 @@ import ProofWidgets.Component.HtmlDisplay
 
 import Lean.Parser.Term
 open Lean Elab Command Veil
+
 
 
 namespace Lean
@@ -63,34 +65,6 @@ def Veil.Module.typeIdents [Monad m] [MonadQuotation m] [MonadError m] (mod : Ve
   return ids.filter pred
 
 
-/-- Given name of instance like `Ord`, return all the instance binders for all the types. -/
-def Veil.Module.instBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module) (instName : Name)
-  : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  let instNamePostfix := match instName with
-    | ``Ord       => "_ord"
-    | ``FinEnum   => "_fin_enum"
-    | ``Hashable  => "_hash"
-    | ``ToJson    => "_to_json"
-    | _ => "_anonymous_inst"
-  let ids : Array Ident ← mod.sortIdents
-  ids.mapM (fun t : Ident =>
-    let name' := t.getId.appendAfter instNamePostfix
-    do `(bracketedBinder| [$(mkIdent name') : $(mkIdent instName) $t]) )
-
-
-/-- Generate propCmp (e.g., `transCmp`, `LawfulEqCmp`) binder for a given type.
-[Std.LawfulEqCmp (Ord.compare (self := inferInstanceAs (Ord states)))]
--/
-def Veil.propCmpBinder [Monad m] [MonadQuotation m] [MonadError m] (propName : Name) (sortIdent : Ident)
-  : m (TSyntax `Lean.Parser.Term.bracketedBinder) := do
-  let instNamePostfix := match propName with
-    | ``Std.TransCmp     => "_trans_cmp"
-    | ``Std.LawfulEqCmp   => "_lawful_cmp"
-    | _ => "_anonymous_prop_cmp"
-    let name' := sortIdent.getId.appendAfter instNamePostfix
-  `(bracketedBinder| [$(mkIdent name') : $(mkIdent propName) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $sortIdent) ))])
-
-
 /-- Different from `Module.getStateBinders`, which used to collect Codomain and Domain.
 * `res` is the `Domain`, while `base` is the `Codomain`/type of return value.
 * For individual, base is always `#[]`.
@@ -113,32 +87,43 @@ def Veil.Module.collectVeilVarsBinders [Monad m] [MonadQuotation m] [MonadError 
     let b ← p.binder
     pure <| acc.insert p.name b
 
-
-def lookupBindersWithSuffix [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module) (suf? : Option String) (errHead : String)
-  : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  let typeIdents : Array (TSyntax `ident) ← mod.sortIdents
-  let varsBinders ← mod.collectVeilVarsBinders
-  typeIdents.mapM fun t : (TSyntax `ident) => do
-    let base := t.getId
-    let key  := match suf? with
-                | none      => base
-                | some suf  => base.appendAfter suf
-    match varsBinders.get? key with
-    | some b => pure b
-    | none   => throwError m!"{errHead} for type {t}"
-
-
 def Veil.Module.typeExplicitBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module)
   : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
-  lookupBindersWithSuffix mod none "No type binder found"
+  collectBinders mod { errPrefix := "No type binder found" }
 
 def Veil.Module.typeDecEqBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module)
-: m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
-  lookupBindersWithSuffix mod (some "_dec_eq") "No DecidableEq binder found"
+  : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
+  collectBinders mod { suffix := some "_dec_eq", errPrefix := "No DecidableEq binder found" }
 
 def Veil.Module.typeInhabitedBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module)
   : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
-  lookupBindersWithSuffix mod (some "_inhabited") "No Inhabited binder found"
+  collectBinders mod { suffix := some "_inhabited", errPrefix := "No Inhabited binder found" }
+
+/-- Collect binders according to BinderSpec specifications. -/
+def Veil.Module.collectBindersFromSpecs (mod : Veil.Module) (specs : Array BinderSpec)
+    : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let binderGroups ← specs.mapM fun (spec : BinderSpec) =>
+    match spec with
+    | .typeExplicit => mod.typeExplicitBinders
+    | .decEq => mod.typeDecEqBinders
+    | .inhabited => mod.typeInhabitedBinders
+    | .inst className => mod.instBinders className
+  pure $ concatArrays binderGroups
+
+/-- Collect propCmp binders (LawfulEqCmp and TransCmp) for all sort identifiers. -/
+def Veil.Module.collectPropCmpBinders (mod : Veil.Module)
+    : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let sortIdents ← mod.sortIdents
+  let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
+  let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
+  pure $ lawfulInsts ++ transInsts
+
+/-- Collect binders from specs plus propCmp binders. -/
+def Veil.Module.collectBindersWithPropCmp (mod : Veil.Module) (specs : Array BinderSpec)
+    : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let basicBinders ← mod.collectBindersFromSpecs specs
+  let propCmpBinders ← mod.collectPropCmpBinders
+  pure $ basicBinders ++ propCmpBinders
 
 
 
@@ -149,47 +134,42 @@ syntax (name := abbrevFieldConcreteType) "specify_FieldConcreteType" : command
 How to assembly `match...with` syntax
 https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/.E2.9C.94.20Optional.20expected.20type.20in.20.60elab_rules.60/near/425853362
 -/
+/-- Generate the concrete type for a field based on its kind. -/
+def fieldKindToType (domainTerm codomainTerm : TSyntax `term) (kind : StateComponentKind)
+  : CommandElabM (TSyntax `term) := do
+  let mapKeyTerm ← `(term| ($(mkIdent ``Veil.IteratedProd') <| $domainTerm))
+  match kind with
+  | .individual => pure codomainTerm
+  | .relation => `(term| $(mkIdent ``Std.TreeSet) $mapKeyTerm)
+  | .function => `(term| $(mkIdent ``Veil.TotalTreeMap) $mapKeyTerm $codomainTerm)
+  | .module => throwError "Module kind is not supported in FieldConcreteType"
+
+/-- Generate a match case for FieldConcreteType definition. -/
 def fieldsToMatchType (mod : Veil.Module) (fieldName : Name) (kind : StateComponentKind)
   : CommandElabM (TSyntax `Lean.Parser.Term.matchAltExpr) := do
   let caseIdent := mkIdent <| Name.append `State.Label fieldName
-  let sortIdents ← mod.sortIdents
-  let domainTerm : TSyntax `term ←
-    `(term| ($(mkIdent `State.Label.toDomain) $sortIdents*) $caseIdent:ident)
-  let codomainTerm : TSyntax `term ←
-    `(term| ($(mkIdent `State.Label.toCodomain) $sortIdents*) $caseIdent:ident)
-  let mapKeyTerm : TSyntax `term ←
-    `(term| ($(mkIdent ``Veil.IteratedProd') <| $domainTerm))
+  let terms ← mkFieldTerms mod caseIdent
+  let caseBody ← fieldKindToType terms.domainTerm terms.codomainTerm kind
+  `(Lean.Parser.Term.matchAltExpr| | $caseIdent:ident => $caseBody:term)
 
-  let caseBody ←
-    match kind with
-    | .individual => pure codomainTerm
-    | .relation =>
-        `(term| $(mkIdent ``Std.TreeSet) $mapKeyTerm)
-    | .function =>
-        `(term| $(mkIdent ``Veil.TotalTreeMap) $mapKeyTerm $codomainTerm)
-    | .module =>
-        throwError "Module kind is not supported in FieldConcreteType"
 
-  `(Lean.Parser.Term.matchAltExpr|
-    | $caseIdent:ident =>
-      $caseBody:term)
-
+/-- Generate match cases for all fields of a given kind. -/
+private def mkMatchCasesForKind (mod : Veil.Module) (kind : StateComponentKind)
+    : CommandElabM (Array (TSyntax `Lean.Parser.Term.matchAltExpr)) := do
+  let names ← mod.fieldNames kind
+  names.mapM fun name => fieldsToMatchType mod name kind
 
 @[command_elab abbrevFieldConcreteType]
-def specifyFieldConcreteType : CommandElab := fun stx => do
+def specifyFieldConcreteType : CommandElab := fun _stx => do
   let mod ← getCurrentModule
   let typeBinders ← mod.typeExplicitBinders
   let ordInst ← mod.instBinders ``Ord
   let labelBinder ← `(bracketedBinder| ($(mkIdent `f) : $(mkIdent `State.Label)))
   let allBinders := typeBinders ++ ordInst ++ [labelBinder]
 
-  let casesForKind (kind : StateComponentKind) := do
-    let names ← mod.fieldNames kind
-    names.mapM fun name => fieldsToMatchType mod name kind
-
-  let relCases ← casesForKind .relation
-  let funCases ← casesForKind .function
-  let indivCases ← casesForKind .individual
+  let indivCases ← mkMatchCasesForKind mod .individual
+  let relCases ← mkMatchCasesForKind mod .relation
+  let funCases ← mkMatchCasesForKind mod .function
 
   let fieldConcreteTypeCmd : TSyntax `command ←
     `(command|
@@ -200,114 +180,89 @@ def specifyFieldConcreteType : CommandElab := fun stx => do
               $relCases:matchAlt*
               $funCases:matchAlt*
     )
-  trace[veil.debug] s!"specify_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic fieldConcreteTypeCmd}"
+  trace[veil.debug] s!"specify_FieldConcreteType : {← liftTermElabM <| Lean.PrettyPrinter.formatTactic fieldConcreteTypeCmd}"
   elabVeilCommand fieldConcreteTypeCmd
 
 
-
-syntax (name := derivingBEqFieldConcreteTypeCmd) "deriving_BEq_FieldConcreteType" : command
-
-private def concatArrays {α} (xs : Array (Array α)) : Array α :=
-  xs.foldl (init := #[]) fun acc arr => acc ++ arr
-
-private def mkFieldConcreteTypeInstance
-    (mod : Veil.Module)
-    (fieldLabelName instName instClass : Name)
-    (extraBinderFns :
-      Array (Veil.Module → CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder))))
-    (dsimpTerms : Array (TSyntax `ident))
-    : CommandElabM (TSyntax `command) := do
-  let typeBinders ← mod.typeExplicitBinders
-  let extraBinderGroups ← extraBinderFns.mapM fun f => f mod
-  let extraBinders := concatArrays extraBinderGroups
-  let allBinders := typeBinders ++ extraBinders
-  let instTargetTy ←
-      `(term |
-        ($(mkIdent instClass) ($(mkIdent `FieldConcreteType):ident $(← mod.sortIdents)* $(mkIdent fieldLabelName))))
-  `(command |
-    instance $(mkIdent instName):ident
-      $[$allBinders]* : $instTargetTy := by
-          dsimp only [$[$dsimpTerms:ident],*]
-          repeat' (first | infer_instance | constructor)
-  )
-
 private def mkFieldRepTerms (mod : Veil.Module) (fIdent : TSyntax `ident)
   : CommandElabM (Array (TSyntax `ident) × TSyntax `term × TSyntax `term × TSyntax `term) := do
+  let terms ← mkFieldTerms mod fIdent
+  pure (terms.sortIdents, terms.domainTerm, terms.codomainTerm, terms.fieldConcreteTerm)
+
+/-- Common dsimp terms for FieldRepresentation instances -/
+private def fieldRepDSimpTerms : Array Ident := #[
+  mkIdent `FieldConcreteType,
+  mkIdent `State.Label.toDomain,
+  mkIdent `State.Label.toCodomain
+]
+
+/-- Generate a field representation instance with cases + first + exact alternatives pattern. -/
+private def mkFieldRepInstWithAlternatives
+    (fIdent : TSyntax `ident)
+    (instName className : Name)
+    (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
+    (domainTerm codomainTerm fieldConcreteTerm : TSyntax `term)
+    (extraTypeArgs : Array (TSyntax `term))
+    (dsimpTerms : Array Ident)
+    (exactAlternatives : Array (TSyntax `term))
+    : CommandElabM (TSyntax `command) := do
+  -- Build the instance type
+  let classIdent := mkIdent className
+  let mut typeSyntax ← `(($classIdent ($domainTerm) ($codomainTerm) ($fieldConcreteTerm)))
+  for extraArg in extraTypeArgs do
+    typeSyntax ← `($typeSyntax ($extraArg))
+
+  `(command |
+    instance $(mkIdent instName):ident $[$binders]*
+    ($fIdent : $(mkIdent `State.Label):ident)
+    : $typeSyntax :=
+    by
+      cases $fIdent:ident <;>
+      first
+      | (dsimp only [$[$dsimpTerms:ident],*]; infer_instance)
+      $[ | (exact $exactAlternatives) ]*
+  )
+
+/-- Helper to derive a single instance for a field. -/
+private def deriveFieldInstance (mod : Veil.Module) (fieldName : Name) (stateLabelName : Name) (sortIdents : Array (TSyntax `ident)) (className : Name) (instNamePrefix : String) (binderSpec : Array BinderSpec) (useFieldNameForInst : Bool := true) : CommandElabM (TSyntax `command) := do
+  let binders ← mod.collectBindersFromSpecs binderSpec
+  let instBaseName := if useFieldNameForInst then fieldName else stateLabelName
+  mkSimpleFieldConcreteTypeInstance {
+    instName := instBaseName.toInstName instNamePrefix
+    className := className
+    binders := binders
+    sortIdents := sortIdents
+    fieldLabelName := stateLabelName
+  }
+
+/-- Derive BEq and Hashable instances for a single label field. -/
+def deriveBEqHashableInstsForLabelField (mod : Veil.Module) (fieldName : Name) : CommandElabM Unit := do
+  let stateLabelName := Name.append `State.Label fieldName
   let sortIdents ← mod.sortIdents
-  let domainTerm : TSyntax `term ←
-    `(term|
-      ($(mkIdent `State.Label.toDomain):ident $sortIdents*) $fIdent:ident)
-  let codomainTerm : TSyntax `term ←
-    `(term|
-      ($(mkIdent `State.Label.toCodomain):ident $sortIdents*) $fIdent:ident)
-  let fieldConcreteTerm : TSyntax `term ←
-    `(term|
-      ($(mkIdent `FieldConcreteType):ident $sortIdents*) $fIdent:ident)
-  pure (sortIdents, domainTerm, codomainTerm, fieldConcreteTerm)
 
-def deriveBEqInstForLabelField (mod : Veil.Module) (fieldName : Name)
-  : CommandElabM (TSyntax `command) := do
-  let stateLabelName := Name.append `State.Label fieldName
-  mkFieldConcreteTypeInstance mod stateLabelName
-    (fieldName.toInstName "instBEqForFieldConcreteType_") ``BEq
-    #[
-      fun mod => mod.typeDecEqBinders,
-      fun mod => mod.instBinders ``Ord
-    ]
-    #[
-      mkIdent `FieldConcreteType,
-      mkIdent ``Veil.IteratedProd',
-      mkIdent `State.Label.toDomain,
-      mkIdent `State.Label.toCodomain
-    ]
+  -- Derive BEq instance
+  let beqInst ← deriveFieldInstance mod fieldName stateLabelName sortIdents
+    ``BEq "instBEqForFieldConcreteType_" BinderSpec.forBEq
+  trace[veil.debug] s!"deriving_BEq_FieldConcreteType : {← liftTermElabM <| Lean.PrettyPrinter.formatTactic beqInst}"
+  elabVeilCommand beqInst
 
-@[command_elab derivingBEqFieldConcreteTypeCmd]
-def deriveBEqInstForFieldConcreteType : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
-  let labelFields ← mod.stateFieldNames
-
-  for lfIdent in labelFields do
-    let lfc ← deriveBEqInstForLabelField mod lfIdent
-    trace[veil.debug] s!"deriving_BEq_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lfc}"
-    elabVeilCommand lfc
+  -- Derive Hashable instance
+  let hashableInst ← deriveFieldInstance mod fieldName stateLabelName sortIdents
+    ``Hashable "instHashableForFieldConcreteType_" BinderSpec.forHashable (useFieldNameForInst := false)
+  trace[veil.debug] s!"deriving_Hashable_FieldConcreteType : {← liftTermElabM <| Lean.PrettyPrinter.formatTactic hashableInst}"
+  elabVeilCommand hashableInst
 
 
 
+/-- Unified command to derive both BEq and Hashable instances for FieldConcreteType. -/
+syntax (name := derivingBEqHashableFieldConcreteTypeCmd) "deriving_BEq_Hashable_FieldConcreteType" : command
 
-
-def deriveHashableInstForLabelField (mod : Veil.Module) (fieldName : Name) : CommandElabM (TSyntax `command) := do
-  let stateLabelName := Name.append `State.Label fieldName
-  /- Deriving `Hashable` instance for each field (FieldConcreteType ... f) will
-  finally reduce to giving an instance for `TreeSet α`, `TotalTreeMap α β`, e.g.,
-  `⊢ Hashable (TreeSet (process × states) compare)`. Therefore, we should provide
-  `Hashable` and `BEq` instances for used type parameters. We provide `DecideableEq`
-  Here rather than `BEq`.
-
-  This is an ad-hoc implementation, as sometimes we do not require that much instances.
-   -/
-  mkFieldConcreteTypeInstance mod stateLabelName
-    (stateLabelName.toInstName "instHashableForFieldConcreteType_") ``Hashable
-    #[
-      fun mod => mod.typeDecEqBinders,
-      fun mod => mod.instBinders ``Ord,
-      fun mod => mod.instBinders ``Hashable
-    ]
-    #[
-      mkIdent `FieldConcreteType,
-      mkIdent ``IteratedProd',
-      mkIdent `State.Label.toDomain,
-      mkIdent `State.Label.toCodomain
-    ]
-
-syntax (name := derivingHashableFieldConcreteTypeCmd) "deriving_Hashable_FieldConcreteType" : command
-@[command_elab derivingHashableFieldConcreteTypeCmd]
-def deriveHashableInstForFieldConcreteType : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+@[command_elab derivingBEqHashableFieldConcreteTypeCmd]
+def deriveBEqHashableInstForFieldConcreteType : CommandElab := fun _stx => do
+  let mod ← getCurrentModule
   let labelFields ← mod.stateFieldNames
   for lfIdent in labelFields do
-    let lfc ← deriveHashableInstForLabelField mod lfIdent
-    trace[veil.debug] s!"deriving_Hashable_FieldConcreteType : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lfc}"
-    elabVeilCommand lfc
+    deriveBEqHashableInstsForLabelField mod lfIdent
 
 
 def mkProdFromArray (xs : Array (TSyntax `term)) : TermElabM (TSyntax `term) := do
@@ -318,141 +273,81 @@ def mkProdFromArray (xs : Array (TSyntax `term)) : TermElabM (TSyntax `term) := 
 
 syntax (name := deriveRepInstForFieldRepr) "deriving_rep_FieldRepresentation" : command
 
-def deriveRepInstForFieldReprentation (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
+/-- Derive both FieldRepresentation and LawfulFieldRepresentation instances together.
+This avoids duplication since they share common setup and LawfulFieldRepresentation depends on FieldRepresentation. -/
+def deriveRepAndLawfulInstsForFieldRep (mod : Veil.Module) : CommandElabM Unit := do
   /- Make sure `deriveFinEnumInstForToDomain` has been run before this command. -/
-  let typeBinders ← mod.typeExplicitBinders
-  let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum
-  let ordInsts ← mod.instBinders ``Ord
+  let fIdent := mkIdent `f
+  let (repSorts, domainTerm, codomainTerm, fieldConcreteTerm) ← mkFieldRepTerms mod fIdent
 
-  /- It seems that we do not need `propCmp` instances for each sort ident.
-  We only need `transCmp` for the prod type of `Domain` for `.function`. -/
-  let mut binders := typeBinders ++ concatArrays #[finEnumInsts, ordInsts]
-
+  -- Derive FieldRepresentation instance
+  let mut repBinders ← mod.collectBindersFromSpecs #[.typeExplicit, .inst ``FinEnum, .inst ``Ord]
+  -- Add TransCmp for the prod type of Domain for `.function` fields
   let stateDomains ← mod.getStateDomains
   for (_, doms) in stateDomains do
     let productDomain ← mkProdFromArray doms |> liftTermElabM
     let transInst ← `(bracketedBinder| [$(mkIdent ``Std.TransCmp) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $productDomain) ))])
-    binders := binders.push transInst
+    repBinders := repBinders.push transInst
 
+  -- Build exact alternatives for FieldRepresentation
+  let repAlt1 ← `($(mkIdent ``instFinsetLikeAsFieldRep) $(mkIdent ``Veil.IteratedProd'.equiv) (($(mkIdent `instFinEnumForToDomain) $repSorts*) _))
+  let repAlt2 ← `($(mkIdent ``instTotalMapLikeAsFieldRep) $(mkIdent ``Veil.IteratedProd'.equiv) (($(mkIdent `instFinEnumForToDomain) $repSorts*) _))
+  let repInst ← mkFieldRepInstWithAlternatives fIdent
+    `instRepForFieldRepresentation ``FieldRepresentation
+    repBinders domainTerm codomainTerm fieldConcreteTerm
+    #[] fieldRepDSimpTerms #[repAlt1, repAlt2]
+  trace[veil.debug] s!"deriving_rep_fieldRepresentation : {← liftTermElabM <| Lean.PrettyPrinter.formatTactic repInst}"
+  elabVeilCommand repInst
 
-  let dsimpTerms : Array Ident := #[
-    mkIdent `FieldConcreteType,
-    mkIdent `State.Label.toDomain,
-    mkIdent `State.Label.toCodomain
-  ]
+  -- Derive LawfulFieldRepresentation instance
+  let lawfulBinders ← mod.collectBindersWithPropCmp BinderSpec.forLawful
+  -- Build the extra type argument: the FieldRepresentation instance
+  let repInstArg ← `(( ($(mkIdent `instRepForFieldRepresentation):ident $repSorts*) $fIdent ))
+  -- Build exact alternative for LawfulFieldRepresentation
+  let lawfulAlt ← `($(mkIdent ``Veil.instFinsetLikeLawfulFieldRep) $(mkIdent ``Veil.IteratedProd'.equiv) (($(mkIdent `instFinEnumForToDomain) $repSorts*) _))
+  let lawfulInst ← mkFieldRepInstWithAlternatives fIdent
+    `instLawfulFieldRepForFieldRepresenzrtation ``Veil.LawfulFieldRepresentation
+    lawfulBinders domainTerm codomainTerm fieldConcreteTerm
+    #[repInstArg] extendedDSimpTerms #[lawfulAlt]
 
-  let fIdent := mkIdent `f
-  let (repSorts, domainTerm, codomainTerm, fieldConcreteTerm) ← mkFieldRepTerms mod fIdent
-
-  return ←
-    `(command |
-      instance $(mkIdent `instRepForFieldRepresentation):ident $[$binders]*
-      ($fIdent : $(mkIdent `State.Label):ident)
-      : $(mkIdent ``FieldRepresentation) ($domainTerm) ($codomainTerm) ($fieldConcreteTerm) :=
-      by
-        cases $fIdent:ident <;>
-        first
-        | (dsimp only [$[$dsimpTerms:ident],*]; infer_instance)
-        | (exact $(mkIdent ``instFinsetLikeAsFieldRep) $(mkIdent ``Veil.IteratedProd'.equiv) (($(mkIdent `instFinEnumForToDomain) $repSorts*) _))
-        | (exact $(mkIdent ``instTotalMapLikeAsFieldRep) $(mkIdent ``Veil.IteratedProd'.equiv) (($(mkIdent `instFinEnumForToDomain) $repSorts*) _))
-    )
-
+  trace[veil.debug] s!"deriving_lawful_fieldRepresentation : {← liftTermElabM <| Lean.PrettyPrinter.formatTactic lawfulInst}"
+  elabVeilCommand lawfulInst
 
 @[command_elab deriveRepInstForFieldRepr]
-def deriveRepInstForFieldReprCmd : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
-  let instCmd ← deriveRepInstForFieldReprentation mod
-  trace[veil.debug] s!"deriving_rep_fieldRepresentation : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
-  elabVeilCommand instCmd
+def deriveRepInstForFieldReprCmd : CommandElab := fun _stx => do
+  let mod ← getCurrentModule
+  deriveRepAndLawfulInstsForFieldRep mod
 
 
-
-
-
-syntax (name := deriveLawfulInstForFieldRepr) "deriving_lawful_FieldRepresentation" : command
-
-def deriveLawfulInstForFieldRepresentation (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
-  /- Make sure `deriveFinEnumInstForToDomain` and `deriveRepInstForFieldReprentation` have been run before this command. -/
-  let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum
-  let ordInsts ← mod.instBinders ``Ord
-  let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
-  let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
-  let binders := concatArrays #[finEnumInsts, ordInsts, lawfulInsts, transInsts]
-
-
-  /- I do not know the reason compeletely now, but here we only need the `LawfulEqCmp` and `TransCmp` instances for the domain of `relation`.-/
-  let dsimpTerms : Array Ident := #[
-    mkIdent `FieldConcreteType,
-    mkIdent `State.Label.toDomain,
-    mkIdent `State.Label.toCodomain,
-    mkIdent `instRepForFieldRepresentation,
-    mkIdent ``Veil.IteratedProd',
-    mkIdent `id
-  ]
-  let fIdent := mkIdent `f
-  let (repSorts, domainTerm, codomainTerm, fieldConcreteTerm) ← mkFieldRepTerms mod fIdent
-  return ←
-    `(command |
-      instance $(mkIdent `instLawfulFieldRepForFieldRepresentation):ident $[$binders]*
-      ($fIdent : $(mkIdent `State.Label):ident)
-      : $(mkIdent ``Veil.LawfulFieldRepresentation) ($domainTerm)
-          ($codomainTerm)
-          ($fieldConcreteTerm)
-          ( ($(mkIdent `instRepForFieldRepresentation):ident $repSorts*) $fIdent ) :=
-      by
-        cases $fIdent:ident <;>
-        first
-        | (dsimp only [$[$dsimpTerms:ident],*]; infer_instance)
-        | (exact $(mkIdent ``Veil.instFinsetLikeLawfulFieldRep) $(mkIdent ``Veil.IteratedProd'.equiv) (($(mkIdent `instFinEnumForToDomain) $repSorts*) _))
-    )
-
-@[command_elab deriveLawfulInstForFieldRepr]
-def deriveLawfulInstForFieldReprCmd : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
-  let instCmd ← deriveLawfulInstForFieldRepresentation mod
-  trace[veil.debug] s!"deriving_lawful_fieldRepresentation : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
-  elabVeilCommand instCmd
-
+-- syntax (name := deriveLawfulInstForFieldRepr) "deriving_lawful_FieldRepresentation" : command
+-- @[command_elab deriveLawfulInstForFieldRepr]
+-- def deriveLawfulInstForFieldReprCmd : CommandElab := fun _stx => do
+--   let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+--   deriveRepAndLawfulInstsForFieldRep mod
 
 
 syntax (name := derivingInhabitedInst) "deriving_Inhabited_State" : command
 
 def deriveInhabitedInstForState (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
   let sortIdents ← mod.sortIdents
-  let typeBinders ← mod.typeExplicitBinders
-  let ordInsts ← mod.instBinders ``Ord
-  let finEnumInst ← mod.instBinders ``FinEnum
-  let inhabitedInsts ← mod.typeInhabitedBinders
-  let decideableEqInsts ← mod.typeDecEqBinders
-  let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
-  let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
-
   /- It's a little bit complex to derive the required minimal instances for this type. -/
-  let binders := typeBinders ++ ordInsts ++ inhabitedInsts ++ decideableEqInsts ++ finEnumInst ++ lawfulInsts ++ transInsts
+  let binders ← mod.collectBindersWithPropCmp BinderSpec.forInhabitedState
 
   let stateIdent := mkIdent `State
   let fieldConcreteTypeIdent := mkIdent `FieldConcreteType
-  let dsimpTerms : Array Ident := #[
-    mkIdent `FieldConcreteType,
-    mkIdent `State.Label.toDomain,
-    mkIdent `State.Label.toCodomain,
-    mkIdent ``Veil.IteratedProd'
-  ]
   return ←
     `(command |
       instance $(mkIdent `instInhabitedFieldConcreteTypeForState):ident $[$binders]*
       : $(mkIdent ``Inhabited) ( $stateIdent ( $fieldConcreteTypeIdent:ident $(sortIdents)* ) ) :=
       by
         constructor; constructor <;>
-        dsimp only [$[$dsimpTerms:ident],*] <;>
+        dsimp only [$[$commonDSimpTerms:ident],*] <;>
         try exact $(mkIdent ``default)
     )
 
 @[command_elab derivingInhabitedInst]
 def deriveInhabitedInstCmd : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+  let mod ← getCurrentModule
   let instCmd ← deriveInhabitedInstForState mod
   trace[veil.debug] s!"deriving_inhabited_state : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
   elabVeilCommand instCmd
@@ -461,60 +356,41 @@ def deriveInhabitedInstCmd : CommandElab := fun stx => do
 
 syntax (name := genNextActCommand) "gen_NextAct" : command
 
-def genNextAct' (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
-  let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum
-  let hashInsts ← mod.instBinders ``Hashable
-  let ordInsts ← mod.instBinders ``Ord
-  let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
-  let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
-  let mut binders := finEnumInsts ++ hashInsts ++ ordInsts ++ lawfulInsts ++ transInsts
-
-  return ← `(command |
+/-- Generate both NextAct specialization and executable list commands. -/
+def genNextActCommands (mod : Veil.Module) : CommandElabM Unit := do
+  let binders ← mod.collectNextActBinders
+  -- Generate NextAct specialization
+  let nextActCmd ← `(command |
     attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $(mkIdent `instFinEnumForToDomain) in
     #specialize_nextact with $(mkIdent `FieldConcreteType)
     injection_begin
       $[$binders]*
     injection_end => $(mkIdent `NextAct'))
+  trace[veil.debug] "gen_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic nextActCmd}"
+  elabVeilCommand nextActCmd
 
-
-@[command_elab genNextActCommand]
-def elabGenNextAct : CommandElab := fun stx => do
-  let mod ← getCurrentModule
-  let instCmd ← genNextAct' mod
-  trace[veil.debug] "{← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
-  elabVeilCommand instCmd
-
-
-
-syntax (name := genExecutableNextAct) "gen_executable_NextAct" : command
-
-def genExecutableList (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
-  let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum
-  let hashInsts ← mod.instBinders ``Hashable
-  let ordInsts ← mod.instBinders ``Ord
-  let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
-  let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
-  let mut binders := finEnumInsts ++ hashInsts ++ ordInsts ++ lawfulInsts ++ transInsts
-
-
-  return ← `(command |
+  -- Generate executable list
+  let execListCmd ← `(command |
     #gen_executable_list! log_entry_being $(mkIdent ``Std.Format)
     targeting $(mkIdent `NextAct')
     injection_begin
       $[$binders]*
     injection_end)
+  trace[veil.debug] "gen_executable_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic execListCmd}"
+  elabVeilCommand execListCmd
 
-@[command_elab genExecutableNextAct]
-def elabGenExecutableNextAct : CommandElab := fun stx => do
+@[command_elab genNextActCommand]
+def elabGenNextAct : CommandElab := fun stx => do
   let mod ← getCurrentModule
-  let instCmd ← genExecutableList mod
-  trace[veil.debug] "{← liftTermElabM <|Lean.PrettyPrinter.formatTactic instCmd}"
-  elabVeilCommand instCmd
+  genNextActCommands mod
 
 
+-- syntax (name := genExecutableNextAct) "gen_executable_NextAct" : command
 
+-- @[command_elab genExecutableNextAct]
+-- def elabGenExecutableNextAct : CommandElab := fun stx => do
+--   let mod ← getCurrentModule
+--   genNextActCommands mod
 
 /-- Code from Qiyuan. Generate inductive type and instances for `enum` typeclass. -/
 def deriveEnumInstance (name : Name) : CommandElabM Unit := do
@@ -567,7 +443,6 @@ def deriveEnumOrdHashable (name : Name) : CommandElabM Unit := do
     instance $(mkIdent <| Name.appendBefore name "instHashable"):ident : $(mkIdent ``Hashable) $(mkIdent name) where
       $(mkIdent `hash):ident $(mkIdent `s):ident :=
         $(mkIdent ``hash) $(mkIdent `s.toCtorIdx))
-
   trace[veil.debug] "hashableInst: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic hashableInst}"
   elabVeilCommand hashableInst
 
@@ -582,7 +457,6 @@ def deriveEnumPropCmpInsts (name : Name) : CommandElabM Unit := do
       unfold $(mkIdent `compare) $(mkIdent `inferInstanceAs) $(mkIdent <| Name.appendBefore name "instOrd")
       intro $(mkIdent `a) $(mkIdent `b); cases $(mkIdent `a):ident <;>
         cases $(mkIdent `b):ident <;> rfl)
-  trace[veil.debug] "orientedCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic orientedCmp}"
   elabVeilCommand orientedCmp
 
   let transCmp ← `(command|
@@ -590,7 +464,6 @@ def deriveEnumPropCmpInsts (name : Name) : CommandElabM Unit := do
       apply $(mkIdent ``Std.TransCmp.mk)
       unfold $(mkIdent `compare) $(mkIdent `inferInstanceAs) $(mkIdent <| Name.appendBefore name "instOrd")
       decide)
-  trace[veil.debug] "transCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic transCmp}"
   elabVeilCommand transCmp
 
   let lawfulCmp ← `(command|
@@ -599,9 +472,7 @@ def deriveEnumPropCmpInsts (name : Name) : CommandElabM Unit := do
       unfold $(mkIdent `compare) $(mkIdent `inferInstanceAs) $(mkIdent <| Name.appendBefore name "instOrd")
       intro $(mkIdent `a) $(mkIdent `b); cases $(mkIdent `a):ident <;>
         cases $(mkIdent `b):ident <;> simp)
-  trace[veil.debug] "lawfulCmp: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic lawfulCmp}"
   elabVeilCommand lawfulCmp
-
 
 
 syntax (name := deriveEnumInsts) "deriving_Enum_Insts" : command
@@ -626,26 +497,17 @@ elab "deriving_propCmp_for_enum" name:ident : command => do
 
 
 
-
-
 def deriveReprInstForFieldConcreteType (mod : Veil.Module) (stateLabelName : Name) : CommandElabM (TSyntax `command) := do
-  let ordInst ← mod.instBinders ``Ord
-  let reprInst ← mod.instBinders ``Repr
-  let instBinders := ordInst ++ reprInst
-  let instTargetTy ←
-      `(term | ($(mkIdent ``Repr) ($(mkIdent `FieldConcreteType):ident $(← mod.sortIdents)* $(mkIdent stateLabelName))))
-  let dsimpTerms : Array Ident := #[
-    mkIdent `FieldConcreteType,
-    mkIdent ``Veil.IteratedProd',
-    mkIdent `State.Label.toDomain,
-    mkIdent `State.Label.toCodomain
-  ]
-  return ← `(command |
-    instance $(mkIdent $ (Name.appendBefore stateLabelName "instReprForFieldConcreteType_")):ident
-      $[$instBinders]* : $instTargetTy := by
-          dsimp only [$[$dsimpTerms:ident],*]
-          repeat' (first | infer_instance | constructor)
-  )
+  let sortIdents ← mod.sortIdents
+  let binders ← mod.collectBindersFromSpecs BinderSpec.forRepr
+  mkSimpleFieldConcreteTypeInstance {
+    instName := Name.appendBefore stateLabelName "instReprForFieldConcreteType_"
+    className := ``Repr
+    binders := binders
+    sortIdents := sortIdents
+    fieldLabelName := stateLabelName
+  }
+
 syntax (name := derivingReprFieldConcreteTypeCmd) "deriving_Repr_FieldConcreteType" : command
 @[command_elab derivingReprFieldConcreteTypeCmd]
 def deriveReprInstForFieldConcreteTypeCmd : CommandElab := fun stx => do
@@ -655,9 +517,6 @@ def deriveReprInstForFieldConcreteTypeCmd : CommandElab := fun stx => do
     let lfName := Name.append `State.Label lfIdent
     let lfc ← deriveReprInstForFieldConcreteType mod lfName
     elabVeilCommand lfc
-
-
-
 
 
 
@@ -809,46 +668,13 @@ def GetFieldsNameFieldsName : CommandElab := fun stx => do
       let stx ← `(def $(mkIdent `NameT):ident $[$binders]* := $dom:term)
       trace[veil.debug] s!"Complex Type: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}\n"
 
-    for (name, res) in (← mod.getStateDomains) do
-      trace[veil.debug] s!"State Domain Field: {name}, Domains: {res}"
-
-
+    -- for (name, res) in (← mod.getStateDomains) do
+    --   trace[veil.debug] s!"State Domain Field: {name}, Domains: {res}"
   deriveFinEnumInstForToDomain mod
   deriveFinEnumInstForToDomain' mod
   deriveOrdInstForDomain mod (toDomain := true)
   deriveToJsonInstDomain mod (toDomain := true)
   deriveToJsonInstDomain mod (toDomain := false)
-
-
-
-syntax (name := derivingDecInsts) "deriving_Decidable_Props" : command
-
-
-/- `mod.mkVeilTerm` was `private def` before, which is in `Veil.Frontend.DSL.Module.Util`. Here I made it accessible, removing `private`. -/
-/- Derive `Decidable` instanecs for invariants should be  -/
-@[command_elab derivingDecInsts]
-def deriveDecidableForProps : CommandElab := fun stx => do
-  match stx with
-  | `(command| deriving_Decidable_Props) => do
-    let mut mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
-    let props := mod.invariants ++ mod.terminations
-    for base in props do
-      let sortIdents ← mod.sortIdents
-      let explicitBinder := #[
-            ← `(bracketedBinder| ($(mkIdent `rd) : $(mkIdent `ρ))),
-            ← `(bracketedBinder| ($(mkIdent `st) : $(mkIdent `σ))) ]
-      let finEnumInst ← sortIdents.mapM (fun t => do
-          `(bracketedBinder| [$(mkIdent ``FinEnum) $t])
-      )
-      let binder := explicitBinder ++ finEnumInst
-      let stx ← `(
-        instance $[$binder]* : $(mkIdent ``Decidable) ($(mkIdent base.name) $(mkIdent `rd) $(mkIdent `st)) := by
-          dsimp [$(mkIdent base.name):ident];
-          infer_instance
-      )
-      elabVeilCommand stx
-      trace[veil.debug] s!"Elaborated invariant definition: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
-  | _ => throwUnsupportedSyntax
 
 
 
@@ -873,8 +699,6 @@ def deriveDecidablePropsForConcreteState : CommandElab := fun stx => do
       elabVeilCommand stx
       trace[veil.debug] s!"Elaborated invariant definition for Concrete State: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
   | _ => throwUnsupportedSyntax
-
-
 
 
 syntax (name := concretizeTypeCmd) "#Concretize" term,* : command
@@ -915,7 +739,6 @@ def getLabelListWithoutFieldTy : CommandElabM Unit := do
 
 elab "#Concretize" args:term,* : command => do
     let termArray := args.getElems
-
     let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
     /- The `State`, `Theory` and `Label` can only be used after `#gen_spec` run -/
     if !Module.isSpecFinalized mod then
@@ -935,14 +758,13 @@ elab "#Concretize" args:term,* : command => do
       `(command| @[reducible] def $(mkIdent labelConcreteName) := $assembledLabel)
 
     let fieldConcreteInstCmd ← do
-      let assembledFieldConcreteInst ←`(term | $(mkIdent FieldConcreteTypeName) $termArray*)
+      let assembledFieldConcreteInst ←`(term| $(mkIdent FieldConcreteTypeName) $termArray*)
       `(command| @[reducible] def $(mkIdent `FieldConcreteTypeInst) := $assembledFieldConcreteInst)
 
     let stateCmd ← do
       let assembledState ←`(term| @$(mkIdent stateName))
-      let fieldConcreteInstTerm ← `(term | $(mkIdent `FieldConcreteType) $termArray*)
+      let fieldConcreteInstTerm ← `(term| $(mkIdent `FieldConcreteType) $termArray*)
       `(command| @[reducible] def $(mkIdent stateConcreteName) := ($assembledState) $fieldConcreteInstTerm)
-
     elabVeilCommand theoryCmd
     elabVeilCommand labelCmd
     elabVeilCommand fieldConcreteInstCmd
@@ -983,13 +805,10 @@ elab "#Concretize_without_FieldTy" args:term,* : command => do
       let assembledTheory ←`(term| @$(mkIdent theoryName) $termArray*)
       trace[veil.debug] s!"TheoryConcrete assembledTheory: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledTheory}"
       `(command| @[reducible] def $(mkIdent theoryConcreteName) := $assembledTheory)
-
     let labelCmd ← do
       let assembledLabel ←`(term| @$(mkIdent labelTypeName) $termArray*)
       trace[veil.debug] s!"LabelConcrete assembledLabel: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic assembledLabel}"
       `(command| @[reducible] def $(mkIdent labelConcreteName) := $assembledLabel)
-
-
     let stateCmd ← do
       let assembledState ←`(term| @$(mkIdent stateName) $termArray*)
       `(command| @[reducible] def $(mkIdent stateConcreteName) := $assembledState)
@@ -1129,13 +948,12 @@ macro_rules
       -- deriving instance $(mkIdent ``Inhabited) for $(mkIdent `Theory)
       deriving_FinOrdToJson_Domain
       specify_FieldConcreteType
-      deriving_BEq_FieldConcreteType
-      deriving_Hashable_FieldConcreteType
+      deriving_BEq_Hashable_FieldConcreteType
       deriving_rep_FieldRepresentation
-      deriving_lawful_FieldRepresentation
+      -- deriving_lawful_FieldRepresentation
       deriving_Inhabited_State
       gen_NextAct
-      gen_executable_NextAct
+      -- gen_executable_NextAct
       deriving_Enum_Insts
       )
 
@@ -1156,17 +974,23 @@ elab "#set_theory" theoryConcrete:term : command => do
     `(command| def $(mkIdent `concreteTheory) : $(mkIdent `TheoryConcrete) := $theoryConcrete)
   elabVeilCommand setTheoryCmd
 
+
 syntax (name := runModelChecker) "#run_model_checker" term : command
-
-
 elab "#run_checker" propTerm:term : command => do
   let prop ← `(term| fun $(mkIdent `rd) $(mkIdent `st) => $propTerm $(mkIdent `rd) $(mkIdent `st))
-  let terminate ← `(term| fun $(mkIdent `rd) $(mkIdent `st) => true)
-  let runfuncName := mkIdent `runModelCheckerx
+
+  let mod ← getCurrentModule
+  let terminate ←
+    if mod.terminations.size == 0 then
+      `(term| fun $(mkIdent `rd) $(mkIdent `st) => mkIdent ``true)
+    else
+      let terminateName := mod.terminations[0]!.name |> mkIdent
+      `(term| fun $(mkIdent `rd) $(mkIdent `st) => $terminateName $(mkIdent `rd) $(mkIdent `st))
+
   let runModelCheckerCmd ← liftTermElabM do
     `(command|
-      def $(mkIdent `modelCheckerResult) := ($runfuncName $(mkIdent `initVeilMultiExecM) $(mkIdent `nextVeilMultiExecM) $(mkIdent `labelList) $prop $terminate $(mkIdent `concreteTheory) $(mkIdent ``hash)).snd
-    )
+      def $(mkIdent `modelCheckerResult) := ($(mkIdent `runModelCheckerx) $(mkIdent `initVeilMultiExecM) $(mkIdent `nextVeilMultiExecM) $(mkIdent `labelList) $prop $terminate $(mkIdent `concreteTheory) $(mkIdent ``hash)).snd
+)
   elabVeilCommand runModelCheckerCmd
 
   let statesJsonCmd ← liftTermElabM do

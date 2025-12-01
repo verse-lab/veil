@@ -56,7 +56,7 @@ action BigToSmall {
 
 invariant [typeOK] small≤ 3 ∧ big ≤ 5
 invariant [not_solved] big ≠ 4
-
+termination big > 0
 #gen_spec
 
 -- #time #check_invariants

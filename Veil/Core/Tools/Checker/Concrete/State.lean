@@ -123,16 +123,14 @@ def recoverTrace [Hashable σᵣ] [Repr κ]
   if traces.isEmpty then
     return { start := default, steps := [] }
 
+  /- Actually, we can assert that there is only one trace returned by `collectTrace.`-/
   let trace := traces[0]!
-
-  -- Helper: find state by hash from valid successors
   let findByHash (succs : List (Option σᵣ)) (targetHash : UInt64) (fallback : σᵣ) : σᵣ :=
     succs.filterMap id |>.find? (fun s => hash s == targetHash) |>.getD fallback
 
   -- Recover initial state
   let initSuccs := extractValidStates initVeilMultiExecM rd default
   let start := findByHash initSuccs trace.start default
-
   -- Recover trace steps
   let mut curSt := start
   let mut steps : List (Step σᵣ κ) := []

@@ -1,5 +1,4 @@
 import Veil
-
 import Veil.Core.Tools.Checker.Concrete.Main
 
 veil module Rooms
@@ -136,7 +135,7 @@ invariant [current_key_registration]
 #time #check_invariants
 
 #gen_exec
-#finitizeTypes (Fin 2), Room, Guest, Position, Occupied
+#finitize_types (Fin 2), Room, Guest, Position, Occupied
 
 #print State
 
