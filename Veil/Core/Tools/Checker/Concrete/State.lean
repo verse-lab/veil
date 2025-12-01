@@ -15,12 +15,6 @@ variable {ℂ ℝ 𝔸: Type}
 variable {κ κᵣ ρ σᵣ α: Type}
 variable {ε σ: Type}
 
-
-def DivM.run (a : DivM α) : Option α :=
-  match a with
-  | .res x => .some x
-  | .div => .none
-
 /-- Extract the resulting state from an ExceptT-wrapped execution, if successful. -/
 def getStateFromExceptT (c : ExceptT ε DivM (α × σ)) : Option σ :=
   match c.run with

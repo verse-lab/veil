@@ -31,7 +31,7 @@ namespace Veil
 
 abbrev FullyQualifiedName := Name
 /-- Get the fully qualified name of an _existing_ definition. -/
-def getFullyQualifiedName [Monad m] [MonadResolveName m] [MonadEnv m] [MonadError m] (name : Name) : m FullyQualifiedName := do
+def getFullyQualifiedName [Monad m] [MonadResolveName m] [MonadEnv m] [MonadOptions m] [MonadLog m] [AddMessageContext m] [MonadError m] (name : Name) : m FullyQualifiedName := do
   resolveGlobalConstNoOverload (mkIdent name)
 
 /-- If `mode?` is `none`, the name is the `.do`-definition of the action, i.e.

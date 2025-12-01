@@ -6,6 +6,12 @@ namespace Veil.Verifier
 
 open Lean Elab Command Std
 
+-- FIXME: this should be in `EnvExtensions.lean`, but putting it there triggers
+-- the bug fixed in [#10217](https://github.com/leanprover/lean4/pull/10217).
+-- Placing it here as a workaround until the fix ships in a stable Lean.
+/-- Holds the state of the VCManager for the current file. -/
+initialize vcManager : Std.Mutex (VCManager VCMetadata SmtResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
+
 def sendNotification (notification : ManagerNotification SmtResult) : CommandElabM Unit := do
   let _ ← vcManagerCh.send notification
 

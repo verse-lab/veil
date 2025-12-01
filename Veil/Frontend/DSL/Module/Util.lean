@@ -546,7 +546,7 @@ private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (
   if deriveInstances then
     `(structure $(mkIdent name) $params* where
         $(mkIdent `mk):ident :: $[$fields]*
-      deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty))
+      deriving $(mkIdent ``Inhabited):ident, $(mkIdent ``Nonempty):ident)
   else
     `(structure $(mkIdent name) $params* where
       $(mkIdent `mk):ident :: $[$fields]*)
@@ -1149,9 +1149,9 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
     `(Command.ctor| | $(mkIdent a.name):ident $(← a.binders)* : $labelT ))
   let labelDef ←
     if ctors.isEmpty then
-      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Repr))
+      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Repr):ident)
     else
-      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited), $(mkIdent ``Nonempty), $(mkIdent ``Repr))
+      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited):ident, $(mkIdent ``Nonempty):ident, $(mkIdent ``Repr):ident)
   let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := actionNames, stx := labelDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (labelDef, mod)
