@@ -5,12 +5,14 @@ import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Util.Meta
 import Veil.Core.Tools.Verifier.Server
 import Veil.Frontend.DSL.Tactic
+-- FIXME: it really doesn't make sense to import this here
+import Veil.Core.UI.Verifier.Model
 
 open Lean Elab Term Command
 
 namespace Veil
 
-private def collectSmtOutputs (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (expectedName : Name) : CoreM (Array SmtOutput) := do
+private def collectSmtOutputs [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT (EIO Std.CloseableChannel.Error) m] (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (expectedName : Name) : m (Array SmtOutput) := do
   -- Calling `close` will throw an exception if the channel is already closed.
   -- We ignore it here because we want to continue with our logic.
   try let _ ← ch.close catch _ => pure ()
@@ -23,7 +25,7 @@ private def collectSmtOutputs (ch : Std.CloseableChannel ((Name × ℕ) × Smt.A
     outputs := outputs.push ((name, index), output)
   return outputs
 
-private def overallSmtResult (_name : Name) (outputs : Array SmtOutput) : CoreM (Option SmtResult) := do
+private def overallSmtResult [Monad m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m] (_name : Name) (outputs : Array SmtOutput) : m (Option SmtResult) := do
   let mut (errors, sat, unknown, unsat) := (#[], #[], #[], #[])
   for output in outputs do
     match output with
@@ -34,9 +36,9 @@ private def overallSmtResult (_name : Name) (outputs : Array SmtOutput) : CoreM 
     | _ => pure ()
   let res ← (do
     if errors.size > 0 then
-      return .some $ .error errors
+      return .some $ .error (← errors.mapM (fun ex => do return (ex, toJson (← ex.toMessageData.toString))))
     if sat.size > 0 then
-      return .some $ .sat sat
+      return .some $ .sat (← sat.mapM (fun ce => return ← ce.mapM (fun ce => return (ce, ← renderSmtModel ce))))
     if unknown.size > 0 then
       return .some $ .unknown unknown
     if errors.size == 0 && sat.size == 0 && unknown.size == 0 && unsat.size > 0 then
@@ -46,7 +48,7 @@ private def overallSmtResult (_name : Name) (outputs : Array SmtOutput) : CoreM 
   -- dbg_trace "{_name}: {errors.size} errors, {sat.size} sat, {unknown.size} unknown, {unsat.size} unsat -> {← (toMessageData res).toString}"
   return res
 
-private def mkDischargerResult (expectedName : Name) (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (data : Witness ⊕ Exception) (time : Nat) : CoreM (DischargerResult SmtResult) := do
+private def mkDischargerResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT (EIO Std.CloseableChannel.Error) m] [MonadLiftT MetaM m] (expectedName : Name) (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (data : Witness ⊕ Exception) (time : Nat) : m (DischargerResult SmtResult) := do
   let outputs ← collectSmtOutputs ch expectedName
   let result ← overallSmtResult expectedName outputs
   match result with
@@ -63,7 +65,7 @@ private def mkDischargerResult (expectedName : Name) (ch : Std.CloseableChannel 
   | .none =>
     match data with
     | .inl witness => return .proven witness .none time
-    | .inr ex => return .error #[ex] time
+    | .inr ex => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
 
 def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification SmtResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
@@ -93,7 +95,7 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
       catch ex =>
         let endTime ← IO.monoMsNow
         -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
-        let dischargerResult ← liftCoreM $  mkDischargerResult dischargerId.name smtCh (.inr ex) (endTime - startTime)
+        let dischargerResult ← liftTermElabM $ mkDischargerResult dischargerId.name smtCh (.inr ex) (endTime - startTime)
         return dischargerResult
       finally
         if ← cancelTk.isSet then
@@ -174,8 +176,8 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   let solverTactic ← if mod._useLocalRPropTC then `(by veil_solve !) else `(by veil_solve)
   let mut doesNotThrowVCs : Std.HashSet VCId := {}
   let mut clausesVCsByInv : Std.HashMap Name (Std.HashSet VCId) := {}
-  let mut preservesInvariantsVCs : Std.HashSet VCId := {}
-  let mut succeedsAndPreservesInvariantsVCs : Std.HashSet VCId := {}
+  -- let mut preservesInvariantsVCs : Std.HashSet VCId := {}
+  -- let mut succeedsAndPreservesInvariantsVCs : Std.HashSet VCId := {}
   -- Per-action checks
   for act in actsToCheck do
     -- The action does not throw any exceptions, assuming the `Invariants`

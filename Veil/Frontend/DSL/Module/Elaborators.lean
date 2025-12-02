@@ -6,6 +6,7 @@ import Veil.Frontend.DSL.Action.Elaborators
 import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.Tools.Verifier.Server
+import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 
 open Lean Parser Elab Command
@@ -179,20 +180,17 @@ def elabCheckInvariants : CommandElab := fun stx => do
   let _ ← mod.ensureSpecIsFinalized
   Verifier.startAll
   Verifier.displayStreamingResults stx getResults
-  Verifier.vcManager.atomicallyOnce frontendNotification
-    (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
-    (fun ref => do
-      let mgr ← ref.get
-      logInfo m!"{toJson mgr}"
-      )
+  -- Verifier.vcManager.atomicallyOnce frontendNotification
+  --   (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
+  --   (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
   where
-  getResults : CoreM (Json × Verifier.StreamingStatus) := do
+  getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do
     Verifier.vcManager.atomically
       (fun ref => do
         let mgr ← ref.get
-        let json := Lean.toJson mgr
+        let results ← mgr.toVerificationResults
         let isDone := mgr._doneWith.size == mgr.nodes.size
-        return (json, if isDone then .done else .running))
+        return (results, if isDone then .done else .running))
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do

@@ -8,7 +8,7 @@ package veil
 
 /-- The TypeScript widget modules in `Core/UI`. -/
 input_dir widgetJsSrcs where
-  path := "." / "Veil" / "Core" / "UI"
+  path := "." / "Veil" / "Core" / "UI" / "Verifier"
   filter := .extension <| .mem #["ts", "tsx", "js", "jsx"]
   text := true
 
