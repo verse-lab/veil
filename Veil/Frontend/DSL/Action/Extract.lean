@@ -122,8 +122,7 @@ def specializeActionsCore
 
 def specializeActions (χ target : Ident) (extraDsimps : TSyntaxArray `ident)
   (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : CommandElabM Unit := do
-  let lenv ← localEnv.get
-  let some mod := lenv.currentModule | throwError s!"Not in a module"
+  let mod ← getCurrentModule
   let cmd ← specializeActionsCore mod χ target extraDsimps injectedBinders
   elabVeilCommand cmd
 
@@ -166,7 +165,7 @@ def generateVeilMultiExecMCore (κ extractNonDet : TSyntax `term)
   -- but it should not be critical for the performance, so we just use the
   -- original one here
   let initExecCmd ← do
-    let initComputable ← resolveGlobalConstNoOverloadCore initializerName
+    let initComputable ← resolveGlobalConstNoOverloadCore (toExtName initializerName)
     let initComputableIdent := mkIdent initComputable
     let initExtraParams := Array.flatten <|
       mod.procedures.filterMap (fun a => if initializerName == a.name then .some a.extraParams else .none)
