@@ -88,16 +88,16 @@ instance [Inhabited β] : Inhabited (ArrayAsTotalMap n β) :=
 abbrev TotalHashMap (α : Type u) (β : Type v) [BEq α] [Hashable α] :=
   { mp : Std.HashMap α β // ∀ a, a ∈ mp }
 
-instance [FinEnum' α] [DecidableEq α] [Hashable α] [LawfulHashable α] [Inhabited β] : Inhabited (TotalHashMap α β) :=
-  ⟨⟨Std.HashMap.ofList ((FinEnum'.allValues).map (fun a => (a, default))),
-    by intro a ; rw [Std.HashMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp [FinEnum'.complete]⟩⟩
+instance [Enumeration α] [DecidableEq α] [Hashable α] [LawfulHashable α] [Inhabited β] : Inhabited (TotalHashMap α β) :=
+  ⟨⟨Std.HashMap.ofList ((Enumeration.allValues).map (fun a => (a, default))),
+    by intro a ; rw [Std.HashMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp [Enumeration.complete]⟩⟩
 
 abbrev TotalTreeMap (α : Type u) (β : Type v) (cmp : α → α → Ordering := by exact compare) :=
   { mp : Std.TreeMap α β cmp // ∀ a, a ∈ mp }
 
-instance {cmp : α → α → Ordering} [FinEnum' α] [Std.LawfulEqCmp cmp] [Std.TransCmp cmp] [DecidableEq α] [Inhabited β] : Inhabited (TotalTreeMap α β cmp) :=
-  ⟨⟨Std.TreeMap.ofList ((FinEnum'.allValues).map (fun a => (a, default))) cmp,
-    by intro a ; rw [Std.TreeMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp [FinEnum'.complete]⟩⟩
+instance {cmp : α → α → Ordering} [Enumeration α] [Std.LawfulEqCmp cmp] [Std.TransCmp cmp] [DecidableEq α] [Inhabited β] : Inhabited (TotalTreeMap α β cmp) :=
+  ⟨⟨Std.TreeMap.ofList ((Enumeration.allValues).map (fun a => (a, default))) cmp,
+    by intro a ; rw [Std.TreeMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp [Enumeration.complete]⟩⟩
 
 end TotalMapLike
 
@@ -112,7 +112,7 @@ variable {FieldDomain : List Type}
   [instl : LawfulFinsetLike β]
   [instdm : DecidableRel instm.mem]
   (equiv : IteratedProd FieldDomain ≃ α)
-  (instfin : IteratedProd (FieldDomain.map FinEnum'))
+  (instfin : IteratedProd (FieldDomain.map Enumeration))
 
 def FieldRepresentation.FinsetLike.setSingle
   (fa : FieldUpdatePat FieldDomain)
@@ -179,7 +179,7 @@ variable {FieldDomain : List Type} {FieldCodomain : Type}
   [inst : TotalMapLike α FieldCodomain γ]
   [instl : LawfulTotalMapLike γ]
   (equiv : IteratedProd FieldDomain ≃ α)
-  (instfin : IteratedProd (FieldDomain.map FinEnum'))
+  (instfin : IteratedProd (FieldDomain.map Enumeration))
 
 def FieldRepresentation.TotalMapLike.setSingle'
   (fa : FieldUpdatePat FieldDomain)

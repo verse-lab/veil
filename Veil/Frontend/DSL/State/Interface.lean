@@ -74,14 +74,14 @@ def CanonicalField.set {FieldDomain : List Type} {FieldCodomain : Type}
 
 def FieldUpdatePat.footprintRaw
   {FieldDomain : List Type}
-  (instfin : IteratedProd (FieldDomain.map FinEnum'))
+  (instfin : IteratedProd (FieldDomain.map Enumeration))
   (fa : FieldUpdatePat FieldDomain) :=
   instfin.zipWith fa fun fin b =>
     b.elim (fun (_ : Unit) => fin.allValues) (fun x _ => [x])
 
 theorem FieldUpdatePat.footprint_match_iff
   {FieldDomain : List Type}
-  (instfin : IteratedProd (FieldDomain.map FinEnum'))
+  (instfin : IteratedProd (FieldDomain.map Enumeration))
   (dec : IteratedProd (FieldDomain.map DecidableEq))
   {fa : FieldUpdatePat FieldDomain} :
   ∀ args, args ∈ (fa.footprintRaw instfin).cartesianProduct ↔ fa.match dec args := by

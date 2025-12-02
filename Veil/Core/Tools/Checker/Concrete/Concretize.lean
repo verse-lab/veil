@@ -68,7 +68,7 @@ def Veil.Module.instBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : V
   : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let instNamePostfix := match instName with
     | ``Ord       => "_ord"
-    | ``FinEnum'   => "_fin_enum'"
+    | ``Enumeration   => "_enumeration"
     | ``Hashable  => "_hash"
     | ``ToJson    => "_to_json"
     | _ => "_anonymous_inst"
@@ -322,7 +322,7 @@ def deriveRepInstForFieldReprentation (mod : Veil.Module) : CommandElabM (TSynta
   /- Make sure `deriveFinEnumInstForToDomain` has been run before this command. -/
   let typeBinders ← mod.typeExplicitBinders
   let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum'
+  let finEnumInsts ← mod.instBinders ``Enumeration
   let ordInsts ← mod.instBinders ``Ord
 
   /- It seems that we do not need `propCmp` instances for each sort ident.
@@ -375,7 +375,7 @@ syntax (name := deriveLawfulInstForFieldRepr) "deriving_lawful_FieldRepresentati
 def deriveLawfulInstForFieldRepresentation (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
   /- Make sure `deriveFinEnumInstForToDomain` and `deriveRepInstForFieldReprentation` have been run before this command. -/
   let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum'
+  let finEnumInsts ← mod.instBinders ``Enumeration
   let ordInsts ← mod.instBinders ``Ord
   let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
   let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
@@ -423,7 +423,7 @@ def deriveInhabitedInstForState (mod : Veil.Module) : CommandElabM (TSyntax `com
   let sortIdents ← mod.sortIdents
   let typeBinders ← mod.typeExplicitBinders
   let ordInsts ← mod.instBinders ``Ord
-  let finEnumInst ← mod.instBinders ``FinEnum'
+  let finEnumInst ← mod.instBinders ``Enumeration
   let inhabitedInsts ← mod.typeInhabitedBinders
   let decideableEqInsts ← mod.typeDecEqBinders
   let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
@@ -463,7 +463,7 @@ syntax (name := genNextActCommand) "gen_NextAct" : command
 
 def genNextAct' (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
   let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum'
+  let finEnumInsts ← mod.instBinders ``Enumeration
   let hashInsts ← mod.instBinders ``Hashable
   let ordInsts ← mod.instBinders ``Ord
   let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
@@ -491,7 +491,7 @@ syntax (name := genExecutableNextAct) "gen_executable_NextAct" : command
 
 def genExecutableList (mod : Veil.Module) : CommandElabM (TSyntax `command) := do
   let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum'
+  let finEnumInsts ← mod.instBinders ``Enumeration
   let hashInsts ← mod.instBinders ``Hashable
   let ordInsts ← mod.instBinders ``Ord
   let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
@@ -545,8 +545,8 @@ def deriveEnumInstance (name : Name) : CommandElabM Unit := do
     let arr := fields.map fun fn => (mkIdent <| name ++ fn)
     `(term| [ $arr,* ] )
   let instantiateFinEnumCmd ←
-    `(instance : $(mkIdent ``FinEnum') $(mkIdent name) :=
-      $(mkIdent ``FinEnum'.mk) $allConstructors (by simp ; exact $(mkIdent <| clsName ++ completeRequirement)))
+    `(instance : $(mkIdent ``Enumeration) $(mkIdent name) :=
+      $(mkIdent ``Enumeration.mk) $allConstructors (by simp ; exact $(mkIdent <| clsName ++ completeRequirement)))
   elabCommand defineIndTypeCmd
   trace[veil.debug] "defineIndTypeCmd: {defineIndTypeCmd}"
   elabCommand instantiateCmd
@@ -744,7 +744,7 @@ def deriveOrdInstForDomain (mod : Veil.Module) (toDomain : Bool := true) : Comma
 
 def deriveFinEnumInstForToDomain (mod : Veil.Module) : CommandElabM Unit := do
   let typeBinders ← mod.typeExplicitBinders
-  let finEnumInst ← mod.instBinders ``FinEnum'
+  let finEnumInst ← mod.instBinders ``Enumeration
   let labelBinder ← `(bracketedBinder| ($(mkIdent `f) : $(mkIdent `State.Label)) )
   let allBinders := typeBinders ++ finEnumInst ++ [labelBinder]
 
@@ -752,7 +752,7 @@ def deriveFinEnumInstForToDomain (mod : Veil.Module) : CommandElabM Unit := do
     `(term| $(mkIdent `State.Label.toDomain) $(← mod.sortIdents)*)
 
   let instTargetTy ←
-    `(term | ($(mkIdent ``IteratedProd) <| ($(mkIdent ``List.map) $(mkIdent ``FinEnum') <| ($stateLabelToDomain) $(mkIdent `f))))
+    `(term | ($(mkIdent ``IteratedProd) <| ($(mkIdent ``List.map) $(mkIdent ``Enumeration) <| ($stateLabelToDomain) $(mkIdent `f))))
   let finEnumCmd : TSyntax `command ←
     `(command|
         instance $(mkIdent `instFinEnumForToDomain):ident
@@ -765,7 +765,7 @@ def deriveFinEnumInstForToDomain (mod : Veil.Module) : CommandElabM Unit := do
 
 def deriveFinEnumInstForToDomain' (mod : Veil.Module): CommandElabM Unit := do
   let typeBinders ← mod.typeExplicitBinders
-  let finEnumInst ← mod.instBinders ``FinEnum'
+  let finEnumInst ← mod.instBinders ``Enumeration
   let labelBinder ←
     `(bracketedBinder| ($(mkIdent `f) : $(mkIdent `State.Label)) )
   let allBinders := typeBinders ++ finEnumInst ++ [labelBinder]
@@ -773,7 +773,7 @@ def deriveFinEnumInstForToDomain' (mod : Veil.Module): CommandElabM Unit := do
   let stateLabelToDomain ←
     `(term| $(mkIdent `State.Label.toDomain) $(← mod.sortIdents)*)
 
-  let instTargetTy ← `(term | $(mkIdent ``FinEnum') ($(mkIdent ``IteratedProd'):ident <| ($stateLabelToDomain) $(mkIdent `f)))
+  let instTargetTy ← `(term | $(mkIdent ``Enumeration) ($(mkIdent ``IteratedProd'):ident <| ($stateLabelToDomain) $(mkIdent `f)))
   let dsimpTerms : Array (TSyntax `ident) := #[
     mkIdent ``IteratedProd',
     mkIdent ``List.foldr,
@@ -838,7 +838,7 @@ def deriveDecidableForProps : CommandElab := fun stx => do
             ← `(bracketedBinder| ($(mkIdent `rd) : $(mkIdent `ρ))),
             ← `(bracketedBinder| ($(mkIdent `st) : $(mkIdent `σ))) ]
       let finEnumInst ← sortIdents.mapM (fun t => do
-          `(bracketedBinder| [$(mkIdent ``FinEnum') $t])
+          `(bracketedBinder| [$(mkIdent ``Enumeration) $t])
       )
       let binder := explicitBinder ++ finEnumInst
       let stx ← `(
