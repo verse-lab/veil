@@ -1,5 +1,7 @@
 import Mathlib.Data.Fin.Basic
 import Mathlib.Data.FinEnum
+import Mathlib.Algebra.Ring.Parity
+import Veil.Frontend.DSL.State.Types
 
 /-! # Axiomatizations of various structures -/
 
@@ -21,6 +23,20 @@ class TotalOrder (t : Type) where
   le_total    (x y : t) : le x y ∨ le y x
 
 /-! ### Instances -/
+
+/-- Form a total order from an injective mapping to `Nat`. This could be
+used for enumerate types with `.ctorIdx`. -/
+def total_order_by_inj_on_nat {t : Type} (f : t → Nat) (h : Function.Injective f)
+  : TotalOrder t where
+  le x y := (f x) ≤ (f y)
+  le_refl _ := Nat.le_refl _
+  le_trans _ _ _ := Nat.le_trans
+  le_antisymm _ _ h1 h2 := Nat.le_antisymm h1 h2 |> h
+  le_total x y := Nat.le_total (f x) (f y)
+
+def total_order_by_inj_on_fin {t : Type} {n : Nat} (f : t → Fin n) (h : Function.Injective f)
+  : TotalOrder t := total_order_by_inj_on_nat (fun x => (f x).val)
+  (by whnf ; simp ; intro a1 a2 h ; aesop)
 
 /-- `Nat` is a total order. -/
 instance total_order_nat : TotalOrder Nat where
@@ -165,6 +181,75 @@ instance ordered_ring (node : Type) (rank : node → Nat) (rank_inj : ∀ n1 n2,
 /-- Between on `Fin n` is decidable. -/
 instance between_fin_dec (n : Nat) : ∀ a b c, Decidable (Between.btw (node := Fin n) a b c) := by
   dsimp [Between.btw]; apply inferInstance
+
+/-! ## Normal quorum -/
+
+/-! ### Instances -/
+
+-- NOTE: the original design is based on `Finset`, but the `Repr`
+-- instance of `Finset` is marked as `unsafe`, so we use `List` instead
+abbrev Quorum (n : Nat) : Type :=
+  { fs : List (Fin n) // fs.Sorted (· < ·) ∧ (n / 2 + 1) ≤ fs.length }
+
+theorem Quorum.quorum_intersection {n : Nat} (q1 q2 : Quorum n) :
+  ∃ a, a ∈ q1.val ∧ a ∈ q2.val := by
+  rcases q1 with ⟨q1, hq1, hq1'⟩ ; rcases q2 with ⟨q2, hq2, hq2'⟩ ; dsimp
+  have htmp := Finset.card_inter (q1.toFinset) (q2.toFinset)
+  have hnodup1 := List.Pairwise.nodup hq1 ; have hnodup2 := List.Pairwise.nodup hq2
+  simp [List.toFinset_card_of_nodup hnodup1, List.toFinset_card_of_nodup hnodup2] at htmp
+  have htmp2 := Finset.card_le_univ (q1.toFinset ∪ q2.toFinset) ; simp at htmp2
+  have htmp3 : n / 2 + 1 + n / 2 + 1 - n ≤ (q1.toFinset ∩ q2.toFinset).card := by omega
+  simp +arith only at htmp3
+  rcases (Nat.even_or_odd' n) with ⟨k, (h | h)⟩ <;> subst n <;> simp at htmp3
+  all_goals (have htmp4 : 1 ≤ (q1.toFinset ∩ q2.toFinset).card := by omega)
+  all_goals (simp at htmp4 ; rcases htmp4 with ⟨a, ha⟩ ; simp at ha ; solve_by_elim)
+
+instance (n : Nat) : Inhabited (Quorum n.succ) where
+  default := ⟨List.ofFn id, by
+    simp [StrictMono] ; constructor
+    · rintro ⟨a, b⟩ ; simp [← Fin.val_fin_lt] ; omega
+    · grind⟩
+
+theorem Finset.List.ofFn_filter {n : Nat} (p : Finset (Fin n)) :
+  letI l := List.ofFn (n := n) id |>.filter (fun i => i ∈ p)
+  List.Sorted (· < ·) l ∧ l.length = p.card := by
+  constructor
+  · apply List.Pairwise.filter ; simp
+  · induction p using Finset.induction_on with
+    | empty => simp
+    | insert a p hnotin ih =>
+      simp [hnotin] ; have htmp : a ∈ List.ofFn (n := n) id := by simp
+      rw [List.mem_iff_append] at htmp ; rcases htmp with ⟨l1, l2, htmp⟩ ; rw [htmp] at ih ⊢
+      simp [List.filter] at ih ⊢ ; simp [decide_eq_false hnotin] at ih
+      have htmp2 : List.Nodup (List.ofFn (n := n) id) := by apply List.Pairwise.nodup (r := (· < ·)) ; simp
+      simp [htmp, List.nodup_middle, List.nodup_cons] at htmp2
+      rw [← Nat.add_assoc, ← ih] ; congr! 3 <;> apply List.filter_congr <;> simp <;> aesop
+
+def allQuorums (n : Nat) : List (Quorum n) :=
+  let l := List.ofFn (n := n) id
+  let res := FinEnum.Finset.enum l |>.filterMap (fun x =>
+    if n / 2 + 1 ≤ x.card then .some (l.filter fun y => y ∈ x) else .none)
+  res.attachWith _ (by
+    intro x hmem ; unfold res l at hmem ; simp at hmem ; rcases hmem with ⟨fs, hcard, hmem⟩ ; subst x
+    have ⟨h1, h2⟩ := Finset.List.ofFn_filter fs ; rw [h2] ; aesop)
+
+theorem allQuorums_complete {n : Nat} : ∀ (q : Quorum n), q ∈ allQuorums n := by
+  intro ⟨x, h1, h2⟩ ; dsimp [allQuorums] ; simp ; exists List.toFinset x
+  have htmp := List.Pairwise.nodup h1 ; simp [List.toFinset_card_of_nodup htmp] ; refine And.intro h2 ?_
+  apply List.Sorted.eq_of_mem_iff _ h1 ; simp ; apply List.Pairwise.filter ; simp
+
+instance (n : Nat) : FinEnum (Quorum n) :=
+  FinEnum.ofList (allQuorums n) allQuorums_complete
+
+instance (n : Nat) : Veil.Enumeration (Quorum n) where
+  allValues := allQuorums n
+  complete := allQuorums_complete
+
+/-! ### Decidability -/
+
+/-- Membership test on `Quorum` is decidable. -/
+instance quorum_mem_dec (n : Nat) : ∀ a (q : Quorum n), Decidable (a ∈ q.val) := by
+  dsimp [Quorum] ; infer_instance
 
 /-! ## Byzantine node set -/
 
