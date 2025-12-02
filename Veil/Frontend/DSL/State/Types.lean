@@ -1,4 +1,5 @@
 import Mathlib.Logic.Equiv.Defs
+import Mathlib.Data.FinEnum
 
 /-! # Reification of Types of State Fields -/
 
@@ -204,5 +205,49 @@ macro "infer_instance_for_iterated_prod" : tactic =>
   `(tactic| repeat' (first | infer_instance | constructor ))
 
 end IteratedProd
+
+section FinEnum'
+
+/-- The `FinEnum` in Mathlib might be good for proving, but for execution
+it might be very inefficient. This alternative is centered around `List`s
+that enumerate all values. -/
+class FinEnum' (α : Type u) where
+  allValues : List α
+  complete : ∀ a : α, a ∈ allValues
+  [decEq : DecidableEq α]
+
+attribute [instance low] FinEnum'.decEq
+attribute [grind ←] FinEnum'.complete
+
+instance : FinEnum' Unit where
+  allValues := [()]
+  complete := by simp
+
+instance : FinEnum' Bool where
+  allValues := [true, false]
+  complete := by simp
+
+instance {n : Nat} : FinEnum' (Fin n) where
+  allValues := List.finRange n
+  complete := by simp
+
+instance {α β} [insta : FinEnum' α] [instb : FinEnum' β] : FinEnum' (α × β) where
+  allValues := List.product insta.allValues instb.allValues
+  complete := by simp ; grind
+
+/-!
+While some `Decidable` instances can be obtained by converting `FinEnum'`
+into `Fintype`, their efficiency is not clear.
+-/
+
+instance {α : Type u} [inst : FinEnum' α] {p : α → Prop} [DecidablePred p] : Decidable (∀ a, p a) :=
+  decidable_of_iff (∀ a ∈ inst.allValues, p a)
+    (Iff.intro (fun h a => h _ (inst.complete a)) (fun h a _ => h a))
+
+instance {α : Type u} [inst : FinEnum' α] {p : α → Prop} [DecidablePred p] : Decidable (∃ a, p a) :=
+  decidable_of_iff (∃ a ∈ inst.allValues, p a)
+    (Iff.intro (fun ⟨a, _, h⟩ => ⟨a, h⟩) (fun ⟨a, h⟩ => ⟨a, inst.complete a, h⟩))
+
+end FinEnum'
 
 end Veil

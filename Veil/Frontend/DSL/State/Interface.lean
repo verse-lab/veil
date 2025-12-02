@@ -1,5 +1,4 @@
 import Veil.Frontend.DSL.State.Types
-import Mathlib.Data.FinEnum
 
 /-!
 
@@ -75,14 +74,14 @@ def CanonicalField.set {FieldDomain : List Type} {FieldCodomain : Type}
 
 def FieldUpdatePat.footprintRaw
   {FieldDomain : List Type}
-  (instfin : IteratedProd (FieldDomain.map FinEnum))
+  (instfin : IteratedProd (FieldDomain.map FinEnum'))
   (fa : FieldUpdatePat FieldDomain) :=
   instfin.zipWith fa fun fin b =>
-    b.elim (fun (_ : Unit) => fin.toList _) (fun x _ => [x])
+    b.elim (fun (_ : Unit) => fin.allValues) (fun x _ => [x])
 
 theorem FieldUpdatePat.footprint_match_iff
   {FieldDomain : List Type}
-  (instfin : IteratedProd (FieldDomain.map FinEnum))
+  (instfin : IteratedProd (FieldDomain.map FinEnum'))
   (dec : IteratedProd (FieldDomain.map DecidableEq))
   {fa : FieldUpdatePat FieldDomain} :
   ∀ args, args ∈ (fa.footprintRaw instfin).cartesianProduct ↔ fa.match dec args := by
@@ -96,7 +95,8 @@ theorem FieldUpdatePat.footprint_match_iff
     simp [IteratedProd.cartesianProduct, FieldUpdatePat.match, IteratedProd.patCmp]
     unfold FieldUpdatePat.match at ih ; rw [← ih instfin] ; clear ih
     simp [IteratedProd.cartesianProduct, FieldUpdatePat.footprintRaw, IteratedProd.zipWith, IteratedProd.fold]
-    intro _ ; rcases b with _ | b <;> simp ; grind
+    intro _ ; rcases b with _ | b <;> simp <;> grind
+
 end UpdatePatterns
 
 section RepresentationInterface
