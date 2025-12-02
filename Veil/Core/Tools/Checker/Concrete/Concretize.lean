@@ -559,14 +559,14 @@ def deriveEnumOrdHashable (name : Name) : CommandElabM Unit := do
   let ordInst ← `(command|
     instance $(mkIdent <| Name.appendBefore name "instOrd"):ident : $(mkIdent ``Ord) $(mkIdent name) where
       $(mkIdent `compare):ident $(mkIdent `s1):ident $(mkIdent `s2):ident :=
-        $(mkIdent ``compare) $(mkIdent `s1.toCtorIdx) $(mkIdent `s2.toCtorIdx))
+        $(mkIdent ``compare) $(mkIdent `s1.ctorIdx) $(mkIdent `s2.ctorIdx))
   trace[veil.debug] "ordInst: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic ordInst}"
   elabVeilCommand ordInst
 
   let hashableInst ← `(command|
     instance $(mkIdent <| Name.appendBefore name "instHashable"):ident : $(mkIdent ``Hashable) $(mkIdent name) where
       $(mkIdent `hash):ident $(mkIdent `s):ident :=
-        $(mkIdent ``hash) $(mkIdent `s.toCtorIdx))
+        $(mkIdent ``hash) $(mkIdent `s.ctorIdx))
 
   trace[veil.debug] "hashableInst: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic hashableInst}"
   elabVeilCommand hashableInst
