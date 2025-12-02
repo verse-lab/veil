@@ -245,6 +245,18 @@ instance (n : Nat) : Veil.Enumeration (Quorum n) where
   allValues := allQuorums n
   complete := allQuorums_complete
 
+instance (n : Nat) : @Std.ReflCmp (Quorum n) compare where
+  compare_self := List.instReflCmpCompareLex.compare_self
+
+instance (n : Nat) : @Std.LawfulEqCmp (Quorum n) compare where
+  eq_of_compare h := Subtype.eq <| List.instLawfulEqCmpCompareLex.eq_of_compare h
+
+instance (n : Nat) : @Std.OrientedCmp (Quorum n) compare where
+  eq_swap := List.instOrientedCmpCompareLex.eq_swap
+
+instance (n : Nat) : @Std.TransCmp (Quorum n) compare where
+  isLE_trans := List.instTransCmpCompareLex.isLE_trans
+
 /-! ### Decidability -/
 
 /-- Membership test on `Quorum` is decidable. -/
