@@ -129,8 +129,7 @@ invariant [token_relation] ((t_for I N) ∧ (t_for J M) ∧ seq.lt I J) → seq.
 -- #gen_exec
 deriving_FinOrdToJson_Domain
 specify_FieldConcreteType
-deriving_BEq_FieldConcreteType
-deriving_Hashable_FieldConcreteType
+deriving_BEq_Hashable_FieldConcreteType
 deriving_rep_FieldRepresentation
 
 deriving_lawful_FieldRepresentation

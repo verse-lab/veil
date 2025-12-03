@@ -110,18 +110,15 @@ def runModelCheckerx (rd : ρ) (view : σᵣ → σₛ) : Id (Unit × (SearchCon
   (bfsSearch nextVeilMultiExecM allLabels INV Terminate rd view) |>.run cfg
 
 
-
 open CheckerM in
-def recoverTrace [Hashable σᵣ] [Repr κ]
-  (rd : ρ) (traces : List (Trace UInt64 κ)) : Trace σᵣ κ := Id.run do
+def recoverTrace [Hashable σᵣ] [Repr κ] (rd : ρ) (traces : List (Trace UInt64 κ)) : Trace σᵣ κ := Id.run do
   if traces.isEmpty then
     return { start := default, steps := [] }
-
-  /- Actually, we can assert that there is only one trace returned by `collectTrace.`-/
+  /- Actually, we can assert that there is only one trace returned by `collectTrace.`
+  Because when encounter counterexample, the model checker will terminate at once.-/
   let trace := traces[0]!
   let findByHash (succs : List (Option σᵣ)) (targetHash : UInt64) (fallback : σᵣ) : σᵣ :=
     succs.filterMap id |>.find? (fun s => hash s == targetHash) |>.getD fallback
-
   -- Recover initial state
   let initSuccs := extractValidStates initVeilMultiExecM rd default
   let start := findByHash initSuccs trace.start default
