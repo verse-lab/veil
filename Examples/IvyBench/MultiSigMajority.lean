@@ -1,5 +1,5 @@
 import Veil
-
+import Veil.Core.Tools.Checker.Concrete.Main
 -- https://github.com/aman-goel/ivybench/blob/d2c9298fdd099001c71a34bc2e118db6f07d8404/multisig/ivy/multisig-majority.ivy
 
 
@@ -89,7 +89,15 @@ safety [paid_imp_proposed] paid N K V D → proposed N K V D
 
 invariant [ic3po_global2] collect V1 D1 V2 D2 → proposed V1 D1 V2 D2
 invariant [ic3po_global3] sig V1 D1 V2 D2 S1 → sig_auth S1
-
+termination true = true
 #time #gen_spec
+
+#gen_exec
+#finitize_types (Fin 2), (Fin 1), (Fin 1), (Fin 1), (Fin 1), (Fin 1)
+
+#set_theory { member := fun s q => true }
+
+#run_checker ic3po_global2
+#eval modelCheckerResult.seen.size
 
 end MultiSigMaj

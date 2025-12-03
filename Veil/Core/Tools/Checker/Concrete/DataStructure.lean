@@ -195,12 +195,10 @@ theorem norm_idem {α} (q : fQueue α) :
         simp [fQueue.norm]
       | cons y ys =>
         simp [fQueue.norm]
-        -- Need to show that ys.reverse ++ [y] is non-empty, contradiction
         cases ys.reverse with
         | nil => simp
         | cons _ _ => simp
     | cons _ _ =>
-      -- When front is non-empty, norm q = q, so norm (norm q) = norm q = q, contradiction
       simp [fQueue.norm]
 
 theorem norm_eq_self_of_front_ne_nil {α} {q : fQueue α} (h : q.front ≠ []) :
@@ -273,7 +271,6 @@ theorem dequeue?_eq_none_iff_toList_nil {α} (q : fQueue α) :
       | cons x xs =>
         have : fQueue.toList (fQueue.norm q) ≠ [] := by
           simp [fQueue.toList, h]
-        -- toList (norm q) = toList q
         have eq_toList := norm_toList q
         rw [eq_toList] at this
         contradiction

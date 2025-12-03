@@ -9,7 +9,7 @@
 | 4     | AWSDNSRace               | TLC                 | ✅
 | 5     | aws                      | TLC                 | ✅AWS service verification |
 ────────|──────────────────────────|─────────────────────|───────────────────────────
-| 6     | `Bakery`                 | TLC /Apalache       | `ghost relation` can not work properly yet |
+| 6     | `Bakery`                 | TLC /Apalache       | ✅
 | 7     | Peterson                 | TLC repo            | ✅
 | 8     | TwoPhaseCommit           | TLC /Apalache       | ✅
 | 9     | SimpleAllocator          | TLC /Apalache       | ✅
@@ -18,19 +18,18 @@
 | 12    | EWD840                   | TLC bench/Apalache  | ✅
 ────────|──────────────────────────|─────────────────────|───────────────────────────
 | 13    | MultiSigAll              | IvyBench            | ✅
-| 14    | Ring                     | IvyBench            | wip
+| 14    | Ring                     | IvyBench            | ✅
 | 15    | RicardAgrawala           | IvyBench            | ✅
-| 16    | `PaxosEPR?`              | IvyBench            | `assumption` can not work properly yet |
-| 17    | `MultiSigMajority?`      | IvyBench            | `assumption` can not work properly yet |
+| 16    | `PaxosEPR?`              | IvyBench            |
+| 17    | MultiSigMajority         | IvyBench            | ✅
 |-------|──────────────────────────|---------------------|--------------------------|
 | 18    | 0_mutex_deadlock         | ATC'25 (TLC)        | ✅ Deadlock detection verification |
 | 19    | 1_mutex_mutual_exclusion | ATC'25 (TLC)        | ✅ Mutex mutual exclusion verification |
 | 20    | spinLock                 | ATC'25 (TLC)        | ✅ Spin lock implementation |
 | 21    | structure                | ATC'25 (TLC)        | ✅ We can use built-in `structure` in lean.
-────────|──────────────────────────|─────────────────────|───────────────────────────
-| 22    | `NOPaxos?`               |                     | some issues with `non-determisim`  |
+────────|──────────────────────────|─────────────────────|────────────────────────────-──
+| 22    | bcastByz                 | TLA/Apalache        | ✅ (a simplified version now) |
 | 23    | `Raft??`                 |                     |
-| 24    | `bcastByz?`              |                     |
 
 
 * We use group 1 and group 2 to demonstate (easy to understand) how can we spcecify and verify classic TLC examples.

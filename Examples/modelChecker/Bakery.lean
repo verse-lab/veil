@@ -1,4 +1,5 @@
 import Veil
+import Veil.Core.Tools.Checker.Concrete.Main
 
 veil module Bakery
 type process
@@ -269,7 +270,7 @@ action evtExit_branch2 (self : process) {
   pc self S := decide $ S = ncs
 }
 
-invariant [pc_total] ∀ p, pc p ncs ∨ pc p e1 ∨ pc p e2 ∨ pc p e3 ∨ pc p cs ∨ pc p e4 ∨ pc p w1 ∨ pc p w2 ∨ pc p exit
+invariant [pc_total] ∀ p, pc p ncs = true ∨ pc p e1 ∨ pc p e2 ∨ pc p e3 ∨ pc p cs ∨ pc p e4 ∨ pc p w1 ∨ pc p w2 ∨ pc p exit
 invariant [local_max_unique] max P N ∧ max P M → N = M
 invariant [local_num_unique] num P N ∧ num P M → N = M
 invariant [local_pc_unique] pc P S ∧ pc P T → S = T
@@ -287,11 +288,19 @@ invariant [p7_cs_precedes_all] pc I cs → ∀j, (j ≠ I) → before I j
 
 /- Ensures no two processes are in critical section simultaneously. -/
 safety [mutual_exclusion] pc I cs ∧ pc J cs → I = J
-
--- set_option maxHeartbeats 250000
+termination true = true
+set_option maxHeartbeats 250000
 #gen_spec
 
-#check_invariants
+-- #check_invariants
+#gen_exec
+
+#finitize_types (Fin 2), (Fin 2), pc_state
+
+#set_theory { one_th := 0, one := 1 }
+#run_checker mutual_exclusion
+
+#eval modelCheckerResult.seen.size
 -- #exit
 
 end Bakery

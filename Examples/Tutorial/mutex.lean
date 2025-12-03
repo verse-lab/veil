@@ -172,8 +172,6 @@ action _wake_up (self : process) {
 
 }
 
-
-
 action _start (self : process) {
   require pc self start
   let random_waker ← pick process
@@ -197,9 +195,10 @@ termination [AllDone] pc S Done = true
 set_option maxHeartbeats 250000
 #gen_spec
 
-/- Assembly all the required instances to make the symbolic model executable. -/
-#gen_exec
+-- set_option trace.veil.desugar true
+set_option trace.veil.debug true
 
+#gen_exec
 /- Concretize the abstract types using finite concrete types.
 Here, we use `Fin 2` to represent two processes in the system. -/
 #finitize_types (Fin 3), states

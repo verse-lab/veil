@@ -117,7 +117,6 @@ action EnactorReceiveStep (self : ENACTORS) {
 --                 [enactor_pc EXCEPT ![self] = 0]
 --             /\ UNCHANGED <<current_plan, latest_plan, highest_plan_applied,
 --                            plan_deleted, plan_channel>>
-
 action EnactorApplyStep (self : ENACTORS) {
   require enactor_pc self == 1
   let enactor_processing_self := enactor_processing self
@@ -167,6 +166,7 @@ action EnactorCleanupStep (self : ENACTORS) {
 
 -- NeverDeleteActive ==
 --     current_plan > 0 => ~plan_deleted[current_plan]
+termination true = true
 invariant [NeverDeleteActive] current_plan > 0 → ¬(plan_deleted current_plan true)
 invariant [uniqueDelete] plan_deleted C F ∧ plan_deleted C T → F = T
 
