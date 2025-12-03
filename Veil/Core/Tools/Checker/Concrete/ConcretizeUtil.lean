@@ -36,7 +36,7 @@ def collectBinders [Monad m] [MonadQuotation m] [MonadError m]
     : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   match config.instName with
   | some instName =>
-    -- Collect instance binders (e.g., Ord, FinEnum)
+    -- Collect instance binders (e.g., Ord, Enumeration)
     let instNamePostfix := instNameToPostfix instName
     let ids : Array Ident ← mod.sortIdents
     ids.mapM (fun t : Ident => do
@@ -58,7 +58,7 @@ where
   instNameToPostfix (instName : Name) : String :=
     match instName with
     | ``Ord       => "_ord"
-    | ``FinEnum   => "_fin_enum"
+    | ``Enumeration   => "_fin_enum"
     | ``Hashable  => "_hash"
     | ``ToJson    => "_to_json"
     | ``Repr      => "_repr"
@@ -151,12 +151,12 @@ def BinderSpec.forHashable : Array BinderSpec := #[.typeExplicit, .decEq, .inst 
 /-- Standard pattern for Repr: Ord + Repr -/
 def BinderSpec.forRepr : Array BinderSpec := #[.inst ``Ord, .inst ``Repr]
 
-/-- Standard pattern for LawfulFieldRepresentation: FinEnum + Ord -/
-def BinderSpec.forLawful : Array BinderSpec := #[.inst ``FinEnum, .inst ``Ord]
+/-- Standard pattern for LawfulFieldRepresentation: Enumeration + Ord -/
+def BinderSpec.forLawful : Array BinderSpec := #[.inst ``Enumeration, .inst ``Ord]
 
-/-- Standard pattern for Inhabited State: typeExplicit + Ord + Inhabited + DecEq + FinEnum -/
+/-- Standard pattern for Inhabited State: typeExplicit + Ord + Inhabited + DecEq + Enumeration -/
 def BinderSpec.forInhabitedState : Array BinderSpec :=
-  #[.typeExplicit, .inst ``Ord, .inhabited, .decEq, .inst ``FinEnum]
+  #[.typeExplicit, .inst ``Ord, .inhabited, .decEq, .inst ``Enumeration]
 
 /-- Configuration for generic instance generation (simplified version). -/
 structure SimpleInstanceConfig where
@@ -190,10 +190,10 @@ def mkSimpleFieldConcreteTypeInstance (config : SimpleInstanceConfig) : CommandE
   )
 
 /-- Collect comprehensive binders for NextAct and executable list generation.
-    Includes: FinEnum, Hashable, Ord, LawfulEqCmp, and TransCmp instances. -/
+    Includes: Enumeration, Hashable, Ord, LawfulEqCmp, and TransCmp instances. -/
 def Veil.Module.collectNextActBinders (mod : Veil.Module) : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let sortIdents ← mod.sortIdents
-  let finEnumInsts ← mod.instBinders ``FinEnum
+  let finEnumInsts ← mod.instBinders ``Enumeration
   let hashInsts ← mod.instBinders ``Hashable
   let ordInsts ← mod.instBinders ``Ord
   let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
