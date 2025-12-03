@@ -17,12 +17,6 @@ open Lean Elab Command Veil
 
 
 syntax (name := abbrevFieldConcreteType) "specify_FieldConcreteType" : command
-
-
-/-
-How to assembly `match...with` syntax
-https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/.E2.9C.94.20Optional.20expected.20type.20in.20.60elab_rules.60/near/425853362
--/
 /-- Generate the concrete type for a field based on its kind. -/
 def fieldKindToType (domainTerm codomainTerm : TSyntax `term) (kind : StateComponentKind)
   : CommandElabM (TSyntax `term) := do
@@ -165,9 +159,7 @@ def deriveInhabitedInstCmd : CommandElab := fun stx => do
   elabVeilCommand instCmd
 
 
-
 syntax (name := genNextActCommand) "gen_NextAct" : command
-
 /-- Generate both NextAct specialization and executable list commands. -/
 def genNextActCommands (mod : Veil.Module) : CommandElabM Unit := do
   let binders ← mod.collectNextActBinders
@@ -228,13 +220,13 @@ def deriveEnumInstance (name : Name) : CommandElabM Unit := do
     let arr := fields.map fun fn => (mkIdent <| name ++ fn)
     `(term| [ $arr,* ] )
   let instantiateFinEnumCmd ←
-    `(instance : $(mkIdent ``Enumeration) $(mkIdent name) :=
-      $(mkIdent ``Enumeration.mk) $allConstructors (by simp ; exact $(mkIdent <| clsName ++ completeRequirement)))
+    `(instance : $(mkIdent ``FinEnum) $(mkIdent name) :=
+      $(mkIdent ``FinEnum.ofList) $allConstructors (by simp ; exact $(mkIdent <| clsName ++ completeRequirement)))
   elabCommand defineIndTypeCmd
   trace[veil.debug] "defineIndTypeCmd: {defineIndTypeCmd}"
-  elabCommand instantiateCmd
+  elabVeilCommand instantiateCmd
   trace[veil.debug] "instantiateCmd: {instantiateCmd}"
-  elabCommand instantiateFinEnumCmd
+  elabVeilCommand instantiateFinEnumCmd
   trace[veil.debug] "instantiateFinEnumCmd: {instantiateFinEnumCmd}"
 
 
@@ -304,6 +296,7 @@ elab "deriving_propCmp_for_enum" name:ident : command => do
   let name := name.getId
   deriveEnumPropCmpInsts name
 
+
 def deriveReprInstForFieldConcreteType (mod : Veil.Module) (stateLabelName : Name) : CommandElabM (TSyntax `command) := do
   let sortIdents ← mod.sortIdents
   let binders ← mod.collectBindersFromSpecs BinderSpec.forRepr
@@ -337,13 +330,11 @@ def deriveToJsonInstDomain (mod : Veil.Module) (toDomain : Bool := true): Comman
       `(term| $(mkIdent `State.Label.toDomain) $(← mod.sortIdents)*)
     else
       `(term| $(mkIdent `State.Label.toCodomain) $(← mod.sortIdents)*)
-
   let instTargetTy ←
     if toDomain then
       `(term | ($(mkIdent ``ToJson) ($(mkIdent ``IteratedProd'):ident <| ($stateLabelDomain) $(mkIdent `f))))
     else
       `(term | ($(mkIdent ``ToJson) (($stateLabelDomain) $(mkIdent `f))))
-
   let dsimpTerms : Array (TSyntax `ident) := #[
     mkIdent ``IteratedProd',
     mkIdent ``List.foldr,
@@ -518,23 +509,6 @@ def getLabelList : CommandElabM Unit := do
   elabVeilCommand labelListCmd
 
 
-def getLabelListWithoutFieldTy : CommandElabM Unit := do
-  trace[veil.info] "[getLabelListWithoutFieldTy] Starting label list generation"
-  let labelListDefName := (← getCurrNamespace) ++ `labelList
-  if (← getEnv).contains labelListDefName then
-    trace[veil.info] "[getLabelListWithoutFieldTy] labelList already exists, skipping"
-    return
-
-  let labelConcreteName ← resolveGlobalConstNoOverloadCore `LabelConcrete
-  let labelListCmd ← liftTermElabM do
-    let labelListIdent := mkIdent `labelList
-    let labelConcreteIdent := mkIdent labelConcreteName
-    `(command|
-      def $labelListIdent := ($(mkIdent ``FinEnum.ofEquiv) _ ($(mkIdent ``Equiv.symm) (proxy_equiv%($labelConcreteIdent)))).toList)
-  trace[veil.debug] "[getLabelListWithoutFieldTy] {labelListCmd}"
-  elabVeilCommand labelListCmd
-
-
 elab "#Concretize" args:term,* : command => do
     let termArray := args.getElems
     let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
@@ -618,7 +592,6 @@ def deriveHashableForState (mod : Veil.Module) : CommandElabM Unit := do
     fieldNames.mapM (fun f => do
       let rhs ← `(term| $(mkIdent ``hash) $s.$(mkIdent f))
       pure (f, rhs))
-
   let hashIds : Array (TSyntax `term) :=
     fieldNames.map (fun f => (mkIdent f : TSyntax `term))
   let finalBody : TSyntax `term ← liftMacroM <| mkTuple hashIds
@@ -644,9 +617,6 @@ where
         acc ← `(term| ($acc, $(xs[i]!)))
       return acc
 
-elab "deriving_BEq_ConcreteState" : command => do
-  let mod ← getCurrentModule
-  deriveBEqForState mod
 
 elab "deriving_BEqHashable_ConcreteState" : command => do
   let mod ← getCurrentModule
