@@ -717,7 +717,7 @@ elab "#run_checker" propTerm:term : command => do
   let mod ← getCurrentModule
   let terminate ←
     if mod.terminations.size == 0 then
-      `(term| fun $(mkIdent `rd) $(mkIdent `st) => mkIdent ``true)
+      `(term| fun $(mkIdent `rd) $(mkIdent `st) => $(mkIdent ``True))
     else
       let terminateName := mod.terminations[0]!.name |> mkIdent
       `(term| fun $(mkIdent `rd) $(mkIdent `st) => $terminateName $(mkIdent `rd) $(mkIdent `st))
