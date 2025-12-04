@@ -68,7 +68,7 @@ section EfficientIteratedProd
 
 /-- A slightly more efficient representation of `IteratedProd` that does not
 have a `Unit` at the end. -/
-def IteratedProd' (ts : List Type) : Type :=
+abbrev IteratedProd' (ts : List Type) : Type :=
   match ts with
   | [] => Unit
   | [t] => t

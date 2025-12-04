@@ -613,16 +613,15 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
   let f := mkVeilImplementationDetailIdent `f
   let casesOnName := structureFieldLabelTypeName base ++ `casesOn
   let params := params.push (← `(bracketedBinder| ($f : $(structureFieldLabelType base))))
-  -- FIXME: do these need to be `def`? Could they be `abbrev` instead?
   -- to domain dispatcher
-  let todomain ← `(def $(fieldLabelToDomain base) $params* : $(mkIdent ``List) Type := $(mkIdent casesOnName) $f $domainComponents*)
+  let todomain ← `(abbrev $(fieldLabelToDomain base) $params* : $(mkIdent ``List) Type := $(mkIdent casesOnName) $f $domainComponents*)
   -- to codomain dispatcher
-  let tocodomain ← `(def $(fieldLabelToCodomain base) $params* : Type := $(mkIdent casesOnName) $f $coDomainComponents*)
+  let tocodomain ← `(abbrev $(fieldLabelToCodomain base) $params* : Type := $(mkIdent casesOnName) $f $coDomainComponents*)
   -- concrete field representation dispatcher
   let requiredInstances ← mod.assumeForEverySort ``Ord
   let params := params ++ requiredInstances
   let concreteTypes ← fieldMetadata.mapM (fun fm => fieldKindToType mod fm.sc)
-  let toconcretetype ← `(abbrev $fieldConcreteType $params* : Type := $(mkIdent casesOnName) $f $concreteTypes*)
+  let toconcretetype ← `(abbrev $(mkIdent `_FieldConcreteType) $params* : Type := $(mkIdent casesOnName) $f $concreteTypes*)
   return (#[(fieldLabelToDomainName base, todomain), (fieldLabelToCodomainName base, tocodomain)], (fieldConcreteTypeName, toconcretetype))
   where
   -- Generate the concrete type for a field based on its kind
