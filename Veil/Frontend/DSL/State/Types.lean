@@ -206,7 +206,7 @@ macro "infer_instance_for_iterated_prod" : tactic =>
   `(tactic| repeat' (first | infer_instance | constructor ))
 
 open Lean in
-macro "infer_instance_for_interated_prod'" : tactic =>
+macro "infer_instance_for_iterated_prod'" : tactic =>
   `(tactic| (try dsimp only [$fieldConcreteDispatcher:ident]) <;> (try dsimp only [$(mkIdent ``IteratedProd'):ident, $(mkIdent ``List.foldr):ident, $(mkIdent `State.Label.toDomain):ident, $(mkIdent `State.Label.toCodomain):ident]) <;> infer_instance)
 
 end IteratedProd

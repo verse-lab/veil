@@ -64,6 +64,9 @@ def fieldRepresentation : Ident := mkIdent fieldRepresentationName
 def lawfulFieldRepresentationName : Name := `χ_rep_lawful
 def lawfulFieldRepresentation : Ident := mkIdent lawfulFieldRepresentationName
 
+def instEnumerationForIteratedProdName : Name := `instEnumerationForIteratedProd
+def instEnumerationForIteratedProd : Ident := mkIdent instEnumerationForIteratedProdName
+
 def structureFieldLabelTypeName (base : Name) : Name := base ++ labelTypeName
 def structureFieldLabelType (base : Name) : Ident := mkIdent <| structureFieldLabelTypeName base
 def fieldLabelToDomainName (base : Name) : Name := structureFieldLabelTypeName base ++ `toDomain

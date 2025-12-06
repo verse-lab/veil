@@ -607,7 +607,7 @@ private def FieldMetadata.domainArray [Monad m] [MonadQuotation m] (fm : FieldMe
 types of its arguments and its codomain, as well as the concrete type of the
 field. -/
 private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (base : Name) (fieldMetadata : Array FieldMetadata) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder))
-  : m ((Array (Name × TSyntax `command)) × (Name × TSyntax `command)) := do
+  : m ((Array (Name × Syntax)) × (Name × Syntax)) := do
   let domainComponents ← fieldMetadata.mapM (·.domainArray)
   let coDomainComponents := fieldMetadata.map (·.codomainTerm)
   let f := mkVeilImplementationDetailIdent `f
@@ -652,34 +652,50 @@ private def analyzeTypesOfStateComponents [Monad m] [MonadQuotation m] [MonadErr
         | _ => throwError "unable to extract type from binder {m}"
       pure { sc, domainTerms, codomainTerm }
 
+/-- Helper function to generate typeclass instance lifting declarations. -/
+@[inline]
+private def Module.declareInstanceLifting [Monad m] [MonadQuotation m] [MonadError m]
+    (mod : Module) (assumingClasses : Array Name) (fieldLabelIdent : Ident)
+    (instanceType : Term) (instanceName : Option Name := .none) (tactic : Option (TSyntax `tactic) := .none) : m Syntax := do
+  let tactic := tactic.getD (← `(tactic| infer_instance_for_iterated_prod'))
+  let assumedInstances ← assumingClasses.flatMapM fun className => mod.assumeForEverySort className
+  let fieldLabel ← `(bracketedBinder|($fieldLabelIdent:ident : $(mkIdent `State.Label)))
+  let binders := (← mod.sortBinders) ++ assumedInstances ++ [fieldLabel]
+  match instanceName with
+  | some name => `(instance $(mkIdent name):ident $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
+  | none => `(instance $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
+
+/-- NOTE: This is actually needed.-/
+private def Module.declareInstanceLiftingForIteratedProd [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) : m (Array Syntax) := do
+  let (cls, sorts, fieldLabelIdent) := (mkIdent ``Enumeration, ← mod.sortIdents, mkVeilImplementationDetailIdent `f)
+  let ty ← `(term | ($(mkIdent ``IteratedProd) <| ($(mkIdent ``List.map) $cls <| ($(fieldLabelToDomain stateName) $sorts*) $fieldLabelIdent)))
+  let inst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent ty instName (tactic := (← `(tactic| infer_instance_for_iterated_prod)))
+  return #[inst]
+
 /-- States that if every sort has an instance of `className` (e.g. `Ord node`),
-then the domain and codomain of every field, respectively, have instances of
-that class. -/
-private def Module.declareInstanceLiftingForDomainAndCodomain [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) : m (Array Syntax) := do
-  let cls := mkIdent deriveClass
-  let sorts ← mod.sortIdents
-  let assumedInstances ← assumingClasses.flatMapM fun className => mod.assumeForEverySort className
-  let fieldLabelIdent := mkVeilImplementationDetailIdent `f
-  let fieldLabel ← `(bracketedBinder|($fieldLabelIdent:ident : $(mkIdent `State.Label)))
-  let binders := (← mod.sortBinders) ++ assumedInstances ++ [fieldLabel]
-  -- lifting to the domain of the field
-  let domainInstanceTy ← `(term|$cls ($(mkIdent ``IteratedProd') (($(fieldLabelToDomain stateName) $sorts*) $fieldLabelIdent)))
-  -- lifting to the codomain of the field
-  let codomainInstanceTy ← `(term|$cls (($(fieldLabelToCodomain stateName) $sorts*) $fieldLabelIdent))
-  let instanceStx := fun ty => `(instance $[$binders]* : $ty := by cases $fieldLabelIdent:ident <;> infer_instance_for_interated_prod')
-  return #[← instanceStx domainInstanceTy, ← instanceStx codomainInstanceTy]
+then the domain has instances of that class.
 
-private def Module.declareInstanceLiftingForConcreteType [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) : m (Array Syntax) := do
-  let cls := mkIdent deriveClass
-  let sorts ← mod.sortIdents
-  let assumedInstances ← assumingClasses.flatMapM fun className => mod.assumeForEverySort className
-  let fieldLabelIdent := mkVeilImplementationDetailIdent `f
-  let fieldLabel ← `(bracketedBinder|($fieldLabelIdent:ident : $(mkIdent `State.Label)))
-  let binders := (← mod.sortBinders) ++ assumedInstances ++ [fieldLabel]
-  let concreteInstanceTy ← `(term|$cls ($fieldConcreteDispatcher $sorts* $fieldLabelIdent))
-  let concreteInstanceStx := fun ty => `(instance $[$binders]* : $ty := by cases $fieldLabelIdent:ident <;> infer_instance_for_interated_prod')
-  return #[← concreteInstanceStx concreteInstanceTy]
+[AutomaticallyInferred] NOTE: These typeclass instances can be automatically
+inferred if `IteratedProd'`, `toDomain` and `toCodomain` are defined as
+`abbrev`. We keep this code for explicitness, in case we want to change the
+representation and typeclass inference will then fail. -/
+private def Module.declareInstanceLiftingForDomain [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) : m (Array Syntax) := do
+  let (cls, sorts, fieldLabelIdent) := (mkIdent deriveClass, ← mod.sortIdents, mkVeilImplementationDetailIdent `f)
+  let domainInst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent (← `(term|$cls ($(mkIdent ``IteratedProd') (($(fieldLabelToDomain stateName) $sorts*) $fieldLabelIdent)))) instName
+  return #[domainInst]
+/-- States that if every sort has an instance of `className` (e.g. `Ord node`),
+then the codomain has instances of that class. See NOTE [AutomaticallyInferred].-/
+private def Module.declareInstanceLiftingForCodomain [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) : m (Array Syntax) := do
+  let (cls, sorts, fieldLabelIdent) := (mkIdent deriveClass, ← mod.sortIdents, mkVeilImplementationDetailIdent `f)
+  let codomainInst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent (← `(term|$cls (($(fieldLabelToCodomain stateName) $sorts*) $fieldLabelIdent))) instName
+  return #[codomainInst]
 
+/-- States that `deriveClass` can be inferred assuming `assumingClasses` for
+every concrete type of every field. See NOTE [AutomaticallyInferred]. -/
+private def Module.declareInstanceLiftingForConcreteType [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) : m (Array Syntax) := do
+  let (cls, sorts, fieldLabelIdent) := (mkIdent deriveClass, ← mod.sortIdents, mkVeilImplementationDetailIdent `f)
+  let inst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent (← `(term|$cls ($fieldConcreteDispatcher $sorts* $fieldLabelIdent))) instName
+  return #[inst]
 
 /-- Return the syntax for declaring `State.Label` and dispatchers; also
 update the module to include the new parameters for concrete field type,
@@ -691,13 +707,15 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   let argTypesAsMap : Std.HashMap Name (Array Term) := Std.HashMap.ofList (components.zipWith (fun sc args => (sc.name, args)) (fieldMetadata.map (·.domainTerms)) |>.toList)
   -- declare field label type
   let (name0, stx0) ← declareStructureFieldLabelType stateName components
-  -- declare field dispatchers; `postInstances` require the instances to elaborate
-  let (dispatchers, (postName, fieldConcreteTypeStx)) ← mod.declareFieldDispatchers stateName fieldMetadata (← mod.sortBinders)
+  -- declare field dispatchers
+  let (dispatchers, (fieldConcreteTypeName, fieldConcreteTypeStx)) ← mod.declareFieldDispatchers stateName fieldMetadata (← mod.sortBinders)
   let (dispacherNames, dispatcherStxs) := Array.unzip dispatchers
-  for name in (#[name0, postName] ++ dispacherNames) do
+  for name in (#[name0, fieldConcreteTypeName] ++ dispacherNames) do
     mod.throwIfAlreadyDeclared name
   -- declare liftings for needed instances
-  let instances ← #[``Enumeration, ``Ord, ``ToJson].flatMapM fun inst => mod.declareInstanceLiftingForDomainAndCodomain inst
+  -- FIXME: this specific instance is really required; the rest can be automatically inferred (see NOTE [AutomaticallyInferred])
+  let specificInstances ← #[``Enumeration].flatMapM fun inst => return (← mod.declareInstanceLiftingForIteratedProd inst (instName := instEnumerationForIteratedProdName))
+  let instances ← #[``Enumeration, ``Ord, ``ToJson].flatMapM fun inst => return (← mod.declareInstanceLiftingForDomain inst) ++ (← mod.declareInstanceLiftingForCodomain inst)
   let concreteInstances ← #[(``Hashable, #[``DecidableEq, ``Ord, ``Hashable]), (``BEq, #[``DecidableEq, ``Ord])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForConcreteType deriveClass assumingClasses
   -- add the `fieldConcreteType` parameter
   let fieldConcreteTypeParam ← Parameter.fieldConcreteType
@@ -713,7 +731,7 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   let lawfulFieldRep : Parameter := { kind := .moduleTypeclass .lawfulFieldRepresentation, name := lawfulFieldRepresentationName, «type» := lawfulFieldRepType, userSyntax := .missing }
   return ({ mod with parameters := mod.parameters ++ #[fieldConcreteTypeParam, fieldRep, lawfulFieldRep] ,
                      _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter ,
-                     _fieldRepMetaData := argTypesAsMap }, (#[stx0] ++ dispatcherStxs ++ instances ++ #[fieldConcreteTypeStx] ++ concreteInstances))
+                     _fieldRepMetaData := argTypesAsMap }, (#[stx0] ++ dispatcherStxs ++ specificInstances ++ instances ++ #[fieldConcreteTypeStx] ++ concreteInstances))
 
 /-- Similar to `Module.declareStateStructure` but here `FieldRepresentation`
 is involved. -/
