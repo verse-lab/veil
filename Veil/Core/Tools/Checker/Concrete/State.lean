@@ -76,18 +76,19 @@ variable [IsSubReaderOf ℝ ρ]
 
 
 def adjMap (rd : ρ) (pre : σ) : List (κ × σ) := Id.run do
-  let mut res : List (κ × σ) := []
+  let mut res : Array (κ × σ) := #[]
   for l in allLabels do
     let succs := adjExec nextVeilMultiExecM rd pre l
     for s in succs do
-      res := res.append [(l, s)]
-  res
+      res := res.push (l, s)
+  res.toList
 
 
 /-- Process a single neighbor node during BFS traversal.
 If the neighbor has been seen, return the current state unchanged
 Otherwise, add it to seen set and log,
 then either enqueue it (if valid) or mark as counterexample.-/
+@[inline]
 def processNeighbor
     (starts : List σ)
     (adj : σ → List (κ × σ))
@@ -183,7 +184,7 @@ def processNeighbor
           termination := true,
           queue_wellformed := st_with_seen.queue_wellformed }
 
-
+@[inline]
 def processSuccessors
   (starts : List σ)
   (adj : σ → List (κ × σ))
@@ -199,7 +200,6 @@ def processSuccessors
       let h_neighbor_reachable := Reachable.step h_curr h_neighbor_in_adj
       processNeighbor INV starts adj view rd fpSt current_st neighbor h_neighbor_reachable
   ) st
-
 
 def bfsStep (starts : List σ)
   (adj : σ → List (κ × σ))
