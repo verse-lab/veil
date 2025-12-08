@@ -139,102 +139,6 @@ elab "#Concretize" args:term,* : command => do
     elabVeilCommand nextCmd
     getLabelList
 
-
-def deriveBEqForState (mod : Veil.Module) : CommandElabM Unit := do
-  let fieldNames := mod.mutableComponents.map (·.name)
-  let s1 := mkIdent `s1
-  let s2 := mkIdent `s2
-  let eqTerms : Array (TSyntax `term) ← fieldNames.mapM (fun f => do
-    `(term| $s1.$(mkIdent f) == $s2.$(mkIdent f)))
-
-  let beqBody : TSyntax `term ← do
-    if h : eqTerms.size = 0 then
-      `(term| True)
-    else
-      let mut acc := eqTerms[0]
-      for i in [1:eqTerms.size] do
-        acc ← `(term| $acc && $(eqTerms[i]!))
-      pure acc
-
-  let BEqInstCmd : Syntax ←
-    `(command|
-        instance : $(mkIdent ``BEq) $(mkIdent `StateConcrete) where
-          $(mkIdent `beq):ident := fun $s1 $s2 => $beqBody)
-  trace[veil.debug] s!"BEqInstCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic BEqInstCmd}"
-  elabVeilCommand BEqInstCmd
-
-
-def deriveHashableForState (mod : Veil.Module) : CommandElabM Unit := do
-  let fieldNames := mod.mutableComponents.map (·.name)
-  let s := mkIdent `s
-  let binds : Array (Name × TSyntax `term) ←
-    fieldNames.mapM (fun f => do
-      let rhs ← `(term| $(mkIdent ``hash) $s.$(mkIdent f))
-      pure (f, rhs))
-
-  let hashIds : Array (TSyntax `term) :=
-    fieldNames.map (fun f => (mkIdent f : TSyntax `term))
-  let finalBody : TSyntax `term ← liftMacroM <| mkTuple hashIds
-
-  let body : TSyntax `term ←
-    binds.foldrM (init := finalBody) (fun (f, rhs) acc =>
-      `(term| let $(mkIdent f) := $rhs; $acc))
-
-  let HashableInstCmd : TSyntax `command ←
-    `(command|
-        instance : $(mkIdent ``Hashable) $(mkIdent `StateConcrete) where
-          $(mkIdent `hash):ident := fun $s => $(mkIdent ``hash) $body)
-  trace[veil.debug] s!"tryVlsUnfold : {← liftTermElabM <|Lean.PrettyPrinter.formatTactic HashableInstCmd}"
-  elabVeilCommand HashableInstCmd
-where
-  mkTuple (xs : Array (TSyntax `term)) : MacroM (TSyntax `term) := do
-    match xs.size with
-    | 0 => `(term| ())
-    | 1 => pure xs[0]!
-    | _ =>
-      let mut acc : TSyntax `term ← `(term| ($(xs[0]!), $(xs[1]!)))
-      for i in [2:xs.size] do
-        acc ← `(term| ($acc, $(xs[i]!)))
-      return acc
-
-elab "deriving_BEq_ConcreteState" : command => do
-  let mod ← getCurrentModule
-  deriveBEqForState mod
-
-elab "deriving_BEqHashable_ConcreteState" : command => do
-  let mod ← getCurrentModule
-  deriveBEqForState mod
-  deriveHashableForState mod
-
-
-def deriveToJsonForState (mod : Veil.Module) : CommandElabM Unit := do
-  let sId := mkIdent `s
-
-  let fieldNames := mod.mutableComponents.map (·.name)
-  let pairs : Array (TSyntax `term) ← fieldNames.mapM (fun fName => do
-    let fieldStr := fName.toString
-    let lit      := Syntax.mkStrLit fieldStr
-    let projId   := mkIdent fName
-    `(term| ($lit, $(mkIdent ``toJson) $sId.$projId))
-  )
-
-  let toJsonRhs ← `(term| fun $sId => $(mkIdent ``Json.mkObj) [ $[$pairs],* ])
-  let instToJsonIdent := (mkIdent `jsonOfState)
-  let traceToJsonInst ←
-    `(command|
-      instance $instToJsonIdent:ident : $(mkIdent ``ToJson) $(mkIdent `StateConcrete) where
-        $(mkIdent `toJson):ident := $toJsonRhs)
-  trace[veil.debug] s!"toJsonCmd: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic traceToJsonInst}"
-  elabVeilCommand traceToJsonInst
-
-syntax (name := derivingToJsonForState) "deriving_toJson_for_state" : command
-
-@[command_elab derivingToJsonForState]
-def deriveToJsonForStateElab : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
-  deriveToJsonForState mod
-
-
 syntax (name := veilMakeExecutable) "#gen_exec" : command
 
 /--Generate all required instances and definitions to make the symbolic model executable. -/
@@ -247,8 +151,6 @@ syntax (name := veilFinitizeTypes) "#finitize_types" term,* : command
 macro_rules
   | `(command| #finitize_types $args:term,*) => do
     `(#Concretize $args,*
-      deriving_BEqHashable_ConcreteState
-      deriving_toJson_for_state
       deriving_DecidableProps_state)
 
 syntax (name := veilSetTheory) "#set_theory" term : command
