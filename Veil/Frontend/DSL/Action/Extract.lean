@@ -117,8 +117,8 @@ def specializeActionsCore
     (($label.$(mkIdent `casesOn) $acts*) : $(mkIdent ``VeilM) $(mkIdent ``Mode.external) $environmentTheory $environmentState $(mkIdent ``Unit)))
   buildingTermWithχSpecialized baseParams extraParams injectedBinders target finalBody
     (← `(($χ $(← mod.sortIdents)*)))
-    (mkIdent ``inferInstance)
-    (mkIdent ``inferInstance)
+    (← `($instFieldRepresentation $(← mod.sortIdents)*))
+    (← `($instLawfulFieldRepresentation $(← mod.sortIdents)*))
 
 def specializeActions (χ target : Ident) (extraDsimps : TSyntaxArray `ident)
   (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : CommandElabM Unit := do

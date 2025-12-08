@@ -58,7 +58,7 @@ def assembledNextAct : Ident := mkIdent assembledNextActName
 def fieldConcreteTypeName : Name := `χ
 def fieldConcreteType : Ident := mkIdent fieldConcreteTypeName
 
-def fieldConcreteDispatcherName : Name := `_FieldConcreteType
+def fieldConcreteDispatcherName : Name := `FieldConcreteType
 def fieldConcreteDispatcher : Ident := mkIdent fieldConcreteDispatcherName
 
 def fieldRepresentationName : Name := `χ_rep
@@ -84,5 +84,22 @@ def fieldLabelToCodomain (base : Name) : Ident := mkIdent <| fieldLabelToCodomai
 
 def localRPropTCName : Name := `LocalRProp
 def localRPropTC : Ident := mkIdent localRPropTCName
+
+/-- `t_Enum` is a type class. -/
+def Name.toEnumClass (name : Name) : Name := name.appendAfter "_Enum"
+def Ident.toEnumClass (id : Ident) : Ident := mkIdent $ Name.toEnumClass id.getId
+
+/-- `t_isEnum` is an instance, where `t` is declared as an `enum` type. -/
+def Name.toEnumInst (name : Name) : Name := name.appendAfter "_isEnum"
+def Ident.toEnumInst (id : Ident) : Ident := mkIdent $ Name.toEnumInst id.getId
+
+def Name.toEnumConcreteTypeName (name : Name) : Name := name.appendAfter "_IndT"
+def Ident.toEnumConcreteType (id : Ident) : Ident := mkIdent $ Name.toEnumConcreteTypeName id.getId
+
+def enumDistinctName : Name := `distinct
+def enumDistinct : Ident := mkIdent enumDistinctName
+
+def enumCompleteName : Name := `complete
+def enumComplete : Ident := mkIdent enumCompleteName
 
 end Veil
