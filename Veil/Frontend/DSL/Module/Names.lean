@@ -24,7 +24,9 @@ def environmentSubStateName : Name := `σ_sub
 def environmentSubState : Ident := mkIdent environmentSubStateName
 
 def stateName : Name := `State
+def stateIdent : Ident := mkIdent stateName
 def theoryName : Name := `Theory
+def theoryIdent : Ident := mkIdent theoryName
 
 def subStateInstIdent (id : Ident): Ident := mkIdent $ Name.mkSimple s!"{id.getId}_substate"
 def environmentSubStateIdent : Ident := subStateInstIdent environmentState
@@ -66,6 +68,12 @@ def lawfulFieldRepresentation : Ident := mkIdent lawfulFieldRepresentationName
 
 def instEnumerationForIteratedProdName : Name := `instEnumerationForIteratedProd
 def instEnumerationForIteratedProd : Ident := mkIdent instEnumerationForIteratedProdName
+
+def instFieldRepresentationName : Name := `instFieldRepresentation
+def instFieldRepresentation : Ident := mkIdent instFieldRepresentationName
+
+def instLawfulFieldRepresentationName : Name := `instLawfulFieldRepresentation
+def instLawfulFieldRepresentation : Ident := mkIdent instLawfulFieldRepresentationName
 
 def structureFieldLabelTypeName (base : Name) : Name := base ++ labelTypeName
 def structureFieldLabelType (base : Name) : Ident := mkIdent <| structureFieldLabelTypeName base

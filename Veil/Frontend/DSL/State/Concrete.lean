@@ -1,6 +1,7 @@
 import Std
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Veil.Frontend.DSL.State.Interface
+import Veil.Frontend.DSL.Module.Names
 
 namespace Veil
 

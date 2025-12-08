@@ -590,7 +590,12 @@ private def declareStructureFieldLabelType [Monad m] [MonadQuotation m] [MonadEr
 
 /-- Get binders for assuming that every sort has an instance of `className` (e.g. `Ord node`). -/
 private def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (className : Name) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  (← mod.sortIdents).mapM fun sort => `(bracketedBinder|[$(mkIdent className) $sort])
+  (← mod.sortIdents).mapM fun sort => do
+    -- Special case `TransCmp` and `LawfulEqCmp`
+    if #[``Std.TransCmp, ``Std.LawfulEqCmp].contains className then
+      `(bracketedBinder|[$(mkIdent className) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $sort) ))])
+    else
+      `(bracketedBinder|[$(mkIdent className) $sort])
 
 /-- Helper structure used in the generation of field dispatchers.-/
 private structure FieldMetadata where
@@ -612,16 +617,16 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
   let coDomainComponents := fieldMetadata.map (·.codomainTerm)
   let f := mkVeilImplementationDetailIdent `f
   let casesOnName := structureFieldLabelTypeName base ++ `casesOn
-  let params := params.push (← `(bracketedBinder| ($f : $(structureFieldLabelType base))))
+  let fieldLabel ← `(bracketedBinder| ($f : $(structureFieldLabelType base)))
+  let dParams := params ++ [fieldLabel]
   -- to domain dispatcher
-  let todomain ← `(abbrev $(fieldLabelToDomain base) $params* : $(mkIdent ``List) Type := $(mkIdent casesOnName) $f $domainComponents*)
+  let todomain ← `(abbrev $(fieldLabelToDomain base) $dParams* : $(mkIdent ``List) Type := $(mkIdent casesOnName) $f $domainComponents*)
   -- to codomain dispatcher
-  let tocodomain ← `(abbrev $(fieldLabelToCodomain base) $params* : Type := $(mkIdent casesOnName) $f $coDomainComponents*)
+  let tocodomain ← `(abbrev $(fieldLabelToCodomain base) $dParams* : Type := $(mkIdent casesOnName) $f $coDomainComponents*)
   -- concrete field representation dispatcher
-  let requiredInstances ← mod.assumeForEverySort ``Ord
-  let params := params ++ requiredInstances
+  let cParams := params ++ (← mod.assumeForEverySort ``Ord) ++ [fieldLabel]
   let concreteTypes ← fieldMetadata.mapM (fun fm => fieldKindToType mod fm.sc)
-  let toconcretetype ← `(abbrev $fieldConcreteDispatcher $params* : Type := $(mkIdent casesOnName) $f $concreteTypes*)
+  let toconcretetype ← `(abbrev $fieldConcreteDispatcher $cParams* : Type := $(mkIdent casesOnName) $f $concreteTypes*)
   return (#[(fieldLabelToDomainName base, todomain), (fieldLabelToCodomainName base, tocodomain)], (fieldConcreteTypeName, toconcretetype))
   where
   -- Generate the concrete type for a field based on its kind
@@ -697,6 +702,36 @@ private def Module.declareInstanceLiftingForConcreteType [Monad m] [MonadQuotati
   let inst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent (← `(term|$cls ($fieldConcreteDispatcher $sorts* $fieldLabelIdent))) instName
   return #[inst]
 
+private def Module.mkFieldRepresentationInstances [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
+  let (sorts, fieldLabelIdent) := (← mod.sortIdents, mkVeilImplementationDetailIdent `f)
+  let fieldLabel ← `(bracketedBinder|($fieldLabelIdent:ident : $(mkIdent `State.Label)))
+  let toDomainTerm ← `(($(fieldLabelToDomain stateName) $sorts* $fieldLabelIdent))
+  let toCodomainTerm ← `(($(fieldLabelToCodomain stateName) $sorts* $fieldLabelIdent))
+  let fieldConcreteTypeApplied ← `(($fieldConcreteDispatcher $sorts* $fieldLabelIdent))
+  -- Field representation instance
+  let fieldRepTy ← `(term|$(mkIdent ``FieldRepresentation) $toDomainTerm $toCodomainTerm $fieldConcreteTypeApplied)
+  let fieldRepAssumed := #[``Enumeration, ``Ord, ``Std.TransCmp]
+  let fieldRepBinders := (← mod.sortBinders) ++ (← fieldRepAssumed.flatMapM mod.assumeForEverySort) ++ #[fieldLabel]
+  let fieldRepStx ← `(instance $instFieldRepresentation:ident $fieldRepBinders* : $fieldRepTy := by $(← mkSolverTactic ``instFinsetLikeAsFieldRep ``instTotalMapLikeAsFieldRep sorts fieldLabelIdent):tactic)
+  -- Lawful field representation instance
+  let lawfulFieldRepTy ← `(term|$(mkIdent ``LawfulFieldRepresentation) $toDomainTerm $toCodomainTerm $fieldConcreteTypeApplied ($instFieldRepresentation $sorts* $fieldLabelIdent))
+  let lawfulAssumed := #[``Enumeration, ``Ord, ``Std.TransCmp, ``Std.LawfulEqCmp]
+  let lawfulFieldRepBinders := (← mod.sortBinders) ++ (← lawfulAssumed.flatMapM mod.assumeForEverySort) ++ #[fieldLabel]
+  let lawfulFieldRepStx ← `(instance $instLawfulFieldRepresentation:ident $lawfulFieldRepBinders* : $lawfulFieldRepTy := by $(← mkSolverTactic ``instFinsetLikeLawfulFieldRep ``instTotalMapLikeLawfulFieldRep sorts fieldLabelIdent):tactic)
+  -- `Inhabited` instance
+  let inhabitedTy ← `(term|$(mkIdent ``Inhabited) ($stateIdent ($fieldConcreteDispatcher:ident $sorts* )))
+  let inhabitedAssumed := #[``Inhabited, ``Ord, ``DecidableEq, ``Enumeration, ``Std.LawfulEqCmp, ``Std.TransCmp]
+  let inhabitedBinders := (← mod.sortBinders) ++ (← inhabitedAssumed.flatMapM mod.assumeForEverySort)
+  let inhabitedStx ← `(instance $[$inhabitedBinders]* : $inhabitedTy := by constructor; constructor <;> dsimp_state_representation <;> exact $(mkIdent ``default))
+  return #[fieldRepStx, lawfulFieldRepStx, inhabitedStx]
+  where
+  mkSolverTactic (relT funT : Name) (sorts : Array Ident) (fieldLabelIdent : Ident) : m (TSyntax `tactic) :=
+    `(tactic|cases $fieldLabelIdent:ident <;>
+    first
+    | infer_instance_for_iterated_prod'
+    | (exact $(mkIdent relT) $(mkIdent ``Veil.IteratedProd'.equiv) (($instEnumerationForIteratedProd $sorts*) _))
+    | (exact $(mkIdent funT) $(mkIdent ``Veil.IteratedProd'.equiv) (($instEnumerationForIteratedProd $sorts*) _)))
+
 /-- Return the syntax for declaring `State.Label` and dispatchers; also
 update the module to include the new parameters for concrete field type,
 `FieldRepresentation` and `LawfulFieldRepresentation`. -/
@@ -735,12 +770,13 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
 
 /-- Similar to `Module.declareStateStructure` but here `FieldRepresentation`
 is involved. -/
-def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
+def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × (Array Syntax)) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
-  let stx ← mod.fieldsAbstractedStateDefinitionStx
-  let stateStx ← mod.stateStx true
+  let stateDef ← mod.fieldsAbstractedStateDefinitionStx
+  let inhabitedInst ← mod.mkFieldRepresentationInstances
+  let stateStx ← mod.stateStx (withFieldConcreteType? := true)
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stx)
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, #[stateDef] ++ inhabitedInst)
 
 def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubTheoryName

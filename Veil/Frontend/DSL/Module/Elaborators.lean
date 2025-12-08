@@ -129,11 +129,10 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
   let mod ← if mod._useFieldRepTC
   then
     let (mod, stxs) ← mod.declareStateFieldLabelTypeAndDispatchers
-    let (mod, stateStx) ← mod.declareFieldsAbstractedStateStructure
+    let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure
     let (mod, theoryStx) ← mod.declareTheoryStructure
-    for stx in stxs do
+    for stx in stxs ++ stateStxs do
       elabVeilCommand stx
-    elabVeilCommand stateStx
     elabVeilCommand theoryStx
     generateIgnoreFn mod
     pure { mod with _stateDefined := true }
