@@ -270,8 +270,8 @@ set_option trace.veil.debug true
 #set_theory { N := 7, T := 2, F := 1 }
 
 #run_checker parameter_constraints
-#eval modelCheckerResult.seen.size
 -- Visualize the results
+#eval spaceSize modelCheckerResult
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />

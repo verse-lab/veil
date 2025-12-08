@@ -201,8 +201,12 @@ invariant [NeverDeleteActive]
 -- #check_invariants
 #gen_exec
 
-#finitize_types ENACTORS
-#eval labelList
+-- #finitize_types ENACTORS
+set_option trace.veil.debug true
+#Concretize ENACTORS
+deriving_BEqHashable_ConcreteState
+deriving_toJson_for_state
+deriving_DecidableProps_state
 
 def view (st : StateConcrete) := hash st
 def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => NeverDeleteActive ρ σ)

@@ -179,7 +179,7 @@ action _cs(self : process) {
 
 
 invariant [mutual_exclusion] pc T1 cs ∧ pc T2 cs → T1 = T2
-termination [allDone]∀p, pc p Done
+termination [allDone]∀p, pc p Done = true
 
 #gen_spec
 
@@ -190,6 +190,8 @@ termination [allDone]∀p, pc p Done
 #set_theory { none := 0 }
 
 #run_checker mutual_exclusion
+
+#eval modelCheckerResult.seen.size
 
 open ProofWidgets
 open scoped ProofWidgets.Jsx

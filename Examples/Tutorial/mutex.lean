@@ -196,9 +196,9 @@ set_option maxHeartbeats 250000
 #gen_spec
 
 -- set_option trace.veil.desugar true
-set_option trace.veil.debug true
-
+-- set_option trace.veil.debug true
 #gen_exec
+-- gen_NextAct
 /- Concretize the abstract types using finite concrete types.
 Here, we use `Fin 2` to represent two processes in the system. -/
 #finitize_types (Fin 3), states
@@ -207,13 +207,14 @@ Here, we use `Fin 2` to represent two processes in the system. -/
 #set_theory {none := 0}
 
 /- Run the model checker and get results. Here we check the `mutual exclusion` property -/
-#run_checker mutual_exclusion
-
+-- #run_checker mutual_exclusion
+def modelCheckerResult := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun rd st => mutual_exclusion rd st) (fun _ _ => true) {none := 0} hash)
+#check modelCheckerResult
 /- Display the number of states explored by the model checker. -/
-#eval modelCheckerResult.seen.size
-#eval modelCheckerResult.log
-
-
+#eval collectTrace modelCheckerResult
+def statesJson : Lean.Json :=
+  Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace modelCheckerResult))
+#check collectTrace'
 /- Display the counterexample trace using ProofWidgets, if any found by the model checker.
 Here we found a counterexample, where both `thread_1` and `thread_2` enter the critical section simultaneously.-/
 open ProofWidgets

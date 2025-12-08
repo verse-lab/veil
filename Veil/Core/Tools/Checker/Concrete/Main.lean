@@ -27,3 +27,8 @@ instance (priority := low) finFunctionRepr (α : Type u) (β : Type v) [Repr α]
 
 instance (priority := high) essentiallyFinSetRepr (α : Type u) [Repr α] [FinEnum α] : Repr (α → Bool) where
   reprPrec := fun f => List.repr (FinEnum.toList α |>.filter f)
+
+
+instance (priority := high + 100) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
+  find := fun _ => Veil.Enumeration.allValues |>.filter p
+  find_iff := by simp ; grind

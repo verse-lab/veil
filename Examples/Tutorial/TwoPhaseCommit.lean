@@ -65,7 +65,7 @@ action go1 {
 action go2 {
   require ∀ N, ¬go_commit N;
   require ∀ N, ¬go_abort N;
-  -- require exists n, vote_no n ∨ ¬alive n;
+  require exists n, vote_no n ∨ ¬alive n;
   go_abort N := true
 }
 
@@ -106,7 +106,7 @@ Here we concretize the `node` type using `Fin 2`
 Here, `< 5` is safe. Otherwise you can not get the result immediately
 when show this case.
 -/
-#finitize_types (Fin 2)
+#finitize_types (Fin 6)
 
 /- Set the immutable declarations for the model checker, here we do not have any.-/
 #set_theory {}
@@ -127,12 +127,13 @@ indicate that we are missing some necessary invariants.
 
 -/
 
-#run_checker manual_3
+#run_checker (fun a b => true)
 -- #eval modelCheckerResult.seen.size
+#eval spaceSize modelCheckerResult
 -- #eval statesJson
-open ProofWidgets
-open scoped ProofWidgets.Jsx
-#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+-- open ProofWidgets
+-- open scoped ProofWidgets.Jsx
+-- #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
 
 
 end TwoPhaseCommit

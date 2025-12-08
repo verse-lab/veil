@@ -166,57 +166,14 @@ action RMRcvAbortMsg (r : node) {
 #gen_spec
 
 
--- TPNext ==
---   \/ TMCommit \/ TMAbort
---   \/ \E r \in RM :
---        TMRcvPrepared(r) \/ RMPrepare(r)
---          \/ RMRcvCommitMsg(r) \/ RMRcvAbortMsg(r)
--- -----------------------------------------------------------------------------
--- (***************************************************************************)
--- (* The material below this point is not discussed in Video Lecture 6.  It  *)
--- (* will be explained in Video Lecture 8.                                   *)
--- (***************************************************************************)
-
--- TPSpec == TPInit /\ [][TPNext]_vars /\ WF_vars(TPNext)
---   (*************************************************************************)
---   (* The complete spec of the Two-Phase Commit protocol.                   *)
---   (*************************************************************************)
-
--- THEOREM TPSpec => []TPTypeOK
---   (*************************************************************************)
---   (* This theorem asserts that the type-correctness predicate TPTypeOK is  *)
---   (* an invariant of the specification.                                    *)
---   (*************************************************************************)
--- -----------------------------------------------------------------------------
--- (***************************************************************************)
--- (* We now assert that the Two-Phase Commit protocol implements the         *)
--- (* Transaction Commit protocol of module TCommit.  The following statement *)
--- (* imports all the definitions from module TCommit into the current        *)
--- (* module.                                                                 *)
--- (***************************************************************************)
--- INSTANCE TCommit
-
--- THEOREM TPSpec => TCSpec
---   (*************************************************************************)
---   (* This theorem asserts that the specification TPSpec of the Two-Phase   *)
---   (* Commit protocol implements the specification TCSpec of the            *)
---   (* Transaction Commit protocol.                                          *)
---   (*************************************************************************)
 #gen_exec
-#finitizeTypes (Fin 5), rmStateType, tmStateType
 
-def view (st : StateConcrete) := hash st
-def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
-def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
-def cfg : TheoryConcrete := {}
+#finitize_types (Fin 6), rmStateType, tmStateType
 
+#set_theory {}
 
-def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
-#eval modelCheckerResult'.seen.size
-def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
-open ProofWidgets
-open scoped ProofWidgets.Jsx
-#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+#run_checker (fun a b => true)
 
+#eval spaceSize modelCheckerResult
 
 end TwoPhaseCommit
