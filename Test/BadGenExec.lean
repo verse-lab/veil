@@ -13,6 +13,8 @@ type foo
 instantiate tot : TotalOrder node
 instantiate btwn : Between node
 
+enum Guest = {Olivier, Bruno, Aquinas}
+
 open Between TotalOrder
 
 individual x : node
@@ -43,7 +45,7 @@ action recv (sender n next : node) {
   -- this models that multiple messages might be in flight
   let b ← pick Bool
   pending sender n := b  -- FIXME: `pending sender n := *` has bad execution performance
-  if (n = n) then
+  if (sender = n) then
     leader n := true
   else
     -- pass message to next node
@@ -53,32 +55,21 @@ action recv (sender n next : node) {
 
 safety [single_leader] leader N ∧ leader M → N = M
 invariant [leader_greatest] leader L → le N L
--- invariant pending S D ∧ btw S N D → le N S
+invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
-
 
 #gen_spec
 
--- #time #check_invariants
+#check_invariants
 
-#gen_exec
+#time #gen_exec
 
-#finitize_types (Fin 2), (Fin 2)
+#time #finitize_types (Fin 5), (Fin 3), Guest_IndT
+#set_theory {}
 
-#check nextActMultiExec
+#time #model_check leader_greatest
+#eval spaceSize modelCheckerResult
 
-
-#check nextVeilMultiExecM
-def view (st : StateConcrete) := hash st
-def detect_prop : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => single_leader ρ σ)
-def terminationC : TheoryConcrete → StateConcrete → Bool := (fun ρ σ => true)
-def cfg : TheoryConcrete := {}
-
-def modelCheckerResult' :=(runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (detect_prop) (terminationC) cfg view).snd
--- #time #eval modelCheckerResult'.seen.size
-
-def statesJson : Lean.Json := Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM cfg (collectTrace' modelCheckerResult'))
-#eval statesJson
 open ProofWidgets
 open scoped ProofWidgets.Jsx
 #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
