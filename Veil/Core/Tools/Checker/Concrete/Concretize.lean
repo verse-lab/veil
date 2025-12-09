@@ -46,29 +46,6 @@ def elabGenNextAct : CommandElab := fun stx => do
   let mod ← getCurrentModule
   genNextActCommands mod
 
-syntax (name := derivingDeciableInsts) "deriving_DecidableProps_state" : command
-@[command_elab derivingDeciableInsts]
-def deriveDecidablePropsForConcreteState : CommandElab := fun stx => do
-  match stx with
-  | `(command| deriving_DecidableProps_state) => do
-    let mut mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
-    let props := mod.invariants ++ mod.terminations
-    for base in props do
-      let explicitBinder := #[
-            ← `(bracketedBinder| ($(mkIdent `rd) : $(mkIdent `TheoryConcrete) )),
-            ← `(bracketedBinder| ($(mkIdent `st) : $(mkIdent `StateConcrete) )) ]
-      let binder := explicitBinder
-      let stx ← `(
-        instance $[$binder]* : $(mkIdent ``Decidable) ($(mkIdent base.name) $(mkIdent `rd) $(mkIdent `st)) := by
-          unfold $(mkIdent base.name):ident
-          try dsimp [$(mkIdent base.name):ident, $(mkIdent `FieldConcreteType):ident, $(mkIdent `State.Label.toDomain):ident, $(mkIdent `State.Label.toCodomain):ident];
-          infer_instance
-      )
-      elabVeilCommand stx
-      trace[veil.debug] s!"Elaborated invariant definition for Concrete State: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
-  | _ => throwUnsupportedSyntax
-
-
 syntax (name := concretizeTypeCmd) "#Concretize" term,* : command
 /-- Generate label list (labelList) definition -/
 def getLabelList : CommandElabM Unit := do
@@ -150,8 +127,7 @@ macro_rules
 syntax (name := veilFinitizeTypes) "#finitize_types" term,* : command
 macro_rules
   | `(command| #finitize_types $args:term,*) => do
-    `(#Concretize $args,*
-      deriving_DecidableProps_state)
+    `(#Concretize $args,*)
 
 syntax (name := veilSetTheory) "#set_theory" term : command
 elab "#set_theory" theoryConcrete:term : command => do

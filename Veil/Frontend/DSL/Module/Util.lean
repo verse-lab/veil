@@ -1243,7 +1243,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let preBinders ← binders.mapM mkImplicitBinder
   let binders := preBinders ++ thstBinders
   let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let stx ← `(@[$attrs,*] def $(mkIdent base.name) $[$binders]* := $term)
+  let stx ← `(@[$attrs,*] abbrev $(mkIdent base.name) $[$binders]* := $term)
   return (stx, mod)
 
 def Module.registerDerivedDefinition [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (ddef : DerivedDefinition) : m Module := do
