@@ -1,4 +1,6 @@
 import Veil.Frontend.DSL.Module.Util
+import Veil.Frontend.DSL.Action.ExtractUtil
+import Veil.Frontend.DSL.Module.Names
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -254,5 +256,29 @@ elab_rules : command
     let tac ← `(term| by (open $(mkIdent `MultiExtractor):ident in extract_list_tactic))
     generateVeilMultiExecMCore logelem tac injectedBinders (some target) false
   -- FIXME: the other cases
+
+/-- Generate both NextAct specialization and executable list commands. -/
+def genNextActCommands (mod : Veil.Module) : CommandElabM Unit := do
+  let binders ← mod.collectNextActBinders
+  -- Generate NextAct specialization
+  let nextActCmd ← `(command |
+    attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
+    #specialize_nextact with $fieldConcreteDispatcher
+    injection_begin
+      $[$binders]*
+    injection_end => $nextActSimplified
+    )
+  trace[veil.debug] "gen_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic nextActCmd}"
+  elabVeilCommand nextActCmd
+
+  -- Generate executable list
+  let execListCmd ← `(command |
+    #gen_executable_list! log_entry_being $(mkIdent ``Std.Format)
+    targeting $nextActSimplified
+    injection_begin
+      $[$binders]*
+    injection_end)
+  trace[veil.debug] "gen_executable_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic execListCmd}"
+  elabVeilCommand execListCmd
 
 end Veil.Extract

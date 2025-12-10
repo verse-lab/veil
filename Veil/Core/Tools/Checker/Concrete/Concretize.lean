@@ -5,7 +5,6 @@ import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Action.Extract
 import Veil.Frontend.DSL.State.Repr
 import Veil.Core.Tools.Checker.Concrete.State
-import Veil.Core.Tools.Checker.Concrete.ConcretizeUtil
 
 import Mathlib.Data.FinEnum
 import Mathlib.Tactic.ProxyType
@@ -14,37 +13,6 @@ import ProofWidgets.Component.HtmlDisplay
 
 import Lean.Parser.Term
 open Lean Elab Command Veil
-
-
-syntax (name := genNextActCommand) "gen_NextAct" : command
-
-/-- Generate both NextAct specialization and executable list commands. -/
-def genNextActCommands (mod : Veil.Module) : CommandElabM Unit := do
-  let binders ← mod.collectNextActBinders
-  -- Generate NextAct specialization
-  let nextActCmd ← `(command |
-    attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
-    #specialize_nextact with $(mkIdent `FieldConcreteType)
-    injection_begin
-      $[$binders]*
-    injection_end => $(mkIdent `NextAct'))
-  trace[veil.debug] "gen_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic nextActCmd}"
-  elabVeilCommand nextActCmd
-
-  -- Generate executable list
-  let execListCmd ← `(command |
-    #gen_executable_list! log_entry_being $(mkIdent ``Std.Format)
-    targeting $(mkIdent `NextAct')
-    injection_begin
-      $[$binders]*
-    injection_end)
-  trace[veil.debug] "gen_executable_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic execListCmd}"
-  elabVeilCommand execListCmd
-
-@[command_elab genNextActCommand]
-def elabGenNextAct : CommandElab := fun stx => do
-  let mod ← getCurrentModule
-  genNextActCommands mod
 
 syntax (name := concretizeTypeCmd) "#Concretize" term,* : command
 /-- Generate label list (labelList) definition -/
@@ -115,14 +83,6 @@ elab "#Concretize" args:term,* : command => do
     elabVeilCommand initCmd
     elabVeilCommand nextCmd
     getLabelList
-
-syntax (name := veilMakeExecutable) "#gen_exec" : command
-
-/--Generate all required instances and definitions to make the symbolic model executable. -/
-macro_rules
-  | `(command| #gen_exec) => do
-    `(simple_deriving_repr_for' $(mkIdent `State)
-      gen_NextAct)
 
 syntax (name := veilFinitizeTypes) "#finitize_types" term,* : command
 macro_rules

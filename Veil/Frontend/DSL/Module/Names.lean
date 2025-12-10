@@ -55,6 +55,9 @@ def labelCases: Ident := mkIdent labelCasesName
 def assembledNextActName : Name := `NextAct
 def assembledNextAct : Ident := mkIdent assembledNextActName
 
+def nextActSimplifiedName : Name := `NextAct'
+def nextActSimplified : Ident := mkIdent nextActSimplifiedName
+
 def fieldConcreteTypeName : Name := `χ
 def fieldConcreteType : Ident := mkIdent fieldConcreteTypeName
 

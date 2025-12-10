@@ -1,16 +1,8 @@
-import Lean
-import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.State.Types
-import Mathlib.Data.FinEnum
-import Veil.Util.Meta
-
-import Veil.Core.Tools.Checker.Concrete.modelCheckerView
-import ProofWidgets.Component.HtmlDisplay
-
-import Lean.Parser.Term
 open Lean Elab Command Veil
-open Lean Elab Command
+
+/- George: This whole file should not exist, but we haven't yet gotten to refactoring
+the code so we can remove it. -/
 
 /-- Collect all Veil variable binders from a module. -/
 def Module.collectVeilVarsBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module)

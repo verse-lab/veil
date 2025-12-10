@@ -8,6 +8,7 @@ import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.Tools.Verifier.Server
 import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
+import Veil.Frontend.DSL.Action.Extract
 
 open Lean Parser Elab Command
 
@@ -203,6 +204,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
     elabVeilCommand cmd
   let (nextCmd, mod) ← mod.assembleNext
   elabVeilCommand nextCmd
+  Extract.genNextActCommands mod
   Verifier.runManager
   mod.generateVCs
   return { mod with _specFinalized := true }
