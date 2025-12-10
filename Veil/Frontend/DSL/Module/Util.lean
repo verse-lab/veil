@@ -797,7 +797,9 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   -- declare liftings for needed instances
   -- FIXME: this specific instance is really required; the rest can be automatically inferred (see NOTE [AutomaticallyInferred])
   let specificInstances ← #[``Enumeration].flatMapM fun inst => return (← mod.declareInstanceLiftingForIteratedProd inst (instName := instEnumerationForIteratedProdName))
-  let instances ← #[``Enumeration, ``Ord, ``ToJson].flatMapM fun inst => return (← mod.declareInstanceLiftingForDomain inst) ++ (← mod.declareInstanceLiftingForCodomain inst)
+  -- NOTE: not actually needed, but left here for completeness to document what needs to exist
+  -- let instances ← #[``Enumeration, ``Ord, ``ToJson].flatMapM fun inst => return (← mod.declareInstanceLiftingForDomain inst) ++ (← mod.declareInstanceLiftingForCodomain inst)
+  let instances : Array Syntax := #[]
   let concreteInstances ← #[(``Hashable, #[``DecidableEq, ``Ord, ``Hashable]), (``BEq, #[``DecidableEq, ``Ord]), (``ToJson, #[``ToJson, ``Ord])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForConcreteType deriveClass assumingClasses
   -- add the `fieldConcreteType` parameter
   let fieldConcreteTypeParam ← Parameter.fieldConcreteType
