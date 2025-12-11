@@ -1,4 +1,7 @@
+import Veil.Core.Tools.ModelChecker.Data
 namespace Veil
+
+class TransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) where
 
 /-- A relational transition system is parametrised by:
   - `ρ` - the type of the background theory (immutable state) it operates in
@@ -14,7 +17,7 @@ A relational transition system might or might be executable, depending on
 whether `assumptions`, `init`, and `tr` are decidable.
 -/
 @[grind]
-class RelationalTransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) where
+class RelationalTransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) extends TransitionSystem ρ σ l where
   /-- The set of acceptable background theories -/
   assumptions : ρ → Prop
   /-- The set of initial states, indexed by background theory -/
@@ -68,7 +71,7 @@ class ExecutableTransitionSystem
   (σ : Type) (σSet : outParam Type) [Std.Stream σSet σ]
   (l : outParam Type)
   (nextSet : Type) [Std.Stream nextSet (l × σ)]
-  where
+  extends TransitionSystem ρ σ l where
   /-- The (enumerable) set of background theories -/
   theories : ρSet
   /-- The (enumerable) set of initial states -/
@@ -81,26 +84,19 @@ class ExecutableTransitionSystem
 
 attribute [grind] ExecutableTransitionSystem.theories ExecutableTransitionSystem.initStates ExecutableTransitionSystem.tr
 
-instance [BEq α] [Std.Stream αStream α] : Membership α αStream where
-  mem stream searchedFor := Id.run do
-    for el in stream do
-      if el == searchedFor then
-        return True
-    return False
-
-class abbrev Collection (Coll α : Type) := BEq α, Std.Stream Coll α, Membership α Coll
-
 namespace ExecutableTransitionSystem
 
 @[grind]
 def next
-  [Collection ρSet ρ] [Collection σSet σ] [Collection nextSet (l × σ)]
+  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
+  [Membership (l × σ) nextSet]
   [sys : ExecutableTransitionSystem ρ ρSet σ σSet l nextSet] (th : ρ) (s s' : σ) : Prop :=
   ∃ label, (label, s') ∈ sys.tr th s
 
 @[grind]
 def toRelational
-  [Collection ρSet ρ] [Collection σSet σ] [Collection nextSet (l × σ)]
+  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
+  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
   (sys : ExecutableTransitionSystem ρ ρSet σ σSet l nextSet) :
   RelationalTransitionSystem ρ σ l
 where
@@ -112,7 +108,8 @@ where
 /-- Reachability relation, indexed by background theory. -/
 @[grind]
 inductive reachable
-  [Collection ρSet ρ] [Collection σSet σ] [Collection nextSet (l × σ)]
+  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
+  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
   [sys : ExecutableTransitionSystem ρ ρSet σ σSet l nextSet]
   (th : ρ) : σ → Prop
 where
@@ -120,7 +117,8 @@ where
   | step : ∀ (s s' : σ), reachable th s → sys.next th s s' → reachable th s'
 
 theorem reachable_equiv_relational
-  [Collection ρSet ρ] [Collection σSet σ] [Collection nextSet (l × σ)]
+  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
+  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
   (sys : ExecutableTransitionSystem ρ ρSet σ σSet l nextSet)
   :
   sys.reachable th s ↔ (sys.toRelational.reachable th s) := by
