@@ -3,7 +3,9 @@ import Veil.Frontend.Std
 import Veil.Core.Tools.Checker.Concrete.State
 import Veil.Frontend.DSL.State
 
+namespace Veil
 open Lean
+
 /--
 `BEq` instances for `Std.TreeMap` and `Std.TreeSet`.
 
@@ -76,77 +78,4 @@ instance jsonOfTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Std.TreeMap α
 instance jsonOfTotalTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Veil.TotalTreeMap α β) where
   toJson m := Json.arr <| m.val.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
 
-instance jsonOfTrace {σₛ κ : Type} [ToJson σₛ] [ToJson κ] : ToJson (Trace σₛ κ) where
-  toJson := fun tr =>
-    let states : Array Json :=
-      #[ Json.mkObj
-        [ ("index", toJson 0),
-          ("fields", toJson tr.start),
-          ("action", "after_init") ]] ++
-      (tr.steps.toArray.mapIdx (fun i st =>
-        let idx := i + 1
-        Json.mkObj
-        [ ("index", toJson idx),
-          ("fields", toJson st.next),
-          ("action", toJson st.label)]))
-    Json.arr states
-
-
-
-instance (n : Nat): TotalOrderWithZero (Fin n.succ) where
-  le := fun x y => x.val ≤ y.val
-  le_refl := by simp
-  le_trans := by simp ; omega
-  le_antisymm := by simp ; omega
-  le_total := by simp ; omega
-  zero := ⟨0, by simp⟩
-  zero_le := by simp
-
-
-instance (n : Nat) : DecidableRel (TotalOrderWithZero.le (t := Fin n.succ)) := by
-  dsimp [TotalOrderWithZero.le]
-  infer_instance_for_iterated_prod
-
-
-instance (n : Nat): TotalOrderWithMinimum (Fin n.succ) where
-  le := fun x y => x.val ≤ y.val
-  le_refl := by simp
-  le_trans := by simp ; omega
-  le_antisymm := by simp ; omega
-  le_total := by simp ; omega
-  lt := fun x y => x.val < y.val
-  le_lt := by intros; dsimp [TotalOrderWithMinimum.lt, TotalOrderWithMinimum.le]; omega
-  next := fun x y => x.val + 1 = y.val
-  next_def := by
-    intros x y
-    dsimp [TotalOrderWithMinimum.next, TotalOrderWithMinimum.lt, TotalOrderWithMinimum.le]
-    apply Iff.intro
-    · -- Forward direction: x.val + 1 = y.val → (x.val < y.val ∧ ∀ z, x.val < z.val → y.val ≤ z.val)
-      intro h
-      constructor
-      · -- Prove x.val < y.val
-        omega
-      · -- Prove ∀ z, x.val < z.val → y.val ≤ z.val
-        intro z hz
-        omega
-    · -- Backward direction: (x.val < y.val ∧ ∀ z, x.val < z.val → y.val ≤ z.val) → x.val + 1 = y.val
-      intro ⟨hlt, hmin⟩
-      have h1 : x.val < x.val + 1 := by omega
-      have h2 : y.val ≤ x.val + 1 := hmin ⟨x.val + 1, by omega⟩ h1
-      omega
-  zero := ⟨0, by simp⟩
-  zero_lt := by simp ;
-
-
-
-instance (n : Nat) : DecidableRel (TotalOrderWithMinimum.le (t := Fin n.succ)) := by
-  dsimp [TotalOrderWithMinimum.le]
-  infer_instance_for_iterated_prod
-
-instance (n : Nat) : DecidableRel (TotalOrderWithMinimum.lt (t := Fin n.succ)) := by
-  dsimp [TotalOrderWithMinimum.lt]
-  infer_instance_for_iterated_prod
-
-instance (n : Nat) : DecidableRel (TotalOrderWithMinimum.next (t := Fin n.succ)) := by
-  dsimp [TotalOrderWithMinimum.next]
-  infer_instance_for_iterated_prod
+end Veil

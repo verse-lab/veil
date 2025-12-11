@@ -136,6 +136,27 @@ class TotalOrderWithMinimum (t : Type) where
 
 /-! ### Instances -/
 
+instance (n : Nat): TotalOrderWithMinimum (Fin n.succ) where
+  le := fun x y => x.val ≤ y.val
+  le_refl := by simp
+  le_trans := by simp ; omega
+  le_antisymm := by simp ; omega
+  le_total := by simp ; omega
+  lt := fun x y => x.val < y.val
+  le_lt := by intros; dsimp [TotalOrderWithMinimum.lt, TotalOrderWithMinimum.le]; omega
+  next := fun x y => x.val + 1 = y.val
+  next_def := by
+    intros x y
+    dsimp [TotalOrderWithMinimum.next, TotalOrderWithMinimum.lt, TotalOrderWithMinimum.le]
+    apply Iff.intro
+    · intros; constructor <;> omega
+    · intro ⟨hlt, hmin⟩
+      have h1 : x.val < x.val + 1 := by omega
+      have h2 : y.val ≤ x.val + 1 := hmin ⟨x.val + 1, by omega⟩ h1
+      omega
+  zero := ⟨0, by simp⟩
+  zero_lt := by simp ;
+
 /-! ## Ring topology -/
 
 /-- Ring topology -/

@@ -1,5 +1,6 @@
 import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Util.Meta
+import Veil.Frontend.DSL.State.Types
 
 /-! # Utilities for Displaying -/
 
@@ -33,6 +34,15 @@ instance (priority := low) finFunctionRepr (α : Type u) (β : Type v) [Repr α]
 
 instance (priority := high) essentiallyFinSetRepr (α : Type u) [Repr α] [FinEnum α] : Repr (α → Bool) where
   reprPrec := fun f => List.repr (FinEnum.toList α |>.filter f)
+
+def reprFiniteFunc {α β} [FinEnum α] [Repr α] [Repr β] (f : α → β) : String :=
+  (FinEnum.toList α).map (fun a => s!"{reprStr a}{reprStr (f a)}")
+  |> String.intercalate ""
+
+instance (priority := high + 100) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
+  find := fun _ => Veil.Enumeration.allValues |>.filter p
+  find_iff := by simp ; grind
+
 
 open Lean Meta Elab Term Command
 

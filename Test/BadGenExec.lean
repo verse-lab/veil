@@ -1,5 +1,4 @@
 import Veil
-import Veil.Core.Tools.Checker.Concrete.Main
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
@@ -22,9 +21,13 @@ enum Guest = {Olivier, Bruno, Aquinas}
 
 open Between TotalOrder
 
+
+immutable individual foobar : foo
+
 individual log : List (Action node)
 relation leader : node -> Bool
 relation pending : node -> node -> Bool
+relation pendingfff : node → foo → Bool
 -- NOTE: this causes the issue with deriving the FieldRepresentation and
 -- LawfulFieldRepresentation instances commenting it out makes this file compile
 -- successfully
@@ -76,7 +79,7 @@ invariant pending L L → le N L
 #check_invariants
 
 #time #finitize_types (Fin 5), (Fin 3), Guest_IndT
-#set_theory {}
+#set_theory { foobar := 0 }
 
 #time #model_check single_leader
 #eval spaceSize modelCheckerResult
