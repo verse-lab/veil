@@ -19,7 +19,7 @@ checked and the theory it's being checked under. -/
 structure SearchContext {ρ σ κ σₕ : Type} (SetT : Type → Type)
   [Collection SetT ρ] [Collection SetT σ] [Collection SetT (κ × σ)]
   [fp : StateFingerprint σ σₕ]
-  (sys : ExecutableTransitionSystem ρ (SetT ρ) σ (SetT σ) κ (SetT (κ × σ)))
+  (sys : EnumerableTransitionSystem ρ (SetT ρ) σ (SetT σ) κ (SetT (κ × σ)))
   (th : ρ) (hTh : th ∈ sys.theories)
 where
   seen  : Std.HashSet σₕ
@@ -38,7 +38,7 @@ where
 def SearchContext.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq ρ] [BEq σ] [BEq κ]
-  (sys : ExecutableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   (th : ρ) (hTh : th ∈ sys.theories) :
   @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh := {
     seen := HashSet.insertMany HashSet.emptyWithCapacity (sys.initStates th |> Functor.map fp.view),
@@ -50,8 +50,8 @@ def SearchContext.initial {ρ σ κ σₕ : Type}
     visited_sound := by
       dsimp only [Functor.map]
       intro h_view_inj x h_in
-      have h_in_init : x ∈ (ExecutableTransitionSystem.initStates σ (List (κ × σ)) th) := by {
-        have h_in_list : fp.view x ∈ ((ExecutableTransitionSystem.initStates σ (List (κ × σ)) th)).map fp.view := by
+      have h_in_init : x ∈ (EnumerableTransitionSystem.initStates σ (List (κ × σ)) th) := by {
+        have h_in_list : fp.view x ∈ ((EnumerableTransitionSystem.initStates σ (List (κ × σ)) th)).map fp.view := by
           { grind [Std.HashSet.mem_of_mem_insertMany_list] }
         rw [List.mem_map] at h_in_list
         obtain ⟨s, h_s_in, h_eq_view⟩ := h_in_list
@@ -66,9 +66,10 @@ def SearchContext.initial {ρ σ κ σₕ : Type}
 def SearchContext.bfsStep {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq ρ] [BEq σ] [BEq κ]
-  (sys : ExecutableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   (th : ρ) (hTh : th ∈ sys.theories)
   (ctx : @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh) :
   @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh := sorry
+
 
 end Veil.ModelChecker.Concrete

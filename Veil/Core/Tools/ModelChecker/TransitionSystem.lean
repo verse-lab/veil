@@ -66,7 +66,7 @@ theorem reachable_inclusion [sys : RelationalTransitionSystem ρ σ l] [sys' : R
 
 end RelationalTransitionSystem
 
-class ExecutableTransitionSystem
+class EnumerableTransitionSystem
   (ρ : Type) (ρSet : outParam Type) [Std.Stream ρSet ρ]
   (σ : Type) (σSet : outParam Type) [Std.Stream σSet σ]
   (l : outParam Type)
@@ -82,22 +82,22 @@ class ExecutableTransitionSystem
   This is used to simulate specific traces. -/
   -- next : ρ → σ → l → σSet
 
-attribute [grind] ExecutableTransitionSystem.theories ExecutableTransitionSystem.initStates ExecutableTransitionSystem.tr
+attribute [grind] EnumerableTransitionSystem.theories EnumerableTransitionSystem.initStates EnumerableTransitionSystem.tr
 
-namespace ExecutableTransitionSystem
+namespace EnumerableTransitionSystem
 
 @[grind]
 def next
   [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
   [Membership (l × σ) nextSet]
-  [sys : ExecutableTransitionSystem ρ ρSet σ σSet l nextSet] (th : ρ) (s s' : σ) : Prop :=
+  [sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet] (th : ρ) (s s' : σ) : Prop :=
   ∃ label, (label, s') ∈ sys.tr th s
 
 @[grind]
 def toRelational
   [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
   [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
-  (sys : ExecutableTransitionSystem ρ ρSet σ σSet l nextSet) :
+  (sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet) :
   RelationalTransitionSystem ρ σ l
 where
   assumptions := fun th => th ∈ sys.theories
@@ -110,7 +110,7 @@ where
 inductive reachable
   [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
   [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
-  [sys : ExecutableTransitionSystem ρ ρSet σ σSet l nextSet]
+  [sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet]
   (th : ρ) : σ → Prop
 where
   | init : ∀ (s : σ), th ∈ sys.theories → s ∈ sys.initStates th → reachable th s
@@ -119,11 +119,11 @@ where
 theorem reachable_equiv_relational
   [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
   [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
-  (sys : ExecutableTransitionSystem ρ ρSet σ σSet l nextSet)
+  (sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet)
   :
   sys.reachable th s ↔ (sys.toRelational.reachable th s) := by
   constructor <;> (intro hreach ; induction hreach with | _ => grind)
 
-end ExecutableTransitionSystem
+end EnumerableTransitionSystem
 
 end Veil
