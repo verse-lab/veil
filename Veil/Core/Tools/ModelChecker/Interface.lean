@@ -13,7 +13,7 @@ structure SafetyProperty (ρ σ : Type) where
 def SafetyProperty.holdsOn (p : SafetyProperty ρ σ) (th : ρ) (st : σ) : Bool :=
   @decide (p.property th st) (p.decidable th st)
 
-inductive ReachabilityResult where
+inductive ReachabilityResult (ρ σ κ : Type) where
   | reachable (viaTrace : Option (Trace ρ σ l))
   | unreachable
   | unknown
@@ -36,6 +36,6 @@ structure SearchParameters (ρ σ : Type) where
   stoppingConditions : List StoppingCondition
 
 class ModelChecker (ts : TransitionSystem ρ σ l) where
-  isReachable : SearchParameters ρ σ → ReachabilityResult
+  isReachable : SearchParameters ρ σ → ReachabilityResult ρ σ l
 
 end Veil.ModelChecker

@@ -1,6 +1,6 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 
-namespace Veil.ModelChecker.Trace
+namespace Veil.ModelChecker
 
 @[grind]
 structure Step (σ : Type) (l : Type) where
@@ -91,4 +91,4 @@ theorem Trace.isValid_empty [sys : RelationalTransitionSystem ρ σ l] (th : ρ)
 theorem Trace.getLast_empty (th : ρ) (st : σ) :
   ({ theory := th, initialState := st, steps := #[] } : Trace ρ σ l).lastState = st := by rfl
 
-end Veil.ModelChecker.Trace
+end Veil.ModelChecker

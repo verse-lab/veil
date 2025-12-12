@@ -1,6 +1,7 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 import Veil.Core.Tools.ModelChecker.Interface
 import Veil.Core.Tools.ModelChecker.Concrete.FunctionalQueue
+import Veil.Core.Tools.ModelChecker.Trace
 
 namespace Veil.ModelChecker.Concrete
 open Std
@@ -141,7 +142,8 @@ def SearchContext.processState {ρ σ κ σₕ : Type}
   @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh params :=
   -- Check whether we should stop the search
   match ctx.shouldStop curr with
-  | some sc => { ctx with finished := some sc }
+  | some .foundViolatingState => {ctx with finished := some .foundViolatingState, violatingStates := fpSt :: ctx.violatingStates}
+  | some .exploredAllReachableStates => {ctx with finished := some .exploredAllReachableStates}
   -- If not, explore all neighbors of the current state
   | none => (sys.tr th curr).attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
     if current_ctx.hasFinished then current_ctx
@@ -152,7 +154,7 @@ def SearchContext.processState {ρ σ κ σₕ : Type}
   ) ctx
 
 /-- Perform one step of BFS. -/
-@[specialize]
+@[inline, specialize]
 def SearchContext.bfsStep {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq ρ] [BEq σ] [BEq κ]
@@ -175,17 +177,102 @@ def SearchContext.bfsStep {ρ σ κ σₕ : Type}
     }
     SearchContext.processState fpSt curr h_curr ctx_dequeued
 
+@[specialize]
 def breadthFirstSearch {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq ρ] [BEq σ] [BEq κ]
   [sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ))]
   (th : ρ) (hTh : th ∈ sys.theories)
   (params : SearchParameters ρ σ) :
-  @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh params
-  := Id.run do
+  @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh params := Id.run do
   let mut ctx : @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh params := SearchContext.initial sys th hTh params
   while !ctx.hasFinished do
     ctx := SearchContext.bfsStep ctx
   return ctx
+
+/-! ## Trace Recovery
+
+These functions reconstruct a full trace with concrete states from a SearchContext
+that contains fingerprint-based state references. -/
+
+/-- Walk backward through the log to build a fingerprint-based path from a
+state to an initial state. Returns `(initialStateFingerprint, steps)` where
+each step has the transition label and the fingerprint of the post-state. -/
+partial def retraceSteps [BEq σₕ] [Hashable σₕ]
+  (log : Std.HashMap σₕ (σₕ × κ)) (cur : σₕ)
+  (acc : List (Step σₕ κ) := []) : σₕ × List (Step σₕ κ) :=
+  match log.get? cur with
+  | none => (cur, acc)
+  | some (prev, label) =>
+    retraceSteps log prev ({ transitionLabel := label, nextState := cur } :: acc)
+
+/-- Find a full state from a list that matches a given fingerprint. -/
+@[inline, specialize]
+def findByFingerprint [fp : StateFingerprint σ σₕ]
+  (states : List σ) (targetFp : σₕ) (fallback : σ) : σ :=
+  states.find? (fun s => fp.view s == targetFp) |>.getD fallback
+
+/-- Extract fingerprint traces for all violating states in a SearchContext. -/
+def collectTraces {ρ σ κ σₕ : Type} {SetT : Type → Type}
+  [Collection SetT ρ] [Collection SetT σ] [Collection SetT (κ × σ)]
+  [fp : StateFingerprint σ σₕ]
+  {sys : EnumerableTransitionSystem ρ (SetT ρ) σ (SetT σ) κ (SetT (κ × σ))}
+  {th : ρ} {hTh : th ∈ sys.theories}
+  {params : SearchParameters ρ σ}
+  (ctx : @SearchContext ρ σ κ σₕ SetT _ _ _ fp sys th hTh params)
+  : List (σₕ × List (Step σₕ κ)) :=
+  ctx.violatingStates.map (fun badState => retraceSteps ctx.log badState)
+
+/-- Reconstruct a full trace with concrete states from a SearchContext.
+This re-executes transitions to recover full state objects from fingerprints. -/
+def recoverTrace {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [Inhabited κ] [Inhabited σ] [Repr σₕ]
+  [BEq ρ] [BEq σ] [BEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
+  (th : ρ) (hTh : th ∈ sys.theories)
+  (params : SearchParameters ρ σ)
+  (ctx : @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh params)
+  : Trace ρ σ κ :=
+  -- Get fingerprint traces from log
+  let fingerprintTraces := collectTraces ctx
+  match fingerprintTraces with
+  | [] => { theory := th, initialState := default, steps := #[] }
+  | (initFp, stepsFp) :: _ => Id.run do
+    -- Recover initial state by matching fingerprint
+    let initStates := sys.initStates th
+    let initialState := findByFingerprint initStates initFp default
+    -- Recover trace steps by re-executing transitions and matching fingerprints
+    let mut curSt := initialState
+    let mut steps : Steps σ κ := #[]
+    for step in stepsFp do
+      let successors := sys.tr th curSt
+      let (transitionLabel, nextSt) :=
+        match successors.find? (fun (_, s) => fp.view s == step.nextState) with
+        | some (tr, s) => (tr, s)
+        | none => panic! s!"Could not recover transition from fingerprint {repr (fp.view curSt)} to {repr step.nextState}!"
+      curSt := nextSt
+      steps := steps.push { transitionLabel := transitionLabel, nextState := nextSt }
+    return { theory := th, initialState := initialState, steps := steps }
+
+
+/-! ## Model Checker -/
+
+def findReachable {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [Inhabited κ] [Inhabited σ] [Repr σₕ]
+  [BEq ρ] [BEq σ] [BEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
+  (th : ρ) (hTh : th ∈ sys.theories)
+  (params : SearchParameters ρ σ) : ReachabilityResult ρ σ κ :=
+  let ctx : @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh params :=
+    breadthFirstSearch th hTh params
+  match ctx.finished with
+  | some StoppingCondition.foundViolatingState =>
+    ReachabilityResult.reachable (some (recoverTrace sys th hTh params ctx))
+  | some StoppingCondition.exploredAllReachableStates =>
+    ReachabilityResult.unreachable
+  | none =>
+    ReachabilityResult.unknown
 
 end Veil.ModelChecker.Concrete
