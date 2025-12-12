@@ -175,5 +175,17 @@ def SearchContext.bfsStep {ρ σ κ σₕ : Type}
     }
     SearchContext.processState fpSt curr h_curr ctx_dequeued
 
+def breadthFirstSearch {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq ρ] [BEq σ] [BEq κ]
+  [sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ))]
+  (th : ρ) (hTh : th ∈ sys.theories)
+  (params : SearchParameters ρ σ) :
+  @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh params
+  := Id.run do
+  let mut ctx : @SearchContext ρ σ κ σₕ List _ _ _ fp sys th hTh params := SearchContext.initial sys th hTh params
+  while !ctx.hasFinished do
+    ctx := SearchContext.bfsStep ctx
+  return ctx
 
 end Veil.ModelChecker.Concrete

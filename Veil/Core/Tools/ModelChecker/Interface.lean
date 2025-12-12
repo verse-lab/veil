@@ -29,6 +29,10 @@ structure SearchParameters (ρ σ : Type) where
   /-- Which property are we trying to find a violation of? (Typically, this is
   the safety property of the system.) -/
   safety : SafetyProperty ρ σ
+  /- If there are no more successor states to explore, `termination` must
+  hold, otherwise a deadlock has occurred. -/
+  -- termination : SafetyProperty ρ σ
+  /-- Stop the search if _any_ of the stopping conditions are met. -/
   stoppingConditions : List StoppingCondition
 
 class ModelChecker (ts : TransitionSystem ρ σ l) where
