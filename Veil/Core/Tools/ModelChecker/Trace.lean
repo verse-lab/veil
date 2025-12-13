@@ -13,14 +13,14 @@ abbrev Steps (σ : Type) (l : Type) := Array (Step σ l)
 abbrev StepList (σ : Type) (l : Type) := List (Step σ l)
 
 @[grind =]
-def StepList.validFrom [sys : RelationalTransitionSystem ρ σ l] (th : ρ) (st : σ) (steps : StepList σ l) : Prop :=
+def StepList.validFrom (sys : RelationalTransitionSystem ρ σ l) (th : ρ) (st : σ) (steps : StepList σ l) : Prop :=
   match steps with
   | [] => True
-  | step :: steps' => sys.tr th st step.transitionLabel step.nextState ∧ validFrom th step.nextState steps'
+  | step :: steps' => sys.tr th st step.transitionLabel step.nextState ∧ validFrom sys th step.nextState steps'
 
 @[inline, grind]
-def Steps.validFrom [sys : RelationalTransitionSystem ρ σ l] (th : ρ) (st : σ) (steps : Steps σ l) : Prop :=
-  StepList.validFrom th st steps.toList
+def Steps.validFrom (steps : Steps σ l) (sys : RelationalTransitionSystem ρ σ l) (th : ρ) (st : σ) : Prop :=
+  StepList.validFrom sys th st steps.toList
 
 @[inline, grind]
 def Steps.push (steps : Steps σ l) (step : Step σ l) : Steps σ l := Array.push steps step
@@ -39,11 +39,11 @@ theorem Steps.getLastD_prepend_same (hd : Step σ l) (tl : StepList σ l) (s : �
   Steps.getLastStateD (Array.mk (hd :: tl)) s = Steps.getLastStateD (Array.mk tl) hd.nextState := by grind
 
 @[grind .]
-theorem StateTrace.push_validFrom [sys : RelationalTransitionSystem ρ σ l]
+theorem StateTrace.push_validFrom (sys : RelationalTransitionSystem ρ σ l)
   (r : ρ) (s : σ) (ts : Steps σ l) (step : Step σ l) :
-  ts.validFrom r s →
+  ts.validFrom sys r s →
   sys.tr r (ts.getLastStateD s) step.transitionLabel step.nextState →
-  (ts.push step).validFrom r s := by
+  (ts.push step).validFrom sys r s := by
   rcases ts with ⟨ts⟩
   simp only [Steps.validFrom, Steps.push, List.push_toArray]
   intro h htr
@@ -71,21 +71,21 @@ theorem Trace.getLastD_push (trace : Trace ρ σ l) (step : Step σ l) :
   by simp [Trace.lastState, Trace.push]
 
 @[grind]
-structure Trace.isValid [sys : RelationalTransitionSystem ρ σ l] (trace : Trace ρ σ l) : Prop where
+structure Trace.isValid (trace : Trace ρ σ l) (sys : RelationalTransitionSystem ρ σ l) : Prop where
   theorySatisfiesAssumptions : sys.assumptions (trace.theory)
   initialStateSatisfiesInit : sys.init (trace.theory) (trace.initialState)
-  stepsValid : Steps.validFrom trace.theory trace.initialState trace.steps
+  stepsValid : Steps.validFrom trace.steps sys trace.theory trace.initialState
 
 @[grind .]
-theorem Trace.push_isValid [sys : RelationalTransitionSystem ρ σ l] (trace : Trace ρ σ l) (step : Step σ l) :
-  trace.isValid →
+theorem Trace.push_isValid (trace : Trace ρ σ l) (step : Step σ l) (sys : RelationalTransitionSystem ρ σ l) :
+  trace.isValid sys →
   sys.tr trace.theory trace.lastState step.transitionLabel step.nextState →
-  (trace.push step).isValid := by grind
+  (trace.push step).isValid sys := by grind
 
 @[grind .]
-theorem Trace.isValid_empty [sys : RelationalTransitionSystem ρ σ l] (th : ρ) (st : σ) :
+theorem Trace.isValid_empty (sys : RelationalTransitionSystem ρ σ l) (th : ρ) (st : σ) :
   sys.assumptions th → sys.init th st →
-  ({ theory := th, initialState := st, steps := #[] } : Trace ρ σ l).isValid := by grind
+  ({ theory := th, initialState := st, steps := #[] } : Trace ρ σ l).isValid sys := by grind
 
 @[simp, grind =]
 theorem Trace.getLast_empty (th : ρ) (st : σ) :

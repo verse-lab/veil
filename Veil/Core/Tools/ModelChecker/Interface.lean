@@ -14,15 +14,21 @@ def SafetyProperty.holdsOn (p : SafetyProperty ρ σ) (th : ρ) (st : σ) : Bool
   @decide (p.property th st) (p.decidable th st)
 
 inductive ReachabilityResult (ρ σ κ : Type) where
-  | reachable (viaTrace : Option (Trace ρ σ l))
-  | unreachable
+  | reachable (viaTrace : Option (Trace ρ σ κ))
+  | unreachable (exploredStates : Nat)
   | unknown
-deriving Inhabited
+deriving Inhabited, Repr
 
-inductive StoppingCondition where
-  | exploredAllReachableStates
+/-- A condition under which the state exploration should be terminated early,
+i.e. before full state space is explored. -/
+inductive EarlyTerminationCondition where
   | foundViolatingState
   -- | reachedDepthBound (depth : Nat)
+deriving Inhabited, Hashable, BEq
+
+inductive TerminationReason where
+  | exploredAllReachableStates
+  | earlyTermination (condition : EarlyTerminationCondition)
 deriving Inhabited, Hashable, BEq
 
 structure SearchParameters (ρ σ : Type) where
@@ -32,8 +38,10 @@ structure SearchParameters (ρ σ : Type) where
   /- If there are no more successor states to explore, `termination` must
   hold, otherwise a deadlock has occurred. -/
   -- termination : SafetyProperty ρ σ
-  /-- Stop the search if _any_ of the stopping conditions are met. -/
-  stoppingConditions : List StoppingCondition
+
+  /-- Stop the search if _any_ of the stopping conditions are met. Of course,
+  the search also terminates if all reachable states have been explored. -/
+  earlyTerminationConditions : List EarlyTerminationCondition
 
 class ModelChecker (ts : TransitionSystem ρ σ l) where
   isReachable : SearchParameters ρ σ → ReachabilityResult ρ σ l

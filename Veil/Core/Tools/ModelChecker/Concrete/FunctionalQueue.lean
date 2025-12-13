@@ -1,4 +1,3 @@
-import Veil.Core.Tools.ModelChecker.Data
 import Std.Data.HashSet
 
 namespace Veil
@@ -36,21 +35,17 @@ def toList {α} (q : fQueue α) : List α :=
 def ofList {α} (xs : List α) : fQueue α :=
   xs.foldl fQueue.enqueue fQueue.empty
 
-instance : EmptyCollection (fQueue α) where
-  emptyCollection := fQueue.empty
+-- instance : EmptyCollection (fQueue α) where
+--   emptyCollection := fQueue.empty
 
-instance : Std.Stream (fQueue α) α where
-  next? q := q.dequeue?
+-- instance : Std.Stream (fQueue α) α where
+--   next? q := q.dequeue?
 
-instance : Functor fQueue where
-  map f q := ⟨q.front.map f, q.back.map f⟩
+-- instance : Functor fQueue where
+--   map f q := ⟨q.front.map f, q.back.map f⟩
 
-instance : Insert α (fQueue α) where
-  insert x xs:= enqueue xs x
-
-@[grind]
-def ofCollection [Collection Coll α] (xs : Coll α) : fQueue α :=
-  Collection.insertMany {} xs
+-- instance : Insert α (fQueue α) where
+--   insert x xs:= enqueue xs x
 
 /-
 ## Functional correctness of the functional queue

@@ -108,9 +108,9 @@ private def simpleDerivingReprForCore (t : Ident) (case : SimpleDerivingReprForC
 --     includes functions, which are finite when the type parameters are finite
 --     but by default Lean cannot derive `Repr` for them.
 --     Note that this command does not check if any parameter is not a `Type`. -/
--- elab "simple_deriving_repr_for " t:ident : command => do
---   let cmd ← liftTermElabM <| simpleDerivingReprForCore t .fromParams
---   elabVeilCommand cmd
+elab "simple_deriving_repr_for " t:ident : command => do
+  let cmd ← liftTermElabM <| simpleDerivingReprForCore t .fromParams
+  elabVeilCommand cmd
 
 -- /-- Similar to `simple_deriving_repr_for` but assumes all field types are `Repr`. -/
 elab "simple_deriving_repr_for' " t:ident : command => do

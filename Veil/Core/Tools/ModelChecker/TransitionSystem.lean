@@ -1,7 +1,6 @@
-import Veil.Core.Tools.ModelChecker.Data
 namespace Veil
 
-class TransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) where
+structure TransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) where
 
 /-- A relational transition system is parametrised by:
   - `ρ` - the type of the background theory (immutable state) it operates in
@@ -17,7 +16,7 @@ A relational transition system might or might be executable, depending on
 whether `assumptions`, `init`, and `tr` are decidable.
 -/
 @[grind]
-class RelationalTransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) extends TransitionSystem ρ σ l where
+structure RelationalTransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) extends TransitionSystem ρ σ l where
   /-- The set of acceptable background theories -/
   assumptions : ρ → Prop
   /-- The set of initial states, indexed by background theory -/
@@ -27,7 +26,7 @@ class RelationalTransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) ext
 
 attribute [grind] RelationalTransitionSystem.assumptions RelationalTransitionSystem.init RelationalTransitionSystem.tr
 
-class LawfulRelationalTransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) extends RelationalTransitionSystem ρ σ l where
+structure LawfulRelationalTransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) extends RelationalTransitionSystem ρ σ l where
   /-- The initial states satisfy the assumptions -/
   initSatisfiesAssumptions : ∀ (th : ρ) (s : σ), init th s → assumptions th
 
@@ -36,29 +35,29 @@ namespace RelationalTransitionSystem
 /-- A version of the transition relation that "hides" which particular
 transition was taken. -/
 @[grind]
-def next [RelationalTransitionSystem ρ σ l] (th : ρ) (s s' : σ) : Prop :=
-  ∃ label, tr th s label s'
+def next (sys : RelationalTransitionSystem ρ σ l) (th : ρ) (s s' : σ) : Prop :=
+  ∃ label, sys.tr th s label s'
 
 /-- Reachability relation, indexed by background theory -/
 @[grind cases, grind intro]
-inductive reachable [sys : RelationalTransitionSystem ρ σ l] (th : ρ) : σ → Prop where
-  | init : ∀ (s : σ), sys.assumptions th → sys.init th s → RelationalTransitionSystem.reachable th s
-  | step : ∀ (s s' : σ), RelationalTransitionSystem.reachable th s → sys.next th s s' → RelationalTransitionSystem.reachable th s'
+inductive reachable (sys : RelationalTransitionSystem ρ σ l) (th : ρ) : σ → Prop where
+  | init : ∀ (s : σ), sys.assumptions th → sys.init th s → sys.reachable th s
+  | step : ∀ (s s' : σ), sys.reachable th s → sys.next th s s' → sys.reachable th s'
 
 /-- Assumptions hold in all reachable states. -/
 @[grind .]
-theorem reachable_assumptions [sys : RelationalTransitionSystem ρ σ l] (th : ρ) (s : σ) (h : reachable th s) : sys.assumptions th := by
+theorem reachable_assumptions (sys : RelationalTransitionSystem ρ σ l) (th : ρ) (s : σ) (h : reachable sys th s) : sys.assumptions th := by
   induction h with
   | init s has hinit => assumption
   | step s s' h2 hn ih => assumption
 
 /-- Reachability is preserved under inclusion of transition systems. -/
 @[grind .]
-theorem reachable_inclusion [sys : RelationalTransitionSystem ρ σ l] [sys' : RelationalTransitionSystem ρ σ l]
+theorem reachable_inclusion (sys : RelationalTransitionSystem ρ σ l) (sys' : RelationalTransitionSystem ρ σ l)
   (hass_implies : ∀ (r : ρ), sys.assumptions r → sys'.assumptions r)
   (hinit_implies : ∀ (r : ρ) (st : σ), sys.init r st → sys'.init r st)
   (hnext_implies : ∀ (r : ρ) (st st' : σ), sys.next r st st' → sys'.next r st st') :
-  ∀ (r : ρ) (st : σ), reachable (sys := sys) r st → reachable (sys := sys') r st := by
+  ∀ (r : ρ) (st : σ), sys.reachable r st → sys'.reachable r st := by
   intro r st h
   induction h with
   | init s has hinit => apply reachable.init _ (hass_implies r has) (hinit_implies r s hinit)
@@ -66,7 +65,7 @@ theorem reachable_inclusion [sys : RelationalTransitionSystem ρ σ l] [sys' : R
 
 end RelationalTransitionSystem
 
-class EnumerableTransitionSystem
+structure EnumerableTransitionSystem
   (ρ : Type) (ρSet : outParam Type) [Std.Stream ρSet ρ]
   (σ : Type) (σSet : outParam Type) [Std.Stream σSet σ]
   (l : outParam Type)
@@ -90,7 +89,7 @@ namespace EnumerableTransitionSystem
 def next
   [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
   [Membership (l × σ) nextSet]
-  [sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet] (th : ρ) (s s' : σ) : Prop :=
+  (sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet) (th : ρ) (s s' : σ) : Prop :=
   ∃ label, (label, s') ∈ sys.tr th s
 
 @[grind]
@@ -110,11 +109,11 @@ where
 inductive reachable
   [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
   [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
-  [sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet]
+  (sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet)
   (th : ρ) : σ → Prop
 where
-  | init : ∀ (s : σ), th ∈ sys.theories → s ∈ sys.initStates th → reachable th s
-  | step : ∀ (s s' : σ), reachable th s → sys.next th s s' → reachable th s'
+  | init : ∀ (s : σ), th ∈ sys.theories → s ∈ sys.initStates th → sys.reachable th s
+  | step : ∀ (s s' : σ), sys.reachable th s → sys.next th s s' → sys.reachable th s'
 
 theorem reachable_equiv_relational
   [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
