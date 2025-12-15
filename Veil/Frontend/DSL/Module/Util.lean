@@ -7,6 +7,8 @@ import Veil.Frontend.DSL.State
 import Veil.Frontend.DSL.Util
 import Veil.Frontend.DSL.State.Repr
 import Veil.Util.Meta
+import Mathlib.Data.FinEnum
+import Mathlib.Tactic.ProxyType
 
 open Lean Parser Elab Command Term
 
@@ -1364,10 +1366,25 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
   let mod ← mod.registerDerivedDefinition derivedDef
   return (casesLemma, mod)
 
+def Module.mkLabelEnumeration [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Command := do
+  let binders := (← mod.sortBinders) ++ (← #[``DecidableEq, ``FinEnum].flatMapM mod.assumeForEverySort)
+  let labelT ← mod.labelTypeStx
+  `(instance $[$binders]* : $(mkIdent ``Veil.Enumeration) ($labelT) where
+    $(mkIdent `allValues):ident := ($(mkIdent ``FinEnum.ofEquiv) _ ($(mkIdent ``Equiv.symm) (proxy_equiv% ($labelT)))).toList
+    $(mkIdent `complete):ident := by simp)
+
+def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Command := do
+  let sortIdents ← mod.sortIdents
+  let fields ← sortIdents.mapM fun sort =>
+    `(Command.structSimpleBinder| $sort:ident : Type)
+  let instances := #[``Inhabited, ``Repr].map Lean.mkIdent
+  `(structure $instantiationType where $[$fields]* deriving $[$instances:ident],*)
+
 def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Command × Module) := do
   let (labelDef, mod) ← mod.assembleLabelDef
   let (casesLemma, mod) ← mod.assembleLabelCasesLemma
-  return (#[labelDef, casesLemma], mod)
+  let labelEnumeration ← mod.mkLabelEnumeration
+  return (#[labelDef, casesLemma, labelEnumeration], mod)
 
 def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared assembledNextActName
@@ -1388,5 +1405,7 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, params := #[nextParam], extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (nextDef, mod)
+
+
 
 end Veil

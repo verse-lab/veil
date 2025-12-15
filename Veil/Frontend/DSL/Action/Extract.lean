@@ -149,9 +149,6 @@ def generateVeilMultiExecMCore (κ extractNonDet : TSyntax `term)
   let lenv ← localEnv.get
   let some mod := lenv.currentModule | throwError s!"Not in a module"
   -- prepare the names
-  let initExecIdent := mkIdent `initMultiExec
-  let nextExtractIdent := mkIdent `nextMultiExtract
-  let nextActExecIdent := mkIdent `nextActMultiExec
   let findable := mkIdent <| (if useWeak then ``MultiExtractor.PartialCandidates else ``MultiExtractor.Candidates)
   let extractor := mkIdent <| (if useWeak then ``NonDetT.extractPartialList else ``NonDetT.extractList)
   let unitIdent := mkIdent `Unit
@@ -294,5 +291,47 @@ def getAllStatesFromExceptT (c : List (ExceptT ε DivM (α × σ))) : List (Opti
 /-- Extract all valid states from a VeilMultiExecM computation -/
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllStatesFromExceptT
+
+def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
+  mod.throwIfAlreadyDeclared enumerableTransitionSystemName
+  -- FIXME: this is crappy code because `NextAct'` (see `genNextActCommands` and
+  -- `collectNextActBinders`) is not integrated with the `Parameter` system
+  let theoryStx ← mod.theoryStx
+  let fieldConcrete ← `($fieldConcreteDispatcher $(← mod.sortIdents)*)
+  let stateStx ← if mod._useFieldRepTC then `($stateIdent $fieldConcrete) else mod.stateStx
+  let labelStx ← mod.labelTypeStx
+
+  let nextAct'Binders ← mod.collectNextActBinders
+  let (baseParams, decParams, _) ← mod.declarationSplitParams assembledNextActName (DeclarationKind.derivedDefinition .actionLike {})
+  let typeclassBinders ← (baseParams.filter (fun p => p.kind == .moduleTypeclass .userDefined)).mapM (·.binder)
+  let decBinders ← decParams.mapM (·.binder)
+  let labelsId := mkVeilImplementationDetailIdent `labels
+  let labelsBinder ← `(bracketedBinder| [$labelsId : $(mkIdent ``Veil.Enumeration) $(← mod.labelTypeStx)])
+  let theoryId := mkVeilImplementationDetailIdent `theory
+  let theoryBinder ← `(bracketedBinder| ($theoryId : $theoryStx))
+  let binders := (← mod.sortBinders) ++ nextAct'Binders ++ typeclassBinders ++ decBinders ++ #[labelsBinder, theoryBinder]
+
+  let (CInit, CNext) := (mkVeilImplementationDetailIdent `CInit, mkVeilImplementationDetailIdent `CNext)
+  let (th, st) := (mkVeilImplementationDetailIdent `th, mkVeilImplementationDetailIdent `st)
+  let (label, next) := (mkVeilImplementationDetailIdent `label, mkVeilImplementationDetailIdent `next)
+  let filterMap ← `($(mkIdent ``List.filterMap) $(mkIdent ``id))
+
+  let defStx ← `(command|@[specialize] def $enumerableTransitionSystem $[$binders]* :
+    $(mkIdent ``Veil.EnumerableTransitionSystem)
+    $theoryStx ($(mkIdent ``List) $theoryStx)
+    $stateStx ($(mkIdent ``List) $stateStx)
+    $labelStx ($(mkIdent ``List) ($labelStx × $stateStx))
+    $theoryId
+  where
+    $(mkIdent `initStates):ident :=
+      let $CInit := $initExecIdent $theoryStx $stateStx $(← mod.sortIdents)* $fieldConcrete
+      $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
+    $(mkIdent `tr):ident := fun $th $st =>
+      let $CNext := $nextActExecIdent $theoryStx $stateStx $(← mod.sortIdents)*
+      $(mkIdent ``List.flatMap) (fun ($label : $labelStx) =>
+       $(mkIdent ``List.map) (fun $next => ($label, $next)) ($(mkIdent ``extractValidStates) ($CNext $label) $th $st |> $filterMap))
+       (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId)
+   )
+  return defStx
 
 end Veil.Extract

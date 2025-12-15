@@ -8,7 +8,7 @@ open Lean Trace
 structure SafetyProperty (ρ σ : Type) where
   name : Name
   property : ρ → σ → Prop
-  decidable : ∀ th st, Decidable (property th st)
+  [decidable : ∀ th st, Decidable (property th st)]
 
 def SafetyProperty.holdsOn (p : SafetyProperty ρ σ) (th : ρ) (st : σ) : Bool :=
   @decide (p.property th st) (p.decidable th st)

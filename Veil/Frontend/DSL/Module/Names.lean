@@ -52,6 +52,9 @@ def labelType : Ident := mkIdent labelTypeName
 def labelCasesName : Name := Name.append labelTypeName `cases
 def labelCases: Ident := mkIdent labelCasesName
 
+def instantiationTypeName : Name := `Instantiation
+def instantiationType : Ident := mkIdent instantiationTypeName
+
 def assembledNextActName : Name := `NextAct
 def assembledNextAct : Ident := mkIdent assembledNextActName
 
@@ -104,5 +107,12 @@ def enumDistinct : Ident := mkIdent enumDistinctName
 
 def enumCompleteName : Name := `complete
 def enumComplete : Ident := mkIdent enumCompleteName
+
+def initExecIdent : Ident := mkIdent `initMultiExec
+def nextExtractIdent : Ident := mkIdent `nextMultiExtract
+def nextActExecIdent : Ident := mkIdent `nextActMultiExec
+
+def enumerableTransitionSystemName : Name := `enumerableTransitionSystem
+def enumerableTransitionSystem : Ident := mkIdent enumerableTransitionSystemName
 
 end Veil

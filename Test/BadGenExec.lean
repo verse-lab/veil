@@ -67,7 +67,7 @@ action recv (sender n next : node) {
   -- this models that multiple messages might be in flight
   let b ← pick Bool
   pending sender n := b  -- FIXME: `pending sender n := *` has bad execution performance
-  if (sender = n) then
+  if (n = n) then
     leader n := true
   else
     -- pass message to next node
@@ -87,60 +87,29 @@ invariant pending L L → le N L
 
 #gen_spec
 
-#check_invariants
-
-abbrev node := Fin 5
-
-abbrev CTheory := Theory node -- foo Guest
-abbrev CFieldType := FieldConcreteType node -- foo Guest
-abbrev CState := State CFieldType
-abbrev CLabel := Label node -- foo Guest
-
-
-instance : Veil.Enumeration CLabel where
-  allValues := (FinEnum.ofEquiv _ (Equiv.symm (proxy_equiv% CLabel))).toList
-  complete := by simp
-
-abbrev CInit := initMultiExec CTheory CState node CFieldType -- foo Guest CFieldType
-abbrev CNext := nextActMultiExec CTheory CState node -- foo Guest
-
-@[specialize]
-def enumerableTransitionSystem [labels : Veil.Enumeration CLabel] :
-  Veil.EnumerableTransitionSystem
-  CTheory (List CTheory)
-  CState (List CState)
-  CLabel
-  (List (CLabel × CState)) where
-  theories := [{baaaa := fun x y => 0} /-{foobar := 0}-/]
-  initStates := fun th =>
-    extractValidStates CInit th default |>.filterMap id
-  tr := fun th st =>
-    labels.allValues.flatMap (fun l =>
-      (extractValidStates (CNext l) th st |>.filterMap id).map (fun next => (l, next)))
-
-abbrev Th : CTheory := {baaaa := fun _ _ => 0} /-{foobar := 0}-/
-abbrev HTh : Th ∈ enumerableTransitionSystem.theories := by apply List.Mem.head
 
 open Veil.ModelChecker
-abbrev SearchParams : SearchParameters CTheory CState := {
+-- abbrev SearchParams : SearchParameters (Theory (Fin 5)) (State (FieldConcreteType (Fin 5))) :=
+
+def modelCheckerResult :=
+  Concrete.findReachable
+  (enumerableTransitionSystem (Fin 5) {baaaa := fun _ _ => 0})
+  {
   «safety» := {
     name := `single_leader
     property := fun th st => single_leader th st
-    decidable := inferInstance
   }
   earlyTerminationConditions := [
-    EarlyTerminationCondition.foundViolatingState,
-    EarlyTerminationCondition.reachedDepthBound 4
+    -- EarlyTerminationCondition.foundViolatingState,
+    -- EarlyTerminationCondition.reachedDepthBound 4
   ]
-}
+  }
 
-abbrev Hash := UInt64
-
-def modelCheckerResult :=
-  @Concrete.findReachable CTheory CState CLabel Hash
-  (Concrete.StateFingerprint.ofHash CState)
-  _ _ _ _ _ _
-  enumerableTransitionSystem Th HTh SearchParams
+-- def modelCheckerResult :=
+--   @Concrete.findReachable CTheory CState CLabel Hash
+--   (Concrete.StateFingerprint.ofHash CState)
+--   _ _ _ _ _ _
+--   enumerableTransitionSystem Th HTh SearchParams
 
 #time #eval! modelCheckerResult
 

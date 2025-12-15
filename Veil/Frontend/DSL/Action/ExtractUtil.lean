@@ -1,4 +1,7 @@
 import Veil.Frontend.DSL.Module.Util
+import Veil.Core.Tools.ModelChecker.TransitionSystem
+
+namespace Veil
 open Lean Elab Command Veil
 
 /- George: This whole file should not exist, but we haven't yet gotten to refactoring
@@ -52,10 +55,12 @@ where
     | ``ToJson    => "_to_json"
     | ``Repr      => "_repr"
     | ``Veil.Enumeration => "_enumeration"
+    | ``Inhabited   => "_inhabited"
+    | ``DecidableEq => "_dec_eq"
     | _           => "_anonymous_inst"
 
 /-- Given name of instance like `Ord`, return all the instance binders for all the types. -/
-def Veil.Module.instBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module) (instName : Name)
+def Module.instBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module) (instName : Name)
   : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
   collectBinders mod { instName := some instName }
 
@@ -77,12 +82,10 @@ where
 
 /-- Collect comprehensive binders for NextAct and executable list generation.
     Includes: FinEnum, Hashable, Ord, LawfulEqCmp, and TransCmp instances. -/
-def Veil.Module.collectNextActBinders (mod : Veil.Module) : CommandElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def Module.collectNextActBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let sortIdents ← mod.sortIdents
-  -- let finEnumInsts ← mod.instBinders ``FinEnum
-  let finEnumInsts ← mod.instBinders ``Veil.Enumeration
-  let hashInsts ← mod.instBinders ``Hashable
-  let ordInsts ← mod.instBinders ``Ord
-  let lawfulInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.LawfulEqCmp id)
-  let transInsts ← sortIdents.mapM (fun id => propCmpBinder ``Std.TransCmp id)
-  return finEnumInsts ++ hashInsts ++ ordInsts ++ lawfulInsts ++ transInsts
+  let insts ← #[``Inhabited, ``DecidableEq, ``Veil.Enumeration, ``Hashable, ``Ord].flatMapM mod.instBinders
+  let lawfulInsts ← #[``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM (fun inst => sortIdents.mapM (fun id => propCmpBinder inst id))
+  return insts ++ lawfulInsts
+
+end Veil

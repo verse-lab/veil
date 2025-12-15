@@ -161,22 +161,17 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
-  let mod ← if mod._useFieldRepTC
-  then
-    let (mod, stxs) ← mod.declareStateFieldLabelTypeAndDispatchers
-    let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure
-    let (mod, theoryStxs) ← mod.declareTheoryStructure
-    for stx in stxs ++ stateStxs ++ theoryStxs do
-      elabVeilCommand stx
-    generateIgnoreFn mod
-    pure { mod with _stateDefined := true }
-  else
-    let (mod, stateStxs) ← mod.declareStateStructure
-    let (mod, theoryStxs) ← mod.declareTheoryStructure
-    for stx in stateStxs ++ theoryStxs do
-      elabVeilCommand stx
-    generateIgnoreFn mod
-    pure { mod with _stateDefined := true }
+  let (mod, stateStxs) ← do (if mod._useFieldRepTC then do
+      let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers
+      let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure
+      return (mod, fieldStxs ++ stateStxs)
+    else mod.declareStateStructure)
+  let (mod, theoryStxs) ← mod.declareTheoryStructure
+  let instantiationStx ← mod.mkInstantiationStructure
+  for stx in stateStxs ++ theoryStxs ++ #[instantiationStx] do
+    elabVeilCommand stx
+  generateIgnoreFn mod
+  let mod := { mod with _stateDefined := true }
   if mod._useLocalRPropTC then
     let (localRPropTCStx, stx2) ← liftTermElabM mod.declareLocalRPropTC
     elabVeilCommand localRPropTCStx
@@ -204,6 +199,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   let (nextCmd, mod) ← mod.assembleNext
   elabVeilCommand nextCmd
   Extract.genNextActCommands mod
+  elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   Verifier.runManager
   mod.generateVCs
   return { mod with _specFinalized := true }
