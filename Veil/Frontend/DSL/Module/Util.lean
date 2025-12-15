@@ -5,6 +5,7 @@ import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.State
 import Veil.Frontend.DSL.Util
+import Veil.Frontend.DSL.State.Repr
 import Veil.Util.Meta
 
 open Lean Parser Elab Command Term
@@ -551,20 +552,24 @@ private def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m
 /-- Given a list of state components, return the syntax for a structure
 definition including those components. -/
 private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (name : Name) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (deriveInstances : Bool := true)
-  (fields : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)) : m Syntax := do
+  (fields : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)) : m (Array Syntax) := do
   if deriveInstances then
-    `(structure $(mkIdent name) $params* where
+    let instances := #[``Inhabited, ``Nonempty].map Lean.mkIdent
+    let defCmd ← `(structure $(mkIdent name) $params* where
         $(mkIdent `mk):ident :: $[$fields]*
-      deriving $(mkIdent ``Inhabited):ident, $(mkIdent ``Nonempty):ident, $(mkIdent ``BEq):ident, $(mkIdent ``Hashable):ident, $(mkIdent ``ToJson):ident)
+      deriving $[$instances:ident],*)
+    return #[defCmd]
   else
-    `(structure $(mkIdent name) $params* where
+    let defCmd ← `(structure $(mkIdent name) $params* where
       $(mkIdent `mk):ident :: $[$fields]*)
+    return #[defCmd]
 
 /-- Syntax for *defining* the mutable state of a module as a `structure`. The
 syntax for the type is `mod.stateStx`. -/
-private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
-  structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
+private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
+  let defCmds ← structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.mutableComponents.mapM fun sc => sc.getSimpleBinder)
+  return defCmds ++ #[← `(command| deriving_repr_via_finite_sorts $(mkIdent stateName))]
 
 /-- Similar to `Module.stateDefinitionStx` but each field of `State` is
 abstracted by a function from its label to a certain type. Note that
@@ -574,8 +579,8 @@ private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation 
   let fields ← mod.mutableComponents.mapM fun sc => do
     let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
     `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $ty)
-  let defStx ← structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState true) (deriveInstances := false) fields
-  return #[defStx, ← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkToJsonInstance]
+  let defCmds ← structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState true) (deriveInstances := false) fields
+  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkToJsonInstance, ← `(command| deriving_repr_via_fields $(mkIdent stateName))]
 where
   /-- Generate binders of the form `(χ : State.Label → Type) [∀ f : State.Label, C (χ f)]` -/
   mkFieldConcreteTypeBinders (typeclass : Name) : m (Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
@@ -630,11 +635,12 @@ where
 
 /-- Syntax for *defining* the immutable background theory of a module as a
 `structure`. The syntax for the type is `mod.theoryStx`. -/
-private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Syntax := do
-  structureDefinitionStx theoryName (← mod.sortBindersForTheoryOrState false) (deriveInstances := false)
+private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
+  let defCmds ← structureDefinitionStx theoryName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.immutableComponents.mapM fun sc => sc.getSimpleBinder)
+  return defCmds ++ #[← `(command| deriving_repr_via_finite_sorts $(mkIdent theoryName))]
 
-def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
+def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
   let stx ← mod.stateDefinitionStx
   let stateStx ← mod.stateStx
@@ -827,12 +833,12 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [M
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ inhabitedInst)
 
-def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Syntax) := do
+def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubTheoryName
-  let stx ← mod.theoryDefinitionStx
+  let stxs ← mod.theoryDefinitionStx
   let theoryStx ← mod.theoryStx
   let subtheory : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push subtheory, _declarations := mod._declarations.insert environmentSubTheoryName .moduleParameter }, stx)
+  return ({ mod with parameters := mod.parameters.push subtheory, _declarations := mod._declarations.insert environmentSubTheoryName .moduleParameter }, stxs)
 
 def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
   match stx with
@@ -1323,11 +1329,13 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let ctors ← mod.actions.mapM (fun a => do
     `(Command.ctor| | $(mkIdent a.name):ident $(← a.binders)* : $labelT ))
-  let labelDef ←
+  let labelDef ← do
+    let instances := #[``DecidableEq,``Repr, ``ToJson].map Lean.mkIdent
     if ctors.isEmpty then
-      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Repr):ident)
+      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $[$instances:ident],*)
     else
-      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $(mkIdent ``Inhabited):ident, $(mkIdent ``Nonempty):ident, $(mkIdent ``Repr):ident)
+      let instances := instances ++ #[``Inhabited, ``Nonempty].map Lean.mkIdent
+      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $[$instances:ident],*)
   let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := actionNames, stx := labelDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (labelDef, mod)

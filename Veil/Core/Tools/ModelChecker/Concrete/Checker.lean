@@ -28,17 +28,22 @@ structure SearchContext {ρ σ κ σₕ : Type}
   (params : SearchParameters ρ σ)
 where
   seen  : Std.HashSet σₕ
-  sq    : fQueue (σₕ × σ)
+  /-- Queue storing (fingerprint, state, depth) tuples for BFS traversal -/
+  sq    : fQueue (σₕ × σ × Nat)
   /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
   will make it easier to reconstruct counterexample trace. -/
   log                : Std.HashMap σₕ (σₕ × κ)
   violatingStates    : List σₕ
   /-- Have we finished the search? If so, why? -/
   finished           : Option TerminationReason
-  queue_sound        : ∀ x : σ, ⟨fp.view x, x⟩ ∈ fQueue.toList sq → sys.reachable th x
+  /-- The depth up to which ALL states have been fully explored (successors enqueued) -/
+  completedDepth     : Nat
+  /-- The depth of the current BFS frontier being processed -/
+  currentFrontierDepth : Nat
+  queue_sound        : ∀ x : σ, ∀ d : Nat, ⟨fp.view x, x, d⟩ ∈ fQueue.toList sq → sys.reachable th x
   visited_sound      : Function.Injective fp.view → ∀ x, (fp.view x) ∈ seen → sys.reachable th x
-  queue_sub_visited  : ∀ x : σ, ⟨fp.view x, x⟩ ∈ fQueue.toList sq → (fp.view x) ∈ seen
-  queue_wellformed   : ∀ fingerprint st, ⟨fingerprint, st⟩ ∈ fQueue.toList sq → fingerprint = fp.view st
+  queue_sub_visited  : ∀ x : σ, ∀ d : Nat, ⟨fp.view x, x, d⟩ ∈ fQueue.toList sq → (fp.view x) ∈ seen
+  queue_wellformed   : ∀ fingerprint st d, ⟨fingerprint, st, d⟩ ∈ fQueue.toList sq → fingerprint = fp.view st
 
 @[inline, specialize]
 def SearchContext.hasFinished {ρ σ κ σₕ : Type}
@@ -50,16 +55,18 @@ def SearchContext.hasFinished {ρ σ κ σₕ : Type}
 
 def SearchContext.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq ρ] [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   (th : ρ) (hTh : th ∈ sys.theories)
   (params : SearchParameters ρ σ) :
   @SearchContext ρ σ κ σₕ fp sys th hTh params := {
     seen := HashSet.insertMany HashSet.emptyWithCapacity (sys.initStates th |> Functor.map fp.view),
-    sq := fQueue.ofList (sys.initStates th |> Functor.map (fun s => (fp.view s, s))),
+    sq := fQueue.ofList (sys.initStates th |> Functor.map (fun s => (fp.view s, s, 0))),
     log := Std.HashMap.emptyWithCapacity
     violatingStates := []
     finished := none
+    completedDepth := 0
+    currentFrontierDepth := 0
     queue_sound := by dsimp only [Functor.map]; intros; grind
     visited_sound := by
       dsimp only [Functor.map]
@@ -89,7 +96,10 @@ def SearchContext.shouldTerminateEarly {ρ σ κ σₕ : Type}
   match ctx.finished with
   | some (.earlyTermination condition) => some condition
   | _ => params.earlyTerminationConditions.findSome? (fun sc => match sc with
-    | EarlyTerminationCondition.foundViolatingState => if !params.safety.holdsOn th currSt then some sc else none)
+    | EarlyTerminationCondition.foundViolatingState =>
+        if !params.safety.holdsOn th currSt then some sc else none
+    | EarlyTerminationCondition.reachedDepthBound bound =>
+        if ctx.completedDepth >= bound then some sc else none)
 
 /-- Process a single neighbor node during BFS traversal.
 If the neighbor has been seen, return the current context unchanged.
@@ -97,11 +107,12 @@ Otherwise, add it to seen set and log, then enqueue it. -/
 @[inline, specialize]
 def SearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq ρ] [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   {th : ρ} {hTh : th ∈ sys.theories}
   {params : SearchParameters ρ σ}
   (fpSt : σₕ)  -- fingerprint of state we're coming from (pre-state), for logging
+  (depth : Nat)  -- depth of the current state (neighbor will be at depth + 1)
   (ctx : @SearchContext ρ σ κ σₕ fp sys th hTh params)
   (neighbor : κ × σ)
   (h_neighbor : sys.reachable th neighbor.2) :
@@ -120,7 +131,7 @@ def SearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
         queue_wellformed := ctx.queue_wellformed
     }
     { ctx_with_seen with
-        sq := ctx_with_seen.sq.enqueue (fingerprint, succ),
+        sq := ctx_with_seen.sq.enqueue (fingerprint, succ, depth + 1),
         queue_sound := sorry
         queue_sub_visited := sorry
         queue_wellformed := sorry
@@ -130,11 +141,12 @@ def SearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
 @[inline, specialize]
 def SearchContext.processState {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq ρ] [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   {th : ρ} {hTh : th ∈ sys.theories}
   {params : SearchParameters ρ σ}
   (fpSt : σₕ)
+  (depth : Nat)  -- depth of the current state
   (curr : σ)
   (h_curr : sys.reachable th curr)
   (ctx : @SearchContext ρ σ κ σₕ fp sys th hTh params) :
@@ -142,6 +154,7 @@ def SearchContext.processState {ρ σ κ σₕ : Type}
   -- Check whether we should stop the search early
   match ctx.shouldTerminateEarly sys curr with
   | some .foundViolatingState => {ctx with finished := some (.earlyTermination .foundViolatingState), violatingStates := fpSt :: ctx.violatingStates}
+  | some (.reachedDepthBound bound) => {ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}
   -- If not, explore all neighbors of the current state
   | none =>
     (sys.tr th curr).attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
@@ -149,14 +162,14 @@ def SearchContext.processState {ρ σ κ σₕ : Type}
     else
       let h_neighbor_reachable : sys.reachable th postState :=
         EnumerableTransitionSystem.reachable.step curr postState h_curr ⟨tr, h_neighbor_in_tr⟩
-      SearchContext.tryExploreNeighbor sys fpSt current_ctx ⟨tr, postState⟩ h_neighbor_reachable
+      SearchContext.tryExploreNeighbor sys fpSt depth current_ctx ⟨tr, postState⟩ h_neighbor_reachable
   ) ctx
 
 /-- Perform one step of BFS. -/
 @[inline, specialize]
 def SearchContext.bfsStep {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq ρ] [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   {th : ρ} {hTh : th ∈ sys.theories}
   {params : SearchParameters ρ σ}
@@ -164,22 +177,30 @@ def SearchContext.bfsStep {ρ σ κ σₕ : Type}
   @SearchContext ρ σ κ σₕ fp sys th hTh params :=
   match ctx.sq.dequeue? with
   | none => { ctx with finished := some (.exploredAllReachableStates) }
-  | some ((fpSt, curr), q_tail) =>
+  | some ((fpSt, curr, depth), q_tail) =>
     have h_curr : sys.reachable th curr := sorry
+    -- Update completed depth when we move to a new frontier level
+    let (newCompletedDepth, newFrontierDepth) :=
+      if depth > ctx.currentFrontierDepth then
+        (depth - 1, depth)  -- All states at previous depth are now fully explored
+      else
+        (ctx.completedDepth, ctx.currentFrontierDepth)
     let ctx_dequeued : @SearchContext ρ σ κ σₕ fp sys th hTh params := {
       ctx with
         sq := q_tail,
+        completedDepth := newCompletedDepth,
+        currentFrontierDepth := newFrontierDepth,
         queue_sound := sorry
         visited_sound := ctx.visited_sound
         queue_sub_visited := sorry
         queue_wellformed := sorry
     }
-    SearchContext.processState sys fpSt curr h_curr ctx_dequeued
+    SearchContext.processState sys fpSt depth curr h_curr ctx_dequeued
 
 @[specialize]
 def breadthFirstSearch {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq ρ] [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   (th : ρ) (hTh : th ∈ sys.theories)
   (params : SearchParameters ρ σ) :
@@ -226,7 +247,7 @@ This re-executes transitions to recover full state objects from fingerprints. -/
 def recoverTrace {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [Inhabited κ] [Inhabited σ] [Repr σₕ]
-  [BEq ρ] [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   (th : ρ) (hTh : th ∈ sys.theories)
   (params : SearchParameters ρ σ)
@@ -259,7 +280,7 @@ def recoverTrace {ρ σ κ σₕ : Type}
 def findReachable {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [Inhabited κ] [Inhabited σ] [Repr σ] [Repr σₕ]
-  [BEq ρ] [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)))
   (th : ρ) (hTh : th ∈ sys.theories)
   (params : SearchParameters ρ σ) : ReachabilityResult ρ σ κ :=
@@ -268,8 +289,11 @@ def findReachable {ρ σ κ σₕ : Type}
   match ctx.finished with
   | some (.earlyTermination .foundViolatingState) =>
     ReachabilityResult.reachable (some (recoverTrace sys th hTh params ctx))
+  | some (.earlyTermination (.reachedDepthBound _)) =>
+    -- No violation found within depth bound; report states explored
+    ReachabilityResult.unreachable ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
   | some (.exploredAllReachableStates) =>
-    ReachabilityResult.unreachable ctx.seen.size
+    ReachabilityResult.unreachable ctx.seen.size (.exploredAllReachableStates)
   | none =>
     ReachabilityResult.unknown
 

@@ -281,4 +281,18 @@ def genNextActCommands (mod : Veil.Module) : CommandElabM Unit := do
   trace[veil.debug] "gen_executable_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic execListCmd}"
   elabVeilCommand execListCmd
 
+/-- Extract the resulting state from an ExceptT-wrapped execution, if successful. -/
+def getStateFromExceptT (c : ExceptT ε DivM (α × σ)) : Option σ :=
+  match c.run with
+  | .res (.ok (_, st)) => .some st
+  | .res (.error _)    => .none
+  | .div => none
+
+def getAllStatesFromExceptT (c : List (ExceptT ε DivM (α × σ))) : List (Option σ) :=
+  c.map getStateFromExceptT
+
+/-- Extract all valid states from a VeilMultiExecM computation -/
+def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
+  exec rd st |>.map Prod.snd |> getAllStatesFromExceptT
+
 end Veil.Extract

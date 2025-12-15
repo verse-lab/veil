@@ -13,23 +13,24 @@ structure SafetyProperty (ρ σ : Type) where
 def SafetyProperty.holdsOn (p : SafetyProperty ρ σ) (th : ρ) (st : σ) : Bool :=
   @decide (p.property th st) (p.decidable th st)
 
-inductive ReachabilityResult (ρ σ κ : Type) where
-  | reachable (viaTrace : Option (Trace ρ σ κ))
-  | unreachable (exploredStates : Nat)
-  | unknown
-deriving Inhabited, Repr
 
 /-- A condition under which the state exploration should be terminated early,
 i.e. before full state space is explored. -/
 inductive EarlyTerminationCondition where
   | foundViolatingState
-  -- | reachedDepthBound (depth : Nat)
-deriving Inhabited, Hashable, BEq
+  | reachedDepthBound (depth : Nat)
+deriving Inhabited, Hashable, BEq, Repr
 
 inductive TerminationReason where
   | exploredAllReachableStates
   | earlyTermination (condition : EarlyTerminationCondition)
-deriving Inhabited, Hashable, BEq
+deriving Inhabited, Hashable, BEq, Repr
+
+inductive ReachabilityResult (ρ σ κ : Type) where
+  | reachable (viaTrace : Option (Trace ρ σ κ))
+  | unreachable (exploredStates : Nat) (terminationReason : TerminationReason)
+  | unknown
+deriving Inhabited, Repr
 
 structure SearchParameters (ρ σ : Type) where
   /-- Which property are we trying to find a violation of? (Typically, this is

@@ -77,10 +77,11 @@ private def simpleDerivingReprForCore (t : Ident) (case : SimpleDerivingReprForC
     let fieldAccess ← `(term| ($(mkIdent <| name ++ fn) $t))
     `(term| $(mkIdent ``Std.Format.append) $(embeddedStringStx <| toString fn)
       ($(mkIdent ``Repr.reprPrec) $fieldAccess $n)))
+  let fieldsFormat ← if fieldReprs.isEmpty then `("") else `($(mkIdent ``Std.Format.joinSep) [$fieldReprs,*] ", ")
   let instArgs : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) ←
     match case with
     | .fromParams =>
-      paramIdents.mapM (fun pn => `(bracketedBinder| [$(mkIdent ``Repr) $pn] ))
+      paramIdents.flatMapM (fun pn => return #[← `(bracketedBinder| [$(mkIdent ``Repr) $pn] ), ← `(bracketedBinder| [$(mkIdent ``FinEnum) $pn] )])
     | .fromFields agg =>
       let ctorTypes ← fields.mapM fun fn => do
         let fnName ← realizeGlobalConstNoOverloadCore (name ++ fn)
@@ -99,22 +100,24 @@ private def simpleDerivingReprForCore (t : Ident) (case : SimpleDerivingReprForC
   -- assemble everything
   `(command|
     instance $[$instArgs]* : $(mkIdent ``Repr) $target where
-      $(mkIdent `reprPrec):ident $t:ident $n:ident := $(mkIdent ``Std.Format.bracket) "{ "
-        ($(mkIdent ``Std.Format.joinSep) [$fieldReprs,*] ", ") " }")
+      $(mkIdent `reprPrec):ident $t:ident $n:ident := $(mkIdent ``Std.Format.bracket) "{ " $fieldsFormat " }")
 
+
+def deriveReprViaFiniteSorts  (t : Name) : MetaM (TSyntax `command) := simpleDerivingReprForCore (mkIdent t) .fromParams
+def deriveReprViaFields (t : Name) : MetaM (TSyntax `command) := simpleDerivingReprForCore (mkIdent t) (.fromFields true)
 
 -- /-- Attempt to derive a `Repr` instance for a `structure` by assuming all
 --     its parameters are `Repr`s. This can be useful when the structure
 --     includes functions, which are finite when the type parameters are finite
 --     but by default Lean cannot derive `Repr` for them.
 --     Note that this command does not check if any parameter is not a `Type`. -/
-elab "simple_deriving_repr_for " t:ident : command => do
-  let cmd ← liftTermElabM <| simpleDerivingReprForCore t .fromParams
+elab "deriving_repr_via_finite_sorts " t:ident : command => do
+  let cmd ← liftTermElabM <| deriveReprViaFiniteSorts (t.getId)
   elabVeilCommand cmd
 
--- /-- Similar to `simple_deriving_repr_for` but assumes all field types are `Repr`. -/
-elab "simple_deriving_repr_for' " t:ident : command => do
-  let cmd ← liftTermElabM <| simpleDerivingReprForCore t (.fromFields true)
+-- /-- Similar to `deriving_repr_via_finite_sorts` but assumes all field types are `Repr`. -/
+elab "deriving_repr_via_fields " t:ident : command => do
+  let cmd ← liftTermElabM <| deriveReprViaFields (t.getId)
   elabVeilCommand cmd
 
 end Veil
