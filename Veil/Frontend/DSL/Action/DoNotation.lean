@@ -153,7 +153,7 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   | `(Term.doSeqItem| $id:ident ← $t:term) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $id:ident := ← $t:term)
   | `(Term.doSeqItem| $idts:term := $t:term) =>
     let some (id, ts) := idts.isApp? | return #[stx]
-    let stx' <- withRef t `(term| $id[ $[$ts],* ↦ $t:term ])
+    let stx' <- withRef t `(term| $id _[ $[$ts],* ↦ $t:term ]_)
     let stx <- withRef stx `(Term.doSeqItem| $id:ident := $stx')
     expandDoElemVeil proc stx
   | `(Term.doSeqItem| $idts:term ← $t:term) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $idts:term := ← $t:term)
@@ -202,7 +202,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       them to the base value `v`. See the `v'` below.
       -/
       let (pat, v) := match t with
-        | `(term| $f:ident [ $[$idxs],* ↦ $v ]) =>
+        | `(term| $f:ident _[ $[$idxs],* ↦ $v ]_) =>
           if f.getId = name then (idxs, v) else (#[], t)
         | _ => (#[], t)
       let _ ← do
@@ -219,7 +219,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
           then pure v
           else
             let old := Syntax.mkApp (← `($(mkIdent name):ident)) patUsed
-            `($old [ $[$patResidue],* ↦ $v ])
+            `($old _[ $[$patResidue],* ↦ $v ]_)
         mkFunSyntax funBinders v'
       let patTerm ← do
         let patOpt ← patUsed.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))

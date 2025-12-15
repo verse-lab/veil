@@ -6,16 +6,16 @@ namespace Veil
 
 /-- Syntax for assigning only a sub-part of a relation / function, e.g.
 `r N x ↦ True`. -/
-syntax term "[" (term),* " ↦ " term "]" : term
+syntax term "_[" (term),* " ↦ " term "]_" : term
 declare_syntax_cat veil_tupl
 scoped syntax (term:max)* : veil_tupl
-scoped syntax (name := veil_tupl) "[veil_tupl|" veil_tupl "]" : term
+scoped syntax (name := veil_tupl) "_[veil_tupl|" veil_tupl "]_" : term
 
 @[term_elab veil_tupl]
 def veil_tuplElab : TermElab := fun stx type? => do
   match stx with
-  | `(term| [veil_tupl| $arg: term $args: term *]) =>
-    let newStx ← if args.size == 0 then `($arg) else `(($arg, [veil_tupl| $args: term *]))
+  | `(term| _[veil_tupl| $arg: term $args: term *]_) =>
+    let newStx ← if args.size == 0 then `($arg) else `(($arg, _[veil_tupl| $args: term *]_))
     elabTerm newStx type?
   | _ => throwUnsupportedSyntax
 
@@ -41,11 +41,11 @@ def TupleUpdate.findFirstAppearance [Monad m] [MonadQuotation m] (arr : Array (T
   return res
 
 macro_rules
-  | `(term| $f[$is:term,* ↦ $b ]) => do
+  | `(term| $f _[$is:term,* ↦ $b ]_) => do
     let x ← TupleUpdate.findFirstAppearance is.getElems
     let x := x.map Prod.fst
-    let tuple1 <- `(term| [veil_tupl| $is: term *])
-    let tuple2 <- `(term| [veil_tupl| $[$x: ident] * ] )
+    let tuple1 <- `(term| _[veil_tupl| $is: term *]_)
+    let tuple2 <- `(term| _[veil_tupl| $[$x: ident] * ]_ )
     let body ← `(if $tuple2 = $tuple1 then $b else $f:term $x *)
     let stx <- mkFunSyntax x body
     -- dbg_trace toString stx
