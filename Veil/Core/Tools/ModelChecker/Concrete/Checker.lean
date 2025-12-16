@@ -92,6 +92,7 @@ def SearchContext.shouldTerminateEarly {ρ σ κ σₕ : Type}
   {params : SearchParameters ρ σ}
   (ctx : @SearchContext ρ σ κ σₕ fp th sys params)
   (currSt : σ)
+  (successors : List (κ × σ))
   : Option EarlyTerminationCondition :=
   match ctx.finished with
   | some (.earlyTermination condition) => some condition
@@ -99,7 +100,10 @@ def SearchContext.shouldTerminateEarly {ρ σ κ σₕ : Type}
     | EarlyTerminationCondition.foundViolatingState =>
         if !params.safety.holdsOn th currSt then some sc else none
     | EarlyTerminationCondition.reachedDepthBound bound =>
-        if ctx.completedDepth >= bound then some sc else none)
+        if ctx.completedDepth >= bound then some sc else none
+    | EarlyTerminationCondition.deadlockOccurred =>
+        if successors.isEmpty && !params.terminating.holdsOn th currSt then some sc else none
+  )
 
 /-- Process a single neighbor node during BFS traversal.
 If the neighbor has been seen, return the current context unchanged.
@@ -153,19 +157,21 @@ def SearchContext.processState {ρ σ κ σₕ : Type}
   @SearchContext ρ σ κ σₕ fp th sys params :=
   -- Log violating state, if found
   let ctx := if !params.safety.holdsOn th curr then {ctx with violatingStates := fpSt :: ctx.violatingStates} else ctx
+  let successors := sys.tr th curr
   -- Check whether we should stop the search early
-  match ctx.shouldTerminateEarly sys curr with
+  match ctx.shouldTerminateEarly sys curr successors with
   | some .foundViolatingState => {ctx with finished := some (.earlyTermination .foundViolatingState)}
   | some (.reachedDepthBound bound) => {ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}
+  | some .deadlockOccurred => {ctx with finished := some (.earlyTermination .deadlockOccurred)}
   -- If not, explore all neighbors of the current state
   | none =>
-    (sys.tr th curr).attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
-    if current_ctx.hasFinished then current_ctx
-    else
-      let h_neighbor_reachable : sys.reachable postState :=
-        EnumerableTransitionSystem.reachable.step curr postState h_curr ⟨tr, h_neighbor_in_tr⟩
-      SearchContext.tryExploreNeighbor sys fpSt depth current_ctx ⟨tr, postState⟩ h_neighbor_reachable
-  ) ctx
+      successors.attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
+      if current_ctx.hasFinished then current_ctx
+      else
+        let h_neighbor_reachable : sys.reachable postState :=
+          EnumerableTransitionSystem.reachable.step curr postState h_curr ⟨tr, h_neighbor_in_tr⟩
+        SearchContext.tryExploreNeighbor sys fpSt depth current_ctx ⟨tr, postState⟩ h_neighbor_reachable
+    ) ctx
 
 /-- Perform one step of BFS. -/
 @[inline, specialize]
@@ -285,21 +291,22 @@ def findReachable {ρ σ κ : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
   [fp : StateFingerprint σ UInt64]
   (params : SearchParameters ρ σ)
-  : ReachabilityResult ρ σ κ :=
+  : ModelCheckingResult ρ σ κ :=
   let ctx : @SearchContext ρ σ κ UInt64 fp th sys params :=
     breadthFirstSearch sys params
   match ctx.finished with
   | some (.earlyTermination .foundViolatingState) =>
-    ReachabilityResult.reachable (some (recoverTrace sys params ctx))
+    ModelCheckingResult.foundViolation .safetyFailure (some (recoverTrace sys params ctx))
+  | some (.earlyTermination .deadlockOccurred) =>
+    ModelCheckingResult.foundViolation .deadlock (some (recoverTrace sys params ctx))
   | some (.earlyTermination (.reachedDepthBound _)) =>
-    -- No violation found within depth bound; report states explored
-    ReachabilityResult.unreachable ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
+    -- No violation found within depth bound; report number of states explored
+    ModelCheckingResult.noViolationFound ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
   | some (.exploredAllReachableStates) =>
-    if ctx.violatingStates.isEmpty then
-      ReachabilityResult.unreachable ctx.seen.size (.exploredAllReachableStates)
+    if !ctx.violatingStates.isEmpty then
+      ModelCheckingResult.foundViolation .safetyFailure (some (recoverTrace sys params ctx))
     else
-      ReachabilityResult.reachable (some (recoverTrace sys params ctx))
-  | none =>
-    ReachabilityResult.unknown
+      ModelCheckingResult.noViolationFound ctx.seen.size (.exploredAllReachableStates)
+  | none => panic! s!"SearchContext.finished is none! This should never happen."
 
 end Veil.ModelChecker.Concrete
