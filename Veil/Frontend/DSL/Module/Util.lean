@@ -464,8 +464,8 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] 
   let id := mkIdent name
   let dec_eq_type ← `(term|$(mkIdent ``DecidableEq).{1} $id)
   let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited).{1} $id)
-  let dec_eq : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
-  let inhabited : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
+  let dec_eq : Parameter := { kind := .moduleTypeclass .sortAssumption, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
+  let inhabited : Parameter := { kind := .moduleTypeclass .sortAssumption, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
   let params := #[param, dec_eq, inhabited]
   let newDecls := #[(name, DeclarationKind.moduleParameter)] ++ params.map (fun p => (p.name, DeclarationKind.moduleParameter))
   return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insertMany newDecls }

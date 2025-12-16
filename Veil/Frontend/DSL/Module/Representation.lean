@@ -12,13 +12,14 @@ namespace Veil
 /-! ## Metadata -/
 
 inductive ModuleTypeClassKind where
-  /-- This typeclass assumption relates to the background theory of the
-  environment that this module operates in. We put every assumption
-  about the sorts into this kind, even though those sorts might not in
-  fact be used in the immutable theory. -/
+  /-- We put every (not user-defined) assumption about the sorts into this
+  kind. -/
+  | sortAssumption
+  /-- This typeclass assumption relates to the background theory.
+  `IsSubReaderOf` goes here. -/
   | backgroundTheory
-  /-- This typeclass assumption relates to the state of the environment
-  that this module operates in. -/
+  /-- This typeclass assumption relates to the state of the environment that
+  this module operates in. `IsSubStateOf` goes here. -/
   | environmentState
   /-- `∀ f, FieldRepresentation (State.Label.toDomain f) (State.Label.toCodomain f) (χ f)` -/
   | fieldRepresentation
