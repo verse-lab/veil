@@ -33,7 +33,7 @@ where
   /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
   will make it easier to reconstruct counterexample trace. -/
   log                : Std.HashMap σₕ (σₕ × κ)
-  violatingStates    : List σₕ
+  violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
   finished           : Option TerminationReason
   /-- The depth up to which ALL states have been fully explored (successors enqueued) -/
@@ -84,27 +84,6 @@ def SearchContext.initial {ρ σ κ σₕ : Type}
     queue_wellformed := by dsimp only [Functor.map]; intros; grind
   }
 
-@[inline, specialize]
-def SearchContext.shouldTerminateEarly {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
-  {params : SearchParameters ρ σ}
-  (ctx : @SearchContext ρ σ κ σₕ fp th sys params)
-  (currSt : σ)
-  (successors : List (κ × σ))
-  : Option EarlyTerminationCondition :=
-  match ctx.finished with
-  | some (.earlyTermination condition) => some condition
-  | _ => params.earlyTerminationConditions.findSome? (fun sc => match sc with
-    | EarlyTerminationCondition.foundViolatingState =>
-        if !params.safety.holdsOn th currSt then some sc else none
-    | EarlyTerminationCondition.reachedDepthBound bound =>
-        if ctx.completedDepth >= bound then some sc else none
-    | EarlyTerminationCondition.deadlockOccurred =>
-        if successors.isEmpty && !params.terminating.holdsOn th currSt then some sc else none
-  )
-
 /-- Process a single neighbor node during BFS traversal.
 If the neighbor has been seen, return the current context unchanged.
 Otherwise, add it to seen set and log, then enqueue it. -/
@@ -141,6 +120,41 @@ def SearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
         queue_wellformed := sorry
     }
 
+/-- Check a state for violations and optionally terminate early.
+Returns the updated context with any violations recorded, and optionally
+an early termination condition if we should stop the search. -/
+@[inline, specialize]
+def SearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  {params : SearchParameters ρ σ}
+  (ctx : @SearchContext ρ σ κ σₕ fp th sys params)
+  (fpSt : σₕ)
+  (currSt : σ)
+  (successors : List (κ × σ))
+  : @SearchContext ρ σ κ σₕ fp th sys params × Option EarlyTerminationCondition :=
+  -- Check for previously recorded termination
+  match ctx.finished with
+  | some (.earlyTermination condition) => (ctx, some condition)
+  | _ =>
+    -- Check for violations (compute once, use for both recording and early termination)
+    let safetyViolation := !params.safety.holdsOn th currSt
+    let deadlock := successors.isEmpty && !params.terminating.holdsOn th currSt
+    -- Record violations in context
+    let ctx := if safetyViolation then {ctx with violatingStates := (fpSt, .safetyFailure) :: ctx.violatingStates} else ctx
+    let ctx := if deadlock then {ctx with violatingStates := (fpSt, .deadlock) :: ctx.violatingStates} else ctx
+    -- Check for early termination using the same computed values
+    let earlyTermination := params.earlyTerminationConditions.findSome? (fun sc => match sc with
+      | EarlyTerminationCondition.foundViolatingState =>
+          if safetyViolation then some sc else none
+      | EarlyTerminationCondition.reachedDepthBound bound =>
+          if ctx.completedDepth >= bound then some sc else none
+      | EarlyTerminationCondition.deadlockOccurred =>
+          if deadlock then some sc else none
+    )
+    (ctx, earlyTermination)
+
 /-- Process the current state, queuing its successors. -/
 @[inline, specialize]
 def SearchContext.processState {ρ σ κ σₕ : Type}
@@ -155,16 +169,14 @@ def SearchContext.processState {ρ σ κ σₕ : Type}
   (h_curr : sys.reachable curr)
   (ctx : @SearchContext ρ σ κ σₕ fp th sys params) :
   @SearchContext ρ σ κ σₕ fp th sys params :=
-  -- Log violating state, if found
-  let ctx := if !params.safety.holdsOn th curr then {ctx with violatingStates := fpSt :: ctx.violatingStates} else ctx
   let successors := sys.tr th curr
-  -- Check whether we should stop the search early
-  match ctx.shouldTerminateEarly sys curr successors with
-  | some .foundViolatingState => {ctx with finished := some (.earlyTermination .foundViolatingState)}
-  | some (.reachedDepthBound bound) => {ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}
-  | some .deadlockOccurred => {ctx with finished := some (.earlyTermination .deadlockOccurred)}
-  -- If not, explore all neighbors of the current state
-  | none =>
+  -- Check for violations, record them, and determine if we should terminate early
+  match ctx.checkViolationsAndMaybeTerminate sys fpSt curr successors with
+  | (ctx, some .foundViolatingState) => {ctx with finished := some (.earlyTermination .foundViolatingState)}
+  | (ctx, some (.reachedDepthBound bound)) => {ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}
+  | (ctx, some .deadlockOccurred) => {ctx with finished := some (.earlyTermination .deadlockOccurred)}
+  -- If not terminating early, explore all neighbors of the current state
+  | (ctx, none) =>
       successors.attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
       if current_ctx.hasFinished then current_ctx
       else
@@ -248,7 +260,7 @@ def collectTraces {ρ σ κ σₕ : Type}
   {params : SearchParameters ρ σ}
   (ctx : @SearchContext ρ σ κ σₕ fp th sys params)
   : List (σₕ × List (Step σₕ κ)) :=
-  ctx.violatingStates.map (fun badState => retraceSteps ctx.log badState)
+  ctx.violatingStates.map (fun (badState, _) => retraceSteps ctx.log badState)
 
 /-- Reconstruct a full trace with concrete states from a SearchContext.
 This re-executes transitions to recover full state objects from fingerprints. -/
