@@ -83,8 +83,11 @@ def elabInstantiate : CommandElab := fun stx => do
 def elabEnumDeclaration : CommandElab := fun stx => do
   match stx with
   | `(enum $id:ident = { $[$elems:ident],* }) => do
-    -- Declare the uninterpreted sort
-    elabVeilCommand $ ← `(type $id)
+    -- Declare the enum sort (using .enumSort instead of .uninterpretedSort)
+    let mod ← getCurrentModule (errMsg := "You cannot declare an enum outside of a Veil module!")
+    mod.throwIfStateAlreadyDefined
+    let mod ← mod.declareUninterpretedSort id.getId stx .enumSort
+    localEnv.modifyModule (fun _ => mod)
     -- Declare an axiomatisation class for the enum type
     let (class_name, class_decl) ← mkEnumAxiomatisation id elems
     elabVeilCommand class_decl

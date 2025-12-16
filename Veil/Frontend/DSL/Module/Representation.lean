@@ -39,6 +39,13 @@ inductive DefinitionParameterKind where
   | typeclass
 deriving Inhabited, BEq, Repr
 
+/-- The kind of a (FOL) sort parameter. Sorts can be either uninterpreted
+(declared via `type`) or enum (declared via `enum`). -/
+inductive SortKind where
+  | uninterpretedSort
+  | enumSort
+deriving Inhabited, BEq, Hashable, Repr
+
 /-- Veil definitions can have parameters, and there are many kinds of
 parameters. All of these (except `definitionParameter`) are, in some sense,
 parameters of the module (i.e. parameters that all definitions in the module
@@ -48,7 +55,7 @@ inductive ParameterKind where
   | mode
   /-- A (FOL) sort, i.e. a Lean type. The `sort` parameters are those that
   are used to declare the `State` type of the module. -/
-  | uninterpretedSort
+  | sort (kind : SortKind)
   /-- The type of the state of the _environment_ that this module
   operates in. The module's own state will be a sub-state of this. -/
   | environmentState -- i.e. `σ`

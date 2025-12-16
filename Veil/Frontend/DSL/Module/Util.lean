@@ -228,7 +228,7 @@ def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadError m] (mo
 where
   sortFilterMapFn {α : Type} (mod : Module) (f : Parameter → m α) : m (Array α) := do
     mod.parameters.filterMapM fun p => do match p.kind with
-    | .uninterpretedSort => f p
+    | .sort _ => f p
     | _ => pure .none
   sortParameters (mod : Module) : m (Array Parameter) := do
     sortFilterMapFn mod (pure ·)
@@ -332,7 +332,7 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotat
 
 private def Module.sortFilterMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
   mod.parameters.filterMapM fun p => do match p.kind with
-  | .uninterpretedSort => f p
+  | .sort _ => f p
   | _ => pure .none
 
 def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
@@ -340,6 +340,12 @@ def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (T
 
 def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
   mod.sortFilterMapFn (·.ident)
+
+/-- Returns sort parameters along with their kind (uninterpreted or enum). -/
+def Module.sortParams (mod : Module) : Array (Parameter × SortKind) :=
+  mod.parameters.filterMap fun p => match p.kind with
+  | .sort k => some (p, k)
+  | _ => none
 
 /-- Almost the same as `Module.sortBinders`, but this is _only_ for sort parameters
 of theory or states, or their related definitions (e.g., `casesOn` functions). -/
@@ -457,10 +463,10 @@ def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (
 def Module.theoryStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent theoryName) $(← mod.sortIdents)*)
 
-def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (name : Name) (userStx : Syntax): m Module := do
+def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (name : Name) (userStx : Syntax) (sortKind : SortKind := .uninterpretedSort) : m Module := do
   mod.throwIfAlreadyDeclared name
   let typeT ← `(term|Type)
-  let param : Parameter := { kind := .uninterpretedSort, name := name, «type» := typeT, userSyntax := userStx }
+  let param : Parameter := { kind := .sort sortKind, name := name, «type» := typeT, userSyntax := userStx }
   let id := mkIdent name
   let dec_eq_type ← `(term|$(mkIdent ``DecidableEq).{1} $id)
   let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited).{1} $id)
@@ -1374,9 +1380,17 @@ def Module.mkLabelEnumeration [Monad m] [MonadQuotation m] [MonadError m] (mod :
     $(mkIdent `complete):ident := by simp)
 
 def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Command := do
-  let sortIdents ← mod.sortIdents
-  let fields ← sortIdents.mapM fun sort =>
-    `(Command.structSimpleBinder| $sort:ident : Type)
+  let sortParams := mod.sortParams
+  let fields ← sortParams.mapM fun (param, sortKind) => do
+    let sort ← param.ident
+    match sortKind with
+    | .enumSort =>
+      -- Enum type: add default value of SortName_IndT
+      let defaultType := Ident.toEnumConcreteType sort
+      `(Command.structSimpleBinder| $sort:ident : Type := $defaultType)
+    | .uninterpretedSort =>
+      -- Regular sort: no default
+      `(Command.structSimpleBinder| $sort:ident : Type)
   let instances := #[``Inhabited, ``Repr].map Lean.mkIdent
   `(structure $instantiationType where $[$fields]* deriving $[$instances:ident],*)
 
