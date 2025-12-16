@@ -1,6 +1,5 @@
 import Std
 import Veil.Frontend.Std
-import Veil.Core.Tools.Checker.Concrete.State
 import Veil.Frontend.DSL.State
 
 namespace Veil
