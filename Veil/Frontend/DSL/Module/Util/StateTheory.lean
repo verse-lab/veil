@@ -191,7 +191,19 @@ where
 private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
   let defCmds ← structureDefinitionStx theoryName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.immutableComponents.mapM fun sc => sc.getSimpleBinder)
-  return defCmds ++ #[← `(command| deriving_repr_via_finite_sorts $(mkIdent theoryName))]
+  return defCmds ++ #[← `(command| deriving_repr_via_finite_sorts $(mkIdent theoryName)), (← mkToJsonInstance)]
+where
+  mkToJsonInstance : m Command := do
+    let toJsonTy ← `(term| $(mkIdent ``Lean.ToJson) ($(mkIdent theoryName) $(← mod.sortIdents)*))
+    let ρ := mkIdent `ρ
+    let fieldNames := mod.immutableComponents.map (·.name)
+    let jsonPairs ← fieldNames.mapM fun field => do
+      let fieldStr := toString field
+      `(term| ($(Syntax.mkStrLit fieldStr), $(mkIdent ``Lean.ToJson.toJson) $ρ.$(mkIdent field)))
+    let toJsonBody ← `(term| $(mkIdent ``Lean.Json.mkObj) [$[$jsonPairs],*])
+    let sortBinders ← mod.sortBinders
+    let assumedInstances ← #[``Lean.ToJson, ``FinEnum].flatMapM fun className => mod.assumeForEverySort className
+    `(instance $[$sortBinders]* $[$assumedInstances]* : $toJsonTy where toJson := fun $ρ => $toJsonBody)
 
 /-! ## Public Structure Declaration APIs -/
 

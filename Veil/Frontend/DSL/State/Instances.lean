@@ -56,11 +56,45 @@ instance [Ord α] [Ord β]: Ord (Veil.TotalTreeMap α β) where
   compare s1 s2 := compare s1.val.toArray s2.val.toArray
 
 
-/--
+/-
 `ToJson` instances
 -/
-instance [Repr α]: ToJson α where
+
+instance : ToJson Bool where
+  toJson := fun b => Json.bool b
+
+instance : ToJson (Fin n) where
+  toJson := fun f => toJson f.val
+
+instance : ToJson Nat where
+  toJson := fun n => Json.num n
+
+instance (priority := low) jsonOfRepr [Repr α] : ToJson α where
   toJson := fun a => Json.str (toString (repr a))
+
+/-- ToJson for curried finite functions: uncurry and use the product instance. -/
+instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
+    [ToJson α₁] [FinEnum α₁] [ToJson α₂] [FinEnum α₂] [ToJson β]
+    [inst : ToJson (α₁ × α₂ → β)] : ToJson (α₁ → α₂ → β) where
+  toJson := fun f => inst.toJson (fun (x, y) => f x y)
+
+/-- ToJson for finite functions: enumerate all input/output pairs as flat tuples.
+    For a function `(a, b) -> c`, produces `[[a, b, c], ...]` rather than `[[[a, b], c], ...]`. -/
+instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
+    [ToJson α] [FinEnum α] [ToJson β] : ToJson (α → β) where
+  toJson := fun f =>
+    let l := FinEnum.toList α
+    Json.arr <| l.toArray.map (fun a =>
+      let keyJson := toJson a
+      let valJson := toJson (f a)
+      match keyJson with
+      | Json.arr elems => Json.arr (elems.push valJson)
+      | _ => Json.arr #[keyJson, valJson])
+
+/-- ToJson for boolean predicates: show only the elements where the predicate is true. -/
+instance (priority := high) essentiallyFinSetToJson (α : Type u)
+    [ToJson α] [FinEnum α] : ToJson (α → Bool) where
+  toJson := fun f => toJson (FinEnum.toList α |>.filter f)
 
 instance jsonOfTuple [ToJson α] [ToJson β]: ToJson (α × β) where
   toJson := fun ⟨a, b⟩ => Json.arr #[toJson a, toJson b]
