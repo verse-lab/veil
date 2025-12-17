@@ -8,6 +8,8 @@ import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.Tools.Verifier.Server
 import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
+import Veil.Core.UI.Trace.TraceDisplay
+import Veil.Core.Tools.ModelChecker.Concrete.Checker
 import Veil.Frontend.DSL.Action.Extract
 
 open Lean Parser Elab Command
@@ -346,5 +348,77 @@ elab "veil_variables" : command => do
     let varUIds ← (← getBracketedBinderIds binder) |>.mapM (withFreshMacroScope ∘ MonadQuotation.addMacroScope)
     trace[veil.debug] s!"with unique IDs: {varUIds}"
     modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds}
+
+@[command_elab Veil.modelCheck]
+def elabModelCheck : CommandElab := fun stx => do
+  match stx with
+  | `(#model_check $instTerm $theoryTerm) =>
+    let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
+    let mod ← mod.ensureSpecIsFinalized
+    localEnv.modifyModule (fun _ => mod)
+
+    -- Get sort identifiers from the module
+    let sortIdents ← mod.sortIdents
+
+    -- Build safety properties from module invariants
+    let invariants := mod.invariants
+    let safetyProps ← invariants.mapM fun (inv : StateAssertion) => do
+      let invName := Lean.mkIdent inv.name
+      let nameQuote : Term := quote inv.name
+      `(Veil.ModelChecker.SafetyProperty.mk (name := $nameQuote) (property := fun th st => $invName th st))
+    let safetyList ← `([$safetyProps,*])
+
+    -- Build termination property from module terminations (if any)
+    let terminations := mod.terminations
+    let terminatingProp ← do
+      if terminations.isEmpty then
+        `(default)
+      else
+        -- Use the first termination property
+        let term := terminations[0]!
+        let termName := Lean.mkIdent term.name
+        let nameQuote : Term := quote term.name
+        `(Veil.ModelChecker.SafetyProperty.mk (name := $nameQuote) (property := fun th st => $termName th st))
+
+    let inst := mkVeilImplementationDetailIdent `inst
+    let th := mkVeilImplementationDetailIdent `th
+
+    -- Build inst.node, inst.process, etc. from sort identifiers
+    let instSortArgs ← sortIdents.mapM fun sortIdent => do
+      `($inst.$(sortIdent))
+
+    -- Build the model checker result expression
+    -- NOTE: We want to resolve `enumerableTransitionSystem` within the context
+    -- of the spec, not within THIS context, so keep it with a single backtick.
+    let resultExpr ← `(
+      let $inst : $instantiationType := $instTerm
+      let $th : $theoryIdent $instSortArgs* := $theoryTerm
+      $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
+        ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
+        {
+          invariants := $safetyList
+          terminating := $terminatingProp
+          earlyTerminationConditions := [Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState]
+        }
+    )
+
+    -- Create the widget display using HtmlDisplay
+    -- NOTE: We set the max heartbeats and synth instance max size to high values
+    -- because we rely on typeclass inference to construct the code for the
+    -- transition system, and for large systems the defaults are not enough.
+    let widgetExpr ← `(
+      set_option maxHeartbeats 500000 in
+      set_option synthInstance.maxSize 4096 in
+      open ProofWidgets.Jsx in
+      <ProofWidgets.TraceDisplayViewer result={Lean.toJson $resultExpr} layout={"vertical"} />
+    )
+
+    -- Elaborate and display the widget
+    let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
+    liftCoreM <| Widget.savePanelWidgetInfo
+      (hash ProofWidgets.HtmlDisplayPanel.javascript)
+      (return json% { html: $(← Server.rpcEncode html) })
+      stx
+  | _ => throwUnsupportedSyntax
 
 end Veil

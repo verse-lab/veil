@@ -252,4 +252,15 @@ syntax (name := genSpec) kw_gen_spec : command
 
 syntax (name := checkInvariants) "#check_invariants" : command
 
+/-- Run the model checker on the current module with the given instantiation and theory.
+
+Example:
+```lean
+#model_check { node := Fin 5 } {baaaa := fun _ _ => 0}
+```
+
+This will check all invariants of the module and terminate early if a violation is found.
+-/
+syntax (name := modelCheck) "#model_check " term:max term:max : command
+
 end Veil

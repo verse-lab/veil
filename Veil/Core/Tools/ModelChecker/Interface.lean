@@ -21,59 +21,66 @@ instance : Inhabited (SafetyProperty ρ σ) where
   }
 
 inductive ViolationKind where
-  | safetyFailure
+  | safetyFailure (violates : List Name)
   | deadlock
 deriving Inhabited, Hashable, BEq, Repr
 
 instance : ToJson ViolationKind where
   toJson
-    | .safetyFailure => "safety_failure"
-    | .deadlock => "deadlock"
+    | .safetyFailure violates => Json.mkObj [("kind", "safety_failure"), ("violates", toJson violates)]
+    | .deadlock => Json.mkObj [("kind", "deadlock")]
 
-/-- A condition under which the state exploration should be terminated early,
-i.e. before full state space is explored. -/
 inductive EarlyTerminationCondition where
   | foundViolatingState
   | deadlockOccurred
   | reachedDepthBound (depth : Nat)
 deriving Inhabited, Hashable, BEq, Repr
 
-instance : ToJson EarlyTerminationCondition where
-  toJson
-    | .foundViolatingState => Json.mkObj [("kind", "found_violating_state")]
-    | .deadlockOccurred => Json.mkObj [("kind", "deadlock_occurred")]
-    | .reachedDepthBound depth => Json.mkObj [("kind", "reached_depth_bound"), ("depth", toJson depth)]
-
-inductive TerminationReason where
-  | exploredAllReachableStates
-  | earlyTermination (condition : EarlyTerminationCondition)
+/-- A condition under which the state exploration should be terminated early,
+i.e. before full state space is explored. -/
+inductive EarlyTerminationReason (σₕ : Type) where
+  | foundViolatingState (fp : σₕ) (violates : List Name)
+  | deadlockOccurred (fp : σₕ)
+  | reachedDepthBound (depth : Nat)
 deriving Inhabited, Hashable, BEq, Repr
 
-instance : ToJson TerminationReason where
+instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
+  toJson
+    | .foundViolatingState fp violates => Json.mkObj [("kind", "found_violating_state"), ("state_fingerprint", toJson fp), ("violates", toJson violates)]
+    | .deadlockOccurred fp => Json.mkObj [("kind", "deadlock_occurred"), ("state_fingerprint", toJson fp)]
+    | .reachedDepthBound depth => Json.mkObj [("kind", "reached_depth_bound"), ("depth", toJson depth)]
+
+inductive TerminationReason (σₕ : Type) where
+  | exploredAllReachableStates
+  | earlyTermination (condition : EarlyTerminationReason σₕ)
+deriving Inhabited, Hashable, BEq, Repr
+
+instance [ToJson σₕ] : ToJson (TerminationReason σₕ) where
   toJson
     | .exploredAllReachableStates => Json.mkObj [("kind", "explored_all_reachable_states")]
     | .earlyTermination condition => Json.mkObj [("kind", "early_termination"), ("condition", toJson condition)]
 
-inductive ModelCheckingResult (ρ σ κ : Type) where
-  | foundViolation (violationKind : ViolationKind) (viaTrace : Option (Trace ρ σ κ))
-  | noViolationFound (exploredStates : Nat) (terminationReason : TerminationReason)
+inductive ModelCheckingResult (ρ σ κ σₕ : Type) where
+  | foundViolation (fp : σₕ) (violation : ViolationKind) (viaTrace : Option (Trace ρ σ κ))
+  | noViolationFound (exploredStates : Nat) (terminationReason : TerminationReason σₕ)
 deriving Inhabited, Repr
 
-instance [ToJson ρ] [ToJson σ] [ToJson κ] : ToJson (ModelCheckingResult ρ σ κ) where
+instance [ToJson ρ] [ToJson σ] [ToJson κ] [ToJson σₕ] : ToJson (ModelCheckingResult ρ σ κ σₕ) where
   toJson
-    | .foundViolation kind trace => Json.mkObj
+    | .foundViolation fp violation trace => Json.mkObj
         [ ("result", "found_violation"),
-          ("violation_kind", toJson kind),
-          ("trace", toJson trace) ]
+          ("violation", toJson violation),
+          ("trace", toJson trace),
+          ("state_fingerprint", toJson fp) ]
     | .noViolationFound exploredStates reason => Json.mkObj
         [ ("result", "no_violation_found"),
           ("explored_states", toJson exploredStates),
           ("termination_reason", toJson reason) ]
 
 structure SearchParameters (ρ σ : Type) where
-  /-- Which property are we trying to find a violation of? (Typically, this is
-  the safety property of the system.) -/
-  safety : SafetyProperty ρ σ
+  /-- Which properties are we trying to find a violation of? (Typically, this
+  list contains all the safety properties and invariants of the system.) -/
+  invariants : List (SafetyProperty ρ σ)
 
   /- If a state has no successor states, `terminating` must hold, otherwise a
   deadlock has occurred. -/
@@ -84,6 +91,6 @@ structure SearchParameters (ρ σ : Type) where
   earlyTerminationConditions : List EarlyTerminationCondition
 
 class ModelChecker (ts : TransitionSystem ρ σ l) where
-  isReachable : SearchParameters ρ σ → ModelCheckingResult ρ σ l
+  isReachable : SearchParameters ρ σ → ModelCheckingResult ρ σ l σₕ
 
 end Veil.ModelChecker

@@ -35,7 +35,7 @@ where
   log                : Std.HashMap σₕ (σₕ × κ)
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
-  finished           : Option TerminationReason
+  finished           : Option (TerminationReason σₕ)
   /-- The depth up to which ALL states have been fully explored (successors enqueued) -/
   completedDepth     : Nat
   /-- The depth of the current BFS frontier being processed -/
@@ -133,25 +133,26 @@ def SearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
   (fpSt : σₕ)
   (currSt : σ)
   (successors : List (κ × σ))
-  : @SearchContext ρ σ κ σₕ fp th sys params × Option EarlyTerminationCondition :=
+  : @SearchContext ρ σ κ σₕ fp th sys params × Option (EarlyTerminationReason σₕ) :=
   -- Check for previously recorded termination
   match ctx.finished with
   | some (.earlyTermination condition) => (ctx, some condition)
   | _ =>
     -- Check for violations (compute once, use for both recording and early termination)
-    let safetyViolation := !params.safety.holdsOn th currSt
+    let safetyViolations := params.invariants.filterMap (fun p => if !p.holdsOn th currSt then some p.name else none)
+    let safetyViolation := !safetyViolations.isEmpty
     let deadlock := successors.isEmpty && !params.terminating.holdsOn th currSt
     -- Record violations in context
-    let ctx := if safetyViolation then {ctx with violatingStates := (fpSt, .safetyFailure) :: ctx.violatingStates} else ctx
+    let ctx := if safetyViolation then {ctx with violatingStates := (fpSt, .safetyFailure safetyViolations) :: ctx.violatingStates} else ctx
     let ctx := if deadlock then {ctx with violatingStates := (fpSt, .deadlock) :: ctx.violatingStates} else ctx
     -- Check for early termination using the same computed values
     let earlyTermination := params.earlyTerminationConditions.findSome? (fun sc => match sc with
       | EarlyTerminationCondition.foundViolatingState =>
-          if safetyViolation then some sc else none
+          if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
       | EarlyTerminationCondition.reachedDepthBound bound =>
-          if ctx.completedDepth >= bound then some sc else none
+          if ctx.completedDepth >= bound then some (.reachedDepthBound bound) else none
       | EarlyTerminationCondition.deadlockOccurred =>
-          if deadlock then some sc else none
+          if deadlock then some (.deadlockOccurred fpSt) else none
     )
     (ctx, earlyTermination)
 
@@ -172,9 +173,9 @@ def SearchContext.processState {ρ σ κ σₕ : Type}
   let successors := sys.tr th curr
   -- Check for violations, record them, and determine if we should terminate early
   match ctx.checkViolationsAndMaybeTerminate sys fpSt curr successors with
-  | (ctx, some .foundViolatingState) => {ctx with finished := some (.earlyTermination .foundViolatingState)}
+  | (ctx, some (.foundViolatingState fp violations)) => {ctx with finished := some (.earlyTermination (.foundViolatingState fp violations))}
   | (ctx, some (.reachedDepthBound bound)) => {ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}
-  | (ctx, some .deadlockOccurred) => {ctx with finished := some (.earlyTermination .deadlockOccurred)}
+  | (ctx, some (.deadlockOccurred fp)) => {ctx with finished := some (.earlyTermination (.deadlockOccurred fp))}
   -- If not terminating early, explore all neighbors of the current state
   | (ctx, none) =>
       successors.attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
@@ -252,35 +253,25 @@ def findByFingerprint [fp : StateFingerprint σ σₕ]
   (states : List σ) (targetFp : σₕ) (fallback : σ) : σ :=
   states.find? (fun s => fp.view s == targetFp) |>.getD fallback
 
-/-- Extract fingerprint traces for all violating states in a SearchContext. -/
-def collectTraces {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
-  {params : SearchParameters ρ σ}
-  (ctx : @SearchContext ρ σ κ σₕ fp th sys params)
-  : List (σₕ × List (Step σₕ κ)) :=
-  ctx.violatingStates.map (fun (badState, _) => retraceSteps ctx.log badState)
-
 /-- Reconstruct a full trace with concrete states from a SearchContext.
-This re-executes transitions to recover full state objects from fingerprints. -/
+This re-executes transitions to recover full state objects from fingerprints.
+The `targetFingerprint` parameter specifies which violating state's trace to recover. -/
 def recoverTrace {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [Inhabited κ] [Inhabited σ] [Repr σₕ]
   [BEq σ] [BEq κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
-  (params : SearchParameters ρ σ)
+  {params : SearchParameters ρ σ}
   (ctx : @SearchContext ρ σ κ σₕ fp th sys params)
+  (targetFingerprint : σₕ)
   : Trace ρ σ κ :=
-  -- Get fingerprint traces from log
-  let fingerprintTraces := collectTraces sys ctx
-  match fingerprintTraces with
-  | [] => { theory := th, initialState := default, steps := #[] }
-  | (initFp, stepsFp) :: _ => Id.run do
-    -- Recover initial state by matching fingerprint
-    let initialState := findByFingerprint sys.initStates initFp default
-    -- Recover trace steps by re-executing transitions and matching fingerprints
+  -- Retrace steps from the target fingerprint back to an initial state
+  let (initFp, stepsFp) := retraceSteps ctx.log targetFingerprint
+  -- Recover initial state by matching fingerprint
+  let initialState := findByFingerprint sys.initStates initFp default
+  -- Recover trace steps by re-executing transitions and matching fingerprints
+  Id.run do
     let mut curSt := initialState
     let mut steps : Steps σ κ := #[]
     for step in stepsFp do
@@ -303,20 +294,21 @@ def findReachable {ρ σ κ : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
   [fp : StateFingerprint σ UInt64]
   (params : SearchParameters ρ σ)
-  : ModelCheckingResult ρ σ κ :=
+  : ModelCheckingResult ρ σ κ UInt64 :=
   let ctx : @SearchContext ρ σ κ UInt64 fp th sys params :=
     breadthFirstSearch sys params
   match ctx.finished with
-  | some (.earlyTermination .foundViolatingState) =>
-    ModelCheckingResult.foundViolation .safetyFailure (some (recoverTrace sys params ctx))
-  | some (.earlyTermination .deadlockOccurred) =>
-    ModelCheckingResult.foundViolation .deadlock (some (recoverTrace sys params ctx))
+  | some (.earlyTermination (.foundViolatingState fingerprint violations)) =>
+    ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (recoverTrace sys ctx fingerprint))
+  | some (.earlyTermination (.deadlockOccurred fingerprint)) =>
+    ModelCheckingResult.foundViolation fingerprint .deadlock (some (recoverTrace sys ctx fingerprint))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
     ModelCheckingResult.noViolationFound ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
   | some (.exploredAllReachableStates) =>
     if !ctx.violatingStates.isEmpty then
-      ModelCheckingResult.foundViolation .safetyFailure (some (recoverTrace sys params ctx))
+      let (fingerprint, violation) := ctx.violatingStates.head!
+      ModelCheckingResult.foundViolation fingerprint violation (some (recoverTrace sys ctx fingerprint))
     else
       ModelCheckingResult.noViolationFound ctx.seen.size (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."
