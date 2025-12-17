@@ -30,3 +30,17 @@ initialize
   registerTraceClass `veil.wp
 
 /-! ## Options -/
+
+namespace Veil
+/-- Veil does some pretty crazy stuff, so we override some of Lean's defaults
+when you open a `veil module`. -/
+def veilDefaultOptions : List (Name × DataValue) := [
+  -- Helpful when elaborating nested procedures.
+  (`maxRecDepth, DataValue.ofNat 1024),
+  -- Needed because the model checker produces the code for the transition
+  -- system (partly) via typeclass inference.
+  (`maxHeartbeats, DataValue.ofNat 500000),
+  (`synthInstance.maxSize, DataValue.ofNat 4096),
+]
+
+end Veil

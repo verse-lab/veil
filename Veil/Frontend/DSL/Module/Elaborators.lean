@@ -1,4 +1,5 @@
 import Lean
+import Veil.Base
 import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Module.Util
@@ -16,10 +17,16 @@ open Lean Parser Elab Command
 
 namespace Veil
 
+private def overrideLeanDefaults : CommandElabM Unit := do
+  -- FIXME: make this go through `elabVeilCommand` so it shows up in desugaring
+  for (name, value) in veilDefaultOptions do
+    modifyScope fun scope => { scope with opts := scope.opts.insert name value }
+
 @[command_elab Veil.moduleDeclaration]
 def elabModuleDeclaration : CommandElab := fun stx => do
   match stx with
   | `(veil module $modName:ident) => do
+    overrideLeanDefaults
     let genv ← globalEnv.get
     let name := modName.getId
     let lenv ← localEnv.get
@@ -182,7 +189,6 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     elabVeilCommand localRPropTCStx
     elabVeilCommand stx2
   pure mod
-
 
 /-- Crystallizes the specification of the module, i.e. it finalizes the
 set of `procedures` and `assertions`. -/
