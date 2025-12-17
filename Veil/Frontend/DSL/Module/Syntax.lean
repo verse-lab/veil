@@ -252,15 +252,29 @@ syntax (name := genSpec) kw_gen_spec : command
 
 syntax (name := checkInvariants) "#check_invariants" : command
 
-/-- Run the model checker on the current module with the given instantiation and theory.
+/-- Run the explicit state model checker on the current module with the given
+type instantiation and theory. The optional `maxDepth` parameter limits how
+deep the breadth-first search will go before terminating.
 
 Example:
 ```lean
 #model_check { node := Fin 5 } {baaaa := fun _ _ => 0}
+#model_check { node := Fin 5 } {baaaa := fun _ _ => 0} (maxDepth := 10)
 ```
 
-This will check all invariants of the module and terminate early if a violation is found.
+This will check all invariants and terminate early if a violation is found or
+the maximum depth is reached.
+
+## Important: the model checker is not complete!
+
+In its current implementation, the model checker DOES NOT enumerate all
+possible theories and all possible instantiations of the type classes used. It
+only uses the theory you explicitly provide and the default instances for the
+type classes.
+
+This means that it should only be used for testing. In the future, we will add
+support for complete enumeration of background theories.
 -/
-syntax (name := modelCheck) "#model_check " term:max term:max : command
+syntax (name := modelCheck) "#model_check " term:max term:max Parser.Tactic.optConfig : command
 
 end Veil

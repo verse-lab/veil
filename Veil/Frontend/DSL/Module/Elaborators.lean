@@ -349,10 +349,23 @@ elab "veil_variables" : command => do
     trace[veil.debug] s!"with unique IDs: {varUIds}"
     modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds}
 
+
+/-- Configuration options for the `#model_check` command. -/
+structure ModelCheckerConfig where
+  /-- Maximum depth (number of transitions) to explore. If it's 0, explores all
+  reachable states. -/
+  maxDepth : Nat := 0
+  deriving Repr
+
+declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
+
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
-  | `(#model_check $instTerm $theoryTerm) =>
+  | `(#model_check $instTerm:term $theoryTerm:term $cfg) =>
+    -- Parse the configuration options
+    let config ← elabModelCheckerConfig cfg
+
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
@@ -387,6 +400,15 @@ def elabModelCheck : CommandElab := fun stx => do
     let instSortArgs ← sortIdents.mapM fun sortIdent => do
       `($inst.$(sortIdent))
 
+    -- Build the early termination conditions list
+    let earlyTerminationConditions ← do
+      let baseConditions ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState])
+      if config.maxDepth > 0 then
+        let depthLit := quote config.maxDepth
+        `($baseConditions ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $depthLit])
+      else
+        pure baseConditions
+
     -- Build the model checker result expression
     -- NOTE: We want to resolve `enumerableTransitionSystem` within the context
     -- of the spec, not within THIS context, so keep it with a single backtick.
@@ -398,7 +420,7 @@ def elabModelCheck : CommandElab := fun stx => do
         {
           invariants := $safetyList
           terminating := $terminatingProp
-          earlyTerminationConditions := [Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState]
+          earlyTerminationConditions := $earlyTerminationConditions
         }
     )
 
@@ -407,8 +429,6 @@ def elabModelCheck : CommandElab := fun stx => do
     -- because we rely on typeclass inference to construct the code for the
     -- transition system, and for large systems the defaults are not enough.
     let widgetExpr ← `(
-      set_option maxHeartbeats 500000 in
-      set_option synthInstance.maxSize 4096 in
       open ProofWidgets.Jsx in
       <ProofWidgets.TraceDisplayViewer result={Lean.toJson $resultExpr} layout={"vertical"} />
     )
