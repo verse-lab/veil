@@ -1,6 +1,5 @@
 import Veil
-import Veil.Core.Tools.Checker.Concrete.Main
-open Lean
+
 
 /-
 We use this example to demonstrate how our model checker can find bugs in real-world
@@ -41,7 +40,7 @@ immutable individual none : process
 structure Cell (states process : Type) where
   pc : states
   waker : process
-deriving DecidableEq, Inhabited, Hashable, Repr, ToJson
+deriving DecidableEq, Inhabited, Hashable, Repr, Lean.ToJson
 
 function stack : process → List (Cell states process)
 
@@ -195,31 +194,6 @@ termination [AllDone] pc S Done = true
 set_option maxHeartbeats 250000
 #gen_spec
 
--- set_option trace.veil.desugar true
--- set_option trace.veil.debug true
-#gen_exec
--- gen_NextAct
-/- Concretize the abstract types using finite concrete types.
-Here, we use `Fin 2` to represent two processes in the system. -/
-#finitize_types (Fin 3), states
-
-/- Set the immutable declarations for the model checker. -/
-#set_theory {none := 0}
-
-/- Run the model checker and get results. Here we check the `mutual exclusion` property -/
--- #run_checker mutual_exclusion
-def modelCheckerResult := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun rd st => mutual_exclusion rd st) (fun _ _ => true) {none := 0} hash)
-#check modelCheckerResult
-/- Display the number of states explored by the model checker. -/
-#eval collectTrace modelCheckerResult
-def statesJson : Lean.Json :=
-  Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace modelCheckerResult))
-#check collectTrace'
-/- Display the counterexample trace using ProofWidgets, if any found by the model checker.
-Here we found a counterexample, where both `thread_1` and `thread_2` enter the critical section simultaneously.-/
-open ProofWidgets
-open scoped ProofWidgets.Jsx
-#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
-
+#model_check { process := Fin 3 } {none := 0}
 
 end Mutex

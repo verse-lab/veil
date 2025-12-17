@@ -1,5 +1,4 @@
 import Veil
-import Veil.Core.Tools.Checker.Concrete.Main
 
 /-
 This file specifies the Byzantine broadcast protocol in Veil, which is a
@@ -260,20 +259,6 @@ invariant [parameter_constraints] true
 termination true = true
 #gen_spec
 
-set_option trace.veil.debug true
-#gen_exec
-#finitize_types (Fin 4), PCState, phase
-
-
--- Set immutable values
--- N = 4 processes, T = 1 (upper bound on Byzantine), F = 1 (actual Byzantine)
-#set_theory { N := 7, T := 2, F := 1 }
-
-#run_checker parameter_constraints
--- Visualize the results
-#eval spaceSize modelCheckerResult
-open ProofWidgets
-open scoped ProofWidgets.Jsx
-#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+#model_check { process := Fin 4 } { N := 7, T := 2, F := 1 }
 
 end BcastByz

@@ -1,5 +1,4 @@
 import Veil
-import Veil.Core.Tools.Checker.Concrete.Main
 
 
 veil module DieHard
@@ -61,17 +60,7 @@ termination big > 0
 
 -- #time #check_invariants
 
-#gen_exec
-
-#finitize_types
-
-#set_theory {}
-
-#run_checker not_solved
-
-open ProofWidgets
-open scoped ProofWidgets.Jsx
-#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+#model_check { } { }
 
 
 end DieHard

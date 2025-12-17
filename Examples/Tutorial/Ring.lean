@@ -1,5 +1,4 @@
 import Veil
-import Veil.Core.Tools.Checker.Concrete.Main
 
 -- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
 
@@ -50,18 +49,7 @@ termination true = true
 
 #gen_spec
 
-#gen_exec
-
-
-#finitize_types (Fin 2)
-
-#set_theory {}
-
-#run_checker single_leader
-
-open ProofWidgets
-open scoped ProofWidgets.Jsx
-#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+#time #model_check { node := Fin 5 } { }
 
 end Ring
 --

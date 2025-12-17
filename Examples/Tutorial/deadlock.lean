@@ -1,6 +1,4 @@
 import Veil
-import Veil.Core.Tools.Checker.Concrete.Main
-
 
 veil module Mutex
 
@@ -179,23 +177,11 @@ action _cs(self : process) {
 
 
 invariant [mutual_exclusion] pc T1 cs ∧ pc T2 cs → T1 = T2
-termination [allDone]∀p, pc p Done = true
+termination [AllDone] ∀p, pc p Done = true
 
 #gen_spec
 
-#gen_exec
 
-#finitize_types (Fin 3), states
-
-#set_theory { none := 0 }
-
-#run_checker mutual_exclusion
-
-#eval modelCheckerResult.seen.size
-
-open ProofWidgets
-open scoped ProofWidgets.Jsx
-#html <ModelCheckerView trace={statesJson} layout={"vertical"} />
-
+#time #model_check { process := Fin 3 } {none := 0}
 
 end Mutex

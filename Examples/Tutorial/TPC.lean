@@ -1,7 +1,5 @@
 import Veil
 
-import Veil.Core.Tools.Checker.Concrete.Main
-import Mathlib.Data.Fintype.Perm
 open Veil
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/two_phase_commit.ivy
 
@@ -77,20 +75,6 @@ action RMRcvAbortMsg (r : node) {
 
 #gen_spec
 
-
-#gen_exec
-
-#finitize_types (Fin 7), rmStateType, tmStateType
-
-#set_theory {}
-
-set_option trace.veil.debug true
-#run_checker (fun a b => true)
--- def modelCheckerResult :=
---       (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun rd st => True)
---           concreteTheory (hash)).snd
-
--- #eval modelCheckerResult.seen.size
--- #time #eval spaceSize modelCheckerResult
+#time #model_check { node := Fin 4 } { }
 
 end TwoPhaseCommit

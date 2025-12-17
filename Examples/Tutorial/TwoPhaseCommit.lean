@@ -1,5 +1,4 @@
 import Veil
-import Veil.Core.Tools.Checker.Concrete.Main
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/two_phase_commit.ivy
 
 veil module TwoPhaseCommit
@@ -98,42 +97,6 @@ invariant [manual_8] go_abort N → ¬go_commit N
 
 #check_invariants
 
-#gen_exec
-
-/- Concretize the abstract types using finite concrete types.
-Here we concretize the `node` type using `Fin 2`
-
-Here, `< 5` is safe. Otherwise you can not get the result immediately
-when show this case.
--/
-#finitize_types (Fin 6)
-
-/- Set the immutable declarations for the model checker, here we do not have any.-/
-#set_theory {}
-
-
-/- How can we introduce bugs? Possible way:
-1. Replace line 60 `require ∀ N, vote_yes N;` with line 61 `require ∃n, vote_yes n`.
-Then the property `manual_7` will be violated.
-
-2. Comment out line 68 `∃n, vote_yes n`, `manual_3` will be violated.
-
-3. Comment out `manual_1`, `maunual_2`, `manual_3` invariants, suppose we do not
-have these lemma invariants currently.
-Then the safety property can not be verified successfully.
-`#check_invariants` will report the violated of `manual_7` and `safety`.
-But after checking these two props, we find that they are valid, which may
-indicate that we are missing some necessary invariants.
-
--/
-
-#run_checker (fun a b => true)
--- #eval modelCheckerResult.seen.size
-#eval spaceSize modelCheckerResult
--- #eval statesJson
--- open ProofWidgets
--- open scoped ProofWidgets.Jsx
--- #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
-
+#time #model_check { node := Fin 3 } { }
 
 end TwoPhaseCommit
