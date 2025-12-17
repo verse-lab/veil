@@ -1,6 +1,8 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
+import Lean
 
 namespace Veil.ModelChecker
+open Lean
 
 @[grind]
 structure Step (σ : Type) (l : Type) where
@@ -57,6 +59,23 @@ structure Trace (ρ : Type) (σ : Type) (l : Type) where
   initialState : σ
   steps : Steps σ l
 deriving Repr, Inhabited
+
+instance jsonOfTrace {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] : ToJson (Trace ρ σ l) where
+  toJson := fun tr =>
+    let states : Array Json :=
+      #[ Json.mkObj
+        [ ("index", toJson 0),
+          ("fields", toJson tr.initialState),
+          ("transition", "after_init") ]] ++
+      (tr.steps.mapIdx (fun i st =>
+        let idx := i + 1
+        Json.mkObj
+        [ ("index", toJson idx),
+          ("fields", toJson st.nextState),
+          ("transition", toJson st.transitionLabel)]))
+    Json.mkObj
+      [ ("theory", toJson tr.theory),
+        ("states", Json.arr states) ]
 
 @[inline, grind]
 def Trace.lastState (trace : Trace ρ σ l) : σ := trace.steps.getLastStateD trace.initialState
