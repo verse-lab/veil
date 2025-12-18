@@ -228,8 +228,7 @@ class Enumeration (α : Type u) where
 attribute [instance low] Enumeration.decEq
 attribute [grind ←] Enumeration.complete
 
-instance (priority := low) [enum : Enumeration α] : FinEnum α := FinEnum.ofList enum.allValues enum.complete
-
+instance (priority := high) [enum : Enumeration α] : FinEnum α := FinEnum.ofList enum.allValues enum.complete
 /-!
 Here only gives some basic instances. More complicated ones should be
 found in `Veil.Frontend.Std`.

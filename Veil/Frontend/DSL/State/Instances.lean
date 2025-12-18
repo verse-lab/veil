@@ -1,9 +1,10 @@
 import Std
 import Veil.Frontend.Std
 import Veil.Frontend.DSL.State
-
+import Mathlib.Data.List.Sublists
+import Std.Data.ExtTreeMap.Lemmas
 namespace Veil
-open Lean
+open Lean Std
 
 /--
 `BEq` instances for `Std.TreeMap` and `Std.TreeSet`.
@@ -30,12 +31,14 @@ instance [Ord α] [BEq α] [BEq β]: BEq (Veil.TotalTreeMap α β) where
 We always need `Hashable` instance. When we run the model checker,
 we always store the hashable value of state representation `σᵣ` in `HashSet`.
 -/
-instance [Hashable α] [BEq α] [Ord α]: Hashable (Std.TreeSet α) where
+instance HashableOfTreeSet [Hashable α] [BEq α] [Ord α]: Hashable (Std.TreeSet α) where
   hash s := s.foldl (fun r a => mixHash r (hash a)) 7
 
-instance [Ord α] [Hashable α] [Hashable β] : Hashable (Std.TreeMap α β) where
+instance HashableOfTreeMap [Ord α] [Hashable α] [Hashable β] : Hashable (Std.TreeMap α β) where
   hash s := s.foldl (fun r a b => mixHash r (mixHash (hash a) (hash b))) 7
 
+instance HashableOfExtTreeSet [Ord α] [Hashable α] [TransOrd α]: Hashable (ExtTreeSet α) where
+  hash s := s.foldl (fun r a => mixHash r (hash a)) 7
 /--
 `Ord` instances for `Std.TreeMap` and `Std.TreeSet`
 
@@ -54,6 +57,193 @@ instance [Ord α] [Ord β] : Ord (Std.TreeMap α β) where
 
 instance [Ord α] [Ord β]: Ord (Veil.TotalTreeMap α β) where
   compare s1 s2 := compare s1.val.toArray s2.val.toArray
+
+instance [Ord α] [TransOrd α] : Ord (ExtTreeSet α) where
+  compare s1 s2 := compare s1.toList s2.toList
+
+instance instOrdExtTreeMap [Ord α] [Ord β] [TransOrd α]
+: Ord (ExtTreeMap α β) where
+  compare m1 m2 := compare m1.toList m2.toList
+
+/-
+`Veil.Enumeration` instances
+-/
+
+instance DecidableEqExtTreeSet [Ord α] [DecidableEq α] [TransOrd α]
+  : DecidableEq (ExtTreeSet α) := fun t₁ t₂ =>
+  decidable_of_iff (t₁.toList = t₂.toList) ExtTreeSet.toList_inj
+
+instance DecidableEqExtTreeMap [Ord α] [DecidableEq α] [DecidableEq β]
+  [TransOrd α] : DecidableEq (Std.ExtTreeMap α β) := fun m1 m2 =>
+  decidable_of_iff (m1.toList = m2.toList) ExtTreeMap.toList_inj
+
+instance TransOrdExtTreeSet [Ord α] [TransOrd α]
+  : TransOrd (ExtTreeSet α) where
+  eq_swap := by
+    intro s1 s2
+    dsimp [compare]
+    exact OrientedCmp.eq_swap
+  isLE_trans := by
+    intro s1 s2 s3 h1 h2
+    dsimp [compare] at *
+    apply TransCmp.isLE_trans h1 h2
+
+
+-- instance instTransOrdProd
+--   [Ord α] [Ord β] [TransOrd α] [TransOrd β]
+--   : TransOrd (α × β) where
+--   eq_swap := by
+--     intro x y
+--     simp only [compare]
+--     cases h1 : compare x.1 y.1
+--     · -- .lt case
+--       have : compare y.1 x.1 = .gt := by
+--         have := @OrientedCmp.eq_swap α compare _ x.1 y.1
+--         simp [h1, Ordering.swap] at this
+--         grind
+--       simp [Ordering.then, this, Ordering.swap]
+--     · -- .eq case
+--       have : compare y.1 x.1 = .eq := by
+--         have := @OrientedCmp.eq_swap α compare _ x.1 y.1
+--         simp [h1, Ordering.swap] at this
+--         grind
+--       simp [Ordering.then, this]
+--       exact @OrientedCmp.eq_swap β compare _ x.2 y.2
+--     · -- .gt case
+--       have : compare y.1 x.1 = .lt := by
+--         have := @OrientedCmp.eq_swap α compare _ x.1 y.1
+--         simp [h1, Ordering.swap] at this
+--         grind
+--       simp [Ordering.then, this, Ordering.swap]
+--   isLE_trans := by
+--     intro x y z hxy hyz
+--     simp only [compare] at hxy hyz ⊢
+--     cases hxy_fst : compare x.1 y.1 <;> cases hyz_fst : compare y.1 z.1
+--     <;> simp [Ordering.then, hxy_fst, hyz_fst] at hxy hyz ⊢
+--     . have hxz : compare x.1 z.1 = .lt := by
+--         apply Std.TransCmp.lt_of_le_of_lt
+--         · rw [hxy_fst]; simp
+--         · rw [hyz_fst]
+--       simp [hxz]
+--     . have hyz : compare y.1 z.1 ≠ .gt := by intro h; grind
+--       have hxz : compare x.1 z.1 = .lt := Std.TransCmp.lt_of_lt_of_le hxy_fst hyz
+--       simp [hxz]
+--     . have hxy : compare x.1 y.1 ≠ .gt := by intro h; grind
+--       have hxz : compare x.1 z.1 = .lt := Std.TransCmp.lt_of_le_of_lt hxy hyz_fst
+--       simp [hxz]
+--     . have hxz : compare x.1 z.1 ≠ .gt := by
+--         have hxy : compare x.1 y.1 ≠ .gt := by intro h; grind
+--         have hyz : compare y.1 z.1 ≠ .gt := by intro h; grind
+--         exact Std.TransCmp.le_trans hxy hyz
+--       cases h_comp_xz : compare x.1 z.1
+--       · simp
+--       · simp
+--         exact Std.TransCmp.isLE_trans hxy hyz
+--       · contradiction
+
+
+instance TransOrdExtTreeMap [Ord α] [Ord β] [TransOrd α] [TransOrd β]
+  : TransOrd (Std.ExtTreeMap α β) where
+  eq_swap := by
+    intro m1 m2
+    show compare m1 m2 = (compare m2 m1).swap
+    show compare m1.toList m2.toList = (compare m2.toList m1.toList).swap
+    exact OrientedCmp.eq_swap
+  isLE_trans := by
+    intro m1 m2 m3 h1 h2
+    -- Similarly for transitivity
+    show (compare m1 m3).isLE = true
+    show (compare m1.toList m3.toList).isLE = true
+    have h1' : (compare m1.toList m2.toList).isLE = true := h1
+    have h2' : (compare m2.toList m3.toList).isLE = true := h2
+    exact TransCmp.isLE_trans h1' h2'
+
+
+instance LawfulOrdExtTreeSet [Ord α] [TransOrd α] [LawfulEqOrd α]
+  : LawfulEqOrd (ExtTreeSet α) where
+  compare_self := by
+    intro s
+    dsimp [compare]
+    exact ReflCmp.compare_self
+  eq_of_compare := by
+    intro s1 s2 h
+    dsimp [compare] at h
+    apply Std.ExtTreeSet.ext_mem
+    intro a
+    have : s1.toList = s2.toList := LawfulEqCmp.eq_of_compare h
+    rw [← Std.ExtTreeSet.mem_toList, this, Std.ExtTreeSet.mem_toList]
+
+
+instance LawfulOrdExtTreeMap
+  [Ord α] [Ord β]
+  [TransOrd α]
+  [LawfulEqOrd α]
+  [LawfulEqOrd β]
+  : LawfulEqOrd (Std.ExtTreeMap α β) where
+  compare_self := by
+    intro m
+    show compare m m = .eq
+    show compare m.toList m.toList = .eq
+    exact ReflCmp.compare_self
+  eq_of_compare := by
+    intro m1 m2 h
+    have h' : compare m1.toList m2.toList = .eq := h
+    have : m1.toList = m2.toList := @LawfulEqCmp.eq_of_compare _ compare _ _ _ h'
+    exact ExtTreeMap.toList_inj.mp this
+
+
+instance EnumerationForExtTreeSet [Ord α] [Veil.Enumeration α]
+  [TransOrd α] [LawfulEqOrd α]
+  : Veil.Enumeration (ExtTreeSet α) where
+  allValues := (Veil.Enumeration.allValues (α := α)).sublists.map (ExtTreeSet.ofList ·)
+  complete := by
+    intro s
+    rw [List.mem_map]
+    let l := Veil.Enumeration.allValues.filter (· ∈ s)
+    exists l
+    constructor
+    · rw [List.mem_sublists]
+      exact List.filter_sublist
+    · apply Std.ExtTreeSet.ext_mem
+      intro k
+      rw [Std.ExtTreeSet.mem_ofList]
+      grind
+
+
+instance instInhabitedForExtTreeSet [Inhabited α] [Ord α]: Inhabited (ExtTreeSet α) :=
+  ⟨ExtTreeSet.empty⟩
+
+
+
+instance EnumerationForExtTreeMap [Ord α] [Ord β]
+  [Veil.Enumeration α] [Veil.Enumeration β]
+  [TransOrd α] [TransOrd β]
+  [LawfulEqOrd α] [LawfulEqOrd β]
+  : Veil.Enumeration (Std.ExtTreeMap α β) where
+  allValues :=
+    -- Generate all pairs (α × β) first
+    let pairs := Veil.Enumeration.allValues (α := α × β)
+    -- Then take all sublists of pairs to get all possible maps
+    pairs.sublists.map (ExtTreeMap.ofList ·)
+  complete := by
+      intro m
+      rw [List.mem_map]
+      -- 定义所有可能的键值对
+      let pairs := Veil.Enumeration.allValues (α := α × β)
+      -- 定义过滤后的列表 l，只包含 m 中存在的键值对
+      let l := pairs.filter fun ⟨k, v⟩ => k ∈ m ∧ m.get? k = some v
+      exists l
+      constructor
+      · -- 证明 l 是 sublist
+        rw [List.mem_sublists]
+        exact List.filter_sublist
+      · -- 证明 ExtTreeMap.ofList l = m
+        sorry
+
+
+
+
+
 
 
 /-
@@ -110,5 +300,8 @@ instance jsonOfTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Std.TreeMap α
 
 instance jsonOfTotalTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Veil.TotalTreeMap α β) where
   toJson m := Json.arr <| m.val.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
+
+instance jsonOfExtTreeSet [Ord α] [ToJson α] [TransOrd α] : ToJson (ExtTreeSet α) where
+  toJson s := Json.arr <| s.toList.toArray.map toJson
 
 end Veil

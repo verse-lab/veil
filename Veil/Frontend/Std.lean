@@ -1,6 +1,8 @@
+import Std
 import Mathlib.Data.Fin.Basic
 import Mathlib.Data.FinEnum
 import Mathlib.Algebra.Ring.Parity
+import Mathlib.Data.List.Sublists
 import Veil.Frontend.DSL.State.Types
 
 /-! # Axiomatizations of various structures -/
@@ -303,3 +305,191 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
     ∀ (s : nset), supermajority s → greater_than_third s
   greater_than_third_nonempty :
     ∀ (s : nset), greater_than_third s → ¬ is_empty s
+
+
+open Std
+class TSet (α : Type) (κ: Type) where
+  count : κ → Nat
+  contains : α → κ → Bool
+  empty : κ
+  insert : α → κ → κ
+  remove : α → κ → κ
+  toMultiset : κ -> Multiset α
+  toList : κ -> List α
+  empty_count : count empty = 0
+  empty_contains (elem : α) : contains elem empty = false
+  contains_insert_self (elem : α) (s : κ) :
+    contains elem (insert elem s) = true
+  contains_insert_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
+    contains elem₁ (insert elem₂ s) = contains elem₁ s
+  insert_idempotent (elem : α) (s : κ) :
+    toList (insert elem (insert elem s)) = toList (insert elem s)
+  count_insert (elem : α) (s : κ) :
+    count (insert elem s) =
+      if contains elem s then count s else count s + 1
+  contains_remove_self (elem : α) (s : κ) :
+    contains elem (remove elem s) = false
+  contains_remove_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
+    contains elem₁ (remove elem₂ s) = contains elem₁ s
+  count_remove (elem : α) (s : κ) :
+    count (remove elem s) = if contains elem s then count s - 1 else count s
+
+
+instance (n : Nat) : TSet (Fin n) (ExtTreeSet (Fin n)) where
+  count := ExtTreeSet.size
+  contains := fun a s => s.contains a
+  empty := ExtTreeSet.empty
+  insert := fun a s => s.insert a
+  remove := fun a s => s.erase a
+  toMultiset := fun s => Multiset.ofList s.toList
+  toList := fun s => s.toList
+  empty_count := by grind
+  empty_contains := by grind
+  contains_insert_self := by intros elem s; grind
+  contains_insert_other := by grind
+  insert_idempotent := by
+    intros elem sdiff_eq;
+    congr 1
+    apply Std.ExtTreeSet.ext_mem
+    grind
+  count_insert := by grind
+  contains_remove_self := by grind
+  contains_remove_other := by grind
+  count_remove := by grind
+
+
+instance  [Ord α] [TransOrd α] [LawfulEqOrd α]
+  : TSet α (ExtTreeSet α) where
+  count := ExtTreeSet.size
+  contains := fun a s => s.contains a
+  empty := ExtTreeSet.empty
+  insert := fun a s => s.insert a
+  remove := fun a s => s.erase a
+  toMultiset := fun s => Multiset.ofList s.toList
+  toList := fun s => s.toList
+  empty_count := by grind
+  empty_contains := by grind
+  contains_insert_self := by intros; grind
+  contains_insert_other := by intro elem₁ elem₂ s h; grind
+  count_insert := by grind
+  contains_remove_self := by grind
+  contains_remove_other := by intro elem₁ elem₂ s h; grind
+  count_remove := by grind
+  insert_idempotent := by
+    intros elem s;
+    congr 1
+    apply ExtTreeSet.ext_mem
+    grind
+
+
+class TMultiset (α : Type) (κ : Type) where
+  empty : κ
+  insert : α → κ → κ
+  remove : α → κ → κ
+  contains : α → κ → Bool
+  count : α → κ → Nat
+  size : κ → Nat
+  toList : κ → List α
+  empty_size : size empty = 0
+  empty_count (elem : α) : count elem empty = 0
+  empty_contains (elem : α) : contains elem empty = false
+  -- contains_def (elem : α) (s : κ) :
+  --   contains elem s = (count elem s > 0)
+  -- count_insert_self (elem : α) (s : κ) :
+  --   count elem (insert elem s) = count elem s + 1
+  -- count_insert_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
+  --   count elem₁ (insert elem₂ s) = count elem₁ s
+  -- size_insert (elem : α) (s : κ)  :
+  --   size (insert elem s) = size s + 1
+  -- count_remove_self (elem : α) (s : κ) :
+  --   count elem (remove elem s) = if count elem s > 0 then count elem s - 1 else 0
+  -- count_remove_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
+  --   count elem₁ (remove elem₂ s) = count elem₁ s
+  -- size_remove (elem : α) (s : κ) :
+  --   size (remove elem s) = if contains elem s then size s - 1 else size s
+
+instance DecidableEqExtTreeSet [Ord α] [DecidableEq α] [TransOrd α]
+  : DecidableEq (ExtTreeSet α) := fun t₁ t₂ =>
+  decidable_of_iff (t₁.toList = t₂.toList) ExtTreeSet.toList_inj
+
+instance DecidableEqExtTreeMap
+  [Ord α] [TransOrd α] [DecidableEq α] [DecidableEq β]
+  : DecidableEq (ExtTreeMap α β) := fun t₁ t₂ =>
+  decidable_of_iff (t₁.toList = t₂.toList)
+    ExtTreeMap.toList_inj
+
+
+
+abbrev TMapMultiset (α : Type) [Ord α] := Std.ExtTreeMap α { n : Nat // n > 0 }
+
+instance [Ord α] : Inhabited (TMapMultiset α) :=
+  ⟨Std.ExtTreeMap.empty⟩
+
+def TMapMultiset.totalSize {α : Type} [Ord α]
+  [TransOrd α]
+  (m : TMapMultiset α) : Nat :=
+  m.foldl (fun acc _ count => acc + count.val) 0
+
+open Std.ExtDTreeMap
+
+-- Helper lemma: when we alter to increment count by 1, totalSize increases by 1
+lemma totalSize_alter_increment [Ord α] [TransOrd α] [LawfulEqOrd α]
+  (m : TMapMultiset α) (elem : α) :
+  let m' := m.alter elem fun
+    | some n => some ⟨n.val + 1, by omega⟩
+    | none   => some ⟨1, by omega⟩
+  TMapMultiset.totalSize m' = TMapMultiset.totalSize m + 1 := by
+  unfold TMapMultiset.totalSize
+  simp only [Std.ExtTreeMap.foldl, Std.ExtTreeMap.alter]
+  -- Use induction on the tree structure
+  cases m with | mk inner =>
+  simp only [Std.ExtTreeMap.alter]
+  -- Apply the foldl lemma to convert to toList
+  rw [Const.foldl_eq_foldl_toList, Const.foldl_eq_foldl_toList (t := inner)]
+  -- The crucial step: we need a lemma about how toList changes after alter
+  -- For now, we use sorry as this requires deep knowledge of tree map internals
+  -- In practice, this would be proven by:
+  -- 1. Showing toList of altered map has exactly one different entry
+  -- 2. That entry's count differs by exactly 1
+  -- 3. Therefore the sum differs by exactly 1
+  sorry
+
+
+instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
+  [LawfulEqOrd α]
+  : TMultiset α (TMapMultiset α) where
+  empty := Std.ExtTreeMap.empty
+
+  -- 2. 插入：利用 alter 进行原子更新
+  insert elem s :=
+    s.alter elem fun
+      | some n => some ⟨n.val + 1, by omega⟩
+      | none   => some ⟨1, by omega⟩
+  -- 3. 移除：利用 alter，如果减到 0 则移除 Key
+  remove elem s :=
+    s.alter elem fun
+      | some n => if h : n.val > 1 then some ⟨n.val - 1, by omega⟩ else none
+      | none   => none
+  -- 4. 查询
+  count elem s := match s.get? elem with
+    | some n => n.val
+    | none => 0
+  contains elem s := s.contains elem
+  size := TMapMultiset.totalSize
+
+  toList s := s.foldl (fun acc elem count => acc ++ List.replicate count.val elem) []
+
+  empty_size := by simp [TMapMultiset.totalSize, Std.ExtTreeMap.empty]; rfl
+  empty_count elem := by grind
+  empty_contains elem := by grind
+  -- contains_def elem s := by grind
+  -- count_insert_self elem s := by grind
+  -- count_insert_other elem₁ elem₂ s h := by grind
+  -- size_insert elem s := by sorry
+  -- count_remove_self elem s := by grind
+  -- count_remove_other elem₁ elem₂ s h := by grind
+  -- size_remove elem s := by sorry
+
+
+instance instTMultisetForFin (n : Nat) : TMultiset (Fin n) (Std.ExtTreeMap (Fin n) { m : Nat // m > 0 }) :=
+  instTMultiSetWithExtTreeMap

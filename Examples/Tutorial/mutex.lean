@@ -1,6 +1,6 @@
 import Veil
 
-
+open Std
 /-
 We use this example to demonstrate how our model checker can find bugs in real-world
 concurrent algorithms, woriking as a standalone tool.
@@ -191,9 +191,66 @@ action _cs (self : process) {
 invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 termination [AllDone] pc S Done = true
 
-set_option maxHeartbeats 250000
+set_option trace.veil.desugar true
 #gen_spec
 
+<<<<<<< HEAD
 #model_check { process := Fin 3 } {none := 0}
+=======
+open Veil.ModelChecker
+
+set_option synthInstance.maxHeartbeats 40000
+set_option synthInstance.maxSize 2000
+set_option trace.Meta.synthInstance true
+#check enumerableTransitionSystem
+def modelCheckerResult :=
+  Concrete.findReachable
+  (enumerableTransitionSystem
+  (Fin 2)
+  states_IndT
+  {none := 0} )
+  {
+  «safety» := {
+    name := `mutual_exclusion
+    property := fun th st => mutual_exclusion th st
+  },
+  terminating := {
+    name := `AllDone
+    property := fun th st => AllDone th st
+  },
+  earlyTerminationConditions := [
+    -- EarlyTerminationCondition.foundViolatingState,
+    -- EarlyTerminationCondition.deadlockOccurred
+  ]
+}
+#time #eval! modelCheckerResult
+
+-- -- set_option trace.veil.desugar true
+-- -- set_option trace.veil.debug true
+-- -- #gen_exec
+-- -- gen_NextAct
+-- /- Concretize the abstract types using finite concrete types.
+-- Here, we use `Fin 2` to represent two processes in the system. -/
+-- #finitize_types (Fin 3), states
+
+-- /- Set the immutable declarations for the model checker. -/
+-- #set_theory {none := 0}
+
+-- /- Run the model checker and get results. Here we check the `mutual exclusion` property -/
+-- -- #run_checker mutual_exclusion
+-- def modelCheckerResult := (runModelCheckerx initVeilMultiExecM nextVeilMultiExecM labelList (fun rd st => mutual_exclusion rd st) (fun _ _ => true) {none := 0} hash)
+-- #check modelCheckerResult
+-- /- Display the number of states explored by the model checker. -/
+-- #eval collectTrace modelCheckerResult
+-- def statesJson : Lean.Json :=
+--   Lean.toJson (recoverTrace initVeilMultiExecM nextVeilMultiExecM {none := 0} (collectTrace modelCheckerResult))
+-- #check collectTrace'
+-- /- Display the counterexample trace using ProofWidgets, if any found by the model checker.
+-- Here we found a counterexample, where both `thread_1` and `thread_2` enter the critical section simultaneously.-/
+-- open ProofWidgets
+-- open scoped ProofWidgets.Jsx
+-- #html <ModelCheckerView trace={statesJson} layout={"vertical"} />
+
+>>>>>>> 36b03a7 (wip: add multiPaxos.)
 
 end Mutex

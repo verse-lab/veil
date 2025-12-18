@@ -2,6 +2,8 @@ import Veil
 
 veil module Mutex
 
+set_option trace.veil.desugar true
+
 type process
 individual locked : Bool
 enum states = { pre_check_lock, wait_until, enqueue_waker,
