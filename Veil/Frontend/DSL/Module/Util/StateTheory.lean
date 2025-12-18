@@ -289,10 +289,16 @@ where
     -- Generate binders: (node : Type) [Inhabited node] [Ord node] [DecidableEq node] [Enumeration node] ...
     let assumedInstances := #[``Ord, ``DecidableEq, ``Enumeration]
     let sortInstanceBinders := (← mod.sortBinders) ++ (← assumedInstances.flatMapM mod.assumeForEverySort)
+    -- Generate [Veil.Enumeration (FieldConcreteType $sorts* State.Label.$fieldName)] for each field
+    -- We add these as explicit assumptions to avoid `grind` throwing errors
+    -- in `#gen_spec` when they're not satisfied at runtime
+    let fieldEnumerationBinders ← mod.mutableComponents.mapM fun sc => do
+      let fieldLabel := mkIdent <| Name.append (structureFieldLabelTypeName stateName) sc.name
+      `(bracketedBinder|[$(mkIdent ``Veil.Enumeration) ($fieldConcreteDispatcher $sorts* $fieldLabel)])
     -- Generate [DecidableEq (State (FieldConcreteType sorts*))]
     let stateType ← `(term| $stateIdent ($fieldConcreteDispatcher $sorts*))
     let decEqBinder ← `(bracketedBinder| [$(mkIdent ``DecidableEq) $stateType])
-    let allBinders := sortInstanceBinders ++ #[decEqBinder]
+    let allBinders := sortInstanceBinders ++ fieldEnumerationBinders ++ #[decEqBinder]
     -- Generate instance type: Veil.Enumeration (State (FieldConcreteType sorts*))
     let instType ← `(term| $(mkIdent ``Veil.Enumeration) $stateType)
     -- Generate allValues body with nested flatMap/map calls
@@ -301,7 +307,7 @@ where
     -- Generate complete proof tactic
     `(instance $[$allBinders]* : $instType where
       $(mkIdent `allValues):ident := $allValuesBody
-      $(mkIdent `complete):ident := by simp only [$(mkIdent ``List.mem_flatMap):ident, $(mkIdent ``List.mem_map):ident]; grind)
+      $(mkIdent `complete):ident := by simp only [$(mkIdent ``List.mem_flatMap):ident, $(mkIdent ``List.mem_map):ident]; grind only [← $(mkIdent ``Enumeration.complete):ident])
 
 /-! ## Field Label Type & Metadata (Private) -/
 
