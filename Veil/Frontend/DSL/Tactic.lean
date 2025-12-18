@@ -116,10 +116,17 @@ def elabVeilRenameHyp (xs ys : Array Syntax) := do
     for fvar in ids, tgt in ys do
       Elab.Term.addTermInfo' tgt (mkFVar fvar)
 
+/-- Hypotheses which should be cleared on `veil_clear`. These are details of
+the Veil implementation which the user should not be exposed to. -/
+def hypTypesToClear : List Name := [``IsSubReaderOf, ``IsSubStateOf, ``DecidableEq,
+  ``Decidable, ``FieldRepresentation, ``LawfulFieldRepresentation]
+
+def hypNamesToClear : List Name := [environmentTheoryName,
+  environmentStateName, fieldConcreteTypeName]
+
 /-- Hypotheses which should not be touched by our tactics and which
 should not be sent to the SMT solver. -/
-def hypsToIgnore : List Name := [``IsSubReaderOf, ``IsSubStateOf,
-  ``Inhabited, ``Nonempty, ``DecidableEq, ``Decidable, ``FieldRepresentation, ``LawfulFieldRepresentation]
+def hypTypesToIgnore : List Name := hypTypesToClear ++ [``Inhabited, ``Nonempty]
 
 /-- Get all the names of the propositions found in the context. This
 ignores some Veil-specific typeclasses that should not be sent to the
@@ -137,11 +144,55 @@ def getPropsInContext : TacticM (Array Ident) := do
     hypShouldBeIgnored (hyp : LocalDecl) : TacticM Bool := do
       let isIgnored := match hyp.type.getForallBody.getAppFn.constName? with
         | .none => false
-        | .some sn => hypsToIgnore.contains sn
+        | .some sn => hypTypesToIgnore.contains sn
       let typ ← whnf hyp.type
       let isInhabitationFact := (typ.isAppOf ``Nonempty) || (typ.isAppOf ``Inhabited)
       let isProp ← Meta.isProp typ
       return isIgnored || isInhabitationFact || !isProp
+
+@[inherit_doc veil_clear]
+def elabVeilClearHyps (userToClear : Array (TSyntax `ident)) : TacticM Unit := veilWithMainContext do
+  let mut veilToClear := #[]
+  -- collect the Veil-specific hypotheses to clear
+  let lctx ← getLCtx
+  for decl in lctx do
+    if decl.isImplementationDetail then continue
+    if ← shouldBeCleared decl then
+      veilToClear := veilToClear.push (mkIdent decl.userName)
+  -- Sort the hypotheses to clear to minimise dependencies between them.
+  let fvarIds ← withMainContext <| sortFVarIds <| ← getFVarIds (userToClear ++ veilToClear)
+  let toClear := fvarIds.filterMap (fun fvarId => lctx.find? fvarId) |>.map (fun decl => mkIdent decl.userName)
+  for id in toClear.reverse ++ toClear.reverse do
+    withMainContext do
+      let .some decl := (← getLCtx).findFromUserName? id.getId | pure ()
+      if !(← decl.fvarId.hasForwardDeps) then
+        veilEvalTactic $ ← `(tactic| try clear $id:ident)
+where
+  isForbiddenHypothesis (fvarId : FVarId) : TacticM Bool := do
+    let some decl := (← getLCtx).find? fvarId | pure false
+    pure (hypNamesToClear.contains decl.userName)
+  shouldBeCleared (decl : LocalDecl) : TacticM Bool := do
+    let body : Expr := decl.type.getForallBody
+    let mustClearName := hypNamesToClear.contains decl.userName
+    let mustClearType := match body.getAppFn.constName? with
+      | .none => false
+      | .some sn => hypTypesToClear.contains sn
+    if mustClearName || mustClearType then
+      return true
+    -- Delete hypotheses of the form `State χ`
+    let isStateχ ← do match body.getAppFn.constName? with
+      | .none => pure false
+      | .some fn =>
+        if (← resolveGlobalConst stateIdent).contains fn then
+          match body.getAppArgs with
+          | #[.fvar fvarId] => isForbiddenHypothesis fvarId
+          | _ => pure false
+        else pure false
+    -- Delete hypotheses of type `ρ` or `σ`
+    let ofBadType ← match body with
+      | .fvar fvarId => isForbiddenHypothesis fvarId
+      | _ => pure false
+    return isStateχ || ofBadType
 
 mutual
 
@@ -179,7 +230,7 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
     let name := mkIdent hyp.userName
     if isStructure then
       let sn := hyp.type.getAppFn.constName!
-      if !hypsToIgnore.contains sn then
+      if !hypTypesToIgnore.contains sn then
         let dtac ← `(tactic| veil_destruct $name:ident)
         veilEvalTactic dtac (isDesugared := false)
     else
@@ -279,7 +330,18 @@ def elabVeilConcretizeFields (aggressive : Bool) : TacticM Unit := veilWithMainC
 
 @[inherit_doc veil_neutralize_decidable_inst]
 def elabVeilNeutralizeDecidableInst : TacticM Unit := veilWithMainContext do
-  veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident]; veil_clear)
+  veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident])
+  clearDecidableInsts
+where
+  clearDecidableInsts : TacticM Unit := veilWithMainContext do
+    let mut toClear := #[]
+    let lctx ← getLCtx
+    for decl in lctx do
+      if decl.isImplementationDetail then continue
+      if decl.type.getForallBody.getAppFn'.isConstOf ``Decidable then
+        toClear := toClear.push (mkIdent decl.userName)
+    for id in toClear do
+      veilEvalTactic $ ← `(tactic| try clear $id:ident)
 
 private def smallScaleAxiomatizationSimpSet (withLocalRPropTC? : Bool) : Array Name :=
   let base := #[``id, ``instIsSubStateOfRefl, ``instIsSubReaderOfRefl]
@@ -460,18 +522,6 @@ def elabVeilSmt (stx : Syntax) (trace : Bool := false) : TacticM Unit := veilWit
     addSuggestion stx auto_tac
   else
     veilEvalTactic auto_tac
-
-@[inherit_doc veil_clear]
-def elabVeilClearHyps (ids : Array (TSyntax `ident)) : TacticM Unit := veilWithMainContext do
-  let mut toClear := ids
-  let lctx ← getLCtx
-  for decl in lctx do
-    if decl.isImplementationDetail then continue
-    -- if ← isDecidableInstance decl.type then
-    if decl.type.getForallBody.getAppFn'.isConstOf ``Decidable then
-      toClear := toClear.push (mkIdent decl.userName)
-  for id in toClear do
-    veilEvalTactic $ ← `(tactic| try clear $id:ident)
 
 @[inherit_doc veil_destruct_goal]
 def elabVeilDestructGoal : TacticM Unit := veilWithMainContext do
