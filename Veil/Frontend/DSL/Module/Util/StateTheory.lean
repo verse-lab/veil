@@ -133,7 +133,7 @@ private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation 
     let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
     `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $ty)
   let defCmds ← structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState true) (deriveInstances := false) fields
-  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkToJsonInstance, ← `(command| deriving_repr_via_fields $(mkIdent stateName))]
+  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkDecidableEqInstance, ← mkToJsonInstance, ← `(command| deriving_repr_via_fields $(mkIdent stateName))]
 where
   /-- Generate binders of the form `(χ : State.Label → Type) [∀ f : State.Label, C (χ f)]` -/
   mkFieldConcreteTypeBinders (typeclass : Name) : m (Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
@@ -166,13 +166,19 @@ where
     let (s1, s2) := (mkIdent `s1, mkIdent `s2)
     -- Build the beq body: s1.field1 == s2.field1 && s1.field2 == s2.field2 && ...
     let fieldNames := mod.mutableComponents.map (·.name)
-    let beqBody ← match fieldNames.toList with
-      | [] => `(term| true)
-      | f :: fs =>
-        let first ← `(term| $s1.$(mkIdent f) == $s2.$(mkIdent f))
-        fs.foldlM (init := first) fun acc field => do
-          `(term| $acc && $s1.$(mkIdent field) == $s2.$(mkIdent field))
+    let beqTerms ← fieldNames.mapM fun field => `(term| $s1.$(mkIdent field) == $s2.$(mkIdent field))
+    let beqBody ← repeatedOp ``Bool.and beqTerms (default := ← `(term| true))
     `(instance $[$beqBinders]* : $beqTy where beq := fun $s1 $s2 => $beqBody)
+  mkDecidableEqInstance : m Syntax := do
+    let decEqBinders ← mkFieldConcreteTypeBinders ``DecidableEq
+    let decEqTy ← `(term| $(mkIdent ``DecidableEq) ($stateIdent $fieldConcreteType))
+    let (s1, s2) := (mkIdent `s1, mkIdent `s2)
+    -- Build the conjunction: s1.field1 = s2.field1 ∧ s1.field2 = s2.field2 ∧ ...
+    let fieldNames := mod.mutableComponents.map (·.name)
+    let eqTerms ← fieldNames.mapM fun field => `(term| $s1.$(mkIdent field) = $s2.$(mkIdent field))
+    let eqBody ← repeatedAnd eqTerms
+    `(instance $[$decEqBinders]* : $decEqTy :=
+        fun $s1 $s2 => $(mkIdent ``decidable_of_iff) $eqBody (by cases $s1:ident; cases $s2:ident; grind))
   mkToJsonInstance : m Syntax := do
     let toJsonBinders ← mkFieldConcreteTypeBinders ``Lean.ToJson
     let toJsonTy ← `(term| $(mkIdent ``Lean.ToJson) ($stateIdent $fieldConcreteType))
@@ -227,9 +233,10 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [M
   mod.throwIfAlreadyDeclared environmentSubStateName
   let stateDefs ← mod.fieldsAbstractedStateDefinitionStx
   let inhabitedInst ← mkFieldRepresentationInstances mod
+  let enumerationInst ← mkEnumerationInstance mod
   let stateStx ← mod.stateStx (withFieldConcreteType? := true)
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ inhabitedInst)
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ inhabitedInst ++ #[enumerationInst])
 where
   mkFieldRepresentationInstances (mod : Module) : m (Array Syntax) := do
     let (sorts, fieldLabelIdent) := (← mod.sortIdents, mkVeilImplementationDetailIdent `f)
@@ -254,6 +261,47 @@ where
     | infer_instance_for_iterated_prod'
     | (exact $(mkIdent relT) $(mkIdent ``Veil.IteratedProd'.equiv) (($instEnumerationForIteratedProd $sorts*) _))
     | (exact $(mkIdent funT) $(mkIdent ``Veil.IteratedProd'.equiv) (($instEnumerationForIteratedProd $sorts*) _)))
+  /-- Build the chained flatMap/map expression for `Enumeration` instance.
+      For fields [f1, f2, f3], generates:
+      ```
+      Enumeration.allValues |>.flatMap fun l =>
+      Enumeration.allValues |>.flatMap fun p =>
+      Enumeration.allValues |>.map fun f =>
+      State.mk l p f
+      ```
+  -/
+  mkEnumerationAllValuesBody (fields : List Name) (varNames : Array Ident) : m Term := do
+    match fields with
+    | [] => `(term| [$(mkIdent `State.mk)])
+    | [f] =>
+      let varName := mkIdent $ Name.mkSimple s!"{f}"
+      let allVars := varNames.push varName
+      let ctorApp ← `(term| $(mkIdent `State.mk) $allVars*)
+      `(term| $(mkIdent ``Enumeration.allValues) |>.$(mkIdent `map) fun $varName => $ctorApp)
+    | f :: rest =>
+      let varName := mkIdent $ Name.mkSimple s!"{f}"
+      let innerBody ← mkEnumerationAllValuesBody rest (varNames.push varName)
+      `(term| $(mkIdent ``Enumeration.allValues) |>.$(mkIdent `flatMap) fun $varName => $innerBody)
+  /-- Generate an `Enumeration` instance for `State (FieldConcreteType sorts*)`.
+      This allows enumerating all possible state values when sorts are finite. -/
+  mkEnumerationInstance (mod : Module) : m Syntax := do
+    let sorts ← mod.sortIdents
+    -- Generate binders: (node : Type) [Inhabited node] [Ord node] [DecidableEq node] [Enumeration node] ...
+    let assumedInstances := #[``Ord, ``DecidableEq, ``Enumeration]
+    let sortInstanceBinders := (← mod.sortBinders) ++ (← assumedInstances.flatMapM mod.assumeForEverySort)
+    -- Generate [DecidableEq (State (FieldConcreteType sorts*))]
+    let stateType ← `(term| $stateIdent ($fieldConcreteDispatcher $sorts*))
+    let decEqBinder ← `(bracketedBinder| [$(mkIdent ``DecidableEq) $stateType])
+    let allBinders := sortInstanceBinders ++ #[decEqBinder]
+    -- Generate instance type: Veil.Enumeration (State (FieldConcreteType sorts*))
+    let instType ← `(term| $(mkIdent ``Veil.Enumeration) $stateType)
+    -- Generate allValues body with nested flatMap/map calls
+    let fieldNames := mod.mutableComponents.map (·.name)
+    let allValuesBody ← mkEnumerationAllValuesBody fieldNames.toList #[]
+    -- Generate complete proof tactic
+    `(instance $[$allBinders]* : $instType where
+      $(mkIdent `allValues):ident := $allValuesBody
+      $(mkIdent `complete):ident := by simp only [$(mkIdent ``List.mem_flatMap):ident, $(mkIdent ``List.mem_map):ident]; grind)
 
 /-! ## Field Label Type & Metadata (Private) -/
 

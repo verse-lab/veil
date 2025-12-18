@@ -356,7 +356,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
         let eTrBody := match_expr eTrBody with
           | id _ a => a
           | _ => eTrBody
-        let body ← Meta.mkAppOptM ``Transition.toVeilM #[.some mode, .none, .none, .some eTrBody]
+        let body ← Meta.mkAppOptM ``Transition.toVeilM #[.some mode, .none, .none, .none, .none, .some eTrBody]
         let body ← (Simp.dsimp #[``Transition.toVeilM]) body
         Meta.mkLambdaFVars (#[mode] ++ xs) body.expr
     instantiateMVars tmp

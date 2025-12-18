@@ -1,5 +1,6 @@
 import Loom.MonadAlgebras.NonDetT'.Extract
 import Loom.MonadAlgebras.NonDetT'.ExtractList
+import Veil.Frontend.DSL.State.SubState
 
 /-!
   # Action Language
@@ -230,9 +231,27 @@ def VeilSpecM.toTransitionDerived (spec : VeilSpecM ρ σ α) : Transition ρ σ
 def VeilM.toTransitionDerived (act : VeilM m ρ σ α) : Transition ρ σ :=
   [IgnoreEx (fun _ => True)| VeilSpecM.toTransitionDerived <| wp act]
 
-def Transition.toVeilM (tr : Transition ρ σ) : VeilM m ρ σ Unit := do
-  let st' ← pick σ
-  assume (tr (← read) (← get) st')
+/--
+We don't use the simpler definition:
+```lean4
+let st' ← pick σ
+assume (tr (← read) (← get) st')
+set st'
+```
+because that would entail enumerating all environments via `(← get)`, which is
+not possible in general. Instead, we structure the definition to only enumerate
+all possible states of the system.
+
+This is still VERY slow when doing explicit state model checking, though.
+Eventually, we will need to come up with a better execution strategy, similar
+to what TLC does: it "recovers" imperative assignments from two-state
+transitions.
+-/
+def Transition.toVeilM [x :IsSubStateOf σ σ'] (tr : Transition ρ σ') : VeilM m ρ σ' Unit := do
+  let st : σ' ← MonadStateOf.get
+  let newSt ← pick σ
+  let st' := setIn newSt st
+  assume (tr (← read) st st')
   set st'
 
 end DerivingSemantics

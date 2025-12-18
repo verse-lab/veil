@@ -1,12 +1,15 @@
 import Std
 import Veil.Frontend.Std
 import Veil.Frontend.DSL.State
+import Veil.Frontend.DSL.State.Data
+
+import Mathlib.Data.List.Sublists
 
 namespace Veil
 open Lean
 
-/--
-`BEq` instances for `Std.TreeMap` and `Std.TreeSet`.
+/-
+`BEq` instances
 
 We need `BEq` instance, as we sometimes hope to store them in `HashSet` or `HashMap`,
 e.g., debugging, when we hope to store the complete information of a state `σᵣ`.
@@ -23,9 +26,20 @@ instance [Ord α] [BEq α] [BEq β]: BEq (Veil.TotalTreeMap α β) where
   beq s1 s2 :=
     s1.val.toArray == s2.val.toArray
 
+/-
+  `DecidableEq` instances
+-/
+instance [Ord α] [DecidableEq α] : DecidableEq (Std.TreeSet α) :=
+  fun s1 s2 => decidable_of_iff (s1.toArray = s2.toArray) (by sorry)
+
+instance [Ord α] [DecidableEq α] [DecidableEq β] : DecidableEq (Std.TreeMap α β) :=
+  fun s1 s2 => decidable_of_iff (s1.toArray = s2.toArray) (by sorry)
+
+instance [Ord α] [DecidableEq α] [DecidableEq β] : DecidableEq (Veil.TotalTreeMap α β) :=
+  fun s1 s2 => decidable_of_iff (s1.val.toArray = s2.val.toArray) (by sorry)
 
 /--
-`Hashable` instances for `Std.TreeMap` and `Std.TreeSet`
+`Hashable` instances
 
 We always need `Hashable` instance. When we run the model checker,
 we always store the hashable value of state representation `σᵣ` in `HashSet`.
@@ -36,8 +50,8 @@ instance [Hashable α] [BEq α] [Ord α]: Hashable (Std.TreeSet α) where
 instance [Ord α] [Hashable α] [Hashable β] : Hashable (Std.TreeMap α β) where
   hash s := s.foldl (fun r a b => mixHash r (mixHash (hash a) (hash b))) 7
 
-/--
-`Ord` instances for `Std.TreeMap` and `Std.TreeSet`
+/-
+`Ord` instances
 
 If we want to use `symmetric reduction` in model checking, we need `Ord` instances
 to make the states comparable.
@@ -55,6 +69,40 @@ instance [Ord α] [Ord β] : Ord (Std.TreeMap α β) where
 instance [Ord α] [Ord β]: Ord (Veil.TotalTreeMap α β) where
   compare s1 s2 := compare s1.val.toArray s2.val.toArray
 
+
+/-
+  `Enumeration` instances
+
+  If we want to execute transitions, we need to be able to enumerate
+  (post-)states.
+
+  FIXME: we probably need to switch to `ExtTreeSet` and `ExtTreeMap` to be able
+  to prove `complete` for these instances.
+-/
+
+instance [DecidableEq α] [Ord α] [a : Enumeration α]: Enumeration (Std.TreeSet α) where
+  allValues := (List.sublistsFast a.allValues).map (fun l => Std.TreeSet.ofList l)
+  complete := by sorry
+  decEq := inferInstance
+
+instance [DecidableEq α] [DecidableEq β] [Ord α] [a : Enumeration α] [b : Enumeration β]
+    : Enumeration (Std.TreeMap α β) where
+  allValues :=
+    let keys := a.allValues
+    let vals := b.allValues
+    ((List.sublistsFast keys).map (fun ks =>
+      (allMappings ks vals).map (fun pairs => Std.TreeMap.ofList pairs))).flatten
+  complete := by sorry
+  decEq := inferInstance
+
+instance [DecidableEq α] [DecidableEq β] [Ord α] [a : Enumeration α] [b : Enumeration β]
+    : Enumeration (Veil.TotalTreeMap α β) where
+  allValues :=
+    let keys := a.allValues
+    let vals := b.allValues
+    (allMappings keys vals).map (fun pairs => ⟨Std.TreeMap.ofList pairs, by sorry⟩)
+  complete := by sorry
+  decEq := inferInstance
 
 /-
 `ToJson` instances
