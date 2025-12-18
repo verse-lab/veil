@@ -215,15 +215,22 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   mod.generateVCs
   return { mod with _specFinalized := true }
 
+open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
   let _ ← mod.ensureSpecIsFinalized
   Verifier.startAll
-  Verifier.displayStreamingResults stx getResults
-  -- Verifier.vcManager.atomicallyOnce frontendNotification
-  --   (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
-  --   (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
+  -- Display suggestions if the command is `#check_invariants?`
+  match stx with
+  | `(command|#check_invariants?) => do
+    Verifier.vcManager.atomically (fun ref => do let mgr ← ref.get; liftCoreM <| addSuggestions stx (← mgr.suggestions))
+  | `(command|#check_invariants) => do
+    Verifier.displayStreamingResults stx getResults
+    -- Verifier.vcManager.atomicallyOnce frontendNotification
+    --   (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
+    --   (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
+  | _ => logInfo "Unsupported syntax {stx}"; throwUnsupportedSyntax
   where
   getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do
     Verifier.vcManager.atomically
