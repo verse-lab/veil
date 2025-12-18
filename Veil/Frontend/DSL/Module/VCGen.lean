@@ -171,7 +171,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   -- We need to build the VCs "bottom-up", i.e. from the "smallest"
   -- statements to the "largest".
   let actsToCheck := mod.procedures.filter (fun s => match s.info with
-    | .action _ | .initializer => true
+    | .action _ _ | .initializer => true
     | .procedure _ => false)
   let solverTactic ← if mod._useLocalRPropTC then `(by veil_solve !) else `(by veil_solve)
   let mut doesNotThrowVCs : Std.HashSet VCId := {}

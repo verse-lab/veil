@@ -288,7 +288,7 @@ def elabTransition : CommandElab := fun stx => do
       let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
         (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
       `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $tmp))
-    mod.defineTransition (ProcedureInfo.action nm.getId) br trStx stx
+    mod.defineTransition (ProcedureInfo.action nm.getId (definedViaTransition := true)) br trStx stx
     -- FIXME: Is this required?
     -- -- warn if this is not first-order
     -- Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
@@ -382,6 +382,20 @@ def elabModelCheck : CommandElab := fun stx => do
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
+
+    -- Warn if there are any transitions in the module
+    let transitions := mod.procedures.filter (·.info.isTransition)
+    let transitionsStr := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
+    if !transitions.isEmpty then
+      logWarning m!"\
+        Explicit state model checking of transitions is SLOW!\n\
+        \n\
+        The current implementation enumerates all possible states and filters \
+        those satisfying the transition relation. \
+        Your specification has {transitions.size} transition{if transitions.size > 1 then "s" else ""}: {transitionsStr}\n\
+        \n\
+        Consider encoding transitions as imperative actions where possible, \
+        which allows more efficient explicit state model checking."
 
     -- Get sort identifiers from the module
     let sortIdents ← mod.sortIdents
