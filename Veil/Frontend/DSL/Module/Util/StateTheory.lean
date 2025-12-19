@@ -235,8 +235,10 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [M
   let inhabitedInst ← mkFieldRepresentationInstances mod
   let enumerationInst ← mkEnumerationInstance mod
   let stateStx ← mod.stateStx (withFieldConcreteType? := true)
+  let smtAttr ← `(attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `mk ++ `injEq):ident)
+  let eqMkTheorem ← mkEqMkTheorem mod
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ inhabitedInst ++ #[enumerationInst])
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ inhabitedInst ++ #[enumerationInst, smtAttr, eqMkTheorem])
 where
   mkFieldRepresentationInstances (mod : Module) : m (Array Syntax) := do
     let (sorts, fieldLabelIdent) := (← mod.sortIdents, mkVeilImplementationDetailIdent `f)
@@ -308,6 +310,29 @@ where
     `(instance $[$allBinders]* : $instType where
       $(mkIdent `allValues):ident := $allValuesBody
       $(mkIdent `complete):ident := by simp only [$(mkIdent ``List.mem_flatMap):ident, $(mkIdent ``List.mem_map):ident]; grind only [← $(mkIdent ``Enumeration.complete):ident])
+  /-- Generate a theorem `State.eqMk` that characterizes equality of a state with a structure literal.
+      For fields [leader, pending], generates:
+      ```
+      theorem State.eqMk {χ : State.Label → Type} (st : State χ)
+        (leader : χ State.Label.leader) (pending: χ State.Label.pending) :
+        (st = { leader := leader, pending := pending }) = (st.leader = leader ∧ st.pending = pending) :=
+        by grind only [cases State, cases Or]
+      ```
+  -/
+  mkEqMkTheorem (mod : Module) : m Syntax := do
+    let fieldNames := mod.mutableComponents.map (·.name)
+    let (χ, st) := (mkIdent `χ, mkIdent `st)
+    let χBinder ← `(bracketedBinder| {$χ : $(structureFieldLabelType stateName) → Type})
+    let stBinder ← `(bracketedBinder| ($st : $stateIdent $χ))
+    let fieldBinders ← fieldNames.mapM fun f =>
+      `(bracketedBinder| ($(mkIdent f) : $χ $(mkIdent <| structureFieldLabelTypeName stateName ++ f)))
+    let structFields ← fieldNames.mapM fun f =>
+      `(Lean.Parser.Term.structInstField| $(mkIdent f):ident := $(mkIdent f))
+    let eqTerms ← fieldNames.mapM fun f => `(term| $st.$(mkIdent f) = $(mkIdent f))
+    let prop ← `(term| ($st = { $[$structFields:structInstField],* }) = $(← repeatedAnd eqTerms))
+    let allBinders := #[χBinder, stBinder] ++ fieldBinders
+    `(@[$(mkIdent `smtSimp):ident] theorem $(mkIdent <| stateName ++ `eqMk) $[$allBinders]* : $prop :=
+        by grind only [cases $stateIdent, cases $(mkIdent ``Or)])
 
 /-! ## Field Label Type & Metadata (Private) -/
 

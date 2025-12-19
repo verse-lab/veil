@@ -264,7 +264,7 @@ theorem VeilM.doesNotThrow_preservesInvariantsAssuming (act : VeilM m ρ σ α) 
   act.preservesInvariantsIfSuccessfulAssuming assu inv ->
   act.succeedsAndPreservesInvariantsAssuming assu inv := by
   unfold VeilM.doesNotThrowAssuming VeilM.preservesInvariantsIfSuccessfulAssuming VeilM.succeedsAndPreservesInvariantsAssuming
-    VeilM.succeedsAndMeetsSpecification VeilM.meetsSpecificationIfSuccessful triple
+    VeilM.succeedsAndMeetsSpecification VeilM.meetsSpecificationIfSuccessfulAssuming triple
   intros h₁ h₂; apply le_trans
   apply le_inf h₁ h₂; simp [VeilM.terminates_preservesInvariants_wp]
 

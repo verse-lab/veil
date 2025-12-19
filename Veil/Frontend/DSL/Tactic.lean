@@ -52,8 +52,10 @@ which are not needed for proofs. -/
 syntax (name := veil_clear) "veil_clear" (colGt ident)* : tactic
 /-- Destruct the given structures into their fields. If no arguments
 are given, this destructs all structures in the context into their
-respective fields, recursively. -/
-syntax (name := veil_destruct) "veil_destruct" (colGt ident)* : tactic
+respective fields, recursively.
+
+Use `only [Foo, Bar]` to only destruct structures with those names. -/
+syntax (name := veil_destruct) "veil_destruct" (colGt ident)* ("only" "[" ident,* "]")? : tactic
 /-- Split the goal into sub-goals. -/
 syntax (name := veil_destruct_goal) "veil_destruct_goal" : tactic
 
@@ -105,6 +107,13 @@ syntax (name := veil_fail) "veil_fail" : tactic
 
 attribute [ifSimp] ite_true ite_false dite_true dite_false ite_self
   if_true_left if_true_right if_false_left if_false_right
+
+@[ifSimp] theorem not_if {_ : Decidable c} :
+  ¬ (if c then t else e) =
+  if c then ¬ t else ¬ e := by
+  by_cases c <;> simp_all
+
+attribute [ifSimp] HasCompl.compl Classical.not_forall
 
 def elabVeilRenameHyp (xs ys : Array Syntax) := do
   let ids ← getFVarIds xs
@@ -200,15 +209,19 @@ where
 
 mutual
 
-/-- Destruct a structure into its fields. -/
-partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) : TacticM Unit := veilWithMainContext do
+/-- Destruct a structure into its fields. If `onlyStructs` is non-empty, only destructs
+structures whose type names are in the `onlyStructs` list. -/
+partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStructs : List Name := []) : TacticM Unit := veilWithMainContext do
   if ids.size == 0 then
-    elabVeilDestructAllHyps (recursive := true)
+    elabVeilDestructAllHyps (recursive := true) (onlyStructs := onlyStructs)
   else for id in ids do
     let lctx ← getLCtx
     let name := (getNameOfIdent' id)
     let .some ld := lctx.findFromUserName? name | throwError "veil_destruct: {id} is not in the local context"
     let .some sn := ld.type.getAppFn.constName? | throwError "veil_destruct: {id} is not a constant"
+    -- If `onlyStructs` is non-empty, skip structures not in the list
+    if !onlyStructs.isEmpty && !onlyStructs.contains sn then
+      continue
     let .some _sinfo := getStructureInfo? (← getEnv) sn | throwError "veil_destruct: {id} ({sn} is not a structure)"
     let newFieldNames := _sinfo.fieldNames.map (mkIdent $ Name.append name ·)
     let s ← `(rcasesPat| ⟨ $[$newFieldNames],* ⟩)
@@ -216,8 +229,9 @@ partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) : TacticM
     -- TODO: try to give better names to the new hypotheses if they are named clauses
 
 /-- Destruct all structures in the context into their respective
-fields, (potentially) recursively. Also destructs all existentials. -/
-partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) : TacticM Unit := veilWithMainContext do
+fields, (potentially) recursively. Also destructs all existentials.
+If `onlyStructs` is non-empty, only destructs structures whose type names are in the list. -/
+partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) (onlyStructs : List Name := []) : TacticM Unit := veilWithMainContext do
   let mut ignoreHyps := ignoreHyps
   let hypsToVisit : (Array LocalDecl → TacticM (Array LocalDecl)) := (fun ignoreHyps => veilWithMainContext do
     return (← getLCtx).decls.filter Option.isSome
@@ -234,7 +248,8 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
     let name := mkIdent hyp.userName
     if isStructure then
       let sn := hyp.type.getAppFn.constName!
-      if !hypTypesToIgnore.contains sn then
+      -- Skip if onlyStructs is non-empty and this structure is not in the list
+      if !hypTypesToIgnore.contains sn && (onlyStructs.isEmpty || onlyStructs.contains sn) then
         let dtac ← `(tactic| veil_destruct $name:ident)
         veilEvalTactic dtac (isDesugared := false)
     else
@@ -248,7 +263,7 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
         veilEvalTactic $ ← `(tactic| rcases $name:ident with ⟨$x, $name'⟩)
   -- Recursively call ourselves until the context stops changing
   if recursive && (← hypsToVisit ignoreHyps).size > 0 then
-    elabVeilDestructAllHyps recursive ignoreHyps
+    elabVeilDestructAllHyps recursive ignoreHyps onlyStructs
 where
   existsBinderName (whnfType : Expr) : MetaM Name := do
     match_expr whnfType with
@@ -260,29 +275,54 @@ private inductive GenericStateKind
   | environmentState
   | backgroundTheory
 
+/-- Get all abstract state hypotheses (variables of type `σ` or `ρ`). -/
+def getAbstractStateHyps : TacticM (Array (GenericStateKind × LocalDecl)) := veilWithMainContext do
+  let mut abstractStateHyps := #[]
+  for hyp in (← getLCtx) do
+    let `(term|$x:ident) ← delabVeilExpr hyp.type
+      | continue
+    if x.getId == environmentStateName then
+      abstractStateHyps := abstractStateHyps.push (.environmentState, hyp)
+    else if x.getId == environmentTheoryName then
+      abstractStateHyps := abstractStateHyps.push (.backgroundTheory, hyp)
+  return abstractStateHyps
+
+/-- Concretize abstract state variables.
+
+This uses `generalize` to replace `getFrom st` / `readFrom th` with fresh
+concrete names. For transition goals, it also handles `setIn` expressions
+by rewriting with `setIn_makeExplicit` and substituting to ensure both
+pre-state and post-state are available in the context (for model extraction). -/
 def elabVeilConcretizeState : TacticM Unit := veilWithMainContext do
+  let veilDestruct ← `(tactic|veil_destruct only [$(mkIdent ``And), $(mkIdent ``Exists)])
+
+  -- Step 1: Double negation elimination + destructuring (sometimes required to enable `subst`)
+  let doubleNegTac ← `(tacticSeq|veil_simp only [$(mkIdent ``HasCompl.compl):ident, $(mkIdent ``Classical.not_imp):ident, $(mkIdent ``Classical.not_not):ident, $(mkIdent ``Classical.not_forall):ident] at *; $veilDestruct)
+  veilWithMainContext $ veilEvalTactic doubleNegTac (isDesugared := false)
+
+  -- Step 2: For each abstract state hyp, try rewriting with setIn_makeExplicit and subst
+  for (k, s) in (← getAbstractStateHyps) do
+    -- Only apply setIn_makeExplicit to mutable state (environmentState), not to background theory
+    if k matches .environmentState then
+      let name := mkIdent s.userName
+      let tac ← `(tacticSeq| (try rw [$(mkIdent ``setIn_makeExplicit):ident $name] at *); $veilDestruct; (try subst $name))
+      if (← getUnsolvedGoals).length != 0 then
+        veilWithMainContext $ veilEvalTactic tac (isDesugared := false)
+
+  -- Step 3: Concretize remaining abstract state hyps using generalize
+  -- NOTE: `subst` might have removed some of the abstract state hyps, so we need to recompute them
   let mut tacticsToExecute := #[]
   for (k, hyp) in (← getAbstractStateHyps) do
-    let existingName := mkIdent $ hyp.userName
+    let existingName := mkIdent hyp.userName
     let concreteState := mkIdent $ mkVeilImplementationDetailName existingName.getId
     let getter := match k with
     | .environmentState => mkIdent ``getFrom
     | .backgroundTheory => mkIdent ``readFrom
-    let concretize ← `(tacticSeq|try (generalize ($(getter) $existingName) = $concreteState at * ; veil_rename_hyp $concreteState => $existingName))
+    let concretize ← `(tacticSeq|try (generalize ($(getter) $existingName) = $concreteState at * ; (try clear $existingName:ident) ; veil_rename_hyp $concreteState => $existingName))
     tacticsToExecute := tacticsToExecute.push concretize
+  tacticsToExecute := tacticsToExecute.push <| ← `(tacticSeq|veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident] at *; $veilDestruct)
   for t in tacticsToExecute do
-    veilWithMainContext $ veilEvalTactic t
-where
-  getAbstractStateHyps : TacticM (Array (GenericStateKind × LocalDecl)) := veilWithMainContext do
-    let mut abstractStateHyps := #[]
-    for hyp in (← getLCtx) do
-      let `(term|$x:ident) ← delabVeilExpr hyp.type
-        | continue
-      if x.getId == environmentStateName then
-        abstractStateHyps := abstractStateHyps.push (.environmentState, hyp)
-      else if x.getId == environmentTheoryName then
-        abstractStateHyps := abstractStateHyps.push (.backgroundTheory, hyp)
-    return abstractStateHyps
+    veilWithMainContext $ veilEvalTactic t (isDesugared := false)
 
 /-- Similar idea to `elabVeilConcretizeState`, but for fields when
 `FieldRepresentation` is used. This also does simplification using
@@ -325,10 +365,12 @@ def elabVeilConcretizeFields (aggressive : Bool) : TacticM Unit := veilWithMainC
   for stHyp in stHyps do
     let st := mkIdent stHyp.userName
     for f in fields do
-      let f : Ident := ⟨f.raw⟩
+      let f : Ident := f
+      let fDestructed := mkIdent <| Name.mkSimple s!"{st.getId}_{f.getId}" -- Name.append st.getId f.getId
       let tmpField := mkIdent <| mkVeilImplementationDetailName f.getId
-      tacs := tacs.push <| ← `(tacticSeq| generalize (($rep _).$(mkIdent `get)) $st.$f = $tmpField at * ; dsimp [$[$localSimpTerms:ident],*] at $tmpField:ident ; veil_rename_hyp $tmpField:ident => $f:ident)
-
+      tacs := tacs.push <| ← `(tacticSeq| generalize (($rep _).$(mkIdent `get)) $st.$f = $tmpField at * ; dsimp [$[$localSimpTerms:ident],*] at $tmpField:ident ; veil_rename_hyp $tmpField:ident => $fDestructed:ident)
+    -- Clear the original state hypothesis
+    tacs := tacs.push <| ← `(tacticSeq| try clear $st:ident)
   for t in tacs do
     veilWithMainContext $ veilEvalTactic t
 
@@ -521,7 +563,9 @@ def elabGhostRelationSSA (hyp : Ident) : TacticM Unit := veilWithMainContext do
 def elabVeilSmt (stx : Syntax) (trace : Bool := false) : TacticM Unit := veilWithMainContext do
   let idents ← getPropsInContext
   let solverOptions ← `(term| [("finite-model-find", "true"), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
-  let auto_tac ← `(tactic| smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
+  -- It's necessary to `open Classical` to make proof reconstruction work.
+  -- Otherwise, sometimes it fails due to failing to infer `Decidable` instances.
+  let auto_tac ← `(tactic| open $(mkIdent `Classical):ident in smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
   if trace then
     addSuggestion stx auto_tac
   else
@@ -563,7 +607,11 @@ def elabVeilWp : TacticM Unit := veilWithMainContext do
   veilEvalTactic tac (isDesugared := false)
 
 def elabVeilIntros : TacticM Unit := veilWithMainContext do
-  let tac ← `(tactic| unhygienic intros; try intro $(mkIdent `th) $(mkIdent `st) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩;)
+  let wpIntro ← `(tactic|intro $(mkIdent `th) $(mkIdent `st) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩)
+  -- This is a bit annoying, but we name these `s₀` and `s₁` rather than `st`
+  -- and `st'`. This ensures `concretize_state` generates `st` and `st'`.
+  let trIntro ← `(tactic|intro $(mkIdent `th) $(mkIdent `st) $(mkIdent `s₁) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩)
+  let tac ← `(tactic| unhygienic intros; (try first | $wpIntro:tactic | $trIntro:tactic ))
   veilEvalTactic tac
 
 -- NOTE: For now, this is effectively `introv` (but not exactly, since
@@ -634,7 +682,11 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
 
 elab_rules : tactic
   | `(tactic| veil_rename_hyp $[$xs:term => $ys:ident],*) => do withTiming "veil_rename_hyp" $ elabVeilRenameHyp xs ys
-  | `(tactic| veil_destruct $ids:ident*) => do withTiming "veil_destruct" $ elabVeilDestructSpecificHyp ids
+  | `(tactic| veil_destruct $ids:ident* $[only [$onlyIds:ident,*]]?) => do
+    let onlyStructs := match onlyIds with
+      | some ids => ids.getElems.toList.map (fun id => id.getId)
+      | none => []
+    withTiming "veil_destruct" $ elabVeilDestructSpecificHyp ids onlyStructs
   | `(tactic| veil_clear $ids:ident*) => do withTiming "veil_clear" $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do withTiming "veil_destruct_goal" elabVeilDestructGoal
   | `(tactic| veil_concretize_state) => do withTiming "veil_concretize_state" elabVeilConcretizeState
