@@ -60,6 +60,7 @@ syntax (name := veil_destruct) "veil_destruct" (colGt ident)* ("only" "[" ident,
 syntax (name := veil_destruct_goal) "veil_destruct_goal" : tactic
 
 syntax (name := veil_concretize_state) "veil_concretize_state" : tactic
+syntax (name := veil_concretize_state_tr) "veil_concretize_state_tr" : tactic
 syntax (name := veil_concretize_fields) "veil_concretize_fields" ("!")? : tactic
 
 syntax (name := veil_intros) "veil_intros" : tactic
@@ -287,13 +288,30 @@ def getAbstractStateHyps : TacticM (Array (GenericStateKind × LocalDecl)) := ve
       abstractStateHyps := abstractStateHyps.push (.backgroundTheory, hyp)
   return abstractStateHyps
 
-/-- Concretize abstract state variables.
+def concretizeStateByGeneralization : TacticM (Array (TSyntax `Lean.Parser.Tactic.tacticSeq)) := veilWithMainContext do
+  let mut tacticsToExecute := #[]
+  for (k, hyp) in (← getAbstractStateHyps) do
+    let existingName := mkIdent hyp.userName
+    let concreteState := mkIdent $ mkVeilImplementationDetailName existingName.getId
+    let getter := match k with
+    | .environmentState => mkIdent ``getFrom
+    | .backgroundTheory => mkIdent ``readFrom
+    let concretize ← `(tacticSeq|try (generalize ($(getter) $existingName) = $concreteState at * ; (try clear $existingName:ident) ; veil_rename_hyp $concreteState => $existingName))
+    tacticsToExecute := tacticsToExecute.push concretize
+  return tacticsToExecute
 
-This uses `generalize` to replace `getFrom st` / `readFrom th` with fresh
-concrete names. For transition goals, it also handles `setIn` expressions
+/-- Concretize abstract state variables. This uses `generalize` to replace
+`getFrom st` / `readFrom th` with fresh concrete names. -/
+def elabVeilConcretizeState : TacticM Unit := veilWithMainContext do
+  let tacticsToExecute ← concretizeStateByGeneralization
+  for t in tacticsToExecute do
+    veilWithMainContext $ veilEvalTactic t (isDesugared := false)
+
+/-- Concretize abstract state variables for transition goals. Compared with
+`elabVeilConcretizeState`, it also handles `setIn` expressions
 by rewriting with `setIn_makeExplicit` and substituting to ensure both
 pre-state and post-state are available in the context (for model extraction). -/
-def elabVeilConcretizeState : TacticM Unit := veilWithMainContext do
+def elabVeilConcretizeStateForTransitionGoals : TacticM Unit := veilWithMainContext do
   let veilDestruct ← `(tactic|veil_destruct only [$(mkIdent ``And), $(mkIdent ``Exists)])
 
   -- Step 1: Double negation elimination + destructuring (sometimes required to enable `subst`)
@@ -311,18 +329,8 @@ def elabVeilConcretizeState : TacticM Unit := veilWithMainContext do
 
   -- Step 3: Concretize remaining abstract state hyps using generalize
   -- NOTE: `subst` might have removed some of the abstract state hyps, so we need to recompute them
-  let mut tacticsToExecute := #[]
-  for (k, hyp) in (← getAbstractStateHyps) do
-    let existingName := mkIdent hyp.userName
-    let concreteState := mkIdent $ mkVeilImplementationDetailName existingName.getId
-    let getter := match k with
-    | .environmentState => mkIdent ``getFrom
-    | .backgroundTheory => mkIdent ``readFrom
-    let concretize ← `(tacticSeq|try (generalize ($(getter) $existingName) = $concreteState at * ; (try clear $existingName:ident) ; veil_rename_hyp $concreteState => $existingName))
-    tacticsToExecute := tacticsToExecute.push concretize
-  tacticsToExecute := tacticsToExecute.push <| ← `(tacticSeq|veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident] at *; $veilDestruct)
-  for t in tacticsToExecute do
-    veilWithMainContext $ veilEvalTactic t (isDesugared := false)
+  elabVeilConcretizeState
+  veilWithMainContext $ veilEvalTactic (← `(tacticSeq|veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident] at *; $veilDestruct)) (isDesugared := false)
 
 /-- Similar idea to `elabVeilConcretizeState`, but for fields when
 `FieldRepresentation` is used. This also does simplification using
@@ -690,6 +698,7 @@ elab_rules : tactic
   | `(tactic| veil_clear $ids:ident*) => do withTiming "veil_clear" $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do withTiming "veil_destruct_goal" elabVeilDestructGoal
   | `(tactic| veil_concretize_state) => do withTiming "veil_concretize_state" elabVeilConcretizeState
+  | `(tactic| veil_concretize_state_tr) => do withTiming "veil_concretize_state_tr" elabVeilConcretizeStateForTransitionGoals
   | `(tactic| veil_concretize_fields $[!%$agg]?) => do withTiming "veil_concretize_fields" (elabVeilConcretizeFields (agg.isSome))
   | `(tactic| veil_smt%$tk) => do withTiming "veil_smt" $ elabVeilSmt tk
   | `(tactic| veil_smt?%$tk) => do withTiming "veil_smt?" $ elabVeilSmt tk true
