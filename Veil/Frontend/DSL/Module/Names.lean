@@ -70,6 +70,9 @@ def fieldConcreteType : Ident := mkIdent fieldConcreteTypeName
 def fieldConcreteDispatcherName : Name := `FieldConcreteType
 def fieldConcreteDispatcher : Ident := mkIdent fieldConcreteDispatcherName
 
+def fieldAbstractDispatcherName : Name := `FieldAbstractType
+def fieldAbstractDispatcher : Ident := mkIdent fieldAbstractDispatcherName
+
 def fieldRepresentationName : Name := `χ_rep
 def fieldRepresentation : Ident := mkIdent fieldRepresentationName
 def lawfulFieldRepresentationName : Name := `χ_rep_lawful
@@ -83,6 +86,12 @@ def instFieldRepresentation : Ident := mkIdent instFieldRepresentationName
 
 def instLawfulFieldRepresentationName : Name := `instLawfulFieldRepresentation
 def instLawfulFieldRepresentation : Ident := mkIdent instLawfulFieldRepresentationName
+
+def instAbstractFieldRepresentationName : Name := `instAbstractFieldRepresentation
+def instAbstractFieldRepresentation : Ident := mkIdent instAbstractFieldRepresentationName
+
+def instLawfulAbstractFieldRepresentationName : Name := `instLawfulAbstractFieldRepresentation
+def instLawfulAbstractFieldRepresentation : Ident := mkIdent instLawfulAbstractFieldRepresentationName
 
 def structureFieldLabelTypeName (base : Name) : Name := base ++ labelTypeName
 def structureFieldLabelType (base : Name) : Ident := mkIdent <| structureFieldLabelTypeName base
