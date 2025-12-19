@@ -58,6 +58,9 @@ def instantiationType : Ident := mkIdent instantiationTypeName
 def assembledNextActName : Name := `NextAct
 def assembledNextAct : Ident := mkIdent assembledNextActName
 
+def assembledNextName : Name := `Next
+def assembledNext : Ident := mkIdent assembledNextName
+
 def nextActSimplifiedName : Name := `NextAct'
 def nextActSimplified : Ident := mkIdent nextActSimplifiedName
 
@@ -114,5 +117,8 @@ def nextActExecIdent : Ident := mkIdent `nextActMultiExec
 
 def enumerableTransitionSystemName : Name := `enumerableTransitionSystem
 def enumerableTransitionSystem : Ident := mkIdent enumerableTransitionSystemName
+
+def assembledInitName : Name := `Init
+def assembledInit : Ident := mkIdent assembledInitName
 
 end Veil

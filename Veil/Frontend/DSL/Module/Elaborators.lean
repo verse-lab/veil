@@ -209,6 +209,10 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
     elabVeilCommand cmd
   let (nextCmd, mod) ← mod.assembleNext
   elabVeilCommand nextCmd
+  let (nextTrCmd, mod) ← mod.assembleNextTransition
+  elabVeilCommand nextTrCmd
+  let (initCmd, mod) ← mod.assembleInit
+  elabVeilCommand initCmd
   Extract.genNextActCommands mod
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   Verifier.runManager
