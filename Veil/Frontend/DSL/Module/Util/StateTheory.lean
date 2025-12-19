@@ -232,31 +232,55 @@ is involved. -/
 def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × (Array Syntax)) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
   let stateDefs ← mod.fieldsAbstractedStateDefinitionStx
-  let inhabitedInst ← mkFieldRepresentationInstances mod
+  let concreteFieldRepInsts ← mkFieldRepresentationInstancesForConcrete mod
+  let abstractFieldRepInsts ← mkFieldRepresentationInstancesForAbstract mod
   let enumerationInst ← mkEnumerationInstance mod
   let stateStx ← mod.stateStx (withFieldConcreteType? := true)
   let smtAttr ← `(attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `mk ++ `injEq):ident)
   let eqMkTheorem ← mkEqMkTheorem mod
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ inhabitedInst ++ #[enumerationInst, smtAttr, eqMkTheorem])
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[enumerationInst, smtAttr, eqMkTheorem])
 where
-  mkFieldRepresentationInstances (mod : Module) : m (Array Syntax) := do
+  /-- Generate `FieldRepresentation` and `LawfulFieldRepresentation` instances for a given field type dispatcher. -/
+  mkFieldRepresentationInstancesCore (mod : Module)
+      (fieldTypeDispatcher : Ident) (instName lawfulInstName : Ident)
+      (fieldRepAssumed lawfulAssumed : Array Name)
+      (mkTactic : Array Ident → Ident → m (TSyntax `tactic))
+      (mkLawfulTactic : Array Ident → Ident → m (TSyntax `tactic)) : m (Array Syntax) := do
     let (sorts, fieldLabelIdent) := (← mod.sortIdents, mkVeilImplementationDetailIdent `f)
     let fieldLabel ← `(bracketedBinder|($fieldLabelIdent:ident : $(mkIdent `State.Label)))
     let toDomainTerm ← `(($(fieldLabelToDomain stateName) $sorts* $fieldLabelIdent))
     let toCodomainTerm ← `(($(fieldLabelToCodomain stateName) $sorts* $fieldLabelIdent))
-    let fieldConcreteTypeApplied ← `(($fieldConcreteDispatcher $sorts* $fieldLabelIdent))
+    let fieldTypeApplied ← `(($fieldTypeDispatcher $sorts* $fieldLabelIdent))
     -- Field representation instance
-    let fieldRepTy ← `(term|$(mkIdent ``FieldRepresentation) $toDomainTerm $toCodomainTerm $fieldConcreteTypeApplied)
-    let fieldRepAssumed := #[``Enumeration, ``Ord, ``Std.TransCmp]
+    let fieldRepTy ← `(term|$(mkIdent ``FieldRepresentation) $toDomainTerm $toCodomainTerm $fieldTypeApplied)
     let fieldRepBinders := (← mod.sortBinders) ++ (← fieldRepAssumed.flatMapM mod.assumeForEverySort) ++ #[fieldLabel]
-    let fieldRepStx ← `(instance $instFieldRepresentation:ident $fieldRepBinders* : $fieldRepTy := by $(← mkSolverTactic ``instFinsetLikeAsFieldRep ``instTotalMapLikeAsFieldRep sorts fieldLabelIdent):tactic)
+    let fieldRepStx ← `(instance $instName:ident $fieldRepBinders* : $fieldRepTy := by $(← mkTactic sorts fieldLabelIdent):tactic)
     -- Lawful field representation instance
-    let lawfulFieldRepTy ← `(term|$(mkIdent ``LawfulFieldRepresentation) $toDomainTerm $toCodomainTerm $fieldConcreteTypeApplied ($instFieldRepresentation $sorts* $fieldLabelIdent))
-    let lawfulAssumed := #[``Enumeration, ``Ord, ``Std.TransCmp, ``Std.LawfulEqCmp]
+    let lawfulFieldRepTy ← `(term|$(mkIdent ``LawfulFieldRepresentation) $toDomainTerm $toCodomainTerm $fieldTypeApplied ($instName $sorts* $fieldLabelIdent))
     let lawfulFieldRepBinders := (← mod.sortBinders) ++ (← lawfulAssumed.flatMapM mod.assumeForEverySort) ++ #[fieldLabel]
-    let lawfulFieldRepStx ← `(instance $instLawfulFieldRepresentation:ident $lawfulFieldRepBinders* : $lawfulFieldRepTy := by $(← mkSolverTactic ``instFinsetLikeLawfulFieldRep ``instTotalMapLikeLawfulFieldRep sorts fieldLabelIdent):tactic)
+    let lawfulFieldRepStx ← `(instance $lawfulInstName:ident $lawfulFieldRepBinders* : $lawfulFieldRepTy := by $(← mkLawfulTactic sorts fieldLabelIdent):tactic)
     return #[fieldRepStx, lawfulFieldRepStx]
+  mkFieldRepresentationInstancesForConcrete (mod : Module) : m (Array Syntax) :=
+    mkFieldRepresentationInstancesCore mod fieldConcreteDispatcher instFieldRepresentation instLawfulFieldRepresentation
+      #[``Enumeration, ``Ord, ``Std.TransCmp]
+      #[``Enumeration, ``Ord, ``Std.TransCmp, ``Std.LawfulEqCmp]
+      (mkSolverTactic ``instFinsetLikeAsFieldRep ``instTotalMapLikeAsFieldRep)
+      (mkSolverTactic ``instFinsetLikeLawfulFieldRep ``instTotalMapLikeLawfulFieldRep)
+  mkFieldRepresentationInstancesForAbstract (mod : Module) : m (Array Syntax) := do
+    let abstractTactic : Array Ident → Ident → m (TSyntax `tactic) := fun _ f =>
+      `(tactic| cases $f:ident <;> (apply $(mkIdent ``Veil.canonicalFieldRepresentation); infer_instance_for_iterated_prod))
+    let lawfulAbstractTactic : Array Ident → Ident → m (TSyntax `tactic) := fun _ f =>
+      `(tactic| cases $f:ident <;> apply $(mkIdent ``Veil.canonicalFieldRepresentationLawful))
+    let repInsts ← mkFieldRepresentationInstancesCore mod fieldAbstractDispatcher instAbstractFieldRepresentation instLawfulAbstractFieldRepresentation
+      #[``DecidableEq] #[``DecidableEq] abstractTactic lawfulAbstractTactic
+    -- Inhabited instance for State (FieldAbstractType sorts*)
+    let sorts ← mod.sortIdents
+    let inhabitedTy ← `(term|$(mkIdent ``Inhabited) ($stateIdent ($fieldAbstractDispatcher $sorts*)))
+    let inhabitedBinders := (← mod.sortBinders) ++ (← #[``Inhabited, ``DecidableEq].flatMapM mod.assumeForEverySort)
+    let (toDomainId, toCodomainId) := (mkIdent (fieldLabelToDomainName stateName), mkIdent (fieldLabelToCodomainName stateName))
+    let inhabitedStx ← `(instance $[$inhabitedBinders]* : $inhabitedTy := by constructor; constructor <;> (dsimp [$toDomainId:ident, $toCodomainId:ident]; exact $(mkIdent ``Inhabited.default)))
+    return repInsts ++ #[inhabitedStx]
   mkSolverTactic (relT funT : Name) (sorts : Array Ident) (fieldLabelIdent : Ident) : m (TSyntax `tactic) :=
     `(tactic|cases $fieldLabelIdent:ident <;>
     first
@@ -358,10 +382,10 @@ private def FieldMetadata.domainArray [Monad m] [MonadQuotation m] (fm : FieldMe
 /-! ## Field Dispatchers (Private) -/
 
 /-- Declare dispatchers that given the label for a specific field, returns the
-types of its arguments and its codomain, as well as the concrete type of the
-field. -/
+types of its arguments and its codomain, as well as the concrete and abstract
+types of the field. -/
 private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (base : Name) (fieldMetadata : Array FieldMetadata) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder))
-  : m ((Array (Name × Syntax)) × (Name × Syntax)) := do
+  : m ((Array (Name × Syntax)) × (Name × Syntax) × (Name × Syntax)) := do
   let domainComponents ← fieldMetadata.mapM (·.domainArray)
   let coDomainComponents := fieldMetadata.map (·.codomainTerm)
   let f := mkVeilImplementationDetailIdent `f
@@ -372,24 +396,35 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
   let todomain ← `(abbrev $(fieldLabelToDomain base) $dParams* : $(mkIdent ``List) Type := $(mkIdent casesOnName) $f $domainComponents*)
   -- to codomain dispatcher
   let tocodomain ← `(abbrev $(fieldLabelToCodomain base) $dParams* : Type := $(mkIdent casesOnName) $f $coDomainComponents*)
+  -- abstract field representation dispatcher (CanonicalField Domain Codomain)
+  let sortIdents ← mod.sortIdents
+  let abstractTypes ← fieldMetadata.mapM (fieldKindToAbstractType sortIdents ·.sc)
+  let toabstracttype ← `(abbrev $fieldAbstractDispatcher $dParams* : Type := $(mkIdent casesOnName) $f $abstractTypes*)
   -- concrete field representation dispatcher
   let cParams := params ++ (← mod.assumeForEverySort ``Ord) ++ [fieldLabel]
-  let concreteTypes ← fieldMetadata.mapM (fun fm => fieldKindToType mod fm.sc)
+  let concreteTypes ← fieldMetadata.mapM (fieldKindToConcreteType sortIdents ·.sc)
   let toconcretetype ← `(abbrev $fieldConcreteDispatcher $cParams* : Type := $(mkIdent casesOnName) $f $concreteTypes*)
-  return (#[(fieldLabelToDomainName base, todomain), (fieldLabelToCodomainName base, tocodomain)], (fieldConcreteTypeName, toconcretetype))
+  return (#[(fieldLabelToDomainName base, todomain), (fieldLabelToCodomainName base, tocodomain)], (fieldAbstractDispatcherName, toabstracttype), (fieldConcreteTypeName, toconcretetype))
   where
-  -- Generate the concrete type for a field based on its kind
-  fieldKindToType (mod : Module) (sc : StateComponent) : m (TSyntax `term) := do
-    let sortIdents ← mod.sortIdents
+  /-- Get domain and codomain getter terms for a field. -/
+  fieldDomainCodomainGetters (sortIdents : Array Ident) (sc : StateComponent) : m (TSyntax `term × TSyntax `term) := do
     let f := mkIdent <| Name.append (structureFieldLabelTypeName base) sc.name
     let domainGetter ← `(term|($(fieldLabelToDomain base):ident $sortIdents*) $f:ident)
     let codomainGetter ← `(term|($(fieldLabelToCodomain base):ident $sortIdents*) $f:ident)
+    return (domainGetter, codomainGetter)
+  /-- Generate the abstract (canonical/functional) type for a field: `CanonicalField Domain Codomain`. -/
+  fieldKindToAbstractType (sortIdents : Array Ident) (sc : StateComponent) : m (TSyntax `term) := do
+    let (domainGetter, codomainGetter) ← fieldDomainCodomainGetters sortIdents sc
+    `(term| $(mkIdent ``Veil.CanonicalField) $domainGetter $codomainGetter)
+  /-- Generate the concrete type for a field based on its kind. -/
+  fieldKindToConcreteType (sortIdents : Array Ident) (sc : StateComponent) : m (TSyntax `term) := do
+    let (domainGetter, codomainGetter) ← fieldDomainCodomainGetters sortIdents sc
     let (mapKeyTerm, mapValueTerm) := (← `(term| ($(mkIdent ``Veil.IteratedProd') <| $domainGetter)), codomainGetter)
     match sc.kind with
     | .individual => pure codomainGetter
     | .relation => `(term| $(mkIdent ``Std.TreeSet) $mapKeyTerm)
     | .function => `(term| $(mkIdent ``Veil.TotalTreeMap) $mapKeyTerm $mapValueTerm)
-    | .module => throwError "[fieldKindToType] module kind is not supported"
+    | .module => throwError "[fieldKindToConcreteType] module kind is not supported"
 
 /-- For each `sc` in `components`, analyze its type to extract the arguments
 (domain) and codomain. -/
@@ -466,9 +501,9 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   -- declare field label type
   let (name0, stx0) ← declareStructureFieldLabelType stateName components
   -- declare field dispatchers
-  let (dispatchers, (fieldConcreteTypeName, fieldConcreteTypeStx)) ← mod.declareFieldDispatchers stateName fieldMetadata (← mod.sortBinders)
-  let (dispacherNames, dispatcherStxs) := Array.unzip dispatchers
-  for name in (#[name0, fieldConcreteTypeName] ++ dispacherNames) do
+  let (dispatchers, (fieldAbstractTypeName, fieldAbstractTypeStx), (fieldConcreteTypeName', fieldConcreteTypeStx)) ← mod.declareFieldDispatchers stateName fieldMetadata (← mod.sortBinders)
+  let (dispatcherNames, dispatcherStxs) := Array.unzip dispatchers
+  for name in (#[name0, fieldAbstractTypeName, fieldConcreteTypeName'] ++ dispatcherNames) do
     mod.throwIfAlreadyDeclared name
   -- declare liftings for needed instances
   -- FIXME: this specific instance is really required; the rest can be automatically inferred (see NOTE [AutomaticallyInferred])
@@ -491,6 +526,6 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   let lawfulFieldRep : Parameter := { kind := .moduleTypeclass .lawfulFieldRepresentation, name := lawfulFieldRepresentationName, «type» := lawfulFieldRepType, userSyntax := .missing }
   return ({ mod with parameters := mod.parameters ++ #[fieldConcreteTypeParam, fieldRep, lawfulFieldRep] ,
                      _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter ,
-                     _fieldRepMetaData := argTypesAsMap }, (#[stx0] ++ dispatcherStxs ++ specificInstances ++ instances ++ #[fieldConcreteTypeStx] ++ concreteInstances))
+                     _fieldRepMetaData := argTypesAsMap }, (#[stx0] ++ dispatcherStxs ++ #[fieldAbstractTypeStx] ++ specificInstances ++ instances ++ #[fieldConcreteTypeStx] ++ concreteInstances))
 
 end Veil
