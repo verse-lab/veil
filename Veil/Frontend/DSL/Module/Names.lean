@@ -130,4 +130,7 @@ def enumerableTransitionSystem : Ident := mkIdent enumerableTransitionSystemName
 def assembledInitName : Name := `Init
 def assembledInit : Ident := mkIdent assembledInitName
 
+def assembledRTSName : Name := `relationalTransitionSystem
+def assembledRTS : Ident := mkIdent assembledRTSName
+
 end Veil

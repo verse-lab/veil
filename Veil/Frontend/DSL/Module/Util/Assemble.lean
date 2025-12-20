@@ -260,4 +260,46 @@ def Module.assembleInit [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let mod ← mod.registerDerivedDefinition derivedDef
   return (initDef, mod)
 
+/-! ## Relational Transition System Assembly -/
+
+/-- Assembles a `RelationalTransitionSystem` instance combining `Assumptions`, `Init`, and `Next`.
+    This is a noncomputable definition that uses Classical logic. -/
+def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  mod.throwIfAlreadyDeclared assembledRTSName
+  let sorts ← mod.sortIdents
+  -- Sort binders: (node : Type)
+  let sortBinders ← mod.sortBinders
+  -- Inhabited instances for every sort: [Inhabited node]
+  let inhabitedBinders ← mod.assumeForEverySort ``Inhabited
+  -- User-defined typeclass parameters
+  let userDefinedParams : Array Parameter := mod.parameters.filter fun p =>
+    match p.kind with
+    | .moduleTypeclass .userDefined => true
+    | _ => false
+  let userDefinedBinders ← userDefinedParams.mapM (·.binder)
+  let allBinders := sortBinders ++ inhabitedBinders ++ userDefinedBinders
+  -- Construct type arguments
+  let theoryT ← mod.theoryStx
+  let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
+  let labelT ← `(term| $labelType $sorts*)
+  -- Construct the RTS type
+  let rtsType ← `(term| $(mkIdent ``RelationalTransitionSystem) $theoryT $stateT $labelT)
+  -- Construct field values with explicit type annotations
+  let (ρArg, σArg, χArg) := (mkIdent `ρ, mkIdent `σ, mkIdent `χ)
+  let assumptionsVal ← `(term| $assembledAssumptions ($ρArg := $theoryT) $sorts*)
+  let initVal ← `(term| $assembledInit ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
+  let nextVal ← `(term| $assembledNext ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
+  -- Generate the definition
+  let rtsDef ← `(command|
+    open Classical in
+    noncomputable def $assembledRTS $[$allBinders]* : $rtsType where
+      assumptions := $assumptionsVal
+      init := $initVal
+      tr := $nextVal)
+  -- Register as derived definition
+  let derivedFrom := Std.HashSet.ofArray #[assembledAssumptionsName, assembledInitName, assembledNextName]
+  let derivedDef : DerivedDefinition := { name := assembledRTSName, kind := .actionLike, params := #[], extraParams := userDefinedParams, derivedFrom := derivedFrom, stx := rtsDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
+  return (rtsDef, mod)
+
 end Veil
