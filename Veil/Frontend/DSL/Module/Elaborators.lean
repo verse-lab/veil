@@ -215,6 +215,8 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand initCmd
   Extract.genNextActCommands mod
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
+  let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
+  elabVeilCommand rtsCmd
   Verifier.runManager
   mod.generateVCs
   return { mod with _specFinalized := true }
