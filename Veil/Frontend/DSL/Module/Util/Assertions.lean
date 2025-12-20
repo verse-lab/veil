@@ -112,10 +112,12 @@ returns the proper "wrapper" term which pattern-matches over theory
 and/or and state, thus making all their fields accessible in `t`.
 `t` can depend on the field names of theory and state. The pattern-matches
 are generated according to `targets`. -/
-def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (TheoryAndStateTermTemplateArgKind × Ident))
+def Module.withTheoryAndStateTermTemplate (mod : Module)
+  (targets : List (TheoryAndStateTermTemplateArgKind × Ident))
   (t : Array Ident /- field names of theory -/ →
        Array Ident /- field names of state -/ →
        MetaM (TSyntax `term))
+  (fieldRepInstance : Term := fieldRepresentation)
   : MetaM (TSyntax `term) := do
   let motive := mkIdent `motive
   let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
@@ -146,7 +148,7 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
         let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
         let bundled := sfs.zip fieldTypes |>.zip sfsConc
         bundled.foldrM (init := body) fun ((f, ty), fConc) b => do
-          `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $fConc:ident ; $b)
+          `(let $f:ident : $ty := ($fieldRepInstance _).$(mkIdent `get) $fConc:ident ; $b)
       let tmp ← mkFunSyntax (if !mod._useFieldRepTC then sfs else sfsConc) body'
       `(term|
         @$(mkIdent casesOnState) $(← mod.sortIdentsForTheoryOrState mod._useFieldRepTC)*
@@ -160,11 +162,11 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
 background theory (e.g. in `assumption` definitions). Instead of
 writing `fun th => Pred`, this will pattern-match over the theory and
 make all its fields accessible for `Pred`. -/
-def withTheory (t : Term) :  MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
+def withTheory (t : Term) (fieldRepInstance : Term := fieldRepresentation) : MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
   let mut mod ← getCurrentModule
   let th := mkIdent `th
   let fn ← do
-    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th)] (fun _ _ => pure t)
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th)] (fun _ _ => pure t) fieldRepInstance
     `(term| (fun ($th : $environmentTheory) => $tmp))
   -- See NOTE(SUBTLE) to see why this is not actually ill-typed.
   let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory))]
@@ -175,11 +177,11 @@ background theory and the mutable state (e.g. in `invariant`
 definitions). Instead of writing `fun th st => Pred`, this will
 pattern-match over the theory and state and make all their fields
 accessible for `Pred`. This was previously called `funcasesM`. -/
-def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
+def withTheoryAndState (t : Term) (fieldRepInstance : Term := fieldRepresentation) : MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
   let mut mod ← getCurrentModule
   let (th, st) := (mkIdent `th, mkIdent `st)
   let fn ← do
-    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] (fun _ _ => pure t)
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] (fun _ _ => pure t) fieldRepInstance
     `(term| (fun ($th : $environmentTheory) ($st : $environmentState) => $tmp))
   -- NOTE(SUBTLE): `by veil_exact_theory` and `by veil_exact_state` work in a
   -- counter-intuitive way when applied to assertions. Concretely, these tactics
