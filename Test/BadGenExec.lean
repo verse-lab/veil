@@ -72,6 +72,7 @@ invariant [inv_2] pending L L → le N L
 
 #check_invariants
 
+set_option veil.desugarTactic true
 
 theorem recv_single_leader' (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
     [node_inhabited : Inhabited.{1} node] [tot : TotalOrder node] [btwn : Between node]
@@ -112,9 +113,31 @@ theorem recv_single_leader' (ρ : Type) (σ : Type) (node : Type) [node_dec_eq :
   unfold single_leader
   unhygienic split_ifs at *
   {
-    veil_concretize_state
-    -- veil_concretize_fields
-    -- Qiyuan: how to make this work???
+    -- perform the first several steps of `veil_fol`
+    (open Classical in veil_simp only [substateSimp, invSimp, smtSimp, quantifierSimp, ghostRelSimp]  at *)
+    veil_intro_ho
+    skip
+    -- the following is `veil_concretize_state_tr` expanded;
+    -- try the suggestion to obtain these
+    veil_simp only [HasCompl.compl, Classical.not_imp, Classical.not_not, Classical.not_forall]  at *
+    veil_destruct only[And, Exists]
+    (try rw [setIn_makeExplicit st] at *)
+    veil_destruct only[And, Exists]
+    (try subst st)
+    (try rw [setIn_makeExplicit s₁] at *)
+    veil_destruct only[And, Exists]
+    (try subst s₁)
+    (try subst st')       -- do another `subst` here
+    try (generalize (IsSubReaderOf.readFrom th) = __veil_th at *; (try clear th); veil_rename_hyp __veil_th => th)
+    try (generalize (IsSubStateOf.getFrom st) = __veil_st at *; (try clear st); veil_rename_hyp __veil_st => st)
+    veil_simp only [substateSimp, smtSimp]  at *
+    veil_destruct only[And, Exists]
+    -- then perform the remaining steps of `veil_fol`
+    (veil_concretize_fields; veil_destruct; (open Classical in veil_simp only [smtSimp]  at *); veil_intros)
+    -- solve
+    veil_smt
+
+    stop
 
     veil_simp only [fieldRepresentationSetSimpPre] at *
     open Classical in veil_simp only [(χ_rep_lawful .leader).get_set_idempotent' (by infer_instance_for_iterated_prod),
