@@ -102,49 +102,6 @@ private def toExplicitBindersForExists (stx : TSyntax `Lean.Parser.Term.brackete
     `(bracketedExplicitBinders| ($(identToBinderIdent freshId) : $tp))
   | _ => throwError s!"toExplicitBindersForExists: unexpected syntax: {stx}"
 
-/-- Build an assertion wrapper with concrete Theory and State types for trace language.
-    This differs from `withTheoryAndState` by using the concrete module types directly,
-    rather than the generic `ρ` and `σ` type parameters. -/
-private def withTheoryAndStateConcrete (mod : Module) (t : Term) (theoryT stateT : Term) (fieldRepInstance : Term)
-    : TermElabM Term := do
-  let theoryName := mod.name ++ theoryName
-  let stateName' := mod.name ++ stateName
-  let casesOnTheory := theoryName ++ `casesOn
-  let casesOnState := stateName' ++ `casesOn
-  let theoryFields ← getFieldIdentsForStruct theoryName
-  let stateFields ← getFieldIdentsForStruct stateName'
-  let stateFieldsConc := stateFields.map fun f => f.getId.appendAfter "_conc" |> Lean.mkIdent
-
-  let (th, st) := (mkIdent `th, mkIdent `st)
-  let motive := mkIdent `motive
-  let sorts ← mod.sortIdents
-
-  -- Build the innermost body with let-bindings for field representation
-  let mut body := t
-  let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
-  let bundled := stateFields.zip fieldTypes |>.zip stateFieldsConc
-  for ((f, ty), fConc) in bundled.reverse do
-    body ← `(let $f:ident : $ty := ($fieldRepInstance _).$(mkIdent `get) $fConc:ident ; $body)
-
-  -- Wrap with State.casesOn
-  let stateFun ← mkFunSyntax stateFieldsConc body
-  let stateWrapper ← `(term|
-    @$(mkIdent casesOnState) ($fieldAbstractDispatcher $sorts*)
-    ($motive := fun _ => Prop)
-    ($(mkIdent ``getFrom) $st)
-    ($stateFun))
-
-  -- Wrap with Theory.casesOn
-  let theoryFun ← mkFunSyntax theoryFields stateWrapper
-  let theoryWrapper ← `(term|
-    @$(mkIdent casesOnTheory) $sorts*
-    ($motive := fun _ => Prop)
-    ($(mkIdent ``readFrom) $th)
-    ($theoryFun))
-
-  -- Wrap in lambda with concrete types
-  `(term| (fun ($th : $theoryT) ($st : $stateT) => $theoryWrapper))
-
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident)) (spec : TSyntax `traceSpec) (pf : TSyntax `term)
   : CommandElabM Unit := do
   -- Get the current module
@@ -235,9 +192,10 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
           assertions := assertions.push t
           currStateId := currStateId + 1
       | TraceSpecLine.assertion t => do
-        -- Elaborate assertions using our custom wrapper with concrete types
+        -- Elaborate assertions using the wrapper with concrete types
         let fieldRepInstance ← `(term| $instAbstractFieldRepresentation $sorts*)
-        let wrappedTerm ← withTheoryAndStateConcrete mod (← `(uqc% (($t:term):Prop))) theoryT stateT fieldRepInstance
+        let stateSortTerm ← `(term| $fieldAbstractDispatcher $sorts*)
+        let wrappedTerm ← withTheoryAndStateFn mod (← `(uqc% (($t:term):Prop))) theoryT stateT fieldRepInstance stateSortTerm
         let t ← `(term|($wrappedTerm $theoryId $currState))
         assertions := assertions.push t
 
