@@ -37,10 +37,14 @@ def DesugarTacticM.runCore (giveSuggestion? : Bool) (stx : Syntax) (x : DesugarT
     -- some part here is inspired by `Aesop/Util/Basic.lean`
     let fmap ← getFileMap
     let (indent, col) := stx.getRange?.elim (0, 0) (Tactic.TryThis.getIndentAndColumn fmap)
-    let sep := if ← checkIfFullyOccupies fmap then Std.Format.line else " ; "
+    let doIndentation? ← checkIfFullyOccupies fmap
+    let sep := if doIndentation? then Std.Format.line else " ; "
     let fmt ← s.toFormat sep
-    Tactic.TryThis.addSuggestion (header := "After desugaring: ") stx
-      <| fmt.pretty (indent := indent) (column := col)
+    let txt := fmt.pretty (indent := indent) (column := col)
+    -- if the desugared result will not be indented across multiple lines,
+    -- then just squash it into a single line
+    let txt := if doIndentation? then txt else txt.removeLeadingSpaces.map fun c => if c == '\n' then ' ' else c
+    Tactic.TryThis.addSuggestion (header := "After desugaring: ") stx txt
   return a
 where
  -- this does not have to be `TacticM`, but for tracing purposes it's easier this way
@@ -64,8 +68,11 @@ where
 
 register_option veil.desugarTactic : Bool := {
   defValue := false
-  descr := "If set, Veil-specific tactics will be desugared and the\
-  desugared version will be displayed as a suggestion."
+  descr := "If set, Veil-specific tactics will be desugared and the \
+  desugared version will be displayed as a suggestion. \
+  Note that the formatting of the desugared version depends on **whether \
+  the original tactic is placed in isolation** (i.e., whether the lines \
+  it spans contain only whitespace characters other than the tactic itself)."
 }
 
 def DesugarTacticM.runByOption (stx : Syntax) (x : DesugarTacticM α) : TacticM α := do
