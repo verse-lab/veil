@@ -39,6 +39,10 @@ instance HashableOfTreeMap [Ord α] [Hashable α] [Hashable β] : Hashable (Std.
 
 instance HashableOfExtTreeSet [Ord α] [Hashable α] [TransOrd α]: Hashable (ExtTreeSet α) where
   hash s := s.foldl (fun r a => mixHash r (hash a)) 7
+
+instance HashableOfExtTreeMap [Ord α] [Hashable α] [Hashable β] [TransOrd α]
+  : Hashable (ExtTreeMap α β) where
+  hash s := s.foldl (fun r a b => mixHash r (mixHash (hash a) (hash b))) 7
 /--
 `Ord` instances for `Std.TreeMap` and `Std.TreeSet`
 
@@ -87,59 +91,6 @@ instance TransOrdExtTreeSet [Ord α] [TransOrd α]
     intro s1 s2 s3 h1 h2
     dsimp [compare] at *
     apply TransCmp.isLE_trans h1 h2
-
-
--- instance instTransOrdProd
---   [Ord α] [Ord β] [TransOrd α] [TransOrd β]
---   : TransOrd (α × β) where
---   eq_swap := by
---     intro x y
---     simp only [compare]
---     cases h1 : compare x.1 y.1
---     · -- .lt case
---       have : compare y.1 x.1 = .gt := by
---         have := @OrientedCmp.eq_swap α compare _ x.1 y.1
---         simp [h1, Ordering.swap] at this
---         grind
---       simp [Ordering.then, this, Ordering.swap]
---     · -- .eq case
---       have : compare y.1 x.1 = .eq := by
---         have := @OrientedCmp.eq_swap α compare _ x.1 y.1
---         simp [h1, Ordering.swap] at this
---         grind
---       simp [Ordering.then, this]
---       exact @OrientedCmp.eq_swap β compare _ x.2 y.2
---     · -- .gt case
---       have : compare y.1 x.1 = .lt := by
---         have := @OrientedCmp.eq_swap α compare _ x.1 y.1
---         simp [h1, Ordering.swap] at this
---         grind
---       simp [Ordering.then, this, Ordering.swap]
---   isLE_trans := by
---     intro x y z hxy hyz
---     simp only [compare] at hxy hyz ⊢
---     cases hxy_fst : compare x.1 y.1 <;> cases hyz_fst : compare y.1 z.1
---     <;> simp [Ordering.then, hxy_fst, hyz_fst] at hxy hyz ⊢
---     . have hxz : compare x.1 z.1 = .lt := by
---         apply Std.TransCmp.lt_of_le_of_lt
---         · rw [hxy_fst]; simp
---         · rw [hyz_fst]
---       simp [hxz]
---     . have hyz : compare y.1 z.1 ≠ .gt := by intro h; grind
---       have hxz : compare x.1 z.1 = .lt := Std.TransCmp.lt_of_lt_of_le hxy_fst hyz
---       simp [hxz]
---     . have hxy : compare x.1 y.1 ≠ .gt := by intro h; grind
---       have hxz : compare x.1 z.1 = .lt := Std.TransCmp.lt_of_le_of_lt hxy hyz_fst
---       simp [hxz]
---     . have hxz : compare x.1 z.1 ≠ .gt := by
---         have hxy : compare x.1 y.1 ≠ .gt := by intro h; grind
---         have hyz : compare y.1 z.1 ≠ .gt := by intro h; grind
---         exact Std.TransCmp.le_trans hxy hyz
---       cases h_comp_xz : compare x.1 z.1
---       · simp
---       · simp
---         exact Std.TransCmp.isLE_trans hxy hyz
---       · contradiction
 
 
 instance TransOrdExtTreeMap [Ord α] [Ord β] [TransOrd α] [TransOrd β]
@@ -239,8 +190,6 @@ instance EnumerationForExtTreeMap [Ord α] [Ord β]
         exact List.filter_sublist
       · -- 证明 ExtTreeMap.ofList l = m
         sorry
-
-
 
 
 

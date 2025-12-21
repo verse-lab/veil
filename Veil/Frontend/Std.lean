@@ -4,6 +4,9 @@ import Mathlib.Data.FinEnum
 import Mathlib.Algebra.Ring.Parity
 import Mathlib.Data.List.Sublists
 import Veil.Frontend.DSL.State.Types
+import Std.Data.ExtTreeSet.Lemmas
+
+open Std
 
 /-! # Axiomatizations of various structures -/
 
@@ -307,15 +310,19 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
     ∀ (s : nset), greater_than_third s → ¬ is_empty s
 
 
-open Std
+/-! ## Set -/
+
 class TSet (α : Type) (κ: Type) where
   count : κ → Nat
   contains : α → κ → Bool
   empty : κ
   insert : α → κ → κ
   remove : α → κ → κ
-  toMultiset : κ -> Multiset α
   toList : κ -> List α
+  filter : κ → (α → Bool) → κ
+  union : κ → κ → κ
+  diff : κ → κ → κ
+  intersection : κ → κ → κ
   empty_count : count empty = 0
   empty_contains (elem : α) : contains elem empty = false
   contains_insert_self (elem : α) (s : κ) :
@@ -333,40 +340,66 @@ class TSet (α : Type) (κ: Type) where
     contains elem₁ (remove elem₂ s) = contains elem₁ s
   count_remove (elem : α) (s : κ) :
     count (remove elem s) = if contains elem s then count s - 1 else count s
+  contains_union (elem : α) (s1 s2 : κ) :
+    contains elem (union s1 s2) = (contains elem s1 || contains elem s2)
+  contains_diff (elem : α) (s1 s2 : κ) :
+    contains elem (diff s1 s2) = (contains elem s1 && not (contains elem s2))
 
 
-instance (n : Nat) : TSet (Fin n) (ExtTreeSet (Fin n)) where
-  count := ExtTreeSet.size
-  contains := fun a s => s.contains a
-  empty := ExtTreeSet.empty
-  insert := fun a s => s.insert a
-  remove := fun a s => s.erase a
-  toMultiset := fun s => Multiset.ofList s.toList
-  toList := fun s => s.toList
-  empty_count := by grind
-  empty_contains := by grind
-  contains_insert_self := by intros elem s; grind
-  contains_insert_other := by grind
-  insert_idempotent := by
-    intros elem sdiff_eq;
-    congr 1
-    apply Std.ExtTreeSet.ext_mem
-    grind
-  count_insert := by grind
-  contains_remove_self := by grind
-  contains_remove_other := by grind
-  count_remove := by grind
+def TSet.map [origin_set : TSet α κ] [target_set : TSet β l] (s1 : κ) (f : α → β) : l :=
+  origin_set.toList s1 |>.map f |>.foldl (fun acc a => target_set.insert a acc) target_set.empty
 
 
-instance  [Ord α] [TransOrd α] [LawfulEqOrd α]
+theorem extTreeSet_contains_filter_not [Ord α] [TransOrd α] [LawfulEqOrd α]
+    {s1 s2 : ExtTreeSet α compare} {elem : α} :
+    (s1.filter (!s2.contains ·)).contains elem = (s1.contains elem && !s2.contains elem) := by
+  cases h1 : s1.contains elem <;> cases h2 : s2.contains elem <;> simp [h2]
+  all_goals
+    by_contra
+    have : elem ∈ s1.filter (!s2.contains ·) := by rw [← Std.ExtTreeSet.contains_iff_mem]; grind
+    try rw [mem_filter] at this
+    simp [h2] at this
+    try grind
+
+@[grind =]
+theorem list_foldl_insert [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+  (l : List α) (s : ExtTreeSet α compare) (elem : α) :
+  (l.foldl (fun acc a => acc.insert a) s).contains elem = (s.contains elem || l.contains elem) := by
+  induction l generalizing s with
+  | nil => grind
+  | cons head tail ih =>
+    rw [List.foldl_cons, ih]
+    simp only [List.contains_cons]
+    by_cases h : head = elem
+    · rw [h]
+      have : (s.insert elem).contains elem = true := by grind
+      simp [this]
+    · have h1 : (s.insert head).contains elem = s.contains elem := by grind
+      have h2 : (elem == head) = false := by grind
+      simp [h1, h2, Bool.false_or]
+
+
+theorem extTreeSet_fold_insert
+  [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+  (elem : α) (s1 s2 : ExtTreeSet α compare) :
+  (ExtTreeSet.foldl (fun acc a => acc.insert a) s2 s1).contains elem = (s1.contains elem || s2.contains elem) := by
+  rw [ExtTreeSet.foldl_eq_foldl_toList]
+  grind
+
+
+-- https://github.com/leanprover-community/mathlib4/blob/v4.19.0/Mathlib/Tactic/Linarith/Oracle/FourierMotzkin.lean#L41
+instance  [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   : TSet α (ExtTreeSet α) where
   count := ExtTreeSet.size
   contains := fun a s => s.contains a
   empty := ExtTreeSet.empty
   insert := fun a s => s.insert a
   remove := fun a s => s.erase a
-  toMultiset := fun s => Multiset.ofList s.toList
   toList := fun s => s.toList
+  filter := fun s p => s.filter p
+  union := fun s1 s2 => s1.foldl .insert s2
+  diff := fun s1 s2 => s1.filter (!s2.contains ·)
+  intersection := fun s1 s2 => s1.filter (s2.contains ·)
   empty_count := by grind
   empty_contains := by grind
   contains_insert_self := by intros; grind
@@ -380,7 +413,12 @@ instance  [Ord α] [TransOrd α] [LawfulEqOrd α]
     congr 1
     apply ExtTreeSet.ext_mem
     grind
-
+  contains_union := by
+    intros elem s1 s2
+    exact extTreeSet_fold_insert elem s1 s2
+  contains_diff := by
+    intros elem s1 s2
+    exact extTreeSet_contains_filter_not
 
 class TMultiset (α : Type) (κ : Type) where
   empty : κ
@@ -422,64 +460,44 @@ instance DecidableEqExtTreeMap
 
 abbrev TMapMultiset (α : Type) [Ord α] := Std.ExtTreeMap α { n : Nat // n > 0 }
 
-instance [Ord α] : Inhabited (TMapMultiset α) :=
-  ⟨Std.ExtTreeMap.empty⟩
+instance [Ord α] : Inhabited (TMapMultiset α) := ⟨Std.ExtTreeMap.empty⟩
 
-def TMapMultiset.totalSize {α : Type} [Ord α]
-  [TransOrd α]
-  (m : TMapMultiset α) : Nat :=
-  m.foldl (fun acc _ count => acc + count.val) 0
+instance : Ord { n : Nat // n > 0 } where
+  compare x y := compare x.1 y.1
+
+instance : LawfulEqOrd { n : Nat // n > 0 } where
+  eq_of_compare h := Subtype.eq <| Nat.instLawfulEqOrd.eq_of_compare h
+
+instance [Ord α] [Ord β] : Ord (α × β) where
+  compare x y := compare x.1 y.1 |>.then (compare x.2 y.2)
+
+instance [Ord α] [TransOrd α] : Ord (TMapMultiset α) where
+  compare m₁ m₂ := compare m₁.toList m₂.toList
+
 
 open Std.ExtDTreeMap
 
--- Helper lemma: when we alter to increment count by 1, totalSize increases by 1
-lemma totalSize_alter_increment [Ord α] [TransOrd α] [LawfulEqOrd α]
-  (m : TMapMultiset α) (elem : α) :
-  let m' := m.alter elem fun
-    | some n => some ⟨n.val + 1, by omega⟩
-    | none   => some ⟨1, by omega⟩
-  TMapMultiset.totalSize m' = TMapMultiset.totalSize m + 1 := by
-  unfold TMapMultiset.totalSize
-  simp only [Std.ExtTreeMap.foldl, Std.ExtTreeMap.alter]
-  -- Use induction on the tree structure
-  cases m with | mk inner =>
-  simp only [Std.ExtTreeMap.alter]
-  -- Apply the foldl lemma to convert to toList
-  rw [Const.foldl_eq_foldl_toList, Const.foldl_eq_foldl_toList (t := inner)]
-  -- The crucial step: we need a lemma about how toList changes after alter
-  -- For now, we use sorry as this requires deep knowledge of tree map internals
-  -- In practice, this would be proven by:
-  -- 1. Showing toList of altered map has exactly one different entry
-  -- 2. That entry's count differs by exactly 1
-  -- 3. Therefore the sum differs by exactly 1
-  sorry
-
-
 instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
-  [LawfulEqOrd α]
-  : TMultiset α (TMapMultiset α) where
+  [LawfulEqOrd α] : TMultiset α (TMapMultiset α) where
   empty := Std.ExtTreeMap.empty
-
-  -- 2. 插入：利用 alter 进行原子更新
   insert elem s :=
     s.alter elem fun
       | some n => some ⟨n.val + 1, by omega⟩
       | none   => some ⟨1, by omega⟩
-  -- 3. 移除：利用 alter，如果减到 0 则移除 Key
+
   remove elem s :=
     s.alter elem fun
       | some n => if h : n.val > 1 then some ⟨n.val - 1, by omega⟩ else none
       | none   => none
-  -- 4. 查询
+
   count elem s := match s.get? elem with
     | some n => n.val
     | none => 0
+
   contains elem s := s.contains elem
-  size := TMapMultiset.totalSize
-
+  size s := s.foldl (fun acc _ count => acc + count.val) 0
   toList s := s.foldl (fun acc elem count => acc ++ List.replicate count.val elem) []
-
-  empty_size := by simp [TMapMultiset.totalSize, Std.ExtTreeMap.empty]; rfl
+  empty_size := by simp [Std.ExtTreeMap.empty]; rfl
   empty_count elem := by grind
   empty_contains elem := by grind
   -- contains_def elem s := by grind
@@ -491,5 +509,34 @@ instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
   -- size_remove elem s := by sorry
 
 
-instance instTMultisetForFin (n : Nat) : TMultiset (Fin n) (Std.ExtTreeMap (Fin n) { m : Nat // m > 0 }) :=
+instance instTMultisetForFin (n : Nat) : TMultiset (Fin n) (TMapMultiset (Fin n)) :=
   instTMultiSetWithExtTreeMap
+
+
+class TMap (α : Type) (β : Type) (κ : Type) where
+  count : κ → Nat
+  contains : α → κ → Bool
+  lookup : α → κ → Option β
+  empty : κ
+  insert : α → β → κ → κ
+  remove : α → κ → κ
+  toList : κ → List (α × β)
+  keys : κ → List α
+  values : κ → List β
+  filter : κ → (α → β → Bool) → κ
+  equal : κ → κ → Bool
+
+
+instance [BEq α] [BEq β] [Ord α] [TransOrd α] [LawfulEqOrd α]
+  : TMap α β (ExtTreeMap α β) where
+  count := fun m => m.inner.size
+  contains := fun k m => m.inner.contains k
+  lookup := fun k m => get? m.inner k
+  empty := ExtTreeMap.empty
+  insert := fun k v m => ⟨m.inner.insert k v⟩
+  remove := fun k m => ⟨m.inner.erase k⟩
+  toList := fun m => m.toList
+  keys := fun m => m.toList.map Prod.fst
+  values := fun m => m.toList.map Prod.snd
+  filter := fun m p => ⟨m.inner.filter p⟩
+  equal := fun m1 m2 => m1.toList == m2.toList
