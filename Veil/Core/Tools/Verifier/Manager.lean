@@ -304,6 +304,12 @@ def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (m
 def VCManager.theorems [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
   mgr.nodes.valuesArray.mapM (·.theoremStx)
 
+def VCManager.undischargedTheorems [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
+  mgr.nodes.valuesArray.filterMapM (fun vc => do
+    match vc.successful with
+    | some _ => return none
+    | none => return some (← vc.theoremStx))
+
 open Lean.Meta.Tactic.TryThis in
 def VCManager.suggestions [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Suggestion) :=
   mgr.nodes.valuesArray.mapM (·.suggestion)

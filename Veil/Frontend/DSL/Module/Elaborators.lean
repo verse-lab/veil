@@ -230,7 +230,16 @@ def elabCheckInvariants : CommandElab := fun stx => do
   -- Display suggestions if the command is `#check_invariants?`
   match stx with
   | `(command|#check_invariants?) => do
-    Verifier.vcManager.atomically (fun ref => do let mgr ← ref.get; liftCoreM <| addSuggestions stx (← mgr.suggestions))
+    Verifier.vcManager.atomically (fun ref => do
+      let mgr ← ref.get
+      let cmds ← liftCoreM <| constructCommands (← mgr.theorems)
+      liftCoreM <| addSuggestion stx cmds)
+  | `(command|#check_invariants!) => do
+    Verifier.displayStreamingResults stx getResults
+    Verifier.vcManager.atomically (fun ref => do
+      let mgr ← ref.get
+      let cmds ← liftCoreM <| constructCommands (← mgr.undischargedTheorems)
+      liftCoreM <| addSuggestion stx cmds)
   | `(command|#check_invariants) => do
     Verifier.displayStreamingResults stx getResults
     -- Verifier.vcManager.atomicallyOnce frontendNotification
@@ -245,6 +254,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
         let results ← mgr.toVerificationResults
         let isDone := mgr._doneWith.size == mgr.nodes.size
         return (results, if isDone then .done else .running))
+
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do

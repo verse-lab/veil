@@ -254,6 +254,7 @@ declare_syntax_cat checkInvariantsCmd
 
 syntax (name := checkInvariantsNormal) "#check_invariants" : checkInvariantsCmd
 syntax (name := checkInvariantsWithSuggestions) "#check_invariants?" : checkInvariantsCmd
+syntax (name := checkInvariantsUndischarged) "#check_invariants!" : checkInvariantsCmd
 
 syntax (name := checkInvariants) checkInvariantsCmd : command
 
