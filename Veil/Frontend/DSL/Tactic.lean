@@ -131,6 +131,7 @@ syntax (name := veil_destruct_goal) "veil_destruct_goal" : tactic
 syntax (name := veil_concretize_state) "veil_concretize_state" : tactic
 syntax (name := veil_concretize_state_tr) "veil_concretize_state_tr" : tactic
 syntax (name := veil_concretize_fields) "veil_concretize_fields" ("!")? : tactic
+syntax (name := veil_concretize_fields_tr) "veil_concretize_fields_tr" : tactic
 
 syntax (name := veil_intros) "veil_intros" : tactic
 /-- Do `intros` to bring all higher-order values (e.g., values of structures
@@ -452,6 +453,41 @@ def elabVeilConcretizeFields (aggressive : Bool) : DesugarTacticM Unit := veilWi
   for t in tacs do
     veilWithMainContext $ veilEvalTactic t
 
+/-- Similar to `elabVeilConcretizeFields`, but for transition goals where
+hypotheses have the form `st'.field = FieldRepresentation.set [...] st.field`.
+This first applies `congrArg (χ_rep _).get` to view the equalities through
+the field representation, then calls `elabVeilConcretizeFields`, and finally
+simplifies with `smtSimp`. -/
+def elabVeilConcretizeFieldsForTransitionGoals : DesugarTacticM Unit := veilWithMainContext do
+  -- Step 1: Identify hypotheses that look like these:
+  -- ```lean4
+  -- hleader' : st'.leader = Veil.FieldRepresentation.set [((some n, ()), fun x => true)] st.leader
+  -- hpending' : st'.pending = Veil.FieldRepresentation.set [((some sender, some n, ()), fun x_1 x_2 => x)] st.pending
+  -- ```
+  -- and "view" them through `(χ_rep _).get`, via `congrArg`
+  let lctx ← getLCtx
+  let mut hypsToTransform : Array Ident := #[]
+
+  for decl in lctx do
+    if decl.isImplementationDetail then continue
+    -- Check if the type is an equality
+    let some (_, _, rhs) := decl.type.eq? | continue
+    -- Check if the RHS involves FieldRepresentation.set
+    let rhsFn := rhs.getAppFn'
+    if rhsFn.isConstOf ``FieldRepresentation.set then
+      hypsToTransform := hypsToTransform.push (mkIdent decl.userName)
+
+  -- Apply `congrArg (χ_rep _).get` to each identified hypothesis
+  for hyp in hypsToTransform do
+    let tac ← `(tactic| apply congrArg ($(fieldRepresentation) _).get at $hyp:ident)
+    veilEvalTactic tac
+
+  -- Step 2: Concretize fields using the standard procedure
+  elabVeilConcretizeFields false
+
+  -- Step 3: Final simplification
+  veilWithMainContext $ veilEvalTactic (← `(tactic| veil_simp only [$(mkIdent `smtSimp):ident] at *))
+
 @[inherit_doc veil_neutralize_decidable_inst]
 def elabVeilNeutralizeDecidableInst : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident])
@@ -765,6 +801,7 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic veil_concretize_state,
   tactic veil_concretize_state_tr,
   tactic veil_concretize_fields,
+  tactic veil_concretize_fields_tr,
   tactic veil_smt,
   tactic veil_smt_trace,
   tactic veil_simp,
@@ -795,6 +832,7 @@ def elabVeilTactics : Tactic := fun stx => do
   | `(tactic| veil_concretize_state) => do withTiming "veil_concretize_state" elabVeilConcretizeState
   | `(tactic| veil_concretize_state_tr) => do withTiming "veil_concretize_state_tr" elabVeilConcretizeStateForTransitionGoals
   | `(tactic| veil_concretize_fields $[!%$agg]?) => do withTiming "veil_concretize_fields" (elabVeilConcretizeFields (agg.isSome))
+  | `(tactic| veil_concretize_fields_tr) => do withTiming "veil_concretize_fields_tr" elabVeilConcretizeFieldsForTransitionGoals
   | `(tactic| veil_smt%$tk) => do withTiming "veil_smt" $ elabVeilSmt tk
   | `(tactic| veil_smt?%$tk) => do withTiming "veil_smt?" $ elabVeilSmt tk true
   | `(tactic| veil_simp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do withTiming "veil_simp" $ elabVeilSimp (trace? := false) cfg o params loc
