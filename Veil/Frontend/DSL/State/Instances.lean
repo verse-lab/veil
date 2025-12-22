@@ -56,9 +56,8 @@ instance [Ord α] [Hashable α] [Hashable β] : Hashable (Std.TreeMap α β) whe
 If we want to use `symmetric reduction` in model checking, we need `Ord` instances
 to make the states comparable.
  -/
-instance [Ord α] [Ord β] : Ord (α × β) where
-  compare x y := match x, y with
-    | (a, b), (a', b') => compare a a' |>.then (compare b b')
+
+attribute [instance] lexOrd
 
 instance [Ord α] : Ord (Std.TreeSet α) where
   compare s1 s2 := compare s1.toArray s2.toArray
