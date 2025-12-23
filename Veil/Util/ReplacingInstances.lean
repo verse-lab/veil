@@ -1,5 +1,4 @@
 import Lean
-import Mathlib.Lean.Expr.Basic
 
 namespace Veil.Util
 
