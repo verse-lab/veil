@@ -173,7 +173,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.procedures.filter (fun s => match s.info with
     | .action _ _ | .initializer => true
     | .procedure _ => false)
-  let solverTactic ← if mod._useLocalRPropTC then `(by veil_solve !) else `(by veil_solve)
+  let solverTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp !) else `(by veil_solve_wp)
   let mut doesNotThrowVCs : Std.HashSet VCId := {}
   let mut clausesVCsByInv : Std.HashMap Name (Std.HashSet VCId) := {}
   -- let mut preservesInvariantsVCs : Std.HashSet VCId := {}
