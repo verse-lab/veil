@@ -2,6 +2,7 @@ import Mathlib.Logic.Equiv.Defs
 import Mathlib.Data.FinEnum
 import Veil.Frontend.DSL.Module.Names
 import Veil.Util.Deriving
+import Mathlib.Tactic.DeriveFintype
 
 /-! # Reification of Types of State Fields -/
 
@@ -226,6 +227,11 @@ class Enumeration (α : Type u) where
   complete : ∀ a : α, a ∈ allValues
   [decEq : DecidableEq α]
 
+def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] [dec : DecidableEq β] (h : α ≃ β) : Enumeration β where
+  allValues := inst.allValues.map h
+  complete := by simp ; intro b ; exists (h.symm b) ; simp ; apply inst.complete
+  decEq := dec
+
 attribute [instance low] Enumeration.decEq
 attribute [grind ←] Enumeration.complete
 
@@ -236,8 +242,8 @@ Here only gives some basic instances. More complicated ones should be
 found in `Veil.Frontend.Std`.
 -/
 
-instance : Enumeration Unit where
-  allValues := [()]
+instance : Enumeration PUnit where
+  allValues := [PUnit.unit]
   complete := by simp
 
 instance : Enumeration Bool where
@@ -255,6 +261,25 @@ instance [inst : Enumeration α] : Enumeration (Option α) where
 instance {α β} [insta : Enumeration α] [instb : Enumeration β] : Enumeration (α × β) where
   allValues := List.product insta.allValues instb.allValues
   complete := by simp ; grind
+
+instance {α β} [insta : Enumeration α] [instb : Enumeration β] : Enumeration (Sum α β) where
+  allValues := (insta.allValues.map Sum.inl) ++ (instb.allValues.map Sum.inr)
+  complete := by simp ; grind
+
+instance [inst : Enumeration α] (p : α → Prop) [DecidablePred p] : Enumeration { x // p x } where
+  allValues := inst.allValues.filterMap fun x => if h : p x then some ⟨x, h⟩ else none
+  complete := by simp ; grind
+
+instance {β : α → Type v} [insta : Enumeration α] [instb : ∀ a, Enumeration (β a)] : Enumeration (Sigma β) where
+  allValues := insta.allValues.flatMap fun a => (instb a).allValues.map <| Sigma.mk a
+  complete := by simp ; grind
+
+def Enumeration.Pi.enum [insta : Enumeration α] (β : α → Type v) [instb : ∀ a, Enumeration (β a)] : List (∀ a, β a) :=
+  (List.pi insta.allValues fun x => (instb x).allValues).map (fun f x => f x (insta.complete x))
+
+instance [insta : Enumeration α] {β : α → Type v} [instb : ∀ a, Enumeration (β a)] : Enumeration (∀ a, β a) where
+  allValues := (Enumeration.Pi.enum β)
+  complete := by intro f ; simp [Enumeration.Pi.enum, List.mem_pi] ; exists (fun x _ => f x) ; simp ; grind
 
 /-!
 While some `Decidable` instances can be obtained by converting `Enumeration`
@@ -290,7 +315,7 @@ private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Arr
     `(⟨$arr,*⟩)
   `(@$(mkIdent ``IteratedProd.foldMap) _ $ts $init $f $enums)
 
-def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
+def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Enumeration indVal header.argNames fieldNames
   let allValues ← mkAllValuesFromHeader header localInsts fieldNames
@@ -301,6 +326,36 @@ def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := ForStructure.m
       $(mkIdent ``Enumeration) $(header.targetType) where
     $(mkIdent `allValues):ident := $allValues
     $(mkIdent `complete):ident  := $completeProof)
+
+def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
+  let indVal ← getConstInfoInduct declName
+  let cmd ← liftTermElabM do
+    let header ← mkHeader ``Enumeration 0 indVal
+    let binders' ← mkInstImplicitBinders `Decidable indVal header.argNames
+    `(command|
+      instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+        $(mkIdent ``Enumeration) $header.targetType :=
+      $(mkIdent ``Enumeration.ofEquiv) _ (proxy_equiv% $header.targetType))
+  elabVeilCommand cmd
+  return true
+
+def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
+  if ← isEnumType declName then
+    -- make use of `Fintype` deriving for enums, since it defines auxiliary definitions
+    Mathlib.Deriving.Fintype.mkFintypeEnum declName
+    let ctorIdxName := declName.mkStr "ctorIdx"
+    let enumListName := declName.mkStr "enumList"
+    let ctorThmName := declName.mkStr "enumList_getElem?_ctorIdx_eq"
+    let x ← liftCoreM <| mkIdent <$> mkFreshUserName `x
+    let cmd ← `(command|
+      instance : $(mkIdent ``Enumeration) $(mkIdent declName) where
+        $(mkIdent `allValues):ident := $(mkIdent enumListName)
+        $(mkIdent `complete):ident := by
+          intro $x:ident ; rw [$(mkIdent ``List.mem_iff_getElem?):ident]
+          exact ⟨$(mkIdent ctorIdxName) $x, $(mkIdent ctorThmName) $x⟩)
+    elabVeilCommand cmd
+    return true
+  orM (mkEnumerationInstCmdForStructure declName) (mkEnumerationInstCmdGeneralCase declName)
 
 def mkEnumerationHandler := onlyHandleOne mkEnumerationInstCmd
 
