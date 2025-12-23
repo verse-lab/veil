@@ -46,7 +46,18 @@ def Lean.Elab.Attribute.mkStx [Monad m] [MonadQuotation m] (attr : Attribute) : 
     | AttributeKind.local  => `(Lean.Parser.Term.attrKind| local)
     | AttributeKind.scoped => `(Lean.Parser.Term.attrKind| scoped)
   `(Lean.Parser.Term.attrInstance| $kindStx $(Lean.mkIdent attr.name):ident)
+
 namespace Veil
+
+declare_syntax_cat commands
+syntax (command ppLine ppLine)* : commands
+elab_rules : command
+  | `(commands| $cmds:command*) => do
+    for cmd in cmds do
+      elabCommand cmd
+
+def constructCommands (thms : Array (TSyntax `command)) : CoreM (TSyntax `commands) := `(commands| $[$thms]*)
+
 
 def withTiming [Monad m] [MonadTrace m] [MonadOptions m] [MonadRef m] [MonadLiftT BaseIO m] [AddMessageContext m] (name : String) (tac : m α) : m α := do
   let startTime ← IO.monoMsNow; let res ← tac; let endTime ← IO.monoMsNow

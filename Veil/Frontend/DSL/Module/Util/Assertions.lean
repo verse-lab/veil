@@ -111,11 +111,16 @@ elab_rules : tactic
 returns the proper "wrapper" term which pattern-matches over theory
 and/or and state, thus making all their fields accessible in `t`.
 `t` can depend on the field names of theory and state. The pattern-matches
-are generated according to `targets`. -/
-def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (TheoryAndStateTermTemplateArgKind × Ident))
+are generated according to `targets`.
+- `stateSortTerm`: Optional term to use as the sort argument for state casesOn.
+  If not provided, uses `mod.sortIdentsForTheoryOrState mod._useFieldRepTC`. -/
+def Module.withTheoryAndStateTermTemplate (mod : Module)
+  (targets : List (TheoryAndStateTermTemplateArgKind × Ident))
   (t : Array Ident /- field names of theory -/ →
        Array Ident /- field names of state -/ →
        MetaM (TSyntax `term))
+  (fieldRepInstance : Term := fieldRepresentation)
+  (stateSortTerm : Option Term := none)
   : MetaM (TSyntax `term) := do
   let motive := mkIdent `motive
   let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
@@ -146,10 +151,13 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
         let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
         let bundled := sfs.zip fieldTypes |>.zip sfsConc
         bundled.foldrM (init := body) fun ((f, ty), fConc) b => do
-          `(let $f:ident : $ty := ($fieldRepresentation _).$(mkIdent `get) $fConc:ident ; $b)
+          `(let $f:ident : $ty := ($fieldRepInstance _).$(mkIdent `get) $fConc:ident ; $b)
       let tmp ← mkFunSyntax (if !mod._useFieldRepTC then sfs else sfsConc) body'
+      let sortTerms ← match stateSortTerm with
+        | some sortTerm => pure #[sortTerm]
+        | none => pure (← mod.sortIdentsForTheoryOrState mod._useFieldRepTC)
       `(term|
-        @$(mkIdent casesOnState) $(← mod.sortIdentsForTheoryOrState mod._useFieldRepTC)*
+        @$(mkIdent casesOnState) $sortTerms*
         ($motive := fun _ => Prop)
         ($(mkIdent ``getFrom) $i)
         ($tmp))
@@ -160,11 +168,11 @@ def Module.withTheoryAndStateTermTemplate (mod : Module) (targets : List (Theory
 background theory (e.g. in `assumption` definitions). Instead of
 writing `fun th => Pred`, this will pattern-match over the theory and
 make all its fields accessible for `Pred`. -/
-def withTheory (t : Term) :  MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
+def withTheory (t : Term) (fieldRepInstance : Term := fieldRepresentation) : MetaM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
   let mut mod ← getCurrentModule
   let th := mkIdent `th
   let fn ← do
-    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th)] (fun _ _ => pure t)
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th)] (fun _ _ => pure t) fieldRepInstance
     `(term| (fun ($th : $environmentTheory) => $tmp))
   -- See NOTE(SUBTLE) to see why this is not actually ill-typed.
   let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory))]
@@ -194,6 +202,19 @@ def withTheoryAndState (t : Term) : MetaM (Array (TSyntax `Lean.Parser.Term.brac
   -- evaluated with `ρ := Theory` and `σ := State`.
   let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory)), ← `(bracketedBinder| ($st : $environmentState := by veil_exact_state))]
   return (binders, ← `(term|$fn $th $st))
+
+/-- Variant of `withTheoryAndState` that uses specific types for theory and
+state rather than the environment theory `ρ` and environment state `σ`. We use
+this to elaborate assertions in `sat trace` commands. -/
+def withTheoryAndStateFn (mod : Module) (t : Term) (theoryT stateT : Term)
+    (fieldRepInstance : Term) (stateSortTerm : Term) : MetaM Term := do
+  let (th, st) := (mkIdent `th, mkIdent `st)
+  let tmp ← mod.withTheoryAndStateTermTemplate
+    [(.theory, th), (.state .none "_conc", st)]
+    (fun _ _ => pure t)
+    fieldRepInstance
+    (stateSortTerm := some stateSortTerm)
+  `(term| (fun ($th : $theoryT) ($st : $stateT) => $tmp))
 
 /-! ## Term Creation -/
 

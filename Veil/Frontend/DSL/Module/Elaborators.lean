@@ -209,21 +209,45 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
     elabVeilCommand cmd
   let (nextCmd, mod) ← mod.assembleNext
   elabVeilCommand nextCmd
+  let (nextTrCmd, mod) ← mod.assembleNextTransition
+  elabVeilCommand nextTrCmd
+  let (initCmd, mod) ← mod.assembleInit
+  elabVeilCommand initCmd
   Extract.genNextActCommands mod
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
+  let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
+  elabVeilCommand rtsCmd
   Verifier.runManager
   mod.generateVCs
   return { mod with _specFinalized := true }
 
+open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
   let _ ← mod.ensureSpecIsFinalized
   Verifier.startAll
-  Verifier.displayStreamingResults stx getResults
-  -- Verifier.vcManager.atomicallyOnce frontendNotification
-  --   (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
-  --   (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
+  -- Display suggestions if the command is `#check_invariants?`
+  match stx with
+  | `(command|#check_invariants?) => do
+    Verifier.vcManager.atomically (fun ref => do
+      let mgr ← ref.get
+      let cmds ← liftCoreM <| constructCommands (← mgr.theorems)
+      liftCoreM <| addSuggestion stx cmds)
+  | `(command|#check_invariants!) => do
+    Verifier.displayStreamingResults stx getResults
+    Verifier.vcManager.atomicallyOnce frontendNotification
+      (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
+      (fun ref => do
+        let mgr ← ref.get
+        let cmds ← liftCoreM <| constructCommands (← mgr.undischargedTheorems)
+        liftCoreM <| addSuggestion stx cmds)
+  | `(command|#check_invariants) => do
+    Verifier.displayStreamingResults stx getResults
+    -- Verifier.vcManager.atomicallyOnce frontendNotification
+    --   (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
+    --   (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
+  | _ => logInfo "Unsupported syntax {stx}"; throwUnsupportedSyntax
   where
   getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do
     Verifier.vcManager.atomically
@@ -232,6 +256,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
         let results ← mgr.toVerificationResults
         let isDone := mgr._doneWith.size == mgr.nodes.size
         return (results, if isDone then .done else .running))
+
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do
@@ -281,7 +306,7 @@ def elabTransition : CommandElab := fun stx => do
       let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
         (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
       `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $tmp))
-    mod.defineTransition (ProcedureInfo.action nm.getId) br trStx stx
+    mod.defineTransition (ProcedureInfo.action nm.getId (definedViaTransition := true)) br trStx stx
     -- FIXME: Is this required?
     -- -- warn if this is not first-order
     -- Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
@@ -375,6 +400,20 @@ def elabModelCheck : CommandElab := fun stx => do
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
+
+    -- Warn if there are any transitions in the module
+    let transitions := mod.procedures.filter (·.info.isTransition)
+    let transitionsStr := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
+    if !transitions.isEmpty then
+      logWarning m!"\
+        Explicit state model checking of transitions is SLOW!\n\
+        \n\
+        The current implementation enumerates all possible states and filters \
+        those satisfying the transition relation. \
+        Your specification has {transitions.size} transition{if transitions.size > 1 then "s" else ""}: {transitionsStr}\n\
+        \n\
+        Consider encoding transitions as imperative actions where possible, \
+        which allows more efficient explicit state model checking."
 
     -- Get sort identifiers from the module
     let sortIdents ← mod.sortIdents

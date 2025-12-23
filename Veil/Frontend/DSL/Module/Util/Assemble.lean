@@ -1,4 +1,5 @@
 import Veil.Frontend.DSL.Module.Util.LocalRProp
+import Veil.Core.Tools.ModelChecker.TransitionSystem
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -203,5 +204,102 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, params := #[nextParam], extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (nextDef, mod)
+
+/-! ## Next Transition Relation Assembly -/
+
+/-- Assembles the `Next` transition relation from `NextAct`.
+`Next rd st l st'` holds iff there exists an execution of `NextAct l`
+from state `(rd, st)` to state `(rd, st')`. -/
+def Module.assembleNextTransition [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Command × Module) := do
+  mod.throwIfAlreadyDeclared assembledNextName
+  let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
+  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
+  let binders ← (baseParams ++ extraParams).mapM (·.binder)
+  let labelT ← mod.labelTypeStx
+  let nextTrT ← `(term| $environmentTheory → $environmentState → $labelT → $environmentState → Prop)
+  let (rd, st, st', label) := (mkIdent `rd, mkIdent `st, mkIdent `st', mkIdent `label)
+  let (nextActParams, _) ← mod.declarationAllParams assembledNextActName (.derivedDefinition .actionLike actionNames)
+  let nextActArgs ← nextActParams.mapM (·.arg)
+  let body ← `(term| (@$assembledNextAct $nextActArgs* $label).toTransitionDerived $rd $st $st')
+  let nextTrDef ← `(command|
+    @[actSimp] def $assembledNext $[$(binders)]* : $nextTrT :=
+      fun ($rd : $environmentTheory) ($st : $environmentState) ($label : $labelT) ($st' : $environmentState) => $body)
+  let derivedDef : DerivedDefinition := { name := assembledNextName, kind := .actionLike, params := #[], extraParams := extraParams, derivedFrom := {assembledNextActName}, stx := nextTrDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
+  return (nextTrDef, mod)
+
+/-! ## Init Predicate Assembly -/
+
+/-- Assembles the `Init` predicate from the initializer.
+`Init rd st` holds iff `st` is a valid initial state under theory `rd`. -/
+def Module.assembleInit [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Command × Module) := do
+  mod.throwIfAlreadyDeclared assembledInitName
+  -- Get the initializer transition name
+  let initTrName := Lean.mkIdent $ toTransitionName (toExtName initializerName)
+  -- Get parameters for the initializer
+  let (initParams, _) ← mod.declarationAllParams initializerName (.procedure .initializer)
+  let initArgs ← initParams.mapM (·.arg)
+  -- Get base parameters
+  let initExtraParams := Array.flatten <|
+    mod.procedures.filterMap (fun a => if initializerName == a.name then .some a.extraParams else .none)
+  let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
+  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
+  -- We need `Inhabited σ` since we use `default` as the pre-state
+  let inhType ← `(term| $(mkIdent ``Inhabited).{1} $environmentState)
+  let inhParam : Parameter := { kind := .definitionParameter assembledInitName .typeclass, name := `σ_inhabited, «type» := inhType, userSyntax := .missing }
+  let initExtraParams := initExtraParams.push inhParam
+  let binders ← (baseParams ++ extraParams ++ initExtraParams).mapM (·.binder)
+  let initT ← `(term| $environmentTheory → $environmentState → Prop)
+  let (rd, st) := (mkIdent `rd, mkIdent `st)
+  -- We use `default` as the pre-state; this matches the behaviour in the explicit model checker
+  let body ← `(term| @$initTrName $initArgs* $rd $(mkIdent ``default) $st)
+  let initDef ← `(command|
+    @[actSimp] def $assembledInit $[$(binders)]* : $initT :=
+      fun ($rd : $environmentTheory) ($st : $environmentState) => $body)
+  let derivedDef : DerivedDefinition := { name := assembledInitName, kind := .actionLike, params := #[], extraParams := extraParams ++ initExtraParams, derivedFrom := {initializerName}, stx := initDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
+  return (initDef, mod)
+
+/-! ## Relational Transition System Assembly -/
+
+/-- Assembles a `RelationalTransitionSystem` instance combining `Assumptions`, `Init`, and `Next`.
+    This is a noncomputable definition that uses Classical logic. -/
+def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+  mod.throwIfAlreadyDeclared assembledRTSName
+  let sorts ← mod.sortIdents
+  -- Sort binders: (node : Type)
+  let sortBinders ← mod.sortBinders
+  -- Inhabited instances for every sort: [Inhabited node]
+  let inhabitedBinders ← mod.assumeForEverySort ``Inhabited
+  -- User-defined typeclass parameters
+  let userDefinedParams : Array Parameter := mod.parameters.filter fun p =>
+    match p.kind with
+    | .moduleTypeclass .userDefined => true
+    | _ => false
+  let userDefinedBinders ← userDefinedParams.mapM (·.binder)
+  let allBinders := sortBinders ++ inhabitedBinders ++ userDefinedBinders
+  -- Construct type arguments
+  let theoryT ← mod.theoryStx
+  let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
+  let labelT ← `(term| $labelType $sorts*)
+  -- Construct the RTS type
+  let rtsType ← `(term| $(mkIdent ``RelationalTransitionSystem) $theoryT $stateT $labelT)
+  -- Construct field values with explicit type annotations
+  let (ρArg, σArg, χArg) := (mkIdent `ρ, mkIdent `σ, mkIdent `χ)
+  let assumptionsVal ← `(term| $assembledAssumptions ($ρArg := $theoryT) $sorts*)
+  let initVal ← `(term| $assembledInit ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
+  let nextVal ← `(term| $assembledNext ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
+  -- Generate the definition
+  let rtsDef ← `(command|
+    open Classical in
+    noncomputable def $assembledRTS $[$allBinders]* : $rtsType where
+      assumptions := $assumptionsVal
+      init := $initVal
+      tr := $nextVal)
+  -- Register as derived definition
+  let derivedFrom := Std.HashSet.ofArray #[assembledAssumptionsName, assembledInitName, assembledNextName]
+  let derivedDef : DerivedDefinition := { name := assembledRTSName, kind := .actionLike, params := #[], extraParams := userDefinedParams, derivedFrom := derivedFrom, stx := rtsDef }
+  let mod ← mod.registerDerivedDefinition derivedDef
+  return (rtsDef, mod)
 
 end Veil

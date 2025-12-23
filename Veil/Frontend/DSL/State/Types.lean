@@ -1,6 +1,7 @@
 import Mathlib.Logic.Equiv.Defs
 import Mathlib.Data.FinEnum
 import Veil.Frontend.DSL.Module.Names
+import Veil.Util.Deriving
 
 /-! # Reification of Types of State Fields -/
 
@@ -246,6 +247,10 @@ instance {n : Nat} : Enumeration (Fin n) where
   allValues := List.finRange n
   complete := by simp
 
+instance [inst : Enumeration α] : Enumeration (Option α) where
+  allValues := none :: inst.allValues.map some
+  complete := by intro x ; rcases x <;> grind
+
 instance {α β} [insta : Enumeration α] [instb : Enumeration β] : Enumeration (α × β) where
   allValues := List.product insta.allValues instb.allValues
   complete := by simp ; grind
@@ -262,6 +267,45 @@ instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred 
 instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] : Decidable (∃ a, p a) :=
   decidable_of_iff (∃ a ∈ inst.allValues, p a)
     (Iff.intro (fun ⟨a, _, h⟩ => ⟨a, h⟩) (fun ⟨a, h⟩ => ⟨a, inst.complete a, h⟩))
+
+section EnumerationDerivingHandler
+
+open Lean Meta Elab Term Command Deriving
+
+private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Array Name) : TermElabM Term := do
+  -- for the types, knowing the length of `ts` should be enough
+  let ts ← do
+    let hole ← `(_)
+    let holes := Array.replicate fieldNames.size hole
+    `([$holes:term,*])
+  let init ← `(([] : List $(header.targetType)))
+  let f ← do
+    let res ← mkIdent <$> mkFreshUserName `res
+    let fieldIdents ← fieldNames.mapM (mkIdent <$> mkFreshUserName ·)
+    `(fun $fieldIdents* $res => ⟨$fieldIdents,*⟩ :: $res)
+  let enums ← do
+    let arr ← localInsts.mapM fun inst => `(fun (_ : $(mkIdent ``Unit)) => $(mkIdent inst).$(mkIdent `allValues))
+    let arr := arr.push (← `($(mkIdent ``Unit.unit)))
+    `(⟨$arr,*⟩)
+  `(@$(mkIdent ``IteratedProd.foldMap) _ $ts $init $f $enums)
+
+def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
+  let fieldNames := info.fieldNames
+  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Enumeration indVal header.argNames fieldNames
+  let allValues ← mkAllValuesFromHeader header localInsts fieldNames
+  let completeProof ← do
+    let aIdent ← mkIdent <$> mkFreshUserName `a
+    `(by intro $aIdent:ident ; cases $aIdent:ident ; simp [$(mkIdent ``IteratedProd.foldMap):ident] ; grind)
+  `(instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+      $(mkIdent ``Enumeration) $(header.targetType) where
+    $(mkIdent `allValues):ident := $allValues
+    $(mkIdent `complete):ident  := $completeProof)
+
+def mkEnumerationHandler := onlyHandleOne mkEnumerationInstCmd
+
+initialize registerDerivingHandler ``Enumeration mkEnumerationHandler
+
+end EnumerationDerivingHandler
 
 end Enumeration
 

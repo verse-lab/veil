@@ -1,5 +1,6 @@
 import Loom.MonadAlgebras.NonDetT'.Extract
 import Loom.MonadAlgebras.NonDetT'.ExtractList
+import Veil.Frontend.DSL.State.SubState
 
 /-!
   # Action Language
@@ -148,7 +149,8 @@ def VeilM.succeedsAndPreservesInvariantsAssuming (act : VeilM m ρ σ α) (assu 
 /-- The weakest precondition for an action that, given a precondition,
 _IF_ it succeeds (doesn't throw an exception), then it meets the
 post-condition. -/
-abbrev VeilM.meetsSpecificationIfSuccessful (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
+@[reducible]
+def VeilM.meetsSpecificationIfSuccessful (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
   [DemonSucc| triple pre act post]
 
 @[reducible]
@@ -161,7 +163,7 @@ def VeilM.meetsSpecificationIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu 
 
 @[reducible]
 def VeilM.preservesInvariantsIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv : SProp ρ σ) : Prop :=
-  VeilM.meetsSpecificationIfSuccessful act (fun th st => assu th ∧ inv th st) (fun _ => inv)
+  VeilM.meetsSpecificationIfSuccessfulAssuming act assu inv inv
 
 abbrev VeilM.choices (act : VeilM m ρ σ α) := ExtractNonDet WeakFindable act
 
@@ -184,11 +186,22 @@ def Transition.triple (act : Transition ρ σ) (pre : SProp ρ σ) (post : SProp
     act r₀ s₀ s₁ ->
     post r₀ s₁
 
-abbrev Transition.meetsSpecificationIfSuccessful (act : Transition ρ σ) (pre : SProp ρ σ) (post : SProp ρ σ) : Prop :=
+@[reducible]
+def Transition.meetsSpecificationIfSuccessful (act : Transition ρ σ) (pre : SProp ρ σ) (post : SProp ρ σ) : Prop :=
   Transition.triple act pre post
 
+@[reducible]
 def Transition.preservesInvariantsIfSuccesful (act : Transition ρ σ) (inv : SProp ρ σ) : Prop :=
   Transition.meetsSpecificationIfSuccessful act inv inv
+
+@[reducible]
+def Transition.meetsSpecificationIfSuccessfulAssuming (act : Transition ρ σ) (assu : ρ → Prop) (pre post : SProp ρ σ) : Prop :=
+  Transition.meetsSpecificationIfSuccessful act (fun th st => assu th ∧ pre th st) post
+
+@[reducible]
+def Transition.preservesInvariantsIfSuccessfulAssuming (act : Transition ρ σ) (assu : ρ → Prop) (inv : SProp ρ σ) : Prop :=
+  Transition.meetsSpecificationIfSuccessfulAssuming act assu inv inv
+
 
 end TransitionSemantics
 
@@ -230,9 +243,27 @@ def VeilSpecM.toTransitionDerived (spec : VeilSpecM ρ σ α) : Transition ρ σ
 def VeilM.toTransitionDerived (act : VeilM m ρ σ α) : Transition ρ σ :=
   [IgnoreEx (fun _ => True)| VeilSpecM.toTransitionDerived <| wp act]
 
-def Transition.toVeilM (tr : Transition ρ σ) : VeilM m ρ σ Unit := do
-  let st' ← pick σ
-  assume (tr (← read) (← get) st')
+/--
+We don't use the simpler definition:
+```lean4
+let st' ← pick σ
+assume (tr (← read) (← get) st')
+set st'
+```
+because that would entail enumerating all environments via `(← get)`, which is
+not possible in general. Instead, we structure the definition to only enumerate
+all possible states of the system.
+
+This is still VERY slow when doing explicit state model checking, though.
+Eventually, we will need to come up with a better execution strategy, similar
+to what TLC does: it "recovers" imperative assignments from two-state
+transitions.
+-/
+def Transition.toVeilM [x :IsSubStateOf σ σ'] (tr : Transition ρ σ') : VeilM m ρ σ' Unit := do
+  let st : σ' ← MonadStateOf.get
+  let newSt ← pick σ
+  let st' := setIn newSt st
+  assume (tr (← read) st st')
   set st'
 
 end DerivingSemantics

@@ -101,13 +101,18 @@ instance : ToString StateAssertion where
 
 def initializerName : Name := `initializer
 
-def ProcedureKind.isAction (kind : ProcedureInfo) : Bool :=
+def ProcedureInfo.isAction (kind : ProcedureInfo) : Bool :=
   match kind with
-  | .action _ => true
+  | .action _ (definedViaTransition := false) => true
+  | _ => false
+
+def ProcedureInfo.isTransition (pi : ProcedureInfo) : Bool :=
+  match pi with
+  | .action _ true => true
   | _ => false
 
 def ProcedureInfo.name : ProcedureInfo → Name
-  | .action name => name
+  | .action name _ => name
   | .procedure name => name
   | .initializer => initializerName
 

@@ -171,6 +171,10 @@ def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] [MonadError m]
   | none => pure defaultDischargedBy
   `(command| theorem $(mkIdent vc.name) $(vc.params)* : $(vc.statement) := $dischargedBy)
 
+open Lean.Meta.Tactic.TryThis in
+def VerificationCondition.suggestion [Monad m] [MonadQuotation m] [MonadError m] (vc : VerificationCondition VCMetaT ResultT) : m Suggestion :=
+  vc.theoremStx
+
 end DataStructures
 
 section VCManager
@@ -299,6 +303,16 @@ def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (m
 
 def VCManager.theorems [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
   mgr.nodes.valuesArray.mapM (·.theoremStx)
+
+def VCManager.undischargedTheorems [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
+  mgr.nodes.valuesArray.filterMapM (fun vc => do
+    match vc.successful with
+    | some _ => return none
+    | none => return some (← vc.theoremStx))
+
+open Lean.Meta.Tactic.TryThis in
+def VCManager.suggestions [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Suggestion) :=
+  mgr.nodes.valuesArray.mapM (·.suggestion)
 
 def Discharger.run (discharger : Discharger ResultT) : BaseIO (Discharger ResultT) := do
   match discharger.task with

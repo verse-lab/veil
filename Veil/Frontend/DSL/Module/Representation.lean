@@ -109,7 +109,7 @@ inductive ProcedureInfo
   /-- A procedure that is called by the environment to initialize the module. -/
   | initializer
   /-- Callable by the environment -/
-  | action (name : Name)
+  | action (name : Name) (definedViaTransition : Bool := false)
   /-- Not callable by the environment -/
   | procedure (name : Name)
 deriving Inhabited, BEq, Hashable, Repr

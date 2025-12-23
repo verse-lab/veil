@@ -49,7 +49,29 @@ termination true = true
 
 #gen_spec
 
-#time #model_check { node := Fin 5 } { }
+#check_invariants
+
+#model_check { node := Fin 5 } { }
+
+sat trace [can_elect_leader_explicit] {
+  send
+  assert (∃ n next, pending n next)
+  recv
+  recv
+  assert (∃ l, leader l)
+} by { sorry }
+
+sat trace [can_elect_leader] {
+  any 3 actions
+  send
+  assert (∃ l, leader l)
+} by { sorry }
+
+unsat trace [trace_any] {
+  any 6 actions
+  assert ¬ (leader L → le N L)
+} by { sorry }
+
 
 end Ring
 --

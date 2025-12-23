@@ -58,6 +58,9 @@ def instantiationType : Ident := mkIdent instantiationTypeName
 def assembledNextActName : Name := `NextAct
 def assembledNextAct : Ident := mkIdent assembledNextActName
 
+def assembledNextName : Name := `Next
+def assembledNext : Ident := mkIdent assembledNextName
+
 def nextActSimplifiedName : Name := `NextAct'
 def nextActSimplified : Ident := mkIdent nextActSimplifiedName
 
@@ -66,6 +69,9 @@ def fieldConcreteType : Ident := mkIdent fieldConcreteTypeName
 
 def fieldConcreteDispatcherName : Name := `FieldConcreteType
 def fieldConcreteDispatcher : Ident := mkIdent fieldConcreteDispatcherName
+
+def fieldAbstractDispatcherName : Name := `FieldAbstractType
+def fieldAbstractDispatcher : Ident := mkIdent fieldAbstractDispatcherName
 
 def fieldRepresentationName : Name := `χ_rep
 def fieldRepresentation : Ident := mkIdent fieldRepresentationName
@@ -80,6 +86,12 @@ def instFieldRepresentation : Ident := mkIdent instFieldRepresentationName
 
 def instLawfulFieldRepresentationName : Name := `instLawfulFieldRepresentation
 def instLawfulFieldRepresentation : Ident := mkIdent instLawfulFieldRepresentationName
+
+def instAbstractFieldRepresentationName : Name := `instAbstractFieldRepresentation
+def instAbstractFieldRepresentation : Ident := mkIdent instAbstractFieldRepresentationName
+
+def instLawfulAbstractFieldRepresentationName : Name := `instLawfulAbstractFieldRepresentation
+def instLawfulAbstractFieldRepresentation : Ident := mkIdent instLawfulAbstractFieldRepresentationName
 
 def structureFieldLabelTypeName (base : Name) : Name := base ++ labelTypeName
 def structureFieldLabelType (base : Name) : Ident := mkIdent <| structureFieldLabelTypeName base
@@ -114,5 +126,11 @@ def nextActExecIdent : Ident := mkIdent `nextActMultiExec
 
 def enumerableTransitionSystemName : Name := `enumerableTransitionSystem
 def enumerableTransitionSystem : Ident := mkIdent enumerableTransitionSystemName
+
+def assembledInitName : Name := `Init
+def assembledInit : Ident := mkIdent assembledInitName
+
+def assembledRTSName : Name := `relationalTransitionSystem
+def assembledRTS : Ident := mkIdent assembledRTSName
 
 end Veil
