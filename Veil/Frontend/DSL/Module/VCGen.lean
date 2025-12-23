@@ -141,6 +141,7 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
     ),
     metadata := {
       kind := vcKind,
+      style := .wp,
       «action» := actName,
       property := propertyName,
       baseParams := thmBaseParams,
@@ -167,13 +168,58 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : VCKind) : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `succeedsAndPreservesInvariants) ``VeilM.succeedsAndPreservesInvariantsAssuming (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
 
+/-- Generate a TR-style (transition-based) VC for a specification theorem.
+This is similar to `mkVCForSpecTheorem` but uses the transition (`act.ext.tr`)
+instead of the VeilM action (`act.ext`). -/
+private def mkVCForSpecTheoremTr [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
+  (mod : Module) (actName : Name) (propertyName : Name) (actKind : DeclarationKind) (specName : Name) (vcName : Name) (vcKind : VCKind)
+  (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
+  let dependsOn := extraDeps.insertMany #[actName, assembledAssumptionsName, assembledInvariantsName]
+  let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .theoremLike dependsOn)
+  -- For TR-style VCs, we use the transition name: act.ext.tr
+  let trName := toTransitionName (toExtName actName)
+  let ((_, allModArgs), (actBinders, actArgs)) ← mod.declarationSplitBindersArgs actName actKind
+  let (_, assArgs) ← mod.declarationAllBindersArgs assembledAssumptionsName (.derivedDefinition .assumptionLike dependsOn)
+  let (_, invArgs) ← mod.declarationAllBindersArgs assembledInvariantsName (.derivedDefinition .invariantLike dependsOn)
+  return {
+    name := vcName,
+    params := ← (thmBaseParams ++ thmExtraParams).mapM (·.binder),
+    statement := ← expandTermMacro $ ← `(term|
+      forall? $actBinders*,
+        $(mkIdent specName)
+          (@$(mkIdent trName) $allModArgs* $actArgs*)
+          (@$assembledAssumptions $assArgs*)
+          (@$assembledInvariants $invArgs*)
+          $extraTerms:term*
+    ),
+    metadata := {
+      kind := vcKind,
+      style := .tr,
+      «action» := actName,
+      property := propertyName,
+      baseParams := thmBaseParams,
+      extraParams := thmExtraParams,
+      stmtDerivedFrom := dependsOn
+    }
+  }
+
+/-- Generate a TR-style (transition-based) VC for checking if an action preserves
+an invariant clause. This is an alternative to the WP-style VC and only runs
+when the WP-style VC fails. -/
+private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
+  (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name) (vcKind : VCKind) : m (VCData VCMetadata) := do
+  let extraDeps := {invariantClause}
+  let extraTerms := #[← `(term| (@$(mkIdent invariantClause) $(← mod.declarationAllArgs invariantClause (.stateAssertion .invariant))*) )]
+  mkVCForSpecTheoremTr mod actName (propertyName := invariantClause) actKind ``Transition.meetsSpecificationIfSuccessfulAssuming (Name.mkSimple s!"{actName}_{invariantClause}_tr") vcKind extraDeps extraTerms
+
 def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   -- We need to build the VCs "bottom-up", i.e. from the "smallest"
   -- statements to the "largest".
   let actsToCheck := mod.procedures.filter (fun s => match s.info with
     | .action _ _ | .initializer => true
     | .procedure _ => false)
-  let solverTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp !) else `(by veil_solve_wp)
+  let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp !) else `(by veil_solve_wp)
+  let trTactic ← `(by veil_solve_tr)
   let mut doesNotThrowVCs : Std.HashSet VCId := {}
   let mut clausesVCsByInv : Std.HashMap Name (Std.HashSet VCId) := {}
   -- let mut preservesInvariantsVCs : Std.HashSet VCId := {}
@@ -183,17 +229,23 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
     doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind .primary) {}
-    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm solverTactic)
+    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm wpTactic)
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
     -- Assuming the `Invariants`, this action preserves every invariant clause
     let mut clauseVCsForAct : Std.HashSet VCId := {}
     for invariantClause in mod.checkableInvariants do
+      -- WP-style VC (primary)
       let mut clauseVC := default
       clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind invariantClause.name .primary) {}
-      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm solverTactic)
+      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm wpTactic)
       clausesVCsByInv := clausesVCsByInv.insert invariantClause.name ((clausesVCsByInv.getD invariantClause.name {}).insert clauseVC)
       clauseVCsForAct := clauseVCsForAct.insert clauseVC
+
+      -- TR-style VC (alternative) - only runs when WP-style VC fails
+      let trVCData ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name act.declarationKind invariantClause.name .alternative
+      let trVC ← Verifier.addAlternativeVC trVCData clauseVC
+      Verifier.mkAddDischarger trVC (VCDischarger.fromTerm trTactic)
 
   --   -- Per-action overall invariant preservation VC
   --   let mut preservesInvariantsVC := default

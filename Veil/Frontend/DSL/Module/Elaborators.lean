@@ -237,7 +237,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
   | `(command|#check_invariants!) => do
     Verifier.displayStreamingResults stx getResults
     Verifier.vcManager.atomicallyOnce frontendNotification
-      (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
+      (fun ref => do let mgr ← ref.get; return mgr.isDone)
       (fun ref => do
         let mgr ← ref.get
         let cmds ← liftCoreM <| constructCommands (← mgr.undischargedTheorems)
@@ -245,7 +245,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
   | `(command|#check_invariants) => do
     Verifier.displayStreamingResults stx getResults
     -- Verifier.vcManager.atomicallyOnce frontendNotification
-    --   (fun ref => do let mgr ← ref.get; return mgr._doneWith.size == mgr.nodes.size)
+    --   (fun ref => do let mgr ← ref.get; return mgr.isDone)
     --   (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
   | _ => logInfo "Unsupported syntax {stx}"; throwUnsupportedSyntax
   where
@@ -254,7 +254,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
       (fun ref => do
         let mgr ← ref.get
         let results ← mgr.toVerificationResults
-        let isDone := mgr._doneWith.size == mgr.nodes.size
+        let isDone := mgr.isDone
         return (results, if isDone then .done else .running))
 
 

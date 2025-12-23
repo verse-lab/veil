@@ -90,6 +90,10 @@ structure VCResult (VCMetaT ResultT : Type) where
   metadata : VCMetaT
   /-- Timing information for this VC. -/
   timing : TimingData ResultT
+  /-- If this VC is an alternative (e.g., TR-style), the ID of the primary VC it's associated with. -/
+  alternativeFor : Option VCId := none
+  /-- Whether this VC is currently dormant (waiting for its primary to fail). -/
+  isDormant : Bool := false
 deriving Inhabited
 
 instance [ToJson VCMetaT] [ToJson ResultT] : ToJson (VCResult VCMetaT ResultT) where
@@ -99,7 +103,9 @@ instance [ToJson VCMetaT] [ToJson ResultT] : ToJson (VCResult VCMetaT ResultT) w
       ("name", toJson vcResult.name.toString),
       ("status", match vcResult.status with | some s => toJson s | none => Json.null),
       ("metadata", toJson vcResult.metadata),
-      ("timing", toJson vcResult.timing)
+      ("timing", toJson vcResult.timing),
+      ("alternativeFor", match vcResult.alternativeFor with | some id => toJson id | none => Json.null),
+      ("isDormant", toJson vcResult.isDormant)
     ]
 
 /-- Represents the complete verification results, mirroring the JSON structure
@@ -177,6 +183,13 @@ def mkTimingData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager
     dischargers := dischargerDetails
   }
 
+/-- Find the primary VC ID for an alternative VC, if this VC is an alternative. -/
+def VCManager.findPrimaryVC (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Option VCId := Id.run do
+  for (primaryId, alts) in mgr.alternativeVCs.toArray do
+    if alts.contains vcId then
+      return some primaryId
+  return none
+
 /-- Build `VCResult` for a specific VC. -/
 def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : m (VCResult VCMetaT ResultT) := do
   let .some vc := mgr.nodes[vcId]? | throwError s!"mkVCResult: VC {vcId} not found in manager"
@@ -187,6 +200,8 @@ def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager V
     status := mgr._doneWith[vcId]?
     metadata := vc.metadata
     timing := timing
+    alternativeFor := mgr.findPrimaryVC vcId
+    isDormant := mgr.dormantVCs.contains vcId
   }
 
 /-- Convert a `VCManager` to `VerificationResults`. -/

@@ -240,6 +240,14 @@ structure VCManager (VCMetaT ResultT: Type) where
   update in-degrees when a task completes. -/
   downstream : HashMap VCId (HashSet VCId)
 
+  /-- Maps primary VC IDs to their alternative VCs (e.g., TR-style).
+  Alternative VCs are triggered when the primary VC's dischargers all fail. -/
+  alternativeVCs : HashMap VCId (Array VCId) := HashMap.emptyWithCapacity
+
+  /-- VCs that should NOT be started automatically (waiting for trigger).
+  Used for alternative VCs that only run when their primary VC fails. -/
+  dormantVCs : HashSet VCId := HashSet.emptyWithCapacity
+
   protected _nextVcId : VCId := 0
   /-- Number of dischargers that have finished executing. -/
   protected _totalDischarged : Nat := 0
@@ -266,6 +274,8 @@ def VCManager.new (ch : Std.Channel (ManagerNotification ResultT)) (currentManag
     upstream := HashMap.emptyWithCapacity,
     inDegree := HashMap.emptyWithCapacity,
     downstream := HashMap.emptyWithCapacity,
+    alternativeVCs := HashMap.emptyWithCapacity,
+    dormantVCs := HashSet.emptyWithCapacity,
     _doneWith := HashMap.emptyWithCapacity,
     _dischargerResults := HashMap.emptyWithCapacity,
     _nextVcId := 0,
@@ -274,22 +284,44 @@ def VCManager.new (ch : Std.Channel (ManagerNotification ResultT)) (currentManag
   }
 
 /-- Adds a new verification condition (VC) to the VCManager, along with its
-upstream dependencies. Returns the updated VCManager and the new VC. -/
-def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger ResultT) := #[]) : (VCManager VCMetaT ResultT × VCId) := Id.run do
+upstream dependencies. Returns the updated VCManager and the new VC.
+If `isDormant` is true, the VC will not be started automatically by `readyTasks`. -/
+def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger ResultT) := #[]) (isDormant : Bool := false) : (VCManager VCMetaT ResultT × VCId) := Id.run do
   let uid := mgr._nextVcId
   let vc := {vc with uid := uid, dischargers := initialDischargers, successful := none}
   -- Add ourselves downstream of all our dependencies
   let mut downstream := mgr.downstream
   for parent in dependsOn do
     downstream := downstream.insert parent ((downstream[parent]? |>.getD {}).insert uid)
-  let mgr' := { mgr with
+  let mut mgr' := { mgr with
     nodes := (mgr.nodes.insert uid vc),
     upstream := (mgr.upstream.insert uid dependsOn),
     inDegree := (mgr.inDegree.insert uid dependsOn.size),
     downstream := downstream,
     _nextVcId := mgr._nextVcId + 1
   }
+  -- Mark as dormant if requested (e.g., for alternative VCs)
+  if isDormant then
+    mgr' := { mgr' with dormantVCs := mgr'.dormantVCs.insert uid }
   (mgr', uid)
+
+/-- Add an alternative VC associated with a primary VC. The alternative
+starts dormant and will only be triggered when the primary VC fails
+(i.e., all of its dischargers fail). -/
+def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
+    (vc : VCData VCMetaT)
+    (primaryVCId : VCId)
+    (initialDischargers : Array (Discharger ResultT) := #[])
+    : (VCManager VCMetaT ResultT × VCId) := Id.run do
+  -- Use the same dependencies as the primary VC
+  let primaryDeps := mgr.upstream[primaryVCId]?.getD {}
+  let (mgr', altId) := mgr.addVC vc primaryDeps initialDischargers (isDormant := true)
+  -- Register the association: primary -> alternative
+  let alts := mgr'.alternativeVCs[primaryVCId]?.getD #[]
+  let mgr'' := { mgr' with
+    alternativeVCs := mgr'.alternativeVCs.insert primaryVCId (alts.push altId)
+  }
+  (mgr'', altId)
 
 open Lean.Elab.Command in
 def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do
@@ -358,7 +390,9 @@ def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT Re
 def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT) : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
   let ready ← mgr.inDegree.toList.filterMapM (fun (vcId, inDegree) => do
     let .some vc := mgr.nodes[vcId]? | panic! "VCManager.readyTasks: VC {vcId} not found"
-    if inDegree != 0 then pure none else
+    -- Skip dormant VCs (e.g., alternative VCs waiting for their primary to fail)
+    if mgr.dormantVCs.contains vcId then pure none
+    else if inDegree != 0 then pure none else
       match ← vc.nextDischarger? with
       | some discharger => pure (some (vc, discharger))
       | none => pure none)
@@ -409,12 +443,25 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
   -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
   if (← vc.nextDischarger?).isNone then
     mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
+    -- Trigger alternative VCs if this VC failed (not proven)
+    if vcStatus != .proven then
+      if let .some altIds := mgr.alternativeVCs[vcId]? then
+        for altId in altIds do
+          -- Wake up the alternative VC by removing from dormant set
+          mgr := { mgr with dormantVCs := mgr.dormantVCs.erase altId }
   return mgr
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
   match mgr._doneWith[vcId]? with
   | some vcStatus => vcStatus.emoji
   | none => "❓❓❓"
+
+/-- Check if all VCs are done. A VC is considered "done" if it's either:
+- In `_doneWith` (has been processed), or
+- In `dormantVCs` (is dormant and won't be processed because its primary succeeded)
+This correctly handles alternative VCs that remain dormant when their primary succeeds. -/
+def VCManager.isDone (mgr : VCManager VCMetaT ResultT) : Bool :=
+  mgr._doneWith.size + mgr.dormantVCs.size == mgr.nodes.size
 
 instance (priority := low) printDependencies [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where
   toMessageData mgr :=

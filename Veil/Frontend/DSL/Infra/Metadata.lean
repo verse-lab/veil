@@ -13,6 +13,9 @@ inductive VCKind where
   /-- Derived VCs typically do not require proof by SMT — they rely on
   applications of primary VCs (and potentially other derived VCs). -/
   | derived
+  /-- Alternative VCs are associated with a primary VC and only run
+  when all dischargers of the primary VC fail. -/
+  | alternative
 deriving Inhabited, BEq, Hashable
 
 instance : ToString VCKind where
@@ -20,12 +23,14 @@ instance : ToString VCKind where
     match kind with
     | .primary => "primary"
     | .derived => "derived"
+    | .alternative => "alternative"
 
 instance : ToJson VCKind where
   toJson kind :=
     match kind with
     | .primary => "primary"
     | .derived => "derived"
+    | .alternative => "alternative"
 
 instance : FromJson VCKind where
   fromJson? json := do
@@ -33,11 +38,42 @@ instance : FromJson VCKind where
     match s with
     | "primary" => pure .primary
     | "derived" => pure .derived
+    | "alternative" => pure .alternative
     | _ => .error s!"Invalid VCKind: {s}"
+
+/-- The proof style used for a VC. -/
+inductive VCStyle where
+  /-- Weakest precondition style: uses VeilM semantics. -/
+  | wp
+  /-- Transition style: uses Transition semantics. -/
+  | tr
+deriving Inhabited, BEq, Hashable
+
+instance : ToString VCStyle where
+  toString style :=
+    match style with
+    | .wp => "wp"
+    | .tr => "tr"
+
+instance : ToJson VCStyle where
+  toJson style :=
+    match style with
+    | .wp => "wp"
+    | .tr => "tr"
+
+instance : FromJson VCStyle where
+  fromJson? json := do
+    let s ← fromJson? json
+    match s with
+    | "wp" => pure .wp
+    | "tr" => pure .tr
+    | _ => .error s!"Invalid VCStyle: {s}"
 
 structure VCMetadata where
   /-- The kind of this VC. -/
   kind : VCKind
+  /-- The proof style used for this VC (WP or TR). -/
+  style : VCStyle
   /-- The action that this VC is about. -/
   action: Name
   /-- The property that this VC is about. -/
@@ -57,6 +93,7 @@ instance : ToJson VCMetadata where
   toJson metadata :=
     Json.mkObj [
       ("kind", toJson metadata.kind),
+      ("style", toJson metadata.style),
       ("action", toJson metadata.action),
       ("property", toJson metadata.property),
     ]
@@ -64,10 +101,12 @@ instance : ToJson VCMetadata where
 instance : FromJson VCMetadata where
   fromJson? json := do
     let kind ← json.getObjValAs? VCKind "kind"
+    let style ← json.getObjValAs? VCStyle "style"
     let action ← json.getObjValAs? Name "action"
     let property ← json.getObjValAs? Name "property"
     pure {
       kind := kind
+      style := style
       action := action
       property := property
       baseParams := #[]

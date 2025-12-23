@@ -40,11 +40,12 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         if res.isSuccessful then
           mgr := {mgr with _totalSolved := mgr._totalSolved + 1}
         -- dbg_trace "[Manager] RECV {res.kindString} notification from discharger {dischargerId} after {res.time}ms (solved: {mgr._totalSolved}/{mgr.nodes.size})"
-        mgr ← mgr.start (howMany := 1)
         mgr ← mgr.markDischarger dischargerId res
+        -- Call start AFTER markDischarger so freshly woken alternatives can be scheduled
+        mgr ← mgr.start (howMany := 1)
         ref.set mgr
         -- If we're done with all VCs, send a notification to the frontend
-        if mgr._doneWith.size == mgr.nodes.size then
+        if mgr.isDone then
           -- dbg_trace "[Manager] SEND done notification doneWith: {mgr._doneWith.toArray}"
           Frontend.notifyDone)
       | .startAll => vcManager.atomically (fun ref => do
@@ -72,6 +73,18 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
 def addVC (vc : VCData VCMetadata) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger SmtResult) := #[]) (sendNotification : Bool := false): CommandElabM VCId := do
   let uid ← vcManager.atomically (fun ref => do
     let (mgr', uid) := (← ref.get).addVC vc dependsOn initialDischargers
+    ref.set mgr'
+    return uid
+  )
+  if sendNotification then
+    startAll
+  return uid
+
+/-- Add an alternative VC associated with a primary VC. The alternative starts
+dormant and will only be triggered when the primary VC fails. -/
+def addAlternativeVC (vc : VCData VCMetadata) (primaryVCId : VCId) (initialDischargers : Array (Discharger SmtResult) := #[]) (sendNotification : Bool := false): CommandElabM VCId := do
+  let uid ← vcManager.atomically (fun ref => do
+    let (mgr', uid) := (← ref.get).addAlternativeVC vc primaryVCId initialDischargers
     ref.set mgr'
     return uid
   )
