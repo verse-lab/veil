@@ -37,7 +37,6 @@ individual tail : Fin BUFFER_SIZE
 --     count
 individual count : Nat
 
--- Changed: Make h an instance parameter [NeZero N] so it can be auto-inferred
 instance [NeZero N] : Inhabited { n : Nat // n ∈ List.range N } where
   default := ⟨0, by
     simp only [List.mem_range]
@@ -74,18 +73,10 @@ after_init {
 --   /\ tail' = nextTail
 --   /\ count' = count + 1
 action Put {
-  -- \E x \in BUFFER_ELEMS:
   let x ← pick ExtTreeElem
-  -- Update buffer at current tail position
   buffer tail := x
-  -- head remains unchanged
   head := head
-  -- Advance tail: (tail + 1) % BUFFER_SIZE
-  tail := Fin.mk ((tail.val + 1) % BUFFER_SIZE) (by
-    apply Nat.mod_lt
-    simp
-  )
-  -- Increment count (this is the bug - no check if buffer is full!)
+  tail := Fin.mk ((tail.val + 1) % BUFFER_SIZE) (by grind)
   count := count + 1
 }
 
@@ -111,12 +102,9 @@ action Get {
 --     \/ \E x \in BUFFER_ELEMS:
 --         Put(x)
 --     \/ Get
-
 -- vars == <<buffer, head, tail, count>>
-
 -- \* Complete specification
 -- Spec == Init /\ [][Next]_vars
-
 -- \* Safety property we *intend* to hold, but it is violated:
 -- \* count must never exceed the buffer capacity.
 -- SafeInv == count <= BUFFER_SIZE
