@@ -19,6 +19,8 @@ up in the returned model, but were not present in the original Lean goal sent
 to SMT. -/
 def ModelContext.containsFVar (ctx : ModelContext) (fvar : Expr) : MetaM Bool := do
   let ectx := ctx.toExprWithCtx fvar
+  dbg_trace "containsFVar: {← Meta.ppExpr fvar} ({fvar})"
+  -- FIXME: this is a problemo
   ectx.runMetaM (fun e => return (← getLCtx).containsFVar e)
 
 end Smt
@@ -34,8 +36,8 @@ Parameters:
 - `rightExpr`: Expression for the right column (rendered as InteractiveCode) -/
 private def renderRow [Monad m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m]
     (ctx : Smt.ModelContext) (leftExpr rightExpr : Expr) : m (Option Html) := do
-  if !(← ctx.containsFVar leftExpr) then
-    return none
+  -- if !(← ctx.containsFVar leftExpr) then
+    -- return none
   let rightFmt ← Widget.ppExprTagged rightExpr
   return <tr>
     <td><InteractiveExpr expr={← Server.WithRpcRef.mk (ctx.toExprWithCtx leftExpr)} /></td>

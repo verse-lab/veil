@@ -7,6 +7,7 @@ import Veil.Core.Tools.Verifier.Server
 import Veil.Frontend.DSL.Tactic
 -- FIXME: it really doesn't make sense to import this here
 import Veil.Core.UI.Verifier.Model
+import Veil.Core.UI.Verifier.InductionCounterexample
 
 open Lean Elab Term Command
 
@@ -25,7 +26,7 @@ private def collectSmtOutputs [Monad m] [MonadError m] [MonadLiftT BaseIO m] [Mo
     outputs := outputs.push ((name, index), output)
   return outputs
 
-private def overallSmtResult [Monad m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m] (_name : Name) (outputs : Array SmtOutput) : m (Option SmtResult) := do
+private def overallSmtResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m] (actName : Name) (outputs : Array SmtOutput) : m (Option SmtResult) := do
   let mut (errors, sat, unknown, unsat) := (#[], #[], #[], #[])
   for output in outputs do
     match output with
@@ -38,19 +39,26 @@ private def overallSmtResult [Monad m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m
     if errors.size > 0 then
       return .some $ .error (← errors.mapM (fun ex => do return (ex, toJson (← ex.toMessageData.toString))))
     if sat.size > 0 then
-      return .some $ .sat (← sat.mapM (fun ce => return ← ce.mapM (fun ce => return (ce, ← renderSmtModel ce))))
+      let mod ← getCurrentModule
+      return .some $ .sat (← sat.filterMapM (fun ce => return ← ce.mapM (fun ce => do
+        try
+          let veilModel  ← buildCounterexampleExprs ce mod actName
+          return .some ⟨ce, ← renderSmtModel ce, veilModel⟩
+        catch ex =>
+          dbg_trace "Failed to build counterexample; exception: {← ex.toMessageData.toString}"
+          return none)))
     if unknown.size > 0 then
       return .some $ .unknown unknown
     if errors.size == 0 && sat.size == 0 && unknown.size == 0 && unsat.size > 0 then
       return .some $ .unsat unsat
     -- the SMT solver wasn't involved in proving this goal
     return .none)
-  -- dbg_trace "{_name}: {errors.size} errors, {sat.size} sat, {unknown.size} unknown, {unsat.size} unsat -> {← (toMessageData res).toString}"
+  -- dbg_trace "{actName}: {errors.size} errors, {sat.size} sat, {unknown.size} unknown, {unsat.size} unsat -> {← (toMessageData res).toString}"
   return res
 
-private def mkDischargerResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT (EIO Std.CloseableChannel.Error) m] [MonadLiftT MetaM m] (expectedName : Name) (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (data : Witness ⊕ Exception) (time : Nat) : m (DischargerResult SmtResult) := do
+private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT (EIO Std.CloseableChannel.Error) m] [MonadLiftT MetaM m] (expectedName : Name) (actName : Name) (ch : Std.CloseableChannel ((Name × ℕ) × Smt.AsyncOutput)) (data : Witness ⊕ Exception) (time : Nat) : m (DischargerResult SmtResult) := do
   let outputs ← collectSmtOutputs ch expectedName
-  let result ← overallSmtResult expectedName outputs
+  let result ← overallSmtResult actName outputs
   match result with
   | .some result => match result with
     | .error exs => return .error exs time
@@ -67,7 +75,7 @@ private def mkDischargerResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [M
     | .inl witness => return .proven witness .none time
     | .inr ex => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
 
-def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification SmtResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
+def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification SmtResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
   let smtCh ← Std.CloseableChannel.new
   let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
@@ -89,13 +97,13 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
         if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
           -- dbg_trace "{dischargerId.name}: provided term does not solve the VC (has mvars: {witness.hasMVar} | has fvars: {witness.hasFVar} | has synthetic sorry: {witness.hasSyntheticSorry})"
           throwError "unsolved goals"
-        let dischargerResult ← mkDischargerResult dischargerId.name smtCh (.inl witness) (endTime - startTime)
+        let dischargerResult ← mkDischargerResult dischargerId.name actName smtCh (.inl witness) (endTime - startTime)
         -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Successfully finished task for {vcStatement.name} in {endTime - startTime}ms"
         return dischargerResult
       catch ex =>
         let endTime ← IO.monoMsNow
-        -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
-        let dischargerResult ← liftTermElabM $ mkDischargerResult dischargerId.name smtCh (.inr ex) (endTime - startTime)
+        dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
+        let dischargerResult ← liftTermElabM $ mkDischargerResult dischargerId.name actName smtCh (.inr ex) (endTime - startTime)
         return dischargerResult
       finally
         if ← cancelTk.isSet then
@@ -119,12 +127,14 @@ def VCDischarger.fromTerm (term : Term) (vcStatement : VCStatement) (dischargerI
 
 private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (actName : Name) (propertyName : Name) (actKind : DeclarationKind) (specName : Name) (vcName : Name) (vcKind : VCKind)
-  (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
+  (style : VCStyle := .wp) (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
   -- FIXME: make all the name-related/parameter functions work with `ext` names
   let dependsOn := extraDeps.insertMany #[actName, assembledAssumptionsName, assembledInvariantsName]
   let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .theoremLike dependsOn)
-  -- NOTE: the VCs are stated in terms of `act.ext`, not `act`
-  let extName := toExtName actName
+  -- NOTE: the VCs are stated in terms of `act.ext` (for WP) or `act.ext.tr` (for TR)
+  let actionIdent := match style with
+    | .wp => toExtName actName
+    | .tr => toTransitionName (toExtName actName)
   let ((_, allModArgs), (actBinders, actArgs)) ← mod.declarationSplitBindersArgs actName actKind
   let (_, assArgs) ← mod.declarationAllBindersArgs assembledAssumptionsName (.derivedDefinition .assumptionLike dependsOn)
   let (_, invArgs) ← mod.declarationAllBindersArgs assembledInvariantsName (.derivedDefinition .invariantLike dependsOn)
@@ -134,14 +144,14 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
     statement := ← expandTermMacro $ ← `(term|
       forall? $actBinders*,
         $(mkIdent specName)
-          (@$(mkIdent extName) $allModArgs* $actArgs*)
+          (@$(mkIdent actionIdent) $allModArgs* $actArgs*)
           (@$assembledAssumptions $assArgs*)
           (@$assembledInvariants $invArgs*)
           $extraTerms:term*
     ),
     metadata := {
       kind := vcKind,
-      style := .wp,
+      style := style,
       «action» := actName,
       property := propertyName,
       baseParams := thmBaseParams,
@@ -156,9 +166,9 @@ private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] 
 
 private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name) (vcKind : VCKind) : m (VCData VCMetadata) := do
-  let extraDeps := {invariantClause}
+  let extraDeps : Std.HashSet Name := {invariantClause}
   let extraTerms := #[← `(term| (@$(mkIdent invariantClause) $(← mod.declarationAllArgs invariantClause (.stateAssertion .invariant))*) )]
-  mkVCForSpecTheorem mod actName actKind (propertyName := invariantClause) ``VeilM.meetsSpecificationIfSuccessfulAssuming (Name.mkSimple s!"{actName}_{invariantClause}") vcKind extraDeps extraTerms
+  mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind ``VeilM.meetsSpecificationIfSuccessfulAssuming (Name.mkSimple s!"{actName}_{invariantClause}") vcKind (extraDeps := extraDeps) (extraTerms := extraTerms)
 
 private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : VCKind) : m (VCData VCMetadata) := do
@@ -168,49 +178,14 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : VCKind) : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `succeedsAndPreservesInvariants) ``VeilM.succeedsAndPreservesInvariantsAssuming (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
 
-/-- Generate a TR-style (transition-based) VC for a specification theorem.
-This is similar to `mkVCForSpecTheorem` but uses the transition (`act.ext.tr`)
-instead of the VeilM action (`act.ext`). -/
-private def mkVCForSpecTheoremTr [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-  (mod : Module) (actName : Name) (propertyName : Name) (actKind : DeclarationKind) (specName : Name) (vcName : Name) (vcKind : VCKind)
-  (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
-  let dependsOn := extraDeps.insertMany #[actName, assembledAssumptionsName, assembledInvariantsName]
-  let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .theoremLike dependsOn)
-  -- For TR-style VCs, we use the transition name: act.ext.tr
-  let trName := toTransitionName (toExtName actName)
-  let ((_, allModArgs), (actBinders, actArgs)) ← mod.declarationSplitBindersArgs actName actKind
-  let (_, assArgs) ← mod.declarationAllBindersArgs assembledAssumptionsName (.derivedDefinition .assumptionLike dependsOn)
-  let (_, invArgs) ← mod.declarationAllBindersArgs assembledInvariantsName (.derivedDefinition .invariantLike dependsOn)
-  return {
-    name := vcName,
-    params := ← (thmBaseParams ++ thmExtraParams).mapM (·.binder),
-    statement := ← expandTermMacro $ ← `(term|
-      forall? $actBinders*,
-        $(mkIdent specName)
-          (@$(mkIdent trName) $allModArgs* $actArgs*)
-          (@$assembledAssumptions $assArgs*)
-          (@$assembledInvariants $invArgs*)
-          $extraTerms:term*
-    ),
-    metadata := {
-      kind := vcKind,
-      style := .tr,
-      «action» := actName,
-      property := propertyName,
-      baseParams := thmBaseParams,
-      extraParams := thmExtraParams,
-      stmtDerivedFrom := dependsOn
-    }
-  }
-
 /-- Generate a TR-style (transition-based) VC for checking if an action preserves
 an invariant clause. This is an alternative to the WP-style VC and only runs
 when the WP-style VC fails. -/
 private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name) (vcKind : VCKind) : m (VCData VCMetadata) := do
-  let extraDeps := {invariantClause}
+  let extraDeps : Std.HashSet Name := {invariantClause}
   let extraTerms := #[← `(term| (@$(mkIdent invariantClause) $(← mod.declarationAllArgs invariantClause (.stateAssertion .invariant))*) )]
-  mkVCForSpecTheoremTr mod actName (propertyName := invariantClause) actKind ``Transition.meetsSpecificationIfSuccessfulAssuming (Name.mkSimple s!"{actName}_{invariantClause}_tr") vcKind extraDeps extraTerms
+  mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind ``Transition.meetsSpecificationIfSuccessfulAssuming (Name.mkSimple s!"{actName}_{invariantClause}_tr") vcKind (style := .tr) (extraDeps := extraDeps) (extraTerms := extraTerms)
 
 def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   -- We need to build the VCs "bottom-up", i.e. from the "smallest"
@@ -229,7 +204,7 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
     -- The action does not throw any exceptions, assuming the `Invariants`
     let mut doesNotThrowVC := default
     doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind .primary) {}
-    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm wpTactic)
+    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm wpTactic act.name)
     doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
 
     -- Assuming the `Invariants`, this action preserves every invariant clause
@@ -238,14 +213,14 @@ def Module.generateVCs (mod : Module) : CommandElabM Unit := do
       -- WP-style VC (primary)
       let mut clauseVC := default
       clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind invariantClause.name .primary) {}
-      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm wpTactic)
+      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm wpTactic act.name)
       clausesVCsByInv := clausesVCsByInv.insert invariantClause.name ((clausesVCsByInv.getD invariantClause.name {}).insert clauseVC)
       clauseVCsForAct := clauseVCsForAct.insert clauseVC
 
       -- TR-style VC (alternative) - only runs when WP-style VC fails
       let trVCData ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name act.declarationKind invariantClause.name .alternative
       let trVC ← Verifier.addAlternativeVC trVCData clauseVC
-      Verifier.mkAddDischarger trVC (VCDischarger.fromTerm trTactic)
+      Verifier.mkAddDischarger trVC (VCDischarger.fromTerm trTactic act.name)
 
   --   -- Per-action overall invariant preservation VC
   --   let mut preservesInvariantsVC := default

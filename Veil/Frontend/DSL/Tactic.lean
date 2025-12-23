@@ -840,7 +840,10 @@ def elabVeilSolveWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext d
 
 @[inherit_doc veil_solve_tr]
 def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
-  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs <;> (veil_concretize_tr; veil_fol !; veil_smt))
+  -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
+  -- if they're not used. This is undesirable when the variable is an action
+  -- parameter, because we need to keep it in the context for model extraction.
+  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs <;> (veil_concretize_tr; veil_fol ; veil_smt))
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do

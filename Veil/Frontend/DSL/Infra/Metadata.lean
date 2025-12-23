@@ -139,6 +139,52 @@ instance : ToMessageData Smt.Model where
 
 abbrev SmtUnsatCore := Array Expr
 
+/-- A Veil-specific "segmented" `Smt.Model` that represents a
+counterexample-to-induction (CTI). This is at the meta level (i.e. it stores
+`Expr`, which are meta/compile-time values). -/
+
+structure VeilModel where
+  /-- Context for interpreting expressions -/
+  ctx : Smt.ModelContext
+
+  /-- Expression for `Instantiation.mk sortArgs*`, i.e. a structure which
+  encodes the types used in this model. -/
+  instExpr : Expr
+  /-- Type expression for `Instantiation` -/
+  instType : Expr
+
+  /-- Sorts not part of module's Instantiation -/
+  extraSorts : Array (Expr × Expr)
+
+    /-- Expression for `Label.actionName sortArgs* paramValues*` -/
+  labelExpr : Expr
+  /-- Type expression for `Label sortArgs*` -/
+  labelType : Expr
+
+  /-- Expression for `Theory.mk sortArgs* fieldValues*` -/
+  theoryExpr : Expr
+  /-- Type expression for `Theory sortArgs*` -/
+  theoryType : Expr
+
+  /-- Type expression for `State (FieldAbstractType sortArgs*)` -/
+  stateType : Expr
+  /-- Expression for `State.mk dispatcher fieldValues*` -/
+  preStateExpr : Expr
+  /-- Optional post-state expression -/
+  postStateExpr : Option Expr
+
+  /-- Values that couldn't be classified -/
+  extraVals : Array (Expr × Expr)
+
+
+structure AnnotatedSmtModel where
+  /-- The model data structured returned by Lean SMT. -/
+  raw : Smt.Model
+  /-- A widget view of the raw model. -/
+  rawHtml : ProofWidgets.Html
+  segmented : VeilModel
+
+
 /-- The order in which results "saturate" (from "strongest" — eats everything —
 to "weakest" — gets eaten by everything else):
   - `error` (if a list of result has an `error`, the overall VeilResult becomes `error`)
@@ -154,7 +200,7 @@ inductive SmtResult where
   /-- We can have multiple counter-examples, since a single term might contain
   multiple calls to `smt`. If there is at least one `sat` result in a term, the
   entire `VeilResult` becomes `sat` (unless there are any `error` results). -/
-  | sat (counterexamples : Array (Option (Smt.Model × ProofWidgets.Html)))
+  | sat (counterexamples : Array (Option AnnotatedSmtModel))
   /-- The SMT solver returned `unknown`. We can have multiple unknown results, since
   a single term might contain multiple calls to `smt`.  -/
   | unknown (reasons : Array String)
@@ -192,7 +238,7 @@ instance : ToJson SmtResult where
       Json.mkObj [("kind", Json.str "sat"),
                   ("counterexamples", toJson (counterexamples.map <| fun ce? =>
                     match ce? with
-                    | some (ce, _html) => Json.mkObj [("model", toJson ce), ("html", Json.str "<p>Counter-example HTML</p>")]
+                    | some ce => Json.mkObj [("model", toJson ce.raw), ("html", Json.str "<p>Counter-example HTML</p>")]
                     | none => Json.null
                   ))]
   | .unknown reasons =>
@@ -213,9 +259,9 @@ instance : Server.RpcEncodable SmtResult where
     return .mkObj [("kind", Json.str "sat"),
                   ("counterexamples", toJson (← counterexamples.mapM <| fun ce? => do
                     match ce? with
-                    | some (ce, html) => do
-                    let html ← Server.rpcEncode html
-                    return Json.mkObj [("model", toJson ce), ("html", html)]
+                    | some ce => do
+                    let html ← Server.rpcEncode ce.rawHtml
+                    return Json.mkObj [("model", toJson ce.raw), ("html", html)]
                     | none => pure <| Json.null))]
   | .unsat unsatCores => do
     return .mkObj [("kind", Json.str "unsat"),
@@ -245,7 +291,7 @@ instance : ToMessageData SmtResult where
   toMessageData result :=
     match result with
     | .error exs => m!"error {exs.map (·.1.toMessageData)}"
-    | .sat counterexamples => m!"sat {counterexamples.map (·.map (fun (ce, _html) => toMessageData ce))}"
+    | .sat counterexamples => m!"sat {counterexamples.map (·.map (fun ce => toMessageData ce.raw))}"
     | .unknown reasons => m!"unknown {reasons}"
     | .unsat counterexamples => m!"unsat {counterexamples.map (·.map (toMessageData ·))}"
 
