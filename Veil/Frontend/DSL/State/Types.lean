@@ -36,7 +36,7 @@ instance : HAppend (IteratedProd ts1) (IteratedProd ts2) (IteratedProd (ts1 ++ t
   hAppend := IteratedProd.append
 
 /-- Not sure if this is actually "fold". -/
-def IteratedProd.fold {ts : List Type} {T₁ T₂ : Type → Type}
+def IteratedProd.fold {ts : List Type} {T₁ : Type → Type} {T₂ : Type → Sort u}
   (codomain : T₂ Unit)
   (prod : ∀ {tya tyb : Type}, T₁ tya → T₂ tyb → T₂ (tya × tyb))
   (elements : IteratedProd (ts.map T₁)) : T₂ (IteratedProd ts) :=
@@ -59,6 +59,22 @@ def IteratedProd.zipWith {ts : List Type} {T₁ T₂ T₃ : Type → Type}
   | [], _, _ => ()
   | _ :: _, (e₁, elements₁), (e₂, elements₂) =>
     (zip e₁ e₂, IteratedProd.zipWith elements₁ elements₂ zip)
+
+def IteratedProd.zip {ts : List Type} {T₁ T₂ : Type → Type}
+  (elements₁ : IteratedProd (ts.map T₁))
+  (elements₂ : IteratedProd (ts.map T₂)) :=
+  IteratedProd.zipWith elements₁ elements₂ Prod.mk
+
+def IteratedProd.zipWithM [Monad m] {ts : List Type} {T₁ T₂ T₃ : Type → Type}
+  (elements₁ : IteratedProd (ts.map T₁))
+  (elements₂ : IteratedProd (ts.map T₂))
+  (zip : ∀ {ty : Type}, T₁ ty → T₂ ty → m (T₃ ty)) : m (IteratedProd (ts.map T₃)) := do
+  match ts, elements₁, elements₂ with
+  | [], _, _ => pure ()
+  | _ :: _, (e₁, elements₁), (e₂, elements₂) =>
+    let e ← zip e₁ e₂
+    let elements ← IteratedProd.zipWithM elements₁ elements₂ zip
+    pure (e, elements)
 
 -- TODO does this really implement lazy & cacheable evaluation?
 def IteratedProd.cartesianProduct {ts : List Type}
