@@ -113,7 +113,7 @@ where
   localLog : Std.HashMap σₕ (σₕ × κ)
   invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisit) (fun h => h ∈ seen ∨ h ∈ localSeen)
 
-def ParallelSearchContextSub.merge {ρ σ κ σₕ : Type}
+def ParallelSearchContextSub.merge1 {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ] {th : ρ} {sys : _} {params : _}
   (mainCtx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params)
   (subCtx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :
@@ -125,6 +125,17 @@ def ParallelSearchContextSub.merge {ρ σ κ σₕ : Type}
       finished := Option.or mainCtx.finished subCtx.finished
       -- do not update depth information here
       tovisit := subCtx.tovisit.foldl (init := mainCtx.tovisit) fun acc ⟨h, x, d⟩ => acc.insertIfNew h (x, d)
+      invs := sorry
+  }
+
+def ParallelSearchContextSub.merge2 {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ] {th : ρ} {sys : _} {params : _}
+  (mainCtx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params)
+  (subCtx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :
+  @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := {
+    mainCtx with
+      tovisit := subCtx.tovisit.foldl (init := mainCtx.tovisit) fun acc ⟨h, x, d⟩ =>
+        if !mainCtx.seen.contains h then acc.insertIfNew h (x, d) else acc
       invs := sorry
   }
 
@@ -470,8 +481,10 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type}
     }
     let tasks := parallelCfg.taskSplit (ParallelSearchContextSub.bfsBigStep sys ctx.toBaseSearchContext) tovisitArr
     let results := tasks.map Task.get
-    let newCtx := results.foldl (init := ctx) ParallelSearchContextSub.merge
-    ctx := newCtx
+    -- compute `seen` first, and then merge the `tovisit`s, since need to
+    -- filter out already seen states when merging
+    ctx := results.foldl (init := ctx) ParallelSearchContextSub.merge1
+    ctx := results.foldl (init := ctx) ParallelSearchContextSub.merge2
   return ctx
 
 /-! ## Trace Recovery
