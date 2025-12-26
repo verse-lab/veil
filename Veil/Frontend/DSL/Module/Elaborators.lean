@@ -414,6 +414,7 @@ structure ModelCheckerConfig where
   /-- Maximum depth (number of transitions) to explore. If it's 0, explores all
   reachable states. -/
   maxDepth : Nat := 0
+  parallelCfg : Option ModelChecker.ParallelConfig := none
   deriving Repr
 
 declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
@@ -495,7 +496,9 @@ def elabModelCheck : CommandElab := fun stx => do
           terminating := $terminatingProp
           earlyTerminationConditions := $earlyTerminationConditions
         }
+      ($(quote config.parallelCfg))
     )
+    trace[veil.desugar] "{resultExpr}"
 
     -- Create the widget display using HtmlDisplay
     -- NOTE: We set the max heartbeats and synth instance max size to high values
