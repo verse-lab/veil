@@ -1,6 +1,7 @@
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.ExtractUtil
 import Veil.Frontend.DSL.Module.Names
+import Veil.Frontend.DSL.Action.ExtractList2
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -254,8 +255,19 @@ elab_rules : command
     generateVeilMultiExecMCore logelem tac injectedBinders (some target) false
   -- FIXME: the other cases
 
+def genExtractCommand (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : CommandElabM Unit := do
+  let execListCmd ← `(command |
+    #gen_executable_list! log_entry_being $(mkIdent ``Std.Format)
+    targeting $nextActSimplified
+    injection_begin
+      $[$binders]*
+    injection_end)
+  trace[veil.debug] "gen_executable_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic execListCmd}"
+  elabVeilCommand execListCmd
+
 /-- Generate both NextAct specialization and executable list commands. -/
-def genNextActCommands (mod : Veil.Module) : CommandElabM Unit := do
+def genNextActCommands (mod : Veil.Module)
+  (k : Array (TSyntax `Lean.Parser.Term.bracketedBinder) → CommandElabM Unit) : CommandElabM Unit := do
   let binders ← mod.collectNextActBinders
   -- Generate NextAct specialization
   let nextActCmd ← `(command |
@@ -268,15 +280,7 @@ def genNextActCommands (mod : Veil.Module) : CommandElabM Unit := do
   trace[veil.debug] "gen_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic nextActCmd}"
   elabVeilCommand nextActCmd
 
-  -- Generate executable list
-  let execListCmd ← `(command |
-    #gen_executable_list! log_entry_being $(mkIdent ``Std.Format)
-    targeting $nextActSimplified
-    injection_begin
-      $[$binders]*
-    injection_end)
-  trace[veil.debug] "gen_executable_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic execListCmd}"
-  elabVeilCommand execListCmd
+  k binders
 
 /-- Extract the resulting state from an ExceptT-wrapped execution, if successful. -/
 def getStateFromExceptT (c : ExceptT ε DivM (α × σ)) : Option σ :=

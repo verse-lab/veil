@@ -11,7 +11,7 @@ import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
-import Veil.Frontend.DSL.Action.Extract
+import Veil.Frontend.DSL.Action.Extract2
 
 open Lean Parser Elab Command
 
@@ -241,7 +241,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand nextTrCmd
   let (initCmd, mod) ← mod.assembleInit
   elabVeilCommand initCmd
-  Extract.genNextActCommands mod
+  Extract.genNextActCommands mod Extract.genExtractCommand2
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
   elabVeilCommand rtsCmd

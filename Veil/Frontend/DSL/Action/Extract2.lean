@@ -79,7 +79,7 @@ def generateVeilMultiExecMCore2 (κ : TSyntax `term)
         (($lIdent.$(mkIdent `casesOn) $alts*) : $multiExecType))
       let cmd ← Specialization.buildingTermWithχSpecialized baseParams extraParams injectedBinders nextActExecIdent finalBody
         (← `(term| _ ))
-        (← `(term| $(mkIdent `instRepForFieldRepresentation) $(← mod.sortIdents)* ))
+        (← `(term| $instFieldRepresentation $(← mod.sortIdents)* ))
         (← `(term| _ ))
       pure cmd
     else
@@ -116,5 +116,15 @@ elab_rules : command
   | `(#gen_executable_list2! log_entry_being $logelem:term targeting $target:ident injection_begin $injectedBinders:bracketedBinder* injection_end) => do
     generateVeilMultiExecMCore2 logelem injectedBinders (some target) false
   -- FIXME: the other cases
+
+def genExtractCommand2 (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : CommandElabM Unit := do
+  let execListCmd ← `(command |
+    #gen_executable_list2! log_entry_being $(mkIdent ``Std.Format)
+    targeting $nextActSimplified
+    injection_begin
+      $[$binders]*
+    injection_end)
+  trace[veil.debug] "gen_executable_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic execListCmd}"
+  elabVeilCommand execListCmd
 
 end Veil.Extract
