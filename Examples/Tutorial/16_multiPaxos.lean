@@ -359,7 +359,7 @@ and `maxSize` to get all required instances infered automatically,
 especially for `Inhabited`. -/
 set_option synthInstance.maxHeartbeats 1000000
 set_option synthInstance.maxSize 2000
-#exit
+-- #exit
 #time #model_check
 {
   ballot := Fin 1,

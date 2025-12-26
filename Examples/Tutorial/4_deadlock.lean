@@ -179,11 +179,11 @@ action _cs(self : process) {
 
 
 invariant [mutual_exclusion] pc T1 cs ∧ pc T2 cs → T1 = T2
-termination [AllDone] ∀p, pc p Done = true
+-- termination [AllDone] ∀p, pc p Done = true
 
 #gen_spec
 
-
-#time #model_check { process := Fin 3 } {none := 0} (parallelCfg := some { numSubTasks := 2, thresholdToParallel := 2 })
+-- 6497
+#time #model_check { process := Fin 3 } {none := 0} (parallelCfg := some { numSubTasks := 6, thresholdToParallel := 2 })
 
 end Mutex

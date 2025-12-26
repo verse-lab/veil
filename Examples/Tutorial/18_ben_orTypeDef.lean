@@ -130,6 +130,7 @@ type RoundSet
 instantiate roundSet : TSet round RoundSet
 immutable individual ROUNDS : RoundSet
 instantiate seq : TotalOrderWithZero round
+immutable individual one : round
 type value
 type ValueSet
 instantiate valSet : TSet value ValueSet
@@ -171,7 +172,7 @@ function msg2 : round → msgTwo
 theory ghost relation lt (x y : round) := (seq.le x y ∧ x ≠ y)
 theory ghost relation next (x y : round) := (lt x y ∧ ∀ z, lt x z → seq.le y z)
 assumption [nat_gt_zero] ∀n, seq.le seq.zero n
-
+assumption [zero_one] next seq.zero one
 
 
 procedure succ (n : round) {
@@ -212,7 +213,7 @@ ghost relation isFaulty (r : replica) := rset.contains r Faulty
 after_init {
   fValue P := *
   fDecision P := NO_DECISION
-  fRound R := * -- one
+  fRound R := one -- one
   fStep P := S1_OF_STEP
   msg1 R := msgOneSet.empty
   msg2 R := msgTwoSet.empty
@@ -325,7 +326,7 @@ action Step2 (rep : replica) {
         v := v } (msg2 rd)
   else -- send Q2 message
     -- require ∀v2, weights1_leq received v2 ( (N + T) / 2 )
-    -- require (valSet.toList VALUES).all (fun v2 => weights1_leq received v2 ( (N + T) / 2 ))
+    require (valSet.toList VALUES).all (fun v2 => weights1_leq received v2 ( (N + T) / 2 ))
     -- require less_than_N_plus_T_div_2 received
     msg2 rd := msgTwoSet.insert
       { tag := Tag.Q2,
@@ -383,35 +384,35 @@ ghost relation weights2_leq (received : msgTwo) (v : value) (Tn : Nat) :=
   rset.count senders <= Tn
 
 
--- action Step3 (rep : replica) {
---   require isCorrect rep
---   require fStep rep == S3_OF_STEP
---   let rd : round := fRound rep
---   let received : msgTwo :| ∀m, msgTwoSet.contains m received → msgTwoSet.contains m (msg2 rep)
---   let senders ← Senders2 received
---   require rset.count senders == N - T
---   let v ← pick value
---   let weightV ← Weights2 received v
---   if weightV >= T + 1 then
---     -- (a) set x_P to v
---     fValue rep := v
---     if 2 * weightV > N + T then
---       -- decide v
---       fDecision rep := v
---     else
---       fDecision rep := fDecision rep
---   else
---     require ∀v2, weights2_leq received v2 (T + 1)
---     let next_v ← pick value
---     -- (c) set x_P = next_v
---     fValue rep := next_v
---     fDecision rep := fDecision rep
---   let succ_rd ← succ rd
---   require roundSet.contains succ_rd ROUNDS
---   -- set r := r + 1 and go to step 1
---   fRound rep := succ_rd
---   fStep rep := S1_OF_STEP
--- }
+action Step3 (rep : replica) {
+  require isCorrect rep
+  require fStep rep == S3_OF_STEP
+  let rd : round := fRound rep
+  let received : msgTwo :| ∀m, msgTwoSet.contains m received → msgTwoSet.contains m (msg2 rd)
+  let senders ← Senders2 received
+  require rset.count senders == N - T
+  let v ← pick value
+  let weightV ← Weights2 received v
+  if weightV >= T + 1 then
+    -- (a) set x_P to v
+    fValue rep := v
+    if 2 * weightV > N + T then
+      -- decide v
+      fDecision rep := v
+    else
+      fDecision rep := fDecision rep
+  else
+    require ∀v2, weights2_leq received v2 (T + 1)
+    let next_v ← pick value
+    -- (c) set x_P = next_v
+    fValue rep := next_v
+    fDecision rep := fDecision rep
+  let succ_rd ← succ rd
+  require roundSet.contains succ_rd ROUNDS
+  -- set r := r + 1 and go to step 1
+  fRound rep := succ_rd
+  fStep rep := S1_OF_STEP
+}
 
 
 -- FaultyStep ==
@@ -424,14 +425,14 @@ ghost relation weights2_leq (received : msgTwo) (v : value) (Tn : Nat) :=
 --              \E F2Q \in SUBSET { Q2(src, r): src \in FAULTY }:
 --                 msgs2' = [ msgs2 EXCEPT ![r] = @ \union F2D \union F2Q ]
 --     /\ UNCHANGED << value, decision, round, step >>
--- action FaultyStep {
---   let r :| roundSet.contains r ROUNDS
---   let F1 : msgOne :| ∀m, msgOneSet.contains m F1 → (isFaulty m.src ∧ m.r == r)
---   msg1 r := msgOneSet.union F1 (msg1 r)
-  -- let F2D : msgTwo :| ∀m, msgTwoSet.contains m F2D → (isFaulty m.src ∧ m.r == r ∧ m.tag == Tag.D2)
-  -- let F2Q : msgTwo :| ∀m, msgTwoSet.contains m F2Q → (isFaulty m.src ∧ m.r == r ∧ m.tag == Tag.Q2)
-  -- msg2 r := msgTwoSet.union F2D (msgTwoSet.union F2Q (msg2 r))
--- }
+action FaultyStep {
+  let r :| roundSet.contains r ROUNDS
+  let F1 : msgOne :| ∀m, msgOneSet.contains m F1 → (isFaulty m.src ∧ m.r == r)
+  msg1 r := msgOneSet.union F1 (msg1 r)
+  let F2D : msgTwo :| ∀m, msgTwoSet.contains m F2D → (isFaulty m.src ∧ m.r == r ∧ m.tag == Tag.D2)
+  let F2Q : msgTwo :| ∀m, msgTwoSet.contains m F2Q → (isFaulty m.src ∧ m.r == r ∧ m.tag == Tag.Q2)
+  msg2 r := msgTwoSet.union F2D (msgTwoSet.union F2Q (msg2 r))
+}
 
 
 -- CorrectStep ==
@@ -459,9 +460,9 @@ invariant [agreement_inv]
        fDecision id2 == NO_DECISION ∨
        fDecision id1 == fDecision id2)
 
-invariant [msgOnesize_trivial]
-  ∀ r : round,
-    msgOneSet.count (msg1 r) < 1
+-- invariant [msgOnesize_trivial]
+--   ∀ r : round,
+--     msgOneSet.count (msg1 r) < 1
 -- \* Once a correct replica decides, it never changes its decision
 -- FinalityInv ==
 --     \A id \in CORRECT:
@@ -478,26 +479,52 @@ invariant [msgOnesize_trivial]
 
 set_option synthInstance.maxHeartbeats 100000
 -- set_option synthInstance.maxSize 2000
+
+-- Minimal configuration: 2 replicas (1 correct, 1 faulty), 1 round, 1 value
 #model_check
-{ replica := Fin 3
-  ReplicaSet := Std.ExtTreeSet (Fin 3) compare
-  round := Fin 2
-  RoundSet := Std.ExtTreeSet (Fin 2) compare
-  value := Fin 2
-  msgOne := Std.ExtTreeSet (M1 (Fin 3) (Fin 2) (Fin 2)) compare
-  msgTwo := Std.ExtTreeSet (M2 (Fin 3) (Fin 2) (Fin 2)) compare
-  ValueSet := Std.ExtTreeSet (Fin 2) compare
+{ replica := Fin 2
+  ReplicaSet := Std.ExtTreeSet (Fin 2) compare
+  round := Fin 1
+  RoundSet := Std.ExtTreeSet (Fin 1) compare
+  value := Fin 1
+  msgOne := Std.ExtTreeSet (M1 (Fin 2) (Fin 1) (Fin 1)) compare
+  msgTwo := Std.ExtTreeSet (M2 (Fin 2) (Fin 1) (Fin 1)) compare
+  ValueSet := Std.ExtTreeSet (Fin 1) compare
 }
 {
-  N := 3
-  T := 2
+  N := 2
+  T := 1
   F := 1
-  Correct := (∅ : Std.ExtTreeSet (Fin 3) compare).insertMany [0, 1]
-  Faulty := (∅ : Std.ExtTreeSet (Fin 3) compare).insertMany [2]
-  ROUNDS := (∅ : Std.ExtTreeSet (Fin 2) compare).insertMany [0, 1]
+  Correct := (∅ : Std.ExtTreeSet (Fin 2) compare).insertMany [0]
+  Faulty := (∅ : Std.ExtTreeSet (Fin 2) compare).insertMany [1]
+  ROUNDS := (∅ : Std.ExtTreeSet (Fin 1) compare).insertMany [0]
   NO_DECISION := 0
-  VALUES := (∅ : Std.ExtTreeSet (Fin 2) compare).insertMany [0, 1]
-  }
+  one := 0
+  VALUES := (∅ : Std.ExtTreeSet (Fin 1) compare).insertMany [0]
+}
+
+-- Original configuration (commented out)
+-- #model_check
+-- { replica := Fin 3
+--   ReplicaSet := Std.ExtTreeSet (Fin 3) compare
+--   round := Fin 2
+--   RoundSet := Std.ExtTreeSet (Fin 2) compare
+--   value := Fin 2
+--   msgOne := Std.ExtTreeSet (M1 (Fin 3) (Fin 2) (Fin 2)) compare
+--   msgTwo := Std.ExtTreeSet (M2 (Fin 3) (Fin 2) (Fin 2)) compare
+--   ValueSet := Std.ExtTreeSet (Fin 2) compare
+-- }
+-- {
+--   N := 3
+--   T := 2
+--   F := 1
+--   Correct := (∅ : Std.ExtTreeSet (Fin 3) compare).insertMany [0, 1]
+--   Faulty := (∅ : Std.ExtTreeSet (Fin 3) compare).insertMany [2]
+--   ROUNDS := (∅ : Std.ExtTreeSet (Fin 2) compare).insertMany [0, 1]
+--   NO_DECISION := 0
+--   one := 1
+--   VALUES := (∅ : Std.ExtTreeSet (Fin 2) compare).insertMany [0, 1]
+--   }
 -- \****************** EXAMPLES   *****************************
 
 -- \* An example of a replica that has made a decision

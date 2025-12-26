@@ -341,37 +341,36 @@ def m1 : Std.ExtTreeMap key_IndT txId_IndT compare :=
 
 /- In interactive mode, reconstruct this counterexample trace is
 very slow, taking about ~4 minutes (241738ms). -/
-#time #model_check
-{
-  key := key_IndT,
-  Keys := Std.ExtTreeSet key_IndT compare,
-  txId := txId_IndT,
-  TxIds := Std.ExtTreeSet txId_IndT compare,
-  states := states_IndT,
-  Ops := ExtTreeSet (Op key_IndT txId_IndT),
-  KVState := ExtTreeMap key_IndT txId_IndT
-}
-{
-  initialState := m1,
-  txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
-}
+-- #time #model_check
+-- {
+--   key := key_IndT,
+--   Keys := Std.ExtTreeSet key_IndT compare,
+--   txId := txId_IndT,
+--   TxIds := Std.ExtTreeSet txId_IndT compare,
+--   states := states_IndT,
+--   Ops := ExtTreeSet (Op key_IndT txId_IndT),
+--   KVState := ExtTreeMap key_IndT txId_IndT
+-- }
+-- {
+--   initialState := m1,
+--   txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
+-- }
 
-#exit
+-- #exit
 def modelCheckerResult :=
   Concrete.findReachable
   (
     enumerableTransitionSystem
-    (Fin 2)
-    (ExtTreeSet (Fin 2))
-    (Fin 4)
-    (ExtTreeSet (Fin 4))
+    key_IndT
+    (Std.ExtTreeSet key_IndT compare)
+    txId_IndT
+    (Std.ExtTreeSet txId_IndT compare)
     states_IndT
-    (ExtTreeSet (Op (Fin 2) (Fin 4)))
-    (ExtTreeMap (Fin 2) (Fin 4))
+    (ExtTreeSet (Op key_IndT txId_IndT))
+    (ExtTreeMap key_IndT txId_IndT)
     {
       initialState := m1,
-      noVal := 0,
-      txIdUniv := ExtTreeSet.ofList ([1, 2, 3] : List (Fin 4))
+      txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT)
     }
   )
   {
@@ -389,9 +388,10 @@ def modelCheckerResult :=
     EarlyTerminationCondition.deadlockOccurred
   ]
 }
+  none  -- No parallel configuration (sequential search)
 
 
-#eval! modelCheckerResult
+-- #eval! modelCheckerResult
 
 
 
