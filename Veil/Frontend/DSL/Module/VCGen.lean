@@ -42,8 +42,9 @@ private def overallSmtResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT B
       let mod ← getCurrentModule
       return .some $ .sat (← sat.filterMapM (fun ce => return ← ce.mapM (fun ce => do
         try
-          let veilModel  ← buildCounterexampleExprs ce mod actName
-          return .some ⟨ce, ← renderSmtModel ce, veilModel⟩
+          let veilModel ← buildCounterexampleExprs ce mod actName
+          let structuredJson : Json ← unsafe veilModel.toJson
+          return .some { raw := ce, rawHtml := ← renderSmtModel ce, structuredJson := structuredJson }
         catch ex =>
           dbg_trace "Failed to build counterexample; exception: {← ex.toMessageData.toString}"
           return none)))

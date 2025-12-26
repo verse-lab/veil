@@ -152,6 +152,13 @@ structure VeilModel where
   instExpr : Expr
   /-- Type expression for `Instantiation` -/
   instType : Expr
+  /-- Sort instantiation info: maps sort name to pretty-printed type name.
+  This is needed because `Type` fields in `Instantiation` are erased at runtime,
+  so we store the type names explicitly for JSON serialization. -/
+  sortInstInfo : Array (Name × String) := #[]
+  /-- Sort substitution: maps sort parameter fvars to their concrete types (e.g., `Fin 3`).
+  Used for substituting abstract types before JSON serialization. -/
+  sortSubst : Array (Expr × Expr) := #[]
 
   /-- Sorts not part of module's Instantiation -/
   extraSorts : Array (Expr × Expr)
@@ -182,8 +189,9 @@ structure AnnotatedSmtModel where
   raw : Smt.Model
   /-- A widget view of the raw model. -/
   rawHtml : ProofWidgets.Html
-  segmented : VeilModel
-
+  /-- JSON representation of the structured counterexample. Pre-computed using
+  `VeilModel.toJson` at construction time. -/
+  structuredJson : Json
 
 /-- The order in which results "saturate" (from "strongest" — eats everything —
 to "weakest" — gets eaten by everything else):
@@ -238,7 +246,7 @@ instance : ToJson SmtResult where
       Json.mkObj [("kind", Json.str "sat"),
                   ("counterexamples", toJson (counterexamples.map <| fun ce? =>
                     match ce? with
-                    | some ce => Json.mkObj [("model", toJson ce.raw), ("html", Json.str "<p>Counter-example HTML</p>")]
+                    | some ce => Json.mkObj [("raw", toJson ce.raw), ("html", Json.str "<p>Counter-example HTML</p>"), ("structuredJson", ce.structuredJson)]
                     | none => Json.null
                   ))]
   | .unknown reasons =>
@@ -260,8 +268,12 @@ instance : Server.RpcEncodable SmtResult where
                   ("counterexamples", toJson (← counterexamples.mapM <| fun ce? => do
                     match ce? with
                     | some ce => do
-                    let html ← Server.rpcEncode ce.rawHtml
-                    return Json.mkObj [("model", toJson ce.raw), ("html", html)]
+                      let html ← Server.rpcEncode ce.rawHtml
+                      return Json.mkObj [
+                        ("raw", toJson ce.raw),
+                        ("html", html),
+                        ("structuredJson", ce.structuredJson),
+                      ]
                     | none => pure <| Json.null))]
   | .unsat unsatCores => do
     return .mkObj [("kind", Json.str "unsat"),

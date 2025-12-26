@@ -22,8 +22,6 @@ open Between TotalOrder
 relation leader : node -> Bool
 relation pending : node -> node -> Bool
 
-set_option trace.veil.desugar true
-
 #time #gen_state
 
 after_init {
@@ -46,10 +44,7 @@ action recv (sender n next : node) {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   require pending sender n
   -- log := log ++ [Action.recv sender n next]
-  -- message may or may not be removed
-  -- this models that multiple messages might be in flight
-  let b ← pick Bool
-  pending sender n := b  -- FIXME: `pending sender n := *` has bad execution performance
+  pending sender n := false
   if (sender = n) then
     leader n := true
   else
@@ -62,111 +57,15 @@ action recv (sender n next : node) {
 --   log := *
 -- }
 
-
 safety [single_leader] leader N ∧ leader M → N = M
-invariant [leader_greatest] leader L → le N L
--- invariant [inv_1] pending S D ∧ btw S N D → le N S
+-- invariant [leader_greatest] leader L → le N L
+invariant [inv_1] pending S D ∧ btw S N D → le N S
 invariant [inv_2] pending L L → le N L
 
 #gen_spec
 
 #check_invariants
 
-set_option veil.desugarTactic true
-
-theorem recv_single_leader' (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
-    [node_inhabited : Inhabited.{1} node] [tot : TotalOrder node] [btwn : Between node]
-    (χ : State.Label → Type)
-    [χ_rep :
-      ∀ __veil_f,
-        Veil.FieldRepresentation (State.Label.toDomain node __veil_f)
-          (State.Label.toCodomain node __veil_f) (χ __veil_f)]
-    [χ_rep_lawful :
-      ∀ __veil_f,
-        Veil.LawfulFieldRepresentation (State.Label.toDomain node __veil_f)
-          (State.Label.toCodomain node __veil_f) (χ __veil_f) (χ_rep __veil_f)]
-    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory node) ρ]
-    [recv_dec_0 :
-      (n next : node) →
-        Decidable
-          (∀ (Z : node),
-            And (@Eq.{1} node n next → False)
-              (And (@Ne.{1} node Z n) (@Ne.{1} node Z next) → btwn.1 n next Z))]
-    [recv_dec_1 : (sender n : node) → Decidable (tot.1 n sender)] :
-    ∀ (sender : node) (n : node) (next : node),
-      Veil.Transition.meetsSpecificationIfSuccessfulAssuming
-        (@recv.ext.tr ρ σ node node_dec_eq node_inhabited tot btwn χ χ_rep χ_rep_lawful σ_sub ρ_sub
-          recv_dec_0 recv_dec_1 sender n next)
-        (@Assumptions ρ node node_dec_eq node_inhabited tot btwn ρ_sub)
-        (@Invariants ρ σ node node_dec_eq node_inhabited tot btwn χ χ_rep χ_rep_lawful σ_sub ρ_sub)
-        (@single_leader ρ σ node node_dec_eq node_inhabited tot btwn χ χ_rep χ_rep_lawful σ_sub
-          ρ_sub) :=
-  by
-  -- unfold Veil.Transition.meetsSpecificationIfSuccessfulAssuming Veil.Transition.meetsSpecificationIfSuccessful Veil.Transition.triple recv.ext.tr
-  veil_intros
-  veil_neutralize_decidable_inst
-  veil_intro_ho -- what does this do?
-  unhygienic intros
-  veil_destruct only [And, Exists]
-  simp only [ifSimp] at *
-  veil_destruct only [And, Exists]
-  unfold single_leader
-  unhygienic split_ifs at *
-  {
-    -- perform the first several steps of `veil_fol`
-    (open Classical in veil_simp only [substateSimp, invSimp, smtSimp, quantifierSimp, ghostRelSimp]  at *)
-    veil_intro_ho
-    skip
-    -- the following is `veil_concretize_state_tr` expanded;
-    -- try the suggestion to obtain these
-    veil_simp only [HasCompl.compl, Classical.not_imp, Classical.not_not, Classical.not_forall]  at *
-    veil_destruct only[And, Exists]
-    (try rw [setIn_makeExplicit st] at *)
-    veil_destruct only[And, Exists]
-    (try subst st)
-    (try rw [setIn_makeExplicit s₁] at *)
-    veil_destruct only[And, Exists]
-    (try subst s₁)
-    (try subst st')       -- do another `subst` here
-    try (generalize (IsSubReaderOf.readFrom th) = __veil_th at *; (try clear th); veil_rename_hyp __veil_th => th)
-    try (generalize (IsSubStateOf.getFrom st) = __veil_st at *; (try clear st); veil_rename_hyp __veil_st => st)
-    veil_simp only [substateSimp, smtSimp]  at *
-    veil_destruct only[And, Exists]
-    -- then perform the remaining steps of `veil_fol`
-    (veil_concretize_fields; veil_destruct; (open Classical in veil_simp only [smtSimp]  at *); veil_intros)
-    -- solve
-    veil_smt
-
-    stop
-
-    veil_simp only [fieldRepresentationSetSimpPre] at *
-    open Classical in veil_simp only [(χ_rep_lawful .leader).get_set_idempotent' (by infer_instance_for_iterated_prod),
-          (χ_rep_lawful .pending).get_set_idempotent' (by infer_instance_for_iterated_prod)]  at *
-    open Classical in veil_simp only [fieldRepresentationSetSimpPost, State.Label.toDomain, State.Label.toCodomain]  at *
-
-    generalize hLeaderGet: ((χ_rep _).get) st.leader = __veil_leader at *;  dsimp [State.Label.toDomain, State.Label.toCodomain] at __veil_leader
-    generalize hLeaderSet: ((χ_rep _).set) _ st.leader = __veil_leader' at *; -- I think we need this
-
-
-    generalize hPendingGet: ((χ_rep _).get) st.pending = __veil_pending at *;  dsimp [State.Label.toDomain, State.Label.toCodomain] at __veil_pending
-    generalize hPendingSet: ((χ_rep _).set) _ st.pending = __veil_pending' at *;
-
-    -- There must be a better way to do this
-    simp_all only [← hLeaderSet] -- this is to simplify using `a_1_1_1.right_1.left.left : st'.leader = __veil_leader'`
-    simp_all only [← hPendingSet] -- this is to simplify using `a_1_1_1.right_1.left.right : st'.pending = __veil_pending'`
-
-    veil_simp only [fieldRepresentationSetSimpPre] at *
-    open Classical in veil_simp only [(χ_rep_lawful .leader).get_set_idempotent' (by infer_instance_for_iterated_prod),
-        (χ_rep_lawful .pending).get_set_idempotent' (by infer_instance_for_iterated_prod)]  at *
-    open Classical in veil_simp only [fieldRepresentationSetSimpPost, State.Label.toDomain, State.Label.toCodomain]  at *
-    simp_all
-
-    sorry
-
-  }
-  sorry
-  sorry
-
-#time #model_check { node := Fin 5 } { }
+#time #model_check { node := Fin 5, foo := Fin 1 } { }
 
 end Ring
