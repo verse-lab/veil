@@ -143,6 +143,9 @@ syntax (name := functionStateComponent) kw_function : stateComponentKind
 /-- This state component is the state of another module. -/
 syntax (name := moduleStateComponent) kw_module : stateComponentKind
 
+/-- Inline Lean's built-in `structure` and `inductive` definitions in module. -/
+syntax (name := inlineBuiltinDeclaration) "@[veil_decl]" command : command
+
 /-- Assemble the state type for this Veil module, based on the previously
 declared state components. -/
 syntax (name := genState) "#gen_state" : command

@@ -1,8 +1,6 @@
 import Veil
-import Mathlib.Tactic.ProxyType
 
 open Lean
-
 open Std
 -- ------------------------------- MODULE MultiPaxosUs -------------------------------
 -- (***************************************************************************)
@@ -19,150 +17,25 @@ open Std
 
 veil module MultiPaxosUs
 -- CONSTANTS Acceptors, Values, Quorums, Proposers
--- type Ballots
 type ballot
--- type Slots
 type slot
--- type Values
 type value
--- type Acceptors
--- Proposers
 type acceptor
 type quorum
 
 
-
+@[veil_decl]
 structure Voted (α β γ : Type) where
   bal  : α
   slot : β
   val  : γ
-deriving Inhabited, DecidableEq, Repr, Lean.ToJson, Hashable, Ord, Repr, TransOrd, LawfulEqOrd
+deriving instance Veil.Enumeration for Voted
 
--- section VariousByEquiv
-
--- variable {α : Type u} {β : Type v} [Ord α] [Ord β] (equiv : α ≃ β)
---   (hmorph : ∀ (a1 a2 : α), compare a1 a2 = compare (equiv a1) (equiv a2))
-
--- include hmorph
-
--- def Std.TransOrd.by_equiv [inst : Std.TransOrd α] : Std.TransOrd β where
---   eq_swap := by
---     intro b1 b2
---     rw [← equiv.right_inv b1, ← equiv.right_inv b2] ; dsimp [Equiv.coe_fn_mk]
---     repeat rw [← hmorph]
---     apply inst.eq_swap
---   isLE_trans := by
---     intro b1 b2 b3
---     rw [← equiv.right_inv b1, ← equiv.right_inv b2, ← equiv.right_inv b3] ; dsimp [Equiv.coe_fn_mk]
---     repeat rw [← hmorph]
---     apply inst.isLE_trans
-
--- def Std.LawfulEqOrd.by_equiv [inst : Std.LawfulEqOrd α] : Std.LawfulEqOrd β where
---   compare_self := by
---     intro b ; specialize hmorph (equiv.symm b) (equiv.symm b) ; grind
---   eq_of_compare := by
---     intro b1 b2
---     rw [← equiv.right_inv b1, ← equiv.right_inv b2] ; dsimp [Equiv.coe_fn_mk]
---     repeat rw [← hmorph]
---     simp
-
--- end VariousByEquiv
-
--- namespace Voted
-
--- def votedEquiv : Voted α β γ ≃ (α × β × γ) where
---   toFun v := (v.bal, v.slot, v.val)
---   invFun := fun (a, b, c) => { bal := a, slot := b, val := c }
---   left_inv := by intro v; cases v; rfl
---   right_inv := by intro p; rfl
-
-
--- theorem voted_compare_hmorph
---   [Ord α] [Ord β] [Ord γ]
---   (v1 v2 : Voted α β γ) :
---   compare v1 v2 = compare (votedEquiv v1) (votedEquiv v2) := by
---   simp [Ord.compare, votedEquiv, instOrdVoted.ord]
-
--- instance instTransOrdForVoted
--- [Ord α] [Ord β] [Ord γ]
--- [Std.TransOrd α]
--- [Std.TransOrd β]
--- [Std.TransOrd γ]
--- : Std.TransOrd (Voted α β γ) :=
---   @Std.TransOrd.by_equiv (α × β × γ) (Voted α β γ) _ _ votedEquiv.symm
---     (fun a1 a2 => (voted_compare_hmorph (votedEquiv.symm a1) (votedEquiv.symm a2)).symm)
---     inferInstance
-
--- instance instLawfulEqOrdForVoted
--- [Ord α] [Ord β] [Ord γ]
--- [Std.LawfulEqOrd α]
--- [Std.LawfulEqOrd β]
--- [Std.LawfulEqOrd γ]
--- : Std.LawfulEqOrd (Voted α β γ) :=
---   @Std.LawfulEqOrd.by_equiv (α × β × γ) (Voted α β γ) _ _ votedEquiv.symm
---     (fun a1 a2 => (voted_compare_hmorph (votedEquiv.symm a1) (votedEquiv.symm a2)).symm)
---     inferInstance
--- end Voted
-
-
-instance {α β γ : Type} [FinEnum α] [FinEnum β] [FinEnum γ] : FinEnum (Voted α β γ) :=
-  FinEnum.ofEquiv _
-    { toFun := fun v => (v.bal, v.slot, v.val)
-      invFun := fun (b, s, v) => { bal := b, slot := s, val := v }
-      left_inv := by intro v; cases v; simp
-      right_inv := by intro x; simp }
-
-
-instance [FinEnum α] : Veil.Enumeration α where
-  -- allValues := FinEnum.toList α
-  allValues := FinEnum.toList α
-  complete := FinEnum.mem_toList
-
-
+@[veil_decl]
 structure Decree (β γ : Type) where
   slot : β
   val  : γ
-deriving Inhabited, DecidableEq, Repr, Lean.ToJson, Hashable, Ord, Repr
-
--- namespace Decree
-
--- def decreeEquiv : Decree β γ ≃ (β × γ) where
---   toFun d := (d.slot, d.val)
---   invFun := fun (s, v) => { slot := s, val := v }
---   left_inv := by intro d; cases d; rfl
---   right_inv := by intro p; rfl
-
--- theorem decree_compare_hmorph
---   [Ord β] [Ord γ]
---   (d1 d2 : Decree β γ) :
---   compare d1 d2 = compare (decreeEquiv d1) (decreeEquiv d2) := by
---   simp [Ord.compare, decreeEquiv, instOrdDecree.ord]
-
--- instance instTransOrdForDecree
--- [Ord β] [Ord γ]
--- [Std.TransOrd β]
--- [Std.TransOrd γ]
--- : Std.TransOrd (Decree β γ) :=
---   @Std.TransOrd.by_equiv (β × γ) (Decree β γ) _ _ decreeEquiv.symm
---     (fun a1 a2 => (decree_compare_hmorph (decreeEquiv.symm a1) (decreeEquiv.symm a2)).symm)
---     inferInstance
-
--- instance instLawfulEqOrdForDecree
--- [Ord β] [Ord γ]
--- [Std.LawfulEqOrd β]
--- [Std.LawfulEqOrd γ]
--- : Std.LawfulEqOrd (Decree β γ) :=
---   @Std.LawfulEqOrd.by_equiv (β × γ) (Decree β γ) _ _ decreeEquiv.symm
---     (fun a1 a2 => (decree_compare_hmorph (decreeEquiv.symm a1) (decreeEquiv.symm a2)).symm)
---     inferInstance
--- end Decree
-
-instance FinEnumDecree {β γ : Type} [FinEnum β] [FinEnum γ] : FinEnum (Decree β γ) :=
-  FinEnum.ofEquiv _
-    { toFun := fun d => (d.slot, d.val)
-      invFun := fun (s, v) => { slot := s, val := v }
-      left_inv := by intro d; cases d; simp
-      right_inv := by intro x; simp }
+deriving instance Veil.Enumeration for Decree
 
 /-
 Messages ==
@@ -180,26 +53,15 @@ type VotedSet
 type DecreeSet
 type MsgSet
 
+@[veil_decl]
 inductive MsgType where
   | Phase1a
   | Phase1b
   | Phase2a
   | Phase2b
-deriving Inhabited, DecidableEq, Ord, Lean.ToJson, Hashable, Repr
+deriving instance Veil.Enumeration for MsgType
 
-instance : FinEnum MsgType :=
-  FinEnum.ofList
-    [MsgType.Phase1a, MsgType.Phase1b, MsgType.Phase2a, MsgType.Phase2b]
-    (by simp; intro x; cases x <;> simp )
-
-instance : Std.TransOrd MsgType where
-  eq_swap := by intro a b; cases a <;> cases b <;> decide
-  isLE_trans := by intro a b c; cases a <;> cases b <;> cases c <;> decide
-
-instance : Std.LawfulEqOrd MsgType where
-  compare_self := by intro a; cases a <;> decide
-  eq_of_compare := by intro a b; cases a <;> cases b <;> decide
-
+@[veil_decl]
 structure Msg (ac val blt slt vcont dcont : Type) where
   msgType : MsgType
   src : ac
@@ -208,55 +70,7 @@ structure Msg (ac val blt slt vcont dcont : Type) where
   slot : slt
   decrees : dcont
   voted : vcont
-deriving Inhabited, DecidableEq, Lean.ToJson, Hashable, Ord, Repr, Std.TransOrd, Std.LawfulEqOrd
-
-
--- namespace Msg
-
--- def msgEquiv : Msg ac valT blt slt vcont dcont ≃ (MsgType × ac × valT × blt × slt × dcont × vcont) where
---   toFun m := (m.msgType, m.src, m.val, m.bal, m.slot, m.decrees, m.voted)
---   invFun := fun (t, s, v, b, sl, d, vo) =>
---     { msgType := t, src := s, val := v, bal := b, slot := sl, decrees := d, voted := vo }
---   left_inv := by intro m; cases m; rfl
---   right_inv := by intro p; rfl
-
--- theorem msg_compare_hmorph
---   [Ord ac] [Ord valT] [Ord blt] [Ord slt] [Ord vcont] [Ord dcont]
---   (m1 m2 : Msg ac valT blt slt vcont dcont) :
---   compare m1 m2 = compare (msgEquiv m1) (msgEquiv m2) := by
---   simp [Ord.compare, msgEquiv, instOrdMsg.ord]
-
--- end Msg
-
-instance {ac val blt slt vcont dcont : Type}
-    [FinEnum ac] [FinEnum val] [FinEnum blt]
-    [FinEnum slt] [FinEnum vcont] [FinEnum dcont] :
-    FinEnum (Msg ac val blt slt vcont dcont) :=
-  FinEnum.ofEquiv _
-    {
-      toFun := fun m => (m.msgType, m.src, m.val, m.bal, m.slot, m.decrees, m.voted)
-      invFun := fun (t, s, v, b, sl, d, vo) =>
-        { msgType := t, src := s, val := v, bal := b, slot := sl, decrees := d, voted := vo }
-      left_inv := by intro m; cases m; simp
-      right_inv := by intro x; simp
-    }
-
-
--- instance instTransOrdForMsg
--- [Ord ac] [Ord val] [Ord blt] [Ord slt] [Ord vcont] [Ord dcont]
--- [Std.TransOrd ac] [Std.TransOrd val] [Std.TransOrd blt] [Std.TransOrd slt] [Std.TransOrd vcont] [Std.TransOrd dcont]
--- : Std.TransOrd (Msg ac val blt slt vcont dcont) :=
---   @Std.TransOrd.by_equiv (MsgType × ac × val × blt × slt × dcont × vcont) (Msg ac val blt slt vcont dcont) _ _ Msg.msgEquiv.symm
---     (fun a1 a2 => (Msg.msg_compare_hmorph (Msg.msgEquiv.symm a1) (Msg.msgEquiv.symm a2)).symm)
---     inferInstance
-
--- instance instLawfulOrdForMsg
--- [Ord ac] [Ord val] [Ord blt] [Ord slt] [Ord vcont] [Ord dcont]
--- [Std.LawfulEqOrd ac] [Std.LawfulEqOrd val] [Std.LawfulEqOrd blt] [Std.LawfulEqOrd slt] [Std.LawfulEqOrd vcont] [Std.LawfulEqOrd dcont]
--- : Std.LawfulEqOrd (Msg ac val blt slt vcont dcont) :=
---   @Std.LawfulEqOrd.by_equiv (MsgType × ac × val × blt × slt × dcont × vcont) (Msg ac val blt slt vcont dcont) _ _ Msg.msgEquiv.symm
---     (fun a1 a2 => (Msg.msg_compare_hmorph (Msg.msgEquiv.symm a1) (Msg.msgEquiv.symm a2)).symm)
---     inferInstance
+deriving instance Veil.Enumeration for Msg
 
 
 instantiate tot : TotalOrderWithZero ballot
@@ -545,7 +359,7 @@ and `maxSize` to get all required instances infered automatically,
 especially for `Inhabited`. -/
 set_option synthInstance.maxHeartbeats 1000000
 set_option synthInstance.maxSize 2000
-
+#exit
 #time #model_check
 {
   ballot := Fin 1,

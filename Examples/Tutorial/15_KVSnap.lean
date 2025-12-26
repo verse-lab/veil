@@ -23,117 +23,24 @@ enum states = { START, READ, UPDATE, COMMIT, Done }
 instantiate keySet : TSet key Keys
 instantiate txIdSet : TSet txId TxIds
 
-inductive OpType
+@[veil_decl]
+inductive OpType where
   | Read
   | Write
-deriving DecidableEq, Inhabited, Hashable, Repr, Lean.ToJson, Ord
+deriving instance Veil.Enumeration for OpType
 
-instance : FinEnum OpType :=
-  FinEnum.ofList
-    [OpType.Read, OpType.Write]
-    (by simp; intro x; cases x <;> simp )
-
-instance : Std.TransOrd OpType where
-  eq_swap := by intro a b; cases a <;> cases b <;> decide
-  isLE_trans := by intro a b c; cases a <;> cases b <;> cases c <;> decide
-
-instance : Std.LawfulEqOrd OpType where
-  compare_self := by intro a; cases a <;> decide
-  eq_of_compare := by intro a b; cases a <;> cases b <;> decide
-
-section VariousByEquiv
-variable {α : Type u} {β : Type v} [Ord α] [Ord β] (equiv : α ≃ β)
-  (hmorph : ∀ (a1 a2 : α), compare a1 a2 = compare (equiv a1) (equiv a2))
-include hmorph
-def Std.TransOrd.by_equiv [inst : Std.TransOrd α] : Std.TransOrd β where
-  eq_swap := by
-    intro b1 b2
-    rw [← equiv.right_inv b1, ← equiv.right_inv b2] ; dsimp [Equiv.coe_fn_mk]
-    repeat rw [← hmorph]
-    apply inst.eq_swap
-  isLE_trans := by
-    intro b1 b2 b3
-    rw [← equiv.right_inv b1, ← equiv.right_inv b2, ← equiv.right_inv b3] ; dsimp [Equiv.coe_fn_mk]
-    repeat rw [← hmorph]
-    apply inst.isLE_trans
-def Std.LawfulEqOrd.by_equiv [inst : Std.LawfulEqOrd α] : Std.LawfulEqOrd β where
-  compare_self := by
-    intro b ; specialize hmorph (equiv.symm b) (equiv.symm b) ; grind
-  eq_of_compare := by
-    intro b1 b2
-    rw [← equiv.right_inv b1, ← equiv.right_inv b2] ; dsimp [Equiv.coe_fn_mk]
-    repeat rw [← hmorph]
-    simp
-end VariousByEquiv
-
-structure Op (key value : Type) where
+@[veil_decl]
+structure Op (α β : Type) where
   op : OpType
-  key : key
-  value : value
-deriving DecidableEq, Inhabited, Hashable, Repr, Lean.ToJson, Ord
-
-
-namespace OpDef
-
-def OpEquiv : Op α β ≃ (OpType × α × β) where
-  toFun v := (v.op, v.key, v.value)
-  invFun := fun (a, b, c) => { op := a, key := b, value := c }
-  left_inv := by intro v; cases v; rfl
-  right_inv := by intro p; rfl
-
-
-theorem Op_compare_hmorph
-  [Ord α] [Ord β]
-  (v1 v2 : Op α β) :
-  compare v1 v2 = compare (OpEquiv v1) (OpEquiv v2) := by
-  simp [Ord.compare, OpEquiv, instOrdOp.ord]
-
-
-instance instTransOrdForOp
-[Ord α] [Ord β]
-[Std.TransOrd α]
-[Std.TransOrd β]
-: Std.TransOrd (Op α β) :=
-  @Std.TransOrd.by_equiv (OpType × α × β) (Op α β) _ _ OpEquiv.symm
-    (fun a1 a2 => (Op_compare_hmorph (OpEquiv.symm a1) (OpEquiv.symm a2)).symm)
-    inferInstance
-
-
-instance instLawfulEqOrdForOp
-[Ord α] [Ord β]
-[Std.LawfulEqOrd α]
-[Std.LawfulEqOrd β]
-: Std.LawfulEqOrd (Op α β) :=
-  @Std.LawfulEqOrd.by_equiv (OpType × α × β) (Op α β) _ _ OpEquiv.symm
-    (fun a1 a2 => (Op_compare_hmorph (OpEquiv.symm a1) (OpEquiv.symm a2)).symm)
-    inferInstance
-end OpDef
-
-
-instance instFinEnumForOp
-  {key value : Type}
-  [FinEnum key]
-  [FinEnum value]
-  : FinEnum (Op key value) :=
-  FinEnum.ofEquiv _
-  { toFun := fun m => (m.op, m.key, m.value)
-    invFun := fun (t, k, v) => { op := t, key := k, value := v }
-    left_inv := by intro m; cases m; simp
-    right_inv := by intro x; simp }
-
-
-instance [FinEnum α] : Veil.Enumeration α where
-  allValues := FinEnum.toList α
-  complete := FinEnum.mem_toList
-
+  key : α
+  value : β
+deriving instance Veil.Enumeration for Op
 
 type Ops
 instantiate opsSet : TSet (Op key txId) Ops
 -- \* Instantiating ClientCentric enables us to check transaction isolation guarantees this model satisfies
 -- \* https://muratbuffalo.blogspot.com/2022/07/automated-validation-of-state-based.html
 -- CC == INSTANCE ClientCentric WITH Keys <- Key, Values <- TxId \union {NoVal}
-
-
 -- \* BEGIN TRANSLATION (chksum(pcal) = "1adfcb46" /\ chksum(tla) = "5b28617f")
 -- VARIABLES store, tx, missed, pc, snapshotStore, read_keys, write_keys, ops
 -- vars == << store, tx, missed, pc, snapshotStore, read_keys, write_keys, ops>>
@@ -156,92 +63,18 @@ type KVState
 instantiate totalMap : TMap key txId KVState
 
 -- ExecutionElem == [parentState: State, transaction: Transaction]
+
+@[veil_decl]
 structure ExecutionElem (k t σ: Type) where
   parentState : σ  -- State is a function
   transaction : List (Op k t)
-deriving Inhabited, DecidableEq, Repr, Lean.ToJson, Ord, Hashable
+
 -- Execution == Seq(ExecutionElem) -- List (ExecutionElem k t σ)
-
-
-namespace ExecutionElemDef
-def ExecutionElemEquiv : ExecutionElem α β σ ≃ (σ × List (Op α β)) where
-  toFun v := (v.parentState, v.transaction)
-  invFun := fun (a, b) => { parentState := a, transaction := b }
-  left_inv := by intro v; cases v; rfl
-  right_inv := by intro p; rfl
-
-theorem ExecutionElem_compare_hmorph
-  [Ord α] [Ord β] [Ord σ]
-  (v1 v2 : ExecutionElem α β σ) :
-  compare v1 v2 = compare (ExecutionElemEquiv v1) (ExecutionElemEquiv v2) := by
-  simp [Ord.compare, ExecutionElemEquiv, instOrdExecutionElem.ord]
-
-
-instance instTransOrdForExecutionElem
-[Ord α] [Ord β] [Ord σ]
-[Std.TransOrd α]
-[Std.TransOrd β]
-[Std.TransOrd σ]
-: Std.TransOrd (ExecutionElem α β σ) :=
-  @Std.TransOrd.by_equiv (σ × List (Op α β)) (ExecutionElem α β σ) _ _ ExecutionElemEquiv.symm
-    (fun a1 a2 => (ExecutionElem_compare_hmorph (ExecutionElemEquiv.symm a1) (ExecutionElemEquiv.symm a2)).symm)
-    inferInstance
-
-
-instance instLawfulEqOrdForExecutionElem
-[Ord α] [Ord β] [Ord σ]
-[Std.LawfulEqOrd α]
-[Std.LawfulEqOrd β]
-[Std.LawfulEqOrd σ]
-: Std.LawfulEqOrd (ExecutionElem α β σ) :=
-  @Std.LawfulEqOrd.by_equiv (σ × List (Op α β)) (ExecutionElem α β σ) _ _ ExecutionElemEquiv.symm
-    (fun a1 a2 => (ExecutionElem_compare_hmorph (ExecutionElemEquiv.symm a1) (ExecutionElemEquiv.symm a2)).symm)
-    inferInstance
-end ExecutionElemDef
-
 -- Accumulator for execution computation
+@[veil_decl]
 structure ExecutionAcc (k t σ : Type) where
   execution : List (ExecutionElem k t σ)
   nextState : σ -- State is a function
-deriving Inhabited, DecidableEq, Repr, Lean.ToJson, Ord, Hashable
-
-
-namespace ExecutionAccDef
-
-def ExecutionAccEquiv : ExecutionAcc α β σ ≃ (List (ExecutionElem α β σ) × σ) where
-  toFun v := (v.execution, v.nextState)
-  invFun := fun (a, b) => { execution := a, nextState := b }
-  left_inv := by intro v; cases v; rfl
-  right_inv := by intro p; rfl
-
-theorem ExecutionAcc_compare_hmorph
-  [Ord α] [Ord β] [Ord σ]
-  (v1 v2 : ExecutionAcc α β σ) :
-  compare v1 v2 = compare (ExecutionAccEquiv v1) (ExecutionAccEquiv v2) := by
-  simp [Ord.compare, ExecutionAccEquiv, instOrdExecutionAcc.ord]
-
-instance instTransOrdForExecutionAcc
-[Ord α] [Ord β] [Ord σ]
-[Std.TransOrd α]
-[Std.TransOrd β]
-[Std.TransOrd σ]
-: Std.TransOrd (ExecutionAcc α β σ) :=
-  @Std.TransOrd.by_equiv (List (ExecutionElem α β σ) × σ) (ExecutionAcc α β σ) _ _ ExecutionAccEquiv.symm
-    (fun a1 a2 => (ExecutionAcc_compare_hmorph (ExecutionAccEquiv.symm a1) (ExecutionAccEquiv.symm a2)).symm)
-    inferInstance
-
-instance instLawfulEqOrdForExecutionAcc
-[Ord α] [Ord β] [Ord σ]
-[Std.LawfulEqOrd α]
-[Std.LawfulEqOrd β]
-[Std.LawfulEqOrd σ]
-: Std.LawfulEqOrd (ExecutionAcc α β σ) :=
-  @Std.LawfulEqOrd.by_equiv (List (ExecutionElem α β σ) × σ) (ExecutionAcc α β σ) _ _ ExecutionAccEquiv.symm
-    (fun a1 a2 => (ExecutionAcc_compare_hmorph (ExecutionAccEquiv.symm a1) (ExecutionAccEquiv.symm a2)).symm)
-    inferInstance
-end ExecutionAccDef
-
-
 
 -- type transactions
 -- type executionsTy
@@ -491,7 +324,8 @@ invariant [serializability]
         isComplete exec trans parentSt)
 
 -- invariant [ops_length_bound]
---   ∀ t : txId, (ops t).length ≤ 2
+--   -- ∀ t : txId, (ops t).length ≤ 2
+--   ExecutionsPool.length < 3
 termination [all_thread_done] (∀ t : txId, t ≠ noVal → pc t Done)
 #gen_spec
 

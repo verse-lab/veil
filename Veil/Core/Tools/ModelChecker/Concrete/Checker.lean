@@ -30,7 +30,7 @@ where
   seen  : Std.HashSet σₕ
   /-- Queue storing (fingerprint, state, depth) tuples for BFS traversal -/
   sq    : fQueue (σₕ × σ × Nat)
-  /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
+  /-- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
   will make it easier to reconstruct counterexample trace. -/
   log                : Std.HashMap σₕ (σₕ × κ)
   violatingStates    : List (σₕ × ViolationKind)

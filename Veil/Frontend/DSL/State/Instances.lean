@@ -13,16 +13,13 @@ We need `BEq` instance, as we sometimes hope to store them in `HashSet` or `Hash
 e.g., debugging, when we hope to store the complete information of a state `σᵣ`.
 -/
 instance [Ord α] [BEq α]: BEq (Std.TreeSet α) where
-  beq s1 s2 :=
-    s1.toArray == s2.toArray
+  beq s1 s2 := s1.toArray == s2.toArray
 
 instance [Ord α] [BEq α] [BEq β]: BEq (Std.TreeMap α β) where
-  beq s1 s2 :=
-    s1.toArray == s2.toArray
+  beq s1 s2 := s1.toArray == s2.toArray
 
 instance [Ord α] [BEq α] [BEq β]: BEq (Veil.TotalTreeMap α β) where
-  beq s1 s2 :=
-    s1.val.toArray == s2.val.toArray
+  beq s1 s2 := s1.val.toArray == s2.val.toArray
 
 /-
   `DecidableEq` instances
@@ -181,30 +178,21 @@ instance EnumerationForExtTreeMap [Ord α] [Ord β]
   [Std.LawfulEqOrd α] [Std.LawfulEqOrd β]
   : Veil.Enumeration (Std.ExtTreeMap α β) where
   allValues :=
-    -- Generate all pairs (α × β) first
     let pairs := Veil.Enumeration.allValues (α := α × β)
-    -- Then take all sublists of pairs to get all possible maps
     pairs.sublists.map (Std.ExtTreeMap.ofList ·)
   complete := by
       intro m
       rw [List.mem_map]
-      -- 定义所有可能的键值对
       let pairs := Veil.Enumeration.allValues (α := α × β)
-      -- 定义过滤后的列表 l，只包含 m 中存在的键值对
       let l := pairs.filter fun ⟨k, v⟩ => k ∈ m ∧ m.get? k = some v
       exists l
       constructor
-      · -- 证明 l 是 sublist
-        rw [List.mem_sublists]
+      · rw [List.mem_sublists]
         exact List.filter_sublist
-      · -- 证明 ExtTreeMap.ofList l = m
-        sorry
+      · sorry
 
 
-
-
-
-/-
+/--
   `Enumeration` instances
 
   If we want to execute transitions, we need to be able to enumerate
@@ -295,5 +283,9 @@ instance jsonOfTotalTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Veil.Tota
 
 instance jsonOfExtTreeSet [Ord α] [ToJson α] [Std.TransOrd α] : ToJson (Std.ExtTreeSet α) where
   toJson s := Json.arr <| s.toList.toArray.map toJson
+
+instance jsonOfExtTreeMap [Ord α] [ToJson α] [ToJson β] [Std.TransOrd α] : ToJson (Std.ExtTreeMap α β) where
+  toJson m := Json.arr <| m.toList.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
+
 
 end Veil

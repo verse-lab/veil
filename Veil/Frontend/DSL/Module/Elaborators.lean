@@ -168,6 +168,34 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
     return ignoreFnStx
   elabVeilCommand cmd
 
+
+@[command_elab Veil.inlineBuiltinDeclaration]
+def elabInlineBuiltinDeclaration : CommandElab := fun stx => do
+  match stx with
+  | `(@[veil_decl] structure $name:ident $[$args]* where $[$fields]*) => do
+    elabCommand (← `(structure $name:ident $[$args]* where $[$fields]*))
+    tryDerivingInstances name stx
+  | `(@[veil_decl] inductive $name:ident $[$args]* where $[$ctors]*) => do
+    elabCommand (← `(inductive $name:ident $[$args]* where $[$ctors]*))
+    tryDerivingInstances name stx
+  | `(@[veil_decl] inductive $name:ident $[$args]* $[$ctors:ctor]*) => do
+    elabCommand (← `(inductive $name:ident $[$args]* $[$ctors:ctor]*))
+    tryDerivingInstances name stx
+  | _ => throwUnsupportedSyntax
+where
+  /-- Try to derive instances, suppressing errors and showing warnings instead -/
+  tryDerivingInstances (name : Ident) (_origStx : Syntax) : CommandElabM Unit := do
+    for className in defaultDerivingClasses do
+      let classIdent := Lean.mkIdent className
+      try elabVeilCommand $ ← `(command| deriving instance $classIdent:ident for $name:ident)
+      catch _ => logWarning m!"Could not automatically derive {className} for {name.getId}. You may need to provide a manual instance."
+  defaultDerivingClasses : List Name := [
+    ``Inhabited, ``DecidableEq, ``Lean.ToJson,
+    ``Hashable, ``Ord, ``Repr,
+    ``Std.TransOrd, ``Std.LawfulEqOrd,
+    -- ``Veil.Enumeration
+]
+
 /-- Crystallizes the state of the module, i.e. it defines it as a Lean
 `structure` definition, if that hasn't already happened. -/
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do

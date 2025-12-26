@@ -192,6 +192,6 @@ termination [AllDone] pc S Done = true
 
 #gen_spec
 
-#model_check { process := Fin 3 } {none := 0}
+#model_check { process := Fin 3 } { none := 0 }
 
 end Mutex
