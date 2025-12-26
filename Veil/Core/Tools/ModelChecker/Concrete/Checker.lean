@@ -34,13 +34,7 @@ structure BaseSearchContext {ρ σ κ σₕ : Type}
   (params : SearchParameters ρ σ)
 where
   seen  : Std.HashSet σₕ
-<<<<<<< HEAD
-  /-- Queue storing (fingerprint, state, depth) tuples for BFS traversal -/
-  sq    : fQueue (σₕ × σ × Nat)
-  /-- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
-=======
   /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
->>>>>>> origin/veil-2.0-qiyuan
   will make it easier to reconstruct counterexample trace. -/
   log                : Std.HashMap σₕ (σₕ × κ)
   violatingStates    : List (σₕ × ViolationKind)
@@ -364,13 +358,14 @@ def SequentialSearchContext.processState {ρ σ κ σₕ : Type}
       invs := sorry
     }
   | some ⟨successors, heq⟩ =>
+      let ctx_updated := { ctx with toBaseSearchContext := baseCtx', invs := sorry }
       successors.attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
       if current_ctx.hasFinished then current_ctx
       else
         let h_neighbor_reachable : sys.reachable postState :=
           EnumerableTransitionSystem.reachable.step curr postState h_curr ⟨tr, heq ▸ h_neighbor_in_tr⟩
         SequentialSearchContext.tryExploreNeighbor sys fpSt depth current_ctx ⟨tr, postState⟩ h_neighbor_reachable
-    ) ctx
+    ) ctx_updated
 
 @[inline, specialize]
 def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
@@ -392,13 +387,14 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
       invs := sorry
     }
   | some ⟨successors, heq⟩ =>
+      let ctx_updated := { ctx with toBaseSearchContext := baseCtx', invs := sorry }
       successors.attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
       if current_ctx.hasFinished then current_ctx
       else
         let h_neighbor_reachable : sys.reachable postState :=
           EnumerableTransitionSystem.reachable.step curr postState h_curr ⟨tr, heq ▸ h_neighbor_in_tr⟩
         ParallelSearchContextSub.tryExploreNeighbor sys fpSt depth current_ctx ⟨tr, postState⟩ h_neighbor_reachable
-    ) ctx
+    ) ctx_updated
 
 /-- Perform one step of BFS. -/
 @[inline, specialize]

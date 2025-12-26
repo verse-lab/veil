@@ -184,6 +184,6 @@ termination [AllDone] ∀p, pc p Done = true
 #gen_spec
 
 
-#time #model_check { process := Fin 3 } {none := 0}
+#time #model_check { process := Fin 3 } {none := 0} (parallelCfg := some { numSubTasks := 2, thresholdToParallel := 2 })
 
 end Mutex

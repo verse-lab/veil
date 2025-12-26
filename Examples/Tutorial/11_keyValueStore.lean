@@ -174,9 +174,8 @@ invariant [Txlifecycle] snapshot_isolation ∧ transaction_cleanup
 -- #time #check_invariants
 
 -- #finitizeTypes key, value, txId
-#model_check {key := key_IndT, value := value_IndT, txId := txId_IndT }{}
--- #finitizeTypes (Fin 2), (Fin 2), (Fin
--- #finitizeTypes (Fin 2), value, (Fin 2)
+-- T1: (28305) 62616ms
+#time #model_check {key := key_IndT, value := value_IndT, txId := txId_IndT }{}(parallelCfg := some { numSubTasks := 2, thresholdToParallel := 2 })
 
 
 
