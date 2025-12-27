@@ -27,7 +27,8 @@ def generateVeilMultiExecMCore2 (κ : TSyntax `term)
   let multiExecType := Syntax.mkApp multiExecMonadType #[unitIdent]
   let buildExtractBody (body : TSyntax `term) : CommandElabM (TSyntax `term) := do
     let extractSimps : Array Ident :=
-      #[``MultiExtractor.NonDetT.extractList2, ``MultiExtractor.ExtractConstraint.get, ``instMonadLiftT].map Lean.mkIdent
+      #[``MultiExtractor.NonDetT.extractList2, ``MultiExtractor.ExtractConstraint.get, ``instMonadLiftT,
+        ``id, ``inferInstance, ``inferInstanceAs, instFieldRepresentationName].map Lean.mkIdent
     `(veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged) [$[$extractSimps:ident],*]
       ($extractor ($κ) _ _ ($body)))
 
