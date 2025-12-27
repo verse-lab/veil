@@ -32,7 +32,3 @@ lean_lib Test {
 lean_lib Examples {
   globs := #[.submodules `Examples]
 }
-
-lean_exe AAA {
-  root := `Examples.Tutorial.KVSCall
-}
