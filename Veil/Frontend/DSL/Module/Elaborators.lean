@@ -241,7 +241,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand nextTrCmd
   let (initCmd, mod) ← mod.assembleInit
   elabVeilCommand initCmd
-  Extract.genNextActCommands mod Extract.genExtractCommand2
+  Extract.genNextActCommands mod (if mod._useNewExtraction then Extract.genExtractCommand2 else Extract.genExtractCommand)
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
   elabVeilCommand rtsCmd

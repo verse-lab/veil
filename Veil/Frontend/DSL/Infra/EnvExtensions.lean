@@ -89,6 +89,7 @@ elab "veil_set_option " o:ident v:term : command => do
   match o.getId with
   | `useFieldRepTC => localEnv.modifyModule (fun _ => { mod with _useFieldRepTC := b })
   | `useLocalRPropTC => localEnv.modifyModule (fun _ => { mod with _useLocalRPropTC := b })
+  | `useNewExtraction => localEnv.modifyModule (fun _ => { mod with _useNewExtraction := b })
   | _ => throwError s!"Unsupported option {o}"
 
 end DevelopingTools
