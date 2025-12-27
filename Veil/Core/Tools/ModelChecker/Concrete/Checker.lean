@@ -243,11 +243,85 @@ def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
       ctx with
         seen := ctx.seen.insert fingerprint,
         log := ctx.log.insert fingerprint (fpSt, label),
-        invs := sorry
+        invs := by
+          constructor
+          · -- queue_sound: queue unchanged, so invariant preserved
+            intro x d h_in_queue
+            exact ctx.invs.queue_sound x d h_in_queue
+          · -- visited_sound: new seen element is the reachable neighbor
+            intro h_view_inj x h_in_seen
+            rw [Membership.mem] at h_in_seen
+            by_cases h : fp.view x = fingerprint
+            · have : x = succ := h_view_inj h
+              rw [this]; exact h_neighbor
+            · have h_in_old : ctx.seen.contains (fp.view x) := by grind
+              exact ctx.invs.visited_sound h_view_inj x h_in_old
+          · -- queue_sub_visited: queue unchanged, but seen expanded
+            intro x d h_in_queue
+            have h_old := ctx.invs.queue_sub_visited x d h_in_queue
+            rw [Membership.mem]
+            grind
+          · -- queue_wellformed: queue unchanged
+            intro fp' st d h_in_queue
+            exact ctx.invs.queue_wellformed fp' st d h_in_queue
     }
     { ctx_with_seen with
         sq := ctx_with_seen.sq.enqueue ⟨fingerprint, succ, depth + 1⟩,
-        invs := sorry
+        invs := by
+          constructor
+          · -- queue_sound: new element in queue is reachable
+            intro x d h_in_queue
+            simp only [Membership.mem, fQueue.enqueue] at h_in_queue
+            rcases h_in_queue with h_in_front | h_in_back
+            · -- x was already in the old queue (front unchanged)
+              exact ctx_with_seen.invs.queue_sound x d (Or.inl h_in_front)
+            · -- x is in the back, which now includes the new element
+              have : ⟨fp.view x, x, d⟩ ∈ (⟨fingerprint, succ, depth + 1⟩ : QueueItem σₕ σ) :: ctx_with_seen.sq.back := h_in_back
+              simp only [List.mem_cons] at this
+              rcases this with h_eq | h_in_old_back
+              · -- x is the newly enqueued element: ⟨fp.view x, x, d⟩ = ⟨fingerprint, succ, depth + 1⟩
+                have h_x : x = succ := by
+                  have := congrArg QueueItem.state h_eq
+                  exact this
+                rw [h_x]
+                exact h_neighbor
+              · -- x was in the old back
+                exact ctx_with_seen.invs.queue_sound x d (Or.inr h_in_old_back)
+          · -- visited_sound: seen unchanged
+            intro h_view_inj x h_in_seen
+            exact ctx_with_seen.invs.visited_sound h_view_inj x h_in_seen
+          · -- queue_sub_visited: new queue element's fingerprint is in seen
+            intro x d h_in_queue
+            simp only [Membership.mem, fQueue.enqueue] at h_in_queue
+            rcases h_in_queue with h_in_front | h_in_back
+            · exact ctx_with_seen.invs.queue_sub_visited x d (Or.inl h_in_front)
+            · have : ⟨fp.view x, x, d⟩ ∈ (⟨fingerprint, succ, depth + 1⟩ : QueueItem σₕ σ) :: ctx_with_seen.sq.back := h_in_back
+              simp only [List.mem_cons] at this
+              rcases this with h_eq | h_in_old_back
+              · -- The new element: its fingerprint was just added to seen
+                have h_fp : fp.view x = fingerprint := by
+                  have := congrArg QueueItem.fingerprint h_eq
+                  exact this
+                rw [h_fp, Membership.mem]
+                grind
+              · exact ctx_with_seen.invs.queue_sub_visited x d (Or.inr h_in_old_back)
+          · -- queue_wellformed: new element has matching fingerprint
+            intro fp' st d h_in_queue
+            simp only [Membership.mem, fQueue.enqueue] at h_in_queue
+            rcases h_in_queue with h_in_front | h_in_back
+            · exact ctx_with_seen.invs.queue_wellformed fp' st d (Or.inl h_in_front)
+            · have : ⟨fp', st, d⟩ ∈ (⟨fingerprint, succ, depth + 1⟩ : QueueItem σₕ σ) :: ctx_with_seen.sq.back := h_in_back
+              simp only [List.mem_cons] at this
+              rcases this with h_eq | h_in_old_back
+              · -- The new element: fp' = fingerprint and st = succ
+                have h_fp' : fp' = fingerprint := by
+                  have := congrArg QueueItem.fingerprint h_eq
+                  exact this
+                have h_st : st = succ := by
+                  have := congrArg QueueItem.state h_eq
+                  exact this
+                rw [h_st, h_fp']
+              · exact ctx_with_seen.invs.queue_wellformed fp' st d (Or.inr h_in_old_back)
     }
 
 @[inline, specialize]

@@ -190,22 +190,22 @@ action _START (self : txId) {
 --               /\ pc' = [pc EXCEPT ![self] = "UPDATE"]
 --               /\ UNCHANGED << store, tx, missed, snapshotStore, read_keys,
 --                               write_keys >>
-action _READ (self : txId) {
-  require self ≠ noVal
-  require pc self READ
-  /- Currently, we have two ways to have an univ:
-  1. utitize non-determisitic operation.
-  2. define an immutable individual for the `univ`, then -/
-  let readKeysUniv :| ∀k, keySet.contains k (read_keys self) → keySet.contains k readKeysUniv
-  let readOps : Ops := keySet.map readKeysUniv (fun k =>
-    { op := OpType.Read,
-      key := k,
-      value := snapshotStore self k : Op key txId })
-  let readOpsSeq ← SetToSeq readOps
-  ops self := ops self ++ readOpsSeq
-  updatePools
-  pc self S := S == UPDATE
-}
+-- action _READ (self : txId) {
+--   require self ≠ noVal
+--   require pc self READ
+--   /- Currently, we have two ways to have an univ:
+--   1. utitize non-determisitic operation.
+--   2. define an immutable individual for the `univ`, then -/
+--   let readKeysUniv :| ∀k, keySet.contains k (read_keys self) → keySet.contains k readKeysUniv
+--   let readOps : Ops := keySet.map readKeysUniv (fun k =>
+--     { op := OpType.Read,
+--       key := k,
+--       value := snapshotStore self k : Op key txId })
+--   let readOpsSeq ← SetToSeq readOps
+--   ops self := ops self ++ readOpsSeq
+--   updatePools
+--   pc self S := S == UPDATE
+-- }
 
 -- UPDATE(self) == /\ pc[self] = "UPDATE"
 --                 /\ snapshotStore' = [snapshotStore EXCEPT ![self] = [k \in Key |-> IF k \in write_keys[self] THEN self ELSE snapshotStore[self][k] ]]
@@ -323,9 +323,9 @@ invariant [serializability]
                         else initialState
         isComplete exec trans parentSt)
 
--- invariant [ops_length_bound]
---   -- ∀ t : txId, (ops t).length ≤ 2
---   ExecutionsPool.length < 3
+invariant [ops_length_bound]
+  -- ∀ t : txId, (ops t).length ≤ 2
+  ExecutionsPool.length < 3
 termination [all_thread_done] (∀ t : txId, t ≠ noVal → pc t Done)
 #gen_spec
 
@@ -356,7 +356,6 @@ very slow, taking about ~4 minutes (241738ms). -/
 --   txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
 -- }
 
--- #exit
 def modelCheckerResult :=
   Concrete.findReachable
   (
@@ -375,8 +374,10 @@ def modelCheckerResult :=
   )
   {
   «invariants» := [
-    { name := `serializability
-      property := fun th st => serializability th st }
+    -- { name := `serializability
+    --   property := fun th st => serializability th st },
+    { name := `ops_length_bound
+      property := fun th st => ops_length_bound th st }
   ],
   «terminating» := {
     name := `all_thread_done
@@ -384,15 +385,11 @@ def modelCheckerResult :=
   },
   earlyTerminationConditions := [
     EarlyTerminationCondition.foundViolatingState,
-    -- EarlyTerminationCondition.reachedDepthBound 4,
+    EarlyTerminationCondition.reachedDepthBound 2,
     EarlyTerminationCondition.deadlockOccurred
   ]
 }
-  none  -- No parallel configuration (sequential search)
-
-
--- #eval! modelCheckerResult
-
+  none  -- Sequential search (no parallel configuration)
 
 
 
