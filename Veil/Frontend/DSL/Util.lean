@@ -33,6 +33,7 @@ def toWpExEqName (n : Name) : Name := n ++ `wpEx_eq
 
 def toTransitionName (n : Name) : Name := n ++ `tr
 def toTransitionEqName (n : Name) : Name := n ++ `tr_eq_wpSucc
+def toDerivedEqName (n : Name) : Name := n ++ `derived_eq
 def toExQuantifiedTransitionName (n : Name) : Name := n ++ `exTr
 def toExQuantifiedTransitionEqName (n : Name) : Name := n ++ `exTr_eq
 

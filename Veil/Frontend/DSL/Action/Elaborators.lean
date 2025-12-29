@@ -66,6 +66,11 @@ private def transitionTemplate (sourceWpFqn : Name) : SyntaxTemplate :=
   (fun args : Array Term =>
     `($(mkIdent ``VeilSpecM.toTransitionDerived) (@$(mkIdent sourceWpFqn) $args* (fun _ => $(mkIdent ``True)))))
 
+/-- Template for `VeilM.toTransitionDerived` applied to an action. -/
+private def derivedTransitionTemplate (sourceAction : Name) : SyntaxTemplate :=
+  (fun args : Array Term =>
+    `($(mkIdent ``VeilM.toTransitionDerived) (@$(mkIdent sourceAction) $args*)))
+
 /-- Elaborate `simp` theorems that are given as `term`s and add them
 into `ctx`, assuming all those `simp` theorems are `pre` and `→`. -/
 private def elabSimpArgForTerms (ctx : Meta.Simp.Context) (simps : Array (TSyntax `term × Name)) : TermElabM Meta.Simp.Context := do
@@ -243,6 +248,26 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
       let trDef_fqn ← addVeilDefinition (toTransitionName nm) trExpr (attr := #[{name := `reducible}])
       -- (4) Prove the equality theorem
       proveEqABoutBody body trDef_fqn (vs ++ xs) (← resBody.getProof) (toTransitionEqName nm) #[]
+      -- (5) Prove the derived_eq theorem: VeilM.toTransitionDerived act.ext = act.ext.tr
+      -- Use the action's fully qualified name (nm is already the external mode name)
+      let actionFqn ← getFullyQualifiedName nm
+      let derivedDef ← derivedTransitionTemplate actionFqn allArgs
+      -- Elaborate within the same binder context (vs are already bound)
+      let derivedExpr ← withoutErrToSorry $ elabTermAndSynthesize derivedDef none
+      trace[veil.debug] "[{decl_name%}] derivedExpr for derived_eq: {derivedExpr}"
+      -- The derivedExpr is `VeilM.toTransitionDerived (act.ext args*)` which has type `Transition ρ σ`
+      -- We need to apply it to the transition variables (r₀ s₀ s₁) to get a Prop,
+      -- but for equality of functions, we can work at the function level
+      Meta.lambdaTelescope derivedExpr fun xs' derivedBody => do
+        -- Simplify by unfolding VeilM.toTransitionDerived, then VeilSpecM.toTransitionDerived, Cont.inv, compl,
+        -- and using wpSimp to rewrite wp to the precomputed wp definition
+        let derivedSimp := Simp.dsimp #[``VeilM.toTransitionDerived] { unfoldPartialApp := true : Meta.Simp.Config }
+          |>.andThen (Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config })
+          |>.andThen (Simp.simp #[`wpSimp])
+        let resBody' ← derivedSimp derivedBody
+        -- Prove equality with act.ext.tr
+        let actSimpAttr ← elabAttr $ ← `(Parser.Term.attrInstance| actSimp)
+        proveEqABoutBody derivedBody trDef_fqn (vs ++ xs') (← resBody'.getProof) (toDerivedEqName nm) #[actSimpAttr]
 
 end AuxiliaryDefinitions
 
