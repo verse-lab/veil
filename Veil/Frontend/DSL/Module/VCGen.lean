@@ -76,7 +76,7 @@ private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT
     | .inl witness => return .proven witness .none time
     | .inr ex => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
 
-def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification SmtResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
+def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatement) (dischargerId : DischargerIdentifier) (ch : Std.Channel (ManagerNotification VCMetadata SmtResult)) (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
   let smtCh ← Std.CloseableChannel.new
   let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
@@ -128,7 +128,8 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
 
 private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (actName : Name) (propertyName : Name) (actKind : DeclarationKind) (specName : Name) (vcName : Name) (vcKind : VCKind)
-  (style : VCStyle := .wp) (extraDeps : Std.HashSet Name := {}) (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
+  (style : VCStyle := .wp) (extraDeps : Std.HashSet Name := {})
+  (extraBinders : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := #[]) (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
   -- FIXME: make all the name-related/parameter functions work with `ext` names
   let dependsOn := extraDeps.insertMany #[actName, assembledAssumptionsName, assembledInvariantsName]
   let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .theoremLike dependsOn)
@@ -143,7 +144,7 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
     name := vcName,
     params := ← (thmBaseParams ++ thmExtraParams).mapM (·.binder),
     statement := ← expandTermMacro $ ← `(term|
-      forall? $actBinders*,
+      forall? $actBinders* $extraBinders*,
         $(mkIdent specName)
           (@$(mkIdent actionIdent) $allModArgs* $actArgs*)
           (@$assembledAssumptions $assArgs*)
@@ -163,7 +164,7 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
 
 private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : VCKind) : m (VCData VCMetadata) := do
-  mkVCForSpecTheorem mod actName actKind (propertyName := `doesNotThrow) ``VeilM.doesNotThrowAssuming (Name.mkSimple s!"{actName}_doesNotThrow") vcKind
+  mkVCForSpecTheorem mod actName actKind (propertyName := `doesNotThrow) ``VeilM.doesNotThrowAssuming_ex (Name.mkSimple s!"{actName}_doesNotThrow") vcKind (extraBinders := #[← `(bracketedBinder| ($exception:ident : ExId))]) (extraTerms := #[← `(term| $exception:ident)])
 
 private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
   (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name) (vcKind : VCKind) : m (VCData VCMetadata) := do

@@ -133,4 +133,7 @@ def assembledInit : Ident := mkIdent assembledInitName
 def assembledRTSName : Name := `relationalTransitionSystem
 def assembledRTS : Ident := mkIdent assembledRTSName
 
+def exceptionName : Name := mkVeilImplementationDetailName `ex
+def exception : Ident := mkIdent exceptionName
+
 end Veil

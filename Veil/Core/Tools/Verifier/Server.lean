@@ -1,5 +1,6 @@
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Core.Tools.Verifier.Manager
+import Veil.Core.Tools.Verifier.Results
 import Std.Sync.Mutex
 
 namespace Veil.Verifier
@@ -12,11 +13,14 @@ open Lean Elab Command Std
 /-- Holds the state of the VCManager for the current file. -/
 initialize vcManager : Std.Mutex (VCManager VCMetadata SmtResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
 
-def sendNotification (notification : ManagerNotification SmtResult) : CommandElabM Unit := do
+def sendNotification (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
   let _ ← vcManagerCh.send notification
 
 def reset : CommandElabM Unit := sendNotification .reset
 def startAll : CommandElabM Unit := sendNotification .startAll
+def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNotification (.startFiltered filter)
+
+def isDoesNotThrow (m : VCMetadata) : Bool := m.property == `doesNotThrow
 
 def numCores : Nat := 8
 
@@ -53,6 +57,11 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         -- dbg_trace "[Manager] RECV startAll notification"
         mgr ← mgr.start (howMany := numCores)
         ref.set mgr)
+      | .startFiltered filter => vcManager.atomically (fun ref => do
+        let mut mgr ← ref.get
+        mgr ← mgr.start (howMany := numCores) (filter := filter)
+        ref.set mgr
+        if mgr.isDoneFiltered filter then Frontend.notifyDone)
       | .reset => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         -- dbg_trace "[Manager] RECV reset notification"
@@ -92,12 +101,37 @@ def addAlternativeVC (vc : VCData VCMetadata) (primaryVCId : VCId) (initialDisch
     startAll
   return uid
 
-def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification SmtResult) → CommandElabM (Discharger SmtResult)) (sendNotification : Bool := false) : CommandElabM Unit := do
+def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetadata SmtResult) → CommandElabM (Discharger SmtResult)) (sendNotification : Bool := false) : CommandElabM Unit := do
   vcManager.atomically (fun ref => do
     let mgr' ← (← ref.get).mkAddDischarger vcId mk
     ref.set mgr'
   )
   if sendNotification then
     startAll
+
+/-- Start VCs matching the filter, wait for them to complete, and return results. -/
+def runFilteredAndWait (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  startFiltered filter
+  vcManager.atomicallyOnce frontendNotification
+    (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
+    (fun ref => do
+      let mgr ← ref.get
+      mgr.toVerificationResults)
+
+/-- Start VCs matching the filter and run the callback asynchronously when done.
+Uses `wrapAsyncAsSnapshot` so that errors from the callback are reported to the user. -/
+def runFilteredAsync (filter : VCMetadata → Bool)
+    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
+  startFiltered filter
+  let cancelTk ← IO.CancelToken.new
+  let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
+    vcManager.atomicallyOnce frontendNotification
+      (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
+      (fun ref => do
+        let mgr ← ref.get
+        let results ← mgr.toVerificationResults
+        callback results)) cancelTk
+  let task ← (wrappedTask ()).asTask
+  Command.logSnapshotTask { stx? := none, cancelTk? := cancelTk, task := task }
 
 end Veil.Verifier

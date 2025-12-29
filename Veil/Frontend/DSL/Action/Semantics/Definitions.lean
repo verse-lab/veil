@@ -129,14 +129,32 @@ post-condition. -/
 def VeilM.succeedsAndMeetsSpecification (act : VeilM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
   [DemonFail| triple pre act post]
 
-/-- There is no code path that throws an exception. -/
+/-- There is no code path that throws an exception. If you need to know which
+specific exception can be thrown, use `VeilM.doesNotThrow_ex`. -/
 @[reducible]
 def VeilM.doesNotThrow (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
   VeilM.succeedsAndMeetsSpecification act pre ⊤
 
+/-- There is no code path that throws the exception `ex`. This is a version of
+`VeilM.doesNotThrow` that can be used to retrieve _which_ specific exception
+can be thrown. -/
+@[reducible]
+def VeilM.doesNotThrow_ex (act : VeilM m ρ σ α) (pre : SProp ρ σ) (ex : ExId) : Prop :=
+  [IgnoreEx (· ≠ ex)| triple pre act ⊤]
+
+/-- There is no code path that throws an exception, assuming the assumptions
+hold. If you need to know which specific exception can be thrown, use
+`VeilM.doesNotThrowAssuming_ex`. -/
 @[reducible]
 def VeilM.doesNotThrowAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) : Prop :=
   VeilM.succeedsAndMeetsSpecification act (fun th st => assu th ∧ pre th st) ⊤
+
+/-- There is no code path that throws the exception `ex`. This is a version of
+`VeilM.doesNotThrowAssuming` that can be used to retrieve _which_ specific exception
+can be thrown. -/
+@[reducible]
+def VeilM.doesNotThrowAssuming_ex (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) (ex : ExId) : Prop :=
+  [IgnoreEx (· ≠ ex)| triple (fun th st => assu th ∧ pre th st) act ⊤]
 
 @[reducible]
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=

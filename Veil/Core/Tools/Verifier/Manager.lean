@@ -179,20 +179,23 @@ end DataStructures
 
 section VCManager
 
-inductive ManagerNotification (ResultT : Type) where
+inductive ManagerNotification (VCMetaT ResultT : Type) where
   | dischargerResult (id : DischargerIdentifier) (res : DischargerResult ResultT)
   /-- Issued by the frontend to reset the VCManager. -/
   | reset
   /-- Issued by the frontend to start all ready tasks. -/
   | startAll
+  /-- Start VCs matching the filter. -/
+  | startFiltered (filter : VCMetaT → Bool)
 deriving Inhabited
 
-instance [ToString ResultT] : ToString (ManagerNotification ResultT) where
+instance [ToString ResultT] : ToString (ManagerNotification VCMetaT ResultT) where
   toString res :=
     match res with
     | .dischargerResult dischargerId res => s!"dischargerResult {dischargerId} {res}"
     | .reset => s!"reset"
     | .startAll => s!"startAll"
+    | .startFiltered _ => s!"startFiltered"
 
 inductive VCStatus where
   /-- The VC has been proven (shown to be true). -/
@@ -263,12 +266,12 @@ structure VCManager (VCMetaT ResultT: Type) where
   protected _managerId : ManagerId := 0
 
   /-- Channel for communicating with the VCManager. -/
-  protected ch : Option (Std.Channel (ManagerNotification ResultT)) := none
+  protected ch : Option (Std.Channel (ManagerNotification VCMetaT ResultT)) := none
 deriving Inhabited
 
 /-- Create a new VCManager. This should be preferred instead of `default`, as
 this initializes the channel for communicating the discharge status of VCs. -/
-def VCManager.new (ch : Std.Channel (ManagerNotification ResultT)) (currentManagerId : ManagerId := 0) : BaseIO (VCManager VCMetaT ResultT) := do
+def VCManager.new (ch : Std.Channel (ManagerNotification VCMetaT ResultT)) (currentManagerId : ManagerId := 0) : BaseIO (VCManager VCMetaT ResultT) := do
   return {
     nodes := HashMap.emptyWithCapacity,
     upstream := HashMap.emptyWithCapacity,
@@ -324,7 +327,7 @@ def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
   (mgr'', altId)
 
 open Lean.Elab.Command in
-def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do
+def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do
   let .some ch := mgr.ch | throwError "VCManager.mkAddDischarger called without a channel"
   match mgr.nodes[vcId]? with
   | some vc => do
@@ -387,11 +390,14 @@ def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT Re
       | .finished (.error _ _) => continue
     return none
 
-def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT) : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
+def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
+    (filter : VCMetaT → Bool := fun _ => true) : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
   let ready ← mgr.inDegree.toList.filterMapM (fun (vcId, inDegree) => do
     let .some vc := mgr.nodes[vcId]? | panic! "VCManager.readyTasks: VC {vcId} not found"
     -- Skip dormant VCs (e.g., alternative VCs waiting for their primary to fail)
     if mgr.dormantVCs.contains vcId then pure none
+    -- Skip VCs that don't match the filter
+    else if !filter vc.metadata then pure none
     else if inDegree != 0 then pure none else
       match ← vc.nextDischarger? with
       | some discharger => pure (some (vc, discharger))
@@ -408,9 +414,10 @@ def VCManager.executeOne (mgr : VCManager VCMetaT ResultT) : BaseIO (VCManager V
   | [] => return mgr
   | (vc, discharger) :: _ => mgr.startTask vc discharger
 
-def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0): BaseIO (VCManager VCMetaT ResultT) := do
+def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0)
+    (filter : VCMetaT → Bool := fun _ => true) : BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr' := mgr
-  let ready ← mgr'.readyTasks
+  let ready ← mgr'.readyTasks filter
   let toExecute := if howMany == 0 then ready else ready.take howMany
   for (vc, discharger) in toExecute do
      mgr' ← mgr'.startTask vc discharger
@@ -462,6 +469,11 @@ def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Stri
 This correctly handles alternative VCs that remain dormant when their primary succeeds. -/
 def VCManager.isDone (mgr : VCManager VCMetaT ResultT) : Bool :=
   mgr._doneWith.size + mgr.dormantVCs.size == mgr.nodes.size
+
+/-- Check if all VCs matching the filter are done. -/
+def VCManager.isDoneFiltered (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool) : Bool :=
+  mgr.nodes.toArray.all fun (vcId, vc) =>
+    !filter vc.metadata || mgr._doneWith.contains vcId || mgr.dormantVCs.contains vcId
 
 instance (priority := low) printDependencies [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where
   toMessageData mgr :=

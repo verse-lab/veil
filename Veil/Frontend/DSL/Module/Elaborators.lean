@@ -221,6 +221,21 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   mod.generateVCs
   return { mod with _specFinalized := true }
 
+/-- Log errors at assertion locations for disproven `doesNotThrow` VCs. -/
+private def logDoesNotThrowErrors (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
+  let actx := (← globalEnv.get).assertions
+  for vc in results.vcs do
+    if vc.metadata.property != `doesNotThrow then continue
+    for d in vc.timing.dischargers do
+      let .some (.disproven (.some (.sat ces)) _) := d.result | continue
+      for ce in ces.filterMap id do
+        let .ok extraVals := ce.structuredJson.getObjVal? "extraVals" | continue
+        let .ok exVal := extraVals.getObjVal? "__veil_ex" | continue
+        let .ok exId := exVal.getInt? | continue
+        let .some a := actx.find[exId]?
+          | throwError s!"Assertion {exId} not found (from {vc.metadata.action})"; continue
+        logErrorAt a.ctx.stx s!"This assertion might fail when called from {vc.metadata.action}"
+
 open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
@@ -362,6 +377,8 @@ def elabGenSpec : CommandElab := fun _stx => do
   let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
   let mod ← mod.ensureSpecIsFinalized
   localEnv.modifyModule (fun _ => mod)
+  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/
