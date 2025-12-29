@@ -50,7 +50,9 @@ unsafe def VeilModel.toJson (vm : VeilModel) : MetaM Json := do
   let postStateJson ← match vm.postStateExpr with
     | some e => evalExprToJson vm.stateType e
     | none => pure Json.null
-  let labelJson ← evalExprToJson vm.labelType vm.labelExpr
+  let labelJson ← match vm.labelExpr, vm.labelType with
+    | some labelExpr, some labelType => evalExprToJson labelType labelExpr
+    | _, _ => pure (Json.str "initializer")
 
   -- Build extraSorts JSON: map from sort name to cardinality type (similar to instJson)
   let extraSortsJson := Json.mkObj <| ← vm.extraSorts.toList.mapM fun (sortExpr, cardExpr) => do
@@ -177,7 +179,7 @@ def buildInstantiationExpr (mod : Module) (sortMap : Std.HashMap Name Expr) : Me
     match sortMap[param.name]? with
     | some e => pure e
     | none =>
-      dbg_trace "Sort {param.name} not found in model, using Fin 1 as default"
+      -- dbg_trace "Sort {param.name} not found in model, using Fin 1 as default"
       pure (mkApp (mkConst ``Fin) (mkNatLit 1))
   mkAppM (instName ++ `mk) sortArgs
 
@@ -197,7 +199,7 @@ def buildStateExpr (mod : Module) (sortArgs : Array Expr)
     match fieldMap[sc.name]? with
     | some e => adaptSmtExprType e expectedType
     | none =>
-      dbg_trace "State field {sc.name} not found in model, using default"
+      -- dbg_trace "State field {sc.name} not found in model, using default"
       mkAppOptM ``default #[some expectedType, none]
   mkAppOptM (stateName ++ `mk) <| (#[dispatcher] ++ fieldValues).map (Option.some ·)
 
@@ -218,33 +220,38 @@ def buildTheoryExpr (mod : Module) (sortArgs : Array Expr)
     match fieldMap[sc.name]? with
     | some e => adaptSmtExprType e expectedType
     | none =>
-      dbg_trace "Theory field {sc.name} not found in model, using default"
+      -- dbg_trace "Theory field {sc.name} not found in model, using default"
       mkAppOptM ``default #[some expectedType, none]
   mkAppOptM (theoryName ++ `mk) <| (sortArgs ++ fieldValues).map (Option.some ·)
 
 /-- Build a Label constructor expression from action name and params.
-    Uses `default` for parameters not present in the model. -/
+    Uses `default` for parameters not present in the model.
+    Returns `none` if the action is an initializer (which has no Label constructor). -/
 def buildLabelExpr (mod : Module) (sortArgs : Array Expr)
-    (actionName : Name) (paramMap : Std.HashMap Name Expr) : MetaM Expr := do
-  let labelName := mod.name ++ `Label ++ actionName
+    (actionName : Name) (paramMap : Std.HashMap Name Expr) : MetaM (Option Expr) := do
   let proc := mod.procedures.find? (·.name == actionName)
-  let paramValues ← match proc with
-    | some p => do
+  match proc with
+  | some p =>
+    -- Check if this is an initializer (which doesn't have a Label constructor)
+    match p.info with
+    | .initializer => return none
+    | _ =>
+      let labelName := mod.name ++ `Label ++ actionName
       -- Get the constructor type to extract parameter types
       let ctorType ← Meta.inferType (mkConst labelName)
       -- Apply sort args to get the instantiated constructor type
       let ctorTypeInst ← Meta.instantiateForall ctorType sortArgs
       -- Extract the parameter types from the constructor signature
-      Meta.forallTelescope ctorTypeInst fun args _ => do
+      let paramValues ← Meta.forallTelescope ctorTypeInst fun args _ => do
         p.params.mapIdxM fun idx param => do
           match paramMap[param.name]? with
           | some e => pure e
           | none =>
             let expectedType ← Meta.reduceAll (← Meta.inferType args[idx]!)
-            dbg_trace "Action parameter {param.name} not found in model, using default"
+            -- dbg_trace "Action parameter {param.name} not found in model, using default"
             mkAppOptM ``default #[some expectedType, none]
-    | none => pure #[]
-  mkAppOptM labelName <| (sortArgs ++ paramValues).map (Option.some ·)
+      some <$> mkAppOptM labelName ((sortArgs ++ paramValues).map (Option.some ·))
+  | none => return none
 
 /-! ## Main Construction -/
 
@@ -254,7 +261,7 @@ def getSortArgs (mod : Module) (sortMap : Std.HashMap Name Expr) : MetaM (Array 
     match sortMap[param.name]? with
     | some e => pure e
     | none =>
-      dbg_trace "Sort {param.name} not found in model, using Fin 1 as default"
+      -- dbg_trace "Sort {param.name} not found in model, using Fin 1 as default"
       pure (mkApp (mkConst ``Fin) (mkNatLit 1))
 
 /-- Build all counterexample expressions from a Model.
@@ -315,10 +322,12 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
     some <$> buildStateExpr mod sortArgs postStateFields
   -- dbg_trace "postStateExpr: {← if postStateExpr.isSome then do ppExpr postStateExpr.get! else pure "none"} | postStateType: { ← ppExpr stateType}"
 
-  -- Build Label expression and type
+  -- Build Label expression and type (none for initializers)
   let labelExpr ← buildLabelExpr mod sortArgs actionName actionParams
-  let labelType ← mkAppM (mod.name ++ `Label) sortArgs
-  -- dbg_trace "labelExpr: {← ppExpr labelExpr} | labelType: {← ppExpr labelType}"
+  let labelType ← match labelExpr with
+    | some _ => some <$> mkAppM (mod.name ++ `Label) sortArgs
+    | none => pure none
+  -- dbg_trace "labelExpr: {← match labelExpr with | some e => ppExpr e | none => pure "none"} | labelType: {← match labelType with | some t => ppExpr t | none => pure "none"}"
 
   return {
     instExpr, instType, sortInstInfo, sortSubst

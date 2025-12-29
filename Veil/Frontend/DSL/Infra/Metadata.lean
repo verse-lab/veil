@@ -163,10 +163,12 @@ structure VeilModel where
   /-- Sorts not part of module's Instantiation -/
   extraSorts : Array (Expr × Expr)
 
-    /-- Expression for `Label.actionName sortArgs* paramValues*` -/
-  labelExpr : Expr
-  /-- Type expression for `Label sortArgs*` -/
-  labelType : Expr
+  /-- Expression for `Label.actionName sortArgs* paramValues*`.
+      None for initializers which don't have a Label constructor. -/
+  labelExpr : Option Expr := none
+  /-- Type expression for `Label sortArgs*`.
+      None for initializers which don't have a Label type. -/
+  labelType : Option Expr := none
 
   /-- Expression for `Theory.mk sortArgs* fieldValues*` -/
   theoryExpr : Expr

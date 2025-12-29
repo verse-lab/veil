@@ -24,7 +24,7 @@ instance [Server.RpcEncodable ResultT] : Server.RpcEncodable (DischargerResult R
   rpcEncode res := do
     match res with
     | .proven _ data time | .disproven data time | .unknown data time =>
-      return .mkObj [("status", Json.str "proven"), ("data", ← Server.rpcEncode data), ("time", toJson time)]
+      return .mkObj [("status", Json.str res.kindString), ("data", ← Server.rpcEncode data), ("time", toJson time)]
     | .error exs time => do
       return .mkObj [("status", Json.str "error"), ("exceptions", Json.arr (exs.map (·.2))), ("time", toJson time)]
   rpcDecode _ := do return default

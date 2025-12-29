@@ -109,15 +109,6 @@ def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier →
   if sendNotification then
     startAll
 
-/-- Start VCs matching the filter, wait for them to complete, and return results. -/
-def runFilteredAndWait (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
-  startFiltered filter
-  vcManager.atomicallyOnce frontendNotification
-    (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
-    (fun ref => do
-      let mgr ← ref.get
-      mgr.toVerificationResults)
-
 /-- Start VCs matching the filter and run the callback asynchronously when done.
 Uses `wrapAsyncAsSnapshot` so that errors from the callback are reported to the user. -/
 def runFilteredAsync (filter : VCMetadata → Bool)

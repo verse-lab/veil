@@ -103,7 +103,7 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
         return dischargerResult
       catch ex =>
         let endTime ← IO.monoMsNow
-        dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
+        -- dbg_trace "{endTime} @ thread {← IO.getTID} [Discharger] Failed task for {vcStatement.name} in {endTime - startTime}ms; exception: {← ex.toMessageData.toString}"
         let dischargerResult ← liftTermElabM $ mkDischargerResult dischargerId.name actName smtCh (.inr ex) (endTime - startTime)
         return dischargerResult
       finally
