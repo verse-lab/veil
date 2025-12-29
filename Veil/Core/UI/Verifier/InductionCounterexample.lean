@@ -244,10 +244,10 @@ def buildLabelExpr (mod : Module) (sortArgs : Array Expr)
       -- Extract the parameter types from the constructor signature
       let paramValues ← Meta.forallTelescope ctorTypeInst fun args _ => do
         p.params.mapIdxM fun idx param => do
+          let expectedType ← Meta.reduceAll (← Meta.inferType args[idx]!)
           match paramMap[param.name]? with
-          | some e => pure e
+          | some e => adaptSmtExprType e expectedType
           | none =>
-            let expectedType ← Meta.reduceAll (← Meta.inferType args[idx]!)
             -- dbg_trace "Action parameter {param.name} not found in model, using default"
             mkAppOptM ``default #[some expectedType, none]
       some <$> mkAppOptM labelName ((sortArgs ++ paramValues).map (Option.some ·))
