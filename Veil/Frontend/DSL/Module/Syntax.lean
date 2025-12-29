@@ -284,6 +284,6 @@ type classes.
 This means that it should only be used for testing. In the future, we will add
 support for complete enumeration of background theories.
 -/
-syntax (name := modelCheck) "#model_check " term:max term:max Parser.Tactic.optConfig : command
+syntax (name := modelCheck) "#model_check " ("internal_mode")? ("after_compilation")? term:max term:max Parser.Tactic.optConfig : command
 
 end Veil

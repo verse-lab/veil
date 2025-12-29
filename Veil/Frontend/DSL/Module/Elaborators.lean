@@ -422,7 +422,29 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
-  | `(#model_check $instTerm:term $theoryTerm:term $cfg) =>
+  | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $theoryTerm:term $cfg) =>
+    if internal?.isNone && compile?.isSome then
+      -- Copy the current file into a dedicated file
+      -- NOTE: This command *should not* be copied verbatim into the new file,
+      -- otherwise this process will go into a loop.
+      -- NOTE: Since some definitions required for compilation are not available
+      -- *before this command*, we need to somehow make them available. The
+      -- approach taken here is to change the behavior of the command in the new file
+      -- by doing minimal source-to-source transformation: we insert the
+      -- `internal_mode` keyword after `#model_check`, which makes the command
+      -- skip the compilation step.
+      let some trailingPosTk := tk.getTailPos? | throwError "Unexpected error"
+      let some trailingPosStx := stx.getTailPos? | throwError "Unexpected error"
+      let fmap ← getFileMap
+      let newSource :=
+        String.Pos.Raw.extract fmap.source 0 trailingPosTk ++
+        " internal_mode " ++
+        String.Pos.Raw.extract fmap.source trailingPosTk trailingPosStx
+      let path ← do
+        let pwd ← IO.currentDir
+        pure <| pwd / "ToBeImportedByModelCheckerMain.lean"
+      IO.FS.writeFile path newSource
+
     -- Parse the configuration options
     let config ← elabModelCheckerConfig cfg
 
@@ -482,6 +504,73 @@ def elabModelCheck : CommandElab := fun stx => do
         `($baseConditions ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $depthLit])
       else
         pure baseConditions
+
+    if internal?.isSome then
+      unless compile?.isSome do
+        throwError "The 'internal_mode' keyword is inserted by Veil when compiling the specification. You should never add it manually."
+      -- Define the model checker result as a `def`
+      let defCmd ← do
+        `(
+        def $(mkIdent `modelCheckerResult) :=
+        let $inst : $instantiationType := $instTerm
+        let $th : $theoryIdent $instSortArgs* := $theoryTerm
+        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
+          ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
+          {
+            invariants := $safetyList
+            terminating := $terminatingProp
+            earlyTerminationConditions := $earlyTerminationConditions
+          }
+      )
+      elabVeilCommand defCmd
+      -- To make things easier, expose this definition (might be kind of adhoc?)
+      let endNamespaceCmd ← `(end $(mkIdent mod.name))
+      elabVeilCommand endNamespaceCmd
+      let exportCmd ← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult)))
+      elabVeilCommand exportCmd
+      return
+
+    if internal?.isNone && compile?.isSome then
+      -- Now, compile and run
+      let startTime ← IO.monoMsNow
+      let _ ← BaseIO.toIO <| Lake.cli ["build", "ModelCheckerMain"]
+      let endTime ← IO.monoMsNow
+      logInfo s!"Compilation time: {endTime - startTime} ms"
+      let startTime := endTime
+      let res ← do
+        let pwd ← IO.currentDir
+        let args := match config.parallelCfg with
+          | some pcfg => #[toString pcfg.numSubTasks, toString pcfg.thresholdToParallel]
+          | none => #[]
+        IO.Process.run {
+          cmd := "ModelCheckerMain",
+          args := args,
+          cwd := pwd / ".lake" / "build" / "bin",
+          stdin := .piped,
+          stdout := .piped,
+          stderr := .piped
+        }
+      let endTime ← IO.monoMsNow
+      logInfo s!"Execution time: {endTime - startTime} ms"
+
+      -- The following is mostly repetition
+
+      -- Create the widget display using HtmlDisplay
+      -- NOTE: We set the max heartbeats and synth instance max size to high values
+      -- because we rely on typeclass inference to construct the code for the
+      -- transition system, and for large systems the defaults are not enough.
+      let widgetExpr ← `(
+        open ProofWidgets.Jsx in
+        <ProofWidgets.TraceDisplayViewer result={Lean.Json.parse $(Syntax.mkStrLit res):str |>.toOption.getD default} layout={"vertical"} />
+      )
+
+      -- Elaborate and display the widget
+      let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
+      liftCoreM <| Widget.savePanelWidgetInfo
+        (hash ProofWidgets.HtmlDisplayPanel.javascript)
+        (return json% { html: $(← Server.rpcEncode html) })
+        stx
+      return
 
     -- Build the model checker result expression
     -- NOTE: We want to resolve `enumerableTransitionSystem` within the context
