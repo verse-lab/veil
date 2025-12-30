@@ -4,36 +4,36 @@ namespace Veil
 
 /-- Functional Queue, from https://vfoley.xyz/functional-queues. -/
 structure fQueue (α : Type) where
-  front : List α
-  back : List α
+  front : Array α
+  back : Array α
 deriving Inhabited, Repr
 
 namespace fQueue
 
 instance : Membership α (fQueue α) where
-  mem q x := x ∈ q.front ∨ x ∈ q.back
+  mem q x := x ∈ q.front.toList ∨ x ∈ q.back.toList
 
-def empty {α} : fQueue α := ⟨[], []⟩
+def empty {α} : fQueue α := ⟨#[], #[]⟩
 
 @[grind]
 def norm {α} (q : fQueue α) : fQueue α :=
-  match q.front with
-  | []    => ⟨q.back.reverse, []⟩
-  | _::_  => q
+  if q.front.isEmpty then ⟨q.back, #[]⟩ else q
 
 @[grind]
 def enqueue {α} (q : fQueue α) (x : α) : fQueue α :=
-  ⟨q.front, x :: q.back⟩ -- O(1)
+  ⟨q.front, q.back.push x⟩ -- O(1)
 
 @[grind]
 def dequeue? {α} (q : fQueue α) : Option (α × fQueue α) :=
-  match (norm q).front with
-  | []        => none
-  | x :: xs   => some (x, ⟨xs, (norm q).back⟩)
+  let nq := norm q
+  if h : nq.front.size > 0 then
+    some (nq.front[0], ⟨nq.front.extract 1 nq.front.size, nq.back⟩)
+  else
+    none
 
 @[grind]
 def toList {α} (q : fQueue α) : List α :=
-  q.front ++ q.back.reverse
+  q.front.toList ++ q.back.toList
 
 @[grind]
 def isEmpty {α} (q : fQueue α) : Bool :=
@@ -41,11 +41,11 @@ def isEmpty {α} (q : fQueue α) : Bool :=
 
 @[grind]
 def size {α} (q : fQueue α) : Nat :=
-  q.front.length + q.back.length
+  q.front.size + q.back.size  -- O(1)
 
 @[grind]
 def toArray {α} (q : fQueue α) : Array α :=
-  q.front.toArray ++ q.back.toArray.reverse
+  q.front ++ q.back
 
 @[grind]
 def ofList {α} (xs : List α) : fQueue α :=
@@ -106,47 +106,52 @@ Properties:
 @[simp, grind =]
 theorem norm_toList {α} (q : fQueue α) :
     fQueue.toList (fQueue.norm q) = fQueue.toList q := by
-  cases q; rename_i f b; cases f <;> simp [norm, toList]
+  simp only [norm, toList]
+  split <;> simp_all [Array.isEmpty_iff]
 
 @[simp, grind =]
 theorem norm_idem {α} (q : fQueue α) :
     fQueue.norm (fQueue.norm q) = fQueue.norm q := by
-  cases q; rename_i f b; cases f <;> simp only [norm]
-  cases b.reverse <;> simp
+  simp only [norm]
+  split <;> simp_all [Array.isEmpty_iff]
 
-theorem norm_eq_self_of_front_ne_nil {α} {q : fQueue α} (h : q.front ≠ []) :
-    fQueue.norm q = q := by
-  cases q; rename_i f b; cases f with
-  | nil => simp_all
-  | cons => simp [norm]
+theorem norm_eq_self_of_front_not_empty {α} {q : fQueue α} (h : ¬q.front.isEmpty) :
+    fQueue.norm q = q := by simp [norm, h]
 
 @[simp, grind =]
-theorem toList_empty {α : Type} : fQueue.toList (fQueue.empty : fQueue α) = ([] : List α) := by
-  simp [fQueue.empty, fQueue.toList]
+theorem toList_empty {α : Type} : fQueue.toList (fQueue.empty : fQueue α) = ([] : List α) := rfl
 
 @[simp, grind =]
-theorem dequeue?_empty {α : Type} : fQueue.dequeue? (fQueue.empty : fQueue α) = none := by
-  simp [fQueue.empty, fQueue.dequeue?, fQueue.norm]
-
+theorem dequeue?_empty {α : Type} : fQueue.dequeue? (fQueue.empty : fQueue α) = none := rfl
 
 @[simp, grind =]
 theorem toList_enqueue {α : Type} (q : fQueue α) (x : α) :
     fQueue.toList (fQueue.enqueue q x) = fQueue.toList q ++ [x] := by
-  simp [fQueue.toList, fQueue.enqueue, List.reverse_cons, List.append_assoc]
-
-
-@[grind .]
-theorem front_imples_in_queue {α : Type} {q : fQueue α} {x : α}
-    (h_front : x ∈ q.front) :
-    x ∈ fQueue.toList q := by
-  simp only [toList, List.mem_append, List.mem_reverse]; left; exact h_front
+  simp [toList, enqueue]
 
 @[grind .]
-theorem back_imples_in_queue {α : Type} {q : fQueue α} {x : α}
-    (h_back : x ∈ q.back) :
-    x ∈ fQueue.toList q := by
-  simp only [toList, List.mem_append, List.mem_reverse]; right; exact h_back
+theorem front_implies_in_queue {α : Type} {q : fQueue α} {x : α}
+    (h_front : x ∈ q.front.toList) : x ∈ fQueue.toList q :=
+  List.mem_append.mpr (Or.inl h_front)
 
+@[grind .]
+theorem back_implies_in_queue {α : Type} {q : fQueue α} {x : α}
+    (h_back : x ∈ q.back.toList) : x ∈ fQueue.toList q :=
+  List.mem_append.mpr (Or.inr h_back)
+
+
+private theorem array_toList_eq_head_cons_extract {α : Type} (arr : Array α) (h : arr.size > 0) :
+    arr.toList = arr[0] :: (arr.extract 1 arr.size).toList := by
+  have hlen : arr.toList.length > 0 := by simp [h]
+  obtain ⟨x, xs, harr⟩ := List.exists_cons_of_length_pos hlen
+  simp only [Array.toList_extract, harr]
+  congr 1
+  · have heq : arr.toList[0]'hlen = arr[0] := by simp only [Array.getElem_toList]
+    simp only [harr, List.getElem_cons_zero] at heq; exact heq
+  · have hxslen : xs.length = arr.size - 1 := by
+      have := congrArg List.length harr; simp at this; omega
+    simp only [List.extract, harr, List.drop_one, List.tail_cons]
+    rw [List.take_of_length_le]; omega
 
 @[simp, grind! .]
 theorem dequeue?_spec {α : Type} (q : fQueue α) :
@@ -154,17 +159,27 @@ theorem dequeue?_spec {α : Type} (q : fQueue α) :
     | none => fQueue.toList q = []
     | some (x, q') => fQueue.toList q = x :: fQueue.toList q' := by
   unfold dequeue?
-  cases h : norm q with
-  | mk f' b' =>
-    cases f' with
-    | nil =>
-      cases q; rename_i qf qb; cases qf with
-      | nil => simp only [norm, mk.injEq] at h; cases qb <;> simp_all [toList]
-      | cons => simp [norm] at h
-    | cons x xs =>
-      have := norm_toList q
-      simp only [toList] at this ⊢
-      simp [h] at this; exact this.symm
+  simp only [norm]
+  by_cases hf : q.front.isEmpty = true
+  · -- front is empty
+    simp only [hf, ↓reduceIte]
+    simp only [Array.isEmpty_iff] at hf
+    by_cases hb : q.back.size > 0
+    · -- back is non-empty
+      simp only [hb, ↓reduceDIte, toList, Array.toList_empty, hf, List.nil_append, List.append_nil]
+      rw [array_toList_eq_head_cons_extract q.back hb]
+    · -- back is also empty
+      simp only [Nat.not_lt, Nat.le_zero_eq, Array.size_eq_zero_iff] at hb
+      simp only [hb, Array.size_empty, gt_iff_lt, Nat.not_lt_zero, ↓reduceDIte, toList,
+        hf, List.nil_append, Array.toList_empty]
+  · -- front is not empty
+    simp only [hf, Bool.false_eq_true, ↓reduceIte]
+    have hsize : q.front.size > 0 := by
+      simp only [Array.isEmpty_iff, ← Array.size_eq_zero_iff] at hf
+      omega
+    simp only [hsize, ↓reduceDIte, toList]
+    rw [array_toList_eq_head_cons_extract q.front hsize]
+    simp only [List.cons_append]
 
 
 @[simp, grind =]
@@ -173,10 +188,8 @@ theorem dequeue?_eq_none_iff_toList_nil {α} (q : fQueue α) :
   constructor
   · intro h; have := dequeue?_spec q; simp_all
   · intro hnil
-    unfold dequeue?
-    cases h : norm q; rename_i f' b'; cases f' with
-    | nil => simp
-    | cons => have := norm_toList q; simp_all [toList]
+    simp only [dequeue?, norm, toList, List.append_eq_nil_iff] at hnil ⊢
+    split <;> simp_all
 
 /-- if `toList q = x :: xs`，then `dequeue? q = some (x, q')` and `toList q' = xs`。 -/
 theorem dequeue?_cons_view {α : Type} {q : fQueue α} {x : α} {xs : List α}
@@ -187,25 +200,17 @@ theorem dequeue?_cons_view {α : Type} {q : fQueue α} {x : α} {xs : List α}
   | none => simp_all
   | some p => exact ⟨p.2, by simp_all⟩
 
-
 theorem fQueue_dequeue_mem {α : Type} [Inhabited α]
     (sq : fQueue α) (st : α) (sq' : fQueue α)
-    (h_dequeue : fQueue.dequeue? sq = some (st, sq'))
-    : st ∈ fQueue.toList sq := by
-  have spec := dequeue?_spec sq
-  simp only [h_dequeue] at spec
-  simp [spec]
-
+    (h_dequeue : fQueue.dequeue? sq = some (st, sq')) : st ∈ fQueue.toList sq := by
+  have := dequeue?_spec sq; simp_all
 
 @[simp, grind =]
 theorem foldl_enqueue_toList {α : Type} (L : List α) (q : fQueue α) :
     (L.foldl fQueue.enqueue q).toList = q.toList ++ L := by
   induction L generalizing q with
   | nil => simp
-  | cons x xs ih =>
-    rw [List.foldl_cons]
-    rw [ih (q.enqueue x)]
-    grind
+  | cons x xs ih => simp [ih, toList_enqueue]
 
 
 open Std
