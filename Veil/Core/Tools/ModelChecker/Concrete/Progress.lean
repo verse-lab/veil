@@ -32,6 +32,27 @@ structure ProgressRefs where
 initialize progressRegistry : IO.Ref (Std.HashMap Nat ProgressRefs) ← IO.mkRef {}
 initialize nextInstanceId : IO.Ref Nat ← IO.mkRef 0
 
+/-! ## Compiled Mode Progress Reporting
+
+In compiled mode, the model checker runs as a separate process. Progress is communicated
+via stderr (JSON lines), while the final result goes to stdout. -/
+
+/-- Global flag indicating compiled mode (progress goes to stderr). -/
+initialize compiledModeEnabled : IO.Ref Bool ← IO.mkRef false
+
+/-- Start time for compiled mode progress tracking. -/
+initialize compiledModeStartTime : IO.Ref Nat ← IO.mkRef 0
+
+/-- Enable compiled mode progress reporting. Call this at the start of the compiled executable. -/
+def enableCompiledModeProgress : IO Unit := do
+  compiledModeEnabled.set true
+  let now ← IO.monoMsNow
+  compiledModeStartTime.set now
+
+/-- Output progress to stderr as a JSON line (for compiled mode). -/
+def reportProgressToStderr (p : Progress) : IO Unit := do
+  IO.eprintln (toJson p).compress
+
 /-- Allocate a new progress instance and return its ID.
     The ID can be safely quoted into Lean syntax. -/
 def allocProgressInstance : IO Nat := do
@@ -47,13 +68,26 @@ def getProgressRefs (instanceId : Nat) : IO (Option ProgressRefs) := do
   let m ← progressRegistry.get
   return m[instanceId]?
 
-/-- Update progress for a given instance ID. -/
+/-- Update progress for a given instance ID.
+    In compiled mode, also outputs progress to stderr as JSON. -/
 def updateProgress (instanceId : Nat) (uniqueStates statesProcessed queueLength currentDepth completedDepth : Nat) : IO Unit := do
+  let now ← IO.monoMsNow
+  -- Update refs if they exist (interpreted mode)
   if let some refs ← getProgressRefs instanceId then
-    let now ← IO.monoMsNow
     refs.progressRef.modify fun p => { p with
       uniqueStates, statesProcessed, queueLength, currentDepth, completedDepth
       elapsedMs := now - p.startTimeMs }
+  -- Output to stderr if in compiled mode
+  if ← compiledModeEnabled.get then
+    let startTime ← compiledModeStartTime.get
+    let p : Progress := {
+      status := "Running..."
+      uniqueStates, statesProcessed, queueLength, currentDepth, completedDepth
+      isRunning := true
+      startTimeMs := startTime
+      elapsedMs := now - startTime
+    }
+    reportProgressToStderr p
 
 /-- Mark progress as complete for a given instance ID. -/
 def finishProgress (instanceId : Nat) (resultJson : Lean.Json) : IO Unit := do

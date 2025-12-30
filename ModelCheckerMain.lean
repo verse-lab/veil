@@ -16,6 +16,8 @@ The workflow is as follows:
 set_option maxHeartbeats 6400000
 
 def main (args : List String) : IO Unit := do
+  -- Enable progress reporting to stderr for the IDE to read
+  Veil.ModelChecker.Concrete.enableCompiledModeProgress
   let pcfg : Option Veil.ModelChecker.ParallelConfig :=
     match args with
     | [a, b] =>
@@ -23,5 +25,6 @@ def main (args : List String) : IO Unit := do
       | some n1, some n2 => some <| Veil.ModelChecker.ParallelConfig.mk n1 n2
       | _, _ => none
     | _ => none
-  let res ← modelCheckerResult pcfg
+  -- Instance ID is not used in compiled mode, pass 0
+  let res ← modelCheckerResult pcfg 0
   IO.println s!"{Lean.toJson res}"

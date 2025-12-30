@@ -527,22 +527,46 @@ where
 
   /-- Handle internal mode: define and export the model checker result. -/
   elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
-    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) := $callExpr pcfg))
+    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat) := $callExpr pcfg progressInstanceId))
     elabVeilCommand (← `(end $(mkIdent mod.name)))
     elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
 
-  /-- Handle compiled mode: build, run, and display results. -/
+  /-- Read stderr lines from a subprocess and update progress refs until EOF. -/
+  readStderrProgress (stderr : IO.FS.Handle) (instanceId : Nat) : IO Unit := do
+    repeat do
+      let line ← stderr.getLine
+      if line.isEmpty then break  -- EOF
+      -- Try to parse line as Progress JSON
+      if let .ok json := Json.parse line then
+        if let .ok (p : ModelChecker.Concrete.Progress) := FromJson.fromJson? json then
+          -- Update the progress refs so the widget can poll them
+          if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
+            refs.progressRef.set p
+
+  /-- Handle compiled mode: build, run, and display results with streaming progress. -/
   elabModelCheckCompiledMode (stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     let startTime ← IO.monoMsNow
     let _ ← BaseIO.toIO <| Lake.cli ["build", "ModelCheckerMain"]
     logInfo s!"Compilation time: {(← IO.monoMsNow) - startTime} ms"
-    let runStart ← IO.monoMsNow
+    -- Allocate a progress instance ID for the widget
+    let instanceId ← ModelChecker.Concrete.allocProgressInstance
+    -- Spawn the subprocess
     let args := parallelCfg.map (fun p => #[toString p.numSubTasks, toString p.thresholdToParallel]) |>.getD #[]
-    let res ← IO.Process.run {
+    let child ← IO.Process.spawn {
       cmd := "ModelCheckerMain", args, cwd := (← IO.currentDir) / ".lake" / "build" / "bin",
       stdin := .piped, stdout := .piped, stderr := .piped }
-    logInfo s!"Execution time: {(← IO.monoMsNow) - runStart} ms"
-    displayResultWidget stx (← `(Lean.Json.parse $(Syntax.mkStrLit res) |>.toOption.getD default))
+    -- Start background task to read stderr and update progress
+    let _ ← IO.asTask (prio := .dedicated) do
+      -- Read stderr lines for progress updates
+      readStderrProgress child.stderr instanceId
+      -- Read stdout for final result
+      let stdout ← IO.FS.Handle.readToEnd child.stdout
+      let _ ← child.wait
+      -- Parse result and finish progress
+      let resultJson := Json.parse stdout |>.toOption.getD Json.null
+      ModelChecker.Concrete.finishProgress instanceId resultJson
+    -- Display streaming progress widget
+    ModelChecker.displayStreamingProgress stx instanceId
 
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
