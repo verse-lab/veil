@@ -1,4 +1,5 @@
 import Veil.Core.Tools.ModelChecker.Concrete.Core
+import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 namespace Veil.ModelChecker.Concrete
 open Std
@@ -164,12 +165,15 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
   (parallelCfg : ParallelConfig) :
   m (@ParallelSearchContextMain ρ σ κ σₕ fp th sys params) := do
   let mut ctx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := ParallelSearchContextMain.initial sys params
+  let mut statesProcessed : Nat := 0
+  let mut lastUpdateTime : Nat := 0
   while !ctx.hasFinished do
     -- In this setting, the queue emptiness check needs to be done here
     if ctx.tovisit.isEmpty then
       ctx := { ctx with finished := some (.exploredAllReachableStates) }
       return ctx
     let tovisitArr := ctx.tovisit.toArray
+    statesProcessed := statesProcessed + tovisitArr.size
     ctx := {ctx with
       tovisit := Std.HashMap.emptyWithCapacity,
       completedDepth := ctx.currentFrontierDepth,
@@ -183,6 +187,11 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
     -- filter out already seen states when merging
     ctx := results.foldl (init := ctx) ParallelSearchContextSub.merge1
     ctx := results.foldl (init := ctx) ParallelSearchContextSub.merge2
+    -- Update progress at most once per second
+    let now ← IO.monoMsNow
+    if now - lastUpdateTime >= 1000 then
+      lastUpdateTime := now
+      updateProgress ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
   return ctx
 
 end Veil.ModelChecker.Concrete

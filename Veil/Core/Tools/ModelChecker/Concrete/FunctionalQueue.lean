@@ -40,6 +40,10 @@ def isEmpty {α} (q : fQueue α) : Bool :=
   q.front.isEmpty && q.back.isEmpty
 
 @[grind]
+def size {α} (q : fQueue α) : Nat :=
+  q.front.length + q.back.length
+
+@[grind]
 def toArray {α} (q : fQueue α) : Array α :=
   q.front.toArray ++ q.back.toArray.reverse
 

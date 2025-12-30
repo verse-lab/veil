@@ -11,6 +11,7 @@ import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
+import Veil.Core.UI.Widget.ProgressViewer
 import Veil.Frontend.DSL.Action.Extract2
 
 open Lean Parser Elab Command
@@ -547,14 +548,18 @@ where
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     let resultExpr ← `(Lean.toJson <$> $callExpr ($(quote parallelCfg)))
     trace[veil.desugar] "{resultExpr}"
-    -- Elaborate, evaluate, and run the IO computation during elaboration
-    let json ← liftTermElabM do
+    -- Elaborate and get the IO computation (must be done synchronously)
+    let ioComputation ← liftTermElabM do
       let expr ← Term.elabTerm resultExpr none
       Term.synthesizeSyntheticMVarsNoPostponing
       let expr ← instantiateMVars expr
-      let ioComputation ← unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) expr
-      IO.ofExcept (← ioComputation.toIO')
-    -- Display the result (serialize and parse back to avoid Quote instance requirement)
-    displayResultWidget stx (← `(Lean.Json.parse $(Syntax.mkStrLit (Lean.Json.compress json)) |>.toOption.getD default))
+      unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) expr
+    -- Start the IO computation in a background task
+    let _ ← IO.asTask (prio := .dedicated) do
+      let json ← IO.ofExcept (← ioComputation.toIO')
+      -- Mark progress as complete and store result JSON
+      ModelChecker.Concrete.finishProgress json
+    -- Display streaming progress widget
+    ModelChecker.displayStreamingProgress stx
 
 end Veil

@@ -1,4 +1,5 @@
 import Veil.Core.Tools.ModelChecker.Concrete.Core
+import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 namespace Veil.ModelChecker.Concrete
 open Std
@@ -202,7 +203,15 @@ def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
   (params : SearchParameters ρ σ) :
   m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) := do
   let mut ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params := SequentialSearchContext.initial sys params
+  let mut statesProcessed : Nat := 0
+  let mut lastUpdateTime : Nat := 0
   while !ctx.hasFinished do
+    statesProcessed := statesProcessed + 1
+    -- Update progress at most once per second
+    let now ← IO.monoMsNow
+    if now - lastUpdateTime >= 1000 then
+      lastUpdateTime := now
+      updateProgress ctx.seen.size statesProcessed ctx.sq.size ctx.currentFrontierDepth ctx.completedDepth
     ctx := ← SequentialSearchContext.bfsStep sys ctx
   return ctx
 

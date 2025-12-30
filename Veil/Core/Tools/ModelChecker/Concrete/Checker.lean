@@ -1,5 +1,6 @@
 import Veil.Core.Tools.ModelChecker.Concrete.Sequential
 import Veil.Core.Tools.ModelChecker.Concrete.Parallel
+import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 namespace Veil.ModelChecker.Concrete
 
@@ -71,6 +72,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
+  initProgress
   let ctx ← match parallelCfg with
     | some cfg => do pure (← breadthFirstSearchParallel sys params cfg).toBaseSearchContext
     | none     => do pure (← breadthFirstSearchSequential sys params).toBaseSearchContext
