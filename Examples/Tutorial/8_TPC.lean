@@ -1,6 +1,7 @@
 import Veil
 
-open Veil
+/- ## The number of states is the same as TLA+ model. -/
+
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/two_phase_commit.ivy
 
 veil module TwoPhaseCommit
@@ -73,6 +74,7 @@ action RMRcvAbortMsg (r : node) {
   rmState r S := S == aborted
 }
 
+invariant [tm_rm_working] tmState init → ∀ r : node, rmState r working ∨ rmState r prepared
 #gen_spec
 
 #time #model_check { node := Fin 4 } { }

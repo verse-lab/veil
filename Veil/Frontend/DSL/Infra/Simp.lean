@@ -160,6 +160,7 @@ where interpretConfigItemWithSign (a : Meta.Simp.Config) (sign : Bool) (field : 
   | `iota => some { a with iota := sign }
   | `beta => some { a with beta := sign }
   | `failIfUnchanged => some { a with failIfUnchanged := sign }
+  | `unfoldPartialApp => some { a with unfoldPartialApp := sign }
   | _ => none
 
 -- NOTE: We could use `Lean.Parser.Tactic.optConfig` for `cfg`, but

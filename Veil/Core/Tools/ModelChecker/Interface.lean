@@ -77,6 +77,33 @@ instance [ToJson ρ] [ToJson σ] [ToJson κ] [ToJson σₕ] : ToJson (ModelCheck
           ("explored_states", toJson exploredStates),
           ("termination_reason", toJson reason) ]
 
+structure ParallelConfig where
+  /-- Number of sub-tasks to split the worklist into. -/
+  numSubTasks : Nat := 4
+  /-- Threshold of worklist size to start parallel processing.
+  If the worklist size is below this threshold, sequential processing
+  is used. -/
+  thresholdToParallel : Nat := 20
+deriving Inhabited, Repr
+
+instance ParallelConfig.hasQuote : Quote ParallelConfig `term where
+  quote cfg :=
+    Syntax.mkCApp ``ParallelConfig.mk
+      #[Syntax.mkNumLit (toString cfg.numSubTasks),
+        Syntax.mkNumLit (toString cfg.thresholdToParallel)]
+
+def ParallelConfig.taskSplit (cfg : ParallelConfig) (f : Array α → IO β) (worklist : Array α)
+  : IO (List (Task (Except IO.Error β))) := do
+  if worklist.size < cfg.thresholdToParallel then
+    return [← IO.asTask (f worklist)]
+  else
+    let numSubTasks := max 1 cfg.numSubTasks
+    let chunkSize := worklist.size / numSubTasks
+    List.range numSubTasks |>.mapM fun i => do
+      let l := i * chunkSize
+      let r := if i == numSubTasks - 1 then worklist.size else (i + 1) * chunkSize
+      IO.asTask (f (worklist.toSubarray l r))
+
 structure SearchParameters (ρ σ : Type) where
   /-- Which properties are we trying to find a violation of? (Typically, this
   list contains all the safety properties and invariants of the system.) -/
@@ -91,6 +118,6 @@ structure SearchParameters (ρ σ : Type) where
   earlyTerminationConditions : List EarlyTerminationCondition
 
 class ModelChecker (ts : TransitionSystem ρ σ l) where
-  isReachable : SearchParameters ρ σ → ModelCheckingResult ρ σ l σₕ
+  isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ
 
 end Veil.ModelChecker

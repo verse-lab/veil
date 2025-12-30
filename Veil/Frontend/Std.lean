@@ -1,7 +1,12 @@
+import Std
 import Mathlib.Data.Fin.Basic
 import Mathlib.Data.FinEnum
 import Mathlib.Algebra.Ring.Parity
+import Mathlib.Data.List.Sublists
 import Veil.Frontend.DSL.State.Types
+import Std.Data.ExtTreeSet.Lemmas
+
+open Std
 
 /-! # Axiomatizations of various structures -/
 
@@ -303,3 +308,235 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
     ∀ (s : nset), supermajority s → greater_than_third s
   greater_than_third_nonempty :
     ∀ (s : nset), greater_than_third s → ¬ is_empty s
+
+
+/-! ## Set -/
+
+class TSet (α : Type) (κ: Type) where
+  count : κ → Nat
+  contains : α → κ → Bool
+  empty : κ
+  insert : α → κ → κ
+  remove : α → κ → κ
+  toList : κ -> List α
+  filter : κ → (α → Bool) → κ
+  union : κ → κ → κ
+  diff : κ → κ → κ
+  intersection : κ → κ → κ
+  empty_count : count empty = 0
+  empty_contains (elem : α) : contains elem empty = false
+  contains_insert_self (elem : α) (s : κ) :
+    contains elem (insert elem s) = true
+  contains_insert_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
+    contains elem₁ (insert elem₂ s) = contains elem₁ s
+  insert_idempotent (elem : α) (s : κ) :
+    toList (insert elem (insert elem s)) = toList (insert elem s)
+  count_insert (elem : α) (s : κ) :
+    count (insert elem s) =
+      if contains elem s then count s else count s + 1
+  contains_remove_self (elem : α) (s : κ) :
+    contains elem (remove elem s) = false
+  contains_remove_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
+    contains elem₁ (remove elem₂ s) = contains elem₁ s
+  count_remove (elem : α) (s : κ) :
+    count (remove elem s) = if contains elem s then count s - 1 else count s
+  contains_union (elem : α) (s1 s2 : κ) :
+    contains elem (union s1 s2) = (contains elem s1 || contains elem s2)
+  contains_diff (elem : α) (s1 s2 : κ) :
+    contains elem (diff s1 s2) = (contains elem s1 && not (contains elem s2))
+
+
+def TSet.map [origin_set : TSet α κ] [target_set : TSet β l] (s1 : κ) (f : α → β) : l :=
+  origin_set.toList s1 |>.map f |>.foldl (fun acc a => target_set.insert a acc) target_set.empty
+
+
+theorem extTreeSet_contains_filter_not [Ord α] [TransOrd α] [LawfulEqOrd α]
+    {s1 s2 : ExtTreeSet α compare} {elem : α} :
+    (s1.filter (!s2.contains ·)).contains elem = (s1.contains elem && !s2.contains elem) := by
+  cases h1 : s1.contains elem <;> cases h2 : s2.contains elem <;> simp [h2]
+  all_goals
+    by_contra
+    have : elem ∈ s1.filter (!s2.contains ·) := by rw [← Std.ExtTreeSet.contains_iff_mem]; grind
+    try rw [mem_filter] at this
+    simp [h2] at this
+    try grind
+
+@[grind =]
+theorem list_foldl_insert [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+  (l : List α) (s : ExtTreeSet α compare) (elem : α) :
+  (l.foldl (fun acc a => acc.insert a) s).contains elem = (s.contains elem || l.contains elem) := by
+  induction l generalizing s with
+  | nil => grind
+  | cons head tail ih =>
+    rw [List.foldl_cons, ih]
+    simp only [List.contains_cons]
+    by_cases h : head = elem
+    · rw [h]
+      have : (s.insert elem).contains elem = true := by grind
+      simp [this]
+    · have h1 : (s.insert head).contains elem = s.contains elem := by grind
+      have h2 : (elem == head) = false := by grind
+      simp [h1, h2, Bool.false_or]
+
+
+theorem extTreeSet_fold_insert
+  [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+  (elem : α) (s1 s2 : ExtTreeSet α compare) :
+  (ExtTreeSet.foldl (fun acc a => acc.insert a) s2 s1).contains elem = (s1.contains elem || s2.contains elem) := by
+  rw [ExtTreeSet.foldl_eq_foldl_toList]
+  grind
+
+
+-- https://github.com/leanprover-community/mathlib4/blob/v4.19.0/Mathlib/Tactic/Linarith/Oracle/FourierMotzkin.lean#L41
+instance  [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+  : TSet α (ExtTreeSet α) where
+  count := ExtTreeSet.size
+  contains := fun a s => s.contains a
+  empty := ExtTreeSet.empty
+  insert := fun a s => s.insert a
+  remove := fun a s => s.erase a
+  toList := fun s => s.toList
+  filter := fun s p => s.filter p
+  union := fun s1 s2 => s1.foldl .insert s2
+  diff := fun s1 s2 => s1.filter (!s2.contains ·)
+  intersection := fun s1 s2 => s1.filter (s2.contains ·)
+  empty_count := by grind
+  empty_contains := by grind
+  contains_insert_self := by intros; grind
+  contains_insert_other := by intro elem₁ elem₂ s h; grind
+  count_insert := by grind
+  contains_remove_self := by grind
+  contains_remove_other := by intro elem₁ elem₂ s h; grind
+  count_remove := by grind
+  insert_idempotent := by
+    intros elem s;
+    congr 1
+    apply ExtTreeSet.ext_mem
+    grind
+  contains_union := by
+    intros elem s1 s2
+    exact extTreeSet_fold_insert elem s1 s2
+  contains_diff := by
+    intros elem s1 s2
+    exact extTreeSet_contains_filter_not
+
+class TMultiset (α : Type) (κ : Type) where
+  empty : κ
+  insert : α → κ → κ
+  remove : α → κ → κ
+  contains : α → κ → Bool
+  count : α → κ → Nat
+  size : κ → Nat
+  toList : κ → List α
+  empty_size : size empty = 0
+  empty_count (elem : α) : count elem empty = 0
+  empty_contains (elem : α) : contains elem empty = false
+  -- contains_def (elem : α) (s : κ) :
+  --   contains elem s = (count elem s > 0)
+  -- count_insert_self (elem : α) (s : κ) :
+  --   count elem (insert elem s) = count elem s + 1
+  -- count_insert_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
+  --   count elem₁ (insert elem₂ s) = count elem₁ s
+  -- size_insert (elem : α) (s : κ)  :
+  --   size (insert elem s) = size s + 1
+  -- count_remove_self (elem : α) (s : κ) :
+  --   count elem (remove elem s) = if count elem s > 0 then count elem s - 1 else 0
+  -- count_remove_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
+  --   count elem₁ (remove elem₂ s) = count elem₁ s
+  -- size_remove (elem : α) (s : κ) :
+  --   size (remove elem s) = if contains elem s then size s - 1 else size s
+
+instance DecidableEqExtTreeSet [Ord α] [DecidableEq α] [TransOrd α]
+  : DecidableEq (ExtTreeSet α) := fun t₁ t₂ =>
+  decidable_of_iff (t₁.toList = t₂.toList) ExtTreeSet.toList_inj
+
+instance DecidableEqExtTreeMap
+  [Ord α] [TransOrd α] [DecidableEq α] [DecidableEq β]
+  : DecidableEq (ExtTreeMap α β) := fun t₁ t₂ =>
+  decidable_of_iff (t₁.toList = t₂.toList)
+    ExtTreeMap.toList_inj
+
+
+
+abbrev TMapMultiset (α : Type) [Ord α] := Std.ExtTreeMap α { n : Nat // n > 0 }
+
+instance [Ord α] : Inhabited (TMapMultiset α) := ⟨Std.ExtTreeMap.empty⟩
+
+instance : Ord { n : Nat // n > 0 } where
+  compare x y := compare x.1 y.1
+
+instance : LawfulEqOrd { n : Nat // n > 0 } where
+  eq_of_compare h := Subtype.eq <| Nat.instLawfulEqOrd.eq_of_compare h
+
+instance [Ord α] [Ord β] : Ord (α × β) where
+  compare x y := compare x.1 y.1 |>.then (compare x.2 y.2)
+
+instance [Ord α] [TransOrd α] : Ord (TMapMultiset α) where
+  compare m₁ m₂ := compare m₁.toList m₂.toList
+
+
+open Std.ExtDTreeMap
+
+instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
+  [LawfulEqOrd α] : TMultiset α (TMapMultiset α) where
+  empty := Std.ExtTreeMap.empty
+  insert elem s :=
+    s.alter elem fun
+      | some n => some ⟨n.val + 1, by omega⟩
+      | none   => some ⟨1, by omega⟩
+
+  remove elem s :=
+    s.alter elem fun
+      | some n => if h : n.val > 1 then some ⟨n.val - 1, by omega⟩ else none
+      | none   => none
+
+  count elem s := match s.get? elem with
+    | some n => n.val
+    | none => 0
+
+  contains elem s := s.contains elem
+  size s := s.foldl (fun acc _ count => acc + count.val) 0
+  toList s := s.foldl (fun acc elem count => acc ++ List.replicate count.val elem) []
+  empty_size := by simp [Std.ExtTreeMap.empty]; rfl
+  empty_count elem := by grind
+  empty_contains elem := by grind
+  -- contains_def elem s := by grind
+  -- count_insert_self elem s := by grind
+  -- count_insert_other elem₁ elem₂ s h := by grind
+  -- size_insert elem s := by sorry
+  -- count_remove_self elem s := by grind
+  -- count_remove_other elem₁ elem₂ s h := by grind
+  -- size_remove elem s := by sorry
+
+
+instance instTMultisetForFin (n : Nat) : TMultiset (Fin n) (TMapMultiset (Fin n)) :=
+  instTMultiSetWithExtTreeMap
+
+
+class TMap (α : Type) (β : Type) (κ : Type) where
+  count : κ → Nat
+  contains : α → κ → Bool
+  lookup : α → κ → Option β
+  empty : κ
+  insert : α → β → κ → κ
+  remove : α → κ → κ
+  toList : κ → List (α × β)
+  keys : κ → List α
+  values : κ → List β
+  filter : κ → (α → β → Bool) → κ
+  equal : κ → κ → Bool
+
+
+instance [BEq α] [BEq β] [Ord α] [TransOrd α] [LawfulEqOrd α]
+  : TMap α β (ExtTreeMap α β) where
+  count := fun m => m.inner.size
+  contains := fun k m => m.inner.contains k
+  lookup := fun k m => get? m.inner k
+  empty := ExtTreeMap.empty
+  insert := fun k v m => ⟨m.inner.insert k v⟩
+  remove := fun k m => ⟨m.inner.erase k⟩
+  toList := fun m => m.toList
+  keys := fun m => m.toList.map Prod.fst
+  values := fun m => m.toList.map Prod.snd
+  filter := fun m p => ⟨m.inner.filter p⟩
+  equal := fun m1 m2 => m1.toList == m2.toList

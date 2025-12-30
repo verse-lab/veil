@@ -51,8 +51,9 @@ termination true = true
 
 #check_invariants
 
-#model_check { node := Fin 5 } { }
+#time #model_check { node := Fin 5 } { }
 
+#exit
 sat trace [can_elect_leader_explicit] {
   send
   assert (∃ n next, pending n next)

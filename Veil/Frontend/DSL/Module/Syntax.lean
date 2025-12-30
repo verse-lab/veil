@@ -143,6 +143,9 @@ syntax (name := functionStateComponent) kw_function : stateComponentKind
 /-- This state component is the state of another module. -/
 syntax (name := moduleStateComponent) kw_module : stateComponentKind
 
+/-- Inline Lean's built-in `structure` and `inductive` definitions in module. -/
+syntax (name := inlineBuiltinDeclaration) "@[veil_decl]" command : command
+
 /-- Assemble the state type for this Veil module, based on the previously
 declared state components. -/
 syntax (name := genState) "#gen_state" : command
@@ -281,6 +284,6 @@ type classes.
 This means that it should only be used for testing. In the future, we will add
 support for complete enumeration of background theories.
 -/
-syntax (name := modelCheck) "#model_check " term:max term:max Parser.Tactic.optConfig : command
+syntax (name := modelCheck) "#model_check " ("internal_mode")? ("after_compilation")? term:max term:max Parser.Tactic.optConfig : command
 
 end Veil

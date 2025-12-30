@@ -11,7 +11,7 @@ import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
-import Veil.Frontend.DSL.Action.Extract
+import Veil.Frontend.DSL.Action.Extract2
 
 open Lean Parser Elab Command
 
@@ -168,6 +168,34 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
     return ignoreFnStx
   elabVeilCommand cmd
 
+
+@[command_elab Veil.inlineBuiltinDeclaration]
+def elabInlineBuiltinDeclaration : CommandElab := fun stx => do
+  match stx with
+  | `(@[veil_decl] structure $name:ident $[$args]* where $[$fields]*) => do
+    elabCommand (← `(structure $name:ident $[$args]* where $[$fields]*))
+    tryDerivingInstances name stx
+  | `(@[veil_decl] inductive $name:ident $[$args]* where $[$ctors]*) => do
+    elabCommand (← `(inductive $name:ident $[$args]* where $[$ctors]*))
+    tryDerivingInstances name stx
+  | `(@[veil_decl] inductive $name:ident $[$args]* $[$ctors:ctor]*) => do
+    elabCommand (← `(inductive $name:ident $[$args]* $[$ctors:ctor]*))
+    tryDerivingInstances name stx
+  | _ => throwUnsupportedSyntax
+where
+  /-- Try to derive instances, suppressing errors and showing warnings instead -/
+  tryDerivingInstances (name : Ident) (_origStx : Syntax) : CommandElabM Unit := do
+    for className in defaultDerivingClasses do
+      let classIdent := Lean.mkIdent className
+      try elabVeilCommand $ ← `(command| deriving instance $classIdent:ident for $name:ident)
+      catch _ => logWarning m!"Could not automatically derive {className} for {name.getId}. You may need to provide a manual instance."
+  defaultDerivingClasses : List Name := [
+    ``Inhabited, ``DecidableEq, ``Lean.ToJson,
+    ``Hashable, ``Ord, ``Repr,
+    ``Std.TransOrd, ``Std.LawfulEqOrd,
+    -- ``Veil.Enumeration
+]
+
 /-- Crystallizes the state of the module, i.e. it defines it as a Lean
 `structure` definition, if that hasn't already happened. -/
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
@@ -213,7 +241,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand nextTrCmd
   let (initCmd, mod) ← mod.assembleInit
   elabVeilCommand initCmd
-  Extract.genNextActCommands mod
+  Extract.genNextActCommands mod (if mod._useNewExtraction then Extract.genExtractCommand2 else Extract.genExtractCommand)
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
   elabVeilCommand rtsCmd
@@ -403,6 +431,7 @@ structure ModelCheckerConfig where
   /-- Maximum depth (number of transitions) to explore. If it's 0, explores all
   reachable states. -/
   maxDepth : Nat := 0
+  parallelCfg : Option ModelChecker.ParallelConfig := none
   deriving Repr
 
 declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
@@ -410,97 +439,122 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
-  | `(#model_check $instTerm:term $theoryTerm:term $cfg) =>
-    -- Parse the configuration options
-    let config ← elabModelCheckerConfig cfg
+  | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $theoryTerm:term $cfg) =>
+    -- Write modified source for compilation (if in compilation mode)
+    if internal?.isNone && compile?.isSome then
+      writeSourceForCompilation tk stx
 
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
 
-    -- Warn if there are any transitions in the module
-    let transitions := mod.procedures.filter (·.info.isTransition)
-    let transitionsStr := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
-    if !transitions.isEmpty then
-      logWarning m!"\
-        Explicit state model checking of transitions is SLOW!\n\
-        \n\
-        The current implementation enumerates all possible states and filters \
-        those satisfying the transition relation. \
-        Your specification has {transitions.size} transition{if transitions.size > 1 then "s" else ""}: {transitionsStr}\n\
-        \n\
-        Consider encoding transitions as imperative actions where possible, \
-        which allows more efficient explicit state model checking."
+    warnAboutTransitions mod
+    let config ← elabModelCheckerConfig cfg
+    let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
 
-    -- Get sort identifiers from the module
-    let sortIdents ← mod.sortIdents
-
-    -- Build safety properties from module invariants
-    let invariants := mod.invariants
-    let safetyProps ← invariants.mapM fun (inv : StateAssertion) => do
-      let invName := Lean.mkIdent inv.name
-      let nameQuote : Term := quote inv.name
-      `(Veil.ModelChecker.SafetyProperty.mk (name := $nameQuote) (property := fun th st => $invName th st))
-    let safetyList ← `([$safetyProps,*])
-
-    -- Build termination property from module terminations (if any)
-    let terminations := mod.terminations
-    let terminatingProp ← do
-      if terminations.isEmpty then
-        `(default)
-      else
-        -- Use the first termination property
-        let term := terminations[0]!
-        let termName := Lean.mkIdent term.name
-        let nameQuote : Term := quote term.name
-        `(Veil.ModelChecker.SafetyProperty.mk (name := $nameQuote) (property := fun th st => $termName th st))
-
-    let inst := mkVeilImplementationDetailIdent `inst
-    let th := mkVeilImplementationDetailIdent `th
-
-    -- Build inst.node, inst.process, etc. from sort identifiers
-    let instSortArgs ← sortIdents.mapM fun sortIdent => do
-      `($inst.$(sortIdent))
-
-    -- Build the early termination conditions list
-    let earlyTerminationConditions ← do
-      let baseConditions ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState])
-      if config.maxDepth > 0 then
-        let depthLit := quote config.maxDepth
-        `($baseConditions ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $depthLit])
-      else
-        pure baseConditions
-
-    -- Build the model checker result expression
-    -- NOTE: We want to resolve `enumerableTransitionSystem` within the context
-    -- of the spec, not within THIS context, so keep it with a single backtick.
-    let resultExpr ← `(
-      let $inst : $instantiationType := $instTerm
-      let $th : $theoryIdent $instSortArgs* := $theoryTerm
-      $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-        ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
-        {
-          invariants := $safetyList
-          terminating := $terminatingProp
-          earlyTerminationConditions := $earlyTerminationConditions
-        }
-    )
-
-    -- Create the widget display using HtmlDisplay
-    -- NOTE: We set the max heartbeats and synth instance max size to high values
-    -- because we rely on typeclass inference to construct the code for the
-    -- transition system, and for large systems the defaults are not enough.
-    let widgetExpr ← `(
-      open ProofWidgets.Jsx in
-      <ProofWidgets.TraceDisplayViewer result={Lean.toJson $resultExpr} layout={"vertical"} />
-    )
-
-    -- Elaborate and display the widget
+    -- Dispatch to appropriate mode handler
+    match internal?.isSome, compile?.isSome with
+    | true, false  => throwError "The 'internal_mode' keyword is inserted by Veil when compiling the specification. You should never add it manually."
+    | true, true   => elabModelCheckInternalMode mod callExpr
+    | false, false => elabModelCheckInterpretedMode stx callExpr config.parallelCfg
+    | false, true  => elabModelCheckCompiledMode stx config.parallelCfg
+  | _ => throwUnsupportedSyntax
+where
+  /-- Display a TraceDisplayViewer widget with the given result term. -/
+  displayResultWidget (stx : Syntax) (resultTerm : Term) : CommandElabM Unit := do
+    let widgetExpr ← `(open ProofWidgets.Jsx in
+      <ProofWidgets.TraceDisplayViewer result={$resultTerm} layout={"vertical"} />)
     let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
     liftCoreM <| Widget.savePanelWidgetInfo
       (hash ProofWidgets.HtmlDisplayPanel.javascript)
-      (return json% { html: $(← Server.rpcEncode html) })
-      stx
-  | _ => throwUnsupportedSyntax
+      (return json% { html: $(← Server.rpcEncode html) }) stx
+
+  /-- Build the core model checker call syntax (without parallel config). -/
+  mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
+      (instTerm theoryTerm : Term) : CommandElabM Term := do
+    let inst := mkVeilImplementationDetailIdent `inst
+    let th := mkVeilImplementationDetailIdent `th
+    let instSortArgs ← (← mod.sortIdents).mapM fun sortIdent => `($inst.$(sortIdent))
+    -- Build SafetyProperty.mk syntax for a StateAssertion
+    let mkProp (sa : StateAssertion) : CommandElabM Term :=
+      `(Veil.ModelChecker.SafetyProperty.mk (name := $(quote sa.name))
+          (property := fun th st => $(Lean.mkIdent sa.name) th st))
+    let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+    let terminatingProp ← match mod.terminations[0]? with
+      | some t => mkProp t
+      | none => `(default)
+    let earlyTermConds ← do
+      let base ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState])
+      if config.maxDepth > 0 then `($base ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $(quote config.maxDepth)])
+      else pure base
+    -- Model checker call with type annotation to help inference
+    `((let $inst : $instantiationType := $instTerm
+       let $th : $theoryIdent $instSortArgs* := $theoryTerm
+       $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
+         ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
+         { invariants := $safetyList, terminating := $terminatingProp,
+           earlyTerminationConditions := $earlyTermConds } : _ → IO _))
+
+  /-- Write modified source file for compilation mode. -/
+  writeSourceForCompilation (tk stx : Syntax) : CommandElabM Unit := do
+    -- Copy the current file into a dedicated file
+    --
+    -- NOTE: This command *should not* be copied verbatim into the new file,
+    -- otherwise this process will go into a loop. NOTE: Since some definitions
+    -- required for compilation are not available *before this command*, we need
+    -- to somehow make them available. The approach taken here is to change the
+    -- behavior of the command in the new file by doing minimal source-to-source
+    -- transformation: we insert the `internal_mode` keyword after `#model_check`,
+    -- which makes the command skip the compilation step.
+    let some posTk := tk.getTailPos? | throwError "Unexpected error"
+    let some posStx := stx.getTailPos? | throwError "Unexpected error"
+    let src := (← getFileMap).source
+    let newSource := String.Pos.Raw.extract src 0 posTk ++ " internal_mode " ++ String.Pos.Raw.extract src posTk posStx
+    IO.FS.writeFile ((← IO.currentDir) / "ToBeImportedByModelCheckerMain.lean") newSource
+
+  /-- Warn if the module contains transitions (which are slow to model check). -/
+  warnAboutTransitions (mod : Module) : CommandElabM Unit := do
+    let transitions := mod.procedures.filter (·.info.isTransition)
+    if transitions.isEmpty then return
+    let names := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
+    logWarning m!"Explicit state model checking of transitions is SLOW!\n\n\
+      The current implementation enumerates all possible states and filters those satisfying \
+      the transition relation. Your specification has {transitions.size} \
+      transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
+      Consider encoding transitions as imperative actions where possible."
+
+  /-- Handle internal mode: define and export the model checker result. -/
+  elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
+    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) := $callExpr pcfg))
+    elabVeilCommand (← `(end $(mkIdent mod.name)))
+    elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
+
+  /-- Handle compiled mode: build, run, and display results. -/
+  elabModelCheckCompiledMode (stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+    let startTime ← IO.monoMsNow
+    let _ ← BaseIO.toIO <| Lake.cli ["build", "ModelCheckerMain"]
+    logInfo s!"Compilation time: {(← IO.monoMsNow) - startTime} ms"
+    let runStart ← IO.monoMsNow
+    let args := parallelCfg.map (fun p => #[toString p.numSubTasks, toString p.thresholdToParallel]) |>.getD #[]
+    let res ← IO.Process.run {
+      cmd := "ModelCheckerMain", args, cwd := (← IO.currentDir) / ".lake" / "build" / "bin",
+      stdin := .piped, stdout := .piped, stderr := .piped }
+    logInfo s!"Execution time: {(← IO.monoMsNow) - runStart} ms"
+    displayResultWidget stx (← `(Lean.Json.parse $(Syntax.mkStrLit res) |>.toOption.getD default))
+
+  /-- Handle interpreted mode: evaluate and display results directly. -/
+  elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
+      (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+    let resultExpr ← `(Lean.toJson <$> $callExpr ($(quote parallelCfg)))
+    trace[veil.desugar] "{resultExpr}"
+    -- Elaborate, evaluate, and run the IO computation during elaboration
+    let json ← liftTermElabM do
+      let expr ← Term.elabTerm resultExpr none
+      Term.synthesizeSyntheticMVarsNoPostponing
+      let expr ← instantiateMVars expr
+      let ioComputation ← unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) expr
+      IO.ofExcept (← ioComputation.toIO')
+    -- Display the result (serialize and parse back to avoid Quote instance requirement)
+    displayResultWidget stx (← `(Lean.Json.parse $(Syntax.mkStrLit (Lean.Json.compress json)) |>.toOption.getD default))
 
 end Veil

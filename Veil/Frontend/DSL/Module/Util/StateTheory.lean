@@ -384,8 +384,8 @@ private structure FieldMetadata where
   /-- The term for the codomain of the field. -/
   codomainTerm : Term
 
-/-- Given, e.g. `node node`, create `#[node, node]`. -/
-private def FieldMetadata.domainArray [Monad m] [MonadQuotation m] (fm : FieldMetadata) : m Term := `([ $[$fm.domainTerms],* ])
+/-- Get the list syntax for the domain terms of a field. -/
+private def FieldMetadata.domainList [Monad m] [MonadQuotation m] (fm : FieldMetadata) : m Term := `([ $[$fm.domainTerms],* ])
 
 /-! ## Field Dispatchers (Private) -/
 
@@ -394,7 +394,7 @@ types of its arguments and its codomain, as well as the concrete and abstract
 types of the field. -/
 private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (base : Name) (fieldMetadata : Array FieldMetadata) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder))
   : m ((Array (Name × Syntax)) × (Name × Syntax) × (Name × Syntax)) := do
-  let domainComponents ← fieldMetadata.mapM (·.domainArray)
+  let domainComponents ← fieldMetadata.mapM (·.domainList)
   let coDomainComponents := fieldMetadata.map (·.codomainTerm)
   let f := mkVeilImplementationDetailIdent `f
   let casesOnName := structureFieldLabelTypeName base ++ `casesOn

@@ -9,6 +9,10 @@ structure fQueue (α : Type) where
 deriving Inhabited, Repr
 
 namespace fQueue
+
+instance : Membership α (fQueue α) where
+  mem q x := x ∈ q.front ∨ x ∈ q.back
+
 def empty {α} : fQueue α := ⟨[], []⟩
 
 @[grind]
@@ -30,6 +34,14 @@ def dequeue? {α} (q : fQueue α) : Option (α × fQueue α) :=
 @[grind]
 def toList {α} (q : fQueue α) : List α :=
   q.front ++ q.back.reverse
+
+@[grind]
+def isEmpty {α} (q : fQueue α) : Bool :=
+  q.front.isEmpty && q.back.isEmpty
+
+@[grind]
+def toArray {α} (q : fQueue α) : Array α :=
+  q.front.toArray ++ q.back.toArray.reverse
 
 @[grind]
 def ofList {α} (xs : List α) : fQueue α :=

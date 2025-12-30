@@ -1,6 +1,6 @@
 import Veil
 
-
+open Std
 /-
 We use this example to demonstrate how our model checker can find bugs in real-world
 concurrent algorithms, woriking as a standalone tool.
@@ -187,13 +187,11 @@ action _cs (self : process) {
   pc self S := S == release_lock
 }
 
-
 invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 termination [AllDone] pc S Done = true
 
-set_option maxHeartbeats 250000
 #gen_spec
 
-#model_check { process := Fin 3 } {none := 0}
+#model_check { process := Fin 3 } { none := 0 }
 
 end Mutex
