@@ -28,6 +28,7 @@ def generateVeilMultiExecMCore2 (κ : TSyntax `term)
   let buildExtractBody (body : TSyntax `term) : CommandElabM (TSyntax `term) := do
     let extractSimps : Array Ident :=
       #[``MultiExtractor.NonDetT.extractList2, ``MultiExtractor.ExtractConstraint.get, ``instMonadLiftT,
+        -- NOTE: The following are added to work around a bug (?) fixed in Lean v4.27.0-rc1
         ``id, ``inferInstance, ``inferInstanceAs, instFieldRepresentationName].map Lean.mkIdent
     `(veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged) [$[$extractSimps:ident],*]
       ($extractor ($κ) _ _ ($body)))
