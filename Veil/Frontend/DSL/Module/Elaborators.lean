@@ -423,187 +423,113 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
   | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $theoryTerm:term $cfg) =>
+    -- Write modified source for compilation (if in compilation mode)
     if internal?.isNone && compile?.isSome then
-      -- Copy the current file into a dedicated file
-      -- NOTE: This command *should not* be copied verbatim into the new file,
-      -- otherwise this process will go into a loop.
-      -- NOTE: Since some definitions required for compilation are not available
-      -- *before this command*, we need to somehow make them available. The
-      -- approach taken here is to change the behavior of the command in the new file
-      -- by doing minimal source-to-source transformation: we insert the
-      -- `internal_mode` keyword after `#model_check`, which makes the command
-      -- skip the compilation step.
-      let some trailingPosTk := tk.getTailPos? | throwError "Unexpected error"
-      let some trailingPosStx := stx.getTailPos? | throwError "Unexpected error"
-      let fmap ← getFileMap
-      let newSource :=
-        String.Pos.Raw.extract fmap.source 0 trailingPosTk ++
-        " internal_mode " ++
-        String.Pos.Raw.extract fmap.source trailingPosTk trailingPosStx
-      let path ← do
-        let pwd ← IO.currentDir
-        pure <| pwd / "ToBeImportedByModelCheckerMain.lean"
-      IO.FS.writeFile path newSource
-
-    -- Parse the configuration options
-    let config ← elabModelCheckerConfig cfg
+      writeSourceForCompilation tk stx
 
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
 
-    -- Warn if there are any transitions in the module
-    let transitions := mod.procedures.filter (·.info.isTransition)
-    let transitionsStr := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
-    if !transitions.isEmpty then
-      logWarning m!"\
-        Explicit state model checking of transitions is SLOW!\n\
-        \n\
-        The current implementation enumerates all possible states and filters \
-        those satisfying the transition relation. \
-        Your specification has {transitions.size} transition{if transitions.size > 1 then "s" else ""}: {transitionsStr}\n\
-        \n\
-        Consider encoding transitions as imperative actions where possible, \
-        which allows more efficient explicit state model checking."
+    warnAboutTransitions mod
+    let config ← elabModelCheckerConfig cfg
+    let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
 
-    -- Get sort identifiers from the module
-    let sortIdents ← mod.sortIdents
-
-    -- Build safety properties from module invariants
-    let invariants := mod.invariants
-    let safetyProps ← invariants.mapM fun (inv : StateAssertion) => do
-      let invName := Lean.mkIdent inv.name
-      let nameQuote : Term := quote inv.name
-      `(Veil.ModelChecker.SafetyProperty.mk (name := $nameQuote) (property := fun th st => $invName th st))
-    let safetyList ← `([$safetyProps,*])
-
-    -- Build termination property from module terminations (if any)
-    let terminations := mod.terminations
-    let terminatingProp ← do
-      if terminations.isEmpty then
-        `(default)
-      else
-        -- Use the first termination property
-        let term := terminations[0]!
-        let termName := Lean.mkIdent term.name
-        let nameQuote : Term := quote term.name
-        `(Veil.ModelChecker.SafetyProperty.mk (name := $nameQuote) (property := fun th st => $termName th st))
-
-    let inst := mkVeilImplementationDetailIdent `inst
-    let th := mkVeilImplementationDetailIdent `th
-
-    -- Build inst.node, inst.process, etc. from sort identifiers
-    let instSortArgs ← sortIdents.mapM fun sortIdent => do
-      `($inst.$(sortIdent))
-
-    -- Build the early termination conditions list
-    let earlyTerminationConditions ← do
-      let baseConditions ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState])
-      if config.maxDepth > 0 then
-        let depthLit := quote config.maxDepth
-        `($baseConditions ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $depthLit])
-      else
-        pure baseConditions
-
-    if internal?.isSome then
-      unless compile?.isSome do
-        throwError "The 'internal_mode' keyword is inserted by Veil when compiling the specification. You should never add it manually."
-      -- Define the model checker result as a `def`
-      let defCmd ← do
-        `(
-        def $(mkIdent `modelCheckerResult) :=
-        let $inst : $instantiationType := $instTerm
-        let $th : $theoryIdent $instSortArgs* := $theoryTerm
-        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-          ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
-          {
-            invariants := $safetyList
-            terminating := $terminatingProp
-            earlyTerminationConditions := $earlyTerminationConditions
-          }
-      )
-      elabVeilCommand defCmd
-      -- To make things easier, expose this definition (might be kind of adhoc?)
-      let endNamespaceCmd ← `(end $(mkIdent mod.name))
-      elabVeilCommand endNamespaceCmd
-      let exportCmd ← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult)))
-      elabVeilCommand exportCmd
-      return
-
-    if internal?.isNone && compile?.isSome then
-      -- Now, compile and run
-      let startTime ← IO.monoMsNow
-      let _ ← BaseIO.toIO <| Lake.cli ["build", "ModelCheckerMain"]
-      let endTime ← IO.monoMsNow
-      logInfo s!"Compilation time: {endTime - startTime} ms"
-      let startTime := endTime
-      let res ← do
-        let pwd ← IO.currentDir
-        let args := match config.parallelCfg with
-          | some pcfg => #[toString pcfg.numSubTasks, toString pcfg.thresholdToParallel]
-          | none => #[]
-        IO.Process.run {
-          cmd := "ModelCheckerMain",
-          args := args,
-          cwd := pwd / ".lake" / "build" / "bin",
-          stdin := .piped,
-          stdout := .piped,
-          stderr := .piped
-        }
-      let endTime ← IO.monoMsNow
-      logInfo s!"Execution time: {endTime - startTime} ms"
-
-      -- The following is mostly repetition
-
-      -- Create the widget display using HtmlDisplay
-      -- NOTE: We set the max heartbeats and synth instance max size to high values
-      -- because we rely on typeclass inference to construct the code for the
-      -- transition system, and for large systems the defaults are not enough.
-      let widgetExpr ← `(
-        open ProofWidgets.Jsx in
-        <ProofWidgets.TraceDisplayViewer result={Lean.Json.parse $(Syntax.mkStrLit res):str |>.toOption.getD default} layout={"vertical"} />
-      )
-
-      -- Elaborate and display the widget
-      let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
-      liftCoreM <| Widget.savePanelWidgetInfo
-        (hash ProofWidgets.HtmlDisplayPanel.javascript)
-        (return json% { html: $(← Server.rpcEncode html) })
-        stx
-      return
-
-    -- Build the model checker result expression
-    -- NOTE: We want to resolve `enumerableTransitionSystem` within the context
-    -- of the spec, not within THIS context, so keep it with a single backtick.
-    let resultExpr ← `(
-      let $inst : $instantiationType := $instTerm
-      let $th : $theoryIdent $instSortArgs* := $theoryTerm
-      $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-        ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
-        {
-          invariants := $safetyList
-          terminating := $terminatingProp
-          earlyTerminationConditions := $earlyTerminationConditions
-        }
-      ($(quote config.parallelCfg))
-    )
-    trace[veil.desugar] "{resultExpr}"
-
-    -- Create the widget display using HtmlDisplay
-    -- NOTE: We set the max heartbeats and synth instance max size to high values
-    -- because we rely on typeclass inference to construct the code for the
-    -- transition system, and for large systems the defaults are not enough.
-    let widgetExpr ← `(
-      open ProofWidgets.Jsx in
-      <ProofWidgets.TraceDisplayViewer result={Lean.toJson $resultExpr} layout={"vertical"} />
-    )
-
-    -- Elaborate and display the widget
+    -- Dispatch to appropriate mode handler
+    match internal?.isSome, compile?.isSome with
+    | true, false  => throwError "The 'internal_mode' keyword is inserted by Veil when compiling the specification. You should never add it manually."
+    | true, true   => elabModelCheckInternalMode mod callExpr
+    | false, false => elabModelCheckInterpretedMode stx callExpr config.parallelCfg
+    | false, true  => elabModelCheckCompiledMode stx config.parallelCfg
+  | _ => throwUnsupportedSyntax
+where
+  /-- Display a TraceDisplayViewer widget with the given result term. -/
+  displayResultWidget (stx : Syntax) (resultTerm : Term) : CommandElabM Unit := do
+    let widgetExpr ← `(open ProofWidgets.Jsx in
+      <ProofWidgets.TraceDisplayViewer result={$resultTerm} layout={"vertical"} />)
     let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
     liftCoreM <| Widget.savePanelWidgetInfo
       (hash ProofWidgets.HtmlDisplayPanel.javascript)
-      (return json% { html: $(← Server.rpcEncode html) })
-      stx
-  | _ => throwUnsupportedSyntax
+      (return json% { html: $(← Server.rpcEncode html) }) stx
+
+  /-- Build the core model checker call syntax (without parallel config). -/
+  mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
+      (instTerm theoryTerm : Term) : CommandElabM Term := do
+    let inst := mkVeilImplementationDetailIdent `inst
+    let th := mkVeilImplementationDetailIdent `th
+    let instSortArgs ← (← mod.sortIdents).mapM fun sortIdent => `($inst.$(sortIdent))
+    -- Build SafetyProperty.mk syntax for a StateAssertion
+    let mkProp (sa : StateAssertion) : CommandElabM Term :=
+      `(Veil.ModelChecker.SafetyProperty.mk (name := $(quote sa.name))
+          (property := fun th st => $(Lean.mkIdent sa.name) th st))
+    let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+    let terminatingProp ← match mod.terminations[0]? with
+      | some t => mkProp t
+      | none => `(default)
+    let earlyTermConds ← do
+      let base ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState])
+      if config.maxDepth > 0 then `($base ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $(quote config.maxDepth)])
+      else pure base
+    -- Model checker call
+    `(let $inst : $instantiationType := $instTerm
+      let $th : $theoryIdent $instSortArgs* := $theoryTerm
+      $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
+        ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
+        { invariants := $safetyList, terminating := $terminatingProp,
+          earlyTerminationConditions := $earlyTermConds })
+
+  /-- Write modified source file for compilation mode. -/
+  writeSourceForCompilation (tk stx : Syntax) : CommandElabM Unit := do
+    -- Copy the current file into a dedicated file
+    --
+    -- NOTE: This command *should not* be copied verbatim into the new file,
+    -- otherwise this process will go into a loop. NOTE: Since some definitions
+    -- required for compilation are not available *before this command*, we need
+    -- to somehow make them available. The approach taken here is to change the
+    -- behavior of the command in the new file by doing minimal source-to-source
+    -- transformation: we insert the `internal_mode` keyword after `#model_check`,
+    -- which makes the command skip the compilation step.
+    let some posTk := tk.getTailPos? | throwError "Unexpected error"
+    let some posStx := stx.getTailPos? | throwError "Unexpected error"
+    let src := (← getFileMap).source
+    let newSource := String.Pos.Raw.extract src 0 posTk ++ " internal_mode " ++ String.Pos.Raw.extract src posTk posStx
+    IO.FS.writeFile ((← IO.currentDir) / "ToBeImportedByModelCheckerMain.lean") newSource
+
+  /-- Warn if the module contains transitions (which are slow to model check). -/
+  warnAboutTransitions (mod : Module) : CommandElabM Unit := do
+    let transitions := mod.procedures.filter (·.info.isTransition)
+    if transitions.isEmpty then return
+    let names := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
+    logWarning m!"Explicit state model checking of transitions is SLOW!\n\n\
+      The current implementation enumerates all possible states and filters those satisfying \
+      the transition relation. Your specification has {transitions.size} \
+      transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
+      Consider encoding transitions as imperative actions where possible."
+
+  /-- Handle internal mode: define and export the model checker result. -/
+  elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
+    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) := $callExpr))
+    elabVeilCommand (← `(end $(mkIdent mod.name)))
+    elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
+
+  /-- Handle compiled mode: build, run, and display results. -/
+  elabModelCheckCompiledMode (stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+    let startTime ← IO.monoMsNow
+    let _ ← BaseIO.toIO <| Lake.cli ["build", "ModelCheckerMain"]
+    logInfo s!"Compilation time: {(← IO.monoMsNow) - startTime} ms"
+    let runStart ← IO.monoMsNow
+    let args := parallelCfg.map (fun p => #[toString p.numSubTasks, toString p.thresholdToParallel]) |>.getD #[]
+    let res ← IO.Process.run {
+      cmd := "ModelCheckerMain", args, cwd := (← IO.currentDir) / ".lake" / "build" / "bin",
+      stdin := .piped, stdout := .piped, stderr := .piped }
+    logInfo s!"Execution time: {(← IO.monoMsNow) - runStart} ms"
+    displayResultWidget stx (← `(Lean.Json.parse $(Syntax.mkStrLit res) |>.toOption.getD default))
+
+  /-- Handle interpreted mode: evaluate and display results directly. -/
+  elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
+      (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+    let resultExpr ← `($callExpr ($(quote parallelCfg)))
+    trace[veil.desugar] "{resultExpr}"
+    displayResultWidget stx (← `(Lean.toJson $resultExpr))
 
 end Veil
