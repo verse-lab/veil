@@ -99,12 +99,12 @@ Properties:
     the front of the queue and the queue after dequeueing the element
 -/
 
-@[simp, grind]
+@[simp, grind =]
 theorem norm_toList {α} (q : fQueue α) :
     fQueue.toList (fQueue.norm q) = fQueue.toList q := by
   cases q; rename_i f b; cases f <;> simp [norm, toList]
 
-@[simp, grind]
+@[simp, grind =]
 theorem norm_idem {α} (q : fQueue α) :
     fQueue.norm (fQueue.norm q) = fQueue.norm q := by
   cases q; rename_i f b; cases f <;> simp only [norm]
@@ -120,31 +120,31 @@ theorem norm_eq_self_of_front_ne_nil {α} {q : fQueue α} (h : q.front ≠ []) :
 theorem toList_empty {α : Type} : fQueue.toList (fQueue.empty : fQueue α) = ([] : List α) := by
   simp [fQueue.empty, fQueue.toList]
 
-@[simp, grind]
+@[simp, grind =]
 theorem dequeue?_empty {α : Type} : fQueue.dequeue? (fQueue.empty : fQueue α) = none := by
   simp [fQueue.empty, fQueue.dequeue?, fQueue.norm]
 
 
-@[simp, grind]
+@[simp, grind =]
 theorem toList_enqueue {α : Type} (q : fQueue α) (x : α) :
     fQueue.toList (fQueue.enqueue q x) = fQueue.toList q ++ [x] := by
   simp [fQueue.toList, fQueue.enqueue, List.reverse_cons, List.append_assoc]
 
 
-@[grind]
+@[grind .]
 theorem front_imples_in_queue {α : Type} {q : fQueue α} {x : α}
     (h_front : x ∈ q.front) :
     x ∈ fQueue.toList q := by
   simp only [toList, List.mem_append, List.mem_reverse]; left; exact h_front
 
-@[grind]
+@[grind .]
 theorem back_imples_in_queue {α : Type} {q : fQueue α} {x : α}
     (h_back : x ∈ q.back) :
     x ∈ fQueue.toList q := by
   simp only [toList, List.mem_append, List.mem_reverse]; right; exact h_back
 
 
-@[simp, grind]
+@[simp, grind! .]
 theorem dequeue?_spec {α : Type} (q : fQueue α) :
     match fQueue.dequeue? q with
     | none => fQueue.toList q = []

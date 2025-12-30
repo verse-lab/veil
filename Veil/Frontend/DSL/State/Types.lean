@@ -108,7 +108,7 @@ def IteratedProd'.equiv {ts : List Type} : IteratedProd ts ≃ IteratedProd' ts 
     | cons t ts ih =>
       intro a ; rcases ts with _ | ⟨_, _⟩ <;> try rfl
       rcases a with ⟨x, xs⟩
-      simp [IteratedProd.toIteratedProd', IteratedProd.ofIteratedProd'] ; congr 1 ; apply ih
+      simp [IteratedProd.toIteratedProd', IteratedProd.ofIteratedProd'] ; apply ih
 
 end EfficientIteratedProd
 
