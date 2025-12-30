@@ -89,6 +89,12 @@ def updateProgress (instanceId : Nat) (uniqueStates statesProcessed queueLength 
     }
     reportProgressToStderr p
 
+/-- Update just the status and elapsed time for a given instance ID (useful during compilation). -/
+def updateStatus (instanceId : Nat) (status : String) : IO Unit := do
+  let now ← IO.monoMsNow
+  if let some refs ← getProgressRefs instanceId then
+    refs.progressRef.modify fun p => { p with status, elapsedMs := now - p.startTimeMs }
+
 /-- Mark progress as complete for a given instance ID. -/
 def finishProgress (instanceId : Nat) (resultJson : Lean.Json) : IO Unit := do
   if let some refs ← getProgressRefs instanceId then

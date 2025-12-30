@@ -41,7 +41,7 @@ def progressToHtml (p : Progress) : Html :=
   <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
     {if p.isRunning then
       <div style={json% {"marginTop": "8px", "color": "#0066cc"}}>
-        <i>Running...</i>
+        <i>{.text p.status}</i>
       </div>
     else
       <div style={json% {"marginTop": "8px", "color": "#00aa00", "fontWeight": "bold"}}>
