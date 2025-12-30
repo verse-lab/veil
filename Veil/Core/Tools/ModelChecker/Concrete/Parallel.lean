@@ -162,7 +162,8 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
   (params : SearchParameters ρ σ)
-  (parallelCfg : ParallelConfig) :
+  (parallelCfg : ParallelConfig)
+  (progressInstanceId : Nat) :
   m (@ParallelSearchContextMain ρ σ κ σₕ fp th sys params) := do
   let mut ctx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := ParallelSearchContextMain.initial sys params
   let mut statesProcessed : Nat := 0
@@ -171,6 +172,8 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
     -- In this setting, the queue emptiness check needs to be done here
     if ctx.tovisit.isEmpty then
       ctx := { ctx with finished := some (.exploredAllReachableStates) }
+      -- Final update before early return
+      updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
       return ctx
     let tovisitArr := ctx.tovisit.toArray
     statesProcessed := statesProcessed + tovisitArr.size
@@ -191,7 +194,9 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
     let now ← IO.monoMsNow
     if now - lastUpdateTime >= 1000 then
       lastUpdateTime := now
-      updateProgress ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
+      updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
+  -- Final update to ensure stats reflect finished state
+  updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
   return ctx
 
 end Veil.ModelChecker.Concrete

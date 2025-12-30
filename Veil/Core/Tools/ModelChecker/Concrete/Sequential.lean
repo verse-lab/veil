@@ -200,7 +200,8 @@ def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
-  (params : SearchParameters ρ σ) :
+  (params : SearchParameters ρ σ)
+  (progressInstanceId : Nat) :
   m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) := do
   let mut ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params := SequentialSearchContext.initial sys params
   let mut statesProcessed : Nat := 0
@@ -211,8 +212,10 @@ def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
     let now ← IO.monoMsNow
     if now - lastUpdateTime >= 1000 then
       lastUpdateTime := now
-      updateProgress ctx.seen.size statesProcessed ctx.sq.size ctx.currentFrontierDepth ctx.completedDepth
+      updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.sq.size ctx.currentFrontierDepth ctx.completedDepth
     ctx := ← SequentialSearchContext.bfsStep sys ctx
+  -- Final update to ensure stats reflect finished state
+  updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.sq.size ctx.currentFrontierDepth ctx.completedDepth
   return ctx
 
 end Veil.ModelChecker.Concrete

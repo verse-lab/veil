@@ -489,12 +489,13 @@ where
       if config.maxDepth > 0 then `($base ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $(quote config.maxDepth)])
       else pure base
     -- Model checker call with type annotation to help inference
+    -- Note: findReachable takes parallelCfg and progressInstanceId as the last two args
     `((let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
          ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
          { invariants := $safetyList, terminating := $terminatingProp,
-           earlyTerminationConditions := $earlyTermConds } : _ → IO _))
+           earlyTerminationConditions := $earlyTermConds } : _ → _ → IO _))
 
   /-- Write modified source file for compilation mode. -/
   writeSourceForCompilation (tk stx : Syntax) : CommandElabM Unit := do
@@ -546,7 +547,9 @@ where
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let resultExpr ← `(Lean.toJson <$> $callExpr ($(quote parallelCfg)))
+    -- Allocate a unique progress instance ID before starting the task
+    let instanceId ← ModelChecker.Concrete.allocProgressInstance
+    let resultExpr ← `(Lean.toJson <$> $callExpr ($(quote parallelCfg)) ($(quote instanceId)))
     trace[veil.desugar] "{resultExpr}"
     -- Elaborate and get the IO computation (must be done synchronously)
     let ioComputation ← liftTermElabM do
@@ -558,8 +561,8 @@ where
     let _ ← IO.asTask (prio := .dedicated) do
       let json ← IO.ofExcept (← ioComputation.toIO')
       -- Mark progress as complete and store result JSON
-      ModelChecker.Concrete.finishProgress json
-    -- Display streaming progress widget
-    ModelChecker.displayStreamingProgress stx
+      ModelChecker.Concrete.finishProgress instanceId json
+    -- Display streaming progress widget with the same instance ID
+    ModelChecker.displayStreamingProgress stx instanceId
 
 end Veil

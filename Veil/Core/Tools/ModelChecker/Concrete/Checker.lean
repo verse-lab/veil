@@ -71,11 +71,11 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   [fp : StateFingerprint σ UInt64]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
+  (progressInstanceId : Nat)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
-  initProgress
   let ctx ← match parallelCfg with
-    | some cfg => do pure (← breadthFirstSearchParallel sys params cfg).toBaseSearchContext
-    | none     => do pure (← breadthFirstSearchSequential sys params).toBaseSearchContext
+    | some cfg => do pure (← breadthFirstSearchParallel sys params cfg progressInstanceId).toBaseSearchContext
+    | none     => do pure (← breadthFirstSearchSequential sys params progressInstanceId).toBaseSearchContext
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))

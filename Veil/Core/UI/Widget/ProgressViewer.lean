@@ -14,7 +14,7 @@ import Veil.Core.UI.Trace.TraceDisplay
 
 namespace Veil.ModelChecker
 
-open Lean Server Elab Command ProofWidgets Jsx Concrete RefreshComponent
+open Lean Server Elab Command ProofWidgets Jsx Veil.ModelChecker.Concrete RefreshComponent
 
 /-- Format elapsed milliseconds as a human-readable string. -/
 def formatElapsedTime (ms : Nat) : String :=
@@ -97,40 +97,24 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
        </div>}
   </div>
 
-/-- Create a streaming progress widget that polls the global progress state. -/
-partial def mkProgressWidget : CoreM Html := do
-  mkRefreshComponentM (.text "Initializing model checker...") getProgressStep
+/-- Create a streaming progress widget that polls progress by instance ID. -/
+partial def mkProgressWidget (instanceId : Nat) : CoreM Html := do
+  mkRefreshComponentM (.text "Starting model checker...") (getProgressStep instanceId)
 where
-  getProgressStep : CoreM (RefreshStep CoreM) := do
+  getProgressStep (id : Nat) : CoreM (RefreshStep CoreM) := do
     IO.sleep 100  -- Poll every 100ms
     Core.checkSystem "getProgressStep"
-    let progress ← getProgress
+    let progress ← getProgress id
     if progress.isRunning then
-      return .cont (progressToHtml progress) getProgressStep
+      return .cont (progressToHtml progress) (getProgressStep id)
     else
       -- When done, fetch the result JSON and display it
-      let resultJson ← getResultJson
+      let resultJson ← getResultJson id
       return .last (mkFinalResultHtml progress resultJson)
 
 /-- Display a streaming progress widget at the given syntax. -/
-def displayStreamingProgress (atStx : Syntax) : CommandElabM Unit := do
-  let html ← liftCoreM mkProgressWidget
+def displayStreamingProgress (atStx : Syntax) (instanceId : Nat) : CommandElabM Unit := do
+  let html ← liftCoreM (mkProgressWidget instanceId)
   displayWidget atStx html
-
-/-- Create a streaming progress widget that reads from an IO.Ref.
-    This is used for compiled mode where we read progress from the binary's stderr. -/
-partial def mkProgressWidgetFromRef (progressRef : IO.Ref Progress) (resultRef : IO.Ref (Option Json)) : CoreM Html := do
-  mkRefreshComponentM (.text "Starting model checker...") (getProgressStep progressRef resultRef)
-where
-  getProgressStep (pRef : IO.Ref Progress) (rRef : IO.Ref (Option Json)) : CoreM (RefreshStep CoreM) := do
-    IO.sleep 100  -- Poll every 100ms
-    Core.checkSystem "getProgressStep"
-    let progress ← pRef.get
-    if progress.isRunning then
-      return .cont (progressToHtml progress) (getProgressStep pRef rRef)
-    else
-      -- When done, fetch the result JSON and display it
-      let resultJson ← rRef.get
-      return .last (mkFinalResultHtml progress resultJson)
 
 end Veil.ModelChecker
