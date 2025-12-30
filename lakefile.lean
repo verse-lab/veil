@@ -39,4 +39,6 @@ lean_lib ToBeImportedByModelCheckerMain {
 
 lean_exe ModelCheckerMain {
   root := `ModelCheckerMain
+  -- leanOptions := #[⟨`compiler.extract_closed, false⟩]
+  buildType := .release
 }

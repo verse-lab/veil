@@ -23,5 +23,5 @@ def main (args : List String) : IO Unit := do
       | some n1, some n2 => some <| Veil.ModelChecker.ParallelConfig.mk n1 n2
       | _, _ => none
     | _ => none
-  let res := modelCheckerResult pcfg
+  let res ← modelCheckerResult pcfg
   IO.println s!"{Lean.toJson res}"

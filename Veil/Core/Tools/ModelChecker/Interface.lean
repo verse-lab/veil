@@ -92,17 +92,17 @@ instance ParallelConfig.hasQuote : Quote ParallelConfig `term where
       #[Syntax.mkNumLit (toString cfg.numSubTasks),
         Syntax.mkNumLit (toString cfg.thresholdToParallel)]
 
-def ParallelConfig.taskSplit (cfg : ParallelConfig) (f : Array α → β) (worklist : Array α)
-  : List (Task β) :=
+def ParallelConfig.taskSplit (cfg : ParallelConfig) (f : Array α → IO β) (worklist : Array α)
+  : IO (List (Task (Except IO.Error β))) := do
   if worklist.size < cfg.thresholdToParallel then
-    [Task.spawn fun _ => f worklist]
+    return [← IO.asTask (f worklist)]
   else
     let numSubTasks := max 1 cfg.numSubTasks
     let chunkSize := worklist.size / numSubTasks
-    List.range numSubTasks |>.map fun i =>
+    List.range numSubTasks |>.mapM fun i => do
       let l := i * chunkSize
       let r := if i == numSubTasks - 1 then worklist.size else (i + 1) * chunkSize
-      Task.spawn fun _ => f (worklist.toSubarray l r)
+      IO.asTask (f (worklist.toSubarray l r))
 
 structure SearchParameters (ρ σ : Type) where
   /-- Which properties are we trying to find a violation of? (Typically, this

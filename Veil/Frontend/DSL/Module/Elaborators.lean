@@ -470,13 +470,13 @@ where
       let base ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState])
       if config.maxDepth > 0 then `($base ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $(quote config.maxDepth)])
       else pure base
-    -- Model checker call
-    `(let $inst : $instantiationType := $instTerm
-      let $th : $theoryIdent $instSortArgs* := $theoryTerm
-      $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-        ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
-        { invariants := $safetyList, terminating := $terminatingProp,
-          earlyTerminationConditions := $earlyTermConds })
+    -- Model checker call with type annotation to help inference
+    `((let $inst : $instantiationType := $instTerm
+       let $th : $theoryIdent $instSortArgs* := $theoryTerm
+       $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
+         ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
+         { invariants := $safetyList, terminating := $terminatingProp,
+           earlyTerminationConditions := $earlyTermConds } : _ → IO _))
 
   /-- Write modified source file for compilation mode. -/
   writeSourceForCompilation (tk stx : Syntax) : CommandElabM Unit := do
@@ -508,7 +508,7 @@ where
 
   /-- Handle internal mode: define and export the model checker result. -/
   elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
-    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) := $callExpr))
+    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) := $callExpr pcfg))
     elabVeilCommand (← `(end $(mkIdent mod.name)))
     elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
 
@@ -528,8 +528,16 @@ where
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let resultExpr ← `($callExpr ($(quote parallelCfg)))
+    let resultExpr ← `(Lean.toJson <$> $callExpr ($(quote parallelCfg)))
     trace[veil.desugar] "{resultExpr}"
-    displayResultWidget stx (← `(Lean.toJson $resultExpr))
+    -- Elaborate, evaluate, and run the IO computation during elaboration
+    let json ← liftTermElabM do
+      let expr ← Term.elabTerm resultExpr none
+      Term.synthesizeSyntheticMVarsNoPostponing
+      let expr ← instantiateMVars expr
+      let ioComputation ← unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) expr
+      IO.ofExcept (← ioComputation.toIO')
+    -- Display the result (serialize and parse back to avoid Quote instance requirement)
+    displayResultWidget stx (← `(Lean.Json.parse $(Syntax.mkStrLit (Lean.Json.compress json)) |>.toOption.getD default))
 
 end Veil

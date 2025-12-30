@@ -223,7 +223,8 @@ def ParallelSearchContextMain.initial {ρ σ κ σₕ : Type}
 If the neighbor has been seen, return the current context unchanged.
 Otherwise, add it to seen set and log, then enqueue it. -/
 @[inline, specialize]
-def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
+def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ]
   {th : ρ}
@@ -234,11 +235,11 @@ def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
   (ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params)
   (neighbor : κ × σ)
   (h_neighbor : sys.reachable neighbor.2) :
-  @SequentialSearchContext ρ σ κ σₕ fp th sys params :=
+  m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) :=
   let ⟨label, succ⟩ := neighbor
   let fingerprint := fp.view succ
-  if ctx.seen.contains fingerprint then ctx
-  else
+  if ctx.seen.contains fingerprint then pure ctx
+  else pure <|
     let ctx_with_seen : @SequentialSearchContext ρ σ κ σₕ fp th sys params := {
       ctx with
         seen := ctx.seen.insert fingerprint,
@@ -325,7 +326,8 @@ def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
     }
 
 @[inline, specialize]
-def ParallelSearchContextSub.tryExploreNeighbor {ρ σ κ σₕ : Type}
+def ParallelSearchContextSub.tryExploreNeighbor {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ]
   {th : ρ}
@@ -336,11 +338,11 @@ def ParallelSearchContextSub.tryExploreNeighbor {ρ σ κ σₕ : Type}
   (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params)
   (neighbor : κ × σ)
   (h_neighbor : sys.reachable neighbor.2) :
-  @ParallelSearchContextSub ρ σ κ σₕ fp th sys params :=
+  m (@ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :=
   let ⟨label, succ⟩ := neighbor
   let fingerprint := fp.view succ
-  if ctx.seen.contains fingerprint || ctx.localSeen.contains fingerprint then ctx
-  else
+  if ctx.seen.contains fingerprint || ctx.localSeen.contains fingerprint then pure ctx
+  else pure <|
     let ctx_with_seen : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params := {
       ctx with
         localSeen := ctx.localSeen.insert fingerprint,
@@ -413,7 +415,8 @@ def BaseSearchContext.processState {ρ σ κ σₕ : Type}
   | (ctx, none) => (ctx, some ⟨successors, rfl⟩)
 
 @[inline, specialize]
-def SequentialSearchContext.processState {ρ σ κ σₕ : Type}
+def SequentialSearchContext.processState {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
@@ -424,25 +427,26 @@ def SequentialSearchContext.processState {ρ σ κ σₕ : Type}
   (curr : σ)
   (h_curr : sys.reachable curr)
   (ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params) :
-  @SequentialSearchContext ρ σ κ σₕ fp th sys params :=
+  m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) := do
   let (baseCtx', successorsOpt) := ctx.toBaseSearchContext.processState sys fpSt curr
   match successorsOpt with
-  | none => { ctx with
+  | none => pure { ctx with
       toBaseSearchContext := baseCtx'
       invs := sorry
     }
   | some ⟨successors, heq⟩ =>
       let ctx_updated := { ctx with toBaseSearchContext := baseCtx', invs := sorry }
-      successors.attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
-      if current_ctx.hasFinished then current_ctx
+      successors.attach.foldlM (init := ctx_updated) (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ => do
+      if current_ctx.hasFinished then pure current_ctx
       else
         let h_neighbor_reachable : sys.reachable postState :=
           EnumerableTransitionSystem.reachable.step curr postState h_curr ⟨tr, heq ▸ h_neighbor_in_tr⟩
         SequentialSearchContext.tryExploreNeighbor sys fpSt depth current_ctx ⟨tr, postState⟩ h_neighbor_reachable
-    ) ctx_updated
+    )
 
 @[inline, specialize]
-def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
+def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
@@ -453,36 +457,37 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
   (curr : σ)
   (h_curr : sys.reachable curr)
   (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :
-  @ParallelSearchContextSub ρ σ κ σₕ fp th sys params :=
+  m (@ParallelSearchContextSub ρ σ κ σₕ fp th sys params) := do
   let (baseCtx', successorsOpt) := ctx.toBaseSearchContext.processState sys fpSt curr
   match successorsOpt with
-  | none => { ctx with
+  | none => pure { ctx with
       toBaseSearchContext := baseCtx'
       invs := sorry
     }
   | some ⟨successors, heq⟩ =>
       let ctx_updated := { ctx with toBaseSearchContext := baseCtx', invs := sorry }
-      successors.attach.foldl (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ =>
-      if current_ctx.hasFinished then current_ctx
+      successors.attach.foldlM (init := ctx_updated) (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ => do
+      if current_ctx.hasFinished then pure current_ctx
       else
         let h_neighbor_reachable : sys.reachable postState :=
           EnumerableTransitionSystem.reachable.step curr postState h_curr ⟨tr, heq ▸ h_neighbor_in_tr⟩
         ParallelSearchContextSub.tryExploreNeighbor sys fpSt depth current_ctx ⟨tr, postState⟩ h_neighbor_reachable
-    ) ctx_updated
+    )
 
 /-- Perform one step of BFS. -/
 @[inline, specialize]
-def SequentialSearchContext.bfsStep {ρ σ κ σₕ : Type}
+def SequentialSearchContext.bfsStep {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
   {params : SearchParameters ρ σ}
   (ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params) :
-  @SequentialSearchContext ρ σ κ σₕ fp th sys params :=
+  m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) :=
   match ctx.sq.dequeue? with
-  | none => { ctx with finished := some (.exploredAllReachableStates) }
-  | some (⟨fpSt, curr, depth⟩, q_tail) =>
+  | none => pure { ctx with finished := some (.exploredAllReachableStates) }
+  | some (⟨fpSt, curr, depth⟩, q_tail) => do
     have h_curr : sys.reachable curr := sorry
     -- Update completed depth when we move to a new frontier level
     let (newCompletedDepth, newFrontierDepth) :=
@@ -500,7 +505,8 @@ def SequentialSearchContext.bfsStep {ρ σ κ σₕ : Type}
     SequentialSearchContext.processState sys fpSt depth curr h_curr ctx_dequeued
 
 @[inline, specialize]
-def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type}
+def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
@@ -508,7 +514,8 @@ def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type}
   {params : SearchParameters ρ σ}
   (baseCtx : @BaseSearchContext ρ σ κ σₕ fp th sys params)
   (queue : Array (σₕ × σ × Nat)) :
-  @ParallelSearchContextSub ρ σ κ σₕ fp th sys params :=
+  m (@ParallelSearchContextSub ρ σ κ σₕ fp th sys params) := do
+  -- let startTime ← IO.monoMsNow
   let ctx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params := {
     baseCtx with
     tovisit := #[],
@@ -516,32 +523,39 @@ def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type}
     localLog := Std.HashMap.emptyWithCapacity,
     invs := sorry
   }
-  queue.foldl (init := ctx) fun current_ctx ⟨fpSt, curr, depth⟩ =>
+  let queueSz := queue.size
+  let res ← queue.foldlM (init := ctx) fun current_ctx ⟨fpSt, curr, depth⟩ => do
     have h_curr : sys.reachable curr := sorry
     ParallelSearchContextSub.processState sys fpSt depth curr h_curr current_ctx
+  -- let endTime ← IO.monoMsNow
+  -- IO.eprintln s!"[{endTime} @ tid {← IO.getTID}] took {endTime - startTime}ms to process {queueSz} states (queue size now: {queue.size})"
+  return res
+
 
 @[specialize]
-def breadthFirstSearchSequential {ρ σ κ σₕ : Type}
+def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
   (params : SearchParameters ρ σ) :
-  @SequentialSearchContext ρ σ κ σₕ fp th sys params := Id.run do
+  m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) := do
   let mut ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params := SequentialSearchContext.initial sys params
   while !ctx.hasFinished do
-    ctx := SequentialSearchContext.bfsStep sys ctx
+    ctx := ← SequentialSearchContext.bfsStep sys ctx
   return ctx
 
 @[specialize]
-def breadthFirstSearchParallel {ρ σ κ σₕ : Type}
+def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
   (params : SearchParameters ρ σ)
   (parallelCfg : ParallelConfig) :
-  @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := Id.run do
+  m (@ParallelSearchContextMain ρ σ κ σₕ fp th sys params) := do
   let mut ctx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := ParallelSearchContextMain.initial sys params
   while !ctx.hasFinished do
     -- In this setting, the queue emptiness check needs to be done here
@@ -555,8 +569,9 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type}
       currentFrontierDepth := ctx.currentFrontierDepth + 1,
       invs := sorry
     }
-    let tasks := parallelCfg.taskSplit (ParallelSearchContextSub.bfsBigStep sys ctx.toBaseSearchContext) tovisitArr
-    let results := tasks.map Task.get
+    let tasks ← (parallelCfg.taskSplit (ParallelSearchContextSub.bfsBigStep sys ctx.toBaseSearchContext) tovisitArr)
+    -- IO.eprintln s!"[{← IO.monoMsNow} @ tid {← IO.getTID}] spawned {tasks.length} tasks"
+    let results ← (tasks.mapM (fun task => IO.ofExcept task.get))
     -- compute `seen` first, and then merge the `tovisit`s, since need to
     -- filter out already seen states when merging
     ctx := results.foldl (init := ctx) ParallelSearchContextSub.merge1
@@ -588,7 +603,8 @@ def findByFingerprint [fp : StateFingerprint σ σₕ]
 /-- Reconstruct a full trace with concrete states from a SearchContext.
 This re-executes transitions to recover full state objects from fingerprints.
 The `targetFingerprint` parameter specifies which violating state's trace to recover. -/
-def recoverTrace {ρ σ κ σₕ : Type}
+def recoverTrace {ρ σ κ σₕ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [Inhabited κ] [Inhabited σ] [Repr σₕ]
   [BEq σ] [BEq κ]
@@ -597,29 +613,29 @@ def recoverTrace {ρ σ κ σₕ : Type}
   {params : SearchParameters ρ σ}
   (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params)
   (targetFingerprint : σₕ)
-  : Trace ρ σ κ :=
+  : m (Trace ρ σ κ) := do
   -- Retrace steps from the target fingerprint back to an initial state
   let (initFp, stepsFp) := retraceSteps ctx.log targetFingerprint
   -- Recover initial state by matching fingerprint
   let initialState := findByFingerprint sys.initStates initFp default
   -- Recover trace steps by re-executing transitions and matching fingerprints
-  Id.run do
-    let mut curSt := initialState
-    let mut steps : Steps σ κ := #[]
-    for step in stepsFp do
-      let successors := sys.tr th curSt
-      let (transitionLabel, nextSt) :=
-        match successors.find? (fun (_, s) => fp.view s == step.nextState) with
-        | some (tr, s) => (tr, s)
-        | none => panic! s!"Could not recover transition from fingerprint {repr (fp.view curSt)} to {repr step.nextState}!"
-      curSt := nextSt
-      steps := steps.push { transitionLabel := transitionLabel, nextState := nextSt }
-    return { theory := th, initialState := initialState, steps := steps }
+  let mut curSt := initialState
+  let mut steps : Steps σ κ := #[]
+  for step in stepsFp do
+    let successors := sys.tr th curSt
+    let (transitionLabel, nextSt) :=
+      match successors.find? (fun (_, s) => fp.view s == step.nextState) with
+      | some (tr, s) => (tr, s)
+      | none => panic! s!"Could not recover transition from fingerprint {repr (fp.view curSt)} to {repr step.nextState}!"
+    curSt := nextSt
+    steps := steps.push { transitionLabel := transitionLabel, nextState := nextSt }
+  return { theory := th, initialState := initialState, steps := steps }
 
 
 /-! ## Model Checker -/
 
-def findReachable {ρ σ κ : Type}
+def findReachable {ρ σ κ : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [Inhabited κ] [Inhabited σ] [Repr σ]
   [BEq σ] [BEq κ]
   {th : ρ}
@@ -627,25 +643,24 @@ def findReachable {ρ σ κ : Type}
   [fp : StateFingerprint σ UInt64]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
-  : ModelCheckingResult ρ σ κ UInt64 :=
-  let ctx :=
-    match parallelCfg with
-    | some cfg => breadthFirstSearchParallel sys params cfg |>.toBaseSearchContext
-    | none     => breadthFirstSearchSequential sys params |>.toBaseSearchContext
+  : m (ModelCheckingResult ρ σ κ UInt64) := do
+  let ctx ← match parallelCfg with
+    | some cfg => do pure (← breadthFirstSearchParallel sys params cfg).toBaseSearchContext
+    | none     => do pure (← breadthFirstSearchSequential sys params).toBaseSearchContext
   match ctx.finished with
-  | some (.earlyTermination (.foundViolatingState fingerprint violations)) =>
-    ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (recoverTrace sys ctx fingerprint))
-  | some (.earlyTermination (.deadlockOccurred fingerprint)) =>
-    ModelCheckingResult.foundViolation fingerprint .deadlock (some (recoverTrace sys ctx fingerprint))
+  | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
+    return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
+  | some (.earlyTermination (.deadlockOccurred fingerprint)) => do
+    return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverTrace sys ctx fingerprint))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
-    ModelCheckingResult.noViolationFound ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
-  | some (.exploredAllReachableStates) =>
+    return ModelCheckingResult.noViolationFound ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
+  | some (.exploredAllReachableStates) => do
     if !ctx.violatingStates.isEmpty then
       let (fingerprint, violation) := ctx.violatingStates.head!
-      ModelCheckingResult.foundViolation fingerprint violation (some (recoverTrace sys ctx fingerprint))
+      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace sys ctx fingerprint))
     else
-      ModelCheckingResult.noViolationFound ctx.seen.size (.exploredAllReachableStates)
+      return ModelCheckingResult.noViolationFound ctx.seen.size (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."
 
 end Veil.ModelChecker.Concrete
