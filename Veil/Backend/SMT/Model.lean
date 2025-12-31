@@ -15,6 +15,14 @@ def Lean.Expr.isInt (e : Lean.Expr) : Bool :=
 namespace Veil
 open Lean Elab Meta Smt
 
+/-- Evaluate an expression to JSON by dynamically synthesizing the `ToJson`
+instance. This function works without knowing the type at compile time. -/
+unsafe def evalExprToJson (typeExpr : Expr) (valueExpr : Expr) : MetaM Json := do
+  let toJsonType ← Meta.mkAppM ``ToJson #[typeExpr]
+  let toJsonInst ← Meta.synthInstance toJsonType
+  let jsonExpr ← Meta.mkAppOptM ``toJson #[some typeExpr, some toJsonInst, some valueExpr]
+  Meta.evalExpr Json (mkConst ``Json) jsonExpr
+
 /-- Convert an SMT model function to match the expected Lean type.
 
   SMT models may convert types during embedding:

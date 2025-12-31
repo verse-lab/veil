@@ -20,7 +20,7 @@ def reset : CommandElabM Unit := sendNotification .reset
 def startAll : CommandElabM Unit := sendNotification .startAll
 def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNotification (.startFiltered filter)
 
-def isDoesNotThrow (m : VCMetadata) : Bool := m.property == `doesNotThrow
+def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
 def numCores : Nat := 8
 
@@ -110,7 +110,8 @@ def mkAddDischarger (vcId : VCId) (mk : VCStatement → DischargerIdentifier →
     startAll
 
 /-- Start VCs matching the filter and run the callback asynchronously when done.
-Uses `wrapAsyncAsSnapshot` so that errors from the callback are reported to the user. -/
+Uses `wrapAsyncAsSnapshot` so that errors from the callback are reported to the user.
+Note: Widget display does not work in the callback since it runs in an async context. -/
 def runFilteredAsync (filter : VCMetadata → Bool)
     (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
   startFiltered filter
@@ -120,9 +121,20 @@ def runFilteredAsync (filter : VCMetadata → Bool)
       (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
       (fun ref => do
         let mgr ← ref.get
-        let results ← mgr.toVerificationResults
+        let results ← mgr.toResults filter
         callback results)) cancelTk
   let task ← (wrappedTask ()).asTask
   Command.logSnapshotTask { stx? := none, cancelTk? := cancelTk, task := task }
+
+/-- Start VCs matching the filter and wait synchronously for completion.
+Returns the results on the main thread, allowing widget display.
+Warning: This blocks the elaborator until all matching VCs complete. -/
+def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  startFiltered filter
+  vcManager.atomicallyOnce frontendNotification
+    (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
+    (fun ref => do
+      let mgr ← ref.get
+      mgr.toResults filter)
 
 end Veil.Verifier

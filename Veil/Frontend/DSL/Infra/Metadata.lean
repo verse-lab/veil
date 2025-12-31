@@ -1,45 +1,23 @@
 import Lean
 import Veil.Frontend.DSL.Module.Representation
-import ProofWidgets
-import Smt
+import Veil.Backend.SMT.Result
+
+/-!
+# Verification Condition Metadata
+
+This module defines metadata types for verification conditions. There are two
+distinct kinds of VCs:
+
+1. **Induction VCs** - Check that propositions are inductive (invariant preservation)
+2. **Trace VCs** - Check symbolic trace containment (sat/unsat queries)
+
+These are represented as a sum type `VCMetadata` to allow a single VCManager
+to handle both.
+-/
+
 open Lean
 
 namespace Veil
-
-inductive VCKind where
-  /-- Primary VCs are those that are _needed_ to derive other VCs. We
-  try to prove these by SMT, if possible. -/
-  | primary
-  /-- Derived VCs typically do not require proof by SMT — they rely on
-  applications of primary VCs (and potentially other derived VCs). -/
-  | derived
-  /-- Alternative VCs are associated with a primary VC and only run
-  when all dischargers of the primary VC fail. -/
-  | alternative
-deriving Inhabited, BEq, Hashable
-
-instance : ToString VCKind where
-  toString kind :=
-    match kind with
-    | .primary => "primary"
-    | .derived => "derived"
-    | .alternative => "alternative"
-
-instance : ToJson VCKind where
-  toJson kind :=
-    match kind with
-    | .primary => "primary"
-    | .derived => "derived"
-    | .alternative => "alternative"
-
-instance : FromJson VCKind where
-  fromJson? json := do
-    let s ← fromJson? json
-    match s with
-    | "primary" => pure .primary
-    | "derived" => pure .derived
-    | "alternative" => pure .alternative
-    | _ => .error s!"Invalid VCKind: {s}"
 
 /-- The proof style used for a VC. -/
 inductive VCStyle where
@@ -69,38 +47,78 @@ instance : FromJson VCStyle where
     | "tr" => pure .tr
     | _ => .error s!"Invalid VCStyle: {s}"
 
-structure VCMetadata where
-  /-- The kind of this VC. -/
-  kind : VCKind
+/-! ## Induction VC Metadata -/
+
+/-- VC kinds for inductive verification only. -/
+inductive InductionVCKind where
+  /-- Primary VCs are those that are _needed_ to derive other VCs. We
+  try to prove these by SMT, if possible. -/
+  | primary
+  /-- Derived VCs typically do not require proof by SMT — they rely on
+  applications of primary VCs (and potentially other derived VCs). -/
+  | derived
+  /-- Alternative VCs are associated with a primary VC and only run
+  when all dischargers of the primary VC fail. -/
+  | alternative
+deriving Inhabited, BEq, Hashable
+
+instance : ToString InductionVCKind where
+  toString kind :=
+    match kind with
+    | .primary => "primary"
+    | .derived => "derived"
+    | .alternative => "alternative"
+
+instance : ToJson InductionVCKind where
+  toJson kind :=
+    match kind with
+    | .primary => "primary"
+    | .derived => "derived"
+    | .alternative => "alternative"
+
+instance : FromJson InductionVCKind where
+  fromJson? json := do
+    let s ← fromJson? json
+    match s with
+    | "primary" => pure .primary
+    | "derived" => pure .derived
+    | "alternative" => pure .alternative
+    | _ => .error s!"Invalid InductionVCKind: {s}"
+
+/-- Metadata for inductive verification conditions (invariant preservation). -/
+structure InductionVCMetadata where
+  /-- The kind of this VC (primary, derived, alternative). -/
+  kind : InductionVCKind
   /-- The proof style used for this VC (WP or TR). -/
   style : VCStyle
   /-- The action that this VC is about. -/
-  action: Name
+  action : Name
   /-- The property that this VC is about. -/
-  property: Name
+  property : Name
+  /-- Module parameters for the VC statement. -/
   baseParams : Array Parameter
+  /-- Extra parameters for the VC statement. -/
   extraParams : Array Parameter
   /-- The declarations that this VC's _statement_ depends on. The proof
   might need additional dependencies. -/
   stmtDerivedFrom : Std.HashSet Name
 deriving Inhabited
 
-instance : ToString VCMetadata where
-  toString metadata :=
-    s!"(kind: {metadata.kind})"
+instance : ToString InductionVCMetadata where
+  toString m := s!"({m.kind}: {m.action}.{m.property})"
 
-instance : ToJson VCMetadata where
-  toJson metadata :=
+instance : ToJson InductionVCMetadata where
+  toJson m :=
     Json.mkObj [
-      ("kind", toJson metadata.kind),
-      ("style", toJson metadata.style),
-      ("action", toJson metadata.action),
-      ("property", toJson metadata.property),
+      ("kind", toJson m.kind),
+      ("style", toJson m.style),
+      ("action", toJson m.action),
+      ("property", toJson m.property),
     ]
 
-instance : FromJson VCMetadata where
+instance : FromJson InductionVCMetadata where
   fromJson? json := do
-    let kind ← json.getObjValAs? VCKind "kind"
+    let kind ← json.getObjValAs? InductionVCKind "kind"
     let style ← json.getObjValAs? VCStyle "style"
     let action ← json.getObjValAs? Name "action"
     let property ← json.getObjValAs? Name "property"
@@ -114,199 +132,106 @@ instance : FromJson VCMetadata where
       stmtDerivedFrom := ∅
     }
 
-abbrev SmtOutput := (Name × Nat) × Smt.AsyncOutput
--- abbrev VeilResult := Array SmtOutput
+/-! ## Trace VC Metadata -/
 
--- instance : ToJson Smt.Model where
---   toJson model :=
---     Json.mkObj [
---       ("sorts", toJson (model.sorts.map (fun (expr, value) => Json.mkObj [("expr", toJson s!"{expr}"), ("value", toJson s!"{value}")]))),
---       ("values", toJson (model.values.map (fun (expr, value) => Json.mkObj [("expr", toJson s!"{expr}"), ("value", toJson s!"{value}")])))
---     ]
-
-
-instance : ToJson Smt.Model where
-  toJson model :=
-    Json.mkObj [
-      ("sorts", toJson model.sorts.size),
-      ("values", toJson model.values.size)
-    ]
-
-instance : ToMessageData Smt.Model where
-  toMessageData model :=
-    let toMD := fun (mv, value) => m!"{mv}: {value}"
-    m!"sorts: {model.sorts.map toMD}\nconstants: {model.values.map toMD}"
-
-abbrev SmtUnsatCore := Array Expr
-
-/-- A Veil-specific "segmented" `Smt.Model` that represents a
-counterexample-to-induction (CTI). This is at the meta level (i.e. it stores
-`Expr`, which are meta/compile-time values). -/
-
-structure VeilModel where
-  /-- Context for interpreting expressions -/
-  ctx : Smt.ModelContext
-
-  /-- Expression for `Instantiation.mk sortArgs*`, i.e. a structure which
-  encodes the types used in this model. -/
-  instExpr : Expr
-  /-- Type expression for `Instantiation` -/
-  instType : Expr
-  /-- Sort instantiation info: maps sort name to pretty-printed type name.
-  This is needed because `Type` fields in `Instantiation` are erased at runtime,
-  so we store the type names explicitly for JSON serialization. -/
-  sortInstInfo : Array (Name × String) := #[]
-  /-- Sort substitution: maps sort parameter fvars to their concrete types (e.g., `Fin 3`).
-  Used for substituting abstract types before JSON serialization. -/
-  sortSubst : Array (Expr × Expr) := #[]
-
-  /-- Sorts not part of module's Instantiation -/
-  extraSorts : Array (Expr × Expr)
-
-  /-- Expression for `Label.actionName sortArgs* paramValues*`.
-      None for initializers which don't have a Label constructor. -/
-  labelExpr : Option Expr := none
-  /-- Type expression for `Label sortArgs*`.
-      None for initializers which don't have a Label type. -/
-  labelType : Option Expr := none
-
-  /-- Expression for `Theory.mk sortArgs* fieldValues*` -/
-  theoryExpr : Expr
-  /-- Type expression for `Theory sortArgs*` -/
-  theoryType : Expr
-
-  /-- Type expression for `State (FieldAbstractType sortArgs*)` -/
-  stateType : Expr
-  /-- Expression for `State.mk dispatcher fieldValues*` -/
-  preStateExpr : Expr
-  /-- Optional post-state expression -/
-  postStateExpr : Option Expr
-
-  /-- Values that couldn't be classified -/
-  extraVals : Array (Expr × Expr)
-
-
-structure AnnotatedSmtModel where
-  /-- The model data structured returned by Lean SMT. -/
-  raw : Smt.Model
-  /-- A widget view of the raw model. -/
-  rawHtml : ProofWidgets.Html
-  /-- JSON representation of the structured counterexample. Pre-computed using
-  `VeilModel.toJson` at construction time. -/
-  structuredJson : Json
-
-/-- The order in which results "saturate" (from "strongest" — eats everything —
-to "weakest" — gets eaten by everything else):
-  - `error` (if a list of result has an `error`, the overall VeilResult becomes `error`)
-  - `sat` (if a list of result has a `sat`, but no `error`, the overall VeilResult becomes `sat`)
-  - `unknown` (if a list of result has an `unknown`, but no `error` or `sat`, the overall VeilResult becomes `unknown`)
-  - `unsat` (if a list of result has only `unsat` results, the overall VeilResult becomes `unsat`)
--/
-inductive SmtResult where
-  /-- The SMT solver threw an exception. We can have multiple exceptions, since
-  a single term might contain multiple calls to `smt`. If an exception is
-  thrown in _any_ of the calls, the entire `VeilResult` becomes `error`. -/
-  | error (exs : Array (Exception × Json))
-  /-- We can have multiple counter-examples, since a single term might contain
-  multiple calls to `smt`. If there is at least one `sat` result in a term, the
-  entire `VeilResult` becomes `sat` (unless there are any `error` results). -/
-  | sat (counterexamples : Array (Option AnnotatedSmtModel))
-  /-- The SMT solver returned `unknown`. We can have multiple unknown results, since
-  a single term might contain multiple calls to `smt`.  -/
-  | unknown (reasons : Array String)
-  /-- The SMT solver returned `unsat`. We can have multiple unsat results, since
-  a single term might contain multiple calls to `smt`. -/
-  | unsat (counterexamples : Array SmtUnsatCore)
+/-- Metadata for trace verification conditions (symbolic model checking). -/
+structure TraceVCMetadata where
+  /-- Whether SAT is the expected result (true for `sat trace`, false for `unsat trace`). -/
+  isExpectedSat : Bool
+  /-- Number of transitions in the trace. -/
+  numTransitions : Nat
+  /-- Optional user-provided trace name. -/
+  traceName : Option Name := none
 deriving Inhabited
 
-instance : ToString Smt.cvc5Result where
-  toString result :=
-    match result with
-    | .sat _ => "sat"
-    | .unsat _ _ => "unsat"
-    | .unknown _ => "unknown"
+instance : ToString TraceVCMetadata where
+  toString m :=
+    let kind := if m.isExpectedSat then "sat" else "unsat"
+    match m.traceName with
+    | some n => s!"({kind} trace [{n}], {m.numTransitions} transitions)"
+    | none => s!"({kind} trace, {m.numTransitions} transitions)"
 
-instance : ToString Smt.Result where
-  toString result :=
-    match result with
-    | .sat _ => "sat"
-    | .unsat _ _ => "unsat"
-    | .unknown _ => "unknown"
+instance : ToJson TraceVCMetadata where
+  toJson m :=
+    Json.mkObj [
+      ("isExpectedSat", toJson m.isExpectedSat),
+      ("numTransitions", toJson m.numTransitions),
+      ("traceName", toJson m.traceName),
+    ]
 
-instance : ToString (Except cvc5.Error Smt.cvc5Result) where
-  toString raw :=
-    match raw with
-    | .ok result => s!"{result}"
-    | .error error => s!"{error}"
+instance : FromJson TraceVCMetadata where
+  fromJson? json := do
+    let isExpectedSat ← json.getObjValAs? Bool "isExpectedSat"
+    let numTransitions ← json.getObjValAs? Nat "numTransitions"
+    let traceName ← json.getObjValAs? (Option Name) "traceName"
+    pure { isExpectedSat, numTransitions, traceName }
 
-instance : ToJson SmtResult where
+/-! ## Unified VC Metadata -/
+
+/-- Unified VC metadata type for VCManager.
+
+This is a sum type that represents either an induction VC (for invariant
+preservation checking) or a trace VC (for symbolic model checking). -/
+inductive VCMetadata where
+  /-- Induction VC for invariant preservation checking. -/
+  | induction : InductionVCMetadata → VCMetadata
+  /-- Trace VC for symbolic model checking. -/
+  | trace : TraceVCMetadata → VCMetadata
+deriving Inhabited
+
+instance : ToString VCMetadata where
+  toString
+  | .induction m => toString m
+  | .trace m => toString m
+
+instance : ToJson VCMetadata where
   toJson
-  | .error exs =>
-      Json.mkObj [("kind", Json.str "error"),
-                  ("exceptions", toJson (exs.map (fun (_, code) => toJson code)))]
-  | .sat counterexamples =>
-      Json.mkObj [("kind", Json.str "sat"),
-                  ("counterexamples", toJson (counterexamples.map <| fun ce? =>
-                    match ce? with
-                    | some ce => Json.mkObj [("raw", toJson ce.raw), ("html", Json.str "<p>Counter-example HTML</p>"), ("structuredJson", ce.structuredJson)]
-                    | none => Json.null
-                  ))]
-  | .unknown reasons =>
-      Json.mkObj [("kind", Json.str "unknown"),
-                  ("reasons", toJson reasons)]
-  | .unsat unsatCores =>
-      Json.mkObj [("kind", Json.str "unsat"),
-                  ("unsatCores", toJson (unsatCores.map (fun core =>
-                    toJson (core.map (fun e => s!"{e}"))
-                  )))]
+  | .induction m => Json.mkObj [("type", "induction"), ("data", toJson m)]
+  | .trace m => Json.mkObj [("type", "trace"), ("data", toJson m)]
 
-instance : Server.RpcEncodable SmtResult where
-  rpcEncode r := do match r with
-  | .error exs => do
-    return .mkObj [("kind", Json.str "error"),
-                  ("exceptions", toJson (exs.map (fun (_, code) => toJson code)))]
-  | .sat counterexamples => do
-    return .mkObj [("kind", Json.str "sat"),
-                  ("counterexamples", toJson (← counterexamples.mapM <| fun ce? => do
-                    match ce? with
-                    | some ce => do
-                      let html ← Server.rpcEncode ce.rawHtml
-                      return Json.mkObj [
-                        ("raw", toJson ce.raw),
-                        ("html", html),
-                        ("structuredJson", ce.structuredJson),
-                      ]
-                    | none => pure <| Json.null))]
-  | .unsat unsatCores => do
-    return .mkObj [("kind", Json.str "unsat"),
-                  ("unsatCores", toJson (unsatCores.map (fun core =>
-                    toJson (core.map (fun e => s!"{e}"))
-                  )))]
-  | .unknown reasons => do
-    return .mkObj [("kind", Json.str "unknown"),
-                  ("reasons", toJson reasons)]
+instance : FromJson VCMetadata where
+  fromJson? json := do
+    let type ← json.getObjValAs? String "type"
+    let data ← json.getObjVal? "data"
+    match type with
+    | "induction" => return .induction (← FromJson.fromJson? data)
+    | "trace" => return .trace (← FromJson.fromJson? data)
+    | _ => .error s!"Unknown VCMetadata type: {type}"
 
-  rpcDecode _ := do return default
+/-! ## Helper Accessors -/
 
-instance : ToMessageData Smt.AsyncOutput where
-  toMessageData output :=
-    match output with
-    | .queryString query => m!"{query}"
-    | .rawResult raw => m!"{raw}"
-    | .result result => m!"{result}"
-    | .exception ex => m!"exception {ex.toMessageData}"
+/-- Get the action name for display purposes. Returns `none` for trace VCs. -/
+def VCMetadata.actionName? : VCMetadata → Option Name
+  | .induction m => some m.action
+  | .trace _ => none
 
-instance : ToMessageData SmtOutput where
-  toMessageData result :=
-    match result with
-    | ((name, index), f) => m!"{name}.{index}: {f}"
+/-- Get the property name for display purposes. Returns trace name for trace VCs. -/
+def VCMetadata.propertyName? : VCMetadata → Option Name
+  | .induction m => some m.property
+  | .trace m => m.traceName
 
-instance : ToMessageData SmtResult where
-  toMessageData result :=
-    match result with
-    | .error exs => m!"error {exs.map (·.1.toMessageData)}"
-    | .sat counterexamples => m!"sat {counterexamples.map (·.map (fun ce => toMessageData ce.raw))}"
-    | .unknown reasons => m!"unknown {reasons}"
-    | .unsat counterexamples => m!"unsat {counterexamples.map (·.map (toMessageData ·))}"
+/-- Get a display name for the VC. -/
+def VCMetadata.displayName : VCMetadata → String
+  | .induction m => s!"{m.action}.{m.property}"
+  | .trace m =>
+    let kind := if m.isExpectedSat then "sat" else "unsat"
+    match m.traceName with
+    | some n => s!"{kind} trace [{n}]"
+    | none => s!"{kind} trace"
+
+/-- Get the kind string for display purposes. -/
+def VCMetadata.kindString : VCMetadata → String
+  | .induction m => toString m.kind
+  | .trace _ => "trace"
+
+/-- Check if this is an induction VC. -/
+def VCMetadata.isInduction : VCMetadata → Bool
+  | .induction _ => true
+  | .trace _ => false
+
+/-- Check if this is a trace VC. -/
+def VCMetadata.isTrace : VCMetadata → Bool
+  | .induction _ => false
+  | .trace _ => true
 
 end Veil

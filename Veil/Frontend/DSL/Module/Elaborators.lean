@@ -13,6 +13,7 @@ import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
 import Veil.Core.UI.Widget.ProgressViewer
 import Veil.Frontend.DSL.Action.Extract2
+import Veil.Frontend.DSL.Module.Util.Enumeration
 
 open Lean Parser Elab Command
 
@@ -110,51 +111,6 @@ def elabEnumDeclaration : CommandElab := fun stx => do
     elabVeilCommand instanceV
     elabVeilCommand $ ← `(open $class_name:ident)
   | _ => throwUnsupportedSyntax
-where
-  isEqualToOneOf {m} [Monad m] [MonadQuotation m] (x : TSyntax `term) (xs : Array (TSyntax `term)) : m (TSyntax `term) := do
-    let equalities ← xs.mapM (fun elem => `($x = $(elem)))
-    repeatedOr equalities
-  mkEnumAxiomatisation {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Array Ident) : m (Ident × TSyntax `command) := do
-    let variants ← elems.mapM (fun elem => `(Command.structSimpleBinder|$elem:ident : $id))
-    let (class_name, ax_distinct, ax_complete) := (Ident.toEnumClass id, enumDistinct, enumComplete)
-    let ax_distinct ← `(Command.structSimpleBinder|$ax_distinct:ident : distinct $[$elems]*)
-    let x := mkVeilImplementationDetailIdent `x
-    let ax_complete ← `(Command.structSimpleBinder|$ax_complete:ident : ∀ ($x : $id), $(← isEqualToOneOf x elems))
-    let class_decl ← `(
-      class $class_name ($id : $(mkIdent ``outParam) Type) where
-        $[$variants]*
-        $ax_distinct
-        $ax_complete)
-    return (class_name, class_decl)
-  mkEnumConcreteType {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Array Ident) : m (Array (TSyntax `command)) := do
-    let name := Ident.toEnumConcreteType id
-    let ctors ← elems.mapM fun el => `(Lean.Parser.Command.ctor| | $el:ident )
-    let indType ← do
-      if !ctors.isEmpty then
-        `(inductive $name where $[$ctors]* deriving $(mkIdent ``DecidableEq):ident, $(mkIdent ``Repr):ident, $(mkIdent ``Inhabited):ident, $(mkIdent ``Nonempty):ident)
-      else
-        `(inductive $name where deriving $(mkIdent ``DecidableEq):ident, $(mkIdent ``Repr):ident)
-    -- show that the concrete type satisfies the axiomatisation
-    let concElems : Array Ident := elems.map fun el => mkIdent (name.getId ++ el.getId)
-    let instFields ← (elems.zip concElems).mapM fun (el, concEl) => `(Lean.Parser.Term.structInstField| $el:ident := $concEl:ident)
-    let distinctField ← `(Lean.Parser.Term.structInstField| $enumDistinct:ident :=  (by (try decide); (try grind)))
-    let completeField ← do
-      let x := mkVeilImplementationDetailIdent `x
-      `(Lean.Parser.Term.structInstField| $enumComplete:ident := (by intro $x:ident <;> cases $x:ident <;> (first | decide | grind)))
-    let fields := instFields ++ #[distinctField, completeField]
-    let instanceAx ← `(command|instance : $(Ident.toEnumClass id) $name where $[$fields]*)
-    -- show that the concrete type is a `Veil.Enumeration`
-    let constructors ← `(term| [ $concElems,* ] )
-    let complete : Ident := mkIdent $ Name.toEnumClass id.getId ++ enumCompleteName
-    let instanceEnumeration ←
-      `(instance : $(mkIdent ``Enumeration) $name := $(mkIdent ``Enumeration.mk) $constructors (by simp ; exact $complete))
-    -- derive instances for the concrete type
-    let derivedInsts ← `(command| deriving instance $(mkIdent ``Ord):ident, $(mkIdent ``Hashable):ident for $name)
-    -- we derive instances for `Std.OrientedCmp`, `Std.TransCmp`, and `Std.LawfulEqCmp` manually
-    let ord ← `($(mkIdent ``Ord.compare) ($(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $name)))
-    let instMk := fun ty => `(command| instance : $(mkIdent ty) $ord := by apply$(mkIdent $ ty ++ `mk) ; decide)
-    let ordInsts ← #[``Std.OrientedCmp, ``Std.TransCmp, ``Std.LawfulEqCmp].mapM instMk
-    return #[indType, instanceAx, instanceEnumeration, derivedInsts] ++ ordInsts
 
  /-- Instruct the linter to not mark state variables as unused in our
   `after_init` and `action` definitions. -/
@@ -236,6 +192,19 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do
     elabVeilCommand cmd
+
+  -- Generate ActionTag type for symbolic model checking
+  -- NOTE: ActionTag is query-local (not a module sort), but we generate the
+  -- axiomatisation class and concrete type here for convenience
+  let actionNames := mod.actions.map (fun (a : ProcedureSpecification) => Lean.mkIdent a.name)
+  if !actionNames.isEmpty then
+    let (className, classDecl) ← mkEnumAxiomatisation actionTagType actionNames
+    elabVeilCommand classDecl
+    for cmd in (← mkEnumConcreteType actionTagType actionNames) do
+      elabVeilCommand cmd
+    elabVeilCommand $ ← `(open $className:ident)
+    -- TODO: Generate equivalence lemma (ActionTag.label_equiv) here
+
   let (nextCmd, mod) ← mod.assembleNext
   elabVeilCommand nextCmd
   let (nextTrCmd, mod) ← mod.assembleNextTransition
@@ -254,7 +223,8 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
 private def logDoesNotThrowErrors (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
   let actx := (← globalEnv.get).assertions
   for vc in results.vcs do
-    if vc.metadata.property != `doesNotThrow then continue
+    let .induction m := vc.metadata | continue  -- Only induction VCs have doesNotThrow
+    if m.property != `doesNotThrow then continue
     for d in vc.timing.dischargers do
       let .some (.disproven (.some (.sat ces)) _) := d.result | continue
       for ce in ces.filterMap id do
@@ -262,8 +232,8 @@ private def logDoesNotThrowErrors (results : VerificationResults VCMetadata SmtR
         let .ok exVal := extraVals.getObjVal? "__veil_ex" | continue
         let .ok exId := exVal.getInt? | continue
         let .some a := actx.find[exId]?
-          | throwError s!"Assertion {exId} not found (from {vc.metadata.action})"; continue
-        logErrorAt a.ctx.stx s!"This assertion might fail when called from {vc.metadata.action}"
+          | throwError s!"Assertion {exId} not found (from {m.action})"; continue
+        logErrorAt a.ctx.stx s!"This assertion might fail when called from {m.action}"
 
 open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
@@ -289,8 +259,8 @@ def elabCheckInvariants : CommandElab := fun stx => do
   | `(command|#check_invariants) => do
     Verifier.displayStreamingResults stx getResults
     -- Verifier.vcManager.atomicallyOnce frontendNotification
-    --   (fun ref => do let mgr ← ref.get; return mgr.isDone)
-    --   (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
+      -- (fun ref => do let mgr ← ref.get; return mgr.isDone)
+      -- (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
   | _ => logInfo "Unsupported syntax {stx}"; throwUnsupportedSyntax
   where
   getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do

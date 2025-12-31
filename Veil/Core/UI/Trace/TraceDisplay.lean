@@ -21,6 +21,16 @@ deriving RpcEncodable
 def TraceDisplayViewer : Component TraceDisplayProps where
   javascript := include_str "." / "traceDisplay.js"
 
+/-- Display a TraceDisplayViewer widget with the given result JSON.
+    This can be called with a runtime Json value. -/
+def displayTraceWidget (stx : Syntax) (resultJson : Json) : Elab.Command.CommandElabM Unit := do
+  let props : TraceDisplayProps := { result := resultJson, layout := "vertical" }
+  let html := Html.ofComponent TraceDisplayViewer props #[]
+  Elab.Command.liftCoreM <| Widget.savePanelWidgetInfo
+    (hash HtmlDisplayPanel.javascript)
+    (return json% { html: $(← rpcEncode html) })
+    stx
+
 namespace DisplayTraceCommand
 
 /-- Display a value of type `Json` (obtained from a `Trace` instance) in the infoview. -/

@@ -199,7 +199,8 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let nextT ← `(term|$labelT → $(mkIdent ``VeilM) $(mkIdent ``Mode.external) $environmentTheory $environmentState $(mkIdent ``Unit))
   let label := mkIdent `label
   let casesOn := mkIdent $ Name.append label.getId `casesOn
-  let nextDef ← `(command|def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
+  let attrs ← #[`nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let nextDef ← `(command|@[$attrs,*] def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
   let nextParam := { kind := .definitionParameter assembledNextActName .explicit, name := label.getId, «type» := labelT, userSyntax := .missing }
   let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, params := #[nextParam], extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
   let mod ← mod.registerDerivedDefinition derivedDef
@@ -221,8 +222,9 @@ def Module.assembleNextTransition [Monad m] [MonadQuotation m] [MonadError m] [M
   let (nextActParams, _) ← mod.declarationAllParams assembledNextActName (.derivedDefinition .actionLike actionNames)
   let nextActArgs ← nextActParams.mapM (·.arg)
   let body ← `(term| (@$assembledNextAct $nextActArgs* $label).toTransitionDerived $rd $st $st')
+  let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let nextTrDef ← `(command|
-    @[actSimp] def $assembledNext $[$(binders)]* : $nextTrT :=
+    @[$attrs,*] def $assembledNext $[$(binders)]* : $nextTrT :=
       fun ($rd : $environmentTheory) ($st : $environmentState) ($label : $labelT) ($st' : $environmentState) => $body)
   let derivedDef : DerivedDefinition := { name := assembledNextName, kind := .actionLike, params := #[], extraParams := extraParams, derivedFrom := {assembledNextActName}, stx := nextTrDef }
   let mod ← mod.registerDerivedDefinition derivedDef
@@ -253,8 +255,9 @@ def Module.assembleInit [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let (rd, st) := (mkIdent `rd, mkIdent `st)
   -- We use `default` as the pre-state; this matches the behaviour in the explicit model checker
   let body ← `(term| @$initTrName $initArgs* $rd $(mkIdent ``default) $st)
+  let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let initDef ← `(command|
-    @[actSimp] def $assembledInit $[$(binders)]* : $initT :=
+    @[$attrs,*] def $assembledInit $[$(binders)]* : $initT :=
       fun ($rd : $environmentTheory) ($st : $environmentState) => $body)
   let derivedDef : DerivedDefinition := { name := assembledInitName, kind := .actionLike, params := #[], extraParams := extraParams ++ initExtraParams, derivedFrom := {initializerName}, stx := initDef }
   let mod ← mod.registerDerivedDefinition derivedDef
@@ -290,9 +293,10 @@ def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [Mona
   let initVal ← `(term| $assembledInit ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
   let nextVal ← `(term| $assembledNext ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
   -- Generate the definition
+  let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let rtsDef ← `(command|
     open Classical in
-    noncomputable def $assembledRTS $[$allBinders]* : $rtsType where
+    @[$attrs,*] noncomputable def $assembledRTS $[$allBinders]* : $rtsType where
       assumptions := $assumptionsVal
       init := $initVal
       tr := $nextVal)

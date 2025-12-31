@@ -64,8 +64,9 @@ this, for example, to return a counter-example from the SMT solver. -/
 abbrev DischargerData (ResultT : Type) := Option ResultT
 
 inductive DischargerResult (ResultT : Type) where
-  /-- The discharger finished successfully, i.e. produced a witness & data. -/
-  | proven (witness : Witness) (data : DischargerData ResultT) (time : Nat)
+  /-- The discharger finished successfully, i.e. produced a witness & data.
+      The witness is optional for trace queries where there's no proof term. -/
+  | proven (witness : Option Witness) (data : DischargerData ResultT) (time : Nat)
   /-- The discharger disproved the VC, i.e. produced a counter-example. -/
   | disproven (data : DischargerData ResultT) (time : Nat)
   /-- The discharger did not prove or disprove the VC, i.e. the result is
@@ -96,7 +97,8 @@ def DischargerResult.kindString (res : DischargerResult ResultT) : String :=
 instance [ToString ResultT] : ToString (DischargerResult ResultT) where
   toString res :=
     match res with
-    | .proven expr data time => s!"proven {expr} {data} ({time}ms)"
+    | .proven (some expr) data time => s!"proven {expr} {data} ({time}ms)"
+    | .proven none data time => s!"proven (no witness) {data} ({time}ms)"
     | .disproven data time => s!"disproven {data} ({time}ms)"
     | .unknown data time => s!"unknown {data} ({time}ms)"
     | .error exs time => s!"exception thrown {exs.map (·.2)} ({time}ms)"
@@ -104,7 +106,8 @@ instance [ToString ResultT] : ToString (DischargerResult ResultT) where
 instance [ToMessageData ResultT] : ToMessageData (DischargerResult ResultT) where
   toMessageData res :=
     match res with
-    | .proven expr data time => m!"proven {expr} {data} ({time}ms)"
+    | .proven (some expr) data time => m!"proven {expr} {data} ({time}ms)"
+    | .proven none data time => m!"proven (no witness) {data} ({time}ms)"
     | .disproven data time => m!"disproven {data} ({time}ms)"
     | .unknown data time => m!"unknown {data} ({time}ms)"
     | .error exs time => m!"error {exs.map (·.1.toMessageData)} ({time}ms)"

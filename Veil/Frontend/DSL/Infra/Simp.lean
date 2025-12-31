@@ -30,6 +30,9 @@ register_simp_attr ghostRelSimp
 /-- Attribute added to Veil actions, to unfold them. -/
 register_simp_attr actSimp
 
+/-- Attribute added for simplifications done for symbolic model checking. -/
+register_simp_attr nextSimp
+
 /-- Attribute added to `DerivedDefinition`s that are `.actionLike`, to unfold them. -/
 register_simp_attr derivedActSimp
 

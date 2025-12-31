@@ -27,21 +27,58 @@ namespace Veil
 
 open Lean Elab Meta Smt
 
-/-- Evaluate an expression to JSON by dynamically synthesizing the `ToJson`
-instance. This function works without knowing the type at compile time. -/
-private unsafe def evalExprToJson (typeExpr : Expr) (valueExpr : Expr) : MetaM Json := do
-  let toJsonType ← Meta.mkAppM ``ToJson #[typeExpr]
-  let toJsonInst ← Meta.synthInstance toJsonType
-  let jsonExpr ← Meta.mkAppOptM ``toJson #[some typeExpr, some toJsonInst, some valueExpr]
-  Meta.evalExpr Json (mkConst ``Json) jsonExpr
+/-- A Veil-specific "segmented" `Smt.Model` that represents a
+counterexample-to-induction (CTI). This is at the meta level (i.e. it stores
+`Expr`, which are meta/compile-time values). -/
+structure VeilCTI where
+  /-- Context for interpreting expressions -/
+  ctx : Smt.ModelContext
 
-/-- Convert a `VeilModel` to a JSON object containing the structured counterexample.
+  /-- Expression for `Instantiation.mk sortArgs*`, i.e. a structure which
+  encodes the types used in this model. -/
+  instExpr : Expr
+  /-- Type expression for `Instantiation` -/
+  instType : Expr
+  /-- Sort instantiation info: maps sort name to pretty-printed type name.
+  This is needed because `Type` fields in `Instantiation` are erased at runtime,
+  so we store the type names explicitly for JSON serialization. -/
+  sortInstInfo : Array (Name × String) := #[]
+  /-- Sort substitution: maps sort parameter fvars to their concrete types (e.g., `Fin 3`).
+  Used for substituting abstract types before JSON serialization. -/
+  sortSubst : Array (Expr × Expr) := #[]
+
+  /-- Sorts not part of module's Instantiation -/
+  extraSorts : Array (Expr × Expr)
+
+  /-- Expression for `Label.actionName sortArgs* paramValues*`.
+      None for initializers which don't have a Label constructor. -/
+  labelExpr : Option Expr := none
+  /-- Type expression for `Label sortArgs*`.
+      None for initializers which don't have a Label type. -/
+  labelType : Option Expr := none
+
+  /-- Expression for `Theory.mk sortArgs* fieldValues*` -/
+  theoryExpr : Expr
+  /-- Type expression for `Theory sortArgs*` -/
+  theoryType : Expr
+
+  /-- Type expression for `State (FieldAbstractType sortArgs*)` -/
+  stateType : Expr
+  /-- Expression for `State.mk dispatcher fieldValues*` -/
+  preStateExpr : Expr
+  /-- Optional post-state expression -/
+  postStateExpr : Option Expr
+
+  /-- Values that couldn't be classified -/
+  extraVals : Array (Expr × Expr)
+
+/-- Convert a `VeilCTI` to a JSON object containing the structured counterexample.
 
   This function works dynamically without requiring explicit type parameters.
   It synthesizes `ToJson` instances at runtime using the type expressions
   stored in the `VeilModel`. -/
 
-unsafe def VeilModel.toJson (vm : VeilModel) : MetaM Json := do
+unsafe def VeilCTI.toJson (vm : VeilCTI) : MetaM Json := do
   -- Build instantiation JSON from sortInstInfo (since Type fields are erased at runtime)
   let instJson := Json.mkObj <| vm.sortInstInfo.toList.map fun (name, typeStr) =>
     (name.toString, Json.str typeStr)
@@ -224,34 +261,36 @@ def buildTheoryExpr (mod : Module) (sortArgs : Array Expr)
       mkAppOptM ``default #[some expectedType, none]
   mkAppOptM (theoryName ++ `mk) <| (sortArgs ++ fieldValues).map (Option.some ·)
 
-/-- Build a Label constructor expression from action name and params.
+/-- Build a Label constructor expression from action name and a parameter lookup function.
+    Uses `default` for parameters not found by the lookup function.
+    Returns `none` if the action is an initializer (which has no Label constructor).
+
+    The `lookupParam` function takes the parameter index and returns an optional expression. -/
+def buildLabelExprCore (mod : Module) (sortArgs : Array Expr)
+    (actionName : Name) (lookupParam : Nat → Option Expr) : MetaM (Option Expr) := do
+  let some p := mod.procedures.find? (·.name == actionName) | return none
+  -- Initializers don't have a Label constructor
+  if p.info == .initializer then return none
+  let labelName := mod.name ++ `Label ++ actionName
+  let ctorType ← Meta.inferType (mkConst labelName)
+  let ctorTypeInst ← Meta.instantiateForall ctorType sortArgs
+  let paramValues ← Meta.forallTelescope ctorTypeInst fun args _ => do
+    p.params.mapIdxM fun idx _param => do
+      let expectedType ← Meta.reduceAll (← Meta.inferType args[idx]!)
+      match lookupParam idx with
+      | some e => adaptSmtExprType e expectedType
+      | none => mkAppOptM ``default #[some expectedType, none]
+  some <$> mkAppOptM labelName ((sortArgs ++ paramValues).map (Option.some ·))
+
+/-- Build a Label constructor expression from action name and a parameter map (by name).
     Uses `default` for parameters not present in the model.
     Returns `none` if the action is an initializer (which has no Label constructor). -/
 def buildLabelExpr (mod : Module) (sortArgs : Array Expr)
     (actionName : Name) (paramMap : Std.HashMap Name Expr) : MetaM (Option Expr) := do
-  let proc := mod.procedures.find? (·.name == actionName)
-  match proc with
-  | some p =>
-    -- Check if this is an initializer (which doesn't have a Label constructor)
-    match p.info with
-    | .initializer => return none
-    | _ =>
-      let labelName := mod.name ++ `Label ++ actionName
-      -- Get the constructor type to extract parameter types
-      let ctorType ← Meta.inferType (mkConst labelName)
-      -- Apply sort args to get the instantiated constructor type
-      let ctorTypeInst ← Meta.instantiateForall ctorType sortArgs
-      -- Extract the parameter types from the constructor signature
-      let paramValues ← Meta.forallTelescope ctorTypeInst fun args _ => do
-        p.params.mapIdxM fun idx param => do
-          let expectedType ← Meta.reduceAll (← Meta.inferType args[idx]!)
-          match paramMap[param.name]? with
-          | some e => adaptSmtExprType e expectedType
-          | none =>
-            -- dbg_trace "Action parameter {param.name} not found in model, using default"
-            mkAppOptM ``default #[some expectedType, none]
-      some <$> mkAppOptM labelName ((sortArgs ++ paramValues).map (Option.some ·))
-  | none => return none
+  let paramNames := mod.procedures.find? (·.name == actionName)
+    |>.map (·.params.map (·.name)) |>.getD #[]
+  buildLabelExprCore mod sortArgs actionName fun idx =>
+    if h : idx < paramNames.size then paramMap[paramNames[idx]]? else none
 
 /-! ## Main Construction -/
 
@@ -275,7 +314,7 @@ def getSortArgs (mod : Module) (sortMap : Std.HashMap Name Expr) : MetaM (Array 
     -- etc.
     ```
 -/
-def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) : MetaM VeilModel := do
+def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) : MetaM VeilCTI := do
   -- Parse sorts from model
   let sortMap ← parseSortsFromModel model
 

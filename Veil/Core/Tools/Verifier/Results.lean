@@ -1,4 +1,5 @@
 import Veil.Core.Tools.Verifier.Manager
+import Veil.Frontend.DSL.Infra.Metadata
 
 namespace Veil
 open Lean
@@ -204,19 +205,34 @@ def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager V
     isDormant := mgr.dormantVCs.contains vcId
   }
 
-/-- Convert a `VCManager` to `VerificationResults`. -/
-def VCManager.toVerificationResults [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager VCMetaT ResultT) : m (VerificationResults VCMetaT ResultT) := do
-  let vcResults ← mgr.nodes.toArray.mapM fun (vcId, _) => mkVCResult mgr vcId
+/-- Convert a `VCManager` to `VerificationResults`, filtering VCs by the given predicate. -/
+def VCManager.toResults [Monad m] [MonadError m] [MonadLiftT BaseIO m]
+    (mgr : VCManager VCMetadata ResultT) (filter : VCMetadata → Bool)
+    : m (VerificationResults VCMetadata ResultT) := do
+  let filteredNodes := mgr.nodes.toArray.filter fun (_, vc) => filter vc.metadata
+  let vcResults ← filteredNodes.mapM fun (vcId, _) => mkVCResult mgr vcId
 
-  let totalTime := mgr.nodes.toArray.foldl (init := 0) fun acc (uid, _) =>
+  let totalTime := filteredNodes.foldl (init := 0) fun acc (uid, _) =>
     acc + ((mgr.vcTotalTime uid).getD 0)
+
+  let totalSolved := vcResults.filter (fun r => r.status == some .proven) |>.size
+  let totalDischarged := vcResults.foldl (init := 0) fun acc r =>
+    let finishedCount := r.timing.dischargers.filter (fun (d : DischargerResultData ResultT) =>
+      match d.status with | .finished _ => true | _ => false) |>.size
+    acc + finishedCount
 
   return {
     vcs := vcResults
-    totalVCs := mgr.nodes.size
-    totalDischarged := mgr._totalDischarged
-    totalSolved := mgr._totalSolved
+    totalVCs := filteredNodes.size
+    totalDischarged := totalDischarged
+    totalSolved := totalSolved
     totalTime := totalTime
   }
+
+/-- Convert a `VCManager` to `VerificationResults`, filtering to only include induction VCs.
+    This is used by the `#check_invariants` widget which doesn't support trace VCs. -/
+def VCManager.toVerificationResults [Monad m] [MonadError m] [MonadLiftT BaseIO m]
+    (mgr : VCManager VCMetadata ResultT) : m (VerificationResults VCMetadata ResultT) :=
+  mgr.toResults (·.isInduction)
 
 end Veil

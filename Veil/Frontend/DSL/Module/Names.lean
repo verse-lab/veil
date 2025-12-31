@@ -52,6 +52,11 @@ def labelType : Ident := mkIdent labelTypeName
 def labelCasesName : Name := Name.append labelTypeName `cases
 def labelCases: Ident := mkIdent labelCasesName
 
+def actionTagTypeName : Name := `ActionTag
+def actionTagType : Ident := mkIdent actionTagTypeName
+def actionTagLabelEquivName : Name := Name.append actionTagTypeName `label_equiv
+def actionTagLabelEquiv : Ident := mkIdent actionTagLabelEquivName
+
 def instantiationTypeName : Name := `Instantiation
 def instantiationType : Ident := mkIdent instantiationTypeName
 
@@ -135,5 +140,9 @@ def assembledRTS : Ident := mkIdent assembledRTSName
 
 def exceptionName : Name := mkVeilImplementationDetailName `ex
 def exception : Ident := mkIdent exceptionName
+
+/-- Name of the ActionTag_Enum instance binder -/
+def actionTagEnumInstName : Name := mkVeilImplementationDetailName `tag
+def actionTagEnumInst : Ident := mkIdent actionTagEnumInstName
 
 end Veil
