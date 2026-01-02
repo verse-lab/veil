@@ -61,7 +61,8 @@ instance funTwoArgsBoolToProp : Coe (α → β → Bool) (α → β → Prop) wh
   coe f a b := f a b = true
 
 /-- Used to hoist higher-order quantification to the top of the goal. -/
-register_simp_attr quantifierSimp
+register_simp_attr forallQuantifierSimp
+register_simp_attr existsQuantifierSimp
 
 namespace Simp
 open Lean Elab

@@ -140,7 +140,7 @@ into the local context. This is useful when such values are at the heading
 syntax (name := veil_intro_ho) "veil_intro_ho" : tactic
 syntax (name := veil_fol) "veil_fol" ("!")? : tactic
 /-- Concretize abstract state and fields for WP-style goals. This includes:
-1. Simplifying with `substateSimp`, `invSimp`, `smtSimp`, `quantifierSimp` (and `ghostRelSimp` if enabled)
+1. Simplifying with `substateSimp`, `invSimp`, `smtSimp`, ``forallQuantifierSimp` (and `ghostRelSimp` if enabled)
 2. Introducing higher-order values with `veil_intro_ho`
 3. Small-scale axiomatization of ghost relations (if `veil.unfoldGhostRel` is false)
 4. Concretizing abstract state variables with `__veil_concretize_state_wp`
@@ -436,7 +436,7 @@ def elabVeilConcretizeStateTr : DesugarTacticM Unit := veilWithMainContext do
   let veilDestruct ← `(tactic|veil_destruct only [$(mkIdent ``And), $(mkIdent ``Exists)])
 
   let classicalIdent := mkIdent `Classical
-  let initialSimps := #[`substateSimp, `invSimp, `smtSimp, `quantifierSimp].map Lean.mkIdent
+  let initialSimps := #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp].map Lean.mkIdent
   veilEvalTactic $ ← `(tacticSeq|open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at * )
 
   -- Step 1: Double negation elimination + destructuring (sometimes required to enable `subst`)
@@ -828,7 +828,7 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
     let unfoldghostRel? := (← getOptions).getBool ``veil.unfoldGhostRel
     let initialSimps := if fast
       then #[`invSimp, `smtSimp]
-      else #[`substateSimp, `invSimp, `smtSimp, `quantifierSimp]
+      else #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp]
     let initialSimps := if unfoldghostRel? then initialSimps.push `ghostRelSimp else initialSimps
     let initialSimps := initialSimps.map Lean.mkIdent
     let ghostRelTac ← if unfoldghostRel?
@@ -857,7 +857,7 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
-  let simps := #[`substateSimp, `invSimp, `smtSimp, `quantifierSimp].map Lean.mkIdent
+  let simps := #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp].map Lean.mkIdent
   let classical := mkIdent `Classical
   veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst; (open $classical:ident in veil_simp only [$[$simps:ident],*] at * ); veil_intro_ho; __veil_concretize_state_wp; __veil_concretize_fields_wp; veil_clear)
 
@@ -877,7 +877,11 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
 
 @[inherit_doc veil_bmc]
 def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
-  let tac ← `(tactic| veil_intros; veil_destruct; veil_simp only [$(mkIdent `nextSimp):ident, $(mkIdent `smtSimp):ident]; veil_smt)
+  -- Doesn't do HO quantifier elimination; should be much faster
+  -- let fastPath ← `(tacticSeq| veil_intros; veil_destruct; veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
+  let fullPath ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [$(mkIdent `existsQuantifierSimp):ident]; veil_intros; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
+  -- let tac ← `(tactic|first | $fastPath:tacticSeq | $fullPath:tacticSeq)
+  let tac := fullPath
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do

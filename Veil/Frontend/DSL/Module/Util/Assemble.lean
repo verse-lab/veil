@@ -25,7 +25,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   -- explicit arguments.
   let preBinders ← binders.mapM mkImplicitBinder
   let binders := preBinders ++ thstBinders
-  let attrs ← #[`invSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let attrs ← #[`invSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let stx ← `(@[$attrs,*] abbrev $(mkIdent base.name) $[$binders]* := $term)
   return (stx, mod)
 
@@ -50,7 +50,7 @@ def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TS
   -- binders, and then create the syntax.
   -- See NOTE(SUBTLE).
   let binders := (← baseBinders.mapM mkImplicitBinder) ++ (← params.mapM (·.binder)) ++ (← extraParams.mapM (·.binder))
-  let attrs ← #[(if justTheory then `invSimp else `ghostRelSimp)].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let attrs ← #[(if justTheory then `invSimp else `ghostRelSimp), `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let stx ← `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
   trace[veil.debug] "stx: {stx}"
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
@@ -78,7 +78,7 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
   -- `triple_strengthen_postcondition` without unfolding the definition of
   -- `Invariants`. Note that for this to work, the definition must return
   -- `Prop` rather than `Bool`. TODO: a Bool-specific weakening?
-  let attrs ← #[`derivedInvSimp, `invSimp, `reducible].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let attrs ← #[`derivedInvSimp, `invSimp, `nextSimp, `reducible].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* : Prop := $body)
   let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, params := #[], extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
   let mod ← mod.registerDerivedDefinition derivedDef

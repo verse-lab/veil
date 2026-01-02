@@ -167,7 +167,7 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       -- if `foo.wp` becomes fully applied after simplification, `unfoldPartialApp` is not necessary.
       let mainSimp ← do
         let tmp : Simplifier := @id Simplifier (evalOpenClassical ∘ Simp.simp #[`wpSimp] { unfoldPartialApp := true : Meta.Simp.Config })
-          |>.andThen (evalOpenClassical ∘ Simp.simp #[`quantifierSimp])
+          |>.andThen (evalOpenClassical ∘ Simp.simp #[`forallQuantifierSimp])
           |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp])
         if mod._useFieldRepTC
         then
