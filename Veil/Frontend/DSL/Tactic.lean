@@ -879,7 +879,7 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
 def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
   -- Doesn't do HO quantifier elimination; should be much faster
   -- let fastPath ← `(tacticSeq| veil_intros; veil_destruct; veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
-  let fullPath ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [$(mkIdent `existsQuantifierSimp):ident]; veil_intros; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
+  let fullPath ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
   -- let tac ← `(tactic|first | $fastPath:tacticSeq | $fullPath:tacticSeq)
   let tac := fullPath
   veilEvalTactic tac

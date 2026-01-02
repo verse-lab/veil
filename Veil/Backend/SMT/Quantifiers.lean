@@ -234,8 +234,9 @@ A guard simproc that checks for higher-order quantification before allowing
 `existsQuantifierSimp` to run. This improves performance by skipping the expensive
 `existsQuantifierSimp` when there's no HO quantification to process. -/
 
-/-- Check if an expression contains any higher-order quantification (∀ or ∃ over a HO type).
-    Returns true if any universal or existential quantifier binds a higher-order type. -/
+/-- Check if an expression contains any higher-order quantification (∀ or ∃
+over a HO type). Returns true if any universal or existential quantifier binds
+a higher-order type. -/
 def hasHOQuantification (e : Expr) : MetaM Bool := do
   let found ← IO.mkRef false
   Meta.forEachExpr e fun sub => do
@@ -254,7 +255,7 @@ def hasHOQuantification (e : Expr) : MetaM Bool := do
     quantification is present. This avoids the overhead of `existsQuantifierSimp`
     when there's no HO quantification to process.
 
-    Usage: `simp only [existsQuantifierSimpGuarded]`
+    Usage: `simp only [↓ existsQuantifierSimpGuarded]`
 
     This simproc:
     1. Checks if the expression contains any HO quantification (∀ or ∃ over HO types)
@@ -267,7 +268,7 @@ def existsQuantifierSimpGuarded_impl : Simp.Simproc := fun e => do
   let result ← Simp.simp #[`existsQuantifierSimp] {} e
   return .done result
 
-simproc existsQuantifierSimpGuarded (_) := existsQuantifierSimpGuarded_impl
+simproc_decl existsQuantifierSimpGuarded (_) := existsQuantifierSimpGuarded_impl
 
 end ExistentialQuantifierTheorems
 
