@@ -28,6 +28,7 @@ initialize
   registerTraceClass `veil.debug
   registerTraceClass `veil.desugar
   registerTraceClass `veil.wp
+  registerTraceClass `veil.timing
 
 /-! ## Options -/
 

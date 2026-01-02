@@ -59,9 +59,9 @@ elab_rules : command
 def constructCommands (thms : Array (TSyntax `command)) : CoreM (TSyntax `commands) := `(commands| $[$thms]*)
 
 
-def withTiming [Monad m] [MonadTrace m] [MonadOptions m] [MonadRef m] [MonadLiftT BaseIO m] [AddMessageContext m] (name : String) (tac : m α) : m α := do
+def withTiming {m α} [Monad m] [MonadTrace m] [MonadOptions m] [MonadRef m] [MonadLiftT BaseIO m] [AddMessageContext m] (name : String) (tac : m α) : m α := do
   let startTime ← IO.monoMsNow; let res ← tac; let endTime ← IO.monoMsNow
-  trace[veil.debug] s!"{name} took {endTime - startTime}ms"
+  trace[veil.timing] s!"{name} took {endTime - startTime}ms"
   return res
 
 /-- Syntax for `∀ a₀ a₁ .. aₙ, Decidable (P a₀ a₁ .. aₙ)`. -/

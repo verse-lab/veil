@@ -228,6 +228,47 @@ theorem ite_exists_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) [
 
 attribute [existsQuantifierSimp] ite_exists_push_out
 
+/-! ### Guarded Exists Quantifier Simplification
+
+A guard simproc that checks for higher-order quantification before allowing
+`existsQuantifierSimp` to run. This improves performance by skipping the expensive
+`existsQuantifierSimp` when there's no HO quantification to process. -/
+
+/-- Check if an expression contains any higher-order quantification (∀ or ∃ over a HO type).
+    Returns true if any universal or existential quantifier binds a higher-order type. -/
+def hasHOQuantification (e : Expr) : MetaM Bool := do
+  let found ← IO.mkRef false
+  Meta.forEachExpr e fun sub => do
+    -- Check for forall with HO bound type
+    if let .forallE _ t _ _ := sub then
+      if (← isHigherOrder t) then
+        found.set true
+    -- Check for exists with HO bound type
+    if sub.isAppOfArity ``Exists 2 then
+      let t := sub.getArg! 0
+      if (← isHigherOrder t) then
+        found.set true
+  found.get
+
+/-- Guarded simproc that runs `existsQuantifierSimp` only when higher-order
+    quantification is present. This avoids the overhead of `existsQuantifierSimp`
+    when there's no HO quantification to process.
+
+    Usage: `simp only [existsQuantifierSimpGuarded]`
+
+    This simproc:
+    1. Checks if the expression contains any HO quantification (∀ or ∃ over HO types)
+    2. If not, returns the expression unchanged (`.done`)
+    3. If yes, runs `simp` with `existsQuantifierSimp` and returns the result -/
+def existsQuantifierSimpGuarded_impl : Simp.Simproc := fun e => do
+  if !(← hasHOQuantification e) then
+    return .done { expr := e }
+  -- Run simp with existsQuantifierSimp on this expression
+  let result ← Simp.simp #[`existsQuantifierSimp] {} e
+  return .done result
+
+simproc existsQuantifierSimpGuarded (_) := existsQuantifierSimpGuarded_impl
+
 end ExistentialQuantifierTheorems
 
 end Veil
