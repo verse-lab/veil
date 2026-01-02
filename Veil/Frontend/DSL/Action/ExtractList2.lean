@@ -4,6 +4,72 @@
 import Loom.MonadAlgebras.NonDetT'.ExtractList
 import Veil.Frontend.DSL.State.Types
 
+instance [inst : MonadFlatMap' m'] : MonadFlatMap' (ExceptT ε m') where
+  op := inst.op
+
+class MonadFlatMap'FMapDistributive (m : Type u → Type v)
+  [Monad m]
+  [inst : MonadFlatMap' m] where
+  fmap_distrib :
+    ∀ {α β : Type u} (f : α → β) (xs : List (m α)),
+      inst.op (xs.map (f <$> ·)) = f <$> (inst.op xs)
+
+instance [Monad m] [inst : MonadFlatMap' m]
+  [instl : MonadFlatMap'FMapDistributive m] :
+  MonadFlatMap'FMapDistributive (ReaderT ρ m) where
+  fmap_distrib := by
+    introv ; ext r
+    have tmp := instl.fmap_distrib f (xs.map (· r))
+    simp +unfoldPartialApp [MonadFlatMap'.op, ReaderT.run, Function.comp, Functor.map] at tmp ⊢
+    exact tmp
+
+instance [Monad m] [inst : MonadFlatMap' m]
+  [LawfulMonad m]
+  [instl : MonadFlatMap'FMapDistributive m] :
+  MonadFlatMap'FMapDistributive (StateT σ m) where
+  fmap_distrib := by
+    introv ; ext st
+    have tmp := instl.fmap_distrib (fun (a, s) => (f a, s)) (xs.map (· st))
+    simp +unfoldPartialApp [MonadFlatMap'.op, StateT.run, Function.comp] at tmp ⊢
+    simp [StateT.map, Functor.map]
+    exact tmp
+
+instance [Monad m] [TsilTCore m] : MonadFlatMap'FMapDistributive (TsilT m) where
+  fmap_distrib := by
+    introv
+    simp +unfoldPartialApp [MonadFlatMap'.op, Function.comp, Functor.map]
+    induction xs <;> grind
+
+theorem ExceptT.map_eq_fmap_map [Monad m] [LawfulMonad m] (f : α → β) (x : ExceptT ε m α) :
+  ExceptT.map f x = (Except.map f) <$> x := by
+  rw [map_eq_pure_bind]
+  unfold ExceptT.map ExceptT.mk Except.map
+  congr ; ext x ; cases x <;> rfl
+
+instance
+  [Monad m]
+  [LawfulMonad m]
+  [inst : MonadFlatMap' m]
+  [CompleteLattice l]
+  [MAlgOrdered m l]
+  (hd : ε → Prop)
+  [IsHandler hd]
+  (p : l → l → Prop)
+  [instl : LawfulMonadFlatMapSup m l p]
+  [instd : MonadFlatMap'FMapDistributive m]
+  : LawfulMonadFlatMapSup (ExceptT ε m) l p
+  where
+  sound := by
+    introv
+    simp [MonadFlatMap'.op]
+    have tmp := instl.sound (xs.map (ExceptT.map post)) (Except.getD fun x => ⌜ hd x ⌝)
+    rw [iSup_list_map] at tmp
+    have tmp2 := instd.fmap_distrib (m := m) (Except.map post) xs
+    simp [← ExceptT.map_eq_fmap_map post] at tmp2
+    rw [tmp2] at tmp ; clear tmp2
+    simp [wp, liftM, monadLift, MAlg.lift, Functor.map] at tmp ⊢
+    exact tmp
+
 instance (priority := high + 100) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
   find := fun _ => Veil.Enumeration.allValues |>.filter p
   find_iff := by simp ; grind
@@ -26,6 +92,11 @@ instance [Monad m'] [inst3 : MonadFlatMap' m'] [GoodMonadFlatMap' m'] : GoodMona
       List.map (fun x ↦ x >>= (f · r)) (l.map (· r)) := by
       simp [Bind.bind, ReaderT.bind]
     rw [eq1, GoodMonadFlatMap'.op_good] ; rfl
+
+instance [Monad m'] [inst3 : MonadFlatMap' m'] [GoodMonadFlatMap' m'] : GoodMonadFlatMap' (ExceptT ε m') where
+  op_good := by
+    introv ; dsimp +unfoldPartialApp [MonadFlatMap'.op, Function.comp]
+    apply GoodMonadFlatMap'.op_good
 
 instance [Monad m'] [inst3 : MonadFlatMap' m'] [GoodMonadFlatMap' m'] : GoodMonadFlatMap' (StateT σ m') where
   op_good := by
