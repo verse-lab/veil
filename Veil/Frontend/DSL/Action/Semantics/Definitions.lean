@@ -43,14 +43,14 @@ abbrev RProp (α ρ σ : Type) := α -> SProp ρ σ
 /-! Our language is parametric over the mutable state, immutable state, and return type. -/
 set_option linter.unusedVariables false in
 /-- Executable semantics of _deterministic_ Veil actions. -/
-abbrev VeilExecM (m : Mode) (ρ σ α : Type) := ReaderT ρ (StateT σ (ExceptT ExId DivM)) α
+abbrev VeilExecM (m : Mode) (ρ σ α : Type) := ReaderT ρ (ExceptT ExId (StateT σ DivM)) α
 /-- Denotation of _non-deterministic_ Veil actions. -/
 abbrev VeilM (m : Mode) (ρ σ α : Type) := NonDetT (VeilExecM m ρ σ) α
 /-- Executable semantics of _non-deterministic_ Veil actions, which works by
 returning a _list_ of all possible results (either exceptions or post-states &
 return values). -/
 abbrev VeilMultiExecM κ ε ρ σ α :=
-  ReaderT ρ (StateT σ (TsilT (ExceptT ε (PeDivM (List κ))))) α
+  ReaderT ρ (ExceptT ε (StateT σ (TsilT (PeDivM (List κ))))) α
 
 abbrev VeilSpecM (ρ σ α : Type) := Cont (SProp ρ σ) α
 abbrev Transition (ρ σ : Type) := ρ -> σ -> σ -> Prop
@@ -228,14 +228,14 @@ section ExecutableSemantics
 def VeilExecM.operational (act : VeilExecM m ρ σ α) (r₀ : ρ) (s₀ : σ) (s₁ : σ) (res : Except ExId α) : Prop :=
   match act r₀ s₀ with
   | .div => False
-  | .res (.error i)   => res = .error i ∧ /- can be anything -/ s₁ = s₀
-  | .res (.ok (a, s)) => res = .ok a ∧ s = s₁
+  | .res (.error i, s) => res = .error i ∧ s = s₁
+  | .res (.ok a, s)    => res = .ok a ∧ s = s₁
 
 def VeilExecM.axiomatic (act : VeilExecM m ρ σ α) (r₀ : ρ) (s₀ : σ) (post : RProp α ρ σ) : Prop :=
   match act r₀ s₀ with
   | .div => False
-  | .res (.error _) => False
-  | .res (.ok (a, s)) => post a r₀ s
+  | .res (.error _, _) => False
+  | .res (.ok a, s) => post a r₀ s
 
 def VeilExecM.operationalTriple (act : VeilExecM m ρ σ α) (pre : SProp ρ σ) (post : RProp α ρ σ) : Prop :=
   ∀ r₀ s₀ s₁ res,

@@ -282,19 +282,19 @@ def genNextActCommands (mod : Veil.Module)
 
   k binders
 
-/-- Extract the resulting state from an ExceptT-wrapped execution, if successful. -/
-def getStateFromExceptT (c : ExceptT ε DivM (α × σ)) : Option σ :=
-  match c.run with
-  | .res (.ok (_, st)) => .some st
-  | .res (.error _)    => .none
-  | .div => none
+/-- Extract the resulting state from a DivM-wrapped result pair, if successful. -/
+def getStateFromDivMResult (c : DivM ((Except ε α) × σ)) : Option σ :=
+  match c with
+  | .res ((.ok _, st)) => .some st
+  | .res ((.error _, _)) => .none
+  | .div => .none
 
-def getAllStatesFromExceptT (c : List (ExceptT ε DivM (α × σ))) : List (Option σ) :=
-  c.map getStateFromExceptT
+def getAllStatesFromDivMResults (c : List (DivM ((Except ε α) × σ))) : List (Option σ) :=
+  c.map getStateFromDivMResult
 
 /-- Extract all valid states from a VeilMultiExecM computation -/
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
-  exec rd st |>.map Prod.snd |> getAllStatesFromExceptT
+  exec rd st |>.map Prod.snd |> getAllStatesFromDivMResults
 
 def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
   mod.throwIfAlreadyDeclared enumerableTransitionSystemName
