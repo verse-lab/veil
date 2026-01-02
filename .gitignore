@@ -5,4 +5,3 @@ veil.zip
 .veil.tmp/
 # MacOS temp files
 .DS_Store
-ToBeImportedByModelCheckerMain.lean

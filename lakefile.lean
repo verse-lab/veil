@@ -32,13 +32,3 @@ lean_lib Test {
 lean_lib Examples {
   globs := #[.submodules `Examples]
 }
-
-lean_lib ToBeImportedByModelCheckerMain {
-  globs := #[Glob.one `ToBeImportedByModelCheckerMain]
-}
-
-lean_exe ModelCheckerMain {
-  root := `ModelCheckerMain
-  -- leanOptions := #[⟨`compiler.extract_closed, false⟩]
-  buildType := .release
-}

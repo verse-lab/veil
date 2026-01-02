@@ -416,37 +416,24 @@ def elabGenSpec : CommandElab := fun stx => do
       localEnv.modifyModule (fun _ => mod)
       elabGenSpecInternalMode mod
     else
-      unless noModelCompilation?.isSome do
-        -- Write modified source file for compilation with `internal_mode` inserted
-        writeGenSpecSourceForCompilation tk
-
       let mod ← mod.ensureSpecIsFinalized
       localEnv.modifyModule (fun _ => mod)
       -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
       Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
       unless noModelCompilation?.isSome do
-        -- Start async compilation of the model checker (no progress display here)
-        ModelChecker.Compilation.startCompilation
+        -- Generate the model source with `no_model_compilation internal_mode` inserted and start compilation
+        let modelSource ← generateModelSource tk
+        let sourceFile ← getFileName
+        let _ ← Veil.ModelChecker.Compilation.startModelCompilation sourceFile modelSource
   | _ => throwUnsupportedSyntax
 where
-  /-- Write modified source file for compilation with internal_mode inserted. -/
-  writeGenSpecSourceForCompilation (tk : Syntax) : CommandElabM Unit := do
-    -- Copy the current file into a dedicated file
-    --
-    -- NOTE: This command *should not* be copied verbatim into the new file,
-    -- otherwise this process will go into a loop. NOTE: Since some definitions
-    -- required for compilation are not available *before this command*, we need
-    -- to somehow make them available. The approach taken here is to change the
-    -- behavior of the command in the new file by doing minimal source-to-source
-    -- transformation: we insert the `internal_mode` keyword after `#gen_spec`,
-    -- which makes the command skip the VCManager and define modelCheckerCall.
+  /-- Generate the model source with `no_model_compilation internal_mode` inserted for compilation. -/
+  generateModelSource (tk : Syntax) : CommandElabM String := do
+    -- Transform the source by inserting `no_model_compilation internal_mode` after `#gen_spec`
+    -- This prevents the compiled version from triggering another compilation
     let some posTk := tk.getTailPos? | throwError "Unexpected error: #gen_spec token has no position"
     let src := (← getFileMap).source
-    let newSource := String.Pos.Raw.extract src 0 posTk ++ " no_model_compilation internal_mode\n"
-    let target := ((← IO.currentDir) / "ToBeImportedByModelCheckerMain.lean")
-    -- A special check to avoid writing to the file itself
-    unless target == (← getFileName) do
-      IO.FS.writeFile target newSource
+    return String.Pos.Raw.extract src 0 posTk ++ " no_model_compilation internal_mode\n"
 
   /-- Handle internal mode: define `modelCheckerCall` function that accepts instantiation, theory, and config. -/
   elabGenSpecInternalMode (mod : Module) : CommandElabM Unit := do
@@ -587,7 +574,8 @@ where
   /-- Handle compiled mode: run the pre-compiled binary with the model checker call expression.
   Checks compilation state and waits for compilation if still in progress. -/
   elabModelCheckCompiledMode (mod : Module) (stx : Syntax) (instTerm theoryTerm : Term) (config : ModelCheckerConfig) : CommandElabM Unit := do
-    let cwd ← IO.currentDir
+    -- Get the source file path for looking up compilation state
+    let sourceFile ← getFileName
 
     -- Build the call expression string to send to the binary
     -- NOTE: Here, if `instTerm` or `theoryTerm` depends on some definitions between
@@ -609,29 +597,34 @@ where
     let callExprStr := s!"{mod.name}.modelCheckerCall {instStr} {theoryStr} {spStr} {pcfgStr} 0"
     trace[veil.debug] "Model checker call expression string:\n{callExprStr}"
 
-    -- Check compilation state
-    let compilationState ← ModelChecker.Compilation.statusRef.atomically (fun ref => ref.get)
-    match compilationState with
-    | .notStarted =>
-      throwError "The current model has not been compiled. Please ensure #gen_spec is run before #model_check after_compilation."
-    | _ =>
-      let instanceId ← ModelChecker.Concrete.allocProgressInstance
-      let _ ← IO.asTask (prio := .dedicated) do
-        match compilationState with
-        | .inProgress compilationInstanceId =>
-          -- Wait for compilation to finish by polling the state
-          ModelChecker.Compilation.pollForCompilationResult compilationInstanceId instanceId
-        | _ => pure ()
+    -- Check compilation state for this model
+    let compilationState ← ModelChecker.Compilation.compilationRegistry.atomically fun ref => do
+      let registry ← ref.get
+      pure registry[sourceFile]?
+    let some compilationState := compilationState
+      | throwError "The current model has not been compiled. Please ensure #gen_spec is run before #model_check after_compilation."
+    let instanceId ← ModelChecker.Concrete.allocProgressInstance
+    let _ ← IO.asTask (prio := .dedicated) do
+      -- If still compiling, wait for it to finish
+      let finalBuildDir ← match compilationState with
+        | .inProgress compilationInstanceId _ =>
+          ModelChecker.Compilation.pollForCompilationResult sourceFile compilationInstanceId instanceId
+        | .finished dir => pure dir
+      match finalBuildDir with
+      | none =>
+        ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("error", Json.str "Compilation failed")])
+        return
+      | some finalBuildDir => do
         -- Now run the model checker
-        runModelCheckerBinary cwd callExprStr instanceId
-      ModelChecker.displayStreamingProgress stx instanceId
+        runModelCheckerBinary finalBuildDir callExprStr instanceId
+    ModelChecker.displayStreamingProgress stx instanceId
 
   /-- Run the model checker binary with the given call expression. -/
-  runModelCheckerBinary (cwd : System.FilePath) (callExprStr : String) (instanceId : Nat) : IO Unit := do
-    let binPath := cwd / ".lake" / "build" / "bin"
+  runModelCheckerBinary (buildDir : System.FilePath) (callExprStr : String) (instanceId : Nat) : IO Unit := do
+    let binPath := buildDir / ".lake" / "build" / "bin"
     unless ← (binPath / "ModelCheckerMain").pathExists do
       ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [
-        ("error", Json.str "ModelCheckerMain binary not found. Compilation may have failed.")])
+        ("error", Json.str s!"ModelCheckerMain binary not found at {binPath}. Compilation may have failed.")])
       return
 
     -- Run model checker
