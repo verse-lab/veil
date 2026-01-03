@@ -269,6 +269,7 @@ Example:
 ```lean
 #model_check { node := Fin 5 } {baaaa := fun _ _ => 0}
 #model_check { node := Fin 5 } {baaaa := fun _ _ => 0} (maxDepth := 10)
+#model_check { node := Fin 5 }  -- theory term can be omitted if there are no theory fields
 ```
 
 This will check all invariants and terminate early if a violation is found or
@@ -284,6 +285,6 @@ type classes.
 This means that it should only be used for testing. In the future, we will add
 support for complete enumeration of background theories.
 -/
-syntax (name := modelCheck) "#model_check " ("internal_mode")? ("after_compilation")? term:max term:max Parser.Tactic.optConfig : command
+syntax (name := modelCheck) "#model_check " ("internal_mode")? ("after_compilation")? term:max (term:max)? Parser.Tactic.optConfig : command
 
 end Veil

@@ -414,7 +414,7 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
-  | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $theoryTerm:term $cfg) =>
+  | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $[$theoryTermOpt]? $cfg) =>
     -- Write modified source for compilation (if in compilation mode)
     if internal?.isNone && compile?.isSome then
       writeSourceForCompilation tk stx
@@ -422,6 +422,8 @@ def elabModelCheck : CommandElab := fun stx => do
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
+
+    let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm compile?.isSome
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
@@ -440,6 +442,21 @@ def elabModelCheck : CommandElab := fun stx => do
     | false, true  => elabModelCheckCompiledMode stx parallelCfg
   | _ => throwUnsupportedSyntax
 where
+  /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
+      Throws a helpful error if theory fields exist but no term was provided. -/
+  getTheoryTerm (theoryTermOpt : Option Term) (mod : Module) (instTerm : Term)
+      (isCompile : Bool) : CommandElabM Term := do
+    match theoryTermOpt with
+    | some t => pure t
+    | none =>
+      unless mod.immutableComponents.isEmpty do
+        let fieldStrs := mod.immutableComponents.map (fun c => s!"{c.name} := ...")
+        let theoryExample := "{ " ++ ", ".intercalate fieldStrs.toList ++ " }"
+        let compileStr := if isCompile then "after_compilation " else ""
+        throwError "This module has immutable fields, so you must specify the theory instantiation:\n\
+          #model_check {compileStr}{instTerm} {theoryExample}"
+      `({})
+
   /-- Display a TraceDisplayViewer widget with the given result term. -/
   displayResultWidget (stx : Syntax) (resultTerm : Term) : CommandElabM Unit := do
     let widgetExpr ← `(open ProofWidgets.Jsx in
