@@ -387,6 +387,9 @@ structure ModelCheckerConfig where
   /-- Maximum depth (number of transitions) to explore. If it's 0, explores all
   reachable states. -/
   maxDepth : Nat := 0
+  /-- If true, run the model checker sequentially (no parallelization). -/
+  sequential : Bool := false
+  /-- Parallel configuration. Only used if `sequential` is false. -/
   parallelCfg : Option ModelChecker.ParallelConfig := none
   deriving Repr
 
@@ -398,7 +401,7 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
-  | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $[$theoryTermOpt]? $cfg) =>
+  | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $[$theoryTermOpt]? $cfg:optConfig) =>
     -- Write modified source for compilation (if in compilation mode)
     if internal?.isNone && compile?.isSome then
       writeSourceForCompilation tk stx
@@ -411,11 +414,12 @@ def elabModelCheck : CommandElab := fun stx => do
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
-    -- Default parallelCfg to use all cores if not specified
-    let parallelCfg ← match config.parallelCfg with
-      | some cfg => pure cfg
-      | none => pure { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel }
-    let config := { config with parallelCfg := some parallelCfg }
+    -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
+    let parallelCfg ← match config.sequential, config.parallelCfg with
+      | true, _ => pure none
+      | false, some cfg => pure (some cfg)
+      | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
+    let config := { config with parallelCfg := parallelCfg }
     let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
 
     -- Dispatch to appropriate mode handler
