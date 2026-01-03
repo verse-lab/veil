@@ -525,9 +525,21 @@ where
   /-- Run lake build and check if compilation was interrupted.
       Returns `true` if compilation succeeded and wasn't interrupted. -/
   runCompilationStep (sourceFile : String) (buildFolder : System.FilePath) (instanceId : Nat) : IO Bool := do
-    ModelChecker.Compilation.runProcessWithStatus sourceFile
+    let result ← ModelChecker.Compilation.runProcessWithStatus sourceFile
       { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
       instanceId "Compiling"
+    -- Check if compilation was interrupted
+    if result.interrupted then
+      return false
+    -- Check if compilation failed
+    if result.exitCode != 0 then
+      let errorMsg := s!"Compilation failed (exit code {result.exitCode}):\n" ++
+        (if result.stderr.isEmpty then "" else s!"[stderr]\n{result.stderr}") ++
+        (if result.stdout.isEmpty then "" else s!"[stdout]\n{result.stdout}\n")
+      ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [
+        ("error", Json.str errorMsg)])
+      return false
+    -- Mark compilation as finished
     ModelChecker.Compilation.stillCurrentCont sourceFile instanceId fun ref => do
       ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
 

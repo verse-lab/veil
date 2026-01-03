@@ -84,13 +84,29 @@ private def displayWidget (atStx : Syntax) (html : Html) : CommandElabM Unit := 
     (return json% { html: $(← Server.rpcEncode html) })
     atStx
 
+/-- Check if the JSON contains an error field and extract it. -/
+private def extractError (json : Json) : Option String :=
+  json.getObjValAs? String "error" |>.toOption
+
 /-- Create the final result display with both progress summary and result viewer. -/
 def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
   <div className="model-checker-result">
     {progressToHtml p}
     {match resultJson with
      | some json =>
-       Html.ofComponent TraceDisplayViewer ⟨json, "vertical"⟩ #[]
+       -- Check if this is an error result
+       match extractError json with
+       | some errorMsg =>
+         <div style={json% {"padding": "12px", "margin": "8px", "backgroundColor": "var(--vscode-inputValidation-errorBackground, #5a1d1d)", "border": "1px solid var(--vscode-inputValidation-errorBorder, #be1100)", "borderRadius": "6px"}}>
+           <div style={json% {"fontWeight": "bold", "marginBottom": "8px", "color": "var(--vscode-errorForeground, #f48771)"}}>
+             {.text "Error"}
+           </div>
+           <pre style={json% {"whiteSpace": "pre-wrap", "wordBreak": "break-word", "fontFamily": "monospace", "fontSize": "12px", "margin": "0", "color": "var(--vscode-editor-foreground)"}}>
+             {.text errorMsg}
+           </pre>
+         </div>
+       | none =>
+         Html.ofComponent TraceDisplayViewer ⟨json, "vertical"⟩ #[]
      | none =>
        <div style={json% {"color": "#cc6600"}}>
          <i>No result data available</i>

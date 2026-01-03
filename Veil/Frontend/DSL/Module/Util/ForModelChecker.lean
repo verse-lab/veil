@@ -119,23 +119,37 @@ def updateElapsedTimeStatus (instanceId : Nat) (statusPrefix : String) : IO Unit
     let elapsed := ModelChecker.formatElapsedTime (← refs.progressRef.get).elapsedMs
     ModelChecker.Concrete.updateStatus instanceId s!"{statusPrefix} ({elapsed})"
 
-/-- Run a process with status updates, checking if compilation is still current. -/
+/-- Result of running a compilation process. -/
+structure ProcessResult where
+  exitCode : UInt32
+  stdout : String
+  stderr : String
+  interrupted : Bool := false
+  deriving Inhabited
+
+/-- Run a process with status updates, checking if compilation is still current.
+    Returns the exit code, stdout, stderr, and whether it was interrupted. -/
 def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
-    (instanceId : Nat) (statusPrefix : String) : IO Unit := do
+    (instanceId : Nat) (statusPrefix : String) : IO ProcessResult := do
   let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
+  -- Start reading stdout/stderr in background tasks to avoid blocking
+  let stdoutTask ← IO.asTask (prio := .dedicated) proc.stdout.readToEnd
+  let stderrTask ← IO.asTask (prio := .dedicated) proc.stderr.readToEnd
   let waitTask ← IO.asTask (prio := .dedicated) proc.wait
+  let mut interrupted := false
   while !(← IO.hasFinished waitTask) do
     let current? ← stillCurrentCont sourceFile instanceId do
       updateElapsedTimeStatus instanceId statusPrefix
     unless current? do
       proc.kill
+      interrupted := true
       break
     IO.sleep 100
+  let stdout ← IO.ofExcept (← IO.wait stdoutTask)
+  let stderr ← IO.ofExcept (← IO.wait stderrTask)
   match ← IO.wait waitTask with
-  | .ok _ => return
-  | .error err =>
-    dbg_trace s!"Model compilation process failed: {err}"
-    return
+  | .ok exitCode => return { exitCode, stdout, stderr, interrupted }
+  | .error err => return { exitCode := 1, stdout, stderr := s!"{stderr}\nIO error: {err}", interrupted }
 
 -- /-- Clean up all build folders older than the specified age (in milliseconds). -/
 -- def cleanupOldBuildFolders (maxAgeMs : Nat := 24 * 60 * 60 * 1000) : IO Nat := do
