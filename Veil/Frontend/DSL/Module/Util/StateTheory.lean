@@ -1,4 +1,5 @@
 import Veil.Frontend.DSL.Module.Util.Basic
+import Veil.Backend.SMT.Quantifiers
 
 open Lean Parser Elab Command Term
 
@@ -122,7 +123,14 @@ syntax for the type is `mod.stateStx`. -/
 private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
   let defCmds ← structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.mutableComponents.mapM fun sc => sc.getSimpleBinder)
-  return defCmds ++ #[← `(command| deriving_repr_via_finite_sorts $(mkIdent stateName))]
+  let isHOInst ← mkIsHigherOrderInstance
+  return defCmds ++ #[← `(command| deriving_repr_via_finite_sorts $(mkIdent stateName)), isHOInst]
+where
+  mkIsHigherOrderInstance : m (TSyntax `command) := do
+    let binders ← mod.sortBinders
+    let sorts ← mod.sortIdents
+    let hoTy ← `(term|$(mkIdent ``Veil.IsHigherOrder) ($stateIdent $sorts*))
+    `(instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stateName}_ho"):ident $[$binders]* : $hoTy := ⟨⟩)
 
 /-- Similar to `Module.stateDefinitionStx` but each field of `State` is
 abstracted by a function from its label to a certain type. Note that
@@ -133,8 +141,14 @@ private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation 
     let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
     `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $ty)
   let defCmds ← structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState true) (deriveInstances := false) fields
-  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkDecidableEqInstance] ++ (← mkToJsonInstances) ++ #[← `(command| deriving_repr_via_fields $(mkIdent stateName))]
+  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkDecidableEqInstance] ++ (← mkToJsonInstances) ++ #[← `(command| deriving_repr_via_fields $(mkIdent stateName)), ← mkIsHigherOrderInstance]
 where
+  /-- Generate an `IsHigherOrder` instance for `State χ`. -/
+  mkIsHigherOrderInstance : m (TSyntax `command) := do
+    let χBinder ← Parameter.fieldConcreteType >>= Parameter.binder
+    let binders := (← mod.sortBinders) ++ #[χBinder]
+    let hoTy ← `(term|$(mkIdent ``Veil.IsHigherOrder) ($stateIdent $fieldConcreteType))
+    `(instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stateName}_ho"):ident $[$binders]* : $hoTy := ⟨⟩)
   /-- Generate binders of the form `(χ : State.Label → Type) [∀ f : State.Label, C (χ f)]` -/
   mkFieldConcreteTypeBinders (typeclass : Name) : m (Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
     let χBinder ← Parameter.fieldConcreteType >>= Parameter.binder
