@@ -250,7 +250,9 @@ syntax (name := terminationKind) "termination" : propertyKind
 /-- An assertion. -/
 syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 
-/-- Assemble the specification. -/
+/-- Assemble the specification. When `internal_mode` is specified, this command
+skips VCManager and instead defines `modelCheckerCall` for compiled model checking.
+When `no_model_compilation` is specified, this command skips compiling the model. -/
 syntax (name := genSpec) kw_gen_spec : command
 
 declare_syntax_cat checkInvariantsCmd

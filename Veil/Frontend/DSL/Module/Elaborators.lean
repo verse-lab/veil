@@ -11,7 +11,6 @@ import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
-import Veil.Core.UI.Widget.ProgressViewer
 import Veil.Frontend.DSL.Action.Extract2
 import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing
@@ -402,10 +401,6 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
   | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $[$theoryTermOpt]? $cfg:optConfig) =>
-    -- Write modified source for compilation (if in compilation mode)
-    if internal?.isNone && compile?.isSome then
-      writeSourceForCompilation tk stx
-
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
@@ -427,7 +422,7 @@ def elabModelCheck : CommandElab := fun stx => do
     | true, false  => throwError "The 'internal_mode' keyword is inserted by Veil when compiling the specification. You should never add it manually."
     | true, true   => elabModelCheckInternalMode mod callExpr
     | false, false => elabModelCheckInterpretedMode stx callExpr parallelCfg
-    | false, true  => elabModelCheckCompiledMode stx parallelCfg
+    | false, true  => elabModelCheckCompiledMode tk stx parallelCfg
   | _ => throwUnsupportedSyntax
 where
   /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
@@ -445,6 +440,20 @@ where
           #model_check {compileStr}{instTerm} {theoryExample}"
       `({})
 
+  /-- Generate the model source with `internal_mode` inserted for compilation. -/
+  generateModelSource (tk stx : Syntax) : CommandElabM String := do
+    -- Transform the source by inserting `internal_mode` after `#model_check`
+    -- This prevents the compiled version from triggering another compilation
+    let some posTk := tk.getTailPos? | throwError "Unexpected error: #model_check token has no position"
+    let some posStx := stx.getTailPos? | throwError "Unexpected error: #model_check command has no position"
+    let src := (← getFileMap).source
+    let newSource := String.Pos.Raw.extract src 0 posTk ++ " internal_mode " ++ String.Pos.Raw.extract src posTk posStx
+    return newSource
+
+  /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
+  mkIdentWithModName (mod : Module) (name : Name) : Ident :=
+    Lean.mkIdent (mod.name ++ name)
+
   /-- Display a TraceDisplayViewer widget with the given result term. -/
   displayResultWidget (stx : Syntax) (resultTerm : Term) : CommandElabM Unit := do
     let widgetExpr ← `(open ProofWidgets.Jsx in
@@ -454,50 +463,37 @@ where
       (hash ProofWidgets.HtmlDisplayPanel.javascript)
       (return json% { html: $(← Server.rpcEncode html) }) stx
 
+  mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
+    -- Build SafetyProperty.mk syntax for a StateAssertion
+    let mkProp (sa : StateAssertion) : CommandElabM Term :=
+      `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
+          ($(mkIdent `name) := $(quote sa.name))
+          ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
+    let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+    let terminatingProp ← match mod.terminations[0]? with
+      | some t => mkProp t
+      | none => `($(mkIdent `default))
+    let earlyTermConds ← do
+      let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState)])
+      if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
+      else pure base
+    `({ $(mkIdent `invariants) := $safetyList, $(mkIdent `terminating) := $terminatingProp,
+        $(mkIdent `earlyTerminationConditions) := $earlyTermConds })
+
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
       (instTerm theoryTerm : Term) : CommandElabM Term := do
     let inst := mkVeilImplementationDetailIdent `inst
     let th := mkVeilImplementationDetailIdent `th
     let instSortArgs ← (← mod.sortIdents).mapM fun sortIdent => `($inst.$(sortIdent))
-    -- Build SafetyProperty.mk syntax for a StateAssertion
-    let mkProp (sa : StateAssertion) : CommandElabM Term :=
-      `(Veil.ModelChecker.SafetyProperty.mk (name := $(quote sa.name))
-          (property := fun th st => $(Lean.mkIdent sa.name) th st))
-    let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
-    let terminatingProp ← match mod.terminations[0]? with
-      | some t => mkProp t
-      | none => `(default)
-    let earlyTermConds ← do
-      let base ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState,
-                  Veil.ModelChecker.EarlyTerminationCondition.assertionFailed])
-      if config.maxDepth > 0 then `($base ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $(quote config.maxDepth)])
-      else pure base
+    let sp ← mkSearchParameters mod config
     -- Model checker call with type annotation to help inference
     -- Note: findReachable takes parallelCfg and progressInstanceId as the last two args
     `((let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-         ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th)
-         { invariants := $safetyList, terminating := $terminatingProp,
-           earlyTerminationConditions := $earlyTermConds } : _ → _ → IO _))
-
-  /-- Write modified source file for compilation mode. -/
-  writeSourceForCompilation (tk stx : Syntax) : CommandElabM Unit := do
-    -- Copy the current file into a dedicated file
-    --
-    -- NOTE: This command *should not* be copied verbatim into the new file,
-    -- otherwise this process will go into a loop. NOTE: Since some definitions
-    -- required for compilation are not available *before this command*, we need
-    -- to somehow make them available. The approach taken here is to change the
-    -- behavior of the command in the new file by doing minimal source-to-source
-    -- transformation: we insert the `internal_mode` keyword after `#model_check`,
-    -- which makes the command skip the compilation step.
-    let some posTk := tk.getTailPos? | throwError "Unexpected error"
-    let some posStx := stx.getTailPos? | throwError "Unexpected error"
-    let src := (← getFileMap).source
-    let newSource := String.Pos.Raw.extract src 0 posTk ++ " internal_mode " ++ String.Pos.Raw.extract src posTk posStx
-    IO.FS.writeFile ((← IO.currentDir) / "ToBeImportedByModelCheckerMain.lean") newSource
+         ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
+         $sp : _ → _ → IO _))
 
   /-- Warn if the module contains transitions (which are slow to model check). -/
   warnAboutTransitions (mod : Module) : CommandElabM Unit := do
@@ -510,23 +506,6 @@ where
       transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
       Consider encoding transitions as imperative actions where possible."
 
-  /-- Handle internal mode: define and export the model checker result. -/
-  elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
-    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat) := $callExpr pcfg progressInstanceId))
-    elabVeilCommand (← `(end $(mkIdent mod.name)))
-    elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
-
-  /-- Run a process, updating status with elapsed time until it completes. -/
-  runProcessWithStatus (cfg : IO.Process.SpawnArgs) (instanceId : Nat) (statusPrefix : String) : IO Unit := do
-    let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
-    let waitTask ← IO.asTask (prio := .dedicated) proc.wait
-    while !(← IO.hasFinished waitTask) do
-      IO.sleep 100
-      if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
-        let elapsed := ModelChecker.formatElapsedTime (← refs.progressRef.get).elapsedMs
-        ModelChecker.Concrete.updateStatus instanceId s!"{statusPrefix} ({elapsed})"
-    let _ ← IO.wait waitTask
-
   /-- Read stderr lines from a subprocess and update progress refs until EOF. -/
   readStderrProgress (stderr : IO.FS.Handle) (instanceId : Nat) : IO Unit := do
     repeat do
@@ -537,20 +516,49 @@ where
           if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
             refs.progressRef.set p
 
+  /-- Handle internal mode: define and export the model checker result. -/
+  elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
+    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat) := $callExpr pcfg progressInstanceId))
+    elabVeilCommand (← `(end $(mkIdent mod.name)))
+    elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
+
   /-- Handle compiled mode: build, run, and display results with streaming progress. -/
-  elabModelCheckCompiledMode (stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+  elabModelCheckCompiledMode (tk stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     let instanceId ← ModelChecker.Concrete.allocProgressInstance
     -- Extract assertion sources before starting the task (needs elaboration context)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
-    let cwd ← IO.currentDir
+    -- Get the source file path for looking up compilation state
+    let sourceFile ← getFileName
+    -- Create the build folder
+    let buildFolder ← do
+      let modelSource ← generateModelSource tk stx
+      ModelChecker.Compilation.createBuildFolder sourceFile modelSource
+    -- Update status to inProgress
+    ModelChecker.Compilation.compilationRegistry.atomically fun ref => do
+      ref.modify fun registry => registry.insert sourceFile (.inProgress instanceId buildFolder)
     let _ ← IO.asTask (prio := .dedicated) do
-      -- Compile
-      runProcessWithStatus { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd } instanceId "Compiling"
+      -- Run lake build in the temp folder
+      ModelChecker.Compilation.runProcessWithStatus sourceFile
+        { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
+        instanceId "Compiling"
+      -- Check if the compilation was not interrupted
+      let current? ← ModelChecker.Compilation.stillCurrentCont sourceFile instanceId fun ref => do
+        ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
+      unless current? do return
+      -- Check if the compilation is successful
+      let binPath := buildFolder / ".lake" / "build" / "bin"
+      unless ← (binPath / "ModelCheckerMain").pathExists do
+        ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [
+          ("error", Json.str s!"ModelCheckerMain binary not found at {binPath}. Compilation may have failed.")])
+        return
       -- Run model checker
       ModelChecker.Concrete.updateStatus instanceId "Running..."
       let args := parallelCfg.map (fun p => #[toString p.numSubTasks, toString p.thresholdToParallel]) |>.getD #[]
+      -- CHECK How to implement interruption checking here?
       let child ← IO.Process.spawn {
-        cmd := "ModelCheckerMain", args, cwd := cwd / ".lake" / "build" / "bin",
+        -- FIXME: Why the following does not work???
+        -- cmd := "ModelCheckerMain", args, cwd := binPath,
+        cmd := toString (binPath / "ModelCheckerMain"), args,
         stdin := .piped, stdout := .piped, stderr := .piped }
       readStderrProgress child.stderr instanceId
       let stdout ← IO.FS.Handle.readToEnd child.stdout
