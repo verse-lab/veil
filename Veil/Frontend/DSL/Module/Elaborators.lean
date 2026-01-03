@@ -570,7 +570,9 @@ where
       let args := parallelCfg.map (fun p => #[toString p.numSubTasks, toString p.thresholdToParallel]) |>.getD #[]
       -- CHECK How to implement interruption checking here?
       let child ← IO.Process.spawn {
-        cmd := "ModelCheckerMain", args, cwd := binPath,
+        -- FIXME: Why the following does not work???
+        -- cmd := "ModelCheckerMain", args, cwd := binPath,
+        cmd := toString (binPath / "ModelCheckerMain"), args,
         stdin := .piped, stdout := .piped, stderr := .piped }
       readStderrProgress child.stderr instanceId
       let stdout ← IO.FS.Handle.readToEnd child.stdout
