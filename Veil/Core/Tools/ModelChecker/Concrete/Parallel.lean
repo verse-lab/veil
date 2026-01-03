@@ -182,7 +182,8 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
   (parallelCfg : ParallelConfig)
-  (progressInstanceId : Nat) :
+  (progressInstanceId : Nat)
+  (cancelToken : IO.CancelToken) :
   m (@ParallelSearchContextMain ρ σ κ σₕ fp th sys params) := do
   let mut ctx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := ParallelSearchContextMain.initial sys params
   let mut statesProcessed : Nat := 0
@@ -209,11 +210,14 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
     -- filter out already seen states when merging
     ctx := results.foldl (init := ctx) ParallelSearchContextSub.merge1
     ctx := results.foldl (init := ctx) ParallelSearchContextSub.merge2
-    -- Update progress at most once per second
+    -- Update progress and check for cancellation at most once per second
     let now ← IO.monoMsNow
     if now - lastUpdateTime >= 1000 then
       lastUpdateTime := now
       updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
+      if ← cancelToken.isSet then
+        ctx := { ctx with finished := some (.earlyTermination .cancelled) }
+        break
   -- Final update to ensure stats reflect finished state
   updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
   return ctx

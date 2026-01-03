@@ -84,10 +84,11 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
   (progressInstanceId : Nat)
+  (cancelToken : IO.CancelToken)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
   let ctx ← match parallelCfg with
-    | some cfg => do pure (← breadthFirstSearchParallel sys params cfg progressInstanceId).toBaseSearchContext
-    | none     => do pure (← breadthFirstSearchSequential sys params progressInstanceId).toBaseSearchContext
+    | some cfg => do pure (← breadthFirstSearchParallel sys params cfg progressInstanceId cancelToken).toBaseSearchContext
+    | none     => do pure (← breadthFirstSearchSequential sys params progressInstanceId cancelToken).toBaseSearchContext
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
@@ -98,6 +99,9 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
     return ModelCheckingResult.noViolationFound ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
+  | some (.earlyTermination .cancelled) =>
+    -- Search was cancelled by the user
+    return ModelCheckingResult.cancelled
   | some (.exploredAllReachableStates) => do
     if !ctx.violatingStates.isEmpty then
       let (fingerprint, violation) := ctx.violatingStates.head!

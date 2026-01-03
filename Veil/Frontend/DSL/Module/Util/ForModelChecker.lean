@@ -107,7 +107,9 @@ def main (args : List String) : IO Unit := do
       | _, _ => none
     | _ => none
   -- Instance ID is not used in compiled mode, pass 0
-  let res ← modelCheckerResult pcfg 0
+  -- Cancel token is created locally; cancellation is handled by killing the process from outside
+  let cancelTk ← IO.CancelToken.new
+  let res ← modelCheckerResult pcfg 0 cancelTk
   IO.println s!\"{Lean.toJson res}\"
 "
 
@@ -145,10 +147,10 @@ structure ProcessResult where
   interrupted : Bool := false
   deriving Inhabited
 
-/-- Run a process with status updates, checking if compilation is still current.
+/-- Run a process with status updates, checking if compilation is still current or cancelled.
     Returns the exit code, stdout, stderr, and whether it was interrupted. -/
 def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
-    (instanceId : Nat) (statusPrefix : String) : IO ProcessResult := do
+    (instanceId : Nat) (statusPrefix : String) (cancelToken : IO.CancelToken) : IO ProcessResult := do
   let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
   -- Start reading stdout/stderr in background tasks to avoid blocking
   let stdoutTask ← IO.asTask (prio := .dedicated) proc.stdout.readToEnd
@@ -156,6 +158,12 @@ def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
   let waitTask ← IO.asTask (prio := .dedicated) proc.wait
   let mut interrupted := false
   while !(← IO.hasFinished waitTask) do
+    -- Check for explicit cancellation request
+    if ← cancelToken.isSet then
+      proc.kill
+      interrupted := true
+      break
+    -- Check if this compilation is still current (not superseded)
     let current? ← stillCurrentCont sourceFile instanceId do
       updateElapsedTimeStatus instanceId statusPrefix
     unless current? do

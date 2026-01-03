@@ -18,6 +18,7 @@ structure Progress where
   currentDepth : Nat := 0
   completedDepth : Nat := 0
   isRunning : Bool := true
+  isCancelled : Bool := false
   startTimeMs : Nat := 0
   elapsedMs : Nat := 0
   deriving ToJson, FromJson, Inhabited, Repr
@@ -26,6 +27,8 @@ structure Progress where
 structure ProgressRefs where
   progressRef : IO.Ref Progress
   resultRef : IO.Ref (Option Lean.Json)
+  /-- Cancellation token for this instance. -/
+  cancelToken : IO.CancelToken
 
 /-- Global registry mapping instance IDs to their progress refs.
     This allows passing quotable IDs through syntax while maintaining per-instance state. -/
@@ -53,15 +56,16 @@ def enableCompiledModeProgress : IO Unit := do
 def reportProgressToStderr (p : Progress) : IO Unit := do
   IO.eprintln (toJson p).compress
 
-/-- Allocate a new progress instance and return its ID.
+/-- Allocate a new progress instance and return its ID along with the cancel token.
     The ID can be safely quoted into Lean syntax. -/
-def allocProgressInstance : IO Nat := do
+def allocProgressInstance : IO (Nat × IO.CancelToken) := do
   let id ← nextInstanceId.modifyGet fun n => (n, n + 1)
   let now ← IO.monoMsNow
   let pRef ← IO.mkRef { startTimeMs := now, status := "Running...", isRunning := true : Progress }
   let rRef ← IO.mkRef (none : Option Lean.Json)
-  progressRegistry.modify fun m => m.insert id { progressRef := pRef, resultRef := rRef }
-  return id
+  let cancelTk ← IO.CancelToken.new
+  progressRegistry.modify fun m => m.insert id { progressRef := pRef, resultRef := rRef, cancelToken := cancelTk }
+  return (id, cancelTk)
 
 /-- Get the progress refs for an instance ID. -/
 def getProgressRefs (instanceId : Nat) : IO (Option ProgressRefs) := do
@@ -118,5 +122,29 @@ def getResultJson (instanceId : Nat) : IO (Option Lean.Json) := do
     refs.resultRef.get
   else
     return none
+
+/-- Check if cancellation has been requested for an instance. -/
+def isCancelled (instanceId : Nat) : IO Bool := do
+  if let some refs ← getProgressRefs instanceId then
+    refs.cancelToken.isSet
+  else
+    return false
+
+/-- Request cancellation for an instance. Sets the cancel token. -/
+def requestCancellation (instanceId : Nat) : IO Unit := do
+  if let some refs ← getProgressRefs instanceId then
+    refs.cancelToken.set
+
+/-- Mark progress as cancelled for a given instance ID. -/
+def cancelProgress (instanceId : Nat) : IO Unit := do
+  if let some refs ← getProgressRefs instanceId then
+    let now ← IO.monoMsNow
+    refs.progressRef.modify fun p => { p with
+      status := "Cancelled"
+      isRunning := false
+      isCancelled := true
+      elapsedMs := now - p.startTimeMs }
+    -- Set a cancellation result
+    refs.resultRef.set (some (Json.mkObj [("result", "cancelled")]))
 
 end Veil.ModelChecker.Concrete

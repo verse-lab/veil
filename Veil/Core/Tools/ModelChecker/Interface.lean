@@ -38,6 +38,7 @@ inductive EarlyTerminationCondition where
   | deadlockOccurred
   | assertionFailed
   | reachedDepthBound (depth : Nat)
+  | cancelled
 deriving Inhabited, Hashable, BEq, Repr
 
 /-- A condition under which the state exploration should be terminated early,
@@ -47,6 +48,7 @@ inductive EarlyTerminationReason (σₕ : Type) where
   | deadlockOccurred (fp : σₕ)
   | assertionFailed (fp : σₕ) (exceptionId : Int)
   | reachedDepthBound (depth : Nat)
+  | cancelled
 deriving Inhabited, Hashable, BEq, Repr
 
 instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
@@ -55,6 +57,7 @@ instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
     | .deadlockOccurred fp => Json.mkObj [("kind", "deadlock_occurred"), ("state_fingerprint", toJson fp)]
     | .assertionFailed fp exId => Json.mkObj [("kind", "assertion_failed"), ("state_fingerprint", toJson fp), ("exception_id", toJson exId)]
     | .reachedDepthBound depth => Json.mkObj [("kind", "reached_depth_bound"), ("depth", toJson depth)]
+    | .cancelled => Json.mkObj [("kind", "cancelled")]
 
 inductive TerminationReason (σₕ : Type) where
   | exploredAllReachableStates
@@ -69,6 +72,7 @@ instance [ToJson σₕ] : ToJson (TerminationReason σₕ) where
 inductive ModelCheckingResult (ρ σ κ σₕ : Type) where
   | foundViolation (fp : σₕ) (violation : ViolationKind) (viaTrace : Option (Trace ρ σ κ))
   | noViolationFound (exploredStates : Nat) (terminationReason : TerminationReason σₕ)
+  | cancelled
 deriving Inhabited, Repr
 
 instance [ToJson ρ] [ToJson σ] [ToJson κ] [ToJson σₕ] : ToJson (ModelCheckingResult ρ σ κ σₕ) where
@@ -82,6 +86,7 @@ instance [ToJson ρ] [ToJson σ] [ToJson κ] [ToJson σₕ] : ToJson (ModelCheck
         [ ("result", "no_violation_found"),
           ("explored_states", toJson exploredStates),
           ("termination_reason", toJson reason) ]
+    | .cancelled => Json.mkObj [("result", "cancelled")]
 
 structure ParallelConfig where
   /-- Number of sub-tasks to split the worklist into. -/

@@ -169,6 +169,7 @@ def BaseSearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
       | .reachedDepthBound bound => if ctx.completedDepth >= bound then some (.reachedDepthBound bound) else none
       | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
       | .assertionFailed => assertionFailures.head?.map (.assertionFailed fpSt)
+      | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
     (ctx, earlyTermination)
 
 /-- Process the current state, queuing its successors. -/
@@ -193,6 +194,7 @@ def BaseSearchContext.processState {ρ σ κ σₕ : Type}
   | (ctx, some (.reachedDepthBound bound)) => ({ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}, none)
   | (ctx, some (.deadlockOccurred fp)) => ({ctx with finished := some (.earlyTermination (.deadlockOccurred fp))}, none)
   | (ctx, some (.assertionFailed fp exId)) => ({ctx with finished := some (.earlyTermination (.assertionFailed fp exId))}, none)
+  | (ctx, some .cancelled) => ({ctx with finished := some (.earlyTermination .cancelled)}, none)
   -- If not terminating early, explore all neighbors of the current state
   | (ctx, none) => (ctx, some ⟨outcomes, rfl⟩)
 

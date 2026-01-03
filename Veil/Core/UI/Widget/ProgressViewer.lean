@@ -16,6 +16,53 @@ namespace Veil.ModelChecker
 
 open Lean Server Elab Command ProofWidgets Jsx Veil.ModelChecker.Concrete RefreshComponent
 
+/-- RPC method to cancel a model checker instance by setting its cancel token. -/
+@[server_rpc_method]
+def cancelModelCheck (instanceId : Nat) : RequestM (RequestTask Unit) := RequestM.asTask do
+  requestCancellation instanceId
+
+/-- Props for the Stop button widget. -/
+structure StopButtonProps where
+  instanceId : Nat
+  deriving Server.RpcEncodable
+
+/-- Stop button widget that calls the cancelModelCheck RPC method. -/
+@[widget_module]
+def StopButton : Component StopButtonProps where
+  javascript := "
+import { useRpcSession } from '@leanprover/infoview';
+import * as React from 'react';
+
+export default function StopButton(props) {
+  const rs = useRpcSession();
+  const [stopping, setStopping] = React.useState(false);
+
+  const handleStop = async () => {
+    setStopping(true);
+    try {
+      await rs.call('Veil.ModelChecker.cancelModelCheck', props.instanceId);
+    } catch (e) {
+      console.error('Failed to cancel model check:', e);
+    }
+  };
+
+  return React.createElement('button', {
+    onClick: handleStop,
+    disabled: stopping,
+    style: {
+      padding: '4px 12px',
+      cursor: stopping ? 'not-allowed' : 'pointer',
+      backgroundColor: stopping ? '#999' : '#cc3333',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      fontSize: '12px',
+      fontWeight: 'bold'
+    }
+  }, stopping ? 'Stopping...' : 'Stop');
+}
+"
+
 /-- Format elapsed milliseconds as a human-readable string. -/
 def formatElapsedTime (ms : Nat) : String :=
   let totalSeconds := ms / 1000
@@ -36,12 +83,21 @@ structure ProgressViewerProps where
   progress : Progress
 deriving Server.RpcEncodable
 
-/-- Convert Progress to Html for display. -/
-def progressToHtml (p : Progress) : Html :=
+/-- Convert Progress to Html for display, with optional Stop button. -/
+def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
   <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
     {if p.isRunning then
-      <div style={json% {"marginTop": "8px", "color": "#0066cc"}}>
-        <i>{.text p.status}</i>
+      <div style={json% {"marginTop": "8px", "display": "flex", "alignItems": "center", "gap": "12px"}}>
+        <div style={json% {"color": "#0066cc"}}>
+          <i>{.text p.status}</i>
+        </div>
+        {match instanceId? with
+         | some id => Html.ofComponent StopButton ⟨id⟩ #[]
+         | none => .text ""}
+      </div>
+    else if p.isCancelled then
+      <div style={json% {"marginTop": "8px", "color": "#cc6600", "fontWeight": "bold"}}>
+        Cancelled
       </div>
     else
       <div style={json% {"marginTop": "8px", "color": "#00aa00", "fontWeight": "bold"}}>
@@ -122,10 +178,11 @@ where
     Core.checkSystem "getProgressStep"
     let progress ← getProgress id
     if progress.isRunning then
-      return .cont (progressToHtml progress) (getProgressStep id)
+      return .cont (progressToHtml progress (some id)) (getProgressStep id)
     else
       -- When done, fetch the result JSON and display it
       let resultJson ← getResultJson id
+      -- IO.eprintln s!"{resultJson}"
       return .last (mkFinalResultHtml progress resultJson)
 
 /-- Display a streaming progress widget at the given syntax. -/
