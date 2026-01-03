@@ -2,6 +2,7 @@ import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Core.Tools.Verifier.Manager
 import Veil.Core.Tools.Verifier.Results
 import Std.Sync.Mutex
+import Veil.Util.Multiprocessing
 
 namespace Veil.Verifier
 
@@ -21,8 +22,6 @@ def startAll : CommandElabM Unit := sendNotification .startAll
 def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNotification (.startFiltered filter)
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
-
-def numCores : Nat := 8
 
 /-- Starts a separate task (on a dedicated thread) that runs the VCManager.
 If this is called multiple times, each call will reset the VC manager. -/
@@ -55,11 +54,11 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
       | .startAll => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         -- dbg_trace "[Manager] RECV startAll notification"
-        mgr ← mgr.start (howMany := numCores)
+        mgr ← mgr.start (howMany := (← getNumCores))
         ref.set mgr)
       | .startFiltered filter => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
-        mgr ← mgr.start (howMany := numCores) (filter := filter)
+        mgr ← mgr.start (howMany := (← getNumCores)) (filter := filter)
         ref.set mgr
         if mgr.isDoneFiltered filter then Frontend.notifyDone)
       | .reset => vcManager.atomically (fun ref => do

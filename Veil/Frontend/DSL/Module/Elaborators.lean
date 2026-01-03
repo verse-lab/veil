@@ -14,6 +14,7 @@ import Veil.Core.Tools.ModelChecker.Concrete.Checker
 import Veil.Core.UI.Widget.ProgressViewer
 import Veil.Frontend.DSL.Action.Extract2
 import Veil.Frontend.DSL.Module.Util.Enumeration
+import Veil.Util.Multiprocessing
 
 open Lean Parser Elab Command
 
@@ -405,6 +406,9 @@ structure ModelCheckerConfig where
   parallelCfg : Option ModelChecker.ParallelConfig := none
   deriving Repr
 
+/-- Default threshold for parallelizing model checking subtasks. -/
+def defaultThresholdToParallel : Nat := 20
+
 declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 
 @[command_elab Veil.modelCheck]
@@ -421,14 +425,19 @@ def elabModelCheck : CommandElab := fun stx => do
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
+    -- Default parallelCfg to use all cores if not specified
+    let parallelCfg ← match config.parallelCfg with
+      | some cfg => pure cfg
+      | none => pure { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel }
+    let config := { config with parallelCfg := some parallelCfg }
     let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
 
     -- Dispatch to appropriate mode handler
     match internal?.isSome, compile?.isSome with
     | true, false  => throwError "The 'internal_mode' keyword is inserted by Veil when compiling the specification. You should never add it manually."
     | true, true   => elabModelCheckInternalMode mod callExpr
-    | false, false => elabModelCheckInterpretedMode stx callExpr config.parallelCfg
-    | false, true  => elabModelCheckCompiledMode stx config.parallelCfg
+    | false, false => elabModelCheckInterpretedMode stx callExpr parallelCfg
+    | false, true  => elabModelCheckCompiledMode stx parallelCfg
   | _ => throwUnsupportedSyntax
 where
   /-- Display a TraceDisplayViewer widget with the given result term. -/
