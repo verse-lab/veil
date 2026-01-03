@@ -522,48 +522,53 @@ where
     elabVeilCommand (← `(end $(mkIdent mod.name)))
     elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
 
+  /-- Run lake build and check if compilation was interrupted.
+      Returns `true` if compilation succeeded and wasn't interrupted. -/
+  runCompilationStep (sourceFile : String) (buildFolder : System.FilePath) (instanceId : Nat) : IO Bool := do
+    ModelChecker.Compilation.runProcessWithStatus sourceFile
+      { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
+      instanceId "Compiling"
+    ModelChecker.Compilation.stillCurrentCont sourceFile instanceId fun ref => do
+      ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
+
+  /-- Check if the compiled binary exists.
+      Returns `some binPath` if it exists, `none` otherwise (after reporting error). -/
+  verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat) : IO (Option System.FilePath) := do
+    let binPath := buildFolder / ".lake" / "build" / "bin"
+    if ← (binPath / "ModelCheckerMain").pathExists then
+      return some binPath
+    else
+      ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [
+        ("error", Json.str s!"ModelCheckerMain binary not found at {binPath}. Compilation may have failed.")])
+      return none
+
+  /-- Run the model checker binary and return its stdout output. -/
+  runModelCheckerBinary (binPath : System.FilePath)
+      (parallelCfg : Option ModelChecker.ParallelConfig) (instanceId : Nat) : IO String := do
+    ModelChecker.Concrete.updateStatus instanceId "Running..."
+    let args := parallelCfg.map (fun p => #[toString p.numSubTasks, toString p.thresholdToParallel]) |>.getD #[]
+    let child ← IO.Process.spawn {
+      cmd := toString (binPath / "ModelCheckerMain"), args,
+      stdin := .piped, stdout := .piped, stderr := .piped }
+    readStderrProgress child.stderr instanceId
+    let stdout ← IO.FS.Handle.readToEnd child.stdout
+    let _ ← child.wait
+    return stdout
+
   /-- Handle compiled mode: build, run, and display results with streaming progress. -/
   elabModelCheckCompiledMode (tk stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     let instanceId ← ModelChecker.Concrete.allocProgressInstance
-    -- Extract assertion sources before starting the task (needs elaboration context)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
-    -- Get the source file path for looking up compilation state
     let sourceFile ← getFileName
-    -- Create the build folder
     let buildFolder ← do
       let modelSource ← generateModelSource tk stx
       ModelChecker.Compilation.createBuildFolder sourceFile modelSource
-    -- Update status to inProgress
     ModelChecker.Compilation.compilationRegistry.atomically fun ref => do
       ref.modify fun registry => registry.insert sourceFile (.inProgress instanceId buildFolder)
     let _ ← IO.asTask (prio := .dedicated) do
-      -- Run lake build in the temp folder
-      ModelChecker.Compilation.runProcessWithStatus sourceFile
-        { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
-        instanceId "Compiling"
-      -- Check if the compilation was not interrupted
-      let current? ← ModelChecker.Compilation.stillCurrentCont sourceFile instanceId fun ref => do
-        ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
-      unless current? do return
-      -- Check if the compilation is successful
-      let binPath := buildFolder / ".lake" / "build" / "bin"
-      unless ← (binPath / "ModelCheckerMain").pathExists do
-        ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [
-          ("error", Json.str s!"ModelCheckerMain binary not found at {binPath}. Compilation may have failed.")])
-        return
-      -- Run model checker
-      ModelChecker.Concrete.updateStatus instanceId "Running..."
-      let args := parallelCfg.map (fun p => #[toString p.numSubTasks, toString p.thresholdToParallel]) |>.getD #[]
-      -- CHECK How to implement interruption checking here?
-      let child ← IO.Process.spawn {
-        -- FIXME: Why the following does not work???
-        -- cmd := "ModelCheckerMain", args, cwd := binPath,
-        cmd := toString (binPath / "ModelCheckerMain"), args,
-        stdin := .piped, stdout := .piped, stderr := .piped }
-      readStderrProgress child.stderr instanceId
-      let stdout ← IO.FS.Handle.readToEnd child.stdout
-      let _ ← child.wait
-      -- Enrich JSON with assertion source info for any assertion failures
+      unless (← runCompilationStep sourceFile buildFolder instanceId) do return
+      let some binPath ← verifyBinaryExists buildFolder instanceId | return
+      let stdout ← runModelCheckerBinary binPath parallelCfg instanceId
       let json := Json.parse stdout |>.toOption.getD .null
       let enrichedJson := enrichJsonWithAssertions json assertionSources
       ModelChecker.Concrete.finishProgress instanceId enrichedJson
