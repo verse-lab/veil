@@ -94,4 +94,39 @@ elab "veil_set_option " o:ident v:term : command => do
 
 end DevelopingTools
 
+section ModelCheckCompilationMode
+
+/-! ## Model Check Compilation Mode
+
+When building a model checker binary via `#model_check after_compilation`, the entire
+source file is re-elaborated. This option is set to `true` during that compilation to:
+1. Skip verification-only operations (like `doesNotThrow` error reporting)
+2. Skip verification commands (`#check_invariants`, `sat trace`, etc.)
+3. Prevent `logError` calls from failing the build
+-/
+
+register_option veil.__modelCheckCompileMode : Bool := {
+  defValue := false
+  descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
+}
+
+/-- Check if we're in model checking compilation mode. -/
+def isModelCheckCompileMode [Monad m] [MonadOptions m] : m Bool := do
+  return (← getOptions).getBool `veil.__modelCheckCompileMode false
+
+/-- Log an error, but only if not in model check compilation mode.
+    In compilation mode, errors would cause lake build to fail. -/
+def veilLogError [Monad m] [MonadOptions m] [AddMessageContext m] [MonadLog m]
+    (msg : MessageData) : m Unit := do
+  unless ← isModelCheckCompileMode do
+    logError msg
+
+/-- Log an error at a specific syntax location, but only if not in compilation mode. -/
+def veilLogErrorAt [Monad m] [MonadOptions m] [AddMessageContext m] [MonadLog m]
+    (stx : Syntax) (msg : MessageData) : m Unit := do
+  unless ← isModelCheckCompileMode do
+    logErrorAt stx msg
+
+end ModelCheckCompilationMode
+
 end Veil

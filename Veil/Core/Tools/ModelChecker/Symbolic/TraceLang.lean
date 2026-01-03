@@ -9,6 +9,7 @@ import Veil.Core.Tools.Verifier.Server
 import Veil.Core.Tools.Verifier.Results
 import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.UI.Trace.TraceDisplay
+import Veil.Frontend.DSL.Infra.EnvExtensions
 import ProofWidgets.Component.HtmlDisplay
 
 /-!
@@ -261,6 +262,8 @@ private def logDischargerErrors (dischargers : Array (DischargerResultData SmtRe
 
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident))
     (spec : TSyntax `traceSpec) (pf : Option (TSyntax `term)) : CommandElabM Unit := do
+  -- Skip trace verification in compilation mode (not needed for model checking binary)
+  if ← isModelCheckCompileMode then return
   let stx ← getRef
   let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module after #gen_spec")
   if !mod.isSpecFinalized then throwError "trace commands can only be used after #gen_spec"

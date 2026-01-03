@@ -250,9 +250,7 @@ syntax (name := terminationKind) "termination" : propertyKind
 /-- An assertion. -/
 syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 
-/-- Assemble the specification. When `internal_mode` is specified, this command
-skips VCManager and instead defines `modelCheckerCall` for compiled model checking.
-When `no_model_compilation` is specified, this command skips compiling the model. -/
+/-- Assemble the specification. -/
 syntax (name := genSpec) kw_gen_spec : command
 
 declare_syntax_cat checkInvariantsCmd
@@ -287,6 +285,6 @@ type classes.
 This means that it should only be used for testing. In the future, we will add
 support for complete enumeration of background theories.
 -/
-syntax (name := modelCheck) "#model_check " ("internal_mode")? ("after_compilation")? term:max (term:max)? Parser.Tactic.optConfig : command
+syntax (name := modelCheck) "#model_check " ("after_compilation")? term:max (term:max)? Parser.Tactic.optConfig : command
 
 end Veil

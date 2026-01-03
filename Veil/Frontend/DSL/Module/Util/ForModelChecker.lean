@@ -4,6 +4,15 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean Meta Elab Command
 
+/-- Find the byte position right after all `import` statements in a source string.
+    Used to insert `set_option` commands after imports during model compilation. -/
+def findPosAfterImports (src : String) : String.Pos.Raw :=
+  let lines := src.splitOn "\n"
+  let (_, lastImportEnd) := lines.foldl (init := ((0 : Nat), (0 : Nat))) fun (pos, lastImportEnd) line =>
+    let nextPos := pos + line.length + 1  -- +1 for newline
+    (nextPos, if line.trimLeft.startsWith "import " then nextPos else lastImportEnd)
+  ⟨lastImportEnd⟩
+
 /-- Status of the model checker compilation process for a single model. -/
 inductive Status
   | inProgress (instanceId : Nat) (buildDir : System.FilePath)

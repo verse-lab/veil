@@ -65,6 +65,6 @@ def logDoesNotThrowErrors (results : VerificationResults VCMetadata SmtResult) :
         let .ok exId := exVal.getInt? | continue
         let .some a := actx.find[exId]?
           | throwError s!"Assertion {exId} not found (from {m.action})"; continue
-        logErrorAt a.ctx.stx s!"This assertion might fail when called from {m.action}"
+        veilLogErrorAt a.ctx.stx s!"This assertion might fail when called from {m.action}"
 
 end Veil

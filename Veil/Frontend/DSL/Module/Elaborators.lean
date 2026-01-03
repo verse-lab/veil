@@ -223,6 +223,8 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
 open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
+  -- Skip in compilation mode (no verification feedback needed)
+  if ← isModelCheckCompileMode then return
   let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
   let _ ← mod.ensureSpecIsFinalized
   Verifier.startAll
@@ -362,7 +364,7 @@ def elabGenSpec : CommandElab := fun _stx => do
   let mod ← mod.ensureSpecIsFinalized
   localEnv.modifyModule (fun _ => mod)
   -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-  -- Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/
@@ -400,7 +402,7 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
-  | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $[$theoryTermOpt]? $cfg:optConfig) =>
+  | `(#model_check%$tk $[after_compilation%$compile?]? $instTerm:term $[$theoryTermOpt]? $cfg:optConfig) =>
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
@@ -417,10 +419,10 @@ def elabModelCheck : CommandElab := fun stx => do
     let config := { config with parallelCfg := parallelCfg }
     let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
 
-    -- Dispatch to appropriate mode handler
-    match internal?.isSome, compile?.isSome with
-    | true, false  => throwError "The 'internal_mode' keyword is inserted by Veil when compiling the specification. You should never add it manually."
-    | true, true   => elabModelCheckInternalMode mod callExpr
+    -- Dispatch based on compilation mode (set via option) and after_compilation flag
+    let isCompileMode ← isModelCheckCompileMode
+    match isCompileMode, compile?.isSome with
+    | true, _      => elabModelCheckInternalMode mod callExpr  -- In compiled binary
     | false, false => elabModelCheckInterpretedMode stx callExpr parallelCfg
     | false, true  => elabModelCheckCompiledMode tk stx parallelCfg
   | _ => throwUnsupportedSyntax
@@ -440,15 +442,16 @@ where
           #model_check {compileStr}{instTerm} {theoryExample}"
       `({})
 
-  /-- Generate the model source with `internal_mode` inserted for compilation. -/
-  generateModelSource (tk stx : Syntax) : CommandElabM String := do
-    -- Transform the source by inserting `internal_mode` after `#model_check`
-    -- This prevents the compiled version from triggering another compilation
-    let some posTk := tk.getTailPos? | throwError "Unexpected error: #model_check token has no position"
+  /-- Generate the model source for compilation by inserting
+      `set_option veil.__modelCheckCompileMode true` after all imports. -/
+  generateModelSource (_tk stx : Syntax) : CommandElabM String := do
     let some posStx := stx.getTailPos? | throwError "Unexpected error: #model_check command has no position"
     let src := (← getFileMap).source
-    let newSource := String.Pos.Raw.extract src 0 posTk ++ " internal_mode " ++ String.Pos.Raw.extract src posTk posStx
-    return newSource
+    let afterImportsPos := ModelChecker.Compilation.findPosAfterImports src
+    let compileModePreamble := "\nset_option veil.__modelCheckCompileMode true\n"
+    let beforeImports := String.Pos.Raw.extract src 0 afterImportsPos
+    let afterImports := String.Pos.Raw.extract src afterImportsPos posStx
+    return beforeImports ++ compileModePreamble ++ afterImports
 
   /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
   mkIdentWithModName (mod : Module) (name : Name) : Ident :=
