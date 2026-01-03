@@ -30,7 +30,7 @@ checked and the theory it's being checked under. -/
 structure BaseSearchContext {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
 where
   seen  : Std.HashSet σₕ
@@ -48,7 +48,7 @@ where
 structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
   (inQueue : QueueItem σₕ σ → Prop)
   (seen : σₕ → Prop) : Prop
@@ -80,7 +80,7 @@ where
 def BaseSearchContext.hasFinished {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
   (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params) : Bool := ctx.finished.isSome
 
@@ -89,7 +89,7 @@ def BaseSearchContext.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) :
   @BaseSearchContext ρ σ κ σₕ fp th sys params := {
     seen := HashSet.insertMany HashSet.emptyWithCapacity (sys.initStates |> Functor.map fp.view),
@@ -104,7 +104,7 @@ def SearchContextInvariants.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) :
   @SearchContextInvariants ρ σ κ σₕ fp th sys params
     (· ∈ (sys.initStates |> Functor.map (fun s => ⟨fp.view s, s, 0⟩)))
@@ -139,33 +139,36 @@ an early termination condition if we should stop the search. -/
 def BaseSearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params)
   (fpSt : σₕ)
   (currSt : σ)
-  (successors : List (κ × σ))
+  (outcomes : List (κ × ExecutionOutcome Int σ))
   : @BaseSearchContext ρ σ κ σₕ fp th sys params × Option (EarlyTerminationReason σₕ) :=
-  -- Check for previously recorded termination
   match ctx.finished with
   | some (.earlyTermination condition) => (ctx, some condition)
   | _ =>
-    -- Check for violations (compute once, use for both recording and early termination)
-    let safetyViolations := params.invariants.filterMap (fun p => if !p.holdsOn th currSt then some p.name else none)
-    let safetyViolation := !safetyViolations.isEmpty
-    let deadlock := successors.isEmpty && !params.terminating.holdsOn th currSt
-    -- Record violations in context
-    let ctx := if safetyViolation then {ctx with violatingStates := (fpSt, .safetyFailure safetyViolations) :: ctx.violatingStates} else ctx
-    let ctx := if deadlock then {ctx with violatingStates := (fpSt, .deadlock) :: ctx.violatingStates} else ctx
-    -- Check for early termination using the same computed values
-    let earlyTermination := params.earlyTerminationConditions.findSome? (fun sc => match sc with
-      | EarlyTerminationCondition.foundViolatingState =>
-          if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
-      | EarlyTerminationCondition.reachedDepthBound bound =>
-          if ctx.completedDepth >= bound then some (.reachedDepthBound bound) else none
-      | EarlyTerminationCondition.deadlockOccurred =>
-          if deadlock then some (.deadlockOccurred fpSt) else none
-    )
+    let safetyViolations := params.invariants.filterMap fun p =>
+      if !p.holdsOn th currSt then some p.name else none
+    let hasSuccessfulTransition := outcomes.any fun (_, outcome) =>
+      match outcome with | .success _ => true | _ => false
+    let deadlock := !hasSuccessfulTransition && !params.terminating.holdsOn th currSt
+    let assertionFailures := outcomes.filterMap fun (_, outcome) =>
+      match outcome with | .assertionFailure exId _ => some exId | _ => none
+    -- Record violations
+    let ctx := if !safetyViolations.isEmpty then
+      {ctx with violatingStates := (fpSt, .safetyFailure safetyViolations) :: ctx.violatingStates} else ctx
+    let ctx := if deadlock then
+      {ctx with violatingStates := (fpSt, .deadlock) :: ctx.violatingStates} else ctx
+    let ctx := assertionFailures.foldl (fun ctx exId =>
+      {ctx with violatingStates := (fpSt, .assertionFailure exId) :: ctx.violatingStates}) ctx
+    -- Check for early termination
+    let earlyTermination := params.earlyTerminationConditions.findSome? fun
+      | .foundViolatingState => if !safetyViolations.isEmpty then some (.foundViolatingState fpSt safetyViolations) else none
+      | .reachedDepthBound bound => if ctx.completedDepth >= bound then some (.reachedDepthBound bound) else none
+      | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
+      | .assertionFailed => assertionFailures.head?.map (.assertionFailed fpSt)
     (ctx, earlyTermination)
 
 /-- Process the current state, queuing its successors. -/
@@ -174,7 +177,7 @@ def BaseSearchContext.processState {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (fpSt : σₕ)
   -- (depth : Nat)  -- depth of the current state
@@ -182,14 +185,23 @@ def BaseSearchContext.processState {ρ σ κ σₕ : Type}
   -- (h_curr : sys.reachable curr)
   (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params) :
   (@BaseSearchContext ρ σ κ σₕ fp th sys params ×
-    Option ({ l : List (κ × σ) // l = sys.tr th curr })) :=
-  let successors := sys.tr th curr
+    Option ({ l : List (κ × ExecutionOutcome Int σ) // l = sys.tr th curr })) :=
+  let outcomes := sys.tr th curr
   -- Check for violations, record them, and determine if we should terminate early
-  match ctx.checkViolationsAndMaybeTerminate sys fpSt curr successors with
+  match ctx.checkViolationsAndMaybeTerminate sys fpSt curr outcomes with
   | (ctx, some (.foundViolatingState fp violations)) => ({ctx with finished := some (.earlyTermination (.foundViolatingState fp violations))}, none)
   | (ctx, some (.reachedDepthBound bound)) => ({ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}, none)
   | (ctx, some (.deadlockOccurred fp)) => ({ctx with finished := some (.earlyTermination (.deadlockOccurred fp))}, none)
+  | (ctx, some (.assertionFailed fp exId)) => ({ctx with finished := some (.earlyTermination (.assertionFailed fp exId))}, none)
   -- If not terminating early, explore all neighbors of the current state
-  | (ctx, none) => (ctx, some ⟨successors, rfl⟩)
+  | (ctx, none) => (ctx, some ⟨outcomes, rfl⟩)
+
+/-- Extract successful transitions from a list of outcomes. -/
+@[inline]
+def extractSuccessfulTransitions (outcomes : List (κ × ExecutionOutcome Int σ)) : List (κ × σ) :=
+  outcomes.filterMap fun (label, outcome) =>
+    match outcome with
+    | .success st => some (label, st)
+    | _ => none
 
 end Veil.ModelChecker.Concrete

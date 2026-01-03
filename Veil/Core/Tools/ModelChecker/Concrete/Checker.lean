@@ -28,17 +28,20 @@ def findByFingerprint [fp : StateFingerprint σ σₕ]
 
 /-- Reconstruct a full trace with concrete states from a SearchContext.
 This re-executes transitions to recover full state objects from fingerprints.
-The `targetFingerprint` parameter specifies which violating state's trace to recover. -/
+The `targetFingerprint` parameter specifies which violating state's trace to recover.
+If `assertionFailureExId` is provided, this is an assertion failure trace and we'll
+find the failing transition to populate the `failingStep` field. -/
 def recoverTrace {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [Inhabited κ] [Inhabited σ] [Repr σₕ]
   [BEq σ] [BEq κ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params)
   (targetFingerprint : σₕ)
+  (assertionFailureExId : Option Int := none)
   : m (Trace ρ σ κ) := do
   -- Retrace steps from the target fingerprint back to an initial state
   let (initFp, stepsFp) := retraceSteps ctx.log targetFingerprint
@@ -48,14 +51,23 @@ def recoverTrace {ρ σ κ σₕ : Type} {m : Type → Type}
   let mut curSt := initialState
   let mut steps : Steps σ κ := #[]
   for step in stepsFp do
-    let successors := sys.tr th curSt
+    let outcomes := sys.tr th curSt
+    -- Extract successful transitions for trace recovery
+    let successfulTransitions := extractSuccessfulTransitions outcomes
     let (transitionLabel, nextSt) :=
-      match successors.find? (fun (_, s) => fp.view s == step.nextState) with
+      match successfulTransitions.find? (fun (_, s) => fp.view s == step.nextState) with
       | some (tr, s) => (tr, s)
       | none => panic! s!"Could not recover transition from fingerprint {repr (fp.view curSt)} to {repr step.nextState}!"
     curSt := nextSt
     steps := steps.push { transitionLabel := transitionLabel, nextState := nextSt }
-  return { theory := th, initialState := initialState, steps := steps }
+  return { theory := th, initialState := initialState, steps := steps, failingStep := findFailingStep curSt assertionFailureExId }
+where
+  findFailingStep (st : σ) : Option Int → Option (Step σ κ)
+    | some exId =>
+      match (sys.tr th st).find? (·.2.exceptionId? == some exId) with
+      | some (label, .assertionFailure _ failState) => some { transitionLabel := label, nextState := failState }
+      | _ => none
+    | none => none
 
 /-! ## Model Checker
 
@@ -67,7 +79,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   [Inhabited κ] [Inhabited σ] [Repr σ]
   [BEq σ] [BEq κ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   [fp : StateFingerprint σ UInt64]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
@@ -81,13 +93,19 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
   | some (.earlyTermination (.deadlockOccurred fingerprint)) => do
     return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverTrace sys ctx fingerprint))
+  | some (.earlyTermination (.assertionFailed fingerprint exId)) => do
+    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverTrace sys ctx fingerprint (some exId)))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
     return ModelCheckingResult.noViolationFound ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
   | some (.exploredAllReachableStates) => do
     if !ctx.violatingStates.isEmpty then
       let (fingerprint, violation) := ctx.violatingStates.head!
-      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace sys ctx fingerprint))
+      -- For assertion failures, pass the exception ID to recover the failing step
+      let assertionExId := match violation with
+        | .assertionFailure exId => some exId
+        | _ => none
+      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace sys ctx fingerprint assertionExId))
     else
       return ModelCheckingResult.noViolationFound ctx.seen.size (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."

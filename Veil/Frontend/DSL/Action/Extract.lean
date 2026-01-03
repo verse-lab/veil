@@ -2,6 +2,7 @@ import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.ExtractUtil
 import Veil.Frontend.DSL.Module.Names
 import Veil.Frontend.DSL.Action.ExtractList2
+import Veil.Core.Tools.ModelChecker.ExecutionOutcome
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -282,19 +283,43 @@ def genNextActCommands (mod : Veil.Module)
 
   k binders
 
-/-- Extract the resulting state from a DivM-wrapped result pair, if successful. -/
-def getStateFromDivMResult (c : DivM ((Except ε α) × σ)) : Option σ :=
+/-- Extract the execution outcome from a DivM-wrapped result. Unlike `getPostState`
+which only returns `Option σ`, this preserves information about assertion failures
+that can be used as counter-examples by the model checker. -/
+@[inline]
+def getExecutionOutcome (c : DivM ((Except ε α) × σ)) : Veil.ExecutionOutcome ε σ :=
   match c with
-  | .res ((.ok _, st)) => .some st
-  | .res ((.error _, _)) => .none
-  | .div => .none
+  | .res ((.ok _, st)) => .success st
+  | .res ((.error e, st)) => .assertionFailure e st
+  | .div => .divergence
 
-def getAllStatesFromDivMResults (c : List (DivM ((Except ε α) × σ))) : List (Option σ) :=
-  c.map getStateFromDivMResult
+/-- Extract the resulting post-state from a DivM-wrapped result pair. The
+semantics of exceptions in Veil is that the whole computation is reverted, so
+there is no post-state in the `error` case. -/
+@[inline]
+def getPostState (c : DivM ((Except ε α) × σ)) : Option σ :=
+  getExecutionOutcome c |>.toPostState
+
+def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ) :=
+  c.map getPostState
+
+def getAllExecutionOutcomes (c : List (DivM ((Except ε α) × σ))) : List (Veil.ExecutionOutcome ε σ) :=
+  c.map getExecutionOutcome
 
 /-- Extract all valid states from a VeilMultiExecM computation -/
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
-  exec rd st |>.map Prod.snd |> getAllStatesFromDivMResults
+  exec rd st |>.map Prod.snd |> getAllPostStates
+
+/-- Extract all execution outcomes (including assertion failures) from a VeilMultiExecM computation -/
+def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome ℤ σ) :=
+  exec rd st |>.map Prod.snd |> getAllExecutionOutcomes
+
+/-- Extract only assertion failures from a VeilMultiExecM computation.
+Returns a list of (exception ID, state at failure) pairs. -/
+def extractAssertionFailures (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (ℤ × σ) :=
+  extractAllOutcomes exec rd st |>.filterMap fun
+    | .assertionFailure e s => some (e, s)
+    | _ => none
 
 def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
   mod.throwIfAlreadyDeclared enumerableTransitionSystemName
@@ -332,12 +357,13 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
       tr := fun $th $st =>
         let $CNext := $nextActExecIdent $theoryStx $stateStx $(← mod.sortIdents)*
         $(mkIdent ``List.flatMap) (fun ($label : $labelStx) =>
-         $(mkIdent ``List.map) (fun $next => ($label, $next)) ($(mkIdent ``extractValidStates) ($CNext $label) $th $st |> $filterMap))
+         $(mkIdent ``List.map) (fun $next => ($label, $next)) ($(mkIdent ``extractAllOutcomes) ($CNext $label) $th $st))
          (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId)
       : $(mkIdent ``Veil.EnumerableTransitionSystem)
         $theoryStx ($(mkIdent ``List) $theoryStx)
         $stateStx ($(mkIdent ``List) $stateStx)
-        $labelStx ($(mkIdent ``List) ($labelStx × $stateStx))
+        $(mkIdent ``Int)
+        $labelStx ($(mkIdent ``List) ($labelStx × $(mkIdent ``Veil.ExecutionOutcome) $(mkIdent ``Int) $stateStx))
         $theoryId
      })
 

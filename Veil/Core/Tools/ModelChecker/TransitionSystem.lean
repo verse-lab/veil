@@ -1,3 +1,5 @@
+import Veil.Core.Tools.ModelChecker.ExecutionOutcome
+
 namespace Veil
 
 structure TransitionSystem (ρ : Type) (σ : Type) (l : outParam Type) where
@@ -65,59 +67,71 @@ theorem reachable_inclusion (sys : RelationalTransitionSystem ρ σ l) (sys' : R
 
 end RelationalTransitionSystem
 
+/-- An enumerable transition system that tracks execution outcomes including
+assertion failures. The `tr` function returns a set of labeled outcomes,
+where each outcome can be a successful transition, an assertion failure,
+or divergence.
+
+Parameters:
+- `ρ` - the type of the background theory (immutable state)
+- `σ` - the type of the mutable state
+- `ε` - the type of exceptions/assertion failure identifiers
+- `l` - the type of transition labels
+- `th` - the specific background theory this system operates under -/
 structure EnumerableTransitionSystem
   (ρ : Type) (ρSet : outParam Type) [Std.Stream ρSet ρ]
   (σ : Type) (σSet : outParam Type) [Std.Stream σSet σ]
+  (ε : Type)
   (l : outParam Type)
-  (nextSet : Type) [Std.Stream nextSet (l × σ)]
+  (outcomeSet : Type) [Std.Stream outcomeSet (l × ExecutionOutcome ε σ)]
   (th : ρ)
   extends TransitionSystem ρ σ l where
   /-- The (enumerable) set of initial states -/
   initStates : σSet
-  /-- The (enumerable) set of transition labels and post-states -/
-  tr : ρ → σ → nextSet
-  /- The (enumerable) set of next states, for a specific transition label.
-  This is used to simulate specific traces. -/
-  -- next : ρ → σ → l → σSet
+  /-- The (enumerable) set of transition labels and execution outcomes.
+  Each outcome may be a successful post-state, an assertion failure, or divergence. -/
+  tr : ρ → σ → outcomeSet
 
 attribute [grind] EnumerableTransitionSystem.initStates EnumerableTransitionSystem.tr
 
 namespace EnumerableTransitionSystem
 
+/-- Extract only successful transitions (ignoring assertion failures and divergence). -/
 @[grind]
 def next
-  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
-  [Membership (l × σ) nextSet]
-  (sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet th) (s s' : σ) : Prop :=
-  ∃ label, (label, s') ∈ sys.tr th s
+  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream outcomeSet (l × ExecutionOutcome ε σ)]
+  [Membership (l × ExecutionOutcome ε σ) outcomeSet]
+  (sys : EnumerableTransitionSystem ρ ρSet σ σSet ε l outcomeSet th) (s s' : σ) : Prop :=
+  ∃ label, (label, ExecutionOutcome.success s') ∈ sys.tr th s
 
 @[grind]
 def toRelational
-  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
-  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
-  (sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet th) :
+  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream outcomeSet (l × ExecutionOutcome ε σ)]
+  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × ExecutionOutcome ε σ) outcomeSet]
+  (sys : EnumerableTransitionSystem ρ ρSet σ σSet ε l outcomeSet th) :
   RelationalTransitionSystem ρ σ l
 where
   assumptions := fun th' => th' = th
   init := fun _ st => st ∈ sys.initStates
-  tr := fun th st label st' => (label, st') ∈ sys.tr th st
+  tr := fun th st label st' => (label, ExecutionOutcome.success st') ∈ sys.tr th st
 
 
-/-- Reachability relation, indexed by background theory. -/
+/-- Reachability relation, indexed by background theory.
+Only considers successful transitions (assertion failures don't lead to new reachable states). -/
 @[grind]
 inductive reachable
-  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
-  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
-  (sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet th)
+  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream outcomeSet (l × ExecutionOutcome ε σ)]
+  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × ExecutionOutcome ε σ) outcomeSet]
+  (sys : EnumerableTransitionSystem ρ ρSet σ σSet ε l outcomeSet th)
   : σ → Prop
 where
   | init : ∀ (s : σ), s ∈ sys.initStates → sys.reachable s
   | step : ∀ (s s' : σ), sys.reachable s → sys.next s s' → sys.reachable s'
 
 theorem reachable_equiv_relational
-  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream nextSet (l × σ)]
-  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × σ) nextSet]
-  (sys : EnumerableTransitionSystem ρ ρSet σ σSet l nextSet th)
+  [Std.Stream ρSet ρ] [Std.Stream σSet σ] [Std.Stream outcomeSet (l × ExecutionOutcome ε σ)]
+  [Membership ρ ρSet] [Membership σ σSet] [Membership (l × ExecutionOutcome ε σ) outcomeSet]
+  (sys : EnumerableTransitionSystem ρ ρSet σ σSet ε l outcomeSet th)
   :
   sys.reachable s ↔ (sys.toRelational.reachable th s) := by
   constructor <;> (intro hreach ; induction hreach with | _ => grind)

@@ -15,6 +15,7 @@ import Veil.Core.UI.Widget.ProgressViewer
 import Veil.Frontend.DSL.Action.Extract2
 import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing
+import Veil.Frontend.DSL.Module.AssertionInfo
 
 open Lean Parser Elab Command
 
@@ -220,22 +221,6 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   mod.generateVCs
   return { mod with _specFinalized := true }
 
-/-- Log errors at assertion locations for disproven `doesNotThrow` VCs. -/
-private def logDoesNotThrowErrors (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
-  let actx := (← globalEnv.get).assertions
-  for vc in results.vcs do
-    let .induction m := vc.metadata | continue  -- Only induction VCs have doesNotThrow
-    if m.property != `doesNotThrow then continue
-    for d in vc.timing.dischargers do
-      let .some (.disproven (.some (.sat ces)) _) := d.result | continue
-      for ce in ces.filterMap id do
-        let .ok extraVals := ce.structuredJson.getObjVal? "extraVals" | continue
-        let .ok exVal := extraVals.getObjVal? "__veil_ex" | continue
-        let .ok exId := exVal.getInt? | continue
-        let .some a := actx.find[exId]?
-          | throwError s!"Assertion {exId} not found (from {m.action})"; continue
-        logErrorAt a.ctx.stx s!"This assertion might fail when called from {m.action}"
-
 open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
@@ -378,7 +363,7 @@ def elabGenSpec : CommandElab := fun _stx => do
   let mod ← mod.ensureSpecIsFinalized
   localEnv.modifyModule (fun _ => mod)
   -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+  -- Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/
@@ -396,7 +381,6 @@ elab "veil_variables" : command => do
     let varUIds ← (← getBracketedBinderIds binder) |>.mapM (withFreshMacroScope ∘ MonadQuotation.addMacroScope)
     trace[veil.debug] s!"with unique IDs: {varUIds}"
     modifyScope fun scope => { scope with varDecls := scope.varDecls.push binder, varUIds := scope.varUIds ++ varUIds}
-
 
 /-- Configuration options for the `#model_check` command. -/
 structure ModelCheckerConfig where
@@ -481,7 +465,8 @@ where
       | some t => mkProp t
       | none => `(default)
     let earlyTermConds ← do
-      let base ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState])
+      let base ← `([Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState,
+                  Veil.ModelChecker.EarlyTerminationCondition.assertionFailed])
       if config.maxDepth > 0 then `($base ++ [Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound $(quote config.maxDepth)])
       else pure base
     -- Model checker call with type annotation to help inference
@@ -551,6 +536,8 @@ where
   /-- Handle compiled mode: build, run, and display results with streaming progress. -/
   elabModelCheckCompiledMode (stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     let instanceId ← ModelChecker.Concrete.allocProgressInstance
+    -- Extract assertion sources before starting the task (needs elaboration context)
+    let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     let cwd ← IO.currentDir
     let _ ← IO.asTask (prio := .dedicated) do
       -- Compile
@@ -564,7 +551,10 @@ where
       readStderrProgress child.stderr instanceId
       let stdout ← IO.FS.Handle.readToEnd child.stdout
       let _ ← child.wait
-      ModelChecker.Concrete.finishProgress instanceId (Json.parse stdout |>.toOption.getD .null)
+      -- Enrich JSON with assertion source info for any assertion failures
+      let json := Json.parse stdout |>.toOption.getD .null
+      let enrichedJson := enrichJsonWithAssertions json assertionSources
+      ModelChecker.Concrete.finishProgress instanceId enrichedJson
     ModelChecker.displayStreamingProgress stx instanceId
 
   /-- Handle interpreted mode: evaluate and display results directly. -/
@@ -572,6 +562,8 @@ where
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     -- Allocate a unique progress instance ID before starting the task
     let instanceId ← ModelChecker.Concrete.allocProgressInstance
+    -- Extract assertion sources before starting the task (needs elaboration context)
+    let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     let resultExpr ← `(Lean.toJson <$> $callExpr ($(quote parallelCfg)) ($(quote instanceId)))
     trace[veil.desugar] "{resultExpr}"
     -- Elaborate and get the IO computation (must be done synchronously)
@@ -583,8 +575,11 @@ where
     -- Start the IO computation in a background task
     let _ ← IO.asTask (prio := .dedicated) do
       let json ← IO.ofExcept (← ioComputation.toIO')
+      -- Enrich JSON with assertion source info for any assertion failures
+      let enrichedJson := enrichJsonWithAssertions json assertionSources
+      IO.eprintln s!"{enrichedJson}"
       -- Mark progress as complete and store result JSON
-      ModelChecker.Concrete.finishProgress instanceId json
+      ModelChecker.Concrete.finishProgress instanceId enrichedJson
     -- Display streaming progress widget with the same instance ID
     ModelChecker.displayStreamingProgress stx instanceId
 

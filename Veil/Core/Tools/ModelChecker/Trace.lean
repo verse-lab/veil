@@ -58,6 +58,10 @@ structure Trace (ρ : Type) (σ : Type) (l : Type) where
   theory : ρ
   initialState : σ
   steps : Steps σ l
+  /-- Optional failing step for assertion failures. When present, this represents
+  the final transition that led to an assertion failure (the post-state is the
+  state at the assertion failure point). -/
+  failingStep : Option (Step σ l) := none
 deriving Repr, Inhabited
 
 instance jsonOfTrace {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] : ToJson (Trace ρ σ l) where
@@ -73,9 +77,19 @@ instance jsonOfTrace {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] : ToJso
         [ ("index", toJson idx),
           ("fields", toJson st.nextState),
           ("transition", toJson st.transitionLabel)]))
+    -- Add failing step if present (for assertion failures)
+    let statesWithFailure := match tr.failingStep with
+      | some failStep =>
+        let idx := states.size
+        states.push (Json.mkObj
+          [ ("index", toJson idx),
+            ("fields", toJson failStep.nextState),
+            ("transition", toJson failStep.transitionLabel),
+            ("failing", toJson true) ])
+      | none => states
     Json.mkObj
       [ ("theory", toJson tr.theory),
-        ("states", Json.arr states) ]
+        ("states", Json.arr statesWithFailure) ]
 
 @[inline, grind]
 def Trace.lastState (trace : Trace ρ σ l) : σ := trace.steps.getLastStateD trace.initialState

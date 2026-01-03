@@ -7,7 +7,7 @@ open Std
 structure ParallelSearchContextMain {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
 extends @BaseSearchContext ρ σ κ σₕ fp th sys params
 where
@@ -21,7 +21,7 @@ where
 structure ParallelSearchContextSub {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
 extends @BaseSearchContext ρ σ κ σₕ fp th sys params
 where
@@ -60,7 +60,7 @@ def ParallelSearchContextMain.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) :
   @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := {
     BaseSearchContext.initial sys params with
@@ -74,7 +74,7 @@ def ParallelSearchContextSub.tryExploreNeighbor {ρ σ κ σₕ : Type} {m : Typ
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (fpSt : σₕ)  -- fingerprint of state we're coming from (pre-state), for logging
   (depth : Nat)  -- depth of the current state (neighbor will be at depth + 1)
@@ -103,7 +103,7 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type} {m : Type → 
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (fpSt : σₕ)
   (depth : Nat)  -- depth of the current state
@@ -111,19 +111,38 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type} {m : Type → 
   (h_curr : sys.reachable curr)
   (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :
   m (@ParallelSearchContextSub ρ σ κ σₕ fp th sys params) := do
-  let (baseCtx', successorsOpt) := ctx.toBaseSearchContext.processState sys fpSt curr
-  match successorsOpt with
+  let (baseCtx', outcomesOpt) := ctx.toBaseSearchContext.processState sys fpSt curr
+  match outcomesOpt with
   | none => pure { ctx with
       toBaseSearchContext := baseCtx'
       invs := sorry
     }
-  | some ⟨successors, heq⟩ =>
+  | some ⟨outcomes, heq⟩ =>
+      -- Extract only successful transitions for queueing
+      let successfulTransitions := extractSuccessfulTransitions outcomes
       let ctx_updated := { ctx with toBaseSearchContext := baseCtx', invs := sorry }
-      successors.attach.foldlM (init := ctx_updated) (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ => do
+      successfulTransitions.attach.foldlM (init := ctx_updated) (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ => do
       if current_ctx.hasFinished then pure current_ctx
       else
-        let h_neighbor_reachable : sys.reachable postState :=
-          EnumerableTransitionSystem.reachable.step curr postState h_curr ⟨tr, heq ▸ h_neighbor_in_tr⟩
+        -- Reachability proof: the neighbor is in successful transitions extracted from outcomes
+        let h_neighbor_reachable : sys.reachable postState := by
+          apply EnumerableTransitionSystem.reachable.step curr postState h_curr
+          exists tr
+          -- h_neighbor_in_tr proves (tr, postState) ∈ successfulTransitions
+          -- successfulTransitions = extractSuccessfulTransitions outcomes
+          -- This means (tr, .success postState) ∈ outcomes = sys.tr th curr
+          have h_in_filtered : (tr, postState) ∈ extractSuccessfulTransitions outcomes := h_neighbor_in_tr
+          unfold extractSuccessfulTransitions at h_in_filtered
+          rw [List.mem_filterMap] at h_in_filtered
+          obtain ⟨⟨label, outcome⟩, h_mem, h_eq⟩ := h_in_filtered
+          cases outcome with
+          | success st =>
+            simp only [Option.some.injEq, Prod.mk.injEq] at h_eq
+            obtain ⟨h_label, h_st⟩ := h_eq
+            rw [← h_label, ← h_st, ← heq]
+            exact h_mem
+          | assertionFailure _ _ => simp at h_eq
+          | divergence => simp at h_eq
         ParallelSearchContextSub.tryExploreNeighbor sys fpSt depth current_ctx ⟨tr, postState⟩ h_neighbor_reachable
     )
 
@@ -133,7 +152,7 @@ def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type} {m : Type → Ty
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (baseCtx : @BaseSearchContext ρ σ κ σₕ fp th sys params)
   (queue : Array (σₕ × σ × Nat)) :
@@ -160,7 +179,7 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
   (parallelCfg : ParallelConfig)
   (progressInstanceId : Nat) :

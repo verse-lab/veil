@@ -23,16 +23,20 @@ instance : Inhabited (SafetyProperty ρ σ) where
 inductive ViolationKind where
   | safetyFailure (violates : List Name)
   | deadlock
+  /-- An assertion (require/assert) in the code failed during execution. -/
+  | assertionFailure (exceptionId : Int)
 deriving Inhabited, Hashable, BEq, Repr
 
 instance : ToJson ViolationKind where
   toJson
     | .safetyFailure violates => Json.mkObj [("kind", "safety_failure"), ("violates", toJson violates)]
     | .deadlock => Json.mkObj [("kind", "deadlock")]
+    | .assertionFailure exId => Json.mkObj [("kind", "assertion_failure"), ("exception_id", toJson exId)]
 
 inductive EarlyTerminationCondition where
   | foundViolatingState
   | deadlockOccurred
+  | assertionFailed
   | reachedDepthBound (depth : Nat)
 deriving Inhabited, Hashable, BEq, Repr
 
@@ -41,6 +45,7 @@ i.e. before full state space is explored. -/
 inductive EarlyTerminationReason (σₕ : Type) where
   | foundViolatingState (fp : σₕ) (violates : List Name)
   | deadlockOccurred (fp : σₕ)
+  | assertionFailed (fp : σₕ) (exceptionId : Int)
   | reachedDepthBound (depth : Nat)
 deriving Inhabited, Hashable, BEq, Repr
 
@@ -48,6 +53,7 @@ instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
   toJson
     | .foundViolatingState fp violates => Json.mkObj [("kind", "found_violating_state"), ("state_fingerprint", toJson fp), ("violates", toJson violates)]
     | .deadlockOccurred fp => Json.mkObj [("kind", "deadlock_occurred"), ("state_fingerprint", toJson fp)]
+    | .assertionFailed fp exId => Json.mkObj [("kind", "assertion_failed"), ("state_fingerprint", toJson fp), ("exception_id", toJson exId)]
     | .reachedDepthBound depth => Json.mkObj [("kind", "reached_depth_bound"), ("depth", toJson depth)]
 
 inductive TerminationReason (σₕ : Type) where
