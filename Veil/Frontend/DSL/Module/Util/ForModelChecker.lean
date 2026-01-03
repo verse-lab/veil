@@ -17,7 +17,7 @@ initialize compilationRegistry : Std.Mutex (Std.HashMap String Status) ←
   Std.Mutex.new {}
 
 @[inline]
-private def stillCurrentCont (sourceFile : String) (instanceId : Nat) (k : Std.AtomicT (Std.HashMap String Status) IO Unit) : IO Bool :=
+def stillCurrentCont (sourceFile : String) (instanceId : Nat) (k : Std.AtomicT (Std.HashMap String Status) IO Unit) : IO Bool :=
   compilationRegistry.atomically fun ref => do
     let registry ← ref.get
     match registry[sourceFile]? with
@@ -74,45 +74,23 @@ lean_exe ModelCheckerMain where
 
 /-- Template for the ModelCheckerMain.lean in the temp project. -/
 def modelCheckerMainTemplate : String :=
-"import Veil
+"import Model
 
 set_option maxHeartbeats 6400000
 
--- The following code is inspired by
--- `https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/Trouble.20parsing.20Lean.20code.20from.20string/`
-
-open Lean Meta Elab Term in
-/-- Parse and evaluate a model checker call expression. -/
-unsafe def parseAndEvalModelCheckerCall (code : String) : IO Json := do
-  -- Run elaboration and evaluation
-  initSearchPath (← findSysroot)
-  enableInitializersExecution
-  let imports := #[`Lean, `Model]
-  let env ← importModules (imports.map (Import.mk · false true false)) Options.empty
-    (leakEnv := true)
-    (loadExts := true)
-  let (ioResult, _) ← Core.CoreM.toIO (ctx := { fileName := \"<CoreM>\", fileMap := default }) (s := { env := env }) do
-    let .ok stx := Parser.runParserCategory (← getEnv) `term code \"<stdin>\"
-      | return none
-    MetaM.run' do
-      TermElabM.run' do
-        let stx ← `($(mkIdent ``Functor.map) $(mkIdent ``Lean.toJson) ($(TSyntax.mk stx)))
-        let ty := mkApp (mkConst ``IO) (mkConst ``Json)
-        let tm ← elabTerm stx ty
-        synthesizeSyntheticMVarsNoPostponing
-        let tm ← instantiateMVars tm
-        let res ← evalExpr (IO Json) ty tm
-        return some res
-
-  let some ioResult := ioResult | throw (IO.userError s!\"Failed to parse input\")
-  ioResult
-
-def main : IO Unit := do
+def main (args : List String) : IO Unit := do
+  -- Enable progress reporting to stderr for the IDE to read
   Veil.ModelChecker.Concrete.enableCompiledModeProgress
-  let stdin ← IO.getStdin
-  let code ← stdin.readToEnd
-  let result ← unsafe parseAndEvalModelCheckerCall code
-  IO.println s!\"{result}\"
+  let pcfg : Option Veil.ModelChecker.ParallelConfig :=
+    match args with
+    | [a, b] =>
+      match a.toNat?, b.toNat? with
+      | some n1, some n2 => some <| Veil.ModelChecker.ParallelConfig.mk n1 n2
+      | _, _ => none
+    | _ => none
+  -- Instance ID is not used in compiled mode, pass 0
+  let res ← modelCheckerResult pcfg 0
+  IO.println s!\"{Lean.toJson res}\"
 "
 
 /-- Create the temp build folder with all necessary files.
@@ -158,52 +136,6 @@ def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
   | .error err =>
     dbg_trace s!"Model compilation process failed: {err}"
     return
-
-/-- Start async compilation for a model in its isolated build folder.
-Does not display progress; that is handled by `#model_check` if needed. -/
-def startModelCompilation (sourceFile : String) (modelSource : String) : CommandElabM System.FilePath := do
-  let instanceId ← ModelChecker.Concrete.allocProgressInstance
-  -- Create the build folder
-  let buildFolder ← createBuildFolder sourceFile modelSource
-  -- Update status to inProgress
-  compilationRegistry.atomically fun ref => do
-    ref.modify fun registry => registry.insert sourceFile (.inProgress instanceId buildFolder)
-  -- Start compilation in a background task
-  let _ ← IO.asTask (prio := .dedicated) do
-    -- Run lake build in the temp folder
-    runProcessWithStatus sourceFile
-      { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
-      instanceId "Compiling"
-    -- Mark as idle if still current
-    let _ ← stillCurrentCont sourceFile instanceId fun ref => do
-      ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
-      ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("status", "compiled")])
-
-  return buildFolder
-
-/-- Poll for compilation result, updating progress while waiting. -/
-def pollForCompilationResult (sourceFile : String) (compilationInstanceId runningInstanceId : Nat) : IO (Option System.FilePath) := do
-  while true do
-    let (canBreak?, res) ← compilationRegistry.atomically fun ref => do
-      let registry ← ref.get
-      match registry[sourceFile]? with
-      | some info =>
-        match info with
-        | .finished buildDir => pure (true, some buildDir)
-        | .inProgress id' _ =>
-          if id' == compilationInstanceId
-          then
-            updateElapsedTimeStatus compilationInstanceId "Compiling"
-            -- Mirror the compilation progress to our instance
-            if let some compilationRefs ← ModelChecker.Concrete.getProgressRefs compilationInstanceId then
-              let compilationProgress ← compilationRefs.progressRef.get
-              if let some refs ← ModelChecker.Concrete.getProgressRefs runningInstanceId then
-                refs.progressRef.set compilationProgress
-          pure (false, none)
-      | none => pure (true, none)            -- This should not happen, but if it happens then
-    if canBreak? then return res
-    IO.sleep 100
-  return none
 
 -- /-- Clean up all build folders older than the specified age (in milliseconds). -/
 -- def cleanupOldBuildFolders (maxAgeMs : Nat := 24 * 60 * 60 * 1000) : IO Nat := do

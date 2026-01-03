@@ -12,7 +12,6 @@ import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
 import Veil.Frontend.DSL.Action.Extract2
-import Veil.Util.AbstractTCArgs
 
 open Lean Parser Elab Command
 
@@ -220,10 +219,8 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
   pure mod
 
 /-- Crystallizes the specification of the module, i.e. it finalizes the
-set of `procedures` and `assertions`.
-When `startVCManager` is false, skips starting the VCManager and generating VCs.
-This is used during compiled model checking to avoid redundant verification work. -/
-private def Module.ensureSpecIsFinalized (mod : Module) (startVCManager : Bool := true) : CommandElabM Module := do
+set of `procedures` and `assertions`. -/
+private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module := do
   if mod.isSpecFinalized then
     return mod
   let mod ← mod.ensureStateIsDefined
@@ -248,9 +245,8 @@ private def Module.ensureSpecIsFinalized (mod : Module) (startVCManager : Bool :
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
   elabVeilCommand rtsCmd
-  if startVCManager then
-    Verifier.runManager
-    mod.generateVCs
+  Verifier.runManager
+  mod.generateVCs
   return { mod with _specFinalized := true }
 
 /-- Log errors at assertion locations for disproven `doesNotThrow` VCs. -/
@@ -405,59 +401,12 @@ def elabAssertion : CommandElab := fun stx => do
   localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]
-def elabGenSpec : CommandElab := fun stx => do
-  match stx with
-  | `(#gen_spec%$tk $[no_model_compilation%$noModelCompilation?]? $[internal_mode%$internal?]?) =>
-    let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
-
-    if internal?.isSome then
-      -- Internal mode: skip VCManager, define modelCheckerCall for compiled model checking
-      let mod ← mod.ensureSpecIsFinalized (startVCManager := false)
-      localEnv.modifyModule (fun _ => mod)
-      elabGenSpecInternalMode mod
-    else
-      let mod ← mod.ensureSpecIsFinalized
-      localEnv.modifyModule (fun _ => mod)
-      -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-      Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
-      unless noModelCompilation?.isSome do
-        -- Generate the model source with `no_model_compilation internal_mode` inserted and start compilation
-        let modelSource ← generateModelSource tk
-        let sourceFile ← getFileName
-        let _ ← Veil.ModelChecker.Compilation.startModelCompilation sourceFile modelSource
-  | _ => throwUnsupportedSyntax
-where
-  /-- Generate the model source with `no_model_compilation internal_mode` inserted for compilation. -/
-  generateModelSource (tk : Syntax) : CommandElabM String := do
-    -- Transform the source by inserting `no_model_compilation internal_mode` after `#gen_spec`
-    -- This prevents the compiled version from triggering another compilation
-    let some posTk := tk.getTailPos? | throwError "Unexpected error: #gen_spec token has no position"
-    let src := (← getFileMap).source
-    return String.Pos.Raw.extract src 0 posTk ++ " no_model_compilation internal_mode\n"
-
-  /-- Handle internal mode: define `modelCheckerCall` function that accepts instantiation, theory, and config. -/
-  elabGenSpecInternalMode (mod : Module) : CommandElabM Unit := do
-    -- Build the modelCheckerCall function that takes instantiation, theory, parallel config, and progress ID
-    let inst := mkVeilImplementationDetailIdent `inst
-    let th := mkVeilImplementationDetailIdent `th
-    let instSortArgs ← (← mod.sortIdents).mapM fun sortIdent => `($inst.$(sortIdent))
-    -- Define `modelCheckerCall` that takes instantiation, theory, maxDepth, parallelCfg, and progressInstanceId
-    -- NOTE: `enumerableTransitionSystem` might require many typeclass instance arguments. We can either figure
-    -- them out by registering them in the module when defining `enumerableTransitionSystem`, or just rely on
-    -- `abstractTCargs%` to abstract them out automatically.
-    -- CHECK An alternative is to also abstract `enumerableTransitionSystem`, in which case the only thing
-    -- that will be compiled in advance is `findReachable`. Will this affect performance?
-    let modelCheckerCall := mkIdent `modelCheckerCall
-    let modelCheckerCallDef ← `(def $modelCheckerCall
-          ($inst : $instantiationType)
-          ($th : $theoryIdent $instSortArgs*) :=
-        abstractTCargs%
-        ($(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-          ($(mkIdent `enumerableTransitionSystem) $instSortArgs* $th) : _ → _ → _ → $(mkIdent ``IO) _))
-    -- Define and export the model checker result
-    elabVeilCommand modelCheckerCallDef
-    -- elabVeilCommand (← `(end $(mkIdent mod.name)))
-    -- elabVeilCommand (← `(export $(mkIdent mod.name) ($modelCheckerCall)))
+def elabGenSpec : CommandElab := fun _stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
+  let mod ← mod.ensureSpecIsFinalized
+  localEnv.modifyModule (fun _ => mod)
+  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/
@@ -490,7 +439,7 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
-  | `(#model_check%$_tk $[after_compilation%$compile?]? $instTerm:term $theoryTerm:term $cfg) =>
+  | `(#model_check%$tk $[internal_mode%$internal?]? $[after_compilation%$compile?]? $instTerm:term $theoryTerm:term $cfg) =>
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized
     localEnv.modifyModule (fun _ => mod)
@@ -500,12 +449,24 @@ def elabModelCheck : CommandElab := fun stx => do
     let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
 
     -- Dispatch to appropriate mode handler
-    if compile?.isSome then
-      elabModelCheckCompiledMode mod stx instTerm theoryTerm config
-    else
-      elabModelCheckInterpretedMode stx callExpr config.parallelCfg
+    match internal?.isSome, compile?.isSome with
+    | true, false  => throwError "The 'internal_mode' keyword is inserted by Veil when compiling the specification. You should never add it manually."
+    | true, true   => elabModelCheckInternalMode mod callExpr
+    | false, false => elabModelCheckInterpretedMode stx callExpr config.parallelCfg
+    | false, true  => elabModelCheckCompiledMode tk stx config.parallelCfg
   | _ => throwUnsupportedSyntax
 where
+  /-- Generate the model source with `internal_mode` inserted for compilation. -/
+  generateModelSource (tk stx : Syntax) : CommandElabM String := do
+    -- Transform the source by inserting `internal_mode` after `#model_check`
+    -- This prevents the compiled version from triggering another compilation
+    let some posTk := tk.getTailPos? | throwError "Unexpected error: #model_check token has no position"
+    let some posStx := stx.getTailPos? | throwError "Unexpected error: #model_check command has no position"
+    let src := (← getFileMap).source
+    let newSource := String.Pos.Raw.extract src 0 posTk ++ " internal_mode " ++ String.Pos.Raw.extract src posTk posStx
+    return newSource
+
+  /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
   mkIdentWithModName (mod : Module) (name : Name) : Ident :=
     Lean.mkIdent (mod.name ++ name)
 
@@ -571,80 +532,51 @@ where
           if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
             refs.progressRef.set p
 
-  /-- Handle compiled mode: run the pre-compiled binary with the model checker call expression.
-  Checks compilation state and waits for compilation if still in progress. -/
-  elabModelCheckCompiledMode (mod : Module) (stx : Syntax) (instTerm theoryTerm : Term) (config : ModelCheckerConfig) : CommandElabM Unit := do
+  /-- Handle internal mode: define and export the model checker result. -/
+  elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
+    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat) := $callExpr pcfg progressInstanceId))
+    elabVeilCommand (← `(end $(mkIdent mod.name)))
+    elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
+
+  /-- Handle compiled mode: build, run, and display results with streaming progress. -/
+  elabModelCheckCompiledMode (tk stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+    let instanceId ← ModelChecker.Concrete.allocProgressInstance
     -- Get the source file path for looking up compilation state
     let sourceFile ← getFileName
-
-    -- Build the call expression string to send to the binary
-    -- NOTE: Here, if `instTerm` or `theoryTerm` depends on some definitions between
-    -- `#gen_spec` and `#model_check after_compilation`, since those definitions are not
-    -- be available in the compiled binary, the execution will fail.
-    let src := (← getFileMap).source
-    let some instStr := Syntax.getRange? instTerm |>.map fun r => String.Pos.Raw.extract src r.start r.stop
-      | throwError "Could not extract source for instantiation term"
-    let some theoryStr := Syntax.getRange? theoryTerm |>.map fun r => String.Pos.Raw.extract src r.start r.stop
-      | throwError "Could not extract source for theory term"
-    let spStr ← do
-      let spTerm ← mkSearchParameters mod config
-      -- Here, it seems that doing some pretty-printing is inevitable
-      let spStr ← liftCoreM <| PrettyPrinter.ppCategory `term spTerm
-      pure spStr
-    let pcfgStr := Std.Format.pretty <| repr config.parallelCfg
-    -- Build: modelCheckerCall inst th maxDepth pcfg progressInstanceId
-    -- (Note: progressInstanceId is set to 0 in the compilation mode)
-    let callExprStr := s!"{mod.name}.modelCheckerCall {instStr} {theoryStr} {spStr} {pcfgStr} 0"
-    trace[veil.debug] "Model checker call expression string:\n{callExprStr}"
-
-    -- Check compilation state for this model
-    let compilationState ← ModelChecker.Compilation.compilationRegistry.atomically fun ref => do
-      let registry ← ref.get
-      pure registry[sourceFile]?
-    let some compilationState := compilationState
-      | throwError "The current model has not been compiled. Please ensure #gen_spec is run before #model_check after_compilation."
-    let instanceId ← ModelChecker.Concrete.allocProgressInstance
+    -- Create the build folder
+    let buildFolder ← do
+      let modelSource ← generateModelSource tk stx
+      ModelChecker.Compilation.createBuildFolder sourceFile modelSource
+    -- Update status to inProgress
+    ModelChecker.Compilation.compilationRegistry.atomically fun ref => do
+      ref.modify fun registry => registry.insert sourceFile (.inProgress instanceId buildFolder)
     let _ ← IO.asTask (prio := .dedicated) do
-      -- If still compiling, wait for it to finish
-      let finalBuildDir ← match compilationState with
-        | .inProgress compilationInstanceId _ =>
-          ModelChecker.Compilation.pollForCompilationResult sourceFile compilationInstanceId instanceId
-        | .finished dir => pure dir
-      match finalBuildDir with
-      | none =>
-        ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("error", Json.str "Compilation failed")])
+      -- Run lake build in the temp folder
+      ModelChecker.Compilation.runProcessWithStatus sourceFile
+        { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
+        instanceId "Compiling"
+      -- Check if the compilation was not interrupted
+      let current? ← ModelChecker.Compilation.stillCurrentCont sourceFile instanceId fun ref => do
+        ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
+      unless current? do return
+      -- Check if the compilation is successful
+      let binPath := buildFolder / ".lake" / "build" / "bin"
+      unless ← (binPath / "ModelCheckerMain").pathExists do
+        ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [
+          ("error", Json.str s!"ModelCheckerMain binary not found at {binPath}. Compilation may have failed.")])
         return
-      | some finalBuildDir => do
-        -- Now run the model checker
-        runModelCheckerBinary finalBuildDir callExprStr instanceId
+      -- Run model checker
+      ModelChecker.Concrete.updateStatus instanceId "Running..."
+      let args := parallelCfg.map (fun p => #[toString p.numSubTasks, toString p.thresholdToParallel]) |>.getD #[]
+      -- CHECK How to implement interruption checking here?
+      let child ← IO.Process.spawn {
+        cmd := "ModelCheckerMain", args, cwd := binPath,
+        stdin := .piped, stdout := .piped, stderr := .piped }
+      readStderrProgress child.stderr instanceId
+      let stdout ← IO.FS.Handle.readToEnd child.stdout
+      let _ ← child.wait
+      ModelChecker.Concrete.finishProgress instanceId (Json.parse stdout |>.toOption.getD .null)
     ModelChecker.displayStreamingProgress stx instanceId
-
-  /-- Run the model checker binary with the given call expression. -/
-  runModelCheckerBinary (buildDir : System.FilePath) (callExprStr : String) (instanceId : Nat) : IO Unit := do
-    let binPath := buildDir / ".lake" / "build" / "bin"
-    unless ← (binPath / "ModelCheckerMain").pathExists do
-      ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [
-        ("error", Json.str s!"ModelCheckerMain binary not found at {binPath}. Compilation may have failed.")])
-      return
-
-    -- Run model checker
-    ModelChecker.Concrete.updateStatus instanceId "Running..."
-    let child ← IO.Process.spawn {
-      cmd := "ModelCheckerMain", args := #[], cwd := binPath,
-      stdin := .piped, stdout := .piped, stderr := .piped }
-
-    -- Send the call expression to stdin
-    child.stdin.putStr callExprStr
-    child.stdin.flush
-    let (_, child) ← child.takeStdin
-
-    -- Read progress from stderr
-    readStderrProgress child.stderr instanceId
-
-    -- Read result from stdout
-    let stdout ← IO.FS.Handle.readToEnd child.stdout
-    let _ ← child.wait
-    ModelChecker.Concrete.finishProgress instanceId (Json.parse stdout |>.toOption.getD .null)
 
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
