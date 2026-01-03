@@ -6,30 +6,42 @@ namespace Veil
 structure fQueue (α : Type) where
   front : List α
   back : List α
-deriving Inhabited, Repr
+  sz : Nat := 0
+  h_sz : sz = front.length + back.length := by decide
+deriving Repr
 
 namespace fQueue
 
 instance : Membership α (fQueue α) where
   mem q x := x ∈ q.front ∨ x ∈ q.back
 
-def empty {α} : fQueue α := ⟨[], []⟩
+def empty {α} : fQueue α := ⟨[], [], 0, rfl⟩
 
 @[grind]
 def norm {α} (q : fQueue α) : fQueue α :=
-  match q.front with
-  | []    => ⟨q.back.reverse, []⟩
+  match hf : q.front with
+  | []    => ⟨q.back.reverse, [], q.sz, by simp [q.h_sz, hf, List.length_reverse]⟩
   | _::_  => q
+
+@[simp]
+theorem norm_sz {α} (q : fQueue α) : (norm q).sz = q.sz := by
+  unfold norm
+  split <;> rfl
 
 @[grind]
 def enqueue {α} (q : fQueue α) (x : α) : fQueue α :=
-  ⟨q.front, x :: q.back⟩ -- O(1)
+  ⟨q.front, x :: q.back, q.sz + 1, by simp [q.h_sz, List.length_cons]; omega⟩ -- O(1)
 
 @[grind]
 def dequeue? {α} (q : fQueue α) : Option (α × fQueue α) :=
-  match (norm q).front with
+  let nq := norm q
+  match hf : nq.front with
   | []        => none
-  | x :: xs   => some (x, ⟨xs, (norm q).back⟩)
+  | x :: xs   => some (x, ⟨xs, nq.back, q.sz - 1, by
+      have h1 := nq.h_sz
+      have h2 : nq.sz = q.sz := norm_sz q
+      simp only [hf, List.length_cons] at h1
+      omega⟩)
 
 @[grind]
 def toList {α} (q : fQueue α) : List α :=
@@ -40,8 +52,7 @@ def isEmpty {α} (q : fQueue α) : Bool :=
   q.front.isEmpty && q.back.isEmpty
 
 @[grind]
-def size {α} (q : fQueue α) : Nat :=
-  q.front.length + q.back.length
+def size {α} (q : fQueue α) : Nat := q.sz
 
 @[grind]
 def toArray {α} (q : fQueue α) : Array α :=
@@ -106,19 +117,14 @@ Properties:
 @[simp, grind =]
 theorem norm_toList {α} (q : fQueue α) :
     fQueue.toList (fQueue.norm q) = fQueue.toList q := by
-  cases q; rename_i f b; cases f <;> simp [norm, toList]
+  cases q with | mk f b _ => cases f <;> simp [norm, toList]
 
 @[simp, grind =]
 theorem norm_idem {α} (q : fQueue α) :
-    fQueue.norm (fQueue.norm q) = fQueue.norm q := by
-  cases q; rename_i f b; cases f <;> simp only [norm]
-  cases b.reverse <;> simp
+    fQueue.norm (fQueue.norm q) = fQueue.norm q := by grind
 
 theorem norm_eq_self_of_front_ne_nil {α} {q : fQueue α} (h : q.front ≠ []) :
-    fQueue.norm q = q := by
-  cases q; rename_i f b; cases f with
-  | nil => simp_all
-  | cons => simp [norm]
+    fQueue.norm q = q := by grind
 
 @[simp, grind =]
 theorem toList_empty {α : Type} : fQueue.toList (fQueue.empty : fQueue α) = ([] : List α) := by
@@ -132,7 +138,7 @@ theorem dequeue?_empty {α : Type} : fQueue.dequeue? (fQueue.empty : fQueue α) 
 @[simp, grind =]
 theorem toList_enqueue {α : Type} (q : fQueue α) (x : α) :
     fQueue.toList (fQueue.enqueue q x) = fQueue.toList q ++ [x] := by
-  simp [fQueue.toList, fQueue.enqueue, List.reverse_cons, List.append_assoc]
+  simp only [toList, enqueue, List.reverse_cons, List.append_assoc]
 
 
 @[grind .]
@@ -152,40 +158,16 @@ theorem back_imples_in_queue {α : Type} {q : fQueue α} {x : α}
 theorem dequeue?_spec {α : Type} (q : fQueue α) :
     match fQueue.dequeue? q with
     | none => fQueue.toList q = []
-    | some (x, q') => fQueue.toList q = x :: fQueue.toList q' := by
-  unfold dequeue?
-  cases h : norm q with
-  | mk f' b' =>
-    cases f' with
-    | nil =>
-      cases q; rename_i qf qb; cases qf with
-      | nil => simp only [norm, mk.injEq] at h; cases qb <;> simp_all [toList]
-      | cons => simp [norm] at h
-    | cons x xs =>
-      have := norm_toList q
-      simp only [toList] at this ⊢
-      simp [h] at this; exact this.symm
-
+    | some (x, q') => fQueue.toList q = x :: fQueue.toList q' := by grind
 
 @[simp, grind =]
 theorem dequeue?_eq_none_iff_toList_nil {α} (q : fQueue α) :
-    fQueue.dequeue? q = none ↔ fQueue.toList q = [] := by
-  constructor
-  · intro h; have := dequeue?_spec q; simp_all
-  · intro hnil
-    unfold dequeue?
-    cases h : norm q; rename_i f' b'; cases f' with
-    | nil => simp
-    | cons => have := norm_toList q; simp_all [toList]
+    fQueue.dequeue? q = none ↔ fQueue.toList q = [] := by grind
 
 /-- if `toList q = x :: xs`，then `dequeue? q = some (x, q')` and `toList q' = xs`。 -/
 theorem dequeue?_cons_view {α : Type} {q : fQueue α} {x : α} {xs : List α}
     (h : fQueue.toList q = x :: xs) :
-    ∃ q', fQueue.dequeue? q = some (x, q') ∧ fQueue.toList q' = xs := by
-  have spec := dequeue?_spec q
-  cases h' : dequeue? q with
-  | none => simp_all
-  | some p => exact ⟨p.2, by simp_all⟩
+    ∃ q', fQueue.dequeue? q = some (x, q') ∧ fQueue.toList q' = xs := by grind
 
 
 theorem fQueue_dequeue_mem {α : Type} [Inhabited α]
