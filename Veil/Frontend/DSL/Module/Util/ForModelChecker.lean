@@ -9,9 +9,18 @@ open Lean Meta Elab Command
 def findPosAfterImports (src : String) : String.Pos.Raw :=
   let lines := src.splitOn "\n"
   let (_, lastImportEnd) := lines.foldl (init := ((0 : Nat), (0 : Nat))) fun (pos, lastImportEnd) line =>
-    let nextPos := pos + line.length + 1  -- +1 for newline
+    let nextPos := pos + line.utf8ByteSize + 1  -- +1 for newline
     (nextPos, if line.trimLeft.startsWith "import " then nextPos else lastImportEnd)
   ⟨lastImportEnd⟩
+
+/-- Find the byte position right after `#gen_spec` in the source.
+    Used to filter out everything after `#gen_spec` from compiled model source. -/
+def findGenSpecEnd (src : String) : String.Pos.Raw :=
+  let parts := src.splitOn "#gen_spec"
+  if parts.length == 1 then
+    ⟨src.utf8ByteSize⟩  -- #gen_spec not found
+  else
+    ⟨parts.head!.utf8ByteSize + "#gen_spec".utf8ByteSize⟩
 
 /-- Status of the model checker compilation process for a single model. -/
 inductive Status

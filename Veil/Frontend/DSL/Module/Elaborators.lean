@@ -442,16 +442,23 @@ where
           #model_check {compileStr}{instTerm} {theoryExample}"
       `({})
 
-  /-- Generate the model source for compilation by inserting
-      `set_option veil.__modelCheckCompileMode true` after all imports. -/
+  /-- Generate the model source for compilation:
+      1. Insert `set_option veil.__modelCheckCompileMode true` after imports
+      2. Keep everything up to and including `#gen_spec`
+      3. Append the current `#model_check` command
+      This filters out `#check_invariants`, `sat trace`, etc. from the compiled model. -/
   generateModelSource (_tk stx : Syntax) : CommandElabM String := do
-    let some posStx := stx.getTailPos? | throwError "Unexpected error: #model_check command has no position"
     let src := (← getFileMap).source
     let afterImportsPos := ModelChecker.Compilation.findPosAfterImports src
     let compileModePreamble := "\nset_option veil.__modelCheckCompileMode true\n"
+    -- Find #gen_spec and take everything up to and including it
+    let genSpecEnd := ModelChecker.Compilation.findGenSpecEnd src
     let beforeImports := String.Pos.Raw.extract src 0 afterImportsPos
-    let afterImports := String.Pos.Raw.extract src afterImportsPos posStx
-    return beforeImports ++ compileModePreamble ++ afterImports
+    let afterImportsToGenSpec := String.Pos.Raw.extract src afterImportsPos genSpecEnd
+    let some modelCheckStart := stx.getPos? | throwError "Unexpected error: #model_check has no position"
+    let some modelCheckEnd := stx.getTailPos? | throwError "Unexpected error: #model_check has no end position"
+    let modelCheckCmd := String.Pos.Raw.extract src modelCheckStart modelCheckEnd
+    return beforeImports ++ compileModePreamble ++ afterImportsToGenSpec ++ "\n" ++ modelCheckCmd ++ "\n"
 
   /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
   mkIdentWithModName (mod : Module) (name : Name) : Ident :=
