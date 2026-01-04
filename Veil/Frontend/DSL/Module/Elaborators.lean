@@ -533,26 +533,11 @@ where
     elabVeilCommand (← `(end $(mkIdent mod.name)))
     elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
 
-  /-- Run lake build and check if compilation was interrupted.
-      Returns `true` if compilation succeeded and wasn't interrupted. -/
-  runCompilationStep (sourceFile : String) (buildFolder : System.FilePath) (instanceId : Nat) (cancelToken : IO.CancelToken) : IO Bool := do
-    let result ← ModelChecker.Compilation.runProcessWithStatus sourceFile
-      { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
-      instanceId "Compiling" cancelToken
-    -- Check if compilation was interrupted
-    if result.interrupted then
-      return false
-    -- Check if compilation failed
-    if result.exitCode != 0 then
-      let errorMsg := s!"Compilation failed (exit code {result.exitCode}):\n" ++
-        (if result.stderr.isEmpty then "" else s!"[stderr]\n{result.stderr}") ++
-        (if result.stdout.isEmpty then "" else s!"[stdout]\n{result.stdout}\n")
-      ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [
-        ("error", Json.str errorMsg)])
-      return false
-    -- Mark compilation as finished
-    ModelChecker.Compilation.stillCurrentCont sourceFile instanceId fun ref => do
-      ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
+  /-- Build compilation error message from process result. -/
+  mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResult) : String :=
+    s!"Compilation failed (exit code {result.exitCode}):\n" ++
+      (if result.stderr.isEmpty then "" else s!"[stderr]\n{result.stderr}") ++
+      (if result.stdout.isEmpty then "" else s!"[stdout]\n{result.stdout}\n")
 
   /-- Check if the compiled binary exists. Returns `some binPath` if found. -/
   verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat) : IO (Option System.FilePath) := do
@@ -607,23 +592,6 @@ where
       Term.synthesizeSyntheticMVarsNoPostponing
       unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
-  /-- Handle compiled mode: build, run, and display results with streaming progress. -/
-  elabModelCheckCompiledMode (tk stx : Syntax) (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance
-    let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
-    let sourceFile ← getFileName
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile (← generateModelSource tk stx)
-    ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
-    let _ ← IO.asTask (prio := .dedicated) do
-      try
-        if ← checkCancelled cancelToken instanceId then return
-        unless (← runCompilationStep sourceFile buildFolder instanceId cancelToken) do return
-        if ← checkCancelled cancelToken instanceId then return
-        let some binPath ← verifyBinaryExists buildFolder instanceId | return
-        let _ ← runBinaryAndFinish binPath parallelCfg instanceId cancelToken assertionSources
-      catch e => ModelChecker.Concrete.finishProgress instanceId (errorJson (toString e))
-    ModelChecker.displayStreamingProgress stx instanceId
-
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
@@ -651,15 +619,12 @@ where
     let interpretedTask ← IO.asTask (prio := .dedicated) do
       try
         let json ← IO.ofExcept (← ioComputation.toIO')
-        if ← cancelToken.isSet then
-          unless ← ModelChecker.Concrete.checkHandoffRequested instanceId do
-            ModelChecker.Concrete.cancelProgress instanceId
-          return none
-        ModelChecker.Concrete.finishProgress instanceId (enrichJsonWithAssertions json assertionSources)
-        return some ()
+        match (← cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested instanceId) with
+        | (true, false) => ModelChecker.Concrete.cancelProgress instanceId  -- User clicked Stop
+        | (false, _) => ModelChecker.Concrete.finishProgress instanceId (enrichJsonWithAssertions json assertionSources)
+        | (true, true) => pure ()  -- Handoff requested, let compiled binary take over
       catch e =>
         ModelChecker.Concrete.finishProgress instanceId (errorJson (toString e))
-        return none
 
     -- Background compilation with handoff
     let _ ← IO.asTask (prio := .dedicated) do
@@ -671,7 +636,7 @@ where
           { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
           (do ModelChecker.Concrete.updateCompilationStatus instanceId (.inProgress ((← IO.monoMsNow) - compileStartMs)))
         if result.exitCode != 0 then
-          ModelChecker.Concrete.updateCompilationStatus instanceId (.failed s!"exit {result.exitCode}")
+          ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (mkCompilationErrorMsg result))
           return
         -- Skip handoff if violation found or interpreted finished
         if (← ModelChecker.Concrete.isViolationFound instanceId) || (← IO.hasFinished interpretedTask) then
@@ -683,10 +648,7 @@ where
         cancelToken.set
         let _ ← IO.wait interpretedTask
         let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff instanceId | return
-        let binPath := buildFolder / ".lake" / "build" / "bin"
-        unless (← (binPath / "ModelCheckerMain").pathExists) do
-          ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary not found at {binPath}")
-          return
+        let some binPath ← verifyBinaryExists buildFolder instanceId | return
         let _ ← runBinaryAndFinish binPath parallelCfg instanceId newCancelToken assertionSources
         ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
       catch e => ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (toString e))

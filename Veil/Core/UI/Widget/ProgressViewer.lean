@@ -24,6 +24,8 @@ def cancelModelCheck (instanceId : Nat) : RequestM (RequestTask Unit) := Request
 /-- Props for the Stop button widget. -/
 structure StopButtonProps where
   instanceId : Nat
+  /-- Changes on handoff to reset button state. -/
+  resetKey : Nat
   deriving Server.RpcEncodable
 
 /-- Stop button widget that calls the cancelModelCheck RPC method. -/
@@ -36,6 +38,9 @@ import * as React from 'react';
 export default function StopButton(props) {
   const rs = useRpcSession();
   const [stopping, setStopping] = React.useState(false);
+
+  // Reset stopping state when resetKey changes (e.g., on handoff)
+  React.useEffect(() => { setStopping(false); }, [props.resetKey]);
 
   const handleStop = async () => {
     setStopping(true);
@@ -77,11 +82,29 @@ def formatElapsedTime (ms : Nat) : String :=
   else
     s!"{seconds}.{millis / 100}s"
 
-/-- Props for the model checker progress viewer widget. -/
-structure ProgressViewerProps where
-  /-- The progress state to display. -/
-  progress : Progress
-deriving Server.RpcEncodable
+/-- Generate status text including compilation info. -/
+private def statusWithCompilation (p : Progress) : String :=
+  match p.compilationStatus with
+  | .inProgress ms => s!"{p.status} (compiling: {formatElapsedTime ms})"
+  | .failed _ => s!"{p.status} (compilation failed)"
+  | _ => p.status
+
+/-- Generate HTML for compilation failure message with details. -/
+private def compilationFailureHtml (err : String) : Html :=
+  <details style={json% {"marginTop": "8px"}}>
+    <summary style={json% {"color": "#cc6600", "cursor": "pointer", "fontSize": "12px"}}>
+      Compilation failed - continuing with interpreted mode (click for details)
+    </summary>
+    <pre style={json% {"whiteSpace": "pre-wrap", "wordBreak": "break-word", "fontFamily": "monospace", "fontSize": "11px", "margin": "8px 0", "padding": "8px", "backgroundColor": "var(--vscode-textBlockQuote-background, #222)", "borderRadius": "4px", "maxHeight": "200px", "overflow": "auto"}}>
+      {.text err}
+    </pre>
+  </details>
+
+private def statRow (label value : String) : Html :=
+  <tr>
+    <td style={json% {"paddingRight": "12px"}}>{.text label}</td>
+    <td style={json% {"textAlign": "right"}}>{.text value}</td>
+  </tr>
 
 /-- Convert Progress to Html for display, with optional Stop button. -/
 def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
@@ -89,10 +112,10 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
     {if p.isRunning then
       <div style={json% {"marginTop": "8px", "display": "flex", "alignItems": "center", "gap": "12px"}}>
         <div style={json% {"color": "#0066cc"}}>
-          <i>{.text p.status}</i>
+          <i>{.text (statusWithCompilation p)}</i>
         </div>
         {match instanceId? with
-         | some id => Html.ofComponent StopButton ⟨id⟩ #[]
+         | some id => Html.ofComponent StopButton ⟨id, p.startTimeMs⟩ #[]
          | none => .text ""}
       </div>
     else if p.isCancelled then
@@ -100,37 +123,22 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
         Cancelled
       </div>
     else
-      <div style={json% {"marginTop": "8px", "color": "#00aa00", "fontWeight": "bold"}}>
-        Done!
-    </div>}
+      <div style={json% {"marginTop": "8px"}}>
+        <div style={json% {"color": "#00aa00", "fontWeight": "bold"}}>Done!</div>
+      </div>}
     <table style={json% {"borderCollapse": "collapse"}}>
       <tbody>
-        <tr>
-          <td style={json% {"paddingRight": "12px"}}>States processed:</td>
-          <td style={json% {"textAlign": "right"}}>{.text (toString p.statesProcessed)}</td>
-        </tr>
-        <tr>
-          <td style={json% {"paddingRight": "12px"}}>Unique states:</td>
-          <td style={json% {"textAlign": "right"}}>{.text (toString p.uniqueStates)}</td>
-        </tr>
-        <tr>
-          <td style={json% {"paddingRight": "12px"}}>Completed depth:</td>
-          <td style={json% {"textAlign": "right"}}>{.text (toString p.completedDepth)}</td>
-        </tr>
-        <tr>
-          <td style={json% {"paddingRight": "12px"}}>Current depth:</td>
-          <td style={json% {"textAlign": "right"}}>{.text (toString p.currentDepth)}</td>
-        </tr>
-        <tr>
-          <td style={json% {"paddingRight": "12px"}}>Queue length:</td>
-          <td style={json% {"textAlign": "right"}}>{.text (toString p.queueLength)}</td>
-        </tr>
-        <tr>
-          <td style={json% {"paddingRight": "12px"}}>Elapsed time:</td>
-          <td style={json% {"textAlign": "right"}}>{.text (formatElapsedTime p.elapsedMs)}</td>
-        </tr>
+        {statRow "States processed:" (toString p.statesProcessed)}
+        {statRow "Unique states:" (toString p.uniqueStates)}
+        {statRow "Completed depth:" (toString p.completedDepth)}
+        {statRow "Current depth:" (toString p.currentDepth)}
+        {statRow "Queue length:" (toString p.queueLength)}
+        {statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)}
       </tbody>
     </table>
+    {match p.compilationStatus with
+     | .failed err => compilationFailureHtml err
+     | _ => .text ""}
   </div>
 
 /-- Display a widget with the given HTML. -/
@@ -144,29 +152,35 @@ private def displayWidget (atStx : Syntax) (html : Html) : CommandElabM Unit := 
 private def extractError (json : Json) : Option String :=
   json.getObjValAs? String "error" |>.toOption
 
+/-- Check if JSON has valid trace data (not null/empty). -/
+private def hasTraceData : Json → Bool
+  | .obj obj => !obj.isEmpty
+  | _ => false
+
+/-- Render an error box with the given message. -/
+private def errorBox (errorMsg : String) : Html :=
+  <div style={json% {"padding": "12px", "margin": "8px", "backgroundColor": "var(--vscode-inputValidation-errorBackground, #5a1d1d)", "border": "1px solid var(--vscode-inputValidation-errorBorder, #be1100)", "borderRadius": "6px"}}>
+    <div style={json% {"fontWeight": "bold", "marginBottom": "8px", "color": "var(--vscode-errorForeground, #f48771)"}}>
+      {.text "Error"}
+    </div>
+    <pre style={json% {"whiteSpace": "pre-wrap", "wordBreak": "break-word", "fontFamily": "monospace", "fontSize": "12px", "margin": "0", "color": "var(--vscode-editor-foreground)"}}>
+      {.text errorMsg}
+    </pre>
+  </div>
+
+private def noResultData : Html :=
+  <div style={json% {"color": "#cc6600"}}><i>No result data available</i></div>
+
 /-- Create the final result display with both progress summary and result viewer. -/
 def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
   <div className="model-checker-result">
     {progressToHtml p}
     {match resultJson with
      | some json =>
-       -- Check if this is an error result
        match extractError json with
-       | some errorMsg =>
-         <div style={json% {"padding": "12px", "margin": "8px", "backgroundColor": "var(--vscode-inputValidation-errorBackground, #5a1d1d)", "border": "1px solid var(--vscode-inputValidation-errorBorder, #be1100)", "borderRadius": "6px"}}>
-           <div style={json% {"fontWeight": "bold", "marginBottom": "8px", "color": "var(--vscode-errorForeground, #f48771)"}}>
-             {.text "Error"}
-           </div>
-           <pre style={json% {"whiteSpace": "pre-wrap", "wordBreak": "break-word", "fontFamily": "monospace", "fontSize": "12px", "margin": "0", "color": "var(--vscode-editor-foreground)"}}>
-             {.text errorMsg}
-           </pre>
-         </div>
-       | none =>
-         Html.ofComponent TraceDisplayViewer ⟨json, "vertical"⟩ #[]
-     | none =>
-       <div style={json% {"color": "#cc6600"}}>
-         <i>No result data available</i>
-       </div>}
+       | some errorMsg => errorBox errorMsg
+       | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical"⟩ #[] else noResultData
+     | none => noResultData}
   </div>
 
 /-- Create a streaming progress widget that polls progress by instance ID. -/
@@ -174,16 +188,13 @@ partial def mkProgressWidget (instanceId : Nat) : CoreM Html := do
   mkRefreshComponentM (.text "Starting model checker...") (getProgressStep instanceId)
 where
   getProgressStep (id : Nat) : CoreM (RefreshStep CoreM) := do
-    IO.sleep 100  -- Poll every 100ms
+    IO.sleep 100
     Core.checkSystem "getProgressStep"
     let progress ← getProgress id
     if progress.isRunning then
       return .cont (progressToHtml progress (some id)) (getProgressStep id)
     else
-      -- When done, fetch the result JSON and display it
-      let resultJson ← getResultJson id
-      -- IO.eprintln s!"{resultJson}"
-      return .last (mkFinalResultHtml progress resultJson)
+      return .last (mkFinalResultHtml progress (← getResultJson id))
 
 /-- Display a streaming progress widget at the given syntax. -/
 def displayStreamingProgress (atStx : Syntax) (instanceId : Nat) : CommandElabM Unit := do
