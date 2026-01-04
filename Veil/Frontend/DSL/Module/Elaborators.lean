@@ -484,7 +484,9 @@ where
       | some t => mkProp t
       | none => `($(mkIdent `default))
     let earlyTermConds ← do
-      let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState)])
+      let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
+                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
+                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
       if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
       else pure base
     `({ $(mkIdent `invariants) := $safetyList, $(mkIdent `terminating) := $terminatingProp,
