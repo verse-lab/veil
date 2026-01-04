@@ -243,17 +243,14 @@ that enumerate all values. -/
 class Enumeration (α : Type u) where
   allValues : List α
   complete : ∀ a : α, a ∈ allValues
-  [decEq : DecidableEq α]
 
-def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] [dec : DecidableEq β] (h : α ≃ β) : Enumeration β where
+def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] (h : α ≃ β) : Enumeration β where
   allValues := inst.allValues.map h
   complete := by simp ; intro b ; exists (h.symm b) ; simp ; apply inst.complete
-  decEq := dec
 
-attribute [instance low] Enumeration.decEq
 attribute [grind ←] Enumeration.complete
 
-instance (priority := high) [enum : Enumeration α] : FinEnum α := FinEnum.ofList enum.allValues enum.complete
+instance (priority := high) [enum : Enumeration α] [DecidableEq α] : FinEnum α := FinEnum.ofList enum.allValues enum.complete
 /-!
 Here only gives some basic instances. More complicated ones should be
 found in `Veil.Frontend.Std`.
@@ -291,10 +288,10 @@ instance {β : α → Type v} [insta : Enumeration α] [instb : ∀ a, Enumerati
   allValues := insta.allValues.flatMap fun a => (instb a).allValues.map <| Sigma.mk a
   complete := by simp ; grind
 
-def Enumeration.Pi.enum [insta : Enumeration α] (β : α → Type v) [instb : ∀ a, Enumeration (β a)] : List (∀ a, β a) :=
+def Enumeration.Pi.enum [insta : Enumeration α] [DecidableEq α] (β : α → Type v) [instb : ∀ a, Enumeration (β a)] : List (∀ a, β a) :=
   (List.pi insta.allValues fun x => (instb x).allValues).map (fun f x => f x (insta.complete x))
 
-instance [insta : Enumeration α] {β : α → Type v} [instb : ∀ a, Enumeration (β a)] : Enumeration (∀ a, β a) where
+instance [insta : Enumeration α] [DecidableEq α] {β : α → Type v} [instb : ∀ a, Enumeration (β a)] : Enumeration (∀ a, β a) where
   allValues := (Enumeration.Pi.enum β)
   complete := by intro f ; simp [Enumeration.Pi.enum, List.mem_pi] ; exists (fun x _ => f x) ; simp ; grind
 
