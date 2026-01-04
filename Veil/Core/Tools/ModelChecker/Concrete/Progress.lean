@@ -5,6 +5,7 @@ Authors: George Pîrlea
 -/
 import Lean.Data.Json
 import Std.Data.HashMap
+import Veil.Core.Tools.ModelChecker.Concrete.Core
 
 namespace Veil.ModelChecker.Concrete
 open Lean
@@ -34,20 +35,35 @@ instance : FromJson CompilationStatus where
     | "failed" => return .failed (← j.getObjValAs? String "error")
     | _ => throw s!"Unknown compilation status: {status}"
 
-/-- Progress information for model checking. -/
+/-- Statistics for a single action (transition label). -/
+structure ActionStatDisplay extends ActionStat where
+  /-- Action name (e.g., "Label.send_msg 1 2") -/
+  name : String
+  deriving ToJson, FromJson, Inhabited, Repr
+
+/-- Convert actionStatsMap to List ActionStat for progress reporting. -/
+def toActionStatsList [BEq κ] [Hashable κ] [Repr κ] (m : Std.HashMap κ ActionStat) : List ActionStatDisplay :=
+  m.toList.map fun (label, stat) => { name := repr label |>.pretty, statesGenerated := stat.statesGenerated, distinctStates := stat.distinctStates }
+
+/-- Progress information for model checking, using TLC-style terminology. -/
 structure Progress where
   status : String := "Initializing..."
-  uniqueStates : Nat := 0
-  statesProcessed : Nat := 0
-  queueLength : Nat := 0
-  currentDepth : Nat := 0
-  completedDepth : Nat := 0
+  /-- Length of the longest behavior found so far (BFS depth) -/
+  diameter : Nat := 0
+  /-- Total number of post-states generated (before deduplication) -/
+  statesFound : Nat := 0
+  /-- Number of unique states (after deduplication via fingerprinting) -/
+  distinctStates : Nat := 0
+  /-- States found but not yet explored (frontier size) -/
+  queue : Nat := 0
   isRunning : Bool := true
   isCancelled : Bool := false
   startTimeMs : Nat := 0
   elapsedMs : Nat := 0
   /-- Status of background compilation (for handoff mode). -/
   compilationStatus : CompilationStatus := .none
+  /-- Per-action statistics -/
+  actionStats : List ActionStatDisplay := []
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Refs for tracking progress of a single model checker instance. -/
@@ -106,19 +122,21 @@ private def withRefs (instanceId : Nat) (f : ProgressRefs → IO Unit) : IO Unit
 
 /-- Update progress for a given instance ID.
     In compiled mode, also outputs progress to stderr as JSON. -/
-def updateProgress (instanceId : Nat) (uniqueStates statesProcessed queueLength currentDepth completedDepth : Nat) : IO Unit := do
+def updateProgress (instanceId : Nat)
+    (diameter statesFound distinctStates queue : Nat)
+    (actionStats : List ActionStatDisplay := []) : IO Unit := do
   let now ← IO.monoMsNow
   -- Update refs if they exist (interpreted mode)
   if let some refs ← getProgressRefs instanceId then
     refs.progressRef.modify fun p => { p with
-      uniqueStates, statesProcessed, queueLength, currentDepth, completedDepth
+      diameter, statesFound, distinctStates, queue, actionStats
       elapsedMs := now - p.startTimeMs }
   -- Output to stderr if in compiled mode
   if ← compiledModeEnabled.get then
     let startTime ← compiledModeStartTime.get
     let p : Progress := {
       status := "Running..."
-      uniqueStates, statesProcessed, queueLength, currentDepth, completedDepth
+      diameter, statesFound, distinctStates, queue, actionStats
       isRunning := true
       startTimeMs := startTime
       elapsedMs := now - startTime

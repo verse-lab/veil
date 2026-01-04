@@ -6,10 +6,11 @@ open Std
 
 structure SequentialSearchContext {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
+  [instBEq : BEq κ] [instHash : Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-extends @BaseSearchContext ρ σ κ σₕ fp th sys params
+extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
 where
   /-- Queue storing (fingerprint, state, depth) tuples for BFS traversal -/
   sq    : fQueue (QueueItem σₕ σ)
@@ -17,11 +18,11 @@ where
 
 def SequentialSearchContext.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) :
-  @SequentialSearchContext ρ σ κ σₕ fp th sys params := {
+  @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params := {
     BaseSearchContext.initial sys params with
     sq := fQueue.ofList (sys.initStates |> Functor.map (fun s => ⟨fp.view s, s, 0⟩)),
     invs := sorry
@@ -34,24 +35,30 @@ Otherwise, add it to seen set and log, then enqueue it. -/
 def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (fpSt : σₕ)  -- fingerprint of state we're coming from (pre-state), for logging
   (depth : Nat)  -- depth of the current state (neighbor will be at depth + 1)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params)
+  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (neighbor : κ × σ)  -- Only successful transitions are passed here
   (h_neighbor : sys.reachable neighbor.2) :
-  m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) :=
+  m (@SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params) :=
   let ⟨label, succ⟩ := neighbor
   let fingerprint := fp.view succ
   if ctx.seen.contains fingerprint then pure ctx
-  else pure <|
-    let ctx_with_seen : @SequentialSearchContext ρ σ κ σₕ fp th sys params := {
+  else
+    -- This is a new distinct state - update per-action distinctStates count
+    let newActionStatsMap := match ctx.actionStatsMap[label]? with
+      | some stat => ctx.actionStatsMap.insert label { stat with distinctStates := stat.distinctStates + 1 }
+      | none => ctx.actionStatsMap.insert label { statesGenerated := 0, distinctStates := 1 }  -- shouldn't happen if processState ran first
+    pure <|
+    let ctx_with_seen : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params := {
       ctx with
         seen := ctx.seen.insert fingerprint,
         log := ctx.log.insert fingerprint (fpSt, label),
+        actionStatsMap := newActionStatsMap,
         invs := by
           constructor
           · -- queue_sound: queue unchanged, so invariant preserved
@@ -137,7 +144,7 @@ def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type} {m : Type
 def SequentialSearchContext.processState {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
@@ -145,8 +152,8 @@ def SequentialSearchContext.processState {ρ σ κ σₕ : Type} {m : Type → T
   (depth : Nat)  -- depth of the current state
   (curr : σ)
   (h_curr : sys.reachable curr)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params) :
-  m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) := do
+  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params) :
+  m (@SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params) := do
   let (baseCtx', outcomesOpt) := ctx.toBaseSearchContext.processState sys fpSt curr
   match outcomesOpt with
   | none => pure { ctx with
@@ -156,7 +163,18 @@ def SequentialSearchContext.processState {ρ σ κ σₕ : Type} {m : Type → T
   | some ⟨outcomes, heq⟩ =>
       -- Extract only successful transitions for queueing
       let successfulTransitions := extractSuccessfulTransitions outcomes
-      let ctx_updated := { ctx with toBaseSearchContext := baseCtx', invs := sorry }
+      -- Update statesFound: count ALL successful transitions (before dedup)
+      let newStatesFound := ctx.statesFound + successfulTransitions.length
+      -- Update per-action statesGenerated counts
+      let newActionStatsMap := successfulTransitions.foldl (init := ctx.actionStatsMap) fun acc (label, _) =>
+        match acc[label]? with
+        | some stat => acc.insert label { stat with statesGenerated := stat.statesGenerated + 1 }
+        | none => acc.insert label { statesGenerated := 1, distinctStates := 0 }
+      let baseCtx'' := { baseCtx' with statesFound := newStatesFound, actionStatsMap := newActionStatsMap }
+      let ctx_updated := { ctx with
+        toBaseSearchContext := baseCtx''
+        invs := sorry
+      }
       successfulTransitions.attach.foldlM (init := ctx_updated) (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ => do
       if current_ctx.hasFinished then pure current_ctx
       else
@@ -187,12 +205,12 @@ def SequentialSearchContext.processState {ρ σ κ σₕ : Type} {m : Type → T
 def SequentialSearchContext.bfsStep {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params) :
-  m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) :=
+  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params) :
+  m (@SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params) :=
   match ctx.sq.dequeue? with
   | none => pure { ctx with finished := some (.exploredAllReachableStates) }
   | some (⟨fpSt, curr, depth⟩, q_tail) => do
@@ -203,7 +221,7 @@ def SequentialSearchContext.bfsStep {ρ σ κ σₕ : Type} {m : Type → Type}
         (depth - 1, depth)  -- All states at previous depth are now fully explored
       else
         (ctx.completedDepth, ctx.currentFrontierDepth)
-    let ctx_dequeued : @SequentialSearchContext ρ σ κ σₕ fp th sys params := {
+    let ctx_dequeued : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params := {
       ctx with
         sq := q_tail,
         completedDepth := newCompletedDepth,
@@ -216,23 +234,27 @@ def SequentialSearchContext.bfsStep {ρ σ κ σₕ : Type} {m : Type → Type}
 def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :
-  m (@SequentialSearchContext ρ σ κ σₕ fp th sys params) := do
-  let mut ctx : @SequentialSearchContext ρ σ κ σₕ fp th sys params := SequentialSearchContext.initial sys params
-  let mut statesProcessed : Nat := 0
+  m (@SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params) := do
+  let mut ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params := SequentialSearchContext.initial sys params
   let mut lastUpdateTime : Nat := 0
   while !ctx.hasFinished do
-    statesProcessed := statesProcessed + 1
     -- Update progress and check for cancellation/handoff at most once per second
     let now ← IO.monoMsNow
     if now - lastUpdateTime >= 1000 then
       lastUpdateTime := now
-      updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.sq.size ctx.currentFrontierDepth ctx.completedDepth
+      -- TLC-style stats: diameter, statesFound, distinctStates, queue, actionStats
+      updateProgress progressInstanceId
+        ctx.currentFrontierDepth  -- diameter
+        ctx.statesFound           -- statesFound (total post-states before dedup)
+        ctx.seen.size             -- distinctStates
+        ctx.sq.size               -- queue
+        (toActionStatsList ctx.actionStatsMap)
       if ← shouldStop cancelToken progressInstanceId then
         ctx := { ctx with finished := some (.earlyTermination .cancelled) }
         break
@@ -241,7 +263,12 @@ def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
     if let some (.earlyTermination cond) := ctx.finished then
       if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
   -- Final update to ensure stats reflect finished state
-  updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.sq.size ctx.currentFrontierDepth ctx.completedDepth
+  updateProgress progressInstanceId
+    ctx.currentFrontierDepth
+    ctx.statesFound
+    ctx.seen.size
+    ctx.sq.size
+    (toActionStatsList ctx.actionStatsMap)
   return ctx
 
 end Veil.ModelChecker.Concrete

@@ -106,7 +106,108 @@ private def statRow (label value : String) : Html :=
     <td style={json% {"textAlign": "right"}}>{.text value}</td>
   </tr>
 
-/-- Convert Progress to Html for display, with optional Stop button. -/
+/-- Split action name into base name and arguments (everything after first space). -/
+private def splitActionName (name : String) : String × String :=
+  match name.splitOn " " with
+  | [] => (name, "")
+  | [base] => (base, "")
+  | base :: rest => (base, " ".intercalate rest)
+
+/-- Grouped action statistics for display. -/
+structure ActionGroup where
+  baseName : String
+  totalGenerated : Nat
+  totalDistinct : Nat
+  variants : List ActionStatDisplay
+  deriving Inhabited
+
+/-- Group action stats by their base name. -/
+private def groupActionStats (stats : List ActionStatDisplay) : List ActionGroup :=
+  let grouped := stats.foldl (init := (Std.HashMap.emptyWithCapacity : Std.HashMap String ActionGroup)) fun acc stat =>
+    let (base, _) := splitActionName stat.name
+    match acc[base]? with
+    | some group => acc.insert base ⟨
+        group.baseName,
+        group.totalGenerated + stat.statesGenerated,
+        group.totalDistinct + stat.distinctStates,
+        stat :: group.variants
+      ⟩
+    | none => acc.insert base ⟨
+        base,
+        stat.statesGenerated,
+        stat.distinctStates,
+        [stat]
+      ⟩
+  grouped.toList.map (·.2)
+    |>.map (fun g => ⟨g.baseName, g.totalGenerated, g.totalDistinct, g.variants.reverse.mergeSort (·.name < ·.name)⟩)
+    |>.mergeSort (·.baseName < ·.baseName)
+
+/-- Grid row style for consistent alignment. Highlighted if action was never enabled. -/
+private def gridRowStyle (highlight : Bool := false) : Json :=
+  if highlight then json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0", "backgroundColor": "#554400"}
+  else json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0"}
+
+/-- Render a single variant row (for expanded view). -/
+private def variantRow (stat : ActionStatDisplay) : Html :=
+  let (_, args) := splitActionName stat.name
+  let displayName := if args.isEmpty then "(no args)" else args
+  let subStyle : Json := json% {"paddingLeft": "16px", "color": "#aaa", "fontSize": "10px"}
+  .element "div" #[("style", gridRowStyle (stat.statesGenerated == 0))] #[
+    .element "span" #[("style", subStyle)] #[.text displayName],
+    .element "span" #[("style", json% {"textAlign": "right", "color": "#aaa", "fontSize": "10px"})] #[.text (toString stat.statesGenerated)],
+    .element "span" #[("style", json% {"textAlign": "right", "color": "#aaa", "fontSize": "10px"})] #[.text (toString stat.distinctStates)]
+  ]
+
+/-- Render an action group as Html. For multi-variant groups, uses details/summary. -/
+private def actionGroupHtml (group : ActionGroup) : Html := Id.run do
+  let rowStyle := gridRowStyle (group.totalGenerated == 0)
+  if group.variants.length == 1 then
+    -- Single variant: just show one row
+    return <div style={rowStyle}>
+      <span>{.text group.baseName}</span>
+      <span style={json% {"textAlign": "right"}}>{.text (toString group.totalGenerated)}</span>
+      <span style={json% {"textAlign": "right"}}>{.text (toString group.totalDistinct)}</span>
+    </div>
+  else
+    -- Multiple variants: use details element
+    return <details>
+      <summary style={rowStyle}>
+        <span style={json% {"cursor": "pointer"}}>{.text group.baseName}</span>
+        <span style={json% {"textAlign": "right"}}>{.text (toString group.totalGenerated)}</span>
+        <span style={json% {"textAlign": "right"}}>{.text (toString group.totalDistinct)}</span>
+      </summary>
+      <div>
+        {.element "span" #[] (group.variants.map variantRow).toArray}
+      </div>
+    </details>
+
+/-- Render action coverage with grouped actions using CSS Grid. -/
+private def actionCoverageHtml (actionStats : List ActionStatDisplay) : Html := Id.run do
+  if actionStats.isEmpty then return .text ""
+  let groups := groupActionStats actionStats
+  let numGroups := groups.length
+  let numVariants := actionStats.length
+  let summaryText := if numGroups == numVariants
+    then s!"{numGroups} actions"
+    else s!"{numGroups} actions ({numVariants} variants)"
+  let headerStyle := json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0", "borderBottom": "1px solid #444", "marginBottom": "4px"}
+  return <details style={json% {"marginTop": "8px"}}>
+    <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "#888"}}>
+      Action Coverage ({.text summaryText})
+    </summary>
+    <div style={json% {"marginTop": "4px", "fontSize": "11px"}}>
+      <div style={headerStyle}>
+        <span style={json% {"fontWeight": "bold"}}>Action</span>
+        <span style={json% {"textAlign": "right", "fontWeight": "bold"}}>Generated</span>
+        <span style={json% {"textAlign": "right", "fontWeight": "bold"}}>Distinct</span>
+      </div>
+      <div>
+        {.element "span" #[] (groups.map actionGroupHtml).toArray}
+      </div>
+    </div>
+  </details>
+
+/-- Convert Progress to Html for display, with optional Stop button. Uses TLC-style terminology. -/
 def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
   <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
     {if p.isRunning then
@@ -128,14 +229,14 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
       </div>}
     <table style={json% {"borderCollapse": "collapse"}}>
       <tbody>
-        {statRow "States processed:" (toString p.statesProcessed)}
-        {statRow "Unique states:" (toString p.uniqueStates)}
-        {statRow "Completed depth:" (toString p.completedDepth)}
-        {statRow "Current depth:" (toString p.currentDepth)}
-        {statRow "Queue length:" (toString p.queueLength)}
+        {statRow "Diameter:" (toString p.diameter)}
+        {statRow "States Found:" (toString p.statesFound)}
+        {statRow "Distinct States:" (toString p.distinctStates)}
+        {statRow "Queue:" (toString p.queue)}
         {statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)}
       </tbody>
     </table>
+    {actionCoverageHtml p.actionStats}
     {match p.compilationStatus with
      | .failed err => compilationFailureHtml err
      | _ => .text ""}

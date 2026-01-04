@@ -6,10 +6,11 @@ open Std
 
 structure ParallelSearchContextMain {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
+  [instBEq : BEq κ] [instHash : Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-extends @BaseSearchContext ρ σ κ σₕ fp th sys params
+extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
 where
   /-- Recording the nodes to visit in the next depth. Due to the way
   parallel BFS works, it could be any data structure that supports `O(1)`
@@ -20,21 +21,33 @@ where
 
 structure ParallelSearchContextSub {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
+  [instBEq : BEq κ] [instHash : Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-extends @BaseSearchContext ρ σ κ σₕ fp th sys params
+extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
 where
   tovisit : Array (QueueItem σₕ σ)
   localSeen : Std.HashSet σₕ
   localLog : Std.HashMap σₕ (σₕ × κ)
   invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisit) (fun h => h ∈ seen ∨ h ∈ localSeen)
+  /-- Local count of post-states generated (before deduplication) -/
+  localStatesFound : Nat := 0
+  /-- Local per-action statistics: label → stats -/
+  localActionStatsMap : Std.HashMap κ ActionStat := {}
+
+/-- Merge action stats maps by summing counts for each action. -/
+private def mergeActionStatsMaps [BEq κ] [Hashable κ] (m1 m2 : Std.HashMap κ ActionStat) : Std.HashMap κ ActionStat :=
+  m2.fold (init := m1) fun acc label stat2 =>
+    match acc[label]? with
+    | some stat1 => acc.insert label { statesGenerated := stat1.statesGenerated + stat2.statesGenerated, distinctStates := stat1.distinctStates + stat2.distinctStates }
+    | none => acc.insert label stat2
 
 def ParallelSearchContextSub.merge1 {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ] {th : ρ} {sys : _} {params : _}
-  (mainCtx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params)
-  (subCtx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :
-  @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := {
+  [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] {th : ρ} {sys : _} {params : _}
+  (mainCtx : @ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params)
+  (subCtx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params) :
+  @ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params := {
     mainCtx with
       seen := mainCtx.seen.union subCtx.localSeen,
       log := mainCtx.log.union subCtx.localLog,
@@ -42,14 +55,17 @@ def ParallelSearchContextSub.merge1 {ρ σ κ σₕ : Type}
       finished := Option.or mainCtx.finished subCtx.finished
       -- do not update depth information here
       tovisit := subCtx.tovisit.foldl (init := mainCtx.tovisit) fun acc ⟨h, x, d⟩ => acc.insertIfNew h (x, d)
+      -- Merge stats from sub-context
+      statesFound := mainCtx.statesFound + subCtx.localStatesFound
+      actionStatsMap := mergeActionStatsMaps mainCtx.actionStatsMap subCtx.localActionStatsMap
       invs := sorry
   }
 
 def ParallelSearchContextSub.merge2 {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ] {th : ρ} {sys : _} {params : _}
-  (mainCtx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params)
-  (subCtx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :
-  @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := {
+  [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] {th : ρ} {sys : _} {params : _}
+  (mainCtx : @ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params)
+  (subCtx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params) :
+  @ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params := {
     mainCtx with
       tovisit := subCtx.tovisit.foldl (init := mainCtx.tovisit) fun acc ⟨h, x, d⟩ =>
         if !mainCtx.seen.contains h then acc.insertIfNew h (x, d) else acc
@@ -58,11 +74,11 @@ def ParallelSearchContextSub.merge2 {ρ σ κ σₕ : Type}
 
 def ParallelSearchContextMain.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) :
-  @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := {
+  @ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params := {
     BaseSearchContext.initial sys params with
     tovisit := Std.HashMap.ofList (sys.initStates |> Functor.map (fun s => ⟨fp.view s, s, 0⟩))
     invs := sorry
@@ -72,24 +88,30 @@ def ParallelSearchContextMain.initial {ρ σ κ σₕ : Type}
 def ParallelSearchContextSub.tryExploreNeighbor {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (fpSt : σₕ)  -- fingerprint of state we're coming from (pre-state), for logging
   (depth : Nat)  -- depth of the current state (neighbor will be at depth + 1)
-  (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params)
+  (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params)
   (neighbor : κ × σ)
   (h_neighbor : sys.reachable neighbor.2) :
-  m (@ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :=
+  m (@ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params) :=
   let ⟨label, succ⟩ := neighbor
   let fingerprint := fp.view succ
   if ctx.seen.contains fingerprint || ctx.localSeen.contains fingerprint then pure ctx
-  else pure <|
-    let ctx_with_seen : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params := {
+  else
+    -- This is a new distinct state - update per-action distinctStates count
+    let newActionStatsMap := match ctx.localActionStatsMap[label]? with
+      | some stat => ctx.localActionStatsMap.insert label { stat with distinctStates := stat.distinctStates + 1 }
+      | none => ctx.localActionStatsMap.insert label { statesGenerated := 0, distinctStates := 1 }
+    pure <|
+    let ctx_with_seen : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params := {
       ctx with
         localSeen := ctx.localSeen.insert fingerprint,
         localLog := ctx.localLog.insert fingerprint (fpSt, label),
+        localActionStatsMap := newActionStatsMap,
         invs := sorry
     }
     { ctx_with_seen with
@@ -101,7 +123,7 @@ def ParallelSearchContextSub.tryExploreNeighbor {ρ σ κ σₕ : Type} {m : Typ
 def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
@@ -109,8 +131,8 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type} {m : Type → 
   (depth : Nat)  -- depth of the current state
   (curr : σ)
   (h_curr : sys.reachable curr)
-  (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params) :
-  m (@ParallelSearchContextSub ρ σ κ σₕ fp th sys params) := do
+  (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params) :
+  m (@ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params) := do
   let (baseCtx', outcomesOpt) := ctx.toBaseSearchContext.processState sys fpSt curr
   match outcomesOpt with
   | none => pure { ctx with
@@ -120,7 +142,19 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type} {m : Type → 
   | some ⟨outcomes, heq⟩ =>
       -- Extract only successful transitions for queueing
       let successfulTransitions := extractSuccessfulTransitions outcomes
-      let ctx_updated := { ctx with toBaseSearchContext := baseCtx', invs := sorry }
+      -- Update localStatesFound: count ALL successful transitions (before dedup)
+      let newLocalStatesFound := ctx.localStatesFound + successfulTransitions.length
+      -- Update per-action statesGenerated counts
+      let newLocalActionStatsMap := successfulTransitions.foldl (init := ctx.localActionStatsMap) fun acc (label, _) =>
+        match acc[label]? with
+        | some stat => acc.insert label { stat with statesGenerated := stat.statesGenerated + 1 }
+        | none => acc.insert label { statesGenerated := 1, distinctStates := 0 }
+      let ctx_updated := { ctx with
+        toBaseSearchContext := baseCtx'
+        localStatesFound := newLocalStatesFound
+        localActionStatsMap := newLocalActionStatsMap
+        invs := sorry
+      }
       successfulTransitions.attach.foldlM (init := ctx_updated) (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_tr⟩ => do
       if current_ctx.hasFinished then pure current_ctx
       else
@@ -150,15 +184,15 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type} {m : Type → 
 def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
-  (baseCtx : @BaseSearchContext ρ σ κ σₕ fp th sys params)
+  (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (queue : Array (σₕ × σ × Nat)) :
-  m (@ParallelSearchContextSub ρ σ κ σₕ fp th sys params) := do
+  m (@ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params) := do
   -- let startTime ← IO.monoMsNow
-  let ctx : @ParallelSearchContextSub ρ σ κ σₕ fp th sys params := {
+  let ctx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params := {
     baseCtx with
     tovisit := #[],
     localSeen := HashSet.emptyWithCapacity,
@@ -177,26 +211,26 @@ def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type} {m : Type → Ty
 def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
   (parallelCfg : ParallelConfig)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :
-  m (@ParallelSearchContextMain ρ σ κ σₕ fp th sys params) := do
-  let mut ctx : @ParallelSearchContextMain ρ σ κ σₕ fp th sys params := ParallelSearchContextMain.initial sys params
-  let mut statesProcessed : Nat := 0
+  m (@ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params) := do
+  let mut ctx : @ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params := ParallelSearchContextMain.initial sys params
   let mut lastUpdateTime : Nat := 0
   while !ctx.hasFinished do
     -- In this setting, the queue emptiness check needs to be done here
     if ctx.tovisit.isEmpty then
       ctx := { ctx with finished := some (.exploredAllReachableStates) }
       -- Final update before early return
-      updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
+      updateProgress progressInstanceId
+        ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisit.size
+        (toActionStatsList ctx.actionStatsMap)
       return ctx
     let tovisitArr := ctx.tovisit.toArray
-    statesProcessed := statesProcessed + tovisitArr.size
     ctx := {ctx with
       tovisit := Std.HashMap.emptyWithCapacity,
       completedDepth := ctx.currentFrontierDepth,
@@ -217,12 +251,17 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
     let now ← IO.monoMsNow
     if now - lastUpdateTime >= 1000 then
       lastUpdateTime := now
-      updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
+      -- TLC-style stats: diameter, statesFound, distinctStates, queue, actionStats
+      updateProgress progressInstanceId
+        ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisit.size
+        (toActionStatsList ctx.actionStatsMap)
       if ← shouldStop cancelToken progressInstanceId then
         ctx := { ctx with finished := some (.earlyTermination .cancelled) }
         break
   -- Final update to ensure stats reflect finished state
-  updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.tovisit.size ctx.currentFrontierDepth ctx.completedDepth
+  updateProgress progressInstanceId
+    ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisit.size
+    (toActionStatsList ctx.actionStatsMap)
   return ctx
 
 end Veil.ModelChecker.Concrete
