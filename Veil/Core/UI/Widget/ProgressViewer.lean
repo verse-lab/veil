@@ -181,19 +181,34 @@ private def actionGroupHtml (group : ActionGroup) : Html := Id.run do
       </div>
     </details>
 
+/-- Get list of never-enabled action names from groups and all action labels. -/
+private def getNeverEnabledActions (groups : List ActionGroup) (allActionLabels : List String) : List String :=
+  let zeroInGroups := groups.filter (·.totalGenerated == 0) |>.map (·.baseName)
+  let groupBaseNames := groups.map (·.baseName)
+  let missingFromGroups := allActionLabels.filter (fun l => !groupBaseNames.contains l)
+  (zeroInGroups ++ missingFromGroups).mergeSort (· < ·)
+
+/-- Render warning for actions that were never enabled. -/
+private def neverEnabledWarning (neverEnabled : List String) : Html :=
+  if neverEnabled.isEmpty then .text ""
+  else
+    let warningStyle := json% {"color": "#cc6600", "fontSize": "11px", "marginTop": "6px", "padding": "4px 8px", "backgroundColor": "#332200", "borderRadius": "4px"}
+    .element "div" #[("style", warningStyle)] #[
+      .text s!"⚠ Never enabled: {", ".intercalate neverEnabled}"
+    ]
+
 /-- Render action coverage with grouped actions using CSS Grid. -/
-private def actionCoverageHtml (actionStats : List ActionStatDisplay) : Html := Id.run do
-  if actionStats.isEmpty then return .text ""
+private def actionCoverageHtml (actionStats : List ActionStatDisplay) (allActionLabels : List String) : Html := Id.run do
+  if actionStats.isEmpty && allActionLabels.isEmpty then return .text ""
   let groups := groupActionStats actionStats
+  let neverEnabled := getNeverEnabledActions groups allActionLabels
   let numGroups := groups.length
-  let numVariants := actionStats.length
-  let summaryText := if numGroups == numVariants
-    then s!"{numGroups} actions"
-    else s!"{numGroups} actions ({numVariants} variants)"
+  let actionCountText := s!"{numGroups} actions"
+  let warningText := if neverEnabled.isEmpty then "" else s!" — {neverEnabled.length} never enabled ⚠"
   let headerStyle := json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0", "borderBottom": "1px solid #444", "marginBottom": "4px"}
   return <details style={json% {"marginTop": "8px"}}>
     <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "#888"}}>
-      Action Coverage ({.text summaryText})
+      Action Coverage ({.text actionCountText}{.element "span" #[("style", json% {"color": "#cc6600"})] #[.text warningText]})
     </summary>
     <div style={json% {"marginTop": "4px", "fontSize": "11px"}}>
       <div style={headerStyle}>
@@ -204,6 +219,7 @@ private def actionCoverageHtml (actionStats : List ActionStatDisplay) : Html := 
       <div>
         {.element "span" #[] (groups.map actionGroupHtml).toArray}
       </div>
+      {neverEnabledWarning neverEnabled}
     </div>
   </details>
 
@@ -236,7 +252,7 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
         {statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)}
       </tbody>
     </table>
-    {actionCoverageHtml p.actionStats}
+    {actionCoverageHtml p.actionStats p.allActionLabels}
     {match p.compilationStatus with
      | .failed err => compilationFailureHtml err
      | _ => .text ""}

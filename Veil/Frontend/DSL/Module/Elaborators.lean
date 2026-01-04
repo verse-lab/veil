@@ -425,7 +425,7 @@ def elabModelCheck : CommandElab := fun stx => do
     let isCompileMode ← isModelCheckCompileMode
     match isCompileMode, interpretedOnly?.isSome with
     | true, _     => elabModelCheckInternalMode mod callExpr  -- In compiled binary
-    | false, true => elabModelCheckInterpretedMode stx callExpr parallelCfg  -- interpreted keyword
+    | false, true => elabModelCheckInterpretedMode mod stx callExpr parallelCfg  -- interpreted keyword
     | false, false => elabModelCheckWithHandoff mod stx callExpr parallelCfg  -- default: interpreted + background compile
   | _ => throwUnsupportedSyntax
 where
@@ -571,7 +571,8 @@ where
         let line ← child.stderr.getLine
         if line.isEmpty then break
         match Json.parse line >>= FromJson.fromJson? (α := ModelChecker.Concrete.Progress) with
-        | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then refs.progressRef.set p
+        | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
+            refs.progressRef.modify fun old => { p with allActionLabels := old.allActionLabels }
         | .error _ => stderrAccum.modify (· ++ line)
     let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
     let waitTask ← IO.asTask (prio := .dedicated) child.wait
@@ -601,10 +602,15 @@ where
       Term.synthesizeSyntheticMVarsNoPostponing
       unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
+  /-- Get all action label names for never-enabled action warnings. -/
+  getActionLabelNames (mod : Module) : CommandElabM (List String) := do
+    let labelTypeName ← resolveGlobalConstNoOverload labelType
+    return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
+
   /-- Handle interpreted mode: evaluate and display results directly. -/
-  elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
+  elabModelCheckInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance
+    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     let ioComputation ← elaborateInterpretedComputation instanceId callExpr parallelCfg
     let _ ← IO.asTask (prio := .dedicated) do
@@ -618,7 +624,7 @@ where
   /-- Handle default mode: run interpreted + background compile with handoff. -/
   elabModelCheckWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance
+    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     let sourceFile ← getFileName
     let modelSource ← generateModelSource mod stx

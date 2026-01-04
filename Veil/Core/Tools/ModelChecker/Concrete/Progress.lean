@@ -64,6 +64,8 @@ structure Progress where
   compilationStatus : CompilationStatus := .none
   /-- Per-action statistics -/
   actionStats : List ActionStatDisplay := []
+  /-- All possible action labels (for detecting never-enabled actions) -/
+  allActionLabels : List String := []
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Refs for tracking progress of a single model checker instance. -/
@@ -98,12 +100,13 @@ def enableCompiledModeProgress : IO Unit := do
   compiledModeEnabled.set true
   compiledModeStartTime.set (← IO.monoMsNow)
 
-/-- Allocate a new progress instance and return its ID along with the cancel token. -/
-def allocProgressInstance : IO (Nat × IO.CancelToken) := do
+/-- Allocate a new progress instance and return its ID along with the cancel token.
+    Takes all action labels for detecting never-enabled actions. -/
+def allocProgressInstance (allActionLabels : List String := []) : IO (Nat × IO.CancelToken) := do
   let id ← nextInstanceId.modifyGet fun n => (n, n + 1)
   let cancelTk ← IO.CancelToken.new
   let refs : ProgressRefs := {
-    progressRef := ← IO.mkRef { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true }
+    progressRef := ← IO.mkRef { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true, allActionLabels }
     resultRef := ← IO.mkRef none
     cancelToken := cancelTk
     handoffRequested := ← IO.mkRef false
@@ -208,12 +211,14 @@ def isViolationFound (instanceId : Nat) : IO Bool := do
 /-- Reset progress for handoff to compiled mode. Returns new cancel token. -/
 def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := do
   let some refs ← getProgressRefs instanceId | return none
+  let oldProgress ← refs.progressRef.get
   refs.handoffRequested.set false
   let newCancelToken ← IO.CancelToken.new
   progressRegistry.modify fun m => m.insert instanceId { refs with cancelToken := newCancelToken }
   let now ← IO.monoMsNow
   refs.progressRef.set {
-    status := "Restarting with compiled binary...", startTimeMs := now, compilationStatus := .succeeded
+    status := "Restarting with compiled binary...", startTimeMs := now,
+    compilationStatus := .succeeded, allActionLabels := oldProgress.allActionLabels
   }
   return some newCancelToken
 
