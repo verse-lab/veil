@@ -346,10 +346,12 @@ structure Module where
   `procedure`/`action` or assertion is defined. -/
   protected _stateDefined : Bool := false
 
-  /-- Implementation detail. Whether the set of `procedures` and
-  `assertions` has been fixed. This is done explicitly when `#gen_spec`
-  is executed. Derived definitions can still be added after this. -/
-  protected _specFinalized : Bool := false
+  /-- Implementation detail. Stores the syntax of the command that finalized
+  the specification (the set of `procedures` and `assertions` was fixed).
+  This is done explicitly when `#gen_spec` is executed, or implicitly when
+  `#check_invariants` or `#model_check` is invoked. Derived definitions
+  can still be added after this. -/
+  protected _specFinalizedAt : Option Syntax := none
 
   /-- Assertions can be grouped into "sets", which are checked
   independently of each other. Sets are per-module. By default, all

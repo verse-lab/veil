@@ -176,9 +176,11 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     elabVeilCommand stx2
   pure mod
 
-/-- Crystallizes the specification of the module, i.e. it finalizes the
-set of `procedures` and `assertions`. -/
-private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module := do
+/-- Crystallizes the specification of the module, i.e. it finalizes the set of
+`procedures` and `assertions`. The `stx` parameter is the syntax of the command
+that triggered the finalization; it is stored for use by `#model_check` when
+generating compiled model source. -/
+private def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Module := do
   if mod.isSpecFinalized then
     return mod
   let mod ← mod.ensureStateIsDefined
@@ -218,7 +220,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) : CommandElabM Module :=
   elabVeilCommand rtsCmd
   Verifier.runManager
   mod.generateVCs
-  return { mod with _specFinalized := true }
+  return { mod with _specFinalizedAt := some stx }
 
 open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
@@ -226,7 +228,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
   -- Skip in compilation mode (no verification feedback needed)
   if ← isModelCheckCompileMode then return
   let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
-  let _ ← mod.ensureSpecIsFinalized
+  let _ ← mod.ensureSpecIsFinalized stx
   Verifier.startAll
   -- Display suggestions if the command is `#check_invariants?`
   match stx with
@@ -359,9 +361,9 @@ def elabAssertion : CommandElab := fun stx => do
   localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]
-def elabGenSpec : CommandElab := fun _stx => do
+def elabGenSpec : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
-  let mod ← mod.ensureSpecIsFinalized
+  let mod ← mod.ensureSpecIsFinalized stx
   localEnv.modifyModule (fun _ => mod)
   -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
   Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
@@ -402,9 +404,9 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   match stx with
-  | `(#model_check%$tk $[interpreted%$interpretedOnly?]? $instTerm:term $[$theoryTermOpt]? $cfg:optConfig) =>
+  | `(#model_check%$_tk $[interpreted%$interpretedOnly?]? $instTerm:term $[$theoryTermOpt]? $cfg:optConfig) =>
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
-    let mod ← mod.ensureSpecIsFinalized
+    let mod ← mod.ensureSpecIsFinalized stx
     localEnv.modifyModule (fun _ => mod)
 
     let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm
@@ -424,7 +426,7 @@ def elabModelCheck : CommandElab := fun stx => do
     match isCompileMode, interpretedOnly?.isSome with
     | true, _     => elabModelCheckInternalMode mod callExpr  -- In compiled binary
     | false, true => elabModelCheckInterpretedMode stx callExpr parallelCfg  -- interpreted keyword
-    | false, false => elabModelCheckWithHandoff tk stx callExpr parallelCfg  -- default: interpreted + background compile
+    | false, false => elabModelCheckWithHandoff mod stx callExpr parallelCfg  -- default: interpreted + background compile
   | _ => throwUnsupportedSyntax
 where
   /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
@@ -442,21 +444,28 @@ where
 
   /-- Generate the model source for compilation:
       1. Insert `set_option veil.__modelCheckCompileMode true` after imports
-      2. Keep everything up to and including `#gen_spec`
+      2. Keep everything up to the point where the spec was finalized
       3. Append the current `#model_check` command
       This filters out `#check_invariants`, `sat trace`, etc. from the compiled model. -/
-  generateModelSource (_tk stx : Syntax) : CommandElabM String := do
+  generateModelSource (mod : Module) (stx : Syntax) : CommandElabM String := do
     let src := (← getFileMap).source
     let afterImportsPos := ModelChecker.Compilation.findPosAfterImports src
     let compileModePreamble := "\nset_option veil.__modelCheckCompileMode true\n"
-    -- Find #gen_spec and take everything up to and including it
-    let genSpecEnd := ModelChecker.Compilation.findGenSpecEnd src
-    let beforeImports := String.Pos.Raw.extract src 0 afterImportsPos
-    let afterImportsToGenSpec := String.Pos.Raw.extract src afterImportsPos genSpecEnd
+    -- Use the stored syntax where spec was finalized
+    let some specFinalizedAtStx := mod.specFinalizedAtStx
+      | throwError "Internal error: spec should be finalized before generating model source"
     let some modelCheckStart := stx.getPos? | throwError "Unexpected error: #model_check has no position"
     let some modelCheckEnd := stx.getTailPos? | throwError "Unexpected error: #model_check has no end position"
+    -- If #model_check itself triggered finalization, use its start position to avoid duplication.
+    -- Otherwise, use the tail position of the finalizing command (e.g., #gen_spec, #check_invariants).
+    let modelCheckTriggeredFinalization := specFinalizedAtStx.getPos? == stx.getPos?
+    let specFinalizedAtPos := if modelCheckTriggeredFinalization
+      then modelCheckStart
+      else specFinalizedAtStx.getTailPos?.getD modelCheckStart
+    let beforeImports := String.Pos.Raw.extract src 0 afterImportsPos
+    let afterImportsToSpecFinalized := String.Pos.Raw.extract src afterImportsPos specFinalizedAtPos
     let modelCheckCmd := String.Pos.Raw.extract src modelCheckStart modelCheckEnd
-    return beforeImports ++ compileModePreamble ++ afterImportsToGenSpec ++ "\n" ++ modelCheckCmd ++ "\n"
+    return beforeImports ++ compileModePreamble ++ afterImportsToSpecFinalized ++ "\n" ++ modelCheckCmd ++ "\n"
 
   /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
   mkIdentWithModName (mod : Module) (name : Name) : Ident :=
@@ -607,12 +616,12 @@ where
     ModelChecker.displayStreamingProgress stx instanceId
 
   /-- Handle default mode: run interpreted + background compile with handoff. -/
-  elabModelCheckWithHandoff (tk stx : Syntax) (callExpr : Term)
+  elabModelCheckWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     let sourceFile ← getFileName
-    let modelSource ← generateModelSource tk stx
+    let modelSource ← generateModelSource mod stx
     let ioComputation ← elaborateInterpretedComputation instanceId callExpr parallelCfg
 
     -- Interpreted mode task

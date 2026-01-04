@@ -155,7 +155,9 @@ def Module.throwIfAlreadyDeclared [Monad m] [MonadError m] (mod : Module) (name 
 longer be changed, since some definitions already depend on it)? -/
 def Module.isStateDefined (mod : Module) : Bool := mod._stateDefined
 
-def Module.isSpecFinalized (mod : Module) : Bool := mod._specFinalized
+def Module.isSpecFinalized (mod : Module) : Bool := mod._specFinalizedAt.isSome
+
+def Module.specFinalizedAtStx (mod : Module) : Option Syntax := mod._specFinalizedAt
 
 def Module.throwIfStateAlreadyDefined [Monad m] [MonadError m] (mod : Module) : m Unit := do
   if mod.isStateDefined then
