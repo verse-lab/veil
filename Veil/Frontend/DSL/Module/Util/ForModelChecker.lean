@@ -45,6 +45,16 @@ def stillCurrentCont (sourceFile : String) (instanceId : Nat) (k : Std.AtomicT (
       | _ => pure false
     | none => pure false
 
+/-- Mark compilation as finished in the registry. -/
+def markRegistryFinished (sourceFile : String) (buildFolder : System.FilePath) : IO Unit :=
+  compilationRegistry.atomically fun ref =>
+    ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
+
+/-- Mark compilation as in progress in the registry. -/
+def markRegistryInProgress (sourceFile : String) (instanceId : Nat) (buildFolder : System.FilePath) : IO Unit :=
+  compilationRegistry.atomically fun ref =>
+    ref.modify fun registry => registry.insert sourceFile (.inProgress instanceId buildFolder)
+
 /-- Base directory for model checker build folders. This is an absolute path. -/
 def getBuildBaseDir : IO System.FilePath := do
   let pwd ← IO.currentDir
@@ -176,6 +186,25 @@ def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
   match ← IO.wait waitTask with
   | .ok exitCode => return { exitCode, stdout, stderr, interrupted }
   | .error err => return { exitCode := 1, stdout, stderr := s!"{stderr}\nIO error: {err}", interrupted }
+
+/-- Run a process with a callback for status updates.
+    The callback is called periodically while the process runs.
+    This variant does not check for cancellation - it runs to completion. -/
+def runProcessWithStatusCallback (cfg : IO.Process.SpawnArgs)
+    (updateStatus : IO Unit) : IO ProcessResult := do
+  let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
+  -- Start reading stdout/stderr in background tasks to avoid blocking
+  let stdoutTask ← IO.asTask (prio := .dedicated) proc.stdout.readToEnd
+  let stderrTask ← IO.asTask (prio := .dedicated) proc.stderr.readToEnd
+  let waitTask ← IO.asTask (prio := .dedicated) proc.wait
+  while !(← IO.hasFinished waitTask) do
+    updateStatus
+    IO.sleep 500  -- Update every 500ms
+  let stdout ← IO.ofExcept (← IO.wait stdoutTask)
+  let stderr ← IO.ofExcept (← IO.wait stderrTask)
+  match ← IO.wait waitTask with
+  | .ok exitCode => return { exitCode, stdout, stderr, interrupted := false }
+  | .error err => return { exitCode := 1, stdout, stderr := s!"{stderr}\nIO error: {err}", interrupted := false }
 
 -- /-- Clean up all build folders older than the specified age (in milliseconds). -/
 -- def cleanupOldBuildFolders (maxAgeMs : Nat := 24 * 60 * 60 * 1000) : IO Nat := do

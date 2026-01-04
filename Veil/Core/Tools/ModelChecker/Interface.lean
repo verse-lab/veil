@@ -51,6 +51,11 @@ inductive EarlyTerminationReason (σₕ : Type) where
   | cancelled
 deriving Inhabited, Hashable, BEq, Repr
 
+/-- Check if the termination reason represents a violation that should prevent handoff. -/
+def EarlyTerminationReason.isViolation {σₕ : Type} : EarlyTerminationReason σₕ → Bool
+  | .foundViolatingState _ _ | .deadlockOccurred _ | .assertionFailed _ _ => true
+  | .reachedDepthBound _ | .cancelled => false
+
 instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
   toJson
     | .foundViolatingState fp violates => Json.mkObj [("kind", "found_violating_state"), ("state_fingerprint", toJson fp), ("violates", toJson violates)]

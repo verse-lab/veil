@@ -228,15 +228,18 @@ def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
   let mut lastUpdateTime : Nat := 0
   while !ctx.hasFinished do
     statesProcessed := statesProcessed + 1
-    -- Update progress and check for cancellation at most once per second
+    -- Update progress and check for cancellation/handoff at most once per second
     let now ← IO.monoMsNow
     if now - lastUpdateTime >= 1000 then
       lastUpdateTime := now
       updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.sq.size ctx.currentFrontierDepth ctx.completedDepth
-      if ← cancelToken.isSet then
+      if ← shouldStop cancelToken progressInstanceId then
         ctx := { ctx with finished := some (.earlyTermination .cancelled) }
         break
     ctx := ← SequentialSearchContext.bfsStep sys ctx
+    -- If we found a violation, mark it so handoff is prevented
+    if let some (.earlyTermination cond) := ctx.finished then
+      if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
   -- Final update to ensure stats reflect finished state
   updateProgress progressInstanceId ctx.seen.size statesProcessed ctx.sq.size ctx.currentFrontierDepth ctx.completedDepth
   return ctx

@@ -265,11 +265,24 @@ syntax (name := checkInvariants) checkInvariantsCmd : command
 type instantiation and theory. The optional `maxDepth` parameter limits how
 deep the breadth-first search will go before terminating.
 
+## Execution Modes
+
+**Default behavior** (`#model_check`):
+- Runs interpreted mode immediately and shows real-time progress
+- Starts compilation in background
+- When compilation finishes (if no violation found yet), automatically restarts
+  with the compiled binary for faster execution
+
+**Interpreted-only mode** (`#model_check interpreted`):
+- Runs only interpreted mode without background compilation
+- Use this when you don't need the compiled binary
+
 Example:
 ```lean
 #model_check { node := Fin 5 } {baaaa := fun _ _ => 0}
 #model_check { node := Fin 5 } {baaaa := fun _ _ => 0} (maxDepth := 10)
 #model_check { node := Fin 5 }  -- theory term can be omitted if there are no theory fields
+#model_check interpreted { node := Fin 5 } {}  -- interpreted only, no compilation
 ```
 
 This will check all invariants and terminate early if a violation is found or
@@ -285,6 +298,6 @@ type classes.
 This means that it should only be used for testing. In the future, we will add
 support for complete enumeration of background theories.
 -/
-syntax (name := modelCheck) "#model_check " ("after_compilation")? term:max (term:max)? Parser.Tactic.optConfig : command
+syntax (name := modelCheck) "#model_check " ("interpreted")? term:max (term:max)? Parser.Tactic.optConfig : command
 
 end Veil
