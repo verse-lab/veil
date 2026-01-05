@@ -475,28 +475,28 @@ const useTheoremInserter = (documentUri: string, insertPosition: InsertPosition)
   return insertTheorem;
 };
 
-/** Banner shown when there are failed VCs */
-const FailureBanner: React.FC<{
-  failedCount: number;
+/** Banner shown when there are VCs that need manual proof (unknown/error status) */
+const ManualProofBanner: React.FC<{
   vcs: VerificationCondition[];
   documentUri: string;
   insertPosition: InsertPosition;
-}> = ({ failedCount, vcs, documentUri, insertPosition }) => {
+}> = ({ vcs, documentUri, insertPosition }) => {
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   const [inserting, setInserting] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(false);
 
-  // Get all failed VCs with theorem text
-  const failedVCs = vcs.filter(vc =>
+  // Get VCs that need manual proof (unknown/error, not disproven - those have counterexamples)
+  const needsManualProofVCs = vcs.filter(vc =>
     vc.theoremText &&
-    (vc.status === 'disproven' || vc.status === 'unknown' || vc.status === 'error')
+    (vc.status === 'unknown' || vc.status === 'error')
   );
 
-  if (failedCount === 0 || dismissed) return null;
+  const count = needsManualProofVCs.length;
+  if (count === 0 || dismissed) return null;
 
   const handleInsertAll = async () => {
     setInserting(true);
-    const allTheorems = failedVCs
+    const allTheorems = needsManualProofVCs
       .map(vc => vc.theoremText)
       .filter((t): t is string => t != null)
       .join('\n\n');
@@ -508,7 +508,7 @@ const FailureBanner: React.FC<{
     <div className="vr-failure-banner">
       <span className="vr-failure-banner-icon">⚠️</span>
       <span className="vr-failure-banner-text">
-        {failedCount} verification condition{failedCount !== 1 ? 's' : ''} failed
+        {count} verification condition{count !== 1 ? 's' : ''} could not be discharged automatically
       </span>
       <button
         className="vr-failure-banner-action"
@@ -643,8 +643,10 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
 
   // Theorem insertion
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
-  const isFailed = vc.status === 'disproven' || vc.status === 'unknown' || vc.status === 'error';
+  // Only highlight unknown/error as "needs manual proof" - disproven VCs have counterexamples and aren't provable
+  const needsManualProof = vc.status === 'unknown' || vc.status === 'error';
   const hasTheoremText = !!vc.theoremText;
+  const hasTRTheoremText = !!alternativeVC?.theoremText;
 
   const formatTime = (ms: number | null) => {
     if (ms === null) return null;
@@ -718,26 +720,45 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
 
   // Handle click on property row
   const handleRowClick = async (e: React.MouseEvent) => {
+    const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+
+    // Cmd+Shift+click to insert TR version
+    if (isCmdOrCtrl && e.shiftKey && hasTRTheoremText) {
+      e.preventDefault();
+      e.stopPropagation();
+      await insertTheorem(alternativeVC!.theoremText!);
+      return;
+    }
+
     // Cmd-click (Mac) or Ctrl-click (Windows/Linux) to insert theorem
-    if (isFailed && hasTheoremText && (e.metaKey || e.ctrlKey)) {
+    if (isCmdOrCtrl && hasTheoremText) {
       e.preventDefault();
       e.stopPropagation();
       await insertTheorem(vc.theoremText!);
       return;
     }
+
     // Normal click: toggle expanded
     if (isExpandable) {
       setExpanded(!expanded);
     }
   };
 
+  // Build tooltip text based on available actions
+  const getTooltip = (): string | undefined => {
+    const parts: string[] = [];
+    if (hasTheoremText) parts.push('Cmd-click to insert theorem');
+    if (hasTRTheoremText) parts.push('Cmd+Shift-click for TR version');
+    return parts.length > 0 ? parts.join(', ') : undefined;
+  };
+
   return (
     <>
       <div
-        className={`property-row status-${getStatusClass(vc.status)} ${isExpandable ? 'expandable' : ''} ${isFailed && hasTheoremText ? 'insertable' : ''}`}
+        className={`property-row status-${getStatusClass(vc.status)} ${isExpandable ? 'expandable' : ''} ${needsManualProof && hasTheoremText ? 'insertable' : ''}`}
         onClick={handleRowClick}
-        style={{ cursor: isExpandable || (isFailed && hasTheoremText) ? 'pointer' : 'default' }}
-        title={isFailed && hasTheoremText ? 'Cmd-click to insert theorem' : undefined}
+        style={{ cursor: isExpandable || hasTheoremText ? 'pointer' : 'default' }}
+        title={getTooltip()}
       >
         {isExpandable && (
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
@@ -854,18 +875,18 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   const [inserting, setInserting] = React.useState(false);
 
-  // Get failed VCs in this section
-  const failedVCs = vcs.filter(vc =>
+  // Get VCs that need manual proof (unknown/error, not disproven - those have counterexamples)
+  const needsManualProofVCs = vcs.filter(vc =>
     vc.theoremText &&
-    (vc.status === 'disproven' || vc.status === 'unknown' || vc.status === 'error')
+    (vc.status === 'unknown' || vc.status === 'error')
   );
-  const failedCount = failedVCs.length;
+  const needsManualProofCount = needsManualProofVCs.length;
 
-  const handleInsertFailed = async (e: React.MouseEvent) => {
+  const handleInsertNeedsProof = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (failedCount === 0) return;
+    if (needsManualProofCount === 0) return;
     setInserting(true);
-    const allTheorems = failedVCs
+    const allTheorems = needsManualProofVCs
       .map(vc => vc.theoremText)
       .filter((t): t is string => t != null)
       .join('\n\n');
@@ -878,15 +899,15 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
       <div className="action-header" onClick={() => setExpanded(!expanded)}>
         <span className="action-toggle">{expanded ? '▼' : '▶'}</span>
         <span className="action-name">{action}</span>
-        {failedCount > 0 && (
+        {needsManualProofCount > 0 && (
           <>
-            <span className="action-failed-count">({failedCount} failed)</span>
+            <span className="action-failed-count">({needsManualProofCount} need{needsManualProofCount === 1 ? 's' : ''} manual proof)</span>
             <button
               className="action-insert-failed"
-              onClick={handleInsertFailed}
+              onClick={handleInsertNeedsProof}
               disabled={inserting}
             >
-              {inserting ? 'Inserting...' : 'Insert failed'}
+              {inserting ? 'Inserting...' : 'Insert'}
             </button>
           </>
         )}
@@ -1780,9 +1801,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
               })}
             </div>
 
-            {/* Failure banner */}
-            <FailureBanner
-              failedCount={statusCounts.disproven + statusCounts.unknown + statusCounts.error}
+            {/* Banner for VCs needing manual proof */}
+            <ManualProofBanner
               vcs={visibleVCs}
               documentUri={documentUri}
               insertPosition={insertPosition}

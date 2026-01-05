@@ -206,8 +206,8 @@ def mkTheoremText (vc : VerificationCondition VCMetaT ResultT) : CoreM String :=
 def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m] (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : m (VCResult VCMetaT ResultT) := do
   let .some vc := mgr.nodes[vcId]? | throwError s!"mkVCResult: VC {vcId} not found in manager"
   let timing ← mkTimingData mgr vc
-  -- Only generate theorem text for non-proven VCs
-  let theoremText ← if vc.successful.isNone then some <$> liftM (mkTheoremText vc) else pure none
+  -- Generate theorem text for all VCs (for click-to-insert functionality)
+  let theoremText ← some <$> liftM (mkTheoremText vc)
   return {
     id := vcId
     name := vc.name
