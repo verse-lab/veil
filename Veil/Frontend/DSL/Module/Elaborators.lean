@@ -176,6 +176,14 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     elabVeilCommand stx2
   pure mod
 
+private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
+  if mod.invariants.isEmpty then
+    logWarning "you have not defined any invariants for this specification; did you forget?"
+
+private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
+  if mod.actions.isEmpty then
+    logWarning "you have not defined any actions for this specification; did you forget?"
+
 /-- Crystallizes the specification of the module, i.e. it finalizes the set of
 `procedures` and `assertions`. The `stx` parameter is the syntax of the command
 that triggered the finalization; it is stored for use by `#model_check` when
@@ -184,6 +192,8 @@ private def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : Command
   if mod.isSpecFinalized then
     return mod
   let mod ← mod.ensureStateIsDefined
+  warnIfNoInvariantsDefined mod
+  warnIfNoActionsDefined mod
   let (assumptionCmd, mod) ← mod.assembleAssumptions
   elabVeilCommand assumptionCmd
   let (invariantCmd, mod) ← mod.assembleInvariants
