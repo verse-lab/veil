@@ -76,7 +76,40 @@ partial def displayStreamingResults (atStx : Syntax) (getter : CoreM (Verificati
     | .running => return .cont html (getStreamingResults insertPosition documentUri)
     | .done => return .last html
 
+/-- Map VCStatus to emoji for text output. -/
+def statusEmoji (status : Option VCStatus) : String :=
+  match status with
+  | some .proven => "✅"
+  | some .disproven => "❌"
+  | some .unknown => "❓"
+  | some .error => "💥"
+  | none => "⏳"
 
+/-- Format verification results as text output for logging. -/
+def formatVerificationResults (results : VerificationResults VCMetadata SmtResult) : MessageData := Id.run do
+  let vcs := results.vcs.filter fun vc =>
+    vc.metadata.isInduction && !vc.isDormant && vc.alternativeFor.isNone
+  let getAction := fun vc => match vc.metadata with | .induction m => m.action | _ => .anonymous
+  let initVCs := vcs.filter (getAction · == `initializer)
+  let actionGroups := vcs.filter (getAction · != `initializer) |>.foldl (init := Std.HashMap.emptyWithCapacity) fun acc vc =>
+    acc.insert (getAction vc) (acc.getD (getAction vc) #[] |>.push vc)
 
+  let mut msg := m!"Initialization must establish the invariant:\n"
+  for vc in initVCs do
+    let .induction m := vc.metadata | continue
+    msg := msg ++ m!"  {m.property} ... {statusEmoji vc.status}\n"
+  msg := msg ++ m!"The following set of actions must preserve the invariant and successfully terminate:\n"
+  for (actionName, vcs) in actionGroups.toArray do
+    msg := msg ++ m!"  {actionName}\n"
+    for vc in vcs do
+      let .induction m := vc.metadata | continue
+      msg := msg ++ m!"    {m.property} ... {statusEmoji vc.status}\n"
+  return msg
+
+/-- Check if any VCs have non-proven status. -/
+def hasFailedVCs (results : VerificationResults VCMetadata SmtResult) : Bool :=
+  results.vcs.any fun vc =>
+    vc.metadata.isInduction && !vc.isDormant && vc.alternativeFor.isNone &&
+    vc.status != some .proven
 
 end Veil.Verifier

@@ -248,6 +248,15 @@ private def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : Command
   mod.generateVCs
   return { mod with _specFinalizedAt := some stx }
 
+/-- Log verification results asynchronously after all VCs complete. -/
+def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
+  let msg := Verifier.formatVerificationResults results
+  if Verifier.hasFailedVCs results then
+    veilLogErrorAt stx msg
+  else
+    unless ← isModelCheckCompileMode do
+      logInfoAt stx msg
+
 open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
@@ -273,9 +282,8 @@ def elabCheckInvariants : CommandElab := fun stx => do
         liftCoreM <| addSuggestion stx cmds)
   | `(command|#check_invariants) => do
     Verifier.displayStreamingResults stx getResults
-    -- Verifier.vcManager.atomicallyOnce frontendNotification
-      -- (fun ref => do let mgr ← ref.get; return mgr.isDone)
-      -- (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
+    -- Add async text logging
+    Verifier.runFilteredAsync VCMetadata.isInduction (logVerificationResults stx)
   | _ => logInfo "Unsupported syntax {stx}"; throwUnsupportedSyntax
   where
   getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do
