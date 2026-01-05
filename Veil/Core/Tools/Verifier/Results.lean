@@ -95,6 +95,9 @@ structure VCResult (VCMetaT ResultT : Type) where
   alternativeFor : Option VCId := none
   /-- Whether this VC is currently dormant (waiting for its primary to fail). -/
   isDormant : Bool := false
+  /-- The theorem statement text for inserting into the editor.
+      Format: `theorem <name> <params> : <statement> := by sorry` -/
+  theoremText : Option String := none
 deriving Inhabited
 
 instance [ToJson VCMetaT] [ToJson ResultT] : ToJson (VCResult VCMetaT ResultT) where
@@ -106,7 +109,8 @@ instance [ToJson VCMetaT] [ToJson ResultT] : ToJson (VCResult VCMetaT ResultT) w
       ("metadata", toJson vcResult.metadata),
       ("timing", toJson vcResult.timing),
       ("alternativeFor", match vcResult.alternativeFor with | some id => toJson id | none => Json.null),
-      ("isDormant", toJson vcResult.isDormant)
+      ("isDormant", toJson vcResult.isDormant),
+      ("theoremText", match vcResult.theoremText with | some t => toJson t | none => Json.null)
     ]
 
 /-- Represents the complete verification results, mirroring the JSON structure
@@ -191,10 +195,19 @@ def VCManager.findPrimaryVC (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Op
       return some primaryId
   return none
 
+/-- Generate theorem text from a VC using proper pretty-printing.
+    Format: `theorem <name> <params> : <statement> := by sorry` -/
+def mkTheoremText (vc : VerificationCondition VCMetaT ResultT) : CoreM String := do
+  let cmd ← vc.theoremStx
+  let fmt ← Lean.PrettyPrinter.ppCommand cmd
+  return fmt.pretty
+
 /-- Build `VCResult` for a specific VC. -/
-def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : m (VCResult VCMetaT ResultT) := do
+def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m] (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : m (VCResult VCMetaT ResultT) := do
   let .some vc := mgr.nodes[vcId]? | throwError s!"mkVCResult: VC {vcId} not found in manager"
   let timing ← mkTimingData mgr vc
+  -- Only generate theorem text for non-proven VCs
+  let theoremText ← if vc.successful.isNone then some <$> liftM (mkTheoremText vc) else pure none
   return {
     id := vcId
     name := vc.name
@@ -203,10 +216,11 @@ def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager V
     timing := timing
     alternativeFor := mgr.findPrimaryVC vcId
     isDormant := mgr.dormantVCs.contains vcId
+    theoremText := theoremText
   }
 
 /-- Convert a `VCManager` to `VerificationResults`, filtering VCs by the given predicate. -/
-def VCManager.toResults [Monad m] [MonadError m] [MonadLiftT BaseIO m]
+def VCManager.toResults [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m]
     (mgr : VCManager VCMetadata ResultT) (filter : VCMetadata → Bool)
     : m (VerificationResults VCMetadata ResultT) := do
   let filteredNodes := mgr.nodes.toArray.filter fun (_, vc) => filter vc.metadata
@@ -231,7 +245,7 @@ def VCManager.toResults [Monad m] [MonadError m] [MonadLiftT BaseIO m]
 
 /-- Convert a `VCManager` to `VerificationResults`, filtering to only include induction VCs.
     This is used by the `#check_invariants` widget which doesn't support trace VCs. -/
-def VCManager.toVerificationResults [Monad m] [MonadError m] [MonadLiftT BaseIO m]
+def VCManager.toVerificationResults [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m]
     (mgr : VCManager VCMetadata ResultT) : m (VerificationResults VCMetadata ResultT) :=
   mgr.toResults (·.isInduction)
 

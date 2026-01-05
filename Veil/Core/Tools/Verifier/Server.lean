@@ -120,7 +120,7 @@ def runFilteredAsync (filter : VCMetadata → Bool)
       (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
       (fun ref => do
         let mgr ← ref.get
-        let results ← mgr.toResults filter
+        let results ← liftCoreM (mgr.toResults filter)
         callback results)) cancelTk
   let task ← (wrappedTask ()).asTask
   Command.logSnapshotTask { stx? := none, cancelTk? := cancelTk, task := task }
@@ -134,6 +134,6 @@ def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (Verification
     (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
     (fun ref => do
       let mgr ← ref.get
-      mgr.toResults filter)
+      liftCoreM (mgr.toResults filter))
 
 end Veil.Verifier

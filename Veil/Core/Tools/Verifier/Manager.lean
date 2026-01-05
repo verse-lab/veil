@@ -165,7 +165,10 @@ instance : Hashable (VerificationCondition VCMetaT ResultT) where
   hash x := hash x.uid
 
 def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] [MonadError m] (vc : VerificationCondition VCMetaT ResultT) : m Command := do
-  let defaultDischargedBy ← `(term|by sorry)
+  let veilHuman : TSyntax `tactic := ⟨mkIdent `veil_human⟩
+  let defaultDischargedBy ← `(term|by
+    $veilHuman:tactic
+    sorry)
   let dischargedBy : Term ← match vc.successful with
   | some dischargerId => do
     let .some discharger := vc.dischargers[dischargerId]?

@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { EditorContext } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
 import {
   ChangeInfo,
@@ -96,6 +97,8 @@ interface VerificationCondition {
   timing: VCTiming;
   alternativeFor?: number | null;
   isDormant?: boolean;
+  /** Theorem text for inserting into the editor (only for non-proven VCs) */
+  theoremText?: string | null;
 }
 
 interface VerificationResults {
@@ -105,8 +108,17 @@ interface VerificationResults {
   totalDischarged: number;
 }
 
+interface InsertPosition {
+  line: number;
+  character: number;
+}
+
 interface VerificationResultsProps {
   results: VerificationResults;
+  /** Position after #check_invariants for theorem insertion */
+  insertPosition: InsertPosition;
+  /** Document URI for edit operations */
+  documentUri: string;
 }
 
 type StatusFilter = 'all' | 'proven' | 'disproven' | 'unknown' | 'error' | 'pending';
@@ -430,6 +442,92 @@ const StructuredCexView: React.FC<{
   );
 };
 
+// ========== Theorem Insertion ==========
+
+/** Hook to create a theorem inserter function */
+const useTheoremInserter = (documentUri: string, insertPosition: InsertPosition) => {
+  const editorCtx = React.useContext(EditorContext);
+
+  const insertTheorem = React.useCallback(async (theoremText: string) => {
+    if (!editorCtx) {
+      console.error('EditorContext not available');
+      return false;
+    }
+    try {
+      const edit = {
+        textDocument: { uri: documentUri, version: null },
+        edits: [{
+          range: {
+            start: { line: insertPosition.line, character: insertPosition.character },
+            end: { line: insertPosition.line, character: insertPosition.character }
+          },
+          newText: '\n\n' + theoremText
+        }]
+      };
+      await editorCtx.api.applyEdit({ documentChanges: [edit] });
+      return true;
+    } catch (e) {
+      console.error('Failed to insert theorem:', e);
+      return false;
+    }
+  }, [editorCtx, documentUri, insertPosition]);
+
+  return insertTheorem;
+};
+
+/** Banner shown when there are failed VCs */
+const FailureBanner: React.FC<{
+  failedCount: number;
+  vcs: VerificationCondition[];
+  documentUri: string;
+  insertPosition: InsertPosition;
+}> = ({ failedCount, vcs, documentUri, insertPosition }) => {
+  const insertTheorem = useTheoremInserter(documentUri, insertPosition);
+  const [inserting, setInserting] = React.useState(false);
+  const [dismissed, setDismissed] = React.useState(false);
+
+  // Get all failed VCs with theorem text
+  const failedVCs = vcs.filter(vc =>
+    vc.theoremText &&
+    (vc.status === 'disproven' || vc.status === 'unknown' || vc.status === 'error')
+  );
+
+  if (failedCount === 0 || dismissed) return null;
+
+  const handleInsertAll = async () => {
+    setInserting(true);
+    const allTheorems = failedVCs
+      .map(vc => vc.theoremText)
+      .filter((t): t is string => t != null)
+      .join('\n\n');
+    await insertTheorem(allTheorems);
+    setInserting(false);
+  };
+
+  return (
+    <div className="vr-failure-banner">
+      <span className="vr-failure-banner-icon">⚠️</span>
+      <span className="vr-failure-banner-text">
+        {failedCount} verification condition{failedCount !== 1 ? 's' : ''} failed
+      </span>
+      <button
+        className="vr-failure-banner-action"
+        onClick={handleInsertAll}
+        disabled={inserting}
+      >
+        {inserting ? 'Inserting...' : 'Insert to prove interactively'}
+      </button>
+      <button
+        className="vr-failure-banner-dismiss"
+        onClick={() => setDismissed(true)}
+        title="Dismiss"
+      >
+        ×
+      </button>
+    </div>
+  );
+};
+
 function getStatusIcon(status: VerificationCondition['status']): React.ReactNode {
   switch (status) {
     case 'proven': return '✅';
@@ -534,12 +632,19 @@ function getFilterButtonContent(filter: StatusFilter): React.ReactNode {
 interface PropertyRowProps {
   vc: VerificationCondition;
   alternativeVC?: VerificationCondition;
+  documentUri: string;
+  insertPosition: InsertPosition;
 }
 
-const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
+const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUri, insertPosition }) => {
   const [expanded, setExpanded] = React.useState(false);
   const [showTRCounterexample, setShowTRCounterexample] = React.useState(true);
   const [showRawHtml, setShowRawHtml] = React.useState(false);
+
+  // Theorem insertion
+  const insertTheorem = useTheoremInserter(documentUri, insertPosition);
+  const isFailed = vc.status === 'disproven' || vc.status === 'unknown' || vc.status === 'error';
+  const hasTheoremText = !!vc.theoremText;
 
   const formatTime = (ms: number | null) => {
     if (ms === null) return null;
@@ -611,12 +716,28 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
 
   const timeDisplay = getTimeDisplay();
 
+  // Handle click on property row
+  const handleRowClick = async (e: React.MouseEvent) => {
+    // Cmd-click (Mac) or Ctrl-click (Windows/Linux) to insert theorem
+    if (isFailed && hasTheoremText && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      e.stopPropagation();
+      await insertTheorem(vc.theoremText!);
+      return;
+    }
+    // Normal click: toggle expanded
+    if (isExpandable) {
+      setExpanded(!expanded);
+    }
+  };
+
   return (
     <>
       <div
-        className={`property-row status-${getStatusClass(vc.status)} ${isExpandable ? 'expandable' : ''}`}
-        onClick={() => isExpandable && setExpanded(!expanded)}
-        style={{ cursor: isExpandable ? 'pointer' : 'default' }}
+        className={`property-row status-${getStatusClass(vc.status)} ${isExpandable ? 'expandable' : ''} ${isFailed && hasTheoremText ? 'insertable' : ''}`}
+        onClick={handleRowClick}
+        style={{ cursor: isExpandable || (isFailed && hasTheoremText) ? 'pointer' : 'default' }}
+        title={isFailed && hasTheoremText ? 'Cmd-click to insert theorem' : undefined}
       >
         {isExpandable && (
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
@@ -724,16 +845,51 @@ interface ActionSectionProps {
   action: string;
   vcs: VerificationCondition[];
   alternativeMap: Map<number, VerificationCondition>;
+  documentUri: string;
+  insertPosition: InsertPosition;
 }
 
-const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeMap }) => {
+const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeMap, documentUri, insertPosition }) => {
   const [expanded, setExpanded] = React.useState(true);
+  const insertTheorem = useTheoremInserter(documentUri, insertPosition);
+  const [inserting, setInserting] = React.useState(false);
+
+  // Get failed VCs in this section
+  const failedVCs = vcs.filter(vc =>
+    vc.theoremText &&
+    (vc.status === 'disproven' || vc.status === 'unknown' || vc.status === 'error')
+  );
+  const failedCount = failedVCs.length;
+
+  const handleInsertFailed = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (failedCount === 0) return;
+    setInserting(true);
+    const allTheorems = failedVCs
+      .map(vc => vc.theoremText)
+      .filter((t): t is string => t != null)
+      .join('\n\n');
+    await insertTheorem(allTheorems);
+    setInserting(false);
+  };
 
   return (
     <div className="action-section">
       <div className="action-header" onClick={() => setExpanded(!expanded)}>
         <span className="action-toggle">{expanded ? '▼' : '▶'}</span>
         <span className="action-name">{action}</span>
+        {failedCount > 0 && (
+          <>
+            <span className="action-failed-count">({failedCount} failed)</span>
+            <button
+              className="action-insert-failed"
+              onClick={handleInsertFailed}
+              disabled={inserting}
+            >
+              {inserting ? 'Inserting...' : 'Insert failed'}
+            </button>
+          </>
+        )}
       </div>
       {expanded && (
         <div className="action-properties">
@@ -741,6 +897,8 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
             <PropertyRow
               key={vc.id}
               vc={vc}
+              documentUri={documentUri}
+              insertPosition={insertPosition}
               alternativeVC={alternativeMap.get(vc.id)}
             />
           ))}
@@ -750,7 +908,7 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
   );
 };
 
-const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }) => {
+const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, insertPosition, documentUri }) => {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all');
   const [showRawJson, setShowRawJson] = React.useState(false);
 
@@ -990,6 +1148,102 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       white-space: nowrap;
+    }
+
+    /* Failure banner */
+    .vr-failure-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      background: rgba(255, 77, 79, 0.08);
+      border: 1px solid rgba(255, 77, 79, 0.3);
+      border-radius: 6px;
+    }
+
+    .vr-failure-banner-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .vr-failure-banner-text {
+      font-size: 13px;
+      color: var(--vscode-foreground);
+      flex-grow: 1;
+    }
+
+    .vr-failure-banner-action {
+      padding: 5px 12px;
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .vr-failure-banner-action:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+
+    .vr-failure-banner-action:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .vr-failure-banner-dismiss {
+      padding: 2px 8px;
+      background: transparent;
+      border: none;
+      color: var(--vscode-descriptionForeground);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+
+    .vr-failure-banner-dismiss:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+      color: var(--vscode-foreground);
+    }
+
+    /* Section-level failed count and insert action */
+    .action-failed-count {
+      font-size: 12px;
+      color: #ff4d4f;
+      margin-left: 8px;
+    }
+
+    .action-insert-failed {
+      margin-left: auto;
+      padding: 3px 10px;
+      background: transparent;
+      color: var(--vscode-textLink-foreground);
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+
+    .action-insert-failed:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+      text-decoration: underline;
+    }
+
+    .action-insert-failed:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Visual hint for cmd-clickable property names */
+    .property-row.insertable .property-name {
+      text-decoration: underline dotted;
+      text-underline-offset: 2px;
     }
 
     .property-row.status-proven {
@@ -1526,6 +1780,14 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
               })}
             </div>
 
+            {/* Failure banner */}
+            <FailureBanner
+              failedCount={statusCounts.disproven + statusCounts.unknown + statusCounts.error}
+              vcs={visibleVCs}
+              documentUri={documentUri}
+              insertPosition={insertPosition}
+            />
+
             {filteredVCs.length === 0 ? (
               <div className="vr-empty">No verification conditions match the selected filter.</div>
             ) : (
@@ -1543,6 +1805,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
                             key={vc.id}
                             vc={vc}
                             alternativeVC={alternativeMap.get(vc.id)}
+                            documentUri={documentUri}
+                            insertPosition={insertPosition}
                           />
                         ))}
                       </div>
@@ -1563,6 +1827,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
                           action={action}
                           vcs={vcs}
                           alternativeMap={alternativeMap}
+                          documentUri={documentUri}
+                          insertPosition={insertPosition}
                         />
                       ))}
                     </div>
