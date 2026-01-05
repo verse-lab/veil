@@ -49,7 +49,7 @@ def mkEnumConcreteType {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Ar
   let constructors ← `(term| [ $concElems,* ] )
   let complete : Ident := mkIdent $ Name.toEnumClass id.getId ++ enumCompleteName
   let instanceEnumeration ←
-    `(instance : $(mkIdent ``Enumeration) $name := $(mkIdent ``Enumeration.mk) $constructors (by simp ; exact $complete))
+    `(instance : $(mkIdent ``Enumeration) $name := $(mkIdent ``Enumeration.mk) $constructors (by simp ; (try exact $complete)))
   -- derive instances for the concrete type
   let derivedInsts ← `(command| deriving instance $(mkIdent ``Ord):ident, $(mkIdent ``Hashable):ident for $name)
   -- we derive instances for `Std.OrientedCmp`, `Std.TransCmp`, and `Std.LawfulEqCmp` manually
