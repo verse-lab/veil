@@ -1,13 +1,5 @@
 import Veil
 
-section
-
-
-end
-
-
--- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
-
 veil module MiniProtocol
 
 -- set_option trace.veil.desugar true
@@ -16,7 +8,7 @@ veil module MiniProtocol
 type node
 relation rel : Nat → Bool
 -- relation rel3 : node → node → node → Bool
--- function f : node → Nat
+function f : Nat → Option Nat
 immutable function nodeToNat : node → Nat
 
 #gen_state
@@ -28,10 +20,11 @@ after_init {
 
 action trivial (a : node) {
   let n := nodeToNat a
-  rel n := true
+  -- rel n := true
+  f n := some (n + 100)
 }
 
-invariant [inv_11] ∃ i < 10, rel i = false
+invariant [inv_11] ∃ i < 10, (f i).isSome = false
 termination true = true
 
 -- run_cmd do

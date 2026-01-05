@@ -18,8 +18,8 @@ instance [Ord α] [BEq α]: BEq (Std.TreeSet α) where
 instance [Ord α] [BEq α] [BEq β]: BEq (Std.TreeMap α β) where
   beq s1 s2 := s1.toArray == s2.toArray
 
-instance [Ord α] [BEq α] [BEq β]: BEq (Veil.TotalTreeMap α β) where
-  beq s1 s2 := s1.val.toArray == s2.val.toArray
+-- instance [Ord α] [BEq α] [BEq β]: BEq (Veil.TotalTreeMap α β) where
+--   beq s1 s2 := s1.toArray == s2.toArray
 
 -- FIXME: provide more reasonable `BEq` instances; same below
 instance : BEq (CanonicalFieldWrapper FieldDomain FieldCodomain) where
@@ -64,8 +64,8 @@ instance [Ord α] : Ord (Std.TreeSet α) where
 instance [Ord α] [Ord β] : Ord (Std.TreeMap α β) where
   compare s1 s2 := compare s1.toArray s2.toArray
 
-instance [Ord α] [Ord β] : Ord (Veil.TotalTreeMap α β) where
-  compare s1 s2 := compare s1.val.toArray s2.val.toArray
+-- instance [Ord α] [Ord β] : Ord (Veil.TotalTreeMap α β) where
+--   compare s1 s2 := compare s1.toArray s2.toArray
 
 instance [Ord α] [Std.TransOrd α] : Ord (Std.ExtTreeSet α) where
   compare s1 s2 := compare s1.toList s2.toList
@@ -270,8 +270,8 @@ instance jsonOfTreeSet [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
 instance jsonOfTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Std.TreeMap α β) where
   toJson m := Json.arr <| m.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
 
-instance jsonOfTotalTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Veil.TotalTreeMap α β) where
-  toJson m := Json.arr <| m.val.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
+-- instance jsonOfTotalTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Veil.TotalTreeMap α β) where
+--   toJson m := Json.arr <| m.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
 
 instance jsonOfExtTreeSet [Ord α] [ToJson α] [Std.TransOrd α] : ToJson (Std.ExtTreeSet α) where
   toJson s := Json.arr <| s.toList.toArray.map toJson

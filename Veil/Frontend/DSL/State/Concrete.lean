@@ -123,18 +123,16 @@ instance [Inhabited β] : Inhabited (ArrayAsTotalMap n β) :=
   ⟨⟨Array.replicate n default, Eq.symm Array.size_replicate⟩⟩
 
 abbrev TotalHashMap (α : Type u) (β : Type v) [BEq α] [Hashable α] :=
-  { mp : Std.HashMap α β // ∀ a, a ∈ mp }
+  Std.HashMap α β
 
-instance [Enumeration α] [DecidableEq α] [Hashable α] [LawfulHashable α] [Inhabited β] : Inhabited (TotalHashMap α β) :=
-  ⟨⟨Std.HashMap.ofList ((Enumeration.allValues).map (fun a => (a, default))),
-    by intro a ; rw [Std.HashMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp [Enumeration.complete]⟩⟩
+instance [BEq α] [Hashable α] : Inhabited (TotalHashMap α β) where
+  default := Std.HashMap.emptyWithCapacity
 
 abbrev TotalTreeMap (α : Type u) (β : Type v) (cmp : α → α → Ordering := by exact compare) :=
-  { mp : Std.TreeMap α β cmp // ∀ a, a ∈ mp }
+  Std.TreeMap α β cmp
 
-instance {cmp : α → α → Ordering} [Enumeration α] [Std.LawfulEqCmp cmp] [Std.TransCmp cmp] [DecidableEq α] [Inhabited β] : Inhabited (TotalTreeMap α β cmp) :=
-  ⟨⟨Std.TreeMap.ofList ((Enumeration.allValues).map (fun a => (a, default))) cmp,
-    by intro a ; rw [Std.TreeMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp [Enumeration.complete]⟩⟩
+instance {cmp : α → α → Ordering} : Inhabited (TotalTreeMap α β cmp) where
+  default := Std.TreeMap.empty
 
 end TotalMapLike
 
@@ -528,15 +526,13 @@ instance : TotalMapLike (Fin n) β (ArrayAsTotalMap n β) where
   insert a b mp := ⟨mp.val.set a.val b (mp.property ▸ a.prop),
     (Eq.symm (Array.size_set (xs := mp.val) (i := a.val) (mp.property ▸ a.prop))) ▸ mp.prop⟩
 
-instance [BEq α] [EquivBEq α] [Hashable α] [LawfulHashable α] : TotalMapLike α β (TotalHashMap α β) where
-  get mp a := mp.val[a]'(mp.property a)
-  insert a b mp := ⟨mp.val.insert a b,
-    fun a => Std.HashMap.mem_insert.mpr (Or.inr (mp.property a))⟩
+instance [BEq α] [Hashable α] [Inhabited β] : TotalMapLike α β (TotalHashMap α β) where
+  get mp a := mp.getD a default
+  insert a b mp := mp.insert a b
 
-instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : TotalMapLike α β (TotalTreeMap α β cmp) where
-  get mp a := mp.val[a]'(mp.property a)
-  insert a b mp := ⟨mp.val.insert a b,
-    fun a => Std.TreeMap.mem_insert.mpr (Or.inr (mp.property a))⟩
+instance {cmp : α → α → Ordering} [Inhabited β] : TotalMapLike α β (TotalTreeMap α β cmp) where
+  get mp a := mp.getD a default
+  insert a b mp := mp.insert a b
 
 instance [FinEnum α] [FinEnum β] [Inhabited β] : LawfulTotalMapLike (BitVecsAsFinmap α β) where
   insert_get a a' b mp := by
@@ -592,17 +588,17 @@ instance : LawfulTotalMapLike (ArrayAsTotalMap n β) where
 
 variable {α : Type u}
 
-instance [DecidableEq α] [Hashable α] [LawfulHashable α] : LawfulTotalMapLike (TotalHashMap α β) where
+instance [DecidableEq α] [Hashable α] [Inhabited β] [LawfulHashable α] : LawfulTotalMapLike (TotalHashMap α β) where
   insert_get a a' b mp := by
     dsimp [TotalMapLike.get, TotalMapLike.insert]
-    rw [Std.HashMap.getElem_insert] ; simp ; congr
+    rw [Std.HashMap.getD_insert] ; simp
 
 instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
-  [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
+  [Inhabited β] [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
   : LawfulTotalMapLike (TotalTreeMap α β cmp) where
   insert_get a a' b mp := by
     dsimp [TotalMapLike.get, TotalMapLike.insert]
-    rw [Std.TreeMap.getElem_insert] ; simp ; congr
+    rw [Std.TreeMap.getD_insert] ; simp
 
 end ConcreteInstances
 
