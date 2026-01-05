@@ -225,6 +225,35 @@ instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain Bo
 
 end FinsetLikeUpdates
 
+/-- A wrapper around `CanonicalField` to indicate that this field is used
+as part of a hybrid finset-like representation. It might have special
+`BEq` and `Hashable` instances. -/
+structure CanonicalFieldWrapper (FieldDomain : List Type) (FieldCodomain : Type) where
+  inner : CanonicalField FieldDomain FieldCodomain
+
+inductive HybridFieldType (α : Type u) (FieldDomain : List Type) (FieldCodomain : Type) where
+  | canonical (cf : CanonicalFieldWrapper FieldDomain FieldCodomain)
+  | concrete (fc : α)
+
+instance [BEq (CanonicalFieldWrapper FieldDomain FieldCodomain)] [BEq α] :
+  BEq (HybridFieldType α FieldDomain FieldCodomain) where
+  beq
+    | HybridFieldType.canonical cf1, HybridFieldType.canonical cf2 =>
+      cf1 == cf2
+    | HybridFieldType.concrete fc1, HybridFieldType.concrete fc2 =>
+      fc1 == fc2
+    | _, _ => false
+
+instance [Hashable (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Hashable α] :
+  Hashable (HybridFieldType α FieldDomain FieldCodomain) where
+  hash
+    | HybridFieldType.canonical cf => mixHash 17 (hash cf)
+    | HybridFieldType.concrete fc => mixHash 19 (hash fc)
+
+-- For `Inhabited`, only provide for the `concrete` case
+instance [Inhabited α] : Inhabited (HybridFieldType α FieldDomain FieldCodomain) :=
+  ⟨HybridFieldType.concrete default⟩
+
 namespace NotNecessarilyFinsetLikeUpdates
 
 variable {FieldDomain : List Type}
@@ -234,26 +263,26 @@ variable {FieldDomain : List Type}
   [instl : LawfulFinsetLike β]
   [instdm : DecidableRel instm.mem]
   (equiv : IteratedProd FieldDomain ≃ α)
-  (instfin : IteratedProd (FieldDomain.map (Option ∘ Enumeration)))
+  (instfin : IteratedProd (FieldDomain.map (OptionalTC ∘ Enumeration)))
   (instdeceq : IteratedProd (FieldDomain.map DecidableEq))
 
-abbrev HybridFinsetLike (β) (FieldDomain : List Type) := Sum (CanonicalField FieldDomain Bool) β
+abbrev HybridFinsetLike (β) (FieldDomain : List Type) := HybridFieldType β FieldDomain Bool
 
 def HybridFinsetLike.get : HybridFinsetLike β FieldDomain → CanonicalField FieldDomain Bool
-  | Sum.inl cf => cf
-  | Sum.inr fc => delta% FieldRepresentation.FinsetLike.get equiv fc
+  | .canonical cf => cf.inner
+  | .concrete fc => delta% FieldRepresentation.FinsetLike.get equiv fc
 
 def HybridFinsetLike.setSingle
   (fa : FieldUpdatePat FieldDomain)
   (v : CanonicalField FieldDomain Bool) (fc : HybridFinsetLike β FieldDomain)
   : HybridFinsetLike β FieldDomain :=
   match fc with
-  | Sum.inl cf => Sum.inl <| CanonicalField.set instdeceq [(fa, v)] cf
-  | Sum.inr fc' =>
+  | .canonical cf => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)] cf.inner
+  | .concrete fc' =>
     match fa.footprintRestricted instfin with
-    | none => Sum.inl <| CanonicalField.set instdeceq [(fa, v)]
+    | none => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)]
       <| FieldRepresentation.FinsetLike.get equiv fc'
-    | some footprint => Sum.inr <|
+    | some footprint => .concrete <|
       FieldRepresentation.FinsetLike.setSingle'Core equiv v fc' footprint
 
 instance instHybridFinsetLikeAsFieldRep : FieldRepresentation FieldDomain Bool
@@ -352,27 +381,27 @@ variable {FieldDomain : List Type} {FieldCodomain : Type}
   [inst : TotalMapLike α FieldCodomain γ]
   [instl : LawfulTotalMapLike γ]
   (equiv : IteratedProd FieldDomain ≃ α)
-  (instfin : IteratedProd (FieldDomain.map (Option ∘ Enumeration)))
+  (instfin : IteratedProd (FieldDomain.map (OptionalTC ∘ Enumeration)))
   (instdeceq : IteratedProd (FieldDomain.map DecidableEq))
 
 abbrev HybridTotalMapLike (γ) (FieldDomain : List Type) (FieldCodomain : Type) :=
-  Sum (CanonicalField FieldDomain FieldCodomain) γ
+  HybridFieldType γ FieldDomain FieldCodomain
 
 def HybridTotalMapLike.get : HybridTotalMapLike γ FieldDomain FieldCodomain → CanonicalField FieldDomain FieldCodomain
-  | Sum.inl cf => cf
-  | Sum.inr fc => delta% FieldRepresentation.TotalMapLike.get equiv fc
+  | .canonical cf => cf.inner
+  | .concrete fc => delta% FieldRepresentation.TotalMapLike.get equiv fc
 
 def HybridTotalMapLike.setSingle
   (fa : FieldUpdatePat FieldDomain)
   (v : CanonicalField FieldDomain FieldCodomain) (fc : HybridTotalMapLike γ FieldDomain FieldCodomain)
   : HybridTotalMapLike γ FieldDomain FieldCodomain :=
   match fc with
-  | Sum.inl cf => Sum.inl <| CanonicalField.set instdeceq [(fa, v)] cf
-  | Sum.inr fc' =>
+  | .canonical cf => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)] cf.inner
+  | .concrete fc' =>
     match fa.footprintRestricted instfin with
-    | none => Sum.inl <| CanonicalField.set instdeceq [(fa, v)]
+    | none => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)]
       <| FieldRepresentation.TotalMapLike.get equiv fc'
-    | some footprint => Sum.inr <|
+    | some footprint => .concrete <|
       FieldRepresentation.TotalMapLike.setSingle'Core equiv v fc' footprint
 
 instance instHybridTotalMapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain

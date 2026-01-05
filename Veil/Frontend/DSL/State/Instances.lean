@@ -21,6 +21,10 @@ instance [Ord α] [BEq α] [BEq β]: BEq (Std.TreeMap α β) where
 instance [Ord α] [BEq α] [BEq β]: BEq (Veil.TotalTreeMap α β) where
   beq s1 s2 := s1.val.toArray == s2.val.toArray
 
+-- FIXME: provide more reasonable `BEq` instances; same below
+instance : BEq (CanonicalFieldWrapper FieldDomain FieldCodomain) where
+  beq _ _ := true
+
 /-!
 `Hashable` instances
 
@@ -39,6 +43,12 @@ instance instHashableOfExtTreeSet [Ord α] [Hashable α] [Std.TransOrd α]: Hash
 instance instHashableOfExtTreeMap [Ord α] [Hashable α] [Hashable β] [Std.TransOrd α]
   : Hashable (Std.ExtTreeMap α β) where
   hash s := s.foldl (fun r a b => mixHash r (mixHash (hash a) (hash b))) 7
+
+instance : Hashable (CanonicalFieldWrapper FieldDomain FieldCodomain) where
+  hash _ := 13
+
+deriving instance Hashable for Sum
+
 /-!
 `Ord` instances
 
@@ -223,6 +233,9 @@ instance instInhabitedForExtTreeSet [Inhabited α] [Ord α]: Inhabited (Std.ExtT
 
 instance : ToJson (Fin n) where
   toJson := fun f => toJson f.val
+
+instance (priority := low) reprOfUnrepresentable : Repr α where
+  reprPrec _ _ := "<unrepresentable>"
 
 instance (priority := low) jsonOfRepr [Repr α] : ToJson α where
   toJson := fun a => Json.str (toString (repr a))

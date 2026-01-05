@@ -84,10 +84,10 @@ def FieldUpdatePat.footprintRaw
 
 def FieldUpdatePat.footprintRestricted
   {FieldDomain : List Type}
-  (instfin : IteratedProd (FieldDomain.map (Option ∘ Enumeration)))
+  (instfin : IteratedProd (FieldDomain.map (OptionalTC ∘ Enumeration)))
   (fa : FieldUpdatePat FieldDomain) :=
   instfin.zipWithM (m := Option) fa fun fin b =>
-    fieldUpdatePatComponentMatch fin b
+    fieldUpdatePatComponentMatch fin.body b
 
 def FieldUpdatePat.validFootprint
   {FieldDomain : List Type}
@@ -113,7 +113,7 @@ theorem FieldUpdatePat.footprintRaw_valid
 
 theorem FieldUpdatePat.footprintRestricted_valid
   {FieldDomain : List Type}
-  (instfin : IteratedProd (FieldDomain.map (Option ∘ Enumeration)))
+  (instfin : IteratedProd (FieldDomain.map (OptionalTC ∘ Enumeration)))
   (fa : FieldUpdatePat FieldDomain) :
   ∀ res, fa.footprintRestricted instfin = some res →
     fa.validFootprint res := by
@@ -121,7 +121,7 @@ theorem FieldUpdatePat.footprintRestricted_valid
   all_goals (simp [FieldUpdatePat] at fa ; simp [IteratedProd] at instfin)
   next => intros ; apply True.intro
   next t ts ih =>
-    rcases fa with ⟨b, fa⟩ ; rcases instfin with ⟨fin, instfin⟩
+    rcases fa with ⟨b, fa⟩ ; rcases instfin with ⟨⟨fin⟩, instfin⟩
     dsimp [IteratedProd, footprintRestricted, IteratedProd.zipWithM]
     rintro ⟨lis, footprint⟩ h ; simp [Option.bind_eq_some_iff] at h
     rcases h with ⟨h1, h2⟩

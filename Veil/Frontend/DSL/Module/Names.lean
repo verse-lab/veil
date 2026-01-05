@@ -86,6 +86,9 @@ def lawfulFieldRepresentation : Ident := mkIdent lawfulFieldRepresentationName
 def instEnumerationForIteratedProdName : Name := `instEnumerationForIteratedProd
 def instEnumerationForIteratedProd : Ident := mkIdent instEnumerationForIteratedProdName
 
+def instEnumerationForIteratedProdAllSomeCheckName : Name := `instEnumerationForIteratedProdAllSomeCheck
+def instEnumerationForIteratedProdAllSomeCheck : Ident := mkIdent instEnumerationForIteratedProdAllSomeCheckName
+
 def instFieldRepresentationName : Name := `instFieldRepresentation
 def instFieldRepresentation : Ident := mkIdent instFieldRepresentationName
 
