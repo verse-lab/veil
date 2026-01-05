@@ -113,14 +113,30 @@ def elabEnumDeclaration : CommandElab := fun stx => do
     elabVeilCommand $ ← `(open $class_name:ident)
   | _ => throwUnsupportedSyntax
 
- /-- Instruct the linter to not mark state variables as unused in our
-  `after_init` and `action` definitions. -/
+/-- Check if the syntax stack contains a Veil procedure context.
+    Returns true if we're inside an `after_init`, `action`, `procedure`, or `transition` block. -/
+def isVeilProcedureContext (stack : Syntax.Stack) : Bool :=
+  stack.any fun (s, _) =>
+    s.isOfKind `Veil.initializerDefinition ||
+    s.isOfKind `Veil.procedureDefinition ||
+    s.isOfKind `Veil.procedureDefinitionWithSpec ||
+    s.isOfKind `Veil.transitionDefinition
+
+/-- Instruct the linter to not mark state variables as unused in our
+  `after_init` and `action` definitions. Also ignores capitalized identifiers
+  (universally quantified variables) in Veil procedure contexts. -/
 private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
   let cmd ← Command.runTermElabM fun _ => do
     let fnIdents ← mod.mutableComponents.mapM (fun sc => `($(quote sc.name)))
     let namesArrStx ← `(#[$[$fnIdents],*])
     let id := mkIdent `id
-    let fnStx ← `(fun $id $(mkIdent `stack) _ => $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) /-&& isActionSyntax stack-/)
+    let stack := mkIdent `stack
+    -- Ignore if:
+    -- 1. The identifier is a state component name (existing behavior), OR
+    -- 2. The identifier is capitalized (universally quantified) AND we're in a Veil procedure context
+    let fnStx ← `(fun $id $stack _ =>
+      $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) ||
+      ($(mkIdent ``Veil.isCapital) ($(mkIdent ``Lean.Syntax.getId) $id) && $(mkIdent ``Veil.isVeilProcedureContext) $stack))
     let nm := mkIdent `ignoreStateFields
     let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
     return ignoreFnStx
