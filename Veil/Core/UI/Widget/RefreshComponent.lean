@@ -97,7 +97,7 @@ structure RefreshComponentProps where
 as they appear in `state`. A dedicated thread should be spawned in order to modify `state`. -/
 @[widget_module]
 def RefreshComponent : Component RefreshComponentProps where
-  javascript := include_str "." / "RefreshComponent.js"
+  javascript := include_str ".." / ".." / ".." / ".." / ".lake" / "build" / "js" / "RefreshComponent.js"
 
 
 /-! ## API for creating `RefreshComponent`s -/
