@@ -235,6 +235,7 @@ inductive HybridFieldType (α : Type u) (FieldDomain : List Type) (FieldCodomain
   | canonical (cf : CanonicalFieldWrapper FieldDomain FieldCodomain)
   | concrete (fc : α)
 
+-- TODO make these into deriving handlers
 instance [BEq (CanonicalFieldWrapper FieldDomain FieldCodomain)] [BEq α] :
   BEq (HybridFieldType α FieldDomain FieldCodomain) where
   beq
@@ -249,6 +250,18 @@ instance [Hashable (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Hashable 
   hash
     | HybridFieldType.canonical cf => mixHash 17 (hash cf)
     | HybridFieldType.concrete fc => mixHash 19 (hash fc)
+
+instance [Lean.ToJson (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Lean.ToJson α] :
+  Lean.ToJson (HybridFieldType α FieldDomain FieldCodomain) where
+  toJson
+    | HybridFieldType.canonical cf => Lean.ToJson.toJson cf
+    | HybridFieldType.concrete fc => Lean.ToJson.toJson fc
+
+instance [Repr (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Repr α] :
+  Repr (HybridFieldType α FieldDomain FieldCodomain) where
+  reprPrec
+    | HybridFieldType.canonical cf, prec => Repr.reprPrec cf prec
+    | HybridFieldType.concrete fc, prec => Repr.reprPrec fc prec
 
 -- For `Inhabited`, only provide for the `concrete` case
 instance [Inhabited α] : Inhabited (HybridFieldType α FieldDomain FieldCodomain) :=
