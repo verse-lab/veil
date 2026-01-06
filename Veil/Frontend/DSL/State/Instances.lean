@@ -231,6 +231,13 @@ instance instInhabitedForExtTreeSet [Inhabited α] [Ord α]: Inhabited (Std.ExtT
 `ToJson` instances
 -/
 
+-- We make these high priority so typeclass inference doesn't get into strange
+-- loops trying to figure them out via the lifting of `ToJson` for fields
+attribute [instance high] instToJsonBool
+attribute [instance high] instToJsonNat
+attribute [instance high] instToJsonInt
+attribute [instance high] instToJsonString
+
 instance : ToJson (Fin n) where
   toJson := fun f => toJson f.val
 
