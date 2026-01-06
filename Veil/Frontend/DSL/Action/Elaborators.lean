@@ -352,7 +352,7 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
 
     -- Procedures are never considered in their external view, so save some
     -- time by not elaborating those definitions.
-    if pi matches .initializer | .action _ then do
+    if pi matches .initializer | .action _ _ then do
       let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
       let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
       AuxiliaryDefinitions.defineWp mod nmExt .external extKind

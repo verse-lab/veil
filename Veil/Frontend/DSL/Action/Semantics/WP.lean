@@ -88,11 +88,10 @@ lemma VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
   wp (@VeilExecM.assert m ρ σ p _ ex) post = fun r s => if p then post () r s else hd ex := by
   simp [VeilExecM.assert]; split
   { simp [wp_pure] }
-  simp only [throw, throwThe, ReaderT.instMonadExceptOf, StateT.instMonadExceptOf,
-    Function.comp_apply]
+  simp only [throw, throwThe, ReaderT.instMonadExceptOf]
   have : ∀ (α σ : Type) (m : Type -> Type) [Monad m], StateT.lift (σ := σ) (α := α) (m := m) = liftM := by
     simp [liftM, monadLift, StateT.instMonadLift]
-  simp only [this, MAlgLift.wp_lift]; erw [ExceptT.wp_throw]
+  simp only [MAlgLift.wp_lift]; erw [ExceptT.wp_throw]
   simp [loomLogicSimp]; rfl
 
 @[wpSimp ↓]
@@ -103,6 +102,12 @@ lemma VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
 @[wpSimp ↓]
 lemma VeilM.wp_get {_ : IsSubStateOf σₛ σ} :
   wp (get : VeilM m ρ σ σₛ) post = fun r s => post (getFrom s) r s := by rfl
+
+/-- This is used when converting transitions to actions, which require getting
+the full state, not just the sub-state. -/
+@[wpSimp ↓]
+lemma VeilM.wp_getOf {σₛ σ m ρ post} {_ : IsSubStateOf σₛ σ} :
+  wp (MonadStateOf.get : VeilM m ρ σ σ) post = fun r s => post s r s := by rfl
 
 @[wpSimp ↓ high]
 lemma VeilM.wp_get' :
