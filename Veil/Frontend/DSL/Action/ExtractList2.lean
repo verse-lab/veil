@@ -151,10 +151,25 @@ inductive ExtractConstraint : {α : Type u} → (s : NonDetT m α) → m' α →
     ExtractConstraint (NonDetT.pickCont PUnit p f)
       (if p .unit then f' .unit else inst3.op [])
 
-theorem ExtractConstraint.assume (p : Prop) [Decidable p] :
+theorem ExtractConstraint.assume (p : Prop) [decp : Decidable p] :
   ExtractConstraint κ m m' findOf (MonadNonDet.assume (m := NonDetT m) p)
     (if p then inst1.pure .unit else inst3.op []) := by
   apply ExtractConstraint.assumeCont ; constructor
+
+open Lean Meta Elab Tactic in
+/-- Try all `Decidable` instances in the context to find one to apply to
+close the goal. Dedicated to be used by `ExtractConstraint.assume`. -/
+scoped elab "find_local_decidable_and_apply" : tactic => do
+  for hyp in ← getLCtx do
+    if hyp.isImplementationDetail then
+      continue
+    let ty ← instantiateMVars hyp.type
+    if ty.getForallBody.getAppFn'.isConstOf ``Decidable then
+      try
+        evalTactic (← `(tactic| solve | apply $(mkIdent hyp.userName)))
+        return
+      catch _ =>
+        pure ()
 
 theorem ExtractConstraint.pickList (p : τ → Prop) [instec : ExtCandidates findable κ p] :
   ExtractConstraint κ m m' findOf (MonadNonDet.pickSuchThat (m := NonDetT m) τ p)
@@ -305,7 +320,7 @@ macro "extract_list_step'" : tactic =>
       -- | eapply $(Lean.mkIdent ``ExtractConstraint.assumeCont)
       | eapply $(Lean.mkIdent ``ExtractConstraint.bind)
       | eapply $(Lean.mkIdent ``ExtractConstraint.liftM)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.assume)
+      | eapply $(Lean.mkIdent ``ExtractConstraint.assume) _ _ _ ($(Lean.mkIdent `decp) := by first | infer_instance | find_local_decidable_and_apply)
       | eapply $(Lean.mkIdent ``ExtractConstraint.pickList)
       | eapply $(Lean.mkIdent ``ExtractConstraint.vis)
       | eapply $(Lean.mkIdent ``ExtractConstraint.pure)
