@@ -879,11 +879,11 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
 
 @[inherit_doc veil_bmc]
 def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
-  -- Doesn't do HO quantifier elimination; should be much faster
-  -- let fastPath ← `(tacticSeq| veil_intros; veil_destruct; veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
-  let fullPath ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
-  -- let tac ← `(tactic|first | $fastPath:tacticSeq | $fullPath:tacticSeq)
-  let tac := fullPath
+  -- FIXME: sometimes we still have abstract dispatchers in the types, so as a
+  -- hack, we just dsimp them here
+  let dsimpLemmas := #[fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
+  let dsimpTac←  `(tactic| try dsimp [$[$dsimpLemmas:ident],*])
+  let tac ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do
