@@ -285,8 +285,8 @@ where
     return #[fieldRepStx, lawfulFieldRepStx]
   mkFieldRepresentationInstancesForConcrete (mod : Module) : m (Array Syntax) :=
     mkFieldRepresentationInstancesCore mod fieldConcreteDispatcher instFieldRepresentation instLawfulFieldRepresentation
-      #[``Enumeration, ``DecidableEq, ``Ord, ``Std.TransCmp]
-      #[``Enumeration, ``DecidableEq, ``Ord, ``Std.TransCmp, ``Std.LawfulEqCmp]
+      #[``Inhabited, ``Enumeration, ``DecidableEq, ``Ord, ``Std.TransCmp]
+      #[``Inhabited, ``Enumeration, ``DecidableEq, ``Ord, ``Std.TransCmp, ``Std.LawfulEqCmp]
       (mkFieldRepresentationSolverTactic ``instFinsetLikeAsFieldRep ``instTotalMapLikeAsFieldRep
         ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeAsFieldRep
         ``NotNecessarilyTotalMapLikeUpdates.instHybridTotalMapLikeAsFieldRep)
