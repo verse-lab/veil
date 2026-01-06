@@ -633,22 +633,12 @@ where
     let labelTypeName ← resolveGlobalConstNoOverload labelType
     return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
 
-  /-- Log model check result after completion. -/
-  logModelCheckResult (stx : Syntax) (instanceId : Nat) : CommandElabM Unit := do
-    -- Skip logging in compile mode
-    if ← isModelCheckCompileMode then return
-    -- Wait for result and log
-    let some resultJson ← ModelChecker.Concrete.waitForResult instanceId
-      | return
+  /-- Log model checking result. -/
+  logModelCheckResult (stx : Syntax) (resultJson : Json) : CommandElabM Unit := do
     let msg := TraceDisplay.formatModelCheckingResult resultJson
-    -- Check if this is a violation/error
-    let result := resultJson.getObjValD "result"
-    if result == Json.str "found_violation" then
-      logErrorAt stx msg
-    else if resultJson.getObjValD "error" != .null then
-      logErrorAt stx msg
-    else
-      logInfoAt stx msg
+    let isError := resultJson.getObjValD "result" == Json.str "found_violation" ||
+                    resultJson.getObjValD "error" != .null
+    if isError then logErrorAt stx msg else logInfoAt stx msg
 
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term)
@@ -656,14 +646,21 @@ where
     let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     let ioComputation ← elaborateInterpretedComputation instanceId callExpr parallelCfg
-    let _ ← IO.asTask (prio := .dedicated) do
+    let computation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let json ← IO.ofExcept (← ioComputation.toIO')
         if ← checkCancelled cancelToken instanceId then return
-        ModelChecker.Concrete.finishProgress instanceId (enrichJsonWithAssertions json assertionSources)
-      catch e => ModelChecker.Concrete.finishProgress instanceId (errorJson (toString e))
+        let json ← IO.ofExcept (← ioComputation.toIO')
+        let json := enrichJsonWithAssertions json assertionSources
+        logModelCheckResult stx json
+        ModelChecker.Concrete.finishProgress instanceId json
+      catch e : Exception =>
+        let json := errorJson s!"{← e.toMessageData.toString}"
+        logModelCheckResult stx json
+        ModelChecker.Concrete.finishProgress instanceId json
+    ) cancelToken
+    let mkTask ← BaseIO.asTask (computation ()) (prio := .dedicated)
+    Command.logSnapshotTask { stx? := none, cancelTk? := cancelToken, task := mkTask }
     ModelChecker.displayStreamingProgress stx instanceId
-    logModelCheckResult stx instanceId
 
   /-- Handle default mode: run interpreted + background compile with handoff. -/
   elabModelCheckWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
@@ -674,19 +671,28 @@ where
     let modelSource ← generateModelSource mod stx
     let ioComputation ← elaborateInterpretedComputation instanceId callExpr parallelCfg
 
-    -- Interpreted mode task
-    let interpretedTask ← IO.asTask (prio := .dedicated) do
+    -- Interpreted mode task (wrapped for async logging)
+    let interpretedComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
         let json ← IO.ofExcept (← ioComputation.toIO')
         match (← cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested instanceId) with
         | (true, false) => ModelChecker.Concrete.cancelProgress instanceId  -- User clicked Stop
-        | (false, _) => ModelChecker.Concrete.finishProgress instanceId (enrichJsonWithAssertions json assertionSources)
+        | (false, _) =>
+          let json := enrichJsonWithAssertions json assertionSources
+          logModelCheckResult stx json
+          ModelChecker.Concrete.finishProgress instanceId json
         | (true, true) => pure ()  -- Handoff requested, let compiled binary take over
-      catch e =>
-        ModelChecker.Concrete.finishProgress instanceId (errorJson (toString e))
+      catch e : Exception =>
+        let json := errorJson s!"{← e.toMessageData.toString}"
+        logModelCheckResult stx json
+        ModelChecker.Concrete.finishProgress instanceId json
+    ) cancelToken
+    let interpretedTask ← BaseIO.asTask (interpretedComputation ()) (prio := .dedicated)
+    Command.logSnapshotTask { stx? := none, cancelTk? := cancelToken, task := interpretedTask }
 
     -- Background compilation with handoff
-    let _ ← IO.asTask (prio := .dedicated) do
+    let compilationCancelTk ← IO.CancelToken.new
+    let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
         let compileStartMs ← IO.monoMsNow
         let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
@@ -710,9 +716,15 @@ where
         let some binPath ← verifyBinaryExists buildFolder instanceId | return
         let _ ← runBinaryAndFinish binPath parallelCfg instanceId newCancelToken assertionSources
         ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
-      catch e => ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (toString e))
+        -- Log the binary result
+        let some resultJson ← ModelChecker.Concrete.getResultJson instanceId | return
+        logModelCheckResult stx resultJson
+      catch e : Exception =>
+        ModelChecker.Concrete.updateCompilationStatus instanceId (.failed s!"{← e.toMessageData.toString}")
+    ) compilationCancelTk
+    let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
+    Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
 
     ModelChecker.displayStreamingProgress stx instanceId
-    logModelCheckResult stx instanceId
 
 end Veil
