@@ -671,7 +671,7 @@ where
     let _ ← IO.asTask (prio := .dedicated) do
       try
         let compileStartMs ← IO.monoMsNow
-        let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource
+        let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
         ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
         let result ← ModelChecker.Compilation.runProcessWithStatusCallback
           { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
