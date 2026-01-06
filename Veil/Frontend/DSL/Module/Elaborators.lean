@@ -272,14 +272,6 @@ def elabCheckInvariants : CommandElab := fun stx => do
       let mgr ← ref.get
       let cmds ← liftCoreM <| constructCommands (← mgr.theorems)
       liftCoreM <| addSuggestion stx cmds)
-  | `(command|#check_invariants!) => do
-    Verifier.displayStreamingResults stx getResults
-    Verifier.vcManager.atomicallyOnce frontendNotification
-      (fun ref => do let mgr ← ref.get; return mgr.isDone)
-      (fun ref => do
-        let mgr ← ref.get
-        let cmds ← liftCoreM <| constructCommands (← mgr.undischargedTheorems)
-        liftCoreM <| addSuggestion stx cmds)
   | `(command|#check_invariants) => do
     Verifier.displayStreamingResults stx getResults
     -- Add async text logging
