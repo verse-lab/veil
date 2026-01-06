@@ -204,7 +204,7 @@ private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
 `procedures` and `assertions`. The `stx` parameter is the syntax of the command
 that triggered the finalization; it is stored for use by `#model_check` when
 generating compiled model source. -/
-private def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Module := do
+def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Module := do
   if mod.isSpecFinalized then
     return mod
   let mod ← mod.ensureStateIsDefined
