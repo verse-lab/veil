@@ -26,27 +26,35 @@ def AccumulatedTactics.toFormat (sep : Std.Format) (s : AccumulatedTactics) : Co
   let res ← tacs.mapM PrettyPrinter.ppTactic
   return Std.Format.joinSep res.toList sep
 
-abbrev DesugarTacticM := StateT AccumulatedTactics TacticM
+abbrev DesugarTacticM := StateRefT AccumulatedTactics TacticM
 
 def DesugarTacticM.runCore (giveSuggestion? : Bool) (stx : Syntax) (x : DesugarTacticM α) : TacticM α := do
-  let (a, s) ← x #[]
-  -- this is an approximation to checking whether `stx` is a top-level tactic;
-  -- without this, multiple suggestions would be generated for a single tactic
-  -- that itself invokes other tactics internally
-  let notNestedTactic := stx.getHeadInfo? matches Option.some (.original ..)
-  if giveSuggestion? && !s.isEmpty && notNestedTactic then
-    -- some part here is inspired by `Aesop/Util/Basic.lean`
-    let fmap ← getFileMap
-    let (indent, col) := stx.getRange?.elim (0, 0) (Tactic.TryThis.getIndentAndColumn fmap)
-    let doIndentation? ← checkIfFullyOccupies fmap
-    let sep := if doIndentation? then Std.Format.line else " ; "
-    let fmt ← s.toFormat sep
-    let txt := fmt.pretty (indent := indent) (column := col)
-    -- if the desugared result will not be indented across multiple lines,
-    -- then just squash it into a single line
-    let txt := if doIndentation? then txt else txt.removeLeadingSpaces.map fun c => if c == '\n' then ' ' else c
-    Tactic.TryThis.addSuggestion (header := "After desugaring: ") stx txt
-  return a
+  let ref ← IO.mkRef (#[] : AccumulatedTactics)
+  let showSuggestion : TacticM Unit := do
+    let s ← ref.get
+    -- this is an approximation to checking whether `stx` is a top-level tactic;
+    -- without this, multiple suggestions would be generated for a single tactic
+    -- that itself invokes other tactics internally
+    let notNestedTactic := stx.getHeadInfo? matches Option.some (.original ..)
+    if giveSuggestion? && !s.isEmpty && notNestedTactic then
+      -- some part here is inspired by `Aesop/Util/Basic.lean`
+      let fmap ← getFileMap
+      let (indent, col) := stx.getRange?.elim (0, 0) (Tactic.TryThis.getIndentAndColumn fmap)
+      let doIndentation? ← checkIfFullyOccupies fmap
+      let sep := if doIndentation? then Std.Format.line else " ; "
+      let fmt ← AccumulatedTactics.toFormat sep s
+      let txt := fmt.pretty (indent := indent) (column := col)
+      -- if the desugared result will not be indented across multiple lines,
+      -- then just squash it into a single line
+      let txt := if doIndentation? then txt else txt.removeLeadingSpaces.map fun c => if c == '\n' then ' ' else c
+      Tactic.TryThis.addSuggestion (header := "After desugaring: ") stx txt
+  try
+    let a ← x ref  -- StateRefT is ReaderT, so we apply directly
+    showSuggestion
+    return a
+  catch e =>
+    showSuggestion  -- Show what we accumulated before the error
+    throw e
 where
  -- this does not have to be `TacticM`, but for tracing purposes it's easier this way
  checkIfFullyOccupies (fmap : FileMap) : TacticM Bool := do
