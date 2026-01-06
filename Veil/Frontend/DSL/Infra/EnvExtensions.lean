@@ -1,4 +1,5 @@
 import Lean
+import Veil.Base
 import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Infra.Assertions
 import Veil.Frontend.DSL.Infra.Metadata
@@ -106,14 +107,9 @@ to `true` during that compilation to:
 3. Prevent `logError` calls from failing the build
 -/
 
-register_option veil.__modelCheckCompileMode : Bool := {
-  defValue := false
-  descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
-}
-
 /-- Check if we're in model checking compilation mode. -/
 def isModelCheckCompileMode [Monad m] [MonadOptions m] : m Bool := do
-  return (← getOptions).getBool `veil.__modelCheckCompileMode false
+  return veil.__modelCheckCompileMode.get (← getOptions)
 
 /-- Log an error, but only if not in model check compilation mode.
     In compilation mode, errors would cause lake build to fail. -/

@@ -46,6 +46,8 @@ error: This assertion might fail when called from call_fail_req
 #guard_msgs in
 #gen_spec
 
+set_option veil.printCounterexamples false
+
 /--
 error: Initialization must establish the invariant:
   doesNotThrow ... ✅

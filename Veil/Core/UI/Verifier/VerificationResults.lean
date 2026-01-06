@@ -2,6 +2,7 @@ import Lean.Server.Rpc.Basic
 import Lean.Elab.Command
 import Lean.PrettyPrinter
 
+import Veil.Base
 import ProofWidgets.Component.Basic
 import ProofWidgets.Component.HtmlDisplay
 import Veil.Core.UI.Widget.RefreshComponent
@@ -85,8 +86,81 @@ def statusEmoji (status : Option VCStatus) : String :=
   | some .error => "💥"
   | none => "⏳"
 
+/-- Format a JSON value as a string, with support for nested structures. -/
+private partial def formatJsonValue (json : Json) : String :=
+  match json with
+  | .str s => s
+  | .num n => toString n
+  | .bool b => toString b
+  | .null => "null"
+  | .arr a => s!"[{", ".intercalate (a.map formatJsonValue).toList}]"
+  | .obj kvs => s!"\{{", ".intercalate (kvs.toArray.map fun (k, v) => s!"{k}: {formatJsonValue v}").toList}}"
+
+/-- Format a JSON object as indented key-value lines. -/
+private def formatJsonObject (json : Json) (indent : String := "  ") : String :=
+  match json with
+  | .obj kvs => "\n".intercalate (kvs.toArray.map fun (k, v) => s!"{indent}{k} = {formatJsonValue v}").toList
+  | _ => formatJsonValue json
+
+/-- Format a label JSON (action with parameters). -/
+private def formatLabelJson (json : Json) : String :=
+  match json with
+  | .str s => s
+  | .obj kvs =>
+    match kvs.toArray.find? fun (_, v) => v != .null with
+    | some (actionName, .obj paramKvs) =>
+      s!"{actionName}({", ".intercalate (paramKvs.toArray.map fun (k, v) => s!"{k}={formatJsonValue v}").toList})"
+    | some (actionName, _) => actionName
+    | none => toString json
+  | _ => toString json
+
+/-- Extract counterexample JSON from a VCResult if it has one. -/
+private def extractCounterexampleJson (vc : VCResult VCMetadata SmtResult) : Option Json := Id.run do
+  for d in vc.timing.dischargers do
+    if let some (.disproven (some (.sat counterexamples)) _) := d.result then
+      for ce? in counterexamples do
+        if let some ce := ce? then
+          return some ce.structuredJson
+  return none
+
+/-- Format a single counterexample JSON as MessageData. -/
+private def formatCounterexampleJson (json : Json) (style : String) : MessageData := Id.run do
+  let theory := json.getObjValD "theory"
+  let preState := json.getObjValD "preState"
+  let postState := json.getObjValD "postState"
+  let label := json.getObjValD "label"
+  let mut msg := m!"      Counterexample ({style}):\n"
+  unless theory == .null || theory == .obj {} do
+    msg := msg ++ m!"        Theory:\n{formatJsonObject theory "          "}\n"
+  msg := msg ++ m!"        Pre-state:\n{formatJsonObject preState "          "}\n"
+  msg := msg ++ m!"        Action: {formatLabelJson label}\n"
+  unless postState == .null do
+    msg := msg ++ m!"        Post-state:\n{formatJsonObject postState "          "}\n"
+  return msg
+
+/-- Extract and format counterexamples from a VCResult, including TR-style alternatives. -/
+private def formatCounterexamples (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Option MessageData := Id.run do
+  let mut msg : MessageData := m!""
+  let mut hasAny := false
+
+  -- WP-style counterexample from the primary VC
+  if let some json := extractCounterexampleJson vc then
+    msg := msg ++ formatCounterexampleJson json "WP"
+    hasAny := true
+
+  -- TR-style counterexample from the alternative VC (if any)
+  let trVC? := allVCs.find? fun altVC => altVC.alternativeFor == some vc.id
+  if let some trVC := trVC? then
+    if let some json := extractCounterexampleJson trVC then
+      msg := msg ++ formatCounterexampleJson json "TR"
+      hasAny := true
+
+  if hasAny then some msg else none
+
 /-- Format verification results as text output for logging. -/
-def formatVerificationResults (results : VerificationResults VCMetadata SmtResult) : MessageData := Id.run do
+def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationResults VCMetadata SmtResult) : m MessageData := do
+  let includeCounterexamples := veil.printCounterexamples.get (← getOptions)
   let vcs := results.vcs.filter fun vc =>
     vc.metadata.isInduction && !vc.isDormant && vc.alternativeFor.isNone
   let getAction := fun vc => match vc.metadata with | .induction m => m.action | _ => .anonymous
@@ -98,12 +172,18 @@ def formatVerificationResults (results : VerificationResults VCMetadata SmtResul
   for vc in initVCs do
     let .induction m := vc.metadata | continue
     msg := msg ++ m!"  {m.property} ... {statusEmoji vc.status}\n"
+    if includeCounterexamples && vc.status == some .disproven then
+      if let some ceMsg := formatCounterexamples vc results.vcs then
+        msg := msg ++ ceMsg
   msg := msg ++ m!"The following set of actions must preserve the invariant and successfully terminate:\n"
   for (actionName, vcs) in actionGroups.toArray do
     msg := msg ++ m!"  {actionName}\n"
     for vc in vcs do
       let .induction m := vc.metadata | continue
       msg := msg ++ m!"    {m.property} ... {statusEmoji vc.status}\n"
+      if includeCounterexamples && vc.status == some .disproven then
+        if let some ceMsg := formatCounterexamples vc results.vcs then
+          msg := msg ++ ceMsg
   return msg
 
 /-- Check if any VCs have non-proven status. -/

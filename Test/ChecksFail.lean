@@ -33,6 +33,8 @@ invariant pending L L → le N L
 
 #gen_spec
 
+set_option veil.printCounterexamples false
+
 /--
 error: Initialization must establish the invariant:
   doesNotThrow ... ✅

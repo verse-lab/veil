@@ -1,4 +1,5 @@
 import Lean
+import Veil.Base
 import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Module.Util
 import Veil.Util.Meta
@@ -814,18 +815,11 @@ where
         introsDep
     | _ => pure ()
 
-register_option veil.unfoldGhostRel : Bool := {
-  defValue := false
-  descr := "If true, `veil_fol` will unfold ghost relations during \
-  simplification. Otherwise, it will use small-scale axiomatization. This \
-  option must be set before `#gen_spec`."
-}
-
 @[inherit_doc veil_concretize_wp]
 def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   let tac ← do
     let classicalIdent := mkIdent `Classical
-    let unfoldghostRel? := (← getOptions).getBool ``veil.unfoldGhostRel
+    let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
     let initialSimps := if fast
       then #[`invSimp, `smtSimp]
       else #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp]

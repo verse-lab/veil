@@ -250,7 +250,7 @@ private def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : Command
 
 /-- Log verification results asynchronously after all VCs complete. -/
 def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
-  let msg := Verifier.formatVerificationResults results
+  let msg ← Verifier.formatVerificationResults results
   if Verifier.hasFailedVCs results then
     veilLogErrorAt stx msg
   else
