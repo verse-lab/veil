@@ -48,7 +48,7 @@ after_init {
 
   reqs N M I := false;
 
-  t_for I N := decide $ (seq.next seq.zero I) ∧ N == init_node;
+  t_for I N := decide $ (seq.next seq.zero I) ∧ N = init_node;
   t_LN I N := seq.zero;
   t_q I N := false;
 
