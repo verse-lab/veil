@@ -136,7 +136,7 @@ private def proveEqABoutBody (lhs : Expr) (rhs : Name) (xs : Array Expr) (proof 
   let eqStatement ← Meta.mkEq lhs rhs
   let eqStatement ← instantiateMVars $ ← Meta.mkForallFVars xs eqStatement
   let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars xs proof
-  addVeilTheorem eqThmName eqStatement eqProof (attr := eqThmAttrs)
+  let _ ← addVeilTheorem eqThmName eqStatement eqProof (attr := eqThmAttrs)
 
 /-- **Pre-compute** the `wp` for the given action, store it in the `act.wp`
 definition, and prove `act.wp_eq` which states that this definition is equal to
