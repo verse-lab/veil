@@ -271,13 +271,14 @@ theorem LawfulFieldRepresentation.get_set_idempotent' {FieldDomain : List Type} 
     simp at tmp ; rw [← tmp, inst2.get_set_idempotent dec, ih]
     apply (canonicalFieldRepresentationLawful _ _ dec).set_append
 
-instance (priority := high + 1)
+instance (priority := high + 1) instFieldRepresentationIndividual
   : FieldRepresentation [] FieldCodomain FieldCodomain where
   get := id
   set favs fc := List.head? favs |>.elim fc Prod.snd
 
-instance (priority := high + 1)
-  : LawfulFieldRepresentation [] FieldCodomain FieldCodomain inferInstance where
+instance (priority := high + 1) instLawfulFieldRepresentationIndividual
+  : LawfulFieldRepresentation [] FieldCodomain FieldCodomain
+    (instFieldRepresentationIndividual FieldCodomain) where
   set_nil := by introv ; simp [FieldRepresentation.set]
   set_append := by
     introv ; simp [FieldRepresentation.set]

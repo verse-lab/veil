@@ -335,6 +335,7 @@ where
     `(tactic|cases $fieldLabelIdent:ident <;>
     first
     | infer_instance
+    | apply $(mkIdent ``instLawfulFieldRepresentationIndividual)
     | apply $(mkIdent relTFinCase)
     | apply $(mkIdent relTNNFinCase)
     | apply $(mkIdent funTFinCase)
