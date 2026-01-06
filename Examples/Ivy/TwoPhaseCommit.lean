@@ -32,8 +32,8 @@ after_init {
 action vote1 (n : node) {
   require alive n;
   require ¬vote_no n;
-  -- require ¬decide_commit n;
-  -- require ¬decide_abort n;
+  require ¬decide_commit n;
+  require ¬decide_abort n;
   vote_yes n := true
 }
 
