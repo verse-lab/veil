@@ -31,11 +31,9 @@ def mkEnumAxiomatisation {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : 
 def mkEnumConcreteType {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Array Ident) : m (Array (TSyntax `command)) := do
   let name := Ident.toEnumConcreteType id
   let ctors ← elems.mapM fun el => `(Lean.Parser.Command.ctor| | $el:ident )
-  let indType ← do
-    if !ctors.isEmpty then
-      `(inductive $name where $[$ctors]* deriving $(mkIdent ``DecidableEq):ident, $(mkIdent ``Repr):ident, $(mkIdent ``Inhabited):ident, $(mkIdent ``Nonempty):ident)
-    else
-      `(inductive $name where deriving $(mkIdent ``DecidableEq):ident, $(mkIdent ``Repr):ident)
+  let baseClasses := #[``DecidableEq, ``Repr].map Lean.mkIdent
+  let derivings := if !ctors.isEmpty then baseClasses ++ (#[ ``Inhabited, ``Nonempty].map Lean.mkIdent) else baseClasses
+  let indType ← `(inductive $name where $[$ctors]* deriving $[$derivings:ident],*)
   -- show that the concrete type satisfies the axiomatisation
   let concElems : Array Ident := elems.map fun el => mkIdent (name.getId ++ el.getId)
   let instFields ← (elems.zip concElems).mapM fun (el, concEl) => `(Lean.Parser.Term.structInstField| $el:ident := $concEl:ident)
@@ -44,18 +42,18 @@ def mkEnumConcreteType {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Ar
     let x := mkVeilImplementationDetailIdent `x
     `(Lean.Parser.Term.structInstField| $enumComplete:ident := (by intro $x:ident <;> cases $x:ident <;> (first | decide | grind)))
   let fields := instFields ++ #[distinctField, completeField]
-  let instanceAx ← `(command|instance : $(Ident.toEnumClass id) $name where $[$fields]*)
+  let instanceAx ← `(command|scoped instance : $(Ident.toEnumClass id) $name where $[$fields]*)
   -- show that the concrete type is a `Veil.Enumeration`
   let constructors ← `(term| [ $concElems,* ] )
   let complete : Ident := mkIdent $ Name.toEnumClass id.getId ++ enumCompleteName
   let instanceEnumeration ←
-    `(instance : $(mkIdent ``Enumeration) $name := $(mkIdent ``Enumeration.mk) $constructors (by simp ; try exact $complete))
+    `(scoped instance : $(mkIdent ``Enumeration) $name := $(mkIdent ``Enumeration.mk) $constructors (by simp ; try exact $complete))
   -- derive instances for the concrete type
   let derivedInsts ← `(command| deriving instance $(mkIdent ``Ord):ident, $(mkIdent ``Hashable):ident for $name)
-  -- we derive instances for `Std.OrientedCmp`, `Std.TransCmp`, and `Std.LawfulEqCmp` manually
+  -- we derive instances for `Std.ReflCmp`, `Std.OrientedCmp`, `Std.TransCmp`, and `Std.LawfulEqCmp` manually
   let ord ← `($(mkIdent ``Ord.compare) ($(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $name)))
-  let instMk := fun ty => `(command| instance : $(mkIdent ty) $ord := by apply$(mkIdent $ ty ++ `mk) ; decide)
-  let ordInsts ← #[``Std.OrientedCmp, ``Std.TransCmp, ``Std.LawfulEqCmp].mapM instMk
+  let instMk := fun ty => `(command| scoped instance : $(mkIdent ty) $ord := by apply$(mkIdent $ ty ++ `mk) ; decide)
+  let ordInsts ← #[``Std.ReflCmp, ``Std.OrientedCmp, ``Std.TransCmp, ``Std.LawfulEqCmp].mapM instMk
   return #[indType, instanceAx, instanceEnumeration, derivedInsts] ++ ordInsts
 
 end Veil
