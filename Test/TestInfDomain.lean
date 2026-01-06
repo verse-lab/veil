@@ -35,7 +35,7 @@ set_option trace.veil.desugar true
 #print Instantiation
 #print Theory
 -- set_option trace.veil.desugar true
-#time #model_check interpreted { node := Fin 10 } { nodeToNat := fun n => n.val }
+#time #model_check interpreted { node := Fin 9 } { nodeToNat := fun n => n.val }
 
 -- def res :=
 --   let __veil_inst : Instantiation := { node := Fin 3 }
