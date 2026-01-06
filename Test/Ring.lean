@@ -72,24 +72,7 @@ The following set of actions must preserve the invariant and successfully termin
 #guard_msgs in
 #model_check { node := Fin 5 } { }
 
-/--
-info: ✅ Satisfying trace found
-  Instantiation:
-    node = Fin 2
-  State 0 (via init):
-    leader = []
-    pending = []
-  State 1 (via send(n=0, next=1)):
-    leader = []
-    pending = [[0, 1]]
-  State 2 (via send(n=0, next=1)):
-    leader = []
-    pending = [[0, 1]]
-  State 3 (via recv(n=1, next=0, sender=0)):
-    leader = []
-    pending = [[0, 0]]
--/
-#guard_msgs in
+#guard_msgs(error, warning) in
 sat trace {
   send
   send

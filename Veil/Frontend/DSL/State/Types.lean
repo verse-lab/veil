@@ -36,7 +36,7 @@ instance : HAppend (IteratedProd ts1) (IteratedProd ts2) (IteratedProd (ts1 ++ t
   hAppend := IteratedProd.append
 
 /-- Not sure if this is actually "fold". -/
-def IteratedProd.fold {ts : List Type} {T₁ T₂ : Type → Type}
+def IteratedProd.fold {ts : List Type} {T₁ : Type → Type} {T₂ : Type → Sort u}
   (codomain : T₂ Unit)
   (prod : ∀ {tya tyb : Type}, T₁ tya → T₂ tyb → T₂ (tya × tyb))
   (elements : IteratedProd (ts.map T₁)) : T₂ (IteratedProd ts) :=
@@ -59,6 +59,22 @@ def IteratedProd.zipWith {ts : List Type} {T₁ T₂ T₃ : Type → Type}
   | [], _, _ => ()
   | _ :: _, (e₁, elements₁), (e₂, elements₂) =>
     (zip e₁ e₂, IteratedProd.zipWith elements₁ elements₂ zip)
+
+def IteratedProd.zip {ts : List Type} {T₁ T₂ : Type → Type}
+  (elements₁ : IteratedProd (ts.map T₁))
+  (elements₂ : IteratedProd (ts.map T₂)) :=
+  IteratedProd.zipWith elements₁ elements₂ Prod.mk
+
+def IteratedProd.zipWithM [Monad m] {ts : List Type} {T₁ T₂ T₃ : Type → Type}
+  (elements₁ : IteratedProd (ts.map T₁))
+  (elements₂ : IteratedProd (ts.map T₂))
+  (zip : ∀ {ty : Type}, T₁ ty → T₂ ty → m (T₃ ty)) : m (IteratedProd (ts.map T₃)) := do
+  match ts, elements₁, elements₂ with
+  | [], _, _ => pure ()
+  | _ :: _, (e₁, elements₁), (e₂, elements₂) =>
+    let e ← zip e₁ e₂
+    let elements ← IteratedProd.zipWithM elements₁ elements₂ zip
+    pure (e, elements)
 
 -- TODO does this really implement lazy & cacheable evaluation?
 def IteratedProd.cartesianProduct {ts : List Type}
@@ -227,17 +243,14 @@ that enumerate all values. -/
 class Enumeration (α : Type u) where
   allValues : List α
   complete : ∀ a : α, a ∈ allValues
-  [decEq : DecidableEq α]
 
-def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] [dec : DecidableEq β] (h : α ≃ β) : Enumeration β where
+def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] (h : α ≃ β) : Enumeration β where
   allValues := inst.allValues.map h
   complete := by simp ; intro b ; exists (h.symm b) ; simp ; apply inst.complete
-  decEq := dec
 
-attribute [instance low] Enumeration.decEq
 attribute [grind ←] Enumeration.complete
 
-instance (priority := high) [enum : Enumeration α] : FinEnum α := FinEnum.ofList enum.allValues enum.complete
+instance (priority := high) [enum : Enumeration α] [DecidableEq α] : FinEnum α := FinEnum.ofList enum.allValues enum.complete
 /-!
 Here only gives some basic instances. More complicated ones should be
 found in `Veil.Frontend.Std`.
@@ -275,10 +288,10 @@ instance {β : α → Type v} [insta : Enumeration α] [instb : ∀ a, Enumerati
   allValues := insta.allValues.flatMap fun a => (instb a).allValues.map <| Sigma.mk a
   complete := by simp ; grind
 
-def Enumeration.Pi.enum [insta : Enumeration α] (β : α → Type v) [instb : ∀ a, Enumeration (β a)] : List (∀ a, β a) :=
+def Enumeration.Pi.enum [insta : Enumeration α] [DecidableEq α] (β : α → Type v) [instb : ∀ a, Enumeration (β a)] : List (∀ a, β a) :=
   (List.pi insta.allValues fun x => (instb x).allValues).map (fun f x => f x (insta.complete x))
 
-instance [insta : Enumeration α] {β : α → Type v} [instb : ∀ a, Enumeration (β a)] : Enumeration (∀ a, β a) where
+instance [insta : Enumeration α] [DecidableEq α] {β : α → Type v} [instb : ∀ a, Enumeration (β a)] : Enumeration (∀ a, β a) where
   allValues := (Enumeration.Pi.enum β)
   complete := by intro f ; simp [Enumeration.Pi.enum, List.mem_pi] ; exists (fun x _ => f x) ; simp ; grind
 
@@ -365,5 +378,92 @@ initialize registerDerivingHandler ``Enumeration mkEnumerationHandler
 end EnumerationDerivingHandler
 
 end Enumeration
+
+section OptionalTypeclassInstance
+
+/-- For optionally holding a typeclass instance. This can be used where
+a typeclass instance may or may not exist. -/
+class OptionalTC (tc : Type u) where
+  body : Option tc
+
+abbrev OptionalEnumeration := OptionalTC ∘ Enumeration
+
+set_option checkBinderAnnotations false in
+instance (priority := high) instOptionalTCSome [inst : tc] : OptionalTC tc where
+  body := Option.some inst
+
+set_option checkBinderAnnotations false in
+instance (priority := low) instOptionalTCNone : OptionalTC tc where
+  body := Option.none
+
+namespace OptionalTC
+
+open Lean Elab Command Meta Term
+
+/-- Given `df : ... → (f : T) → IteratedProd ((xs f).map (fun x => OptionalTC (tc x)))`
+where `T` is an enum type, this generates an array of `Bool` such that
+for each constructor `c : T`, the corresponding `Bool` indicates whether
+all `OptionalTC` instances are `some` when applying `df` to `c`. -/
+private def genAllSomePredicateCore (dfName : Name) : MetaM (Name × Array Bool) := do
+  let dfName ← resolveGlobalConstNoOverloadCore dfName
+  let dfInfo ← getConstInfo dfName
+  let some dfExpr := dfInfo.value?
+    | throwError "{dfName} is not a definition"
+  let (labelType, argsSize) ← do
+    forallTelescope dfInfo.type fun args _ => do
+      let l := args.back!
+      let ty ← inferType l
+      pure (ty, args.size)
+  let some labelTypeName := labelType.constName?
+    | throwError "Could not determine label type from definition {dfName}"
+  unless ← isEnumType labelTypeName do
+    throwError "Label type {labelTypeName} is not an enum type"
+  let .inductInfo indVal ← getConstInfo labelTypeName
+    | throwError "Could not retrieve inductive info for {labelTypeName}"
+  let results ← do
+    indVal.ctors.mapM fun ctor => do
+      lambdaBoundedTelescope dfExpr (argsSize - 1) fun _ body => do
+        -- Exploit the fact that label types don't have universe parameters
+        let ctorExpr := Lean.mkConst ctor
+        let app := mkApp body ctorExpr
+        let result ← whnf app
+        pure <| Bool.not <| hasNoneInstance result
+  pure (labelTypeName, results.toArray)
+where hasNoneInstance (e : Expr) : Bool :=
+  Option.isSome <| e.find? fun subExpr => subExpr.isConstOf ``instOptionalTCNone
+
+def genAllSomePredicateSyntax (dfName : Name) : MetaM (TSyntax ``Parser.Term.bracketedBinder × Term) := do
+  let (labelTypeName, results) ← genAllSomePredicateCore dfName
+  let casesOn := labelTypeName ++ `casesOn
+  let quotedResults : Array Term := results.map quote
+  let l ← Lean.mkIdent <$> mkFreshBinderName
+  let binder ← `(bracketedBinder| ($l : $(mkIdent labelTypeName)))
+  let body ← `($(mkIdent casesOn) $l $quotedResults*)
+  pure (binder, body)
+
+def genAllSomePredicateTermElab (dfName : Name) : TermElabM Expr := do
+  let (labelTypeName, results) ← genAllSomePredicateCore dfName
+  let casesOn := labelTypeName ++ `casesOn
+  let l ← mkFreshUserName `l
+  withLocalDeclD l (mkConst labelTypeName) fun lIdent => do
+    let motive ← mkLambdaFVars #[lIdent] (mkConst ``Bool)
+    let body ← mkAppOptM casesOn (#[motive, lIdent] ++ results.map (toExpr ·) |>.map Option.some)
+    mkLambdaFVars #[lIdent] body
+
+-- def genAllSomePredicateDefSyntax (dfName : Name) (outputName : Name) : MetaM Command := do
+--   let (binder, body) ← genAllSomePredicateSyntax dfName
+--   `(def $(mkIdent outputName) $binder:bracketedBinder : $(mkIdent ``Bool) := $body:term)
+
+-- def genAllSomePredicateCmd (dfName : Name) (outputName : Name) : CommandElabM Unit := do
+--   let cmd ← liftTermElabM <| genAllSomePredicateDefSyntax dfName outputName
+--   elabVeilCommand cmd
+
+def genAllSomePredicateCmd [Monad m] [MonadQuotation m] [MonadError m] (dfName : Name) (outputName : Name) : m Syntax := do
+  let checkTerm := Syntax.mkApp (mkIdent ``OptionalTC.genAllSomePredicateTermElab) #[quote dfName]
+  `(def $(mkIdent outputName) := by_elab $checkTerm:term)
+
+end OptionalTC
+
+end OptionalTypeclassInstance
 
 end Veil
