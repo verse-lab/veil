@@ -10,7 +10,8 @@ def getNumCores : IO Nat := do
     let val ← IO.getEnv "NUMBER_OF_PROCESSORS"
     return val.map String.toNat! |>.getD 1
   else
-    let output ← IO.Process.output { cmd := "nproc", args := #[] }
+    -- Linux and other Unix-like systems (POSIX compliant)
+    let output ← IO.Process.output { cmd := "getconf", args := #["_NPROCESSORS_ONLN"] }
     return output.stdout.trim.toNat!
 
 end Veil
