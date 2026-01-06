@@ -185,6 +185,18 @@ def cancelProgress (instanceId : Nat) : IO Unit := withRefs instanceId fun refs 
     status := "Cancelled", isRunning := false, isCancelled := true, elapsedMs := now - p.startTimeMs }
   refs.resultRef.set (some (Json.mkObj [("result", "cancelled")]))
 
+/-- Wait for model check to complete and return the result JSON. -/
+partial def waitForResult (instanceId : Nat) (pollIntervalMs : Nat := 100) : IO (Option Lean.Json) := do
+  loop
+where
+  loop : IO (Option Lean.Json) := do
+    let progress ← getProgress instanceId
+    if progress.isRunning then
+      IO.sleep (pollIntervalMs.toUInt32)
+      loop
+    else
+      getResultJson instanceId
+
 /-! ## Handoff Coordination -/
 
 def updateCompilationStatus (instanceId : Nat) (status : CompilationStatus) : IO Unit :=

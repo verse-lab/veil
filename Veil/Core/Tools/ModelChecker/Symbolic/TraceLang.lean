@@ -335,29 +335,22 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
 
     -- Report results based on expectation
     if vcResult.status != some .proven then
-      let kind := if isExpectedSat then "sat" else "unsat"
       match vcResult.status with
       | some .disproven =>
-        if isExpectedSat then logError s!"sat trace [{vcName}]: no satisfying trace exists"
+        if isExpectedSat then logError "No satisfying trace exists"
         else if let some traceJson := traceJson? then
-          logError s!"unsat trace [{vcName}]: counterexample found\n{traceJson}"
-        else
-          logError s!"unsat trace [{vcName}]: counterexample found"
-      | some .unknown => logError s!"{kind} trace [{vcName}]: solver returned unknown"
-      | some .error =>
-        logError s!"{kind} trace [{vcName}]: verification error"
-        logDischargerErrors vcResult.timing.dischargers
-      | _ => logError s!"{kind} trace [{vcName}]: verification did not complete"
+          logError m!"Counterexample found\n{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+        else logError "Counterexample found"
+      | some .unknown => logError "Solver returned unknown"
+      | some .error => logError "Verification error"; logDischargerErrors vcResult.timing.dischargers
+      | _ => logError "Verification did not complete"
     else
       if isExpectedSat then
         if let some traceJson := traceJson? then
-          logInfo s!"sat trace [{vcName}]: found satisfying trace\n{traceJson}"
-        else
-          logInfo s!"sat trace [{vcName}]: found satisfying trace"
-      -- Log error if we expected a trace but couldn't extract it
+          logInfo m!"{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+        else logInfo "Found satisfying trace"
       if shouldHaveTrace && traceJson?.isNone then
-        logError s!"trace [{vcName}]: could not extract trace JSON"
-        logDischargerErrors vcResult.timing.dischargers
+        logError "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
 
 
 elab_rules : command

@@ -633,6 +633,23 @@ where
     let labelTypeName ← resolveGlobalConstNoOverload labelType
     return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
 
+  /-- Log model check result after completion. -/
+  logModelCheckResult (stx : Syntax) (instanceId : Nat) : CommandElabM Unit := do
+    -- Skip logging in compile mode
+    if ← isModelCheckCompileMode then return
+    -- Wait for result and log
+    let some resultJson ← ModelChecker.Concrete.waitForResult instanceId
+      | return
+    let msg := TraceDisplay.formatModelCheckingResult resultJson
+    -- Check if this is a violation/error
+    let result := resultJson.getObjValD "result"
+    if result == Json.str "found_violation" then
+      logErrorAt stx msg
+    else if resultJson.getObjValD "error" != .null then
+      logErrorAt stx msg
+    else
+      logInfoAt stx msg
+
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
@@ -646,6 +663,7 @@ where
         ModelChecker.Concrete.finishProgress instanceId (enrichJsonWithAssertions json assertionSources)
       catch e => ModelChecker.Concrete.finishProgress instanceId (errorJson (toString e))
     ModelChecker.displayStreamingProgress stx instanceId
+    logModelCheckResult stx instanceId
 
   /-- Handle default mode: run interpreted + background compile with handoff. -/
   elabModelCheckWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
@@ -695,5 +713,6 @@ where
       catch e => ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (toString e))
 
     ModelChecker.displayStreamingProgress stx instanceId
+    logModelCheckResult stx instanceId
 
 end Veil
