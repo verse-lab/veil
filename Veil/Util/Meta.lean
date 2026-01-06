@@ -151,11 +151,13 @@ def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   Term.applyAttributes n attr
   return n
 
-def addVeilTheorem (n : Name) (statement : Expr) (proof : Expr) (attr : Array Attribute := #[]) : TermElabM Unit := do
-  let decl := Declaration.thmDecl (mkTheoremValEx n [] statement proof [])
+def addVeilTheorem (n : Name) (statement : Expr) (proof : Expr) (attr : Array Attribute := #[]) (addNamespace : Bool := true) : TermElabM Name := do
+  let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
+  let decl := Declaration.thmDecl (mkTheoremValEx fullName [] statement proof [])
   addDecl decl
-  enableRealizationsForConst n
-  Term.applyAttributes n attr
+  enableRealizationsForConst fullName
+  Term.applyAttributes fullName attr
+  return fullName
 
 /-- A wrapper around Lean's standard `elabCommand`, which performs
 Veil-specific logging and sanity-checking. -/

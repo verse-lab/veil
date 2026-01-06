@@ -1,4 +1,5 @@
 import Lean
+import Veil.Base
 import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Module.Util
 import Veil.Util.Meta
@@ -698,7 +699,7 @@ def ghostRelationSSA (mod : Module) (hyp : Name) : TacticM Unit := veilWithMainC
   let ldecl ← getLocalDeclFromUserName hyp
   let ty := ldecl.type
   let info ← ghostRelationSSACore mod._derivedDefinitions baseParams.size ty mod._useLocalRPropTC
-  withMainContext do
+  veilWithMainContext do
   let ty' ← foldingByDefEq baseParams.size info ty
   let mv ← getMainGoal
   -- NOTE: Since `hyp` is above the newly introduced `let`-declarations,
@@ -814,18 +815,11 @@ where
         introsDep
     | _ => pure ()
 
-register_option veil.unfoldGhostRel : Bool := {
-  defValue := false
-  descr := "If true, `veil_fol` will unfold ghost relations during \
-  simplification. Otherwise, it will use small-scale axiomatization. This \
-  option must be set before `#gen_spec`."
-}
-
 @[inherit_doc veil_concretize_wp]
 def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   let tac ← do
     let classicalIdent := mkIdent `Classical
-    let unfoldghostRel? := (← getOptions).getBool ``veil.unfoldGhostRel
+    let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
     let initialSimps := if fast
       then #[`invSimp, `smtSimp]
       else #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp]
@@ -872,7 +866,7 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
   -- if they're not used. This is undesirable when the variable is an action
   -- parameter, because we need to keep it in the context for model extraction.
-  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs <;> (veil_concretize_tr; veil_fol ; veil_smt))
+  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_smt))
   veilEvalTactic tac
 
 @[inherit_doc veil_bmc]

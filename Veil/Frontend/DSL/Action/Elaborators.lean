@@ -136,7 +136,7 @@ private def proveEqABoutBody (lhs : Expr) (rhs : Name) (xs : Array Expr) (proof 
   let eqStatement ← Meta.mkEq lhs rhs
   let eqStatement ← instantiateMVars $ ← Meta.mkForallFVars xs eqStatement
   let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars xs proof
-  addVeilTheorem eqThmName eqStatement eqProof (attr := eqThmAttrs)
+  let _ ← addVeilTheorem eqThmName eqStatement eqProof (attr := eqThmAttrs)
 
 /-- **Pre-compute** the `wp` for the given action, store it in the `act.wp`
 definition, and prove `act.wp_eq` which states that this definition is equal to
@@ -352,7 +352,7 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
 
     -- Procedures are never considered in their external view, so save some
     -- time by not elaborating those definitions.
-    if pi matches .initializer | .action _ then do
+    if pi matches .initializer | .action _ _ then do
       let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
       let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
       AuxiliaryDefinitions.defineWp mod nmExt .external extKind

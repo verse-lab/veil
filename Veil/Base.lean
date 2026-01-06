@@ -44,4 +44,21 @@ def veilDefaultOptions : List (Name × DataValue) := [
   (`synthInstance.maxSize, DataValue.ofNat 4096),
 ]
 
+register_option veil.printCounterexamples : Bool := {
+  defValue := true
+  descr := "Print counterexamples (models) when they are found in `#check_invariants`."
+}
+
+register_option veil.unfoldGhostRel : Bool := {
+  defValue := false
+  descr := "If true, `veil_fol` will unfold ghost relations during \
+  simplification. Otherwise, it will use small-scale axiomatization. This \
+  option must be set before `#gen_spec`."
+}
+
+register_option veil.__modelCheckCompileMode : Bool := {
+  defValue := false
+  descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
+}
+
 end Veil

@@ -35,11 +35,11 @@ def recoverTrace {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [Inhabited κ] [Inhabited σ] [Repr σₕ]
-  [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params)
+  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (targetFingerprint : σₕ)
   (assertionFailureExId : Option Int := none)
   : m (Trace ρ σ κ) := do
@@ -76,8 +76,8 @@ either the sequential or parallel implementation based on configuration. -/
 
 def findReachable {ρ σ κ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [Inhabited κ] [Inhabited σ] [Repr σ]
-  [BEq σ] [BEq κ]
+  [Inhabited κ] [Inhabited σ] [Repr σ] [Repr κ]
+  [BEq σ] [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   [fp : StateFingerprint σ UInt64]

@@ -115,7 +115,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
   let ctors ← mod.actions.mapM (fun a => do
     `(Command.ctor| | $(mkIdent a.name):ident $(← a.binders)* : $labelT ))
   let labelDef ← do
-    let instances := #[``DecidableEq,``Repr, ``ToJson].map Lean.mkIdent
+    let instances := #[``DecidableEq,``Repr, ``ToJson, ``Hashable].map Lean.mkIdent
     if ctors.isEmpty then
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $[$instances:ident],*)
     else
@@ -152,7 +152,7 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
 def Module.mkLabelEnumeration [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Command := do
   let binders := (← mod.sortBinders) ++ (← #[``DecidableEq, ``FinEnum].flatMapM mod.assumeForEverySort)
   let labelT ← mod.labelTypeStx
-  `(instance $[$binders]* : $(mkIdent ``Veil.Enumeration) ($labelT) where
+  `(scoped instance $[$binders]* : $(mkIdent ``Veil.Enumeration) ($labelT) where
     $(mkIdent `allValues):ident := ($(mkIdent ``FinEnum.ofEquiv) _ ($(mkIdent ``Equiv.symm) (proxy_equiv% ($labelT)))).toList
     $(mkIdent `complete):ident := by simp)
 where

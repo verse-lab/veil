@@ -25,10 +25,16 @@ structure QueueItem (σₕ σ : Type) where
   depth : Nat
 deriving BEq, DecidableEq, Repr
 
+structure ActionStat where
+  statesGenerated : Nat
+  distinctStates : Nat
+deriving Lean.ToJson, Lean.FromJson, BEq, DecidableEq, Repr, Inhabited
+
 /-- A model checker search context is parametrised by the system that's being
 checked and the theory it's being checked under. -/
 structure BaseSearchContext {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
@@ -44,6 +50,10 @@ where
   completedDepth     : Nat
   /-- The depth of the current BFS frontier being processed -/
   currentFrontierDepth : Nat
+  /-- Total number of post-states generated (before deduplication) -/
+  statesFound : Nat
+  /-- Per-action statistics: label → stats -/
+  actionStatsMap : Std.HashMap κ ActionStat
 
 structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
@@ -79,30 +89,35 @@ where
 @[inline, specialize]
 def BaseSearchContext.hasFinished {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params) : Bool := ctx.finished.isSome
+  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params) : Bool := ctx.finished.isSome
 
 @[inline]
 def BaseSearchContext.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) :
-  @BaseSearchContext ρ σ κ σₕ fp th sys params := {
-    seen := HashSet.insertMany HashSet.emptyWithCapacity (sys.initStates |> Functor.map fp.view),
+  @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params :=
+  let initStates := sys.initStates |> Functor.map fp.view
+  {
+    seen := HashSet.insertMany HashSet.emptyWithCapacity initStates,
     log := Std.HashMap.emptyWithCapacity,
     violatingStates := [],
     finished := none,
     completedDepth := 0,
-    currentFrontierDepth := 0
+    currentFrontierDepth := 0,
+    statesFound := initStates.length,
+    actionStatsMap := {}
   }
 
 def SearchContextInvariants.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ]
+  [BEq σ] [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) :
@@ -138,14 +153,15 @@ an early termination condition if we should stop the search. -/
 @[inline, specialize]
 def BaseSearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params)
+  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (fpSt : σₕ)
   (currSt : σ)
   (outcomes : List (κ × ExecutionOutcome Int σ))
-  : @BaseSearchContext ρ σ κ σₕ fp th sys params × Option (EarlyTerminationReason σₕ) :=
+  : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params × Option (EarlyTerminationReason σₕ) :=
   match ctx.finished with
   | some (.earlyTermination condition) => (ctx, some condition)
   | _ =>
@@ -176,7 +192,7 @@ def BaseSearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
 @[inline, specialize]
 def BaseSearchContext.processState {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Repr σ] [Repr σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
@@ -184,8 +200,8 @@ def BaseSearchContext.processState {ρ σ κ σₕ : Type}
   -- (depth : Nat)  -- depth of the current state
   (curr : σ)
   -- (h_curr : sys.reachable curr)
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp th sys params) :
-  (@BaseSearchContext ρ σ κ σₕ fp th sys params ×
+  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params) :
+  (@BaseSearchContext ρ σ κ σₕ fp _ _ th sys params ×
     Option ({ l : List (κ × ExecutionOutcome Int σ) // l = sys.tr th curr })) :=
   let outcomes := sys.tr th curr
   -- Check for violations, record them, and determine if we should terminate early

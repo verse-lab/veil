@@ -5,3 +5,7 @@ veil.zip
 .veil.tmp/
 # MacOS temp files
 .DS_Store
+
+# Widget build artifacts
+widget/dist/
+widget/node_modules/

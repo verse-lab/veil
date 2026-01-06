@@ -113,14 +113,30 @@ def elabEnumDeclaration : CommandElab := fun stx => do
     elabVeilCommand $ ← `(open $class_name:ident)
   | _ => throwUnsupportedSyntax
 
- /-- Instruct the linter to not mark state variables as unused in our
-  `after_init` and `action` definitions. -/
+/-- Check if the syntax stack contains a Veil procedure context.
+    Returns true if we're inside an `after_init`, `action`, `procedure`, or `transition` block. -/
+def isVeilProcedureContext (stack : Syntax.Stack) : Bool :=
+  stack.any fun (s, _) =>
+    s.isOfKind `Veil.initializerDefinition ||
+    s.isOfKind `Veil.procedureDefinition ||
+    s.isOfKind `Veil.procedureDefinitionWithSpec ||
+    s.isOfKind `Veil.transitionDefinition
+
+/-- Instruct the linter to not mark state variables as unused in our
+  `after_init` and `action` definitions. Also ignores capitalized identifiers
+  (universally quantified variables) in Veil procedure contexts. -/
 private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
   let cmd ← Command.runTermElabM fun _ => do
     let fnIdents ← mod.mutableComponents.mapM (fun sc => `($(quote sc.name)))
     let namesArrStx ← `(#[$[$fnIdents],*])
     let id := mkIdent `id
-    let fnStx ← `(fun $id $(mkIdent `stack) _ => $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) /-&& isActionSyntax stack-/)
+    let stack := mkIdent `stack
+    -- Ignore if:
+    -- 1. The identifier is a state component name (existing behavior), OR
+    -- 2. The identifier is capitalized (universally quantified) AND we're in a Veil procedure context
+    let fnStx ← `(fun $id $stack _ =>
+      $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) ||
+      ($(mkIdent ``Veil.isCapital) ($(mkIdent ``Lean.Syntax.getId) $id) && $(mkIdent ``Veil.isVeilProcedureContext) $stack))
     let nm := mkIdent `ignoreStateFields
     let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
     return ignoreFnStx
@@ -176,6 +192,14 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     elabVeilCommand stx2
   pure mod
 
+private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
+  if mod.invariants.isEmpty then
+    logWarning "you have not defined any invariants for this specification; did you forget?"
+
+private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
+  if mod.actions.isEmpty then
+    logWarning "you have not defined any actions for this specification; did you forget?"
+
 /-- Crystallizes the specification of the module, i.e. it finalizes the set of
 `procedures` and `assertions`. The `stx` parameter is the syntax of the command
 that triggered the finalization; it is stored for use by `#model_check` when
@@ -184,6 +208,8 @@ private def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : Command
   if mod.isSpecFinalized then
     return mod
   let mod ← mod.ensureStateIsDefined
+  warnIfNoInvariantsDefined mod
+  warnIfNoActionsDefined mod
   let (assumptionCmd, mod) ← mod.assembleAssumptions
   elabVeilCommand assumptionCmd
   let (invariantCmd, mod) ← mod.assembleInvariants
@@ -222,6 +248,15 @@ private def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : Command
   mod.generateVCs
   return { mod with _specFinalizedAt := some stx }
 
+/-- Log verification results asynchronously after all VCs complete. -/
+def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
+  let msg ← Verifier.formatVerificationResults results
+  if Verifier.hasFailedVCs results then
+    veilLogErrorAt stx msg
+  else
+    unless ← isModelCheckCompileMode do
+      logInfoAt stx msg
+
 open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
@@ -237,19 +272,10 @@ def elabCheckInvariants : CommandElab := fun stx => do
       let mgr ← ref.get
       let cmds ← liftCoreM <| constructCommands (← mgr.theorems)
       liftCoreM <| addSuggestion stx cmds)
-  | `(command|#check_invariants!) => do
-    Verifier.displayStreamingResults stx getResults
-    Verifier.vcManager.atomicallyOnce frontendNotification
-      (fun ref => do let mgr ← ref.get; return mgr.isDone)
-      (fun ref => do
-        let mgr ← ref.get
-        let cmds ← liftCoreM <| constructCommands (← mgr.undischargedTheorems)
-        liftCoreM <| addSuggestion stx cmds)
   | `(command|#check_invariants) => do
     Verifier.displayStreamingResults stx getResults
-    -- Verifier.vcManager.atomicallyOnce frontendNotification
-      -- (fun ref => do let mgr ← ref.get; return mgr.isDone)
-      -- (fun ref => do let mgr ← ref.get; logInfo m!"{mgr}"; logInfo m!"{Lean.toJson (← mgr.toVerificationResults)}")
+    -- Add async text logging
+    Verifier.runFilteredAsync VCMetadata.isInduction (logVerificationResults stx)
   | _ => logInfo "Unsupported syntax {stx}"; throwUnsupportedSyntax
   where
   getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do
@@ -425,7 +451,7 @@ def elabModelCheck : CommandElab := fun stx => do
     let isCompileMode ← isModelCheckCompileMode
     match isCompileMode, interpretedOnly?.isSome with
     | true, _     => elabModelCheckInternalMode mod callExpr  -- In compiled binary
-    | false, true => elabModelCheckInterpretedMode stx callExpr parallelCfg  -- interpreted keyword
+    | false, true => elabModelCheckInterpretedMode mod stx callExpr parallelCfg  -- interpreted keyword
     | false, false => elabModelCheckWithHandoff mod stx callExpr parallelCfg  -- default: interpreted + background compile
   | _ => throwUnsupportedSyntax
 where
@@ -571,7 +597,8 @@ where
         let line ← child.stderr.getLine
         if line.isEmpty then break
         match Json.parse line >>= FromJson.fromJson? (α := ModelChecker.Concrete.Progress) with
-        | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then refs.progressRef.set p
+        | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
+            refs.progressRef.modify fun old => { p with allActionLabels := old.allActionLabels }
         | .error _ => stderrAccum.modify (· ++ line)
     let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
     let waitTask ← IO.asTask (prio := .dedicated) child.wait
@@ -601,10 +628,32 @@ where
       Term.synthesizeSyntheticMVarsNoPostponing
       unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
+  /-- Get all action label names for never-enabled action warnings. -/
+  getActionLabelNames (mod : Module) : CommandElabM (List String) := do
+    let labelTypeName ← resolveGlobalConstNoOverload labelType
+    return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
+
+  /-- Log model check result after completion. -/
+  logModelCheckResult (stx : Syntax) (instanceId : Nat) : CommandElabM Unit := do
+    -- Skip logging in compile mode
+    if ← isModelCheckCompileMode then return
+    -- Wait for result and log
+    let some resultJson ← ModelChecker.Concrete.waitForResult instanceId
+      | return
+    let msg := TraceDisplay.formatModelCheckingResult resultJson
+    -- Check if this is a violation/error
+    let result := resultJson.getObjValD "result"
+    if result == Json.str "found_violation" then
+      logErrorAt stx msg
+    else if resultJson.getObjValD "error" != .null then
+      logErrorAt stx msg
+    else
+      logInfoAt stx msg
+
   /-- Handle interpreted mode: evaluate and display results directly. -/
-  elabModelCheckInterpretedMode (stx : Syntax) (callExpr : Term)
+  elabModelCheckInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance
+    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     let ioComputation ← elaborateInterpretedComputation instanceId callExpr parallelCfg
     let _ ← IO.asTask (prio := .dedicated) do
@@ -614,11 +663,12 @@ where
         ModelChecker.Concrete.finishProgress instanceId (enrichJsonWithAssertions json assertionSources)
       catch e => ModelChecker.Concrete.finishProgress instanceId (errorJson (toString e))
     ModelChecker.displayStreamingProgress stx instanceId
+    logModelCheckResult stx instanceId
 
   /-- Handle default mode: run interpreted + background compile with handoff. -/
   elabModelCheckWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance
+    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     let sourceFile ← getFileName
     let modelSource ← generateModelSource mod stx
@@ -639,7 +689,7 @@ where
     let _ ← IO.asTask (prio := .dedicated) do
       try
         let compileStartMs ← IO.monoMsNow
-        let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource
+        let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
         ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
         let result ← ModelChecker.Compilation.runProcessWithStatusCallback
           { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
@@ -663,5 +713,6 @@ where
       catch e => ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (toString e))
 
     ModelChecker.displayStreamingProgress stx instanceId
+    logModelCheckResult stx instanceId
 
 end Veil

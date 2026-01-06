@@ -1,0 +1,30 @@
+{
+  "name": "@veil/widgets",
+  "version": "0.1.0",
+  "description": "Veil widget components for Lean infoview",
+  "type": "module",
+  "scripts": {
+    "watch": "rollup --environment NODE_ENV:production --config --watch",
+    "watch-dev": "rollup --config --watch",
+    "build": "npx tsc && rollup --environment NODE_ENV:production --config",
+    "build-dev": "npx tsc && rollup --config",
+    "clean": "rm -rf dist/"
+  },
+  "dependencies": {
+    "@leanprover/infoview": "~0.8.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.1",
+    "@rollup/plugin-node-resolve": "^15.0.2",
+    "@rollup/plugin-replace": "^6.0.1",
+    "@rollup/plugin-terser": "^0.4.0",
+    "@types/react": "^18.0.33",
+    "@types/react-dom": "^18.0.11",
+    "glob": "^11.0.0",
+    "rollup": "^4.17.2",
+    "tslib": "^2.5.0",
+    "typescript": "^5.0.3"
+  }
+}

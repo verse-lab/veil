@@ -146,8 +146,8 @@ def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
     let binders' ← mkInstImplicitBinders className indVal header.argNames
     let localInsts := #[``lexOrdForNonDepSigma, ``sumOrd].map mkCIdent
     `(command|
-      attribute [local instance] $localInsts* in
-      instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* : $(mkCIdent className) ($header.targetType) :=
+      attribute [scoped instance] $localInsts* in
+      scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* : $(mkCIdent className) ($header.targetType) :=
         $(mkCIdent <| `Veil ++ className ++ `by_equiv)
           (proxy_equiv% $header.targetType)
           (by
@@ -249,7 +249,7 @@ def mkBEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate decl
   let beqTerms ← fieldNames.zipWithM (bs := localInsts) fun field inst => `(term| $(mkIdent inst).$(mkIdent `beq) $s1.$(mkIdent field) $s2.$(mkIdent field))
   let beqBody ← repeatedOp ``Bool.and beqTerms (default := ← `(term| true))
   `(command|
-  instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``BEq) $(header.targetType) where
     $(mkIdent `beq):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $beqBody)
 
@@ -262,7 +262,7 @@ def mkDecidableEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTempl
   let eqTerms ← fieldNames.mapM fun field => `(term| $s1.$(mkIdent field) = $s2.$(mkIdent field))
   let eqBody ← repeatedAnd eqTerms
   `(command|
-  instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``DecidableEq) $(header.targetType) :=
     fun $(targetTypeArgBinders.map TSyntax.mk)* =>
     $(mkIdent ``decidable_of_iff) $eqBody (by cases $s1:ident; cases $s2:ident; grind))
@@ -281,7 +281,7 @@ def mkHashableInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate
       fs.zip localInsts |>.foldlM (init := first) fun acc (field, inst) => do
         `(term| $acc |> $(mkIdent ``mixHash) ($(mkIdent inst).$(mkIdent `hash) ($s.$(mkIdent field))))
   `(command|
-  instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``Hashable) $(header.targetType) where
     $(mkIdent `hash):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $hashBody)
 
@@ -290,7 +290,7 @@ def mkInhabitedInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplat
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Inhabited indVal header.argNames fieldNames
   let defaults ← localInsts.mapM fun inst => `(term| $(mkIdent inst).$(mkIdent `default))
   `(command|
-  instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``Inhabited) $(header.targetType) where
     $(mkIdent `default):ident := ⟨$defaults,*⟩)
 
@@ -304,7 +304,7 @@ def mkToJsonInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate d
     `(term| ($(Syntax.mkStrLit fieldStr), $(mkIdent inst).$(mkIdent `toJson) $s.$(mkIdent field)))
   let toJsonBody ← `(term| $(mkIdent ``Lean.Json.mkObj) [$[$jsonPairs],*])
   `(command|
-  instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``ToJson) $(header.targetType) where
     $(mkIdent `toJson):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $toJsonBody)
 

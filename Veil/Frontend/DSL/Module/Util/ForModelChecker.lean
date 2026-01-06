@@ -91,11 +91,14 @@ lean_exe ModelCheckerMain where
   buildType := .release
 "
 
-/-- Template for the ModelCheckerMain.lean in the temp project. -/
-def modelCheckerMainTemplate : String :=
+/-- Template for the ModelCheckerMain.lean in the temp project.
+    Takes the namespace of the specification to open scoped instances. -/
+def modelCheckerMainTemplate (specNamespace : String) : String :=
 "import Model
 
 set_option maxHeartbeats 6400000
+
+open " ++ specNamespace ++ "
 
 def main (args : List String) : IO Unit := do
   -- Enable progress reporting to stderr for the IDE to read
@@ -116,7 +119,7 @@ def main (args : List String) : IO Unit := do
 
 /-- Create the temp build folder with all necessary files.
 Returns the absolute path to the build folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) : IO System.FilePath := do
+def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String) : IO System.FilePath := do
   let veilPath ← IO.currentDir
   let buildFolder ← generateBuildFolderName sourceFile
   -- Create the build folder
@@ -126,7 +129,7 @@ def createBuildFolder (sourceFile : String) (modelSource : String) : IO System.F
   -- Write the model source (renamed to Model.lean)
   IO.FS.writeFile (buildFolder / "Model.lean") modelSource
   -- Write the ModelCheckerMain.lean
-  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") modelCheckerMainTemplate
+  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") (modelCheckerMainTemplate specNamespace)
   -- Create a minimal lean-toolchain file (copy from parent)
   let toolchainPath := veilPath / "lean-toolchain"
   if ← toolchainPath.pathExists then

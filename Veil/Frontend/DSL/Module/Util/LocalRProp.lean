@@ -189,7 +189,7 @@ def Module.proveLocalityForStatePredicate (mod : Module) (nm : Name) (stx : Synt
   try
     let inst ← mod.proveLocalityForStatePredicateCore nm
     let attrs ← do
-      let tmp ← `(Parser.Term.attrInstance| instance)
+      let tmp ← `(Parser.Term.attrInstance| scoped instance)
       elabAttrs (#[tmp])
     let _ ← addVeilDefinition (generateLocalRPropInstName nm) inst (attr := attrs)
   catch ex =>

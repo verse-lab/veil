@@ -5,6 +5,7 @@ Authors: George Pîrlea
 -/
 import Lean.Data.Json
 import Std.Data.HashMap
+import Veil.Core.Tools.ModelChecker.Concrete.Core
 
 namespace Veil.ModelChecker.Concrete
 open Lean
@@ -34,20 +35,37 @@ instance : FromJson CompilationStatus where
     | "failed" => return .failed (← j.getObjValAs? String "error")
     | _ => throw s!"Unknown compilation status: {status}"
 
-/-- Progress information for model checking. -/
+/-- Statistics for a single action (transition label). -/
+structure ActionStatDisplay extends ActionStat where
+  /-- Action name (e.g., "Label.send_msg 1 2") -/
+  name : String
+  deriving ToJson, FromJson, Inhabited, Repr
+
+/-- Convert actionStatsMap to List ActionStat for progress reporting. -/
+def toActionStatsList [BEq κ] [Hashable κ] [Repr κ] (m : Std.HashMap κ ActionStat) : List ActionStatDisplay :=
+  m.toList.map fun (label, stat) => { name := repr label |>.pretty, statesGenerated := stat.statesGenerated, distinctStates := stat.distinctStates }
+
+/-- Progress information for model checking, using TLC-style terminology. -/
 structure Progress where
   status : String := "Initializing..."
-  uniqueStates : Nat := 0
-  statesProcessed : Nat := 0
-  queueLength : Nat := 0
-  currentDepth : Nat := 0
-  completedDepth : Nat := 0
+  /-- Length of the longest behavior found so far (BFS depth) -/
+  diameter : Nat := 0
+  /-- Total number of post-states generated (before deduplication) -/
+  statesFound : Nat := 0
+  /-- Number of unique states (after deduplication via fingerprinting) -/
+  distinctStates : Nat := 0
+  /-- States found but not yet explored (frontier size) -/
+  queue : Nat := 0
   isRunning : Bool := true
   isCancelled : Bool := false
   startTimeMs : Nat := 0
   elapsedMs : Nat := 0
   /-- Status of background compilation (for handoff mode). -/
   compilationStatus : CompilationStatus := .none
+  /-- Per-action statistics -/
+  actionStats : List ActionStatDisplay := []
+  /-- All possible action labels (for detecting never-enabled actions) -/
+  allActionLabels : List String := []
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Refs for tracking progress of a single model checker instance. -/
@@ -82,12 +100,13 @@ def enableCompiledModeProgress : IO Unit := do
   compiledModeEnabled.set true
   compiledModeStartTime.set (← IO.monoMsNow)
 
-/-- Allocate a new progress instance and return its ID along with the cancel token. -/
-def allocProgressInstance : IO (Nat × IO.CancelToken) := do
+/-- Allocate a new progress instance and return its ID along with the cancel token.
+    Takes all action labels for detecting never-enabled actions. -/
+def allocProgressInstance (allActionLabels : List String := []) : IO (Nat × IO.CancelToken) := do
   let id ← nextInstanceId.modifyGet fun n => (n, n + 1)
   let cancelTk ← IO.CancelToken.new
   let refs : ProgressRefs := {
-    progressRef := ← IO.mkRef { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true }
+    progressRef := ← IO.mkRef { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true, allActionLabels }
     resultRef := ← IO.mkRef none
     cancelToken := cancelTk
     handoffRequested := ← IO.mkRef false
@@ -106,19 +125,21 @@ private def withRefs (instanceId : Nat) (f : ProgressRefs → IO Unit) : IO Unit
 
 /-- Update progress for a given instance ID.
     In compiled mode, also outputs progress to stderr as JSON. -/
-def updateProgress (instanceId : Nat) (uniqueStates statesProcessed queueLength currentDepth completedDepth : Nat) : IO Unit := do
+def updateProgress (instanceId : Nat)
+    (diameter statesFound distinctStates queue : Nat)
+    (actionStats : List ActionStatDisplay := []) : IO Unit := do
   let now ← IO.monoMsNow
   -- Update refs if they exist (interpreted mode)
   if let some refs ← getProgressRefs instanceId then
     refs.progressRef.modify fun p => { p with
-      uniqueStates, statesProcessed, queueLength, currentDepth, completedDepth
+      diameter, statesFound, distinctStates, queue, actionStats
       elapsedMs := now - p.startTimeMs }
   -- Output to stderr if in compiled mode
   if ← compiledModeEnabled.get then
     let startTime ← compiledModeStartTime.get
     let p : Progress := {
       status := "Running..."
-      uniqueStates, statesProcessed, queueLength, currentDepth, completedDepth
+      diameter, statesFound, distinctStates, queue, actionStats
       isRunning := true
       startTimeMs := startTime
       elapsedMs := now - startTime
@@ -164,6 +185,18 @@ def cancelProgress (instanceId : Nat) : IO Unit := withRefs instanceId fun refs 
     status := "Cancelled", isRunning := false, isCancelled := true, elapsedMs := now - p.startTimeMs }
   refs.resultRef.set (some (Json.mkObj [("result", "cancelled")]))
 
+/-- Wait for model check to complete and return the result JSON. -/
+partial def waitForResult (instanceId : Nat) (pollIntervalMs : Nat := 100) : IO (Option Lean.Json) := do
+  loop
+where
+  loop : IO (Option Lean.Json) := do
+    let progress ← getProgress instanceId
+    if progress.isRunning then
+      IO.sleep (pollIntervalMs.toUInt32)
+      loop
+    else
+      getResultJson instanceId
+
 /-! ## Handoff Coordination -/
 
 def updateCompilationStatus (instanceId : Nat) (status : CompilationStatus) : IO Unit :=
@@ -190,12 +223,14 @@ def isViolationFound (instanceId : Nat) : IO Bool := do
 /-- Reset progress for handoff to compiled mode. Returns new cancel token. -/
 def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := do
   let some refs ← getProgressRefs instanceId | return none
+  let oldProgress ← refs.progressRef.get
   refs.handoffRequested.set false
   let newCancelToken ← IO.CancelToken.new
   progressRegistry.modify fun m => m.insert instanceId { refs with cancelToken := newCancelToken }
   let now ← IO.monoMsNow
   refs.progressRef.set {
-    status := "Restarting with compiled binary...", startTimeMs := now, compilationStatus := .succeeded
+    status := "Restarting with compiled binary...", startTimeMs := now,
+    compilationStatus := .succeeded, allActionLabels := oldProgress.allActionLabels
   }
   return some newCancelToken
 
