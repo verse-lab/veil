@@ -10,10 +10,10 @@ instance [NeZero N] : Inhabited { n : Nat // n ∈ List.range N } where
     have : N ≠ 0 := NeZero.ne N
     omega⟩
 
-instance (n : Nat) (N : Nat) [NeZero N] :  Inhabited (Veil.TotalTreeMap (Fin n) { t // t ∈ List.range N } compare) := by
+instance (n : Nat) (N : Nat) [NeZero N] :  Inhabited (Std.TreeMap (Fin n) { t // t ∈ List.range N } compare) := by
   infer_instance
 
-instance :  Inhabited (Veil.TotalTreeMap (Fin 2) { n // n ∈ List.range 2 } compare) := by
+instance :  Inhabited (Std.TreeMap (Fin 2) { n // n ∈ List.range 2 } compare) := by
   infer_instance
 
 veil module BuggyCircularBuffer

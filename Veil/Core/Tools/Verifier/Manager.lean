@@ -136,6 +136,10 @@ structure Discharger (ResultT : Type) where
   cancelTk : IO.CancelToken
   /-- The discharger.  -/
   task : Option (DischargerTask ResultT)
+  /-- Promise that resolves to the monotonic timestamp (ms) when the discharger
+  actually starts executing. This is set by the discharger itself, not when
+  the task is scheduled. -/
+  startTimePromise : IO.Promise Nat
   /-- Creates a task that discharges the VC. It's the task responsibility to
   return to the VCManager a `VCDischargeStatus`. This is done via the `ch`
   field of the `VCManager`. Running the resulting `BaseIO` action causes the
@@ -378,6 +382,14 @@ def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := d
   match (← discharger.status) with
   | .finished (.proven _ _ _) => return true
   | _ => return false
+
+/-- Get the start time if the promise has been resolved (i.e., the discharger has started). -/
+def Discharger.startTime (discharger : Discharger ResultT) : BaseIO (Option Nat) := do
+  let task := discharger.startTimePromise.result?
+  if ← IO.hasFinished task then
+    return task.get
+  else
+    return none
 
 /-- Find the next discharger to try. Once this function returns `none`, it will
 not return `some` again unless new dischargers are added. -/

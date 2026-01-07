@@ -79,6 +79,7 @@ interface Discharger {
   name: string;
   status: DischargerStatus;
   time: number | null;
+  startTime: number | null;
   result?: DischargerResult | null;
 }
 
@@ -106,6 +107,7 @@ interface VerificationResults {
   totalVCs: number;
   totalSolved: number;
   totalDischarged: number;
+  serverTime: number;
 }
 
 interface InsertPosition {
@@ -601,9 +603,9 @@ function buildAlternativeMap(vcs: VerificationCondition[]): Map<number, Verifica
   return map;
 }
 
-// Filter to only show primary induction VCs (exclude all alternatives and trace VCs)
+// Filter to only show primary induction VCs (exclude all alternatives, trace VCs, and dormant VCs)
 function filterToVisibleVCs(vcs: VerificationCondition[]): VerificationCondition[] {
-  return vcs.filter(vc => vc.alternativeFor == null && isInductionVC(vc));
+  return vcs.filter(vc => vc.alternativeFor == null && isInductionVC(vc) && !vc.isDormant);
 }
 
 // ========== Components ==========
@@ -634,12 +636,16 @@ interface PropertyRowProps {
   alternativeVC?: VerificationCondition;
   documentUri: string;
   insertPosition: InsertPosition;
+  serverTime: number;
 }
 
-const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUri, insertPosition }) => {
+const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUri, insertPosition, serverTime }) => {
   const [expanded, setExpanded] = React.useState(false);
   const [showTRCounterexample, setShowTRCounterexample] = React.useState(true);
   const [showRawHtml, setShowRawHtml] = React.useState(false);
+
+  // Cache the last known time to prevent flickering during state transitions
+  const lastKnownTimeRef = React.useRef<number | null>(null);
 
   // Theorem insertion
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
@@ -695,18 +701,106 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   // Row is expandable if it has counterexamples or exceptions
   const isExpandable = hasAnyCounterexample || hasExceptions;
 
+  // Helper to check if any discharger is currently running
+  const isAnyDischargerRunning = (targetVC: VerificationCondition): boolean => {
+    return targetVC.timing.dischargers.some(d => d.status === 'running');
+  };
+
+  // Helper to compute elapsed time for a running VC
+  const getRunningElapsedTime = (targetVC: VerificationCondition): number | null => {
+    const runningDischarger = targetVC.timing.dischargers.find(
+      d => d.status === 'running' && d.startTime !== null
+    );
+    if (runningDischarger?.startTime != null) {
+      return serverTime - runningDischarger.startTime;
+    }
+    return null;
+  };
+
+  // Check if this VC is queued (pending but no dischargers running yet)
+  const isQueued = vc.status === null && !isAnyDischargerRunning(vc);
+
+  // Format elapsed time with in-progress styling (reduced opacity)
+  const formatElapsedTime = (elapsed: number | null): React.ReactNode => {
+    if (elapsed !== null) {
+      return <span className="time-in-progress">{formatTime(elapsed)}</span>;
+    }
+    return null;
+  };
+
+  // Get elapsed time from any discharger with a startTime (regardless of status)
+  const getElapsedTimeFromAnyDischarger = (targetVC: VerificationCondition): number | null => {
+    const dischargerWithStartTime = targetVC.timing.dischargers.find(d => d.startTime !== null);
+    if (dischargerWithStartTime?.startTime != null) {
+      return serverTime - dischargerWithStartTime.startTime;
+    }
+    return null;
+  };
+
+  // Get the best available time for a VC, trying multiple sources
+  const getVCTime = (targetVC: VerificationCondition): number | null => {
+    // First try totalTime
+    if (targetVC.timing.totalTime !== null) {
+      return targetVC.timing.totalTime;
+    }
+    // Try successfulDischargerTime
+    if (targetVC.timing.successfulDischargerTime !== undefined) {
+      return targetVC.timing.successfulDischargerTime;
+    }
+    // Try to get time from finished dischargers
+    const finishedDischarger = targetVC.timing.dischargers.find(d => d.time !== null);
+    if (finishedDischarger && finishedDischarger.time !== null) {
+      return finishedDischarger.time;
+    }
+    // Fall back to elapsed time from any discharger with startTime (covers transition period)
+    return getElapsedTimeFromAnyDischarger(targetVC);
+  };
+
   // Format the time display
   const getTimeDisplay = (): React.ReactNode => {
-    const wpTime = formatTime(vc.timing.totalTime);
+    // Helper to get time with caching - once we have a time, we keep it
+    const getTimeWithCache = (): number | null => {
+      let currentTime: number | null = null;
 
-    if (trIsRunning) {
-      // TR is running: show WP time + spinner
-      return wpTime ? <>{wpTime}+<span className="spinner-inline">⏳</span></> : <span className="spinner-inline">⏳</span>;
+      if (vc.status === null) {
+        // VC is running - get elapsed time
+        currentTime = getRunningElapsedTime(vc);
+      } else {
+        // VC has finished - get the best available time
+        currentTime = getVCTime(vc);
+      }
+
+      // Update cache if we have a valid time
+      if (currentTime !== null) {
+        lastKnownTimeRef.current = currentTime;
+      }
+
+      // Return current time, or fall back to cached time
+      return currentTime ?? lastKnownTimeRef.current;
+    };
+
+    const primaryTime = getTimeWithCache();
+
+    // If primary VC is still running, show elapsed time with in-progress styling
+    if (vc.status === null) {
+      return formatElapsedTime(primaryTime);
     }
 
-    if (trCompleted && alternativeVC.timing.totalTime !== null) {
+    // VC has finished
+    const wpTime = formatTime(primaryTime);
+
+    if (trIsRunning) {
+      // TR is running: show WP time + elapsed TR time
+      const trElapsed = getRunningElapsedTime(alternativeVC!);
+      const trTimeDisplay = formatElapsedTime(trElapsed);
+      return wpTime && trTimeDisplay
+        ? <>{wpTime}+{trTimeDisplay}</>
+        : trTimeDisplay || wpTime;
+    }
+
+    if (trCompleted) {
       // TR completed: show combined timing
-      const trTime = formatTime(alternativeVC.timing.totalTime);
+      const trTime = formatTime(getVCTime(alternativeVC));
       if (wpTime && trTime) {
         return `${wpTime}+${trTime}`;
       }
@@ -763,7 +857,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
         {isExpandable && (
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
         )}
-        <span className="property-icon">{getStatusIcon(vc.status)}</span>
+        <span className="property-icon">{isQueued ? '⏳' : getStatusIcon(vc.status)}</span>
         <span className="property-name">{getInductionData(vc)?.property}</span>
         {trWasInvoked && (
           <span className={`vc-style-badge tr-badge ${trIsRunning ? 'tr-running' : ''}`}>
@@ -868,9 +962,10 @@ interface ActionSectionProps {
   alternativeMap: Map<number, VerificationCondition>;
   documentUri: string;
   insertPosition: InsertPosition;
+  serverTime: number;
 }
 
-const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeMap, documentUri, insertPosition }) => {
+const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeMap, documentUri, insertPosition, serverTime }) => {
   const [expanded, setExpanded] = React.useState(true);
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   const [inserting, setInserting] = React.useState(false);
@@ -921,6 +1016,7 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
               documentUri={documentUri}
               insertPosition={insertPosition}
               alternativeVC={alternativeMap.get(vc.id)}
+              serverTime={serverTime}
             />
           ))}
         </div>
@@ -1169,6 +1265,10 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       white-space: nowrap;
+    }
+
+    .time-in-progress {
+      opacity: 0.6;
     }
 
     /* Failure banner */
@@ -1458,11 +1558,6 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
         opacity: 0.7;
         background: rgba(24, 144, 255, 0.3);
       }
-    }
-
-    .spinner-inline {
-      display: inline-block;
-      animation: spin 2s linear infinite;
     }
 
     .vr-toolbar {
@@ -1785,7 +1880,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
           <>
             {/* Filters */}
             <div className="vr-filters">
-              <span className="vr-filter-label">Filter by status ({results.totalVCs} VCs):</span>
+              <span className="vr-filter-label">Filter by status ({visibleVCs.length} VCs):</span>
               {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => {
                 // Only show filter buttons for groups with elements
                 if (statusCounts[filter] === 0) return null;
@@ -1827,6 +1922,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
                             alternativeVC={alternativeMap.get(vc.id)}
                             documentUri={documentUri}
                             insertPosition={insertPosition}
+                            serverTime={results.serverTime}
                           />
                         ))}
                       </div>
@@ -1849,6 +1945,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
                           alternativeMap={alternativeMap}
                           documentUri={documentUri}
                           insertPosition={insertPosition}
+                          serverTime={results.serverTime}
                         />
                       ))}
                     </div>

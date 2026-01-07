@@ -512,8 +512,8 @@ where
                     $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
       if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
       else pure base
-    `({ $(mkIdent `invariants) := $safetyList, $(mkIdent `terminating) := $terminatingProp,
-        $(mkIdent `earlyTerminationConditions) := $earlyTermConds })
+    `({ $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
+        $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
 
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
