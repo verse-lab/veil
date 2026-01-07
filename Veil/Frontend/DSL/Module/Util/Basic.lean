@@ -473,7 +473,7 @@ where
     while true do
       let scName :: path' := path
         | break
-      let .some sc := curMod.signature.find? (·.name == scName)
+      let .some _sc := curMod.signature.find? (·.name == scName)
         | throwError "trying to assign to {nm}, but {scName} is not a declared field in {ppModules modules}"
       -- FIXME: Not fully sure how to obtain the child module name here.
       -- Maybe need to extend the definition of `StateComponent`?
