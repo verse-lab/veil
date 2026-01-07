@@ -39,11 +39,6 @@ def reprFiniteFunc {α β} [FinEnum α] [Repr α] [Repr β] (f : α → β) : St
   (FinEnum.toList α).map (fun a => s!"{reprStr a}{reprStr (f a)}")
   |> String.intercalate ""
 
-instance (priority := high + 100) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
-  find := fun _ => Veil.Enumeration.allValues |>.filter p
-  find_iff := by simp ; grind
-
-
 open Lean Meta Elab Term Command
 
 private inductive SimpleDerivingReprForCase where
