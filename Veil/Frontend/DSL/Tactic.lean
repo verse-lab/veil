@@ -22,6 +22,7 @@ def AccumulatedTactics.toFormat (sep : Std.Format) (s : AccumulatedTactics) : Co
   let tacs ← s.flatMapM fun (stx : TSyntax AccumulatedTacticKinds) => do
     match stx with
     | `(Parser.Tactic.tacticSeq| $tacs:tactic*) => return tacs.getElems
+    | `(Parser.Tactic.seq1| $tacs:tactic;*) => return tacs.getElems
     | `(tactic| $tac) => return #[tac]
   let res ← tacs.mapM PrettyPrinter.ppTactic
   return Std.Format.joinSep res.toList sep
@@ -175,7 +176,7 @@ instances during WP generation will be reverted, and this tactic is still
 required in verification. -/
 syntax (name := __veil_neutralize_decidable_inst) "__veil_neutralize_decidable_inst" : tactic
 
-syntax (name := __veil_ghost_relation_ssa) "__veil_ghost_relation_ssa" "at" ident : tactic
+syntax (name := __veil_ghost_relation_ssa) "__veil_ghost_relation_ssa" ("at" ident)? : tactic
 
 syntax (name := veil_smt) "veil_smt" : tactic
 syntax (name := veil_smt_trace) "veil_smt?" : tactic
@@ -591,8 +592,7 @@ private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull
   let args := target.getAppArgs'
   let baseArgs := args.take nBaseParams
   let suffixArgs := args.drop (args.size - nExtraParams - 2)  -- 2: for theory and state
-  let nm' ← mkFreshBinderNameForTactic nm
-  let nm' := nm'.appendAfter "_axiomatized"
+  let nm' ← mkFreshBinderNameForTactic <| nm.appendAfter "_axiomatized"
   -- heavily exploit the arguments structure
   let body ← do
     let preBody := mkAppN target.getAppFn' baseArgs
@@ -692,24 +692,37 @@ The second part is to "fold back" the usages of ghost relations into
 their local `let`-declarations, and finally clear the bodies of these
 local declarations to complete the axiomatization.
 
-Currently, it is only performed over one hypothesis. -/
-def ghostRelationSSA (mod : Module) (hyp : Name) : TacticM Unit := veilWithMainContext do
+Currently, it is only performed over one hypothesis or the main target,
+depending on whether `hyp` is provided. -/
+def ghostRelationSSA (mod : Module) (hyp : Option Name) : TacticM Unit := veilWithMainContext do
   let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .ghost (Std.HashSet.emptyWithCapacity 0))
-  let ldecl ← getLocalDeclFromUserName hyp
-  let ty := ldecl.type
+  let ty ← match hyp with
+    | .some hname => do
+      let ldecl ← getLocalDeclFromUserName hname
+      pure ldecl.type
+    | .none => getMainTarget''
   let info ← ghostRelationSSACore mod._derivedDefinitions baseParams.size ty mod._useLocalRPropTC
   veilWithMainContext do
   let ty' ← foldingByDefEq baseParams.size info ty
   let mv ← getMainGoal
-  -- NOTE: Since `hyp` is above the newly introduced `let`-declarations,
-  -- we need to change the order.
-  let mv' ← mv.replaceLocalDeclDefEq ldecl.fvarId ty'  -- or `changeLocalDecl`?
-  let (_, mv'') ← mv'.withReverted #[ldecl.fvarId] fun mvv fvars => mvv.withContext do
+  match hyp with
+  | some hname => do
+    let ldecl ← getLocalDeclFromUserName hname
+    -- NOTE: Since `hyp` is above the newly introduced `let`-declarations,
+    -- we need to change the order.
+    let mv' ← mv.replaceLocalDeclDefEq ldecl.fvarId ty'  -- or `changeLocalDecl`?
+    let (_, mv'') ← mv'.withReverted #[ldecl.fvarId] fun mvv fvars => mvv.withContext do
+      -- finally, clear the bodies of the local `let`-declarations
+      let fvs := info.fold (init := []) fun acc _ (grfv, _) => grfv :: acc
+      let mvv' ← clearValues mvv fvs
+      pure ((), fvars.map Option.some, mvv')
+    replaceMainGoal [mv'']
+  | none => do
+    let mv' ← mv.change ty'
     -- finally, clear the bodies of the local `let`-declarations
     let fvs := info.fold (init := []) fun acc _ (grfv, _) => grfv :: acc
-    let mvv' ← clearValues mvv fvs
-    pure ((), fvars.map Option.some, mvv')
-  replaceMainGoal [mv'']
+    let mv'' ← clearValues mv' fvs
+    replaceMainGoal [mv'']
 where
   /-- Fold back the usages of ghost relations based on definitional equality. -/
   foldingByDefEq (nBaseParams : Nat) (info : Std.HashMap Name (Expr × Nat)) (target : Expr) : MetaM Expr :=
@@ -733,9 +746,9 @@ where
       let mv' ← mv.clearValue fv.fvarId!
       clearValues mv' fvs'
 
-def elabGhostRelationSSA (hyp : Ident) : DesugarTacticM Unit := veilWithMainContext do
+def elabGhostRelationSSA (hyp : Option Ident) : DesugarTacticM Unit := veilWithMainContext do
   let mod ← getCurrentModule
-  ghostRelationSSA mod hyp.getId
+  ghostRelationSSA mod <| hyp.map (·.getId)
   -- do some simplification for the goal
   let simps := smallScaleAxiomatizationSimpSet mod._useLocalRPropTC |>.map Lean.mkIdent
   withMainContextGeneral do
@@ -828,7 +841,7 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
     let initialSimps := initialSimps.map Lean.mkIdent
     let ghostRelTac ← if unfoldghostRel?
       then `(tactic| skip )
-      else `(tactic| __veil_ghost_relation_ssa at $(mkIdent `hinv):ident)
+      else `(tactic| (__veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
     let concretizeFieldsTac ← if fast
       then `(tactic| __veil_concretize_fields_wp !)
       else `(tactic| __veil_concretize_fields_wp)
@@ -847,8 +860,8 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
       -- NOTE: The `subst_eqs` is for equalities between higher-order stuff,
       -- especially relations produced after `concretize_fields`. This can
       -- happen for unchanged fields in transitions.
-      then `(tactic| (veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs) ))
-      else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros ))
+      then `(tactic| veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs) )
+      else `(tactic| veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros )
   veilEvalTactic tac
 
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
@@ -928,7 +941,7 @@ def elabVeilTactics : Tactic := fun stx => do
   | `(tactic| __veil_concretize_fields_wp $[!%$agg]?) => do withTiming "__veil_concretize_fields_wp" (elabVeilConcretizeFieldsWp (agg.isSome))
   | `(tactic| __veil_concretize_fields_tr) => do withTiming "__veil_concretize_fields_tr" elabVeilConcretizeFieldsTr
   | `(tactic| __veil_neutralize_decidable_inst) => do withTiming "__veil_neutralize_decidable_inst" elabVeilNeutralizeDecidableInst
-  | `(tactic| __veil_ghost_relation_ssa at $hyp:ident) => do withTiming "__veil_ghost_relation_ssa" (elabGhostRelationSSA hyp)
+  | `(tactic| __veil_ghost_relation_ssa $[at $hyp:ident]?) => do withTiming "__veil_ghost_relation_ssa" (elabGhostRelationSSA hyp)
   -- User-facing tactics
   | `(tactic| veil_rename_hyp $[$xs:term => $ys:ident],*) => do withTiming "veil_rename_hyp" $ elabVeilRenameHyp xs ys
   | `(tactic| veil_destruct $ids:ident* $[only [$onlyIds:ident,*]]?) => do
