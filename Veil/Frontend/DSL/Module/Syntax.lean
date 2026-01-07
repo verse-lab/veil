@@ -253,13 +253,7 @@ syntax (name := assertionDeclaration) propertyKind (propertyName)? term : comman
 /-- Assemble the specification. -/
 syntax (name := genSpec) kw_gen_spec : command
 
-declare_syntax_cat checkInvariantsCmd
-
-syntax (name := checkInvariantsNormal) "#check_invariants" : checkInvariantsCmd
-syntax (name := checkInvariantsWithSuggestions) "#check_invariants?" : checkInvariantsCmd
-syntax (name := checkInvariantsUndischarged) "#check_invariants!" : checkInvariantsCmd
-
-syntax (name := checkInvariants) checkInvariantsCmd : command
+syntax (name := checkInvariants) "#check_invariants" : command
 
 /-- Run the explicit state model checker on the current module with the given
 type instantiation and theory. The optional `maxDepth` parameter limits how

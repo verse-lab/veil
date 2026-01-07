@@ -151,11 +151,13 @@ def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   Term.applyAttributes n attr
   return n
 
-def addVeilTheorem (n : Name) (statement : Expr) (proof : Expr) (attr : Array Attribute := #[]) : TermElabM Unit := do
-  let decl := Declaration.thmDecl (mkTheoremValEx n [] statement proof [])
+def addVeilTheorem (n : Name) (statement : Expr) (proof : Expr) (attr : Array Attribute := #[]) (addNamespace : Bool := true) : TermElabM Name := do
+  let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
+  let decl := Declaration.thmDecl (mkTheoremValEx fullName [] statement proof [])
   addDecl decl
-  enableRealizationsForConst n
-  Term.applyAttributes n attr
+  enableRealizationsForConst fullName
+  Term.applyAttributes fullName attr
+  return fullName
 
 /-- A wrapper around Lean's standard `elabCommand`, which performs
 Veil-specific logging and sanity-checking. -/
@@ -532,5 +534,28 @@ def evalOpen (decl : TSyntax `Lean.Parser.Command.openDecl) (k : MetaM α) : Met
 where `binders` is empty. -/
 def mkFunSyntax [Monad m] [MonadQuotation m] (binders : TSyntaxArray `Lean.Parser.Term.funBinder) (body : TSyntax `term) : m (TSyntax `term) := do
   if binders.isEmpty then pure body else `(fun $binders* => ($body))
+
+open Meta Elab Term in
+/-- `meta_match_option val => t1 => t2` is a meta-level construct that
+matches on `val` of type `Option α` for some `α`. If `val = some v`, it evaluates
+`t1 v` (an application); if `val = none`, it evaluates `t2`. This is useful
+in tactics where `t1` and/or `t2` might be ill-typed. -/
+elab "meta_match_option" val:term "=>" t1:term "=>" t2:term : term <= expectedType => do
+  let valExpr ← elabTerm val none
+  let valExpr ← whnf valExpr
+  let ty ← inferType valExpr
+  let coreTy ← match_expr ty.consumeMData with
+    | Option coreTy => pure coreTy
+    | _ => throwError "meta_match_option expected an Option type"
+  match_expr valExpr with
+  | Option.some _ v =>
+    let arrowTy ← mkArrow coreTy expectedType
+    let t1Expr ← elabTerm t1 arrowTy
+    let app := t1Expr.betaRev #[v]
+    pure app
+  | Option.none _ =>
+    let t2Expr ← elabTerm t2 expectedType
+    pure t2Expr
+  | _ => throwError "meta_match_option expected an Option expression"
 
 end Veil

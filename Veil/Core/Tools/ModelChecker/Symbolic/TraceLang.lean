@@ -11,6 +11,7 @@ import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import ProofWidgets.Component.HtmlDisplay
+import Veil.Frontend.DSL.Module.Elaborators
 
 /-!
   # Symbolic Trace Language
@@ -265,8 +266,8 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   -- Skip trace verification in compilation mode (not needed for model checking binary)
   if ← isModelCheckCompileMode then return
   let stx ← getRef
-  let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module after #gen_spec")
-  if !mod.isSpecFinalized then throwError "trace commands can only be used after #gen_spec"
+  let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module")
+  mod.throwIfSpecNotFinalized
 
   -- Determine if this is a sat or unsat trace query
   let isExpectedSat := r.raw.isOfKind ``expected_sat
@@ -314,8 +315,13 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     -- Use VCManager with automatic discharger
     let vcStatement ← mkTraceVCStatement mod vcName assertion
     let metadata := mkTraceVCMetadata isExpectedSat numTransitions (some vcName)
-    let traceVC ← Verifier.addVC ⟨vcStatement, metadata⟩ {}
-    Verifier.mkAddDischarger traceVC (TraceDischarger.fromAssertion numTransitions isExpectedSat)
+    -- Add VC and discharger atomically
+    let traceVC ← Verifier.withVCManager fun ref => do
+      let mgr ← ref.get
+      let (mgr', vcId) := mgr.addVC ⟨vcStatement, metadata⟩ {} #[]
+      let mgr'' ← mgr'.mkAddDischarger vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat)
+      ref.set mgr''
+      return vcId
 
     -- Wait synchronously for the VC to complete (allows widget display on main thread)
     let results ← Verifier.waitFilteredSync (fun m => m.isTrace && m.propertyName? == some vcName)
@@ -335,29 +341,22 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
 
     -- Report results based on expectation
     if vcResult.status != some .proven then
-      let kind := if isExpectedSat then "sat" else "unsat"
       match vcResult.status with
       | some .disproven =>
-        if isExpectedSat then logError s!"sat trace [{vcName}]: no satisfying trace exists"
+        if isExpectedSat then logError "No satisfying trace exists"
         else if let some traceJson := traceJson? then
-          logError s!"unsat trace [{vcName}]: counterexample found\n{traceJson}"
-        else
-          logError s!"unsat trace [{vcName}]: counterexample found"
-      | some .unknown => logError s!"{kind} trace [{vcName}]: solver returned unknown"
-      | some .error =>
-        logError s!"{kind} trace [{vcName}]: verification error"
-        logDischargerErrors vcResult.timing.dischargers
-      | _ => logError s!"{kind} trace [{vcName}]: verification did not complete"
+          logError m!"Counterexample found\n{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+        else logError "Counterexample found"
+      | some .unknown => logError "Solver returned unknown"
+      | some .error => logError "Verification error"; logDischargerErrors vcResult.timing.dischargers
+      | _ => logError "Verification did not complete"
     else
       if isExpectedSat then
         if let some traceJson := traceJson? then
-          logInfo s!"sat trace [{vcName}]: found satisfying trace\n{traceJson}"
-        else
-          logInfo s!"sat trace [{vcName}]: found satisfying trace"
-      -- Log error if we expected a trace but couldn't extract it
+          logInfo m!"{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+        else logInfo "Found satisfying trace"
       if shouldHaveTrace && traceJson?.isNone then
-        logError s!"trace [{vcName}]: could not extract trace JSON"
-        logDischargerErrors vcResult.timing.dischargers
+        logError "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
 
 
 elab_rules : command

@@ -4,6 +4,7 @@ import Mathlib.Data.FinEnum
 import Mathlib.Algebra.Ring.Parity
 import Mathlib.Data.List.Sublists
 import Veil.Frontend.DSL.State.Types
+import Veil.Frontend.DSL.State.Instances
 import Std.Data.ExtTreeSet.Lemmas
 
 open Std
@@ -388,7 +389,7 @@ theorem extTreeSet_fold_insert
 
 
 -- https://github.com/leanprover-community/mathlib4/blob/v4.19.0/Mathlib/Tactic/Linarith/Oracle/FourierMotzkin.lean#L41
-instance  [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   : TSet α (ExtTreeSet α) where
   count := ExtTreeSet.size
   contains := fun a s => s.contains a
@@ -446,30 +447,11 @@ class TMultiset (α : Type) (κ : Type) where
   -- size_remove (elem : α) (s : κ) :
   --   size (remove elem s) = if contains elem s then size s - 1 else size s
 
-instance DecidableEqExtTreeSet [Ord α] [DecidableEq α] [TransOrd α]
-  : DecidableEq (ExtTreeSet α) := fun t₁ t₂ =>
-  decidable_of_iff (t₁.toList = t₂.toList) ExtTreeSet.toList_inj
-
-instance DecidableEqExtTreeMap
-  [Ord α] [TransOrd α] [DecidableEq α] [DecidableEq β]
-  : DecidableEq (ExtTreeMap α β) := fun t₁ t₂ =>
-  decidable_of_iff (t₁.toList = t₂.toList)
-    ExtTreeMap.toList_inj
-
-
-
-abbrev TMapMultiset (α : Type) [Ord α] := Std.ExtTreeMap α { n : Nat // n > 0 }
+/-- When implementing `Multiset`, a key is mapped to its multiplicity
+*minus 1*. -/
+abbrev TMapMultiset (α : Type) [Ord α] := Std.ExtTreeMap α Nat
 
 instance [Ord α] : Inhabited (TMapMultiset α) := ⟨Std.ExtTreeMap.empty⟩
-
-instance : Ord { n : Nat // n > 0 } where
-  compare x y := compare x.1 y.1
-
-instance : LawfulEqOrd { n : Nat // n > 0 } where
-  eq_of_compare h := Subtype.eq <| Nat.instLawfulEqOrd.eq_of_compare h
-
-instance [Ord α] [Ord β] : Ord (α × β) where
-  compare x y := compare x.1 y.1 |>.then (compare x.2 y.2)
 
 instance [Ord α] [TransOrd α] : Ord (TMapMultiset α) where
   compare m₁ m₂ := compare m₁.toList m₂.toList
@@ -482,21 +464,21 @@ instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
   empty := Std.ExtTreeMap.empty
   insert elem s :=
     s.alter elem fun
-      | some n => some ⟨n.val + 1, by omega⟩
-      | none   => some ⟨1, by omega⟩
+      | some n => some n.succ
+      | none   => some 0
 
   remove elem s :=
     s.alter elem fun
-      | some n => if h : n.val > 1 then some ⟨n.val - 1, by omega⟩ else none
+      | some n => if h : n > 0 then some n.pred else none
       | none   => none
 
   count elem s := match s.get? elem with
-    | some n => n.val
+    | some n => n.succ
     | none => 0
 
   contains elem s := s.contains elem
-  size s := s.foldl (fun acc _ count => acc + count.val) 0
-  toList s := s.foldl (fun acc elem count => acc ++ List.replicate count.val elem) []
+  size s := s.foldl (fun acc _ count => acc + count.succ) 0
+  toList s := s.foldl (fun acc elem count => acc ++ List.replicate count.succ elem) []
   empty_size := by simp [Std.ExtTreeMap.empty]; rfl
   empty_count elem := by grind
   empty_contains elem := by grind

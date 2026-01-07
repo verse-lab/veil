@@ -159,7 +159,7 @@ lemma VeilM.angel_fail_imp_assumptions (act : VeilM m ρ σ α) :
   unhygienic induction act generalizing r s <;> simp [-top_le_iff]
   { intro; exists (ExtractNonDet.pure _); }
   { open TotalCorrectness ExceptionAsFailure in
-    rw [ReaderT.wp_eq]; simp only [StateT.wp_eq, wp_tot_eq, «Prop».bot_eq_false, DivM.wp_eq]
+    rw [ReaderT.wp_eq]; simp only [StateT.wp_eq, wp_tot_eq, DivM.wp_eq]
     split; simp
     rename_i bs heq
     rcases bs with ⟨(_ | b), s'⟩ <;> simp; intro h

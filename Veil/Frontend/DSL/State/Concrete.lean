@@ -123,18 +123,16 @@ instance [Inhabited β] : Inhabited (ArrayAsTotalMap n β) :=
   ⟨⟨Array.replicate n default, Eq.symm Array.size_replicate⟩⟩
 
 abbrev TotalHashMap (α : Type u) (β : Type v) [BEq α] [Hashable α] :=
-  { mp : Std.HashMap α β // ∀ a, a ∈ mp }
+  Std.HashMap α β
 
-instance [Enumeration α] [DecidableEq α] [Hashable α] [LawfulHashable α] [Inhabited β] : Inhabited (TotalHashMap α β) :=
-  ⟨⟨Std.HashMap.ofList ((Enumeration.allValues).map (fun a => (a, default))),
-    by intro a ; rw [Std.HashMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp [Enumeration.complete]⟩⟩
+instance [BEq α] [Hashable α] : Inhabited (TotalHashMap α β) where
+  default := Std.HashMap.emptyWithCapacity
 
 abbrev TotalTreeMap (α : Type u) (β : Type v) (cmp : α → α → Ordering := by exact compare) :=
-  { mp : Std.TreeMap α β cmp // ∀ a, a ∈ mp }
+  Std.TreeMap α β cmp
 
-instance {cmp : α → α → Ordering} [Enumeration α] [Std.LawfulEqCmp cmp] [Std.TransCmp cmp] [DecidableEq α] [Inhabited β] : Inhabited (TotalTreeMap α β cmp) :=
-  ⟨⟨Std.TreeMap.ofList ((Enumeration.allValues).map (fun a => (a, default))) cmp,
-    by intro a ; rw [Std.TreeMap.mem_ofList, List.map_map] ; unfold Function.comp ; simp [Enumeration.complete]⟩⟩
+instance {cmp : α → α → Ordering} : Inhabited (TotalTreeMap α β cmp) where
+  default := Std.TreeMap.empty
 
 end TotalMapLike
 
@@ -151,18 +149,26 @@ variable {FieldDomain : List Type}
   (equiv : IteratedProd FieldDomain ≃ α)
   (instfin : IteratedProd (FieldDomain.map Enumeration))
 
+def FieldRepresentation.FinsetLike.get (fc : β) : CanonicalField FieldDomain Bool :=
+  IteratedArrow.curry (instm.mem fc ∘ equiv)
+
 def FieldRepresentation.FinsetLike.setSingle
   (fa : FieldUpdatePat FieldDomain)
   (v : CanonicalField FieldDomain Bool) (fc : β) :=
   inst.batchUpdate
     ((fa.footprintRaw instfin).cartesianProduct.map equiv) (v.uncurry ∘ equiv.symm) fc
 
+def FieldRepresentation.FinsetLike.setSingle'Core
+  (v : CanonicalField FieldDomain Bool) (fc : β)
+  (footprint : IteratedProd (FieldDomain.map (fun {ty} => Unit → List ty))) :=
+  let vv := v.uncurry
+  IteratedProd.foldMap fc (IteratedArrow.curry fun arg fc' =>
+    inst.update (equiv arg) (vv arg) fc') footprint
+
 def FieldRepresentation.FinsetLike.setSingle'
   (fa : FieldUpdatePat FieldDomain)
   (v : CanonicalField FieldDomain Bool) (fc : β) :=
-  let vv := v.uncurry
-  IteratedProd.foldMap fc (IteratedArrow.curry fun arg fc' =>
-    inst.update (equiv arg) (vv arg) fc') (fa.footprintRaw instfin)
+  delta% FieldRepresentation.FinsetLike.setSingle'Core equiv v fc (fa.footprintRaw instfin)
 
 omit instd instl in
 theorem FieldRepresentation.FinsetLike.setSingle_eq fa v (fc : β) :
@@ -173,41 +179,148 @@ theorem FieldRepresentation.FinsetLike.setSingle_eq fa v (fc : β) :
 
 instance instFinsetLikeAsFieldRep : FieldRepresentation FieldDomain Bool β :=
   FieldRepresentation.mkFromSingleSet
-    (get := fun fc => IteratedArrow.curry (instm.mem fc ∘ equiv))
+    (get := delta% FieldRepresentation.FinsetLike.get equiv)
     (setSingle := FieldRepresentation.FinsetLike.setSingle' equiv instfin)
+
+theorem FieldRepresentation.FinsetLike.get_set_for_validFootprint
+  (dec : IteratedProd (List.map DecidableEq FieldDomain)) (fc : β)
+  (fa : FieldUpdatePat FieldDomain) (v : CanonicalField FieldDomain Bool)
+  (footprint : _) (h : fa.validFootprint footprint) :
+  get equiv (setSingle'Core equiv v fc footprint) =
+    CanonicalField.set dec [(fa, v)] (get equiv fc) := by classical
+  simp +unfoldPartialApp [get, setSingle'Core, CanonicalField.set,
+    IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
+    Function.comp]
+  simp [← (FieldUpdatePat.footprint_match_iff_when_valid dec h)]
+  congr! 1 ; ext args ; rw [Bool.eq_iff_iff] ; simp
+  -- `foldr` is more convenient for induction here
+  rw [List.foldl_eq_foldr_reverse]
+  conv => enter [2, 1] ; rw [← List.mem_reverse]
+  generalize footprint.cartesianProduct.reverse = prods
+  unfold FinsetLike.update
+  generalize (v.uncurry) = vv
+  generalize e : (fun x y => _) = ff
+  induction prods with
+  | nil => simp
+  | cons p prods ih =>
+    simp [ite_or, ← ih] ; clear ih
+    generalize (List.foldr ..) = acc
+    subst ff ; dsimp ; split_ifs <;> (try solve | grind)
+    · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.erase_toFinset]
+    · simp [instl.toFinset_mem_iff, instl.erase_toFinset] ; simp_all
+    · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.insert_toFinset]
+    · simp [instl.toFinset_mem_iff, instl.insert_toFinset] ; simp_all
 
 instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain Bool β
     -- TODO this is awkward; synthesis fails here
     (instFinsetLikeAsFieldRep equiv instfin) where
   toLawfulFieldRepresentationSet :=
     LawfulFieldRepresentationSet.mkFromSingleSet ..
-  get_set_idempotent := by open Classical in
-    introv ; rcases fav with ⟨fa, v⟩
-    simp +unfoldPartialApp [instFinsetLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
-      CanonicalField.set, FieldRepresentation.set, FieldRepresentation.FinsetLike.setSingle',
-      IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
-      Function.comp]
-    simp [← (FieldUpdatePat.footprint_match_iff instfin dec)]
-    congr! 1 ; ext args ; rw [Bool.eq_iff_iff] ; simp
-    -- `foldr` is more convenient for induction here
-    rw [List.foldl_eq_foldr_reverse]
-    conv => enter [2, 1] ; rw [← List.mem_reverse]
-    generalize (fa.footprintRaw instfin).cartesianProduct.reverse = prods
-    unfold FinsetLike.update
-    generalize (v.uncurry) = vv
-    generalize e : (fun x y => _) = ff
-    induction prods with
-    | nil => simp
-    | cons p prods ih =>
-      simp [ite_or, ← ih] ; clear ih
-      generalize (List.foldr ..) = acc
-      subst ff ; dsimp ; split_ifs <;> (try solve | grind)
-      · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.erase_toFinset]
-      · simp [instl.toFinset_mem_iff, instl.erase_toFinset] ; simp_all
-      · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.insert_toFinset]
-      · simp [instl.toFinset_mem_iff, instl.insert_toFinset] ; simp_all
+  get_set_idempotent := by
+    introv
+    apply FieldRepresentation.FinsetLike.get_set_for_validFootprint
+    apply FieldUpdatePat.footprintRaw_valid
 
 end FinsetLikeUpdates
+
+/-- A wrapper around `CanonicalField` to indicate that this field is used
+as part of a hybrid finset-like representation. It might have special
+`BEq` and `Hashable` instances. -/
+structure CanonicalFieldWrapper (FieldDomain : List Type) (FieldCodomain : Type) where
+  inner : CanonicalField FieldDomain FieldCodomain
+
+inductive HybridFieldType (α : Type u) (FieldDomain : List Type) (FieldCodomain : Type) where
+  | canonical (cf : CanonicalFieldWrapper FieldDomain FieldCodomain)
+  | concrete (fc : α)
+
+-- TODO make these into deriving handlers
+instance [BEq (CanonicalFieldWrapper FieldDomain FieldCodomain)] [BEq α] :
+  BEq (HybridFieldType α FieldDomain FieldCodomain) where
+  beq
+    | HybridFieldType.canonical cf1, HybridFieldType.canonical cf2 =>
+      cf1 == cf2
+    | HybridFieldType.concrete fc1, HybridFieldType.concrete fc2 =>
+      fc1 == fc2
+    | _, _ => false
+
+instance [Hashable (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Hashable α] :
+  Hashable (HybridFieldType α FieldDomain FieldCodomain) where
+  hash
+    | HybridFieldType.canonical cf => mixHash 17 (hash cf)
+    | HybridFieldType.concrete fc => mixHash 19 (hash fc)
+
+instance [Lean.ToJson (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Lean.ToJson α] :
+  Lean.ToJson (HybridFieldType α FieldDomain FieldCodomain) where
+  toJson
+    | HybridFieldType.canonical cf => Lean.ToJson.toJson cf
+    | HybridFieldType.concrete fc => Lean.ToJson.toJson fc
+
+instance [Repr (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Repr α] :
+  Repr (HybridFieldType α FieldDomain FieldCodomain) where
+  reprPrec
+    | HybridFieldType.canonical cf, prec => Repr.reprPrec cf prec
+    | HybridFieldType.concrete fc, prec => Repr.reprPrec fc prec
+
+-- For `Inhabited`, only provide for the `concrete` case
+instance [Inhabited α] : Inhabited (HybridFieldType α FieldDomain FieldCodomain) :=
+  ⟨HybridFieldType.concrete default⟩
+
+namespace NotNecessarilyFinsetLikeUpdates
+
+variable {FieldDomain : List Type}
+  [instd : DecidableEq α]
+  [instm : Membership α β]
+  [inst : FinsetLike β]
+  [instl : LawfulFinsetLike β]
+  [instdm : DecidableRel instm.mem]
+  (equiv : IteratedProd FieldDomain ≃ α)
+  (instfin : IteratedProd (FieldDomain.map (OptionalTC ∘ Enumeration)))
+  (instdeceq : IteratedProd (FieldDomain.map DecidableEq))
+
+abbrev HybridFinsetLike (β) (FieldDomain : List Type) := HybridFieldType β FieldDomain Bool
+
+def HybridFinsetLike.get : HybridFinsetLike β FieldDomain → CanonicalField FieldDomain Bool
+  | .canonical cf => cf.inner
+  | .concrete fc => delta% FieldRepresentation.FinsetLike.get equiv fc
+
+def HybridFinsetLike.setSingle
+  (fa : FieldUpdatePat FieldDomain)
+  (v : CanonicalField FieldDomain Bool) (fc : HybridFinsetLike β FieldDomain)
+  : HybridFinsetLike β FieldDomain :=
+  match fc with
+  | .canonical cf => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)] cf.inner
+  | .concrete fc' =>
+    match fa.footprintRestricted instfin with
+    | none => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)]
+      <| FieldRepresentation.FinsetLike.get equiv fc'
+    | some footprint => .concrete <|
+      FieldRepresentation.FinsetLike.setSingle'Core equiv v fc' footprint
+
+instance instHybridFinsetLikeAsFieldRep : FieldRepresentation FieldDomain Bool
+  (HybridFinsetLike β FieldDomain) :=
+  FieldRepresentation.mkFromSingleSet
+    (get := delta% HybridFinsetLike.get equiv)
+    (setSingle := HybridFinsetLike.setSingle equiv instfin instdeceq)
+
+instance instHybridFinsetLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain Bool
+    (HybridFinsetLike β FieldDomain)
+    -- TODO this is awkward; synthesis fails here
+    (instHybridFinsetLikeAsFieldRep equiv instfin instdeceq) where
+  toLawfulFieldRepresentationSet :=
+    LawfulFieldRepresentationSet.mkFromSingleSet ..
+  get_set_idempotent := by open Classical in
+    introv ; rcases fav with ⟨fa, v⟩
+    simp +unfoldPartialApp [instHybridFinsetLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
+      FieldRepresentation.set, HybridFinsetLike.setSingle]
+    rcases fc with cf | fc <;> dsimp only
+    · congr ; apply IteratedProd.map_DecidableEq_eq
+    · rcases h : FieldUpdatePat.footprintRestricted instfin fa with _ | footprint <;> dsimp only
+      · congr ; apply IteratedProd.map_DecidableEq_eq
+      · apply FieldRepresentation.FinsetLike.get_set_for_validFootprint
+        apply FieldUpdatePat.footprintRestricted_valid
+        apply h
+
+end NotNecessarilyFinsetLikeUpdates
 
 section TotalMapLikeUpdates
 
@@ -218,17 +331,46 @@ variable {FieldDomain : List Type} {FieldCodomain : Type}
   (equiv : IteratedProd FieldDomain ≃ α)
   (instfin : IteratedProd (FieldDomain.map Enumeration))
 
+def FieldRepresentation.TotalMapLike.get (fc : γ) : CanonicalField FieldDomain FieldCodomain :=
+  IteratedArrow.curry (inst.get fc ∘ equiv)
+
+def FieldRepresentation.TotalMapLike.setSingle'Core
+  (v : CanonicalField FieldDomain FieldCodomain) (fc : γ)
+  (footprint : IteratedProd (FieldDomain.map (fun {ty} => Unit → List ty))) :=
+  let vv := v.uncurry
+  IteratedProd.foldMap fc (IteratedArrow.curry fun arg fc' =>
+    inst.insert (equiv arg) (vv arg) fc') footprint
+
 def FieldRepresentation.TotalMapLike.setSingle'
   (fa : FieldUpdatePat FieldDomain)
   (v : CanonicalField FieldDomain FieldCodomain) (fc : γ) :=
-  let vv := v.uncurry
-  IteratedProd.foldMap fc (IteratedArrow.curry fun arg fc' =>
-    inst.insert (equiv arg) (vv arg) fc') (fa.footprintRaw instfin)
+  delta% FieldRepresentation.TotalMapLike.setSingle'Core equiv v fc (fa.footprintRaw instfin)
 
 instance instTotalMapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain γ :=
   FieldRepresentation.mkFromSingleSet
-    (get := fun fc => IteratedArrow.curry (inst.get fc ∘ equiv))
+    (get := delta% FieldRepresentation.TotalMapLike.get equiv)
     (setSingle := FieldRepresentation.TotalMapLike.setSingle' equiv instfin)
+
+theorem FieldRepresentation.TotalMapLike.get_set_for_validFootprint
+  (dec : IteratedProd (List.map DecidableEq FieldDomain)) (fc : γ)
+  (fa : FieldUpdatePat FieldDomain) (v : CanonicalField FieldDomain FieldCodomain)
+  (footprint : _) (h : fa.validFootprint footprint) :
+  get equiv (setSingle'Core equiv v fc footprint) =
+    CanonicalField.set dec [(fa, v)] (get equiv fc) := by classical
+  -- TODO this proof seems repetitive
+  simp +unfoldPartialApp [get, setSingle'Core, CanonicalField.set,
+    IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
+    Function.comp]
+  simp [← (FieldUpdatePat.footprint_match_iff_when_valid dec h)]
+  congr! 1 ; ext args
+  -- `foldr` is more convenient for induction here
+  rw [List.foldl_eq_foldr_reverse]
+  conv => enter [2, 1] ; rw [← List.mem_reverse]
+  generalize footprint.cartesianProduct.reverse = prods
+  generalize (v.uncurry) = vv
+  induction prods with
+  | nil => simp
+  | cons p prods ih => simp [ite_or, ← ih, instl.insert_get] ; grind
 
 instance instTotalMapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain γ
     -- TODO this is awkward; synthesis fails here
@@ -236,25 +378,69 @@ instance instTotalMapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain 
   toLawfulFieldRepresentationSet :=
     LawfulFieldRepresentationSet.mkFromSingleSet ..
   get_set_idempotent := by
-    -- TODO this proof seems repetitive
-    introv ; rcases fav with ⟨fa, v⟩
-    open Classical in
-    simp +unfoldPartialApp [instTotalMapLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
-      CanonicalField.set, FieldRepresentation.set, FieldRepresentation.TotalMapLike.setSingle',
-      IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
-      Function.comp]
-    simp [← (FieldUpdatePat.footprint_match_iff instfin dec)]
-    congr! 1 ; ext args
-    -- `foldr` is more convenient for induction here
-    rw [List.foldl_eq_foldr_reverse]
-    conv => enter [2, 1] ; rw [← List.mem_reverse]
-    generalize (fa.footprintRaw instfin).cartesianProduct.reverse = prods
-    generalize (v.uncurry) = vv
-    induction prods with
-    | nil => simp
-    | cons p prods ih => simp [ite_or, ← ih, instl.insert_get] ; grind
+    introv
+    apply FieldRepresentation.TotalMapLike.get_set_for_validFootprint
+    apply FieldUpdatePat.footprintRaw_valid
 
 end TotalMapLikeUpdates
+
+namespace NotNecessarilyTotalMapLikeUpdates
+
+-- TODO the following seems repetitive; how can we eliminate repetition?
+variable {FieldDomain : List Type} {FieldCodomain : Type}
+  [instd : DecidableEq α]
+  [inst : TotalMapLike α FieldCodomain γ]
+  [instl : LawfulTotalMapLike γ]
+  (equiv : IteratedProd FieldDomain ≃ α)
+  (instfin : IteratedProd (FieldDomain.map (OptionalTC ∘ Enumeration)))
+  (instdeceq : IteratedProd (FieldDomain.map DecidableEq))
+
+abbrev HybridTotalMapLike (γ) (FieldDomain : List Type) (FieldCodomain : Type) :=
+  HybridFieldType γ FieldDomain FieldCodomain
+
+def HybridTotalMapLike.get : HybridTotalMapLike γ FieldDomain FieldCodomain → CanonicalField FieldDomain FieldCodomain
+  | .canonical cf => cf.inner
+  | .concrete fc => delta% FieldRepresentation.TotalMapLike.get equiv fc
+
+def HybridTotalMapLike.setSingle
+  (fa : FieldUpdatePat FieldDomain)
+  (v : CanonicalField FieldDomain FieldCodomain) (fc : HybridTotalMapLike γ FieldDomain FieldCodomain)
+  : HybridTotalMapLike γ FieldDomain FieldCodomain :=
+  match fc with
+  | .canonical cf => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)] cf.inner
+  | .concrete fc' =>
+    match fa.footprintRestricted instfin with
+    | none => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)]
+      <| FieldRepresentation.TotalMapLike.get equiv fc'
+    | some footprint => .concrete <|
+      FieldRepresentation.TotalMapLike.setSingle'Core equiv v fc' footprint
+
+instance instHybridTotalMapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain
+  (HybridTotalMapLike γ FieldDomain FieldCodomain) :=
+  FieldRepresentation.mkFromSingleSet
+    (get := HybridTotalMapLike.get equiv)
+    (setSingle := HybridTotalMapLike.setSingle equiv instfin instdeceq)
+
+instance instHybridTotalMapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain
+    (HybridTotalMapLike γ FieldDomain FieldCodomain)
+    -- TODO this is awkward; synthesis fails here
+    (instHybridTotalMapLikeAsFieldRep equiv instfin instdeceq) where
+  toLawfulFieldRepresentationSet :=
+    LawfulFieldRepresentationSet.mkFromSingleSet ..
+  get_set_idempotent := by open Classical in
+    introv ; rcases fav with ⟨fa, v⟩
+    simp +unfoldPartialApp [instHybridTotalMapLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
+      FieldRepresentation.set, HybridTotalMapLike.setSingle,
+      HybridTotalMapLike.get]
+    rcases fc with cf | fc <;> dsimp only
+    · congr ; apply IteratedProd.map_DecidableEq_eq
+    · rcases h : FieldUpdatePat.footprintRestricted instfin fa with _ | footprint <;> dsimp only
+      · congr ; apply IteratedProd.map_DecidableEq_eq
+      · apply FieldRepresentation.TotalMapLike.get_set_for_validFootprint
+        apply FieldUpdatePat.footprintRestricted_valid
+        apply h
+
+end NotNecessarilyTotalMapLikeUpdates
 
 end ConcreteUpdates
 
@@ -340,15 +526,13 @@ instance : TotalMapLike (Fin n) β (ArrayAsTotalMap n β) where
   insert a b mp := ⟨mp.val.set a.val b (mp.property ▸ a.prop),
     (Eq.symm (Array.size_set (xs := mp.val) (i := a.val) (mp.property ▸ a.prop))) ▸ mp.prop⟩
 
-instance [BEq α] [EquivBEq α] [Hashable α] [LawfulHashable α] : TotalMapLike α β (TotalHashMap α β) where
-  get mp a := mp.val[a]'(mp.property a)
-  insert a b mp := ⟨mp.val.insert a b,
-    fun a => Std.HashMap.mem_insert.mpr (Or.inr (mp.property a))⟩
+instance [BEq α] [Hashable α] [Inhabited β] : TotalMapLike α β (TotalHashMap α β) where
+  get mp a := mp.getD a default
+  insert a b mp := mp.insert a b
 
-instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : TotalMapLike α β (TotalTreeMap α β cmp) where
-  get mp a := mp.val[a]'(mp.property a)
-  insert a b mp := ⟨mp.val.insert a b,
-    fun a => Std.TreeMap.mem_insert.mpr (Or.inr (mp.property a))⟩
+instance {cmp : α → α → Ordering} [Inhabited β] : TotalMapLike α β (TotalTreeMap α β cmp) where
+  get mp a := mp.getD a default
+  insert a b mp := mp.insert a b
 
 instance [FinEnum α] [FinEnum β] [Inhabited β] : LawfulTotalMapLike (BitVecsAsFinmap α β) where
   insert_get a a' b mp := by
@@ -404,17 +588,17 @@ instance : LawfulTotalMapLike (ArrayAsTotalMap n β) where
 
 variable {α : Type u}
 
-instance [DecidableEq α] [Hashable α] [LawfulHashable α] : LawfulTotalMapLike (TotalHashMap α β) where
+instance [DecidableEq α] [Hashable α] [Inhabited β] [LawfulHashable α] : LawfulTotalMapLike (TotalHashMap α β) where
   insert_get a a' b mp := by
     dsimp [TotalMapLike.get, TotalMapLike.insert]
-    rw [Std.HashMap.getElem_insert] ; simp ; congr
+    rw [Std.HashMap.getD_insert] ; simp
 
 instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
-  [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
+  [Inhabited β] [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
   : LawfulTotalMapLike (TotalTreeMap α β cmp) where
   insert_get a a' b mp := by
     dsimp [TotalMapLike.get, TotalMapLike.insert]
-    rw [Std.TreeMap.getElem_insert] ; simp ; congr
+    rw [Std.TreeMap.getD_insert] ; simp
 
 end ConcreteInstances
 

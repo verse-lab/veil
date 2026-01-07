@@ -212,61 +212,58 @@ private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadQuotation
 
 /-! ## Module VC Generation -/
 
-def Module.generateVCs (mod : Module) : CommandElabM Unit := do
-  -- We need to build the VCs "bottom-up", i.e. from the "smallest"
-  -- statements to the "largest".
-  let actsToCheck := mod.procedures.filter (fun s => match s.info with
+/-- Get the list of actions/initializers that need VC generation. -/
+private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
+  mod.procedures.filter (fun s => match s.info with
     | .action _ _ | .initializer => true
     | .procedure _ => false)
+
+/-- Generate doesNotThrow VCs for all actions.
+    These VCs check that actions don't throw exceptions assuming the invariants hold. -/
+def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
+  let actsToCheck := mod.actsToCheck
+  let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp !) else `(by veil_solve_wp)
+  -- Prepare VC data outside the lock
+  let vcData ← actsToCheck.mapM fun act =>
+    return (act, ← mkDoesNotThrowVC mod act.name act.declarationKind InductionVCKind.primary)
+  -- Add all VCs atomically
+  Verifier.withVCManager fun ref => do
+    for (act, vc) in vcData do
+      let mgr ← ref.get
+      let (mgr', vcId) := mgr.addVC vc {} #[]
+      let mgr'' ← mgr'.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name)
+      ref.set mgr''
+
+/-- Generate invariant preservation VCs for all actions × invariant clauses.
+    These VCs check that each action preserves each invariant clause. -/
+def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
+  let actsToCheck := mod.actsToCheck
   let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp !) else `(by veil_solve_wp)
   let trTactic ← `(by veil_solve_tr)
-  let mut doesNotThrowVCs : Std.HashSet VCId := {}
-  let mut clausesVCsByInv : Std.HashMap Name (Std.HashSet VCId) := {}
-  -- let mut preservesInvariantsVCs : Std.HashSet VCId := {}
-  -- let mut succeedsAndPreservesInvariantsVCs : Std.HashSet VCId := {}
-  -- Per-action checks
-  for act in actsToCheck do
-    -- The action does not throw any exceptions, assuming the `Invariants`
-    let mut doesNotThrowVC := default
-    doesNotThrowVC ← Verifier.addVC ( ← mkDoesNotThrowVC mod act.name act.declarationKind InductionVCKind.primary) {}
-    Verifier.mkAddDischarger doesNotThrowVC (VCDischarger.fromTerm wpTactic act.name)
-    doesNotThrowVCs := doesNotThrowVCs.insert doesNotThrowVC
-
-    -- Assuming the `Invariants`, this action preserves every invariant clause
-    let mut clauseVCsForAct : Std.HashSet VCId := {}
-    for invariantClause in mod.checkableInvariants do
+  -- Prepare all VC data outside the lock
+  let vcData ← actsToCheck.foldlM (init := #[]) fun acc act => do
+    let clauseVCs ← mod.checkableInvariants.foldlM (init := #[]) fun acc' invClause => do
+      let wpVC ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name
+        act.declarationKind invClause.name InductionVCKind.primary
+      let trVC ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name
+        act.declarationKind invClause.name InductionVCKind.alternative
+      return acc'.push (act, wpVC, trVC)
+    return acc ++ clauseVCs
+  -- Add all VCs atomically
+  Verifier.withVCManager fun ref => do
+    for (act, wpVC, trVC) in vcData do
+      let mgr ← ref.get
       -- WP-style VC (primary)
-      let mut clauseVC := default
-      clauseVC ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name
-        act.declarationKind invariantClause.name InductionVCKind.primary) {}
-      Verifier.mkAddDischarger clauseVC (VCDischarger.fromTerm wpTactic act.name)
-      clausesVCsByInv := clausesVCsByInv.insert invariantClause.name
-        ((clausesVCsByInv.getD invariantClause.name {}).insert clauseVC)
-      clauseVCsForAct := clauseVCsForAct.insert clauseVC
-
+      let (mgr', wpVCId) := mgr.addVC wpVC {} #[]
+      let mgr'' ← mgr'.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name)
       -- TR-style VC (alternative) - only runs when WP-style VC fails
-      let trVCData ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name
-        act.declarationKind invariantClause.name InductionVCKind.alternative
-      let trVC ← Verifier.addAlternativeVC trVCData clauseVC
-      Verifier.mkAddDischarger trVC (VCDischarger.fromTerm trTactic act.name)
+      let (mgr''', trVCId) := mgr''.addAlternativeVC trVC wpVCId #[]
+      let mgr'''' ← mgr'''.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name)
+      ref.set mgr''''
 
-  --   -- Per-action overall invariant preservation VC
-  --   let mut preservesInvariantsVC := default
-  --   preservesInvariantsVC ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod act.name act.declarationKind .derived) clauseVCsForAct
-  --   preservesInvariantsVCs := preservesInvariantsVCs.insert preservesInvariantsVC
-
-  --   let mut succeedsAndPreservesInvariantsVC := default
-  --   succeedsAndPreservesInvariantsVC ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod act.name act.declarationKind .derived) {doesNotThrowVC, preservesInvariantsVC}
-  --   succeedsAndPreservesInvariantsVCs := succeedsAndPreservesInvariantsVCs.insert succeedsAndPreservesInvariantsVC
-
-  -- -- `NextAct` theorems
-  -- let .some dd := mod._derivedDefinitions[assembledNextActName]?
-  --   | throwError s!"[Module.generateVCs] derived definition {assembledNextActName} not found"
-  -- let _ ← Verifier.addVC ( ← mkDoesNotThrowVC mod assembledNextActName dd.declarationKind  .derived) doesNotThrowVCs
-
-  -- for invariantClause in mod.checkableInvariants do
-  --   let _ ← Verifier.addVC ( ← mkMeetsSpecificationIfSuccessfulClauseVC mod assembledNextActName dd.declarationKind invariantClause.name .derived) (clausesVCsByInv[invariantClause.name]!)
-  -- let _ ← Verifier.addVC ( ← mkPreservesInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind .derived) preservesInvariantsVCs
-  -- let _ ← Verifier.addVC ( ← mkSucceedsAndInvariantsIfSuccessfulVC mod assembledNextActName dd.declarationKind .derived) succeedsAndPreservesInvariantsVCs
+/-- Generate all VCs (both doesNotThrow and invariant preservation). -/
+def Module.generateVCs (mod : Module) : CommandElabM Unit := do
+  mod.generateDoesNotThrowVCs
+  mod.generateInvariantVCs
 
 end Veil

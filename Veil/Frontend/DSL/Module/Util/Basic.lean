@@ -167,6 +167,10 @@ def Module.throwIfSpecAlreadyFinalized [Monad m] [MonadError m] (mod : Module) :
   if mod.isSpecFinalized then
     throwError s!"The specification of module {mod.name} has already been finalized. You can no longer add procedures or assertions!"
 
+def Module.throwIfSpecNotFinalized [Monad m] [MonadError m] (mod : Module) : m Unit := do
+  if !mod.isSpecFinalized then
+    throwError s!"The specification of module {mod.name} has not been finalized. Please call #gen_spec first!"
+
 /-! ## Parameter Conversion (Binders & Args) -/
 
 /-- Convert a `Parameter` to a `bracketedBinder` syntax. -/

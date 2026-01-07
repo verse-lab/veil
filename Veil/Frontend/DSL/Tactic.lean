@@ -1,4 +1,5 @@
 import Lean
+import Veil.Base
 import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Module.Util
 import Veil.Util.Meta
@@ -25,27 +26,35 @@ def AccumulatedTactics.toFormat (sep : Std.Format) (s : AccumulatedTactics) : Co
   let res ← tacs.mapM PrettyPrinter.ppTactic
   return Std.Format.joinSep res.toList sep
 
-abbrev DesugarTacticM := StateT AccumulatedTactics TacticM
+abbrev DesugarTacticM := StateRefT AccumulatedTactics TacticM
 
 def DesugarTacticM.runCore (giveSuggestion? : Bool) (stx : Syntax) (x : DesugarTacticM α) : TacticM α := do
-  let (a, s) ← x #[]
-  -- this is an approximation to checking whether `stx` is a top-level tactic;
-  -- without this, multiple suggestions would be generated for a single tactic
-  -- that itself invokes other tactics internally
-  let notNestedTactic := stx.getHeadInfo? matches Option.some (.original ..)
-  if giveSuggestion? && !s.isEmpty && notNestedTactic then
-    -- some part here is inspired by `Aesop/Util/Basic.lean`
-    let fmap ← getFileMap
-    let (indent, col) := stx.getRange?.elim (0, 0) (Tactic.TryThis.getIndentAndColumn fmap)
-    let doIndentation? ← checkIfFullyOccupies fmap
-    let sep := if doIndentation? then Std.Format.line else " ; "
-    let fmt ← s.toFormat sep
-    let txt := fmt.pretty (indent := indent) (column := col)
-    -- if the desugared result will not be indented across multiple lines,
-    -- then just squash it into a single line
-    let txt := if doIndentation? then txt else txt.removeLeadingSpaces.map fun c => if c == '\n' then ' ' else c
-    Tactic.TryThis.addSuggestion (header := "After desugaring: ") stx txt
-  return a
+  let ref ← IO.mkRef (#[] : AccumulatedTactics)
+  let showSuggestion : TacticM Unit := do
+    let s ← ref.get
+    -- this is an approximation to checking whether `stx` is a top-level tactic;
+    -- without this, multiple suggestions would be generated for a single tactic
+    -- that itself invokes other tactics internally
+    let notNestedTactic := stx.getHeadInfo? matches Option.some (.original ..)
+    if giveSuggestion? && !s.isEmpty && notNestedTactic then
+      -- some part here is inspired by `Aesop/Util/Basic.lean`
+      let fmap ← getFileMap
+      let (indent, col) := stx.getRange?.elim (0, 0) (Tactic.TryThis.getIndentAndColumn fmap)
+      let doIndentation? ← checkIfFullyOccupies fmap
+      let sep := if doIndentation? then Std.Format.line else " ; "
+      let fmt ← AccumulatedTactics.toFormat sep s
+      let txt := fmt.pretty (indent := indent) (column := col)
+      -- if the desugared result will not be indented across multiple lines,
+      -- then just squash it into a single line
+      let txt := if doIndentation? then txt else txt.removeLeadingSpaces.map fun c => if c == '\n' then ' ' else c
+      Tactic.TryThis.addSuggestion (header := "After desugaring: ") stx txt
+  try
+    let a ← x ref  -- StateRefT is ReaderT, so we apply directly
+    showSuggestion
+    return a
+  catch e =>
+    showSuggestion  -- Show what we accumulated before the error
+    throw e
 where
  -- this does not have to be `TacticM`, but for tracing purposes it's easier this way
  checkIfFullyOccupies (fmap : FileMap) : TacticM Bool := do
@@ -698,7 +707,7 @@ def ghostRelationSSA (mod : Module) (hyp : Name) : TacticM Unit := veilWithMainC
   let ldecl ← getLocalDeclFromUserName hyp
   let ty := ldecl.type
   let info ← ghostRelationSSACore mod._derivedDefinitions baseParams.size ty mod._useLocalRPropTC
-  withMainContext do
+  veilWithMainContext do
   let ty' ← foldingByDefEq baseParams.size info ty
   let mv ← getMainGoal
   -- NOTE: Since `hyp` is above the newly introduced `let`-declarations,
@@ -814,18 +823,11 @@ where
         introsDep
     | _ => pure ()
 
-register_option veil.unfoldGhostRel : Bool := {
-  defValue := false
-  descr := "If true, `veil_fol` will unfold ghost relations during \
-  simplification. Otherwise, it will use small-scale axiomatization. This \
-  option must be set before `#gen_spec`."
-}
-
 @[inherit_doc veil_concretize_wp]
 def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   let tac ← do
     let classicalIdent := mkIdent `Classical
-    let unfoldghostRel? := (← getOptions).getBool ``veil.unfoldGhostRel
+    let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
     let initialSimps := if fast
       then #[`invSimp, `smtSimp]
       else #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp]
@@ -872,16 +874,16 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
   -- if they're not used. This is undesirable when the variable is an action
   -- parameter, because we need to keep it in the context for model extraction.
-  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs <;> (veil_concretize_tr; veil_fol ; veil_smt))
+  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_smt))
   veilEvalTactic tac
 
 @[inherit_doc veil_bmc]
 def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
-  -- Doesn't do HO quantifier elimination; should be much faster
-  -- let fastPath ← `(tacticSeq| veil_intros; veil_destruct; veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
-  let fullPath ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident]; veil_smt)
-  -- let tac ← `(tactic|first | $fastPath:tacticSeq | $fullPath:tacticSeq)
-  let tac := fullPath
+  -- FIXME: sometimes we still have abstract dispatchers in the types, so as a
+  -- hack, we just dsimp them here
+  let dsimpLemmas := #[fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
+  let dsimpTac←  `(tactic| try dsimp [$[$dsimpLemmas:ident],*])
+  let tac ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do

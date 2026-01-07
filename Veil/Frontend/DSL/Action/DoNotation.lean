@@ -178,7 +178,10 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
   let isStructureAssignment := !name.isAtomic
   let component := mod.signature.find? (·.name = name)
   if isStructureAssignment || component.isNone then
-    mod.throwIfImmutable name
+    -- Only check immutability for structure assignments (nested module state).
+    -- When component.isNone and !isStructureAssignment, it's a local variable.
+    if isStructureAssignment then
+      mod.throwIfImmutable name
     let res ← `(Term.doSeqItem| $id:ident := $t:term)
     return #[res]
   else
