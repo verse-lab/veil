@@ -77,4 +77,10 @@ register_option veil.__modelCheckCompileMode : Bool := {
   descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
 }
 
+register_option veil.smt.finiteModelFind : Bool := {
+  defValue := true
+  descr := "If true, the SMT solver will use finite model finding mode (finite-model-find). \
+  If you work in a decidable fragment, this will tend to speed things up."
+}
+
 end Veil
