@@ -475,11 +475,11 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
     match sc.kind with
     | .individual => pure codomainGetter
     | .relation =>
-      let allSomeCase ← `(term| $(mkIdent ``Std.TreeSet) $mapKeyTerm)
+      let allSomeCase ← `(term| $(mkIdent ``Std.ExtTreeSet) $mapKeyTerm)
       let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinsetLikeUpdates.HybridFinsetLike) ($allSomeCase) ($domainGetter))
       chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .function =>
-      let allSomeCase ← `(term| $(mkIdent ``Std.TreeMap) $mapKeyTerm $mapValueTerm)
+      let allSomeCase ← `(term| $(mkIdent ``Std.ExtTreeMap) $mapKeyTerm $mapValueTerm)
       let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinmapLikeUpdates.HybridFinmapLike) ($allSomeCase) ($domainGetter) ($codomainGetter))
       chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .module => throwError "[fieldKindToConcreteType] module kind is not supported"
@@ -577,7 +577,7 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   -- NOTE: not actually needed, but left here for completeness to document what needs to exist
   -- let instances ← #[``Enumeration, ``Ord, ``ToJson].flatMapM fun inst => return (← mod.declareInstanceLiftingForDomain inst) ++ (← mod.declareInstanceLiftingForCodomain inst)
   let instances : Array Syntax := #[]
-  let concreteInstances ← #[(``Hashable, #[``DecidableEq, ``Ord, ``Hashable]), (``BEq, #[``DecidableEq, ``Ord]), (``ToJson, #[``ToJson, ``Ord]), (``Repr, #[``Repr, ``Ord])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldConcreteDispatcher)
+  let concreteInstances ← #[(``Hashable, #[``DecidableEq, ``Ord, ``Std.TransOrd, ``Hashable]), (``BEq, #[``DecidableEq, ``Ord, ``Std.TransOrd]), (``ToJson, #[``ToJson, ``Ord, ``Std.TransOrd]), (``Repr, #[``Repr, ``Ord, ``Std.TransOrd])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldConcreteDispatcher)
   let abstractInstances ← #[(``ToJson, #[``ToJson, ``FinEnum])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldAbstractDispatcher)
   -- add the `fieldConcreteType` parameter
   let fieldConcreteTypeParam ← Parameter.fieldConcreteType

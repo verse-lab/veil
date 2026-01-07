@@ -459,6 +459,10 @@ instance {cmp : α → α → Ordering} : FinsetLike (Std.TreeSet α cmp) where
   insert a b _ := b.insert a
   erase a b _ := b.erase a
 
+instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : FinsetLike (Std.ExtTreeSet α cmp) where
+  insert a b _ := b.insert a
+  erase a b _ := b.erase a
+
 instance [FinEnum α] : LawfulFinsetLike (BitVecAsFinset α) where
   toFinset b := List.finRange (FinEnum.card α) |>.filterMap (fun a => if b[a] then some (FinEnum.equiv.symm a) else none) |>.toFinset
   toFinset_mem_iff a b := by simp ; simp [Membership.mem] ; grind
@@ -478,6 +482,15 @@ instance [DecidableEq α] [Hashable α] : LawfulFinsetLike (Std.HashSet α) wher
 instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
   [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
   : LawfulFinsetLike (Std.TreeSet α cmp) where
+  toFinset b := List.toFinset b.toList
+  toFinset_mem_iff a b := by simp
+  insert_toFinset a b h := by
+    ext a ; simp [FinsetLike.insert] ; aesop
+  erase_toFinset a b h := by
+    ext a ; simp [FinsetLike.erase] ; aesop
+
+instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
+  [DecidableEq α] : LawfulFinsetLike (Std.ExtTreeSet α cmp) where
   toFinset b := List.toFinset b.toList
   toFinset_mem_iff a b := by simp
   insert_toFinset a b h := by
@@ -519,6 +532,10 @@ instance [BEq α] [Hashable α] [Inhabited β] : FinmapLike α β (Std.HashMap �
   insert a b mp := mp.insert a b
 
 instance {cmp : α → α → Ordering} [Inhabited β] : FinmapLike α β (Std.TreeMap α β cmp) where
+  get mp a := mp.getD a default
+  insert a b mp := mp.insert a b
+
+instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Inhabited β] : FinmapLike α β (Std.ExtTreeMap α β cmp) where
   get mp a := mp.getD a default
   insert a b mp := mp.insert a b
 
@@ -574,8 +591,6 @@ instance : LawfulFinmapLike (ArrayAsFinmap n β) where
     dsimp [FinmapLike.get, FinmapLike.insert]
     simp [Array.getElem_set, Fin.val_inj]
 
-variable {α : Type u}
-
 instance [DecidableEq α] [Hashable α] [Inhabited β] [LawfulHashable α] : LawfulFinmapLike (Std.HashMap α β) where
   insert_get a a' b mp := by
     dsimp [FinmapLike.get, FinmapLike.insert]
@@ -587,6 +602,13 @@ instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
   insert_get a a' b mp := by
     dsimp [FinmapLike.get, FinmapLike.insert]
     rw [Std.TreeMap.getD_insert] ; simp
+
+instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
+  [Inhabited β] [DecidableEq α]
+  : LawfulFinmapLike (Std.ExtTreeMap α β cmp) where
+  insert_get a a' b mp := by
+    dsimp [FinmapLike.get, FinmapLike.insert]
+    rw [Std.ExtTreeMap.getD_insert] ; simp
 
 end ConcreteInstances
 
