@@ -376,8 +376,7 @@ where
       `(bracketedBinder|[$(mkIdent ``Veil.Enumeration) ($fieldConcreteDispatcher $sorts* $fieldLabel)])
     -- Generate [DecidableEq (State (FieldConcreteType sorts*))]
     let stateType ← `(term| $stateIdent ($fieldConcreteDispatcher $sorts*))
-    let decEqBinder ← `(bracketedBinder| [$(mkIdent ``DecidableEq) $stateType])
-    let allBinders := sortInstanceBinders ++ fieldEnumerationBinders ++ #[decEqBinder]
+    let allBinders := sortInstanceBinders ++ fieldEnumerationBinders
     -- Generate instance type: Veil.Enumeration (State (FieldConcreteType sorts*))
     let instType ← `(term| $(mkIdent ``Veil.Enumeration) $stateType)
     -- Generate allValues body with nested flatMap/map calls
