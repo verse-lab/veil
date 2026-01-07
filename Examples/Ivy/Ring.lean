@@ -50,5 +50,17 @@ invariant pending L L → le N L
 
 #check_invariants
 
+#model_check { node := Fin 6 }
+
+sat trace {
+  any 3 actions
+  assert (∃ l, leader l)
+}
+
+unsat trace {
+  any 5 actions
+  assert (∃ n₁ n₂, n₁ ≠ n₂ ∧ leader n₁ ∧ leader n₂)
+}
+
 end Ring
 --
