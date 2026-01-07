@@ -257,26 +257,14 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
     unless ← isModelCheckCompileMode do
       logInfoAt stx msg
 
-open Lean.Meta.Tactic.TryThis in
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
   -- Skip in compilation mode (no verification feedback needed)
   if ← isModelCheckCompileMode then return
   let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
   let _ ← mod.ensureSpecIsFinalized stx
-  Verifier.startAll
-  -- Display suggestions if the command is `#check_invariants?`
-  match stx with
-  | `(command|#check_invariants?) => do
-    Verifier.vcManager.atomically (fun ref => do
-      let mgr ← ref.get
-      let cmds ← liftCoreM <| constructCommands (← mgr.theorems)
-      liftCoreM <| addSuggestion stx cmds)
-  | `(command|#check_invariants) => do
-    Verifier.displayStreamingResults stx getResults
-    -- Add async text logging
-    Verifier.runFilteredAsync VCMetadata.isInduction (logVerificationResults stx)
-  | _ => logInfo "Unsupported syntax {stx}"; throwUnsupportedSyntax
+  Verifier.runFilteredAsync VCMetadata.isInduction (logVerificationResults stx)
+  Verifier.displayStreamingResults stx getResults
   where
   getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do
     Verifier.vcManager.atomically
