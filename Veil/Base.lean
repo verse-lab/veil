@@ -50,10 +50,10 @@ register_option veil.printCounterexamples : Bool := {
 }
 
 register_option veil.unfoldGhostRel : Bool := {
-  defValue := false
+  defValue := true
   descr := "If true, `veil_fol` will unfold ghost relations during \
-  simplification. Otherwise, it will use small-scale axiomatization. This \
-  option must be set before `#gen_spec`."
+  simplification. This is the behaviour in Veil 1.0. Otherwise, it \
+  will use small-scale axiomatization. This option must be set before `#gen_spec`."
 }
 
 register_option veil.violationIsError : Bool := {
