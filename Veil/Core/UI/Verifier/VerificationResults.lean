@@ -65,11 +65,11 @@ def displayResults (atStx : Syntax) (results : VerificationResults VCMetadata Sm
 
 partial def displayStreamingResults (atStx : Syntax) (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus)) : CommandElabM Unit := do
   let (insertPosition, documentUri) ← getInsertInfo atStx
-  let html ← liftCoreM <| mkRefreshComponentM (.text "Loading...") (getStreamingResults insertPosition documentUri)
+  let html ← liftCoreM <| ProofWidgets.mkRefreshComponent (.text "Loading...") (runRefreshStepM (getStreamingResults insertPosition documentUri))
   displayWidget atStx html
   where
   getStreamingResults (insertPosition : Lsp.Position) (documentUri : String) : CoreM (RefreshStep CoreM) := do
-    IO.sleep 100
+    vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
     Core.checkSystem "getStreamingResults"
     let (results, status) ← getter
     let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
