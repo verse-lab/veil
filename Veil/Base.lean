@@ -56,6 +56,16 @@ register_option veil.unfoldGhostRel : Bool := {
   will use small-scale axiomatization. This option must be set before `#gen_spec`."
 }
 
+register_option veil.desugarTactic : Bool := {
+  defValue := false
+  descr := "If true, Veil-specific tactics will be desugared and the \
+  desugared version will be displayed as a suggestion. \
+  Note that the formatting of the desugared version depends on **whether \
+  the original tactic is placed in isolation** (i.e., whether the lines \
+  it spans contain only whitespace characters other than the tactic itself)."
+}
+
+
 register_option veil.violationIsError : Bool := {
   defValue := true
   descr := "If true, violations found by verification or model checking are \

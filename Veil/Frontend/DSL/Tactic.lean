@@ -74,17 +74,8 @@ where
       -- trace[veil.debug] "substring before tactic {stx}: {substr}"
       return substr.all Char.isWhitespace
 
-register_option veil.desugarTactic : Bool := {
-  defValue := false
-  descr := "If set, Veil-specific tactics will be desugared and the \
-  desugared version will be displayed as a suggestion. \
-  Note that the formatting of the desugared version depends on **whether \
-  the original tactic is placed in isolation** (i.e., whether the lines \
-  it spans contain only whitespace characters other than the tactic itself)."
-}
-
 def DesugarTacticM.runByOption (stx : Syntax) (x : DesugarTacticM α) : TacticM α := do
-  let giveSuggestion? ← getBoolOption `veil.desugarTactic
+  let giveSuggestion? := veil.desugarTactic.get (← getOptions)
   x.runCore giveSuggestion? stx
 
 /-- A wrapper around Lean's standard `evalTactic`. ALWAYS use this instead of
