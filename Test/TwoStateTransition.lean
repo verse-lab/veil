@@ -39,8 +39,6 @@ transition withargs (r : address) {
 
 invariant true
 
--- FIXME: this is a bug
-/-- warning: you have not defined any actions for this specification; did you forget? -/
 #guard_msgs in
 #gen_spec
 
