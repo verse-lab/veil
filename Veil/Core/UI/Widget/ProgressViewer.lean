@@ -306,7 +306,6 @@ partial def mkProgressWidget (instanceId : Nat) : CoreM Html := do
 where
   getProgressStep (id : Nat) : CoreM (RefreshStep CoreM) := do
     IO.sleep 100
-    Core.checkSystem "getProgressStep"
     let progress ← getProgress id
     if progress.isRunning then
       return .cont (progressToHtml progress (some id)) (getProgressStep id)

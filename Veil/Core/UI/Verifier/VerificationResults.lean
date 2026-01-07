@@ -70,7 +70,6 @@ partial def displayStreamingResults (atStx : Syntax) (getter : CoreM (Verificati
   where
   getStreamingResults (insertPosition : Lsp.Position) (documentUri : String) : CoreM (RefreshStep CoreM) := do
     vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
-    Core.checkSystem "getStreamingResults"
     let (results, status) ← getter
     let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
     match status with
