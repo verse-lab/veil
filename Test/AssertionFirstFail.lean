@@ -34,6 +34,6 @@ error: ❌ Violation: assertion_failure
     pending = []
 -/
 #guard_msgs in
-#model_check { node := Fin 2 } {}
+#model_check interpreted { node := Fin 2 } {}
 
 end Ring
