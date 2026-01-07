@@ -245,7 +245,11 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
   elabVeilCommand rtsCmd
   Verifier.runManager
-  mod.generateVCs
+  mod.generateDoesNotThrowVCs
+  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+  mod.generateInvariantVCs
+  -- The invariant VCs are started only when `#check_invariants` is run
   return { mod with _specFinalizedAt := some stx }
 
 /-- Log verification results asynchronously after all VCs complete. -/
@@ -379,8 +383,6 @@ def elabGenSpec : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
   let mod ← mod.ensureSpecIsFinalized stx
   localEnv.modifyModule (fun _ => mod)
-  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/

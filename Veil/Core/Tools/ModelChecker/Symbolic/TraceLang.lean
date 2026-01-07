@@ -315,8 +315,13 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     -- Use VCManager with automatic discharger
     let vcStatement ← mkTraceVCStatement mod vcName assertion
     let metadata := mkTraceVCMetadata isExpectedSat numTransitions (some vcName)
-    let traceVC ← Verifier.addVC ⟨vcStatement, metadata⟩ {}
-    Verifier.mkAddDischarger traceVC (TraceDischarger.fromAssertion numTransitions isExpectedSat)
+    -- Add VC and discharger atomically
+    let traceVC ← Verifier.withVCManager fun ref => do
+      let mgr ← ref.get
+      let (mgr', vcId) := mgr.addVC ⟨vcStatement, metadata⟩ {} #[]
+      let mgr'' ← mgr'.mkAddDischarger vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat)
+      ref.set mgr''
+      return vcId
 
     -- Wait synchronously for the VC to complete (allows widget display on main thread)
     let results ← Verifier.waitFilteredSync (fun m => m.isTrace && m.propertyName? == some vcName)
