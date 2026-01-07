@@ -65,7 +65,7 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
 namespace Frontend
 
 open Lean.Elab.Command in
-def notifyDone : CommandElabM Unit := do
+def notify : CommandElabM Unit := do
   frontendNotification.notifyAll
 
 end Frontend
