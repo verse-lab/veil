@@ -106,35 +106,23 @@ end DerivedOperations
 
 end FinsetLike
 
-section TotalMapLike
+section FinmapLike
 
-class TotalMapLike (α : outParam (Type u)) (β : outParam (Type v)) (γ : Type w) where
+class FinmapLike (α : outParam (Type u)) (β : outParam (Type v)) (γ : Type w) where
   get : γ → α → β
   insert : α → β → γ → γ
 
-class LawfulTotalMapLike /- (α : outParam (Type u)) (β : outParam (Type v)) -/ (γ : Type w)
-  [inst : TotalMapLike α β γ] [DecidableEq α] where
+class LawfulFinmapLike /- (α : outParam (Type u)) (β : outParam (Type v)) -/ (γ : Type w)
+  [inst : FinmapLike α β γ] [DecidableEq α] where
   insert_get : ∀ (a a' : α) (b : β) (mp : γ),
     inst.get (inst.insert a b mp) a' = if a = a' then b else inst.get mp a'
 
-abbrev ArrayAsTotalMap (n : Nat) (β : Type v) := { mp : Array β // n = mp.size }
+abbrev ArrayAsFinmap (n : Nat) (β : Type v) := { mp : Array β // n = mp.size }
 
-instance [Inhabited β] : Inhabited (ArrayAsTotalMap n β) :=
+instance [Inhabited β] : Inhabited (ArrayAsFinmap n β) :=
   ⟨⟨Array.replicate n default, Eq.symm Array.size_replicate⟩⟩
 
-abbrev TotalHashMap (α : Type u) (β : Type v) [BEq α] [Hashable α] :=
-  Std.HashMap α β
-
-instance [BEq α] [Hashable α] : Inhabited (TotalHashMap α β) where
-  default := Std.HashMap.emptyWithCapacity
-
-abbrev TotalTreeMap (α : Type u) (β : Type v) (cmp : α → α → Ordering := by exact compare) :=
-  Std.TreeMap α β cmp
-
-instance {cmp : α → α → Ordering} : Inhabited (TotalTreeMap α β cmp) where
-  default := Std.TreeMap.empty
-
-end TotalMapLike
+end FinmapLike
 
 section ConcreteUpdates
 
@@ -322,36 +310,36 @@ instance instHybridFinsetLikeLawfulFieldRep : LawfulFieldRepresentation FieldDom
 
 end NotNecessarilyFinsetLikeUpdates
 
-section TotalMapLikeUpdates
+section FinmapLikeUpdates
 
 variable {FieldDomain : List Type} {FieldCodomain : Type}
   [instd : DecidableEq α]
-  [inst : TotalMapLike α FieldCodomain γ]
-  [instl : LawfulTotalMapLike γ]
+  [inst : FinmapLike α FieldCodomain γ]
+  [instl : LawfulFinmapLike γ]
   (equiv : IteratedProd FieldDomain ≃ α)
   (instfin : IteratedProd (FieldDomain.map Enumeration))
 
-def FieldRepresentation.TotalMapLike.get (fc : γ) : CanonicalField FieldDomain FieldCodomain :=
+def FieldRepresentation.FinmapLike.get (fc : γ) : CanonicalField FieldDomain FieldCodomain :=
   IteratedArrow.curry (inst.get fc ∘ equiv)
 
-def FieldRepresentation.TotalMapLike.setSingle'Core
+def FieldRepresentation.FinmapLike.setSingle'Core
   (v : CanonicalField FieldDomain FieldCodomain) (fc : γ)
   (footprint : IteratedProd (FieldDomain.map (fun {ty} => Unit → List ty))) :=
   let vv := v.uncurry
   IteratedProd.foldMap fc (IteratedArrow.curry fun arg fc' =>
     inst.insert (equiv arg) (vv arg) fc') footprint
 
-def FieldRepresentation.TotalMapLike.setSingle'
+def FieldRepresentation.FinmapLike.setSingle'
   (fa : FieldUpdatePat FieldDomain)
   (v : CanonicalField FieldDomain FieldCodomain) (fc : γ) :=
-  delta% FieldRepresentation.TotalMapLike.setSingle'Core equiv v fc (fa.footprintRaw instfin)
+  delta% FieldRepresentation.FinmapLike.setSingle'Core equiv v fc (fa.footprintRaw instfin)
 
-instance instTotalMapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain γ :=
+instance instFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain γ :=
   FieldRepresentation.mkFromSingleSet
-    (get := delta% FieldRepresentation.TotalMapLike.get equiv)
-    (setSingle := FieldRepresentation.TotalMapLike.setSingle' equiv instfin)
+    (get := delta% FieldRepresentation.FinmapLike.get equiv)
+    (setSingle := FieldRepresentation.FinmapLike.setSingle' equiv instfin)
 
-theorem FieldRepresentation.TotalMapLike.get_set_for_validFootprint
+theorem FieldRepresentation.FinmapLike.get_set_for_validFootprint
   (dec : IteratedProd (List.map DecidableEq FieldDomain)) (fc : γ)
   (fa : FieldUpdatePat FieldDomain) (v : CanonicalField FieldDomain FieldCodomain)
   (footprint : _) (h : fa.validFootprint footprint) :
@@ -372,75 +360,75 @@ theorem FieldRepresentation.TotalMapLike.get_set_for_validFootprint
   | nil => simp
   | cons p prods ih => simp [ite_or, ← ih, instl.insert_get] ; grind
 
-instance instTotalMapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain γ
+instance instFinmapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain γ
     -- TODO this is awkward; synthesis fails here
-    (instTotalMapLikeAsFieldRep equiv instfin) where
+    (instFinmapLikeAsFieldRep equiv instfin) where
   toLawfulFieldRepresentationSet :=
     LawfulFieldRepresentationSet.mkFromSingleSet ..
   get_set_idempotent := by
     introv
-    apply FieldRepresentation.TotalMapLike.get_set_for_validFootprint
+    apply FieldRepresentation.FinmapLike.get_set_for_validFootprint
     apply FieldUpdatePat.footprintRaw_valid
 
-end TotalMapLikeUpdates
+end FinmapLikeUpdates
 
-namespace NotNecessarilyTotalMapLikeUpdates
+namespace NotNecessarilyFinmapLikeUpdates
 
 -- TODO the following seems repetitive; how can we eliminate repetition?
 variable {FieldDomain : List Type} {FieldCodomain : Type}
   [instd : DecidableEq α]
-  [inst : TotalMapLike α FieldCodomain γ]
-  [instl : LawfulTotalMapLike γ]
+  [inst : FinmapLike α FieldCodomain γ]
+  [instl : LawfulFinmapLike γ]
   (equiv : IteratedProd FieldDomain ≃ α)
   (instfin : IteratedProd (FieldDomain.map (OptionalTC ∘ Enumeration)))
   (instdeceq : IteratedProd (FieldDomain.map DecidableEq))
 
-abbrev HybridTotalMapLike (γ) (FieldDomain : List Type) (FieldCodomain : Type) :=
+abbrev HybridFinmapLike (γ) (FieldDomain : List Type) (FieldCodomain : Type) :=
   HybridFieldType γ FieldDomain FieldCodomain
 
-def HybridTotalMapLike.get : HybridTotalMapLike γ FieldDomain FieldCodomain → CanonicalField FieldDomain FieldCodomain
+def HybridFinmapLike.get : HybridFinmapLike γ FieldDomain FieldCodomain → CanonicalField FieldDomain FieldCodomain
   | .canonical cf => cf.inner
-  | .concrete fc => delta% FieldRepresentation.TotalMapLike.get equiv fc
+  | .concrete fc => delta% FieldRepresentation.FinmapLike.get equiv fc
 
-def HybridTotalMapLike.setSingle
+def HybridFinmapLike.setSingle
   (fa : FieldUpdatePat FieldDomain)
-  (v : CanonicalField FieldDomain FieldCodomain) (fc : HybridTotalMapLike γ FieldDomain FieldCodomain)
-  : HybridTotalMapLike γ FieldDomain FieldCodomain :=
+  (v : CanonicalField FieldDomain FieldCodomain) (fc : HybridFinmapLike γ FieldDomain FieldCodomain)
+  : HybridFinmapLike γ FieldDomain FieldCodomain :=
   match fc with
   | .canonical cf => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)] cf.inner
   | .concrete fc' =>
     match fa.footprintRestricted instfin with
     | none => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)]
-      <| FieldRepresentation.TotalMapLike.get equiv fc'
+      <| FieldRepresentation.FinmapLike.get equiv fc'
     | some footprint => .concrete <|
-      FieldRepresentation.TotalMapLike.setSingle'Core equiv v fc' footprint
+      FieldRepresentation.FinmapLike.setSingle'Core equiv v fc' footprint
 
-instance instHybridTotalMapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain
-  (HybridTotalMapLike γ FieldDomain FieldCodomain) :=
+instance instHybridFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain
+  (HybridFinmapLike γ FieldDomain FieldCodomain) :=
   FieldRepresentation.mkFromSingleSet
-    (get := HybridTotalMapLike.get equiv)
-    (setSingle := HybridTotalMapLike.setSingle equiv instfin instdeceq)
+    (get := HybridFinmapLike.get equiv)
+    (setSingle := HybridFinmapLike.setSingle equiv instfin instdeceq)
 
-instance instHybridTotalMapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain
-    (HybridTotalMapLike γ FieldDomain FieldCodomain)
+instance instHybridFinmapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain
+    (HybridFinmapLike γ FieldDomain FieldCodomain)
     -- TODO this is awkward; synthesis fails here
-    (instHybridTotalMapLikeAsFieldRep equiv instfin instdeceq) where
+    (instHybridFinmapLikeAsFieldRep equiv instfin instdeceq) where
   toLawfulFieldRepresentationSet :=
     LawfulFieldRepresentationSet.mkFromSingleSet ..
   get_set_idempotent := by open Classical in
     introv ; rcases fav with ⟨fa, v⟩
-    simp +unfoldPartialApp [instHybridTotalMapLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
-      FieldRepresentation.set, HybridTotalMapLike.setSingle,
-      HybridTotalMapLike.get]
+    simp +unfoldPartialApp [instHybridFinmapLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
+      FieldRepresentation.set, HybridFinmapLike.setSingle,
+      HybridFinmapLike.get]
     rcases fc with cf | fc <;> dsimp only
     · congr ; apply IteratedProd.map_DecidableEq_eq
     · rcases h : FieldUpdatePat.footprintRestricted instfin fa with _ | footprint <;> dsimp only
       · congr ; apply IteratedProd.map_DecidableEq_eq
-      · apply FieldRepresentation.TotalMapLike.get_set_for_validFootprint
+      · apply FieldRepresentation.FinmapLike.get_set_for_validFootprint
         apply FieldUpdatePat.footprintRestricted_valid
         apply h
 
-end NotNecessarilyTotalMapLikeUpdates
+end NotNecessarilyFinmapLikeUpdates
 
 end ConcreteUpdates
 
@@ -500,7 +488,7 @@ instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
 abbrev BitVecsAsFinmap (α β) [FinEnum α] [FinEnum β] :=
   BitVec ((FinEnum.card α) * (Nat.bitLength (FinEnum.card β)))
 
-instance [FinEnum α] [FinEnum β] [Inhabited β] : TotalMapLike α β (BitVecsAsFinmap α β) where
+instance [FinEnum α] [FinEnum β] [Inhabited β] : FinmapLike α β (BitVecsAsFinmap α β) where
   get mp a :=
     -- this special check is kind of annoying, but there seems no better way?
     if h : FinEnum.card β = 0 then
@@ -521,22 +509,22 @@ instance [FinEnum α] [FinEnum β] [Inhabited β] : TotalMapLike α β (BitVecsA
     let newval := BitVec.ofFin <| idb.castLE Nat.bitLength_range
     mp ^^^ ((newval ^^^ oldval |>.zeroExtend _) <<< offset)
 
-instance : TotalMapLike (Fin n) β (ArrayAsTotalMap n β) where
+instance : FinmapLike (Fin n) β (ArrayAsFinmap n β) where
   get mp a := mp.val[a.val]'(mp.property ▸ a.prop)
   insert a b mp := ⟨mp.val.set a.val b (mp.property ▸ a.prop),
     (Eq.symm (Array.size_set (xs := mp.val) (i := a.val) (mp.property ▸ a.prop))) ▸ mp.prop⟩
 
-instance [BEq α] [Hashable α] [Inhabited β] : TotalMapLike α β (TotalHashMap α β) where
+instance [BEq α] [Hashable α] [Inhabited β] : FinmapLike α β (Std.HashMap α β) where
   get mp a := mp.getD a default
   insert a b mp := mp.insert a b
 
-instance {cmp : α → α → Ordering} [Inhabited β] : TotalMapLike α β (TotalTreeMap α β cmp) where
+instance {cmp : α → α → Ordering} [Inhabited β] : FinmapLike α β (Std.TreeMap α β cmp) where
   get mp a := mp.getD a default
   insert a b mp := mp.insert a b
 
-instance [FinEnum α] [FinEnum β] [Inhabited β] : LawfulTotalMapLike (BitVecsAsFinmap α β) where
+instance [FinEnum α] [FinEnum β] [Inhabited β] : LawfulFinmapLike (BitVecsAsFinmap α β) where
   insert_get a a' b mp := by
-    dsimp only [TotalMapLike.get, TotalMapLike.insert]
+    dsimp only [FinmapLike.get, FinmapLike.insert]
     split <;> rename_i h1
     on_goal 1=> apply Fin.elim0 (h1 ▸ FinEnum.equiv (default : β))
     split_ifs with h2
@@ -581,23 +569,23 @@ instance [FinEnum α] [FinEnum β] [Inhabited β] : LawfulTotalMapLike (BitVecsA
         apply Nat.le_mul_of_pos_left ; grind
       · simp
 
-instance : LawfulTotalMapLike (ArrayAsTotalMap n β) where
+instance : LawfulFinmapLike (ArrayAsFinmap n β) where
   insert_get a a' b mp := by
-    dsimp [TotalMapLike.get, TotalMapLike.insert]
+    dsimp [FinmapLike.get, FinmapLike.insert]
     simp [Array.getElem_set, Fin.val_inj]
 
 variable {α : Type u}
 
-instance [DecidableEq α] [Hashable α] [Inhabited β] [LawfulHashable α] : LawfulTotalMapLike (TotalHashMap α β) where
+instance [DecidableEq α] [Hashable α] [Inhabited β] [LawfulHashable α] : LawfulFinmapLike (Std.HashMap α β) where
   insert_get a a' b mp := by
-    dsimp [TotalMapLike.get, TotalMapLike.insert]
+    dsimp [FinmapLike.get, FinmapLike.insert]
     rw [Std.HashMap.getD_insert] ; simp
 
 instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
   [Inhabited β] [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
-  : LawfulTotalMapLike (TotalTreeMap α β cmp) where
+  : LawfulFinmapLike (Std.TreeMap α β cmp) where
   insert_get a a' b mp := by
-    dsimp [TotalMapLike.get, TotalMapLike.insert]
+    dsimp [FinmapLike.get, FinmapLike.insert]
     rw [Std.TreeMap.getD_insert] ; simp
 
 end ConcreteInstances

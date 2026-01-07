@@ -287,12 +287,12 @@ where
     mkFieldRepresentationInstancesCore mod fieldConcreteDispatcher instFieldRepresentation instLawfulFieldRepresentation
       #[``Inhabited, ``Enumeration, ``DecidableEq, ``Ord, ``Std.TransCmp]
       #[``Inhabited, ``Enumeration, ``DecidableEq, ``Ord, ``Std.TransCmp, ``Std.LawfulEqCmp]
-      (mkFieldRepresentationSolverTactic ``instFinsetLikeAsFieldRep ``instTotalMapLikeAsFieldRep
+      (mkFieldRepresentationSolverTactic ``instFinsetLikeAsFieldRep ``instFinmapLikeAsFieldRep
         ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeAsFieldRep
-        ``NotNecessarilyTotalMapLikeUpdates.instHybridTotalMapLikeAsFieldRep)
-      (mkLawfulFieldRepresentationSolverTactic ``instFinsetLikeLawfulFieldRep ``instTotalMapLikeLawfulFieldRep
+        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeAsFieldRep)
+      (mkLawfulFieldRepresentationSolverTactic ``instFinsetLikeLawfulFieldRep ``instFinmapLikeLawfulFieldRep
         ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeLawfulFieldRep
-        ``NotNecessarilyTotalMapLikeUpdates.instHybridTotalMapLikeLawfulFieldRep)
+        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeLawfulFieldRep)
   mkFieldRepresentationInstancesForAbstract (mod : Module) : m (Array Syntax) := do
     let abstractTactic : Array Ident → Ident → m (TSyntax `tactic) := fun _ f =>
       `(tactic| cases $f:ident <;> (apply $(mkIdent ``Veil.canonicalFieldRepresentation); infer_instance_for_iterated_prod))
@@ -479,8 +479,8 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
       let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinsetLikeUpdates.HybridFinsetLike) ($allSomeCase) ($domainGetter))
       chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .function =>
-      let allSomeCase ← `(term| $(mkIdent ``Veil.TotalTreeMap) $mapKeyTerm $mapValueTerm)
-      let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyTotalMapLikeUpdates.HybridTotalMapLike) ($allSomeCase) ($domainGetter) ($codomainGetter))
+      let allSomeCase ← `(term| $(mkIdent ``Std.TreeMap) $mapKeyTerm $mapValueTerm)
+      let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinmapLikeUpdates.HybridFinmapLike) ($allSomeCase) ($domainGetter) ($codomainGetter))
       chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .module => throwError "[fieldKindToConcreteType] module kind is not supported"
   /-- Choose between two concrete field types based on whether the domain is
