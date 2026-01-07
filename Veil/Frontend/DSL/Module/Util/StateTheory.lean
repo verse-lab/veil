@@ -287,12 +287,12 @@ where
     mkFieldRepresentationInstancesCore mod fieldConcreteDispatcher instFieldRepresentation instLawfulFieldRepresentation
       #[``Inhabited, ``Enumeration, ``DecidableEq, ``Ord, ``Std.TransCmp]
       #[``Inhabited, ``Enumeration, ``DecidableEq, ``Ord, ``Std.TransCmp, ``Std.LawfulEqCmp]
-      (mkFieldRepresentationSolverTactic ``instFinsetLikeAsFieldRep ``instTotalMapLikeAsFieldRep
+      (mkFieldRepresentationSolverTactic ``instFinsetLikeAsFieldRep ``instFinmapLikeAsFieldRep
         ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeAsFieldRep
-        ``NotNecessarilyTotalMapLikeUpdates.instHybridTotalMapLikeAsFieldRep)
-      (mkLawfulFieldRepresentationSolverTactic ``instFinsetLikeLawfulFieldRep ``instTotalMapLikeLawfulFieldRep
+        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeAsFieldRep)
+      (mkLawfulFieldRepresentationSolverTactic ``instFinsetLikeLawfulFieldRep ``instFinmapLikeLawfulFieldRep
         ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeLawfulFieldRep
-        ``NotNecessarilyTotalMapLikeUpdates.instHybridTotalMapLikeLawfulFieldRep)
+        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeLawfulFieldRep)
   mkFieldRepresentationInstancesForAbstract (mod : Module) : m (Array Syntax) := do
     let abstractTactic : Array Ident → Ident → m (TSyntax `tactic) := fun _ f =>
       `(tactic| cases $f:ident <;> (apply $(mkIdent ``Veil.canonicalFieldRepresentation); infer_instance_for_iterated_prod))
@@ -376,8 +376,7 @@ where
       `(bracketedBinder|[$(mkIdent ``Veil.Enumeration) ($fieldConcreteDispatcher $sorts* $fieldLabel)])
     -- Generate [DecidableEq (State (FieldConcreteType sorts*))]
     let stateType ← `(term| $stateIdent ($fieldConcreteDispatcher $sorts*))
-    let decEqBinder ← `(bracketedBinder| [$(mkIdent ``DecidableEq) $stateType])
-    let allBinders := sortInstanceBinders ++ fieldEnumerationBinders ++ #[decEqBinder]
+    let allBinders := sortInstanceBinders ++ fieldEnumerationBinders
     -- Generate instance type: Veil.Enumeration (State (FieldConcreteType sorts*))
     let instType ← `(term| $(mkIdent ``Veil.Enumeration) $stateType)
     -- Generate allValues body with nested flatMap/map calls
@@ -476,12 +475,12 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
     match sc.kind with
     | .individual => pure codomainGetter
     | .relation =>
-      let allSomeCase ← `(term| $(mkIdent ``Std.TreeSet) $mapKeyTerm)
+      let allSomeCase ← `(term| $(mkIdent ``Std.ExtTreeSet) $mapKeyTerm)
       let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinsetLikeUpdates.HybridFinsetLike) ($allSomeCase) ($domainGetter))
       chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .function =>
-      let allSomeCase ← `(term| $(mkIdent ``Veil.TotalTreeMap) $mapKeyTerm $mapValueTerm)
-      let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyTotalMapLikeUpdates.HybridTotalMapLike) ($allSomeCase) ($domainGetter) ($codomainGetter))
+      let allSomeCase ← `(term| $(mkIdent ``Std.ExtTreeMap) $mapKeyTerm $mapValueTerm)
+      let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinmapLikeUpdates.HybridFinmapLike) ($allSomeCase) ($domainGetter) ($codomainGetter))
       chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .module => throwError "[fieldKindToConcreteType] module kind is not supported"
   /-- Choose between two concrete field types based on whether the domain is
@@ -578,7 +577,7 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   -- NOTE: not actually needed, but left here for completeness to document what needs to exist
   -- let instances ← #[``Enumeration, ``Ord, ``ToJson].flatMapM fun inst => return (← mod.declareInstanceLiftingForDomain inst) ++ (← mod.declareInstanceLiftingForCodomain inst)
   let instances : Array Syntax := #[]
-  let concreteInstances ← #[(``Hashable, #[``DecidableEq, ``Ord, ``Hashable]), (``BEq, #[``DecidableEq, ``Ord]), (``ToJson, #[``ToJson, ``Ord]), (``Repr, #[``Repr, ``Ord])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldConcreteDispatcher)
+  let concreteInstances ← #[(``Hashable, #[``DecidableEq, ``Ord, ``Std.TransOrd, ``Hashable]), (``BEq, #[``DecidableEq, ``Ord, ``Std.TransOrd]), (``ToJson, #[``ToJson, ``Ord, ``Std.TransOrd]), (``Repr, #[``Repr, ``Ord, ``Std.TransOrd])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldConcreteDispatcher)
   let abstractInstances ← #[(``ToJson, #[``ToJson, ``FinEnum])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldAbstractDispatcher)
   -- add the `fieldConcreteType` parameter
   let fieldConcreteTypeParam ← Parameter.fieldConcreteType
