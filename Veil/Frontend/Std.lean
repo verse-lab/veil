@@ -313,7 +313,7 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
 
 /-! ## Set -/
 
-class TSet (α : Type) (κ: Type) where
+class TSet (α : outParam (Type u)) (κ : Type v) where
   count : κ → Nat
   contains : α → κ → Bool
   empty : κ
@@ -345,6 +345,17 @@ class TSet (α : Type) (κ: Type) where
     contains elem (union s1 s2) = (contains elem s1 || contains elem s2)
   contains_diff (elem : α) (s1 s2 : κ) :
     contains elem (diff s1 s2) = (contains elem s1 && not (contains elem s2))
+  toList_contains_iff (elem : α) (s : κ) :
+    contains elem s = true ↔ elem ∈ toList s
+
+instance [TSet α κ] : Membership α κ where
+  mem s a := TSet.contains a s = true
+
+instance instEnumerationTSetContains [TSet α κ] (k : κ) : Veil.Enumeration ({ a : α // TSet.contains a k }) where
+  allValues := TSet.toList k |>.attachWith _ (by simp [TSet.toList_contains_iff])
+  complete := by simp [TSet.toList_contains_iff]
+
+instance [TSet α κ] (k : κ) : Veil.Enumeration ({ a : α // a ∈ k }) := instEnumerationTSetContains k
 
 
 def TSet.map [origin_set : TSet α κ] [target_set : TSet β l] (s1 : κ) (f : α → β) : l :=
@@ -420,8 +431,11 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   contains_diff := by
     intros elem s1 s2
     exact extTreeSet_contains_filter_not
+  toList_contains_iff := by
+    intros elem s
+    simp [Std.ExtTreeSet.contains_iff_mem]
 
-class TMultiset (α : Type) (κ : Type) where
+class TMultiset (α : outParam (Type u)) (κ : Type v) where
   empty : κ
   insert : α → κ → κ
   remove : α → κ → κ
@@ -432,6 +446,8 @@ class TMultiset (α : Type) (κ : Type) where
   empty_size : size empty = 0
   empty_count (elem : α) : count elem empty = 0
   empty_contains (elem : α) : contains elem empty = false
+  toList_contains_iff (elem : α) (s : κ) :
+    contains elem s = true ↔ elem ∈ toList s
   -- contains_def (elem : α) (s : κ) :
   --   contains elem s = (count elem s > 0)
   -- count_insert_self (elem : α) (s : κ) :
@@ -446,6 +462,15 @@ class TMultiset (α : Type) (κ : Type) where
   --   count elem₁ (remove elem₂ s) = count elem₁ s
   -- size_remove (elem : α) (s : κ) :
   --   size (remove elem s) = if contains elem s then size s - 1 else size s
+
+instance [TMultiset α κ] : Membership α κ where
+  mem s a := TMultiset.contains a s = true
+
+instance instEnumerationTMultisetContains [TMultiset α κ] (k : κ) : Veil.Enumeration ({ a : α // TMultiset.contains a k }) where
+  allValues := TMultiset.toList k |>.attachWith _ (by simp [TMultiset.toList_contains_iff])
+  complete := by simp [TMultiset.toList_contains_iff]
+
+instance [TMultiset α κ] (k : κ) : Veil.Enumeration ({ a : α // a ∈ k }) := instEnumerationTMultisetContains k
 
 /-- When implementing `Multiset`, a key is mapped to its multiplicity
 *minus 1*. -/
@@ -482,6 +507,10 @@ instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
   empty_size := by simp [Std.ExtTreeMap.empty]; rfl
   empty_count elem := by grind
   empty_contains elem := by grind
+  toList_contains_iff := by
+    intros elem s
+    simp [Std.ExtTreeMap.contains_iff_mem, Std.ExtTreeMap.foldl_eq_foldl_toList,
+      Std.ExtTreeMap.getElem?_eq_some_iff]
   -- contains_def elem s := by grind
   -- count_insert_self elem s := by grind
   -- count_insert_other elem₁ elem₂ s h := by grind

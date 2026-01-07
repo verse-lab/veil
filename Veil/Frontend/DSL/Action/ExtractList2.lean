@@ -70,8 +70,12 @@ instance
     simp [wp, liftM, monadLift, MAlg.lift, Functor.map] at tmp ⊢
     exact tmp
 
-instance (priority := high + 100) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
+instance (priority := high) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
   find := fun _ => Veil.Enumeration.allValues |>.filter p
+  find_iff := by simp ; grind
+
+instance (priority := high + 100) {α : Type u} {p : α → Prop} [inst : Veil.Enumeration {a : α // p a }] : MultiExtractor.Candidates p where
+  find := fun _ => inst.allValues.unattach
   find_iff := by simp ; grind
 
 namespace MultiExtractor

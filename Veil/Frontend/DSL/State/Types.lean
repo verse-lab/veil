@@ -3,6 +3,8 @@ import Mathlib.Data.FinEnum
 import Veil.Frontend.DSL.Module.Names
 import Veil.Util.Deriving
 import Mathlib.Tactic.DeriveFintype
+import Std.Data.TreeSet.Lemmas
+import Std.Data.ExtTreeSet.Lemmas
 
 /-! # Reification of Types of State Fields -/
 
@@ -294,6 +296,34 @@ def Enumeration.Pi.enum [insta : Enumeration α] [DecidableEq α] (β : α → T
 instance [insta : Enumeration α] [DecidableEq α] {β : α → Type v} [instb : ∀ a, Enumeration (β a)] : Enumeration (∀ a, β a) where
   allValues := (Enumeration.Pi.enum β)
   complete := by intro f ; simp [Enumeration.Pi.enum, List.mem_pi] ; exists (fun x _ => f x) ; simp ; grind
+
+instance (l : List α) : Enumeration ({ a : α // a ∈ l }) where
+  allValues := l.attach
+  complete := by grind
+
+instance [DecidableEq α] [Hashable α] (s : Std.HashSet α) : Enumeration ({ a : α // a ∈ s }) where
+  allValues := s.toList.attachWith _ (by simp)
+  complete := by grind
+
+instance [DecidableEq α] [Hashable α] (s : Std.HashMap α β) : Enumeration ({ a : α // a ∈ s }) where
+  allValues := s.keys.attachWith _ (by simp)
+  complete := by simp
+
+instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.TreeSet α cmp) : Enumeration ({ a : α // a ∈ s }) where
+  allValues := s.toList.attachWith _ (by simp)
+  complete := by simp
+
+instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.TreeMap α β cmp) : Enumeration ({ a : α // a ∈ s }) where
+  allValues := s.keys.attachWith _ (by simp)
+  complete := by simp
+
+instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.ExtTreeSet α cmp) : Enumeration ({ a : α // a ∈ s }) where
+  allValues := s.toList.attachWith _ (by simp)
+  complete := by simp
+
+instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.ExtTreeMap α β cmp) : Enumeration ({ a : α // a ∈ s }) where
+  allValues := s.keys.attachWith _ (by simp)
+  complete := by simp
 
 /-!
 While some `Decidable` instances can be obtained by converting `Enumeration`
