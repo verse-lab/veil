@@ -644,6 +644,9 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   const [showTRCounterexample, setShowTRCounterexample] = React.useState(true);
   const [showRawHtml, setShowRawHtml] = React.useState(false);
 
+  // Cache the last known time to prevent flickering during state transitions
+  const lastKnownTimeRef = React.useRef<number | null>(null);
+
   // Theorem insertion
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   // Only highlight unknown/error as "needs manual proof" - disproven VCs have counterexamples and aren't provable
@@ -725,20 +728,66 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
     return null;
   };
 
+  // Get elapsed time from any discharger with a startTime (regardless of status)
+  const getElapsedTimeFromAnyDischarger = (targetVC: VerificationCondition): number | null => {
+    const dischargerWithStartTime = targetVC.timing.dischargers.find(d => d.startTime !== null);
+    if (dischargerWithStartTime?.startTime != null) {
+      return serverTime - dischargerWithStartTime.startTime;
+    }
+    return null;
+  };
+
+  // Get the best available time for a VC, trying multiple sources
+  const getVCTime = (targetVC: VerificationCondition): number | null => {
+    // First try totalTime
+    if (targetVC.timing.totalTime !== null) {
+      return targetVC.timing.totalTime;
+    }
+    // Try successfulDischargerTime
+    if (targetVC.timing.successfulDischargerTime !== undefined) {
+      return targetVC.timing.successfulDischargerTime;
+    }
+    // Try to get time from finished dischargers
+    const finishedDischarger = targetVC.timing.dischargers.find(d => d.time !== null);
+    if (finishedDischarger && finishedDischarger.time !== null) {
+      return finishedDischarger.time;
+    }
+    // Fall back to elapsed time from any discharger with startTime (covers transition period)
+    return getElapsedTimeFromAnyDischarger(targetVC);
+  };
+
   // Format the time display
   const getTimeDisplay = (): React.ReactNode => {
-    const wpTime = formatTime(vc.timing.totalTime);
+    // Helper to get time with caching - once we have a time, we keep it
+    const getTimeWithCache = (): number | null => {
+      let currentTime: number | null = null;
 
-    // If primary VC is still running (no result yet), show elapsed time or dash
-    if (vc.status === null) {
-      const elapsed = getRunningElapsedTime(vc);
-      if (elapsed !== null) {
-        // VC is running and we have start time - show elapsed time
-        return formatElapsedTime(elapsed);
+      if (vc.status === null) {
+        // VC is running - get elapsed time
+        currentTime = getRunningElapsedTime(vc);
+      } else {
+        // VC has finished - get the best available time
+        currentTime = getVCTime(vc);
       }
-      // VC is queued or running but start time not yet available - show dash
-      return <span className="time-queued">—</span>;
+
+      // Update cache if we have a valid time
+      if (currentTime !== null) {
+        lastKnownTimeRef.current = currentTime;
+      }
+
+      // Return current time, or fall back to cached time
+      return currentTime ?? lastKnownTimeRef.current;
+    };
+
+    const primaryTime = getTimeWithCache();
+
+    // If primary VC is still running, show elapsed time with in-progress styling
+    if (vc.status === null) {
+      return formatElapsedTime(primaryTime);
     }
+
+    // VC has finished
+    const wpTime = formatTime(primaryTime);
 
     if (trIsRunning) {
       // TR is running: show WP time + elapsed TR time
@@ -746,12 +795,12 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
       const trTimeDisplay = formatElapsedTime(trElapsed);
       return wpTime && trTimeDisplay
         ? <>{wpTime}+{trTimeDisplay}</>
-        : trTimeDisplay;
+        : trTimeDisplay || wpTime;
     }
 
-    if (trCompleted && alternativeVC.timing.totalTime !== null) {
+    if (trCompleted) {
       // TR completed: show combined timing
-      const trTime = formatTime(alternativeVC.timing.totalTime);
+      const trTime = formatTime(getVCTime(alternativeVC));
       if (wpTime && trTime) {
         return `${wpTime}+${trTime}`;
       }
@@ -1220,10 +1269,6 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
 
     .time-in-progress {
       opacity: 0.6;
-    }
-
-    .time-queued {
-      opacity: 0.4;
     }
 
     /* Failure banner */
