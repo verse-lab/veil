@@ -158,7 +158,7 @@ where
     return #[χBinder, constraint]
   mkInhabitedInstance : m Syntax := do
     let inhabitedTy ← `(term|$(mkIdent ``Inhabited) ($stateIdent ($fieldConcreteDispatcher:ident $(← mod.sortIdents)*)))
-    let inhabitedAssumed := #[``Inhabited, ``Ord, ``DecidableEq, ``Enumeration, ``Std.LawfulEqCmp, ``Std.TransCmp]
+    let inhabitedAssumed := #[``Inhabited, ``Ord, ``DecidableEq, ``Std.LawfulEqCmp, ``Std.TransCmp]
     let inhabitedBinders := (← mod.sortBinders) ++ (← inhabitedAssumed.flatMapM mod.assumeForEverySort)
     `(scoped instance $[$inhabitedBinders]* : $inhabitedTy := by constructor; constructor <;> dsimp_state_representation <;> exact $(mkIdent ``default))
   mkHashableInstance : m Syntax := do
