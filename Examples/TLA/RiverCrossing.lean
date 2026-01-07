@@ -81,6 +81,7 @@ invariant [unsolved] ¬ (goat_pos = far ∧ wolf_pos = far ∧ cabbage_pos = far
 
 #time #gen_spec
 
+set_option veil.violationIsError false in
 #model_check {  }
 
 end RiverCrossing

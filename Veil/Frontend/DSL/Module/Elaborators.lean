@@ -255,7 +255,8 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
 /-- Log verification results asynchronously after all VCs complete. -/
 def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
   let msg ← Verifier.formatVerificationResults results
-  if Verifier.hasFailedVCs results then
+  let violationIsError := veil.violationIsError.get (← getOptions)
+  if Verifier.hasFailedVCs results && violationIsError then
     veilLogErrorAt stx msg
   else
     unless ← isModelCheckCompileMode do
@@ -625,9 +626,10 @@ where
   /-- Log model checking result. -/
   logModelCheckResult (stx : Syntax) (resultJson : Json) : CommandElabM Unit := do
     let msg := TraceDisplay.formatModelCheckingResult resultJson
-    let isError := resultJson.getObjValD "result" == Json.str "found_violation" ||
-                    resultJson.getObjValD "error" != .null
-    if isError then logErrorAt stx msg else logInfoAt stx msg
+    let isViolation := resultJson.getObjValD "result" == Json.str "found_violation" ||
+                       resultJson.getObjValD "error" != .null
+    let violationIsError := veil.violationIsError.get (← getOptions)
+    if isViolation && violationIsError then logErrorAt stx msg else logInfoAt stx msg
 
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term)

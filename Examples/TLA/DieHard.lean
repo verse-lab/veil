@@ -61,6 +61,7 @@ termination big > 0
 
 -- #time #check_invariants
 
+set_option veil.violationIsError false in
 #model_check { }
 
 

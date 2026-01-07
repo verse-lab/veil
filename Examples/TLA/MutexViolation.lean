@@ -74,7 +74,7 @@ action _pre_check_lock (self : process) {
 
 action _prepare_wait_util (self : process) {
   require pc self prepare_wait_util
-  locked := false
+  locked := false -- BUG: releases lock it doesn't own
   pc self S := S == wait_until
 }
 
@@ -192,6 +192,9 @@ termination [AllDone] pc S Done = true
 
 #time #gen_spec
 
+-- NOTE: comment out the line containing `BUG:` to fix the violation
+
+set_option veil.violationIsError false in
 #model_check { process := Fin 3 } { none := 0 }
 
 end Mutex

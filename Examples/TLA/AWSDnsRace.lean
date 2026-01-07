@@ -90,6 +90,7 @@ invariant [uniqueDelete] plan_deleted C F ∧ plan_deleted C T → F = T
 
 #time #gen_spec
 
+set_option veil.violationIsError false in
 #model_check {}{ max_plan := 5, plan_age_threshold := 2 }
 
 end AwsDNSRace

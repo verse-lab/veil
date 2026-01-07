@@ -95,8 +95,6 @@ invariant [Txlifecycle] snapshot_isolation ∧ transaction_cleanup
 
 #time #gen_spec
 
-#check_invariants
-
 #model_check {key := key_IndT, value := value_IndT, txId := txId_IndT } {}
 
 

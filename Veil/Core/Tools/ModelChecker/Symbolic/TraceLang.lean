@@ -340,23 +340,25 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       ProofWidgets.displayTraceWidget stx traceJson
 
     -- Report results based on expectation
+    let violationIsError := veil.violationIsError.get (← getOptions)
+    let logViolation := if violationIsError then logError else logInfo
     if vcResult.status != some .proven then
       match vcResult.status with
       | some .disproven =>
-        if isExpectedSat then logError "No satisfying trace exists"
+        if isExpectedSat then logViolation "No satisfying trace exists"
         else if let some traceJson := traceJson? then
-          logError m!"Counterexample found\n{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
-        else logError "Counterexample found"
-      | some .unknown => logError "Solver returned unknown"
-      | some .error => logError "Verification error"; logDischargerErrors vcResult.timing.dischargers
-      | _ => logError "Verification did not complete"
+          logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+        else logViolation "Counterexample found"
+      | some .unknown => logViolation "Solver returned unknown"
+      | some .error => logViolation "Verification error"; logDischargerErrors vcResult.timing.dischargers
+      | _ => logViolation "Verification did not complete"
     else
       if isExpectedSat then
         if let some traceJson := traceJson? then
           logInfo m!"{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
         else logInfo "Found satisfying trace"
       if shouldHaveTrace && traceJson?.isNone then
-        logError "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
+        logViolation "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
 
 
 elab_rules : command

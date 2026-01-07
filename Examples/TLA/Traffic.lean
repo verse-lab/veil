@@ -45,6 +45,7 @@ safety [puzzle_unsolvable]
 
 #time #gen_spec
 
+set_option veil.violationIsError false in
 #model_check { ProcSet := ProcSet_IndT, Color := Color_IndT, states := states_IndT } {}
 
 end traffic

@@ -56,6 +56,12 @@ register_option veil.unfoldGhostRel : Bool := {
   option must be set before `#gen_spec`."
 }
 
+register_option veil.violationIsError : Bool := {
+  defValue := true
+  descr := "If true, violations found by verification or model checking are \
+  logged as errors. If false, they are logged as info messages."
+}
+
 register_option veil.__modelCheckCompileMode : Bool := {
   defValue := false
   descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
