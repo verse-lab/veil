@@ -390,7 +390,7 @@ def Module.assumptions (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .assumption)
 
 def Module.actions (mod : Module) : Array ProcedureSpecification :=
-  mod.procedures.filter (fun p => match p.info with | .action _ => true | _ => false)
+  mod.procedures.filter (fun p => match p.info with | .action _ _ => true | _ => false)
 
 /-- All `invariant`s, `safety`, and `trusted invariant`s.-/
 def Module.invariants (mod : Module) : Array StateAssertion :=
