@@ -84,9 +84,13 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
   let smtCh ← Std.CloseableChannel.new
   -- Generate an internal tactic that uses veil_smt which handles SMT configuration
   let smtTactic ← `(term| by veil_bmc)
+  -- Create a promise to track when the discharger actually starts executing
+  let startTimePromise ← IO.Promise.new
   let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
     let res ← (do
+      -- Resolve the start time promise when the discharger actually begins
       let startTime ← IO.monoMsNow
+      startTimePromise.resolve startTime
       try
         liftTermElabM $ do
           let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
@@ -117,6 +121,7 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
     term := smtTactic,
     cancelTk := cancelTk,
     task := Option.none,
+    startTimePromise := startTimePromise,
     mkTask := mkTask
   }
 

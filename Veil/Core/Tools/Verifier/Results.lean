@@ -40,6 +40,8 @@ structure DischargerResultData (ResultT : Type) where
   status : DischargeStatus ResultT
   /-- The time taken by the discharger (in milliseconds), if available. -/
   time : Option Nat
+  /-- Monotonic timestamp (ms) when the discharger started, for elapsed time display. -/
+  startTime : Option Nat := none
   /-- The full result of the discharger, if available. -/
   result : Option (DischargerResult ResultT)
 deriving Inhabited
@@ -55,6 +57,7 @@ instance [ToJson ResultT] : ToJson (DischargerResultData ResultT) where
       ("name", toJson data.name.toString),
       ("status", Json.str statusStr),
       ("time", match time.orElse (fun _ => data.time) with | some t => toJson t | none => Json.null),
+      ("startTime", match data.startTime with | some t => toJson t | none => Json.null),
       ("result", match result.orElse (fun _ => data.result) with | some r => toJson r | none => Json.null)
     ]
 
@@ -126,6 +129,8 @@ structure VerificationResults (VCMetaT ResultT : Type) where
   totalSolved : Nat
   /-- Total time spent across all VCs (in milliseconds). -/
   totalTime : Nat
+  /-- Current server monotonic time (ms), for computing elapsed time of running dischargers. -/
+  serverTime : Nat
 deriving Inhabited
 
 deriving instance Server.RpcEncodable for DischargeStatus
@@ -142,7 +147,8 @@ instance [ToJson VCMetaT] [ToJson ResultT] : ToJson (VerificationResults VCMetaT
       ("totalVCs", toJson results.totalVCs),
       ("totalDischarged", toJson results.totalDischarged),
       ("totalSolved", toJson results.totalSolved),
-      ("totalTime", toJson results.totalTime)
+      ("totalTime", toJson results.totalTime),
+      ("serverTime", toJson results.serverTime)
     ]
 
 /-- Build `DischargerResultData` for a specific discharger of a VC. -/
@@ -152,11 +158,13 @@ def mkDischargerResultData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr :
   let status ← discharger.status
   let result := mgr._dischargerResults[(vc.uid, dischargerId)]?
   let time := result.map (·.time)
+  let startTime ← discharger.startTime
   return {
     id := dischargerId
     name := discharger.id.name
     status := status
     time := time
+    startTime := startTime
     result := result
   }
 
@@ -235,12 +243,15 @@ def VCManager.toResults [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLif
       match d.status with | .finished _ => true | _ => false) |>.size
     acc + finishedCount
 
+  let serverTime ← IO.monoMsNow
+
   return {
     vcs := vcResults
     totalVCs := filteredNodes.size
     totalDischarged := totalDischarged
     totalSolved := totalSolved
     totalTime := totalTime
+    serverTime := serverTime
   }
 
 /-- Convert a `VCManager` to `VerificationResults`, filtering to only include induction VCs.

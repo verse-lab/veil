@@ -71,9 +71,13 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
     (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
   let smtCh ← Std.CloseableChannel.new
+  -- Create a promise to track when the discharger actually starts executing
+  let startTimePromise ← IO.Promise.new
   let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
     let res ← (do
+      -- Resolve the start time promise when the discharger actually begins
       let startTime ← IO.monoMsNow
+      startTimePromise.resolve startTime
       try
         liftTermElabM $ do
           let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
@@ -103,6 +107,7 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
     term := term,
     cancelTk := cancelTk,
     task := Option.none,
+    startTimePromise := startTimePromise,
     mkTask := mkTask
   }
 
