@@ -11,8 +11,6 @@ import HtmlDisplay, { Html } from './htmlDisplay';
 interface RefreshComponentProps {
   /** The ref to the refresh state of the HTML display */
   state : RpcPtr<'RefreshRef'>
-  /** A cancel token that will cancel the refresh computation */
-  cancelTk? : RpcPtr<'IO.CancelToken'>
 }
 
 interface RequestProps {
@@ -51,10 +49,6 @@ export default function RefreshComponent(props: RefreshComponentProps): JSX.Elem
     })()
     return () => {
         cancelled = true
-        if (props.cancelTk) {
-            rs.call<RpcPtr<'IO.CancelToken'>, void>(
-                "ProofWidgets.RefreshComponent.cancelRefresh", props.cancelTk)
-        }
     }
   // React checks if `props` has changed using pointer equality.
   // We claim that here this is equivalent to deep equality of the objects.

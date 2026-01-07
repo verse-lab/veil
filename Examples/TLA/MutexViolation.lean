@@ -1,14 +1,22 @@
 import Veil
 
-open Std
 /-
-We use this example to demonstrate how our model checker can find bugs in real-world
-concurrent algorithms, woriking as a standalone tool.
-This example models a mutex implementation in modern operating
+
+Reproduction of the mutex bug (Case Study 1) described in [Converos: Practical
+Model Checking for Verifying Rust OS Kernel
+Concurrency](https://www.usenix.org/system/files/atc25-tang.pdf)
+
+The error existed in Rust code, which was converted to a TLA+ specification to
+uncover the bug. This example models a mutex implementation in modern operating
 systems, which uses a wait queue to manage processes waiting for the lock.
 
-We model the stack in the algorithm using lean's `structure` definition (Line 39).
-Thus, we can use built-in primitives to manipulate the stack (`append`, `head`, `tail`).
+We use this example to demonstrate how Veil's model checker can find bugs in real-world
+concurrent algorithms.
+
+We model the stack in the algorithm using lean's `structure` definition
+(`Cell`). Thus, we can use built-in primitives to manipulate the `stack`
+(`append`, `head`, `tail`).
+
 -/
 veil module Mutex
 
@@ -74,7 +82,7 @@ action _pre_check_lock (self : process) {
 
 action _prepare_wait_util (self : process) {
   require pc self prepare_wait_util
-  locked := false
+  locked := false -- BUG: releases lock it doesn't own
   pc self S := S == wait_until
 }
 
@@ -192,6 +200,9 @@ termination [AllDone] pc S Done = true
 
 #time #gen_spec
 
+-- NOTE: comment out the line containing `BUG:` to fix the violation
+
+set_option veil.violationIsError false in
 #model_check { process := Fin 3 } { none := 0 }
 
 end Mutex

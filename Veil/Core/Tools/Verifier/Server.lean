@@ -52,10 +52,9 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         -- Call start AFTER markDischarger so freshly woken alternatives can be scheduled
         mgr ← mgr.start (howMany := 1)
         ref.set mgr
-        -- If we're done with all VCs, send a notification to the frontend
-        if mgr.isDone then
-          -- dbg_trace "({← IO.monoMsNow}) [Manager] SEND done notification doneWith: {mgr._doneWith.toArray}"
-          Frontend.notifyDone)
+        Frontend.notify
+        -- dbg_trace "({← IO.monoMsNow}) [Manager] SEND frontend notification doneWith: {mgr._doneWith.toArray}"
+      )
       | .startAll => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV startAll notification"
@@ -65,7 +64,7 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         let mut mgr ← ref.get
         mgr ← mgr.start (howMany := (← getNumCores)) (filter := filter)
         ref.set mgr
-        if mgr.isDoneFiltered filter then Frontend.notifyDone)
+        if mgr.isDoneFiltered filter then Frontend.notify)
       | .reset => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV reset notification"

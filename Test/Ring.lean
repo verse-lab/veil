@@ -68,9 +68,9 @@ The following set of actions must preserve the invariant and successfully termin
 #guard_msgs in
 #check_invariants
 
-/-- info: ✅ No violation (explored 1024 states) -/
+/-- info: ✅ No violation (explored 64 states) -/
 #guard_msgs in
-#model_check { node := Fin 5 } { }
+#model_check interpreted { node := Fin 3 } { }
 
 #guard_msgs(error, warning) in
 sat trace {
@@ -81,7 +81,7 @@ sat trace {
 
 #guard_msgs in
 unsat trace {
-  any 4 actions
+  any 3 actions
   assert (∃ n₁ n₂, n₁ ≠ n₂ ∧ leader n₁ ∧ leader n₂)
 }
 

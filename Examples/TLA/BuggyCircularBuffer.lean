@@ -55,6 +55,7 @@ safety count ≤ BUFFER_SIZE
 
 #time #gen_spec
 
+set_option veil.violationIsError false in
 #model_check { } { }
 
 end BuggyCircularBuffer

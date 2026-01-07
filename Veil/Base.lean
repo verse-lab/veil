@@ -50,15 +50,37 @@ register_option veil.printCounterexamples : Bool := {
 }
 
 register_option veil.unfoldGhostRel : Bool := {
-  defValue := false
+  defValue := true
   descr := "If true, `veil_fol` will unfold ghost relations during \
-  simplification. Otherwise, it will use small-scale axiomatization. This \
-  option must be set before `#gen_spec`."
+  simplification. This is the behaviour in Veil 1.0. Otherwise, it \
+  will use small-scale axiomatization. This option must be set before `#gen_spec`."
+}
+
+register_option veil.desugarTactic : Bool := {
+  defValue := false
+  descr := "If true, Veil-specific tactics will be desugared and the \
+  desugared version will be displayed as a suggestion. \
+  Note that the formatting of the desugared version depends on **whether \
+  the original tactic is placed in isolation** (i.e., whether the lines \
+  it spans contain only whitespace characters other than the tactic itself)."
+}
+
+
+register_option veil.violationIsError : Bool := {
+  defValue := true
+  descr := "If true, violations found by verification or model checking are \
+  logged as errors. If false, they are logged as info messages."
 }
 
 register_option veil.__modelCheckCompileMode : Bool := {
   defValue := false
   descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
+}
+
+register_option veil.smt.finiteModelFind : Bool := {
+  defValue := true
+  descr := "If true, the SMT solver will use finite model finding mode (finite-model-find). \
+  If you work in a decidable fragment, this will tend to speed things up."
 }
 
 end Veil
