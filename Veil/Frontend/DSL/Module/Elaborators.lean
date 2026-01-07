@@ -266,7 +266,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
   -- Skip in compilation mode (no verification feedback needed)
   if ← isModelCheckCompileMode then return
   let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
-  let _ ← mod.ensureSpecIsFinalized stx
+  mod.throwIfSpecNotFinalized
   Verifier.runFilteredAsync VCMetadata.isInduction (logVerificationResults stx)
   Verifier.displayStreamingResults stx getResults
   where
@@ -422,8 +422,7 @@ def elabModelCheck : CommandElab := fun stx => do
   match stx with
   | `(#model_check%$_tk $[interpreted%$interpretedOnly?]? $instTerm:term $[$theoryTermOpt]? $cfg:optConfig) =>
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
-    let mod ← mod.ensureSpecIsFinalized stx
-    localEnv.modifyModule (fun _ => mod)
+    mod.throwIfSpecNotFinalized
 
     let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm
 

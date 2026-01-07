@@ -267,7 +267,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   if ← isModelCheckCompileMode then return
   let stx ← getRef
   let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module")
-  let mod ← mod.ensureSpecIsFinalized stx
+  mod.throwIfSpecNotFinalized
 
   -- Determine if this is a sat or unsat trace query
   let isExpectedSat := r.raw.isOfKind ``expected_sat
