@@ -22,6 +22,7 @@ def AccumulatedTactics.toFormat (sep : Std.Format) (s : AccumulatedTactics) : Co
   let tacs ← s.flatMapM fun (stx : TSyntax AccumulatedTacticKinds) => do
     match stx with
     | `(Parser.Tactic.tacticSeq| $tacs:tactic*) => return tacs.getElems
+    | `(Parser.Tactic.seq1| $tacs:tactic;*) => return tacs.getElems
     | `(tactic| $tac) => return #[tac]
   let res ← tacs.mapM PrettyPrinter.ppTactic
   return Std.Format.joinSep res.toList sep
@@ -854,8 +855,8 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
       -- NOTE: The `subst_eqs` is for equalities between higher-order stuff,
       -- especially relations produced after `concretize_fields`. This can
       -- happen for unchanged fields in transitions.
-      then `(tactic| (veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs) ))
-      else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros ))
+      then `(tactic| veil_destruct; veil_dsimp only at *; veil_intros; (try subst_eqs) )
+      else `(tactic| veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros )
   veilEvalTactic tac
 
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
