@@ -63,6 +63,8 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
           ref.set mgr)
         | .startFiltered filter => vcManager.atomically (fun ref => do
           let mut mgr ← ref.get
+          -- let _matches := mgr.nodes.values.filter (fun node => filter node.metadata) |>.map (·.metadata.displayName)
+          -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV startFiltered notification (matches: {_matches})"
           mgr ← mgr.start (howMany := (← getNumCores)) (filter := filter)
           ref.set mgr
           if mgr.isDoneFiltered filter then Frontend.notify)
