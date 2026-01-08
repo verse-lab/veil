@@ -292,6 +292,10 @@ type classes.
 This means that it should only be used for testing. In the future, we will add
 support for complete enumeration of background theories.
 -/
-syntax (name := modelCheck) "#model_check " ("interpreted")? term:max (term:max)? Parser.Tactic.optConfig : command
+declare_syntax_cat modelCheckMode
+syntax (name := interpreted) "interpreted" : modelCheckMode
+syntax (name := compiled) "compiled" : modelCheckMode
+
+syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig : command
 
 end Veil
