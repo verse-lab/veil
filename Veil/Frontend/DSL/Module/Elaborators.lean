@@ -685,12 +685,12 @@ where
     let compilationCancelTk ← IO.CancelToken.new
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let compileStartMs ← IO.monoMsNow
         let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
         ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
         let result ← ModelChecker.Compilation.runProcessWithStatusCallback
           { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
-          (do ModelChecker.Concrete.updateCompilationStatus instanceId (.inProgress ((← IO.monoMsNow) - compileStartMs)))
+          (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
+          (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
         if result.exitCode != 0 then
           ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (mkCompilationErrorMsg result))
           return
