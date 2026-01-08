@@ -447,7 +447,7 @@ def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0)
 def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr := mgr
   let vcId := id.vcId
-  let mut .some vc := mgr.nodes[vcId]? | panic! "VCManager.markDischarger: VC {vcId} not found"
+  let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
   let mut vcStatus := .unknown
   -- Store the discharger result for JSON serialization
   mgr := { mgr with _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res }
@@ -460,7 +460,7 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
     | some downstream => downstream
     | none => HashSet.emptyWithCapacity 0
     for downstreamVc in downstream do
-      let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | panic! "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"
+      let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
       mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
   | .disproven _ _ => vcStatus := .disproven
   | .unknown _ _ => vcStatus := .unknown

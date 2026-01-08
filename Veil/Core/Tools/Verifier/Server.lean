@@ -68,7 +68,7 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
       | .reset => vcManager.atomically (fun ref => do
         let mut mgr ← ref.get
         -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV reset notification"
-        mgr ← VCManager.new vcManagerCh
+        mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
         ref.set mgr)
   ) cancelTk
   vcServerStarted.atomically (fun ref => do
