@@ -314,17 +314,22 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   | none =>
     -- Use VCManager with automatic discharger
     let vcStatement ← mkTraceVCStatement mod vcName assertion
-    let metadata := mkTraceVCMetadata isExpectedSat numTransitions (some vcName)
-    -- Add VC and discharger atomically
+    let metadata := mkTraceVCMetadata isExpectedSat numTransitions (some vcName) (some assertion)
+    -- Filter for matching trace VCs
+    let vcFilter := (· == metadata)
+    -- Check if a VC with this name already exists (avoid duplicate work)
     let traceVC ← Verifier.withVCManager fun ref => do
       let mgr ← ref.get
+      if let some existingId := mgr.findVCByFilter vcFilter then
+        return existingId
+      -- Add VC and discharger atomically
       let (mgr', vcId) := mgr.addVC ⟨vcStatement, metadata⟩ {} #[]
       let mgr'' ← mgr'.mkAddDischarger vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat)
       ref.set mgr''
       return vcId
 
     -- Wait synchronously for the VC to complete (allows widget display on main thread)
-    let results ← Verifier.waitFilteredSync (fun m => m.isTrace && m.propertyName? == some vcName)
+    let results ← Verifier.waitFilteredSync vcFilter
     let some vcResult := results.vcs.find? (·.id == traceVC)
       | throwError s!"trace [{vcName}]: VC result not found"
 

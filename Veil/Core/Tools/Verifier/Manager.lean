@@ -481,6 +481,13 @@ def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Stri
   | some vcStatus => vcStatus.emoji
   | none => "❓❓❓"
 
+/-- Find a VC matching the given filter, returning its ID if found.
+Used to avoid creating duplicate VCs for the same trace query. -/
+def VCManager.findVCByFilter (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool)
+    : Option VCId :=
+  mgr.nodes.toArray.findSome? fun (vcId, vc) =>
+    if filter vc.metadata then some vcId else none
+
 /-- Check if all VCs are done. A VC is considered "done" if it's either:
 - In `_doneWith` (has been processed), or
 - In `dormantVCs` (is dormant and won't be processed because its primary succeeded)

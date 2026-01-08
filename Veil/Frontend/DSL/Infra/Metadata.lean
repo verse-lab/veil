@@ -102,7 +102,20 @@ structure InductionVCMetadata where
   /-- The declarations that this VC's _statement_ depends on. The proof
   might need additional dependencies. -/
   stmtDerivedFrom : Std.HashSet Name
+  /-- What the VC is supposed to check. Used to disambiguate between multiple VCs with the same name. -/
+  assertion : Option Term := none
 deriving Inhabited
+
+instance : BEq InductionVCMetadata where
+  beq a b :=
+    a.kind == b.kind &&
+    a.style == b.style &&
+    a.action == b.action &&
+    a.property == b.property &&
+    a.baseParams == b.baseParams &&
+    a.extraParams == b.extraParams &&
+    a.stmtDerivedFrom.toArray == b.stmtDerivedFrom.toArray &&
+    a.assertion == b.assertion
 
 instance : ToString InductionVCMetadata where
   toString m := s!"({m.kind}: {m.action}.{m.property})"
@@ -142,7 +155,10 @@ structure TraceVCMetadata where
   numTransitions : Nat
   /-- Optional user-provided trace name. -/
   traceName : Option Name := none
-deriving Inhabited
+  /-- What the trace is supposed to check. Used to disambiguate between
+  multiple trace VCs with the same name. -/
+  assertion : Option Term := none
+deriving Inhabited, BEq
 
 instance : ToString TraceVCMetadata where
   toString m :=
@@ -177,7 +193,7 @@ inductive VCMetadata where
   | induction : InductionVCMetadata → VCMetadata
   /-- Trace VC for symbolic model checking. -/
   | trace : TraceVCMetadata → VCMetadata
-deriving Inhabited
+deriving Inhabited, BEq
 
 instance : ToString VCMetadata where
   toString

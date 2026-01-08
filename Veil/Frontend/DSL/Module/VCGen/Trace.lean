@@ -144,11 +144,12 @@ def mkTraceVCStatement (_mod : Module) (name : Name) (statement : Term)
 
 /-- Create VCMetadata for a trace query. -/
 def mkTraceVCMetadata (isExpectedSat : Bool) (numTransitions : Nat)
-    (traceName : Option Name := none) : VCMetadata :=
+    (traceName : Option Name := none) (assertion : Option Term := none) : VCMetadata :=
   .trace {
     isExpectedSat := isExpectedSat
     numTransitions := numTransitions
     traceName := traceName
+    assertion := assertion
   }
 
 end Veil
