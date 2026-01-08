@@ -83,6 +83,9 @@ instance instDecidableEqExtTreeMap [Ord α] [DecidableEq α] [DecidableEq β]
 instance {α} {β : α → Type v} [inst : Enumeration α] [(a : α) → DecidableEq (β a)] : DecidableEq ((a : α) → β a) :=
   fun f g => decidable_of_iff (∀ a ∈ inst.allValues, f a = g a) (by simp [funext_iff] ; grind)
 
+-- NOTE: Sometimes Lean chokes on this, so provide it explicitly here
+instance [DecidableEq α] (a : α) (l : List α) : Decidable (List.Mem a l) := List.instDecidableMemOfLawfulBEq a l
+
 /-!
 `Std.TransOrd` and `Std.LawfulEqOrd` instances
 -/
