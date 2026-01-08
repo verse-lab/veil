@@ -850,7 +850,9 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
 
 @[inherit_doc veil_concretize_tr]
 def elabVeilConcretizeTr : DesugarTacticM Unit := veilWithMainContext do
-  let tac ← `(tacticSeq| __veil_neutralize_decidable_inst; __veil_concretize_state_tr; __veil_concretize_fields_tr)
+  -- FIXME: figure out how to do the axiomatisation for ghost relations in TR
+  let ghostRel ← `(tactic| veil_simp only [ghostRelSimp] at *)
+  let tac ← `(tacticSeq| __veil_neutralize_decidable_inst; __veil_concretize_state_tr; __veil_concretize_fields_tr; $ghostRel)
   veilEvalTactic tac
 
 def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
