@@ -29,14 +29,10 @@ action send (n next : node) {
 action recv (sender n next : node) {
   require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
   require pending sender n
-  -- message may or may not be removed
-  -- this models that multiple messages might be in flight
-  let b ← pick Bool
-  pending sender n := b  -- FIXME: `pending sender n := *` has bad execution performance
+  pending sender n := false
   if (sender = n) then
     leader n := true
   else
-    -- pass message to next node
     if (le n sender) then
       pending sender next := true
 }
