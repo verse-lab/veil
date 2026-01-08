@@ -209,17 +209,24 @@ structure StateComponent where
   /-- Is this state component mutable or immutable? -/
   mutability : Mutability
   /-- Is this an `individual`, a `relation`, or ` function`?-/
-  kind       : StateComponentKind
+  kind          : StateComponentKind
   /-- The name of the state component -/
-  name       : Name
+  name          : Name
   /-- The Lean syntax that declares the type of this state component -/
-  type       : StateComponentType
+  type          : StateComponentType
+  /-- The terms for the domain of the field. -/
+  domainTerms   : Array Term
+  /-- The term for the codomain of the field. -/
+  codomainTerm  : Term
   /-- The user-written syntax that resulted in the declaration of this
   state component. -/
-  userSyntax : Syntax
+  userSyntax    : Syntax
 deriving Inhabited, BEq
 
 def StateComponent.declarationKind (sc : StateComponent) : DeclarationKind := .stateComponent sc.mutability sc.kind
+
+/-- Get the list syntax for the domain terms of a field. -/
+def StateComponent.domainList [Monad m] [MonadQuotation m] (sc : StateComponent) : m Term := `([ $[$sc.domainTerms],* ])
 
 structure StateAssertion where
   kind : StateAssertionKind

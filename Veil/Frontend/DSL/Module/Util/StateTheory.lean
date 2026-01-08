@@ -92,10 +92,16 @@ def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Mo
 
 /-- Get binders for assuming that every sort has an instance of `className` (e.g. `Ord node`). -/
 def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (className : Name) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  (← mod.sortIdents).mapM fun sort => do
+  (← mod.sortIdents).filterMapM fun sort => do
     -- Special case `TransCmp` and `LawfulEqCmp`
     if #[``Std.TransCmp, ``Std.LawfulEqCmp, ``Std.ReflCmp].contains className then
       `(bracketedBinder|[$(mkIdent className) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $sort) ))])
+    else if className == ``Veil.Enumeration then
+      -- A special check for `Enumeration`: if this sort does not appear in the
+      -- domain of any *state field*, then *do not* add `Enumeration` instance binder.
+      if mod.mutableComponents.any fun sc => sc.domainTerms.contains sort then
+        `(bracketedBinder|[$(mkIdent className) $sort])
+      else pure none
     else
       `(bracketedBinder|[$(mkIdent className) $sort])
 
@@ -420,26 +426,15 @@ private def declareStructureFieldLabelType [Monad m] [MonadQuotation m] [MonadEr
   let res ← `(inductive $(mkIdent name) : Type where $[$fields]*)
   return (name, res)
 
-/-- Helper structure used in the generation of field dispatchers.-/
-private structure FieldMetadata where
-  sc : StateComponent
-  /-- The terms for the domain of the field. -/
-  domainTerms : Array Term
-  /-- The term for the codomain of the field. -/
-  codomainTerm : Term
-
-/-- Get the list syntax for the domain terms of a field. -/
-private def FieldMetadata.domainList [Monad m] [MonadQuotation m] (fm : FieldMetadata) : m Term := `([ $[$fm.domainTerms],* ])
-
 /-! ## Field Dispatchers (Private) -/
 
 /-- Declare dispatchers that given the label for a specific field, returns the
 types of its arguments and its codomain, as well as the concrete and abstract
 types of the field. -/
-private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (base : Name) (fieldMetadata : Array FieldMetadata) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder))
+private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (base : Name) (fields : Array StateComponent) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder))
   : m ((Array (Name × Syntax)) × (Name × Syntax) × (Name × Syntax)) := do
-  let domainComponents ← fieldMetadata.mapM (·.domainList)
-  let coDomainComponents := fieldMetadata.map (·.codomainTerm)
+  let domainComponents ← fields.mapM (·.domainList)
+  let coDomainComponents := fields.map (·.codomainTerm)
   let f := mkVeilImplementationDetailIdent `f
   let casesOnName := structureFieldLabelTypeName base ++ `casesOn
   let fieldLabel ← `(bracketedBinder| ($f : $(structureFieldLabelType base)))
@@ -450,11 +445,11 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
   let tocodomain ← `(abbrev $(fieldLabelToCodomain base) $dParams* : Type := $(mkIdent casesOnName) $f $coDomainComponents*)
   -- abstract field representation dispatcher (CanonicalField Domain Codomain)
   let sortIdents ← mod.sortIdents
-  let abstractTypes ← fieldMetadata.mapM (fieldKindToAbstractType sortIdents ·.sc)
+  let abstractTypes ← fields.mapM (fieldKindToAbstractType sortIdents)
   let toabstracttype ← `(abbrev $fieldAbstractDispatcher $dParams* : Type := $(mkIdent casesOnName) $f $abstractTypes*)
   -- concrete field representation dispatcher
   let cParams := params ++ (← mod.assumeForEverySort ``Ord) ++ [fieldLabel]
-  let concreteTypes ← fieldMetadata.mapM (fieldKindToConcreteType sortIdents ·.sc)
+  let concreteTypes ← fields.mapM (fieldKindToConcreteType sortIdents)
   let toconcretetype ← `(abbrev $fieldConcreteDispatcher $cParams* : Type := $(mkIdent casesOnName) $f $concreteTypes*)
   return (#[(fieldLabelToDomainName base, todomain), (fieldLabelToCodomainName base, tocodomain)], (fieldAbstractDispatcherName, toabstracttype), (fieldConcreteTypeName, toconcretetype))
   where
@@ -488,21 +483,6 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
   chooseFieldConcreteTypeByEnumAllSomeCheck (stateLabelCtor allSomeCase notNecessarilyFiniteCase : Term) : m Term := do
     let body ← `(term| bif $instEnumerationForIteratedProdAllSomeCheck $stateLabelCtor then $allSomeCase else $notNecessarilyFiniteCase)
     `(veil_dsimp% [$instEnumerationForIteratedProdAllSomeCheck, $(mkIdent ``cond)] ($body))
-
-/-- For each `sc` in `components`, analyze its type to extract the arguments
-(domain) and codomain. -/
-private def analyzeTypesOfStateComponents [Monad m] [MonadQuotation m] [MonadError m] (components : Array StateComponent) : m (Array FieldMetadata) := do
-  components.mapM fun sc => do
-    match sc.type with
-    | .simple t =>
-      let (domainTerms, codomainTerm) ← getSimpleBinderType t >>= splitForallArgsCodomain
-      pure { sc, domainTerms, codomainTerm }
-    | .complex b codomainTerm =>
-      -- overlapped with `complexBinderToSimpleBinder`
-      let domainTerms ← b.mapM fun m => match m with
-        | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
-        | _ => throwError "unable to extract type from binder {m}"
-      pure { sc, domainTerms, codomainTerm }
 
 /-! ## Instance Lifting Infrastructure (Private) -/
 
@@ -558,13 +538,12 @@ update the module to include the new parameters for concrete field type,
 `FieldRepresentation` and `LawfulFieldRepresentation`. -/
 def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
   let components := mod.mutableComponents
-  let fieldMetadata ← analyzeTypesOfStateComponents components
   -- this might be useful later, so store it as metadata in the module
-  let argTypesAsMap : Std.HashMap Name (Array Term) := Std.HashMap.ofList (components.zipWith (fun sc args => (sc.name, args)) (fieldMetadata.map (·.domainTerms)) |>.toList)
+  let argTypesAsMap : Std.HashMap Name (Array Term) := Std.HashMap.ofList (components.zipWith (fun sc args => (sc.name, args)) (components.map (·.domainTerms)) |>.toList)
   -- declare field label type
   let (name0, stx0) ← declareStructureFieldLabelType stateName components
   -- declare field dispatchers
-  let (dispatchers, (fieldAbstractTypeName, fieldAbstractTypeStx), (fieldConcreteTypeName', fieldConcreteTypeStx)) ← mod.declareFieldDispatchers stateName fieldMetadata (← mod.sortBinders)
+  let (dispatchers, (fieldAbstractTypeName, fieldAbstractTypeStx), (fieldConcreteTypeName', fieldConcreteTypeStx)) ← mod.declareFieldDispatchers stateName components (← mod.sortBinders)
   let (dispatcherNames, dispatcherStxs) := Array.unzip dispatchers
   for name in (#[name0, fieldAbstractTypeName, fieldConcreteTypeName'] ++ dispatcherNames) do
     mod.throwIfAlreadyDeclared name

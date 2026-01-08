@@ -115,7 +115,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
   let ctors ← mod.actions.mapM (fun a => do
     `(Command.ctor| | $(mkIdent a.name):ident $(← a.binders)* : $labelT ))
   let labelDef ← do
-    let instances := #[``DecidableEq,``Repr, ``ToJson, ``Hashable].map Lean.mkIdent
+    let instances := #[``DecidableEq,``Repr, ``ToJson, ``Hashable, ``Veil.Enumeration].map Lean.mkIdent
     if ctors.isEmpty then
       `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $[$instances:ident],*)
     else
@@ -149,17 +149,6 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
   let mod ← mod.registerDerivedDefinition derivedDef
   return (casesLemma, mod)
 
-def Module.mkLabelEnumeration [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Command := do
-  let binders := (← mod.sortBinders) ++ (← #[``DecidableEq, ``FinEnum].flatMapM mod.assumeForEverySort)
-  let labelT ← mod.labelTypeStx
-  `(scoped instance $[$binders]* : $(mkIdent ``Veil.Enumeration) ($labelT) where
-    $(mkIdent `allValues):ident := ($(mkIdent ``FinEnum.ofEquiv) _ ($(mkIdent ``Equiv.symm) (proxy_equiv% ($labelT)))).toList
-    $(mkIdent `complete):ident := by simp)
-where
-  assumeForEverySort (className : Name) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-    (← mod.sortIdents).mapM fun sort => do
-      `(bracketedBinder|[$(mkIdent className) $sort])
-
 def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Command := do
   let sortParams := mod.sortParams
   let fields ← sortParams.mapM fun (param, sortKind) => do
@@ -180,8 +169,7 @@ def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadError m] 
 def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Command × Module) := do
   let (labelDef, mod) ← mod.assembleLabelDef
   let (casesLemma, mod) ← mod.assembleLabelCasesLemma
-  let labelEnumeration ← mod.mkLabelEnumeration
-  return (#[labelDef, casesLemma, labelEnumeration], mod)
+  return (#[labelDef, casesLemma], mod)
 
 /-! ## Next Action Assembly -/
 

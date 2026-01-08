@@ -347,7 +347,8 @@ def bracketedBinderToFunBinder [Monad m] [MonadError m] [MonadQuotation m] (stx 
   | `(bracketedBinder| ($id:ident : $tp:term)) => `(funBinder| ($id:ident : $tp:term))
   | `(bracketedBinder| [$id:ident : $tp:term]) => `(funBinder| [$id:ident : $tp:term])
   | `(bracketedBinder| [$tp:term]) => `(funBinder| [$tp:term])
-  | `(bracketedBinder| {$id:ident : $tp:term}) => `(funBinder| {$id:ident : $tp:term})
+  | `(bracketedBinder| {$id:ident*}) => `(funBinder| {$id:ident*})
+  | `(bracketedBinder| {$ids:ident* : $tp:term}) => `(funBinder| {$ids:ident* : $tp:term})
   | _ => throwError "bracketedBinderToFunBinder: unexpected syntax {stx}"
 
 /-- Convert existential binders (`explicitBinders`) into identifiers. -/
@@ -557,5 +558,15 @@ elab "meta_match_option" val:term "=>" t1:term "=>" t2:term : term <= expectedTy
     let t2Expr ← elabTerm t2 expectedType
     pure t2Expr
   | _ => throwError "meta_match_option expected an Option expression"
+
+open Meta Elab Term in
+/-- Given a term `val` of function type, `remove_unused_args% val`
+produces a new term where any arguments that are not used in the body
+are removed. -/
+elab "remove_unused_args% " val:term : term => do
+  let valExpr ← elabTerm val none
+  let valExpr ← instantiateMVars valExpr
+  lambdaTelescope valExpr fun xs body => do
+    mkLambdaFVars xs body (usedOnly := true)
 
 end Veil

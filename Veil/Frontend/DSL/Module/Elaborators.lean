@@ -77,8 +77,22 @@ where
         return StateComponentType.simple (← `(Command.structSimpleBinder|$name:ident : $dom))
       else
         return StateComponentType.complex br dom)
-    let sc : StateComponent := { mutability := mutability, kind := kind, name := name.getId, «type» := sctype, userSyntax := userStx }
+    let (domainTerms, codomainTerm) ← analyzeTypesOfStateComponents sctype
+    let sc : StateComponent := { mutability := mutability, kind := kind, name := name.getId, «type» := sctype, userSyntax := userStx, domainTerms, codomainTerm }
     Module.declareStateComponent mod sc
+  /-- For each `sc` in `components`, analyze its type to extract the arguments
+  (domain) and codomain. -/
+  analyzeTypesOfStateComponents (sct : StateComponentType) : CommandElabM (Array Term × Term) := do
+    match sct with
+    | .simple t =>
+      let (domainTerms, codomainTerm) ← getSimpleBinderType t >>= splitForallArgsCodomain
+      pure (domainTerms, codomainTerm)
+    | .complex b codomainTerm =>
+      -- overlapped with `complexBinderToSimpleBinder`
+      let domainTerms ← b.mapM fun m => match m with
+        | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
+        | _ => throwError "unable to extract type from binder {m}"
+      pure (domainTerms, codomainTerm)
 
 @[command_elab Veil.instanceDeclaration]
 def elabInstantiate : CommandElab := fun stx => do

@@ -1,5 +1,4 @@
 import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.Action.ExtractUtil
 import Veil.Frontend.DSL.Module.Names
 import Veil.Frontend.DSL.Action.ExtractList2
 import Veil.Core.Tools.ModelChecker.ExecutionOutcome
@@ -269,7 +268,7 @@ def genExtractCommand (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinde
 /-- Generate both NextAct specialization and executable list commands. -/
 def genNextActCommands (mod : Veil.Module)
   (k : Array (TSyntax `Lean.Parser.Term.bracketedBinder) → CommandElabM Unit) : CommandElabM Unit := do
-  let binders ← mod.collectNextActBinders
+  let binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM mod.assumeForEverySort
   -- Generate NextAct specialization
   let nextActCmd ← `(command |
     attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
@@ -332,7 +331,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
   let baseParams := baseParams.filter fun p => !(p.kind matches .environmentState | .backgroundTheory | .moduleTypeclass .environmentState | .moduleTypeclass .backgroundTheory)
 
   -- Step 2: Prepare injectedBinders
-  let nextAct'Binders ← mod.collectNextActBinders
+  let nextAct'Binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM mod.assumeForEverySort
   let labelsId := mkVeilImplementationDetailIdent `labels
   let labelsBinder ← `(bracketedBinder| [$labelsId : $(mkIdent ``Veil.Enumeration) $(← mod.labelTypeStx)])
   let theoryId := mkVeilImplementationDetailIdent `theory

@@ -374,12 +374,14 @@ def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := Fo
 def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
   let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
+    let instName ← mkInstName ``Enumeration declName
     let header ← mkHeader ``Enumeration 0 indVal
-    let binders' ← mkInstImplicitBinders `Decidable indVal header.argNames
-    `(command|
-      instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
-        $(mkIdent ``Enumeration) $header.targetType :=
-      $(mkIdent ``Enumeration.ofEquiv) _ (proxy_equiv% $header.targetType))
+    let auxDefCmd ← do
+      let funBinders ← header.binders.mapM bracketedBinderToFunBinder
+      let target ← `(($(mkIdent ``Enumeration.ofEquiv) _ (proxy_equiv% $header.targetType) : $(mkIdent ``Enumeration) $header.targetType))
+      let defBody ← mkFunSyntax funBinders target
+      `(command|@[instance] def $(mkIdent instName) := remove_unused_args% $defBody)
+    pure auxDefCmd
   elabVeilCommand cmd
   return true
 
