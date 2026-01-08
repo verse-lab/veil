@@ -258,6 +258,10 @@ Here only gives some basic instances. More complicated ones should be
 found in `Veil.Frontend.Std`.
 -/
 
+instance : Enumeration Empty where
+  allValues := []
+  complete := by simp
+
 instance : Enumeration PUnit where
   allValues := [PUnit.unit]
   complete := by simp
