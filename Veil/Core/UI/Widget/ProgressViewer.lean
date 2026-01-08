@@ -331,14 +331,14 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
   </div>
 
 /-- Create a streaming progress widget that polls progress by instance ID. -/
-partial def mkProgressWidget (instanceId : Nat) : CoreM Html := do
-  mkRefreshComponent (.text "Starting model checker...") (runRefreshStepM (getProgressStep instanceId))
+def mkProgressWidget (instanceId : Nat) : CoreM Html := do
+  mkRefreshComponent (.text "Starting model checker...") (getProgressStep instanceId)
 where
-  getProgressStep (id : Nat) : CoreM (RefreshStep CoreM) := do
+  getProgressStep (id : Nat) : CoreM RefreshComponent.RefreshStep := do
     IO.sleep 100
     let progress ← getProgress id
     if progress.isRunning then
-      return .cont (progressToHtml progress (some id)) (getProgressStep id)
+      return .cont (progressToHtml progress (some id))
     else
       return .last (mkFinalResultHtml progress (← getResultJson id))
 

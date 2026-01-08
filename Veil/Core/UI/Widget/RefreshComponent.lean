@@ -94,72 +94,73 @@ def RefreshComponent : Component RefreshComponentProps where
 
 /-! ## API for creating `RefreshComponent`s -/
 
-/-- The monad transformer for maintaining a `RefreshComponent`. -/
-abbrev RefreshT (m : Type → Type) :=
-  ReaderT (IO.Promise VersionedHtml) <| StateRefT' IO.RealWorld RefreshState m
-
 variable {m : Type → Type} [Monad m] [MonadLiftT BaseIO m]
   [MonadLiftT (ST IO.RealWorld) m]
 
-/-- `RefreshStep` represents an update to the refresh state. -/
-inductive RefreshStep (m : Type → Type) where
+/-- `RefreshStep` represents an update to the refresh state.
+    The `cont` case uses an IO.Ref to store the next action, avoiding positivity issues. -/
+inductive RefreshStep where
   /-- Leaves the current HTML in place and stops the refreshing. -/
   | none
   /-- Sets the current HTML to `html` and stops the refreshing. -/
   | last (html : Html)
-  /-- Sets the current HTML to `html` and continues refreshing with `cont`. -/
-  | cont' (html : Html) (cont : RefreshT m Unit)
+  /-- Sets the current HTML to `html` and signals to continue.
+      The actual next action is stored in the nextActionRef passed to mkRefreshComponent. -/
+  | cont (html : Html)
   deriving Inhabited
-
-/-- Update `RefreshState` and resolve `IO.Promise VersionedHtml` using the given `RefreshStep`. -/
-def runRefreshStep (k : RefreshStep m) : RefreshT m Unit := do
-  let idx := (← get).curr.idx + 1
-  match k with
-  | .none =>
-    modify fun { curr, .. } => { curr, next := .pure none }
-    -- we drop the reference to the promise, so the corresponding task will return `none`.
-  | .last html =>
-    MonadState.set { curr := { html, idx }, next := .pure none }
-    (← read).resolve { html, idx }
-  | .cont' html cont =>
-    let newPromise ← IO.Promise.new
-    MonadState.set { curr := { html, idx }, next := newPromise.result? }
-    (← read).resolve { html, idx }
-    withReader (fun _ => newPromise) cont
-
-/-- Update `RefreshState` and resolve `IO.Promise VersionedHtml` using the given `RefreshStep`.
-Also catch all exceptions that `k` might throw. -/
-def runRefreshStepM [i : MonadAlwaysExcept Exception m] (k : m (RefreshStep m)) : RefreshT m Unit := do
-  have := i.except
-  runRefreshStep <| ←
-    try k
-    catch e =>
-      if let .internal id _ := e then
-        if id == interruptExceptionId then
-          return .last <| .text "This component was cancelled"
-      return .last
-        <span>
-        Error refreshing this component: <InteractiveMessage msg={← WithRpcRef.mk e.toMessageData}/>
-        </span>
-
-@[inherit_doc RefreshStep.cont']
-def RefreshStep.cont [MonadAlwaysExcept Exception m]
-    (html : Html) (cont : m (RefreshStep m)) : RefreshStep m :=
-  .cont' html (runRefreshStepM cont)
 
 end RefreshComponent
 
 open RefreshComponent
 
 variable {m ε} [Monad m] [MonadDrop m (EIO ε)] [MonadLiftT BaseIO m]
+  [MonadLiftT (ST IO.RealWorld) m]
 
-/-- Create a `RefreshComponent`. In order to implicitly support cancellation, `m` should extend
-`CoreM`, and hence have access to a cancel token. -/
-def mkRefreshComponent (initial : Html) (k : RefreshT m Unit) : m Html := do
+/-- Internal loop that processes RefreshStep values. Uses `repeat` for true iteration
+    to avoid stack growth in the interpreter. The same action is called repeatedly
+    until it returns `.last` or `.none`. -/
+def refreshLoop [Monad m] [MonadLiftT BaseIO m] [MonadLiftT (ST IO.RealWorld) m]
+    [MonadAlwaysExcept Exception m]
+    (promiseRef : IO.Ref (IO.Promise VersionedHtml))
+    (stateRef : IO.Ref RefreshState)
+    (action : m RefreshStep) : m Unit := do
+  have := MonadAlwaysExcept.except (m := m)
+  repeat do
+    let step ← try action catch e =>
+      if e.isInterrupt then pure (.last <| .text "This component was cancelled")
+      else pure (.last <| .text s!"Error refreshing this component: {← e.toMessageData.toString}")
+
+    let idx := (← stateRef.get).curr.idx + 1
+
+    match step with
+    | .none =>
+      stateRef.modify fun s => { s with next := .pure none }
+      return
+    | .last html =>
+      let vhtml : VersionedHtml := { html, idx }
+      stateRef.set { curr := vhtml, next := .pure none }
+      (← promiseRef.get).resolve vhtml
+      return
+    | .cont html =>
+      let vhtml : VersionedHtml := { html, idx }
+      let newPromise ← IO.Promise.new
+      stateRef.set { curr := vhtml, next := newPromise.result? }
+      (← promiseRef.get).resolve vhtml
+      promiseRef.set newPromise
+
+/-- Create a `RefreshComponent`. Takes an action that is called repeatedly.
+    When the action returns `.cont`, it will be called again.
+    When it returns `.last` or `.none`, the refreshing stops.
+
+    In order to implicitly support cancellation, `m` should extend `CoreM`,
+    and hence have access to a cancel token. -/
+def mkRefreshComponent [MonadAlwaysExcept Exception m]
+    (initial : Html) (action : m RefreshStep) : m Html := do
   let promise ← IO.Promise.new
-  let ref ← IO.mkRef { curr := { html := initial, idx := 0 }, next := promise.result? }
-  discard <| EIO.asTask (prio := .dedicated) <| ← dropM <| k promise ref
-  return <RefreshComponent state={← WithRpcRef.mk ref}/>
+  let promiseRef ← IO.mkRef promise
+  let stateRef ← IO.mkRef { curr := { html := initial, idx := 0 }, next := promise.result? }
+  discard <| EIO.asTask (prio := .dedicated) <| ← dropM <| refreshLoop promiseRef stateRef action
+  return <RefreshComponent state={← WithRpcRef.mk stateRef}/>
 
 /-- Create a `RefreshComponent`. Explicitly support cancellation by creating a cancel token,
 and setting the previous cancel token. This is useful when the component depends on the selections
@@ -167,13 +168,13 @@ in the goal, so that after making a new selection, the previous computation is c
 
 Note: The cancel token is only set when a new computation is started.
   When the infoview is closed, this unfortunately doesn't set the cancel token. -/
-def mkCancelRefreshComponent [MonadWithReaderOf Core.Context m]
-    (cancelTkRef : IO.Ref IO.CancelToken) (initial : Html) (k : RefreshT m Unit) : m Html := do
+def mkCancelRefreshComponent [MonadWithReaderOf Core.Context m] [MonadAlwaysExcept Exception m]
+    (cancelTkRef : IO.Ref IO.CancelToken) (initial : Html)
+    (action : m RefreshStep) : m Html := do
   let cancelTk ← IO.CancelToken.new
   let oldTk ← (cancelTkRef.swap cancelTk : BaseIO _)
   oldTk.set
-  mkRefreshComponent initial do
-    withTheReader Core.Context ({· with cancelTk? := cancelTk }) k
+  mkRefreshComponent initial (withTheReader Core.Context ({· with cancelTk? := cancelTk }) action)
 
 abbrev CancelTokenRef := IO.Ref IO.CancelToken
 
