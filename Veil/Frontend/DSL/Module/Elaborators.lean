@@ -418,32 +418,38 @@ def defaultThresholdToParallel : Nat := 20
 
 declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 
+/-- Model checking mode: interpreted only, compiled only, or default (both with handoff). -/
+inductive ModelCheckingMode where
+  | interpreted
+  | compiled
+  | default
+  deriving Repr, DecidableEq
+
+/-- Context for model checking operations. Bundles common parameters to reduce duplication. -/
+structure ModelCheckContext where
+  mod : Module
+  stx : Syntax
+  instanceId : Nat
+  cancelToken : IO.CancelToken
+  assertionSources : Std.HashMap AssertionId AssertionSourceInfo
+  parallelCfg : Option ModelChecker.ParallelConfig
+
+/-- Extract the model checking mode from the optional mode syntax. -/
+def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
+  if modeStx.isNone then .default
+  else match modeStx[0] with
+    | `(modelCheckMode| interpreted) => .interpreted
+    | `(modelCheckMode| compiled) => .compiled
+    | _ => .default
+
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
-  match stx with
-  | `(#model_check%$_tk $[interpreted%$interpretedOnly?]? $instTerm:term $[$theoryTermOpt]? $cfg:optConfig) =>
-    let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
-    mod.throwIfSpecNotFinalized
-
-    let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm
-
-    warnAboutTransitions mod
-    let config ← elabModelCheckerConfig cfg
-    -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
-    let parallelCfg ← match config.sequential, config.parallelCfg with
-      | true, _ => pure none
-      | false, some cfg => pure (some cfg)
-      | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
-    let config := { config with parallelCfg := parallelCfg }
-    let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
-
-    -- Dispatch based on compilation mode (set via option) and interpreted keyword
-    let isCompileMode ← isModelCheckCompileMode
-    match isCompileMode, interpretedOnly?.isSome with
-    | true, _     => elabModelCheckInternalMode mod callExpr  -- In compiled binary
-    | false, true => elabModelCheckInterpretedMode mod stx callExpr parallelCfg  -- interpreted keyword
-    | false, false => elabModelCheckWithHandoff mod stx callExpr parallelCfg  -- default: interpreted + background compile
-  | _ => throwUnsupportedSyntax
+  -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory, stx[4] is config
+  let mode := getModelCheckingMode stx[1]
+  let instTerm : Term := ⟨stx[2]⟩
+  let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
+  let cfg := stx[4]
+  elabModelCheckCore stx mode instTerm theoryTermOpt cfg
 where
   /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
       Throws a helpful error if theory fields exist but no term was provided. -/
@@ -631,91 +637,159 @@ where
     let violationIsError := veil.violationIsError.get (← getOptions)
     if isViolation && violationIsError then logErrorAt stx msg else logInfoAt stx msg
 
+  /-- Allocate a model check context with progress tracking. -/
+  allocModelCheckContext (mod : Module) (stx : Syntax)
+      (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM ModelCheckContext := do
+    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
+    let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
+    return { mod, stx, instanceId, cancelToken, assertionSources, parallelCfg }
+
+  /-- Handle errors in model checking computations. -/
+  handleModelCheckError (ctx : ModelCheckContext) (e : Exception) : CommandElabM Unit := do
+    let json := errorJson s!"{← e.toMessageData.toString}"
+    logModelCheckResult ctx.stx json
+    ModelChecker.Concrete.finishProgress ctx.instanceId json
+
+  /-- Finish model checking with a successful result. -/
+  finishWithResult (ctx : ModelCheckContext) (json : Json) : CommandElabM Unit := do
+    let json := enrichJsonWithAssertions json ctx.assertionSources
+    logModelCheckResult ctx.stx json
+    ModelChecker.Concrete.finishProgress ctx.instanceId json
+
+  /-- Run the compiled binary and log the result. -/
+  runBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder : System.FilePath)
+      (sourceFile : String) : CommandElabM Unit := do
+    let some binPath ← verifyBinaryExists buildFolder ctx.instanceId | return
+    let _ ← runBinaryAndFinish binPath ctx.parallelCfg ctx.instanceId ctx.cancelToken ctx.assertionSources
+    ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
+    let some resultJson ← ModelChecker.Concrete.getResultJson ctx.instanceId | return
+    logModelCheckResult ctx.stx resultJson
+
+  /-- Compile the model. Returns the build folder path if compilation succeeded, none otherwise. -/
+  compileModel (mod : Module) (sourceFile : String) (modelSource : String)
+      (instanceId : Nat) : IO (Option System.FilePath) := do
+    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
+    ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
+    let result ← ModelChecker.Compilation.runProcessWithStatusCallback
+      { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
+      (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
+      (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
+    if result.exitCode != 0 then
+      ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (mkCompilationErrorMsg result))
+      return none
+    ModelChecker.Concrete.updateCompilationStatus instanceId .succeeded
+    return some buildFolder
+
+  /-- Core elaboration logic shared by all model checking modes. -/
+  elabModelCheckCore (stx : Syntax) (mode : ModelCheckingMode) (instTerm : Term)
+      (theoryTermOpt : Option Term) (cfg : Syntax) : CommandElabM Unit := do
+    let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+
+    let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm
+
+    warnAboutTransitions mod
+    let config ← elabModelCheckerConfig cfg
+    -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
+    let parallelCfg ← match config.sequential, config.parallelCfg with
+      | true, _ => pure none
+      | false, some cfg => pure (some cfg)
+      | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
+    let config := { config with parallelCfg := parallelCfg }
+    let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
+
+    -- Dispatch based on compilation mode (set via option) and mode keyword
+    let isCompileMode ← isModelCheckCompileMode
+    match isCompileMode, mode with
+    | true, _            => elabModelCheckInternalMode mod callExpr  -- In compiled binary
+    | false, .interpreted => elabModelCheckInterpretedMode mod stx callExpr parallelCfg
+    | false, .compiled    => elabModelCheckCompiledMode mod stx parallelCfg
+    | false, .default     => elabModelCheckWithHandoff mod stx callExpr parallelCfg
+
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
-    let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
-    let ioComputation ← elaborateInterpretedComputation instanceId callExpr parallelCfg
+    -- dbg_trace "elabModelCheckInterpretedMode"
+    let ctx ← allocModelCheckContext mod stx parallelCfg
+    let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
     let computation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        if ← checkCancelled cancelToken instanceId then return
+        if ← checkCancelled ctx.cancelToken ctx.instanceId then return
         let json ← IO.ofExcept (← ioComputation.toIO')
-        let json := enrichJsonWithAssertions json assertionSources
-        logModelCheckResult stx json
-        ModelChecker.Concrete.finishProgress instanceId json
+        finishWithResult ctx json
       catch e : Exception =>
-        let json := errorJson s!"{← e.toMessageData.toString}"
-        logModelCheckResult stx json
-        ModelChecker.Concrete.finishProgress instanceId json
-    ) cancelToken
+        handleModelCheckError ctx e
+    ) ctx.cancelToken
     let mkTask ← BaseIO.asTask (computation ()) (prio := .dedicated)
-    Command.logSnapshotTask { stx? := none, cancelTk? := cancelToken, task := mkTask }
-    ModelChecker.displayStreamingProgress stx instanceId
+    Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
+    ModelChecker.displayStreamingProgress stx ctx.instanceId
+
+  /-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
+  elabModelCheckCompiledMode (mod : Module) (stx : Syntax)
+      (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+    -- dbg_trace "elabModelCheckCompiledMode"
+    let ctx ← allocModelCheckContext mod stx parallelCfg
+    let sourceFile ← getFileName
+    let modelSource ← generateModelSource mod stx
+
+    let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
+      try
+        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
+        if ← checkCancelled ctx.cancelToken ctx.instanceId then return
+        runBinaryAndLogResult ctx buildFolder sourceFile
+      catch e : Exception =>
+        handleModelCheckError ctx e
+    ) ctx.cancelToken
+
+    let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
+    Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := compilationTask }
+    ModelChecker.displayStreamingProgress stx ctx.instanceId
 
   /-- Handle default mode: run interpreted + background compile with handoff. -/
   elabModelCheckWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
-    let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
+    -- dbg_trace "elabModelCheckWithHandoff"
+    let ctx ← allocModelCheckContext mod stx parallelCfg
     let sourceFile ← getFileName
     let modelSource ← generateModelSource mod stx
-    let ioComputation ← elaborateInterpretedComputation instanceId callExpr parallelCfg
+    let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
 
     -- Interpreted mode task (wrapped for async logging)
     let interpretedComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
         let json ← IO.ofExcept (← ioComputation.toIO')
-        match (← cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested instanceId) with
-        | (true, false) => ModelChecker.Concrete.cancelProgress instanceId  -- User clicked Stop
-        | (false, _) =>
-          let json := enrichJsonWithAssertions json assertionSources
-          logModelCheckResult stx json
-          ModelChecker.Concrete.finishProgress instanceId json
+        match (← ctx.cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) with
+        | (true, false) => ModelChecker.Concrete.cancelProgress ctx.instanceId  -- User clicked Stop
+        | (false, _) => finishWithResult ctx json
         | (true, true) => pure ()  -- Handoff requested, let compiled binary take over
       catch e : Exception =>
-        let json := errorJson s!"{← e.toMessageData.toString}"
-        logModelCheckResult stx json
-        ModelChecker.Concrete.finishProgress instanceId json
-    ) cancelToken
+        handleModelCheckError ctx e
+    ) ctx.cancelToken
     let interpretedTask ← BaseIO.asTask (interpretedComputation ()) (prio := .dedicated)
-    Command.logSnapshotTask { stx? := none, cancelTk? := cancelToken, task := interpretedTask }
+    Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
 
     -- Background compilation with handoff
     let compilationCancelTk ← IO.CancelToken.new
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
-        ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
-        let result ← ModelChecker.Compilation.runProcessWithStatusCallback
-          { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
-          (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
-          (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
-        if result.exitCode != 0 then
-          ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (mkCompilationErrorMsg result))
-          return
+        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
         -- Skip handoff if violation found or interpreted finished
-        if (← ModelChecker.Concrete.isViolationFound instanceId) || (← IO.hasFinished interpretedTask) then
-          ModelChecker.Concrete.updateCompilationStatus instanceId .succeeded
+        if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) then
           ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
           return
         -- Handoff to compiled binary
-        ModelChecker.Concrete.requestHandoff instanceId
-        cancelToken.set
+        ModelChecker.Concrete.requestHandoff ctx.instanceId
+        ctx.cancelToken.set
         let _ ← IO.wait interpretedTask
-        let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff instanceId | return
-        let some binPath ← verifyBinaryExists buildFolder instanceId | return
-        let _ ← runBinaryAndFinish binPath parallelCfg instanceId newCancelToken assertionSources
-        ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
-        -- Log the binary result
-        let some resultJson ← ModelChecker.Concrete.getResultJson instanceId | return
-        logModelCheckResult stx resultJson
+        let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
+        let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
+        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile
       catch e : Exception =>
-        ModelChecker.Concrete.updateCompilationStatus instanceId (.failed s!"{← e.toMessageData.toString}")
+        ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
     ) compilationCancelTk
     let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
     Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
 
-    ModelChecker.displayStreamingProgress stx instanceId
+    ModelChecker.displayStreamingProgress stx ctx.instanceId
 
 end Veil
