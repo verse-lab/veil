@@ -310,10 +310,133 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
   greater_than_third_nonempty :
     ∀ (s : nset), greater_than_third s → ¬ is_empty s
 
+/-! ### Instances -/
+
+/-- A sorted list of nodes, representing a set in Byzantine fault tolerance. -/
+abbrev ByzNSet (n : Nat) : Type :=
+  { fs : List (Fin n) // fs.Sorted (· < ·) }
+
+/-- All possible ByzNSets (all sorted sublists of [0..n-1]). -/
+def allByzNSets (n : Nat) : List (ByzNSet n) :=
+  let l := List.ofFn (n := n) id
+  let res := FinEnum.Finset.enum l |>.map (fun x => l.filter fun y => y ∈ x)
+  res.attachWith _ (by
+    intro x hmem ; unfold res l at hmem ; simp at hmem ; rcases hmem with ⟨fs, hmem⟩ ; subst x
+    exact (Finset.List.ofFn_filter fs).1)
+
+theorem allByzNSets_complete {n : Nat} : ∀ (s : ByzNSet n), s ∈ allByzNSets n := by
+  intro ⟨x, hx⟩ ; dsimp [allByzNSets] ; simp ; exists x.toFinset
+  have hnodup := List.Pairwise.nodup hx
+  apply List.Sorted.eq_of_mem_iff _ hx ; simp ; apply List.Pairwise.filter ; simp
+
+instance (n : Nat) : FinEnum (ByzNSet n) :=
+  FinEnum.ofList (allByzNSets n) allByzNSets_complete
+
+instance (n : Nat) : Veil.Enumeration (ByzNSet n) where
+  allValues := allByzNSets n
+  complete := allByzNSets_complete
+
+instance (n : Nat) : Inhabited (ByzNSet n) where
+  default := ⟨[], List.sorted_nil⟩
+
+instance (n : Nat) : @Std.ReflCmp (ByzNSet n) compare where
+  compare_self := List.instReflCmpCompareLex.compare_self
+
+instance (n : Nat) : @Std.LawfulEqCmp (ByzNSet n) compare where
+  eq_of_compare h := Subtype.eq <| List.instLawfulEqCmpCompareLex.eq_of_compare h
+
+instance (n : Nat) : @Std.OrientedCmp (ByzNSet n) compare where
+  eq_swap := List.instOrientedCmpCompareLex.eq_swap
+
+instance (n : Nat) : @Std.TransCmp (ByzNSet n) compare where
+  isLE_trans := List.instTransCmpCompareLex.isLE_trans
+
+/-- ByzNodeSet instance for `Fin n` with at most `f` Byzantine nodes.
+    Assumes `n = 3 * f + 1` (standard Byzantine fault tolerance assumption). -/
+def byzNodeSetFin (n f : Nat) (hf : n = 3 * f + 1)
+    (is_byz : Fin n → Prop) [DecidablePred is_byz]
+    (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
+    : ByzNodeSet (Fin n) (ByzNSet n) where
+  is_byz := is_byz
+  member a s := a ∈ s.val
+  is_empty s := s.val = []
+  supermajority s := 2 * f + 1 ≤ s.val.length
+  greater_than_third s := f + 1 ≤ s.val.length
+  supermajorities_intersect_in_honest := by
+    intro ⟨s1, hs1_sorted⟩ ⟨s2, hs2_sorted⟩ hsup1 hsup2
+    simp only at hsup1 hsup2
+    -- Two supermajorities of size ≥ 2f+1 in universe of size n = 3f+1
+    -- intersect in ≥ 2(2f+1) - (3f+1) = f+1 elements
+    -- Since ≤ f are Byzantine, ≥ 1 honest in intersection
+    have hnodup1 := List.Pairwise.nodup hs1_sorted
+    have hnodup2 := List.Pairwise.nodup hs2_sorted
+    have hcard1 : s1.toFinset.card = s1.length := List.toFinset_card_of_nodup hnodup1
+    have hcard2 : s2.toFinset.card = s2.length := List.toFinset_card_of_nodup hnodup2
+    have hinter := Finset.card_inter (s1.toFinset) (s2.toFinset)
+    have hunion := Finset.card_le_univ (s1.toFinset ∪ s2.toFinset) ; simp at hunion
+    have hinter_size : f + 1 ≤ (s1.toFinset ∩ s2.toFinset).card := by omega
+    -- The intersection contains at least f+1 nodes, and at most f are Byzantine
+    by_contra h ; push_neg at h
+    have hall_byz : ∀ a ∈ s1.toFinset ∩ s2.toFinset, is_byz a := by
+      intro a ha ; simp at ha
+      have := h a ha.1 ha.2 ; tauto
+    have hbyz_count : (s1.toFinset ∩ s2.toFinset).card ≤ f := by
+      calc (s1.toFinset ∩ s2.toFinset).card
+          ≤ ((List.ofFn (n := n) id).filter (fun i => decide (is_byz i))).toFinset.card := by
+            apply Finset.card_le_card
+            intro a ha ; simp at ha ⊢ ; exact hall_byz a (by simp [ha])
+          _ ≤ (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length := by
+            apply List.toFinset_card_le
+          _ ≤ f := hbyz
+    omega
+  greater_than_third_one_honest := by
+    intro ⟨s, hs_sorted⟩ hgt
+    simp only at hgt
+    -- s has ≥ f+1 elements, ≤ f are Byzantine, so ≥ 1 honest
+    by_contra h ; push_neg at h
+    have hall_byz : ∀ a ∈ s, is_byz a := by
+      intro a ha ; have := h a ha ; tauto
+    have hnodup := List.Pairwise.nodup hs_sorted
+    have hbyz_count : s.length ≤ f := by
+      calc s.length
+          = s.toFinset.card := by simp [List.toFinset_card_of_nodup hnodup]
+          _ ≤ ((List.ofFn (n := n) id).filter (fun i => decide (is_byz i))).toFinset.card := by
+            apply Finset.card_le_card
+            intro a ha ; simp at ha ⊢ ; exact hall_byz a ha
+          _ ≤ (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length := by
+            apply List.toFinset_card_le
+          _ ≤ f := hbyz
+    omega
+  supermajority_greater_than_third := by
+    intro _ hs ; omega
+  greater_than_third_nonempty := by
+    intro s hs heq ; simp_all
+
+/-- A simple case of ByzNodeSet for `Fin (3 * f + 1)` with exactly `f`
+Byzantine nodes, whose indices are in `[0, f)`. Note that when using
+this instance, `f` must be given explicitly (e.g., write
+`#synth ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1))` instead of
+`#synth ByzNodeSet (Fin 4) (ByzNSet 4)`. -/
+instance insByzNodeSetFinSimple : ByzNodeSet (Fin (3 * f + 1)) (ByzNSet (3 * f + 1)) :=
+  byzNodeSetFin (3 * f + 1) f rfl (fun i => i.val < f) (by
+    dsimp ; apply Nat.le_of_eq
+    rw [← List.take_append_drop f (List.ofFn id), List.filter_append, List.length_append]
+    conv => rhs ; rw [← Nat.add_zero f]
+    congr
+    · trans ; rw [List.length_filter_eq_length_iff]
+      · simp only [List.mem_iff_getElem?, List.getElem?_take, List.getElem?_ofFn]
+        simp
+        rintro ⟨a, ha⟩ ; simp ; intros ; omega
+      · simp ; omega
+    · simp only [List.length_eq_zero_iff, List.filter_eq_nil_iff, decide_eq_true_eq, _root_.not_lt]
+      simp only [List.mem_iff_getElem?, List.getElem?_drop, List.getElem?_ofFn]
+      simp
+      rintro ⟨a, ha⟩ ; simp ; intros ; omega
+    )
 
 /-! ## Set -/
 
-class TSet (α : Type) (κ: Type) where
+class TSet (α : outParam (Type u)) (κ : Type v) where
   count : κ → Nat
   contains : α → κ → Bool
   empty : κ
@@ -345,6 +468,17 @@ class TSet (α : Type) (κ: Type) where
     contains elem (union s1 s2) = (contains elem s1 || contains elem s2)
   contains_diff (elem : α) (s1 s2 : κ) :
     contains elem (diff s1 s2) = (contains elem s1 && not (contains elem s2))
+  toList_contains_iff (elem : α) (s : κ) :
+    contains elem s = true ↔ elem ∈ toList s
+
+instance [TSet α κ] : Membership α κ where
+  mem s a := TSet.contains a s = true
+
+instance instEnumerationTSetContains [TSet α κ] (k : κ) : Veil.Enumeration ({ a : α // TSet.contains a k }) where
+  allValues := TSet.toList k |>.attachWith _ (by simp [TSet.toList_contains_iff])
+  complete := by simp [TSet.toList_contains_iff]
+
+instance [TSet α κ] (k : κ) : Veil.Enumeration ({ a : α // a ∈ k }) := instEnumerationTSetContains k
 
 
 def TSet.map [origin_set : TSet α κ] [target_set : TSet β l] (s1 : κ) (f : α → β) : l :=
@@ -420,8 +554,11 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   contains_diff := by
     intros elem s1 s2
     exact extTreeSet_contains_filter_not
+  toList_contains_iff := by
+    intros elem s
+    simp [Std.ExtTreeSet.contains_iff_mem]
 
-class TMultiset (α : Type) (κ : Type) where
+class TMultiset (α : outParam (Type u)) (κ : Type v) where
   empty : κ
   insert : α → κ → κ
   remove : α → κ → κ
@@ -432,6 +569,8 @@ class TMultiset (α : Type) (κ : Type) where
   empty_size : size empty = 0
   empty_count (elem : α) : count elem empty = 0
   empty_contains (elem : α) : contains elem empty = false
+  toList_contains_iff (elem : α) (s : κ) :
+    contains elem s = true ↔ elem ∈ toList s
   -- contains_def (elem : α) (s : κ) :
   --   contains elem s = (count elem s > 0)
   -- count_insert_self (elem : α) (s : κ) :
@@ -446,6 +585,15 @@ class TMultiset (α : Type) (κ : Type) where
   --   count elem₁ (remove elem₂ s) = count elem₁ s
   -- size_remove (elem : α) (s : κ) :
   --   size (remove elem s) = if contains elem s then size s - 1 else size s
+
+instance [TMultiset α κ] : Membership α κ where
+  mem s a := TMultiset.contains a s = true
+
+instance instEnumerationTMultisetContains [TMultiset α κ] (k : κ) : Veil.Enumeration ({ a : α // TMultiset.contains a k }) where
+  allValues := TMultiset.toList k |>.attachWith _ (by simp [TMultiset.toList_contains_iff])
+  complete := by simp [TMultiset.toList_contains_iff]
+
+instance [TMultiset α κ] (k : κ) : Veil.Enumeration ({ a : α // a ∈ k }) := instEnumerationTMultisetContains k
 
 /-- When implementing `Multiset`, a key is mapped to its multiplicity
 *minus 1*. -/
@@ -482,6 +630,10 @@ instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
   empty_size := by simp [Std.ExtTreeMap.empty]; rfl
   empty_count elem := by grind
   empty_contains elem := by grind
+  toList_contains_iff := by
+    intros elem s
+    simp [Std.ExtTreeMap.contains_iff_mem, Std.ExtTreeMap.foldl_eq_foldl_toList,
+      Std.ExtTreeMap.getElem?_eq_some_iff]
   -- contains_def elem s := by grind
   -- count_insert_self elem s := by grind
   -- count_insert_other elem₁ elem₂ s h := by grind

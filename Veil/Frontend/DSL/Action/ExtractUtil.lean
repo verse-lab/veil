@@ -84,7 +84,7 @@ where
     Includes: FinEnum, Hashable, Ord, LawfulEqCmp, and TransCmp instances. -/
 def Module.collectNextActBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let sortIdents ← mod.sortIdents
-  let insts ← #[``Inhabited, ``DecidableEq, ``Veil.Enumeration, ``Hashable, ``Ord].flatMapM mod.instBinders
+  let insts ← #[``Veil.Enumeration, ``Hashable, ``Ord].flatMapM mod.instBinders
   -- let insts ← #[``Inhabited, ``DecidableEq, ``Hashable, ``Ord].flatMapM mod.instBinders
   let lawfulInsts ← #[``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM (fun inst => sortIdents.mapM (fun id => propCmpBinder inst id))
   return insts ++ lawfulInsts

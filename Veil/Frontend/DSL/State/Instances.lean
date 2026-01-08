@@ -80,6 +80,9 @@ instance instDecidableEqExtTreeMap [Ord α] [DecidableEq α] [DecidableEq β]
   [Std.TransOrd α] : DecidableEq (Std.ExtTreeMap α β) := fun m1 m2 =>
   decidable_of_iff (m1.toList = m2.toList) Std.ExtTreeMap.toList_inj
 
+instance {α} {β : α → Type v} [inst : Enumeration α] [(a : α) → DecidableEq (β a)] : DecidableEq ((a : α) → β a) :=
+  fun f g => decidable_of_iff (∀ a ∈ inst.allValues, f a = g a) (by simp [funext_iff] ; grind)
+
 /-!
 `Std.TransOrd` and `Std.LawfulEqOrd` instances
 -/

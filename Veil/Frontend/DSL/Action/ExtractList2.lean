@@ -70,8 +70,12 @@ instance
     simp [wp, liftM, monadLift, MAlg.lift, Functor.map] at tmp ⊢
     exact tmp
 
-instance (priority := high + 100) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
+instance (priority := high) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
   find := fun _ => Veil.Enumeration.allValues |>.filter p
+  find_iff := by simp ; grind
+
+instance (priority := high + 100) {α : Type u} {p : α → Prop} [inst : Veil.Enumeration {a : α // p a }] : MultiExtractor.Candidates p where
+  find := fun _ => inst.allValues.unattach
   find_iff := by simp ; grind
 
 namespace MultiExtractor
@@ -170,6 +174,7 @@ scoped elab "find_local_decidable_and_apply" : tactic => do
         return
       catch _ =>
         pure ()
+  throwError "no applicable Decidable instance found in the context"
 
 theorem ExtractConstraint.pickList (p : τ → Prop) [instec : ExtCandidates findable κ p] :
   ExtractConstraint κ m m' findOf (MonadNonDet.pickSuchThat (m := NonDetT m) τ p)
@@ -320,7 +325,7 @@ macro "extract_list_step'" : tactic =>
       -- | eapply $(Lean.mkIdent ``ExtractConstraint.assumeCont)
       | eapply $(Lean.mkIdent ``ExtractConstraint.bind)
       | eapply $(Lean.mkIdent ``ExtractConstraint.liftM)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.assume) _ _ _ ($(Lean.mkIdent `decp) := by first | infer_instance | find_local_decidable_and_apply)
+      | eapply $(Lean.mkIdent ``ExtractConstraint.assume) _ _ _ ($(Lean.mkIdent `decp) := by first | find_local_decidable_and_apply | infer_instance)
       | eapply $(Lean.mkIdent ``ExtractConstraint.pickList)
       | eapply $(Lean.mkIdent ``ExtractConstraint.vis)
       | eapply $(Lean.mkIdent ``ExtractConstraint.pure)

@@ -105,6 +105,7 @@ def specializeActionsCore
     throwError "[{decl_name%}]: module does not use field representations"
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
+  let extraDsimps := extraDsimps.push <| Lean.mkIdent ``id
   let acts ← mod.actions.mapM fun s => do
     let name := Lean.mkIdent $ toExtName s.name
     let (params, _) ← mod.declarationAllParams s.name s.declarationKind
@@ -112,7 +113,6 @@ def specializeActionsCore
     `(veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged)
       [$(mkIdent ``Preprocessing.simpFieldRepresentationSetSingle),
        $(mkIdent ``Preprocessing.simpFieldRepresentationGet),
-       $(mkIdent ``id),
        $[$extraDsimps:ident],*]
       (delta% (@$name $args*)))
   let labelT ← mod.labelTypeStx
