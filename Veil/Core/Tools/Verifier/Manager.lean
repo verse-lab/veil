@@ -192,7 +192,7 @@ section VCManager
 inductive ManagerNotification (VCMetaT ResultT : Type) where
   | dischargerResult (id : DischargerIdentifier) (res : DischargerResult ResultT)
   /-- Issued by the frontend to reset the VCManager. -/
-  | reset
+  | reset (managerId : ManagerId)
   /-- Issued by the frontend to start all ready tasks. -/
   | startAll
   /-- Start VCs matching the filter. -/
@@ -203,7 +203,7 @@ instance [ToString ResultT] : ToString (ManagerNotification VCMetaT ResultT) whe
   toString res :=
     match res with
     | .dischargerResult dischargerId res => s!"dischargerResult {dischargerId} {res}"
-    | .reset => s!"reset"
+    | .reset managerId => s!"reset {managerId}"
     | .startAll => s!"startAll"
     | .startFiltered _ => s!"startFiltered"
 

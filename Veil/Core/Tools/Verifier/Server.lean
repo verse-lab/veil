@@ -22,7 +22,7 @@ def sendNotification (notification : ManagerNotification VCMetadata SmtResult) :
 def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM α) : CommandElabM α :=
   vcManager.atomically f
 
-def reset : CommandElabM Unit := sendNotification .reset
+def reset (managerId : ManagerId) : CommandElabM Unit := sendNotification (.reset managerId)
 def startAll : CommandElabM Unit := sendNotification .startAll
 def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNotification (.startFiltered filter)
 
@@ -68,9 +68,12 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
           mgr ← mgr.start (howMany := (← getNumCores)) (filter := filter)
           ref.set mgr
           if mgr.isDoneFiltered filter then Frontend.notify)
-        | .reset => vcManager.atomically (fun ref => do
+        | .reset managerId => vcManager.atomically (fun ref => do
           let mut mgr ← ref.get
-          -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV reset notification"
+          if mgr._managerId != managerId then
+            -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV reset notification for manager ID {managerId} (our ID: {mgr._managerId}); ignoring"
+            return
+          -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV reset notification meant for us (manager ID: {mgr._managerId})"
           mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
           ref.set mgr)
       catch ex =>
@@ -83,8 +86,11 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
       -- dbg_trace "({← IO.monoMsNow}) [Manager] Starting manager loop"
       let _ ← EIO.asTask (managerLoop ())
     else
-      -- dbg_trace "({← IO.monoMsNow}) [Manager] Manager loop already started; resetting state"
-      reset
+      vcManager.atomically (fun ref => do
+        let mgr ← ref.get
+        reset mgr._managerId
+        -- dbg_trace "({← IO.monoMsNow}) [Manager] Reset state for manager ID {mgr._managerId}"
+        )
     ref.set true
   )
 
