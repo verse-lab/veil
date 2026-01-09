@@ -154,7 +154,7 @@ def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
             intros
             conv => rhs ; whnf
             simp ($(mkIdent `failIfUnchanged):ident := false) only [$(mkCIdent ``Ordering.then_eq):ident]
-            repeat' (first | rfl | destruct_proxy_type)))
+            repeat' (first | rfl | destruct_proxy_type | grind)))
   elabVeilCommand cmd
   return true
 
