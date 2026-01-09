@@ -295,8 +295,8 @@ instance quorum_mem_dec (n : Nat) : ∀ a (q : Quorum n), Decidable (a ∈ q.val
 /-! ## Byzantine node set -/
 
 class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset : outParam Type) where
-  is_byz : node → Prop
-  member (a : node) (s : nset) : Prop
+  is_byz : node → Bool
+  member (a : node) (s : nset) : Bool
   is_empty (s : nset) : Prop
 
   greater_than_third (s : nset) : Prop  -- f + 1 nodes
@@ -311,130 +311,6 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
     ∀ (s : nset), supermajority s → greater_than_third s
   greater_than_third_nonempty :
     ∀ (s : nset), greater_than_third s → ¬ is_empty s
-
-/-! ### Instances -/
-
-/-- A sorted list of nodes, representing a set in Byzantine fault tolerance. -/
-abbrev ByzNSet (n : Nat) : Type :=
-  { fs : List (Fin n) // fs.Sorted (· < ·) }
-
-/-- All possible ByzNSets (all sorted sublists of [0..n-1]). -/
-def allByzNSets (n : Nat) : List (ByzNSet n) :=
-  let l := List.ofFn (n := n) id
-  let res := FinEnum.Finset.enum l |>.map (fun x => l.filter fun y => y ∈ x)
-  res.attachWith _ (by
-    intro x hmem ; unfold res l at hmem ; simp at hmem ; rcases hmem with ⟨fs, hmem⟩ ; subst x
-    exact (Finset.List.ofFn_filter fs).1)
-
-theorem allByzNSets_complete {n : Nat} : ∀ (s : ByzNSet n), s ∈ allByzNSets n := by
-  intro ⟨x, hx⟩ ; dsimp [allByzNSets] ; simp ; exists x.toFinset
-  have hnodup := List.Pairwise.nodup hx
-  apply List.Sorted.eq_of_mem_iff _ hx ; simp ; apply List.Pairwise.filter ; simp
-
-instance (n : Nat) : FinEnum (ByzNSet n) :=
-  FinEnum.ofList (allByzNSets n) allByzNSets_complete
-
-instance (n : Nat) : Veil.Enumeration (ByzNSet n) where
-  allValues := allByzNSets n
-  complete := allByzNSets_complete
-
-instance (n : Nat) : Inhabited (ByzNSet n) where
-  default := ⟨[], List.sorted_nil⟩
-
-instance (n : Nat) : @Std.ReflCmp (ByzNSet n) compare where
-  compare_self := List.instReflCmpCompareLex.compare_self
-
-instance (n : Nat) : @Std.LawfulEqCmp (ByzNSet n) compare where
-  eq_of_compare h := Subtype.eq <| List.instLawfulEqCmpCompareLex.eq_of_compare h
-
-instance (n : Nat) : @Std.OrientedCmp (ByzNSet n) compare where
-  eq_swap := List.instOrientedCmpCompareLex.eq_swap
-
-instance (n : Nat) : @Std.TransCmp (ByzNSet n) compare where
-  isLE_trans := List.instTransCmpCompareLex.isLE_trans
-
-/-- ByzNodeSet instance for `Fin n` with at most `f` Byzantine nodes.
-    Assumes `n = 3 * f + 1` (standard Byzantine fault tolerance assumption). -/
-def byzNodeSetFin (n f : Nat) (hf : n = 3 * f + 1)
-    (is_byz : Fin n → Prop) [DecidablePred is_byz]
-    (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
-    : ByzNodeSet (Fin n) (ByzNSet n) where
-  is_byz := is_byz
-  member a s := a ∈ s.val
-  is_empty s := s.val = []
-  supermajority s := 2 * f + 1 ≤ s.val.length
-  greater_than_third s := f + 1 ≤ s.val.length
-  supermajorities_intersect_in_honest := by
-    intro ⟨s1, hs1_sorted⟩ ⟨s2, hs2_sorted⟩ hsup1 hsup2
-    simp only at hsup1 hsup2
-    -- Two supermajorities of size ≥ 2f+1 in universe of size n = 3f+1
-    -- intersect in ≥ 2(2f+1) - (3f+1) = f+1 elements
-    -- Since ≤ f are Byzantine, ≥ 1 honest in intersection
-    have hnodup1 := List.Pairwise.nodup hs1_sorted
-    have hnodup2 := List.Pairwise.nodup hs2_sorted
-    have hcard1 : s1.toFinset.card = s1.length := List.toFinset_card_of_nodup hnodup1
-    have hcard2 : s2.toFinset.card = s2.length := List.toFinset_card_of_nodup hnodup2
-    have hinter := Finset.card_inter (s1.toFinset) (s2.toFinset)
-    have hunion := Finset.card_le_univ (s1.toFinset ∪ s2.toFinset) ; simp at hunion
-    have hinter_size : f + 1 ≤ (s1.toFinset ∩ s2.toFinset).card := by omega
-    -- The intersection contains at least f+1 nodes, and at most f are Byzantine
-    by_contra h ; push_neg at h
-    have hall_byz : ∀ a ∈ s1.toFinset ∩ s2.toFinset, is_byz a := by
-      intro a ha ; simp at ha
-      have := h a ha.1 ha.2 ; tauto
-    have hbyz_count : (s1.toFinset ∩ s2.toFinset).card ≤ f := by
-      calc (s1.toFinset ∩ s2.toFinset).card
-          ≤ ((List.ofFn (n := n) id).filter (fun i => decide (is_byz i))).toFinset.card := by
-            apply Finset.card_le_card
-            intro a ha ; simp at ha ⊢ ; exact hall_byz a (by simp [ha])
-          _ ≤ (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length := by
-            apply List.toFinset_card_le
-          _ ≤ f := hbyz
-    omega
-  greater_than_third_one_honest := by
-    intro ⟨s, hs_sorted⟩ hgt
-    simp only at hgt
-    -- s has ≥ f+1 elements, ≤ f are Byzantine, so ≥ 1 honest
-    by_contra h ; push_neg at h
-    have hall_byz : ∀ a ∈ s, is_byz a := by
-      intro a ha ; have := h a ha ; tauto
-    have hnodup := List.Pairwise.nodup hs_sorted
-    have hbyz_count : s.length ≤ f := by
-      calc s.length
-          = s.toFinset.card := by simp [List.toFinset_card_of_nodup hnodup]
-          _ ≤ ((List.ofFn (n := n) id).filter (fun i => decide (is_byz i))).toFinset.card := by
-            apply Finset.card_le_card
-            intro a ha ; simp at ha ⊢ ; exact hall_byz a ha
-          _ ≤ (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length := by
-            apply List.toFinset_card_le
-          _ ≤ f := hbyz
-    omega
-  supermajority_greater_than_third := by
-    intro _ hs ; omega
-  greater_than_third_nonempty := by
-    intro s hs heq ; simp_all
-
-/-- A simple case of ByzNodeSet for `Fin (3 * f + 1)` with exactly `f`
-Byzantine nodes, whose indices are in `[0, f)`. Note that when using
-this instance, `f` must be given explicitly (e.g., write
-`#synth ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1))` instead of
-`#synth ByzNodeSet (Fin 4) (ByzNSet 4)`. -/
-instance insByzNodeSetFinSimple : ByzNodeSet (Fin (3 * f + 1)) (ByzNSet (3 * f + 1)) :=
-  byzNodeSetFin (3 * f + 1) f rfl (fun i => i.val < f) (by
-    dsimp ; apply Nat.le_of_eq
-    rw [← List.take_append_drop f (List.ofFn id), List.filter_append, List.length_append]
-    conv => rhs ; rw [← Nat.add_zero f]
-    congr
-    · trans ; rw [List.length_filter_eq_length_iff]
-      · simp only [List.mem_iff_getElem?, List.getElem?_take, List.getElem?_ofFn]
-        simp
-        rintro ⟨a, ha⟩ ; simp ; intros ; omega
-      · simp ; omega
-    · simp only [List.length_eq_zero_iff, List.filter_eq_nil_iff, decide_eq_true_eq, _root_.not_lt]
-      simp only [List.mem_iff_getElem?, List.getElem?_drop, List.getElem?_ofFn]
-      simp
-      rintro ⟨a, ha⟩ ; simp ; intros ; omega
-    )
 
 /-! ## Set -/
 
