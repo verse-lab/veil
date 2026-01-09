@@ -1,6 +1,6 @@
 import Veil
 
-veil module RingDec
+veil module Ring
 
 type node
 instantiate tot : TotalOrder node
@@ -8,8 +8,8 @@ instantiate btwn : Between node
 
 open Between TotalOrder
 
-relation leader : node -> Bool
-relation pending : node -> node -> Bool
+relation leader : node → Bool
+relation pending : node → node → Bool
 
 #gen_state
 
@@ -46,7 +46,7 @@ invariant [drop_smaller] pending S D ∧ btw S N D → le N S
 
 #check_invariants
 
-#model_check { node := Fin 4 }
+#model_check interpreted { node := Fin 4 } { }
 
 sat trace {
   any 3 actions
@@ -58,4 +58,4 @@ unsat trace {
   assert (∃ n₁ n₂, n₁ ≠ n₂ ∧ leader n₁ ∧ leader n₂)
 }
 
-end RingDec
+end Ring

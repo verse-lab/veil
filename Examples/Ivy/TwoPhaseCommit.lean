@@ -95,4 +95,6 @@ invariant [manual_8] ¬((go_commit N ∧ go_abort N))
 
 #check_invariants
 
+#model_check interpreted { node := Fin 4 } { }
+
 end TwoPhaseCommit

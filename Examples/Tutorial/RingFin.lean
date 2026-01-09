@@ -3,9 +3,13 @@ import Veil
 veil module RingFin
 
 type node
+-- This allows us to use the `≤` notation
+instantiate inst : LE node
+instantiate decLE : DecidableRel inst.le
+-- This allows us to insert into the messages list in order
+instantiate ord : Ord node
 
 immutable function nextNode : node → node
-immutable function le : node → node → Bool
 
 individual leader : List node
 
@@ -26,7 +30,7 @@ after_init {
 procedure sendToNext (payload src : node) {
   let msg := Message.mk payload src (nextNode src)
   if msg ∉ messages then
-    messages := msg :: messages
+    messages := messages.insertOrdered msg
 }
 
 action send (n : node) {
@@ -40,20 +44,15 @@ action recv {
   if m.payload = n && n ∉ leader then
     leader := n :: leader
   else
-    if le n m.payload then
+    if n ≤ m.payload then
       sendToNext m.payload n
 }
 
 safety [single_leader] leader.length ≤ 1
--- invariant [nodup_leader] leader.Nodup
--- invariant [nodup_messages] messages.Nodup
+invariant [messages_nodup] messages.Nodup
 
 #gen_spec
 
--- #check_invariants
-
-#model_check { node := Fin 4 }
-{ nextNode := fun n => n + 1,
-  le := fun n m => n < m }
+#model_check interpreted { node := Fin 4 } { nextNode := fun n => n + 1 }
 
 end RingFin

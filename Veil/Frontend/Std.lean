@@ -9,6 +9,8 @@ import Std.Data.ExtTreeSet.Lemmas
 
 open Std
 
+def List.insertOrdered [inst : Ord α] := @List.orderedInsert _ (fun x y => inst.compare x y == Ordering.lt) inferInstance
+
 /-! # Axiomatizations of various structures -/
 
 instance Fin.pos_then_inhabited {n : Nat} (h : 0 < n) : Inhabited (Fin n) where
