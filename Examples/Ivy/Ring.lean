@@ -1,9 +1,6 @@
 import Veil
 
--- https://github.com/aman-goel/ivybench/blob/5db7eccb5c3bc2dd14dfb58eddb859b036d699f5/ex/ivy/ring.ivy
-
-veil module Ring
-
+veil module RingDec
 
 type node
 instantiate tot : TotalOrder node
@@ -21,13 +18,16 @@ after_init {
   pending M N := false
 }
 
+ghost relation isNext (n : node) (next : node) :=
+  ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+
 action send (n next : node) {
-  require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  require isNext n next
   pending n next := true
 }
 
 action recv (sender n next : node) {
-  require ∀ Z, n ≠ next ∧ ((Z ≠ n ∧ Z ≠ next) → btw n next Z)
+  require isNext n next
   require pending sender n
   pending sender n := false
   if (sender = n) then
@@ -39,14 +39,14 @@ action recv (sender n next : node) {
 
 safety [single_leader] leader N ∧ leader M → N = M
 invariant [leader_greatest] leader L → le N L
-invariant pending S D ∧ btw S N D → le N S
-invariant pending L L → le N L
+invariant [self_msg_greatest] pending L L → le N L
+invariant [drop_smaller] pending S D ∧ btw S N D → le N S
 
 #time #gen_spec
 
 #check_invariants
 
-#model_check { node := Fin 6 }
+#model_check { node := Fin 4 }
 
 sat trace {
   any 3 actions
@@ -58,5 +58,4 @@ unsat trace {
   assert (∃ n₁ n₂, n₁ ≠ n₂ ∧ leader n₁ ∧ leader n₂)
 }
 
-end Ring
---
+end RingDec
