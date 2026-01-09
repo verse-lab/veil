@@ -11,6 +11,7 @@ import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import ProofWidgets.Component.HtmlDisplay
+import Veil.Core.UI.Widget.RefreshComponent
 import Veil.Frontend.DSL.Module.Elaborators
 
 /-!
@@ -67,7 +68,7 @@ syntax expected_smt_result "trace" ("[" ident "]")? "{"
 
 
 namespace Veil
-open Lean Elab Command Term Meta
+open Lean Elab Command Term Meta ProofWidgets RefreshComponent
 
 /-- A single line in a trace specification -/
 inductive TraceSpecLine
@@ -261,6 +262,78 @@ private def logDischargerErrors (dischargers : Array (DischargerResultData SmtRe
     if let some (.error exs _) := d.result then
       for (ex, _) in exs do logError ex.toMessageData
 
+/-- Extract trace JSON from a VCResult's discharger results. -/
+private def extractTraceJsonFromVC (vcResult : VCResult VCMetadata SmtResult) : Option Json :=
+  vcResult.timing.dischargers.findSome? (extractTraceJson? ·.result)
+
+/-- Check if we expect a trace based on query type and result. -/
+private def shouldHaveTrace (isExpectedSat : Bool) (status : Option VCStatus) : Bool :=
+  (isExpectedSat && status == some .proven) || (!isExpectedSat && status == some .disproven)
+
+/-- Format a trace result status as a simple message (for widget display without trace JSON). -/
+private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) : String :=
+  match status with
+  | some .proven => if isExpectedSat then "Found satisfying trace" else "No counterexample found (as expected)"
+  | some .disproven => if isExpectedSat then "No satisfying trace exists" else "Counterexample found"
+  | some .unknown => "Solver returned unknown"
+  | some .error => "Verification error"
+  | none => "Verification did not complete"
+
+private def traceLoadingMessage : String := "⏳ Verifying trace query..."
+
+/-- Display a streaming widget for trace verification that shows the TraceDisplayViewer when done. -/
+private def displayTraceStreamingResults (stx : Syntax) (isExpectedSat : Bool)
+    (vcName : Name) (vcFilter : VCMetadata → Bool) : CommandElabM Unit := do
+  let html ← liftCoreM <| mkRefreshComponent (.text traceLoadingMessage)
+    (getTraceRefreshStep isExpectedSat vcName vcFilter)
+  liftCoreM <| Widget.savePanelWidgetInfo
+    (hash HtmlDisplayPanel.javascript)
+    (return json% { html: $(← Server.rpcEncode html) })
+    stx
+where
+  getTraceRefreshStep (isExpectedSat : Bool) (vcName : Name) (vcFilter : VCMetadata → Bool)
+      : CoreM RefreshStep := do
+    Verifier.vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
+    let result? ← Verifier.vcManager.atomically fun ref => do
+      let mgr ← ref.get
+      if mgr.isDoneFiltered vcFilter then
+        return (← mgr.toResults vcFilter).vcs.find? (vcFilter ·.metadata)
+      return none
+    match result? with
+    | none => return .cont (.text traceLoadingMessage)
+    | some vcResult =>
+      -- Show trace widget if we have JSON, otherwise show status message
+      if let some traceJson := extractTraceJsonFromVC vcResult then
+        return .last (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical" } #[])
+      return .last (.text s!"{formatTraceStatus isExpectedSat vcResult.status} (trace [{vcName}])")
+
+/-- Log trace verification results (called asynchronously). -/
+private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name)
+    (vcFilter : VCMetadata → Bool) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
+  let some vcResult := results.vcs.find? (vcFilter ·.metadata)
+    | throwErrorAt stx s!"trace [{vcName}]: VC result not found"
+
+  let traceJson? := extractTraceJsonFromVC vcResult
+  let violationIsError := veil.violationIsError.get (← getOptions)
+  let logViolation := if violationIsError then logErrorAt stx else logInfoAt stx
+
+  match vcResult.status with
+  | some .proven =>
+    if isExpectedSat then
+      if let some traceJson := traceJson? then logInfoAt stx m!"{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+      else logInfoAt stx "Found satisfying trace"
+  | some .disproven =>
+    if isExpectedSat then logViolation "No satisfying trace exists"
+    else if let some traceJson := traceJson? then
+      logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+    else logViolation "Counterexample found"
+  | some .unknown => logViolation "Solver returned unknown"
+  | some .error => logViolation "Verification error"; logDischargerErrors vcResult.timing.dischargers
+  | none => logViolation "Verification did not complete"
+
+  if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
+    logViolation "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
+
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident))
     (spec : TSyntax `traceSpec) (pf : Option (TSyntax `term)) : CommandElabM Unit := do
   -- Skip trace verification in compilation mode (not needed for model checking binary)
@@ -318,7 +391,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     -- Filter for matching trace VCs
     let vcFilter := (· == metadata)
     -- Check if a VC with this name already exists (avoid duplicate work)
-    let traceVC ← Verifier.withVCManager fun ref => do
+    let _ ← Verifier.withVCManager fun ref => do
       let mgr ← ref.get
       if let some existingId := mgr.findVCByFilter vcFilter then
         return existingId
@@ -328,42 +401,11 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       ref.set mgr''
       return vcId
 
-    -- Wait synchronously for the VC to complete (allows widget display on main thread)
-    let results ← Verifier.waitFilteredSync vcFilter
-    let some vcResult := results.vcs.find? (·.id == traceVC)
-      | throwError s!"trace [{vcName}]: VC result not found"
+    -- Start async verification with logging callback
+    Verifier.runFilteredAsync vcFilter (logTraceResults stx isExpectedSat vcName vcFilter)
 
-    -- Extract trace JSON (only present when SMT result is SAT)
-    let traceJson? := vcResult.timing.dischargers.findSome? (extractTraceJson? ·.result)
-
-    -- Determine if we expect a trace to exist based on query type and result
-    let shouldHaveTrace := (isExpectedSat && vcResult.status == some .proven) ||
-                           (!isExpectedSat && vcResult.status == some .disproven)
-
-    -- Display trace widget if we have one
-    if let some traceJson := traceJson? then
-      ProofWidgets.displayTraceWidget stx traceJson
-
-    -- Report results based on expectation
-    let violationIsError := veil.violationIsError.get (← getOptions)
-    let logViolation := if violationIsError then logError else logInfo
-    if vcResult.status != some .proven then
-      match vcResult.status with
-      | some .disproven =>
-        if isExpectedSat then logViolation "No satisfying trace exists"
-        else if let some traceJson := traceJson? then
-          logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
-        else logViolation "Counterexample found"
-      | some .unknown => logViolation "Solver returned unknown"
-      | some .error => logViolation "Verification error"; logDischargerErrors vcResult.timing.dischargers
-      | _ => logViolation "Verification did not complete"
-    else
-      if isExpectedSat then
-        if let some traceJson := traceJson? then
-          logInfo m!"{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
-        else logInfo "Found satisfying trace"
-      if shouldHaveTrace && traceJson?.isNone then
-        logViolation "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
+    -- Display streaming widget (shows progress then trace widget)
+    displayTraceStreamingResults stx isExpectedSat vcName vcFilter
 
 
 elab_rules : command
