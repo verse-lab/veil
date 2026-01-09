@@ -50,7 +50,7 @@ invariant [messages_nodup] messages.Nodup
 
 #gen_spec
 
-#model_check interpreted { }
+#model_check { }
   { allNodes := [1, 2, 3, 4, 5],
     nextNode := fun n =>
         match n with
