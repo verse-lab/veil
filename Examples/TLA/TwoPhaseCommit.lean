@@ -76,6 +76,6 @@ invariant [tm_rm_working] tmState init → ∀ r : node, rmState r working ∨ r
 
 #time #gen_spec
 
-#model_check { node := Fin 4 } { }
+#model_check interpreted { node := Fin 4 } { }
 
 end TwoPhaseCommit

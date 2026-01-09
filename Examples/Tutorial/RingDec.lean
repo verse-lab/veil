@@ -44,8 +44,6 @@ invariant [drop_smaller] pending S D ∧ btw S N D → le N S
 
 #time #gen_spec
 
-#check_invariants
-
 #model_check interpreted { node := Fin 4 } { }
 
 sat trace {
@@ -57,5 +55,7 @@ unsat trace {
   any 5 actions
   assert (∃ n₁ n₂, n₁ ≠ n₂ ∧ leader n₁ ∧ leader n₂)
 }
+
+#check_invariants
 
 end Ring

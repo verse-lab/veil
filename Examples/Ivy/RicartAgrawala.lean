@@ -52,8 +52,8 @@ invariant (N1 ≠ N2 ∧  holds N1) → replied N1 N2
 
 #time #gen_spec
 
-#check_invariants
+#model_check interpreted { node := Fin 3 } { }
 
-#model_check { node := Fin 3 } { }
+#check_invariants
 
 end RicartAgrawala
