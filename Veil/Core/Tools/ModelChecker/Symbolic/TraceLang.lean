@@ -291,7 +291,7 @@ private def displayTraceStreamingResults (stx : Syntax) (isExpectedSat : Bool)
     (return json% { html: $(← Server.rpcEncode html) })
     stx
 where
-  getTraceRefreshStep (isExpectedSat : Bool) (vcName : Name) (vcFilter : VCMetadata → Bool)
+  getTraceRefreshStep (isExpectedSat : Bool) (_vcName : Name) (vcFilter : VCMetadata → Bool)
       : CoreM RefreshStep := do
     Verifier.vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
     let result? ← Verifier.vcManager.atomically fun ref => do
@@ -305,7 +305,7 @@ where
       -- Show trace widget if we have JSON, otherwise show status message
       if let some traceJson := extractTraceJsonFromVC vcResult then
         return .last (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical" } #[])
-      return .last (.text s!"{formatTraceStatus isExpectedSat vcResult.status} (trace [{vcName}])")
+      return .last (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
 /-- Log trace verification results (called asynchronously). -/
 private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name)
