@@ -14,106 +14,66 @@ verification for transition systems and their properties expressed
 decidable fragments of first-order logic, with the full power of a
 modern higher-order proof assistant for when automation falls short.
 
-## Using `veil`
+## Veil 2.0 Pre-Release
 
-To use `veil` in your project, add the following to your
-`lakefile.lean`:
+You are looking at a **pre-release version** of Veil 2.0, the upcoming major
+version of Veil. There are still quite a few bugs and rough edges.
 
-```lean
-require "verse-lab" / "veil" @ git "main"
-```
+If you encounter issues, please [report them to
+us](https://github.com/verse-lab/veil/issues/new), so we can fix them before
+the release. Your patience and feedback are greatly appreciated!
 
-Or add the following to your `lakefile.toml`:
+## Online Playground
 
-```toml
-[[require]]
-name = "veil"
-git = "https://github.com/verse-lab/veil.git"
-rev = "main"
-```
+We provide a live environment to try out Veil 2.0, at the following URL:
 
-See
-[`verse-lab/veil-usage-example`](https://github.com/verse-lab/veil-usage-example)
-for a fully set-up example project that you can
-[use as a template](https://github.com/new?template_name=veil-usage-example&template_owner=verse-lab).
-
-## Tutorial
-
-The file
-[`Examples/Tutorial/Ring.lean`](https://github.com/verse-lab/veil/blob/main/Examples/Tutorial/Ring.lean)
-contains a guided tour of Veil's main features. Check it out if you want to see
-what Veil can do!
+<p align="center"><a href="https://try.veil.dev"><big><b>try.veil.dev</b></big></a></p>
 
 ## Build
 
-Veil requires [Lean 4](https://github.com/leanprover/lean4). We have tested Veil
-on macOS (arm64) and Ubuntu (x86_64). Windows with WSL2 is also supported.
-Native Windows support is not yet available.
-
-
-To build Veil, run:
+Veil requires [Lean 4](https://github.com/leanprover/lean4) and
+[NodeJS](https://nodejs.org/en/download/). To install those on Linux or MacOS:
 
 ```bash
+# Install Lean
+curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain leanprover/lean4:stable
+
+# Install NodeJS
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+\. "$HOME/.nvm/nvm.sh"
+nvm install 24
+```
+
+Then, clone Veil:
+
+```bash
+git clone https://github.com/verse-lab/veil.git
+cd veil && git checkout veil-2.0
+```
+
+And, finally, build it:
+
+```bash
+lake exe cache get
 lake build
 ```
 
-<!-- This will build the whole project, including the tests, but without the
-case studies. -->
+The `lake exe cache get` command downloads a pre-built version of
+[mathlib](https://github.com/leanprover-community/mathlib4), which otherwise
+would take a very long time to build.
 
-To build the case studies run:
+### Troubleshooting
 
-```bash
-lake build Examples
-```
+**(NPM errors)** If you see an error about `npm`, make sure it's in your
+`PATH`; the command above installs both `node` and `npm`.
 
-<details close>
-<summary><strong>How to install Lean?</strong></summary>
-
-If you don't have Lean installed, we recommend installing it via
-[`elan`](https://github.com/leanprover/elan):
-
+**(cvc5 errors)** If you see an error about `cvc5`, run:
 
 ```bash
-curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain leanprover/lean4:stable
+rm -rf .lake/packages/cvc5
+lake build
 ```
 
-</details>
-
-<details close>
-<summary><strong>Dependencies</strong></summary>
-
-Veil depends on [`z3`](https://github.com/Z3Prover/z3),
-[`cvc5`](https://github.com/cvc5/cvc5), and
-[`uv`](https://github.com/astral-sh/uv). You do not need to have these installed
-on your system, as our build system will download them automatically when you
-run `lake build`. Veil will use its own copies of these tools, and will not
-touch your system-wide versions.
-
-Note that if you want to invoke Lean-Auto's `auto` tactic, you need to have
-`z3` and `cvc5` installed on your system and available in your PATH.
-</details>
-
-## Project Structure
-
-The project consists of three major folders:
-
-- `Veil/`: the implementation of Veil,
-- `Test/`: Veil's artificial test cases for main Veil features,
-- `Examples/`: Veil's benchmarks, consisting of realistic specifications of distributed protocols
-
-### `Veil/` components
-
-- `DSL/`: Veil DSL
-  - `Action/Theory.lean`: meta-theory of action DSL with the soundness proof
-  - `Action/Lang.lean`: implementation of action DSL expansion
-  - `Specification/Lang.lean`: implementation of protocol declaration commands
-- `SMT/`: tactics for interaction with SMT
-- `Tactic/`: auxiliary tactics for proof automation
-
-### Case Studies implemented in `Examples/`
-
-- `FO/`: non-EPR protocols
-- `IvyBench/`: benchmarks [translated from Ivy](https://github.com/aman-goel/ivybench)
-- `Rabia/`: [Rabia protocol](https://github.com/haochenpan/rabia?tab=readme-ov-file)
-- `StellarConsensus/`: [Stellar Consensus Protocol](https://github.com/stellar/scp-proofs/tree/3e0428acc78e598a227a866b99fe0b3ad4582914)
-- `SuzukiKasami/`: [Suzuki Kasami protocol](https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy)
+There is a sporadic issue in the build process for
+[`lean-cvc5`](https://github.com/abdoo8080/lean-cvc5). Trying to build again
+often fixes the problem.
