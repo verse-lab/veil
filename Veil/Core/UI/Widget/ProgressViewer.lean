@@ -326,7 +326,7 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
      | some json =>
        match extractError json with
        | some errorMsg => errorBox errorMsg
-       | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical"⟩ #[] else noResultData
+       | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical", none⟩ #[] else noResultData
      | none => noResultData}
   </div>
 
