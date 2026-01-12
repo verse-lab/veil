@@ -156,9 +156,9 @@ private def mkTransitionExpr (rtsExpr theoryId currState nextState : TSyntax `te
 /-- Build a disjunction representing any action transition with ActionTag constraint -/
 private def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState nextState : TSyntax `term)
     (tagId : Ident) (trIdx : Nat) : TermElabM (TSyntax `term × Array BinderPair) := do
-  let results ← mod.actions.mapIdxM fun actionIdx act => do
+  let results ← mod.actions.mapM fun act => do
     let (_, specificParams) ← mod.declarationAllParams act.name act.declarationKind
-    let (argIdents, binders) ← mkParamBinders specificParams s!"_tr{trIdx}_act{actionIdx}"
+    let (argIdents, binders) ← mkParamBinders specificParams s!"_tr{trIdx}_act_{act.name}"
     return (← mkTransitionExpr rtsExpr theoryId currState nextState tagId act.name argIdents, binders)
   return (← repeatedOr (results.map (·.1)), results.flatMap (·.2))
 
