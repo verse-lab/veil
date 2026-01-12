@@ -26,7 +26,7 @@ The naming conventions from TraceLang.lean are:
 - States: `st0`, `st1`, `st2`, ..., `stn`
 - Tags: `_tr1_tag`, `_tr2_tag`, etc.
 - Params (specific action): `_tr{trIdx}_arg{argIdx}_{paramName}`
-- Params (any action): `_tr{trIdx}_act{actIdx}_arg{argIdx}_{paramName}`
+- Params (any action): `_tr{trIdx}_act_{actionName}_arg{argIdx}_{paramName}`
 -/
 
 namespace Veil
@@ -114,17 +114,16 @@ def isSpecificActionParam (name : Name) : Option (Nat × Nat × Name) := do
   let (argIdx, paramName) ← parseArgParam rest
   return (trIdx, argIdx, paramName)
 
-/-- Check if a name matches the pattern "_tr{n}_act{a}_arg{m}_{param}" and return (trIdx, actIdx, argIdx, paramName).
-    For example: `_tr1_act0_arg0_sender` → `some (1, 0, 0, sender)` -/
-def isAnyActionParam (name : Name) : Option (Nat × Nat × Nat × Name) := do
+/-- Check if a name matches the pattern "_tr{n}_act_{actionName}_arg{m}_{param}" and return (trIdx, actionName, argIdx, paramName).
+    For example: `_tr1_act_send_arg0_sender` → `some (1, send, 0, sender)` -/
+def isAnyActionParam (name : Name) : Option (Nat × Name × Nat × Name) := do
   let .str .anonymous s := name | none
   let afterTr ← (s.dropPrefix? "_tr").map (·.toString)
-  let [trIdxStr, rest] := afterTr.splitOn "_act" | none
+  let [trIdxStr, rest] := afterTr.splitOn "_act_" | none
   let trIdx ← parseNat? trIdxStr
-  let [actIdxStr, argRest] := rest.splitOn "_arg" | none
-  let actIdx ← parseNat? actIdxStr
+  let [actNameStr, argRest] := rest.splitOn "_arg" | none
   let (argIdx, paramName) ← parseArgParam argRest
-  return (trIdx, actIdx, argIdx, paramName)
+  return (trIdx, .mkSimple actNameStr, argIdx, paramName)
 
 /-- Check if a name matches the pattern `actionTagEnumInstName.actionName` and return actionName.
     For example: `__veil_tag.send` → `some send` -/
@@ -165,7 +164,7 @@ def extractFinValue (ctx : ModelContext) (e : Expr) : IO (Option Nat) :=
     - `theoryFields`: HashMap of theory field names to values
     - `transitionTags`: HashMap of transition index to tag value expression
     - `specificActionParams`: HashMap of (trIdx, argIdx) to parameter value expression
-    - `anyActionParams`: HashMap of (trIdx, actIdx, argIdx) to parameter value expression
+    - `anyActionParams`: HashMap of (trIdx, actionName, argIdx) to parameter value expression
     - `tagToAction`: HashMap of tag value (Nat) to action name
     - `extraVals`: Array of unclassified (name, value) pairs
 -/
@@ -174,7 +173,7 @@ def classifyTraceModelValues (model : Model) (mod : Module) (numStates : Nat)
         × Std.HashMap Name Expr
         × Std.HashMap Nat Expr
         × Std.HashMap (Nat × Nat) Expr
-        × Std.HashMap (Nat × Nat × Nat) Expr
+        × Std.HashMap (Nat × Name × Nat) Expr
         × Std.HashMap Nat Name
         × Array (Expr × Expr)) := do
   let stateFieldNames := mod.mutableComponents.map (·.name) |>.toList
@@ -185,7 +184,7 @@ def classifyTraceModelValues (model : Model) (mod : Module) (numStates : Nat)
   let mut theoryFields : Std.HashMap Name Expr := {}
   let mut transitionTags : Std.HashMap Nat Expr := {}
   let mut specificActionParams : Std.HashMap (Nat × Nat) Expr := {}
-  let mut anyActionParams : Std.HashMap (Nat × Nat × Nat) Expr := {}
+  let mut anyActionParams : Std.HashMap (Nat × Name × Nat) Expr := {}
   let mut tagToAction : Std.HashMap Nat Name := {}
   let mut extraVals : Array (Expr × Expr) := #[]
 
@@ -215,9 +214,9 @@ def classifyTraceModelValues (model : Model) (mod : Module) (numStates : Nat)
       -- Check if it's a specific action parameter (_tr{n}_arg{m}_{param})
       else if let some (trIdx, argIdx, _paramName) := isSpecificActionParam name then
         specificActionParams := specificActionParams.insert (trIdx, argIdx) valueExpr
-      -- Check if it's an any-action parameter (_tr{n}_act{a}_arg{m}_{param})
-      else if let some (trIdx, actIdx, argIdx, _paramName) := isAnyActionParam name then
-        anyActionParams := anyActionParams.insert (trIdx, actIdx, argIdx) valueExpr
+      -- Check if it's an any-action parameter (_tr{n}_act_{actionName}_arg{m}_{param})
+      else if let some (trIdx, actName, argIdx, _paramName) := isAnyActionParam name then
+        anyActionParams := anyActionParams.insert (trIdx, actName, argIdx) valueExpr
       else
         extraVals := extraVals.push (nameExpr, valueExpr)
     | none =>
@@ -237,16 +236,16 @@ def resolveActionFromTag (ctx : ModelContext) (tagExpr : Expr)
   return some (actionName, tagValue)
 
 /-- Build a Label constructor expression from action name and parameter values.
-    Uses the transition index and tag value to look up parameters.
-    First tries specific params (trIdx, argIdx), then any-action params (trIdx, tagValue, argIdx). -/
+    Uses the transition index and action name to look up parameters.
+    First tries specific params (trIdx, argIdx), then any-action params (trIdx, actionName, argIdx). -/
 def buildLabelFromAction (mod : Module) (sortArgs : Array Expr)
-    (actionName : Name) (trIdx : Nat) (tagValue : Nat)
+    (actionName : Name) (trIdx : Nat)
     (specificParams : Std.HashMap (Nat × Nat) Expr)
-    (anyActionParams : Std.HashMap (Nat × Nat × Nat) Expr)
+    (anyActionParams : Std.HashMap (Nat × Name × Nat) Expr)
     : MetaM (Option Expr) :=
   buildLabelExprCore mod sortArgs actionName fun idx =>
     -- First try specific params, then fall back to any-action params
-    specificParams[(trIdx, idx)]? <|> anyActionParams[(trIdx, tagValue, idx)]?
+    specificParams[(trIdx, idx)]? <|> anyActionParams[(trIdx, actionName, idx)]?
 
 /-! ## Main Construction -/
 
@@ -301,8 +300,8 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   let labelExprs ← (Array.range numTransitions).mapM fun i => do
     let trIdx := i + 1  -- Tags are 1-indexed (_tr1_tag, _tr2_tag, ...)
     let some tagExpr := transitionTags[trIdx]? | defaultLabel
-    let some (actionName, tagValue) ← resolveActionFromTag model.ctx tagExpr tagToAction | defaultLabel
-    let some labelExpr ← buildLabelFromAction mod sortArgs actionName trIdx tagValue specificParams anyActionParams | defaultLabel
+    let some (actionName, _tagValue) ← resolveActionFromTag model.ctx tagExpr tagToAction | defaultLabel
+    let some labelExpr ← buildLabelFromAction mod sortArgs actionName trIdx specificParams anyActionParams | defaultLabel
     pure labelExpr
 
   return {
