@@ -16,6 +16,7 @@ import {
   mergeTheoryWithExtras,
   InstantiationRow,
 } from './veilUtils';
+import HtmlDisplay, { Html } from './htmlDisplay';
 
 
 // ========== Types ==========
@@ -88,6 +89,7 @@ type ModelCheckingResult =
 interface ModelCheckerViewProps {
   result: ModelCheckingResult;
   layout?: "vertical" | "horizontal";
+  rawHtml?: Html;
 }
 
 /* ===================== Render ===================== */
@@ -394,9 +396,11 @@ function traceDataToStates(traceData: TraceData): ParsedState[] {
 const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   result,
   layout = "vertical",
+  rawHtml,
 }) => {
   const isVertical = layout === "vertical";
   const [showRawJson, setShowRawJson] = React.useState(false);
+  const [showRawModel, setShowRawModel] = React.useState(false);
   const [showRemovals, setShowRemovals] = React.useState(false);
   const [allStatesOpen, setAllStatesOpen] = React.useState<boolean | null>(null);  // null = individual control
   const [hiddenFields, setHiddenFields] = React.useState<Set<string>>(new Set());
@@ -702,6 +706,15 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       margin: 8px;
     }
     ${generateJsonViewCSS('mc')}
+    .mc-raw-model {
+      margin: 8px;
+      padding: 12px;
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      overflow: auto;
+      max-width: 720px;
+    }
   `;
 
   const prettyJson = JSON.stringify(result, null, 2);
@@ -724,7 +737,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       <style>{styles}</style>
       <div className="mc-root">
         <div className="mc-toolbar">
-          {!showRawJson && (
+          {!showRawJson && !showRawModel && (
             <>
               <button
                 className={`mc-toggle-link ${hiddenFields.size > 0 ? 'mc-filter-active' : ''}`}
@@ -741,6 +754,11 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
               </button>
             </>
           )}
+          {rawHtml && (
+            <button className="mc-toggle-link" onClick={() => setShowRawModel(!showRawModel)}>
+              {showRawModel ? "Show structured" : "Show raw model"}
+            </button>
+          )}
           <button className="mc-toggle-link" onClick={() => setShowRawJson(!showRawJson)}>
             {showRawJson ? "Show formatted" : "Show JSON"}
           </button>
@@ -752,6 +770,10 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
             <div className="mc-json-content">
               {prettyJson}
             </div>
+          </div>
+        ) : showRawModel && rawHtml ? (
+          <div className="mc-raw-model">
+            <HtmlDisplay html={rawHtml} />
           </div>
         ) : (
           <>

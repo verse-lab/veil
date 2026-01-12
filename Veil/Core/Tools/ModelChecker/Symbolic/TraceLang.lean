@@ -256,6 +256,14 @@ private def extractTraceJson? (result : Option (DischargerResult SmtResult)) : O
     counterexamples.findSome? fun ce? => ce?.map (·.structuredJson)
   | _ => none
 
+/-- Extract structured JSON trace and raw HTML from a discharger result (if SAT). -/
+private def extractTraceData? (result : Option (DischargerResult SmtResult)) : Option (Json × Option Html) :=
+  match result with
+  | some (.proven _ (some (.sat counterexamples)) _)
+  | some (.disproven (some (.sat counterexamples)) _) =>
+    counterexamples.findSome? fun ce? => ce?.map (fun ce => (ce.structuredJson, some ce.rawHtml))
+  | _ => none
+
 /-- Log all errors from discharger results. -/
 private def logDischargerErrors (dischargers : Array (DischargerResultData SmtResult)) : CommandElabM Unit := do
   for d in dischargers do
@@ -265,6 +273,10 @@ private def logDischargerErrors (dischargers : Array (DischargerResultData SmtRe
 /-- Extract trace JSON from a VCResult's discharger results. -/
 private def extractTraceJsonFromVC (vcResult : VCResult VCMetadata SmtResult) : Option Json :=
   vcResult.timing.dischargers.findSome? (extractTraceJson? ·.result)
+
+/-- Extract trace JSON and raw HTML from a VCResult's discharger results. -/
+private def extractTraceDataFromVC (vcResult : VCResult VCMetadata SmtResult) : Option (Json × Option Html) :=
+  vcResult.timing.dischargers.findSome? (extractTraceData? ·.result)
 
 /-- Check if we expect a trace based on query type and result. -/
 private def shouldHaveTrace (isExpectedSat : Bool) (status : Option VCStatus) : Bool :=
@@ -303,8 +315,8 @@ where
     | none => return .cont (.text traceLoadingMessage)
     | some vcResult =>
       -- Show trace widget if we have JSON, otherwise show status message
-      if let some traceJson := extractTraceJsonFromVC vcResult then
-        return .last (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical" } #[])
+      if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
+        return .last (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical", rawHtml := rawHtml? } #[])
       return .last (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
 /-- Log trace verification results (called asynchronously). -/
