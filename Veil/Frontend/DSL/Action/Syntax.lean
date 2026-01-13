@@ -23,6 +23,7 @@ syntax (name := kw_ensures) "ensures" : veilActionKeyword
 
 syntax (name := kw_with) "with" : veilActionKeyword
 syntax (name := kw_unchanged) "unchanged" : veilActionKeyword
+syntax (name := kw_unchanged_fields) "unchanged_fields" : veilActionKeyword
 
 end VeilActionKeywords
 
@@ -72,5 +73,6 @@ syntax (name := prePostSpec) (priority := high) kw_requires term colGe kw_ensure
 syntax atomic(kw_with kw_unchanged) "[" ident,* "]" : unchanged_decl
 syntax spec (colGe unchanged_decl)? : term
 syntax atomic("[" kw_unchanged "|") str "|" ident* "]" : term
+syntax atomic("[" kw_unchanged_fields "|") str "|" ident* "]" : term
 
 end Veil

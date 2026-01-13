@@ -351,12 +351,17 @@ instance (n : Nat) : @Std.OrientedCmp (ByzNSet n) compare where
 instance (n : Nat) : @Std.TransCmp (ByzNSet n) compare where
   isLE_trans := List.instTransCmpCompareLex.isLE_trans
 
+section
+
+variable (n f : Nat) (hf : n = 3 * f + 1)
+  (is_byz : Fin n → Prop) [DecidablePred is_byz]
+  (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
+
+include hbyz
+
 /-- ByzNodeSet instance for `Fin n` with at most `f` Byzantine nodes.
     Assumes `n = 3 * f + 1` (standard Byzantine fault tolerance assumption). -/
-def byzNodeSetFin (n f : Nat) (hf : n = 3 * f + 1)
-    (is_byz : Fin n → Prop) [DecidablePred is_byz]
-    (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
-    : ByzNodeSet (Fin n) (ByzNSet n) where
+def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
   is_byz := is_byz
   member a s := a ∈ s.val
   is_empty s := s.val = []
@@ -411,6 +416,25 @@ def byzNodeSetFin (n f : Nat) (hf : n = 3 * f + 1)
     intro _ hs ; omega
   greater_than_third_nonempty := by
     intro s hs heq ; simp_all
+
+-- These instances are required, even after setting `byzNodeSetFin` to be `abbrev`
+instance byzNodeSetFin_is_byz_dec :
+  ∀ a, Decidable (ByzNodeSet.is_byz (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
+  dsimp [byzNodeSetFin] ; intros ; infer_instance
+
+instance byzNodeSetFin_member_dec :
+  ∀ a b, Decidable (ByzNodeSet.member (self := byzNodeSetFin n f hf is_byz hbyz) a b) := by
+  dsimp [byzNodeSetFin] ; intros ; infer_instance
+
+instance byzNodeSetFin_supermajority_dec :
+  ∀ a, Decidable (ByzNodeSet.supermajority _ (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
+  dsimp [byzNodeSetFin] ; intros ; infer_instance
+
+instance byzNodeSetFin_greater_than_third_dec :
+  ∀ a, Decidable (ByzNodeSet.greater_than_third _ (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
+  dsimp [byzNodeSetFin] ; intros ; infer_instance
+
+end
 
 /-- A simple case of ByzNodeSet for `Fin (3 * f + 1)` with exactly `f`
 Byzantine nodes, whose indices are in `[0, f)`. Note that when using

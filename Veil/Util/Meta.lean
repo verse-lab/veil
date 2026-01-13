@@ -196,10 +196,15 @@ where
   arguments. Moreover, it only returns those `mv`ars whose final result
   type passes the given filter. -/
   simplifyMVarType (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option (Term × Expr)) := do
-    let ty ← Meta.reduce (skipTypes := false) $ ← Meta.inferType mv
-    Meta.forallTelescope ty fun ys body => do
+    let ty ← Meta.inferType mv
+    Meta.forallTelescopeReducing ty fun ys body => do
       if !(← keepBodyIf body) then return none
-      let simplified_type ← Meta.mkForallFVars ys (← Meta.whnf body) (usedOnly := true)
+      -- FIXME: This might unfold some operators like `∈` and thus break
+      -- instance synthesis (e.g., for `Decidable (a ∈ s)`)
+      let body ← body.withApp fun fn args => do
+        let args' ← args.mapM fun x => Meta.whnf x
+        pure <| mkAppN fn args'
+      let simplified_type ← Meta.mkForallFVars ys body (usedOnly := true)
       -- Create a new mvar to replace the old one
       let decl ← mv.mvarId!.getDecl
       let mv' ← Meta.mkFreshExprMVar (.some simplified_type) (kind := decl.kind) (userName := ← mkFreshUserName `dec_pred)

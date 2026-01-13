@@ -340,7 +340,7 @@ def elabTransition : CommandElab := fun stx => do
       let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
       let unchangedFields := unchangedFields.map Lean.mkIdent
       let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
-        (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
+        (fun _ _ => `([unchanged_fields|"'"| $unchangedFields*] ∧ ($t)))
       -- NOTE: We wrap the transition in a `decide` to ensure the required `Decidable` instance
       -- becomes an instance argument and can be used in extraction
       `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $(mkIdent ``decide) ($tmp) = $(mkIdent ``true)))

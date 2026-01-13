@@ -48,6 +48,20 @@ macro_rules
   | `([unchanged|$s| $id $ids*]) => `([unchanged|$s| $id] ∧ [unchanged|$s| $ids*])
   | `([unchanged|$_|]) => `(True)
 
+/-- `[unchanged_fields|s| id1 id2 ...]` does something similar to `unchanged`,
+but it also casts the fields to their canonical types using `id`. This is
+useful when synthesizing `DecidableEq` instances for fields. -/
+elab_rules : term
+  | `([unchanged_fields|$s:str| $ids:ident*]) => do
+    let mod ← getCurrentModule
+    let eqs ← do
+      let sigs := mod.signature
+      ids.filterMapM fun f => do
+        let ty? ← (sigs.find? fun s => s.name == f.getId).mapM (·.typeStx)
+        ty?.mapM fun ty => `((@$(mkIdent ``id) $ty $f:ident) = $(mkIdent <| f.getId.appendAfter s.getString))
+    let eqConj ← repeatedAnd eqs
+    elabTerm eqConj (mkSort .zero)
+
 /-! ## Auxiliary definitions-/
 namespace AuxiliaryDefinitions
 open Veil Veil.Simp
