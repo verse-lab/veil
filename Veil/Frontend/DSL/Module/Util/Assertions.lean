@@ -232,7 +232,7 @@ def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (param
   let (thstBinders, term') ← if justTheory then withTheory body else withTheoryAndState body
   let term' := Syntax.inheritSourceSpanFrom term' term
   -- Record the `Decidable` instances that are needed for the assertion.
-  let (insts, _) ← elabBinders (binders ++ paramBinders ++ thstBinders) $ fun _ => getRequiredDecidableInstances term'
+  let (insts, _) ← elabBinders (binders ++ paramBinders ++ thstBinders) $ fun _ => getRequiredDecidableInstances term' foldFieldRepresentationGet
   trace[veil.debug] "insts: {insts.map (·.1)}"
   let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionParameter name .typeclass, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT, userSyntax := .missing })
   return (extraParams, thstBinders, term', body)

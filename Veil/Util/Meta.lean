@@ -174,7 +174,7 @@ def isDecidableInstance (type : Expr) : TermElabM Bool := do
 /-- Elaborates the term (ignoring typeclass inference failures) and
 returns the set of `Decidable` instances needed to make it elaborate
 correctly. -/
-def getRequiredDecidableInstances (stx : Term) : TermElabM (Array (Term × Expr) × Expr) := do
+def getRequiredDecidableInstances (stx : Term) (folding : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
   /- We want to throw an error if anything fails or is missing during
   elaboration. -/
   Term.withoutErrToSorry $ do
@@ -196,15 +196,13 @@ where
   arguments. Moreover, it only returns those `mv`ars whose final result
   type passes the given filter. -/
   simplifyMVarType (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option (Term × Expr)) := do
-    let ty ← Meta.inferType mv
-    Meta.forallTelescopeReducing ty fun ys body => do
+    -- NOTE: It is **very difficult** to control to what extent `ty`
+    -- should be simplified, so here we just use `reduce`.
+    let ty ← Meta.reduce (skipTypes := false) $ ← Meta.inferType mv
+    Meta.forallTelescope ty fun ys body => do
       if !(← keepBodyIf body) then return none
-      -- FIXME: This might unfold some operators like `∈` and thus break
-      -- instance synthesis (e.g., for `Decidable (a ∈ s)`)
-      let body ← body.withApp fun fn args => do
-        let args' ← args.mapM fun x => Meta.whnf x
-        pure <| mkAppN fn args'
-      let simplified_type ← Meta.mkForallFVars ys body (usedOnly := true)
+      let simplified_type ← Meta.mkForallFVars ys (← Meta.whnf body) (usedOnly := true)
+      let simplified_type ← folding simplified_type
       -- Create a new mvar to replace the old one
       let decl ← mv.mvarId!.getDecl
       let mv' ← Meta.mkFreshExprMVar (.some simplified_type) (kind := decl.kind) (userName := ← mkFreshUserName `dec_pred)
@@ -238,8 +236,8 @@ where
   that need to be `Decidable` for this action to be executable, and the
   elaborated term itself.
 -/
-def elabTermDecidable (stx : Term) : TermElabM (Array Expr × Expr) := do
-  let (decInsts, e) ← getRequiredDecidableInstances stx
+def elabTermDecidable (stx : Term) (folding : Expr → TermElabM Expr) : TermElabM (Array Expr × Expr) := do
+  let (decInsts, e) ← getRequiredDecidableInstances stx folding
   let mvars := decInsts.map (fun (_tyStx, mv) => mv)
   let e ← instantiateMVars e
   return (mvars, e)

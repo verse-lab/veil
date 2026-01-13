@@ -289,4 +289,23 @@ end CanonicalFieldRepresentation
 
 end Interface
 
+section MetaTools
+
+open Lean Meta Elab
+
+def foldFieldRepresentationGet (e : Expr) : TermElabM Expr := do
+  Meta.transform e (post := fun sube => do
+    let isGet? :=
+      match_expr sube with
+      | FieldRepresentation.get _ _ _ _ _ => true
+      | _ => (sube.getAppArgs'.size = 1) && (sube.getAppFn' matches Expr.proj ``FieldRepresentation 0 _)
+    unless isGet? do
+      return .done sube
+    let ty ← inferType sube
+    let ty ← reduce ty (skipTypes := false)
+    let sube' ← mkAppOptM ``id #[some ty, some sube]
+    return .done sube')
+
+end MetaTools
+
 end Veil

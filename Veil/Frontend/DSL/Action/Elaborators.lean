@@ -299,7 +299,7 @@ def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
     withVeilModeVar BinderInfo.default fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
-    let (mvars, e) ← elabTermDecidable stx
+    let (mvars, e) ← elabTermDecidable stx foldFieldRepresentationGet
     let e ← Meta.mkLambdaFVarsImplicit ((if addModeArg then #[mode] else #[]) ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
     -- `e` should not contain any metavariable; capture the error here
     if e.hasMVar then
