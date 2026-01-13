@@ -169,7 +169,7 @@ where
       (delta% $fullyAppliedAction))
   else pure fullyAppliedAction
  buildExtractBody (body : Term) : m Term := do
-  let multiExecType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState $(mkIdent ``Unit))
+  let multiExecType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState _)
   let extractSimps : Array Ident :=
     #[``MultiExtractor.NonDetT.extractList2, ``MultiExtractor.ExtractConstraint.get, ``instMonadLiftT,
       -- NOTE: The following are added to work around a bug (?) fixed in Lean v4.27.0-rc1
