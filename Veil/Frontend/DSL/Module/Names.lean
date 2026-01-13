@@ -128,10 +128,6 @@ def enumDistinct : Ident := mkIdent enumDistinctName
 def enumCompleteName : Name := `complete
 def enumComplete : Ident := mkIdent enumCompleteName
 
-def initExecIdent : Ident := mkIdent `initMultiExec
-def nextExtractIdent : Ident := mkIdent `nextMultiExtract
-def nextActExecIdent : Ident := mkIdent `nextActMultiExec
-
 def enumerableTransitionSystemName : Name := `enumerableTransitionSystem
 def enumerableTransitionSystem : Ident := mkIdent enumerableTransitionSystemName
 

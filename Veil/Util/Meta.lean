@@ -569,4 +569,14 @@ elab "remove_unused_args% " val:term : term => do
   lambdaTelescope valExpr fun xs body => do
     mkLambdaFVars xs body (usedOnly := true)
 
+open Meta Elab Term in
+/-- Given a set of binders a term `val`, `remove_unused_binders% binders => val`
+produces a new term where any binder in `binders` that are not used in
+the body are removed (i.e., they will not become arguments). -/
+elab "remove_unused_binders% " binders:bracketedBinder* "=>" val:term : term => do
+  elabBinders binders fun vs => do
+    let valExpr ← elabTerm val none
+    let valExpr ← instantiateMVars valExpr
+    mkLambdaFVars vs valExpr (usedOnly := true)
+
 end Veil

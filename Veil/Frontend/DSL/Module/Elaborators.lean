@@ -11,7 +11,7 @@ import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
-import Veil.Frontend.DSL.Action.Extract2
+import Veil.Frontend.DSL.Action.Extract
 import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing
 import Veil.Frontend.DSL.Module.AssertionInfo
@@ -254,7 +254,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   elabVeilCommand nextTrCmd
   let (initCmd, mod) ← mod.assembleInit
   elabVeilCommand initCmd
-  Extract.genNextActCommands mod (if mod._useNewExtraction then Extract.genExtractCommand2 else Extract.genExtractCommand)
+  Extract.runGenExtractCommand mod
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
   elabVeilCommand rtsCmd

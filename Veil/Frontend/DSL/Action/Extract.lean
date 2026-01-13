@@ -64,223 +64,189 @@ Further checks:
 
 -/
 
-namespace Specialization
+section Specialization
 
-def buildingTermWithχSpecialized
-  [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m]
+variable [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m]
   (baseParams extraParams : Array Parameter)
   (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
-  (target : Ident)
-  (finalBody χ χ_rep χ_rep_lawful : Term) : m Command := do
-  -- do some segmentation here
-  -- NOTE: here implicitly assume that `χ`, `χ_rep`, `χ_rep_lawful` are contiguous
-  let (baseParamsNoχPrefix, baseParamsSuffix, χ_ty, χ_rep_ty, χ_rep_lawful_ty) :=
-    let idx := baseParams.findIdx fun p => p.kind == .fieldConcreteType
-    (baseParams.take idx, baseParams.drop (3 + idx),
-      baseParams[idx]!.type, baseParams[idx + 1]!.type, baseParams[idx + 2]!.type)
-  let preBinders := (← baseParamsNoχPrefix.mapM (·.binder)) ++ injectedBinders
-  let sufBinders ← baseParamsSuffix.mapM fun (a : Parameter) => a.binder >>= bracketedBinderToFunBinder
-  let extraBinders ← extraParams.mapM fun (a : Parameter) => a.binder >>= bracketedBinderToFunBinder
-  -- build the while `def`
-  let body1 ← do
-    let binders := sufBinders ++ extraBinders
-    mkFunSyntax binders finalBody
-  -- let body2 ← do
-  let body2 ← `(
-    letI $fieldConcreteType : $χ_ty := $χ
-    letI $fieldRepresentation : $χ_rep_ty := $χ_rep
-    letI $lawfulFieldRepresentation : $χ_rep_lawful_ty := $χ_rep_lawful
-    $body1)
-  `(command|def $target $[$preBinders]* := $body2)
+  (finalBody : Term)
 
-/-- Similar to `Module.assembleNext`, but specializes the concrete type.
-The corresponding `FieldRepresentation` and `LawfulFieldRepresentation`
-instances shall be synthesized. -/
-def specializeActionsCore
-  [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m]
-  (mod : Module) (χ target : Ident) (extraDsimps : TSyntaxArray `ident)
-  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m Command := do
-  unless mod._useFieldRepTC do
-    throwError "[{decl_name%}]: module does not use field representations"
-  let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
-  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
-  let extraDsimps := extraDsimps.push <| Lean.mkIdent ``id
-  let acts ← mod.actions.mapM fun s => do
-    let name := Lean.mkIdent $ toExtName s.name
-    let (params, _) ← mod.declarationAllParams s.name s.declarationKind
-    let args ← params.mapM (·.arg)
-    `(veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged)
-      [$(mkIdent ``Preprocessing.simpFieldRepresentationSetSingle),
-       $(mkIdent ``Preprocessing.simpFieldRepresentationGet),
-       $[$extraDsimps:ident],*]
-      (delta% (@$name $args*)))
-  let labelT ← mod.labelTypeStx
-  let label := mkIdent `label
-  let finalBody ← `(fun ($label : $labelT) =>
-    (($label.$(mkIdent `casesOn) $acts*) : $(mkIdent ``VeilM) $(mkIdent ``Mode.external) $environmentTheory $environmentState $(mkIdent ``Unit)))
-  buildingTermWithχSpecialized baseParams extraParams injectedBinders target finalBody
-    (← `(($χ $(← mod.sortIdents)*)))
+def buildingTermWithInjectionAndParameterSpecialized
+  (specializedTo : Parameter → Option Term) : m Term := do
+  let baseSegments := segmentingParameters baseParams
+  let extraSegments := segmentingParameters extraParams
+  let body ← do
+    let part1 ← mkFunctionWithSegments extraSegments finalBody
+    let part2 ← `(remove_unused_binders% $injectedBinders* => $part1)
+    mkFunctionWithSegments baseSegments part2
+  pure body
+where
+ segmentingParameters (params : Array Parameter) : Array (Sum (Array Parameter) (Parameter × Term)) := Id.run do
+  let mut res : Array (Sum (Array Parameter) (Parameter × Term)) := #[]
+  let mut tmpArr : Array Parameter := #[]
+  for p in params do
+    match specializedTo p with
+    | some t =>
+      if !tmpArr.isEmpty then
+        res := res.push (Sum.inl tmpArr)
+        tmpArr := #[]
+      res := res.push (Sum.inr (p, t))
+    | none =>
+      tmpArr := tmpArr.push p
+  if !tmpArr.isEmpty then
+    res := res.push (Sum.inl tmpArr)
+  return res
+ mkFunctionWithSegments (segments : Array (Sum (Array Parameter) (Parameter × Term))) (body : Term) : m Term := do
+  segments.foldrM (init := body) fun seg curBody => do
+    match seg with
+    | Sum.inl params =>
+      let binders ← params.mapM fun (a : Parameter) => a.binder >>= bracketedBinderToFunBinder
+      mkFunSyntax binders curBody
+    | Sum.inr (p, t) =>
+      `(letI $(mkIdent p.name) : $p.type := $t
+        $curBody)
+
+def buildingTermWithχSpecialized
+  (χ χ_rep χ_rep_lawful : Term)
+  (specializedToOther : Parameter → Option Term := fun _ => none) : m Term := do
+  -- HACK: `χ` depends on `injectedBinders`, so split `baseParams` accordingly.
+  -- There seems no better way to do so
+  let idx := baseParams.findIdx fun p => p.kind == .fieldConcreteType
+  buildingTermWithInjectionAndParameterSpecialized (baseParams.take idx)
+    (baseParams.drop idx ++ extraParams)
+    injectedBinders finalBody fun p =>
+    match p.kind with
+    | .fieldConcreteType => some χ
+    | .moduleTypeclass .fieldRepresentation => some χ_rep
+    | .moduleTypeclass .lawfulFieldRepresentation => some χ_rep_lawful
+    | _ => specializedToOther p
+
+def buildingTermWithDefaultχSpecialized (mod : Module)
+  (specializedToOther : Parameter → Option Term := fun _ => none) : m Term := do
+  buildingTermWithχSpecialized baseParams extraParams injectedBinders finalBody
+    (← `(($fieldConcreteDispatcher $(← mod.sortIdents)*)))
     (← `($instFieldRepresentation $(← mod.sortIdents)*))
     (← `($instLawfulFieldRepresentation $(← mod.sortIdents)*))
-
-def specializeActions (χ target : Ident) (extraDsimps : TSyntaxArray `ident)
-  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : CommandElabM Unit := do
-  let mod ← getCurrentModule
-  let cmd ← specializeActionsCore mod χ target extraDsimps injectedBinders
-  elabVeilCommand cmd
-
-syntax (name := specializeNextActStx) "#specialize_nextact " "with" ident
-  ("dsimp_with " "[" ident,* "]")? (injectBindersStx)? "=>" ident : command
-
-elab_rules : command
-  | `(#specialize_nextact with $χ:ident dsimp_with [$[$extraDsimps:ident],*] injection_begin $injectedBinders:bracketedBinder* injection_end => $target:ident) => do
-    specializeActions χ target extraDsimps injectedBinders
-  | `(#specialize_nextact with $χ:ident dsimp_with [$[$extraDsimps:ident],*] => $target:ident) => do
-    specializeActions χ target extraDsimps #[]
-  | `(#specialize_nextact with $χ:ident injection_begin $injectedBinders:bracketedBinder* injection_end => $target:ident) => do
-    specializeActions χ target #[] injectedBinders
-  | `(#specialize_nextact with $χ:ident => $target:ident) => do
-    specializeActions χ target #[] #[]
+    specializedToOther
 
 end Specialization
 
-def generateVeilMultiExecMCore (κ extractNonDet : TSyntax `term)
-  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))     -- FIXME: __THIS IS A HACK__ ; similar above, and this is intended to be passed the same things as above
-  (target : Option Ident) (useWeak : Bool) : CommandElabM Unit := do
-  let lenv ← localEnv.get
-  let some mod := lenv.currentModule | throwError s!"Not in a module"
-  -- prepare the names
-  let findable := mkIdent <| (if useWeak then ``MultiExtractor.PartialCandidates else ``MultiExtractor.Candidates)
-  let extractor := mkIdent <| (if useWeak then ``NonDetT.extractPartialList else ``NonDetT.extractList)
-  let unitIdent := mkIdent `Unit
-  -- similar to `Module.specializeActions`
-  let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
-  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
-  -- TODO this is somehow cutting a shortpath for `initializer` (meaning
-  -- `baseParams` is only computed once), but this might not be a proper way
-  -- to do this
+def specializeAndExtractCore
+  [Monad m] [MonadQuotation m] [MonadError m]
+  (actName : Name) (allParams : Array Parameter)
+  (useFieldRepTC : Bool)
+  (extraDsimpsForSpecialize : TSyntaxArray `ident)
+  (κ : TSyntax `term)
+  (useWeak : Bool)
+   : m Term := do
+  -- Fully applied such that this term should have type `VeilM ..`
+  let fullyAppliedAction ← buildFullyAppliedAction actName allParams
+  let actionBody ← simplifyActionAfterSpecialization fullyAppliedAction
+  buildExtractBody actionBody
+where
+ buildFullyAppliedAction (actName : Name) (allParams : Array Parameter) : m Term := do
+  -- CHECK There are some issues with assigning typeclass instance arguments
+  -- using names; also, typeclass synthesis fails if we do not provide the instance
+  -- in the local context explicitly, which is weird
+  /-
+  let allNamedArgs ← allParams.mapM fun x => do
+    let arg ← x.arg
+    `(Lean.Parser.Term.namedArgument| ($(mkIdent x.name) := $arg:term))
+  let head := Lean.mkIdent actName
+  let body : Term := ⟨mkNode `Lean.Parser.Term.app #[head, mkNullNode allNamedArgs]⟩
+  pure body
+  -/
+  let allArgs ← allParams.mapM (·.arg)
+  `(@$(mkIdent actName) $allArgs*)
+ simplifyActionAfterSpecialization (fullyAppliedAction : Term) : m Term := do
+  if useFieldRepTC then
+    let extraDsimpsForSpecialize := extraDsimpsForSpecialize.push <| Lean.mkIdent ``id
+    `(veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged)
+      [$(mkIdent ``Preprocessing.simpFieldRepresentationSetSingle),
+      $(mkIdent ``Preprocessing.simpFieldRepresentationGet),
+      $(mkIdent `Veil.VeilM.returnUnit),
+      $[$extraDsimpsForSpecialize:ident],*]
+      (delta% $fullyAppliedAction))
+  else pure fullyAppliedAction
+ buildExtractBody (body : Term) : m Term := do
+  let multiExecType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState $(mkIdent ``Unit))
+  let extractSimps : Array Ident :=
+    #[``MultiExtractor.NonDetT.extractList2, ``MultiExtractor.ExtractConstraint.get, ``instMonadLiftT,
+      -- NOTE: The following are added to work around a bug (?) fixed in Lean v4.27.0-rc1
+      ``id, ``inferInstance, ``inferInstanceAs, instFieldRepresentationName].map Lean.mkIdent
+  let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList2 else ``MultiExtractor.NonDetT.extractList2)
+  `((veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged) [$[$extractSimps:ident],*]
+    ($extractor ($κ) _ _ ($body)) : $multiExecType))
 
-  -- build `initMultiExec`
-  -- NOTE: ideally we might also use a specialized version of `initializer`,
-  -- but it should not be critical for the performance, so we just use the
-  -- original one here
-  let initExecCmd ← do
-    let initComputable ← resolveGlobalConstNoOverloadCore (toExtName initializerName)
-    let initComputableIdent := mkIdent initComputable
-    let initExtraParams := Array.flatten <|
-      mod.procedures.filterMap (fun a => if initializerName == a.name then .some a.extraParams else .none)
-    let initBinders ← (baseParams ++ initExtraParams).mapM (·.binder)
-    let initBinders' := initBinders ++ injectedBinders
-    let initArgs ← do
-      let (params, _) ← mod.declarationAllParams initializerName (.procedure .initializer)
-      params.mapM (·.arg)
-    `(def $initExecIdent $[$initBinders']* :
-      $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState $unitIdent :=
-      ($extractor ($κ) _ (@$initComputableIdent $initArgs*) $extractNonDet))
+def specializeAndExtractNonActions
+  (mod : Module)
+  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
+  (extraDsimpsForSpecialize : TSyntaxArray `ident)
+  (κ : TSyntax `term)
+  (useWeak : Bool)
+   : CommandElabM Unit := do
+  let nonActions := mod.procedures.filter fun p => match p.info with | .action _ _ => false | _ => true
+  for ps in nonActions do
+    let pi := ps.info
+    let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)        -- declarationAllParams (pure ·) (.derivedDefinition .actionLike {pi.name})
+    let extractBody ← specializeAndExtractCore pi.name (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC extraDsimpsForSpecialize κ useWeak
+    let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
+    let extractedName := pi.name ++ `extracted
+    elabVeilCommand <| ←  `(command| def $(mkIdent extractedName):ident := $defBody:term)
 
-  -- build `nextExtract`
-  -- NOTE: since this works on `NextAct` or its specialized version, this needs
-  -- to be specified as well
+def specializeAndExtractActions
+  (mod : Module)
+  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
+  (extraDsimpsForSpecialize : TSyntaxArray `ident)
+  (κ : TSyntax `term)
+  (useWeak : Bool)
+   : CommandElabM Unit := do
   let lIdent := mkIdent `l
   let labelT ← mod.labelTypeStx
-  let alts ← mod.actions.mapM (fun a => do
-    match a.params with
-    | #[] => `(term| ($extractNonDet))
-    | params => do
-      let tmp ← params.mapM (·.arg)
-      mkFunSyntax tmp extractNonDet)
-  let (binders?, overallArgs, target1, nextExtractFuncCmd) ← do
-    if let some tg := target then
-      let overallArgs ← do
-        let idx := baseParams.findIdx fun p => p.kind == .fieldConcreteType
-        let tmp1 ← baseParams.take idx |>.mapM (·.arg)
-        let tmp2 ← bracketedBindersToTerms injectedBinders
-        let tmp3 ← baseParams.drop (3 + idx) |>.mapM (·.arg)
-        let tmp4 ← extraParams.mapM (·.arg)
-        pure <| (tmp1 ++ tmp2 ++ tmp3 ++ tmp4).push lIdent
-      let target1 := Syntax.mkApp (← `(term| @$tg )) overallArgs
-      let finalBody ← `(fun ($lIdent : $labelT) =>
-        (($lIdent.$(mkIdent `casesOn) $alts*) :
-          $(mkIdent ``MultiExtractor.ExtractNonDet)
-          ($(mkIdent ``MultiExtractor.ExtCandidates) $findable ($κ))
-          ($target1)))
-      let cmd ← Specialization.buildingTermWithχSpecialized baseParams extraParams injectedBinders nextExtractIdent finalBody
-        (← `(term| _ ))
-        (← `(term| _ ))
-        (← `(term| _ ))
-      pure (Option.none, overallArgs, target1, cmd)
-    else
-      let binders ← do
-        let tmp1 ← baseParams.mapM (·.binder)
-        let tmp2 ← extraParams.mapM (·.binder)
-        pure <| tmp1 ++ injectedBinders ++ tmp2
-      let overallArgs ← (baseParams ++ extraParams).mapM (·.arg)
-      let target1 := Syntax.mkApp (← `(term| @$assembledNextAct)) (overallArgs.push lIdent)
-      let cmd ← `(def $nextExtractIdent $[$binders]* : ∀ $lIdent,
-          $(mkIdent ``MultiExtractor.ExtractNonDet)
-          ($(mkIdent ``MultiExtractor.ExtCandidates) $findable ($κ))
-          ($target1) := fun $lIdent => $lIdent.$(mkIdent `casesOn) $alts*
-      )
-      pure (Option.some binders, overallArgs, target1, cmd)
-  let nextActExecCmd ← do
-    if let some binders := binders? then
-      let target2 := Syntax.mkApp (← `(term| @$nextExtractIdent)) overallArgs
-      `(def $nextActExecIdent $[$binders]* :=
-          fun $lIdent => $extractor ($κ)
-            ($(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
-            ($target1) ($target2)
-      )
-    else
-      let target2 := Syntax.mkApp (← `(term| @$nextExtractIdent)) overallArgs
-      let finalBody ←
-      `(fun ($lIdent : $labelT) => $extractor ($κ)
-        ($(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
-        ($target1) ($target2)
-      )
-      Specialization.buildingTermWithχSpecialized baseParams extraParams injectedBinders nextActExecIdent finalBody
-        (← `(term| _ ))
-        (← `(term| _ ))
-        (← `(term| _ ))
+  let alts ← mod.actions.mapM fun a => do
+    let pi := a.info
+    let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
+    let extractBody ← specializeAndExtractCore (toExtName pi.name) (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC extraDsimpsForSpecialize κ useWeak
+    let args ← actualParams.mapM (·.arg)
+    mkFunSyntax args extractBody
+  let finalBody ← do
+    let multiExecType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState $(mkIdent ``Unit))
+    -- Need this annotation to avoid the `failed to elaborate eliminator, expected type is not available` error
+    `(fun ($lIdent : $labelT) => (($lIdent.$(mkIdent `casesOn) $alts*) : $multiExecType))
+  let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
+  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
+  let defBody ← buildingTermWithDefaultχSpecialized baseParams extraParams injectedBinders finalBody mod
+  let extractedName := assembledNextActName ++ `extracted
+  elabVeilCommand <| ←  `(command| def $(mkIdent extractedName):ident := $defBody:term)
 
-  elabVeilCommand initExecCmd
-  elabVeilCommand nextExtractFuncCmd
-  elabVeilCommand nextActExecCmd
+def specializeAndExtract
+  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
+  (extraDsimpsForSpecialize : TSyntaxArray `ident)
+  (κ : TSyntax `term)
+  (useWeak : Bool)
+  : CommandElabM Unit := do
+  let mod ← getCurrentModule
+  specializeAndExtractNonActions mod injectedBinders extraDsimpsForSpecialize κ useWeak
+  specializeAndExtractActions mod injectedBinders extraDsimpsForSpecialize κ useWeak
 
-syntax (name := generateVeilMultiExecMStx) "#gen_executable_list" ("!")? "log_entry_being" term
-  ("targeting" ident)? (injectBindersStx)? : command
+syntax (name := specializeAndExtractCmdStx) "#extract" ("!")? "log_entry_being" term
+  ("dsimp_with " "[" ident,* "]")? (injectBindersStx)? : command
 
 elab_rules : command
-  | `(#gen_executable_list! log_entry_being $logelem:term targeting $target:ident injection_begin $injectedBinders:bracketedBinder* injection_end) => do
-    let tac ← `(term| by (open $(mkIdent `MultiExtractor):ident in extract_list_tactic))
-    generateVeilMultiExecMCore logelem tac injectedBinders (some target) false
-  -- FIXME: the other cases
+  | `(#extract $[!%$notUseWeakSign]? log_entry_being $logelem:term $[dsimp_with [$[$extraDsimps:ident],*]]? $[injection_begin $injectedBinders:bracketedBinder* injection_end]?) => do
+    let extraDsimps := extraDsimps.getD #[]
+    let injectedBinders := injectedBinders.getD #[]
+    specializeAndExtract injectedBinders extraDsimps logelem notUseWeakSign.isNone
 
-def genExtractCommand (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : CommandElabM Unit := do
+def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
+  let binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM mod.assumeForEverySort
   let execListCmd ← `(command |
-    #gen_executable_list! log_entry_being $(mkIdent ``Std.Format)
-    targeting $nextActSimplified
+    attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
+    #extract! log_entry_being $(mkIdent ``Std.Format)
     injection_begin
       $[$binders]*
     injection_end)
-  trace[veil.debug] "gen_executable_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic execListCmd}"
   elabVeilCommand execListCmd
-
-/-- Generate both NextAct specialization and executable list commands. -/
-def genNextActCommands (mod : Veil.Module)
-  (k : Array (TSyntax `Lean.Parser.Term.bracketedBinder) → CommandElabM Unit) : CommandElabM Unit := do
-  let binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM mod.assumeForEverySort
-  -- Generate NextAct specialization
-  let nextActCmd ← `(command |
-    attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
-    #specialize_nextact with $fieldConcreteDispatcher
-    injection_begin
-      $[$binders]*
-    injection_end => $nextActSimplified
-    )
-  trace[veil.debug] "gen_NextAct: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic nextActCmd}"
-  elabVeilCommand nextActCmd
-
-  k binders
 
 /-- Extract the execution outcome from a DivM-wrapped result. Unlike `getPostState`
 which only returns `Option σ`, this preserves information about assertion failures
@@ -328,14 +294,23 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
 
   -- HACK: filter out `ρ`, `σ`, `IsSubStateOf` and `IsSubReaderOf` from `baseParams`
-  let baseParams := baseParams.filter fun p => !(p.kind matches .environmentState | .backgroundTheory | .moduleTypeclass .environmentState | .moduleTypeclass .backgroundTheory)
+  -- ... and put them at the beginning of `extraParams` instead
+  let (baseParams, others) := baseParams.partition fun p => !(p.kind matches .environmentState | .backgroundTheory | .moduleTypeclass .environmentState | .moduleTypeclass .backgroundTheory)
+  let theoryStx ← mod.theoryStx
+  let stateStx ← mod.stateStx mod._useFieldRepTC
+  let specializeToOther (p : Parameter) : Option Term :=
+    match p.kind with
+    | .environmentState => some stateStx
+    | .backgroundTheory => some theoryStx
+    | .moduleTypeclass .environmentState => some <| mkCIdent ``instIsSubStateOfRefl
+    | .moduleTypeclass .backgroundTheory => some <| mkCIdent ``instIsSubReaderOfRefl
+    | _ => none
 
   -- Step 2: Prepare injectedBinders
   let nextAct'Binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM mod.assumeForEverySort
   let labelsId := mkVeilImplementationDetailIdent `labels
   let labelsBinder ← `(bracketedBinder| [$labelsId : $(mkIdent ``Veil.Enumeration) $(← mod.labelTypeStx)])
   let theoryId := mkVeilImplementationDetailIdent `theory
-  let theoryStx ← mod.theoryStx
   let theoryBinder ← `(bracketedBinder| ($theoryId : $theoryStx))
   let injectedBinders := nextAct'Binders ++ #[labelsBinder, theoryBinder]
 
@@ -350,11 +325,11 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     let filterMap ← `($(mkIdent ``List.filterMap) $(mkIdent ``id))
 
     `({
-      initStates :=
-        let $CInit := $initExecIdent $theoryStx $stateStx $(← mod.sortIdents)* $fieldConcrete
+      $(mkIdent `initStates):ident :=
+        let $CInit := $(mkIdent <| toExtractedName initializerName) $theoryStx $stateStx $(← mod.sortIdents)*
         $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
-      tr := fun $th $st =>
-        let $CNext := $nextActExecIdent $theoryStx $stateStx $(← mod.sortIdents)*
+      $(mkIdent `tr):ident := fun $th $st =>
+        let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.sortIdents)*
         $(mkIdent ``List.flatMap) (fun ($label : $labelStx) =>
          $(mkIdent ``List.map) (fun $next => ($label, $next)) ($(mkIdent ``extractAllOutcomes) ($CNext $label) $th $st))
          (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId)
@@ -366,17 +341,11 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
         $theoryId
      })
 
-  -- Step 4: Call buildingTermWithχSpecialized (using explicit instances like specializeActionsCore)
-  let defCmd ← Specialization.buildingTermWithχSpecialized baseParams extraParams
-    injectedBinders enumerableTransitionSystem finalBody
-    (← `(($fieldConcreteDispatcher $(← mod.sortIdents)*)))
-    (← `($instFieldRepresentation $(← mod.sortIdents)*))
-    (← `($instLawfulFieldRepresentation $(← mod.sortIdents)*))
+  -- Step 4: Specialize `χ`, `χ_rep`, `χ_rep_lawful` and build the term
+  let enumerableTransitionSystemTerm ← buildingTermWithDefaultχSpecialized baseParams (others ++ extraParams)
+    injectedBinders finalBody mod specializeToOther
 
   -- Step 5: Add @[specialize] attribute
-  match defCmd with
-  | `(command| def $name:ident $binders* := $body) =>
-    `(command| @[specialize] def $name:ident $binders* := $body)
-  | _ => return defCmd
+  `(command| @[specialize] def $enumerableTransitionSystem:ident := $enumerableTransitionSystemTerm)
 
 end Veil.Extract

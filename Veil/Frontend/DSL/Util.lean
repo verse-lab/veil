@@ -21,6 +21,7 @@ def toActName (n : Name) : Mode → Name := fun
 
 -- TODO These names should be put together with the other names
 def toExtName (n : Name) := toActName n Mode.external
+def toExtractedName (n : Name) := n ++ `extracted
 
 def toActIdent (id : Ident) (mode : Mode) : Ident := mkIdent $ toActName id.getId mode
 
