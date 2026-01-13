@@ -91,7 +91,7 @@ def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Mo
 -/
 
 /-- Get binders for assuming that every sort has an instance of `className` (e.g. `Ord node`). -/
-def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (className : Name) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (className : Name) (filterWithHeuristics : Bool := true) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   (← mod.sortIdents).filterMapM fun sort => do
     -- Special case `TransCmp` and `LawfulEqCmp`
     if #[``Std.TransCmp, ``Std.LawfulEqCmp, ``Std.ReflCmp].contains className then
@@ -99,7 +99,7 @@ def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m] (mod :
     else if className == ``Veil.Enumeration then
       -- A special check for `Enumeration`: if this sort does not appear in the
       -- domain of any *state field*, then *do not* add `Enumeration` instance binder.
-      if mod.mutableComponents.any fun sc => sc.domainTerms.contains sort then
+      if !filterWithHeuristics || (mod.mutableComponents.any fun sc => sc.domainTerms.contains sort) then
         `(bracketedBinder|[$(mkIdent className) $sort])
       else pure none
     else
