@@ -69,9 +69,33 @@ theorem byz_inv_0_tr (ρ : Type) (σ : Type) (address : Type) [address_dec_eq : 
       ∀ __veil_f,
         Veil.LawfulFieldRepresentation (State.Label.toDomain address __veil_f) (State.Label.toCodomain address __veil_f)
           (χ __veil_f) (χ_rep __veil_f)]
-    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory address) ρ] :
+    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory address) ρ]
+    [dec_pred :
+      (st st' : σ) →
+        Decidable
+          (And
+            (@Eq.{1} (address → Bool) (@id.{1} (address → Bool) ((χ_rep State.Label.is_byz).1 (σ_sub.2 st).2))
+              (@id.{1} (address → Bool) ((χ_rep State.Label.is_byz).1 (σ_sub.2 st').2)))
+            (∀ (src dst r v : address),
+              Or
+                (And
+                  (@Eq.{1} Bool
+                      (@Veil.FieldRepresentation.get (State.Label.toDomain address State.Label.is_byz)
+                        (State.Label.toCodomain address State.Label.is_byz) (χ State.Label.is_byz)
+                        (χ_rep State.Label.is_byz) (@State.is_byz χ (σ_sub.2 st)) src)
+                      true →
+                    False)
+                  (Iff (@Eq.{1} Bool ((χ_rep State.Label.initial_msg).1 (σ_sub.2 st).1 src dst r v) true)
+                    (@Eq.{1} Bool ((χ_rep State.Label.initial_msg).1 (σ_sub.2 st').1 src dst r v) true)))
+                (And (@Eq.{1} Bool ((χ_rep State.Label.is_byz).1 (σ_sub.2 st).2 src) true)
+                  (@Eq.{1} Bool
+                      (@Veil.FieldRepresentation.get (State.Label.toDomain address State.Label.initial_msg)
+                        (State.Label.toCodomain address State.Label.initial_msg) (χ State.Label.initial_msg)
+                        (χ_rep State.Label.initial_msg) (@State.initial_msg χ (σ_sub.2 st)) src dst r v)
+                      true →
+                    @Eq.{1} Bool ((χ_rep State.Label.initial_msg).1 (σ_sub.2 st').1 src dst r v) true))))]:
     Veil.Transition.meetsSpecificationIfSuccessfulAssuming
-      (@byz.ext.tr ρ σ address address_dec_eq address_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub)
+      (@byz.ext.tr ρ σ address address_dec_eq address_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub dec_pred)
       (@Assumptions ρ address address_dec_eq address_inhabited ρ_sub)
       (@Invariants ρ σ address address_dec_eq address_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub)
       (@inv_0 ρ σ address address_dec_eq address_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub) :=
