@@ -579,6 +579,9 @@ the body are removed (i.e., they will not become arguments). -/
 elab "remove_unused_binders% " binders:bracketedBinder* "=>" val:term : term => do
   elabBinders binders fun vs => do
     let valExpr ← elabTerm val none
+    -- NOTE: This is very important!!! If we have mvars in the body, then
+    -- `mkLambdaFVars` can behave unexpectedly
+    synthesizeSyntheticMVarsNoPostponing
     let valExpr ← instantiateMVars valExpr
     mkLambdaFVars vs valExpr (usedOnly := true)
 
