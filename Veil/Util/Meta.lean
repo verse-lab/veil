@@ -198,10 +198,14 @@ where
   simplifyMVarType (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option (Term × Expr)) := do
     -- NOTE: It is **very difficult** to control to what extent `ty`
     -- should be simplified, so here we just use `reduce`.
-    let ty ← Meta.reduce (skipTypes := false) $ ← Meta.inferType mv
+    let tyOriginal ← Meta.inferType mv
+    let tyOriginal ← instantiateMVars tyOriginal
+    let ty ← Meta.withTransparency .reducible <| Meta.reduce (skipTypes := false) tyOriginal
+    -- trace[veil.debug] "simplifyMVarType {mv}:\n{tyOriginal}\n~~> {ty}"
     Meta.forallTelescope ty fun ys body => do
       if !(← keepBodyIf body) then return none
-      let simplified_type ← Meta.mkForallFVars ys (← Meta.whnf body) (usedOnly := true)
+      -- trace[veil.debug] "simplifyMVarType {mv}:\n{body}\n~~> {body'}"
+      let simplified_type ← Meta.mkForallFVars ys body (usedOnly := true)
       let simplified_type ← folding simplified_type
       -- Create a new mvar to replace the old one
       let decl ← mv.mvarId!.getDecl
