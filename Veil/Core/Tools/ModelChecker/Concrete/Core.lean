@@ -12,6 +12,11 @@ class StateView (FullState View : Type) where
 
 class abbrev StateFingerprint (FullState View : Type) := BEq View, LawfulBEq View, Hashable View, LawfulHashable View, StateView FullState View
 
+-- NOTE: Without setting these, Lean might get stuck when synthesizing
+-- `BEq` or `Hashable` instances in scenarios that are completely irrelevant
+-- to `StateFingerprint`
+attribute [instance low] StateFingerprint.toBEq StateFingerprint.toLawfulBEq StateFingerprint.toHashable StateFingerprint.toLawfulHashable StateFingerprint.toStateView
+
 instance StateFingerprint.ofHash (σ : Type) [Hashable σ] : StateFingerprint σ UInt64 where
   beq := BEq.beq
   rfl := BEq.rfl
