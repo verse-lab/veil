@@ -430,12 +430,26 @@ elab "extract_list_use_extracted" : tactic => withMainContext do
       pure ()
   throwError "No applicable extracted result found for the goal"
 
+/-- The fallback case for extraction, where the goal cannot be recognized by
+`extract_list_use_extracted`. -/
+macro "extract_list_step_fallback" : tactic =>
+  `(tactic|
+    first
+      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.bind)
+      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.liftM)
+      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.assume) _ _ _ ($(Lean.mkIdent `decp) := by first | find_local_decidable_and_apply | infer_instance)
+      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.pickList)
+      | eapply $(Lean.mkIdent ``ExtractConstraint.toConstrainedExtractResult) <;> try eapply $(Lean.mkIdent ``ExtractConstraint.vis)
+      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.pure)
+      | eapply $(Lean.mkIdent ``ExtractConstraint.toConstrainedExtractResult) <;> try eapply $(Lean.mkIdent ``ExtractConstraint.pickCont)
+      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.ite)
+    )
+
 macro "extract_list_step'" : tactic =>
   `(tactic|
     first
       | extract_list_use_extracted
-      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.liftM)
-      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.assume) _ _ _ ($(Lean.mkIdent `decp) := by first | find_local_decidable_and_apply | infer_instance)
+      | extract_list_step_fallback
     )
 
 macro "extract_list_tactic'" : tactic =>

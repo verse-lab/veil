@@ -131,14 +131,15 @@ def buildingTermWithDefaultχSpecialized (mod : Module)
 
 end Specialization
 
+section Extraction
+
+variable [Monad m] [MonadQuotation m] [MonadError m]
+  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (extraDsimpsForSpecialize : TSyntaxArray `ident)
+  (κ : TSyntax `term) (useWeak intoMonadicActions : Bool)
+
 def specializeAndExtractCore
-  [Monad m] [MonadQuotation m] [MonadError m]
   (actName : Name) (allParams : Array Parameter)
-  (useFieldRepTC : Bool)
-  (extraDsimpsForSpecialize : TSyntaxArray `ident)
-  (κ : TSyntax `term)
-  (useWeak : Bool)
-   : m Term := do
+  (useFieldRepTC : Bool) : m Term := do
   -- Fully applied such that this term should have type `VeilM ..`
   let fullyAppliedAction ← buildFullyAppliedAction actName allParams
   let actionBody ← simplifyActionAfterSpecialization fullyAppliedAction
@@ -169,44 +170,55 @@ where
       (delta% $fullyAppliedAction))
   else pure fullyAppliedAction
  buildExtractBody (body : Term) : m Term := do
-  let multiExecType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState _)
+  let multiExecMonadType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
+  let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList2 else ``MultiExtractor.NonDetT.extractList2)
+  let targetType ← if intoMonadicActions then `($multiExecMonadType _)
+    else
+      let tmp ← if useWeak
+        then `(term| $(mkIdent ``MultiExtractor.findOfPartialCandidates) _)
+        else `(term| $(mkIdent ``MultiExtractor.findOfCandidates) _)
+      `(term| $(mkIdent ``MultiExtractor.ConstrainedExtractResult) ($κ) _ ($multiExecMonadType) ($tmp) ($body))
   let extractSimps : Array Ident :=
-    #[``MultiExtractor.NonDetT.extractList2, ``MultiExtractor.ExtractConstraint.get, ``instMonadLiftT,
+    #[`multiExtractSimp, ``instMonadLiftT,
       -- NOTE: The following are added to work around a bug (?) fixed in Lean v4.27.0-rc1
       ``id, ``inferInstance, ``inferInstanceAs, instFieldRepresentationName].map Lean.mkIdent
-  let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList2 else ``MultiExtractor.NonDetT.extractList2)
+  let extractSimps := if intoMonadicActions then extractSimps else extractSimps.push extractor
+  let extractedBody ← if intoMonadicActions then `(($extractor ($κ) _ _ ($body) : $targetType)) else `(show $targetType by extract_list_tactic')
   `((veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged) [$[$extractSimps:ident],*]
-    ($extractor ($κ) _ _ ($body)) : $multiExecType))
+    ($extractedBody)))
 
-def specializeAndExtractNonActions
-  (mod : Module)
-  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
-  (extraDsimpsForSpecialize : TSyntaxArray `ident)
-  (κ : TSyntax `term)
-  (useWeak : Bool)
-   : CommandElabM Unit := do
-  let nonActions := mod.procedures.filter fun p => match p.info with | .action _ _ => false | _ => true
-  for ps in nonActions do
-    let pi := ps.info
-    let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)        -- declarationAllParams (pure ·) (.derivedDefinition .actionLike {pi.name})
-    let extractBody ← specializeAndExtractCore pi.name (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC extraDsimpsForSpecialize κ useWeak
-    let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
-    let extractedName := pi.name ++ `extracted
-    elabVeilCommand <| ←  `(command| def $(mkIdent extractedName):ident := $defBody:term)
+def specializeAndExtractSingle (mod : Module) (pi : ProcedureInfo) (extractedName : Name := toExtractedName pi.name)
+  (attrs : Array (TSyntax ``Lean.Parser.Term.attrInstance) := #[]) : CommandElabM Unit := do
+  let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
+  let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak intoMonadicActions pi.name (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC
+  let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
+  let cmd ← if attrs.isEmpty
+    then `(command| def $(mkIdent extractedName):ident := $defBody:term)
+    else `(command| @[$[$attrs],*] def $(mkIdent extractedName):ident := $defBody:term)
+  elabVeilCommand cmd
 
-def specializeAndExtractActions
-  (mod : Module)
-  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
-  (extraDsimpsForSpecialize : TSyntaxArray `ident)
-  (κ : TSyntax `term)
-  (useWeak : Bool)
-   : CommandElabM Unit := do
+-- NOTE: We only add `multiextracted` and `multiExtractSimp` attributes to
+-- procedures. Ideally, we also need to add them to the internal mode
+-- actions, but actions are not usually called in the internal mode,
+-- and extracting them would double the time spent in extraction.
+
+def specializeAndExtractInitializer (mod : Module) : CommandElabM Unit := do
+  specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak true mod ProcedureInfo.initializer (toExtName initializerName |> toExtractedName)
+
+def specializeAndExtractInternalMode (mod : Module) : CommandElabM Unit := do
+  let procs := mod.procedures.filter fun p => match p.info with | .procedure _ => true | _ => false
+  for ps in procs do
+    let attr1 ← `(Parser.Term.attrInstance| $(mkIdent `multiextracted):ident )
+    let attr2 ← `(Parser.Term.attrInstance| multiExtractSimp ↓)
+    specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak false mod ps.info (attrs := #[attr1, attr2])
+
+def specializeAndExtractActions (mod : Module) : CommandElabM Unit := do
   let lIdent := mkIdent `l
   let labelT ← mod.labelTypeStx
   let alts ← mod.actions.mapM fun a => do
     let pi := a.info
     let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
-    let extractBody ← specializeAndExtractCore (toExtName pi.name) (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC extraDsimpsForSpecialize κ useWeak
+    let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak true (toExtName pi.name) (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC
     let args ← actualParams.mapM (·.arg)
     mkFunSyntax args extractBody
   let finalBody ← do
@@ -216,18 +228,14 @@ def specializeAndExtractActions
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
   let defBody ← buildingTermWithDefaultχSpecialized baseParams extraParams injectedBinders finalBody mod
-  let extractedName := assembledNextActName ++ `extracted
+  let extractedName := toExtractedName assembledNextActName
   elabVeilCommand <| ←  `(command| def $(mkIdent extractedName):ident := $defBody:term)
 
-def specializeAndExtract
-  (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
-  (extraDsimpsForSpecialize : TSyntaxArray `ident)
-  (κ : TSyntax `term)
-  (useWeak : Bool)
-  : CommandElabM Unit := do
+def specializeAndExtract : CommandElabM Unit := do
   let mod ← getCurrentModule
-  specializeAndExtractNonActions mod injectedBinders extraDsimpsForSpecialize κ useWeak
-  specializeAndExtractActions mod injectedBinders extraDsimpsForSpecialize κ useWeak
+  specializeAndExtractInitializer injectedBinders extraDsimpsForSpecialize κ useWeak mod
+  specializeAndExtractInternalMode injectedBinders extraDsimpsForSpecialize κ useWeak mod
+  specializeAndExtractActions injectedBinders extraDsimpsForSpecialize κ useWeak mod
 
 syntax (name := specializeAndExtractCmdStx) "#extract" ("!")? "log_entry_being" term
   ("dsimp_with " "[" ident,* "]")? (injectBindersStx)? : command
@@ -247,6 +255,22 @@ def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
       $[$binders]*
     injection_end)
   elabVeilCommand execListCmd
+
+end Extraction
+
+open MultiExtractor in
+attribute [multiextracted] ConstrainedExtractResult.pure
+  ConstrainedExtractResult.bind
+  ConstrainedExtractResult.pick
+  -- ConstrainedExtractResult.assume  -- This will be handled with a tactic
+  ConstrainedExtractResult.pickList ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
+
+open MultiExtractor in
+attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
+  ConstrainedExtractResult.bind ConstrainedExtractResult.assume
+  ConstrainedExtractResult.pick
+  ConstrainedExtractResult.pickList ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
+  ConstrainedExtractResult.val
 
 /-- Extract the execution outcome from a DivM-wrapped result. Unlike `getPostState`
 which only returns `Option σ`, this preserves information about assertion failures
@@ -324,9 +348,10 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     let (label, next) := (mkVeilImplementationDetailIdent `label, mkVeilImplementationDetailIdent `next)
     let filterMap ← `($(mkIdent ``List.filterMap) $(mkIdent ``id))
 
+    -- NOTE: Use the `ext` version of `initializer` below!!!
     `({
       $(mkIdent `initStates):ident :=
-        let $CInit := $(mkIdent <| toExtractedName initializerName) $theoryStx $stateStx $(← mod.sortIdents)*
+        let $CInit := $(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.sortIdents)*
         $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
       $(mkIdent `tr):ident := fun $th $st =>
         let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.sortIdents)*
