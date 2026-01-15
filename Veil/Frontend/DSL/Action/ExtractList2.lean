@@ -228,6 +228,29 @@ theorem ExtractConstraint.bind
     apply ExtractConstraint.assumeCont (p := p) (f' := (fun _ => g' PUnit.unit >>= f'))
     apply ih ; assumption
 
+theorem ExtractConstraint.filterAuxM
+  (κ : Type q)
+  (m : Type → Type v) (m' : Type → Type w)
+  [inst1 : Monad m']
+  [inst2 : MonadFlatMapGo m m']
+  [inst3 : MonadFlatMap' m']
+  [inst4 : MonadPersistentLog κ m']
+  {findable : {τ : Type} → (τ → Prop) → Type}
+  (findOf : ∀ {τ : Type} (p : τ → Prop), ExtCandidates findable κ p → Unit → List τ)
+  [LawfulMonad m']
+  [GoodMonadFlatMap' m']
+  {α : Type _}
+  {s : α → NonDetT m Bool} {s' : α → m' Bool}
+  {l l' : List α}
+  (h : ∀ a : α, ExtractConstraint κ m m' findOf (s a) (s' a)) :
+  ExtractConstraint κ m m' findOf (l.filterAuxM s l') (l.filterAuxM s' l') := by
+  induction l generalizing l' with
+  | nil => dsimp ; constructor
+  | cons x l ih =>
+    apply ExtractConstraint.bind
+    · apply h
+    · rintro ⟨_ | _⟩ <;> dsimp <;> apply ih
+
 variable
   [Monad m]
   [CompleteBooleanAlgebra l]
@@ -331,6 +354,7 @@ macro "extract_list_step'" : tactic =>
       | eapply $(Lean.mkIdent ``ExtractConstraint.pure)
       | eapply $(Lean.mkIdent ``ExtractConstraint.pickCont)
       | eapply $(Lean.mkIdent ``ExtractConstraint.ite)
+      | eapply $(Lean.mkIdent ``ExtractConstraint.filterAuxM)
       -- | split
     )
       -- the order matters!
