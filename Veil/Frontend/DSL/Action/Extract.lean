@@ -143,7 +143,7 @@ def specializeAndExtractCore
   -- Fully applied such that this term should have type `VeilM ..`
   let fullyAppliedAction ← buildFullyAppliedAction actName allParams
   let actionBody ← simplifyActionAfterSpecialization fullyAppliedAction
-  buildExtractBody actionBody
+  buildExtractBody actionBody fullyAppliedAction
 where
  buildFullyAppliedAction (actName : Name) (allParams : Array Parameter) : m Term := do
   -- CHECK There are some issues with assigning typeclass instance arguments
@@ -169,21 +169,25 @@ where
       $[$extraDsimpsForSpecialize:ident],*]
       (delta% $fullyAppliedAction))
   else pure fullyAppliedAction
- buildExtractBody (body : Term) : m Term := do
+ buildExtractBody (body bodyBeforeSimp : Term) : m Term := do
   let multiExecMonadType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
   let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList2 else ``MultiExtractor.NonDetT.extractList2)
+  -- HACK: when not `intoMonadicActions`, `targetType` is actually partial
   let targetType ← if intoMonadicActions then `($multiExecMonadType _)
     else
       let tmp ← if useWeak
         then `(term| $(mkIdent ``MultiExtractor.findOfPartialCandidates) _)
         else `(term| $(mkIdent ``MultiExtractor.findOfCandidates) _)
-      `(term| $(mkIdent ``MultiExtractor.ConstrainedExtractResult) ($κ) _ ($multiExecMonadType) ($tmp) ($body))
+      `(term| $(mkIdent ``MultiExtractor.ConstrainedExtractResult) ($κ) _ ($multiExecMonadType) ($tmp))
   let extractSimps : Array Ident :=
     #[`multiExtractSimp, ``instMonadLiftT,
       -- NOTE: The following are added to work around a bug (?) fixed in Lean v4.27.0-rc1
       ``id, ``inferInstance, ``inferInstanceAs, instFieldRepresentationName].map Lean.mkIdent
-  let extractSimps := if intoMonadicActions then extractSimps else extractSimps.push extractor
-  let extractedBody ← if intoMonadicActions then `(($extractor ($κ) _ _ ($body) : $targetType)) else `(show $targetType by extract_list_tactic')
+  let extractSimps := if intoMonadicActions then extractSimps.push extractor else extractSimps
+  let extractedBody ← if intoMonadicActions then `(($extractor ($κ) _ _ ($body) : $targetType))
+    -- Use the first `show` to have more concise type information that can be
+    -- registered to the discrimination tree
+    else `(show $targetType ($bodyBeforeSimp) from show $targetType ($body) by extract_list_tactic')
   `((veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged) [$[$extractSimps:ident],*]
     ($extractedBody)))
 
