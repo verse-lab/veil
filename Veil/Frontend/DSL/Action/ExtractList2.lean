@@ -132,6 +132,12 @@ variable
   {findable : {τ : Type u} → (τ → Prop) → Type u}
   (findOf : ∀ {τ : Type u} (p : τ → Prop), ExtCandidates findable κ p → Unit → List τ)
 
+abbrev findOfCandidates : ∀ {τ : Type u} (p : τ → Prop), ExtCandidates Candidates κ p → Unit → List τ :=
+  (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find)
+
+abbrev findOfPartialCandidates : ∀ {τ : Type u} (p : τ → Prop), ExtCandidates PartialCandidates κ p → Unit → List τ :=
+  (fun p (ec : ExtCandidates PartialCandidates κ p) => ec.core.find)
+
 -- TODO `Prop` or `Type _`?
 inductive ExtractConstraint : {α : Type u} → (s : NonDetT m α) → m' α → Prop where
   | pure {α : Type u} {x : α} :
@@ -155,14 +161,24 @@ inductive ExtractConstraint : {α : Type u} → (s : NonDetT m α) → m' α →
     ExtractConstraint (NonDetT.pickCont PUnit p f)
       (if p .unit then f' .unit else inst3.op [])
 
-theorem ExtractConstraint.assume (p : Prop) [decp : Decidable p] :
-  ExtractConstraint κ m m' findOf (MonadNonDet.assume (m := NonDetT m) p)
-    (if p then inst1.pure .unit else inst3.op []) := by
-  apply ExtractConstraint.assumeCont ; constructor
+/-- A "boxed" version of `ExtractConstraint`, to carry both the extracted
+value and the proof that it satisfies the constraint. Used in making
+extraction compositional. -/
+structure ConstrainedExtractResult {α : Type u} (s : NonDetT m α) where
+  val : m' α
+  proof : ExtractConstraint κ m m' findOf s val
+
+def ConstrainedExtractResult.pure {α : Type u} (x : α) :
+  ConstrainedExtractResult κ m m' findOf (pure x) where
+  val := inst1.pure x
+  proof := ExtractConstraint.pure
+
+def ExtractConstraint.toConstrainedExtractResult {α : Type u} {s : NonDetT m α} {s' : m' α}
+  (h : ExtractConstraint κ m m' findOf s s') : ConstrainedExtractResult κ m m' findOf s := ⟨s', h⟩
 
 open Lean Meta Elab Tactic in
 /-- Try all `Decidable` instances in the context to find one to apply to
-close the goal. Dedicated to be used by `ExtractConstraint.assume`. -/
+close the goal. Dedicated to be used by `ConstrainedExtractResult.assume`. -/
 scoped elab "find_local_decidable_and_apply" : tactic => do
   for hyp in ← getLCtx do
     if hyp.isImplementationDetail then
@@ -176,57 +192,73 @@ scoped elab "find_local_decidable_and_apply" : tactic => do
         pure ()
   throwError "no applicable Decidable instance found in the context"
 
-theorem ExtractConstraint.pickList (p : τ → Prop) [instec : ExtCandidates findable κ p] :
-  ExtractConstraint κ m m' findOf (MonadNonDet.pickSuchThat (m := NonDetT m) τ p)
-    (inst3.op (findOf p instec () |>.map (fun x => inst1.bind
+def ConstrainedExtractResult.assume (p : Prop) [decp : Decidable p] :
+  ConstrainedExtractResult κ m m' findOf (MonadNonDet.assume (m := NonDetT m) p) where
+  val := (if p then inst1.pure .unit else inst3.op [])
+  proof := by apply ExtractConstraint.assumeCont ; constructor
+
+def ConstrainedExtractResult.pickList (p : τ → Prop) [instec : ExtCandidates findable κ p] :
+  ConstrainedExtractResult κ m m' findOf (MonadNonDet.pickSuchThat (m := NonDetT m) τ p) where
+  val := (inst3.op (findOf p instec () |>.map (fun x => inst1.bind
       (inst4.log (ExtCandidates.rep findable p (self := instec) x))
-      (fun _ => inst1.pure x)))) := by
-  apply ExtractConstraint.pickCont ; intros ; constructor
+      (fun _ => inst1.pure x))))
+  proof := by apply ExtractConstraint.pickCont ; intros ; constructor
 
-theorem ExtractConstraint.liftM [LawfulMonad m'] (x : m α) :
-  ExtractConstraint κ m m' findOf (liftM (n := NonDetT m) x) (inst2.go x) := by
-  dsimp [_root_.liftM, monadLift, MonadLift.monadLift]
-  rw [← bind_pure (MonadFlatMapGo.go x)]
-  apply ExtractConstraint.vis ; intros ; constructor
+def ConstrainedExtractResult.liftM [LawfulMonad m'] (x : m α) :
+  ConstrainedExtractResult κ m m' findOf (liftM (n := NonDetT m) x) where
+  val := (inst2.go x)
+  proof := by
+    dsimp [_root_.liftM, monadLift, MonadLift.monadLift]
+    rw [← bind_pure (MonadFlatMapGo.go x)]
+    apply ExtractConstraint.vis ; intros ; constructor
 
--- TODO this is very very very bad, because just `split` does not split the target mvar. but what is the better way?
-theorem ExtractConstraint.ite {α : Type u} (p : Prop)
+def ConstrainedExtractResult.pick [instec : ExtCandidates findable κ (fun (_ : τ) => True)] :
+  ConstrainedExtractResult κ m m' findOf (MonadNonDet.pick (m := NonDetT m) τ) where
+  val := (inst3.op (findOf (fun _ => True) instec () |>.map (fun x => inst1.bind
+      (inst4.log (ExtCandidates.rep findable (fun _ => True) (self := instec) x))
+      (fun _ => inst1.pure x))))
+  proof := by apply ExtractConstraint.pickCont ; intros ; constructor
+
+def ConstrainedExtractResult.ite {α : Type u} (p : Prop)
   (dec : Decidable p)   -- disallow synthesizing
-  {s1 : NonDetT m α} {s1' : m' α}
-  {s2 : NonDetT m α} {s2' : m' α}
-  (h1 : ExtractConstraint κ m m' findOf s1 s1')
-  (h2 : ExtractConstraint κ m m' findOf s2 s2') :
-  ExtractConstraint κ m m' findOf (@_root_.ite _ p dec s1 s2) (@_root_.ite _ p dec s1' s2') := by
-  split ; exact h1 ; exact h2
+  {s1 : NonDetT m α} {s2 : NonDetT m α}
+  (h1 : ConstrainedExtractResult κ m m' findOf s1)
+  (h2 : ConstrainedExtractResult κ m m' findOf s2) :
+  ConstrainedExtractResult κ m m' findOf (@_root_.ite _ p dec s1 s2) where
+  val := (@_root_.ite _ p dec h1.val h2.val)
+  proof := by split ; exact h1.proof ; exact h2.proof
 
-theorem ExtractConstraint.bind
+def ConstrainedExtractResult.bind
   [LawfulMonad m']
   [GoodMonadFlatMap' m']
-  {α β : Type u} {s : NonDetT m α} {s' : m' α}
-  {f : α → NonDetT m β} {f' : α → m' β}
-  (hs : ExtractConstraint κ m m' findOf s s')
-  (hf : ∀ x, ExtractConstraint κ m m' findOf (f x) (f' x)) :
-  ExtractConstraint κ m m' findOf (s >>= f) (inst1.bind s' f') := by
-  induction hs generalizing hf with
-  | @pure x => simp [Bind.bind, NonDetT.bind] ; exact hf x
-  | @vis β x g g' h ih =>
-    simp [Bind.bind, NonDetT.bind] ; constructor
-    intro y ; apply ih ; assumption
-  | @pickCont τ p g g' extcd h ih =>
-    simp [Bind.bind, NonDetT.bind]
-    rw [← GoodMonadFlatMap'.op_good, List.map_map] ; simp +unfoldPartialApp [Function.comp]
-    apply ExtractConstraint.pickCont
-    intros ; apply ih ; assumption
-  | @assumeCont p g g' _ h ih =>
-    simp [Bind.bind, NonDetT.bind]
-    have eq : ((if p PUnit.unit then g' PUnit.unit else MonadFlatMap'.op []) >>= f') =
-      ((if p PUnit.unit then g' PUnit.unit >>= f' else MonadFlatMap'.op [])) := by
-      split <;> try rfl
-      rw [← GoodMonadFlatMap'.op_good] ; rfl
-    rw [eq] ; clear eq
-    -- some very weird unification failure happens here, so need to provide arguments explicitly
-    apply ExtractConstraint.assumeCont (p := p) (f' := (fun _ => g' PUnit.unit >>= f'))
-    apply ih ; assumption
+  {α β : Type u} {s : NonDetT m α}
+  {f : α → NonDetT m β}
+  (hs : ConstrainedExtractResult κ m m' findOf s)
+  (hf : ∀ x, ConstrainedExtractResult κ m m' findOf (f x)) :
+  ConstrainedExtractResult κ m m' findOf (s >>= f) where
+  val := (inst1.bind hs.val (hf · |>.val))
+  proof := by
+    rcases hs with ⟨hs_val, hs_proof⟩
+    induction hs_proof generalizing hf with
+    | @pure x => simp [Bind.bind, NonDetT.bind] ; exact hf x |>.proof
+    | @vis β x g g' h ih =>
+      simp [Bind.bind, NonDetT.bind] ; constructor
+      intro y ; apply ih
+    | @pickCont τ p g g' extcd h ih =>
+      simp [Bind.bind, NonDetT.bind]
+      rw [← GoodMonadFlatMap'.op_good, List.map_map] ; simp +unfoldPartialApp [Function.comp]
+      apply ExtractConstraint.pickCont
+      intros ; apply ih
+    | @assumeCont p g g' _ h ih =>
+      simp [Bind.bind, NonDetT.bind]
+      have eq : ((if p PUnit.unit then g' PUnit.unit else MonadFlatMap'.op []) >>= (hf · |>.val)) =
+        ((if p PUnit.unit then g' PUnit.unit >>= (hf · |>.val) else MonadFlatMap'.op [])) := by
+        split <;> try rfl
+        rw [← GoodMonadFlatMap'.op_good] ; rfl
+      rw [eq] ; clear eq
+      -- some very weird unification failure happens here, so need to provide arguments explicitly
+      apply ExtractConstraint.assumeCont (p := p) (f' := (fun _ => g' PUnit.unit >>= (hf · |>.val)))
+      apply ih
 
 variable
   [Monad m]
@@ -309,7 +341,7 @@ omit findOf h in
 theorem extract_list_eq_wp
   [instl : LawfulMonadFlatMapGo m m' l Eq]
   [instl2 : LawfulMonadFlatMapSup m' l Eq]
-  (h : ExtractConstraint κ m m' (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) s s') :
+  (h : ExtractConstraint κ m m' (findOfCandidates κ) s s') :
   wp s post = wp s' post := by
   apply le_antisymm
   · apply wp_refines_extract_list κ <;> try assumption
@@ -319,39 +351,105 @@ theorem extract_list_eq_wp
 
 end AngelicChoice
 
+section ExtractionTactic
+
+open Lean Meta Elab
+
+-- NOTE: The following reuses some of the Loom infrastructure
+
+inductive ExtractAttr.EntryKind where
+  /-- Given in the form of a `ExtractConstraint` proof. -/
+  | proof
+  /-- Given in the form of a `ConstrainedExtractResult` structure. -/
+  | struct
+deriving Inhabited, BEq
+
+structure ExtractAttr.Entry where
+  kind : ExtractAttr.EntryKind
+  /-- The declaration name of the theorem or structure. -/
+  name : Name
+deriving Inhabited, BEq
+
+structure ExtractAttr where
+  attr : AttributeImpl
+  ext  : DiscrTreeExtension ExtractAttr.Entry
+deriving Inhabited
+
+private def recognizeExtractEntry (ty : Expr) : MetaM (Option (Expr × ExtractAttr.EntryKind)) := do
+  let (_xs, _bis, body) ← forallMetaTelescope ty
+  let fn := body.getAppFn'
+  if fn.constName? == ``ConstrainedExtractResult then
+    return .some (body.getRevArg!' 0, .struct)
+  else if fn.constName? == ``ExtractConstraint then
+    return .some (body.getRevArg!' 1, .proof)
+  else
+    return none
+
+initialize extractAttr : ExtractAttr ← do
+  let ext ← mkDiscrTreeExtension `multiextractionMap
+  let attrImpl : AttributeImpl := {
+    name := `multiextracted
+    descr := ""
+    add := fun declName stx attrKind => do
+      -- TODO: use the attribute kind
+      unless attrKind == AttributeKind.global do
+        throwError "Invalid attribute 'multiextracted', must be global"
+      let env ← getEnv
+      -- Ignore some auxiliary definitions (see the comments for attrIgnoreMutRec)
+      attrIgnoreAuxDef declName (pure ()) do
+        let some constInfo := env.find? declName
+          | throwError "Declaration {declName} not found"
+        let (key, kind) ← MetaM.run' do
+          let ty := constInfo.type
+          let some (s, kind) ← recognizeExtractEntry ty
+            | throwError "Declaration {declName} does not have a valid type for 'multiextracted' attribute"
+          let key ← DiscrTree.mkPath s
+          return (key, kind)
+        let env := ext.addEntry env ⟨key, ⟨kind, declName⟩⟩
+        setEnv env
+  }
+  registerBuiltinAttribute attrImpl
+  pure { attr := attrImpl, ext := ext }
+
+def ExtractAttr.find? (s : ExtractAttr) (e : Expr) : MetaM (Array ExtractAttr.Entry) := do
+  (s.ext.getState (← getEnv)).getMatch e
+
+open Tactic in
+elab "extract_list_use_extracted" : tactic => withMainContext do
+  let goal ← getMainTarget''
+  let some (ty, _) ← recognizeExtractEntry goal
+    | throwError "Could not recognize the goal as an extraction goal"
+  let entries ← extractAttr.find? ty
+  for entry in entries do
+    try
+      match entry.kind with
+      | .proof => failure   -- for convenience, just not handle this case
+      | .struct => evalTactic (← `(tactic| eapply $(mkIdent entry.name)))
+      return
+    catch _ =>
+      pure ()
+  throwError "No applicable extracted result found for the goal"
+
 macro "extract_list_step'" : tactic =>
   `(tactic|
     first
-      -- | eapply $(Lean.mkIdent ``ExtractConstraint.assumeCont)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.bind)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.liftM)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.assume) _ _ _ ($(Lean.mkIdent `decp) := by first | find_local_decidable_and_apply | infer_instance)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.pickList)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.vis)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.pure)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.pickCont)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.ite)
-      -- | split
+      | extract_list_use_extracted
+      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.liftM)
+      | eapply $(Lean.mkIdent ``ConstrainedExtractResult.assume) _ _ _ ($(Lean.mkIdent `decp) := by first | find_local_decidable_and_apply | infer_instance)
     )
-      -- the order matters!
 
 macro "extract_list_tactic'" : tactic =>
   `(tactic| repeat' (intros; extract_list_step' <;> try dsimp))
 
-set_option linter.unusedVariables false in
-def ExtractConstraint.get {α : Type u} {s : NonDetT m α} {s' : m' α}
-  (h : ExtractConstraint κ m m' findOf s s' := by extract_list_tactic') : m' α := s'
+end ExtractionTactic
 
--- TODO consider where to put these two
-def NonDetT.extractList2 {α : Type u} (s : NonDetT m α) {s' : m' α}
-  (h : ExtractConstraint κ m m' (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) s s' := by extract_list_tactic')
-  : m' α :=
-  ExtractConstraint.get _ _ _ _ h
+def NonDetT.extractList2 {α : Type u} (s : NonDetT m α)
+  (h : ConstrainedExtractResult κ m m' (findOfCandidates κ) s := by extract_list_tactic')
+  : m' α := h.val
 
-def NonDetT.extractPartialList2 {α : Type u} (s : NonDetT m α) {s' : m' α}
-  (h : ExtractConstraint κ m m' (fun p (ec : ExtCandidates PartialCandidates κ p) => ec.core.find) s s' := by extract_list_tactic')
-  : m' α :=
-  ExtractConstraint.get _ _ _ _ h
+def NonDetT.extractPartialList2 {α : Type u} (s : NonDetT m α)
+  (h : ConstrainedExtractResult κ m m' (findOfPartialCandidates κ) s := by extract_list_tactic')
+  : m' α := h.val
 
 end test
 

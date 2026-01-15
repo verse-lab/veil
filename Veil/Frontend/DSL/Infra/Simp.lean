@@ -50,6 +50,11 @@ register_simp_attr fieldRepresentationSetSimpPost
 register_simp_attr dsimpFieldRepresentationGet
 register_simp_attr dsimpFieldRepresentationSet
 
+/-- Attribute added to the results of multi-extraction of type `ConstrainedExtractResult`
+and some other things. Used for simplify the results of multi-extraction
+in the form of monadic programs. -/
+register_simp_attr multiExtractSimp
+
 register_simp_attr loomLogicSimpForVeil
 
 /-- To enable `assumption`s to be used as predicates. -/
