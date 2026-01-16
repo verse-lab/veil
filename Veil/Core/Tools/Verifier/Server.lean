@@ -28,26 +28,29 @@ def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNoti
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
-/-- Start the given dischargers, register them with the language server via `logSnapshotTask`,
-    and update the VCManager with the started tasks. -/
+/-- Start the given dischargers, send them to the task registration channel for the frontend
+    to register via `logSnapshotTask`, and update the VCManager with the started tasks. -/
 private def startAndRegisterTasks
     (toStart : Array (VerificationCondition VCMetadata SmtResult × Discharger SmtResult))
     : CommandElabM Unit := do
   for (vc, discharger) in toStart do
     let discharger' ← discharger.run
     if let some task := discharger'.task then
-      Command.logSnapshotTask { stx? := none, cancelTk? := discharger'.cancelTk, task := task }
+      -- Send to channel for frontend to register (instead of registering directly here)
+      let _ ← Veil.taskRegistrationCh.send { task, cancelTk := discharger'.cancelTk }
     vcManager.atomically (fun ref => do
       let mut mgr ← ref.get
       let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
       mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
       ref.set mgr)
+  -- Notify frontend that new tasks are available to register
+  Frontend.notify
 
 /-- Starts a separate task (on a dedicated thread) that runs the VCManager.
 If this is called multiple times, each call will reset the VC manager. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
   let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
-  let managerLoop ← Command.wrapAsync (fun () => do
+  let managerLoop ← Command.wrapAsyncAsSnapshot (fun () => do
     -- dbg_trace "({← IO.monoMsNow}) [Manager] Starting manager loop"
     while true do
       try
@@ -115,9 +118,11 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
   ) cancelTk
   vcServerStarted.atomically (fun ref => do
     if !(← ref.get) then
-      -- This starts the task
+      -- Start the manager task but DON'T register with logSnapshotTask.
+      -- The manager loop is infinite, so registering it would hang the build.
+      -- Discharger tasks are registered by runFilteredAsync/waitFilteredSync instead.
       -- dbg_trace "({← IO.monoMsNow}) [Manager] Starting manager loop"
-      let _ ← EIO.asTask (managerLoop ())
+      let _ ← (managerLoop ()).asTask
     else
       vcManager.atomically (fun ref => do
         let mgr ← ref.get
@@ -127,32 +132,51 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
     ref.set true
   )
 
+/-- Log any pending discharger tasks from the channel via `logSnapshotTask` (non-blocking). -/
+private partial def logPendingDischargerTasks : CommandElabM Unit := do
+  if let some info ← Veil.taskRegistrationCh.tryRecv then
+    Command.logSnapshotTask { stx? := none, cancelTk? := info.cancelTk, task := info.task }
+    logPendingDischargerTasks
+
+/-- Poll for discharger tasks from the manager and register them with `logSnapshotTask`.
+    Waits until all VCs matching the filter are done, then returns the results.
+    This enables profiler trace propagation by registering tasks on the calling thread. -/
+private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
+    : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  while true do
+    logPendingDischargerTasks
+    let result? ← vcManager.atomically fun ref => do
+      let mgr ← ref.get
+      if mgr.isDoneFiltered filter then
+        return some (← liftCoreM (mgr.toResults filter))
+      else
+        return none
+    if let some results := result? then return results
+    IO.sleep 10
+  panic! "unreachable"
+
 /-- Start VCs matching the filter and run the callback asynchronously when done.
 Uses `wrapAsyncAsSnapshot` so that errors from the callback are reported to the user.
+This task also polls for discharger tasks from the manager and registers them with
+`logSnapshotTask`, enabling profiler trace propagation.
 Note: Widget display does not work in the callback since it runs in an async context. -/
 def runFilteredAsync (filter : VCMetadata → Bool)
     (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
   startFiltered filter
   let cancelTk ← IO.CancelToken.new
   let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
-    vcManager.atomicallyOnce frontendNotification
-      (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
-      (fun ref => do
-        let mgr ← ref.get
-        let results ← liftCoreM (mgr.toResults filter)
-        callback results)) cancelTk
+    let results ← awaitFilteredWithLogging filter
+    callback results) cancelTk
   let task ← (wrappedTask ()).asTask
   Command.logSnapshotTask { stx? := none, cancelTk? := cancelTk, task := task }
 
 /-- Start VCs matching the filter and wait synchronously for completion.
 Returns the results on the main thread, allowing widget display.
+This also polls for discharger tasks from the manager and registers them with
+`logSnapshotTask`, enabling profiler trace propagation.
 Warning: This blocks the elaborator until all matching VCs complete. -/
 def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
   startFiltered filter
-  vcManager.atomicallyOnce frontendNotification
-    (fun ref => do let mgr ← ref.get; return mgr.isDoneFiltered filter)
-    (fun ref => do
-      let mgr ← ref.get
-      liftCoreM (mgr.toResults filter))
+  awaitFilteredWithLogging filter
 
 end Veil.Verifier

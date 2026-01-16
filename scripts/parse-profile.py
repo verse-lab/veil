@@ -206,6 +206,33 @@ def print_tree_view(thread: dict, filter_prefix: str = None):
         print()
 
 
+def merge_stats(all_stats: list) -> dict:
+    """Merge stats from multiple threads."""
+    merged = defaultdict(lambda: {"self_time": 0, "total_time": 0, "count": 0})
+    for stats in all_stats:
+        for name, data in stats.items():
+            merged[name]["self_time"] += data["self_time"]
+            merged[name]["total_time"] += data["total_time"]
+            merged[name]["count"] += data["count"]
+    return dict(merged)
+
+
+def print_thread_summary(profile: dict, filter_prefix: str = None):
+    """Print summary of all threads with sample counts and matching strings."""
+    threads = profile.get('threads', [])
+    print(f"\nThreads: {len(threads)}")
+    for i, thread in enumerate(threads):
+        name = thread.get('name', f'Thread {i}')
+        samples = thread.get('samples', {})
+        sample_count = len(samples.get('stack', []))
+        strings = thread.get('stringArray', [])
+        if filter_prefix:
+            matching = [s for s in strings if filter_prefix in str(s).lower()]
+        else:
+            matching = [s for s in strings if 'veil' in str(s).lower()]
+        print(f"  [{i}] {name}: {sample_count} samples, {len(matching)} matching strings")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Parse Firefox Profiler JSON files from Lean profiler'
@@ -213,12 +240,18 @@ def main():
     parser.add_argument('profile', help='Path to profile.json file')
     parser.add_argument('--filter', '-f', default=None,
                         help='Filter functions by prefix (e.g., "veil.perf")')
+    parser.add_argument('--exclude', '-e', default=None,
+                        help='Exclude functions matching pattern (e.g., "veil.perf.discharger")')
     parser.add_argument('--tree', '-t', action='store_true',
                         help='Show hierarchical call tree view')
     parser.add_argument('--strings', '-s', action='store_true',
                         help='List all Veil-related strings')
     parser.add_argument('--all', '-a', action='store_true',
                         help='Show all functions (not just Veil)')
+    parser.add_argument('--threads', action='store_true',
+                        help='Show summary of all threads')
+    parser.add_argument('--thread', type=int, default=None,
+                        help='Analyze specific thread by index (default: all threads)')
     args = parser.parse_args()
 
     profile = load_profile(args.profile)
@@ -227,32 +260,68 @@ def main():
     meta = profile.get('meta', {})
     print(f"Version: {meta.get('version', 'unknown')}, Interval: {meta.get('interval', 'unknown')}ms")
 
-    if args.strings:
-        if 'threads' in profile and profile['threads']:
-            thread = profile['threads'][0]
-            strings = thread.get('stringArray', [])
-            veil_strings = sorted([s for s in strings if 'veil' in str(s).lower()])
-            print(f"\nVeil-related strings ({len(veil_strings)}):")
-            for s in veil_strings:
-                print(f"  {s}")
-        return
-
     # Default filter to veil unless --all specified
     filter_prefix = args.filter
     if filter_prefix is None and not args.all:
         filter_prefix = "veil"
 
-    # Analyze main thread (usually first)
-    if 'threads' in profile and profile['threads']:
-        main_thread = profile['threads'][0]
-        thread_name = main_thread.get('name', 'Main')
-        print(f"Analyzing thread: {thread_name}")
+    if args.threads:
+        print_thread_summary(profile, filter_prefix)
+        return
+
+    if args.strings:
+        threads = profile.get('threads', [])
+        all_strings = set()
+        for thread in threads:
+            strings = thread.get('stringArray', [])
+            all_strings.update(strings)
+        veil_strings = sorted([s for s in all_strings if 'veil' in str(s).lower()])
+        print(f"\nVeil-related strings ({len(veil_strings)}):")
+        for s in veil_strings:
+            print(f"  {s}")
+        return
+
+    # Analyze threads
+    threads = profile.get('threads', [])
+    if not threads:
+        print("No threads found in profile.")
+        return
+
+    if args.thread is not None:
+        # Analyze single thread
+        if args.thread >= len(threads):
+            print(f"Thread index {args.thread} out of range (0-{len(threads)-1})")
+            return
+        thread = threads[args.thread]
+        thread_name = thread.get('name', f'Thread {args.thread}')
+        print(f"Analyzing thread [{args.thread}]: {thread_name}")
 
         if args.tree:
-            print_tree_view(main_thread, filter_prefix)
+            print_tree_view(thread, filter_prefix)
         else:
-            stats = analyze_samples(main_thread, filter_prefix)
+            stats = analyze_samples(thread, filter_prefix)
+            # Apply exclusion filter
+            if args.exclude:
+                stats = {k: v for k, v in stats.items() if args.exclude not in k}
             print_summary(stats)
+    else:
+        # Analyze all threads combined
+        print(f"Analyzing all {len(threads)} threads combined")
+
+        if args.tree:
+            # Tree view doesn't merge well, just show main thread
+            print("(Tree view shows main thread only)")
+            print_tree_view(threads[0], filter_prefix)
+        else:
+            all_stats = []
+            for thread in threads:
+                stats = analyze_samples(thread, filter_prefix)
+                all_stats.append(stats)
+            merged = merge_stats(all_stats)
+            # Apply exclusion filter
+            if args.exclude:
+                merged = {k: v for k, v in merged.items() if args.exclude not in k}
+            print_summary(merged)
 
 
 if __name__ == '__main__':
