@@ -123,7 +123,8 @@ deriving Inhabited
 
 /-- A notification from a discharger to the VCManager. -/
 abbrev DischargerNotification (ResultT : Type) := (DischargerIdentifier × DischargerResult ResultT)
-abbrev DischargerTask (ResultT : Type) := Task (Except Exception (DischargerResult ResultT))
+/-- A task that produces a SnapshotTree for integration with the language server. -/
+abbrev SnapshotTreeTask := Task Language.SnapshotTree
 
 /-- A way of discharging / proving a VC.-/
 structure Discharger (ResultT : Type) where
@@ -134,18 +135,20 @@ structure Discharger (ResultT : Type) where
   term : Option Term := none
   /-- A cancellation token for the discharger. -/
   cancelTk : IO.CancelToken
-  /-- The discharger.  -/
-  task : Option (DischargerTask ResultT)
+  /-- The snapshot tree task for integration with the language server's error
+  reporting. This is produced by `wrapAsyncAsSnapshot`. -/
+  task : Option SnapshotTreeTask
   /-- Promise that resolves to the monotonic timestamp (ms) when the discharger
   actually starts executing. This is set by the discharger itself, not when
   the task is scheduled. -/
   startTimePromise : IO.Promise Nat
-  /-- Creates a task that discharges the VC. It's the task responsibility to
-  return to the VCManager a `VCDischargeStatus`. This is done via the `ch`
-  field of the `VCManager`. Running the resulting `BaseIO` action causes the
-  task to be started eagerly. The task should be stored in the `task` field for
-  later access. -/
-  private mkTask : BaseIO (DischargerTask ResultT)
+  /-- Promise that resolves to the discharger result. This is how results are
+  communicated since `wrapAsyncAsSnapshot` returns Unit. -/
+  resultPromise : IO.Promise (DischargerResult ResultT)
+  /-- Creates a task that discharges the VC. Running the resulting `BaseIO`
+  action causes the task to be started eagerly. The task should be stored in
+  the `task` field for later access. -/
+  private mkTask : BaseIO SnapshotTreeTask
 
 structure VCData (VCMetaT : Type) extends VCStatement where
   /-- Metadata associated with this VC, provided by the frontend. -/
@@ -370,13 +373,15 @@ def Discharger.run (discharger : Discharger ResultT) : BaseIO (Discharger Result
 def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatus ResultT) := do
   match discharger.task with
   | none => return .notStarted
-  | some task =>
-    match ← IO.hasFinished task with
+  | some _ =>
+    -- Check if the result promise has been resolved
+    let resultTask := discharger.resultPromise.result?
+    match ← IO.hasFinished resultTask with
+    | true =>
+      match resultTask.get with
+      | some res => return .finished res
+      | none => panic! "Discharger.status: result promise resolved to none"
     | false => return .running
-    | true => do
-      match task.get with
-      | .ok res => return .finished res
-      | .error ex => return .finished (.error #[(ex, s!"{← ex.toMessageData.toString}")] default)
 
 def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
   match (← discharger.status) with

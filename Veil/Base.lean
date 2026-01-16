@@ -36,6 +36,7 @@ initialize
   registerTraceClass `veil.perf.extract
   registerTraceClass `veil.perf.smt
   registerTraceClass `veil.perf.definition
+  registerTraceClass `veil.perf.discharger
 
 /-! ## Options -/
 
