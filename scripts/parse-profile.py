@@ -6,6 +6,7 @@ Usage:
     ./scripts/parse-profile.py <profile.json> [--filter veil.perf]
     ./scripts/parse-profile.py <profile.json> --tree
     ./scripts/parse-profile.py <profile.json> --strings
+    ./scripts/parse-profile.py *.json  # Aggregate multiple profiles
 
 The Firefox Profiler format uses stack sampling:
 - stringArray: Array of all strings (labels, function names, etc.)
@@ -122,7 +123,12 @@ def analyze_samples(thread: dict, filter_prefix: str = None) -> dict:
     return dict(stats)
 
 
-def print_summary(stats: dict, sort_by: str = "total_time"):
+def get_total_cpu_time(stats: dict) -> float:
+    """Get total CPU time from stats (sum of all self_time values in ms)."""
+    return sum(data["self_time"] for data in stats.values())
+
+
+def print_summary(stats: dict, sort_by: str = "total_time", limit: int = 0):
     """Print function timing summary."""
     if not stats:
         print("No matching functions found.")
@@ -133,7 +139,8 @@ def print_summary(stats: dict, sort_by: str = "total_time"):
     print(f"\n{'Function':<70} {'Self (ms)':>10} {'Total (ms)':>10} {'Count':>8}")
     print("-" * 100)
 
-    for name, data in sorted_stats[:40]:
+    entries = sorted_stats if limit <= 0 else sorted_stats[:limit]
+    for name, data in entries:
         # Truncate long names
         display_name = name if len(name) <= 68 else name[:65] + "..."
         print(f"{display_name:<70} {data['self_time']:>10.1f} {data['total_time']:>10.1f} {data['count']:>8}")
@@ -233,11 +240,21 @@ def print_thread_summary(profile: dict, filter_prefix: str = None):
         print(f"  [{i}] {name}: {sample_count} samples, {len(matching)} matching strings")
 
 
+def analyze_single_profile(profile: dict, filter_prefix: str = None) -> dict:
+    """Analyze a single profile and return merged stats from all threads."""
+    threads = profile.get('threads', [])
+    all_stats = []
+    for thread in threads:
+        stats = analyze_samples(thread, filter_prefix)
+        all_stats.append(stats)
+    return merge_stats(all_stats)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Parse Firefox Profiler JSON files from Lean profiler'
     )
-    parser.add_argument('profile', help='Path to profile.json file')
+    parser.add_argument('profiles', nargs='+', help='Path to profile.json file(s)')
     parser.add_argument('--filter', '-f', default=None,
                         help='Filter functions by prefix (e.g., "veil.perf")')
     parser.add_argument('--exclude', '-e', default=None,
@@ -252,18 +269,58 @@ def main():
                         help='Show summary of all threads')
     parser.add_argument('--thread', type=int, default=None,
                         help='Analyze specific thread by index (default: all threads)')
+    parser.add_argument('--total-only', action='store_true',
+                        help='Output only total CPU time in ms (for scripting)')
+    parser.add_argument('--limit', '-l', type=int, default=0,
+                        help='Maximum number of functions to display (default: no limit)')
     args = parser.parse_args()
-
-    profile = load_profile(args.profile)
-
-    print(f"Profile: {args.profile}")
-    meta = profile.get('meta', {})
-    print(f"Version: {meta.get('version', 'unknown')}, Interval: {meta.get('interval', 'unknown')}ms")
 
     # Default filter to veil unless --all specified
     filter_prefix = args.filter
     if filter_prefix is None and not args.all:
         filter_prefix = "veil"
+
+    # Handle multiple profiles (aggregate mode)
+    if len(args.profiles) > 1:
+        if not args.total_only:
+            print(f"Aggregating {len(args.profiles)} profiles")
+        all_stats = []
+        for path in args.profiles:
+            try:
+                profile = load_profile(path)
+                stats = analyze_single_profile(profile, filter_prefix)
+                all_stats.append(stats)
+            except Exception as e:
+                if not args.total_only:
+                    print(f"  Warning: Failed to load {path}: {e}")
+        if not all_stats:
+            if not args.total_only:
+                print("No valid profiles found.")
+            return
+        merged = merge_stats(all_stats)
+        # Apply exclusion filter
+        if args.exclude:
+            merged = {k: v for k, v in merged.items() if args.exclude not in k}
+        if args.total_only:
+            print(f"{get_total_cpu_time(merged):.1f}")
+        else:
+            print_summary(merged, limit=args.limit)
+        return
+
+    # Single profile mode
+    profile = load_profile(args.profiles[0])
+
+    # Handle --total-only for single profile
+    if args.total_only:
+        stats = analyze_single_profile(profile, filter_prefix)
+        if args.exclude:
+            stats = {k: v for k, v in stats.items() if args.exclude not in k}
+        print(f"{get_total_cpu_time(stats):.1f}")
+        return
+
+    print(f"Profile: {args.profiles[0]}")
+    meta = profile.get('meta', {})
+    print(f"Version: {meta.get('version', 'unknown')}, Interval: {meta.get('interval', 'unknown')}ms")
 
     if args.threads:
         print_thread_summary(profile, filter_prefix)
@@ -303,7 +360,7 @@ def main():
             # Apply exclusion filter
             if args.exclude:
                 stats = {k: v for k, v in stats.items() if args.exclude not in k}
-            print_summary(stats)
+            print_summary(stats, limit=args.limit)
     else:
         # Analyze all threads combined
         print(f"Analyzing all {len(threads)} threads combined")
@@ -321,7 +378,7 @@ def main():
             # Apply exclusion filter
             if args.exclude:
                 merged = {k: v for k, v in merged.items() if args.exclude not in k}
-            print_summary(merged)
+            print_summary(merged, limit=args.limit)
 
 
 if __name__ == '__main__':

@@ -210,14 +210,20 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   let mod ← mod.ensureStateIsDefined
   warnIfNoInvariantsDefined mod
   warnIfNoActionsDefined mod
-  let (assumptionCmd, mod) ← mod.assembleAssumptions
-  elabVeilCommand assumptionCmd
-  let (invariantCmd, mod) ← mod.assembleInvariants
-  trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
-  elabVeilCommand invariantCmd
-  let (safetyCmd, mod) ← mod.assembleSafeties
-  trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
-  elabVeilCommand safetyCmd
+  let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
+    let (assumptionCmd, mod) ← mod.assembleAssumptions
+    elabVeilCommand assumptionCmd
+    return mod
+  let mod ← withTraceNode `veil.perf.elaborator.decl.Invariants (fun _ => return "Invariants") do
+    let (invariantCmd, mod) ← mod.assembleInvariants
+    trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
+    elabVeilCommand invariantCmd
+    return mod
+  let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
+    let (safetyCmd, mod) ← mod.assembleSafeties
+    trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
+    elabVeilCommand safetyCmd
+    return mod
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do
     elabVeilCommand cmd
@@ -394,19 +400,25 @@ def elabGhostRelationDefinition : CommandElab := fun stx => do
 
 @[command_elab Veil.assertionDeclaration]
 def elabAssertion : CommandElab := fun stx => do
-  -- Use dynamic trace class name for detailed profiling
-  withTraceNode `veil.perf.elaborator.assertion (fun _ => return "assertion") do
-    let mut mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
-    mod ← mod.ensureStateIsDefined
-    mod.throwIfSpecAlreadyFinalized
-    -- TODO: handle assertion sets correctly
-    let assertion : StateAssertion ← match stx with
-    | `(command|assumption $name:propertyName ? $prop:term) => mod.mkAssertion .assumption name prop stx
-    | `(command|invariant $name:propertyName ? $prop:term) => mod.mkAssertion .invariant name prop stx
-    | `(command|safety $name:propertyName ? $prop:term) => mod.mkAssertion .safety name prop stx
-    | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop stx
-    | `(command|termination $name:propertyName ? $prop:term) => mod.mkAssertion .termination name prop stx
-    | _ => throwUnsupportedSyntax
+  let mut mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+  mod ← mod.ensureStateIsDefined
+  mod.throwIfSpecAlreadyFinalized
+  -- TODO: handle assertion sets correctly
+  let assertion : StateAssertion ← match stx with
+  | `(command|assumption $name:propertyName ? $prop:term) => mod.mkAssertion .assumption name prop stx
+  | `(command|invariant $name:propertyName ? $prop:term) => mod.mkAssertion .invariant name prop stx
+  | `(command|safety $name:propertyName ? $prop:term) => mod.mkAssertion .safety name prop stx
+  | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop stx
+  | `(command|termination $name:propertyName ? $prop:term) => mod.mkAssertion .termination name prop stx
+  | _ => throwUnsupportedSyntax
+  -- Use dynamic trace class name that includes the assertion name and kind
+  let kindStr := match assertion.kind with
+    | .assumption => "assumption"
+    | .invariant => "invariant"
+    | .safety => "safety"
+    | .trustedInvariant => "trusted_invariant"
+    | .termination => "termination"
+  withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
     -- Elaborate the assertion in the Lean environment
     let (cmd, mod') ← mod.defineAssertion assertion
     elabVeilCommand cmd
