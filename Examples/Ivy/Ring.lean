@@ -46,6 +46,7 @@ invariant pending L L → le N L
 
 #check_invariants
 
+set_option trace.veil.desugar true
 #model_check { node := Fin 6 }
 
 sat trace {

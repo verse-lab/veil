@@ -27,14 +27,14 @@ instantiate txIdSet : TSet txId TxIds
 inductive OpType where
   | Read
   | Write
-deriving instance Veil.Enumeration for OpType
+deriving instance Veil.Enumeration, Lean.ToJson for OpType
 
 @[veil_decl]
 structure Op (α β : Type) where
   op : OpType
   key : α
   value : β
-deriving instance Veil.Enumeration for Op
+deriving instance Veil.Enumeration, Lean.ToJson for Op
 
 type Ops
 instantiate opsSet : TSet (Op key txId) Ops
@@ -301,10 +301,11 @@ invariant [serializability]
                         else initialState
         isComplete exec trans parentSt)
 
-
+-- invariant [size_less_than_two]
+--   TransactionsPool.length < 4
 termination [all_thread_done] (∀ t : txId, t ≠ noVal → pc t Done)
 
-veil_set_option useNewExtraction true
+-- veil_set_option useNewExtraction true
 #gen_spec
 
 
@@ -330,9 +331,44 @@ time: 250844ms -/
   KVState := ExtTreeMap key_IndT txId_IndT
 }
 {
-  initialState := m1,
+  initialState := Std.ExtTreeMap.ofList [
+    (key_IndT.K1, txId_IndT.noVal),
+    (key_IndT.K2, txId_IndT.noVal)
+  ] compare
+  -- initialState := m1
+,
   txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
 }
+/-BUG:
+If we pass parameter from context (e.g., m1), then compilation will be failed.
+After resolve the first issue, compilation will be successful though,
+it would not report any bug.
+It seems that stop at the right position,
+but it does not report the violation found.
+-/
+-- Done!
+-- Diameter:	8
+-- States Found:	1
+-- Distinct States:	336169
+-- Queue:	166296
+-- Elapsed time:	10m 6.4s
 
 
+/-
+Parralle:
+Done!
+Diameter:	9
+States Found:	666813
+Distinct States:	333910
+Queue:	1110
+Elapsed time:	7.5s
+
+
+Done!
+Diameter:	8
+States Found:	672654
+Distinct States:	336169
+Queue:	166296
+Elapsed time:	8m 21.1s
+-/
 end KVSnap

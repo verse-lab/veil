@@ -322,12 +322,13 @@ private def noResultData : Html :=
 def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
   <div className="model-checker-result">
     {progressToHtml p}
-    {match resultJson with
-     | some json =>
-       match extractError json with
-       | some errorMsg => errorBox errorMsg
-       | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical"⟩ #[] else noResultData
-     | none => noResultData}
+    { match resultJson with
+      | some json =>
+        -- dbg_trace "Model checker result JSON: {json}"
+        match extractError json with
+        | some errorMsg => errorBox errorMsg
+        | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical"⟩ #[] else noResultData
+      | none => noResultData}
   </div>
 
 /-- Create a streaming progress widget that polls progress by instance ID. -/

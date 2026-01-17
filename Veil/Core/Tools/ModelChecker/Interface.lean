@@ -108,6 +108,19 @@ instance ParallelConfig.hasQuote : Quote ParallelConfig `term where
       #[Syntax.mkNumLit (toString cfg.numSubTasks),
         Syntax.mkNumLit (toString cfg.thresholdToParallel)]
 
+/-- Pure function that computes the chunk ranges for splitting a worklist.
+Returns a list of (left, right) index pairs representing subarrays. -/
+def ParallelConfig.chunkRanges (cfg : ParallelConfig) (totalSize : Nat) : List (Nat × Nat) :=
+  if totalSize < cfg.thresholdToParallel then
+    [(0, totalSize)]
+  else
+    let numSubTasks := max 1 cfg.numSubTasks
+    let chunkSize := totalSize / numSubTasks
+    List.range numSubTasks |>.map fun i =>
+      let l := i * chunkSize
+      let r := if i == numSubTasks - 1 then totalSize else (i + 1) * chunkSize
+      (l, r)
+
 def ParallelConfig.taskSplit (cfg : ParallelConfig) (f : Array α → IO β) (worklist : Array α)
   : IO (List (Task (Except IO.Error β))) := do
   if worklist.size < cfg.thresholdToParallel then

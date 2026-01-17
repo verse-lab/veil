@@ -62,57 +62,7 @@ def toArray {α} (q : fQueue α) : Array α :=
 def ofList {α} (xs : List α) : fQueue α :=
   xs.foldl fQueue.enqueue fQueue.empty
 
--- instance : EmptyCollection (fQueue α) where
---   emptyCollection := fQueue.empty
-
--- instance : Std.Stream (fQueue α) α where
---   next? q := q.dequeue?
-
--- instance : Functor fQueue where
---   map f q := ⟨q.front.map f, q.back.map f⟩
-
--- instance : Insert α (fQueue α) where
---   insert x xs:= enqueue xs x
-
-/-
-## Functional correctness of the functional queue
-`fQueue` is a functional queue implementation with proofs.
-`toList` is the list representation of the queue.
-`norm` is the normalization function of the queue.
-`enqueue` is the enqueue function of the queue.
-`dequeue?` is the dequeue function of the queue.
-
-Properties:
-- `norm_toList`: `toList (norm q) = toList q`
-  : After normalization, the list representation of the queue is the same as the original queue
-
-- `norm_idem`: `norm (norm q) = norm q`
-  : Normalization is idempotent
-
-- `norm_eq_self_of_front_ne_nil`: `norm q = q` if `q.front ≠ []`
-  : If the front of the queue is non-empty, then the normalized queue is the same as the original queue
-
-- `toList_empty`: `toList (empty : fQueue α) = []`
-  : The list representation of the empty queue is empty
-
-- `dequeue?_empty`: `dequeue? (empty : fQueue α) = none`
-  : The dequeue function of the empty queue is none
-
-- `toList_enqueue`: `toList (enqueue q x) = toList q ++ [x]`
-  : The list representation of the queue after enqueueing an element is the list representation of the queue before enqueueing plus the element
-
-- `dequeue?_spec`: `dequeue? q = some (x, q') ↔ toList q = x :: toList q'`
-  : The dequeue function of the queue returns the element at the front of the queue and the queue after dequeueing the element
-
-- `dequeue?_eq_none_iff_toList_nil`: `dequeue? q = none ↔ toList q = []`
-  : The dequeue function of the queue returns none
-    _if and only if_ the list representation of the queue is empty
-
-- `dequeue?_cons_view`: `toList q = x :: xs → ∃ q', dequeue? q = some (x, q') ∧ toList q' = xs`
-  : If the list representation of the queue is a non-empty list,
-    then the dequeue function of the queue returns the element at
-    the front of the queue and the queue after dequeueing the element
--/
+-- ## Functional correctness of the functional queue
 
 @[simp, grind =]
 theorem norm_toList {α} (q : fQueue α) :
@@ -190,48 +140,135 @@ theorem foldl_enqueue_toList {α : Type} (L : List α) (q : fQueue α) :
     grind
 
 
-open Std
-theorem mem_foldl_insert_aux
-    {β : Type}
-    [BEq β] [Hashable β] [LawfulBEq β] [LawfulHashable β]
-    (s : HashSet β) :
-    ∀ {l : List β} {a : β},
-      a ∈ List.foldl (fun acc x => acc.insert x) s l →
-      a ∈ s ∨ a ∈ l
-  | [], _, h => by simpa using h
-  | x :: xs, a, h => by
-      simp only [List.foldl] at h
-      have ih := mem_foldl_insert_aux (s.insert x) h
-      simp only [HashSet.mem_insert, List.mem_cons] at ih ⊢
-      grind
+/-- If dequeue? returns some, the element is in the original queue -/
+@[grind →]
+theorem mem_of_mem_dequeue_tail {α : Type} (q q' : fQueue α) (x y : α)
+    (h_dequeue : fQueue.dequeue? q = some (x, q'))
+    (h_mem : y ∈ q') :
+    y ∈ q := by
+  have spec := dequeue?_spec q
+  rw [h_dequeue] at spec
+  -- spec: toList q = x :: toList q'
+  unfold Membership.mem instMembership at h_mem ⊢
+  cases h_mem with
+  | inl h_front =>
+    -- y ∈ q'.front
+    -- Need to show: y ∈ q.front ∨ y ∈ q.back
+    unfold toList at spec
+    have : y ∈ q.front ++ q.back.reverse := by
+      rw [spec]
+      simp [h_front]
+    simp [List.mem_append, List.mem_reverse] at this
+    exact this
+  | inr h_back =>
+    -- y ∈ q'.back
+    unfold toList at spec
+    have : y ∈ q.front ++ q.back.reverse := by
+      rw [spec]
+      simp [List.mem_append, List.mem_reverse, h_back]
+    simp [List.mem_append, List.mem_reverse] at this
+    exact this
 
 
-theorem mem_foldl_insert_of_mem_aux [BEq β] [Hashable β] [LawfulBEq β] [LawfulHashable β]
-    (s : Std.HashSet β) :
-    ∀ (l : List β) {a : β},
-      (a ∈ s ∨ a ∈ l) →
-      a ∈ List.foldl (fun acc x => acc.insert x) s l
-  | [], _, h => by grind
-  | y :: ys, a, h => by
-      simp only [List.foldl]
-      apply mem_foldl_insert_of_mem_aux
-      simp only [Std.HashSet.mem_insert, List.mem_cons] at h ⊢
-      grind
 
+/-- An element is in the queue after enqueuing it -/
+theorem mem_enqueue {α : Type} (q : fQueue α) (x : α) :
+    x ∈ fQueue.toList (fQueue.enqueue q x) := by
+  rw [toList_enqueue]
+  simp
 
-theorem mem_foldl_insert_of_mem [BEq β] [Hashable β] [LawfulBEq β] [LawfulHashable β]
-    {l : List β} {a : β} (h : a ∈ l) :
-    a ∈ List.foldl (fun acc x => acc.insert x)
-          (Std.HashSet.emptyWithCapacity : Std.HashSet β) l :=
-  mem_foldl_insert_of_mem_aux _ l (Or.inr h)
-
-
-theorem mem_list_of_mem_foldl_insert {β : Type} [BEq β] [Hashable β] [LawfulBEq β] [LawfulHashable β]
-    {l : List β} {a : β}
-    (h : a ∈ List.foldl (fun acc x => acc.insert x) Std.HashSet.emptyWithCapacity l) : a ∈ l := by
-  have := mem_foldl_insert_aux HashSet.emptyWithCapacity h
+@[grind →]
+theorem mem_of_dequeue {α : Type} (q q' : fQueue α) (x : α)
+    (h_dequeue : fQueue.dequeue? q = some (x, q')) :
+    x ∈ q := by
+  have spec := dequeue?_spec q
+  rw [h_dequeue] at spec
+  unfold Membership.mem instMembership
+  unfold toList at spec
+  have h_mem : x ∈ q.front ++ q.back.reverse := by
+    grind
+  simp only at h_mem
+  unfold Membership.mem
   grind
 
+/-- isEmpty returns true iff both front and back are empty -/
+@[grind =]
+theorem isEmpty_iff_empty_lists {α : Type} (q : fQueue α) :
+    q.isEmpty = true ↔ q.front = [] ∧ q.back = [] := by
+  unfold isEmpty
+  simp only [Bool.and_eq_true]
+  grind
+
+/-- If isEmpty is true, then dequeue? returns none -/
+@[grind =]
+theorem dequeue?_none_of_isEmpty {α : Type} (q : fQueue α)
+    (h : q.isEmpty = true) :
+    q.dequeue? = none := by
+  have ⟨h_front, h_back⟩ := isEmpty_iff_empty_lists q |>.mp h
+  unfold dequeue? norm
+  grind
+
+
+
+@[grind =]
+theorem isEmpty_of_dequeue?_none {α : Type} (q : fQueue α) (h : q.dequeue? = none) :
+    q.isEmpty = true := by
+  have h_toList := dequeue?_eq_none_iff_toList_nil q |>.mp h
+  unfold toList at h_toList
+  have h_front : q.front = [] := by grind
+  unfold fQueue.isEmpty
+  rw [h_front]
+  simp only [List.isEmpty_nil, Bool.true_and]
+  have h_back_nil : q.back = [] := by
+    rw [h_front] at h_toList
+    simp only [List.nil_append] at h_toList
+    simp at h_toList
+    exact h_toList
+  rw [h_back_nil]
+  simp only [List.isEmpty_nil]
+
+
+
+/-- Enqueue preserves the head element: if dequeue? returns some (head, tail),
+    then after enqueuing a new element, dequeue? still returns the same head -/
+theorem dequeue?_enqueue {α : Type} (q : fQueue α) (x : α) (head : α) (tail : fQueue α)
+  (h_dequeue : q.dequeue? = some (head, tail))
+  : ∃ tail', (q.enqueue x).dequeue? = some (head, tail') := by
+  have h_spec := dequeue?_spec q
+  rw [h_dequeue] at h_spec
+  simp only at h_spec
+  have h_enqueue_toList : (q.enqueue x).toList = q.toList ++ [x] := toList_enqueue q x
+  rw [h_spec] at h_enqueue_toList
+  simp only [List.cons_append] at h_enqueue_toList
+  have ⟨tail', h_dequeue', h_toList'⟩ := dequeue?_cons_view h_enqueue_toList
+  exact ⟨tail', h_dequeue'⟩
+
+
+/-- Corollary: If a queue is non-empty, enqueue preserves the head element.
+    More precisely, if q.dequeue? = some (head, tail), then
+    (q.enqueue x).dequeue? = some (head, tail') for some tail' -/
+theorem enqueue_preserves_head {α : Type} (q : fQueue α) (x : α) (head : α)
+  (h_nonempty : ∃ tail, q.dequeue? = some (head, tail))
+  : ∃ tail', (q.enqueue x).dequeue? = some (head, tail') := by
+  obtain ⟨tail, h⟩ := h_nonempty
+  exact dequeue?_enqueue q x head tail h
+
+
+/-- If an element is in a list, it is in the queue constructed from that list -/
+theorem mem_ofList {α : Type} (L : List α) (x : α) (h : x ∈ L)
+  : x ∈ fQueue.ofList L := by
+  unfold fQueue.ofList
+  have h_toList : (List.foldl fQueue.enqueue fQueue.empty L).toList = fQueue.empty.toList ++ L :=
+    fQueue.foldl_enqueue_toList L fQueue.empty
+  rw [fQueue.toList_empty] at h_toList
+  simp only [List.nil_append] at h_toList
+  rw [← h_toList] at h
+  unfold fQueue.toList at h
+  unfold Membership.mem instMembership
+  simp only [List.mem_append, List.mem_reverse] at h
+  exact h
+
 end fQueue
+
 
 end Veil
