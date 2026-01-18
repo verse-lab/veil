@@ -1,8 +1,8 @@
 import Veil.Core.Tools.ModelChecker.Concrete.Core
 import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
+import Veil.Core.Tools.ModelChecker.Concrete.DataLemmas
 
 namespace Veil.ModelChecker.Concrete
-open Std
 
 
 structure SequentialSearchContext {ρ σ κ σₕ : Type}

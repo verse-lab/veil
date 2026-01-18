@@ -1,6 +1,5 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 import Veil.Core.Tools.ModelChecker.Interface
-import Veil.Core.Tools.ModelChecker.Concrete.FunctionalQueue
 import Veil.Core.Tools.ModelChecker.Trace
 
 namespace Veil.ModelChecker.Concrete
@@ -68,7 +67,6 @@ where
   visited_sound      : Function.Injective fp.view → ∀ x, seen (fp.view x) → sys.reachable x
   queue_sub_visited  : ∀ x : σ, ∀ d : Nat, inQueue ⟨fp.view x, x, d⟩ → seen (fp.view x)
   queue_wellformed   : ∀ fingerprint st d, inQueue ⟨fingerprint, st, d⟩ → fingerprint = fp.view st
-
 
 
 @[inline, specialize]
