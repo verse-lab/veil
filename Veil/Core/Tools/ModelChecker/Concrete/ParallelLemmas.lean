@@ -312,21 +312,24 @@ theorem processWorkQueue_cons_step {ρ σ κ σₕ : Type}
   (h_next_mono : ∀ x, x ∈ ctx.localSeen → x ∈ next_ctx.localSeen)
   (h_next_complete : !next_ctx.hasFinished → ∀ l v, (l, v) ∈ extractSuccessfulTransitions (sys.tr th curr) →
                      (fp.view v) ∈ next_ctx.seen ∨ (fp.view v) ∈ next_ctx.localSeen)
-  -- Properties from recursive processWorkQueue
-  (h_rest_complete : !rest_ctx.hasFinished → ∀ item ∈ rest, ∀ l v, (l, .success v) ∈ (sys.tr th item.2.1) →
-                     (fp.view v) ∈ rest_ctx.seen ∨ (fp.view v) ∈ rest_ctx.localSeen)
+  -- Properties from recursive processWorkQueue (using SuccessorsCollected)
+  (h_rest_complete : SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ rest) rest_ctx.hasFinished (fun h => h ∈ rest_ctx.seen ∨ h ∈ rest_ctx.localSeen))
   (h_rest_mono : ∀ fp_elem, fp_elem ∈ next_ctx.localSeen → fp_elem ∈ rest_ctx.localSeen) :
-  -- Result: combined properties for (fpSt, curr, depth) :: rest
-  (!rest_ctx.hasFinished → ∀ item ∈ (fpSt, curr, depth) :: rest, ∀ l v, (l, .success v) ∈ (sys.tr th item.2.1) →
-    (fp.view v) ∈ rest_ctx.seen ∨ (fp.view v) ∈ rest_ctx.localSeen) ∧
-  (∀ fp_elem, fp_elem ∈ ctx.localSeen → fp_elem ∈ rest_ctx.localSeen) := by
+  -- Result: combined properties for (fpSt, curr, depth) :: rest using SuccessorsCollected
+  SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ (fpSt, curr, depth) :: rest) rest_ctx.hasFinished (fun h => h ∈ rest_ctx.seen ∨ h ∈ rest_ctx.localSeen) ∧
+  (∀ fp_elem, fp_elem ∈ ctx.localSeen → fp_elem ∈ rest_ctx.localSeen)
+   := by
   constructor
-  · intro h_final_nf item_arg item_mem l v h_tr
-    rw [List.mem_cons] at item_mem
-    cases item_mem with
-    | inl h_eq =>
-      subst h_eq
-      -- Convert (l, .success v) ∈ sys.tr th curr to (l, v) ∈ extractSuccessfulTransitions
+  · -- Prove SuccessorsCollected for the cons case
+    intro h_final_nf fingerprint st d h_in_cons l v h_tr
+    -- Simplify the match expression in h_in_cons
+    simp only at h_in_cons
+    -- Now h_in_cons should be: (fingerprint, st, d) ∈ (fpSt, curr, depth) :: rest
+    -- Case analysis on whether the item is the head or in the tail
+    by_cases h_eq : (fingerprint, st, d) = (fpSt, curr, depth)
+    · -- Case: (fingerprint, st, d) = (fpSt, curr, depth)
+      cases h_eq
+      -- Now st = curr, so we need to show successors of curr are in seen
       have h_in_extracted : (l, v) ∈ extractSuccessfulTransitions (sys.tr th curr) := by
         unfold extractSuccessfulTransitions
         simp only [List.mem_filterMap]
@@ -338,7 +341,13 @@ theorem processWorkQueue_cons_step {ρ σ κ σₕ : Type}
         have h1 : fp.view v ∈ baseCtx.seen := (next_ctx.seenUnaltered (fp.view v)).mpr h_seen
         exact (rest_ctx.seenUnaltered (fp.view v)).mp h1
       | inr h_local => right; exact h_rest_mono _ h_local
-    | inr h_in_rest => exact h_rest_complete h_final_nf _ h_in_rest l v h_tr
+    · -- Case: (fingerprint, st, d) ≠ (fpSt, curr, depth), so it must be in rest
+      have h_in_rest : (fingerprint, st, d) ∈ rest := by
+        rw [List.mem_cons] at h_in_cons
+        cases h_in_cons with
+        | inl h_head => exact absurd h_head h_eq
+        | inr h_tail => exact h_tail
+      exact h_rest_complete h_final_nf fingerprint st d h_in_rest l v h_tr
   · intro x hx
     apply h_rest_mono
     apply h_next_mono

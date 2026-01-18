@@ -1,8 +1,43 @@
 import Veil.Core.Tools.ModelChecker.Concrete.Core
 import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
-import Veil.Core.Tools.ModelChecker.Concrete.DataLemmas
+import Veil.Core.Tools.ModelChecker.Concrete.Containers
 
 namespace Veil.ModelChecker.Concrete
+
+/-- The frontier-closed property: all states that are discovered (in `seen`) and not in the frontier
+    (not in `tovisit`) have all their successors discovered. This is the key invariant for BFS correctness. -/
+abbrev FrontierClosed {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (seen : Std.HashSet σₕ)
+  (tovisit : Std.HashMap σₕ (σ × Nat))
+  (finished : Option (TerminationReason σₕ)) : Prop :=
+  Function.Injective fp.view →
+    (finished = some (.exploredAllReachableStates) ∨ finished = none) →
+    ∀ (s : σ), fp.view s ∈ seen →
+      (tovisit[(fp.view s)]? = none) →
+      ∀ l next_s, (l, .success next_s) ∈ sys.tr th s →
+      fp.view next_s ∈ seen
+
+
+/-- The property that all successors of items in `items` satisfy the `inSeen` predicate.
+    Used as a key invariant in parallel BFS to express that successors have been collected. -/
+
+-- 注意这里：{ρ σ κ σₕ : Type u}
+abbrev SuccessorsCollected {ρ σ κ σₕ : Type _}
+  [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (inQueue : QueueItem σₕ σ → Prop)
+  (hasFinished : Bool)
+  (seen : σₕ → Prop) : Prop :=
+  !hasFinished → ∀ fingerprint st d, inQueue ⟨fingerprint, st, d⟩ →
+    ∀ (l : κ) (v : σ), (l, .success v) ∈ sys.tr th st →
+    seen (fp.view v)
+
 
 structure SequentialSearchContext {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
@@ -35,12 +70,8 @@ where
   it's made to be an `HashMap`. -/
   tovisit : Std.HashMap σₕ (σ × Nat)
   invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun ⟨h, x, d⟩ => tovisit[h]? = some (x, d)) (Membership.mem seen)
-  frontier_closed : Function.Injective fp.view →
-    (finished = some (.exploredAllReachableStates) ∨ finished = none) →
-    ∀ (s : σ), fp.view s ∈ seen →           -- s is discovered
-      (tovisit[(fp.view s)]? = none) →      -- s is not in the frontier
-      ∀ l next_s, (l, .success next_s) ∈ sys.tr th s →   -- for all successors
-      fp.view next_s ∈ seen                 -- successor must be discovered
+  frontier_closed : FrontierClosed sys seen tovisit finished
+  starts_in_seen : ∀s₀, s₀ ∈ sys.initStates → fp.view s₀ ∈ seen
   terminate_empty_tovisit :
     finished = some (.exploredAllReachableStates) → tovisit.isEmpty
 

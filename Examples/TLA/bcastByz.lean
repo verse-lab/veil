@@ -234,5 +234,4 @@ invariant [card_faulty] pset.count Faulty <= T
 
 
 
-
 end BcastByz

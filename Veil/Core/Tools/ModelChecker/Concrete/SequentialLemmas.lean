@@ -1,28 +1,26 @@
-import Veil.Core.Tools.ModelChecker.Concrete.Core
-import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
-import Veil.Core.Tools.ModelChecker.Concrete.DataLemmas
+import Veil.Core.Tools.ModelChecker.Concrete.SearchContext
 
 namespace Veil.ModelChecker.Concrete
 
 
-structure SequentialSearchContext {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [instBEq : BEq κ] [instHash : Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
-where
-  /- Queue storing (fingerprint, state, depth) tuples for BFS traversal -/
-  sq    : fQueue (QueueItem σₕ σ)
-  /- Inner invariants that hold at all times -/
-  invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem sq) (Membership.mem seen)
-  /-- Outer invariant relating finished and pcState - only holds at bfsStep boundaries -/
-  terminate_empty_queue : finished = some (.exploredAllReachableStates) → sq.isEmpty
-  stable_closed :  Function.Injective fp.view →
-    (finished = some (.exploredAllReachableStates) ∨ finished = none)
-      → ∀ u : σ, (fp.view u) ∈ seen → (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sq) →
-      ∀l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u → (fp.view v) ∈ seen
+-- structure SequentialSearchContext {ρ σ κ σₕ : Type}
+--   [fp : StateFingerprint σ σₕ]
+--   [instBEq : BEq κ] [instHash : Hashable κ]
+--   {th : ρ}
+--   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+--   (params : SearchParameters ρ σ)
+-- extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
+-- where
+--   /- Queue storing (fingerprint, state, depth) tuples for BFS traversal -/
+--   sq    : fQueue (QueueItem σₕ σ)
+--   /- Inner invariants that hold at all times -/
+--   invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem sq) (Membership.mem seen)
+--   /-- Outer invariant relating finished and pcState - only holds at bfsStep boundaries -/
+--   terminate_empty_queue : finished = some (.exploredAllReachableStates) → sq.isEmpty
+--   stable_closed :  Function.Injective fp.view →
+--     (finished = some (.exploredAllReachableStates) ∨ finished = none)
+--       → ∀ u : σ, (fp.view u) ∈ seen → (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sq) →
+--       ∀l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u → (fp.view v) ∈ seen
 
 
 theorem SequentialSearchContext.bfs_completeness {ρ σ κ σₕ : Type}

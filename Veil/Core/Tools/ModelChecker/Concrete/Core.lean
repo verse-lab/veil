@@ -228,23 +228,6 @@ theorem BaseSearchContext.processState_returns_some_implies_not_finished {ρ σ 
       · contradiction
       · simp [h_finished] at *
 
-/-- If processState returns none as its second component, then the resulting context's
-    finished field cannot be `some .exploredAllReachableStates`. -/
-theorem BaseSearchContext.processState_returns_none_excludes_exploredAll
-  {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ]
-  {th : ρ}
-  (sys : _)
-  {params : SearchParameters ρ σ}
-  (fpSt : σₕ)
-  (curr : σ)
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (ctx' : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (h_process : ctx.processState sys fpSt curr = (ctx', none)) :
-  ctx'.finished ≠ some .exploredAllReachableStates := by
-  unfold processState at h_process
-  simp only at h_process <;> grind
 
 
 /-- Theorem: checkViolationsAndMaybeTerminate preserves key fields of BaseSearchContext.

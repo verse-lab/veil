@@ -287,6 +287,7 @@ theorem mem_insert_self' {α : Type} [BEq α] [Hashable α] [LawfulBEq α]
   unfold Membership.mem HashSet.insert
   apply HashMap.mem_insertIfNew_self
 
+@[grind ←]
 theorem mem_union {α : Type} [BEq α] [Hashable α] [LawfulBEq α]
   (s₁ s₂ : Std.HashSet α) (x : α) :
   x ∈ s₁.union s₂ ↔ x ∈ s₁ ∨ x ∈ s₂ := by
