@@ -197,13 +197,11 @@ def BaseSearchContext.processState {ρ σ κ σₕ : Type}
   | (ctx, none) => (ctx, some ⟨outcomes, rfl⟩)
 
 
-theorem BaseSearchContext.processState_returns_some_implies_not_finished
-  {ρ σ κ σₕ : Type}
+theorem BaseSearchContext.processState_returns_some_implies_not_finished {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  {params : SearchParameters ρ σ}
+  {th : ρ} {params : _}
+  (sys : _)
   (fpSt : σₕ)
   (curr : σ)
   (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
@@ -217,30 +215,38 @@ theorem BaseSearchContext.processState_returns_some_implies_not_finished
   split at h_process <;> try (injection h_process with _ h_snd; simp at h_snd)
   rename_i ctx_temp heq_check h_split
   rw [← h_split]
-  -- Now we need to show that ctx_temp.finished.isSome = false
   unfold checkViolationsAndMaybeTerminate at heq_check
   simp only at heq_check
   split at heq_check
-  · -- Case: ctx.finished = some (.earlyTermination condition)
-    -- Then the result is (ctx, some condition), contradicting heq_check which says second component is none
-    injection heq_check with _ h_opt_eq
+  · injection heq_check with _ h_opt_eq
     simp at h_opt_eq
-  · -- Case: ctx.finished is not some (.earlyTermination _)
-    -- Then ctx_temp = {ctx with violatingStates := ...}
-    injection heq_check with h_ctx_temp_eq h_opt_eq
+  · injection heq_check with h_ctx_temp_eq h_opt_eq
     rw [← h_ctx_temp_eq]
     simp only
-    -- ctx_temp.finished = ctx.finished (only violatingStates changed)
-    -- We need to show ctx.finished = none
     cases h_finished : ctx.finished
     · simp
     · rename_i reason
       cases reason
-      · -- Case: .exploredAllReachableStates
-        contradiction
-      · -- Case: .earlyTermination _
-        simp [h_finished] at *
+      · contradiction
+      · simp [h_finished] at *
 
+/-- If processState returns none as its second component, then the resulting context's
+    finished field cannot be `some .exploredAllReachableStates`. -/
+theorem BaseSearchContext.processState_returns_none_excludes_exploredAll
+  {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ]
+  {th : ρ}
+  (sys : _)
+  {params : SearchParameters ρ σ}
+  (fpSt : σₕ)
+  (curr : σ)
+  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx' : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (h_process : ctx.processState sys fpSt curr = (ctx', none)) :
+  ctx'.finished ≠ some .exploredAllReachableStates := by
+  unfold processState at h_process
+  simp only at h_process <;> grind
 
 
 /-- Theorem: checkViolationsAndMaybeTerminate preserves key fields of BaseSearchContext.

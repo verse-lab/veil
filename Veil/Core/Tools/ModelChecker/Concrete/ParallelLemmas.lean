@@ -52,35 +52,32 @@ where
   deltaConsistent : (Function.Injective fp.view → ∀x, (fp.view x) ∈ localSeen → ∃d, ⟨(fp.view x), x, d⟩ ∈ tovisit)
 
 
--- def ParallelSearchContextSub.empty {ρ σ κ σₕ : Type}
---   [fp : StateFingerprint σ σₕ]
---   [BEq σ]
---   [instBEq : BEq κ] [instHash : Hashable κ]
---   {th : ρ}
---   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
---   (params : SearchParameters ρ σ)
---   : @ParallelSearchContextSub ρ σ κ σₕ fp instBEq instHash th sys params := {
---     toBaseSearchContext := BaseSearchContext.initial sys params,
---     tovisit := #[],
---     localSeen := Std.HashSet.emptyWithCapacity,
---     localLog := Std.HashMap.emptyWithCapacity,
---     invs := by
---       constructor
---       . simp
---       . simp; intro h_view_inj x h_in
---         unfold BaseSearchContext.initial at h_in
---         simp at h_in
---         obtain ⟨s, h_s_in, h_eq_view⟩ := h_in
---         have h_eq_st : s = x := h_view_inj h_eq_view
---         rw [← h_eq_st]
---         exact EnumerableTransitionSystem.reachable.init _ h_s_in
---       . simp
---       . simp
---     localStatesFound := 0
---     seenDisjoint := by simp
---     initSubSeen := by intro s₀ h_s0_in; unfold BaseSearchContext.initial; simp; grind
---     deltaConsistent := by simp
---   }
+/- `Pure data object`, used for batch-merge operation.
+We can make it to carry properties ...  -/
+structure ParallelSearchContextMerge {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [instBEq : BEq κ] [instHash : Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
+  (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
+extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
+where
+  tovisit : Std.HashMap σₕ (σ × Nat)
+  localSeen : Std.HashSet σₕ
+  localLog : Std.HashMap σₕ (σₕ × κ)
+  seenUnaltered : ∀s, s ∈ baseCtx.seen ↔ s ∈ seen
+  -- invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisit) (fun h => h ∈ seen ∨ h ∈ localSeen)
+  invs : @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun ⟨h, x, d⟩ => tovisit[h]? = some (x, d))  (fun h => h ∈ seen ∨ h ∈ localSeen)
+  -- /-- Local count of post-states generated (before deduplication) -/
+  localStatesFound : Nat := 0
+  -- /-- Local per-action statistics: label → stats -/
+  localActionStatsMap : Std.HashMap κ ActionStat := {}
+  -- /-- The seen set and localSeen are disjoint: newly discovered states go to localSeen -/
+  -- seenDisjoint : ∀ h, h ∈ seen → ¬(h ∈ localSeen)
+  -- initSubSeen : ∀s₀, s₀ ∈ sys.initStates → (fp.view s₀) ∈ seen
+  excludeAllStatesFinish : finished ≠ some (.exploredAllReachableStates)
+  deltaConsistent : (Function.Injective fp.view → ∀x, (fp.view x) ∈ localSeen → ∃d, tovisit[fp.view x]? = some (x, d))
 
 
 theorem concurrent_bfs_completeness {ρ σ κ σₕ : Type}
@@ -458,6 +455,104 @@ theorem ParallelSearchContextSub.insert_and_enqueue_preserves_invs {ρ σ κ σ�
       rw [h_st_eq, h_fp_eq, h_fp]
 
 
+/-- Theorem: Inserting a new fingerprint into seen and enqueuing the corresponding state preserves invariants.
+    This theorem is used in tryExploreNeighbor when adding a newly discovered neighbor. -/
+theorem ParallelSearchContextMerge.insert_and_enqueue_preserves_invs {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq σ] [instBEq: BEq κ] [instHash : Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
+  (ctx : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx)
+  (fingerprint : σₕ)
+  (succ : σ)
+  (depth : Nat)
+  (h_neighbor : sys.reachable succ)
+  (h_fp : fingerprint = fp.view succ) :
+  @SearchContextInvariants ρ σ κ σₕ fp th sys params
+    ((fun ⟨h, x, d⟩ => (ctx.tovisit.insert fingerprint ⟨succ, depth + 1⟩)[h]? = some (x, d)))
+    (fun h => h ∈ ctx.seen ∨ h ∈ ctx.localSeen.insert fingerprint) := by
+  constructor
+  · -- queue_sound: states in the new tovisit are reachable
+    intro x d h_in_tovisit
+    -- Simplify the match expression in h_in_tovisit
+    simp only at h_in_tovisit
+    -- For HashMap.insert, we case split on whether we hit the new key or an existing one
+    rw [Std.HashMap.getElem?_insert] at h_in_tovisit
+    split at h_in_tovisit
+    · -- Case: fingerprint == fp.view x
+      -- The lookup returns the newly inserted value (succ, depth + 1)
+      next h_beq =>
+        cases h_in_tovisit
+        exact h_neighbor
+    · -- Case: fingerprint ≠ fp.view x
+      -- The lookup returns the original value from ctx.tovisit
+      exact ctx.invs.queue_sound x d h_in_tovisit
+  · -- visited_sound: elements in new seen are reachable
+    intro h_view_inj x h_in_new_seen
+    -- For HashSet.insert, element is in the new set if it equals fingerprint or was in the old sets
+    simp only [Membership.mem] at h_in_new_seen
+    by_cases h : fp.view x = fingerprint
+    · -- x's fingerprint equals the new fingerprint, so x = succ
+      have h_x_eq_succ : x = succ := by
+        rw [h_fp] at h
+        exact h_view_inj h
+      rw [h_x_eq_succ]
+      exact h_neighbor
+    · -- x's fingerprint is different, so it must have been in the old seen sets
+      have h_in_old : fp.view x ∈ ctx.seen ∨ fp.view x ∈ ctx.localSeen := by
+        -- h_in_new_seen: fp.view x ∈ ctx.seen ∨ fp.view x ∈ ctx.localSeen.insert fingerprint
+        cases h_in_new_seen with
+        | inl h_seen => left; exact h_seen
+        | inr h_in_insert =>
+          -- fp.view x ∈ ctx.localSeen.insert fingerprint and fp.view x ≠ fingerprint
+          right
+          simp only [Membership.mem]
+          have : (ctx.localSeen.insert fingerprint).contains (fp.view x) →
+                 fp.view x ≠ fingerprint → ctx.localSeen.contains (fp.view x) := by
+            intro h_contains h_neq
+            grind
+          exact this h_in_insert h
+      exact ctx.invs.visited_sound h_view_inj x h_in_old
+  · -- queue_sub_visited: elements in new tovisit have fingerprints in new seen
+    intro x d h_in_queue
+    -- Simplify the match expression
+    simp only at h_in_queue
+    -- Case split on insert
+    rw [Std.HashMap.getElem?_insert] at h_in_queue
+    split at h_in_queue
+    · -- Case: fingerprint == fp.view x
+      -- This is the newly inserted element
+      next h_beq =>
+        have h_fp_eq : fingerprint = fp.view x := LawfulBEq.eq_of_beq h_beq
+        simp only [Membership.mem]
+        right
+        rw [← h_fp_eq]
+        exact Std.HashSet.mem_insert_self' ctx.localSeen fingerprint
+    · -- Case: lookup goes to original ctx.tovisit
+      have h_in_old_seen := ctx.invs.queue_sub_visited x d h_in_queue
+      simp only [Membership.mem]
+      cases h_in_old_seen with
+      | inl h_seen => left; exact h_seen
+      | inr h_localSeen => right; exact Std.HashSet.mem_of_mem_insert'' ctx.localSeen (fp.view x) fingerprint h_localSeen
+  · -- queue_wellformed: fingerprints match states in new tovisit
+    intro fp' st d h_in_queue
+    -- Simplify the match expression
+    simp only at h_in_queue
+    -- Case split on insert
+    rw [Std.HashMap.getElem?_insert] at h_in_queue
+    split at h_in_queue
+    · -- Case: fingerprint == fp'
+      -- This is the newly inserted element (succ, depth + 1)
+      next h_beq =>
+        have h_fp'_eq : fingerprint = fp' := LawfulBEq.eq_of_beq h_beq
+        cases h_in_queue
+        rw [← h_fp'_eq, h_fp]
+    · -- Case: lookup goes to original ctx.tovisit
+      exact ctx.invs.queue_wellformed fp' st d h_in_queue
+
+
 
 -- High-level theorem: updating toBaseSearchContext after processState preserves invariants
 -- This theorem says: when we extract ctx.toBaseSearchContext, apply processState to get baseCtx',
@@ -490,6 +585,50 @@ theorem ParallelSearchContextSub.update_base_after_processState_preserves_invs {
     have htmp := ctx.invs.queue_sub_visited x d h_in_queue
     grind
   · intro fp' st d h_in_queue; exact ctx.invs.queue_wellformed fp' st d h_in_queue
+
+
+-- High-level theorem: updating toBaseSearchContext after processState preserves invariants
+-- This is the version for ParallelSearchContextMerge (uses HashMap for tovisit)
+theorem ParallelSearchContextMerge.update_base_after_processState_preserves_invs {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [instBEq : BEq κ] [instHash : Hashable κ] [BEq σ] [Repr σ] [Repr σₕ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  {params : SearchParameters ρ σ}
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
+  (ctx : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx)
+  (fpSt : σₕ)
+  (curr : σ)
+  (baseCtx' : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (h_process : (ctx.toBaseSearchContext.processState sys fpSt curr).1 = baseCtx') :
+  @SearchContextInvariants ρ σ κ σₕ fp th sys params
+    (fun ⟨h, x, d⟩ => ctx.tovisit[h]? = some (x, d))
+    (fun h => h ∈ baseCtx'.seen ∨ h ∈ ctx.localSeen) := by
+  have h_seen_unchanged : baseCtx'.seen = ctx.seen := by
+    have h_preserves := BaseSearchContext.processState_preserves_seen sys params fpSt curr ctx.toBaseSearchContext
+    rw [h_process] at h_preserves
+    exact h_preserves
+  constructor
+  · -- queue_sound: states in tovisit are reachable
+    intro x d h_in_queue
+    exact ctx.invs.queue_sound x d h_in_queue
+  · -- visited_sound: elements in seen ∪ localSeen are reachable
+    intro h_view_inj x h_in_seen
+    rw [h_seen_unchanged] at h_in_seen
+    have htmp := ctx.invs.visited_sound h_view_inj x
+    -- h_in_seen : fp.view x ∈ ctx.seen ∨ fp.view x ∈ ctx.localSeen
+    -- ctx.invs.visited_sound needs: fp.view x ∈ ctx.seen ∨ fp.view x ∈ ctx.localSeen
+    exact htmp h_in_seen
+  · -- queue_sub_visited: elements in tovisit have fingerprints in seen ∪ localSeen
+    intro x d h_in_queue
+    have htmp := ctx.invs.queue_sub_visited x d h_in_queue
+    -- htmp : fp.view x ∈ ctx.seen ∨ fp.view x ∈ ctx.localSeen
+    -- goal : fp.view x ∈ baseCtx'.seen ∨ fp.view x ∈ ctx.localSeen
+    rw [h_seen_unchanged]
+    exact htmp
+  · -- queue_wellformed: fingerprints match states
+    intro fp' st d h_in_queue
+    exact ctx.invs.queue_wellformed fp' st d h_in_queue
 
 
 structure ParallelSearchContextMain' {ρ σ κ σₕ : Type}
@@ -680,10 +819,9 @@ theorem HashMap.getElem?_fold_insertIfNew_from_m1 {σₕ β : Type}
   have h_nodup : m1.toList.map Prod.fst |> List.Nodup := by
     rw [Std.HashMap.map_fst_toList_eq_keys] --
     exact Std.HashMap.nodup_keys --
-  -- 4. 泛化列表并进行归纳
   generalize h_l : m1.toList = l
   rw [h_l] at h_mem h_nodup
-  clear h_l -- 清除 m1 的具体关联
+  clear h_l
   induction l generalizing m2 with
   | nil => contradiction
   | cons hd tl ih =>
@@ -694,11 +832,8 @@ theorem HashMap.getElem?_fold_insertIfNew_from_m1 {σₕ β : Type}
       -- 因为 Key 唯一且 (k, v) 在列表中，所以 hd 必须是 (k, v)
       have h_val : hd.2 = v := by
         cases h_mem with
-        | inl h_head =>
-          grind
-        | inr h_tail =>
-           -- 如果 (k, v) 在 tail 中，则 k 在 tail 的 keys 中，矛盾
-          grind
+        | inl h_head => grind
+        | inr h_tail => grind
       subst h_eq
       subst h_val
       -- 这一步将 (k, v) 插入 m2
@@ -834,5 +969,152 @@ theorem HashMap.fold_insertIfNew_preserves_reachability {ρ σ κ σₕ : Type}
   cases h_source with
   | inl h_from_m2 => exact h_m2_sound x d h_from_m2
   | inr h_from_m1 => exact h_m1_sound x d h_from_m1.1
+
+
+/-- If a key-value pair is in a HashMap, it's in the toArray representation. -/
+theorem HashMap.mem_toArray_of_getElem? {α β : Type} [BEq α] [Hashable α]
+  [LawfulBEq α]
+  (m : Std.HashMap α β) (k : α) (v : β)
+  (h : m[k]? = some v) :
+  (k, v) ∈ m.toArray := by
+  simp [Array.mem_def] at *
+  grind
+
+/-- If a key-value pair is in the toArray representation, it's in the HashMap. -/
+theorem HashMap.getElem?_of_mem_toArray {α β : Type} [BEq α] [Hashable α]
+  [LawfulBEq α]
+  (m : Std.HashMap α β) (k : α) (v : β)
+  (h : (k, v) ∈ m.toArray) :
+  m[k]? = some v := by
+  simp [Array.mem_def] at *
+  grind
+
+/-- Elements in Array.extract are from the original array. -/
+theorem Array.mem_of_mem_extract {α : Type} (arr : Array α) (i j : Nat) (x : α)
+  (h : x ∈ arr.extract i j) : x ∈ arr := by
+  rw [Array.mem_def] at h ⊢
+  rw [Array.toList_extract] at h
+  exact List.mem_of_mem_drop (List.mem_of_mem_take h)
+
+/-- ParallelConfig.chunkRanges produces valid ranges (within bounds). -/
+theorem ParallelConfig.chunkRanges_valid (cfg : ParallelConfig) (n : Nat) :
+  ∀ lr ∈ cfg.chunkRanges n, lr.1 ≤ lr.2 ∧ lr.2 ≤ n := by
+  intro lr h_lr_in
+  unfold ParallelConfig.chunkRanges at h_lr_in
+  split at h_lr_in
+  · -- Case: n < cfg.thresholdToParallel, ranges = [(0, n)]
+    simp at h_lr_in
+    grind
+  · -- Case: n ≥ cfg.thresholdToParallel
+    rename_i h_not_small
+    simp at h_not_small
+    -- ranges = List.range numSubTasks |>.map (fun i => ...)
+    simp [List.mem_map] at h_lr_in
+    obtain ⟨i, h_i_in, h_lr_eq⟩ := h_lr_in
+    split
+    . simp
+    . simp
+      rename_i h_lr_eq
+      apply Nat.div_le_self
+    constructor
+    .
+      rename_i h_lr_eq
+      obtain ⟨a, h_a_lt, h_eq⟩ := h_lr_eq
+      rw [← h_eq]
+      dsimp
+      split_ifs
+      · apply Nat.le_trans (Nat.mul_le_mul_right _ (Nat.le_of_lt (Nat.lt_of_lt_of_le h_a_lt (le_max_right _ _))))
+        rw [Nat.mul_comm]
+        apply Nat.div_mul_le_self
+      · apply Nat.mul_le_mul_right
+        apply Nat.le_succ
+    .
+      rename_i h_lr_eq
+      obtain ⟨a, h_a_lt, h_eq⟩ := h_lr_eq
+      rw [← h_eq]; dsimp
+      split_ifs <;> try apply Nat.le_refl
+      trans (max 1 cfg.numSubTasks) * (n / max 1 cfg.numSubTasks)
+      · apply Nat.mul_le_mul_right; omega
+      · rw [Nat.mul_comm]; apply Nat.div_mul_le_self
+
+
+/-- ParallelConfig.chunkRanges covers all indices. -/
+theorem ParallelConfig.chunkRanges_cover (cfg : ParallelConfig) (n : Nat) :
+  ∀ i, i < n → ∃ lr ∈ cfg.chunkRanges n, lr.1 ≤ i ∧ i < lr.2 := by
+  intro i h_i_lt
+  unfold ParallelConfig.chunkRanges
+  split
+  · -- Case: n < cfg.thresholdToParallel, ranges = [(0, n)]
+    exists (0, n)
+    simp
+    omega
+  · -- Case: n ≥ cfg.thresholdToParallel
+    rename_i h_not_small
+    let k := max 1 cfg.numSubTasks
+    let s := n / k
+    have hk_pos : 0 < k := Nat.le_max_left 1 _
+    let idx := if i < (k - 1) * s then i / s else k - 1
+    let l := idx * s
+    let r := if idx == k - 1 then n else (idx + 1) * s
+    exists (l, r)
+    constructor
+    · apply List.mem_map_of_mem
+      rw [List.mem_range]
+      dsimp [idx]
+      split_ifs with h_cond
+      · have hs_pos : 0 < s := Nat.pos_of_ne_zero (fun h => by simp [h] at h_cond)
+        calc
+          i / s < k - 1 := Nat.div_lt_of_lt_mul (by grind)
+          _     < k     := Nat.pred_lt (by grind)
+      · apply Nat.pred_lt (by grind)
+    . simp
+      constructor
+      . -- sub-goal: l ≤ i
+        dsimp [l, idx]
+        split_ifs with h_cond
+        . exact Nat.div_mul_le_self i s
+        . omega
+      . dsimp [r]
+        split_ifs with h_is_last
+        . exact h_i_lt
+        . simp [idx] at h_is_last
+          have h_idx_val : idx = i / s := by
+            dsimp [idx]; split_ifs; rfl; grind
+          rw [h_idx_val]
+          rw [Nat.add_mul]
+          rw [Nat.one_mul]
+          apply Nat.lt_div_mul_add
+          refine Nat.pos_of_ne_zero (fun h_s_zero => ?_)
+          have h_lt := h_is_last.1
+          rw [h_s_zero, Nat.mul_zero] at h_lt
+          exact Nat.not_lt_zero i h_lt
+
+
+theorem Array.mem_flatten_of_partition {α : Type}
+  (arr : Array α)
+  (ranges : List (Nat × Nat))
+  (x : α) (h_mem : x ∈ arr)
+  (h_cover : ∀ i, i < arr.size → ∃ lr ∈ ranges, lr.1 ≤ i ∧ i < lr.2)
+  (h_valid : ∀ lr ∈ ranges, lr.1 ≤ lr.2 ∧ lr.2 ≤ arr.size) :
+  x ∈ (ranges.map fun lr => (arr.extract lr.1 lr.2)).toArray.flatten := by
+  rcases Array.mem_iff_getElem.mp h_mem with ⟨i, h_i_lt, rfl⟩
+  rcases h_cover i h_i_lt with ⟨lr, h_lr_in, h_l_le, h_i_lt_r⟩
+  rw [Array.mem_flatten]
+  let subArr := (arr.extract lr.1 lr.2)
+  exists subArr
+  constructor
+  . rw [List.mem_toArray, List.mem_map]; exists lr
+  . dsimp [subArr]
+    rw [Array.mem_iff_getElem]
+    have h_idx_valid : i - lr.1 < (arr.extract lr.1 lr.2).size := by
+      rw [Array.size_extract]
+      have h_le_size : lr.2 ≤ arr.size := (h_valid lr h_lr_in).2
+      rw [Nat.min_eq_left h_le_size]
+      apply Nat.sub_lt_sub_right h_l_le h_i_lt_r
+    grind
+
+
+
+
 
 end Veil.ModelChecker.Concrete

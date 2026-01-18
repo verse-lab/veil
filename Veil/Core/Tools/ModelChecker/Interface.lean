@@ -133,6 +133,7 @@ def ParallelConfig.taskSplit (cfg : ParallelConfig) (f : Array α → IO β) (wo
       let r := if i == numSubTasks - 1 then worklist.size else (i + 1) * chunkSize
       IO.asTask (f (worklist.toSubarray l r))
 
+
 structure SearchParameters (ρ σ : Type) where
   /-- Which properties are we trying to find a violation of? (Typically, this
   list contains all the safety properties and invariants of the system.) -/

@@ -202,7 +202,7 @@ termination [AllDone] pc S Done = true
 
 -- NOTE: comment out the line containing `BUG:` to fix the violation
 
-set_option veil.violationIsError false in
+-- set_option veil.violationIsError false in
 #model_check { process := Fin 3 } { none := 0 }
 
 end Mutex

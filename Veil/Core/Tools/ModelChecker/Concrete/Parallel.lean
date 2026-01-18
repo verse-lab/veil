@@ -17,28 +17,6 @@ private def mergeActionStatsMaps [BEq κ] [Hashable κ] (m1 m2 : Std.HashMap κ 
 -- /- Cleaning `tovisit` with enqueueing all their successors should happen
 -- at the same time to ensure closed invariants are preserved.
 -- Updating tovisit does not unsaify the invariants. -/
--- def ParallelSearchContextSub.merge {ρ σ κ σₕ : Type}
---   [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] {th : ρ} {sys : _} {params : _}
---   (mainCtx : @ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params)
---   (subCtx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params)
---   -- (h_seen_unaltered : subCtx.seen = mainCtx.seen)
---   :
---   @ParallelSearchContextMain ρ σ κ σₕ fp _ _ th sys params := {
---     mainCtx with
---       seen := mainCtx.seen.union subCtx.localSeen,
---       log := mainCtx.log.union subCtx.localLog,
---       violatingStates := subCtx.violatingStates ++ mainCtx.violatingStates,
---       finished := Option.or mainCtx.finished subCtx.finished
---       -- do not update depth information here
---       tovisit := subCtx.tovisit.foldl (init := mainCtx.tovisit) fun acc ⟨h, x, d⟩ => acc.insertIfNew h (x, d)
---       -- Merge stats from sub-context
---       statesFound := mainCtx.statesFound + subCtx.localStatesFound
---       actionStatsMap := mergeActionStatsMaps mainCtx.actionStatsMap subCtx.localActionStatsMap
---       invs := sorry
---       frontier_closed := sorry
---       terminate_empty_tovisit := sorry
---   }
-
 def ParallelSearchContextMain.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Hashable κ]
@@ -134,14 +112,14 @@ def ParallelSearchContextSub.tryExploreNeighbor {ρ σ κ σₕ : Type}
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
-  (curr : σ)       -- current state being processed
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
   (fpSt : σₕ)      -- fingerprint of state we're coming from (pre-state), for logging
   (depth : Nat)    -- depth of the current state (neighbor will be at depth + 1)
-  (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (neighbor : κ × σ)
   (h_neighbor : sys.reachable neighbor.2)
   (h_not_finished : !ctx.hasFinished)
-: {ctx' : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params //
+: {ctx' : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx //
     ctx'.finished = ctx.finished ∧
     ctx'.seen = ctx.seen ∧
     (∀fp, fp ∈ ctx.localSeen → fp ∈ ctx'.localSeen) ∧
@@ -159,17 +137,37 @@ def ParallelSearchContextSub.tryExploreNeighbor {ρ σ κ σₕ : Type}
       | none => ctx.localActionStatsMap.insert label { statesGenerated := 0, distinctStates := 1 }
     ⟨{ctx with
       localSeen := ctx.localSeen.insert fingerprint,
-      tovisit   := ctx.tovisit.push ⟨fingerprint, succ, depth + 1⟩,
+      tovisit   := ctx.tovisit.insert fingerprint ⟨succ, depth + 1⟩,
       localLog  := ctx.localLog.insert fingerprint (fpSt, label),
       localActionStatsMap := newActionStatsMap,
-      seenDisjoint := by
-        intro h_fp h_fp_in_seen; simp
-        constructor
-        . intro h_eq; simp [h_eq] at h_not_in_seen
-          exact h_not_in_seen h_fp_in_seen
-        . exact ctx.seenDisjoint h_fp h_fp_in_seen
-      invs := insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_succ_reachable rfl,
-      deltaConsistent := by have h_old := ctx.deltaConsistent;grind
+      -- seenDisjoint := by
+      --   intro h_fp h_fp_in_seen; simp
+      --   constructor
+      --   . intro h_eq; simp [h_eq] at h_not_in_seen
+      --     exact h_not_in_seen h_fp_in_seen
+      --   . exact ctx.seenDisjoint h_fp h_fp_in_seen
+      invs := ParallelSearchContextMerge.insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_succ_reachable rfl,
+      deltaConsistent := by
+        have h_old := ctx.deltaConsistent
+        intro h_inj x h_in_localSeen
+        by_cases h_eq : fp.view x = fingerprint
+        · -- Case: fp.view x = fingerprint, so x = succ by injectivity
+          have h_x_eq_succ : x = succ := h_inj h_eq
+          use depth + 1
+          rw [h_x_eq_succ, Std.HashMap.getElem?_insert]
+          simp
+          grind
+        · -- Case: fp.view x ≠ fingerprint, so x was already in ctx.localSeen
+          have h_in_old_localSeen : fp.view x ∈ ctx.localSeen := by
+            simp only [Std.HashSet.mem_insert] at h_in_localSeen
+            cases h_in_localSeen with
+            | inl h => grind
+            | inr h => exact h
+          -- Use the old deltaConsistent
+          obtain ⟨d, h_in_tovisit⟩ := h_old h_inj x h_in_old_localSeen
+          use d
+          rw [Std.HashMap.getElem?_insert]
+          grind
     }, (by constructor <;> grind)⟩
 
 -- Helper function: recursively process successors with explicit induction structure
@@ -181,15 +179,16 @@ def ParallelSearchContextSub.processSuccessors {ρ σ κ σₕ : Type}
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
   (curr : σ)      -- current state being processed
   (fpSt : σₕ)     -- fingerprint of curr
   (depth : Nat)   -- depth of curr
   (h_curr : sys.reachable curr)
   (successors : List (κ × σ))
   (h_succ_subset : ∀ x, x ∈ successors → x ∈ extractSuccessfulTransitions (sys.tr th curr))
-  (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (h_not_finished : !ctx.hasFinished)
-  : {ctx' : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params //
+  : {ctx' : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx //
       ctx'.finished = ctx.finished ∧
       (∀ (l : κ) (v : σ), (l, v) ∈ successors → (fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.localSeen) ∧
       ctx'.seen = ctx.seen ∧
@@ -203,8 +202,7 @@ def ParallelSearchContextSub.processSuccessors {ρ σ κ σₕ : Type}
     have h_next : sys.next curr state := ⟨label, h_in_sys_tr⟩
     have h_neighbor_reachable : sys.reachable state := EnumerableTransitionSystem.reachable.step curr state h_curr h_next
     /- `Function Call` -/
-    let neighbor_result := ParallelSearchContextSub.tryExploreNeighbor sys curr
-      fpSt depth ctx ⟨label, state⟩ h_neighbor_reachable h_not_finished
+    let neighbor_result := ParallelSearchContextSub.tryExploreNeighbor sys fpSt depth ctx ⟨label, state⟩ h_neighbor_reachable h_not_finished
     have h_current_in_seen := neighbor_result.property.2.2.2
     have h_finished_preserved : neighbor_result.val.finished = ctx.finished := neighbor_result.property.1
     have h_still_not_finished : !neighbor_result.val.hasFinished := by
@@ -248,12 +246,13 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
   (fpSt : σₕ)
   (depth : Nat)
   (curr : σ)
   (h_curr : sys.reachable curr)
-  (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params) :
-  {ctx' : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params //
+  (ctx : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx) :
+  {ctx' : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx //
     (∀ x, x ∈ ctx.localSeen → x ∈ ctx'.localSeen) ∧ -- 1. Monotonicity
     (ctx'.seen = ctx.seen) ∧                        -- 2. Stability
     (!ctx'.hasFinished → !ctx.hasFinished) ∧        -- 3. Finished reverse implication
@@ -261,6 +260,7 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
     (!ctx'.hasFinished → ∀l v, (l, v) ∈ extractSuccessfulTransitions (sys.tr th curr) → (fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.localSeen)} := -- 3. Completeness
   match h_process : ctx.toBaseSearchContext.processState sys fpSt curr with
   | (baseCtx', outcomesOpt) =>
+    have h_ctx_not_explored_all : ¬ctx.finished = some .exploredAllReachableStates := by exact ctx.excludeAllStatesFinish
     have h_seen_unchanged : baseCtx'.seen = ctx.seen := by
       have h_preserves := BaseSearchContext.processState_preserves_seen sys params fpSt curr ctx.toBaseSearchContext
       rw [h_process] at h_preserves
@@ -271,15 +271,11 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
       have h_early_terminate : baseCtx'.finished.isSome := by
         unfold BaseSearchContext.processState at h_process
         simp at h_process; grind
-
       ⟨{ ctx with
         toBaseSearchContext := baseCtx'
-        seenDisjoint := by intro h_fp h_in_seen; rw [h_seen_unchanged] at h_in_seen; exact ctx.seenDisjoint h_fp h_in_seen
-        initSubSeen := by
-          intro s₀ h_s0_in
-          have h_in_seen : (fp.view s₀) ∈ ctx.seen := ctx.initSubSeen s₀ h_s0_in
-          rw [h_seen_unchanged]
-          exact h_in_seen
+        excludeAllStatesFinish := BaseSearchContext.processState_returns_none_excludes_exploredAll sys fpSt curr
+          ctx.toBaseSearchContext baseCtx' h_process
+        seenUnaltered := by intro s; rw [h_seen_unchanged]; exact ctx.seenUnaltered s
         invs := by
           constructor
           · exact ctx.invs.queue_sound
@@ -300,17 +296,19 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
         . intro h_not_finished
           unfold BaseSearchContext.hasFinished at h_not_finished
           dsimp at h_not_finished
-          simp [h_early_terminate] at h_not_finished
+          simp at h_not_finished
+          grind
         constructor
         . simp
         · intro h_not_finished
           unfold BaseSearchContext.hasFinished at h_not_finished
           dsimp at h_not_finished
-          simp [h_early_terminate] at h_not_finished
+          simp at h_not_finished
+          grind
       ⟩
     | some ⟨outcomes, heq⟩ =>
       -- Case 2: Normal Processing
-      have h_not_explored_all : ¬ctx.finished = some .exploredAllReachableStates := by sorry
+      have h_not_explored_all : ¬ctx.finished = some .exploredAllReachableStates := by exact ctx.excludeAllStatesFinish
       have h_not_finished : !baseCtx'.finished.isSome := by
         have := BaseSearchContext.processState_returns_some_implies_not_finished sys fpSt curr ctx.toBaseSearchContext baseCtx' ⟨outcomes, heq⟩ h_not_explored_all h_process
         simp [this]
@@ -320,14 +318,17 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
         match acc[label]? with
         | some stat => acc.insert label { stat with statesGenerated := stat.statesGenerated + 1 }
         | none => acc.insert label { statesGenerated := 1, distinctStates := 0 }
-      let ctx_updated : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params :=
+      let ctx_updated : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx :=
       { ctx with
         toBaseSearchContext := baseCtx'
+        seenUnaltered := by intro s; rw [h_seen_unchanged]; exact ctx.seenUnaltered s
         localStatesFound := newLocalStatesFound
         localActionStatsMap := newLocalActionStatsMap
-        initSubSeen := by intro s₀ h_s0_in; have h_in_seen :=ctx.initSubSeen s₀ h_s0_in; rw [h_seen_unchanged]; exact h_in_seen
-        seenDisjoint := by intro h_fp h_in_seen; rw [h_seen_unchanged] at h_in_seen; exact ctx.seenDisjoint h_fp h_in_seen
-        invs := by have ht := update_base_after_processState_preserves_invs sys ctx fpSt curr baseCtx'; grind
+        excludeAllStatesFinish := by simp at h_not_finished; simp [h_not_finished]
+        invs := by
+          have h_process_fst : (ctx.toBaseSearchContext.processState sys fpSt curr).1 = baseCtx' := by
+            rw [h_process]
+          exact ParallelSearchContextMerge.update_base_after_processState_preserves_invs sys ctx fpSt curr baseCtx' h_process_fst
       }
       have h_ctx_updated_seen_eq : ctx_updated.seen = ctx.seen := h_seen_unchanged
       have h_ctx_updated_localSeen_eq : ctx_updated.localSeen = ctx.localSeen := rfl
@@ -366,18 +367,19 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
 
 
 @[inline, specialize]
-def ParallelSearchContextSub.processWorkQueue {ρ σ κ σₕ : Type}
+def ParallelSearchContextMerge.processWorkQueue {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
   (queueList : List (σₕ × σ × Nat)) -- Input as a List, matching processSuccessors style
   (h_reachable : ∀ q ∈ queueList, sys.reachable q.2.1)
-  (ctx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx)
   -- (h_not_finished : !ctx.hasFinished) -- Precondition: We are not finished yet
-  : {ctx' : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params //
-      (!ctx'.hasFinished → ∀ item ∈ queueList, ∀ l v, (l, v) ∈ extractSuccessfulTransitions (sys.tr th item.2.1) → ((fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.localSeen)) ∧
+  : {ctx' : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx //
+      (!ctx'.hasFinished → ∀ item ∈ queueList, ∀ l v, (l, .success v) ∈ (sys.tr th item.2.1) → ((fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.localSeen)) ∧
       (ctx'.seen = ctx.seen) ∧  -- Stability
       (∀ fp_elem, fp_elem ∈ ctx.localSeen → fp_elem ∈ ctx'.localSeen) ∧ -- Monotonicity
       (!ctx'.hasFinished → !ctx.hasFinished) } :=
@@ -392,64 +394,41 @@ def ParallelSearchContextSub.processWorkQueue {ρ σ κ σₕ : Type}
     if h_next_finished : next_ctx.hasFinished then
       ⟨next_ctx, by grind⟩
     else
-       have h_next_not_finished : !next_ctx.hasFinished := by grind
-       have h_rest_subset : ∀ x ∈ rest, sys.reachable x.2.1 := by
-         intro x hx; apply h_reachable; exact List.mem_cons_of_mem _ hx
+      have h_next_not_finished : !next_ctx.hasFinished := by grind
+      have h_rest_subset : ∀ x ∈ rest, sys.reachable x.2.1 := by intro x hx; apply h_reachable; exact List.mem_cons_of_mem _ hx
         /- `Recursive Call` -/
-       let rest_result := processWorkQueue sys rest h_rest_subset next_ctx
-       ⟨rest_result.val, by
-          have h_res_props := rest_result.property
-          refine ⟨?complete, ?stability, ?mono, ?revFinished⟩
-          · intro h_final_nf item_arg item_mem l v h_tr
-            rw [List.mem_cons] at item_mem
-            cases item_mem with
-            | inl h_eq =>
-              subst h_eq
-              have h_head_processed := h_next_props.2.2.2.2 h_next_not_finished l v h_tr
-              have h_mono := h_res_props.2.2.1
-              have h_stable := h_res_props.2.1
-              cases h_head_processed with
-              | inl h_seen => left; rw [h_stable]; exact h_seen
-              | inr h_local => right; exact h_mono _ h_local
-            | inr h_in_rest => exact h_res_props.1 h_final_nf _ h_in_rest l v h_tr
-          · rw [h_res_props.2.1, h_next_props.2.1]
-          · intro x hx
-            apply h_res_props.2.2.1
-            apply h_next_props.1
-            exact hx
-          · intro h_nf
-            have h1 := h_res_props.2.2.2 h_nf
-            exact h_next_props.2.2.1 h1
-       ⟩
+      let rest_result := processWorkQueue sys rest h_rest_subset next_ctx
+      ⟨rest_result.val, by
+        have h_res_props := rest_result.property
+        refine ⟨?complete, ?stability, ?mono, ?revFinished⟩
+        · intro h_final_nf item_arg item_mem l v h_tr
+          rw [List.mem_cons] at item_mem
+          cases item_mem with
+          | inl h_eq =>
+            subst h_eq
+            -- Convert (l, .success v) ∈ sys.tr th curr to (l, v) ∈ extractSuccessfulTransitions (sys.tr th curr)
+            have h_in_extracted : (l, v) ∈ extractSuccessfulTransitions (sys.tr th curr) := by
+              unfold extractSuccessfulTransitions
+              simp only [List.mem_filterMap]
+              exact ⟨(l, .success v), h_tr, rfl⟩
+            have h_head_processed := h_next_props.2.2.2.2 h_next_not_finished l v h_in_extracted
+            have h_mono := h_res_props.2.2.1
+            have h_stable := h_res_props.2.1
+            cases h_head_processed with
+            | inl h_seen => left; rw [h_stable]; exact h_seen
+            | inr h_local => right; exact h_mono _ h_local
+          | inr h_in_rest => exact h_res_props.1 h_final_nf _ h_in_rest l v h_tr
+        · rw [h_res_props.2.1, h_next_props.2.1]
+        · intro x hx
+          apply h_res_props.2.2.1
+          apply h_next_props.1
+          exact hx
+        · intro h_nf
+          have h1 := h_res_props.2.2.2 h_nf
+          exact h_next_props.2.2.1 h1
+      ⟩
 termination_by queueList.length
 
-
-
-/- `Pure data object`, used for batch-merge operation.
-We can make it to carry properties ...  -/
-structure ParallelSearchContextMerge {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [instBEq : BEq κ] [instHash : Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-  (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
-extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
-where
-  tovisit : Std.HashMap σₕ (σ × Nat)
-  localSeen : Std.HashSet σₕ
-  localLog : Std.HashMap σₕ (σₕ × κ)
-  seenUnaltered : ∀s, s ∈ baseCtx.seen ↔ s ∈ seen
-  -- invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisit) (fun h => h ∈ seen ∨ h ∈ localSeen)
-  invs : @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun ⟨h, x, d⟩ => tovisit[h]? = some (x, d))  (fun h => h ∈ seen ∨ h ∈ localSeen)
-  -- /-- Local count of post-states generated (before deduplication) -/
-  localStatesFound : Nat := 0
-  -- /-- Local per-action statistics: label → stats -/
-  localActionStatsMap : Std.HashMap κ ActionStat := {}
-  -- /-- The seen set and localSeen are disjoint: newly discovered states go to localSeen -/
-  -- seenDisjoint : ∀ h, h ∈ seen → ¬(h ∈ localSeen)
-  -- initSubSeen : ∀s₀, s₀ ∈ sys.initStates → (fp.view s₀) ∈ seen
-  deltaConsistent : (Function.Injective fp.view → ∀x, (fp.view x) ∈ localSeen → ∃d, tovisit[fp.view x]? = some (x, d))
 
 
 
@@ -469,6 +448,7 @@ def ParallelSearchContextMerge.Merge {ρ σ κ : Type}
       tovisit := ctx1.tovisit.fold (init := ctx2.tovisit) fun acc k v => acc.insertIfNew k v
       localStatesFound := ctx1.localStatesFound + ctx2.localStatesFound,
       localActionStatsMap := mergeActionStatsMaps ctx1.localActionStatsMap ctx2.localActionStatsMap
+
       invs := by
         constructor
         · -- queue_sound: states in merged tovisit are reachable
@@ -522,6 +502,16 @@ def ParallelSearchContextMerge.Merge {ρ σ κ : Type}
             exact ctx2.invs.queue_wellformed k x d h_from_ctx2
           | inr h_from_ctx1 =>
             exact ctx1.invs.queue_wellformed k x d h_from_ctx1.1
+      excludeAllStatesFinish := by
+        have ctx1_finished := ctx1.excludeAllStatesFinish
+        have ctx2_finished := ctx2.excludeAllStatesFinish
+        by_contra h_not_finished
+        unfold Option.or at h_not_finished
+        split at h_not_finished <;> rename_i h_ctx1_def
+        · simp at h_not_finished
+          rw [← h_not_finished] at ctx1_finished
+          contradiction
+        · contradiction
       seenUnaltered := by
         have h1 := ctx1.seenUnaltered
         have h2 := ctx2.seenUnaltered
@@ -653,8 +643,28 @@ theorem IteratedProd.foldlMergeNotFinishedHead {ρ σ κ σₕ : Type}
   grind
 
 
+def initializeNeutralCtx {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  (sys : _) (params : _)
+  (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (h_seen_sound : Function.Injective fp.view → ∀ (x : σ), fp.view x ∈ baseCtx.seen → sys.reachable x)
+  : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx := {
+    toBaseSearchContext := { baseCtx with finished := none},
+    tovisit := Std.HashMap.emptyWithCapacity,
+    localSeen := Std.HashSet.emptyWithCapacity,
+    localLog := Std.HashMap.emptyWithCapacity,
+    localStatesFound := 0,
+    localActionStatsMap := Std.HashMap.emptyWithCapacity,
+    invs := by constructor <;> grind
+    excludeAllStatesFinish := by grind
+    seenUnaltered := by grind
+    deltaConsistent := by grind
+  }
+
 @[inline, specialize]
-def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type} {m : Type → Type}
+def ParallelSearchContextMerge.bfsBigStep {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ] [Repr κ]
@@ -664,76 +674,24 @@ def ParallelSearchContextSub.bfsBigStep {ρ σ κ σₕ : Type} {m : Type → Ty
   (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (queue : Array (σₕ × σ × Nat))
   (h_seen_sound : Function.Injective fp.view → ∀ (x : σ), fp.view x ∈ baseCtx.seen → sys.reachable x)
-  (h_inits_in : ∀ (s₀ : σ), s₀ ∈ sys.initStates → (fp.view s₀) ∈ baseCtx.seen)
+  -- (h_inits_in : ∀ (s₀ : σ), s₀ ∈ sys.initStates → (fp.view s₀) ∈ baseCtx.seen)
   (h_reachable : ∀ item ∈ queue.toList, sys.reachable item.2.1)
 : m ( {ctx' : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx //
     !ctx'.hasFinished → ∀item ∈ queue,
       (∀l v, (l, .success v) ∈ (sys.tr th item.2.1) →
         (fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.localSeen)})
   := do
-  let ctx : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params := {
-    baseCtx with
-    tovisit := #[],
-    localSeen := Std.HashSet.emptyWithCapacity,
-    localLog := Std.HashMap.emptyWithCapacity,
-    invs := by constructor; simp; simp; exact h_seen_sound; simp; simp
-    localStatesFound := 0
-    seenDisjoint := by simp
-    initSubSeen := by intro s₀ h_s0_in; grind
-    deltaConsistent := by simp
-  }
+  let ctx := initializeNeutralCtx sys params baseCtx h_seen_sound
+  let startTime ← IO.monoMsNow
   let result := processWorkQueue sys queue.toList h_reachable ctx
-
-  let ctxAfter := result.val
-
-  let properties := result.property
-
-
-  let result : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx := { ctxAfter with
-    toBaseSearchContext := ctxAfter.toBaseSearchContext,
-    localSeen := ctxAfter.localSeen,
-    localLog := ctxAfter.localLog,
-    localStatesFound : Nat := ctxAfter.localStatesFound,
-    localActionStatsMap : Std.HashMap κ ActionStat := ctxAfter.localActionStatsMap,
-    tovisit := ctxAfter.tovisit.foldl (init := (∅ : Std.HashMap σₕ (σ × Nat))) fun acc item =>
-      acc.insertIfNew item.fingerprint (item.state, item.depth)
-    invs := by sorry
-    seenUnaltered := by have h_seen_unchanged := properties.2.2.1; grind,
-    deltaConsistent := by sorry
-  }
-  -- pure ⟨result, by sorry⟩
-  pure ⟨result, by sorry⟩
-
-
-
-def initializeNeutralCtx {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : _) (params : _)
-  (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (h_seen_sound : Function.Injective fp.view → ∀ (x : σ), fp.view x ∈ baseCtx.seen → sys.reachable x)
-  : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params baseCtx := {
-    toBaseSearchContext := baseCtx,
-    tovisit := Std.HashMap.emptyWithCapacity,
-    localSeen := Std.HashSet.emptyWithCapacity,
-    localLog := Std.HashMap.emptyWithCapacity,
-    localStatesFound := 0,
-    localActionStatsMap := Std.HashMap.emptyWithCapacity,
-    invs := by constructor <;> grind
-    seenUnaltered := by grind
-    deltaConsistent := by grind
-  }
-
-def extractDataList {α β: Type} {P : α → Type}
-  (ranges : List α)
-  (results : IteratedProd (ranges.map P))
-  (extractFn : (a : α) → P a → β) : List β :=
-  match ranges, results with
-  | [], () => []
-  | r :: rs, (head, tail) =>
-    let currentCtx := extractFn r head
-    currentCtx :: extractDataList rs tail extractFn
+  -- let ctxAfter := result.val
+  let endTime ← IO.monoMsNow
+  IO.eprintln s!"[{endTime} @ tid {← IO.getTID}] took {endTime - startTime}ms to process {queue.size} states (queue size now: {result.val.tovisit.size})"
+  pure ⟨result.val, by
+    intro h_not_finished item h_item_in_queue l v h_tr
+    have h_item_in_list : item ∈ queue.toList := Array.mem_toList_iff.mpr h_item_in_queue
+    exact result.property.1 h_not_finished item h_item_in_list l v h_tr
+  ⟩
 
 
 -- Helper: generalized version that works with any init
@@ -817,7 +775,7 @@ theorem liftBfsBigStepProperties {ρ σ κ σₕ : Type}
   {params : SearchParameters ρ σ}
   (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (h_seen_sound : Function.Injective fp.view → ∀ (x : σ), fp.view x ∈ baseCtx.seen → sys.reachable x)
-  (h_baseCtx_not_finished : baseCtx.finished = none)
+  -- (h_baseCtx_not_finished : baseCtx.finished = none)
   (splitArrays : List (Array (σₕ × σ × Nat)))
   (postCtx : ParallelSearchContextMerge sys params baseCtx)
   --------------------------------------------------------------------------------------------------------
@@ -839,7 +797,8 @@ theorem liftBfsBigStepProperties {ρ σ κ σₕ : Type}
   intro h_not_finished item h_item_in_flatten l v h_tr
   rw [h_postCtx_eq]
   have h_init_not_finished : (initializeNeutralCtx sys params baseCtx h_seen_sound).finished = none := by
-    simp only [initializeNeutralCtx]; exact h_baseCtx_not_finished
+    simp only [initializeNeutralCtx];
+    -- remove: exact h_baseCtx_not_finished
   rw [h_postCtx_eq] at h_not_finished
   exact liftBfsBigStepPropertiesAux sys baseCtx splitArrays
     (initializeNeutralCtx sys params baseCtx h_seen_sound) h_init_not_finished
@@ -872,36 +831,62 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
           intro h_view_inj h_finished s h_in_seen h_not_in_tovisit l next_s h_tr
           have h_pre_no_terminate : ctx.finished = none := by unfold BaseSearchContext.hasFinished at h_not_finished;simp at h_not_finished; exact h_not_finished
           exact ctx.frontier_closed h_view_inj (by grind) s h_in_seen h_not_in_tovisit l next_s h_tr
-        terminate_empty_tovisit := by intro h_finished_empty_tovisit; exact h_tovisit_empty }
+        terminate_empty_tovisit := by intro h_finished_empty_tovisit; exact h_tovisit_empty
+      }
       updateProgress progressInstanceId
         ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisit.size
         (toActionStatsList ctx.actionStatsMap)
       return ctx
     else
-      let _tovisitArr := ctx.tovisit
-      let tovisitArr := _tovisitArr.toArray
+      -- let _tovisitArr := ctx.tovisit
+      -- let tovisitArr := _tovisitArr.toArray
+      let tovisitArr := ctx.tovisit.toArray
 
-      -- ctx := {ctx with
-      --   tovisit := Std.HashMap.emptyWithCapacity,
-      --   completedDepth := ctx.currentFrontierDepth,
-      --   currentFrontierDepth := ctx.currentFrontierDepth + 1,
-      --   invs := sorry
-      --   frontier_closed := sorry
-      --   terminate_empty_tovisit := sorry
-      -- }
       -- Explicitly compute chunk ranges for proof purposes
-      let ranges := ParallelConfig.chunkRanges parallelCfg tovisitArr.size
-      -- have h_ranges_len : ranges.length ≥ 1 := by sorry
-      let splitArrays := ranges.map (fun lr => tovisitArr.toSubarray lr.1 lr.2 |>.toArray)
-      -- have h_splitArray_len : splitArrays.length ≥ 1 := by grind
-
       -- Spawn tasks for each chunk range
+      let ranges := ParallelConfig.chunkRanges parallelCfg tovisitArr.size
+      let splitArrays := ranges.map (fun lr => tovisitArr.extract lr.1 lr.2)
       let baseCtx := ctx.toBaseSearchContext
+
+      have h_baseCtx_not_finished : baseCtx.finished = none := by
+        unfold BaseSearchContext.hasFinished at h_not_finished
+        simp at h_not_finished; exact h_not_finished
       have h_baseCtx_seen_sound := ctx.invs.visited_sound
 
+      -- Prove all items in tovisitArr are reachable
+      have h_tovisitArr_reachable : ∀ item ∈ tovisitArr.toList, sys.reachable item.2.1 := by
+        intro ⟨h, x, d⟩ h_mem
+        have h_in_arr : (h, (x, d)) ∈ ctx.tovisit.toArray := Array.mem_toList_iff.mp h_mem
+        have h_lookup : ctx.tovisit[h]? = some (x, d) :=
+          HashMap.getElem?_of_mem_toArray ctx.tovisit h (x, d) h_in_arr
+        have h_wf : h = fp.view x := ctx.invs.queue_wellformed h x d h_lookup
+        rw [h_wf] at h_lookup
+        exact ctx.invs.queue_sound x d h_lookup
 
-      let tasks ← IteratedProd.ofListM (as := splitArrays) fun subArr => do
-        IO.asTask (ParallelSearchContextSub.bfsBigStep sys baseCtx subArr (h_baseCtx_seen_sound) (by sorry) (by sorry))
+      -- Prove elements in any extract are also reachable
+      have h_extract_reachable : ∀ (lr : Nat × Nat), ∀ item ∈ (tovisitArr.extract lr.1 lr.2).toList,
+          sys.reachable item.2.1 := by
+        intro lr item h_mem
+        have h_in_original : item ∈ tovisitArr.toList := by
+          rw [Array.mem_toList_iff] at h_mem ⊢
+          exact Array.mem_of_mem_extract tovisitArr lr.1 lr.2 item (by grind)
+        exact h_tovisitArr_reachable item h_in_original
+
+      -- Prove all sub-arrays in splitArrays have reachable items
+      have h_splitArrays_sound : ∀ subArr ∈ splitArrays, ∀ item ∈ subArr.toList,
+          sys.reachable item.2.1 := by
+        intro subArr h_subArr_in item h_item_in
+        obtain ⟨lr, _, h_subArr_eq⟩ := List.mem_map.mp h_subArr_in
+        rw [← h_subArr_eq] at h_item_in
+        exact h_extract_reachable lr item h_item_in
+
+      let tasks ← IteratedProd.ofListMWithMem (as := splitArrays) fun subArr h_subArr_in => do
+        have h_reachable : ∀ item ∈ subArr.toList, sys.reachable item.2.1 :=
+          h_splitArrays_sound subArr h_subArr_in
+        IO.asTask (ParallelSearchContextMerge.bfsBigStep sys baseCtx subArr h_baseCtx_seen_sound h_reachable)
+        -- IO.eprintln s!"[{← IO.monoMsNow} @ tid {← IO.getTID}] spawned {tasks.length} tasks"
+      let totalTasks := IteratedProd.foldl (init := 0) (fun acc _ => acc + 1) tasks
+      IO.eprintln s!"[{← IO.monoMsNow} @ tid {← IO.getTID}] spawned {totalTasks} tasks"
       let results ← IteratedProd.mapM (fun task => IO.ofExcept task.get) tasks
       have t := results
 
@@ -910,31 +895,11 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
         (init := initializeNeutralCtx sys params baseCtx h_baseCtx_seen_sound)
         (fun acc r => .Merge sys params baseCtx acc r.val) results
 
-
-      -- have t := results
-      -- -- Keep the original IteratedProd results for proofs
-      -- let iterProdResults := results
-      -- -- let total := IteratedProd.foldl (init := (∅ : Std.HashSet σₕ)) (fun acc r => acc.union r.val.seen) iterProdResults
-      -- let ctxList := extractDataList splitArrays iterProdResults (fun _ (subCtx : {ctx' : @ParallelSearchContextMerge ρ σ κ σₕ fp _ _ th sys params ctx.toBaseSearchContext // _}) => subCtx.val)
-      -- -- have h_ctxList_eq : ctxList = extractDataList splitArray iterProdResults (fun _ (subCtx : {ctx' : @ParallelSearchContextSub ρ σ κ σₕ fp _ _ th sys params // _}) => subCtx.val) := rfl
-      -- -- ctx := ctxList.foldl (init := ctx) ParallelSearchContextSub.merge
-      -- let deltaSeen := ctxList.foldl (init := ∅) fun acc subCtx => (subCtx.localSeen.union acc)
-      -- let currTovisit := ctxList.foldl (init := (∅ : Std.HashMap σₕ (σ × Nat))) fun acc subCtx =>
-      --   acc.union subCtx.tovisit
-      -- let merLog := ctxList.foldl (init := (∅ : Std.HashMap σₕ (σₕ × κ))) fun acc subCtx => acc.union subCtx.localLog
-      -- let deltaViolatingStates := ctxList.foldl (init := []) fun acc subCtx => subCtx.violatingStates ++ acc
-      -- let merFinished := ctxList.foldl (init := none) fun acc subCtx => Option.or acc subCtx.finished
-      -- let merStatesFound := ctxList.foldl (init := 0) fun acc subCtx => acc + subCtx.localStatesFound
-      -- let merActionStatsMap := ctxList.foldl (init := ∅) fun acc subCtx =>
-      --   mergeActionStatsMaps acc subCtx.localActionStatsMap
-
-
       -- Proof: ctx.finished = none (from while loop condition)
       have h_ctx_not_finished : ctx.finished = none := by
         unfold BaseSearchContext.hasFinished at h_not_finished
         simp at h_not_finished
         exact h_not_finished
-
 
       ctx := { ctx with
         seen := ctx.seen.union aggregatedCtx.localSeen,
@@ -946,12 +911,47 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
         finished := Option.or ctx.finished aggregatedCtx.finished,
         statesFound := ctx.statesFound + aggregatedCtx.localStatesFound,
         actionStatsMap := mergeActionStatsMaps ctx.actionStatsMap aggregatedCtx.localActionStatsMap,
-        invs := sorry
+        invs := by
+          constructor
+          · -- queue_sound: states in new tovisit (= aggregatedCtx.tovisit) are reachable
+            intro x d h_in_tovisit
+            exact aggregatedCtx.invs.queue_sound x d h_in_tovisit
+          · -- visited_sound: states in new seen (= ctx.seen ∪ aggregatedCtx.localSeen) are reachable
+            intro h_view_inj x h_in_new_seen
+            simp only [Std.HashSet.mem_union] at h_in_new_seen
+            cases h_in_new_seen with
+            | inl h_in_ctx_seen =>
+              exact ctx.invs.visited_sound h_view_inj x h_in_ctx_seen
+            | inr h_in_localSeen =>
+              -- x ∈ aggregatedCtx.localSeen implies x is reachable
+              -- Use aggregatedCtx.invs.visited_sound with the fact that localSeen ⊆ (seen ∨ localSeen)
+              have h_in_combined : fp.view x ∈ aggregatedCtx.seen ∨ fp.view x ∈ aggregatedCtx.localSeen :=
+                Or.inr h_in_localSeen
+              exact aggregatedCtx.invs.visited_sound h_view_inj x h_in_combined
+          · -- queue_sub_visited: elements in tovisit have fingerprints in seen
+            intro x d h_in_tovisit
+            have h_sub := aggregatedCtx.invs.queue_sub_visited x d h_in_tovisit
+            simp only [Std.HashSet.mem_union]
+            -- h_sub : fp.view x ∈ aggregatedCtx.seen ∨ fp.view x ∈ aggregatedCtx.localSeen
+            cases h_sub with
+            | inl h_in_agg_seen =>
+              -- aggregatedCtx.seen = baseCtx.seen = ctx.seen (via seenUnaltered)
+              have h_eq := aggregatedCtx.seenUnaltered (fp.view x)
+              -- h_eq : fp.view x ∈ baseCtx.seen ↔ fp.view x ∈ aggregatedCtx.seen
+              -- We have h_in_agg_seen : fp.view x ∈ aggregatedCtx.seen
+              -- We need: fp.view x ∈ ctx.seen, and baseCtx.seen = ctx.seen
+              left; exact h_eq.mpr h_in_agg_seen
+            | inr h_in_localSeen =>
+              right; exact h_in_localSeen
+          · -- queue_wellformed: fingerprints match states
+            intro fingerprint st d h_in_tovisit
+            exact aggregatedCtx.invs.queue_wellformed fingerprint st d h_in_tovisit
         frontier_closed := by
           intro h_view_inj h_finished s h_in_seen h_not_in_tovisit l next_s h_tr
           have h_pre_no_terminate : ctx.finished = none := by grind
           have h_baseCtx_not_finished : baseCtx.finished = none := h_pre_no_terminate
-          have tt := liftBfsBigStepProperties sys baseCtx h_baseCtx_seen_sound h_baseCtx_not_finished splitArrays aggregatedCtx results (by rfl)
+          have tt := liftBfsBigStepProperties sys baseCtx h_baseCtx_seen_sound /- h_baseCtx_not_finished-/
+            splitArrays aggregatedCtx results (by rfl)
           -- Use merge_preserves_frontier_closed from ParallelLemmas
           -- We need: unionSeen = aggregatedCtx.localSeen, currTovisit = aggregatedCtx.tovisit
           have h_collect_all : ∀ (s' : σ) (d : Nat),
@@ -970,10 +970,14 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
               exact h.symm
             -- Show item is in splitArrays.flatten
             have h_item_in_flatten : (fp.view s', s', d) ∈ splitArrays.toArray.flatten := by
-              -- splitArrays comes from ctx.tovisit.toArray partitioned by ranges
-              -- h_s'_in_old_tovisit : ctx.tovisit[fp.view s']? = some (s', d)
-              sorry
-            -- Check if aggregatedCtx has finished
+              have h_in_tovisitArr : (fp.view s', s', d) ∈ tovisitArr := by
+                simp only [tovisitArr]
+                exact HashMap.mem_toArray_of_getElem? ctx.tovisit (fp.view s') ⟨s', d⟩ h_s'_in_old_tovisit
+              -- Step 2: Show element is in one of the subarrays
+              simp only [splitArrays]
+              have h_ranges_valid := ParallelConfig.chunkRanges_valid parallelCfg tovisitArr.size
+              have h_ranges_cover := ParallelConfig.chunkRanges_cover parallelCfg tovisitArr.size
+              exact Array.mem_flatten_of_partition tovisitArr ranges (fp.view s', s', d) h_in_tovisitArr h_ranges_cover h_ranges_valid
             by_cases h_agg_finished : aggregatedCtx.hasFinished
             · -- If aggregatedCtx has finished, we derive a contradiction from h_finished
               -- aggregatedCtx.finished can only be none or some (.earlyTermination _)
@@ -988,7 +992,7 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
               | inl h_explored =>
                 -- aggregatedCtx.finished = some .exploredAllReachableStates
                 -- This cannot happen: sub-context merge only propagates earlyTermination
-                sorry
+                exact absurd h_explored aggregatedCtx.excludeAllStatesFinish
               | inr h_none =>
                 -- aggregatedCtx.finished = none contradicts h_agg_finished
                 simp [h_none] at h_agg_finished
@@ -1007,23 +1011,14 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
           exact ParallelSearchContextMain.merge_preserves_frontier_closed sys params ctx
             aggregatedCtx.localSeen aggregatedCtx.tovisit h_pre_no_terminate h_view_inj
             aggregatedCtx.deltaConsistent h_collect_all s h_in_seen h_not_in_tovisit l next_s h_tr
-        terminate_empty_tovisit := sorry
+        terminate_empty_tovisit := by
+          have h_pre_no_terminate : ctx.finished = none := by
+            simp at h_not_finished;
+            grind
+          have h_aggr_not_explore := aggregatedCtx.excludeAllStatesFinish
+          grind
       }
 
-      -- ctx := { ctx with
-      --   seen := ctx.seen.union deltaSeen,
-      --   tovisit := currTovisit,
-      --   log := ctx.log.union merLog,
-      --   completedDepth := ctx.currentFrontierDepth,
-      --   currentFrontierDepth := ctx.currentFrontierDepth + 1,
-      --   violatingStates := ctx.violatingStates ++ deltaViolatingStates,
-      --   finished := Option.or ctx.finished merFinished,
-      --   statesFound := ctx.statesFound + merStatesFound,
-      --   actionStatsMap := mergeActionStatsMaps ctx.actionStatsMap merActionStatsMap,
-      --   invs := sorry
-      --   frontier_closed := sorry
-      --   terminate_empty_tovisit := sorry
-      -- }
 
       -- If we found a violation, mark it so handoff is prevented
       if let some (.earlyTermination cond) := ctx.finished then
@@ -1039,8 +1034,8 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
         if ← shouldStop cancelToken progressInstanceId then
           ctx := { ctx with
             finished := some (.earlyTermination .cancelled),
-            frontier_closed := sorry,
-            terminate_empty_tovisit := sorry }
+            frontier_closed := by intro h_view_inj h_finished _ ; simp at h_finished
+            terminate_empty_tovisit := by intro h_finished_empty_tovisit; simp at h_finished_empty_tovisit}
           break
   -- Final update to ensure stats reflect finished state
   updateProgress progressInstanceId

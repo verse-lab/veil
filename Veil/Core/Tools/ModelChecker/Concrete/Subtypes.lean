@@ -52,58 +52,33 @@ theorem mem_insertMany_of_mem_list [BEq β] [Hashable β] [LawfulBEq β]
   simp only [Std.HashSet.not_mem_emptyWithCapacity, false_or]
   grind
 
-theorem mem_foldl_insert_aux {β : Type}
-  [BEq β] [Hashable β] [LawfulBEq β] [LawfulHashable β]
-    (s : HashSet β) :
-    ∀ {l : List β} {a : β},
-      a ∈ List.foldl (fun acc x => acc.insert x) s l →
-      a ∈ s ∨ a ∈ l
-  | [], _, h => by simpa using h
-  | x :: xs, a, h => by
-      simp only [List.foldl] at h
-      have ih := mem_foldl_insert_aux (s.insert x) h
-      simp only [Std.HashSet.mem_insert, List.mem_cons] at ih ⊢
-      grind
-
-
-theorem mem_foldl_insert_of_mem_aux [BEq β] [Hashable β] [LawfulBEq β] [LawfulHashable β]
-    (s : Std.HashSet β) :
-    ∀ (l : List β) {a : β},
-      (a ∈ s ∨ a ∈ l) →
-      a ∈ List.foldl (fun acc x => acc.insert x) s l
-  | [], _, h => by grind
-  | y :: ys, a, h => by
-      simp only [List.foldl]
-      apply Std.HashSet.mem_foldl_insert_of_mem_aux
-      simp only [Std.HashSet.mem_insert, List.mem_cons] at h ⊢
-      grind
-
-
-theorem mem_foldl_insert_of_mem [BEq β] [Hashable β] [LawfulBEq β] [LawfulHashable β]
-    {l : List β} {a : β} (h : a ∈ l) :
-    a ∈ List.foldl (fun acc x => acc.insert x)
-          (Std.HashSet.emptyWithCapacity : Std.HashSet β) l :=
-  mem_foldl_insert_of_mem_aux _ l (Or.inr h)
-
-
-theorem mem_list_of_mem_foldl_insert {β : Type} [BEq β] [Hashable β] [LawfulBEq β] [LawfulHashable β]
-    {l : List β} {a : β}
-    (h : a ∈ List.foldl (fun acc x => acc.insert x) Std.HashSet.emptyWithCapacity l) : a ∈ l := by
-  have := mem_foldl_insert_aux HashSet.emptyWithCapacity h
-  grind
-
 end Std.HashSet
 
 
 open Veil IteratedProd
 
 def IteratedProd.ofListM {m : Type → Type} [Monad m]
-  {α : Type} {β : α → Type} (f : (a : α) → m (β a)) : (as : List α) → m (IteratedProd (as.map β))
+  {α : Type} {β : α → Type} (f : (a : α) → m (β a))
+  : (as : List α) → m (IteratedProd (as.map β))
   | []      => pure ()
   | a :: as => do
     let b ← f a
     let bs ← ofListM f as
     pure (b, bs)
+
+/-- Version of `ofListM` that provides membership proof to the callback function.
+    This is useful when the callback needs to prove properties about list elements.
+    We use this function to inject _proof_ in concurrent search algorithm. -/
+def IteratedProd.ofListMWithMem {m : Type → Type} [Monad m]
+  {α : Type} {β : α → Type} (as : List α) (f : (a : α) → a ∈ as → m (β a))
+  : m (IteratedProd (as.map β)) :=
+  match as with
+  | [] => pure ()
+  | a :: as' => do
+    let b ← f a List.mem_cons_self
+    let bs ← ofListMWithMem as' (fun a' h => f a' (List.mem_cons_of_mem a h))
+    pure (b, bs)
+
 
 def IteratedProd.mapM [Monad m] {ts : List α} {T₁ T₂ : α → Type}
   (f : ∀ {a : α}, T₁ a → m (T₂ a))
@@ -146,28 +121,6 @@ theorem IteratedProd.foldl_add_init {ts : List α} {T : α → Type}
     rw [ih t (f h)]
     omega
 
--- Key lemma: foldl on IteratedProd with addition equals sum
-theorem IteratedProd.foldl_add_eq_sum {ts : List α} {T : α → Type}
-  (f : ∀ {a : α}, T a → Nat) :
-  ∀ (elements : IteratedProd (ts.map T)),
-  ∃ (values : List Nat), values.length = ts.length ∧
-    IteratedProd.foldl (init := 0) (fun acc r => acc + f r) elements = values.sum := by
-  induction ts with
-  | nil =>
-    intro elements
-    cases elements
-    exact ⟨[], rfl, rfl⟩
-  | cons head tail ih =>
-    intro elements
-    obtain ⟨h, t⟩ := elements
-    obtain ⟨values, hlen, hsum⟩ := ih t
-    exists (f h :: values)
-    constructor
-    · simp [hlen]
-    · simp only [foldl, List.sum_cons]
-      rw [foldl_add_init, hsum]
-      omega
-
 
 -- Specialized version for subtypes with proofs about array sums
 theorem IteratedProd.foldl_subtype_sum (worklist : Array Nat) (ranges : List (Nat × Nat))
@@ -187,84 +140,6 @@ theorem IteratedProd.foldl_subtype_sum (worklist : Array Nat) (ranges : List (Na
     have : h.1 = (worklist.toSubarray head.1 head.2).toArray.sum := h.2
     rw [this]
     omega
-
-structure Cell where
-  unit1 : Nat
-  unit2 : Nat
-deriving Repr, Inhabited, BEq, Hashable
-
-def Cell.empty : Cell :=
-  { unit1 := 2,
-    unit2 := 2 }
-
-
-def mergeCells (c1 c2 : Cell) (h_eq : c1.unit1 = c2.unit1) : Cell :=
-  { unit1 := 2 * c1.unit1 - c2.unit1,
-    unit2 := c1.unit2 + c2.unit2 }
-
--- Helper lemma: mergeCells preserves unit1 = 2
-theorem mergeCells_preserves_two (c1 c2 : Cell) (h1 : c1.unit1 = 2) (h2 : c2.unit1 = 2)
-  (h_eq : c1.unit1 = c2.unit1) : (mergeCells c1 c2 h_eq).unit1 = 2 := by
-  simp [mergeCells, h1, h2]
-
--- Main theorem: foldl preserves unit1 = 2 invariant
-theorem IteratedProd.foldl_subtype_test (domain : List Nat)
-  (elements : IteratedProd (domain.map fun r => { cell' : Cell // cell'.unit1 = 2 })) :
-  (IteratedProd.foldl (init := Cell.empty) (fun acc (r : { cell' : Cell // cell'.unit1 = 2 }) =>
-    have h_eq : acc.unit1 = r.val.unit1 := by
-      have t := r.property
-      rw [t]
-      -- NOTE: This sorry represents the invariant acc.unit1 = 2
-      -- The proof below establishes this invariant holds at every step,
-      -- but we cannot directly reference it here due to the circular dependency
-      -- in the dependent type. This is a known limitation when proving properties
-      -- about recursive functions that depend on the property being proven.
-      sorry
-    mergeCells acc r.val h_eq) elements).unit1 = 2 := by
-  -- We prove by induction that the invariant unit1 = 2 is maintained
-  suffices h : ∀ (init : Cell), init.unit1 = 2 →
-    (IteratedProd.foldl (init := init) (fun acc (r : { cell' : Cell // cell'.unit1 = 2 }) =>
-      have h_eq : acc.unit1 = r.val.unit1 := by
-        have t := r.property
-        rw [t]
-        sorry
-      mergeCells acc r.val h_eq) elements).unit1 = 2 by
-    exact h Cell.empty (by simp [Cell.empty])
-  intro init h_init
-  induction domain generalizing init with
-  | nil =>
-    cases elements
-    simp [foldl]
-    exact h_init
-  | cons head tail ih =>
-    obtain ⟨hd, tl⟩ := elements
-    simp only [foldl]
-    -- After one step, we show the result still has unit1 = 2
-    have h_hd : hd.val.unit1 = 2 := hd.property
-    have h_eq_step : init.unit1 = hd.val.unit1 := by rw [h_init, h_hd]
-    have h_after_step : (mergeCells init hd.val h_eq_step).unit1 = 2 :=
-      mergeCells_preserves_two init hd.val h_init h_hd h_eq_step
-    -- Apply induction hypothesis with the new init
-    exact ih tl (mergeCells init hd.val h_eq_step) h_after_step
-
-
-
-theorem IteratedProd.foldl_subtype_less_than (domain : List Nat)
-  (elements : IteratedProd (domain.map fun r => { x : Nat // x ≤ r })) :
-  IteratedProd.foldl (init := 0) (fun acc r => acc + r.val) elements ≤ domain.sum := by
-  induction domain with
-  | nil =>
-    cases elements
-    simp [IteratedProd.foldl, List.sum]
-  | cons head tail ih =>
-    obtain ⟨h, t⟩ := elements
-    simp only [List.sum_cons, IteratedProd.foldl]
-    rw [IteratedProd.foldl_add_init]
-    have h_bound : h.val ≤ head := h.property
-    calc 0 + h.val + IteratedProd.foldl (init := 0) (fun acc r => acc + r.val) t
-        = h.val + IteratedProd.foldl (init := 0) (fun acc r => acc + r.val) t := by simp
-      _ ≤ head + IteratedProd.foldl (init := 0) (fun acc r => acc + r.val) t := by apply Nat.add_le_add_right h_bound
-      _ ≤ head + tail.sum := by apply Nat.add_le_add_left (ih t)
 
 
 -- Helper lemma: folding with a larger init gives a larger result
