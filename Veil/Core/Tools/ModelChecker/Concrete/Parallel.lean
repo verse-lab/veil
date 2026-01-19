@@ -774,7 +774,7 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
           h_splitArrays_sound subArr h_subArr_in
         IO.asTask (LocalSearchContext.bfsBigStep sys baseCtx subArr h_baseCtx_seen_sound h_reachable)
 
-      let totalTasks := IteratedProd.foldl (init := 0) (fun acc _ => acc + 1) tasks
+      -- let totalTasks := IteratedProd.foldl (init := 0) (fun acc _ => acc + 1) tasks
       -- IO.eprintln s!"[{← IO.monoMsNow} @ tid {← IO.getTID}] spawned {totalTasks} tasks"
       let results ← IteratedProd.mapM (fun task => IO.ofExcept task.get) tasks
 
@@ -789,7 +789,7 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
         exact h_not_finished
 
       -- Reduce step: merge aggregatedCtx into ctx
-      ctx := ParallelSearchContext.Reduce sys params ctx aggregatedCtx tovisitArr rfl ranges
+      ctx := .Reduce _ _ ctx aggregatedCtx tovisitArr rfl ranges
         (ParallelConfig.chunkRanges_cover parallelCfg tovisitArr.size)
         (ParallelConfig.chunkRanges_valid parallelCfg tovisitArr.size)
         splitArrays rfl results rfl h_ctx_not_finished

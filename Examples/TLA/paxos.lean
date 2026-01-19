@@ -1,7 +1,4 @@
-import Veil
-
-open Lean
-open Std
+import veil
 
 -- ------------------------------- MODULE Paxos -------------------------------
 -- (***************************************************************************)
@@ -695,17 +692,18 @@ invariant [MsgInv] MsgInv1b ∧ MsgInv2a ∧ MsgInv2b
 -- =============================================================================
 -- \* Modification History
 -- \* Created Sat Nov 17 16:02:06 PST 2012 by lamport
--- #time #model_check
--- {
---   ballot := Fin 1,
---   acceptor := Fin 1,
---   value := Fin 1,
---   quorum := Fin 1,
---   MsgSet := ExtTreeSet (Msg (Fin 1) (Fin 1) (Fin 1)) compare
--- }
--- {
---   minusOne := 0,
---   member := fun a q => true
--- }
+set_option synthInstance.maxSize 10000
+#time #model_check
+{
+  ballot := Fin 1,
+  acceptor := Fin 1,
+  value := Fin 1,
+  quorum := Fin 1,
+  MsgSet := Std.ExtTreeSet (Msg (Fin 1) (Fin 1) (Fin 1))
+}
+{
+  minusOne := 0,
+  member := fun a q => true
+}
 
 end Paxos
