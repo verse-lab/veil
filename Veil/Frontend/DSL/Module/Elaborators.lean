@@ -178,7 +178,7 @@ where
       try elabVeilCommand $ ← `(command| deriving instance $classIdent:ident for $name:ident)
       catch _ => logWarning m!"Could not automatically derive {className} for {name.getId}. You may need to provide a manual instance."
   defaultDerivingClasses : List Name := [
-    ``Inhabited, ``DecidableEq, ``Lean.ToJson,
+    ``Inhabited, ``Nonempty, ``DecidableEq, ``Lean.ToJson,
     ``Hashable, ``Ord, ``Repr,
     ``Std.TransOrd, ``Std.LawfulEqOrd,
     -- ``Veil.Enumeration
@@ -543,6 +543,7 @@ where
     `((let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
+         ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType $instSortArgs*)
          ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
          $sp : _ → _ → _ → IO _))
 

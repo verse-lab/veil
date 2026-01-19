@@ -101,6 +101,9 @@ def instAbstractFieldRepresentation : Ident := mkIdent instAbstractFieldRepresen
 def instLawfulAbstractFieldRepresentationName : Name := `instLawfulAbstractFieldRepresentation
 def instLawfulAbstractFieldRepresentation : Ident := mkIdent instLawfulAbstractFieldRepresentationName
 
+def instInhabitedStateFieldConcreteTypeName : Name := `instInhabitedStateFieldConcreteType
+def instInhabitedStateFieldConcreteType : Ident := mkIdent instInhabitedStateFieldConcreteTypeName
+
 def structureFieldLabelTypeName (base : Name) : Name := base ++ labelTypeName
 def structureFieldLabelType (base : Name) : Ident := mkIdent <| structureFieldLabelTypeName base
 def fieldLabelToDomainName (base : Name) : Name := structureFieldLabelTypeName base ++ `toDomain

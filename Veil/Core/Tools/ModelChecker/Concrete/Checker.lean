@@ -76,7 +76,7 @@ either the sequential or parallel implementation based on configuration. -/
 
 def findReachable {ρ σ κ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [Inhabited κ] [Inhabited σ] [Repr σ] [Repr κ]
+  [Inhabited κ] [inhabσ : Inhabited σ] [Repr σ] [Repr κ]
   [BEq σ] [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
