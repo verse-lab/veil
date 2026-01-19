@@ -99,7 +99,9 @@ def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m] (mod :
     else if className == ``Veil.Enumeration then
       -- A special check for `Enumeration`: if this sort does not appear in the
       -- domain of any *state field*, then *do not* add `Enumeration` instance binder.
-      if !filterWithHeuristics || (mod.mutableComponents.any fun sc => sc.domainTerms.contains sort) then
+      -- FIXME: This is a very ad-hoc condition checking; ideally, we should
+      -- check *semantically* by using `remove_unused_args%` or something similar
+      if !filterWithHeuristics || (mod.mutableComponents.any fun sc => sc.domainTerms.any fun tm => Option.isSome <| tm.raw.find? fun subtm => subtm == sort) then
         `(bracketedBinder|[$(mkIdent className) $sort])
       else pure none
     else
