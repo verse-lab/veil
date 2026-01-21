@@ -22,7 +22,32 @@ SCRIPT_DIR="$(dirname "$0")"
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Function to show aggregated results (called on normal exit or interrupt)
+show_aggregated_results() {
+    local exit_reason="$1"
+
+    if [[ ${#PROFILE_FILES[@]} -gt 0 ]]; then
+        TIMING_FILE="$OUTPUT_DIR/timing.txt"
+        echo ""
+        if [[ "$exit_reason" == "interrupt" ]]; then
+            echo -e "${YELLOW}Interrupted! Showing partial results (${#PROFILE_FILES[@]} profiles):${NC}"
+        else
+            echo -e "${GREEN}Aggregated timing summary:${NC}"
+        fi
+        "$SCRIPT_DIR/parse-profile.py" "${PROFILE_FILES[@]}" "${PARSE_ARGS[@]}" | tee "$TIMING_FILE"
+        echo ""
+        echo "Timing saved to: $TIMING_FILE"
+    else
+        echo ""
+        echo -e "${YELLOW}No profiles collected yet.${NC}"
+    fi
+}
+
+# Trap Ctrl-C (SIGINT) to show partial results
+trap 'echo ""; echo -e "${YELLOW}Caught interrupt signal...${NC}"; show_aggregated_results "interrupt"; exit 130' INT
 
 # Parse arguments
 FOLDER="${1:-.}"
@@ -150,8 +175,4 @@ echo "To view a profile, upload the .json file to:"
 echo "  https://profiler.firefox.com/"
 
 # Aggregate results from all successful profiles
-if [[ ${#PROFILE_FILES[@]} -gt 0 ]]; then
-    echo ""
-    echo -e "${GREEN}Aggregated timing summary:${NC}"
-    "$SCRIPT_DIR/parse-profile.py" "${PROFILE_FILES[@]}" "${PARSE_ARGS[@]}"
-fi
+show_aggregated_results "complete"
