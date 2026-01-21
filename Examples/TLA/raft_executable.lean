@@ -1,50 +1,101 @@
 import Veil
-import Mathlib.Tactic.ProxyType
--- import Veil.Core.Tools.Checker.Concrete.Main
-open Lean
-
-open Std
-
-veil module Raft
-
 -- --------------------------------- MODULE raft ---------------------------------
 -- \* This is the formal specification for the Raft consensus algorithm.
 -- \*
 -- \* Copyright 2014 Diego Ongaro.
 -- \* This work is licensed under the Creative Commons Attribution-4.0
 -- \* International License https://creativecommons.org/licenses/by/4.0/
-
+veil module raft_executable
 -- EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 -- \* The set of server IDs
 -- CONSTANTS Server
 type server
--- \* The set of requests that can go into the log
--- CONSTANTS Value
-type value
+type serverSet
+instantiate sSet: TSet server serverSet
 -- \* Server states.
 -- CONSTANTS Follower, Candidate, Leader
--- type follower
--- type candidate
--- type leader
-enum states = { Follower, Candidate, Leader }
+enum serverStates = {Follower, Candidate, Leader}
 -- \* A reserved value.
 -- CONSTANTS Nil
-immutable individual SIZE : Nat
+immutable individual Nil : Nat
 -- \* Message types:
 -- CONSTANTS RequestVoteRequest, RequestVoteResponse,
 --           AppendEntriesRequest, AppendEntriesResponse
--- ----
--- \* Global variables
 @[veil_decl]
-inductive MsgType where
-  | RequestVoteRequest
-  | RequestVoteResponse
-  | AppendEntriesRequest
-  | AppendEntriesResponse
+inductive MsgType
+| RequestVoteRequest
+| RequestVoteResponse
+| AppendEntriesRequest
+| AppendEntriesResponse
 deriving instance Veil.Enumeration for MsgType
 
+-- Log entry structure
+-- In TLA+: log entries are records with [term |-> ..., value |-> ...]
+type value
 
+@[veil_decl]
+structure logEntry (value : Type) where
+  term : Nat
+  value : Nat
+
+type logSet
+instantiate lSet: TSet (logEntry value) logSet
+
+-- Unified Message structure containing all fields from all message types
+-- Different message types use different subsets of these fields
+@[veil_decl]
+structure Message (value server : Type) where
+  -- Common fields
+  mtype         : MsgType
+  mterm         : Nat
+  msource       : server
+  mdest         : server
+  -- RequestVoteRequest fields
+  mlastLogTerm  : Nat
+  mlastLogIndex : Nat
+  -- RequestVoteResponse fields
+  mvoteGranted  : Bool
+  mlog          : List (logEntry value)  -- history variable for proof
+  -- AppendEntriesRequest fields
+  mprevLogIndex : Nat
+  mprevLogTerm  : Nat
+  mentries      : List (logEntry value)
+  mcommitIndex  : Nat
+  -- AppendEntriesResponse fields
+  msuccess      : Bool
+  mmatchIndex   : Nat
+
+type msetMsg
+instantiate mSet: TMultiset (Message value server) msetMsg
+
+
+-- Election structure (history variable for proof)
+-- In TLA+: elections' = elections ∪ {[eterm |-> ..., eleader |-> ..., ...]}
+-- Tracks successful elections with leader's log and voters' information
+@[veil_decl]
+structure Election (server value serverSet : Type) where
+  eterm     : Nat                      -- term number of the election
+  eleader   : server                   -- the elected leader
+  elog      : List (logEntry value)    -- leader's log at election time
+  evotes    : serverSet                -- set of servers that voted for the leader
+  evoterLog : List (logEntry value)    -- voters' logs (simplified from server → log mapping)
+
+type electionSet
+instantiate eSet: TSet (Election server value serverSet) electionSet
+
+-- \* Maximum number of client requests
+-- CONSTANTS MaxClientRequests
+immutable individual MaxClientRequests : Nat
+
+-- ----
+-- \* Global variables
+
+-- \* A bag of records representing requests and responses sent from one server
+-- \* to another. TLAPS doesn't support the Bags module, so this is a function
+-- \* mapping Message to Nat.
+-- VARIABLE messages
+individual messages : msetMsg
 
 -- \* A history variable used in the proof. This would not be present in an
 -- \* implementation.
@@ -52,93 +103,53 @@ deriving instance Veil.Enumeration for MsgType
 -- \* leader and voters' logs. Set of functions containing various things about
 -- \* successful elections (see BecomeLeader).
 -- VARIABLE elections
-@[veil_decl]
-structure log (value : Type) where
-  term : Nat
-  value : value
-
-
-
-type serverSet
-instantiate serversSet: TSet server serverSet
-
-@[veil_decl]
-structure election (server value serverSet: Type) where
-  eterm     : Nat
-  eleader   : server
-  elog      : List (log value) -- list of (term, value)
-  evotes    : serverSet
-  evoterLog : List (log value) -- list of (term, value)
-
-type electionSet
-instantiate electionsSet: TSet (election server value serverSet) electionSet
 individual elections : electionSet
-
--- \* A bag of records representing requests and responses sent from one server
--- \* to another. TLAPS doesn't support the Bags module, so this is a function
--- \* mapping Message to Nat.
--- VARIABLE messages
-@[veil_decl]
-structure Message (value server : Type) where
-  mtype         : MsgType
-  mterm         : Nat
-  mlastLogTerm  : Nat
-  mlastLogIndex : Nat
-  mprevLogIndex : Nat
-  mprevLogTerm  : Nat
-  mentries      : List (log value) -- list of (term, value)
-  mlog          : List (log value) -- list of (term, value)
-  mcommitIndex  : Nat
-  msource       : server
-  mdest         : server
-  mvoteGranted  : Bool
-  msuccess      : Bool
-  mmatchIndex   : Nat
-
-type msetMsg
-type setLog
-instantiate mSet: TMultiset (Message value server) msetMsg
-individual messages : msetMsg
 
 -- \* A history variable used in the proof. This would not be present in an
 -- \* implementation.
 -- \* Keeps track of every log ever in the system (set of logs).
 -- VARIABLE allLogs
-instantiate logSet: TSet (log value) setLog
-individual allLogs : setLog
+individual allLogs : logSet
 
+-- ----
 -- \* The following variables are all per server (functions with domain Server).
 
 -- \* The server's term number.
 -- VARIABLE currentTerm
 function currentTerm : server → Nat
-
 -- \* The server's state (Follower, Candidate, or Leader).
 -- VARIABLE state
-relation serverState : server → states → Bool
+relation pcState : server → serverStates → Bool
 -- \* The candidate the server voted for in its current term, or
 -- \* Nil if it hasn't voted for any.
 -- VARIABLE votedFor
 relation votedFor : server → server → Bool
-
 -- serverVars == <<currentTerm, state, votedFor>>
 
+-- \* The set of requests that can go into the log
+-- VARIABLE clientRequests
+individual clientRequests : Nat
 -- \* A Sequence of log entries. The index into this sequence is the index of the
 -- \* log entry. Unfortunately, the Sequence module defines Head(s) as the entry
 -- \* with index 1, so be careful not to use that!
 -- VARIABLE log
-function logs : server → List (log value)
+function logs : server → List (logEntry value)
 -- \* The index of the latest entry in the log the state machine may apply.
 -- VARIABLE commitIndex
 function commitIndex : server → Nat
--- logVars == <<log, commitIndex>>
-
+-- \* The index that gets committed
+-- VARIABLE committedLog
+individual committedLog : List (logEntry value)
+-- \* Does the commited Index decrease
+-- VARIABLE committedLogDecrease
+individual committedLogDecrease : Bool
+-- logVars == <<log, commitIndex, clientRequests, committedLog, committedLogDecrease >>
 
 -- \* The following variables are used only on candidates:
 -- \* The set of servers from which the candidate has received a RequestVote
 -- \* response in its currentTerm.
--- VARIABLE votesResponded
-function votesResponded : server → serverSet
+-- VARIABLE votesSent
+function votesSent : server → Bool
 -- \* The set of servers from which the candidate has received a vote in its
 -- \* currentTerm.
 -- VARIABLE votesGranted
@@ -148,27 +159,24 @@ function votesGranted : server → serverSet
 -- \* Function from each server that voted for this candidate in its currentTerm
 -- \* to that voter's log.
 -- VARIABLE voterLog
-function voterLog : server → List (log value)
-
--- candidateVars == <<votesResponded, votesGranted, voterLog>>
-
+function voterLog : server → server → List (logEntry value)
+-- candidateVars == <<votesSent, votesGranted, voterLog>>
 -- \* The following variables are used only on leaders:
 -- \* The next entry to send to each follower.
 -- VARIABLE nextIndex
+function nextIndex : server → server → Nat
 -- \* The latest entry that each follower has acknowledged is the same as the
 -- \* leader's. This is used to calculate commitIndex on the leader.
 -- VARIABLE matchIndex
-function nextIndex : server → server → Nat
 function matchIndex : server → server → Nat
 -- leaderVars == <<nextIndex, matchIndex, elections>>
-individual maxIndexesFlag : Nat
 
-individual clientRequests : Nat
 -- \* End of per server variables.
 -- ----
+immutable individual fixServer : server
+immutable individual SIZE : Nat
+
 #gen_state
-
-
 -- \* All variables; used for stuttering (asserting state hasn't changed).
 -- vars == <<messages, allLogs, serverVars, candidateVars, leaderVars, logVars>>
 
@@ -181,46 +189,63 @@ individual clientRequests : Nat
 
 -- \* The term of the last entry in a log, or 0 if the log is empty.
 -- LastTerm(xlog) == IF Len(xlog) = 0 THEN 0 ELSE xlog[Len(xlog)].term
-procedure LastTerm (xlog : List (log value)) {
+
+procedure LastTerm (xlog : List (logEntry value)) {
   -- if xlog.length == 0 then default else (xlog.get! (xlog.length - 1)).term
   /-In TLA+, here return `0` not default. -/
-  let res := if xlog.length ≠ 0 then xlog.getLast!.term else 0
+  let res := if xlog.length = 0 then 0 else xlog.getLast!.term
   return res
 }
+
 -- \* Helper for Send and Reply. Given a message m and bag of messages, return a
 -- \* new bag of messages with one more m in it.
 -- WithMessage(m, msgs) ==
 --     IF m \in DOMAIN msgs THEN
---         [msgs EXCEPT ![m] = msgs[m] + 1]
+--         [msgs EXCEPT ![m] = IF msgs[m] < 2 THEN msgs[m] + 1 ELSE 2 ]
 --     ELSE
 --         msgs @@ (m :> 1)
 procedure WithMessage (m : Message value server) {
-  messages := mSet.insert m messages
+  if mSet.contains m messages then
+    let count := mSet.count m messages
+    if count < 2 then
+      messages := mSet.insert m messages
+  else
+    messages := mSet.insert m messages
 }
 
 -- \* Helper for Discard and Reply. Given a message m and bag of messages, return
 -- \* a new bag of messages with one less m in it.
 -- WithoutMessage(m, msgs) ==
 --     IF m \in DOMAIN msgs THEN
---         IF msgs[m] <= 1 THEN [i \in DOMAIN msgs \ {m} |-> msgs[i]]
---         ELSE [msgs EXCEPT ![m] = msgs[m] - 1]
+--         [msgs EXCEPT ![m] = IF msgs[m] > 0 THEN msgs[m] - 1 ELSE 0 ]
 --     ELSE
 --         msgs
 procedure WithoutMessage (m : Message value server) {
   messages := mSet.remove m messages
 }
 
+-- ValidMessage(msgs) ==
+--     { m \in DOMAIN messages : msgs[m] > 0 }
+
+-- SingleMessage(msgs) ==
+--     { m \in DOMAIN messages : msgs[m] = 1 }
+
 -- \* Add a message to the bag of messages.
 -- Send(m) == messages' = WithMessage(m, messages)
 procedure Send (m : Message value server) {
-  WithMessage m
+  if mSet.contains m messages then
+    let count := mSet.count m messages
+    if count < 2 then
+      messages := mSet.insert m messages
+  else
+    messages := mSet.insert m messages
 }
 
 -- \* Remove a message from the bag of messages. Used when a server is done
 -- \* processing a message.
 -- Discard(m) == messages' = WithoutMessage(m, messages)
 procedure Discard (m : Message value server) {
-  WithoutMessage m
+  messages := mSet.remove m messages
 }
 
 -- \* Combination of Send and Discard
@@ -231,11 +256,8 @@ procedure Reply (response request : Message value server) {
   WithoutMessage request
 }
 
-
-
 -- \* Return the minimum value from a set, or undefined if the set is empty.
 -- Min(s) == CHOOSE x \in s : \A y \in s : x <= y
-
 -- \* Return the maximum value from a set, or undefined if the set is empty.
 -- Max(s) == CHOOSE x \in s : \A y \in s : x >= y
 
@@ -246,24 +268,25 @@ procedure Reply (response request : Message value server) {
 --                    /\ allLogs   = {}
 --                    /\ voterLog  = [i \in Server |-> [j \in {} |-> <<>>]]
 procedure InitHistoryVars {
-  allLogs    := logSet.empty
-  elections  := electionsSet.empty
-  voterLog S := []
+  allLogs    := lSet.empty
+  elections  := eSet.empty
+  voterLog I J := []
 }
+
 -- InitServerVars == /\ currentTerm = [i \in Server |-> 1]
 --                   /\ state       = [i \in Server |-> Follower]
 --                   /\ votedFor    = [i \in Server |-> Nil]
 procedure InitServerVars {
-  serverState S T := T == Follower
-  currentTerm S := 1
-  votedFor S R := false
+  currentTerm I := 1
+  pcState I S := decide $ S = Follower
+  votedFor I J := false
 }
 
--- InitCandidateVars == /\ votesResponded = [i \in Server |-> {}]
+-- InitCandidateVars == /\ votesSent = [i \in Server |-> FALSE ]
 --                      /\ votesGranted   = [i \in Server |-> {}]
 procedure InitCandidateVars {
-  votesResponded S := serversSet.empty
-  votesGranted S := serversSet.empty
+  votesSent I := false
+  votesGranted I := sSet.empty
 }
 
 -- \* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
@@ -272,14 +295,20 @@ procedure InitCandidateVars {
 -- InitLeaderVars == /\ nextIndex  = [i \in Server |-> [j \in Server |-> 1]]
 --                   /\ matchIndex = [i \in Server |-> [j \in Server |-> 0]]
 procedure InitLeaderVars {
-  nextIndex S R := 1
-  matchIndex S R := 0
+  nextIndex I J := 1
+  matchIndex I J := 0
 }
 -- InitLogVars == /\ log          = [i \in Server |-> << >>]
 --                /\ commitIndex  = [i \in Server |-> 0]
+--                /\ clientRequests = 1
+--                /\ committedLog = << >>
+--                /\ committedLogDecrease = FALSE
 procedure InitLogVars {
-  logs S := []
-  commitIndex S := 0
+  logs I := []
+  commitIndex I := 0
+  clientRequests := 1
+  committedLog := []
+  committedLogDecrease := false
 }
 -- Init == /\ messages = [m \in {} |-> 0]
 --         /\ InitHistoryVars
@@ -294,9 +323,7 @@ after_init {
   InitCandidateVars
   InitLeaderVars
   InitLogVars
-  maxIndexesFlag := 0
 }
-
 -- ----
 -- \* Define state transitions
 
@@ -304,20 +331,20 @@ after_init {
 -- \* It loses everything but its currentTerm, votedFor, and log.
 -- Restart(i) ==
 --     /\ state'          = [state EXCEPT ![i] = Follower]
---     /\ votesResponded' = [votesResponded EXCEPT ![i] = {}]
+--     /\ votesSent'      = [votesSent EXCEPT ![i] = FALSE ]
 --     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {}]
 --     /\ voterLog'       = [voterLog EXCEPT ![i] = [j \in {} |-> <<>>]]
 --     /\ nextIndex'      = [nextIndex EXCEPT ![i] = [j \in Server |-> 1]]
 --     /\ matchIndex'     = [matchIndex EXCEPT ![i] = [j \in Server |-> 0]]
 --     /\ commitIndex'    = [commitIndex EXCEPT ![i] = 0]
---     /\ UNCHANGED <<messages, currentTerm, votedFor, log, elections>>
+--     /\ UNCHANGED <<messages, currentTerm, votedFor, log, elections, clientRequests, committedLog, committedLogDecrease>>
 action Restart (i : server) {
-  serverState i T := T == Follower
-  votesResponded i := serversSet.empty
-  votesGranted i := serversSet.empty
-  voterLog i := []
-  nextIndex i R := 1
-  matchIndex i R := 0
+  pcState i T := T == Follower
+  votesSent i := false
+  votesGranted i := sSet.empty
+  voterLog i J := []
+  nextIndex i J := 1
+  matchIndex i J := 0
   commitIndex i := 0
 }
 
@@ -328,27 +355,51 @@ action Restart (i : server) {
 --               \* Most implementations would probably just set the local vote
 --               \* atomically, but messaging localhost for it is weaker.
 --               /\ votedFor' = [votedFor EXCEPT ![i] = Nil]
---               /\ votesResponded' = [votesResponded EXCEPT ![i] = {}]
+--               /\ votesSent' = [votesSent EXCEPT ![i] = FALSE ]
 --               /\ votesGranted'   = [votesGranted EXCEPT ![i] = {}]
 --               /\ voterLog'       = [voterLog EXCEPT ![i] = [j \in {} |-> <<>>]]
 --               /\ UNCHANGED <<messages, leaderVars, logVars>>
 action Timeout (i : server) {
-  require serverState i Follower ∨ serverState i Candidate
-  serverState i T := T == Candidate
+  require pcState i Follower ∨ pcState i Candidate
+  pcState i T := T == Candidate
   currentTerm i := currentTerm i + 1
-  -- \* Most implementations would probably just set the local vote
-  -- \* atomically, but messaging localhost for it is weaker.
-  votedFor i R := false
-  -- votesResponded i := []
-  votesResponded i := serversSet.empty
-  -- votesGranted i := []
-  votesGranted i := serversSet.empty
-  voterLog i := []
+  votedFor i J := false
+  votesSent i := false
+  votesGranted i := sSet.empty
+  voterLog i J := []
 }
 
+-- \* Candidate i sends j a RequestVote request.
+-- RequestVote(i,j) ==
+--     /\ state[i] = Candidate
+--     /\ Send([mtype         |-> RequestVoteRequest,
+--              mterm         |-> currentTerm[i],
+--              mlastLogTerm  |-> LastTerm(log[i]),
+--              mlastLogIndex |-> Len(log[i]),
+--              msource       |-> i,
+--              mdest         |-> j])
+--     /\ UNCHANGED <<serverVars, votesGranted, voterLog, leaderVars, logVars, votesSent>>
+action RequestVote (i : server) (j : server) {
+  require pcState i Candidate
+  let lastterm ← LastTerm (logs i)
+  let msg : Message value server :=
+    { mtype         := .RequestVoteRequest,
+      mterm         := currentTerm i,
+      mlastLogTerm  := lastterm,
+      mlastLogIndex := List.length (logs i),
+      mprevLogIndex := 0,
+      mprevLogTerm  := 0,
+      mentries      := [],
+      mlog          := [],
+      mcommitIndex  := 0,
+      msource       := i,
+      mdest         := j,
+      mvoteGranted  := false,
+      msuccess      := false,
+      mmatchIndex   := 0 }
+  Send msg
+}
 
-
-#eval([]:List Nat)[0]!
 -- \* Leader i sends j an AppendEntries request containing up to 1 entry.
 -- \* While implementations may want to send more than 1 at a time, this spec uses
 -- \* just 1 because it minimizes atomic regions without loss of generality.
@@ -375,42 +426,51 @@ action Timeout (i : server) {
 --                 msource        |-> i,
 --                 mdest          |-> j])
 --     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
--- set_option maxRecDepth 1000
 action AppendEntries (i : server) (j : server) {
-  require i ≠ j
-  require serverState i Leader
+  require (i ≠ j)
+  require pcState i Leader
+
   let prevLogIndex := nextIndex i j - 1
-  let prevLogTerm : Nat :=
-    if prevLogIndex > 0 && (logs i).length > 0 then
-      let log_i := (logs i : List (log value))
-      let entry : log value := log_i[(prevLogIndex - 1)]!
-      entry.term
+  let prevLogTerm :=
+    if prevLogIndex > 0 then
+      match (logs i)[(prevLogIndex - 1)]? with
+      | some entry => entry.term
+      | none => 0
     else
       0
-  let lastEntry := Nat.min (List.length (logs i)) (nextIndex i j)
-  let entries := (logs i).extract (nextIndex i j - 1) lastEntry
-  let commitIdx := Nat.min (commitIndex i) lastEntry
-  let msg : Message value server :=
-    { mtype          := MsgType.AppendEntriesRequest,
-      mterm          := currentTerm i,
-      mlastLogTerm   := 0,
-      mlastLogIndex  := 0,
-      mprevLogIndex  := prevLogIndex,
-      mprevLogTerm   := prevLogTerm,
-      mentries       := entries,
-      mlog           := [],
-      mcommitIndex   := commitIdx,
-      msource        := i,
-      mdest          := j,
-      mvoteGranted  := false,
-      msuccess      := false,
-      mmatchIndex   := 0 }
-  -- let msg : Message value server := default
+
+  -- Send up to 1 entry, constrained by the end of the log
+  let logLen := (logs i).length
+  let nextIdx := nextIndex i j
+  let lastEntry := Nat.min logLen nextIdx
+
+  -- Extract entries from nextIndex to lastEntry
+  let entries :=
+    if nextIdx ≤ lastEntry then
+      List.take (lastEntry - nextIdx + 1) (List.drop (nextIdx - 1) (logs i))
+    else
+      []
+
+  let msg : Message value server := {
+    mtype         := .AppendEntriesRequest,
+    mterm         := currentTerm i,
+    mprevLogIndex := prevLogIndex,
+    mprevLogTerm  := prevLogTerm,
+    mentries      := entries,
+    mlog          := logs i,  -- history variable for proof
+    mcommitIndex  := min (commitIndex i) lastEntry,
+    msource       := i,
+    mdest         := j,
+    -- Unused fields for AppendEntriesRequest
+    mlastLogTerm  := 0,
+    mlastLogIndex := 0,
+    mvoteGranted  := false,
+    msuccess      := false,
+    mmatchIndex   := 0
+  }
+
   Send msg
-  -- messages := mSet.insert msg messages
 }
-
-
 
 -- \* Candidate i transitions to leader.
 -- BecomeLeader(i) ==
@@ -427,79 +487,44 @@ action AppendEntries (i : server) (j : server) {
 --                            elog      |-> log[i],
 --                            evotes    |-> votesGranted[i],
 --                            evoterLog |-> voterLog[i]]}
--- structure election (server value : Type) where
---   eterm     : Nat
---   eleader   : server
---   elog      : List (log value) -- list of (term, value)
---   evotes    : server
---   evoterLog : List (log value) -- list of (term, value)
--- deriving Inhabited, DecidableEq, Ord, Lean.ToJson, Hashable, Repr
-
 --     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
 action BecomeLeader (i : server) {
-  require serverState i Candidate
-  -- require votesGranted i ∈ Quorum
-  serverState i T := T == Leader
+  require pcState i Candidate
+  -- Quorum == {i \in SUBSET(Server) : Cardinality(i) * 2 > Cardinality(Server)}
+  -- require sSet.count (votesGranted i) * 2 > SIZE
+  pcState i T := T == Leader
   nextIndex i R := List.length (logs i) + 1
   matchIndex i R := 0
-  let newElection : election server value serverSet :=
+  let newElection : Election server value serverSet :=
     { eterm     := currentTerm i,
       eleader   := i,
       elog      := logs i,
       evotes    := votesGranted i,
-      evoterLog := voterLog i }
-  elections := electionsSet.insert newElection elections
+      evoterLog := voterLog i fixServer }
+  elections := eSet.insert newElection elections
 }
 
-
--- \* Candidate i sends j a RequestVote request.
--- RequestVote(i, j) ==
---     /\ state[i] = Candidate
---     /\ j \notin votesResponded[i]
---     /\ Send([mtype         |-> RequestVoteRequest,
---              mterm         |-> currentTerm[i],
---              mlastLogTerm  |-> LastTerm(log[i]),
---              mlastLogIndex |-> Len(log[i]),
---              msource       |-> i,
---              mdest         |-> j])
---     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-action RequestVote (i : server) (j : server) {
-  require serverState i Candidate
-  require ¬ (serversSet.contains j (votesResponded i))
-  require clientRequests < 2
-  let lastterm ← LastTerm (logs i)
-  let msg : Message value server :=
-    { mtype         := MsgType.RequestVoteRequest,
-      mterm         := currentTerm i,
-      mlastLogTerm  := lastterm,
-      mlastLogIndex := List.length (logs i),
-      mprevLogIndex := 0,
-      mprevLogTerm  := 0,
-      mentries      := [],
-      mlog          := [],
-      mcommitIndex  := 0,
-      msource       := i,
-      mdest         := j,
-      mvoteGranted  := false,
-      msuccess      := false,
-      mmatchIndex   := 0 }
-  Send msg
-  clientRequests := clientRequests + 1
-}
 -- \* Leader i receives a client request to add v to the log.
--- ClientRequest(i, v) ==
+-- ClientRequest(i) ==
 --     /\ state[i] = Leader
+--     /\ clientRequests < MaxClientRequests
 --     /\ LET entry == [term  |-> currentTerm[i],
---                      value |-> v]
+--                      value |-> clientRequests]
 --            newLog == Append(log[i], entry)
---        IN  log' = [log EXCEPT ![i] = newLog]
+--        IN  /\ log' = [log EXCEPT ![i] = newLog]
+--            \* Make sure that each request is unique, reduce state space to be explored
+--            /\ clientRequests' = clientRequests + 1
 --     /\ UNCHANGED <<messages, serverVars, candidateVars,
---                    leaderVars, commitIndex>>
-action ClientRequest (i : server) (v : value) {
-  require serverState i Leader
-  let entry : log value := ⟨currentTerm i, v⟩
-  let newLog := (logs i).append [entry]
+--                    leaderVars, commitIndex, committedLog, committedLogDecrease>>
+action ClientRequest (i : server) {
+  require pcState i Leader
+  require clientRequests < MaxClientRequests
+  let entry : logEntry value :=
+    { term  := currentTerm i,
+      value := clientRequests }
+  let newLog := logs i |>.append [entry]
   logs i := newLog
+  clientRequests := clientRequests + 1
 }
 
 -- \* Leader i advances its commitIndex.
@@ -522,20 +547,26 @@ action ClientRequest (i : server) (v : value) {
 --                   Max(agreeIndexes)
 --               ELSE
 --                   commitIndex[i]
---        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
---     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
--- Quorum == {i \in SUBSET(Server) : Cardinality(i) * 2 > Cardinality(Server)}
+--            newCommittedLog ==
+--               IF newCommitIndex > 1 THEN
+--                   [ j \in 1..newCommitIndex |-> log[i][j] ]
+--               ELSE
+--                    << >>
+--        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
+--           /\ committedLogDecrease' = \/ ( newCommitIndex < Len(committedLog) )
+--                                      \/ \E j \in 1..Len(committedLog) : committedLog[j] /= newCommittedLog[j]
+--           /\ committedLog' = newCommittedLog
+--     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log, clientRequests>>
 
+-- Helper procedure: Agree(index) returns set of servers that agree up through index
 procedure Agree (i : server) (index : Nat) {
-  let serverMax :| ∀s, matchIndex i s ≥ index → serversSet.contains s serverMax
-  let agreeSet := serversSet.insert i serverMax
+  let serverMax :| ∀s, matchIndex i s ≥ index → sSet.contains s serverMax
+  let agreeSet := sSet.insert i serverMax
   return agreeSet
 }
 
-
-ghost relation isQuorum (sset : serverSet) (size : Nat)  :=
-  serversSet.count sset * 2 > size
-
+ghost relation isQuorum (sset : serverSet) (size : Nat) :=
+  sSet.count sset * 2 > size
 
 procedure agreeIndexes (i : server) {
   let logLength := List.length (logs i)
@@ -547,22 +578,44 @@ procedure agreeIndexes (i : server) {
   return agreeIndexs
 }
 
-action AdvanceCommitIndexx (i : server) {
-  require serverState i Leader
+action AdvanceCommitIndex (i : server) {
+  require pcState i Leader
   let Indexs ← agreeIndexes i
-  if Indexs ≠ [] then
-    let maxIndex := Indexs.max?.get!
-    maxIndexesFlag := maxIndex
-    if maxIndex < (logs i).length then
-      let lastEntry := (logs i)[maxIndex]!
-      if lastEntry.term == currentTerm i then
-        commitIndex i := maxIndex
-}
 
+  -- Compute newCommitIndex
+  let newCommitIndex :=
+    match Indexs.max? with
+    | none => commitIndex i  -- agreeIndexes is empty
+    | some maxIndex =>
+        if h : maxIndex > 0 ∧ maxIndex ≤ (logs i).length then
+          let entry := (logs i)[maxIndex - 1]
+          if entry.term = currentTerm i then maxIndex else commitIndex i
+        else
+          commitIndex i
+
+  -- Update committedLog
+  let newCommittedLog := if newCommitIndex > 0 then
+    (logs i).take newCommitIndex
+  else
+    []
+
+  -- Check if committedLog decreases
+  let decrease := (newCommitIndex < committedLog.length) ||
+    (List.range (min newCommitIndex committedLog.length)).any (fun j =>
+      if h : j < committedLog.length ∧ j < newCommittedLog.length then
+        decide (committedLog[j] ≠ newCommittedLog[j])
+      else
+        false
+    )
+  commitIndex i := newCommitIndex
+  committedLog := newCommittedLog
+  committedLogDecrease := decrease
+}
 
 -- ----
 -- \* Message handlers
 -- \* i = recipient, j = sender, m = message
+
 -- \* Server i receives a RequestVote request from server j with
 -- \* m.mterm <= currentTerm[i].
 -- HandleRequestVoteRequest(i, j, m) ==
@@ -586,24 +639,23 @@ action AdvanceCommitIndexx (i : server) {
 --                  m)
 --        /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
 
-
-ghost relation logOk (m : Message value server) (i : server) (lastTerm_i : Nat):=
+ghost relation logOk (m : Message value server) (i : server) (lastTerm_i : Nat) :=
   (m.mlastLogTerm > lastTerm_i) ∨
   ((m.mlastLogTerm = lastTerm_i) ∧ (m.mlastLogIndex ≥ List.length (logs i)))
 
-ghost relation grant (m : Message value server) (i j : server) (lastTerm_i : Nat):=
+ghost relation grant (m : Message value server) (i j : server) (lastTerm_i : Nat) :=
   (m.mterm = currentTerm i) ∧ logOk m i lastTerm_i
   ∧ (∀ P, votedFor i P → P = j)
 
 procedure HandleRequestVoteRequest (i : server) (j : server) (m : Message value server) {
   let lastTerm_i ← LastTerm (logs i)
-  require m.mterm ≤ currentTerm i
-  /- Here, `grant` make the elobaration process stuck. -/
+  -- require m.mterm ≤ currentTerm i
+  assume m.mterm ≤ currentTerm i
   let isGrant := grant m i j lastTerm_i
-  if decide $ isGrant then
+  if decide isGrant then
     votedFor i R := R == j
   let response : Message value server :=
-    { mtype         := MsgType.RequestVoteResponse,
+    { mtype         := .RequestVoteResponse,
       mterm         := currentTerm i,
       mlastLogTerm  := 0,
       mlastLogIndex := 0,
@@ -614,7 +666,7 @@ procedure HandleRequestVoteRequest (i : server) (j : server) (m : Message value 
       mcommitIndex  := 0,
       msource       := i,
       mdest         := j,
-      mvoteGranted  := decide $ isGrant,
+      mvoteGranted  := decide isGrant,
       msuccess      := false,
       mmatchIndex   := 0 }
   Reply response m
@@ -626,28 +678,26 @@ procedure HandleRequestVoteRequest (i : server) (j : server) (m : Message value 
 --     \* This tallies votes even when the current state is not Candidate, but
 --     \* they won't be looked at, so it doesn't matter.
 --     /\ m.mterm = currentTerm[i]
---     /\ votesResponded' = [votesResponded EXCEPT ![i] =
---                               votesResponded[i] \cup {j}]
 --     /\ \/ /\ m.mvoteGranted
 --           /\ votesGranted' = [votesGranted EXCEPT ![i] =
 --                                   votesGranted[i] \cup {j}]
 --           /\ voterLog' = [voterLog EXCEPT ![i] =
 --                               voterLog[i] @@ (j :> m.mlog)]
+--           /\ UNCHANGED <<votesSent>>
 --        \/ /\ ~m.mvoteGranted
---           /\ UNCHANGED <<votesGranted, voterLog>>
+--           /\ UNCHANGED <<votesSent, votesGranted, voterLog>>
 --     /\ Discard(m)
 --     /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
+
 procedure HandleRequestVoteResponse (i : server) (j : server) (m : Message value server) {
-  -- require m.mterm == currentTerm i
-  assume m.mterm == currentTerm i
-  votesResponded i :=
-    serversSet.insert j (votesResponded i)
+  -- require m.mterm = currentTerm i
+  assume m.mterm = currentTerm i
   if m.mvoteGranted then
-    votesGranted i := serversSet.insert j (votesGranted i)
-    let newVoterLog := (voterLog i).append m.mlog
-    voterLog i := newVoterLog
+    votesGranted i := sSet.insert j (votesGranted i)
+    voterLog i j := m.mlog
   Discard m
 }
+
 
 
 -- \* Server i receives an AppendEntries request from server j with
@@ -701,7 +751,7 @@ procedure HandleRequestVoteResponse (i : server) (j : server) (m : Message value
 --                                  msource         |-> i,
 --                                  mdest           |-> j],
 --                                  m)
---                        /\ UNCHANGED <<serverVars, log>>
+--                        /\ UNCHANGED <<serverVars, logVars>>
 --                    \/ \* conflict: remove 1 entry
 --                        /\ m.mentries /= << >>
 --                        /\ Len(log[i]) >= index
@@ -709,14 +759,108 @@ procedure HandleRequestVoteResponse (i : server) (j : server) (m : Message value
 --                        /\ LET new == [index2 \in 1..(Len(log[i]) - 1) |->
 --                                           log[i][index2]]
 --                           IN log' = [log EXCEPT ![i] = new]
---                        /\ UNCHANGED <<serverVars, commitIndex, messages>>
+--                        /\ UNCHANGED <<serverVars, commitIndex, messages, clientRequests, committedLog, committedLogDecrease>>
 --                    \/ \* no conflict: append entry
 --                        /\ m.mentries /= << >>
 --                        /\ Len(log[i]) = m.mprevLogIndex
 --                        /\ log' = [log EXCEPT ![i] =
 --                                       Append(log[i], m.mentries[1])]
---                        /\ UNCHANGED <<serverVars, commitIndex, messages>>
+--                        /\ UNCHANGED <<serverVars, commitIndex, messages, clientRequests, committedLog, committedLogDecrease>>
 --        /\ UNCHANGED <<candidateVars, leaderVars>>
+procedure HandleAppendEntriesRequest (i : server) (j : server) (m : Message value server) {
+  -- require m.mterm ≤ currentTerm i
+  assume m.mterm ≤ currentTerm i
+
+  -- Check if log is ok: prevLogIndex matches
+  let logOk :=
+    m.mprevLogIndex = 0 ||
+    (m.mprevLogIndex > 0 &&
+     m.mprevLogIndex ≤ (logs i).length &&
+     match (logs i)[(m.mprevLogIndex - 1)]? with
+     | some entry => entry.term = m.mprevLogTerm
+     | none => false)
+
+  -- Branch 1: Reject request
+  if m.mterm < currentTerm i || (m.mterm = currentTerm i && pcState i Follower && !logOk) then
+    let response : Message value server := {
+      mtype         := .AppendEntriesResponse,
+      mterm         := currentTerm i,
+      msuccess      := false,
+      mmatchIndex   := 0,
+      msource       := i,
+      mdest         := j,
+      -- Unused fields
+      mprevLogIndex := 0,
+      mprevLogTerm  := 0,
+      mentries      := [],
+      mlog          := [],
+      mcommitIndex  := 0,
+      mlastLogTerm  := 0,
+      mlastLogIndex := 0,
+      mvoteGranted  := false
+    }
+    Reply response m
+  -- Branch 2: Return to follower state (if candidate)
+  else
+    if m.mterm = currentTerm i && pcState i Candidate then
+      pcState i T := T == Follower
+    -- Branch 3: Accept request (follower with logOk)
+    else
+      if m.mterm = currentTerm i && pcState i Follower && logOk then
+        let index := m.mprevLogIndex + 1
+        let logLen := (logs i).length
+        -- Sub-case 3a: Already done with request (empty entries or entry already matches)
+        if m.mentries.isEmpty ||
+            (logLen ≥ index &&
+            match (logs i)[(index - 1)]? with
+            | some entry => match m.mentries.head? with
+                            | some firstEntry => entry.term = firstEntry.term
+                            | none => false
+            | none => false) then
+          commitIndex i := m.mcommitIndex
+          let response : Message value server := {
+            mtype         := .AppendEntriesResponse,
+            mterm         := currentTerm i,
+            msuccess      := true,
+            mmatchIndex   := m.mprevLogIndex + m.mentries.length,
+            msource       := i,
+            mdest         := j,
+            -- Unused fields
+            mprevLogIndex := 0,
+            mprevLogTerm  := 0,
+            mentries      := [],
+            mlog          := [],
+            mcommitIndex  := 0,
+            mlastLogTerm  := 0,
+            mlastLogIndex := 0,
+            mvoteGranted  := false
+          }
+          Reply response m
+    -- -- Sub-case 3b: Conflict - remove 1 entry
+        else
+          if !m.mentries.isEmpty && logLen ≥ index &&
+                  match (logs i)[(index - 1)]? with
+                  | some entry => match m.mentries.head? with
+                                  | some firstEntry => entry.term ≠ firstEntry.term
+                                  | none => false
+                  | none => false then
+            -- Remove last entry from log
+            logs i := (logs i).take (logLen - 1)
+          -- Sub-case 3c: No conflict - append entry
+          else
+            if !m.mentries.isEmpty && logLen = m.mprevLogIndex then
+              let newEntry := match m.mentries.head? with
+                              | some firstEntry => [firstEntry]
+                              | none => []
+              logs i := (logs i) ++ newEntry
+              -- match m.mentries.head? with
+              -- | some firstEntry =>
+              --     logs i := (logs i) ++ [firstEntry]
+              -- | none => pure ()
+}
+
+
+
 
 -- \* Server i receives an AppendEntries response from server j with
 -- \* m.mterm = currentTerm[i].
@@ -731,11 +875,9 @@ procedure HandleRequestVoteResponse (i : server) (j : server) (m : Message value
 --           /\ UNCHANGED <<matchIndex>>
 --     /\ Discard(m)
 --     /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
-
-/- Problem: If an `infinite` type (e.g., `m`) appears in parameter list or
-it is non-determinisitic picked, then we still can not it.-/
 procedure HandleAppendEntriesResponse (i : server) (j : server) (m : Message value server) {
-  require m.mterm == currentTerm i
+  -- require m.mterm = currentTerm i
+  assume m.mterm = currentTerm i
   if m.msuccess then
     nextIndex i j := m.mmatchIndex + 1
     matchIndex i j := m.mmatchIndex
@@ -752,10 +894,11 @@ procedure HandleAppendEntriesResponse (i : server) (j : server) (m : Message val
 --     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
 --        \* messages is unchanged so m can be processed further.
 --     /\ UNCHANGED <<messages, candidateVars, leaderVars, logVars>>
-procedure UpdateTerm (i : server) (m : Message value server) {
-  require m.mterm > currentTerm i
+procedure UpdateTerm (i : server) (j : server) (m : Message value server) {
+  -- require m.mterm > currentTerm i
+  assume m.mterm > currentTerm i
   currentTerm i := m.mterm
-  serverState i T := T == Follower
+  pcState i T := T == Follower
   votedFor i R := false
 }
 
@@ -764,8 +907,9 @@ procedure UpdateTerm (i : server) (m : Message value server) {
 --     /\ m.mterm < currentTerm[i]
 --     /\ Discard(m)
 --     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-procedure DropStaleResponse (i : server) (m : Message value server) {
-  require m.mterm < currentTerm i
+procedure DropStaleResponse (i : server) (j : server) (m : Message value server) {
+  -- require m.mterm < currentTerm i
+  assume m.mterm < currentTerm i
   Discard m
 }
 
@@ -786,23 +930,51 @@ procedure DropStaleResponse (i : server) (m : Message value server) {
 --        \/ /\ m.mtype = AppendEntriesResponse
 --           /\ \/ DropStaleResponse(i, j, m)
 --              \/ HandleAppendEntriesResponse(i, j, m)
-action Receive_HandleRequestVoteRequest {
+action Receive_UpdateTerm {
   let m :| mSet.contains m messages
   let i := m.mdest
   let j := m.msource
-  if m.mtype == MsgType.RequestVoteRequest then
+  if m.mterm > currentTerm i then
+    UpdateTerm i j m
+}
+
+action Receive_RequestVoteRequest {
+  let m :| mSet.contains m messages
+  let i := m.mdest
+  let j := m.msource
+  if m.mtype = .RequestVoteRequest then
     HandleRequestVoteRequest i j m
 }
 
-action Receive_HandleRequestVoteResponse {
+action Receive_RequestVoteResponse {
   let m :| mSet.contains m messages
   let i := m.mdest
   let j := m.msource
-  if m.mtype == MsgType.RequestVoteResponse then
-    HandleRequestVoteResponse i j m
+  if m.mtype = .RequestVoteResponse then
+    if m.mterm < currentTerm i then
+      DropStaleResponse i j m
+    else
+      HandleRequestVoteResponse i j m
 }
 
+action Receive_AppendEntriesRequest {
+  let m :| mSet.contains m messages
+  let i := m.mdest
+  let j := m.msource
+  if m.mtype = .AppendEntriesRequest then
+    HandleAppendEntriesRequest i j m
+}
 
+action Receive_AppendEntriesResponse {
+  let m :| mSet.contains m messages
+  let i := m.mdest
+  let j := m.msource
+  if m.mtype = .AppendEntriesResponse then
+    if m.mterm < currentTerm i then
+      DropStaleResponse i j m
+    else
+      HandleAppendEntriesResponse i j m
+}
 
 -- \* End of message handlers.
 -- ----
@@ -812,60 +984,110 @@ action Receive_HandleRequestVoteResponse {
 -- DuplicateMessage(m) ==
 --     /\ Send(m)
 --     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
+-- ValidMessage(msgs) ==
+--     { m \in DOMAIN messages : msgs[m] > 0 }
+ghost relation isValidMessage (m : Message value server) :=
+  mSet.contains m messages
+
+ghost relation isSingleMessage (m : Message value server) :=
+  mSet.count m messages = 1
+
+-- SingleMessage(msgs) ==
+--     { m \in DOMAIN messages : msgs[m] = 1 }
 action DuplicateMessage {
+  -- let m :| mSet.count m messages == 1
   let m :| mSet.contains m messages
-  -- require mSet.contains m messages
   Send m
 }
 
--- -- \* The network drops a message
--- -- DropMessage(m) ==
--- --     /\ Discard(m)
--- --     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
+-- \* The network drops a message
+-- DropMessage(m) ==
+--     /\ Discard(m)
+--     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 action DropMessage {
   let m :| mSet.contains m messages
-  Discard m
+  if mSet.count m messages = 1 then
+    Discard m
 }
-
 
 -- ----
 -- \* Defines how the variables may transition.
 -- Next == /\ \/ \E i \in Server : Restart(i)
 --            \/ \E i \in Server : Timeout(i)
---            \/ \E i,j \in Server : RequestVote(i, j)
+--            \/ \E i, j \in Server : RequestVote(i, j)
 --            \/ \E i \in Server : BecomeLeader(i)
---            \/ \E i \in Server, v \in Value : ClientRequest(i, v)
+--            \/ \E i \in Server : ClientRequest(i)
 --            \/ \E i \in Server : AdvanceCommitIndex(i)
 --            \/ \E i,j \in Server : AppendEntries(i, j)
---            \/ \E m \in DOMAIN messages : Receive(m)
---            \/ \E m \in DOMAIN messages : DuplicateMessage(m)
---            \/ \E m \in DOMAIN messages : DropMessage(m)
+--            \/ \E m \in ValidMessage(messages) : Receive(m)
+--            \/ \E m \in SingleMessage(messages) : DuplicateMessage(m)
+--            \/ \E m \in ValidMessage(messages) : DropMessage(m)
 --            \* History variable that tracks every log ever:
 --         /\ allLogs' = allLogs \cup {log[i] : i \in Server}
-
-
-
-invariant [message_less_than_two] mSet.size messages < 8
-
-#gen_spec
-
-#model_check interpreted
-  {
-    server := Fin 1,
-    value := Fin 1,
-    states := states_IndT,
-    serverSet := ExtTreeSet (Fin 1) compare,
-    electionSet := ExtTreeSet (election (Fin 1) (Fin 1) (ExtTreeSet (Fin 1) compare)) compare,
-    msetMsg := TMapMultiset (Message (Fin 1) (Fin 1)),
-    setLog := ExtTreeSet (log (Fin 1)) compare
-  }
-  {
-    SIZE := 1
-  }
 
 -- \* The specification must start with the initial state and transition according
 -- \* to Next.
 -- Spec == Init /\ [][Next]_vars
 
+-- \* The following are a set of verification by jinlmsft@hotmail.com
+-- BothLeader( i, j ) ==
+--     /\ i /= j
+--     /\ currentTerm[i] = currentTerm[j]
+--     /\ state[i] = Leader
+--     /\ state[j] = Leader
+
+-- MoreThanOneLeader ==
+--     \E i, j \in Server :  BothLeader( i, j )
+
+-- Invariant: limit message count to keep state space manageable
+invariant [message_count_limit] mSet.size messages < 3
+
+
+set_option synthInstance.maxHeartbeats 1000000
+set_option synthInstance.maxSize 200000
+set_option maxHeartbeats 10000000
+
+#gen_spec
+open Std
+#model_check interpreted
+  {
+    server := Fin 3,
+    value := Fin 2,
+    serverStates := serverStates_IndT,
+    serverSet := ExtTreeSet (Fin 3) compare,
+    electionSet := ExtTreeSet (Election (Fin 3) (Fin 2) (ExtTreeSet (Fin 3) compare)) compare,
+    msetMsg := TMapMultiset (Message (Fin 2) (Fin 3)),
+    logSet := ExtTreeSet (logEntry (Fin 2)) compare
+  }
+  {
+    SIZE := 3,
+    MaxClientRequests := 2,
+    Nil := 0,
+    fixServer := 0
+  }
+
+end raft_executable
+
+
+
+
+
+
+
+
 -- ===============================================================================
-end Raft
+
+-- \* Changelog:
+-- \*
+-- \* 2014-12-02:
+-- \* - Fix AppendEntries to only send one entry at a time, as originally
+-- \*   intended. Since SubSeq is inclusive, the upper bound of the range should
+-- \*   have been nextIndex, not nextIndex + 1. Thanks to Igor Kovalenko for
+-- \*   reporting the issue.
+-- \* - Change matchIndex' to matchIndex (without the apostrophe) in
+-- \*   AdvanceCommitIndex. This apostrophe was not intentional and perhaps
+-- \*   confusing, though it makes no practical difference (matchIndex' equals
+-- \*   matchIndex). Thanks to Hugues Evrard for reporting the issue.
+-- \*
+-- \* 2014-07-06:
+-- \* - Version from PhD dissertation
