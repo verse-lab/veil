@@ -79,7 +79,17 @@ def get_stack_trace(tree: dict, stack_idx: int) -> list:
     return trace  # leaf to root order
 
 
-def analyze_samples(thread: dict, filter_prefix: str = None) -> dict:
+def matches_filter(func_name: str, filter_prefix: str = None, use_default: bool = False) -> bool:
+    """Check if a function name matches the filter criteria."""
+    if use_default:
+        # Default: match veil or smt
+        return "veil" in func_name or "smt" in func_name
+    if filter_prefix:
+        return filter_prefix in func_name
+    return True
+
+
+def analyze_samples(thread: dict, filter_prefix: str = None, use_default_filter: bool = False) -> dict:
     """Analyze stack samples to compute time per function.
 
     Returns dict: func_name -> {"self_time": ms, "total_time": ms, "count": n}
@@ -103,8 +113,8 @@ def analyze_samples(thread: dict, filter_prefix: str = None) -> dict:
             continue
 
         # Apply filter if specified
-        if filter_prefix:
-            trace = [f for f in trace if filter_prefix in f]
+        if filter_prefix or use_default_filter:
+            trace = [f for f in trace if matches_filter(f, filter_prefix, use_default_filter)]
             if not trace:
                 continue
 
@@ -236,16 +246,16 @@ def print_thread_summary(profile: dict, filter_prefix: str = None):
         if filter_prefix:
             matching = [s for s in strings if filter_prefix in str(s).lower()]
         else:
-            matching = [s for s in strings if 'veil' in str(s).lower()]
+            matching = [s for s in strings if 'veil' in str(s).lower() or 'smt' in str(s).lower()]
         print(f"  [{i}] {name}: {sample_count} samples, {len(matching)} matching strings")
 
 
-def analyze_single_profile(profile: dict, filter_prefix: str = None) -> dict:
+def analyze_single_profile(profile: dict, filter_prefix: str = None, use_default_filter: bool = False) -> dict:
     """Analyze a single profile and return merged stats from all threads."""
     threads = profile.get('threads', [])
     all_stats = []
     for thread in threads:
-        stats = analyze_samples(thread, filter_prefix)
+        stats = analyze_samples(thread, filter_prefix, use_default_filter)
         all_stats.append(stats)
     return merge_stats(all_stats)
 
@@ -275,10 +285,10 @@ def main():
                         help='Maximum number of functions to display (default: no limit)')
     args = parser.parse_args()
 
-    # Default filter to veil unless --all specified
+    # Default filter to veil/smt unless --all specified
+    # Use None to indicate "veil or smt" default filtering
     filter_prefix = args.filter
-    if filter_prefix is None and not args.all:
-        filter_prefix = "veil"
+    use_default_filter = filter_prefix is None and not args.all
 
     # Handle multiple profiles (aggregate mode)
     if len(args.profiles) > 1:
@@ -288,7 +298,7 @@ def main():
         for path in args.profiles:
             try:
                 profile = load_profile(path)
-                stats = analyze_single_profile(profile, filter_prefix)
+                stats = analyze_single_profile(profile, filter_prefix, use_default_filter)
                 all_stats.append(stats)
             except Exception as e:
                 if not args.total_only:
@@ -312,7 +322,7 @@ def main():
 
     # Handle --total-only for single profile
     if args.total_only:
-        stats = analyze_single_profile(profile, filter_prefix)
+        stats = analyze_single_profile(profile, filter_prefix, use_default_filter)
         if args.exclude:
             stats = {k: v for k, v in stats.items() if args.exclude not in k}
         print(f"{get_total_cpu_time(stats):.1f}")
@@ -332,9 +342,9 @@ def main():
         for thread in threads:
             strings = thread.get('stringArray', [])
             all_strings.update(strings)
-        veil_strings = sorted([s for s in all_strings if 'veil' in str(s).lower()])
-        print(f"\nVeil-related strings ({len(veil_strings)}):")
-        for s in veil_strings:
+        matching_strings = sorted([s for s in all_strings if 'veil' in str(s).lower() or 'smt' in str(s).lower()])
+        print(f"\nVeil/SMT-related strings ({len(matching_strings)}):")
+        for s in matching_strings:
             print(f"  {s}")
         return
 
@@ -356,7 +366,7 @@ def main():
         if args.tree:
             print_tree_view(thread, filter_prefix)
         else:
-            stats = analyze_samples(thread, filter_prefix)
+            stats = analyze_samples(thread, filter_prefix, use_default_filter)
             # Apply exclusion filter
             if args.exclude:
                 stats = {k: v for k, v in stats.items() if args.exclude not in k}
@@ -372,7 +382,7 @@ def main():
         else:
             all_stats = []
             for thread in threads:
-                stats = analyze_samples(thread, filter_prefix)
+                stats = analyze_samples(thread, filter_prefix, use_default_filter)
                 all_stats.append(stats)
             merged = merge_stats(all_stats)
             # Apply exclusion filter

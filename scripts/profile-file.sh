@@ -71,7 +71,7 @@ echo "Profiling: $FILE"
 echo "Output: $OUTPUT"
 echo ""
 
-CMD="lake lean \"$FILE\" -- -Dtrace.profiler=true -Dtrace.profiler.output=\"$OUTPUT\" -Dtrace.veil.perf=true"
+CMD="lake lean \"$FILE\" -- -Dtrace.profiler=true -Dtrace.profiler.output=\"$OUTPUT\" -Dtrace.veil.perf=true -Dtrace.smt.perf=true"
 echo "Running: $CMD"
 echo ""
 
@@ -80,7 +80,8 @@ START_TIME=$(date +%s.%N)
 lake lean "$FILE" -- \
     -Dtrace.profiler=true \
     -Dtrace.profiler.output="$OUTPUT" \
-    -Dtrace.veil.perf=true
+    -Dtrace.veil.perf=true \
+    -Dtrace.smt.perf=true
 
 END_TIME=$(date +%s.%N)
 REAL_TIME=$(echo "scale=2; ($END_TIME - $START_TIME) / 1" | bc)
