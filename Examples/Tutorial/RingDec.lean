@@ -44,7 +44,7 @@ invariant [drop_smaller] pending S D ∧ btw S N D → le N S
 
 #time #gen_spec
 
-#model_check interpreted { node := Fin 4 } { }
+#model_check { node := Fin 4 } { }
 
 sat trace {
   any 3 actions

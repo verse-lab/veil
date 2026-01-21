@@ -53,6 +53,6 @@ invariant [messages_nodup] messages.Nodup
 
 #gen_spec
 
-#model_check interpreted { node := Fin 4 } { nextNode := fun n => n + 1 }
+#model_check { node := Fin 4 } { nextNode := fun n => n + 1 }
 
 end RingFin

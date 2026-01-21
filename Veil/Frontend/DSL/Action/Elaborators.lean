@@ -146,17 +146,21 @@ We can then rewrite/simp using `act.wp_eq` to not have to recompute the WP
 for every VC. This is an optimisation — Veil would work without it, but it
 would be significantly slower. -/
 private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationKind) : TermElabM Unit := do
-  let fqn ← getFullyQualifiedName nm
-  let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
-  let wpDef ← wpTemplate fqn allArgs
-  elabBinders allBinders $ fun vs => do -- `vs` are the fvars for the definition binders
+  let modeStr := match mode with | .internal => "internal" | .external => "external"
+  -- Use dynamic trace class name so each WP computation appears separately in the profiler
+  withTraceNode (`veil.perf.extract.defineWp ++ nm) (fun _ => return s!"defineWp {nm} ({modeStr})") do
+    let fqn ← getFullyQualifiedName nm
+    let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
+    let wpDef ← wpTemplate fqn allArgs
+    elabBinders allBinders $ fun vs => do -- `vs` are the fvars for the definition binders
     -- Warning to future maintainers: this code performs nitty-gritty simplification,
     -- and we've spent a long time on it. It appears that it's difficult to do this
     -- any other way. Trying to significantly rewrite this code is likely going to
     -- take more time than you'd like or expect.
     -- (1) Elaborate the template for the WP definition, parametrised by
     -- `handler` and `post`
-    let e ← withoutErrToSorry $ elabTermAndSynthesize wpDef none
+    let e ← withTraceNode (`veil.perf.extract.elabTerm ++ nm) (fun _ => return s!"elabTerm wp {nm}") do
+      withoutErrToSorry $ elabTermAndSynthesize wpDef none
     trace[veil.debug] "[{decl_name%}] e: {e}"
     -- (2) Simplify the _body_ of the WP definition and return the simplified
     -- body _and_ the simplified full expression (with lambdas). See note (*)
@@ -183,7 +187,7 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
                 `fieldRepresentationSetSimpPost]))
         else pure <| tmp
       let simp := (Simp.unfold #[fqn]) |>.andThen mainSimp
-      let resBody ← simp body
+      let resBody ← withTraceNode (`veil.perf.extract.wpSimp ++ nm) (fun _ => return s!"wpSimp {nm}") do simp body
       -- (3) Construct the expression for `act.wp`
       -- The expression for `act.wp`; **TODO** register as a derived definition
       let wpExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) resBody.expr
@@ -230,45 +234,48 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
 definition, and prove `act.ext.tr_eq` which states that this definition is equal to
 `VeilSpecM.toTransitionDerived (wp act.post)`. -/
 private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit := do
-  let sourceWpFqn ← getFullyQualifiedName (toWpName nm)
-  let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
-  let trDef ← transitionTemplate sourceWpFqn allArgs
-  elabBinders allBinders $ fun vs => do
-    -- (1) Elaborate the template
-    let e ← withoutErrToSorry $ elabTermAndSynthesize trDef none
-    trace[veil.debug] "[{decl_name%}] e: {e}"
-    -- (2) Simplify
-    Meta.lambdaTelescope e fun xs body => do
-      let simp := Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config }
-        |>.andThen (Simp.simp #[`wpSimp])   -- for rewriting with WP equality theorem
-      let resBody ← simp body
-      -- (3) Construct the expression
-      -- The expression for `act.ext.tr`; **TODO** register as a derived definition
-      let trExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) resBody.expr
-      let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
-      let trDef_fqn ← addVeilDefinition (toTransitionName nm) trExpr (attr := #[{name := `reducible}] ++ attrs)
-      -- (4) Prove the equality theorem
-      proveEqABoutBody body trDef_fqn (vs ++ xs) (← resBody.getProof) (toTransitionEqName nm) #[]
-      -- (5) Prove the derived_eq theorem: VeilM.toTransitionDerived act.ext = act.ext.tr
-      -- Use the action's fully qualified name (nm is already the external mode name)
-      let actionFqn ← getFullyQualifiedName nm
-      let derivedDef ← derivedTransitionTemplate actionFqn allArgs
-      -- Elaborate within the same binder context (vs are already bound)
-      let derivedExpr ← withoutErrToSorry $ elabTermAndSynthesize derivedDef none
-      trace[veil.debug] "[{decl_name%}] derivedExpr for derived_eq: {derivedExpr}"
-      -- The derivedExpr is `VeilM.toTransitionDerived (act.ext args*)` which has type `Transition ρ σ`
-      -- We need to apply it to the transition variables (r₀ s₀ s₁) to get a Prop,
-      -- but for equality of functions, we can work at the function level
-      Meta.lambdaTelescope derivedExpr fun xs' derivedBody => do
-        -- Simplify by unfolding VeilM.toTransitionDerived, then VeilSpecM.toTransitionDerived, Cont.inv, compl,
-        -- and using wpSimp to rewrite wp to the precomputed wp definition
-        let derivedSimp := Simp.dsimp #[``VeilM.toTransitionDerived] { unfoldPartialApp := true : Meta.Simp.Config }
-          |>.andThen (Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config })
-          |>.andThen (Simp.simp #[`wpSimp])
-        let resBody' ← derivedSimp derivedBody
-        -- Prove equality with act.ext.tr
+  -- Use dynamic trace class name so each transition computation appears separately in the profiler
+  withTraceNode (`veil.perf.extract.defineTransition ++ nm) (fun _ => return s!"defineTransition {nm}") do
+    let sourceWpFqn ← getFullyQualifiedName (toWpName nm)
+    let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
+    let trDef ← transitionTemplate sourceWpFqn allArgs
+    elabBinders allBinders $ fun vs => do
+      -- (1) Elaborate the template
+      let e ← withTraceNode (`veil.perf.extract.elabTerm ++ nm) (fun _ => return s!"elabTerm transition {nm}") do
+        withoutErrToSorry $ elabTermAndSynthesize trDef none
+      trace[veil.debug] "[{decl_name%}] e: {e}"
+      -- (2) Simplify
+      Meta.lambdaTelescope e fun xs body => do
+        let simp := Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config }
+          |>.andThen (Simp.simp #[`wpSimp])   -- for rewriting with WP equality theorem
+        let resBody ← withTraceNode (`veil.perf.extract.trSimp ++ nm) (fun _ => return s!"trSimp {nm}") do simp body
+        -- (3) Construct the expression
+        -- The expression for `act.ext.tr`; **TODO** register as a derived definition
+        let trExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) resBody.expr
         let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
-        proveEqABoutBody derivedBody trDef_fqn (vs ++ xs') (← resBody'.getProof) (toDerivedEqName nm) attrs
+        let trDef_fqn ← addVeilDefinition (toTransitionName nm) trExpr (attr := #[{name := `reducible}] ++ attrs)
+        -- (4) Prove the equality theorem
+        proveEqABoutBody body trDef_fqn (vs ++ xs) (← resBody.getProof) (toTransitionEqName nm) #[]
+        -- (5) Prove the derived_eq theorem: VeilM.toTransitionDerived act.ext = act.ext.tr
+        -- Use the action's fully qualified name (nm is already the external mode name)
+        let actionFqn ← getFullyQualifiedName nm
+        let derivedDef ← derivedTransitionTemplate actionFqn allArgs
+        -- Elaborate within the same binder context (vs are already bound)
+        let derivedExpr ← withoutErrToSorry $ elabTermAndSynthesize derivedDef none
+        trace[veil.debug] "[{decl_name%}] derivedExpr for derived_eq: {derivedExpr}"
+        -- The derivedExpr is `VeilM.toTransitionDerived (act.ext args*)` which has type `Transition ρ σ`
+        -- We need to apply it to the transition variables (r₀ s₀ s₁) to get a Prop,
+        -- but for equality of functions, we can work at the function level
+        Meta.lambdaTelescope derivedExpr fun xs' derivedBody => do
+          -- Simplify by unfolding VeilM.toTransitionDerived, then VeilSpecM.toTransitionDerived, Cont.inv, compl,
+          -- and using wpSimp to rewrite wp to the precomputed wp definition
+          let derivedSimp := Simp.dsimp #[``VeilM.toTransitionDerived] { unfoldPartialApp := true : Meta.Simp.Config }
+            |>.andThen (Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config })
+            |>.andThen (Simp.simp #[`wpSimp])
+          let resBody' ← derivedSimp derivedBody
+          -- Prove equality with act.ext.tr
+          let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
+          proveEqABoutBody derivedBody trDef_fqn (vs ++ xs') (← resBody'.getProof) (toDerivedEqName nm) attrs
 
 end AuxiliaryDefinitions
 
@@ -336,29 +343,30 @@ parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
 def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
   (eDo : Expr) (ps : ProcedureSpecification) (deriveTransition? : Bool) : CommandElabM Module := do
-  -- We register the `internal` view of the action as the "real" one
-  let mod ← mod.registerProcedureSpecification ps
-  -- The `.do` and `.ext` views are marked as derived definitions
-  let (mod, _doKind) ← mod.registerDerivedActionDefinition ps .none
-  let intKind := ps.declarationKind
-  let (mod, extKind) ← mod.registerDerivedActionDefinition ps Mode.external
-  -- Elaborate the definitions in the Lean environment
-  liftTermElabM $ do
-    let nmDo := pi.nameInMode .none
-    let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
-    let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
-    let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
-    AuxiliaryDefinitions.defineWp mod nmInt .internal intKind
+  withTraceNode `veil.perf.extract (fun _ => return s!"defineProcedureCore {pi.name}") do
+    -- We register the `internal` view of the action as the "real" one
+    let mod ← mod.registerProcedureSpecification ps
+    -- The `.do` and `.ext` views are marked as derived definitions
+    let (mod, _doKind) ← mod.registerDerivedActionDefinition ps .none
+    let intKind := ps.declarationKind
+    let (mod, extKind) ← mod.registerDerivedActionDefinition ps Mode.external
+    -- Elaborate the definitions in the Lean environment
+    liftTermElabM $ do
+      let nmDo := pi.nameInMode .none
+      let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
+      let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
+      let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
+      AuxiliaryDefinitions.defineWp mod nmInt .internal intKind
 
-    -- Procedures are never considered in their external view, so save some
-    -- time by not elaborating those definitions.
-    if pi matches .initializer | .action _ _ then do
-      let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
-      let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
-      AuxiliaryDefinitions.defineWp mod nmExt .external extKind
-      if deriveTransition? then
-        AuxiliaryDefinitions.defineTransition mod nmExt extKind
-  return mod
+      -- Procedures are never considered in their external view, so save some
+      -- time by not elaborating those definitions.
+      if pi matches .initializer | .action _ _ then do
+        let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
+        let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
+        AuxiliaryDefinitions.defineWp mod nmExt .external extKind
+        if deriveTransition? then
+          AuxiliaryDefinitions.defineTransition mod nmExt extKind
+    return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
   -- Obtain `extraParams` so we can register the action

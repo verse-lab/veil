@@ -29,6 +29,14 @@ initialize
   registerTraceClass `veil.desugar
   registerTraceClass `veil.wp
   registerTraceClass `veil.timing
+  -- Performance trace classes (integrate with Lean's profiler)
+  registerTraceClass `veil.perf (inherited := true)
+  registerTraceClass `veil.perf.elaborator
+  registerTraceClass `veil.perf.tactic
+  registerTraceClass `veil.perf.extract
+  registerTraceClass `veil.perf.smt
+  registerTraceClass `veil.perf.definition
+  registerTraceClass `veil.perf.discharger
 
 /-! ## Options -/
 

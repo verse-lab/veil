@@ -210,14 +210,20 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   let mod ← mod.ensureStateIsDefined
   warnIfNoInvariantsDefined mod
   warnIfNoActionsDefined mod
-  let (assumptionCmd, mod) ← mod.assembleAssumptions
-  elabVeilCommand assumptionCmd
-  let (invariantCmd, mod) ← mod.assembleInvariants
-  trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
-  elabVeilCommand invariantCmd
-  let (safetyCmd, mod) ← mod.assembleSafeties
-  trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
-  elabVeilCommand safetyCmd
+  let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
+    let (assumptionCmd, mod) ← mod.assembleAssumptions
+    elabVeilCommand assumptionCmd
+    return mod
+  let mod ← withTraceNode `veil.perf.elaborator.decl.Invariants (fun _ => return "Invariants") do
+    let (invariantCmd, mod) ← mod.assembleInvariants
+    trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
+    elabVeilCommand invariantCmd
+    return mod
+  let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
+    let (safetyCmd, mod) ← mod.assembleSafeties
+    trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
+    elabVeilCommand safetyCmd
+    return mod
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do
     elabVeilCommand cmd
@@ -264,12 +270,14 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
 
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
-  -- Skip in compilation mode (no verification feedback needed)
-  if ← isModelCheckCompileMode then return
-  let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
-  mod.throwIfSpecNotFinalized
-  Verifier.runFilteredAsync VCMetadata.isInduction (logVerificationResults stx)
-  Verifier.displayStreamingResults stx getResults
+  -- Use dynamic trace class name for detailed profiling
+  withTraceNode `veil.perf.elaborator.checkInvariants (fun _ => return "#check_invariants") do
+    -- Skip in compilation mode (no verification feedback needed)
+    if ← isModelCheckCompileMode then return
+    let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    Verifier.runFilteredAsync VCMetadata.isInduction (logVerificationResults stx)
+    Verifier.displayStreamingResults stx getResults
   where
   getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do
     Verifier.vcManager.atomically
@@ -282,82 +290,113 @@ def elabCheckInvariants : CommandElab := fun stx => do
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do
-  let mut mod ← getCurrentModule (errMsg := "You cannot #gen_state outside of a Veil module!")
-  mod.throwIfStateAlreadyDefined ; mod.throwIfSpecAlreadyFinalized
-  mod ← mod.ensureStateIsDefined
-  localEnv.modifyModule (fun _ => mod)
+  -- Use dynamic trace class name for detailed profiling
+  withTraceNode `veil.perf.elaborator.genState (fun _ => return "#gen_state") do
+    let mut mod ← getCurrentModule (errMsg := "You cannot #gen_state outside of a Veil module!")
+    mod.throwIfStateAlreadyDefined ; mod.throwIfSpecAlreadyFinalized
+    mod ← mod.ensureStateIsDefined
+    localEnv.modifyModule (fun _ => mod)
 
 @[command_elab Veil.initializerDefinition]
 def elabInitializer : CommandElab := fun stx => do
-  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an initializer outside of a Veil module!")
-  mod ← mod.ensureStateIsDefined
-  mod.throwIfSpecAlreadyFinalized
-  let new_mod ← match stx with
-  | `(command|after_init {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.initializer) .none .none l stx
-  | _ => throwUnsupportedSyntax
-  localEnv.modifyModule (fun _ => new_mod)
+  -- Use dynamic trace class name for detailed profiling
+  withTraceNode `veil.perf.elaborator.afterInit (fun _ => return "after_init") do
+    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an initializer outside of a Veil module!")
+    mod ← mod.ensureStateIsDefined
+    mod.throwIfSpecAlreadyFinalized
+    let new_mod ← match stx with
+    | `(command|after_init {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.initializer) .none .none l stx
+    | _ => throwUnsupportedSyntax
+    localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.procedureDefinition]
 def elabProcedure : CommandElab := fun stx => do
-  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
-  mod ← mod.ensureStateIsDefined
-  mod.throwIfSpecAlreadyFinalized
-  let new_mod ← match stx with
-  | `(command|action $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br .none l stx
-  | `(command|procedure $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.procedure nm.getId) br .none l stx
-  | _ => throwUnsupportedSyntax
-  localEnv.modifyModule (fun _ => new_mod)
+  -- Extract the action/procedure name for detailed profiling
+  let nm := match stx with
+    | `(command|action $nm:ident $br:explicitBinders ? {$l:doSeq}) => nm.getId
+    | `(command|procedure $nm:ident $br:explicitBinders ? {$l:doSeq}) => nm.getId
+    | _ => `unknown
+  -- Use dynamic trace class name that includes the action name
+  withTraceNode (`veil.perf.elaborator.action ++ nm) (fun _ => return s!"action {nm}") do
+    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
+    mod ← mod.ensureStateIsDefined
+    mod.throwIfSpecAlreadyFinalized
+    let new_mod ← match stx with
+    | `(command|action $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br .none l stx
+    | `(command|procedure $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.procedure nm.getId) br .none l stx
+    | _ => throwUnsupportedSyntax
+    localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.transitionDefinition]
 def elabTransition : CommandElab := fun stx => do
-  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a transition outside of a Veil module!")
-  mod ← mod.ensureStateIsDefined
-  mod.throwIfSpecAlreadyFinalized
-  let new_mod ← match stx with
-  | `(command|transition $nm:ident $br:explicitBinders ? { $t:term }) =>
-    -- check immutability of changed fields
-    let changedFn (f : Name) := t.raw.find? (·.getId == f.appendAfter "'") |>.isSome
-    let fields ← mod.getFieldsRecursively
-    let (changedFields, unchangedFields) := fields.partition changedFn
-    for f in changedFields do
-      mod.throwIfImmutable f (isTransition := true)
-    -- obtain the "real" transition term
-    let trStx ← do
-      let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
-      let unchangedFields := unchangedFields.map Lean.mkIdent
-      let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
-        (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
-      `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $tmp))
-    mod.defineTransition (ProcedureInfo.action nm.getId (definedViaTransition := true)) br trStx stx
-    -- FIXME: Is this required?
-    -- -- warn if this is not first-order
-    -- Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
-  | _ => throwUnsupportedSyntax
-  localEnv.modifyModule (fun _ => new_mod)
+  -- Extract the transition name for detailed profiling
+  let transitionNm := match stx with
+    | `(command|transition $nm:ident $br:explicitBinders ? { $t:term }) => nm.getId
+    | _ => `unknown
+  -- Use dynamic trace class name that includes the transition name
+  withTraceNode (`veil.perf.elaborator.transition ++ transitionNm) (fun _ => return s!"transition {transitionNm}") do
+    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a transition outside of a Veil module!")
+    mod ← mod.ensureStateIsDefined
+    mod.throwIfSpecAlreadyFinalized
+    let new_mod ← match stx with
+    | `(command|transition $nm:ident $br:explicitBinders ? { $t:term }) =>
+      -- check immutability of changed fields
+      let changedFn (f : Name) := t.raw.find? (·.getId == f.appendAfter "'") |>.isSome
+      let fields ← mod.getFieldsRecursively
+      let (changedFields, unchangedFields) := fields.partition changedFn
+      for f in changedFields do
+        mod.throwIfImmutable f (isTransition := true)
+      -- obtain the "real" transition term
+      let trStx ← do
+        let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
+        let unchangedFields := unchangedFields.map Lean.mkIdent
+        let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
+          (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
+        `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $tmp))
+      mod.defineTransition (ProcedureInfo.action nm.getId (definedViaTransition := true)) br trStx stx
+      -- FIXME: Is this required?
+      -- -- warn if this is not first-order
+      -- Command.liftTermElabM $ warnIfNotFirstOrder nm.getId
+    | _ => throwUnsupportedSyntax
+    localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.procedureDefinitionWithSpec]
 def elabProcedureWithSpec : CommandElab := fun stx => do
-  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
-  mod ← mod.ensureStateIsDefined
-  mod.throwIfSpecAlreadyFinalized
-  let new_mod ← match stx with
-  | `(command|action $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br spec l stx
-  | `(command|procedure $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.procedure nm.getId) br spec l stx
-  | _ => throwUnsupportedSyntax
-  localEnv.modifyModule (fun _ => new_mod)
+  -- Extract the action/procedure name for detailed profiling
+  let nm := match stx with
+    | `(command|action $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => nm.getId
+    | `(command|procedure $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => nm.getId
+    | _ => `unknown
+  -- Use dynamic trace class name that includes the action name
+  withTraceNode (`veil.perf.elaborator.actionWithSpec ++ nm) (fun _ => return s!"action+spec {nm}") do
+    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
+    mod ← mod.ensureStateIsDefined
+    mod.throwIfSpecAlreadyFinalized
+    let new_mod ← match stx with
+    | `(command|action $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br spec l stx
+    | `(command|procedure $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.procedure nm.getId) br spec l stx
+    | _ => throwUnsupportedSyntax
+    localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.ghostRelationDefinition]
 def elabGhostRelationDefinition : CommandElab := fun stx => do
-  let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost relation outside of a Veil module!")
-  mod ← mod.ensureStateIsDefined
-  mod.throwIfSpecAlreadyFinalized
-  let (nm, stateGhost?, (cmd, new_mod)) ← match stx with
-  | `(command|ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, true, ← mod.defineGhostRelation nm.getId br t (justTheory := false))
-  | `(command|theory ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, false, ← mod.defineGhostRelation nm.getId br t (justTheory := true))
-  | _ => throwUnsupportedSyntax
-  elabVeilCommand cmd
-  if mod._useLocalRPropTC && stateGhost? then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
-  localEnv.modifyModule (fun _ => new_mod)
+  -- Extract the ghost relation name for detailed profiling
+  let ghostNm := match stx with
+    | `(command|ghost relation $nm:ident $br:explicitBinders ? := $t:term) => nm.getId
+    | `(command|theory ghost relation $nm:ident $br:explicitBinders ? := $t:term) => nm.getId
+    | _ => `unknown
+  -- Use dynamic trace class name that includes the ghost relation name
+  withTraceNode (`veil.perf.elaborator.ghostRelation ++ ghostNm) (fun _ => return s!"ghost {ghostNm}") do
+    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost relation outside of a Veil module!")
+    mod ← mod.ensureStateIsDefined
+    mod.throwIfSpecAlreadyFinalized
+    let (nm, stateGhost?, (cmd, new_mod)) ← match stx with
+    | `(command|ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, true, ← mod.defineGhostRelation nm.getId br t (justTheory := false))
+    | `(command|theory ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, false, ← mod.defineGhostRelation nm.getId br t (justTheory := true))
+    | _ => throwUnsupportedSyntax
+    elabVeilCommand cmd
+    if mod._useLocalRPropTC && stateGhost? then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
+    localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.assertionDeclaration]
 def elabAssertion : CommandElab := fun stx => do
@@ -372,18 +411,28 @@ def elabAssertion : CommandElab := fun stx => do
   | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop stx
   | `(command|termination $name:propertyName ? $prop:term) => mod.mkAssertion .termination name prop stx
   | _ => throwUnsupportedSyntax
-  -- Elaborate the assertion in the Lean environment
-  let (cmd, mod') ← mod.defineAssertion assertion
-  elabVeilCommand cmd
---   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
-  if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
-  localEnv.modifyModule (fun _ => mod')
+  -- Use dynamic trace class name that includes the assertion name and kind
+  let kindStr := match assertion.kind with
+    | .assumption => "assumption"
+    | .invariant => "invariant"
+    | .safety => "safety"
+    | .trustedInvariant => "trusted_invariant"
+    | .termination => "termination"
+  withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
+    -- Elaborate the assertion in the Lean environment
+    let (cmd, mod') ← mod.defineAssertion assertion
+    elabVeilCommand cmd
+  --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
+    if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
+    localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]
 def elabGenSpec : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
-  let mod ← mod.ensureSpecIsFinalized stx
-  localEnv.modifyModule (fun _ => mod)
+  -- Use dynamic trace class name for detailed profiling
+  withTraceNode `veil.perf.elaborator.genSpec (fun _ => return "#gen_spec") do
+    let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
+    let mod ← mod.ensureSpecIsFinalized stx
+    localEnv.modifyModule (fun _ => mod)
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/
@@ -444,12 +493,14 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
 
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
-  -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory, stx[4] is config
-  let mode := getModelCheckingMode stx[1]
-  let instTerm : Term := ⟨stx[2]⟩
-  let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
-  let cfg := stx[4]
-  elabModelCheckCore stx mode instTerm theoryTermOpt cfg
+  -- Use dynamic trace class name for detailed profiling
+  withTraceNode `veil.perf.elaborator.modelCheck (fun _ => return "#model_check") do
+    -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory, stx[4] is config
+    let mode := getModelCheckingMode stx[1]
+    let instTerm : Term := ⟨stx[2]⟩
+    let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
+    let cfg := stx[4]
+    elabModelCheckCore stx mode instTerm theoryTermOpt cfg
 where
   /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
       Throws a helpful error if theory fields exist but no term was provided. -/

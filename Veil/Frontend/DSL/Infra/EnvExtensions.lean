@@ -35,6 +35,17 @@ initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment
 /-- A channel for communicating with the VCManager. -/
 initialize vcManagerCh : Std.Channel (ManagerNotification VCMetadata SmtResult) ← Std.Channel.new
 
+/-- Info for tasks that need to be registered with `logSnapshotTask` on the main thread.
+    The manager thread sends task info here, and the frontend task (runFilteredAsync)
+    picks them up and registers them. -/
+structure TaskRegistrationInfo where
+  task : SnapshotTreeTask
+  cancelTk : IO.CancelToken
+
+/-- Channel for tasks that need snapshot registration.
+    Direction: Manager → Frontend (runFilteredAsync/waitFilteredSync) -/
+initialize taskRegistrationCh : Std.Channel TaskRegistrationInfo ← Std.Channel.new
+
 /-- Prompt the frontend to read the VCManager, e.g. to print the VCs. We use a
 `Condvar` instead of `Channel` because channels on the frontend thread (which
 is cancellable) are subject to potential race conditions. For instance,
