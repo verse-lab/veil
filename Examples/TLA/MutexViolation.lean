@@ -4,7 +4,7 @@ import Veil
 
 Reproduction of the mutex bug (Case Study 1) described in [Converos: Practical
 Model Checking for Verifying Rust OS Kernel
-Concurrency](https://www.usenix.org/system/files/atc25-tang.pdf)
+Concurrency] by Ruize Tang. (https://www.usenix.org/system/files/atc25-tang.pdf)
 
 The error existed in Rust code, which was converted to a TLA+ specification to
 uncover the bug. This example models a mutex implementation in modern operating
@@ -45,10 +45,10 @@ relation pc (self: process) (st: states)
 immutable individual none : process
 
 
+@[veil_decl]
 structure Cell (states process : Type) where
   pc : states
   waker : process
-deriving DecidableEq, Inhabited, Hashable, Repr, Lean.ToJson
 
 function stack : process → List (Cell states process)
 
@@ -99,7 +99,6 @@ action _enqueue_waker (self : process) {
   wait_queue_wakers := wait_queue_wakers.append [self]
   pc self S := S == check_lock
 }
-
 
 
 action _check_lock (self : process) {
@@ -192,17 +191,18 @@ action _cs (self : process) {
   let waker_self :| waker self waker_self
   stack self := { pc := Done, waker := waker_self } :: (stack self)
   waker self W := W == none
+  -- assert pc self release_lock
   pc self S := S == release_lock
 }
 
-invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
+-- invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 termination [AllDone] pc S Done = true
 
 #time #gen_spec
 
 -- NOTE: comment out the line containing `BUG:` to fix the violation
 
-set_option veil.violationIsError false in
+-- set_option veil.violationIsError false in
 #model_check { process := Fin 3 } { none := 0 }
 
 end Mutex

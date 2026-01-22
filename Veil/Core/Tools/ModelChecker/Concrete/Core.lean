@@ -1,6 +1,5 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 import Veil.Core.Tools.ModelChecker.Interface
-import Veil.Core.Tools.ModelChecker.Concrete.FunctionalQueue
 import Veil.Core.Tools.ModelChecker.Trace
 
 namespace Veil.ModelChecker.Concrete
@@ -10,7 +9,8 @@ open Std
 class StateView (FullState View : Type) where
   view : FullState → View
 
-class abbrev StateFingerprint (FullState View : Type) := BEq View, LawfulBEq View, Hashable View, LawfulHashable View, StateView FullState View
+class abbrev StateFingerprint (FullState View : Type)
+  := BEq View, LawfulBEq View, Hashable View, LawfulHashable View, StateView FullState View
 
 -- NOTE: Without setting these, Lean might get stuck when synthesizing
 -- `BEq` or `Hashable` instances in scenarios that are completely irrelevant
@@ -72,24 +72,7 @@ where
   visited_sound      : Function.Injective fp.view → ∀ x, seen (fp.view x) → sys.reachable x
   queue_sub_visited  : ∀ x : σ, ∀ d : Nat, inQueue ⟨fp.view x, x, d⟩ → seen (fp.view x)
   queue_wellformed   : ∀ fingerprint st d, inQueue ⟨fingerprint, st, d⟩ → fingerprint = fp.view st
-  /-
-  Can these be merged into two invariants?
-  queue_invariant : ∀ h x d, (h, x, d) ∈ queue → h = fp.view x ∧ sys.reachable x ∧ h ∈ seen
-  visited_sound : (same)
 
-  Also, might weaken `visited_sound` into `∀ h, seen h → ∃ x, fp.view x = h ∧ sys.reachable x`,
-  according to the following theorem:
-
-  theorem visited_sound_imp
-    [fp : StateFingerprint σ σₕ]
-    (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) κ (List (κ × σ)) th)
-    (seen : σₕ → Bool) :
-    (∀ h, seen h → ∃ x, fp.view x = h ∧ sys.reachable x) →
-    (Function.Injective fp.view → ∀ x, seen (fp.view x) → sys.reachable x) := by
-    intro h hinj x hseen
-    specialize h _ hseen
-    rcases h with ⟨x', heq, hr⟩ ; have tmp := hinj heq ; subst x' ; assumption
-  -/
 
 @[inline, specialize]
 def BaseSearchContext.hasFinished {ρ σ κ σₕ : Type}
@@ -129,32 +112,25 @@ def SearchContextInvariants.initial {ρ σ κ σₕ : Type}
   @SearchContextInvariants ρ σ κ σₕ fp th sys params
     (· ∈ (sys.initStates |> Functor.map (fun s => ⟨fp.view s, s, 0⟩)))
     (· ∈ (sys.initStates |> Functor.map fp.view)) := {
-    /-
-    queue_sound := by dsimp only [Functor.map]; intros; grind
+    queue_sound := by dsimp only [Functor.map]; grind
     visited_sound := by
       dsimp only [Functor.map]
       intro h_view_inj x h_in
-      have h_in_init : x ∈ sys.initStates := by {
-        have h_in_list : fp.view x ∈ (sys.initStates).map fp.view := by
-          { grind [Std.HashSet.mem_of_mem_insertMany_list] }
-        rw [List.mem_map] at h_in_list
-        obtain ⟨s, h_s_in, h_eq_view⟩ := h_in_list
-        have h_eq_st : s = x := h_view_inj h_eq_view
-        grind
-      }
-      grind
-    queue_sub_visited := by dsimp only [Functor.map]; intros; grind
-    queue_wellformed := by dsimp only [Functor.map]; intros; grind
-    -/
-    queue_sound := by sorry
-    visited_sound := by sorry
-    queue_sub_visited := by sorry
-    queue_wellformed := by sorry
+      simp only [List.mem_map] at h_in
+      obtain ⟨s, h_s_in, h_eq_view⟩ := h_in
+      have h_eq_st : s = x := h_view_inj h_eq_view
+      rw [← h_eq_st]
+      exact EnumerableTransitionSystem.reachable.init s h_s_in
+    queue_sub_visited := by dsimp only [Functor.map]; grind
+    queue_wellformed := by dsimp only [Functor.map]; grind
   }
+
+
 
 /-- Check a state for violations and optionally terminate early.
 Returns the updated context with any violations recorded, and optionally
-an early termination condition if we should stop the search. -/
+an early termination condition if we should stop the search.
+This function ONLY modifies the `violatingStates` field, keeping all other fields unchanged. -/
 @[inline, specialize]
 def BaseSearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
@@ -170,28 +146,32 @@ def BaseSearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
   match ctx.finished with
   | some (.earlyTermination condition) => (ctx, some condition)
   | _ =>
+    -- Compute all violation conditions once
     let safetyViolations := params.invariants.filterMap fun p =>
       if !p.holdsOn th currSt then some p.name else none
+    let safetyViolation := !safetyViolations.isEmpty
     let hasSuccessfulTransition := outcomes.any fun (_, outcome) =>
       match outcome with | .success _ => true | _ => false
     let deadlock := !hasSuccessfulTransition && !params.terminating.holdsOn th currSt
     let assertionFailures := outcomes.filterMap fun (_, outcome) =>
       match outcome with | .assertionFailure exId _ => some exId | _ => none
-    -- Record violations
-    let ctx := if !safetyViolations.isEmpty then
-      {ctx with violatingStates := (fpSt, .safetyFailure safetyViolations) :: ctx.violatingStates} else ctx
-    let ctx := if deadlock then
-      {ctx with violatingStates := (fpSt, .deadlock) :: ctx.violatingStates} else ctx
-    let ctx := assertionFailures.foldl (fun ctx exId =>
-      {ctx with violatingStates := (fpSt, .assertionFailure exId) :: ctx.violatingStates}) ctx
-    -- Check for early termination
+
+    -- Collect all violations to add in a single list
+    let newViolations : List (σₕ × ViolationKind) :=
+      (if safetyViolation then [(fpSt, .safetyFailure safetyViolations)] else []) ++
+      (if deadlock then [(fpSt, .deadlock)] else []) ++
+      (assertionFailures.map fun exId => (fpSt, .assertionFailure exId))
+
+    -- Update context with all violations at once (only modifying violatingStates)
+    let ctx := {ctx with violatingStates := newViolations ++ ctx.violatingStates}
     let earlyTermination := params.earlyTerminationConditions.findSome? fun
-      | .foundViolatingState => if !safetyViolations.isEmpty then some (.foundViolatingState fpSt safetyViolations) else none
+      | .foundViolatingState => if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
       | .reachedDepthBound bound => if ctx.completedDepth >= bound then some (.reachedDepthBound bound) else none
       | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
       | .assertionFailed => assertionFailures.head?.map (.assertionFailed fpSt)
       | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
     (ctx, earlyTermination)
+
 
 /-- Process the current state, queuing its successors. -/
 @[inline, specialize]
@@ -218,6 +198,87 @@ def BaseSearchContext.processState {ρ σ κ σₕ : Type}
   | (ctx, some .cancelled) => ({ctx with finished := some (.earlyTermination .cancelled)}, none)
   -- If not terminating early, explore all neighbors of the current state
   | (ctx, none) => (ctx, some ⟨outcomes, rfl⟩)
+
+
+theorem BaseSearchContext.processState_returns_some_implies_not_finished {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ]
+  {th : ρ} {params : _}
+  (sys : _)
+  (fpSt : σₕ)
+  (curr : σ)
+  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx' : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (outcomes : { l : List (κ × ExecutionOutcome Int σ) // l = sys.tr th curr })
+  (h_input_not_finished : ¬ ctx.finished = some .exploredAllReachableStates)
+  (h_process : ctx.processState sys fpSt curr = (ctx', some outcomes)) :
+  ctx'.finished.isSome = false := by
+  unfold processState at h_process
+  simp only at h_process
+  split at h_process <;> try (injection h_process with _ h_snd; simp at h_snd)
+  rename_i ctx_temp heq_check h_split
+  rw [← h_split]
+  unfold checkViolationsAndMaybeTerminate at heq_check
+  simp only at heq_check
+  split at heq_check
+  · injection heq_check with _ h_opt_eq
+    simp at h_opt_eq
+  · injection heq_check with h_ctx_temp_eq h_opt_eq
+    rw [← h_ctx_temp_eq]
+    simp only
+    cases h_finished : ctx.finished
+    · simp
+    · rename_i reason
+      cases reason
+      · contradiction
+      · simp [h_finished] at *
+
+
+
+/-- Theorem: checkViolationsAndMaybeTerminate preserves key fields of BaseSearchContext.
+    This is critical for proving that processState doesn't unexpectedly modify the search context. -/
+theorem BaseSearchContext.checkViolationsAndMaybeTerminate_preserves_fields {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [instBEq : BEq κ] [instHash : Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
+  (ctx : @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params)
+  (fpSt : σₕ)
+  (currSt : σ)
+  (outcomes : List (κ × ExecutionOutcome Int σ)) :
+  let ⟨post, _⟩ := ctx.checkViolationsAndMaybeTerminate sys fpSt currSt outcomes
+  post.seen = ctx.seen ∧
+  post.log = ctx.log ∧
+  post.finished = ctx.finished ∧
+  post.completedDepth = ctx.completedDepth ∧
+  post.currentFrontierDepth = ctx.currentFrontierDepth ∧
+  post.statesFound = ctx.statesFound ∧
+  post.actionStatsMap = ctx.actionStatsMap := by
+  simp only [checkViolationsAndMaybeTerminate]
+  split<;> simp
+
+
+/-- Theorem: processState preserves the seen field.
+    This is essential for maintaining invariants during state exploration. -/
+theorem BaseSearchContext.processState_preserves_seen {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [instBEq : BEq κ] [instHash : Hashable κ]
+  [BEq σ] [Repr σ] [Repr σₕ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
+  (fpSt : σₕ)
+  (curr : σ)
+  (ctx : @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params) :
+  (ctx.processState sys fpSt curr).1.seen = ctx.seen := by
+  unfold BaseSearchContext.processState
+  simp only
+  have h := checkViolationsAndMaybeTerminate_preserves_fields sys params ctx fpSt curr (sys.tr th curr)
+  split <;>
+  grind
+
+
 
 /-- Extract successful transitions from a list of outcomes. -/
 @[inline]
