@@ -265,6 +265,7 @@ end Extraction
 open MultiExtractor in
 attribute [multiextracted] ConstrainedExtractResult.pure
   ConstrainedExtractResult.bind
+  ConstrainedExtractResult.filterAuxM
   ConstrainedExtractResult.pick
   -- ConstrainedExtractResult.assume  -- This will be handled with a tactic
   ConstrainedExtractResult.pickList ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
@@ -272,6 +273,7 @@ attribute [multiextracted] ConstrainedExtractResult.pure
 open MultiExtractor in
 attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.bind ConstrainedExtractResult.assume
+  ConstrainedExtractResult.filterAuxM
   ConstrainedExtractResult.pick
   ConstrainedExtractResult.pickList ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
   ConstrainedExtractResult.val

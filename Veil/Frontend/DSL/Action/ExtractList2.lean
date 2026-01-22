@@ -228,6 +228,36 @@ def ConstrainedExtractResult.ite {α : Type u} (p : Prop)
   val := (@_root_.ite _ p dec h1.val h2.val)
   proof := by split ; exact h1.proof ; exact h2.proof
 
+-- TODO remove this repetition
+theorem ExtractConstraint.bind
+  [LawfulMonad m']
+  [GoodMonadFlatMap' m']
+  {α β : Type u} {s : NonDetT m α} {s' : m' α}
+  {f : α → NonDetT m β} {f' : α → m' β}
+  (hs : ExtractConstraint κ m m' findOf s s')
+  (hf : ∀ x, ExtractConstraint κ m m' findOf (f x) (f' x)) :
+  ExtractConstraint κ m m' findOf (s >>= f) (inst1.bind s' f') := by
+  induction hs generalizing hf with
+  | @pure x => simp [Bind.bind, NonDetT.bind] ; exact hf x
+  | @vis β x g g' h ih =>
+    simp [Bind.bind, NonDetT.bind] ; constructor
+    intro y ; apply ih ; assumption
+  | @pickCont τ p g g' extcd h ih =>
+    simp [Bind.bind, NonDetT.bind]
+    rw [← GoodMonadFlatMap'.op_good, List.map_map] ; simp +unfoldPartialApp [Function.comp]
+    apply ExtractConstraint.pickCont
+    intros ; apply ih ; assumption
+  | @assumeCont p g g' _ h ih =>
+    simp [Bind.bind, NonDetT.bind]
+    have eq : ((if p PUnit.unit then g' PUnit.unit else MonadFlatMap'.op []) >>= f') =
+      ((if p PUnit.unit then g' PUnit.unit >>= f' else MonadFlatMap'.op [])) := by
+      split <;> try rfl
+      rw [← GoodMonadFlatMap'.op_good] ; rfl
+    rw [eq] ; clear eq
+    -- some very weird unification failure happens here, so need to provide arguments explicitly
+    apply ExtractConstraint.assumeCont (p := p) (f' := (fun _ => g' PUnit.unit >>= f'))
+    apply ih ; assumption
+
 def ConstrainedExtractResult.bind
   [LawfulMonad m']
   [GoodMonadFlatMap' m']
@@ -238,30 +268,13 @@ def ConstrainedExtractResult.bind
   ConstrainedExtractResult κ m m' findOf (s >>= f) where
   val := (inst1.bind hs.val (hf · |>.val))
   proof := by
-    rcases hs with ⟨hs_val, hs_proof⟩
-    induction hs_proof generalizing hf with
-    | @pure x => simp [Bind.bind, NonDetT.bind] ; exact hf x |>.proof
-    | @vis β x g g' h ih =>
-      simp [Bind.bind, NonDetT.bind] ; constructor
-      intro y ; apply ih
-    | @pickCont τ p g g' extcd h ih =>
-      simp [Bind.bind, NonDetT.bind]
-      rw [← GoodMonadFlatMap'.op_good, List.map_map] ; simp +unfoldPartialApp [Function.comp]
-      apply ExtractConstraint.pickCont
-      intros ; apply ih
-    | @assumeCont p g g' _ h ih =>
-      simp [Bind.bind, NonDetT.bind]
-      have eq : ((if p PUnit.unit then g' PUnit.unit else MonadFlatMap'.op []) >>= (hf · |>.val)) =
-        ((if p PUnit.unit then g' PUnit.unit >>= (hf · |>.val) else MonadFlatMap'.op [])) := by
-        split <;> try rfl
-        rw [← GoodMonadFlatMap'.op_good] ; rfl
-      rw [eq] ; clear eq
-      -- some very weird unification failure happens here, so need to provide arguments explicitly
-      apply ExtractConstraint.assumeCont (p := p) (f' := (fun _ => g' PUnit.unit >>= (hf · |>.val)))
-      apply ih
+    apply ExtractConstraint.bind
+    · exact hs.proof
+    · intro x ; exact (hf x).proof
 
-theorem ExtractConstraint.filterAuxM
+def ConstrainedExtractResult.filterAuxM
   (κ : Type q)
+  -- NOTE: `Bool` has universe level `1`, so need to take care of the levels of `m` and `m'` here
   (m : Type → Type v) (m' : Type → Type w)
   [inst1 : Monad m']
   [inst2 : MonadFlatMapGo m m']
@@ -272,16 +285,18 @@ theorem ExtractConstraint.filterAuxM
   [LawfulMonad m']
   [GoodMonadFlatMap' m']
   {α : Type _}
-  {s : α → NonDetT m Bool} {s' : α → m' Bool}
+  {s : α → NonDetT m Bool}
   {l l' : List α}
-  (h : ∀ a : α, ExtractConstraint κ m m' findOf (s a) (s' a)) :
-  ExtractConstraint κ m m' findOf (l.filterAuxM s l') (l.filterAuxM s' l') := by
-  induction l generalizing l' with
-  | nil => dsimp ; constructor
-  | cons x l ih =>
-    apply ExtractConstraint.bind
-    · apply h
-    · rintro ⟨_ | _⟩ <;> dsimp <;> apply ih
+  (h : ∀ a : α, ConstrainedExtractResult κ m m' findOf (s a)) :
+  ConstrainedExtractResult κ m m' findOf (l.filterAuxM s l') where
+  val := (l.filterAuxM (fun a => h a |>.val) l')
+  proof := by
+    induction l generalizing l' with
+    | nil => dsimp ; constructor
+    | cons x l ih =>
+      apply ExtractConstraint.bind
+      · apply (h x).proof
+      · rintro ⟨_ | _⟩ <;> dsimp <;> apply ih
 
 variable
   [Monad m]
