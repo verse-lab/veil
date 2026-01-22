@@ -12,30 +12,116 @@ private def mergeActionStatsMaps [BEq κ] [Hashable κ] (m1 m2 : Std.HashMap κ 
     | none => acc.insert label stat2
 
 
+/-- Helper: foldl push over list produces array with same toList as map -/
+private theorem foldl_push_toList_eq_map {α β : Type} (f : α → β) (xs : List α) :
+  (xs.foldl (fun acc x => acc.push (f x)) #[]).toList = xs.map f := by
+  suffices ∀ (acc : Array β), (xs.foldl (fun acc x => acc.push (f x)) acc).toList = acc.toList ++ xs.map f by
+    simpa using this #[]
+  induction xs with
+  | nil => simp
+  | cons hd tl ih =>
+    intro acc
+    simp only [List.foldl_cons, List.map_cons]
+    rw [ih]
+    simp only [Array.toList_push, List.append_assoc, List.singleton_append]
+
+/-- Helper: membership in foldl insert is characterized by list membership -/
+private theorem foldl_insert_mem_iff {α : Type} [BEq α] [Hashable α] [LawfulBEq α] (xs : List α) (h : α)
+  (init : Std.HashSet α) :
+  h ∈ xs.foldl (fun acc x => acc.insert x) init ↔ h ∈ init ∨ h ∈ xs := by
+  induction xs generalizing init with
+  | nil => simp
+  | cons hd tl ih =>
+    simp only [List.foldl_cons, List.mem_cons]
+    rw [ih]
+    constructor
+    · intro h_or
+      rcases h_or with h_in_insert | h_in_tl
+      · rw [Std.HashSet.mem_insert] at h_in_insert
+        rcases h_in_insert with h_eq_hd | h_in_init
+        · right; left; exact (LawfulBEq.eq_of_beq h_eq_hd).symm
+        · left; exact h_in_init
+      · right; right; exact h_in_tl
+    · intro h_or
+      rcases h_or with h_in_init | (h_eq_hd | h_in_tl)
+      · left; rw [Std.HashSet.mem_insert]; right; exact h_in_init
+      · left; rw [Std.HashSet.mem_insert]; left; subst h_eq_hd; exact BEq.refl _
+      · right; exact h_in_tl
+
+/-- Helper: foldl insert over list equals insertMany for membership -/
+private theorem foldl_insert_mem_iff_insertMany_mem {α : Type} [BEq α] [Hashable α] [LawfulBEq α] (xs : List α) (h : α) :
+  h ∈ xs.foldl (fun acc x => acc.insert x) Std.HashSet.emptyWithCapacity ↔
+  h ∈ Std.HashSet.insertMany Std.HashSet.emptyWithCapacity xs := by
+  rw [foldl_insert_mem_iff, Std.HashSet.mem_insertMany_list]
+  simp only [Std.HashSet.not_mem_emptyWithCapacity, false_or]
+  constructor
+  · intro h_mem; exact List.elem_eq_true_of_mem h_mem
+  · intro h_contains; exact List.mem_of_elem_eq_true h_contains
+
+/-- Helper: foldl insert over mapped list, for membership -/
+private theorem foldl_insert_map_mem_iff {α β : Type} [BEq β] [Hashable β] [LawfulBEq β]
+  (f : α → β) (xs : List α) (h : β) :
+  h ∈ xs.foldl (fun acc x => acc.insert (f x)) Std.HashSet.emptyWithCapacity ↔
+  h ∈ (xs.map f).foldl (fun acc x => acc.insert x) Std.HashSet.emptyWithCapacity := by
+  suffices ∀ (acc : Std.HashSet β),
+    h ∈ xs.foldl (fun acc x => acc.insert (f x)) acc ↔
+    h ∈ (xs.map f).foldl (fun acc x => acc.insert x) acc by
+    exact this _
+  induction xs with
+  | nil => simp
+  | cons hd tl ih =>
+    intro acc
+    simp only [List.foldl_cons, List.map_cons]
+    exact ih _
+
 def ParallelSearchContext.initial {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq σ] [BEq κ] [Hashable κ] {th : ρ}
   (sys : _) (params : SearchParameters ρ σ) :
   @ParallelSearchContext ρ σ κ σₕ fp _ _ th sys params := {
     BaseSearchContext.initial sys params with
-    tovisit := sys.initStates.foldl (fun acc s =>
-      acc.insert (fp.view s) (s, 0)) Std.HashMap.emptyWithCapacity
-    invs := by
+    tovisitQueue := sys.initStates.foldl (fun acc s =>
+      acc.push ⟨fp.view s, s, 0⟩) #[]
+    tovisitSet := sys.initStates.foldl (fun acc s =>
+      acc.insert (fp.view s)) Std.HashSet.emptyWithCapacity
+    tovisitConsistent := by
+      intro h
+      have h_queue_eq := foldl_push_toList_eq_map (fun s => (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ)) sys.initStates
       constructor
-      · -- queue_sound: all states in tovisit are reachable
-        intro x d h_in_tovisit
-        dsimp only [Functor.map] at h_in_tovisit
-        unfold Membership.mem at h_in_tovisit
-        -- tovisit[fp.view x]? = some (x, d)
-        have h_in_list : (fp.view x, (x, d)) ∈ (sys.initStates.map (fun s => (fp.view s, (s, 0)))) := by
-          have h_cases := Std.HashMap.getElem?_foldl_insert sys.initStates Std.HashMap.emptyWithCapacity
-            (fp.view x) (x, d) fp.view (fun s => (s, 0)) h_in_tovisit
-          cases h_cases with
-          | inl h_empty => simp at h_empty
-          | inr h => exact h
+      · -- h ∈ tovisitSet → ∃ item ∈ tovisitQueue, item.fingerprint = h
+        intro h_in_set
+        -- h is in the set, so it came from some init state
+        have h_in_list : h ∈ sys.initStates.map fp.view := by
+          rw [foldl_insert_map_mem_iff, foldl_insert_mem_iff_insertMany_mem] at h_in_set
+          exact Std.HashSet.mem_list_of_mem_insertMany h_in_set
         simp only [List.mem_map] at h_in_list
         obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_list
-        have h_x_eq : x = s := by grind
+        -- The corresponding item is in the queue
+        use (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ)
+        constructor
+        · -- Show ⟨fp.view s, s, 0⟩ ∈ tovisitQueue
+          rw [Array.mem_def, h_queue_eq, List.mem_map]
+          exact ⟨s, h_s_in_init, rfl⟩
+        · exact h_eq
+      · -- ∃ item ∈ tovisitQueue, item.fingerprint = h → h ∈ tovisitSet
+        intro ⟨item, h_in_queue, h_fp_eq⟩
+        rw [Array.mem_def, h_queue_eq, List.mem_map] at h_in_queue
+        obtain ⟨s, h_s_in_init, h_item_eq⟩ := h_in_queue
+        rw [← h_item_eq] at h_fp_eq
+        simp only at h_fp_eq
+        rw [← h_fp_eq]
+        rw [foldl_insert_map_mem_iff, foldl_insert_mem_iff_insertMany_mem]
+        apply Std.HashSet.mem_insertMany_of_mem_list
+        simp only [List.mem_map]
+        exact ⟨s, h_s_in_init, rfl⟩
+    invs := by
+      have h_queue_eq := foldl_push_toList_eq_map (fun s => (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ)) sys.initStates
+      constructor
+      · -- queue_sound: all states in tovisitQueue are reachable
+        intro x d h_in_tovisit
+        rw [Array.mem_def, h_queue_eq, List.mem_map] at h_in_tovisit
+        obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_tovisit
+        have h_x_eq : x = s := by simp only [QueueItem.mk.injEq] at h_eq; exact h_eq.2.1.symm
         rw [h_x_eq]
         exact EnumerableTransitionSystem.reachable.init s h_s_in_init
       · -- visited_sound: all seen states are reachable
@@ -48,39 +134,22 @@ def ParallelSearchContext.initial {ρ σ κ σₕ : Type}
         have h_eq_st : s = x := h_view_inj h_eq_view
         rw [← h_eq_st]
         exact EnumerableTransitionSystem.reachable.init s h_s_in
-      · -- queue_sub_visited: elements in tovisit have fingerprints in seen
+      · -- queue_sub_visited: elements in tovisitQueue have fingerprints in seen
         intro x d h_in_tovisit
-        dsimp only [Functor.map] at h_in_tovisit
-        simp only [BaseSearchContext.initial]
-        -- If tovisit[fp.view x]? = some (x, d), then fp.view x came from some init state
-        have h_in_list : (fp.view x, (x, d)) ∈ (sys.initStates.map (fun s => (fp.view s, (s, 0)))) := by
-          have h_cases := Std.HashMap.getElem?_foldl_insert sys.initStates Std.HashMap.emptyWithCapacity
-            (fp.view x) (x, d) fp.view (fun s => (s, 0)) h_in_tovisit
-          cases h_cases with
-          | inl h_empty => simp at h_empty
-          | inr h => exact h
-        simp only [List.mem_map] at h_in_list
-        obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_list
-        have h_fp_eq : fp.view s = fp.view x := by grind
+        unfold BaseSearchContext.initial
+        rw [Array.mem_def, h_queue_eq, List.mem_map] at h_in_tovisit
+        obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_tovisit
+        have h_fp_eq : fp.view s = fp.view x := by simp only [QueueItem.mk.injEq] at h_eq; exact h_eq.1
         rw [← h_fp_eq]
         apply Std.HashSet.mem_insertMany_of_mem_list
-        show fp.view s ∈ List.map fp.view sys.initStates
-        simp only [List.mem_map]
+        simp only [Functor.map, List.mem_map]
         exact ⟨s, h_s_in_init, rfl⟩
-      · -- queue_wellformed: fingerprints match states in tovisit
+      · -- queue_wellformed: fingerprints match states in tovisitQueue
         intro fingerprint st d h_in_tovisit
-        dsimp only [Functor.map] at h_in_tovisit
-        have h_in_list : (fingerprint, (st, d)) ∈ (sys.initStates.map (fun s => (fp.view s, (s, 0)))) := by
-          have h_cases := Std.HashMap.getElem?_foldl_insert sys.initStates Std.HashMap.emptyWithCapacity
-            fingerprint (st, d) fp.view (fun s => (s, 0)) h_in_tovisit
-          cases h_cases with
-          | inl h_empty => simp at h_empty
-          | inr h => exact h
-        simp only [List.mem_map] at h_in_list
-        obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_list
-        have h_fp_eq : fp.view s = fingerprint := by grind
-        have h_st_eq : s = st := by grind
-        rw [← h_st_eq, ← h_fp_eq]
+        rw [Array.mem_def, h_queue_eq, List.mem_map] at h_in_tovisit
+        obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_tovisit
+        simp only [QueueItem.mk.injEq] at h_eq
+        rw [← h_eq.1, ← h_eq.2.1]
     frontier_closed := by
       intro h_view_inj h_finished s h_in_seen h_not_in_tovisit l next_s h_tr
       unfold BaseSearchContext.initial at h_in_seen
@@ -88,11 +157,13 @@ def ParallelSearchContext.initial {ρ σ κ σₕ : Type}
       simp only [Functor.map, List.mem_map] at h_in_list
       obtain ⟨init_s, h_s_in_init, h_view_eq⟩ := h_in_list
       rw [← h_view_eq] at h_not_in_tovisit
-      have h_exists : ∃ val, (sys.initStates.foldl (fun acc st => acc.insert (fp.view st) (st, 0)) Std.HashMap.emptyWithCapacity)[fp.view init_s]? = some val := by
-        exact Std.HashMap.mem_of_foldl_insert sys.initStates Std.HashMap.emptyWithCapacity init_s fp.view (fun s => (s, 0)) h_s_in_init
-      obtain ⟨val, h_some⟩ := h_exists
-      rw [h_some] at h_not_in_tovisit
-      simp at h_not_in_tovisit
+      -- init_s is in initStates, so fp.view init_s should be in tovisitSet
+      have h_in_set : fp.view init_s ∈ sys.initStates.foldl (fun acc s => acc.insert (fp.view s)) Std.HashSet.emptyWithCapacity := by
+        rw [foldl_insert_map_mem_iff, foldl_insert_mem_iff_insertMany_mem]
+        apply Std.HashSet.mem_insertMany_of_mem_list
+        simp only [List.mem_map]
+        exact ⟨init_s, h_s_in_init, rfl⟩
+      exact absurd h_in_set h_not_in_tovisit
     terminate_empty_tovisit := by
       intro h_finished_empty_tovisit
       dsimp only [BaseSearchContext.initial] at h_finished_empty_tovisit
@@ -138,9 +209,11 @@ def LocalSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
       | none => ctx.localActionStatsMap.insert label { statesGenerated := 0, distinctStates := 1 }
     ⟨{ctx with
       localSeen := ctx.localSeen.insert fingerprint,
-      tovisit   := ctx.tovisit.insert fingerprint ⟨succ, depth + 1⟩,
+      tovisitQueue := ctx.tovisitQueue.push ⟨fingerprint, succ, depth + 1⟩,
+      tovisitSet := ctx.tovisitSet.insert fingerprint,
       localLog  := ctx.localLog.insert fingerprint (fpSt, label),
       localActionStatsMap := newActionStatsMap,
+      tovisitConsistent := LocalSearchContext.push_insert_preserves_tovisitConsistent ctx fingerprint succ depth,
       invs := LocalSearchContext.insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_succ_reachable rfl,
       deltaConsistent := LocalSearchContext.insert_and_enqueue_preserves_deltaConsistent sys params ctx fingerprint succ depth rfl
     }, (by constructor <;> grind)⟩
@@ -229,7 +302,7 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
         toBaseSearchContext := baseCtx'
         excludeAllStatesFinish := by unfold BaseSearchContext.processState at h_process; simp only at h_process; grind
         seenUnaltered := by intro s; rw [h_seen_unchanged]; exact ctx.seenUnaltered s
-        invs := SearchContextInvariants.preserved_when_seen_unchanged sys params ctx.tovisit ctx.seen baseCtx'.seen ctx.localSeen h_seen_unchanged ctx.invs
+        invs := SearchContextInvariants.preserved_when_seen_unchanged sys params ctx.tovisitQueue ctx.seen baseCtx'.seen ctx.localSeen h_seen_unchanged ctx.invs
       }
       have h_ctx'_finished : ctx'.hasFinished := by simp only [ctx']; exact h_early_terminate
       ⟨ctx', processState_none_subtype sys ctx ctx' curr rfl h_ctx'_finished⟩
@@ -312,16 +385,21 @@ def LocalSearchContext.Merge {ρ σ σₕ κ : Type}
   (sys : _) (params : _)
   (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (ctx1 ctx2 : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx) :
-  @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx := {
+  @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx :=
+  -- Filter ctx2's queue to only include items not already in ctx1's set
+  let filteredQueue := ctx2.tovisitQueue.filter fun item => !ctx1.tovisitSet.contains item.fingerprint
+  {
     ctx1 with
     seen := ctx1.seen.union ctx2.seen,
     localLog := ctx1.localLog.union ctx2.localLog,
     localSeen := ctx1.localSeen.union ctx2.localSeen,
     violatingStates := ctx2.violatingStates ++ ctx1.violatingStates,
     finished := Option.or ctx1.finished ctx2.finished
-    tovisit := ctx1.tovisit.fold (init := ctx2.tovisit) fun acc k v => acc.insertIfNew k v
+    tovisitQueue := ctx1.tovisitQueue ++ filteredQueue
+    tovisitSet := ctx1.tovisitSet.union ctx2.tovisitSet
     localStatesFound := ctx1.localStatesFound + ctx2.localStatesFound,
     localActionStatsMap := mergeActionStatsMaps ctx1.localActionStatsMap ctx2.localActionStatsMap
+    tovisitConsistent := merge_local_local_preserves_tovisitConsistent sys params ctx1 ctx2
     invs := merge_local_local_preserves_invs sys params ctx1 ctx2
     excludeAllStatesFinish := merge_local_local_excludes_exploredAll sys params ctx1 ctx2
     seenUnaltered := merge_local_local_preserves_seenUnaltered sys params ctx1 ctx2
@@ -338,15 +416,17 @@ def LocalSearchContext.NeutralContext {ρ σ κ σₕ : Type}
   (h_seen_sound : Function.Injective fp.view → ∀ (x : σ), fp.view x ∈ baseCtx.seen → sys.reachable x)
   : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx := {
     toBaseSearchContext := { baseCtx with finished := none},
-    tovisit := Std.HashMap.emptyWithCapacity,
+    tovisitQueue := #[],
+    tovisitSet := Std.HashSet.emptyWithCapacity,
     localSeen := Std.HashSet.emptyWithCapacity,
     localLog := Std.HashMap.emptyWithCapacity,
     localStatesFound := 0,
     localActionStatsMap := Std.HashMap.emptyWithCapacity,
-    invs := by constructor <;> simp_all
+    tovisitConsistent := by simp [Std.HashSet.not_mem_emptyWithCapacity, Array.not_mem_empty]
+    invs := by constructor <;> simp_all [Array.not_mem_empty]
     excludeAllStatesFinish := by simp
     seenUnaltered := by simp
-    deltaConsistent := by simp
+    deltaConsistent := by simp [Array.not_mem_empty]
   }
 
 
@@ -618,13 +698,13 @@ theorem parallel_bfs_collect_all {ρ σ κ σₕ : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
   (ctx : @ParallelSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (tovisitArr : Array (σₕ × σ × Nat))
-  (h_tovisitArr_eq : tovisitArr = ctx.tovisit.toArray)
+  (tovisitArr : Array (QueueItem σₕ σ))
+  (h_tovisitArr_eq : tovisitArr = ctx.tovisitQueue)
   (ranges : List (Nat × Nat))
   (h_ranges_cover : ∀ i, i < tovisitArr.size → ∃ lr ∈ ranges, lr.1 ≤ i ∧ i < lr.2)
   (h_ranges_valid : ∀ lr ∈ ranges, lr.1 ≤ lr.2 ∧ lr.2 ≤ tovisitArr.size)
   (splitArrays : List (Array (σₕ × σ × Nat)))
-  (h_splitArrays_eq : splitArrays = ranges.map (fun lr => tovisitArr.extract lr.1 lr.2))
+  (h_splitArrays_eq : splitArrays = ranges.map (fun lr => (tovisitArr.extract lr.1 lr.2).map (fun item => (item.fingerprint, item.state, item.depth))))
   (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (h_baseCtx_eq : baseCtx = ctx.toBaseSearchContext)
   (aggregatedCtx : LocalSearchContext sys params baseCtx)
@@ -632,18 +712,25 @@ theorem parallel_bfs_collect_all {ρ σ κ σₕ : Type}
     aggregatedCtx.hasFinished (fun h => h ∈ baseCtx.seen ∨ h ∈ aggregatedCtx.localSeen))
   (h_ctx_not_finished : ctx.finished = none)
   (h_new_finished : Option.or ctx.finished aggregatedCtx.finished = some .exploredAllReachableStates ∨
-                    Option.or ctx.finished aggregatedCtx.finished = none) :
-  ∀ (s : σ) (d : Nat),
-    ctx.tovisit[fp.view s]? = some (s, d) →
+                    Option.or ctx.finished aggregatedCtx.finished = none)
+  (h_view_inj : Function.Injective fp.view) :
+  ∀ (s : σ),
+    fp.view s ∈ ctx.tovisitSet →
     (∀l v, (l, .success v) ∈ sys.tr th s → (fp.view v) ∈ ctx.seen ∨ (fp.view v) ∈ aggregatedCtx.localSeen) := by
-  intro s d h_s_in_old_tovisit l v h_tr
-  -- Show item is in splitArrays.flatten
-  have h_item_in_flatten : (fp.view s, s, d) ∈ splitArrays.toArray.flatten := by
-    have h_in_tovisitArr : (fp.view s, s, d) ∈ tovisitArr := by
-      rw [h_tovisitArr_eq]
-      exact Std.HashMap.mem_toArray_of_getElem? ctx.tovisit (fp.view s) ⟨s, d⟩ h_s_in_old_tovisit
+  intro s h_s_in_old_tovisit l v h_tr
+  -- Get item from set via consistency
+  have ⟨item, h_item_in_queue, h_item_fp⟩ := ctx.tovisitConsistent (fp.view s) |>.mp h_s_in_old_tovisit
+  -- Show item is in splitArrays.flatten (as a tuple)
+  have h_item_in_flatten : (item.fingerprint, item.state, item.depth) ∈ splitArrays.toArray.flatten := by
+    have h_in_tovisitArr : item ∈ tovisitArr := by rw [h_tovisitArr_eq]; exact h_item_in_queue
     rw [h_splitArrays_eq]
-    exact Array.mem_flatten_of_partition tovisitArr ranges (fp.view s, s, d) h_in_tovisitArr h_ranges_cover h_ranges_valid
+    exact Array.mem_flatten_of_partition_map tovisitArr ranges item h_in_tovisitArr h_ranges_cover h_ranges_valid (fun item => (item.fingerprint, item.state, item.depth))
+  -- Get the actual state from the queue item - use wellformedness to establish s = item.state
+  have h_wf : item.fingerprint = fp.view item.state := ctx.invs.queue_wellformed item.fingerprint item.state item.depth h_item_in_queue
+  have h_s_eq : s = item.state := by
+    have h_fp_eq : fp.view s = fp.view item.state := by rw [← h_item_fp, h_wf]
+    exact h_view_inj h_fp_eq
+  -- Note: we don't rewrite s here, we use h_s_eq later when calling h_liftBfs
   by_cases h_agg_finished : aggregatedCtx.hasFinished
   · -- aggregatedCtx has finished → contradiction with h_new_finished
     simp [h_ctx_not_finished] at h_new_finished
@@ -653,7 +740,7 @@ theorem parallel_bfs_collect_all {ρ σ κ σₕ : Type}
     | inr h_none => simp [h_none] at h_agg_finished
   · -- aggregatedCtx has not finished → use SuccessorsCollected
     -- baseCtx.seen = ctx.seen since baseCtx = ctx.toBaseSearchContext
-    have h_result := h_liftBfs (by simp [h_agg_finished]) (fp.view s) s d h_item_in_flatten l v h_tr
+    have h_result := h_liftBfs (by simp [h_agg_finished]) item.fingerprint item.state item.depth h_item_in_flatten l v (by rw [← h_s_eq]; exact h_tr)
     simp only [h_baseCtx_eq] at h_result
     exact h_result
 
@@ -669,13 +756,13 @@ def ParallelSearchContext.Reduce {ρ σ κ σₕ : Type}
   (params : SearchParameters ρ σ)
   (ctx : @ParallelSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (aggregatedCtx : LocalSearchContext sys params ctx.toBaseSearchContext)
-  (tovisitArr : Array (σₕ × σ × Nat))
-  (h_tovisitArr_eq : tovisitArr = ctx.tovisit.toArray)
+  (tovisitArr : Array (QueueItem σₕ σ))
+  (h_tovisitArr_eq : tovisitArr = ctx.tovisitQueue)
   (ranges : List (Nat × Nat))
   (h_ranges_cover : ∀ i, i < tovisitArr.size → ∃ lr ∈ ranges, lr.1 ≤ i ∧ i < lr.2)
   (h_ranges_valid : ∀ lr ∈ ranges, lr.1 ≤ lr.2 ∧ lr.2 ≤ tovisitArr.size)
   (splitArrays : List (Array (σₕ × σ × Nat)))
-  (h_splitArrays_eq : splitArrays = ranges.map (fun lr => tovisitArr.extract lr.1 lr.2))
+  (h_splitArrays_eq : splitArrays = ranges.map (fun lr => (tovisitArr.extract lr.1 lr.2).map (fun item => (item.fingerprint, item.state, item.depth))))
   (results : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : LocalSearchContext sys params ctx.toBaseSearchContext //
     SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) })
     splitArrays))
@@ -684,9 +771,12 @@ def ParallelSearchContext.Reduce {ρ σ κ σₕ : Type}
     (fun acc r => .Merge sys params ctx.toBaseSearchContext acc r.val) results)
   (h_ctx_not_finished : ctx.finished = none) :
   @ParallelSearchContext ρ σ κ σₕ fp _ _ th sys params :=
+  -- Build new tovisitSet from aggregatedCtx's queue
+  let newTovisitSet := aggregatedCtx.tovisitQueue.foldl (fun acc item => acc.insert item.fingerprint) Std.HashSet.emptyWithCapacity
   { ctx with
     seen := ctx.seen.union aggregatedCtx.localSeen,
-    tovisit := aggregatedCtx.tovisit,
+    tovisitQueue := aggregatedCtx.tovisitQueue,
+    tovisitSet := newTovisitSet,
     log := ctx.log.union aggregatedCtx.localLog,
     completedDepth := ctx.currentFrontierDepth,
     currentFrontierDepth := ctx.currentFrontierDepth + 1,
@@ -694,6 +784,7 @@ def ParallelSearchContext.Reduce {ρ σ κ σₕ : Type}
     finished := Option.or ctx.finished aggregatedCtx.finished,
     statesFound := ctx.statesFound + aggregatedCtx.localStatesFound,
     actionStatsMap := mergeActionStatsMaps ctx.actionStatsMap aggregatedCtx.localActionStatsMap,
+    tovisitConsistent := reduce_preserves_tovisitConsistent aggregatedCtx
     invs := merge_parallel_local_preserves_invs sys params ctx aggregatedCtx rfl
     frontier_closed := by
       intro h_view_inj h_finished s h_in_seen h_not_in_tovisit l next_s h_tr
@@ -702,10 +793,31 @@ def ParallelSearchContext.Reduce {ρ σ κ σₕ : Type}
         splitArrays aggregatedCtx results h_aggregatedCtx_eq
       have h_collect_all := parallel_bfs_collect_all sys ctx tovisitArr h_tovisitArr_eq ranges
         h_ranges_cover h_ranges_valid
-        splitArrays h_splitArrays_eq ctx.toBaseSearchContext rfl aggregatedCtx h_liftBfs h_pre_no_terminate h_finished
+        splitArrays h_splitArrays_eq ctx.toBaseSearchContext rfl aggregatedCtx h_liftBfs h_pre_no_terminate h_finished h_view_inj
+      -- Convert h_not_in_tovisit from newTovisitSet to aggregatedCtx.tovisitSet
+      -- Both sets have the same membership by construction (newTovisitSet is built from aggregatedCtx.tovisitQueue)
+      have h_new_tovisit_consistent := reduce_preserves_tovisitConsistent aggregatedCtx
+      have h_sets_equiv : ∀ h, h ∈ newTovisitSet ↔ h ∈ aggregatedCtx.tovisitSet := by
+        intro h
+        constructor
+        · intro h_in_new
+          have ⟨item, h_item_in, h_fp_eq⟩ := h_new_tovisit_consistent h |>.mp h_in_new
+          rw [← h_fp_eq]
+          exact aggregatedCtx.tovisitConsistent item.fingerprint |>.mpr ⟨item, h_item_in, rfl⟩
+        · intro h_in_old
+          have ⟨item, h_item_in, h_fp_eq⟩ := aggregatedCtx.tovisitConsistent h |>.mp h_in_old
+          exact h_new_tovisit_consistent h |>.mpr ⟨item, h_item_in, h_fp_eq⟩
+      have h_not_in_agg_tovisit : fp.view s ∉ aggregatedCtx.tovisitSet := by
+        intro h_in; exact h_not_in_tovisit ((h_sets_equiv (fp.view s)).mpr h_in)
+      -- Convert deltaConsistent (queue membership) to set membership using tovisitConsistent
+      have h_delta_set : Function.Injective fp.view →
+          ∀ x, (fp.view x) ∈ aggregatedCtx.localSeen → fp.view x ∈ aggregatedCtx.tovisitSet := by
+        intro h_inj x h_in_localSeen
+        let ⟨d, h_in_queue⟩ := aggregatedCtx.deltaConsistent h_inj x h_in_localSeen
+        exact aggregatedCtx.tovisitConsistent (fp.view x) |>.mpr ⟨⟨fp.view x, x, d⟩, h_in_queue, rfl⟩
       exact ParallelSearchContext.merge_preserves_frontier_closed sys params ctx
-        aggregatedCtx.localSeen aggregatedCtx.tovisit h_pre_no_terminate h_view_inj
-        aggregatedCtx.deltaConsistent h_collect_all s h_in_seen h_not_in_tovisit l next_s h_tr
+        aggregatedCtx.localSeen aggregatedCtx.tovisitSet h_pre_no_terminate h_view_inj
+        h_delta_set h_collect_all s h_in_seen h_not_in_agg_tovisit l next_s h_tr
     terminate_empty_tovisit := by
       intro h_finished
       rw [h_aggregatedCtx_eq] at h_finished
@@ -717,7 +829,7 @@ def ParallelSearchContext.Reduce {ρ σ κ σₕ : Type}
       exact absurd h_finished this
     starts_in_seen := by
       intro s0 h_s0_in_init; have h_init := ctx.starts_in_seen s0 h_s0_in_init
-      exact Std.HashMap.mem_union_of_left h_init
+      exact Std.HashSet.mem_union_of_left h_init
   }
 
 @[specialize]
@@ -736,7 +848,7 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
   while h_not_finished : !ctx.hasFinished do
     let currentCtx := ctx
     -- In this setting, the queue emptiness check needs to be done here
-    if h_tovisit_empty : ctx.tovisit.isEmpty then
+    if h_tovisit_empty : ctx.tovisitQueue.isEmpty then
       ctx := { ctx with
         finished := some (.exploredAllReachableStates),
         frontier_closed := by
@@ -746,14 +858,15 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
         terminate_empty_tovisit := by intro _; exact h_tovisit_empty
       }
       updateProgress progressInstanceId
-        ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisit.size
+        ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisitQueue.size
         (toActionStatsList ctx.actionStatsMap)
       return ctx
     else
-      let tovisitArr := ctx.tovisit.toArray
+      let tovisitArr := ctx.tovisitQueue
       -- Spawn tasks for each chunk range
       let ranges := ParallelConfig.chunkRanges parallelCfg tovisitArr.size
-      let splitArrays := ranges.map (fun lr => tovisitArr.extract lr.1 lr.2)
+      -- Convert QueueItem to tuples for bfsBigStep
+      let splitArrays := ranges.map (fun lr => (tovisitArr.extract lr.1 lr.2).map (fun item => (item.fingerprint, item.state, item.depth)))
       let baseCtx := ctx.toBaseSearchContext
 
       have h_baseCtx_not_finished : baseCtx.finished = none := by
@@ -765,9 +878,9 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
       * all items in tovisitArr are _reachable_
       * elements in any extract are also _reachable_
       * all sub-arrays in splitArrays have _reachable_ items -/
-      have h_tovisitArr_reachable := HashMap_toArray_items_reachable sys params ctx tovisitArr rfl
-      have h_extract_reachable := Array_extract_items_reachable sys tovisitArr h_tovisitArr_reachable
-      have h_splitArrays_sound := splitArrays_items_reachable sys tovisitArr ranges splitArrays rfl h_extract_reachable
+      have h_tovisitArr_reachable := tovisitQueue_items_reachable sys params ctx
+      have h_extract_reachable := Array_extract_items_reachable_QueueItem sys tovisitArr h_tovisitArr_reachable
+      have h_splitArrays_sound := splitArrays_items_reachable_QueueItem sys tovisitArr ranges splitArrays rfl h_extract_reachable
 
       -- CAVEAT: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
       -- as that might cause parallelism to vanish!!! Instead, the call should be defined
@@ -806,7 +919,7 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
         lastUpdateTime := now
         -- TLC-style stats: diameter, statesFound, distinctStates, queue, actionStats
         updateProgress progressInstanceId
-          ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisit.size
+          ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisitQueue.size
           (toActionStatsList ctx.actionStatsMap)
         if ← shouldStop cancelToken progressInstanceId then
           ctx := { ctx with
@@ -816,7 +929,7 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
           break
   -- Final update to ensure stats reflect finished state
   updateProgress progressInstanceId
-    ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisit.size
+    ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisitQueue.size
     (toActionStatsList ctx.actionStatsMap)
   return ctx
 

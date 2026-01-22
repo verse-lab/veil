@@ -20,20 +20,192 @@ theorem concurrent_bfs_completeness {ρ σ κ σₕ : Type}
   | step u v h_u_reach h_transition ih =>
     obtain ⟨l, h_tr⟩ := h_transition
     have h_u_in_seen : fp.view u ∈ ctx.seen := ih
-    have h_tovisit_empty : ctx.tovisit.isEmpty := ctx.terminate_empty_tovisit h_explore_all
-    have h_u_not_in_tovisit : ctx.tovisit[(fp.view u)]? = none := by
-      cases h_get : ctx.tovisit[(fp.view u)]? with
-      | none => rfl
-      | some val =>
-        have h_not_empty : ¬ctx.tovisit.isEmpty := by
-          intro h_empty
-          simp only [Std.HashMap.isEmpty_iff_forall_not_mem] at h_empty
-          have h_mem : (fp.view u) ∈ ctx.tovisit := by grind
-          exact h_empty (fp.view u) h_mem
-        exact absurd h_tovisit_empty h_not_empty
+    have h_tovisit_empty : ctx.tovisitQueue.isEmpty := ctx.terminate_empty_tovisit h_explore_all
+    have h_u_not_in_tovisit : fp.view u ∉ ctx.tovisitSet := by
+      intro h_in_set
+      have ⟨item, h_item_in_queue, _⟩ := ctx.tovisitConsistent (fp.view u) |>.mp h_in_set
+      have h_not_empty : ¬ctx.tovisitQueue.isEmpty := by
+        simp only [Array.isEmpty_iff]
+        intro h_eq_empty
+        rw [h_eq_empty] at h_item_in_queue
+        exact (Array.not_mem_empty item) h_item_in_queue
+      exact h_not_empty h_tovisit_empty
     have h_finished_cond : ctx.finished = some (.exploredAllReachableStates) ∨ ctx.finished = none := by
       left; exact h_explore_all
     exact ctx.frontier_closed h_view_inj h_finished_cond u h_u_in_seen h_u_not_in_tovisit l v h_tr
+
+
+/-- Pushing an item to the queue and inserting its fingerprint to the set preserves tovisitConsistent. -/
+theorem LocalSearchContext.push_insert_preserves_tovisitConsistent {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {params : SearchParameters ρ σ}
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
+  (ctx : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
+  (fingerprint : σₕ)
+  (succ : σ)
+  (depth : Nat) :
+  ∀ h, h ∈ ctx.tovisitSet.insert fingerprint ↔
+    ∃ item ∈ ctx.tovisitQueue.push ⟨fingerprint, succ, depth + 1⟩, item.fingerprint = h := by
+  intro h
+  rw [Std.HashSet.mem_insert]
+  constructor
+  · intro h_in_set
+    cases h_in_set with
+    | inl h_eq =>
+      refine ⟨⟨fingerprint, succ, depth + 1⟩, ?_, ?_⟩
+      · rw [Array.mem_push]; exact Or.inr rfl
+      · simp only; exact LawfulBEq.eq_of_beq h_eq
+    | inr h_in_old =>
+      have ⟨item, h_item_in, h_item_fp⟩ := ctx.tovisitConsistent h |>.mp h_in_old
+      refine ⟨item, ?_, h_item_fp⟩
+      rw [Array.mem_push]
+      exact Or.inl h_item_in
+  · intro ⟨item, h_item_in, h_item_fp⟩
+    rw [Array.mem_push] at h_item_in
+    cases h_item_in with
+    | inl h_in_old =>
+      right
+      exact ctx.tovisitConsistent h |>.mpr ⟨item, h_in_old, h_item_fp⟩
+    | inr h_eq =>
+      left
+      have h_fp_eq : fingerprint = item.fingerprint := by simp [h_eq]
+      rw [h_fp_eq, h_item_fp]
+      exact BEq.refl _
+
+
+/-- Merging two LocalSearchContext instances preserves tovisitConsistent. -/
+theorem merge_local_local_preserves_tovisitConsistent {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
+  (ctx1 ctx2 : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx) :
+  let filteredQueue := ctx2.tovisitQueue.filter fun item => !ctx1.tovisitSet.contains item.fingerprint
+  ∀ h, h ∈ ctx1.tovisitSet.union ctx2.tovisitSet ↔
+    ∃ item ∈ (ctx1.tovisitQueue ++ filteredQueue), item.fingerprint = h := by
+  intro filteredQueue h
+  constructor
+  · intro h_in_union
+    simp only [Std.HashSet.mem_union] at h_in_union
+    cases h_in_union with
+    | inl h_in_ctx1 =>
+      have ⟨item, h_item_in, h_item_fp⟩ := ctx1.tovisitConsistent h |>.mp h_in_ctx1
+      refine ⟨item, ?_, h_item_fp⟩
+      simp only [Array.mem_append]
+      exact Or.inl h_item_in
+    | inr h_in_ctx2 =>
+      have ⟨item, h_item_in, h_item_fp⟩ := ctx2.tovisitConsistent h |>.mp h_in_ctx2
+      by_cases h_in_ctx1_set : ctx1.tovisitSet.contains item.fingerprint
+      · -- Item is already in ctx1's set, so some item with same fingerprint is in ctx1's queue
+        have ⟨item1, h_item1_in, h_item1_fp⟩ := ctx1.tovisitConsistent item.fingerprint |>.mp h_in_ctx1_set
+        refine ⟨item1, ?_, ?_⟩
+        · simp only [Array.mem_append]; exact Or.inl h_item1_in
+        · rw [h_item1_fp, h_item_fp]
+      · -- Item passes filter
+        refine ⟨item, ?_, h_item_fp⟩
+        simp only [Array.mem_append]
+        right
+        rw [Array.mem_filter]
+        exact ⟨h_item_in, by simp [h_in_ctx1_set]⟩
+  · intro ⟨item, h_item_in, h_item_fp⟩
+    simp only [Array.mem_append] at h_item_in
+    simp only [Std.HashSet.mem_union]
+    cases h_item_in with
+    | inl h_in_ctx1 =>
+      left
+      exact ctx1.tovisitConsistent h |>.mpr ⟨item, h_in_ctx1, h_item_fp⟩
+    | inr h_in_filtered =>
+      have h_in_ctx2 : item ∈ ctx2.tovisitQueue := (Array.mem_filter.mp h_in_filtered).1
+      right
+      exact ctx2.tovisitConsistent h |>.mpr ⟨item, h_in_ctx2, h_item_fp⟩
+
+
+/-- Helper lemma: membership in foldl-built HashSet (general version with arbitrary init) -/
+private theorem mem_foldl_insert_iff_aux {σₕ : Type} [BEq σₕ] [Hashable σₕ] [LawfulBEq σₕ]
+  (fps : List σₕ) (init : Std.HashSet σₕ) (h : σₕ) :
+  h ∈ fps.foldl (fun acc fp => acc.insert fp) init ↔ h ∈ init ∨ h ∈ fps := by
+  induction fps generalizing init with
+  | nil => simp
+  | cons hd tl ih =>
+    simp only [List.foldl_cons, List.mem_cons]
+    rw [ih]
+    rw [Std.HashSet.mem_insert]
+    constructor
+    · intro h_in
+      cases h_in with
+      | inl h_in_init =>
+        cases h_in_init with
+        | inl h_beq => right; left; exact (LawfulBEq.eq_of_beq h_beq).symm
+        | inr h_in_init' => left; exact h_in_init'
+      | inr h_in_tl => right; right; exact h_in_tl
+    · intro h_in
+      cases h_in with
+      | inl h_in_init => left; right; exact h_in_init
+      | inr h_in_list =>
+        cases h_in_list with
+        | inl h_eq => left; left; rw [h_eq]; exact BEq.refl _
+        | inr h_in_tl => right; exact h_in_tl
+
+/-- Helper lemma: membership in foldl-built HashSet starting from empty -/
+private theorem mem_foldl_insert_iff {σₕ : Type} [BEq σₕ] [Hashable σₕ] [LawfulBEq σₕ]
+  (fps : List σₕ) (h : σₕ) :
+  h ∈ fps.foldl (fun acc fp => acc.insert fp) Std.HashSet.emptyWithCapacity ↔ h ∈ fps := by
+  rw [mem_foldl_insert_iff_aux]
+  simp [Std.HashSet.not_mem_emptyWithCapacity]
+
+/-- Helper lemma: foldl over QueueItems equals foldl over mapped fingerprints (general version) -/
+private theorem foldl_queueitem_eq_foldl_map_aux {σₕ σ : Type} [BEq σₕ] [Hashable σₕ]
+  (items : List (QueueItem σₕ σ)) (init : Std.HashSet σₕ) :
+  items.foldl (fun acc item => acc.insert item.fingerprint) init =
+  (items.map (·.fingerprint)).foldl (fun acc fp => acc.insert fp) init := by
+  induction items generalizing init with
+  | nil => rfl
+  | cons hd tl ih =>
+    simp only [List.foldl_cons, List.map_cons]
+    exact ih (init.insert hd.fingerprint)
+
+/-- The reduce operation preserves tovisitConsistent for the new tovisitSet built from the queue. -/
+theorem reduce_preserves_tovisitConsistent {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {params : SearchParameters ρ σ}
+  {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
+  (aggregatedCtx : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx) :
+  let newTovisitSet := aggregatedCtx.tovisitQueue.foldl (fun acc item => acc.insert item.fingerprint) Std.HashSet.emptyWithCapacity
+  ∀ h, h ∈ newTovisitSet ↔ ∃ item ∈ aggregatedCtx.tovisitQueue, item.fingerprint = h := by
+  intro newTovisitSet h
+  -- Convert to List.foldl
+  have h_to_list_foldl : newTovisitSet =
+    aggregatedCtx.tovisitQueue.toList.foldl (fun acc item => acc.insert item.fingerprint) Std.HashSet.emptyWithCapacity := by
+    simp only [newTovisitSet, Array.foldl_toList]
+  -- Then convert to foldl over mapped fingerprints
+  have h_to_map_foldl : aggregatedCtx.tovisitQueue.toList.foldl (fun acc item => acc.insert item.fingerprint) Std.HashSet.emptyWithCapacity =
+    (aggregatedCtx.tovisitQueue.toList.map (·.fingerprint)).foldl (fun acc fp => acc.insert fp) Std.HashSet.emptyWithCapacity :=
+    foldl_queueitem_eq_foldl_map_aux aggregatedCtx.tovisitQueue.toList Std.HashSet.emptyWithCapacity
+  have h_array_to_list : newTovisitSet =
+    (aggregatedCtx.tovisitQueue.toList.map (·.fingerprint)).foldl (fun acc fp => acc.insert fp) Std.HashSet.emptyWithCapacity := by
+    rw [h_to_list_foldl, h_to_map_foldl]
+  constructor
+  · intro h_in_set
+    rw [h_array_to_list] at h_in_set
+    have h_in_list := (mem_foldl_insert_iff _ h).mp h_in_set
+    simp only [List.mem_map] at h_in_list
+    obtain ⟨item, h_item_in_list, h_fp_eq⟩ := h_in_list
+    use item
+    exact ⟨Array.mem_toList_iff.mp h_item_in_list, h_fp_eq⟩
+  · intro ⟨item, h_item_in, h_item_fp⟩
+    rw [h_array_to_list]
+    apply (mem_foldl_insert_iff _ h).mpr
+    simp only [List.mem_map]
+    use item
+    exact ⟨Array.mem_toList_iff.mpr h_item_in, h_item_fp⟩
 
 
 /-- Theorem: Inserting a new fingerprint into localSeen and enqueuing the corresponding state preserves deltaConsistent.
@@ -52,15 +224,15 @@ theorem LocalSearchContext.insert_and_enqueue_preserves_deltaConsistent {ρ σ �
   (h_fp : fingerprint = fp.view succ) :
   Function.Injective fp.view →
   ∀x, (fp.view x) ∈ ctx.localSeen.insert fingerprint →
-  ∃d, (ctx.tovisit.insert fingerprint ⟨succ, depth + 1⟩)[fp.view x]? = some (x, d) := by
+  ∃d, ⟨fp.view x, x, d⟩ ∈ ctx.tovisitQueue.push ⟨fingerprint, succ, depth + 1⟩ := by
   have h_old := ctx.deltaConsistent
   intro h_inj x h_in_localSeen
   by_cases h_eq : fp.view x = fingerprint
   · have h_x_eq_succ : x = succ := h_inj (by rw [h_eq, h_fp])
     use depth + 1
-    rw [h_x_eq_succ, Std.HashMap.getElem?_insert]
-    simp
-    grind
+    rw [h_x_eq_succ, h_fp]
+    rw [Array.mem_push]
+    right; rfl
   · have h_in_old_localSeen : fp.view x ∈ ctx.localSeen := by
       simp only [Std.HashSet.mem_insert] at h_in_localSeen
       cases h_in_localSeen with
@@ -68,8 +240,8 @@ theorem LocalSearchContext.insert_and_enqueue_preserves_deltaConsistent {ρ σ �
       | inr h => exact h
     obtain ⟨d, h_in_tovisit⟩ := h_old h_inj x h_in_old_localSeen
     use d
-    rw [Std.HashMap.getElem?_insert]
-    grind
+    rw [Array.mem_push]
+    left; exact h_in_tovisit
 
 
 /-- Theorem: Inserting a new fingerprint into seen and enqueuing the corresponding state preserves invariants.
@@ -88,18 +260,21 @@ theorem LocalSearchContext.insert_and_enqueue_preserves_invs {ρ σ κ σₕ : T
   (h_neighbor : sys.reachable succ)
   (h_fp : fingerprint = fp.view succ) :
   @SearchContextInvariants ρ σ κ σₕ fp th sys params
-    ((fun ⟨h, x, d⟩ => (ctx.tovisit.insert fingerprint ⟨succ, depth + 1⟩)[h]? = some (x, d)))
+    (Membership.mem (ctx.tovisitQueue.push ⟨fingerprint, succ, depth + 1⟩))
     (fun h => h ∈ ctx.seen ∨ h ∈ ctx.localSeen.insert fingerprint) := by
   constructor
-  · intro x d h_in_tovisit
-    simp only at h_in_tovisit
-    rw [Std.HashMap.getElem?_insert] at h_in_tovisit
-    split at h_in_tovisit
-    · next h_beq =>
-        cases h_in_tovisit
-        exact h_neighbor
-    · exact ctx.invs.queue_sound x d h_in_tovisit
-  · intro h_view_inj x h_in_new_seen
+  · -- queue_sound: states in queue are reachable
+    intro x d h_in_tovisit
+    simp only [Array.mem_push] at h_in_tovisit
+    cases h_in_tovisit with
+    | inl h_old => exact ctx.invs.queue_sound x d h_old
+    | inr h_new =>
+      simp only [QueueItem.mk.injEq] at h_new
+      obtain ⟨_, h_x_eq, _⟩ := h_new
+      rw [h_x_eq]
+      exact h_neighbor
+  · -- visited_sound: states in seen/localSeen are reachable
+    intro h_view_inj x h_in_new_seen
     simp only [Membership.mem] at h_in_new_seen
     by_cases h : fp.view x = fingerprint
     · have h_x_eq_succ : x = succ := by
@@ -119,34 +294,35 @@ theorem LocalSearchContext.insert_and_enqueue_preserves_invs {ρ σ κ σₕ : T
             grind
           exact this h_in_insert h
       exact ctx.invs.visited_sound h_view_inj x h_in_old
-  · intro x d h_in_queue
-    simp only at h_in_queue
-    rw [Std.HashMap.getElem?_insert] at h_in_queue
-    split at h_in_queue
-    · next h_beq =>
-      have h_fp_eq : fingerprint = fp.view x := LawfulBEq.eq_of_beq h_beq
-      simp only [Membership.mem]
-      right; rw [← h_fp_eq]
-      exact Std.HashSet.mem_insert_self' ctx.localSeen fingerprint
-    · have h_in_old_seen := ctx.invs.queue_sub_visited x d h_in_queue
-      simp only [Membership.mem]
-      cases h_in_old_seen with
+  · -- queue_sub_visited: states in queue have fingerprints in seen/localSeen
+    intro x d h_in_queue
+    simp only [Array.mem_push] at h_in_queue
+    simp only [Membership.mem]
+    cases h_in_queue with
+    | inl h_old =>
+      have h_sub := ctx.invs.queue_sub_visited x d h_old
+      cases h_sub with
       | inl h_seen => left; exact h_seen
       | inr h_localSeen => right; exact Std.HashSet.mem_of_mem_insert'' ctx.localSeen (fp.view x) fingerprint h_localSeen
-  · intro fp' st d h_in_queue
-    simp only at h_in_queue
-    rw [Std.HashMap.getElem?_insert] at h_in_queue
-    split at h_in_queue
-    · next h_beq =>
-      have h_fp'_eq : fingerprint = fp' := LawfulBEq.eq_of_beq h_beq
-      cases h_in_queue
-      rw [← h_fp'_eq, h_fp]
-    · exact ctx.invs.queue_wellformed fp' st d h_in_queue
+    | inr h_new =>
+      simp only [QueueItem.mk.injEq] at h_new
+      obtain ⟨h_fp_eq, _, _⟩ := h_new
+      right; rw [h_fp_eq]
+      exact Std.HashSet.mem_insert_self' ctx.localSeen fingerprint
+  · -- queue_wellformed: fingerprints match fp.view
+    intro fp' st d h_in_queue
+    simp only [Array.mem_push] at h_in_queue
+    cases h_in_queue with
+    | inl h_old => exact ctx.invs.queue_wellformed fp' st d h_old
+    | inr h_new =>
+      simp only [QueueItem.mk.injEq] at h_new
+      obtain ⟨h_fp'_eq, h_st_eq, _⟩ := h_new
+      rw [h_fp'_eq, h_st_eq, h_fp]
 
 
 
 -- High-level theorem: updating toBaseSearchContext after processState preserves invariants
--- This is the version for LocalSearchContext (uses HashMap for tovisit)
+-- This is the version for LocalSearchContext (uses Array for tovisitQueue)
 theorem LocalSearchContext.update_base_after_processState_preserves_invs {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [instBEq : BEq κ] [instHash : Hashable κ] [BEq σ] [Repr σ] [Repr σₕ]
@@ -160,7 +336,7 @@ theorem LocalSearchContext.update_base_after_processState_preserves_invs {ρ σ 
   (baseCtx' : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (h_process : (ctx.toBaseSearchContext.processState sys fpSt curr).1 = baseCtx') :
   @SearchContextInvariants ρ σ κ σₕ fp th sys params
-    (fun ⟨h, x, d⟩ => ctx.tovisit[h]? = some (x, d))
+    (Membership.mem ctx.tovisitQueue)
     (fun h => h ∈ baseCtx'.seen ∨ h ∈ ctx.localSeen) := by
   have h_seen_unchanged : baseCtx'.seen = ctx.seen := by
     have h_preserves := BaseSearchContext.processState_preserves_seen sys params fpSt curr ctx.toBaseSearchContext
@@ -360,15 +536,15 @@ theorem SearchContextInvariants.preserved_when_seen_unchanged {ρ σ κ σₕ : 
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (tovisit : Std.HashMap σₕ (σ × Nat))
+  (tovisitQueue : Array (QueueItem σₕ σ))
   (old_seen new_seen : Std.HashSet σₕ)
   (localSeen : Std.HashSet σₕ)
   (h_seen_unchanged : new_seen = old_seen)
   (h_old_invs : @SearchContextInvariants ρ σ κ σₕ fp th sys params
-    (fun ⟨h, x, d⟩ => tovisit[h]? = some (x, d))
+    (Membership.mem tovisitQueue)
     (fun h => h ∈ old_seen ∨ h ∈ localSeen)) :
   @SearchContextInvariants ρ σ κ σₕ fp th sys params
-    (fun ⟨h, x, d⟩ => tovisit[h]? = some (x, d))
+    (Membership.mem tovisitQueue)
     (fun h => h ∈ new_seen ∨ h ∈ localSeen) := by
   constructor
   · exact h_old_invs.queue_sound
@@ -407,20 +583,20 @@ theorem ParallelSearchContext.merge_preserves_frontier_closed {ρ σ κ σₕ : 
   {th : ρ} (sys : _) (params : SearchParameters ρ σ)
   (ctx : @ParallelSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (unionSeen : Std.HashSet σₕ)
-  (currTovisit : Std.HashMap σₕ (σ × Nat))
+  (currTovisitSet : Std.HashSet σₕ)
   (h_not_finished : ctx.finished = none)
   (h_view_inj : Function.Injective fp.view)
   -----------------------------------------------------------------------------
   (h_delta_consistent : Function.Injective fp.view →
-    ∀ x, (fp.view x) ∈ unionSeen → ∃d, currTovisit[(fp.view x)]? = some (x, d))
+    ∀ x, (fp.view x) ∈ unionSeen → fp.view x ∈ currTovisitSet)
   -----------------------------------------------------------------------------
-  (h_collect_all : ∀ (s : σ) (d : Nat),
-    ctx.tovisit[fp.view s]? = some (s, d) →
+  (h_collect_all : ∀ (s : σ),
+    fp.view s ∈ ctx.tovisitSet →
       (∀l v, (l, .success v) ∈ (sys.tr th s)
         → ((fp.view v) ∈ ctx.seen ∨ (fp.view v) ∈ unionSeen)))
   -----------------------------------------------------------------------------
   : ∀ (s : σ), fp.view s ∈ (ctx.seen.union unionSeen) →      -- s is discovered
-      (currTovisit[(fp.view s)]? = none) →          -- s is not in the frontier
+      (fp.view s ∉ currTovisitSet) →          -- s is not in the frontier
       ∀ l next_s, (l, .success next_s) ∈ sys.tr th s →    -- for all successors
         fp.view next_s ∈ ctx.seen.union unionSeen
   -----------------------------------------------------------------------------
@@ -428,56 +604,23 @@ theorem ParallelSearchContext.merge_preserves_frontier_closed {ρ σ κ σₕ : 
   intro s h_in_new_seen h_not_in_new_tovisit l next_s h_tr
   rw [Std.HashSet.mem_union] at h_in_new_seen
   rcases h_in_new_seen with h_in_old_seen | h_in_new_added
-  · -- Check if s is in the old tovisit queue
-    cases h_in_old_queue : ctx.tovisit[(fp.view s)]? with
-    | none =>
-      -- Subcase B.2 (Case 1): (`s ∉ Q_old`)
+  · -- Check if s is in the old tovisit set
+    by_cases h_in_old_queue : fp.view s ∈ ctx.tovisitSet
+    · -- Subcase B.1 (Case 2): (`s ∈ Q_old`) h_collect_all
+      have h_all_succ := h_collect_all s h_in_old_queue
+      have h_succ_in_union : fp.view next_s ∈ ctx.seen ∨ fp.view next_s ∈ unionSeen :=
+        h_all_succ l next_s h_tr
+      rw [Std.HashSet.mem_union]
+      exact h_succ_in_union
+    · -- Subcase B.2 (Case 1): (`s ∉ Q_old`)
       have h_old_invariant := ctx.frontier_closed h_view_inj (by
         right; exact h_not_finished
       ) s h_in_old_seen h_in_old_queue l next_s h_tr
       rw [Std.HashSet.mem_union]
       left; exact h_old_invariant
-    | some val =>
-      -- Subcase B.1 (Case 2): (`s ∈ Q_old`) h_collect_all
-      obtain ⟨s', d⟩ := val
-      have h_s'_eq_s : s' = s := by
-        have h_in_queue : (fun ⟨h, x, d⟩ => ctx.tovisit[h]? = some (x, d)) (QueueItem.mk (fp.view s) s' d) := by simp only; exact h_in_old_queue
-        have h_fp_eq : fp.view s = fp.view s' := ctx.invs.queue_wellformed (fp.view s) s' d h_in_queue
-        exact h_view_inj h_fp_eq.symm
-      have h_in_queue : ctx.tovisit[fp.view s]? = some (s, d) := by
-        have : (s', d) = (s, d) := by rw [h_s'_eq_s]
-        rw [← this]; exact h_in_old_queue
-      have h_all_succ := h_collect_all s d h_in_queue
-      have h_is_successful : (l, next_s) ∈ extractSuccessfulTransitions (sys.tr th s) := by unfold extractSuccessfulTransitions; grind
-      have h_succ_in_union : fp.view next_s ∈ ctx.seen ∨ fp.view next_s ∈ unionSeen :=
-        h_all_succ l next_s (by simp [h_tr])
-      rw [Std.HashSet.mem_union]
-      exact h_succ_in_union
   -- Case A (Case 3): (`s ∈ unionSeen`) --h_delta_consistent
   · have h_must_be_in_queue := h_delta_consistent h_view_inj s h_in_new_added
-    obtain ⟨d, h_in_q⟩ := h_must_be_in_queue
-    rw [h_in_q] at h_not_in_new_tovisit
-    contradiction
-
-/-- All items in a HashMap's toArray are reachable if the HashMap satisfies queue_sound -/
-theorem HashMap_toArray_items_reachable {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-  (ctx : @ParallelSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (tovisitArr : Array (σₕ × σ × Nat))
-  (h_arr_eq : tovisitArr = ctx.tovisit.toArray) :
-  ∀ item ∈ tovisitArr.toList, sys.reachable item.2.1 := by
-  intro ⟨h, x, d⟩ h_mem
-  have h_in_arr : (h, (x, d)) ∈ ctx.tovisit.toArray := by
-    rw [← h_arr_eq]; exact Array.mem_toList_iff.mp h_mem
-  have h_lookup : ctx.tovisit[h]? = some (x, d) :=
-    Std.HashMap.getElem?_of_mem_toArray ctx.tovisit h (x, d) h_in_arr
-  have h_wf : h = fp.view x := ctx.invs.queue_wellformed h x d h_lookup
-  rw [h_wf] at h_lookup
-  exact ctx.invs.queue_sound x d h_lookup
+    exact absurd h_must_be_in_queue h_not_in_new_tovisit
 
 /-- Items in an extracted subarray are reachable if items in the original array are reachable -/
 theorem Array_extract_items_reachable {σₕ σ : Type}
@@ -516,8 +659,66 @@ theorem splitArrays_items_reachable {σₕ σ : Type}
   rw [← h_subArr_eq] at h_item_in
   exact h_extract_reachable lr item h_item_in
 
+/-- All items in tovisitQueue are reachable if the queue satisfies queue_sound (QueueItem version) -/
+theorem tovisitQueue_items_reachable {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
+  (ctx : @ParallelSearchContext ρ σ κ σₕ fp _ _ th sys params) :
+  ∀ item ∈ ctx.tovisitQueue.toList, sys.reachable item.state := by
+  intro ⟨h, x, d⟩ h_mem
+  have h_in_queue : (⟨h, x, d⟩ : QueueItem σₕ σ) ∈ ctx.tovisitQueue := Array.mem_toList_iff.mp h_mem
+  have h_wf : h = fp.view x := ctx.invs.queue_wellformed h x d h_in_queue
+  rw [h_wf] at h_in_queue
+  exact ctx.invs.queue_sound x d h_in_queue
+
+/-- Items in an extracted subarray are reachable if items in the original array are reachable (QueueItem version) -/
+theorem Array_extract_items_reachable_QueueItem {σₕ σ : Type}
+  [_fp : StateFingerprint σ σₕ]
+  {ρ κ : Type}
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (tovisitArr : Array (QueueItem σₕ σ))
+  (h_arr_reachable : ∀ item ∈ tovisitArr.toList, sys.reachable item.state) :
+  ∀ (lr : Nat × Nat), ∀ item ∈ ((tovisitArr.extract lr.1 lr.2).map (fun item => (item.fingerprint, item.state, item.depth))).toList,
+    sys.reachable item.2.1 := by
+  intro lr ⟨h, x, d⟩ h_mem
+  rw [Array.mem_toList_iff] at h_mem
+  simp only [Array.mem_map] at h_mem
+  obtain ⟨item, h_item_in_extract, h_item_eq⟩ := h_mem
+  have h_in_original : item ∈ tovisitArr.toList := by
+    rw [Array.mem_toList_iff]
+    exact Array.mem_of_mem_extract tovisitArr lr.1 lr.2 item h_item_in_extract
+  have h_reachable := h_arr_reachable item h_in_original
+  simp only [Prod.mk.injEq] at h_item_eq
+  rw [← h_item_eq.2.1]
+  exact h_reachable
+
+/-- All items in split arrays (obtained by mapping extract and converting to tuples) are reachable (QueueItem version) -/
+theorem splitArrays_items_reachable_QueueItem {σₕ σ : Type}
+  [_fp : StateFingerprint σ σₕ]
+  {ρ κ : Type}
+  [BEq κ] [Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (tovisitArr : Array (QueueItem σₕ σ))
+  (ranges : List (Nat × Nat))
+  (splitArrays : List (Array (σₕ × σ × Nat)))
+  (h_split_def : splitArrays = ranges.map (fun lr => (tovisitArr.extract lr.1 lr.2).map (fun item => (item.fingerprint, item.state, item.depth))))
+  (h_extract_reachable : ∀ (lr : Nat × Nat), ∀ item ∈ ((tovisitArr.extract lr.1 lr.2).map (fun item => (item.fingerprint, item.state, item.depth))).toList,
+    sys.reachable item.2.1) :
+  ∀ subArr ∈ splitArrays, ∀ item ∈ subArr.toList, sys.reachable item.2.1 := by
+  intro subArr h_subArr_in item h_item_in
+  rw [h_split_def] at h_subArr_in
+  obtain ⟨lr, _, h_subArr_eq⟩ := List.mem_map.mp h_subArr_in
+  rw [← h_subArr_eq] at h_item_in
+  exact h_extract_reachable lr item h_item_in
+
 /-- Invariants are preserved when merging two LocalSearchContext instances.
-    The merged context uses fold insertIfNew for tovisit and unions for seen/localSeen. -/
+    The merged context uses filtered Array concatenation for tovisitQueue and unions for seen/localSeen. -/
 theorem merge_local_local_preserves_invs {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq κ] [Hashable κ]
@@ -526,14 +727,22 @@ theorem merge_local_local_preserves_invs {ρ σ κ σₕ : Type}
   (params : SearchParameters ρ σ)
   {baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params}
   (ctx1 ctx2 : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx) :
+  let filteredQueue := ctx2.tovisitQueue.filter fun item => !ctx1.tovisitSet.contains item.fingerprint
   @SearchContextInvariants ρ σ κ σₕ fp th sys params
-    (fun ⟨h, x, d⟩ => (ctx1.tovisit.fold (init := ctx2.tovisit) fun acc k v => acc.insertIfNew k v)[h]? = some (x, d))
+    (Membership.mem (ctx1.tovisitQueue ++ filteredQueue))
     (fun h => h ∈ ctx1.seen.union ctx2.seen ∨ h ∈ ctx1.localSeen.union ctx2.localSeen) := by
+  intro filteredQueue
   constructor
   · -- queue_sound: states in merged tovisit are reachable
-    intro x d h_lookup
-    exact fold_insertIfNew_preserves_reachability sys ctx1.tovisit ctx2.tovisit
-      ctx1.invs.queue_sound ctx2.invs.queue_sound x d h_lookup
+    intro x d h_in_merged
+    rw [Array.mem_append] at h_in_merged
+    cases h_in_merged with
+    | inl h_in_ctx1 => exact ctx1.invs.queue_sound x d h_in_ctx1
+    | inr h_in_filtered =>
+      have h_in_ctx2 : ⟨fp.view x, x, d⟩ ∈ ctx2.tovisitQueue := by
+        have := Array.mem_filter.mp h_in_filtered
+        exact this.1
+      exact ctx2.invs.queue_sound x d h_in_ctx2
   · -- visited_sound: elements in merged seen/localSeen are reachable
     intro h_inj x h_in_union
     simp only [Std.HashSet.mem_union] at h_in_union
@@ -543,21 +752,31 @@ theorem merge_local_local_preserves_invs {ρ σ κ σₕ : Type}
     · exact ctx1.invs.visited_sound h_inj x (Or.inr h3)
     · exact ctx2.invs.visited_sound h_inj x (Or.inr h4)
   · -- queue_sub_visited: elements in merged tovisit have fingerprints in merged seen/localSeen
-    intro x d h_lookup
-    have h_source := Std.HashMap.getElem?_fold_insertIfNew_source ctx1.tovisit ctx2.tovisit (fp.view x) (x, d) h_lookup
+    intro x d h_in_merged
+    rw [Array.mem_append] at h_in_merged
     simp only [Std.HashSet.mem_union]
-    rcases h_source with h_from_ctx2 | ⟨h_from_ctx1, _⟩
-    · rcases ctx2.invs.queue_sub_visited x d h_from_ctx2 with h_seen | h_local
-      · exact Or.inl (Or.inr h_seen)
-      · exact Or.inr (Or.inr h_local)
-    · rcases ctx1.invs.queue_sub_visited x d h_from_ctx1 with h_seen | h_local
+    cases h_in_merged with
+    | inl h_in_ctx1 =>
+      rcases ctx1.invs.queue_sub_visited x d h_in_ctx1 with h_seen | h_local
       · exact Or.inl (Or.inl h_seen)
       · exact Or.inr (Or.inl h_local)
+    | inr h_in_filtered =>
+      have h_in_ctx2 : ⟨fp.view x, x, d⟩ ∈ ctx2.tovisitQueue := by
+        have := Array.mem_filter.mp h_in_filtered
+        exact this.1
+      rcases ctx2.invs.queue_sub_visited x d h_in_ctx2 with h_seen | h_local
+      · exact Or.inl (Or.inr h_seen)
+      · exact Or.inr (Or.inr h_local)
   · -- queue_wellformed: fingerprints match states in merged tovisit
-    intro k x d h_lookup
-    rcases Std.HashMap.getElem?_fold_insertIfNew_source ctx1.tovisit ctx2.tovisit k (x, d) h_lookup with h_from_ctx2 | ⟨h_from_ctx1, _⟩
-    · exact ctx2.invs.queue_wellformed k x d h_from_ctx2
-    · exact ctx1.invs.queue_wellformed k x d h_from_ctx1
+    intro k x d h_in_merged
+    rw [Array.mem_append] at h_in_merged
+    cases h_in_merged with
+    | inl h_in_ctx1 => exact ctx1.invs.queue_wellformed k x d h_in_ctx1
+    | inr h_in_filtered =>
+      have h_in_ctx2 : ⟨k, x, d⟩ ∈ ctx2.tovisitQueue := by
+        have := Array.mem_filter.mp h_in_filtered
+        exact this.1
+      exact ctx2.invs.queue_wellformed k x d h_in_ctx2
 
 /-- When merging two LocalSearchContext instances with Option.or,
     if the result is exploredAllReachableStates, one of the contexts must have had it. -/
@@ -603,16 +822,37 @@ theorem merge_local_local_preserves_deltaConsistent {ρ σ κ σₕ : Type}
   (h_inj : Function.Injective fp.view)
   (x : σ)
   (h_in_localSeen : fp.view x ∈ ctx1.localSeen.union ctx2.localSeen) :
-  ∃d, (ctx1.tovisit.fold (init := ctx2.tovisit) fun acc k v => acc.insertIfNew k v)[fp.view x]? = some (x, d) := by
-  apply getElem?_fold_insertIfNew_deltaConsistent ctx1.tovisit ctx2.tovisit x
-    ctx2.invs.queue_wellformed h_inj
+  let filteredQueue := ctx2.tovisitQueue.filter fun item => !ctx1.tovisitSet.contains item.fingerprint
+  ∃d, ⟨fp.view x, x, d⟩ ∈ (ctx1.tovisitQueue ++ filteredQueue) := by
+  intro filteredQueue
   rw [Std.HashSet.mem_union] at h_in_localSeen
   rcases h_in_localSeen with h_in_ctx1 | h_in_ctx2
-  · exact Or.inl (ctx1.deltaConsistent h_inj x h_in_ctx1)
-  · exact Or.inr (ctx2.deltaConsistent h_inj x h_in_ctx2)
+  · -- x is in ctx1's localSeen → x is in ctx1's tovisitQueue
+    obtain ⟨d, h_in_queue⟩ := ctx1.deltaConsistent h_inj x h_in_ctx1
+    use d
+    rw [Array.mem_append]
+    exact Or.inl h_in_queue
+  · -- x is in ctx2's localSeen → x is in ctx2's tovisitQueue
+    by_cases h_in_ctx1_set : ctx1.tovisitSet.contains (fp.view x)
+    · -- If x is in ctx1's set, then by consistency it's in ctx1's queue with some depth
+      have ⟨item, h_item_in, h_item_fp⟩ := ctx1.tovisitConsistent (fp.view x) |>.mp h_in_ctx1_set
+      have h_wf := ctx1.invs.queue_wellformed item.fingerprint item.state item.depth h_item_in
+      have h_x_eq : x = item.state := h_inj (by rw [← h_item_fp, h_wf])
+      use item.depth
+      rw [Array.mem_append]
+      left
+      rw [h_x_eq, ← h_wf]
+      exact h_item_in
+    · -- If x is not in ctx1's set, then it passes the filter
+      obtain ⟨d, h_in_queue⟩ := ctx2.deltaConsistent h_inj x h_in_ctx2
+      use d
+      rw [Array.mem_append]
+      right
+      rw [Array.mem_filter]
+      exact ⟨h_in_queue, by simp [h_in_ctx1_set]⟩
 
 /-- Invariants are preserved when merging a ParallelSearchContext with a LocalSearchContext's results.
-    The new context uses aggregatedCtx's tovisit and merges ctx.seen with aggregatedCtx.localSeen. -/
+    The new context uses aggregatedCtx's tovisitQueue and merges ctx.seen with aggregatedCtx.localSeen. -/
 theorem merge_parallel_local_preserves_invs {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq κ] [Hashable κ]
@@ -624,7 +864,7 @@ theorem merge_parallel_local_preserves_invs {ρ σ κ σₕ : Type}
   (aggregatedCtx : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (h_base_eq : baseCtx.seen = ctx.seen) :
   @SearchContextInvariants ρ σ κ σₕ fp th sys params
-    (fun ⟨h, x, d⟩ => aggregatedCtx.tovisit[h]? = some (x, d))
+    (Membership.mem aggregatedCtx.tovisitQueue)
     (fun h => h ∈ ctx.seen.union aggregatedCtx.localSeen) := by
   constructor
   · -- queue_sound

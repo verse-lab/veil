@@ -656,4 +656,37 @@ theorem mem_flatten_of_partition {α : Type}
       apply Nat.sub_lt_sub_right h_l_le h_i_lt_r
     grind
 
+/-- Similar to mem_flatten_of_partition but with a map applied to each element.
+    If `x` is in `arr`, then `f x` is in the flatten of mapped extracted subarrays. -/
+theorem mem_flatten_of_partition_map {α β : Type}
+  (arr : Array α)
+  (ranges : List (Nat × Nat))
+  (x : α) (h_mem : x ∈ arr)
+  (h_cover : ∀ i, i < arr.size → ∃ lr ∈ ranges, lr.1 ≤ i ∧ i < lr.2)
+  (h_valid : ∀ lr ∈ ranges, lr.1 ≤ lr.2 ∧ lr.2 ≤ arr.size)
+  (f : α → β) :
+  f x ∈ (ranges.map fun lr => (arr.extract lr.1 lr.2).map f).toArray.flatten := by
+  rcases Array.mem_iff_getElem.mp h_mem with ⟨i, h_i_lt, rfl⟩
+  rcases h_cover i h_i_lt with ⟨lr, h_lr_in, h_l_le, h_i_lt_r⟩
+  rw [Array.mem_flatten]
+  let subArr := (arr.extract lr.1 lr.2).map f
+  exists subArr
+  constructor
+  · rw [List.mem_toArray, List.mem_map]; exists lr
+  · dsimp [subArr]
+    rw [Array.mem_map]
+    exists arr[i]
+    constructor
+    · rw [Array.mem_iff_getElem]
+      have h_idx_valid : i - lr.1 < (arr.extract lr.1 lr.2).size := by
+        rw [Array.size_extract]
+        have h_le_size : lr.2 ≤ arr.size := (h_valid lr h_lr_in).2
+        rw [Nat.min_eq_left h_le_size]
+        apply Nat.sub_lt_sub_right h_l_le h_i_lt_r
+      exists i - lr.1, h_idx_valid
+      simp only [Array.getElem_extract]
+      congr 1
+      omega
+    · rfl
+
 end Array

@@ -5,19 +5,20 @@ import Veil.Core.Tools.ModelChecker.Concrete.Containers
 namespace Veil.ModelChecker.Concrete
 
 /-- The frontier-closed property: all states that are discovered (in `seen`) and not in the frontier
-    (not in `tovisit`) have all their successors discovered. This is the key invariant for BFS correctness. -/
+    (not in `tovisit`) have all their successors discovered. This is the key invariant for BFS correctness.
+    This version uses HashSet for O(1) membership checking. -/
 abbrev FrontierClosed {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (seen : Std.HashSet σₕ)
-  (tovisit : Std.HashMap σₕ (σ × Nat))
+  (tovisitSet : Std.HashSet σₕ)
   (finished : Option (TerminationReason σₕ)) : Prop :=
   Function.Injective fp.view →
     (finished = some (.exploredAllReachableStates) ∨ finished = none) →
     ∀ (s : σ), fp.view s ∈ seen →
-      (tovisit[(fp.view s)]? = none) →
+      (fp.view s ∉ tovisitSet) →
       ∀ l next_s, (l, .success next_s) ∈ sys.tr th s →
       fp.view next_s ∈ seen
 
@@ -64,16 +65,17 @@ structure ParallelSearchContext {ρ σ κ σₕ : Type}
   (params : SearchParameters ρ σ)
 extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
 where
-  /-- Recording the nodes to visit in the next depth. Due to the way
-  parallel BFS works, it could be any data structure that supports `O(1)`
-  element insertion (e.g., `Array`); but to support efficient merging,
-  it's made to be an `HashMap`. -/
-  tovisit : Std.HashMap σₕ (σ × Nat)
-  invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun ⟨h, x, d⟩ => tovisit[h]? = some (x, d)) (Membership.mem seen)
-  frontier_closed : FrontierClosed sys seen tovisit finished
+  /-- Recording the nodes to visit in the next depth as an Array for efficient iteration/splitting. -/
+  tovisitQueue : Array (QueueItem σₕ σ)
+  /-- HashSet for O(1) membership checking of fingerprints in the queue. -/
+  tovisitSet : Std.HashSet σₕ
+  /-- Consistency between queue and set: a fingerprint is in the set iff some item with that fingerprint is in the queue. -/
+  tovisitConsistent : ∀ h, h ∈ tovisitSet ↔ ∃ item ∈ tovisitQueue, item.fingerprint = h
+  invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisitQueue) (Membership.mem seen)
+  frontier_closed : FrontierClosed sys seen tovisitSet finished
   starts_in_seen : ∀s₀, s₀ ∈ sys.initStates → fp.view s₀ ∈ seen
   terminate_empty_tovisit :
-    finished = some (.exploredAllReachableStates) → tovisit.isEmpty
+    finished = some (.exploredAllReachableStates) → tovisitQueue.isEmpty
 
 
 structure LocalSearchContext {ρ σ κ σₕ : Type}
@@ -85,17 +87,22 @@ structure LocalSearchContext {ρ σ κ σₕ : Type}
   (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
 extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
 where
-  tovisit : Std.HashMap σₕ (σ × Nat)
+  /-- Recording the nodes to visit as an Array for efficient iteration. -/
+  tovisitQueue : Array (QueueItem σₕ σ)
+  /-- HashSet for O(1) membership checking of fingerprints in the queue. -/
+  tovisitSet : Std.HashSet σₕ
+  /-- Consistency between queue and set: a fingerprint is in the set iff some item with that fingerprint is in the queue. -/
+  tovisitConsistent : ∀ h, h ∈ tovisitSet ↔ ∃ item ∈ tovisitQueue, item.fingerprint = h
   localSeen : Std.HashSet σₕ
   localLog : Std.HashMap σₕ (σₕ × κ)
   seenUnaltered : ∀s, s ∈ baseCtx.seen ↔ s ∈ seen
-  invs : @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun ⟨h, x, d⟩ => tovisit[h]? = some (x, d))  (fun h => h ∈ seen ∨ h ∈ localSeen)
+  invs : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisitQueue) (fun h => h ∈ seen ∨ h ∈ localSeen)
   /-- Local count of post-states generated (before deduplication) -/
   localStatesFound : Nat := 0
   /-- Local per-action statistics: label → stats -/
   localActionStatsMap : Std.HashMap κ ActionStat := {}
   excludeAllStatesFinish : finished ≠ some (.exploredAllReachableStates)
-  deltaConsistent : (Function.Injective fp.view → ∀x, (fp.view x) ∈ localSeen → ∃d, tovisit[fp.view x]? = some (x, d))
+  deltaConsistent : (Function.Injective fp.view → ∀x, (fp.view x) ∈ localSeen → ∃d, ⟨fp.view x, x, d⟩ ∈ tovisitQueue)
 
 
 /-- Merge action stats maps by summing counts for each action. -/
