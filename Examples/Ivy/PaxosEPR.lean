@@ -120,5 +120,4 @@ invariant [oneb_leftrnd] one_b N R2 ∧ ¬tot.le R2 R1 -> left_rnd N R1
 
 #check_invariants
 
-
 end PaxosEPR

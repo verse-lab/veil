@@ -181,24 +181,36 @@ def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
   | .ok exitCode => return { exitCode, stdout, stderr, interrupted }
   | .error err => return { exitCode := 1, stdout, stderr := s!"{stderr}\nIO error: {err}", interrupted }
 
-/-- Run a process with a callback for status updates.
-    The callback is called periodically while the process runs.
+/-- Run a process with callbacks for status updates and line-by-line output capture.
+    - `statusCallback` is called periodically (every 500ms) with the elapsed time in ms.
+    - `lineCallback` is called for each line of output (content, isError, elapsedMs).
     This variant does not check for cancellation - it runs to completion. -/
 def runProcessWithStatusCallback (cfg : IO.Process.SpawnArgs)
-    (updateStatus : IO Unit) : IO ProcessResult := do
+    (statusCallback : Nat → IO Unit)
+    (lineCallback : String → Bool → Nat → IO Unit := fun _ _ _ => pure ())
+    : IO ProcessResult := do
+  let startTime ← IO.monoMsNow
   let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
-  -- Start reading stdout/stderr in background tasks to avoid blocking
-  let stdoutTask ← IO.asTask (prio := .dedicated) proc.stdout.readToEnd
-  let stderrTask ← IO.asTask (prio := .dedicated) proc.stderr.readToEnd
+  let stdoutAccum ← IO.mkRef ""
+  let stderrAccum ← IO.mkRef ""
+  -- Helper to read lines from a handle
+  let readLines (handle : IO.FS.Handle) (accum : IO.Ref String) (isError : Bool) : IO Unit := do
+    while true do
+      let line ← handle.getLine
+      if line.isEmpty then break
+      accum.modify (· ++ line)
+      lineCallback line.trimRight isError ((← IO.monoMsNow) - startTime)
+  let stdoutTask ← IO.asTask (prio := .dedicated) (readLines proc.stdout stdoutAccum false)
+  let stderrTask ← IO.asTask (prio := .dedicated) (readLines proc.stderr stderrAccum true)
   let waitTask ← IO.asTask (prio := .dedicated) proc.wait
   while !(← IO.hasFinished waitTask) do
-    updateStatus
-    IO.sleep 500  -- Update every 500ms
-  let stdout ← IO.ofExcept (← IO.wait stdoutTask)
-  let stderr ← IO.ofExcept (← IO.wait stderrTask)
+    statusCallback ((← IO.monoMsNow) - startTime)
+    IO.sleep 500
+  let _ ← IO.wait stdoutTask
+  let _ ← IO.wait stderrTask
   match ← IO.wait waitTask with
-  | .ok exitCode => return { exitCode, stdout, stderr, interrupted := false }
-  | .error err => return { exitCode := 1, stdout, stderr := s!"{stderr}\nIO error: {err}", interrupted := false }
+  | .ok exitCode => return { exitCode, stdout := ← stdoutAccum.get, stderr := ← stderrAccum.get, interrupted := false }
+  | .error err => return { exitCode := 1, stdout := ← stdoutAccum.get, stderr := s!"{← stderrAccum.get}\nIO error: {err}", interrupted := false }
 
 -- /-- Clean up all build folders older than the specified age (in milliseconds). -/
 -- def cleanupOldBuildFolders (maxAgeMs : Nat := 24 * 60 * 60 * 1000) : IO Nat := do

@@ -85,7 +85,7 @@ def formatElapsedTime (ms : Nat) : String :=
 /-- Generate status text including compilation info. -/
 private def statusWithCompilation (p : Progress) : String :=
   match p.compilationStatus with
-  | .inProgress ms => s!"{p.status} (compiling: {formatElapsedTime ms})"
+  | .inProgress ms _ => s!"{p.status} (compiling: {formatElapsedTime ms})"
   | .failed _ => s!"{p.status} (compilation failed)"
   | _ => p.status
 
@@ -98,6 +98,35 @@ private def compilationFailureHtml (err : String) : Html :=
     <pre style={json% {"whiteSpace": "pre-wrap", "wordBreak": "break-word", "fontFamily": "monospace", "fontSize": "11px", "margin": "8px 0", "padding": "8px", "backgroundColor": "var(--vscode-textBlockQuote-background, #222)", "borderRadius": "4px", "maxHeight": "200px", "overflow": "auto"}}>
       {.text err}
     </pre>
+  </details>
+
+/-- Generate HTML for a single log line. -/
+private def logLineHtml (line : Concrete.CompilationLogLine) : Html := Id.run do
+  let timeStr := formatElapsedTime line.timestamp
+  let contentStyle := if line.isError
+    then json% {"color": "#ff8888"}
+    else json% {"color": "#cccccc"}
+  return <div style={json% {"fontFamily": "monospace", "fontSize": "10px", "whiteSpace": "pre-wrap", "wordBreak": "break-all"}}>
+    <span style={json% {"color": "#666", "marginRight": "8px"}}>[{.text timeStr}]</span>
+    <span style={contentStyle}>{.text line.content}</span>
+  </div>
+
+/-- Generate HTML for live compilation log during compilation. -/
+private def compilationLogHtml (elapsedMs : Nat) (logLines : Array Concrete.CompilationLogLine) : Html :=
+  <details style={json% {"marginTop": "8px"}}>
+    <summary style={json% {"color": "#888", "cursor": "pointer", "fontSize": "12px"}}>
+      Compilation log ({.text (toString logLines.size)} lines, {.text (formatElapsedTime elapsedMs)})
+    </summary>
+    <div style={json% {
+      "marginTop": "4px",
+      "padding": "8px",
+      "backgroundColor": "var(--vscode-textBlockQuote-background, #1e1e1e)",
+      "borderRadius": "4px",
+      "maxHeight": "300px",
+      "overflow": "auto"
+    }}>
+      {.element "div" #[] (logLines.map logLineHtml)}
+    </div>
   </details>
 
 private def statRow (label value : String) : Html :=
@@ -254,6 +283,7 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
     </table>
     {actionCoverageHtml p.actionStats p.allActionLabels}
     {match p.compilationStatus with
+     | .inProgress ms lines => if lines.isEmpty then .text "" else compilationLogHtml ms lines
      | .failed err => compilationFailureHtml err
      | _ => .text ""}
   </div>
@@ -296,19 +326,19 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
      | some json =>
        match extractError json with
        | some errorMsg => errorBox errorMsg
-       | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical"⟩ #[] else noResultData
+       | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical", none⟩ #[] else noResultData
      | none => noResultData}
   </div>
 
 /-- Create a streaming progress widget that polls progress by instance ID. -/
-partial def mkProgressWidget (instanceId : Nat) : CoreM Html := do
-  mkRefreshComponent (.text "Starting model checker...") (runRefreshStepM (getProgressStep instanceId))
+def mkProgressWidget (instanceId : Nat) : CoreM Html := do
+  mkRefreshComponent (.text "Starting model checker...") (getProgressStep instanceId)
 where
-  getProgressStep (id : Nat) : CoreM (RefreshStep CoreM) := do
+  getProgressStep (id : Nat) : CoreM RefreshComponent.RefreshStep := do
     IO.sleep 100
     let progress ← getProgress id
     if progress.isRunning then
-      return .cont (progressToHtml progress (some id)) (getProgressStep id)
+      return .cont (progressToHtml progress (some id))
     else
       return .last (mkFinalResultHtml progress (← getResultJson id))
 

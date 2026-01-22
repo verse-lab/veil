@@ -123,7 +123,8 @@ deriving Inhabited
 
 /-- A notification from a discharger to the VCManager. -/
 abbrev DischargerNotification (ResultT : Type) := (DischargerIdentifier × DischargerResult ResultT)
-abbrev DischargerTask (ResultT : Type) := Task (Except Exception (DischargerResult ResultT))
+/-- A task that produces a SnapshotTree for integration with the language server. -/
+abbrev SnapshotTreeTask := Task Language.SnapshotTree
 
 /-- A way of discharging / proving a VC.-/
 structure Discharger (ResultT : Type) where
@@ -134,18 +135,20 @@ structure Discharger (ResultT : Type) where
   term : Option Term := none
   /-- A cancellation token for the discharger. -/
   cancelTk : IO.CancelToken
-  /-- The discharger.  -/
-  task : Option (DischargerTask ResultT)
+  /-- The snapshot tree task for integration with the language server's error
+  reporting. This is produced by `wrapAsyncAsSnapshot`. -/
+  task : Option SnapshotTreeTask
   /-- Promise that resolves to the monotonic timestamp (ms) when the discharger
   actually starts executing. This is set by the discharger itself, not when
   the task is scheduled. -/
   startTimePromise : IO.Promise Nat
-  /-- Creates a task that discharges the VC. It's the task responsibility to
-  return to the VCManager a `VCDischargeStatus`. This is done via the `ch`
-  field of the `VCManager`. Running the resulting `BaseIO` action causes the
-  task to be started eagerly. The task should be stored in the `task` field for
-  later access. -/
-  private mkTask : BaseIO (DischargerTask ResultT)
+  /-- Promise that resolves to the discharger result. This is how results are
+  communicated since `wrapAsyncAsSnapshot` returns Unit. -/
+  resultPromise : IO.Promise (DischargerResult ResultT)
+  /-- Creates a task that discharges the VC. Running the resulting `BaseIO`
+  action causes the task to be started eagerly. The task should be stored in
+  the `task` field for later access. -/
+  private mkTask : BaseIO SnapshotTreeTask
 
 structure VCData (VCMetaT : Type) extends VCStatement where
   /-- Metadata associated with this VC, provided by the frontend. -/
@@ -192,7 +195,7 @@ section VCManager
 inductive ManagerNotification (VCMetaT ResultT : Type) where
   | dischargerResult (id : DischargerIdentifier) (res : DischargerResult ResultT)
   /-- Issued by the frontend to reset the VCManager. -/
-  | reset
+  | reset (managerId : ManagerId)
   /-- Issued by the frontend to start all ready tasks. -/
   | startAll
   /-- Start VCs matching the filter. -/
@@ -203,7 +206,7 @@ instance [ToString ResultT] : ToString (ManagerNotification VCMetaT ResultT) whe
   toString res :=
     match res with
     | .dischargerResult dischargerId res => s!"dischargerResult {dischargerId} {res}"
-    | .reset => s!"reset"
+    | .reset managerId => s!"reset {managerId}"
     | .startAll => s!"startAll"
     | .startFiltered _ => s!"startFiltered"
 
@@ -370,13 +373,15 @@ def Discharger.run (discharger : Discharger ResultT) : BaseIO (Discharger Result
 def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatus ResultT) := do
   match discharger.task with
   | none => return .notStarted
-  | some task =>
-    match ← IO.hasFinished task with
+  | some _ =>
+    -- Check if the result promise has been resolved
+    let resultTask := discharger.resultPromise.result?
+    match ← IO.hasFinished resultTask with
+    | true =>
+      match resultTask.get with
+      | some res => return .finished res
+      | none => panic! "Discharger.status: result promise resolved to none"
     | false => return .running
-    | true => do
-      match task.get with
-      | .ok res => return .finished res
-      | .error ex => return .finished (.error #[(ex, s!"{← ex.toMessageData.toString}")] default)
 
 def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
   match (← discharger.status) with
@@ -447,7 +452,7 @@ def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0)
 def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr := mgr
   let vcId := id.vcId
-  let mut .some vc := mgr.nodes[vcId]? | panic! "VCManager.markDischarger: VC {vcId} not found"
+  let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
   let mut vcStatus := .unknown
   -- Store the discharger result for JSON serialization
   mgr := { mgr with _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res }
@@ -460,7 +465,7 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
     | some downstream => downstream
     | none => HashSet.emptyWithCapacity 0
     for downstreamVc in downstream do
-      let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | panic! "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"
+      let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
       mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
   | .disproven _ _ => vcStatus := .disproven
   | .unknown _ _ => vcStatus := .unknown
@@ -480,6 +485,13 @@ def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Stri
   match mgr._doneWith[vcId]? with
   | some vcStatus => vcStatus.emoji
   | none => "❓❓❓"
+
+/-- Find a VC matching the given filter, returning its ID if found.
+Used to avoid creating duplicate VCs for the same trace query. -/
+def VCManager.findVCByFilter (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool)
+    : Option VCId :=
+  mgr.nodes.toArray.findSome? fun (vcId, vc) =>
+    if filter vc.metadata then some vcId else none
 
 /-- Check if all VCs are done. A VC is considered "done" if it's either:
 - In `_doneWith` (has been processed), or

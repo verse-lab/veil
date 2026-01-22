@@ -9,6 +9,8 @@ import Std.Data.ExtTreeSet.Lemmas
 
 open Std
 
+def List.insertOrdered [inst : Ord α] := @List.orderedInsert _ (fun x y => inst.compare x y == Ordering.lt) inferInstance
+
 /-! # Axiomatizations of various structures -/
 
 instance Fin.pos_then_inhabited {n : Nat} (h : 0 < n) : Inhabited (Fin n) where
@@ -293,8 +295,8 @@ instance quorum_mem_dec (n : Nat) : ∀ a (q : Quorum n), Decidable (a ∈ q.val
 /-! ## Byzantine node set -/
 
 class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset : outParam Type) where
-  is_byz : node → Prop
-  member (a : node) (s : nset) : Prop
+  is_byz : node → Bool
+  member (a : node) (s : nset) : Bool
   is_empty (s : nset) : Prop
 
   greater_than_third (s : nset) : Prop  -- f + 1 nodes

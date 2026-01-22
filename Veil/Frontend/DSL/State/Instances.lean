@@ -72,6 +72,8 @@ instance instOrdExtTreeMap [Ord α] [Ord β] [Std.TransOrd α]
 `DecidableEq` instances
 -/
 
+instance instDecidableMemList [Ord α] [DecidableEq α] (a : α) (l : List α) : Decidable (List.Mem a l) := List.instDecidableMemOfLawfulBEq a l
+
 instance instDecidableEqExtTreeSet [Ord α] [DecidableEq α] [Std.TransOrd α]
   : DecidableEq (Std.ExtTreeSet α) := fun t₁ t₂ =>
   decidable_of_iff (t₁.toList = t₂.toList) Std.ExtTreeSet.toList_inj

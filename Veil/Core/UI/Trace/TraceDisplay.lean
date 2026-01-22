@@ -15,6 +15,8 @@ structure TraceDisplayProps where
   result : Json
   /-- Display orientation: "vertical" or "horizontal" -/
   layout : String := "vertical"
+  /-- Optional raw HTML representation of the SMT model, for displaying the unprocessed model. -/
+  rawHtml : Option Html := none
 deriving RpcEncodable
 
 @[widget_module]

@@ -63,17 +63,19 @@ def displayResults (atStx : Syntax) (results : VerificationResults VCMetadata Sm
   let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
   displayWidget atStx html
 
-partial def displayStreamingResults (atStx : Syntax) (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus)) : CommandElabM Unit := do
+def displayStreamingResults (atStx : Syntax) (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus)) : CommandElabM Unit := do
   let (insertPosition, documentUri) ← getInsertInfo atStx
-  let html ← liftCoreM <| ProofWidgets.mkRefreshComponent (.text "Loading...") (runRefreshStepM (getStreamingResults insertPosition documentUri))
+  let html ← liftCoreM <| ProofWidgets.mkRefreshComponent (.text "Loading...")
+    (getStreamingResults insertPosition documentUri getter)
   displayWidget atStx html
   where
-  getStreamingResults (insertPosition : Lsp.Position) (documentUri : String) : CoreM (RefreshStep CoreM) := do
+  getStreamingResults (insertPosition : Lsp.Position) (documentUri : String)
+      (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus)) : CoreM RefreshStep := do
     vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
     let (results, status) ← getter
     let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
     match status with
-    | .running => return .cont html (getStreamingResults insertPosition documentUri)
+    | .running => return .cont html
     | .done => return .last html
 
 /-- Map VCStatus to emoji for text output. -/

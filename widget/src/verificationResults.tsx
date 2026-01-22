@@ -545,23 +545,27 @@ function getStatusClass(status: VerificationCondition['status']): string {
   return status || 'pending';
 }
 
-// Extract exceptions from dischargers
+// Extract exceptions from dischargers (deduplicated)
 function getExceptionsFromVC(vc: VerificationCondition): string[] {
-  const exceptions: string[] = [];
+  const exceptionsSet = new Set<string>();
   for (const discharger of vc.timing.dischargers) {
     // Check if status is an object with finished.res.exceptions
     if (typeof discharger.status === 'object' && discharger.status !== null) {
       const finished = (discharger.status as DischargerStatusFinished).finished;
       if (finished?.res?.exceptions) {
-        exceptions.push(...finished.res.exceptions);
+        for (const ex of finished.res.exceptions) {
+          exceptionsSet.add(ex);
+        }
       }
     }
     // Also check the result field for exceptions
     if (discharger.result?.exceptions) {
-      exceptions.push(...discharger.result.exceptions);
+      for (const ex of discharger.result.exceptions) {
+        exceptionsSet.add(ex);
+      }
     }
   }
-  return exceptions;
+  return Array.from(exceptionsSet);
 }
 
 // Helper to check if a VC is an induction VC
@@ -694,9 +698,16 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   // Default to TR counterexample if available, otherwise WP
   const activeCounterexample = (showTRCounterexample && trCounterexample) || wpCounterexample;
 
-  // Get exceptions from the VC
-  const exceptions = getExceptionsFromVC(vc);
-  const hasExceptions = exceptions.length > 0;
+  // Get all exceptions from both VCs (deduplicated)
+  const allExceptions = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const ex of getExceptionsFromVC(vc)) set.add(ex);
+    if (alternativeVC) {
+      for (const ex of getExceptionsFromVC(alternativeVC)) set.add(ex);
+    }
+    return Array.from(set);
+  }, [vc, alternativeVC]);
+  const hasExceptions = allExceptions.length > 0;
 
   // Row is expandable if it has counterexamples or exceptions
   const isExpandable = hasAnyCounterexample || hasExceptions;
@@ -872,7 +883,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
         <div className="exceptions-container">
           <div className="exceptions-label">Exceptions</div>
           <div className="exceptions-content">
-            {exceptions.map((exception, idx) => (
+            {allExceptions.map((exception, idx) => (
               <pre key={idx} className="exception-item">{exception}</pre>
             ))}
           </div>

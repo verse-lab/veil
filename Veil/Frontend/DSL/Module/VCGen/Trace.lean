@@ -80,48 +80,58 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
     (vcStatement : VCStatement) (dischargerId : DischargerIdentifier)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
-  let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
+  -- let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
+  let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new
   -- Generate an internal tactic that uses veil_smt which handles SMT configuration
   let smtTactic ← `(term| by veil_bmc)
-  -- Create a promise to track when the discharger actually starts executing
+  -- Create promises to track start time and result
   let startTimePromise ← IO.Promise.new
-  let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
-    let res ← (do
-      -- Resolve the start time promise when the discharger actually begins
-      let startTime ← IO.monoMsNow
-      startTimePromise.resolve startTime
-      try
-        liftTermElabM $ do
-          let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
-          -- Elaborate the tactic against the goal type (same pattern as Induction.lean)
-          -- We don't need the witness for trace queries, just the SMT result
-          let _ ← instantiateMVars $ ← withSynthesize (postpone := .no) $
-            withoutErrToSorry $ elabTermEnsuringType smtTactic (← vcStatement.type)
+  let resultPromise ← IO.Promise.new
+  -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
+  let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
+    -- Wrap in profiler trace for discharger timing
+    withTraceNode (`veil.perf.discharger ++ dischargerId.name)
+        (fun _ => return s!"trace discharger {dischargerId.name}") do
+      let res ← (do
+        -- Resolve the start time promise when the discharger actually begins
+        let startTime ← IO.monoMsNow
+        startTimePromise.resolve startTime
+        try
+          liftTermElabM $ do
+            let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
+            -- Elaborate the tactic against the goal type (same pattern as Induction.lean)
+            -- We don't need the witness for trace queries, just the SMT result
+            let _ ← instantiateMVars $ ← withSynthesize (postpone := .no) $
+              withoutErrToSorry $ elabTermEnsuringType smtTactic (← vcStatement.type)
+            let endTime ← IO.monoMsNow
+            -- For trace queries, we don't require the witness to be complete
+            -- The SMT result is what matters
+            let dischargerResult ← mkTraceDischargerResult dischargerId.name numTransitions
+              isExpectedSat smtCh (endTime - startTime)
+            return dischargerResult
+        catch ex =>
           let endTime ← IO.monoMsNow
-          -- For trace queries, we don't require the witness to be complete
-          -- The SMT result is what matters
-          let dischargerResult ← mkTraceDischargerResult dischargerId.name numTransitions
-            isExpectedSat smtCh (endTime - startTime)
-          return dischargerResult
-      catch ex =>
-        let endTime ← IO.monoMsNow
-        liftTermElabM $ mkTraceDischargerResult dischargerId.name numTransitions
-          isExpectedSat smtCh (endTime - startTime) (ex? := some ex)
-      finally
-        if ← cancelTk.isSet then
-          pure ()
-    )
-    let _ ← ch.send (.dischargerResult dischargerId res)
-    return res
+          liftTermElabM $ mkTraceDischargerResult dischargerId.name numTransitions
+            isExpectedSat smtCh (endTime - startTime) (ex? := some ex)
+        finally
+          if ← cancelTk.isSet then
+            pure ()
+      )
+      -- Resolve the result promise so Discharger.status can read it
+      resultPromise.resolve res
+      -- Send notification to manager
+      let _ ← ch.send (.dischargerResult dischargerId res)
+      -- Note: wrapAsyncAsSnapshot expects Unit, so no return value
   ) cancelTk
-  let mkTask := EIO.asTask (mk vcStatement)
+  let mkTask := (mk vcStatement).asTask
   return {
     id := dischargerId,
     term := smtTactic,
     cancelTk := cancelTk,
     task := Option.none,
     startTimePromise := startTimePromise,
+    resultPromise := resultPromise,
     mkTask := mkTask
   }
 
@@ -144,11 +154,12 @@ def mkTraceVCStatement (_mod : Module) (name : Name) (statement : Term)
 
 /-- Create VCMetadata for a trace query. -/
 def mkTraceVCMetadata (isExpectedSat : Bool) (numTransitions : Nat)
-    (traceName : Option Name := none) : VCMetadata :=
+    (traceName : Option Name := none) (assertion : Option Term := none) : VCMetadata :=
   .trace {
     isExpectedSat := isExpectedSat
     numTransitions := numTransitions
     traceName := traceName
+    assertion := assertion
   }
 
 end Veil

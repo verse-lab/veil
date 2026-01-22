@@ -146,24 +146,57 @@ def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   (type : Option Expr := none)
   (addNamespace : Bool := true)
   : TermElabM Name := do
-  let n ← addVeilDefinitionAsync n e compile red attr type addNamespace
-  enableRealizationsForConst n
-  Term.applyAttributes n attr
-  return n
+  -- Use dynamic trace class name so each definition appears separately in the profiler
+  withTraceNode (`veil.perf.definition ++ n) (fun _ => return s!"def {n}") do
+    let n ← addVeilDefinitionAsync n e compile red attr type addNamespace
+    enableRealizationsForConst n
+    Term.applyAttributes n attr
+    return n
 
 def addVeilTheorem (n : Name) (statement : Expr) (proof : Expr) (attr : Array Attribute := #[]) (addNamespace : Bool := true) : TermElabM Name := do
-  let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
-  let decl := Declaration.thmDecl (mkTheoremValEx fullName [] statement proof [])
-  addDecl decl
-  enableRealizationsForConst fullName
-  Term.applyAttributes fullName attr
-  return fullName
+  -- Use dynamic trace class name so each theorem appears separately in the profiler
+  withTraceNode (`veil.perf.definition ++ n) (fun _ => return s!"thm {n}") do
+    let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
+    let decl := Declaration.thmDecl (mkTheoremValEx fullName [] statement proof [])
+    addDecl decl
+    enableRealizationsForConst fullName
+    Term.applyAttributes fullName attr
+    return fullName
+
+/-- Try to extract the declaration name from a command syntax.
+    Works for def, abbrev, theorem, etc. by looking at the syntax structure. -/
+private def extractDeclName? (stx : Syntax) : Option (String × Name) := do
+  -- Check if this is a declaration command
+  let kind := stx.getKind
+  guard (kind == ``Lean.Parser.Command.declaration)
+  -- Structure: declaration -> declModifiers -> declId -> ident
+  -- Try to find the declId in the syntax tree
+  let declKind := stx[1].getKind  -- def/abbrev/theorem/etc
+  let kindStr := if declKind == ``Lean.Parser.Command.definition then "def"
+    else if declKind == ``Lean.Parser.Command.abbrev then "abbrev"
+    else if declKind == ``Lean.Parser.Command.theorem then "theorem"
+    else if declKind == ``Lean.Parser.Command.instance then "instance"
+    else "decl"
+  -- declId is typically at stx[1][1] for definitions
+  let declId := stx[1][1]
+  let name := declId[0].getId
+  guard (!name.isAnonymous)
+  return (kindStr, name)
 
 /-- A wrapper around Lean's standard `elabCommand`, which performs
 Veil-specific logging and sanity-checking. -/
 def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
-  trace[veil.desugar] "{stx}"
-  elabCommand stx
+  -- Try to extract a more specific name for declarations
+  let (traceClass, displayName) := match extractDeclName? stx with
+    | some (kindStr, name) =>
+      let cls := `veil.perf.elaborator ++ Name.mkSimple kindStr ++ name
+      (cls, s!"{kindStr} {name}")
+    | none =>
+      (`veil.perf.elaborator ++ stx.getKind, s!"{stx.getKind}")
+  -- Use dynamic trace class name so each command appears separately in the profiler
+  withTraceNode traceClass (fun _ => return displayName) do
+    trace[veil.desugar] "{stx}"
+    elabCommand stx
 
 /-- Is this type a `Decidable` instance? -/
 def isDecidableInstance (type : Expr) : TermElabM Bool := do

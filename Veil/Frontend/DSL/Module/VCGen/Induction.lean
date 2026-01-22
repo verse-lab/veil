@@ -69,45 +69,55 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
     (dischargerId : DischargerIdentifier)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
-  let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
+  -- let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
+  let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new
-  -- Create a promise to track when the discharger actually starts executing
+  -- Create promises to track start time and result
   let startTimePromise ← IO.Promise.new
-  let mk ← Command.wrapAsync (fun vcStatement : VCStatement => do
-    let res ← (do
-      -- Resolve the start time promise when the discharger actually begins
-      let startTime ← IO.monoMsNow
-      startTimePromise.resolve startTime
-      try
-        liftTermElabM $ do
-          let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
-          let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
-            withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+  let resultPromise ← IO.Promise.new
+  -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
+  let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
+    -- Wrap in profiler trace for discharger timing
+    withTraceNode (`veil.perf.discharger ++ dischargerId.name)
+        (fun _ => return s!"discharger {dischargerId.name}") do
+      let res ← (do
+        -- Resolve the start time promise when the discharger actually begins
+        let startTime ← IO.monoMsNow
+        startTimePromise.resolve startTime
+        try
+          liftTermElabM $ do
+            let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
+            let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
+              withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+            let endTime ← IO.monoMsNow
+            if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
+              throwError "unsolved goals"
+            let dischargerResult ← mkDischargerResult dischargerId.name actName smtCh
+              (.inl witness) (endTime - startTime)
+            return dischargerResult
+        catch ex =>
           let endTime ← IO.monoMsNow
-          if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
-            throwError "unsolved goals"
-          let dischargerResult ← mkDischargerResult dischargerId.name actName smtCh
-            (.inl witness) (endTime - startTime)
+          let dischargerResult ← liftTermElabM $ mkDischargerResult dischargerId.name actName smtCh
+            (.inr ex) (endTime - startTime)
           return dischargerResult
-      catch ex =>
-        let endTime ← IO.monoMsNow
-        let dischargerResult ← liftTermElabM $ mkDischargerResult dischargerId.name actName smtCh
-          (.inr ex) (endTime - startTime)
-        return dischargerResult
-      finally
-        if ← cancelTk.isSet then
-          pure ()
-    )
-    let _ ← ch.send (.dischargerResult dischargerId res)
-    return res
+        finally
+          if ← cancelTk.isSet then
+            pure ()
+      )
+      -- Resolve the result promise so Discharger.status can read it
+      resultPromise.resolve res
+      -- Send notification to manager
+      let _ ← ch.send (.dischargerResult dischargerId res)
+      -- Note: wrapAsyncAsSnapshot expects Unit, so no return value
   ) cancelTk
-  let mkTask := EIO.asTask (mk vcStatement)
+  let mkTask := (mk vcStatement).asTask
   return {
     id := dischargerId,
     term := term,
     cancelTk := cancelTk,
     task := Option.none,
     startTimePromise := startTimePromise,
+    resultPromise := resultPromise,
     mkTask := mkTask
   }
 

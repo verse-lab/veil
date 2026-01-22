@@ -9,3 +9,7 @@ veil.zip
 # Widget build artifacts
 widget/dist/
 widget/node_modules/
+
+# Profiler output
+*.json
+profiles/

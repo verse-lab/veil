@@ -64,5 +64,4 @@ termination big > 0
 set_option veil.violationIsError false in
 #model_check { }
 
-
 end DieHard

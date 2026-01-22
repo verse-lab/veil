@@ -10,18 +10,25 @@ import Veil.Core.Tools.ModelChecker.Concrete.Core
 namespace Veil.ModelChecker.Concrete
 open Lean
 
+/-- A single log line with timestamp and source. -/
+structure CompilationLogLine where
+  timestamp : Nat    -- milliseconds since compilation start
+  content : String
+  isError : Bool := false  -- true if from stderr
+  deriving ToJson, FromJson, Inhabited, Repr
+
 /-- Status of background compilation. -/
 inductive CompilationStatus where
-  | none                          -- No background compilation
-  | inProgress (elapsedMs : Nat)  -- Compilation is running
-  | succeeded                     -- Compilation finished successfully
-  | failed (error : String)       -- Compilation failed with error message
+  | none                                                            -- No background compilation
+  | inProgress (elapsedMs : Nat) (logLines : Array CompilationLogLine)  -- Compilation is running
+  | succeeded                                                       -- Compilation finished successfully
+  | failed (error : String)                                         -- Compilation failed with error message
   deriving Inhabited, Repr
 
 instance : ToJson CompilationStatus where
   toJson
     | .none => Json.mkObj [("status", "none")]
-    | .inProgress ms => Json.mkObj [("status", "inProgress"), ("elapsedMs", ms)]
+    | .inProgress ms lines => Json.mkObj [("status", "inProgress"), ("elapsedMs", ms), ("logLines", toJson lines)]
     | .succeeded => Json.mkObj [("status", "succeeded")]
     | .failed err => Json.mkObj [("status", "failed"), ("error", err)]
 
@@ -30,7 +37,10 @@ instance : FromJson CompilationStatus where
     let status ← j.getObjValAs? String "status"
     match status with
     | "none" => return .none
-    | "inProgress" => return .inProgress (← j.getObjValAs? Nat "elapsedMs")
+    | "inProgress" =>
+      let ms ← j.getObjValAs? Nat "elapsedMs"
+      let lines := (j.getObjValAs? (Array CompilationLogLine) "logLines").toOption.getD #[]
+      return .inProgress ms lines
     | "succeeded" => return .succeeded
     | "failed" => return .failed (← j.getObjValAs? String "error")
     | _ => throw s!"Unknown compilation status: {status}"
@@ -201,6 +211,19 @@ where
 
 def updateCompilationStatus (instanceId : Nat) (status : CompilationStatus) : IO Unit :=
   withRefs instanceId fun refs => refs.progressRef.modify fun p => { p with compilationStatus := status }
+
+/-- Update compilation log with a new line. -/
+def updateCompilationLog (instanceId : Nat) (elapsedMs : Nat) (line : String) (isError : Bool) : IO Unit :=
+  withRefs instanceId fun refs => refs.progressRef.modify fun p =>
+    let existingLines := match p.compilationStatus with | .inProgress _ l => l | _ => #[]
+    let newLine : CompilationLogLine := { timestamp := elapsedMs, content := line, isError }
+    { p with compilationStatus := .inProgress elapsedMs (existingLines.push newLine) }
+
+/-- Update just elapsed time without adding a log line. -/
+def updateCompilationElapsed (instanceId : Nat) (elapsedMs : Nat) : IO Unit :=
+  withRefs instanceId fun refs => refs.progressRef.modify fun p =>
+    let lines := match p.compilationStatus with | .inProgress _ l => l | _ => #[]
+    { p with compilationStatus := .inProgress elapsedMs lines }
 
 def requestHandoff (instanceId : Nat) : IO Unit := withRefs instanceId (·.handoffRequested.set true)
 
