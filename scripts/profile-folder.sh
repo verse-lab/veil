@@ -37,7 +37,17 @@ show_aggregated_results() {
         else
             echo -e "${GREEN}Aggregated timing summary:${NC}"
         fi
-        "$SCRIPT_DIR/parse-profile.py" "${PROFILE_FILES[@]}" "${PARSE_ARGS[@]}" | tee "$TIMING_FILE"
+        # Write header with options used
+        {
+            echo "# Generated: $(date)"
+            echo "# Options: ${PARSE_ARGS[*]:-<default>}"
+            echo "# Profiles: ${#PROFILE_FILES[@]}"
+            echo "#"
+            echo "# To regenerate with different options:"
+            echo "#   ./scripts/parse-profile.py \$(cat $OUTPUT_DIR/profiles.txt) [options]"
+            echo ""
+        } > "$TIMING_FILE"
+        "$SCRIPT_DIR/parse-profile.py" "${PROFILE_FILES[@]}" "${PARSE_ARGS[@]}" | tee -a "$TIMING_FILE"
         echo ""
         echo "Timing saved to: $TIMING_FILE"
     else
@@ -92,6 +102,7 @@ echo ""
 # Initialize summary files
 SUMMARY_FILE="$OUTPUT_DIR/summary.txt"
 CSV_FILE="$OUTPUT_DIR/summary.csv"
+PROFILES_FILE="$OUTPUT_DIR/profiles.txt"
 
 echo "Veil Profiling Summary" > "$SUMMARY_FILE"
 echo "======================" >> "$SUMMARY_FILE"
@@ -100,6 +111,9 @@ echo "Folder: $FOLDER" >> "$SUMMARY_FILE"
 echo "" >> "$SUMMARY_FILE"
 
 echo "file,status,real_seconds,cpu_seconds,profile_file" > "$CSV_FILE"
+
+# Clear profiles list (will be populated as we go)
+: > "$PROFILES_FILE"
 
 # Track statistics
 TOTAL_REAL_TIME=0
@@ -133,6 +147,7 @@ for FILE in $LEAN_FILES; do
 
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         PROFILE_FILES+=("$PROFILE_PATH")
+        echo "$PROFILE_PATH" >> "$PROFILES_FILE"
 
         echo -e "${GREEN}OK${NC} (real ${REAL_TIME}s / cpu ${CPU_TIME}s)"
         echo "$RELATIVE_PATH: real ${REAL_TIME}s / cpu ${CPU_TIME}s - OK" >> "$SUMMARY_FILE"
@@ -161,9 +176,10 @@ echo ""
 echo -e "${GREEN}Profiling complete!${NC}"
 echo ""
 echo "Results:"
-echo "  - Profiles: $OUTPUT_DIR/*.json"
-echo "  - Summary:  $SUMMARY_FILE"
-echo "  - CSV:      $CSV_FILE"
+echo "  - Profiles:      $OUTPUT_DIR/*.json"
+echo "  - Profiles list: $PROFILES_FILE"
+echo "  - Summary:       $SUMMARY_FILE"
+echo "  - CSV:           $CSV_FILE"
 echo ""
 echo "Statistics:"
 echo "  - Total files: $FILE_COUNT"
@@ -173,6 +189,14 @@ echo "  - Total time: real ${TOTAL_REAL_TIME}s / cpu ${TOTAL_CPU_TIME}s"
 echo ""
 echo "To view a profile, upload the .json file to:"
 echo "  https://profiler.firefox.com/"
+echo ""
+echo "To re-analyze with different options:"
+echo "  ./scripts/parse-profile.py \$(cat $PROFILES_FILE) [options]"
+echo ""
+echo "Examples:"
+echo "  ./scripts/parse-profile.py \$(cat $PROFILES_FILE) -f veil.perf.elaborator"
+echo "  ./scripts/parse-profile.py \$(cat $PROFILES_FILE) -f veil.perf.tactic -f veil.perf.extract"
+echo "  ./scripts/parse-profile.py \$(cat $PROFILES_FILE) --exclude veil.perf.discharger"
 
 # Aggregate results from all successful profiles
 show_aggregated_results "complete"
