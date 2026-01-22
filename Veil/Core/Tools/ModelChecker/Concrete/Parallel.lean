@@ -194,28 +194,26 @@ def LocalSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
   (h_not_finished : !ctx.hasFinished)
 : {ctx' : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx //
     ctx'.finished = ctx.finished ∧
-    (∀fp, fp ∈ ctx.localSeen → fp ∈ ctx'.localSeen) ∧
-    (ctx'.seen.contains (fp.view neighbor.2) ∨ ctx'.localSeen.contains (fp.view neighbor.2))  } :=
+    (∀fp, fp ∈ ctx.tovisitSet → fp ∈ ctx'.tovisitSet) ∧
+    (ctx'.seen.contains (fp.view neighbor.2) ∨ ctx'.tovisitSet.contains (fp.view neighbor.2))  } :=
   let ⟨label, succ⟩ := neighbor
   let fingerprint := fp.view succ
   have h_succ_reachable : sys.reachable succ := h_neighbor
-  if h_has_seen : ctx.seen.contains fingerprint || ctx.localSeen.contains fingerprint then
+  if h_has_seen : ctx.seen.contains fingerprint || ctx.tovisitSet.contains fingerprint then
     ⟨ctx, by constructor <;> grind⟩
   else
     have h_not_in_seen : !ctx.seen.contains fingerprint := by simp at h_has_seen ⊢; exact h_has_seen.1
-    have h_not_in_localSeen : !ctx.localSeen.contains fingerprint := by simp at h_has_seen ⊢; exact h_has_seen.2
+    have h_not_in_tovisitSet : !ctx.tovisitSet.contains fingerprint := by simp at h_has_seen ⊢; exact h_has_seen.2
     let newActionStatsMap := match ctx.localActionStatsMap[label]? with
       | some stat => ctx.localActionStatsMap.insert label { stat with distinctStates := stat.distinctStates + 1 }
       | none => ctx.localActionStatsMap.insert label { statesGenerated := 0, distinctStates := 1 }
     ⟨{ctx with
-      localSeen := ctx.localSeen.insert fingerprint,
       tovisitQueue := ctx.tovisitQueue.push ⟨fingerprint, succ, depth + 1⟩,
       tovisitSet := ctx.tovisitSet.insert fingerprint,
       localLog  := ctx.localLog.insert fingerprint (fpSt, label),
       localActionStatsMap := newActionStatsMap,
       tovisitConsistent := LocalSearchContext.push_insert_preserves_tovisitConsistent ctx fingerprint succ depth,
-      invs := LocalSearchContext.insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_succ_reachable rfl,
-      deltaConsistent := LocalSearchContext.insert_and_enqueue_preserves_deltaConsistent sys params ctx fingerprint succ depth rfl
+      invs := LocalSearchContext.insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_succ_reachable rfl
     }, (by constructor <;> grind)⟩
 
 
@@ -238,8 +236,8 @@ def LocalSearchContext.processSuccessors {ρ σ κ σₕ : Type}
   (ctx : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (h_not_finished : !ctx.hasFinished)
   : {ctx' : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx //
-      (∀ (l : κ) (v : σ), (l, v) ∈ successors → (fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.localSeen) ∧
-      (∀ fp_elem, fp_elem ∈ ctx.localSeen → fp_elem ∈ ctx'.localSeen) } :=
+      (∀ (l : κ) (v : σ), (l, v) ∈ successors → (fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.tovisitSet) ∧
+      (∀ fp_elem, fp_elem ∈ ctx.tovisitSet → fp_elem ∈ ctx'.tovisitSet) } :=
   match successors with
   | [] => ⟨ctx, by constructor <;> grind⟩
   | (label, state) :: rest =>
@@ -259,12 +257,12 @@ def LocalSearchContext.processSuccessors {ρ σ κ σₕ : Type}
     /- `Recursive Call` -/
     let rest_result := processSuccessors sys curr fpSt depth h_curr _ h_rest_subset neighbor_result.val h_still_not_finished
     have h_rest_completeness := rest_result.property.1
-    have h_rest_localSeen_mono := rest_result.property.2
-    have h_current_localSeen_mono := neighbor_result.property.2.1
+    have h_rest_tovisitSet_mono := rest_result.property.2
+    have h_current_tovisitSet_mono := neighbor_result.property.2.1
     ⟨rest_result.val,
       processSuccessors_cons_step _ _ _ _ _ _ _
-        h_current_localSeen_mono h_current_in_seen
-        h_rest_completeness h_rest_localSeen_mono⟩
+        h_current_tovisitSet_mono h_current_in_seen
+        h_rest_completeness h_rest_tovisitSet_mono⟩
 termination_by successors.length
 
 
@@ -282,9 +280,9 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
   (h_curr : sys.reachable curr)
   (ctx : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx) :
   {ctx' : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx //
-    (∀ x, x ∈ ctx.localSeen → x ∈ ctx'.localSeen) ∧ -- 1. Monotonicity
+    (∀ x, x ∈ ctx.tovisitSet → x ∈ ctx'.tovisitSet) ∧ -- 1. Monotonicity
     (!ctx'.hasFinished → ∀l v, (l, v) ∈ extractSuccessfulTransitions (sys.tr th curr) →
-    (fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.localSeen)} := -- 2. Completeness
+    (fp.view v) ∈ ctx'.seen ∨ (fp.view v) ∈ ctx'.tovisitSet)} := -- 2. Completeness
   match h_process : ctx.toBaseSearchContext.processState sys fpSt curr with
   | (baseCtx', outcomesOpt) =>
     have h_ctx_not_explored_all : ¬ctx.finished = some .exploredAllReachableStates := by exact ctx.excludeAllStatesFinish
@@ -302,7 +300,7 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
         toBaseSearchContext := baseCtx'
         excludeAllStatesFinish := by unfold BaseSearchContext.processState at h_process; simp only at h_process; grind
         seenUnaltered := by intro s; rw [h_seen_unchanged]; exact ctx.seenUnaltered s
-        invs := SearchContextInvariants.preserved_when_seen_unchanged sys params ctx.tovisitQueue ctx.seen baseCtx'.seen ctx.localSeen h_seen_unchanged ctx.invs
+        invs := SearchContextInvariants.preserved_when_seen_unchanged sys params ctx.tovisitQueue ctx.seen baseCtx'.seen ctx.tovisitSet h_seen_unchanged ctx.invs
       }
       have h_ctx'_finished : ctx'.hasFinished := by simp only [ctx']; exact h_early_terminate
       ⟨ctx', processState_none_subtype sys ctx ctx' curr rfl h_ctx'_finished⟩
@@ -332,17 +330,17 @@ def ParallelSearchContextSub.processState {ρ σ κ σₕ : Type}
             rw [h_process]
           exact LocalSearchContext.update_base_after_processState_preserves_invs sys ctx fpSt curr baseCtx' h_process_fst
       }
-      have h_ctx_updated_localSeen_eq : ctx_updated.localSeen = ctx.localSeen := rfl
+      have h_ctx_updated_tovisitSet_eq : ctx_updated.tovisitSet = ctx.tovisitSet := rfl
       have h_ctx_updated_not_finished : !ctx_updated.hasFinished := by simp only [ctx_updated]; exact h_not_finished
       /-`Function Call`-/
       let res := LocalSearchContext.processSuccessors sys curr fpSt depth h_curr successfulTransitions (by grind) ctx_updated h_ctx_updated_not_finished
       have h_res_completeness := res.property.1
-      have h_res_localSeen_mono := res.property.2
+      have h_res_tovisitSet_mono := res.property.2
       ⟨res.val, by
         refine ⟨?mono, ?complete⟩
         · intro x h_in_ctx
-          rw [← h_ctx_updated_localSeen_eq] at h_in_ctx
-          exact h_res_localSeen_mono x h_in_ctx
+          rw [← h_ctx_updated_tovisitSet_eq] at h_in_ctx
+          exact h_res_tovisitSet_mono x h_in_ctx
         · grind
       ⟩
 
@@ -359,8 +357,8 @@ def LocalSearchContext.processWorkQueue {ρ σ κ σₕ : Type}
   (h_reachable : ∀ q ∈ queueList, sys.reachable q.2.1)
   (ctx : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
   : {ctx' : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx //
-      SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ queueList) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) ∧
-      (∀ fp_elem, fp_elem ∈ ctx.localSeen → fp_elem ∈ ctx'.localSeen) } :=
+      SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ queueList) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) ∧
+      (∀ fp_elem, fp_elem ∈ ctx.tovisitSet → fp_elem ∈ ctx'.tovisitSet) } :=
   match queueList with
   | [] => ⟨ctx, by constructor <;> grind⟩
   | item :: rest =>
@@ -392,7 +390,6 @@ def LocalSearchContext.Merge {ρ σ σₕ κ : Type}
     ctx1 with
     seen := ctx1.seen.union ctx2.seen,
     localLog := ctx1.localLog.union ctx2.localLog,
-    localSeen := ctx1.localSeen.union ctx2.localSeen,
     violatingStates := ctx2.violatingStates ++ ctx1.violatingStates,
     finished := Option.or ctx1.finished ctx2.finished
     tovisitQueue := ctx1.tovisitQueue ++ filteredQueue
@@ -403,7 +400,6 @@ def LocalSearchContext.Merge {ρ σ σₕ κ : Type}
     invs := merge_local_local_preserves_invs sys params ctx1 ctx2
     excludeAllStatesFinish := merge_local_local_excludes_exploredAll sys params ctx1 ctx2
     seenUnaltered := merge_local_local_preserves_seenUnaltered sys params ctx1 ctx2
-    deltaConsistent := merge_local_local_preserves_deltaConsistent sys params ctx1 ctx2
   }
 
 
@@ -418,15 +414,13 @@ def LocalSearchContext.NeutralContext {ρ σ κ σₕ : Type}
     toBaseSearchContext := { baseCtx with finished := none},
     tovisitQueue := #[],
     tovisitSet := Std.HashSet.emptyWithCapacity,
-    localSeen := Std.HashSet.emptyWithCapacity,
     localLog := Std.HashMap.emptyWithCapacity,
     localStatesFound := 0,
     localActionStatsMap := Std.HashMap.emptyWithCapacity,
     tovisitConsistent := by simp [Std.HashSet.not_mem_emptyWithCapacity, Array.not_mem_empty]
-    invs := by constructor <;> simp_all [Array.not_mem_empty]
+    invs := by constructor <;> simp_all [Array.not_mem_empty, Std.HashSet.not_mem_emptyWithCapacity]
     excludeAllStatesFinish := by simp
     seenUnaltered := by simp
-    deltaConsistent := by simp [Array.not_mem_empty]
   }
 
 
@@ -442,7 +436,7 @@ def LocalSearchContext.bfsBigStep {ρ σ κ σₕ : Type} {m : Type → Type}
   (h_seen_sound : Function.Injective fp.view → ∀ (x : σ), fp.view x ∈ baseCtx.seen → sys.reachable x)
   (h_reachable : ∀ item ∈ queue.toList, sys.reachable item.2.1)
   : m ( {ctx' : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ queue) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen)})
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ queue) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet)})
   := do
   let ctx := NeutralContext sys params baseCtx h_seen_sound
   -- let startTime ← IO.monoMsNow
@@ -464,7 +458,7 @@ theorem IteratedProd.foldl_merge_seen_unaltered {ρ σ κ σₕ : Type}
   {splitArrays : List (Array (σₕ × σ × Nat))}
   (init : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (results : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : LocalSearchContext sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) })
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) })
     splitArrays))
   (x : σₕ) :
   x ∈ baseCtx.seen ↔ x ∈ (IteratedProd.foldl init (fun acc r => .Merge sys params baseCtx acc r.val) results).seen := by
@@ -485,7 +479,7 @@ theorem IteratedProd.foldl_merge_preserves_seen {ρ σ κ σₕ : Type}
   {splitArrays : List (Array (σₕ × σ × Nat))}
   (init : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (results : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : LocalSearchContext sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) })
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) })
     splitArrays))
   (x : σₕ) (h : x ∈ init.seen) :
   x ∈ (IteratedProd.foldl init (fun acc r => .Merge sys params baseCtx acc r.val) results).seen := by
@@ -499,18 +493,18 @@ theorem IteratedProd.foldl_merge_preserves_seen {ρ σ κ σₕ : Type}
     left; exact h
 
 
--- Helper lemma: foldl preserves localSeen membership (from any merged context)
-theorem IteratedProd.foldl_merge_preserves_local_seen {ρ σ κ σₕ : Type}
+-- Helper lemma: foldl preserves tovisitSet membership (from any merged context)
+theorem IteratedProd.foldl_merge_preserves_tovisitSet {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] {th : ρ}
   (sys : _) (params : _)
   (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
   {splitArrays : List (Array (σₕ × σ × Nat))}
   (init : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (results : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : LocalSearchContext sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) })
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) })
     splitArrays))
-  (x : σₕ) (h : x ∈ init.localSeen) :
-  x ∈ (IteratedProd.foldl init (fun acc r => .Merge sys params baseCtx acc r.val) results).localSeen := by
+  (x : σₕ) (h : x ∈ init.tovisitSet) :
+  x ∈ (IteratedProd.foldl init (fun acc r => .Merge sys params baseCtx acc r.val) results).tovisitSet := by
   induction splitArrays generalizing init with
   | nil => exact h
   | cons arr rest ih =>
@@ -528,7 +522,7 @@ theorem IteratedProd.foldl_merge_preserves_has_finished {ρ σ κ σₕ : Type}
   (rest : List (Array (σₕ × σ × Nat)))
   (init : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (tailRes : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : LocalSearchContext sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) }) rest))
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) }) rest))
   (h_init_finished : init.hasFinished) :
   (IteratedProd.foldl init (fun acc r => .Merge sys params baseCtx acc r.val) tailRes).hasFinished := by
   induction rest generalizing init with
@@ -553,9 +547,9 @@ theorem IteratedProd.foldl_merge_not_finished_head {ρ σ κ σₕ : Type}
   (init : LocalSearchContext sys params baseCtx)
   {arr : Array (σₕ × σ × Nat)} {rest : List (Array (σₕ × σ × Nat))}
   (headRes : { ctx' : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ arr) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) })
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ arr) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) })
   (tailRes : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : LocalSearchContext sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) }) rest))
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) }) rest))
   (h_init_not_finished : init.finished = none)
   (h : !(IteratedProd.foldl
     (LocalSearchContext.Merge sys params baseCtx init headRes.val)
@@ -596,13 +590,13 @@ theorem foldl_merge_preserves_successors_collected {ρ σ κ σₕ : Type}
   (init : LocalSearchContext sys params baseCtx)
   (h_init_not_finished : init.finished = none)
   (results : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) })
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) })
     splitArrays))
   (h_not_finished : !(IteratedProd.foldl init (fun acc r => .Merge sys params baseCtx acc r.val) results).hasFinished)
   (item : σₕ × σ × Nat) (h_item_in_flatten : item ∈ splitArrays.toArray.flatten)
   (l : κ) (v : σ) (h_tr : (l, .success v) ∈ sys.tr th item.2.1) :
   (fp.view v) ∈ baseCtx.seen ∨
-  (fp.view v) ∈ (IteratedProd.foldl init (fun acc r => .Merge sys params baseCtx acc r.val) results).localSeen := by
+  (fp.view v) ∈ (IteratedProd.foldl init (fun acc r => .Merge sys params baseCtx acc r.val) results).tovisitSet := by
   induction splitArrays generalizing init with
   | nil =>
     -- If splitArrays is empty, flatten is empty, contradiction
@@ -631,11 +625,11 @@ theorem foldl_merge_preserves_successors_collected {ρ σ κ σₕ : Type}
         -- By seenUnaltered, headRes.val.seen = baseCtx.seen
         left
         exact (headRes.val.seenUnaltered (fp.view v)).mpr h_in_seen
-      | inr h_in_localSeen =>
+      | inr h_in_tovisitSet =>
         right
-        apply IteratedProd.foldl_merge_preserves_local_seen
+        apply IteratedProd.foldl_merge_preserves_tovisitSet
         simp only [LocalSearchContext.Merge, Std.HashSet.mem_union]
-        right; exact h_in_localSeen
+        right; exact h_in_tovisitSet
     | inr h_in_rest =>
       -- item is in rest, apply IH with init' = Merge init headRes.val
       have h_init'_not_finished : (LocalSearchContext.Merge sys params baseCtx init headRes.val).finished = none := by
@@ -666,7 +660,7 @@ theorem parallel_bfs_successors_collected {ρ σ κ σₕ : Type}
   (splitArrays : List (Array (σₕ × σ × Nat)))
   (postCtx : LocalSearchContext sys params baseCtx)
   (results : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : LocalSearchContext sys params baseCtx //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) })
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) })
     splitArrays))
   (h_postCtx_eq : postCtx = IteratedProd.foldl
     (init := .NeutralContext sys params baseCtx h_seen_sound)
@@ -674,9 +668,9 @@ theorem parallel_bfs_successors_collected {ρ σ κ σₕ : Type}
   -- (!postCtx.hasFinished →
   --   ∀ item ∈ splitArrays.toArray.flatten,
   --     ∀ l v, (l, .success v) ∈ (sys.tr th item.2.1) →
-  --       (fp.view v) ∈ baseCtx.seen ∨ (fp.view v) ∈ postCtx.localSeen)
+  --       (fp.view v) ∈ baseCtx.seen ∨ (fp.view v) ∈ postCtx.tovisitSet)
   SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ splitArrays.toArray.flatten)
-    postCtx.hasFinished (fun h => h ∈ baseCtx.seen ∨ h ∈ postCtx.localSeen)
+    postCtx.hasFinished (fun h => h ∈ baseCtx.seen ∨ h ∈ postCtx.tovisitSet)
   := by
   intro h_not_finished fingerprint st d h_item_in_flatten l v h_tr
   rw [h_postCtx_eq]
@@ -709,14 +703,14 @@ theorem parallel_bfs_collect_all {ρ σ κ σₕ : Type}
   (h_baseCtx_eq : baseCtx = ctx.toBaseSearchContext)
   (aggregatedCtx : LocalSearchContext sys params baseCtx)
   (h_liftBfs : SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ splitArrays.toArray.flatten)
-    aggregatedCtx.hasFinished (fun h => h ∈ baseCtx.seen ∨ h ∈ aggregatedCtx.localSeen))
+    aggregatedCtx.hasFinished (fun h => h ∈ baseCtx.seen ∨ h ∈ aggregatedCtx.tovisitSet))
   (h_ctx_not_finished : ctx.finished = none)
   (h_new_finished : Option.or ctx.finished aggregatedCtx.finished = some .exploredAllReachableStates ∨
                     Option.or ctx.finished aggregatedCtx.finished = none)
   (h_view_inj : Function.Injective fp.view) :
   ∀ (s : σ),
     fp.view s ∈ ctx.tovisitSet →
-    (∀l v, (l, .success v) ∈ sys.tr th s → (fp.view v) ∈ ctx.seen ∨ (fp.view v) ∈ aggregatedCtx.localSeen) := by
+    (∀l v, (l, .success v) ∈ sys.tr th s → (fp.view v) ∈ ctx.seen ∨ (fp.view v) ∈ aggregatedCtx.tovisitSet) := by
   intro s h_s_in_old_tovisit l v h_tr
   -- Get item from set via consistency
   have ⟨item, h_item_in_queue, h_item_fp⟩ := ctx.tovisitConsistent (fp.view s) |>.mp h_s_in_old_tovisit
@@ -764,7 +758,7 @@ def ParallelSearchContext.Reduce {ρ σ κ σₕ : Type}
   (splitArrays : List (Array (σₕ × σ × Nat)))
   (h_splitArrays_eq : splitArrays = ranges.map (fun lr => (tovisitArr.extract lr.1 lr.2).map (fun item => (item.fingerprint, item.state, item.depth))))
   (results : IteratedProd (List.map (fun (x : Array (σₕ × σ × Nat)) => { ctx' : LocalSearchContext sys params ctx.toBaseSearchContext //
-    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.localSeen) })
+    SuccessorsCollected sys (fun ⟨h, st, d⟩ => (h, st, d) ∈ x) ctx'.hasFinished (fun h => h ∈ ctx'.seen ∨ h ∈ ctx'.tovisitSet) })
     splitArrays))
   (h_aggregatedCtx_eq : aggregatedCtx = IteratedProd.foldl
     (init := LocalSearchContext.NeutralContext sys params ctx.toBaseSearchContext ctx.invs.visited_sound)
@@ -774,7 +768,7 @@ def ParallelSearchContext.Reduce {ρ σ κ σₕ : Type}
   -- Build new tovisitSet from aggregatedCtx's queue
   let newTovisitSet := aggregatedCtx.tovisitQueue.foldl (fun acc item => acc.insert item.fingerprint) Std.HashSet.emptyWithCapacity
   { ctx with
-    seen := ctx.seen.union aggregatedCtx.localSeen,
+    seen := ctx.seen.union aggregatedCtx.tovisitSet,
     tovisitQueue := aggregatedCtx.tovisitQueue,
     tovisitSet := newTovisitSet,
     log := ctx.log.union aggregatedCtx.localLog,
@@ -809,14 +803,11 @@ def ParallelSearchContext.Reduce {ρ σ κ σₕ : Type}
           exact h_new_tovisit_consistent h |>.mpr ⟨item, h_item_in, h_fp_eq⟩
       have h_not_in_agg_tovisit : fp.view s ∉ aggregatedCtx.tovisitSet := by
         intro h_in; exact h_not_in_tovisit ((h_sets_equiv (fp.view s)).mpr h_in)
-      -- Convert deltaConsistent (queue membership) to set membership using tovisitConsistent
+      -- tovisitSet membership trivially implies tovisitSet membership (identity function)
       have h_delta_set : Function.Injective fp.view →
-          ∀ x, (fp.view x) ∈ aggregatedCtx.localSeen → fp.view x ∈ aggregatedCtx.tovisitSet := by
-        intro h_inj x h_in_localSeen
-        let ⟨d, h_in_queue⟩ := aggregatedCtx.deltaConsistent h_inj x h_in_localSeen
-        exact aggregatedCtx.tovisitConsistent (fp.view x) |>.mpr ⟨⟨fp.view x, x, d⟩, h_in_queue, rfl⟩
+          ∀ x, (fp.view x) ∈ aggregatedCtx.tovisitSet → fp.view x ∈ aggregatedCtx.tovisitSet := fun _ _ h => h
       exact ParallelSearchContext.merge_preserves_frontier_closed sys params ctx
-        aggregatedCtx.localSeen aggregatedCtx.tovisitSet h_pre_no_terminate h_view_inj
+        aggregatedCtx.tovisitSet aggregatedCtx.tovisitSet h_pre_no_terminate h_view_inj
         h_delta_set h_collect_all s h_in_seen h_not_in_agg_tovisit l next_s h_tr
     terminate_empty_tovisit := by
       intro h_finished

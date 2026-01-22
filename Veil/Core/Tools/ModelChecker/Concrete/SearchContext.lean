@@ -93,16 +93,14 @@ where
   tovisitSet : Std.HashSet σₕ
   /-- Consistency between queue and set: a fingerprint is in the set iff some item with that fingerprint is in the queue. -/
   tovisitConsistent : ∀ h, h ∈ tovisitSet ↔ ∃ item ∈ tovisitQueue, item.fingerprint = h
-  localSeen : Std.HashSet σₕ
   localLog : Std.HashMap σₕ (σₕ × κ)
   seenUnaltered : ∀s, s ∈ baseCtx.seen ↔ s ∈ seen
-  invs : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisitQueue) (fun h => h ∈ seen ∨ h ∈ localSeen)
+  invs : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisitQueue) (fun h => h ∈ seen ∨ h ∈ tovisitSet)
   /-- Local count of post-states generated (before deduplication) -/
   localStatesFound : Nat := 0
   /-- Local per-action statistics: label → stats -/
   localActionStatsMap : Std.HashMap κ ActionStat := {}
   excludeAllStatesFinish : finished ≠ some (.exploredAllReachableStates)
-  deltaConsistent : (Function.Injective fp.view → ∀x, (fp.view x) ∈ localSeen → ∃d, ⟨fp.view x, x, d⟩ ∈ tovisitQueue)
 
 
 /-- Merge action stats maps by summing counts for each action. -/
