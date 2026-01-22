@@ -385,7 +385,7 @@ def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
     -- The intersection contains at least f+1 nodes, and at most f are Byzantine
     by_contra h ; push_neg at h
     have hall_byz : ∀ a ∈ s1.toFinset ∩ s2.toFinset, is_byz a := by
-      intro a ha ; simp at ha
+      intro a ha ; simp at h ha
       have := h a ha.1 ha.2 ; tauto
     have hbyz_count : (s1.toFinset ∩ s2.toFinset).card ≤ f := by
       calc (s1.toFinset ∩ s2.toFinset).card
@@ -402,7 +402,7 @@ def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
     -- s has ≥ f+1 elements, ≤ f are Byzantine, so ≥ 1 honest
     by_contra h ; push_neg at h
     have hall_byz : ∀ a ∈ s, is_byz a := by
-      intro a ha ; have := h a ha ; tauto
+      intro a ha ; simp at h ; have := h a ha ; tauto
     have hnodup := List.Pairwise.nodup hs_sorted
     have hbyz_count : s.length ≤ f := by
       calc s.length
