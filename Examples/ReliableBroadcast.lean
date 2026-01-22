@@ -201,10 +201,10 @@ invariant [honest_non_conflicting_votes]
 #check_invariants
 
 -- NOTE: For `f = 1`, the state space explodes
-#model_check interpreted
-  { nodeset := ByzNSet (3 * 0 + 1)
-    address := Fin (3 * 0 + 1)
-    round := Fin 1
-    value := Fin 1   }
+#model_check
+  { nodeset := ByzNSet (3 * 1 + 1)
+    address := Fin (3 * 1 + 1)
+    round := Fin 3
+    value := Fin 3   }
 
 end ReliableBroadcast

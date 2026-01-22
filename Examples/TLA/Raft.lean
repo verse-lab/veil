@@ -5,7 +5,7 @@ import Veil
 -- \* Copyright 2014 Diego Ongaro.
 -- \* This work is licensed under the Creative Commons Attribution-4.0
 -- \* International License https://creativecommons.org/licenses/by/4.0/
-veil module raft_executable
+veil module Raft
 -- EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 -- \* The set of server IDs
@@ -1040,17 +1040,17 @@ action DropMessage {
 --     \E i, j \in Server :  BothLeader( i, j )
 
 -- Invariant: limit message count to keep state space manageable
-invariant [message_count_limit] mSet.size messages < 3
-
+-- invariant [message_count_limit] mSet.size messages < 3
 
 set_option synthInstance.maxHeartbeats 1000000
 set_option synthInstance.maxSize 200000
 set_option maxHeartbeats 10000000
+open Std
 
 #gen_spec
-open Std
+
 set_option veil.violationIsError false in
-#model_check interpreted
+#model_check
   {
     server := Fin 3,
     value := Fin 2,
@@ -1067,14 +1067,7 @@ set_option veil.violationIsError false in
     fixServer := 0
   }
 
-end raft_executable
-
-
-
-
-
-
-
+end Raft
 
 -- ===============================================================================
 
