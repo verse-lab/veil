@@ -20,6 +20,23 @@ open Lean Parser Elab Command
 
 namespace Veil
 
+/-- Extract the name identifier from a Veil procedure/transition/ghost syntax.
+    Returns `unknown if the syntax doesn't match any known pattern. -/
+def extractDefinitionName (stx : Syntax) : Name :=
+  match stx with
+  -- procedureDefinition (without spec)
+  | `(command|action $nm:ident $_br:explicitBinders ? {$_l:doSeq}) => nm.getId
+  | `(command|procedure $nm:ident $_br:explicitBinders ? {$_l:doSeq}) => nm.getId
+  -- procedureDefinitionWithSpec
+  | `(command|action $nm:ident $_br:explicitBinders ? $_spec:doSeq {$_l:doSeq}) => nm.getId
+  | `(command|procedure $nm:ident $_br:explicitBinders ? $_spec:doSeq {$_l:doSeq}) => nm.getId
+  -- transitionDefinition
+  | `(command|transition $nm:ident $_br:explicitBinders ? { $_t:term }) => nm.getId
+  -- ghostRelationDefinition
+  | `(command|ghost relation $nm:ident $_br:explicitBinders ? := $_t:term) => nm.getId
+  | `(command|theory ghost relation $nm:ident $_br:explicitBinders ? := $_t:term) => nm.getId
+  | _ => `unknown
+
 private def overrideLeanDefaults : CommandElabM Unit := do
   -- FIXME: make this go through `elabVeilCommand` so it shows up in desugaring
   for (name, value) in veilDefaultOptions do
@@ -311,11 +328,7 @@ def elabInitializer : CommandElab := fun stx => do
 
 @[command_elab Veil.procedureDefinition]
 def elabProcedure : CommandElab := fun stx => do
-  -- Extract the action/procedure name for detailed profiling
-  let nm := match stx with
-    | `(command|action $nm:ident $br:explicitBinders ? {$l:doSeq}) => nm.getId
-    | `(command|procedure $nm:ident $br:explicitBinders ? {$l:doSeq}) => nm.getId
-    | _ => `unknown
+  let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the action name
   withTraceNode (`veil.perf.elaborator.action ++ nm) (fun _ => return s!"action {nm}") do
     let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
@@ -329,12 +342,9 @@ def elabProcedure : CommandElab := fun stx => do
 
 @[command_elab Veil.transitionDefinition]
 def elabTransition : CommandElab := fun stx => do
-  -- Extract the transition name for detailed profiling
-  let transitionNm := match stx with
-    | `(command|transition $nm:ident $br:explicitBinders ? { $t:term }) => nm.getId
-    | _ => `unknown
+  let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the transition name
-  withTraceNode (`veil.perf.elaborator.transition ++ transitionNm) (fun _ => return s!"transition {transitionNm}") do
+  withTraceNode (`veil.perf.elaborator.transition ++ nm) (fun _ => return s!"transition {nm}") do
     let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a transition outside of a Veil module!")
     mod ← mod.ensureStateIsDefined
     mod.throwIfSpecAlreadyFinalized
@@ -362,11 +372,7 @@ def elabTransition : CommandElab := fun stx => do
 
 @[command_elab Veil.procedureDefinitionWithSpec]
 def elabProcedureWithSpec : CommandElab := fun stx => do
-  -- Extract the action/procedure name for detailed profiling
-  let nm := match stx with
-    | `(command|action $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => nm.getId
-    | `(command|procedure $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => nm.getId
-    | _ => `unknown
+  let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the action name
   withTraceNode (`veil.perf.elaborator.actionWithSpec ++ nm) (fun _ => return s!"action+spec {nm}") do
     let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
@@ -380,13 +386,9 @@ def elabProcedureWithSpec : CommandElab := fun stx => do
 
 @[command_elab Veil.ghostRelationDefinition]
 def elabGhostRelationDefinition : CommandElab := fun stx => do
-  -- Extract the ghost relation name for detailed profiling
-  let ghostNm := match stx with
-    | `(command|ghost relation $nm:ident $br:explicitBinders ? := $t:term) => nm.getId
-    | `(command|theory ghost relation $nm:ident $br:explicitBinders ? := $t:term) => nm.getId
-    | _ => `unknown
+  let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the ghost relation name
-  withTraceNode (`veil.perf.elaborator.ghostRelation ++ ghostNm) (fun _ => return s!"ghost {ghostNm}") do
+  withTraceNode (`veil.perf.elaborator.ghostRelation ++ nm) (fun _ => return s!"ghost {nm}") do
     let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost relation outside of a Veil module!")
     mod ← mod.ensureStateIsDefined
     mod.throwIfSpecAlreadyFinalized
