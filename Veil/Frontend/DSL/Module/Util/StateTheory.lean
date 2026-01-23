@@ -498,8 +498,8 @@ private def Module.declareInstanceLifting [Monad m] [MonadQuotation m] [MonadErr
   let fieldLabel ← `(bracketedBinder|($fieldLabelIdent:ident : $(mkIdent `State.Label)))
   let binders := (← mod.sortBinders) ++ assumedInstances ++ [fieldLabel]
   match instanceName with
-  | some name => `(scoped instance $(mkIdent name):ident $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
-  | none => `(scoped instance $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
+  | some name => `(scoped instance (priority := low) $(mkIdent name):ident $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
+  | none => `(scoped instance (priority := low) $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
 
 /-- NOTE: This is actually needed.-/
 private def Module.declareInstanceLiftingForIteratedProd [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) (tactic : Option (TSyntax `tactic) := .none) : m (Array Syntax) := do
