@@ -252,7 +252,7 @@ elab_rules : command
     specializeAndExtract injectedBinders extraDsimps logelem notUseWeakSign.isNone
 
 def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
-  let binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM (mod.assumeForEverySort · false)
+  let binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp, ``Repr].flatMapM (mod.assumeForEverySort · false)
   let execListCmd ← `(command |
     attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
     #extract! log_entry_being $(mkIdent ``Std.Format)
@@ -357,7 +357,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     | _ => none
 
   -- Step 2: Prepare injectedBinders
-  let nextAct'Binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp].flatMapM (mod.assumeForEverySort · false)
+  let nextAct'Binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp, ``Repr].flatMapM (mod.assumeForEverySort · false)
   let labelsId := mkVeilImplementationDetailIdent `labels
   let labelsBinder ← `(bracketedBinder| [$labelsId : $(mkIdent ``Veil.Enumeration) $(← mod.labelTypeStx)])
   let theoryId := mkVeilImplementationDetailIdent `theory
