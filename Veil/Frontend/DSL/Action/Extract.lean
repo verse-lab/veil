@@ -275,6 +275,13 @@ def ConstrainedExtractResult.assume_VeilM {m ρ σ} (p : Prop) [decp : Decidable
   ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
   (findOfCandidates _) (@VeilM.assume m ρ σ p decp) := ConstrainedExtractResult.assume _ _ _ _ p (decp := decp)
 
+def ConstrainedExtractResult.require_VeilM {m ρ σ ex} (p : Prop) [decp : Decidable p] :
+  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+  (findOfCandidates _) (@VeilM.require m ρ σ p decp ex) :=
+  match m with
+  | .external => ConstrainedExtractResult.assume_VeilM p (decp := decp)
+  | .internal => ConstrainedExtractResult.liftM _ _ _ _ (@VeilExecM.assert m ρ σ p decp ex)
+
 end VeilSpecificExtractionUtils
 
 open MultiExtractor in
@@ -287,6 +294,7 @@ attribute [multiextracted] ConstrainedExtractResult.pure
   ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
   ConstrainedExtractResult.pickSuchThat_VeilM
   ConstrainedExtractResult.assume_VeilM
+  ConstrainedExtractResult.require_VeilM
 
 open MultiExtractor in
 attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
@@ -297,6 +305,7 @@ attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.val
   ConstrainedExtractResult.pickSuchThat_VeilM
   ConstrainedExtractResult.assume_VeilM
+  ConstrainedExtractResult.require_VeilM
 
 /-- Extract the execution outcome from a DivM-wrapped result. Unlike `getPostState`
 which only returns `Option σ`, this preserves information about assertion failures
