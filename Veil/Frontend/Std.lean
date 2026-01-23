@@ -504,6 +504,26 @@ instance instEnumerationTSetContains [TSet α κ] (k : κ) : Veil.Enumeration ({
   allValues := TSet.toList k |>.attachWith _ (by simp [TSet.toList_contains_iff])
   complete := by simp [TSet.toList_contains_iff]
 
+instance instEnumerationTSetSubset [TSet α κ] [Veil.Enumeration κ] (superSet : κ) : Veil.Enumeration ({ s : κ // ∀e, TSet.contains e s → TSet.contains e superSet }) where
+  allValues :=
+    Veil.Enumeration.allValues (α := κ) |>.filter (fun s =>
+      TSet.toList s |>.all (fun e => TSet.contains e superSet)) |>.attachWith _ (by
+        intro s hmem
+        simp only [List.mem_filter] at hmem
+        intro e he
+        have := hmem.2
+        rw [List.all_eq_true] at this
+        exact this e ((TSet.toList_contains_iff e s).mp he))
+  complete := by
+    intro ⟨s, hs⟩
+    simp only [List.mem_attachWith, List.mem_filter]
+    constructor
+    · exact Veil.Enumeration.complete s
+    · rw [List.all_eq_true]
+      intro e he
+      exact hs e ((TSet.toList_contains_iff e s).mpr he)
+
+
 instance [TSet α κ] (k : κ) : Veil.Enumeration ({ a : α // a ∈ k }) := instEnumerationTSetContains k
 
 
