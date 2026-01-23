@@ -11,10 +11,35 @@ import ProofWidgets.Component.HtmlDisplay
 import Veil.Core.UI.Widget.RefreshComponent
 import Veil.Core.Tools.ModelChecker.Concrete.Progress
 import Veil.Core.UI.Trace.TraceDisplay
+import ProofWidgets.Component.Recharts
 
 namespace Veil.ModelChecker
 
-open Lean Server Elab Command ProofWidgets Jsx Veil.ModelChecker.Concrete RefreshComponent
+open Lean Server Elab Command ProofWidgets Jsx Veil.ModelChecker.Concrete RefreshComponent Recharts
+
+/-- Props for Recharts Tooltip (empty for default behavior). -/
+structure TooltipProps where
+  deriving FromJson, ToJson
+
+/-- Tooltip component for Recharts. See https://recharts.org/en-US/api/Tooltip -/
+def Tooltip : Component TooltipProps where
+  javascript := Recharts.javascript
+  «export» := "Tooltip"
+
+/-- Extended axis props with label support. -/
+structure LabeledAxisProps where
+  dataKey? : Option Json := none
+  domain? : Option (Array Json) := none
+  allowDataOverflow : Bool := false
+  type : AxisType := .number
+  /-- Axis label - can be a string or object with value, position, offset, etc. -/
+  label? : Option Json := none
+  deriving FromJson, ToJson
+
+/-- XAxis with label support. -/
+def LabeledXAxis : Component LabeledAxisProps where
+  javascript := Recharts.javascript
+  «export» := "XAxis"
 
 /-- RPC method to cancel a model checker instance by setting its cancel token. -/
 @[server_rpc_method]
@@ -252,6 +277,129 @@ private def actionCoverageHtml (actionStats : List ActionStatDisplay) (allAction
     </div>
   </details>
 
+/-! ## Progress History Charts -/
+
+/-- Count the number of digits in a natural number. -/
+private def numDigits (n : Nat) : Nat :=
+  if n < 10 then 1 else 1 + numDigits (n / 10)
+
+/-- Calculate the left margin for a chart based on the maximum Y value.
+    Each digit needs approximately 8px, plus a small base margin. -/
+private def calcLeftMargin (maxValue : Nat) : Nat :=
+  let digits := numDigits maxValue
+  10 + digits * 8
+
+/-- Convert history to JSON format for diameter chart. -/
+private def historyToDiameterChartData (history : Array ProgressHistoryPoint) : Array Json :=
+  history.map fun point => json% {
+    time: $(point.timestamp / 1000),
+    diameter: $(point.diameter)
+  }
+
+/-- Convert history to JSON format for states found chart. -/
+private def historyToStatesFoundChartData (history : Array ProgressHistoryPoint) : Array Json :=
+  history.map fun point => json% {
+    time: $(point.timestamp / 1000),
+    statesFound: $(point.statesFound)
+  }
+
+/-- Convert history to JSON format for distinct states chart. -/
+private def historyToDistinctStatesChartData (history : Array ProgressHistoryPoint) : Array Json :=
+  history.map fun point => json% {
+    time: $(point.timestamp / 1000),
+    distinctStates: $(point.distinctStates)
+  }
+
+/-- Convert history to JSON format for queue chart. -/
+private def historyToQueueChartData (history : Array ProgressHistoryPoint) : Array Json :=
+  history.map fun point => json% {
+    time: $(point.timestamp / 1000),
+    queue: $(point.queue)
+  }
+
+/-- Render the Diameter chart. -/
+private def diameterChartHtml (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html := Id.run do
+  let data := historyToDiameterChartData history
+  return <div style={json% {"marginBottom": "12px"}}>
+    <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
+      Diameter Over Time
+    </div>
+    <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
+      <LabeledXAxis dataKey?="time" type={.number} label?={json% {"value": "Time (s)", "position": "bottom", "offset": 0, "fontSize": 10}} />
+      <YAxis type={.number} />
+      <Tooltip />
+      <Line type={.monotone} dataKey="diameter" stroke="#9C27B0" dot?={true} />
+    </LineChart>
+  </div>
+
+/-- Render the States Found chart. -/
+private def statesFoundChartHtml (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html := Id.run do
+  let data := historyToStatesFoundChartData history
+  return <div style={json% {"marginBottom": "12px"}}>
+    <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
+      States Found Over Time
+    </div>
+    <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
+      <LabeledXAxis dataKey?="time" type={.number} label?={json% {"value": "Time (s)", "position": "bottom", "offset": 0, "fontSize": 10}} />
+      <YAxis type={.number} />
+      <Tooltip />
+      <Line type={.monotone} dataKey="statesFound" stroke="#4CAF50" dot?={true} />
+    </LineChart>
+  </div>
+
+/-- Render the Distinct States chart. -/
+private def distinctStatesChartHtml (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html := Id.run do
+  let data := historyToDistinctStatesChartData history
+  return <div style={json% {"marginBottom": "12px"}}>
+    <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
+      Distinct States Over Time
+    </div>
+    <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
+      <LabeledXAxis dataKey?="time" type={.number} label?={json% {"value": "Time (s)", "position": "bottom", "offset": 0, "fontSize": 10}} />
+      <YAxis type={.number} />
+      <Tooltip />
+      <Line type={.monotone} dataKey="distinctStates" stroke="#2196F3" dot?={true} />
+    </LineChart>
+  </div>
+
+/-- Render the Queue Size chart. -/
+private def queueChartHtml (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html := Id.run do
+  let data := historyToQueueChartData history
+  return <div style={json% {"marginBottom": "12px"}}>
+    <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
+      Queue Size Over Time
+    </div>
+    <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
+      <LabeledXAxis dataKey?="time" type={.number} label?={json% {"value": "Time (s)", "position": "bottom", "offset": 0, "fontSize": 10}} />
+      <YAxis type={.number} />
+      <Tooltip />
+      <Line type={.monotone} dataKey="queue" stroke="#FF9800" dot?={true} />
+    </LineChart>
+  </div>
+
+/-- Render the metrics history charts section (collapsible). -/
+private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := Id.run do
+  if history.size < 2 then return .text ""  -- Need at least 2 points for a chart
+  let pointCount := history.size
+  let timeRange := match (history[0]?, history[history.size - 1]?) with
+    | (some first, some last) => formatElapsedTime (last.timestamp - first.timestamp)
+    | _ => "0s"
+  -- Calculate left margin based on the largest value across all metrics
+  let maxVal := history.foldl (fun acc p =>
+    max acc (max p.diameter (max p.statesFound (max p.distinctStates p.queue)))) 0
+  let leftMargin := calcLeftMargin maxVal
+  return <details style={json% {"marginTop": "8px"}}>
+    <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "#888"}}>
+      Metrics History ({.text (toString pointCount)} samples, {.text timeRange})
+    </summary>
+    <div style={json% {"marginTop": "8px", "padding": "8px", "backgroundColor": "var(--vscode-textBlockQuote-background, #1e1e1e)", "borderRadius": "4px"}}>
+      {diameterChartHtml history leftMargin}
+      {statesFoundChartHtml history leftMargin}
+      {distinctStatesChartHtml history leftMargin}
+      {queueChartHtml history leftMargin}
+    </div>
+  </details>
+
 /-- Convert Progress to Html for display, with optional Stop button. Uses TLC-style terminology. -/
 def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
   <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
@@ -281,6 +429,7 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
         {statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)}
       </tbody>
     </table>
+    {metricsHistoryHtml p.history}
     {actionCoverageHtml p.actionStats p.allActionLabels}
     {match p.compilationStatus with
      | .inProgress ms lines => if lines.isEmpty then .text "" else compilationLogHtml ms lines

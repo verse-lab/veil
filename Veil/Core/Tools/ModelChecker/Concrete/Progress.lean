@@ -55,6 +55,20 @@ structure ActionStatDisplay extends ActionStat where
 def toActionStatsList [BEq κ] [Hashable κ] [Repr κ] (m : Std.HashMap κ ActionStat) : List ActionStatDisplay :=
   m.toList.map fun (label, stat) => { name := repr label |>.pretty, statesGenerated := stat.statesGenerated, distinctStates := stat.distinctStates }
 
+/-- A single point in the progress history time series for charting. -/
+structure ProgressHistoryPoint where
+  /-- Timestamp in milliseconds since start -/
+  timestamp : Nat
+  /-- BFS depth -/
+  diameter : Nat
+  /-- Total post-states generated -/
+  statesFound : Nat
+  /-- Unique states after dedup -/
+  distinctStates : Nat
+  /-- Frontier size -/
+  queue : Nat
+  deriving ToJson, FromJson, Inhabited, Repr
+
 /-- Progress information for model checking, using TLC-style terminology. -/
 structure Progress where
   status : String := "Initializing..."
@@ -76,6 +90,8 @@ structure Progress where
   actionStats : List ActionStatDisplay := []
   /-- All possible action labels (for detecting never-enabled actions) -/
   allActionLabels : List String := []
+  /-- Time-series history for charting progress over time -/
+  history : Array ProgressHistoryPoint := #[]
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Refs for tracking progress of a single model checker instance. -/
@@ -134,16 +150,23 @@ private def withRefs (instanceId : Nat) (f : ProgressRefs → IO Unit) : IO Unit
   if let some refs ← getProgressRefs instanceId then f refs
 
 /-- Update progress for a given instance ID.
-    In compiled mode, also outputs progress to stderr as JSON. -/
+    In compiled mode, also outputs progress to stderr as JSON.
+    Also accumulates history for time-series charting. -/
 def updateProgress (instanceId : Nat)
     (diameter statesFound distinctStates queue : Nat)
     (actionStats : List ActionStatDisplay := []) : IO Unit := do
   let now ← IO.monoMsNow
   -- Update refs if they exist (interpreted mode)
   if let some refs ← getProgressRefs instanceId then
-    refs.progressRef.modify fun p => { p with
-      diameter, statesFound, distinctStates, queue, actionStats
-      elapsedMs := now - p.startTimeMs }
+    refs.progressRef.modify fun p =>
+      let elapsed := now - p.startTimeMs
+      let historyPoint : ProgressHistoryPoint := {
+        timestamp := elapsed, diameter, statesFound, distinctStates, queue
+      }
+      { p with
+        diameter, statesFound, distinctStates, queue, actionStats
+        elapsedMs := elapsed
+        history := p.history.push historyPoint }
   -- Output to stderr if in compiled mode
   if ← compiledModeEnabled.get then
     let startTime ← compiledModeStartTime.get
