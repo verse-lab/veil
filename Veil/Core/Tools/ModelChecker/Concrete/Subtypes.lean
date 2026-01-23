@@ -11,29 +11,38 @@ def IteratedProd.ofListM {m : Type → Type} [Monad m]
     let bs ← ofListM f as
     pure (b, bs)
 
+def IteratedProd.reverseAux :
+  ∀ {ts ts' : List Type}, IteratedProd ts → IteratedProd ts' → IteratedProd (ts.reverseAux ts')
+  | [], _, _, acc => acc
+  | t :: _, ts', (b, bs), acc => reverseAux (ts' := t :: ts') bs (b, acc)
+
+@[expose]
+def IteratedProd.reverse {ts : List Type} (ip : IteratedProd ts) : IteratedProd (ts.reverse) :=
+  reverseAux (ts' := []) ip ()
+
 /-- Version of `ofListM` that provides membership proof to the callback function.
     This is useful when the callback needs to prove properties about list elements.
     We use this function to inject _proof_ in concurrent search algorithm. -/
+@[inline, expose]
 def IteratedProd.ofListMWithMem {m : Type → Type} [Monad m]
   {α : Type} {β : α → Type} (as : List α) (f : (a : α) → a ∈ as → m (β a))
   : m (IteratedProd (as.map β)) :=
-  match as with
-  | [] => pure ()
-  | a :: as' => do
-    let b ← f a List.mem_cons_self
-    let bs ← ofListMWithMem as' (fun a' h => f a' (List.mem_cons_of_mem a h))
-    pure (b, bs)
+  let rec @[specialize] loop : ∀ {ts : List Type} (as' : List α), (∀ a ∈ as', a ∈ as) → IteratedProd ts → m (IteratedProd (ts.reverseAux <| as'.map β))
+    | _, [], _, bs => pure <| IteratedProd.reverse bs
+    | ts, a :: as', pf, bs => do
+      let b ← f a (pf a (by simp))
+      loop (ts := β a :: ts) as' (fun a ha => pf a (by simp ; right ; exact ha)) (b, bs)
+  loop (ts := []) as (by simp) ()
 
-
-def IteratedProd.mapM [Monad m] {ts : List α} {T₁ T₂ : α → Type}
-  (f : ∀ {a : α}, T₁ a → m (T₂ a))
-  (elements : IteratedProd (ts.map T₁)) : m (IteratedProd (ts.map T₂)) := do
-  match ts, elements with
-  | [], _ => pure ()
-  | _ :: _, (lis, elements) =>
-    let head ← f lis
-    let tail ← IteratedProd.mapM f elements
-    pure (head, tail)
+@[inline, expose]
+def IteratedProd.mapM [Monad m] {as : List α} {T₁ T₂ : α → Type}
+  (f : ∀ {a : α}, T₁ a → m (T₂ a)) : IteratedProd (as.map T₁) → m (IteratedProd (as.map T₂)) :=
+  let rec @[specialize] loop : ∀ {ts : List Type} (as' : List α), IteratedProd ts → IteratedProd (as'.map T₁) → m (IteratedProd (ts.reverseAux <| as'.map T₂))
+    | _, [], acc, _ => pure <| IteratedProd.reverse acc
+    | ts, a :: as', acc, (x, xs) => do
+      let y ← f x
+      loop (ts := T₂ a :: ts) as' (y, acc) xs
+  loop (ts := []) as ()
 
 def IteratedProd.foldl {ts : List α} {T₁ : α → Type}
   (init : β)
