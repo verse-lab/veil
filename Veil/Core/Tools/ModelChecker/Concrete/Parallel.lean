@@ -769,10 +769,13 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
       have h_extract_reachable := Array_extract_items_reachable sys tovisitArr h_tovisitArr_reachable
       have h_splitArrays_sound := splitArrays_items_reachable sys tovisitArr ranges splitArrays rfl h_extract_reachable
 
-      let tasks ← IteratedProd.ofListMWithMem (as := splitArrays) fun subArr h_subArr_in => do
+      -- CAVEAT: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
+      -- as that might cause parallelism to vanish!!! Instead, the call should be defined
+      -- in some other file.
+      let tasks ← IteratedProd.taskSplit splitArrays fun subArr h_subArr_in =>
         have h_reachable : ∀ item ∈ subArr.toList, sys.reachable item.2.1 :=
           h_splitArrays_sound subArr h_subArr_in
-        IO.asTask (LocalSearchContext.bfsBigStep sys baseCtx subArr h_baseCtx_seen_sound h_reachable)
+        LocalSearchContext.bfsBigStep sys baseCtx subArr h_baseCtx_seen_sound h_reachable
 
       -- let totalTasks := IteratedProd.foldl (init := 0) (fun acc _ => acc + 1) tasks
       -- IO.eprintln s!"[{← IO.monoMsNow} @ tid {← IO.getTID}] spawned {totalTasks} tasks"

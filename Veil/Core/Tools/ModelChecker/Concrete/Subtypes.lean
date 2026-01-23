@@ -53,3 +53,8 @@ def IteratedProd.foldl {ts : List α} {T₁ : α → Type}
   | _ :: _, (lis, elements) =>
     let res := prod init lis
     IteratedProd.foldl res prod elements
+
+/-- A thin wrapper around `IO.asTask` to produce an `IteratedProd` of `Task`s. -/
+def IteratedProd.taskSplit {β : α → Type} [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
+  (as : List α) (f : (a : α) → a ∈ as → IO (β a)) : m (IteratedProd <| as.map fun a => (Task (Except IO.Error <| β a))) := do
+  IteratedProd.ofListMWithMem (as := as) fun subArr h_subArr_in => IO.asTask (f subArr h_subArr_in)
