@@ -78,6 +78,10 @@ instance (priority := high + 100) {α : Type u} {p : α → Prop} [inst : Veil.E
   find := fun _ => inst.allValues.unattach
   find_iff := by simp ; grind
 
+instance (priority := high + 200) {α : Type u} [Veil.Enumeration α] : MultiExtractor.Candidates (fun (_ : α) => True) where
+  find := fun _ => Veil.Enumeration.allValues
+  find_iff := by simp ; grind
+
 namespace MultiExtractor
 
 section test
@@ -466,6 +470,7 @@ elab "extract_list_use_extracted" : tactic => withMainContext do
         let mv ← getMainGoal
         let mvs ← mv.applyConst entry.name (cfg := { synthAssignedInstances := false })
         replaceMainGoal mvs
+      trace[veil.extraction] "Applied extracted result: {entry.name}"
       return
     catch _ =>
       pure ()
