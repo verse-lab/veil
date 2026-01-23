@@ -648,9 +648,9 @@ ghost relation grant (m : Message value server) (i j : server) (lastTerm_i : Nat
   ∧ (∀ P, votedFor i P → P = j)
 
 procedure HandleRequestVoteRequest (i : server) (j : server) (m : Message value server) {
+  require m.mterm ≤ currentTerm i
+  -- assume m.mterm ≤ currentTerm i
   let lastTerm_i ← LastTerm (logs i)
-  -- require m.mterm ≤ currentTerm i
-  assume m.mterm ≤ currentTerm i
   let isGrant := grant m i j lastTerm_i
   if decide isGrant then
     votedFor i R := R == j
@@ -877,7 +877,7 @@ procedure HandleAppendEntriesRequest (i : server) (j : server) (m : Message valu
 --     /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
 procedure HandleAppendEntriesResponse (i : server) (j : server) (m : Message value server) {
   -- require m.mterm = currentTerm i
-  assume m.mterm = currentTerm i
+  require m.mterm = currentTerm i
   if m.msuccess then
     nextIndex i j := m.mmatchIndex + 1
     matchIndex i j := m.mmatchIndex
@@ -896,7 +896,7 @@ procedure HandleAppendEntriesResponse (i : server) (j : server) (m : Message val
 --     /\ UNCHANGED <<messages, candidateVars, leaderVars, logVars>>
 procedure UpdateTerm (i : server) (j : server) (m : Message value server) {
   -- require m.mterm > currentTerm i
-  assume m.mterm > currentTerm i
+  require m.mterm > currentTerm i
   currentTerm i := m.mterm
   pcState i T := T == Follower
   votedFor i R := false
@@ -909,7 +909,7 @@ procedure UpdateTerm (i : server) (j : server) (m : Message value server) {
 --     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 procedure DropStaleResponse (i : server) (j : server) (m : Message value server) {
   -- require m.mterm < currentTerm i
-  assume m.mterm < currentTerm i
+  require m.mterm < currentTerm i
   Discard m
 }
 
@@ -1018,8 +1018,9 @@ ghost relation isSingleMessage (m : Message value server) :=
 action DuplicateMessage {
   -- let m :| mSet.count m messages == 1
   let m :| mSet.contains m messages
-  if mSet.count m messages = 1 then
-    Send m
+  require mSet.count m messages = 1
+  -- if mSet.count m messages = 1 then
+  Send m
 }
 
 -- \* The network drops a message
