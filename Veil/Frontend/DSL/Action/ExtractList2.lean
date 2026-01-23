@@ -462,7 +462,10 @@ elab "extract_list_use_extracted" : tactic => withMainContext do
     try
       match entry.kind with
       | .proof => failure   -- for convenience, just not handle this case
-      | .struct => evalTactic (← `(tactic| eapply $(mkIdent entry.name)))
+      | .struct =>
+        let mv ← getMainGoal
+        let mvs ← mv.applyConst entry.name (cfg := { synthAssignedInstances := false })
+        replaceMainGoal mvs
       return
     catch _ =>
       pure ()
@@ -477,9 +480,9 @@ macro "extract_list_step_fallback" : tactic =>
       | eapply $(Lean.mkIdent ``ConstrainedExtractResult.liftM)
       | eapply $(Lean.mkIdent ``ConstrainedExtractResult.assume) _ _ _ ($(Lean.mkIdent `decp) := by first | find_local_decidable_and_apply | infer_instance)
       | eapply $(Lean.mkIdent ``ConstrainedExtractResult.pickList)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.toConstrainedExtractResult) <;> try eapply $(Lean.mkIdent ``ExtractConstraint.vis)
+      | eapply $(Lean.mkIdent ``ExtractConstraint.toConstrainedExtractResult) <;> any_goals eapply $(Lean.mkIdent ``ExtractConstraint.vis)
       | eapply $(Lean.mkIdent ``ConstrainedExtractResult.pure)
-      | eapply $(Lean.mkIdent ``ExtractConstraint.toConstrainedExtractResult) <;> try eapply $(Lean.mkIdent ``ExtractConstraint.pickCont)
+      | eapply $(Lean.mkIdent ``ExtractConstraint.toConstrainedExtractResult) <;> any_goals eapply $(Lean.mkIdent ``ExtractConstraint.pickCont)
       | eapply $(Lean.mkIdent ``ConstrainedExtractResult.ite)
     )
 
