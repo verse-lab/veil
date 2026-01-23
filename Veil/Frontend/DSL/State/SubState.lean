@@ -74,3 +74,8 @@ theorem setIn_makeExplicit {σₛ σ : Type} {S : IsSubStateOf σₛ σ} {x : σ
     constructor
     { intro h; exists x }
     { rintro ⟨s₁, ⟨heq, h⟩⟩; rw [← heq]; apply h}
+
+open Lean Meta Elab Term in
+def Veil.dsimpSubReaderSubStateRefl (e : Expr) : TermElabM Expr := do
+  let res ← (Simp.dsimp #[``instIsSubReaderOfRefl, ``instIsSubStateOfRefl, ``id]) e
+  pure res.1
