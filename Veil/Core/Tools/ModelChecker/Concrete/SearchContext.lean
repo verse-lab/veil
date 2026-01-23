@@ -25,8 +25,6 @@ abbrev FrontierClosed {ρ σ κ σₕ : Type}
 
 /-- The property that all successors of items in `items` satisfy the `inSeen` predicate.
     Used as a key invariant in parallel BFS to express that successors have been collected. -/
-
--- 注意这里：{ρ σ κ σₕ : Type u}
 abbrev SuccessorsCollected {ρ σ κ σₕ : Type _}
   [fp : StateFingerprint σ σₕ]
   [BEq κ] [Hashable κ]
