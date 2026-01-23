@@ -2,6 +2,7 @@ import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Module.Names
 import Veil.Frontend.DSL.Action.ExtractList2
 import Veil.Core.Tools.ModelChecker.ExecutionOutcome
+import Veil.Frontend.DSL.Action.Semantics.WP
 
 open Lean Elab Command Term Meta Lean.Parser
 
@@ -262,13 +263,30 @@ def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
 
 end Extraction
 
+section VeilSpecificExtractionUtils
+
+open MultiExtractor
+
+def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] [instec : ExtCandidates Candidates Std.Format p] :
+  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+  (findOfCandidates _) (VeilM.pickSuchThat τ p) := ConstrainedExtractResult.pickList _ _ _ _ p (instec := instec)
+
+def ConstrainedExtractResult.assume_VeilM {m ρ σ} (p : Prop) [decp : Decidable p] :
+  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+  (findOfCandidates _) (@VeilM.assume m ρ σ p decp) := ConstrainedExtractResult.assume _ _ _ _ p (decp := decp)
+
+end VeilSpecificExtractionUtils
+
 open MultiExtractor in
 attribute [multiextracted] ConstrainedExtractResult.pure
   ConstrainedExtractResult.bind
   ConstrainedExtractResult.filterAuxM
   ConstrainedExtractResult.pick
   -- ConstrainedExtractResult.assume  -- This will be handled with a tactic
-  ConstrainedExtractResult.pickList ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
+  -- ConstrainedExtractResult.pickList
+  ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
+  ConstrainedExtractResult.pickSuchThat_VeilM
+  ConstrainedExtractResult.assume_VeilM
 
 open MultiExtractor in
 attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
@@ -277,6 +295,8 @@ attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.pick
   ConstrainedExtractResult.pickList ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
   ConstrainedExtractResult.val
+  ConstrainedExtractResult.pickSuchThat_VeilM
+  ConstrainedExtractResult.assume_VeilM
 
 /-- Extract the execution outcome from a DivM-wrapped result. Unlike `getPostState`
 which only returns `Option σ`, this preserves information about assertion failures
