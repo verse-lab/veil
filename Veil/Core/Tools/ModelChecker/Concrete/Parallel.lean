@@ -621,8 +621,6 @@ theorem foldl_merge_preserves_successors_collected {ρ σ κ σₕ : Type}
       have h_succ := h_headRes_prop h_head_not_finished _ _ _ h_in_arr l v h_tr
       cases h_succ with
       | inl h_in_seen =>
-        -- h_in_seen : fp.view v ∈ headRes.val.seen
-        -- By seenUnaltered, headRes.val.seen = baseCtx.seen
         left
         exact (headRes.val.seenUnaltered (fp.view v)).mpr h_in_seen
       | inr h_in_tovisitSet =>

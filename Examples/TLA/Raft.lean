@@ -491,7 +491,7 @@ action AppendEntries (i : server) (j : server) {
 action BecomeLeader (i : server) {
   require pcState i Candidate
   -- Quorum == {i \in SUBSET(Server) : Cardinality(i) * 2 > Cardinality(Server)}
-  -- require sSet.count (votesGranted i) * 2 > SIZE
+  require sSet.count (votesGranted i) * 2 > SIZE
   pcState i T := T == Leader
   nextIndex i R := List.length (logs i) + 1
   matchIndex i R := 0
@@ -690,8 +690,8 @@ procedure HandleRequestVoteRequest (i : server) (j : server) (m : Message value 
 --     /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
 
 procedure HandleRequestVoteResponse (i : server) (j : server) (m : Message value server) {
-  -- require m.mterm = currentTerm i
-  assume m.mterm = currentTerm i
+  require m.mterm = currentTerm i
+  -- assume m.mterm = currentTerm i
   if m.mvoteGranted then
     votesGranted i := sSet.insert j (votesGranted i)
     voterLog i j := m.mlog
@@ -768,8 +768,8 @@ procedure HandleRequestVoteResponse (i : server) (j : server) (m : Message value
 --                        /\ UNCHANGED <<serverVars, commitIndex, messages, clientRequests, committedLog, committedLogDecrease>>
 --        /\ UNCHANGED <<candidateVars, leaderVars>>
 procedure HandleAppendEntriesRequest (i : server) (j : server) (m : Message value server) {
-  -- require m.mterm ≤ currentTerm i
-  assume m.mterm ≤ currentTerm i
+  require m.mterm ≤ currentTerm i
+  -- assume m.mterm ≤ currentTerm i
 
   -- Check if log is ok: prevLogIndex matches
   let logOk :=
@@ -930,46 +930,67 @@ procedure DropStaleResponse (i : server) (j : server) (m : Message value server)
 --        \/ /\ m.mtype = AppendEntriesResponse
 --           /\ \/ DropStaleResponse(i, j, m)
 --              \/ HandleAppendEntriesResponse(i, j, m)
-action Receive_UpdateTerm {
+-- action Receive_UpdateTerm {
+--   let m :| mSet.contains m messages
+--   let i := m.mdest
+--   let j := m.msource
+--   if m.mterm > currentTerm i then
+--     UpdateTerm i j m
+-- }
+
+-- action Receive_RequestVoteRequest {
+--   let m :| mSet.contains m messages
+--   let i := m.mdest
+--   let j := m.msource
+--   if m.mtype = .RequestVoteRequest then
+--     HandleRequestVoteRequest i j m
+-- }
+
+-- action Receive_RequestVoteResponse {
+--   let m :| mSet.contains m messages
+--   let i := m.mdest
+--   let j := m.msource
+--   if m.mtype = .RequestVoteResponse then
+--     if m.mterm < currentTerm i then
+--       DropStaleResponse i j m
+--     else
+--       HandleRequestVoteResponse i j m
+-- }
+
+-- action Receive_AppendEntriesRequest {
+--   let m :| mSet.contains m messages
+--   let i := m.mdest
+--   let j := m.msource
+--   if m.mtype = .AppendEntriesRequest then
+--     HandleAppendEntriesRequest i j m
+-- }
+
+-- action Receive_AppendEntriesResponse {
+--   let m :| mSet.contains m messages
+--   let i := m.mdest
+--   let j := m.msource
+--   if m.mtype = .AppendEntriesResponse then
+--     if m.mterm < currentTerm i then
+--       DropStaleResponse i j m
+--     else
+--       HandleAppendEntriesResponse i j m
+-- }
+action Receive {
   let m :| mSet.contains m messages
   let i := m.mdest
   let j := m.msource
   if m.mterm > currentTerm i then
     UpdateTerm i j m
-}
-
-action Receive_RequestVoteRequest {
-  let m :| mSet.contains m messages
-  let i := m.mdest
-  let j := m.msource
-  if m.mtype = .RequestVoteRequest then
+  else if m.mtype = .RequestVoteRequest then
     HandleRequestVoteRequest i j m
-}
-
-action Receive_RequestVoteResponse {
-  let m :| mSet.contains m messages
-  let i := m.mdest
-  let j := m.msource
-  if m.mtype = .RequestVoteResponse then
+  else if m.mtype = .RequestVoteResponse then
     if m.mterm < currentTerm i then
       DropStaleResponse i j m
     else
       HandleRequestVoteResponse i j m
-}
-
-action Receive_AppendEntriesRequest {
-  let m :| mSet.contains m messages
-  let i := m.mdest
-  let j := m.msource
-  if m.mtype = .AppendEntriesRequest then
+  else if m.mtype = .AppendEntriesRequest then
     HandleAppendEntriesRequest i j m
-}
-
-action Receive_AppendEntriesResponse {
-  let m :| mSet.contains m messages
-  let i := m.mdest
-  let j := m.msource
-  if m.mtype = .AppendEntriesResponse then
+  else if m.mtype = .AppendEntriesResponse then
     if m.mterm < currentTerm i then
       DropStaleResponse i j m
     else
@@ -997,7 +1018,8 @@ ghost relation isSingleMessage (m : Message value server) :=
 action DuplicateMessage {
   -- let m :| mSet.count m messages == 1
   let m :| mSet.contains m messages
-  Send m
+  if mSet.count m messages = 1 then
+    Send m
 }
 
 -- \* The network drops a message
@@ -1006,8 +1028,8 @@ action DuplicateMessage {
 --     /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 action DropMessage {
   let m :| mSet.contains m messages
-  if mSet.count m messages = 1 then
-    Discard m
+  -- if mSet.count m messages = 1 then
+  Discard m
 }
 
 -- ----
@@ -1046,7 +1068,6 @@ set_option synthInstance.maxHeartbeats 1000000
 set_option synthInstance.maxSize 200000
 set_option maxHeartbeats 10000000
 open Std
-
 #gen_spec
 
 set_option veil.violationIsError false in
