@@ -80,7 +80,7 @@ FreeSlots(T) ==
   {s \in Slots : ~ \E t \in T : t.slot = s}
 
 NewProposals(T) ==
-  (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {}:
+  (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}}:
     \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
 
 ProposeDecrees(T) ==
