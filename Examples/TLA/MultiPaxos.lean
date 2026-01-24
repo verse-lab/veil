@@ -53,6 +53,7 @@ type SlotSet
 type VotedSet
 type DecreeSet
 type MsgSet
+type AcceptorSet
 
 @[veil_decl]
 inductive MsgType where
@@ -62,8 +63,7 @@ inductive MsgType where
   | Phase2b
 deriving instance Veil.Enumeration for MsgType
 
-#eval instInhabitedMsgType
--- Sum type to represent either a proposer or an acceptor as message source
+
 @[veil_decl]
 inductive MsgSrc (prop acc : Type) where
   | fromProposer : prop → MsgSrc prop acc
@@ -91,6 +91,7 @@ instantiate voteTset : TSet (Voted ballot slot value) VotedSet
 instantiate slotTset : TSet slot SlotSet
 instantiate decreeSet : TSet (Decree slot value) DecreeSet
 instantiate msgTset : TSet (Msg proposer acceptor value ballot slot VotedSet DecreeSet) MsgSet
+instantiate acceptorTset : TSet acceptor AcceptorSet
 
 -- individual count : Nat
 immutable relation member (A : acceptor) (Q : quorum)
@@ -278,18 +279,26 @@ procedure FreeSlots (T : VotedSet) {
 --   (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {}:
 --     \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
 
--- Constructive implementation:
--- For each free slot, create a decree with default value.
--- Since we iterate over the slot list, slot uniqueness is guaranteed.
+-- Previous version: deterministic, always selects ALL free slots with default value
+-- This doesn't match TLA+ semantics where CHOOSE can select any non-empty subset
+-- Previous version: always selects ALL free slots
+-- procedure NewProposals (T : VotedSet) {
+--   let freeSlotList ← FreeSlots T
+--   let result := freeSlotList.foldl (fun acc s =>
+--     decreeSet.insert { slot := s, val := default } acc) decreeSet.empty
+--   return result
+-- }
+
+-- TLA+ CHOOSE is deterministic! TLC picks the "smallest" satisfying element.
+-- We simulate by picking only the FIRST free slot with default value.
 procedure NewProposals (T : VotedSet) {
-  -- Get the list of free slots
   let freeSlotList ← FreeSlots T
-  -- Build decrees by folding over free slots
-  -- Slot uniqueness is automatic since freeSlotList contains no duplicates
-  let result := freeSlotList.foldl (fun acc s =>
-    decreeSet.insert { slot := s, val := default } acc) decreeSet.empty
+  let result := match freeSlotList with
+    | [] => decreeSet.empty
+    | s :: _ => decreeSet.insert { slot := s, val := default } decreeSet.empty
   return result
 }
+
 
 
 -- ProposeDecrees(T) ==
@@ -327,18 +336,54 @@ procedure VS (S : MsgSet) (Q : quorum) {
 --   assume ∀ a, member a Q → ∃ m, msgTset.contains m S ∧ m.src = MsgSrc.fromAcceptor a
 --   ...
 -- }
--- Alternative: use constructive checks with filter and if
+-- Previous version: S is fixed to all 1b messages (no subset non-determinism)
+-- action Phase2a (p : proposer) {
+--   let b ← pick ballot
+--   -- Check constructively: no existing 2a message with this ballot
+--   let existing2a := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a ∧ m.bal = b)
+--   let no2aExists := msgTset.count existing2a = 0
+--   require no2aExists
+--   -- if no2aExists then
+--   let Q ← pick quorum
+--   -- Filter to get all 1b messages with this ballot
+--   let S := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1b ∧ m.bal = b)
+--   -- Check constructively: every acceptor in Q has a 1b message in S
+--   let quorumCovered := AcceptorsUNIV |>.all (fun a =>
+--     !member a Q || (msgTset.toList S |>.any (fun m => decide (m.src = MsgSrc.fromAcceptor a))))
+--   require quorumCovered
+--   let vsSet ← VS S Q
+--   let proposeDecreesSet ← ProposeDecrees vsSet
+--   let sentMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
+--     msgType := MsgType.Phase2a,
+--     src := MsgSrc.fromProposer p,
+--     val := default,
+--     bal := b,
+--     slot := default,
+--     decrees := proposeDecreesSet,
+--     voted := default
+--   }
+--   Send (msgTset.insert sentMsg msgTset.empty)
+-- }
+-- Modified version: S is non-deterministically chosen as a subset of all 1b messages
+-- This matches TLA+ semantics: \E S \in SUBSET {m \in sent: ...}
+-- Optimization: instead of picking MsgSet (huge), pick AcceptorSet (only 2^n possibilities)
+-- Then construct S by filtering 1b messages from selected acceptors
 action Phase2a (p : proposer) {
   let b ← pick ballot
   -- Check constructively: no existing 2a message with this ballot
   let existing2a := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a ∧ m.bal = b)
-  let no2aExists := msgTset.count existing2a = 0
-  require no2aExists
-  -- if no2aExists then
+  require msgTset.count existing2a = 0
   let Q ← pick quorum
-  -- Filter to get all 1b messages with this ballot
-  let S := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1b ∧ m.bal = b)
-  -- Check constructively: every acceptor in Q has a 1b message in S
+  -- Get all 1b messages with this ballot
+  let all1bMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1b ∧ m.bal = b)
+  -- Non-deterministically pick a subset of acceptors (only 2^n possibilities, much smaller than MsgSet)
+  let selectedAcceptors ← pick AcceptorSet
+  -- Construct S: filter 1b messages from selected acceptors
+  let S := msgTset.filter all1bMsgs (fun m =>
+    match m.src with
+    | MsgSrc.fromAcceptor a => acceptorTset.contains a selectedAcceptors
+    | _ => false)
+  -- Check: every acceptor in Q has a 1b message in S
   let quorumCovered := AcceptorsUNIV |>.all (fun a =>
     !member a Q || (msgTset.toList S |>.any (fun m => decide (m.src = MsgSrc.fromAcceptor a))))
   require quorumCovered
@@ -355,7 +400,6 @@ action Phase2a (p : proposer) {
   }
   Send (msgTset.insert sentMsg msgTset.empty)
 }
-
 
 
 -- (***************************************************************************)
@@ -383,31 +427,36 @@ action Phase2a (p : proposer) {
 --         voted := default : Msg proposer acceptor value ballot slot VotedSet DecreeSet} )
 --   Send replyMsgSet
 -- }
--- Alternative: filter to 2a messages first, then pick from filtered set
--- action Phase2b (a : acceptor) {
---   -- Filter to only 2a messages
---   let phase2aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a)
---   -- Pick a 2a message from the filtered set
---   let m :| msgTset.contains m phase2aMsgs
---   -- Filter to get all previous 1b/2b messages from this acceptor
---   let prevMsgsFromA := msgTset.filter sent (fun m2 =>
---     (m2.msgType = MsgType.Phase1b ∨ m2.msgType = MsgType.Phase2b) ∧ m2.src = MsgSrc.fromAcceptor a)
---   -- Check ballot condition constructively: m.bal >= all previous ballots
---   let jf := msgTset.toList prevMsgsFromA |>.all (fun m2 => decide (tot.le m2.bal m.bal))
---   if jf then
---     let replyMsgSet := decreeSet.map m.decrees (fun d =>
---         { msgType := MsgType.Phase2b,
---           src := MsgSrc.fromAcceptor a,
---           val := d.val,
---           bal := m.bal,
---           slot := d.slot,
---           decrees := default,
---           voted := default : Msg proposer acceptor value ballot slot VotedSet DecreeSet} )
---     Send replyMsgSet
--- }
+-- Phase2b(a) == \E m \in sent:
+--   /\ m.type = "2a"
+--   /\ \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: m.bal >= m2.bal
+--   /\ Send({[type |-> "2b", from |-> a, bal |-> m.bal, slot |-> d.slot, val |-> d.val]: d \in m.decrees})
+-- Alternative: filter to 2a messages first, then pick from filtered set;
+-- also use constructive check for ballot condition
+action Phase2b (a : acceptor) {
+  -- Filter to only 2a messages
+  let phase2aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a)
+  -- Pick a 2a message from the filtered set
+  let m :| m ∈ phase2aMsgs
+  -- Filter to get all previous 1b/2b messages from this acceptor
+  let prevMsgsFromA := msgTset.filter sent (fun m2 =>
+    (m2.msgType = MsgType.Phase1b ∨ m2.msgType = MsgType.Phase2b) ∧ m2.src = MsgSrc.fromAcceptor a)
+  -- Check ballot condition: m.bal >= all previous ballots
+  let allPrevBallotsLeq := msgTset.toList prevMsgsFromA |>.all (fun m2 => decide (tot.le m2.bal m.bal))
+  require allPrevBallotsLeq
+  -- Create 2b messages for each decree
+  let replyMsgSet := decreeSet.map m.decrees (fun d =>
+      { msgType := MsgType.Phase2b,
+        src := MsgSrc.fromAcceptor a,
+        val := d.val,
+        bal := m.bal,
+        slot := d.slot,
+        decrees := default,
+        voted := default : Msg proposer acceptor value ballot slot VotedSet DecreeSet} )
+  Send replyMsgSet
+}
 
 -- invariant [sent_not_empty] msgTset.count sent < 7
-
 set_option synthInstance.maxHeartbeats 2000000
 set_option synthInstance.maxSize 2000
 
@@ -415,7 +464,6 @@ set_option synthInstance.maxSize 2000
 /- We need set a very large number for both `maxHeartbeats`
 and `maxSize` to get all required instances infered automatically,
 especially for `Inhabited`. -/
--- #exit
 -- Based on MultiPaxosUs.cfg:
 -- Acceptors = {a1, a2, a3}        -> Fin 3
 -- Proposers = {p1, p2}            -> Fin 2
@@ -423,19 +471,19 @@ especially for `Inhabited`. -/
 -- Quorums = {{a1,a2},{a1,a3},{a2,a3}} -> Fin 3
 -- MaxBallot = 2                   -> 0..2, Fin 3
 -- MaxSlot = 1                     -> 0..1, Fin 2
-
 #model_check
 {
   ballot := Fin 3,
-  slot := Fin 3,
+  slot := Fin 2,
   value := Fin 2,
   acceptor := Fin 3,
   proposer := Fin 2,
   quorum := Fin 3,
-  SlotSet := ExtTreeSet (Fin 3) compare,
-  VotedSet := ExtTreeSet (Voted (Fin 3) (Fin 3) (Fin 2)) compare,
-  DecreeSet := ExtTreeSet (Decree (Fin 3) (Fin 2)) compare,
-  MsgSet := ExtTreeSet (Msg (Fin 2) (Fin 3) (Fin 2) (Fin 3) (Fin 3) (ExtTreeSet (Voted (Fin 3) (Fin 3) (Fin 2)) compare) (ExtTreeSet (Decree (Fin 3) (Fin 2)) compare)) compare
+  SlotSet := ExtTreeSet (Fin 2) compare,
+  VotedSet := ExtTreeSet (Voted (Fin 3) (Fin 2) (Fin 2)) compare,
+  DecreeSet := ExtTreeSet (Decree (Fin 2) (Fin 2)) compare,
+  MsgSet := ExtTreeSet (Msg (Fin 2) (Fin 3) (Fin 2) (Fin 3) (Fin 2) (ExtTreeSet (Voted (Fin 3) (Fin 2) (Fin 2)) compare) (ExtTreeSet (Decree (Fin 2) (Fin 2)) compare)) compare,
+  AcceptorSet := ExtTreeSet (Fin 3) compare
 }
 {
   one := 1,
@@ -451,7 +499,7 @@ especially for `Inhabited`. -/
     | 1, 2 => true -- q1 does not contain a1
     | 2, 2 => true  -- q2 contains a1
     | _, _ => false
-  SlotsUNIV := [0, 1, 2]  -- slot 0, 1, 2
+  SlotsUNIV := [0, 1]  -- slot 0, 1
 }
 -- #model_check interpreted
 -- {
