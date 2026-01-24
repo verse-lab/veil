@@ -79,6 +79,7 @@ Bmax(T) ==
 FreeSlots(T) ==
   {s \in Slots : ~ \E t \in T : t.slot = s}
 
+\* Original: CHOOSE returns a single D (deterministic)
 NewProposals(T) ==
   (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}}:
     \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
@@ -86,12 +87,28 @@ NewProposals(T) ==
 ProposeDecrees(T) ==
   Bmax(T) \cup NewProposals(T)
 
+\* Modified: AllNewProposals returns the set of ALL valid D (for non-deterministic exploration)
+AllNewProposals(T) ==
+  { D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}} :
+    \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2 }
+
 VS(S, Q) == UNION {m.voted: m \in {m \in S: m.from \in Q}}
+
+\* Original Phase2a (deterministic NewProposals):
 Phase2a(p) == \E b \in Ballots:
   /\ ~\E m \in sent: (m.type = "2a") /\ (m.bal = b)
   /\ \E Q \in Quorums, S \in SUBSET {m \in sent: (m.type = "1b") /\ (m.bal = b)}:
        /\ \A a \in Q: \E m \in S: m.from = a
        /\ Send({[type |-> "2a", from |-> p, bal |-> b, decrees |-> ProposeDecrees(VS(S, Q))]})
+
+\* Modified Phase2a: uses \E to explore all possible D in AllNewProposals
+\* Phase2a(p) == \E b \in Ballots:
+\*   /\ ~\E m \in sent: (m.type = "2a") /\ (m.bal = b)
+\*   /\ \E Q \in Quorums, S \in SUBSET {m \in sent: (m.type = "1b") /\ (m.bal = b)}:
+\*        /\ \A a \in Q: \E m \in S: m.from = a
+\*        /\ LET T == VS(S, Q) IN
+\*           \E D \in AllNewProposals(T):
+\*             Send({[type |-> "2a", from |-> p, bal |-> b, decrees |-> Bmax(T) \cup D]})
 
 (***************************************************************************)
 (* Phase 2b: If an acceptor receives a 2a message for a ballot which is    *)
