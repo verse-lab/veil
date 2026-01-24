@@ -106,7 +106,7 @@ Phase2b(a) == \E m \in sent:
 Next == \/ \E p \in Proposers : Phase1a(p) 
         \/ \E p \in Proposers : Phase2a(p)
         \/ \E a \in Acceptors : Phase1b(a) 
-        \/ \E a \in Acceptors : Phase2b(a)
+        \* \/ \E a \in Acceptors : Phase2b(a)
 
 Spec == Init /\ [][Next]_vars       
 -----------------------------------------------------------------------------
