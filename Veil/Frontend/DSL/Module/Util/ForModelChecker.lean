@@ -97,6 +97,8 @@ def modelCheckerMainTemplate (specNamespace : String) : String :=
 "import Model
 
 set_option maxHeartbeats 6400000
+set_option synthInstance.maxHeartbeats 200000
+set_option synthInstance.maxSize 10000
 
 open " ++ specNamespace ++ "
 
