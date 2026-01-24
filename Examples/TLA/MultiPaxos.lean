@@ -220,27 +220,26 @@ action Phase1b (a : acceptor) {
   -- Filter to only 1a messages
   let phase1aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1a)
   -- Pick a 1a message from the filtered set
-  let m :| msgTset.contains m phase1aMsgs
+  let m :| m ∈ phase1aMsgs
   -- Filter to get all previous 1b/2b messages from this acceptor
   let prevMsgsFromA := msgTset.filter sent (fun m2 =>
     (m2.msgType = MsgType.Phase1b ∨ m2.msgType = MsgType.Phase2b) ∧ m2.src = MsgSrc.fromAcceptor a)
-  -- Check ballot condition constructively: m.bal > all previous ballots
-  let jf := msgTset.toList prevMsgsFromA |>.all (fun m2 => decide (lt m2.bal m.bal))
-  if jf then
-    let votedSet ← voteds a
-    let partialBmaxSet ← PartialBmax votedSet
-    let replyMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
-      msgType := MsgType.Phase1b,
-      src := MsgSrc.fromAcceptor a,
-      val := default,
-      bal := m.bal,
-      slot := default,
-      decrees := default,
-      voted := partialBmaxSet
-    }
-    Send (msgTset.insert replyMsg msgTset.empty)
+  -- Check ballot condition: m.bal > all previous ballots
+  let allPrevBallotsLower := msgTset.toList prevMsgsFromA |>.all (fun m2 => decide (lt m2.bal m.bal))
+  require allPrevBallotsLower
+  let votedSet ← voteds a
+  let partialBmaxSet ← PartialBmax votedSet
+  let replyMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
+    msgType := MsgType.Phase1b,
+    src := MsgSrc.fromAcceptor a,
+    val := default,
+    bal := m.bal,
+    slot := default,
+    decrees := default,
+    voted := partialBmaxSet
+  }
+  Send (msgTset.insert replyMsg msgTset.empty)
 }
-
 
 -- (***************************************************************************)
 -- (* Phase 2a: If the proposer receives a response to its 1b message (for    *)
@@ -293,7 +292,7 @@ procedure NewProposals (T : VotedSet) {
   let usedSlots := voteTset.map T (fun t => t.slot)
   -- Pick a single free slot (non-deterministic but bounded by slot type)
   let s ← pick slot
-  assume ¬ slotTset.contains s usedSlots  -- s is a free slot
+  require ¬ slotTset.contains s usedSlots  -- s is a free slot
   -- Create a single decree for this slot with default value
   let result := decreeSet.insert { slot := s, val := default } decreeSet.empty
   return result
@@ -341,26 +340,27 @@ action Phase2a (p : proposer) {
   -- Check constructively: no existing 2a message with this ballot
   let existing2a := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a ∧ m.bal = b)
   let no2aExists := msgTset.count existing2a = 0
-  if no2aExists then
-    let Q ← pick quorum
-    -- Filter to get all 1b messages with this ballot
-    let S := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1b ∧ m.bal = b)
-    -- Check constructively: every acceptor in Q has a 1b message in S
-    let quorumCovered := AcceptorsUNIV |>.all (fun a =>
-      ¬ member a Q || (msgTset.toList S |>.any (fun m => decide (m.src = MsgSrc.fromAcceptor a))))
-    if quorumCovered then
-      let vsSet ← VS S Q
-      let proposeDecreesSet ← ProposeDecrees vsSet
-      let sentMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
-        msgType := MsgType.Phase2a,
-        src := MsgSrc.fromProposer p,
-        val := default,
-        bal := b,
-        slot := default,
-        decrees := proposeDecreesSet,
-        voted := default
-      }
-      Send (msgTset.insert sentMsg msgTset.empty)
+  assume no2aExists
+  -- if no2aExists then
+  let Q ← pick quorum
+  -- Filter to get all 1b messages with this ballot
+  let S := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1b ∧ m.bal = b)
+  -- Check constructively: every acceptor in Q has a 1b message in S
+  let quorumCovered := AcceptorsUNIV |>.all (fun a =>
+    ! member a Q || (msgTset.toList S |>.any (fun m => decide (m.src = MsgSrc.fromAcceptor a))))
+  assume quorumCovered
+  let vsSet ← VS S Q
+  let proposeDecreesSet ← ProposeDecrees vsSet
+  let sentMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
+    msgType := MsgType.Phase2a,
+    src := MsgSrc.fromProposer p,
+    val := default,
+    bal := b,
+    slot := default,
+    decrees := proposeDecreesSet,
+    voted := default
+  }
+  Send (msgTset.insert sentMsg msgTset.empty)
 }
 
 
@@ -391,27 +391,27 @@ action Phase2a (p : proposer) {
 --   Send replyMsgSet
 -- }
 -- Alternative: filter to 2a messages first, then pick from filtered set
-action Phase2b (a : acceptor) {
-  -- Filter to only 2a messages
-  let phase2aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a)
-  -- Pick a 2a message from the filtered set
-  let m :| msgTset.contains m phase2aMsgs
-  -- Filter to get all previous 1b/2b messages from this acceptor
-  let prevMsgsFromA := msgTset.filter sent (fun m2 =>
-    (m2.msgType = MsgType.Phase1b ∨ m2.msgType = MsgType.Phase2b) ∧ m2.src = MsgSrc.fromAcceptor a)
-  -- Check ballot condition constructively: m.bal >= all previous ballots
-  let jf := msgTset.toList prevMsgsFromA |>.all (fun m2 => decide (tot.le m2.bal m.bal))
-  if jf then
-    let replyMsgSet := decreeSet.map m.decrees (fun d =>
-        { msgType := MsgType.Phase2b,
-          src := MsgSrc.fromAcceptor a,
-          val := d.val,
-          bal := m.bal,
-          slot := d.slot,
-          decrees := default,
-          voted := default : Msg proposer acceptor value ballot slot VotedSet DecreeSet} )
-    Send replyMsgSet
-}
+-- action Phase2b (a : acceptor) {
+--   -- Filter to only 2a messages
+--   let phase2aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a)
+--   -- Pick a 2a message from the filtered set
+--   let m :| msgTset.contains m phase2aMsgs
+--   -- Filter to get all previous 1b/2b messages from this acceptor
+--   let prevMsgsFromA := msgTset.filter sent (fun m2 =>
+--     (m2.msgType = MsgType.Phase1b ∨ m2.msgType = MsgType.Phase2b) ∧ m2.src = MsgSrc.fromAcceptor a)
+--   -- Check ballot condition constructively: m.bal >= all previous ballots
+--   let jf := msgTset.toList prevMsgsFromA |>.all (fun m2 => decide (tot.le m2.bal m.bal))
+--   if jf then
+--     let replyMsgSet := decreeSet.map m.decrees (fun d =>
+--         { msgType := MsgType.Phase2b,
+--           src := MsgSrc.fromAcceptor a,
+--           val := d.val,
+--           bal := m.bal,
+--           slot := d.slot,
+--           decrees := default,
+--           voted := default : Msg proposer acceptor value ballot slot VotedSet DecreeSet} )
+--     Send replyMsgSet
+-- }
 
 -- invariant [sent_not_empty] msgTset.count sent < 7
 
