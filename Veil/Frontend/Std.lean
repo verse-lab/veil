@@ -369,7 +369,7 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
 
 theorem Finset.List.ofFn_filter {n : Nat} (p : Finset (Fin n)) :
   letI l := List.ofFn (n := n) id |>.filter (fun i => i ∈ p)
-  List.Sorted (· < ·) l ∧ l.length = p.card := by
+  List.Pairwise (· < ·) l ∧ l.length = p.card := by
   constructor
   · apply List.Pairwise.filter ; simp
   · induction p using Finset.induction_on with
@@ -384,7 +384,7 @@ theorem Finset.List.ofFn_filter {n : Nat} (p : Finset (Fin n)) :
 
 /-- A sorted list of nodes, representing a set in Byzantine fault tolerance. -/
 abbrev ByzNSet (n : Nat) : Type :=
-  { fs : List (Fin n) // fs.Sorted (· < ·) }
+  { fs : List (Fin n) // fs.Pairwise (· < ·) }
 
 /-- All possible ByzNSets (all sorted sublists of [0..n-1]). -/
 def allByzNSets (n : Nat) : List (ByzNSet n) :=
@@ -397,7 +397,7 @@ def allByzNSets (n : Nat) : List (ByzNSet n) :=
 theorem allByzNSets_complete {n : Nat} : ∀ (s : ByzNSet n), s ∈ allByzNSets n := by
   intro ⟨x, hx⟩ ; dsimp [allByzNSets] ; simp ; exists x.toFinset
   have hnodup := List.Pairwise.nodup hx
-  apply List.Sorted.eq_of_mem_iff _ hx ; simp ; apply List.Pairwise.filter ; simp
+  apply List.Pairwise.eq_of_mem_iff _ hx ; simp ; apply List.Pairwise.filter ; simp
 
 instance (n : Nat) : FinEnum (ByzNSet n) :=
   FinEnum.ofList (allByzNSets n) allByzNSets_complete
@@ -407,13 +407,13 @@ instance (n : Nat) : Veil.Enumeration (ByzNSet n) where
   complete := allByzNSets_complete
 
 instance (n : Nat) : Inhabited (ByzNSet n) where
-  default := ⟨[], List.sorted_nil⟩
+  default := ⟨[], List.Pairwise.nil⟩
 
 instance (n : Nat) : @Std.ReflCmp (ByzNSet n) compare where
   compare_self := List.instReflCmpCompareLex.compare_self
 
 instance (n : Nat) : @Std.LawfulEqCmp (ByzNSet n) compare where
-  eq_of_compare h := Subtype.eq <| List.instLawfulEqCmpCompareLex.eq_of_compare h
+  eq_of_compare h := Subtype.ext <| List.instLawfulEqCmpCompareLex.eq_of_compare h
 
 instance (n : Nat) : @Std.OrientedCmp (ByzNSet n) compare where
   eq_swap := List.instOrientedCmpCompareLex.eq_swap

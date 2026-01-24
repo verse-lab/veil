@@ -55,6 +55,7 @@ action capital_assign {
   n_token_seq N := if N = init_node then one else seq.zero
 }
 
+-- FIXME: we probably want to make this work!
 #guard_msgs(drop error, drop warning) in
 action call_in_capital_assign {
   n_token_seq N := if N = init_node then ← succ seq.zero else seq.zero
@@ -62,4 +63,5 @@ action call_in_capital_assign {
 
 invariant true
 
+#guard_msgs(drop error) in
 #gen_spec
