@@ -41,6 +41,23 @@ def LabeledXAxis : Component LabeledAxisProps where
   javascript := Recharts.javascript
   «export» := "XAxis"
 
+/-- Props for chart error boundary (empty, uses children only). -/
+structure ChartErrorBoundaryProps where
+  deriving Server.RpcEncodable
+
+/-- Error boundary that catches React/Recharts errors and renders nothing instead of error message. -/
+@[widget_module]
+def ChartErrorBoundary : Component ChartErrorBoundaryProps where
+  javascript := "
+import * as React from 'react';
+class E extends React.Component {
+  state = { e: false };
+  static getDerivedStateFromError = () => ({ e: true });
+  render = () => this.state.e ? null : this.props.children;
+}
+export default (p) => React.createElement(E, null, p.children);
+"
+
 /-- RPC method to cancel a model checker instance by setting its cancel token. -/
 @[server_rpc_method]
 def cancelModelCheck (instanceId : Nat) : RequestM (RequestTask Unit) := RequestM.asTask do
@@ -93,19 +110,27 @@ export default function StopButton(props) {
 }
 "
 
+/-- Decomposed time from milliseconds. -/
+private structure TimeComponents where
+  hours : Nat
+  minutes : Nat
+  seconds : Nat
+  millis : Nat
+
+/-- Decompose milliseconds into hours, minutes, seconds, and remaining millis. -/
+private def decomposeTime (ms : Nat) : TimeComponents :=
+  let totalSeconds := ms / 1000
+  ⟨totalSeconds / 3600, (totalSeconds % 3600) / 60, totalSeconds % 60, ms % 1000⟩
+
 /-- Format elapsed milliseconds as a human-readable string. -/
 def formatElapsedTime (ms : Nat) : String :=
-  let totalSeconds := ms / 1000
-  let millis := ms % 1000
-  let hours := totalSeconds / 3600
-  let minutes := (totalSeconds % 3600) / 60
-  let seconds := totalSeconds % 60
-  if hours > 0 then
-    s!"{hours}h {minutes}m {seconds}s"
-  else if minutes > 0 then
-    s!"{minutes}m {seconds}.{millis / 100}s"
+  let t := decomposeTime ms
+  if t.hours > 0 then
+    s!"{t.hours}h {t.minutes}m {t.seconds}s"
+  else if t.minutes > 0 then
+    s!"{t.minutes}m {t.seconds}.{t.millis / 100}s"
   else
-    s!"{seconds}.{millis / 100}s"
+    s!"{t.seconds}.{t.millis / 100}s"
 
 /-- Generate status text including compilation info. -/
 private def statusWithCompilation (p : Progress) : String :=
@@ -154,10 +179,13 @@ private def compilationLogHtml (elapsedMs : Nat) (logLines : Array Concrete.Comp
     </div>
   </details>
 
+/-- Common style for right-aligned text. -/
+private def rightAlignStyle : Json := json% {"textAlign": "right"}
+
 private def statRow (label value : String) : Html :=
   <tr>
     <td style={json% {"paddingRight": "12px"}}>{.text label}</td>
-    <td style={json% {"textAlign": "right"}}>{.text value}</td>
+    <td style={rightAlignStyle}>{.text value}</td>
   </tr>
 
 /-- Split action name into base name and arguments (everything after first space). -/
@@ -196,39 +224,42 @@ private def groupActionStats (stats : List ActionStatDisplay) : List ActionGroup
     |>.map (fun g => ⟨g.baseName, g.totalGenerated, g.totalDistinct, g.variants.reverse.mergeSort (·.name < ·.name)⟩)
     |>.mergeSort (·.baseName < ·.baseName)
 
+/-- Base grid row style for action coverage. -/
+private def gridRowBaseStyle : Json := json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0"}
+
 /-- Grid row style for consistent alignment. Highlighted if action was never enabled. -/
 private def gridRowStyle (highlight : Bool := false) : Json :=
   if highlight then json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0", "backgroundColor": "#554400"}
-  else json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0"}
+  else gridRowBaseStyle
+
+/-- Style for variant sub-items (right-aligned, muted). -/
+private def variantNumStyle : Json := json% {"textAlign": "right", "color": "#aaa", "fontSize": "10px"}
 
 /-- Render a single variant row (for expanded view). -/
 private def variantRow (stat : ActionStatDisplay) : Html :=
   let (_, args) := splitActionName stat.name
   let displayName := if args.isEmpty then "(no args)" else args
-  let subStyle : Json := json% {"paddingLeft": "16px", "color": "#aaa", "fontSize": "10px"}
   .element "div" #[("style", gridRowStyle (stat.statesGenerated == 0))] #[
-    .element "span" #[("style", subStyle)] #[.text displayName],
-    .element "span" #[("style", json% {"textAlign": "right", "color": "#aaa", "fontSize": "10px"})] #[.text (toString stat.statesGenerated)],
-    .element "span" #[("style", json% {"textAlign": "right", "color": "#aaa", "fontSize": "10px"})] #[.text (toString stat.distinctStates)]
+    .element "span" #[("style", json% {"paddingLeft": "16px", "color": "#aaa", "fontSize": "10px"})] #[.text displayName],
+    .element "span" #[("style", variantNumStyle)] #[.text (toString stat.statesGenerated)],
+    .element "span" #[("style", variantNumStyle)] #[.text (toString stat.distinctStates)]
   ]
 
 /-- Render an action group as Html. For multi-variant groups, uses details/summary. -/
 private def actionGroupHtml (group : ActionGroup) : Html := Id.run do
   let rowStyle := gridRowStyle (group.totalGenerated == 0)
   if group.variants.length == 1 then
-    -- Single variant: just show one row
     return <div style={rowStyle}>
       <span>{.text group.baseName}</span>
-      <span style={json% {"textAlign": "right"}}>{.text (toString group.totalGenerated)}</span>
-      <span style={json% {"textAlign": "right"}}>{.text (toString group.totalDistinct)}</span>
+      <span style={rightAlignStyle}>{.text (toString group.totalGenerated)}</span>
+      <span style={rightAlignStyle}>{.text (toString group.totalDistinct)}</span>
     </div>
   else
-    -- Multiple variants: use details element
     return <details>
       <summary style={rowStyle}>
         <span style={json% {"cursor": "pointer"}}>{.text group.baseName}</span>
-        <span style={json% {"textAlign": "right"}}>{.text (toString group.totalGenerated)}</span>
-        <span style={json% {"textAlign": "right"}}>{.text (toString group.totalDistinct)}</span>
+        <span style={rightAlignStyle}>{.text (toString group.totalGenerated)}</span>
+        <span style={rightAlignStyle}>{.text (toString group.totalDistinct)}</span>
       </summary>
       <div>
         {.element "span" #[] (group.variants.map variantRow).toArray}
@@ -251,133 +282,197 @@ private def neverEnabledWarning (neverEnabled : List String) : Html :=
       .text s!"⚠ Never enabled: {", ".intercalate neverEnabled}"
     ]
 
+/-- Style for right-aligned bold header text. -/
+private def rightBoldStyle : Json := json% {"textAlign": "right", "fontWeight": "bold"}
+
 /-- Render action coverage with grouped actions using CSS Grid. -/
 private def actionCoverageHtml (actionStats : List ActionStatDisplay) (allActionLabels : List String) : Html := Id.run do
   if actionStats.isEmpty && allActionLabels.isEmpty then return .text ""
   let groups := groupActionStats actionStats
   let neverEnabled := getNeverEnabledActions groups allActionLabels
-  let numGroups := groups.length
-  let actionCountText := s!"{numGroups} actions"
   let warningText := if neverEnabled.isEmpty then "" else s!" — {neverEnabled.length} never enabled ⚠"
   let headerStyle := json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0", "borderBottom": "1px solid #444", "marginBottom": "4px"}
   return <details style={json% {"marginTop": "8px"}}>
     <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "#888"}}>
-      Action Coverage ({.text actionCountText}{.element "span" #[("style", json% {"color": "#cc6600"})] #[.text warningText]})
+      Action Coverage ({.text (s!"{groups.length} actions")}{.element "span" #[("style", json% {"color": "#cc6600"})] #[.text warningText]})
     </summary>
     <div style={json% {"marginTop": "4px", "fontSize": "11px"}}>
       <div style={headerStyle}>
         <span style={json% {"fontWeight": "bold"}}>Action</span>
-        <span style={json% {"textAlign": "right", "fontWeight": "bold"}}>Generated</span>
-        <span style={json% {"textAlign": "right", "fontWeight": "bold"}}>Distinct</span>
+        <span style={rightBoldStyle}>Generated</span>
+        <span style={rightBoldStyle}>Distinct</span>
       </div>
-      <div>
-        {.element "span" #[] (groups.map actionGroupHtml).toArray}
-      </div>
+      <div>{.element "span" #[] (groups.map actionGroupHtml).toArray}</div>
       {neverEnabledWarning neverEnabled}
     </div>
   </details>
 
 /-! ## Progress History Charts -/
 
+/-- Props for metrics history toggle (table vs graph view with JSON export). -/
+structure MetricsHistoryToggleProps where
+  historyJson : String
+  deriving Server.RpcEncodable
+
+/-- Toggle widget for switching between table and graph views, with JSON copy functionality. -/
+@[widget_module]
+def MetricsHistoryToggle : Component MetricsHistoryToggleProps where
+  javascript := "
+import * as React from 'react';
+
+export default function MetricsHistoryToggle(props) {
+  const [view, setView] = React.useState('graph');
+  const [copied, setCopied] = React.useState(false);
+  const tableRef = React.useRef(null);
+
+  const copyJson = () => {
+    navigator.clipboard.writeText(props.historyJson).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  // Auto-scroll table to bottom when data changes
+  React.useEffect(() => {
+    if (tableRef.current && view === 'table') {
+      const scrollContainer = tableRef.current.querySelector('div[style*=\"overflow\"]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
+  }, [props.historyJson, view]);
+
+  const children = React.Children.toArray(props.children);
+  const tableView = children[0];
+  const graphView = children[1];
+
+  const buttonStyle = (active) => ({
+    padding: '4px 8px',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    backgroundColor: active ? '#0066cc' : '#444',
+    color: 'white',
+    fontSize: '11px'
+  });
+
+  return React.createElement('div', {},
+    React.createElement('div', { style: { marginBottom: '8px', display: 'flex', gap: '4px', justifyContent: 'space-between' } },
+      React.createElement('div', { style: { display: 'flex', gap: '4px' } },
+        React.createElement('button', { onClick: () => setView('graph'), style: buttonStyle(view === 'graph') }, 'Graph'),
+        React.createElement('button', { onClick: () => setView('table'), style: buttonStyle(view === 'table') }, 'Table')
+      ),
+      React.createElement('button', { onClick: copyJson, style: buttonStyle(false) },
+        copied ? 'Copied!' : 'Copy JSON')
+    ),
+    React.createElement('div', { ref: tableRef, style: { display: view === 'table' ? 'block' : 'none' } }, tableView),
+    React.createElement('div', { style: { display: view === 'graph' ? 'block' : 'none' } }, graphView)
+  );
+}
+"
+
 /-- Count the number of digits in a natural number. -/
 private def numDigits (n : Nat) : Nat :=
   if n < 10 then 1 else 1 + numDigits (n / 10)
 
 /-- Calculate the left margin for a chart based on the maximum Y value.
-    Each digit needs approximately 8px, plus a small base margin. -/
+    Each digit needs approximately 8px, plus a small base margin.
+    Capped at 100 to ensure chart area remains positive (chart width=350, right margin=20). -/
 private def calcLeftMargin (maxValue : Nat) : Nat :=
   let digits := numDigits maxValue
-  10 + digits * 8
+  min 100 (10 + digits * 8)
 
-/-- Convert history to JSON format for diameter chart. -/
-private def historyToDiameterChartData (history : Array ProgressHistoryPoint) : Array Json :=
+/-- Chart configuration for a single metric. -/
+structure ChartConfig where
+  title : String
+  color : String
+  getValue : ProgressHistoryPoint → Nat
+
+/-- Convert history to JSON format for a chart. Uses "value" as the Y-axis key. -/
+private def historyToChartData (history : Array ProgressHistoryPoint) (getValue : ProgressHistoryPoint → Nat) : Array Json :=
   history.map fun point => json% {
     time: $(point.timestamp / 1000),
-    diameter: $(point.diameter)
+    value: $(getValue point)
   }
 
-/-- Convert history to JSON format for states found chart. -/
-private def historyToStatesFoundChartData (history : Array ProgressHistoryPoint) : Array Json :=
-  history.map fun point => json% {
-    time: $(point.timestamp / 1000),
-    statesFound: $(point.statesFound)
-  }
-
-/-- Convert history to JSON format for distinct states chart. -/
-private def historyToDistinctStatesChartData (history : Array ProgressHistoryPoint) : Array Json :=
-  history.map fun point => json% {
-    time: $(point.timestamp / 1000),
-    distinctStates: $(point.distinctStates)
-  }
-
-/-- Convert history to JSON format for queue chart. -/
-private def historyToQueueChartData (history : Array ProgressHistoryPoint) : Array Json :=
-  history.map fun point => json% {
-    time: $(point.timestamp / 1000),
-    queue: $(point.queue)
-  }
-
-/-- Render the Diameter chart. -/
-private def diameterChartHtml (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html := Id.run do
-  let data := historyToDiameterChartData history
+/-- Render a single chart with the given configuration. -/
+private def renderChart (history : Array ProgressHistoryPoint) (leftMargin : Nat) (config : ChartConfig) : Html := Id.run do
+  let data := historyToChartData history config.getValue
   return <div style={json% {"marginBottom": "12px"}}>
     <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
-      Diameter Over Time
+      {.text config.title}
     </div>
     <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
       <LabeledXAxis dataKey?="time" type={.number} label?={json% {"value": "Time (s)", "position": "bottom", "offset": 0, "fontSize": 10}} />
       <YAxis type={.number} />
       <Tooltip />
-      <Line type={.monotone} dataKey="diameter" stroke="#9C27B0" dot?={true} />
+      <Line type={.monotone} dataKey="value" stroke={config.color} dot?={true} />
     </LineChart>
   </div>
 
-/-- Render the States Found chart. -/
-private def statesFoundChartHtml (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html := Id.run do
-  let data := historyToStatesFoundChartData history
-  return <div style={json% {"marginBottom": "12px"}}>
-    <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
-      States Found Over Time
-    </div>
-    <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
-      <LabeledXAxis dataKey?="time" type={.number} label?={json% {"value": "Time (s)", "position": "bottom", "offset": 0, "fontSize": 10}} />
-      <YAxis type={.number} />
-      <Tooltip />
-      <Line type={.monotone} dataKey="statesFound" stroke="#4CAF50" dot?={true} />
-    </LineChart>
+/-- Chart configurations for all metrics in display order. -/
+private def chartConfigs : Array ChartConfig := #[
+  ⟨"Diameter", "#9C27B0", (·.diameter)⟩,
+  ⟨"States Found", "#4CAF50", (·.statesFound)⟩,
+  ⟨"Distinct States", "#2196F3", (·.distinctStates)⟩,
+  ⟨"Queue Size", "#FF9800", (·.queue)⟩
+]
+
+/-- Format milliseconds as HH:MM:SS (TLC-style). -/
+private def formatTimeHMS (ms : Nat) : String :=
+  let t := decomposeTime ms
+  let pad (n : Nat) : String := if n < 10 then s!"0{n}" else toString n
+  s!"{pad t.hours}:{pad t.minutes}:{pad t.seconds}"
+
+/-- Common style for table cells. -/
+private def tableCellStyle : Json := json% {"padding": "4px 8px", "textAlign": "right"}
+
+/-- Create a table header cell. -/
+private def th (text : String) : Html :=
+  .element "th" #[("style", json% {"padding": "4px 8px", "textAlign": "right", "fontWeight": "bold"})] #[.text text]
+
+/-- Create a table data cell. -/
+private def td (text : String) : Html :=
+  .element "td" #[("style", tableCellStyle)] #[.text text]
+
+/-- Render a single row in the history table. -/
+private def historyTableRow (point : ProgressHistoryPoint) : Html :=
+  .element "tr" #[("style", json% {"borderBottom": "1px solid #333"})] #[
+    .element "td" #[("style", json% {"padding": "4px 8px", "textAlign": "right", "fontFamily": "monospace"})] #[.text (formatTimeHMS point.timestamp)],
+    td (toString point.diameter), td (toString point.statesFound),
+    td (toString point.distinctStates), td (toString point.queue)
+  ]
+
+/-- Render the history as a table view (TLC-style). -/
+private def renderTableView (history : Array ProgressHistoryPoint) : Html := Id.run do
+  let headerStyle := json% {"borderBottom": "1px solid #555", "position": "sticky", "top": "0", "backgroundColor": "var(--vscode-textBlockQuote-background, #1e1e1e)"}
+  let headerRow : Html := .element "tr" #[("style", headerStyle)] #[th "Time", th "Diameter", th "Found", th "Distinct", th "Queue"]
+  let tableRows := #[headerRow] ++ history.map historyTableRow
+  return <div style={json% {"maxHeight": "300px", "overflow": "auto"}}>
+    <table style={json% {"borderCollapse": "collapse", "fontSize": "11px", "width": "100%"}}>
+      {.element "tbody" #[] tableRows}
+    </table>
   </div>
 
-/-- Render the Distinct States chart. -/
-private def distinctStatesChartHtml (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html := Id.run do
-  let data := historyToDistinctStatesChartData history
-  return <div style={json% {"marginBottom": "12px"}}>
-    <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
-      Distinct States Over Time
-    </div>
-    <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
-      <LabeledXAxis dataKey?="time" type={.number} label?={json% {"value": "Time (s)", "position": "bottom", "offset": 0, "fontSize": 10}} />
-      <YAxis type={.number} />
-      <Tooltip />
-      <Line type={.monotone} dataKey="distinctStates" stroke="#2196F3" dot?={true} />
-    </LineChart>
-  </div>
+/-- Render the history as graphs. -/
+private def renderGraphView (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html :=
+  let charts := chartConfigs.map fun config =>
+    Html.ofComponent ChartErrorBoundary ⟨⟩ #[renderChart history leftMargin config]
+  .element "div" #[] charts
 
-/-- Render the Queue Size chart. -/
-private def queueChartHtml (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html := Id.run do
-  let data := historyToQueueChartData history
-  return <div style={json% {"marginBottom": "12px"}}>
-    <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
-      Queue Size Over Time
-    </div>
-    <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
-      <LabeledXAxis dataKey?="time" type={.number} label?={json% {"value": "Time (s)", "position": "bottom", "offset": 0, "fontSize": 10}} />
-      <YAxis type={.number} />
-      <Tooltip />
-      <Line type={.monotone} dataKey="queue" stroke="#FF9800" dot?={true} />
-    </LineChart>
-  </div>
+/-- Convert history to JSON string for export. -/
+private def historyToJsonString (history : Array ProgressHistoryPoint) : String :=
+  let rows := history.map fun p => json% {
+    timeMs: $(p.timestamp),
+    timeStr: $(formatTimeHMS p.timestamp),
+    diameter: $(p.diameter),
+    statesFound: $(p.statesFound),
+    distinctStates: $(p.distinctStates),
+    queue: $(p.queue)
+  }
+  toString (toJson rows)
 
-/-- Render the metrics history charts section (collapsible). -/
+/-- Render the metrics history section (collapsible) with table/graph toggle. -/
 private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := Id.run do
   if history.size < 2 then return .text ""  -- Need at least 2 points for a chart
   let pointCount := history.size
@@ -388,15 +483,16 @@ private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := 
   let maxVal := history.foldl (fun acc p =>
     max acc (max p.diameter (max p.statesFound (max p.distinctStates p.queue)))) 0
   let leftMargin := calcLeftMargin maxVal
+  -- Create table and graph views
+  let tableView := renderTableView history
+  let graphView := renderGraphView history leftMargin
+  let historyJson := historyToJsonString history
   return <details style={json% {"marginTop": "8px"}}>
     <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "#888"}}>
       Metrics History ({.text (toString pointCount)} samples, {.text timeRange})
     </summary>
     <div style={json% {"marginTop": "8px", "padding": "8px", "backgroundColor": "var(--vscode-textBlockQuote-background, #1e1e1e)", "borderRadius": "4px"}}>
-      {diameterChartHtml history leftMargin}
-      {statesFoundChartHtml history leftMargin}
-      {distinctStatesChartHtml history leftMargin}
-      {queueChartHtml history leftMargin}
+      {Html.ofComponent MetricsHistoryToggle ⟨historyJson⟩ #[tableView, graphView]}
     </div>
   </details>
 
