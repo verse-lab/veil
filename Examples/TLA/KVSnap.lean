@@ -320,6 +320,7 @@ def m1 : Std.ExtTreeMap key_IndT txId_IndT compare :=
 /- In interactive mode, reconstruct this counterexample trace is
 very slow, taking about ~4 minutes (241738ms).
 time: 250844ms -/
+set_option veil.violationIsError false in
 #time #model_check
 {
   key := key_IndT,
