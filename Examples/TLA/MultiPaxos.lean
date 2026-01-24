@@ -99,6 +99,7 @@ immutable relation member (A : acceptor) (Q : quorum)
 -- relation msgs (m : Msg acceptor ballot slot VotedSet)
 -- individual msgs : MsgSet
 individual sent : MsgSet
+immutable individual SlotsUNIV : List slot
 immutable individual AcceptorsUNIV : List acceptor
 
 #gen_state
@@ -266,37 +267,30 @@ procedure Bmax (T : VotedSet) {
 
 -- FreeSlots(T) ==
 --   {s \in Slots : ~ \E t \in T : t.slot = s}
-ghost relation FreeSlots (T : VotedSet) (s : slot) :=
-  ∀ t, voteTset.contains t T → t.slot ≠ s
+procedure FreeSlots (T : VotedSet) {
+  let result :=
+    SlotsUNIV |>.filter (fun s =>
+      voteTset.toList T |>.all (fun t => decide (t.slot ≠ s)) )
+  return result
+}
 
 -- NewProposals(T) ==
 --   (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {}:
 --     \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
--- Original: pick an arbitrary SlotSet and constrain it (causes state space explosion)
--- procedure NewProposals (T : VotedSet) {
---   let D ← pick SlotSet
---   assume slotTset.count D > 0
---   assume ∀ s, slotTset.contains s D → FreeSlots T s
---   let slotList := slotTset.toList D
---   let result := slotList.foldl (fun acc r =>
---     decreeSet.insert { slot := r, val := default } acc) decreeSet.empty
---   assume ∀d1 d2, decreeSet.contains d1 result →
---     decreeSet.contains d2 result →
---     d1.slot = d2.slot → d1 = d2
---   return result
--- }
--- Alternative: TLA+ uses CHOOSE (deterministic), so we can just pick one free slot
--- and create a decree for it. This is equivalent for safety properties.
+
+-- Constructive implementation:
+-- For each free slot, create a decree with default value.
+-- Since we iterate over the slot list, slot uniqueness is guaranteed.
 procedure NewProposals (T : VotedSet) {
-  -- Get the set of slots that are already used in T
-  let usedSlots := voteTset.map T (fun t => t.slot)
-  -- Pick a single free slot (non-deterministic but bounded by slot type)
-  let s ← pick slot
-  require ¬ slotTset.contains s usedSlots  -- s is a free slot
-  -- Create a single decree for this slot with default value
-  let result := decreeSet.insert { slot := s, val := default } decreeSet.empty
+  -- Get the list of free slots
+  let freeSlotList ← FreeSlots T
+  -- Build decrees by folding over free slots
+  -- Slot uniqueness is automatic since freeSlotList contains no duplicates
+  let result := freeSlotList.foldl (fun acc s =>
+    decreeSet.insert { slot := s, val := default } acc) decreeSet.empty
   return result
 }
+
 
 -- ProposeDecrees(T) ==
 --   Bmax(T) \cup NewProposals(T)
@@ -306,7 +300,6 @@ procedure ProposeDecrees (T : VotedSet) {
   let proposeDecreesSet := decreeSet.union bmaxSet newProposalsSet
   return proposeDecreesSet
 }
-
 
 -- VS(S, Q) == UNION {m.voted: m \in {m \in S: m.from \in Q}}
 procedure VS (S : MsgSet) (Q : quorum) {
@@ -340,15 +333,15 @@ action Phase2a (p : proposer) {
   -- Check constructively: no existing 2a message with this ballot
   let existing2a := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a ∧ m.bal = b)
   let no2aExists := msgTset.count existing2a = 0
-  assume no2aExists
+  require no2aExists
   -- if no2aExists then
   let Q ← pick quorum
   -- Filter to get all 1b messages with this ballot
   let S := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1b ∧ m.bal = b)
   -- Check constructively: every acceptor in Q has a 1b message in S
   let quorumCovered := AcceptorsUNIV |>.all (fun a =>
-    ! member a Q || (msgTset.toList S |>.any (fun m => decide (m.src = MsgSrc.fromAcceptor a))))
-  assume quorumCovered
+    !member a Q || (msgTset.toList S |>.any (fun m => decide (m.src = MsgSrc.fromAcceptor a))))
+  require quorumCovered
   let vsSet ← VS S Q
   let proposeDecreesSet ← ProposeDecrees vsSet
   let sentMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
@@ -434,15 +427,15 @@ especially for `Inhabited`. -/
 #model_check
 {
   ballot := Fin 3,
-  slot := Fin 1,
+  slot := Fin 3,
   value := Fin 2,
   acceptor := Fin 3,
   proposer := Fin 2,
   quorum := Fin 3,
-  SlotSet := ExtTreeSet (Fin 1) compare,
-  VotedSet := ExtTreeSet (Voted (Fin 3) (Fin 1) (Fin 2)) compare,
-  DecreeSet := ExtTreeSet (Decree (Fin 1) (Fin 2)) compare,
-  MsgSet := ExtTreeSet (Msg (Fin 2) (Fin 3) (Fin 2) (Fin 3) (Fin 1) (ExtTreeSet (Voted (Fin 3) (Fin 1) (Fin 2)) compare) (ExtTreeSet (Decree (Fin 1) (Fin 2)) compare)) compare
+  SlotSet := ExtTreeSet (Fin 3) compare,
+  VotedSet := ExtTreeSet (Voted (Fin 3) (Fin 3) (Fin 2)) compare,
+  DecreeSet := ExtTreeSet (Decree (Fin 3) (Fin 2)) compare,
+  MsgSet := ExtTreeSet (Msg (Fin 2) (Fin 3) (Fin 2) (Fin 3) (Fin 3) (ExtTreeSet (Voted (Fin 3) (Fin 3) (Fin 2)) compare) (ExtTreeSet (Decree (Fin 3) (Fin 2)) compare)) compare
 }
 {
   one := 1,
@@ -458,6 +451,7 @@ especially for `Inhabited`. -/
     | 1, 2 => true -- q1 does not contain a1
     | 2, 2 => true  -- q2 contains a1
     | _, _ => false
+  SlotsUNIV := [0, 1, 2]  -- slot 0, 1, 2
 }
 -- #model_check interpreted
 -- {
