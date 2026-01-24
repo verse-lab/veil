@@ -80,17 +80,21 @@ FreeSlots(T) ==
   {s \in Slots : ~ \E t \in T : t.slot = s}
 
 \* Original: CHOOSE returns a single D (deterministic)
+\* NewProposals(T) ==
+\*   (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}}:
+\*     \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
 NewProposals(T) ==
-  (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}}:
-    \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
+  IF FreeSlots(T) = {} THEN {}
+  ELSE (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}}:
+          \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
 
 ProposeDecrees(T) ==
   Bmax(T) \cup NewProposals(T)
 
-\* Modified: AllNewProposals returns the set of ALL valid D (for non-deterministic exploration)
-AllNewProposals(T) ==
-  { D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}} :
-    \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2 }
+\* \* Modified: AllNewProposals returns the set of ALL valid D (for non-deterministic exploration)
+\* AllNewProposals(T) ==
+\*   { D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}} :
+\*     \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2 }
 
 VS(S, Q) == UNION {m.voted: m \in {m \in S: m.from \in Q}}
 
@@ -123,7 +127,7 @@ Phase2b(a) == \E m \in sent:
 Next == \/ \E p \in Proposers : Phase1a(p) 
         \/ \E p \in Proposers : Phase2a(p)
         \/ \E a \in Acceptors : Phase1b(a) 
-        \* \/ \E a \in Acceptors : Phase2b(a)
+        \/ \E a \in Acceptors : Phase2b(a)
 
 Spec == Init /\ [][Next]_vars       
 -----------------------------------------------------------------------------
@@ -151,7 +155,7 @@ Chosen(v, s) == \E b \in Ballots : ChosenIn(b, s, v)
 (* The consistency condition that a consensus algorithm must satisfy is    *)
 (* the invariance of the following state predicate Consistency.            *)
 (***************************************************************************)
-\* Consistency == \A v1, v2 \in Values, s \in Slots : Chosen(v1, s) /\ Chosen(v2, s) => (v1 = v2)
+Consistency == \A v1, v2 \in Values, s \in Slots : Chosen(v1, s) /\ Chosen(v2, s) => (v1 = v2)
 -----------------------------------------------------------------------------
 (***************************************************************************)
 (* This section of the spec defines the invariant Inv.                     *)
