@@ -100,7 +100,13 @@ set_option maxHeartbeats 6400000
 
 open " ++ specNamespace ++ "
 
+def exitWhenParentDies : IO Unit := do
+  let stdin ← IO.getStdin
+  let _ ← stdin.readToEnd
+  IO.Process.exit 2
+
 def main (args : List String) : IO Unit := do
+  let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
   -- Enable progress reporting to stderr for the IDE to read
   Veil.ModelChecker.Concrete.enableCompiledModeProgress
   let pcfg : Option Veil.ModelChecker.ParallelConfig :=
@@ -115,6 +121,7 @@ def main (args : List String) : IO Unit := do
   let cancelTk ← IO.CancelToken.new
   let res ← modelCheckerResult pcfg 0 cancelTk
   IO.println s!\"{Lean.toJson res}\"
+  IO.Process.exit 0
 "
 
 /-- Create the temp build folder with all necessary files.
