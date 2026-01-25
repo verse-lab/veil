@@ -341,6 +341,10 @@ instance (n : Nat) : Repr (Quorum n) where
     let indices := q.val.toFinList
     "{" ++ String.intercalate ", " (indices.map toString) ++ "}"
 
+-- NOTE: It seems that because of `abbrev`, without this explicit instance,
+-- Lean will get stuck when trying to find `Lean.ToJson (Quorum n)`.
+instance (n : Nat) : Lean.ToJson (Quorum n) := Veil.jsonOfRepr
+
 /-! ## Byzantine node set -/
 
 class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset : outParam Type) where
