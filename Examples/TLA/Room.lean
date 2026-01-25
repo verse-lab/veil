@@ -1,5 +1,7 @@
 import Veil
-
+/-
+This is a IVy-style verision, which is verification-friendly.
+-/
 veil module Rooms
 
 type seq_t
@@ -130,7 +132,7 @@ invariant [current_key_registration]
 #check_invariants
 
 #model_check
-{ seq_t := Fin 2,
+{ seq_t := Fin 5,
   Guest := Guest_IndT,
   Room := Room_IndT,
   Position := Position_IndT,

@@ -36,6 +36,8 @@ after_init {
   count := (0 : Nat)
 }
 
+/- There is not any high-bound guard condition
+for this action, so it can be executed infinite times.-/
 action Put {
   let x ← pick ExtTreeElem
   buffer tail := x
