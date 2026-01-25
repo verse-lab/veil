@@ -299,13 +299,13 @@ action Phase2b (a : acceptor) {
 --                      \A a \in Q : VotedForIn(a, v, b)
 
 -- Chosen(v) == \E b \in Ballots : ChosenIn(v, b)
-
 ghost relation VotedForIn (a : acceptor) (v : value) (b : ballot) :=
   ∃ m, msgTset.contains m msgs ∧ m.msgType = MsgType.Phase2b ∧ m.val = v ∧ m.bal = b ∧ m.acc = a
 ghost relation ChosenIn (v : value) (b : ballot) :=
   ∃ Q, ∀ a, member a Q → VotedForIn a v b
 ghost relation Chosen (v : value) :=
   ∃ b, ChosenIn v b
+
 
 -- (***************************************************************************)
 -- (* The consistency condition that a consensus algorithm must satisfy is    *)
@@ -347,27 +347,24 @@ ghost relation SafeAt (v : value) (b : ballot) :=
 
 -- \* Modification History
 -- \* Created Sat Nov 17 16:02:06 PST 2012 by lamport
+
+
+/- We use type `Quorum n` to specify quorums of `n` acceptors.
+In this case, we do not need to explicitly define the `member` relation
+between acceptors and quorums.
+-/
 #model_check
 {
   ballot := Fin 4,   -- 0 = minusOne, 1..3 = valid ballots (matches TLA+ MaxBallot = 2, i.e., 0..2)
   value := Fin 2,    -- matches TLA+ Values = {v1, v2}
   acceptor := Fin 3,
-  quorum := Fin 3,
+  quorum := Quorum 3,
   MsgSet := Std.ExtTreeSet (Msg (Fin 3) (Fin 2) (Fin 4)),
   AcceptorSet := Std.ExtTreeSet (Fin 3)
 }
 {
   AcceptorsUNIV := [0, 1, 2],  -- a0, a1, a2
-  -- Quorums: q0 = {a0, a1}, q1 = {a0, a2}, q2 = {a1, a2}
-  member := fun a q =>
-    match q.val, a.val with
-    | 0, 0 => true  -- q0 contains a0
-    | 1, 0 => true  -- q1 contains a0
-    | 0, 1 => true  -- q0 contains a1
-    | 2, 1 => true  -- q2 contains a1
-    | 1, 2 => true  -- q1 contains a2
-    | 2, 2 => true  -- q2 contains a2
-    | _, _ => false
+  member := fun a q => a ∈ q
   minusOne := 0
   validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
 }
