@@ -1,4 +1,5 @@
 ----------------------------- MODULE BuggyCircularBuffer -----------------------------
+\* source: https://github.com/konnov/cyclic-buffer-challenge/blob/1e499eeb2923d70f5269aca877dc3180f3baccf9/tla/MC2u1_BuggyCircularBuffer.tla
 (**
  * A very simple specification of a circular buffer with a bug.
  * Generated with ChatGPT and beautified by Igor Konnov, 2025.

@@ -21,10 +21,6 @@ The protocol works as follows:
 - Correct processes send ECHO messages based on certain conditions
 - A correct process accepts when it receives enough ECHO messages
 
-Properties:
-- Correctness: if a correct process broadcasts, then every correct process accepts
-- Relay: if a correct process accepts, then every correct process accepts
-- Unforgeability: if no correct process broadcasts, then no correct process accepts
 -/
 veil module BcastByz
 
@@ -83,30 +79,17 @@ ghost relation isFaulty (p : process) := pset.contains p Faulty
 after_init  {
   sent := pset.empty
   rcvd P := pset.empty
-  let V1Set :| pset.count V1Set >= 0
+  let V1Set ← pick procSet
   pc P ST := if pset.contains P V1Set then ST == V1 else ST == V0
-  let t :| pset.count t == N - F
-  Corr := t
-  Faulty := pset.diff Proc t
+  -- let t :| pset.count t == N - F
+  let corrSet :| pset.count corrSet == N - F
+  Corr := corrSet
+  Faulty := pset.diff Proc Corr
 }
 
 
 -- ByzMsgs == Faulty \X M
 
--- Helper: receive messages (can receive from correct processes and potentially Byzantine)
--- This models the Receive(self, includeByz) from TLA+
--- action ReceiveMessages (self : process) (includeByz : Bool) {
---   require isCorrect self
---   -- Non-deterministically receive some subset of available messages
---   -- Messages from correct processes that have sent
---   -- Plus potentially messages from Byzantine processes
---   let newSender ← pick process
---   if (sent newSender ∨ (includeByz ∧ isFaulty newSender)) then
---     -- Can receive this message
---     rcvd self newSender := true
---     -- Update count of received messages
---     rcvdCount self := *  -- Non-deterministically update (will be constrained by invariant)
--- }
 
 -- Receive(self, includeByz) ==
 --   \E newMessages \in SUBSET ( sent \cup (IF includeByz THEN ByzMsgs ELSE {}) ) :
@@ -116,9 +99,8 @@ after_init  {
 procedure ReceiveFromAnySender (self : process) {
   require isCorrect self
   let includeByz := true
-  let newMessages :| (∀ sender, pset.contains sender newMessages →
-                        (pset.contains sender sent ∨ (includeByz ∧ isFaulty sender)))
-  -- Update rcvd by adding the new messages
+  let superSet := if includeByz then pset.union sent Faulty else sent
+  let newMessages :| (∀ sender, pset.contains sender newMessages → pset.contains sender superSet)
   rcvd self := pset.union (rcvd self) newMessages
 }
 
@@ -126,14 +108,21 @@ procedure ReceiveFromAnySender (self : process) {
 procedure ReceiveFromCorrectSender (self : process) {
   require isCorrect self
   let includeByz := false
-  -- Non-deterministically choose a subset of messages from correct senders only
-  -- In TLA+: \E newMessages \in SUBSET sent
-  let newMessages :| (∀ sender, pset.contains sender newMessages →
-                        (pset.contains sender sent ∨ (includeByz ∧ isFaulty sender)))
-  -- Update rcvd by adding the new messages
+  let superSet := if includeByz then pset.union sent Faulty else sent
+  let newMessages :| (∀ sender, pset.contains sender newMessages → pset.contains sender superSet)
   rcvd self := pset.union (rcvd self) newMessages
 }
 
+
+/- This action is used to model the behavior of a process
+doing nothing (stuttering) in TLA+, which corresponding to Line 160:
+  `\/ UNCHANGED vars (* add a self-loop for terminating computations *)`
+in bcastByz.tla.
+With this action, we can not only obtain the same
+number of `distinct states` as TLA+ verision, but `total states` as well.-/
+action Stutter {
+  pure ()
+}
 
 
 -- UponV1(self) ==
@@ -141,7 +130,7 @@ procedure ReceiveFromCorrectSender (self : process) {
 --   /\ pc' = [pc EXCEPT ![self] = "SE"]
 --   /\ sent' = sent \cup { <<self, "ECHO">> }
 --   /\ UNCHANGED << Corr, Faulty >>
-action ReceiveFromAnySender_UponV1 (self : process) {
+action Step_UponV1 (self : process) {
   require isCorrect self
   require pc self V1
   ReceiveFromAnySender self
@@ -158,7 +147,7 @@ action ReceiveFromAnySender_UponV1 (self : process) {
 --   /\ pc' = [ pc EXCEPT ![self] = "SE" ]
 --   /\ sent' = sent \cup { <<self, "ECHO">> }
 --   /\ UNCHANGED << Corr, Faulty >>
-action ReceiveFromAnySender_UponNonFaulty (self : process) {
+action Step_UponNonFaulty (self : process) {
   require isCorrect self
   require pc self V0 ∨ pc self V1
   ReceiveFromAnySender self
@@ -176,7 +165,7 @@ action ReceiveFromAnySender_UponNonFaulty (self : process) {
 --   /\ pc' = [ pc EXCEPT ![self] = "AC" ]
 --   /\ sent' = sent \cup { <<self, "ECHO">> }
 --   /\ UNCHANGED << Corr, Faulty >>
-action ReceiveFromAnySender_UponAcceptNotSentBefore (self : process) {
+action Step_UponAcceptNotSentBefore (self : process) {
   require isCorrect self
   require pc self V0 ∨ pc self V1
   ReceiveFromAnySender self
@@ -192,7 +181,7 @@ action ReceiveFromAnySender_UponAcceptNotSentBefore (self : process) {
 --   /\ pc' = [pc EXCEPT ![self] = "AC"]
 --   /\ sent' = sent
 --   /\ UNCHANGED << Corr, Faulty >>
-action ReceiveFromAnySender_UponAcceptorSentBefore (self : process) {
+action Step_UponAcceptorSentBefore (self : process) {
   require isCorrect self
   require pc self SE
   ReceiveFromAnySender self
