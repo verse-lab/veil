@@ -1,4 +1,4 @@
-import veil
+import Veil
 
 -- source:https://github.com/DistAlgo/proofs/blob/master/basic-paxos/PaxosLam.tla
 -- ------------------------------- MODULE Paxos -------------------------------
@@ -343,9 +343,6 @@ ghost relation SafeAt (v : value) (b : ballot) :=
 
 
 -- invariant [MsgInv] MsgInv1b ∧ MsgInv2a ∧ MsgInv2b
-set_option synthInstance.maxSize 10000
-set_option synthInstance.maxHeartbeats 2000000
-set_option synthInstance.maxSize 2000
 #gen_spec
 
 -- \* Modification History
