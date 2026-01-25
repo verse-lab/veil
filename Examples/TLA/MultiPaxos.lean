@@ -334,7 +334,7 @@ action Phase2b (a : acceptor) {
         voted := default } )
   Send replyMsgSet
 }
-#exit
+
 -- invariant [sent_not_empty] msgTset.count sent < 7
 set_option synthInstance.maxHeartbeats 2000000
 set_option synthInstance.maxSize 2000
@@ -367,7 +367,7 @@ set_option synthInstance.maxSize 2000
   AcceptorsUNIV := [0, 1, 2],  -- a0, a1, a2
   -- Quorums: q0 = {a0, a1}, q1 = {a0, a2}, q2 = {a1, a2}
   member := fun a q =>
-    match q.val, a.val with
+    match a.val, q.val with
     | 0, 0 => true  -- q0 contains a0
     | 1, 0 => true  -- q0 contains a1
     | 0, 1 => true
