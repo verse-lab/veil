@@ -1,4 +1,4 @@
-import veil
+import Veil
 
 -- -------------------------- MODULE EgalitarianPaxos --------------------------
 
