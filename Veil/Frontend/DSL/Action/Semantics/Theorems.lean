@@ -1,5 +1,4 @@
 import Veil.Frontend.DSL.Action.Semantics.Definitions
-import Veil.Frontend.DSL.Action.ExtractList2
 
 namespace Veil
 

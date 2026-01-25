@@ -1,6 +1,5 @@
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Module.Names
-import Veil.Frontend.DSL.Action.ExtractList2
 import Veil.Core.Tools.ModelChecker.ExecutionOutcome
 import Veil.Frontend.DSL.Action.Semantics.WP
 
@@ -172,7 +171,7 @@ where
   else pure fullyAppliedAction
  buildExtractBody (body bodyBeforeSimp : Term) : m Term := do
   let multiExecMonadType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
-  let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList2 else ``MultiExtractor.NonDetT.extractList2)
+  let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList else ``MultiExtractor.NonDetT.extractList)
   -- HACK: when not `intoMonadicActions`, `targetType` is actually partial
   let targetType ← if intoMonadicActions then `($multiExecMonadType _)
     else
@@ -188,7 +187,7 @@ where
   let extractedBody ← if intoMonadicActions then `(($extractor ($κ) _ _ ($body) : $targetType))
     -- Use the first `show` to have more concise type information that can be
     -- registered to the discrimination tree
-    else `(show $targetType ($bodyBeforeSimp) from show $targetType ($body) by extract_list_tactic')
+    else `(show $targetType ($bodyBeforeSimp) from show $targetType ($body) by extract_list_tactic)
   `((veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged) [$[$extractSimps:ident],*]
     ($extractedBody)))
 
@@ -266,6 +265,18 @@ end Extraction
 section VeilSpecificExtractionUtils
 
 open MultiExtractor
+
+instance (priority := high) {α : Type u} {p : α → Prop} [Veil.Enumeration α] [DecidablePred p] : MultiExtractor.Candidates p where
+  find := fun _ => Veil.Enumeration.allValues |>.filter p
+  find_iff := by simp ; grind
+
+instance (priority := high + 100) {α : Type u} {p : α → Prop} [inst : Veil.Enumeration {a : α // p a }] : MultiExtractor.Candidates p where
+  find := fun _ => inst.allValues.unattach
+  find_iff := by simp ; grind
+
+instance (priority := high + 200) {α : Type u} [Veil.Enumeration α] : MultiExtractor.Candidates (fun (_ : α) => True) where
+  find := fun _ => Veil.Enumeration.allValues
+  find_iff := by simp ; grind
 
 def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] [instec : ExtCandidates Candidates Std.Format p] :
   ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
