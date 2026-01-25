@@ -338,9 +338,31 @@ action Phase2b (a : acceptor) {
 -- invariant [sent_not_empty] msgTset.count sent < 7
 set_option synthInstance.maxHeartbeats 2000000
 set_option synthInstance.maxSize 2000
--- #exit
 #gen_spec
 
+/- To compare the efficiency with TLA+ model, here we use
+`quorum := Fin 3` and `member relation` to concretize the parameters.
+As `Quorum n` would provide the complete set of quorums,
+which is larger than the configuration used in TLA+ model.
+
+`Quroum n` can be taken as an optimization for UX, which is easy
+to use and avoids defining `member` relation manually. But it would
+introduce more `States Found`, making the model checking take longer time.
+
+A rough comparison:
+- Using `quorum := Fin 3` and `member` relation:
+  Diameter: 28
+  States Found: 124437823
+  Distinct States: 11431369
+  Time: 10min 46.3s
+- Using `quorum := Quorum 3` without `member` relation:
+  Diameter: 28
+  States Found: 125347633
+  Distinct States: 11431369
+  Time: 16min 59.1s
+-/
+#model_check
+{
 -- Based on MultiPaxosUs.cfg:
 -- Acceptors = {a1, a2, a3}        -> Fin 3
 -- Proposers = {p1, p2}            -> Fin 2
@@ -348,8 +370,6 @@ set_option synthInstance.maxSize 2000
 -- Quorums = {{a1,a2},{a1,a3},{a2,a3}} -> Fin 3
 -- MaxBallot = 2                   -> 0..2, Fin 3
 -- MaxSlot = 1                     -> 0..1, Fin 2
-#model_check
-{
   ballot := Fin 3,
   slot := Fin 2,
   value := Fin 2,
@@ -368,8 +388,8 @@ set_option synthInstance.maxSize 2000
   -- Quorums: q0 = {a0, a1}, q1 = {a0, a2}, q2 = {a1, a2}
   member := fun a q =>
     match a.val, q.val with
-    | 0, 0 => true  -- q0 contains a0
-    | 1, 0 => true  -- q0 contains a1
+    | 0, 0 => true
+    | 1, 0 => true
     | 0, 1 => true
     | 2, 1 => true
     | 1, 2 => true
