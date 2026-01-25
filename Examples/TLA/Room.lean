@@ -7,7 +7,7 @@ This version aims to match TLA+ semantics as closely as possible.
 veil module RoomMC
 
 -- CONSTANT Room, Guest
-enum Room = { Elm, Cendena }
+enum Room = { Elm, Cendana }
 enum Guest = { Olivier, Bruno, Aquinas }
 
 @[veil_decl]
@@ -56,10 +56,10 @@ after_init {
 --                 /\ guestKeys' = [guestKeys EXCEPT ![g] = guestKeys[g] \cup {roomKey[r]}]
 --                 /\ UNCHANGED <<assignedKey,roomKey,inside>>
 action CheckIn (g : Guest) (r : Room) {
+  require ∀gx, keyTset.count (guestKeys gx) <= 3
   require guestTset.count (registered r) = 0
   registered r := guestTset.insert g (registered r)
   guestKeys g := keyTset.insert (roomKey r) (guestKeys g)
-  require ∀gx, keyTset.count (guestKeys gx) <= 3
 }
 
 
@@ -70,6 +70,7 @@ action CheckIn (g : Guest) (r : Room) {
 --                  /\ roomKey' = [roomKey EXCEPT ![r] = NextKey(r, roomKey[r])]
 --                  /\ UNCHANGED <<assignedKey,guestKeys,inside>>
 action CheckOut (g : Guest) (r : Room) {
+  require ∀gx, keyTset.count (guestKeys gx) <= 3
   require guestTset.contains g (registered r)
   require assignedKey g = noroom
   require inside r = nobody
@@ -79,7 +80,6 @@ action CheckOut (g : Guest) (r : Room) {
   let currentKey := roomKey r
   let nextNum := currentKey.num + 1
   roomKey r := { room := r, num := nextNum }
-  require ∀gx, keyTset.count (guestKeys gx) <= 3
 }
 
 -- EnterRoom(g,r) == /\ assignedKey[g] = "noroom"
@@ -90,6 +90,7 @@ action CheckOut (g : Guest) (r : Room) {
 --                   /\ inside' = [inside EXCEPT ![r] = "body"]
 --                   /\ UNCHANGED <<registered,roomKey,guestKeys>>
 action EnterRoom (g : Guest) (r : Room) {
+  require ∀gx, keyTset.count (guestKeys gx) <= 3
   require assignedKey g = noroom
   require inside r = nobody
   require keyTset.count (guestKeys g) > 0
@@ -97,7 +98,6 @@ action EnterRoom (g : Guest) (r : Room) {
   require roomKey r ∈ (guestKeys g)
   assignedKey g := room
   inside r := body
-  require ∀gx, keyTset.count (guestKeys gx) <= 3
 }
 
 -- LeaveRoom(g,r) == /\ assignedKey[g] = "room"
@@ -107,12 +107,12 @@ action EnterRoom (g : Guest) (r : Room) {
 --                   /\ inside' = [inside EXCEPT ![r] = "nobody"]
 --                   /\ UNCHANGED <<registered,roomKey,guestKeys>>
 action LeaveRoom (g : Guest) (r : Room) {
+  require ∀gx, keyTset.count (guestKeys gx) <= 3
   require assignedKey g = room
   require inside r = body
   require (roomKey r) ∈ (guestKeys g)
   assignedKey g := noroom
   inside r := nobody
-  require ∀gx, keyTset.count (guestKeys gx) <= 3
 }
 
 -- -- NoBadEntry invariants
@@ -140,10 +140,9 @@ safety [room_occupied_valid]
          assignedKey g = room ∧
          guestTset.contains g (registered r)
 
-
+invariant [key_num] ∀ R, (roomKey R).num < 10
 #gen_spec
--- Model checking configuration
--- Room = 2, Guest = 3, seq_t = Fin 4 (to allow a few key increments)
+
 #model_check
 {
   -- seq_t := Fin 11,

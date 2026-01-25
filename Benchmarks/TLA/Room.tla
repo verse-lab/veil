@@ -44,7 +44,8 @@ CheckOut(g,r) == /\ g \in registered[r] \* The guest must be the registered occu
 EnterRoom(g,r) == /\ assignedKey[g] = "noroom" \* The person must not be in any room
                   /\ inside[r] = "nobody" \* The room must be empty
                   /\ Cardinality(guestKeys[g]) > 0 \* At least one key must be hold
-                  /\ roomKey[r] = RandomElement(guestKeys[g]) \* Pick a random key so that old keys might be chosen
+                \*   /\ roomKey[r] = RandomElement(guestKeys[g]) \* Pick a random key so that old keys might be chosen
+                  /\ \E k \in guestKeys[g] : k = roomKey[r] \* The person must be the one who has the correct key
                   /\ assignedKey' = [assignedKey EXCEPT ![g] = "room"] \* Now the guest is in his room
                   /\ inside' = [inside EXCEPT ![r] = "body"] \* The room's state also changed
                   /\ UNCHANGED <<registered,roomKey,guestKeys>>
@@ -57,6 +58,8 @@ LeaveRoom(g,r) == /\ assignedKey[g] = "room" \* The person must be inside his ro
                   /\ UNCHANGED <<registered,roomKey,guestKeys>>
    
 Next == 
+/\ \A g \in DOMAIN guestKeys : Cardinality(guestKeys[g]) <= 3
+/\
    \/ \E g \in Guest, r \in Room : CheckIn(g,r)
    \/ \E g \in Guest, r \in Room : CheckOut(g,r)
    \/ \E g \in Guest, r \in Room : EnterRoom(g,r)
