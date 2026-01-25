@@ -215,57 +215,90 @@ instance between_fin_dec (n : Nat) : ∀ a b c, Decidable (Between.btw (node := 
 
 /-! ### Instances -/
 
+/-- Convert a BitVec to the list of indices where bits are set -/
+@[inline] def BitVec.toFinList (bv : BitVec n) : List (Fin n) :=
+  List.finRange n |>.filter (bv[·])
+
+/-- Count the number of set bits in a BitVec -/
+@[inline] def BitVec.popCount (bv : BitVec n) : Nat := bv.toFinList.length
+
+/-- Helper: convert a BitVec to a Finset of indices where bits are set -/
+def BitVec.toFinset (bv : BitVec n) : Finset (Fin n) := bv.toFinList.toFinset
+
+theorem BitVec.toFinset_card (bv : BitVec n) :
+    bv.toFinset.card = bv.popCount := by
+  simp only [toFinset, popCount]
+  rw [List.toFinset_card_of_nodup]
+  apply List.Nodup.filter
+  exact List.nodup_finRange n
+
+theorem BitVec.mem_toFinset (bv : BitVec n) (i : Fin n) : i ∈ bv.toFinset ↔ bv[i] = true := by simp [toFinset, toFinList]
+
+/-- Enumerate all BitVecs of size n -/
+def BitVec.allBitVecs (n : Nat) : List (BitVec n) :=
+  List.finRange (2 ^ n) |>.map (BitVec.ofFin)
+
+theorem BitVec.allBitVecs_complete {n : Nat} : ∀ (bv : BitVec n), bv ∈ BitVec.allBitVecs n := by
+  intro bv
+  simp only [BitVec.allBitVecs, List.mem_map, List.mem_finRange, true_and]
+  exact ⟨bv.toFin, BitVec.ofFin_toFin bv⟩
+
 -- NOTE: the original design is based on `Finset`, but the `Repr`
--- instance of `Finset` is marked as `unsafe`, so we use `List` instead
+-- instance of `Finset` is marked as `unsafe`, so we use `BitVec` instead,
+-- which saves space and also has `O(1)` membership test.
 abbrev Quorum (n : Nat) : Type :=
-  { fs : List (Fin n) // fs.Sorted (· < ·) ∧ (n / 2 + 1) ≤ fs.length }
+  { fs : BitVec n // (n / 2 + 1) ≤ fs.popCount }
+
+instance : Membership (Fin n) (Quorum n) where
+  mem q a := q.val[a] = true
 
 theorem Quorum.quorum_intersection {n : Nat} (q1 q2 : Quorum n) :
-  ∃ a, a ∈ q1.val ∧ a ∈ q2.val := by
-  rcases q1 with ⟨q1, hq1, hq1'⟩ ; rcases q2 with ⟨q2, hq2, hq2'⟩ ; dsimp
-  have htmp := Finset.card_inter (q1.toFinset) (q2.toFinset)
-  have hnodup1 := List.Pairwise.nodup hq1 ; have hnodup2 := List.Pairwise.nodup hq2
-  simp [List.toFinset_card_of_nodup hnodup1, List.toFinset_card_of_nodup hnodup2] at htmp
-  have htmp2 := Finset.card_le_univ (q1.toFinset ∪ q2.toFinset) ; simp at htmp2
-  have htmp3 : n / 2 + 1 + n / 2 + 1 - n ≤ (q1.toFinset ∩ q2.toFinset).card := by omega
-  simp +arith only at htmp3
-  rcases (Nat.even_or_odd' n) with ⟨k, (h | h)⟩ <;> subst n <;> simp at htmp3
-  all_goals (have htmp4 : 1 ≤ (q1.toFinset ∩ q2.toFinset).card := by omega)
-  all_goals (simp at htmp4 ; rcases htmp4 with ⟨a, ha⟩ ; simp at ha ; solve_by_elim)
+  ∃ a, a ∈ q1 ∧ a ∈ q2 := by
+  rcases q1 with ⟨bv1, hq1⟩ ; rcases q2 with ⟨bv2, hq2⟩
+  simp only [Membership.mem]
+  -- Convert to Finset reasoning
+  have hcard1 : n / 2 + 1 ≤ bv1.toFinset.card := by
+    rw [BitVec.toFinset_card] ; exact hq1
+  have hcard2 : n / 2 + 1 ≤ bv2.toFinset.card := by
+    rw [BitVec.toFinset_card] ; exact hq2
+  -- Use Finset intersection argument
+  have hunion := Finset.card_le_univ (bv1.toFinset ∪ bv2.toFinset)
+  have hinter := Finset.card_union_add_card_inter bv1.toFinset bv2.toFinset
+  have hinter_size : 1 ≤ (bv1.toFinset ∩ bv2.toFinset).card := by
+    have : (bv1.toFinset ∪ bv2.toFinset).card ≤ n := by
+      calc (bv1.toFinset ∪ bv2.toFinset).card
+        ≤ Finset.univ.card := Finset.card_le_univ _
+        _ = n := Finset.card_fin n
+    rcases (Nat.even_or_odd' n) with ⟨k, (h | h)⟩ <;> subst h <;> omega
+  simp only [Finset.one_le_card] at hinter_size
+  rcases hinter_size with ⟨a, ha⟩
+  simp only [Finset.mem_inter, BitVec.mem_toFinset] at ha
+  exact ⟨a, ha.1, ha.2⟩
 
 instance (n : Nat) : Inhabited (Quorum n.succ) where
-  default := ⟨List.ofFn id, by
-    simp [StrictMono] ; constructor
-    · rintro ⟨a, b⟩ ; simp [← Fin.val_fin_lt] ; omega
-    · grind⟩
-
-theorem Finset.List.ofFn_filter {n : Nat} (p : Finset (Fin n)) :
-  letI l := List.ofFn (n := n) id |>.filter (fun i => i ∈ p)
-  List.Sorted (· < ·) l ∧ l.length = p.card := by
-  constructor
-  · apply List.Pairwise.filter ; simp
-  · induction p using Finset.induction_on with
-    | empty => simp
-    | insert a p hnotin ih =>
-      simp [hnotin] ; have htmp : a ∈ List.ofFn (n := n) id := by simp
-      rw [List.mem_iff_append] at htmp ; rcases htmp with ⟨l1, l2, htmp⟩ ; rw [htmp] at ih ⊢
-      simp [List.filter] at ih ⊢ ; simp [decide_eq_false hnotin] at ih
-      have htmp2 : List.Nodup (List.ofFn (n := n) id) := by apply List.Pairwise.nodup (r := (· < ·)) ; simp
-      simp [htmp, List.nodup_middle, List.nodup_cons] at htmp2
-      rw [← Nat.add_assoc, ← ih] ; congr! 3 <;> apply List.filter_congr <;> simp <;> aesop
+  default := ⟨BitVec.allOnes (n + 1), by
+    have h : ∀ i : Fin (n + 1), (BitVec.allOnes (n + 1))[i] = true := by
+      intro i ; simp [BitVec.allOnes, BitVec.getElem_eq_testBit_toNat]
+    have hfilter : (List.filter (fun x => (BitVec.allOnes (n + 1))[x]) (List.finRange (n + 1))) =
+                   List.finRange (n + 1) := by
+      apply List.filter_eq_self.mpr
+      intro i _
+      exact h i
+    simp only [Nat.succ_eq_add_one, BitVec.popCount, BitVec.toFinList, hfilter, List.length_finRange]
+    omega⟩
 
 def allQuorums (n : Nat) : List (Quorum n) :=
-  let l := List.ofFn (n := n) id
-  let res := FinEnum.Finset.enum l |>.filterMap (fun x =>
-    if n / 2 + 1 ≤ x.card then .some (l.filter fun y => y ∈ x) else .none)
+  let res := BitVec.allBitVecs n |>.filter (fun bv => n / 2 + 1 ≤ bv.popCount)
   res.attachWith _ (by
-    intro x hmem ; unfold res l at hmem ; simp at hmem ; rcases hmem with ⟨fs, hcard, hmem⟩ ; subst x
-    have ⟨h1, h2⟩ := Finset.List.ofFn_filter fs ; rw [h2] ; aesop)
+    intro bv hmem
+    have h := (List.mem_filter.mp hmem).2
+    simp only [BitVec.popCount, decide_eq_true_eq] at h
+    exact h)
 
 theorem allQuorums_complete {n : Nat} : ∀ (q : Quorum n), q ∈ allQuorums n := by
-  intro ⟨x, h1, h2⟩ ; dsimp [allQuorums] ; simp ; exists List.toFinset x
-  have htmp := List.Pairwise.nodup h1 ; simp [List.toFinset_card_of_nodup htmp] ; refine And.intro h2 ?_
-  apply List.Sorted.eq_of_mem_iff _ h1 ; simp ; apply List.Pairwise.filter ; simp
+  intro ⟨bv, hbv⟩
+  simp only [allQuorums, List.mem_attachWith, List.mem_filter, BitVec.popCount]
+  exact ⟨BitVec.allBitVecs_complete bv, decide_eq_true hbv⟩
 
 instance (n : Nat) : FinEnum (Quorum n) :=
   FinEnum.ofList (allQuorums n) allQuorums_complete
@@ -274,23 +307,39 @@ instance (n : Nat) : Veil.Enumeration (Quorum n) where
   allValues := allQuorums n
   complete := allQuorums_complete
 
-instance (n : Nat) : @Std.ReflCmp (Quorum n) compare where
-  compare_self := List.instReflCmpCompareLex.compare_self
+instance (n : Nat) : Std.ReflOrd (Quorum n) where
+  compare_self := by
+    have tmp : Std.ReflOrd (BitVec n) := by infer_instance
+    intros ; dsimp [compare] ; apply tmp.compare_self
 
-instance (n : Nat) : @Std.LawfulEqCmp (Quorum n) compare where
-  eq_of_compare h := Subtype.eq <| List.instLawfulEqCmpCompareLex.eq_of_compare h
+instance (n : Nat) : Std.LawfulEqOrd (Quorum n) where
+  eq_of_compare := by
+    have tmp : Std.LawfulEqOrd (BitVec n) := by infer_instance
+    intros ; dsimp [compare] at * ; ext1 ; apply tmp.eq_of_compare ; assumption
 
-instance (n : Nat) : @Std.OrientedCmp (Quorum n) compare where
-  eq_swap := List.instOrientedCmpCompareLex.eq_swap
+instance (n : Nat) : Std.OrientedOrd (Quorum n) where
+  eq_swap := by
+    have tmp : Std.OrientedOrd (BitVec n) := by infer_instance
+    intros ; dsimp [compare] at * ; apply tmp.eq_swap
 
-instance (n : Nat) : @Std.TransCmp (Quorum n) compare where
-  isLE_trans := List.instTransCmpCompareLex.isLE_trans
+instance (n : Nat) : Std.TransOrd (Quorum n) where
+  isLE_trans := by
+    have tmp : Std.TransOrd (BitVec n) := by infer_instance
+    intros ; dsimp [compare] at * ; apply tmp.isLE_trans <;> assumption
 
 /-! ### Decidability -/
 
 /-- Membership test on `Quorum` is decidable. -/
-instance quorum_mem_dec (n : Nat) : ∀ a (q : Quorum n), Decidable (a ∈ q.val) := by
-  dsimp [Quorum] ; infer_instance
+instance quorum_mem_dec (n : Nat) : ∀ a (q : Quorum n), Decidable (a ∈ q) :=
+  fun a q => inferInstanceAs (Decidable (q.val[a] = true))
+
+/-! ### Repr -/
+
+/-- Display a Quorum as a set of numbers (the indices where bits are set) -/
+instance (n : Nat) : Repr (Quorum n) where
+  reprPrec q _ :=
+    let indices := q.val.toFinList
+    "{" ++ String.intercalate ", " (indices.map toString) ++ "}"
 
 /-! ## Byzantine node set -/
 
@@ -313,6 +362,21 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
     ∀ (s : nset), greater_than_third s → ¬ is_empty s
 
 /-! ### Instances -/
+
+theorem Finset.List.ofFn_filter {n : Nat} (p : Finset (Fin n)) :
+  letI l := List.ofFn (n := n) id |>.filter (fun i => i ∈ p)
+  List.Sorted (· < ·) l ∧ l.length = p.card := by
+  constructor
+  · apply List.Pairwise.filter ; simp
+  · induction p using Finset.induction_on with
+    | empty => simp
+    | insert a p hnotin ih =>
+      simp [hnotin] ; have htmp : a ∈ List.ofFn (n := n) id := by simp
+      rw [List.mem_iff_append] at htmp ; rcases htmp with ⟨l1, l2, htmp⟩ ; rw [htmp] at ih ⊢
+      simp [List.filter] at ih ⊢ ; simp [decide_eq_false hnotin] at ih
+      have htmp2 : List.Nodup (List.ofFn (n := n) id) := by apply List.Pairwise.nodup (r := (· < ·)) ; simp
+      simp [htmp, List.nodup_middle, List.nodup_cons] at htmp2
+      rw [← Nat.add_assoc, ← ih] ; congr! 3 <;> apply List.filter_congr <;> simp <;> aesop
 
 /-- A sorted list of nodes, representing a set in Byzantine fault tolerance. -/
 abbrev ByzNSet (n : Nat) : Type :=
