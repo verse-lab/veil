@@ -117,11 +117,12 @@ pre_check_lock(self) == /\ pc[self] = "pre_check_lock"
                         /\ UNCHANGED << wait_queue_num_wakers, 
                                         wait_queue_wakers, has_woken, waker >>
 
+\* NOTE: Expose the violation by bringing back "locked' = FALSE"
 prepare_wait_util(self) == /\ pc[self] = "prepare_wait_util"
-             /\ locked' = FALSE
+            \*  /\ locked' = FALSE
              /\ pc' = [pc EXCEPT ![self] = "wait_until"]
              /\ UNCHANGED << wait_queue_num_wakers, wait_queue_wakers, 
-                             has_woken, stack, waker >>
+                             has_woken, stack, waker, locked >>
 
 wait_until(self) == /\ pc[self] = "wait_until"
                     /\ pc' = [pc EXCEPT ![self] = "enqueue_waker"]
