@@ -619,10 +619,10 @@ Next == \* Handle Messages
            \E s \in Sequencers
                              : /\ m.mtype = MClientRequest
                                /\ HandleClientRequest(m, s)
-        \* \/ \E m \in messages : /\ m.mtype = MMarkedClientRequest
-        \*                        /\ HandleMarkedClientRequest(m.dest, m)
-        \* \/ \E m \in messages : /\ m.mtype = MViewChangeReq
-        \*                        /\ HandleViewChangeReq(m.dest, m)
+        \/ \E m \in messages : /\ m.mtype = MMarkedClientRequest
+                               /\ HandleMarkedClientRequest(m.dest, m)
+        \/ \E m \in messages : /\ m.mtype = MViewChangeReq
+                                /\ HandleViewChangeReq(m.dest, m)
         \/ \E m \in messages : /\ m.mtype = MViewChange
                                /\ HandleViewChange(m.dest, m)
         \/ \E m \in messages : /\ m.mtype = MStartView
@@ -740,7 +740,7 @@ IvyInvariants ==
    /\ LeaderSMNGap
 
 \* To constrain search space (old approach)
-MsgCountLimit == Cardinality(messages) <= 10
+MsgCountLimit == Cardinality(messages) <= 14
 
 ConstrainedNext ==
     /\ MsgCountLimit

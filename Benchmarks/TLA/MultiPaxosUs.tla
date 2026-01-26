@@ -83,6 +83,9 @@ FreeSlots(T) ==
 \* NewProposals(T) ==
 \*   (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}}:
 \*     \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
+
+\* Here, we added Exception handle and modify the mistake (from {} to {{}}).
+\* Without Exception handle, TLC will throw an error.
 NewProposals(T) ==
   IF FreeSlots(T) = {} THEN {}
   ELSE (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {{}}:
