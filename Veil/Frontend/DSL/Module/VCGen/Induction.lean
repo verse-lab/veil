@@ -245,9 +245,9 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
   Verifier.withVCManager fun ref => do
     for (act, vc) in vcData do
       let mgr ← ref.get
-      let (mgr', vcId) := mgr.addVC vc {} #[]
-      let mgr'' ← mgr'.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name)
-      ref.set mgr''
+      let (mgr, vcId) := mgr.addVC vc {} #[]
+      let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name)
+      ref.set mgr
 
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
     These VCs check that each action preserves each invariant clause. -/
@@ -269,12 +269,12 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
     for (act, wpVC, trVC) in vcData do
       let mgr ← ref.get
       -- WP-style VC (primary)
-      let (mgr', wpVCId) := mgr.addVC wpVC {} #[]
-      let mgr'' ← mgr'.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name)
+      let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
+      let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name)
       -- TR-style VC (alternative) - only runs when WP-style VC fails
-      let (mgr''', trVCId) := mgr''.addAlternativeVC trVC wpVCId #[]
-      let mgr'''' ← mgr'''.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name)
-      ref.set mgr''''
+      let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
+      let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name)
+      ref.set mgr
 
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/
 def Module.generateVCs (mod : Module) : CommandElabM Unit := do
