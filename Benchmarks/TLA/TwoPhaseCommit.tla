@@ -147,6 +147,14 @@ TPSpec == TPInit /\ [][TPNext]_<<rmState, tmState, tmPrepared, msgs>>
   (* The complete spec of the Two-Phase Commit protocol.                   *)
   (*************************************************************************)
 
+TCConsistent ==  
+  (*************************************************************************)
+  (* A state predicate asserting that two RMs have not arrived at          *)
+  (* conflicting decisions.                                                *)
+  (*************************************************************************)
+  \A rm1, rm2 \in RM : ~ /\ rmState[rm1] = "aborted"
+                         /\ rmState[rm2] = "committed"
+
 THEOREM TPSpec => []TPTypeOK
   (*************************************************************************)
   (* This theorem asserts that the type-correctness predicate TPTypeOK is  *)
