@@ -164,7 +164,7 @@ private def logLineHtml (line : Concrete.CompilationLogLine) : Html := Id.run do
 /-- Generate HTML for live compilation log during compilation. -/
 private def compilationLogHtml (elapsedMs : Nat) (logLines : Array Concrete.CompilationLogLine) : Html :=
   <details style={json% {"marginTop": "8px"}}>
-    <summary style={json% {"color": "#888", "cursor": "pointer", "fontSize": "12px"}}>
+    <summary style={json% {"color": "var(--vscode-descriptionForeground)", "cursor": "pointer", "fontSize": "12px"}}>
       Compilation log ({.text (toString logLines.size)} lines, {.text (formatElapsedTime elapsedMs)})
     </summary>
     <div style={json% {
@@ -293,7 +293,7 @@ private def actionCoverageHtml (actionStats : List ActionStatDisplay) (allAction
   let warningText := if neverEnabled.isEmpty then "" else s!" — {neverEnabled.length} never enabled ⚠"
   let headerStyle := json% {"display": "grid", "gridTemplateColumns": "1fr 70px 60px", "gap": "8px", "padding": "2px 0", "borderBottom": "1px solid #444", "marginBottom": "4px"}
   return <details style={json% {"marginTop": "8px"}}>
-    <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "#888"}}>
+    <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "var(--vscode-descriptionForeground)"}}>
       Action Coverage ({.text (s!"{groups.length} actions")}{.element "span" #[("style", json% {"color": "#cc6600"})] #[.text warningText]})
     </summary>
     <div style={json% {"marginTop": "4px", "fontSize": "11px"}}>
@@ -348,11 +348,11 @@ export default function MetricsHistoryToggle(props) {
 
   const buttonStyle = (active) => ({
     padding: '4px 8px',
-    border: 'none',
+    border: active ? 'none' : '1px solid var(--vscode-button-border, transparent)',
     borderRadius: '4px',
     cursor: 'pointer',
-    backgroundColor: active ? '#0066cc' : '#444',
-    color: 'white',
+    backgroundColor: active ? 'var(--vscode-button-background)' : 'var(--vscode-button-secondaryBackground)',
+    color: active ? 'var(--vscode-button-foreground)' : 'var(--vscode-button-secondaryForeground)',
     fontSize: '11px'
   });
 
@@ -399,7 +399,7 @@ private def historyToChartData (history : Array ProgressHistoryPoint) (getValue 
 private def renderChart (history : Array ProgressHistoryPoint) (leftMargin : Nat) (config : ChartConfig) : Html := Id.run do
   let data := historyToChartData history config.getValue
   return <div style={json% {"marginBottom": "12px"}}>
-    <div style={json% {"fontSize": "11px", "color": "#888", "marginBottom": "4px"}}>
+    <div style={json% {"fontSize": "11px", "color": "var(--vscode-descriptionForeground)", "marginBottom": "4px"}}>
       {.text config.title}
     </div>
     <LineChart width={350} height={140} data={data} margin={⟨10, 20, 20, leftMargin⟩}>
@@ -437,7 +437,7 @@ private def td (text : String) : Html :=
 
 /-- Render a single row in the history table. -/
 private def historyTableRow (point : ProgressHistoryPoint) : Html :=
-  .element "tr" #[("style", json% {"borderBottom": "1px solid #333"})] #[
+  .element "tr" #[("style", json% {"borderBottom": "1px solid var(--vscode-panel-border)"})] #[
     .element "td" #[("style", json% {"padding": "4px 8px", "textAlign": "right", "fontFamily": "monospace"})] #[.text (formatTimeHMS point.timestamp)],
     td (toString point.diameter), td (toString point.statesFound),
     td (toString point.distinctStates), td (toString point.queue)
@@ -445,7 +445,7 @@ private def historyTableRow (point : ProgressHistoryPoint) : Html :=
 
 /-- Render the history as a table view (TLC-style). -/
 private def renderTableView (history : Array ProgressHistoryPoint) : Html := Id.run do
-  let headerStyle := json% {"borderBottom": "1px solid #555", "position": "sticky", "top": "0", "backgroundColor": "var(--vscode-textBlockQuote-background, #1e1e1e)"}
+  let headerStyle := json% {"borderBottom": "1px solid var(--vscode-panel-border)", "position": "sticky", "top": "0", "backgroundColor": "var(--vscode-textBlockQuote-background)"}
   let headerRow : Html := .element "tr" #[("style", headerStyle)] #[th "Time", th "Diameter", th "Found", th "Distinct", th "Queue"]
   let tableRows := #[headerRow] ++ history.map historyTableRow
   return <div style={json% {"maxHeight": "300px", "overflow": "auto"}}>
@@ -488,10 +488,10 @@ private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := 
   let graphView := renderGraphView history leftMargin
   let historyJson := historyToJsonString history
   return <details style={json% {"marginTop": "8px"}}>
-    <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "#888"}}>
+    <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "var(--vscode-descriptionForeground)"}}>
       Metrics History ({.text (toString pointCount)} samples, {.text timeRange})
     </summary>
-    <div style={json% {"marginTop": "8px", "padding": "8px", "backgroundColor": "var(--vscode-textBlockQuote-background, #1e1e1e)", "borderRadius": "4px"}}>
+    <div style={json% {"marginTop": "4px", "fontSize": "11px"}}>
       {Html.ofComponent MetricsHistoryToggle ⟨historyJson⟩ #[tableView, graphView]}
     </div>
   </details>
