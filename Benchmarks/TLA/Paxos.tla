@@ -75,13 +75,18 @@ Phase2a(b) ==
   /\ ~ \E m \in msgs : (m.type = "2a") /\ (m.bal = b) 
   /\ \E v \in Values :
        /\ \E Q \in Quorums :
-            \E S \in SUBSET {m \in msgs : (m.type = "1b") /\ (m.bal = b)} :
-               /\ \A a \in Q : \E m \in S : m.acc = a
-               /\ \/ \A m \in S : m.maxVBal = -1
-                  \/ \E c \in 0..(b-1) : 
-                        /\ \A m \in S : m.maxVBal =< c
-                        /\ \E m \in S : /\ m.maxVBal = c
-                                        /\ m.maxVal = v
+            \* Optimization: pick subset of acceptors instead of subset of messages
+            \E selectedAcceptors \in SUBSET Acceptors :
+               LET all1bMsgs == {m \in msgs : (m.type = "1b") /\ (m.bal = b)}
+                   S == {m \in all1bMsgs : m.acc \in selectedAcceptors}
+               IN \* selectedAcceptors must only include acceptors with 1b messages
+                  /\ \A a \in selectedAcceptors : \E m \in all1bMsgs : m.acc = a
+                  /\ \A a \in Q : \E m \in S : m.acc = a
+                  /\ \/ \A m \in S : m.maxVBal = -1
+                     \/ \E c \in 0..(b-1) : 
+                           /\ \A m \in S : m.maxVBal =< c
+                           /\ \E m \in S : /\ m.maxVBal = c
+                                           /\ m.maxVal = v
        /\ Send([type |-> "2a", bal |-> b, val |-> v])
   /\ UNCHANGED <<maxBal, maxVBal, maxVal>>
 
