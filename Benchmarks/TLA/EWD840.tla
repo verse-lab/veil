@@ -100,7 +100,7 @@ Environment == \E i \in Node : SendMsg(i) \/ Deactivate(i)
 Termination == \A i \in Node : ~ active[i] 
             /\ UNCHANGED <<active, color, tpos, tcolor>>
 
-Next == System \/ Environment
+Next == System \/ Environment \/ Termination
 
 (***************************************************************************)
 (* Specification                                                           *)
