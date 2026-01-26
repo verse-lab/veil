@@ -388,10 +388,11 @@ structure ChartConfig where
   color : String
   getValue : ProgressHistoryPoint → Nat
 
-/-- Convert history to JSON format for a chart. Uses "value" as the Y-axis key. -/
+/-- Convert history to JSON format for a chart. Uses "value" as the Y-axis key.
+    Time is in seconds with millisecond precision. -/
 private def historyToChartData (history : Array ProgressHistoryPoint) (getValue : ProgressHistoryPoint → Nat) : Array Json :=
   history.map fun point => json% {
-    time: $(point.timestamp / 1000),
+    time: $(point.timestamp.toFloat / 1000.0),
     value: $(getValue point)
   }
 

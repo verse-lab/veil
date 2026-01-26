@@ -492,17 +492,19 @@ def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
   let mut lastUpdateTime : Nat := 0
   while h_not_finished : !ctx.hasFinished do
     let currentCtx := ctx
-    -- Update progress and check for cancellation/handoff at most once per second
+    ctx := ← SequentialSearchContext.bfsStep sys currentCtx h_not_finished
+    -- If we found a violation, mark it so handoff is prevented
+    if let some (.earlyTermination cond) := ctx.finished then
+      if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
+    -- Update progress on every diameter change (ensures all levels appear in history)
+    if ctx.currentFrontierDepth > currentCtx.currentFrontierDepth then
+      updateProgress progressInstanceId
+        ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.sq.size
+        (toActionStatsList ctx.actionStatsMap)
+    -- Check for cancellation/handoff at most once per second
     let now ← IO.monoMsNow
     if now - lastUpdateTime >= 1000 then
       lastUpdateTime := now
-      -- TLC-style stats: diameter, statesFound, distinctStates, queue, actionStats
-      updateProgress progressInstanceId
-        ctx.currentFrontierDepth  -- diameter
-        ctx.statesFound           -- statesFound (total post-states before dedup)
-        ctx.seen.size             -- distinctStates
-        ctx.sq.size               -- queue
-        (toActionStatsList ctx.actionStatsMap)
       if ← shouldStop cancelToken progressInstanceId then
         ctx := { ctx with
           finished := some (.earlyTermination .cancelled),
@@ -516,10 +518,6 @@ def breadthFirstSearchSequential {ρ σ κ σₕ : Type} {m : Type → Type}
             | inr h_none => simp at h_none
         }
         break
-    ctx := ← SequentialSearchContext.bfsStep sys currentCtx h_not_finished
-    -- If we found a violation, mark it so handoff is prevented
-    if let some (.earlyTermination cond) := ctx.finished then
-      if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
   -- Final update to ensure stats reflect finished state
   updateProgress progressInstanceId
     ctx.currentFrontierDepth
