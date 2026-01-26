@@ -868,9 +868,7 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
-  let simps := #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp].map Lean.mkIdent
-  let classical := mkIdent `Classical
-  veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst; (open $classical:ident in veil_simp only [$[$simps:ident],*] at * ); veil_intro_ho; __veil_concretize_state_wp; __veil_concretize_fields_wp; veil_clear)
+  veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst; veil_concretize_wp; veil_clear; veil_simp at *)
 
 def elabVeilSolveWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   let concretizeTac ← if fast then `(tactic|veil_concretize_wp !) else `(tactic|veil_concretize_wp)
