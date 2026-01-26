@@ -902,14 +902,14 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type} {m : Type → Type}
       -- If we found a violation, mark it so handoff is prevented
       if let some (.earlyTermination cond) := ctx.finished then
         if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
-      -- Update progress and check for cancellation/handoff at most once per second
+      -- Update progress on every diameter change (ensures all levels appear in history)
+      updateProgress progressInstanceId
+        ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisitQueue.size
+        (toActionStatsList ctx.actionStatsMap)
+      -- Check for cancellation/handoff at most once per second
       let now ← IO.monoMsNow
       if now - lastUpdateTime >= 1000 then
         lastUpdateTime := now
-        -- TLC-style stats: diameter, statesFound, distinctStates, queue, actionStats
-        updateProgress progressInstanceId
-          ctx.currentFrontierDepth ctx.statesFound ctx.seen.size ctx.tovisitQueue.size
-          (toActionStatsList ctx.actionStatsMap)
         if ← shouldStop cancelToken progressInstanceId then
           ctx := { ctx with
             finished := some (.earlyTermination .cancelled),
