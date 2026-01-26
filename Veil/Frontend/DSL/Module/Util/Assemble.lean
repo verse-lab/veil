@@ -50,7 +50,7 @@ def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TS
   -- binders, and then create the syntax.
   -- See NOTE(SUBTLE).
   let binders := (← baseBinders.mapM mkImplicitBinder) ++ (← params.mapM (·.binder)) ++ (← extraParams.mapM (·.binder))
-  let attrs ← #[(if justTheory then `invSimp else `ghostRelSimp), `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+  let attrs ← ((if justTheory then #[`invSimp] else #[]) ++ #[`ghostRelSimp, `nextSimp]).mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let stx ← `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
   trace[veil.debug] "stx: {stx}"
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
