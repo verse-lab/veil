@@ -1,0 +1,432 @@
+# TLC Benchmark Configuration File
+# 
+# This file defines a batch of TLC model checking benchmarks to run.
+# You can define multiple specifications with multiple configurations each.
+
+# Global settings (apply to all benchmarks unless overridden)
+global:
+  # Path to tla2tools.jar
+  tla2tools_jar: "tla2tools.jar"
+  
+  # Java command (use full path if needed)
+  java_cmd: "java"
+  
+  # Default timeout per benchmark (seconds)
+  default_timeout: 3600  # 1 hour
+  
+  # Default JVM heap size
+  default_heap: "16G"
+
+# Number of times to repeat each benchmark
+repetitions: 1
+
+# List of benchmarks to run
+benchmarks:
+  # Peterson
+  # NOTE: This should be inherently very small?
+  - name: "Peterson-1worker"
+    spec_file: "TLA/Peterson.tla"
+    config_file: "TLA/Peterson.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Peterson-4worker"
+    spec_file: "TLA/Peterson.tla"
+    config_file: "TLA/Peterson.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Peterson-8worker"
+    spec_file: "TLA/Peterson.tla"
+    config_file: "TLA/Peterson.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 1800
+
+  # Prisoners
+  # NOTE: This should be inherently small?
+  - name: "Prisoners-8-1worker"
+    spec_file: "TLA/Prisoners.tla"
+    config_file: "TLA/Prisoners-8.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 1800
+
+  - name: "Prisoners-8-4worker"
+    spec_file: "TLA/Prisoners.tla"
+    config_file: "TLA/Prisoners-8.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Prisoners-8-8worker"
+    spec_file: "TLA/Prisoners.tla"
+    config_file: "TLA/Prisoners-8.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Prisoners-10-1worker"
+    spec_file: "TLA/Prisoners.tla"
+    config_file: "TLA/Prisoners-10.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 1800
+
+  - name: "Prisoners-10-4worker"
+    spec_file: "TLA/Prisoners.tla"
+    config_file: "TLA/Prisoners-10.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Prisoners-10-8worker"
+    spec_file: "TLA/Prisoners.tla"
+    config_file: "TLA/Prisoners-10.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  # Bakery
+  # CHECK might need larger parameters
+  - name: "Bakery-2-2-1worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-2-2.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Bakery-2-2-4worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-2-2.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Bakery-2-2-8worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-2-2.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Bakery-3-2-1worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-3-2.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Bakery-3-2-4worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-3-2.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Bakery-3-2-8worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-3-2.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 1800
+
+  - name: "Bakery-3-3-1worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-3-3.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Bakery-3-3-4worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-3-3.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 1800
+  
+  - name: "Bakery-3-3-8worker"
+    spec_file: "TLA/Bakery.tla"
+    config_file: "TLA/Bakery-3-3.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 1800
+
+  # Key Value Store
+  # CHECK might need larger parameters
+  - name: "KeyValueStore-2-2-3-1worker"
+    spec_file: "TLA/KeyValueStore.tla"
+    config_file: "TLA/KeyValueStore-2-2-3.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "KeyValueStore-2-2-3-4worker"
+    spec_file: "TLA/KeyValueStore.tla"
+    config_file: "TLA/KeyValueStore-2-2-3.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "KeyValueStore-2-2-3-8worker"
+    spec_file: "TLA/KeyValueStore.tla"
+    config_file: "TLA/KeyValueStore-2-2-3.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "KeyValueStore-2-3-3-1worker"
+    spec_file: "TLA/KeyValueStore.tla"
+    config_file: "TLA/KeyValueStore-2-3-3.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "KeyValueStore-2-3-3-4worker"
+    spec_file: "TLA/KeyValueStore.tla"
+    config_file: "TLA/KeyValueStore-2-3-3.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "KeyValueStore-2-3-3-8worker"
+    spec_file: "TLA/KeyValueStore.tla"
+    config_file: "TLA/KeyValueStore-2-3-3.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+
+  # Two Phase Commit
+  # CHECK might need larger parameters; what's the limit?
+  - name: "TwoPhaseCommit-8-1worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-8.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "TwoPhaseCommit-8-4worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-8.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "TwoPhaseCommit-8-8worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-8.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "TwoPhaseCommit-9-1worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-9.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "TwoPhaseCommit-9-4worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-9.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "TwoPhaseCommit-9-8worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-9.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "TwoPhaseCommit-10-1worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-10.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "TwoPhaseCommit-10-4worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-10.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "TwoPhaseCommit-10-8worker"
+    spec_file: "TLA/TwoPhaseCommit.tla"
+    config_file: "TLA/TwoPhaseCommit-10.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+
+  # Simple Allocator
+  # CHECK what about 5-3? How long would it take?
+  - name: "SimpleAllocator-3-3-1worker"
+    spec_file: "TLA/SimpleAllocator.tla"
+    config_file: "TLA/SimpleAllocator-3-3.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "SimpleAllocator-3-3-4worker"
+    spec_file: "TLA/SimpleAllocator.tla"
+    config_file: "TLA/SimpleAllocator-3-3.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "SimpleAllocator-3-3-8worker"
+    spec_file: "TLA/SimpleAllocator.tla"
+    config_file: "TLA/SimpleAllocator-3-3.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "SimpleAllocator-4-3-1worker"
+    spec_file: "TLA/SimpleAllocator.tla"
+    config_file: "TLA/SimpleAllocator-4-3.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "SimpleAllocator-4-3-4worker"
+    spec_file: "TLA/SimpleAllocator.tla"
+    config_file: "TLA/SimpleAllocator-4-3.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "SimpleAllocator-4-3-8worker"
+    spec_file: "TLA/SimpleAllocator.tla"
+    config_file: "TLA/SimpleAllocator-4-3.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+
+  # bcast
+  # NOTE: 6 seems at the boundary!!
+  - name: "bcastByz-4-1-1-1worker"
+    spec_file: "TLA/bcastByz.tla"
+    config_file: "TLA/bcastByz-4-1-1.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "bcastByz-4-1-1-4worker"
+    spec_file: "TLA/bcastByz.tla"
+    config_file: "TLA/bcastByz-4-1-1.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "bcastByz-4-1-1-8worker"
+    spec_file: "TLA/bcastByz.tla"
+    config_file: "TLA/bcastByz-4-1-1.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "bcastByz-5-1-1-1worker"
+    spec_file: "TLA/bcastByz.tla"
+    config_file: "TLA/bcastByz-5-1-1.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "bcastByz-5-1-1-4worker"
+    spec_file: "TLA/bcastByz.tla"
+    config_file: "TLA/bcastByz-5-1-1.cfg"
+    workers: 4
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "bcastByz-5-1-1-8worker"
+    spec_file: "TLA/bcastByz.tla"
+    config_file: "TLA/bcastByz-5-1-1.cfg"
+    workers: 8
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  - name: "bcastByz-6-1-1-1worker"
+    spec_file: "TLA/bcastByz.tla"
+    config_file: "TLA/bcastByz-6-1-1.cfg"
+    workers: 1
+    heap_size: "16G"
+    timeout_seconds: 3600
+  
+  # - name: "bcastByz-6-1-1-4worker"
+  #   spec_file: "TLA/bcastByz.tla"
+  #   config_file: "TLA/bcastByz-6-1-1.cfg"
+  #   workers: 4
+  #   heap_size: "16G"
+  #   timeout_seconds: 3600
+  
+  # - name: "bcastByz-6-1-1-8worker"
+  #   spec_file: "TLA/bcastByz.tla"
+  #   config_file: "TLA/bcastByz-6-1-1.cfg"
+  #   workers: 8
+  #   heap_size: "16G"
+  #   timeout_seconds: 3600
+
+
+
+  # - name: "TwoPhase-4RM-4workers"
+  #   spec_file: "specs/TwoPhase.tla"
+  #   config_file: "specs/MC_TwoPhase_4.cfg"
+  #   workers: 4
+  #   heap_size: "4G"
+  #   timeout_seconds: 1800
+
+  # - name: "TwoPhase-4RM-8workers"
+  #   spec_file: "specs/TwoPhase.tla"
+  #   config_file: "specs/MC_TwoPhase_4.cfg"
+  #   workers: 8
+  #   heap_size: "8G"
+  #   timeout_seconds: 1800
+
+  # # Example 2: Same spec with different model sizes
+  # - name: "TwoPhase-5RM"
+  #   spec_file: "specs/TwoPhase.tla"
+  #   config_file: "specs/MC_TwoPhase_5.cfg"
+  #   workers: 4
+  #   heap_size: "8G"
+  #   timeout_seconds: 3600
+
+  # - name: "TwoPhase-6RM"
+  #   spec_file: "specs/TwoPhase.tla"
+  #   config_file: "specs/MC_TwoPhase_6.cfg"
+  #   workers: 8
+  #   heap_size: "16G"
+  #   timeout_seconds: 7200
+
+  # # Example 3: Different specification
+  # - name: "Paxos-3nodes"
+  #   spec_file: "specs/Paxos.tla"
+  #   config_file: "specs/MC_Paxos_3.cfg"
+  #   workers: 4
+  #   heap_size: "8G"
+  #   timeout_seconds: 3600
+  #   # Optional: extra TLC command-line options
+  #   extra_opts:
+  #     - "-coverage"
+  #     - "1"  # Collect coverage every 1 minute
+  #   # Optional: working directory (if spec is in a different location)
+  #   # working_dir: "/path/to/specs"
+
+  # # Example 4: Using simulation mode instead of full model checking
+  # - name: "LargeSpec-simulation"
+  #   spec_file: "specs/LargeSpec.tla"
+  #   config_file: "specs/MC_LargeSpec.cfg"
+  #   workers: 1
+  #   heap_size: "4G"
+  #   timeout_seconds: 600
+  #   extra_opts:
+  #     - "-simulate"
+  #     - "num=1000"  # Generate 1000 traces
+
+# You can also use JSON format for the config file (benchmark_config.json)
+# The structure is identical, just in JSON syntax.

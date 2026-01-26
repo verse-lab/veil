@@ -1,0 +1,11 @@
+# TLC Benchmark Framework Dependencies
+
+# Required for memory monitoring
+psutil>=5.8.0
+
+# For YAML configuration files
+PyYAML>=5.4.0
+
+# For plotting (optional but recommended)
+matplotlib>=3.4.0
+numpy>=1.20.0
