@@ -234,7 +234,7 @@ structure SearchParameters (ρ σ : Type) where
   the search also terminates if all reachable states have been explored. -/
   earlyTerminationConditions : List EarlyTerminationCondition
 
-class ModelChecker (ts : TransitionSystem ρ σ l) where
-  isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ
+-- class ModelChecker (ts : TransitionSystem ρ σ l) where
+--   isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ
 
 end Veil.ModelChecker
