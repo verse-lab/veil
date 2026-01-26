@@ -307,6 +307,7 @@ ghost relation ViewLt (v1 v2 : View sequencer) :=
 procedure Send (ms : setMsg) {
   messages := mSet.union messages ms
 }
+
 -- \* `^\textbf{Log Manipulation Helpers}^'
 -- (* Combine logs, taking a NoOp for any slot that has a NoOp and a Value
 --    otherwise. *)
@@ -323,26 +324,18 @@ procedure Send (ms : setMsg) {
 --     [i \in (1..range) |->
 --        combineSlot({l[i] : l \in { k \in ls : i <= Len(k) }})]
 procedure CombineLogs (ls : List (List value)) {
-  -- range == Max({ Len(l) : l \in ls})
   let maxLen := ls.foldl (fun acc l => Nat.max acc l.length) 0
-  -- [i \in (1..range) |-> combineSlot({l[i] : l \in { k \in ls : i <= Len(k) }})]
   let oneIndexRange := (List.range maxLen).map (· + 1)
   let result := oneIndexRange.map (fun i =>
-    -- {l[i] : l \in { k \in ls : i <= Len(k) }}
-    -- Collect values at position i from all logs that have at least i elements
-    -- Note: TLA+ uses 1-based indexing, so l[i] when i <= Len(l) means 0-based index (i-1)
     let valuesAtSlot := ls.filterMap (fun l =>
       if i ≤ l.length then some (l.getD (i - 1) NoOp) else none)
-    -- combineSlot(xs) == IF NoOp \in xs THEN NoOp
-    --                    ELSE IF xs = {} THEN NoOp
-    --                    ELSE CHOOSE x \in xs : x /= NoOp
     if valuesAtSlot.contains NoOp then
       NoOp
     else if valuesAtSlot.isEmpty then
       NoOp
     else
-      -- CHOOSE x \in xs : x /= NoOp
-      -- Since NoOp is not in valuesAtSlot, any element is a valid non-NoOp value
+      /- CHOOSE x \in xs : x /= NoOp
+      Since NoOp is not in valuesAtSlot, any element is a valid non-NoOp value -/
       valuesAtSlot.getD 0 NoOp)
   return result
 }
@@ -356,8 +349,9 @@ def ReplaceItem {α : Type} (l : List α) (i : Nat) (x : α) : List α :=
   let result := oneIndexRange.map (fun j =>
     if j == i then x
     else if j ≤ l.length then l.getD (j - 1) x  -- Adjust for 0-based index
-    else x)  -- If j > Len(l), fill with x
+    else x)
   result
+
 
 -- \* Subroutine to send an MGapCommit message
 -- SendGapCommit(r) ==
@@ -389,7 +383,6 @@ procedure SendGapCommit (r : replica) {
       dest       := d,
       slotNumber := slot,
       viewID     := vViewID r,
-      /- unused fields -/
       sender     := default,
       value      := default,
       request    := default,
@@ -477,12 +470,12 @@ action ClientSendsRequest (v : value) {
     { mtype := MsgType.MClientRequest,
       value := v,
       /- unused fields -/
-      dest  := default,
-      sender := default,
-      viewID := default,
-      request := default,
+      dest       := default,
+      sender     := default,
+      viewID     := default,
+      request    := default,
       logSlotNum := default,
-      sessNum := default,
+      sessNum    := default,
       sessMsgNum := default,
       slotNumber := default,
       lastNormal := default,
@@ -490,6 +483,7 @@ action ClientSendsRequest (v : value) {
   let msgSet := TSet.insert msg mSet.empty
   Send msgSet
 }
+
 
 -- \* `^\textbf{Normal Case Handlers}^'
 -- \* Sequencer s receives MClientRequest, m
@@ -505,7 +499,11 @@ action ClientSendsRequest (v : value) {
 --   /\ seqMsgNums' = [ seqMsgNums EXCEPT ![s] = smn + 1 ]
 --   /\ UNCHANGED replicaVars
 -- ✅
-procedure HandleClientRequest (m : Message replica value sequencer) (s : sequencer) {
+action HandleClientRequest (s : sequencer) {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype == .MClientRequest
+
   let smn := seqMsgNums s
   let msgs := Replicas.map (fun r =>
     { mtype      := MsgType.MMarkedClientRequest,
@@ -568,23 +566,30 @@ procedure HandleClientRequest (m : Message replica value sequencer) (s : sequenc
 --                          sender     |-> r,
 --                          sessMsgNum |-> vSessMsgNum[r] ]})
 --               /\ UNCHANGED << replicaVars, sequencerVars >>
+-- action MarkedClientRequest {
+-- require mSet.count messages ≤ MsgCountLimit
+--   let m :| mSet.contains m messages
+--   if m.mtype == .MMarkedClientRequest then
+--     HandleMarkedClientRequest m.dest m
+-- }
+action HandleMarkedClientRequest {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype == .MMarkedClientRequest
+  let r := m.dest
 
-procedure HandleMarkedClientRequest (r : replica) (m : Message replica value sequencer) {
-  assume vReplicaStatus r == StNormal
+  require vReplicaStatus r == StNormal
   -- Normal case: m.sessNum = vViewID[r].sessNum /\ m.sessMsgNum = vSessMsgNum[r]
   if m.sessNum == (vViewID r).sessNum && m.sessMsgNum == vSessMsgNum r then
-    -- Compute new log and its length before updating
     let newLog := (vLog r) ++ [m.value]
     let newLogLen := List.length newLog
-    -- Append value to log
     vLog r := newLog
     vSessMsgNum r := vSessMsgNum r + 1
-  --   -- Send RequestReply
     let replyMsg : Message replica value sequencer := {
       mtype      := .MRequestReply,
       request    := m.value,
       viewID     := vViewID r,
-      logSlotNum := newLogLen,  -- Len(vLog'[r])
+      logSlotNum := newLogLen,
       sender     := r,
       -- Unused fields
       dest       := default,
@@ -597,19 +602,17 @@ procedure HandleMarkedClientRequest (r : replica) (m : Message replica value seq
     }
     let msgSet := TSet.insert replyMsg mSet.empty
     Send msgSet
-
   else
     -- -- SESSION-TERMINATED Case: m.sessNum > vViewID[r].sessNum
     if gtSequencer m.sessNum (vViewID r).sessNum then
       let newViewID : View sequencer := {
         sessNum   := m.sessNum,
         leaderNum := (vViewID r).leaderNum }
-    -- Send ViewChangeReq to all replicas
+      -- Send ViewChangeReq to all replicas
       let viewChangeReqMsgs : List (Message replica value sequencer) := Replicas.map (fun d => {
         mtype  := .MViewChangeReq,
         dest   := d,
         viewID := newViewID,
-        -- Unused fields
         sender     := default,
         value      := default,
         request    := default,
@@ -623,32 +626,33 @@ procedure HandleMarkedClientRequest (r : replica) (m : Message replica value seq
       let msgSendSet := viewChangeReqMsgs.foldl (fun acc msg => TSet.insert msg acc) mSet.empty
       Send msgSendSet
   -- -- DROP-NOTIFICATION Case: m.sessNum = vViewID[r].sessNum /\ m.sessMsgNum > vSessMsgNum[r]
-    else if m.sessNum == (vViewID r).sessNum && m.sessMsgNum > vSessMsgNum r then
-      let leader ← Leader (vViewID r)
-      if r == leader then
-        SendGapCommit r
-      -- Otherwise, ask the leader
+    else
+      if m.sessNum == (vViewID r).sessNum && m.sessMsgNum > vSessMsgNum r then
+        let leader ← Leader (vViewID r)
+        if r == leader then
+          SendGapCommit r
+        else
+          let slotLookupMsg : Message replica value sequencer := {
+            mtype      := .MSlotLookup,
+            viewID     := vViewID r,
+            dest       := leader,
+            sender     := r,
+            sessMsgNum := vSessMsgNum r,
+            /-  Unused fields  -/
+            value      := default,
+            request    := default,
+            logSlotNum := default,
+            sessNum    := default,
+            slotNumber := default,
+            lastNormal := default,
+            log        := []
+          }
+          let msgSet := TSet.insert slotLookupMsg mSet.empty
+          Send msgSet
       else
-        let slotLookupMsg : Message replica value sequencer := {
-          mtype      := .MSlotLookup,
-          viewID     := vViewID r,
-          dest       := leader,
-          sender     := r,
-          sessMsgNum := vSessMsgNum r,
-          -- Unused fields
-          value      := default,
-          request    := default,
-          logSlotNum := default,
-          sessNum    := default,
-          slotNumber := default,
-          lastNormal := default,
-          log        := []
-        }
-        let msgSet := TSet.insert slotLookupMsg mSet.empty
-        Send msgSet
+        /- To make the num of states found match -/
+        require False
 }
-
-
 
 
 
@@ -671,7 +675,12 @@ procedure HandleMarkedClientRequest (r : replica) (m : Message replica value seq
 --      \/ /\ logSlotNum = Len(vLog[r]) + 1
 --         /\ SendGapCommit(r)
 -- ✅
-procedure HandleSlotLookup (r : replica) (m : Message replica value sequencer) {
+action HandleSlotLookup  {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype == .MSlotLookup
+  let r := m.dest
+
   require m.viewID = vViewID r
   require (← Leader (vViewID r)) = r
   require vReplicaStatus r = StNormal
@@ -681,7 +690,6 @@ procedure HandleSlotLookup (r : replica) (m : Message replica value sequencer) {
     let msg : Message replica value sequencer :=
       { mtype      := MsgType.MMarkedClientRequest,
         dest       := m.sender,
-        /- Adjust for 0-based index -/
         value      := (vLog r)[logSlotNum - 1]!,
         sessNum    := (vViewID r).sessNum,
         sessMsgNum := m.sessMsgNum,
@@ -697,8 +705,7 @@ procedure HandleSlotLookup (r : replica) (m : Message replica value sequencer) {
     Send msgSet
   else
     -- if logSlotNum == List.length (vLog r) + 1 then
-    require logSlotNum == List.length (vLog r) + 1
-    -- assume logSlotNum = List.length (vLog r) + 1
+    require logSlotNum = List.length (vLog r) + 1
     SendGapCommit r
 }
 
@@ -728,12 +735,20 @@ procedure HandleSlotLookup (r : replica) (m : Message replica value sequencer) {
 --                   vReplicaStatus, vLastNormView, vViewChanges,
 --                   vSyncPoint, vTentativeSync, vSyncReps >>
 -- ✅
-procedure HandleGapCommit (r : replica) (m : Message replica value sequencer) {
+action HandleGapCommit {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype == .MGapCommit
+  let r := m.dest
+
   require m.viewID = vViewID r
   require m.slotNumber ≤ List.length (vLog r) + 1
   require (vReplicaStatus r = StNormal) ∨ (vReplicaStatus r = StGapCommit)
+  -- TLA+ uses original vLog length for the condition (simultaneous assignment)
+  -- So we must capture the original length before updating vLog
+  let originalLogLen := (vLog r).length
   vLog r := ReplaceItem (vLog r) m.slotNumber NoOp
-  if m.slotNumber > (vLog r).length then
+  if m.slotNumber > originalLogLen then
     vSessMsgNum r := vSessMsgNum r + 1
 
   let gapCommitRepMsg :=
@@ -756,7 +771,7 @@ procedure HandleGapCommit (r : replica) (m : Message replica value sequencer) {
       viewID     := vViewID r,
       logSlotNum := m.slotNumber,
       sender     := r,
-      /- unused fields -/
+      /-  unused fields  -/
       dest       := default,
       value      := default,
       sessNum    := default,
@@ -792,7 +807,12 @@ procedure HandleGapCommit (r : replica) (m : Message replica value sequencer) {
 --                   vSessMsgNum, vLastNormView, vViewChanges, vSyncPoint,
 --                   vTentativeSync, vSyncReps >>
 -- ✅
-procedure HandleGapCommitRep (r : replica) (m : Message replica value sequencer) {
+action HandleGapCommitRep {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype == .MGapCommitRep
+  let r := m.dest
+
   require vReplicaStatus r = StGapCommit
   require m.viewID = vViewID r
   require (← Leader (vViewID r)) = r
@@ -805,7 +825,7 @@ procedure HandleGapCommitRep (r : replica) (m : Message replica value sequencer)
   let gCRsList := mSet.toList gCRs
   -- isViewPromise(M) == /\ { n.sender : n \in M } \in Quorums
   --                     /\ \E n \in M : n.sender = r
-  let senders := gCRsList.map (fun (m : Message replica value sequencer) => m.sender)
+  let senders := gCRsList.map (fun (m : Message replica value sequencer) => m.sender) |>.eraseDups
   let selfIncluded := gCRsList.any (fun (m : Message replica value sequencer) => m.sender = r)
   let isQuorumReached := senders.length * 2 > SIZE
   if isQuorumReached && selfIncluded then
@@ -834,7 +854,7 @@ action StartLeaderChange (r : replica) {
     { mtype  := MsgType.MViewChangeReq,
       dest   := d,
       viewID := newViewID,
-      /- unused fields -/
+      /-  unused fields  -/
       sender     := default,
       value      := default,
       request    := default,
@@ -877,11 +897,16 @@ action StartLeaderChange (r : replica) {
 --                   vLastNormView, sequencerVars, vSyncPoint,
 --                   vTentativeSync, vSyncReps >>
 -- ✅
-procedure HandleViewChangeReq (r : replica) (m : Message replica value sequencer) {
+action HandleViewChangeReq {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype = .MViewChangeReq
+  let r := m.dest
+
   let currentViewID := vViewID r
-  let newSessNum    := if seqOrd.le currentViewID.sessNum m.viewID.sessNum then m.viewID.sessNum else currentViewID.sessNum
+  let newSessNum    := if seqOrd.le (currentViewID.sessNum) (m.viewID.sessNum) then m.viewID.sessNum else currentViewID.sessNum
   let newLeaderNum  := Nat.max currentViewID.leaderNum m.viewID.leaderNum
-  let newViewID     : View sequencer := { sessNum := newSessNum, leaderNum := newLeaderNum }
+  let newViewID     := { sessNum := newSessNum, leaderNum := newLeaderNum }
   require currentViewID ≠ newViewID
   vReplicaStatus r := StViewChange
   vViewID r := newViewID
@@ -961,24 +986,24 @@ procedure HandleViewChangeReq (r : replica) (m : Message replica value sequencer
 --   /\ UNCHANGED << vReplicaStatus, vViewID, vLog, vSessMsgNum, vCurrentGapSlot,
 --                   vGapCommitReps, vLastNormView, sequencerVars, vSyncPoint,
 --                   vTentativeSync, vSyncReps >>
-procedure HandleViewChange (r : replica) (m : Message replica value sequencer) {
+-- ✅
+action HandleViewChange {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype = .MViewChange
+  let r := m.dest
+
   require vViewID r = m.viewID
   require vReplicaStatus r = StViewChange
   require (← Leader (vViewID r)) = r
-
-  -- vViewChanges' = [ vViewChanges EXCEPT ![r] = vViewChanges[r] \cup {m}]
   vViewChanges r := mSet.insert m (vViewChanges r)
-
-  -- vCMs == { n \in vViewChanges'[r] : n.mtype = MViewChange /\ n.viewID = vViewID[r] }
   let vCMs := mSet.filter (vViewChanges r) (fun n =>
     n.mtype == .MViewChange && n.viewID == vViewID r)
   let vCMsList := mSet.toList vCMs
 
-  -- isViewPromise(M) == /\ { n.sender : n \in M } \in Quorums
-  --                     /\ \E n \in M : n.sender = r
-  let senders := vCMsList.foldl (fun acc n => rSet.insert n.sender acc) rSet.empty
-  let isQuorumReached := rSet.count senders * 2 > SIZE
-  let selfIncluded := rSet.contains r senders
+  let senders := vCMsList.map (fun (m : Message replica value sequencer) => m.sender) |>.eraseDups
+  let isQuorumReached := senders.length * 2 > SIZE
+  let selfIncluded := senders.contains r
 
   if isQuorumReached && selfIncluded then
     -- normalViews == { n.lastNormal : n \in vCMs }
@@ -989,37 +1014,26 @@ procedure HandleViewChange (r : replica) (m : Message replica value sequencer) {
         n.lastNormal
       else
         acc)
-      /- vCMsList.length > 0 -/
       (vCMsList.head!.lastNormal)
 
-    -- goodLogs == { n.log : n \in { o \in vCMs : o.lastNormal = lastNormal } }
     let goodLogMsgs := vCMsList.filter (fun o => o.lastNormal == lastNormal)
     let goodLogs := goodLogMsgs.map (fun n => n.log)
-
-    -- CombineLogs: combine logs, taking NoOp for any slot that has a NoOp, otherwise a value
     let combinedLog ← CombineLogs goodLogs
-
-    -- newMsgNum == IF lastNormal.sessNum = vViewID[r].sessNum THEN
-    --                Max({ n.sessMsgNum : n \in { o \in vCMs : o.lastNormal = lastNormal } })
-    --              ELSE 0
+    /- newMsgNum == IF lastNormal.sessNum = vViewID[r].sessNum THEN
+                    Max({ n.sessMsgNum : n \in { o \in vCMs : o.lastNormal = lastNormal } })
+                  ELSE 0 -/
     let newMsgNum :=
       if lastNormal.sessNum == (vViewID r).sessNum then
         goodLogMsgs.foldl (fun acc n => Nat.max acc n.sessMsgNum) 0
       else
         0
-
-    --  Send({[ mtype      |-> MStartView,
-    --          dest       |-> d,
-    --          viewID     |-> vViewID[r],
-    --          log        |-> CombineLogs(goodLogs),
-    --          essMsgNum |-> newMsgNum ] : d \in Replicas })
     let startViewMsgs : List (Message replica value sequencer) := Replicas.map (fun d =>
       { mtype      := .MStartView,
         dest       := d,
         viewID     := vViewID r,
         log        := combinedLog,
         sessMsgNum := newMsgNum,
-        /- unused fields -/
+        /-  unused fields  -/
         sender     := default,
         value      := default,
         request    := default,
@@ -1054,7 +1068,12 @@ procedure HandleViewChange (r : replica) (m : Message replica value sequencer) {
 --                   vViewChanges, vCurrentGapSlot, vGapCommitReps, vSyncPoint,
 --                   vTentativeSync, vSyncReps >>
 -- ✅
-procedure HandleStartView (r : replica) (m : Message replica value sequencer) {
+action HandleStartView {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype = .MStartView
+  let r := m.dest
+
   require (ViewLt (vViewID r) m.viewID) ∨ (vViewID r = m.viewID ∧ vReplicaStatus r = StViewChange)
   vLog r := m.log
   vSessMsgNum r := m.sessMsgNum
@@ -1070,7 +1089,7 @@ procedure HandleStartView (r : replica) (m : Message replica value sequencer) {
         viewID     := m.viewID,
         request    := m.log.getD (i - 1) default,
         logSlotNum := i,
-        /- unused fields -/
+        /-  unused fields  -/
         value      := default,
         sessNum    := default,
         sessMsgNum := default,
@@ -1113,7 +1132,7 @@ action StartSync (r : replica) {
       viewID     := vViewID r,
       sessMsgNum := vSessMsgNum r,
       log        := vLog r,
-      /- unused fields -/
+      /-  unused fields  -/
       value      := default,
       request    := default,
       logSlotNum := default,
@@ -1149,7 +1168,12 @@ action StartSync (r : replica) {
 --                   vViewChanges, vReplicaStatus, vGapCommitReps,
 --                   vSyncPoint, vTentativeSync, vSyncReps >>
 -- ✅
-procedure HandleSyncPrepare (r : replica) (m : Message replica value sequencer) {
+action HandleSyncPrepare {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype = .MSyncPrepare
+  let r := m.dest
+
   require vReplicaStatus r = StNormal
   require m.viewID = vViewID r
   require m.sender = (← Leader (vViewID r))
@@ -1169,7 +1193,6 @@ procedure HandleSyncPrepare (r : replica) (m : Message replica value sequencer) 
       dest          := m.sender,
       viewID        := vViewID r,
       logSlotNum    := List.length (m.log),
-      /-    unused fields   -/
       value         := default,
       request       := default,
       sessNum       := default,
@@ -1177,7 +1200,6 @@ procedure HandleSyncPrepare (r : replica) (m : Message replica value sequencer) 
       slotNumber    := default,
       lastNormal    := default,
       log           := [] }
-
   let requestReplyMsgs : List (Message replica value sequencer) :=
     ((List.range newLog.length).map (· + 1)).map (fun i =>
       { mtype       := MsgType.MRequestReply,
@@ -1185,7 +1207,6 @@ procedure HandleSyncPrepare (r : replica) (m : Message replica value sequencer) 
         request     := newLog.getD (i - 1) default,
         logSlotNum  := i,
         sender      := r,
-        /-  unused fields  -/
         dest        := default,
         value       := default,
         sessNum     := default,
@@ -1197,6 +1218,7 @@ procedure HandleSyncPrepare (r : replica) (m : Message replica value sequencer) 
   let msgSendSet := allMsgs.foldl (fun acc msg => TSet.insert msg acc) mSet.empty
   Send msgSendSet
 }
+
 
 -- \* Replica r receives MSyncRep, m
 -- HandleSyncRep(r, m) ==
@@ -1229,7 +1251,12 @@ procedure HandleSyncPrepare (r : replica) (m : Message replica value sequencer) 
 --                   vCurrentGapSlot, vViewChanges, vReplicaStatus,
 --                   vGapCommitReps, vSyncPoint, vTentativeSync >>
 -- ✅
-procedure HandleSyncRep (r : replica) (m : Message replica value sequencer) {
+action HandleSyncRep  {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype = .MSyncRep
+  let r := m.dest
+
   require m.viewID = vViewID r
   require vReplicaStatus r = StNormal
   vSyncReps r := mSet.insert m (vSyncReps r)
@@ -1238,12 +1265,12 @@ procedure HandleSyncRep (r : replica) (m : Message replica value sequencer) {
     n.viewID == vViewID r &&
     n.logSlotNum == vTentativeSync r)
   let sRMsList := mSet.toList sRMs
-  -- isViewPromise(M) == /\ { n.sender : n \in M } \in Quorums
-  --                     /\ \E n \in M : n.sender = r
-  -- let senders := sRMsList.foldl (fun acc n => rSet.insert n.sender acc) rSet.empty
-  let senders := sRMsList.map (fun m => m.sender)
+  /- isViewPromise(M) == /\ { n.sender : n \in M } \in Quorums
+                         /\ \E n \in M : n.sender = r -/
+  let senders := sRMsList.map (fun m => m.sender) |>.eraseDups
   let isQuorumReached := senders.length * 2 > SIZE
   let selfIncluded := senders.contains r
+
   if isQuorumReached && selfIncluded then
     let committedLog := if vTentativeSync r ≥ 1 then
         (vLog r).take (vTentativeSync r)
@@ -1256,7 +1283,6 @@ procedure HandleSyncRep (r : replica) (m : Message replica value sequencer) {
         viewID      := vViewID r,
         log         := committedLog,
         sessMsgNum  := vSessMsgNum r - ((vLog r).length - committedLog.length),
-        /-    unused fields   -/
         value       := default,
         request     := default,
         logSlotNum  := default,
@@ -1284,8 +1310,12 @@ procedure HandleSyncRep (r : replica) (m : Message replica value sequencer) {
 --   /\ UNCHANGED << sequencerVars, networkVars, vViewID, vLastNormView,
 --                   vCurrentGapSlot, vViewChanges, vReplicaStatus,
 --                   vGapCommitReps, vTentativeSync, vSyncReps >>
--- ✅
-procedure HandleSyncCommit (r : replica) (m : Message replica value sequencer) {
+action SyncCommit {
+  require mSet.count messages ≤ MsgCountLimit
+  let m :| mSet.contains m messages
+  require m.mtype = .MSyncCommit
+  let r := m.dest
+
   require vReplicaStatus r == StNormal
   require m.viewID == vViewID r
   require m.sender == (← Leader (vViewID r))
@@ -1297,85 +1327,6 @@ procedure HandleSyncCommit (r : replica) (m : Message replica value sequencer) {
   vSyncPoint r := List.length (m.log)
 }
 
--- --------------------------------------------------------------------------------
--- (* `^\textbf{\large Main Transition Function}^' *)
-action ClientRequest (s : sequencer)  {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype = .MClientRequest
-  HandleClientRequest m s
-}
-
-action SyncCommit {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype = .MSyncCommit
-  let r := m.dest
-  HandleSyncCommit r m
-}
-
--- action MarkedClientRequest {
--- require mSet.count messages ≤ MsgCountLimit
---   let m :| mSet.contains m messages
---   if m.mtype == .MMarkedClientRequest then
---     HandleMarkedClientRequest m.dest m
--- }
-
--- action ViewChangeReq {
--- require mSet.count messages ≤ MsgCountLimit
---   let m :| mSet.contains m messages
---   if m.mtype == .MViewChangeReq then
---     HandleViewChangeReq m.dest m
--- }
-
-action ViewChange {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype = .MViewChange
-  HandleViewChange m.dest m
-}
-
-action StartView {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype = .MStartView
-  HandleStartView m.dest m
-}
-
-action SlotLookup {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype = .MSlotLookup
-  HandleSlotLookup m.dest m
-}
-
-action GapCommit {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype = .MGapCommit
-  HandleGapCommit m.dest m
-}
-
-action GapCommitRep {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype = .MGapCommitRep
-  HandleGapCommitRep m.dest m
-}
-
-action SyncPrepare {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype = .MSyncPrepare
-  HandleSyncPrepare m.dest m
-}
-
-action SyncRep {
-  require mSet.count messages ≤ MsgCountLimit
-  let m :| mSet.contains m messages
-  require m.mtype == .MSyncRep
-  HandleSyncRep m.dest m
-}
 
 -- Next == \* Handle Messages
 --         \/ \E m \in messages :
@@ -1426,18 +1377,38 @@ action SyncRep {
 -- ClientNoOp ==
 --    LET mClientReqs == {m \in messages : m.mtype = MClientRequest}
 --    IN \A m \in mClientReqs : m.value # NoOp
+-- invariant [client_no_op]
+--   let mfilter := mSet.toList messages |>.filter (fun m => m.mtype == .MClientRequest)
+--   mfilter.all (fun m => m.value ≠ NoOp)
+--   -- ∀m ∈ (mSet.filter messages (fun m => m.mtype == .MClientRequest)),
+--   --   m.value ≠ NoOp
 
--- MarkedReqNonTrivial ==
---    LET mMClientReqs == {m \in messages : m.mtype = MMarkedClientRequest}
---        mClientReqs == {m \in messages : m.mtype = MClientRequest}
---    IN \A m \in {m \in mMClientReqs : m.value # NoOp} :
---          \E w \in mClientReqs : w.value = m.value
+-- -- MarkedReqNonTrivial ==
+-- --    LET mMClientReqs == {m \in messages : m.mtype = MMarkedClientRequest}
+-- --        mClientReqs == {m \in messages : m.mtype = MClientRequest}
+-- --    IN \A m \in {m \in mMClientReqs : m.value # NoOp} :
+-- --          \E w \in mClientReqs : w.value = m.value
+-- invariant [marked_req_non_trivial]
+--   let mMClientReqs := mSet.filter messages (fun m => m.mtype == .MMarkedClientRequest)
+--   let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
+--   let mMClientReqsList := mSet.toList mMClientReqs
+--   mMClientReqsList |>.filter (fun m => m.value ≠ NoOp)
+--     |>.all (fun m => mSet.toList mClientReqs
+--         |>.any (fun w => w.value == m.value))
 
--- RequestReplyNonTrivial ==
---    LET mReqReps == {m \in messages : m.mtype = MRequestReply}
---        mClientReqs == {m \in messages : m.mtype = MClientRequest}
---    IN \A m \in {m \in mReqReps : m.request # NoOp} :
---          \E w \in mClientReqs : w.value = m.request
+-- -- RequestReplyNonTrivial ==
+-- --    LET mReqReps == {m \in messages : m.mtype = MRequestReply}
+-- --        mClientReqs == {m \in messages : m.mtype = MClientRequest}
+-- --    IN \A m \in {m \in mReqReps : m.request # NoOp} :
+-- --          \E w \in mClientReqs : w.value = m.request
+-- invariant [request_reply_non_trivial]
+--   let mReqReps := mSet.filter messages (fun m => m.mtype == .MRequestReply)
+--   let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
+--   let mReqRepsList := mSet.toList mReqReps
+--   mReqRepsList |>.filter (fun m => m.request ≠ NoOp)
+--     |>.all (fun m => mSet.toList mClientReqs
+--         |>.any (fun w => w.value == m.request))
+
 
 -- LogNonTrivial ==
 --    LET mMClientReqs == {m \in messages : m.mtype = MMarkedClientRequest}
@@ -1515,7 +1486,7 @@ action SyncRep {
   Replicas := [0, 1, 2]
   SIZE := 3
   one := 0
-  MsgCountLimit := 10
+  MsgCountLimit := 14
 }
 
 -- ================================================================================
