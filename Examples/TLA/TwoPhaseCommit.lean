@@ -57,8 +57,8 @@ type RM
 enum RMStateType = { working, prepared, committed, aborted }
 enum TMStateType = { init, tmCommitted, tmAborted }
 
-relation rmState (r : RM) (st : RMStateType) : Bool
-relation tmState (st : TMStateType) : Bool
+function rmState (r : RM) : RMStateType
+individual tmState : TMStateType
 relation tmPrepared (r : RM) : Bool
 
 relation msgPrepared (r : RM) : Bool
@@ -86,8 +86,8 @@ individual msgAbort : Bool
 --   /\ msgs = {}
 
 after_init {
-  rmState R S := S == working
-  tmState S := S == init
+  rmState R := working
+  tmState := init
   tmPrepared R := false
   msgPrepared R := false
   msgCommit := false
@@ -109,7 +109,7 @@ after_init {
 --   /\ UNCHANGED <<rmState, tmState, msgs>>
 
 action TMRcvPrepared (rm : RM) {
-  require tmState init
+  require tmState == init
   require msgPrepared rm
   tmPrepared rm := true
 }
@@ -126,9 +126,9 @@ action TMRcvPrepared (rm : RM) {
 --   /\ UNCHANGED <<rmState, tmPrepared>>
 
 action TMCommit {
-  require tmState init
+  require tmState == init
   require ∀ rm : RM, tmPrepared rm
-  tmState S := S == tmCommitted
+  tmState := tmCommitted
   msgCommit := true
 }
 
@@ -142,8 +142,8 @@ action TMCommit {
 --   /\ UNCHANGED <<rmState, tmPrepared>>
 
 action TMAbort {
-  require tmState init
-  tmState S := S == tmAborted
+  require tmState == init
+  tmState := tmAborted
   msgAbort := true
 }
 
@@ -157,8 +157,8 @@ action TMAbort {
 --   /\ UNCHANGED <<tmState, tmPrepared>>
 
 action RMPrepare (rm : RM) {
-  require rmState rm working
-  rmState rm S := S == prepared
+  require rmState rm == working
+  rmState rm := prepared
   msgPrepared rm := true
 }
 
@@ -172,8 +172,8 @@ action RMPrepare (rm : RM) {
 --   /\ UNCHANGED <<tmState, tmPrepared, msgs>>
 
 action RMChooseToAbort (rm : RM) {
-  require rmState rm working
-  rmState rm S := S == aborted
+  require rmState rm == working
+  rmState rm := aborted
 }
 
 -- RMRcvCommitMsg(rm) ==
@@ -186,7 +186,7 @@ action RMChooseToAbort (rm : RM) {
 
 action RMRcvCommitMsg (rm : RM) {
   require msgCommit
-  rmState rm S := S == committed
+  rmState rm := committed
 }
 
 -- RMRcvAbortMsg(rm) ==
@@ -199,7 +199,7 @@ action RMRcvCommitMsg (rm : RM) {
 
 action RMRcvAbortMsg (rm : RM) {
   require msgAbort
-  rmState rm S := S == aborted
+  rmState rm := aborted
 }
 
 
@@ -212,10 +212,10 @@ action RMRcvAbortMsg (rm : RM) {
 -- }
 
 invariant [TCConsistency] ¬ (∃ rm1 rm2 : RM,
-  rmState rm1 committed ∧ rmState rm2 aborted)
+  (rmState rm1 == committed) ∧ (rmState rm2 == aborted))
 
 #gen_spec
 
-#model_check { RM := Fin 8 }
+#model_check compiled { RM := Fin 8 }
 
 end TwoPhaseCommit

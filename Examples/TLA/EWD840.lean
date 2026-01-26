@@ -8,8 +8,8 @@ type node
 type nodesSet
 enum Color = {white, black}
 
-function active: node → Bool
-relation colormap: node → Color → Bool
+relation active: node → Bool
+function colormap: node → Color
 individual tpos: node
 individual tcolor : Color
 
@@ -37,7 +37,7 @@ after_init {
   let S1 ← pick nodesSet
   let S2 ← pick nodesSet
   active N := if nSet.contains N S1 then true else false
-  colormap N C := if nSet.contains N S2 then C == white else C == black
+  colormap N := if nSet.contains N S2 then white else black
   tpos := *
   tcolor := black
 }
@@ -52,10 +52,10 @@ after_init {
 --   /\ color' = [color EXCEPT ![0] = "white"]
 action InitStateProbe {
   require tpos = seq.zero
-  require tcolor = black ∨ colormap seq.zero black
+  require tcolor = black ∨ colormap seq.zero = black
   tpos := max_node
   tcolor := white
-  colormap seq.zero C := C == white
+  colormap seq.zero := white
 }
 
 
@@ -76,10 +76,10 @@ procedure pred (n : node) {
 action PassToken(i : node) {
   require i ≠ seq.zero
   require tpos = i;
-  require ¬active i ∨ colormap i black ∨ tcolor = black
+  require ¬active i ∨ colormap i = black ∨ tcolor = black
   tpos := ← pred i
-  tcolor := if colormap i black then black else tcolor
-  colormap i C := C == white
+  tcolor := if colormap i = black then black else tcolor
+  colormap i := white
 }
 
 
@@ -91,11 +91,11 @@ action PassToken(i : node) {
 --         /\ active' = [active EXCEPT ![j] = TRUE]
 --         /\ color' = [color EXCEPT ![i] = IF j>i THEN "black" ELSE @]
 --   /\ UNCHANGED <<tpos, tcolor>>
-action SendMsg (i : node) {
+action SendMsg (i : node) (j : node) {
   require active i
-  let j :| j ≠ i
+  require j ≠ i
   active j := true
-  colormap i C := if lt i j then C == black else colormap i C
+  colormap i := if lt i j then black else colormap i
 }
 
 -- Deactivate(i) ==
@@ -111,22 +111,23 @@ action Deactivate (i : node) {
 termination [allDeactive] ∀i, ¬ active i
 ghost relation terminated := ∀i, ¬ active i
 ghost relation terminationDetected :=
-  tpos = seq.zero ∧ tcolor = white ∧ colormap seq.zero white ∧ ¬ active seq.zero
+  tpos = seq.zero ∧ tcolor = white ∧ colormap seq.zero = white ∧ ¬ active seq.zero
 
 invariant [TerminationDetection] (terminationDetected → terminated)
 
 -- ghost relation P0 := ∀i, lt tpos i → ¬ active i
-ghost relation P1 := ∃j, (seq.le seq.zero j) ∧ (seq.le j tpos) ∧ colormap j black
+ghost relation P1 := ∃j, (seq.le seq.zero j) ∧ (seq.le j tpos) ∧ colormap j = black
 ghost relation P2 := tcolor = black
-invariant [aux_unique_color] ∀n, colormap n C1 ∧ colormap n C2 → C1 = C2
-invariant [Inv] (∀i, lt tpos i → ¬ active i) ∨ (∃j, (seq.le seq.zero j) ∧ (seq.le j tpos) ∧ colormap j black) ∨ (tcolor = black)
+invariant [Inv] (∀i, lt tpos i → ¬ active i)
+∨ (∃j, (seq.le seq.zero j) ∧ (seq.le j tpos) ∧ colormap j = black)
+∨ (tcolor = black)
 
 #time #gen_spec
 
-#model_check
-{ node := Fin 3,
-  nodesSet := Std.ExtTreeSet (Fin 3),
+#model_check compiled
+{ node := Fin 9,
+  nodesSet := Std.ExtTreeSet (Fin 9),
   Color := Color_IndT }
-{ one := 1, max_node := 2  }
+{ one := 1, max_node := 8  }
 
 end EWD840
