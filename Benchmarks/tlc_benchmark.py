@@ -316,7 +316,11 @@ class TLCBenchmark:
             f"-Xms{heap_size}",
             f"-Xmx{heap_size}",
             *self.DEFAULT_JAVA_OPTS,
-            "-jar", self.tla2tools_jar,
+            "-cp", self.tla2tools_jar,
+            "-DTLA-Library=",
+            "tlc2.TLC",
+            "-tool", "-modelcheck",
+            "-coverage", "1",
             "-workers", str(workers),
             "-cleanup",
         ]
@@ -447,7 +451,17 @@ class TLCBenchmark:
         
         # Store progress points
         result.progress_points = [asdict(p) for p in parser.progress_points]
-        
+
+        output_filename = (
+            f"{Path(spec_file).stem}_{Path(config_file or 'default').stem}_"
+            f"w{workers}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.out"
+        )
+        output_filepath = self.output_dir / "tlc_outputs" / output_filename
+        output_filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_filepath, 'w') as f:
+            f.write(full_output)
+        self.log(f"Saved TLC output to: {output_filepath}")
+
         self.log(f"Completed: {result.distinct_states} distinct states, "
                 f"{result.wall_time_seconds:.2f}s, {result.peak_memory_mb:.1f}MB peak")
         
