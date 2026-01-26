@@ -79,7 +79,7 @@ private def mkTraceDischargerResult [Monad m] [MonadEnv m] [MonadError m] [Monad
 def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
     (vcStatement : VCStatement) (dischargerId : DischargerIdentifier)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
-    (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
+    (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   -- let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
   let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new

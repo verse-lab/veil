@@ -68,7 +68,7 @@ private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT
 def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatement)
     (dischargerId : DischargerIdentifier)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
-    (cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
+    (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   -- let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
   let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new

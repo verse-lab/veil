@@ -15,8 +15,7 @@ private def mergeActionStatsMaps [BEq κ] [Hashable κ] (m1 m2 : Std.HashMap κ 
 /-- Helper: foldl push over list produces array with same toList as map -/
 private theorem foldl_push_toList_eq_map {α β : Type} (f : α → β) (xs : List α) :
   (xs.foldl (fun acc x => acc.push (f x)) #[]).toList = xs.map f := by
-  suffices ∀ (acc : Array β), (xs.foldl (fun acc x => acc.push (f x)) acc).toList = acc.toList ++ xs.map f by
-    simpa using this #[]
+  suffices ∀ (acc : Array β), (xs.foldl (fun acc x => acc.push (f x)) acc).toList = acc.toList ++ xs.map f by simp
   induction xs with
   | nil => simp
   | cons hd tl ih =>
@@ -417,8 +416,8 @@ def LocalSearchContext.NeutralContext {ρ σ κ σₕ : Type}
     localLog := Std.HashMap.emptyWithCapacity,
     localStatesFound := 0,
     localActionStatsMap := Std.HashMap.emptyWithCapacity,
-    tovisitConsistent := by simp [Std.HashSet.not_mem_emptyWithCapacity, Array.not_mem_empty]
-    invs := by constructor <;> simp_all [Array.not_mem_empty, Std.HashSet.not_mem_emptyWithCapacity]
+    tovisitConsistent := by simp [Std.HashSet.not_mem_emptyWithCapacity]
+    invs := by constructor <;> simp_all [Std.HashSet.not_mem_emptyWithCapacity]
     excludeAllStatesFinish := by simp
     seenUnaltered := by simp
   }
