@@ -300,19 +300,21 @@ action Phase2b (a : acceptor) {
 
 -- Chosen(v) == \E b \in Ballots : ChosenIn(v, b)
 ghost relation VotedForIn (a : acceptor) (v : value) (b : ballot) :=
-  ∃ m, msgTset.contains m msgs ∧ m.msgType = MsgType.Phase2b ∧ m.val = v ∧ m.bal = b ∧ m.acc = a
+  ∃ (m : { m // m ∈ msgs }),
+    m.val.msgType = MsgType.Phase2b ∧
+    m.val.val = v ∧
+    m.val.bal = b ∧
+    m.val.acc = a
 ghost relation ChosenIn (v : value) (b : ballot) :=
   ∃ Q, ∀ a, member a Q → VotedForIn a v b
 ghost relation Chosen (v : value) :=
   ∃ b, ChosenIn v b
-
-
 -- (***************************************************************************)
 -- (* The consistency condition that a consensus algorithm must satisfy is    *)
 -- (* the invariance of the following state predicate Consistency.            *)
 -- (***************************************************************************)
 -- Consistency == \A v1, v2 \in Values : Chosen(v1) /\ Chosen(v2) => (v1 = v2)
-invariant [Consistency] ∀ v1 v2, Chosen v1 → Chosen v2 → v1 = v2
+invariant [Consistency] ∀ v1 v2, Chosen v1 ∧ Chosen v2 → v1 = v2
 
 
 -- TypeOK == /\ msgs \in SUBSET Messages
@@ -327,8 +329,8 @@ invariant [Consistency] ∀ v1 v2, Chosen v1 → Chosen v2 → v1 = v2
 -- (***************************************************************************)
 -- WontVoteIn(a, b) == /\ \A v \in Values : ~ VotedForIn(a, v, b)
 --                     /\ maxBal[a] > b
-ghost relation WontVoteIn (a : acceptor) (b : ballot) :=
-  (∀ v, ¬ VotedForIn a v b) ∧ gt (maxBal a) b
+-- ghost relation WontVoteIn (a : acceptor) (b : ballot) :=
+--   (∀ v, ¬ VotedForIn a v b) ∧ gt (maxBal a) b
 -- (***************************************************************************)
 -- (* The predicate SafeAt(v, b) implies that no value other than perhaps v   *)
 -- (* has been or ever will be chosen in any ballot numbered less than b.     *)
@@ -337,9 +339,9 @@ ghost relation WontVoteIn (a : acceptor) (b : ballot) :=
 --   \A c \in 0..(b-1) :
 --     \E Q \in Quorums :
 --       \A a \in Q : VotedForIn(a, v, c) \/ WontVoteIn(a, c)
-ghost relation SafeAt (v : value) (b : ballot) :=
-  ∀ c, lt c b →
-    ∃ Q, ∀ a, member a Q → (VotedForIn a v c ∨ WontVoteIn a c)
+-- ghost relation SafeAt (v : value) (b : ballot) :=
+--   ∀ c, lt c b →
+--     ∃ Q, ∀ a, member a Q → (VotedForIn a v c ∨ WontVoteIn a c)
 
 
 -- invariant [MsgInv] MsgInv1b ∧ MsgInv2a ∧ MsgInv2b
@@ -368,7 +370,6 @@ between acceptors and quorums.
 --   minusOne := 0
 --   validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
 -- }
-
 #model_check
 {
   ballot := Fin 4,   -- 0 = minusOne, 1..3 = valid ballots (matches TLA+ MaxBallot = 2, i.e., 0..2)

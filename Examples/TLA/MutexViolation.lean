@@ -110,7 +110,7 @@ action _pre_check_lock (self : process) {
 action _prepare_wait_util (self : process) {
   require self ≠ NONE
   require pc self prepare_wait_util
-  locked := false -- BUG: releases lock it doesn't own
+  -- locked := false -- BUG: releases lock it doesn't own
   pc self S := S == wait_until
 }
 

@@ -127,6 +127,7 @@ procedure Send (m : MsgSet) {
 -- Phase1a(p) == \E b \in Ballots:
 --   Send({[type |-> "1a", from |-> p, bal |-> b]})
 action Phase1a (p : proposer) {
+  -- require msgTset.count sent < 8
   let b ← pick ballot
   let sentMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
     msgType := MsgType.Phase1a,
@@ -177,6 +178,7 @@ procedure PartialBmax (T : VotedSet) {
 --   /\ \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: m.bal > m2.bal
 --   /\ Send({[type |-> "1b", from |-> a, bal |-> m.bal, voted |-> PartialBmax(voteds(a))]})
 action Phase1b (a : acceptor) {
+  -- require msgTset.count sent < 8
   let phase1aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1a)
   let m :| m ∈ phase1aMsgs
   let prevMsgsFromA := msgTset.filter sent (fun m2 =>
@@ -276,6 +278,7 @@ procedure VS (S : MsgSet) (Q : quorum) {
 -- Optimization: instead of picking MsgSet (huge), pick AcceptorSet (only 2^n possibilities)
 -- Then construct S by filtering 1b messages from selected acceptors
 action Phase2a (p : proposer) {
+  -- require msgTset.count sent < 8
   let b ← pick ballot
   let existing2a := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a ∧ m.bal = b)
   require msgTset.count existing2a = 0
@@ -317,6 +320,7 @@ action Phase2a (p : proposer) {
 --   /\ \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: m.bal >= m2.bal
 --   /\ Send({[type |-> "2b", from |-> a, bal |-> m.bal, slot |-> d.slot, val |-> d.val]: d \in m.decrees})
 action Phase2b (a : acceptor) {
+  -- require msgTset.count sent < 8
   let phase2aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a)
   let m :| m ∈ phase2aMsgs
   let prevMsgsFromA := msgTset.filter sent (fun m2 =>
@@ -335,9 +339,36 @@ action Phase2b (a : acceptor) {
   Send replyMsgSet
 }
 
--- invariant [sent_not_empty] msgTset.count sent < 7
-set_option synthInstance.maxHeartbeats 2000000
-set_option synthInstance.maxSize 2000
+
+
+-- VotedForIn(a, b, s, v) ==
+--   \E m \in sent : /\ m.type = "2b"
+--                   /\ m.bal = b
+--                   /\ m.slot = s
+--                   /\ m.val = v
+--                   /\ m.from = a
+ghost relation VotedForIn (a : acceptor) (b : ballot) (s : slot) (v : value) :=
+  ∃ (m : {m // m ∈ sent}),
+    m.val.msgType = .Phase2b ∧
+    m.val.bal = b ∧
+    m.val.slot = s ∧
+    m.val.val = v ∧
+    m.val.src = .fromAcceptor a
+-- ChosenIn(b, s, v) == \E Q \in Quorums :
+--                      \A a \in Q : VotedForIn(a, b, s, v)
+ghost relation ChosenIn (b : ballot) (s : slot) (v : value) :=
+  ∃ (Q : quorum),
+    ∀ (a : acceptor),
+      member a Q → VotedForIn a b s v
+-- Chosen(v, s) == \E b \in Ballots : ChosenIn(b, s, v)
+ghost relation Chosen (v : value) (s : slot) :=
+  ∃ (b : ballot), ChosenIn b s v
+-- Consistency == \A v1, v2 \in Values, s \in Slots : Chosen(v1, s) /\ Chosen(v2, s) => (v1 = v2)
+invariant [consistency]
+  ∀ (v1 v2 : value) (s : slot),
+    (Chosen v1 s ∧ Chosen v2 s) → (v1 = v2)
+
+
 #gen_spec
 
 /- To compare the efficiency with TLA+ model, here we use
