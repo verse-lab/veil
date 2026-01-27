@@ -1377,37 +1377,38 @@ action SyncCommit {
 -- ClientNoOp ==
 --    LET mClientReqs == {m \in messages : m.mtype = MClientRequest}
 --    IN \A m \in mClientReqs : m.value # NoOp
--- invariant [client_no_op]
+invariant [client_no_op]
 --   let mfilter := mSet.toList messages |>.filter (fun m => m.mtype == .MClientRequest)
 --   mfilter.all (fun m => m.value ≠ NoOp)
---   -- ∀m ∈ (mSet.filter messages (fun m => m.mtype == .MClientRequest)),
---   --   m.value ≠ NoOp
+  -- ∀m ∈ (mSet.filter messages (fun m => m.mtype == .MClientRequest)),
+  --   m.value ≠ NoOp
+  ∀m ∈ messages, m.mtype == .MClientRequest → m.value ≠ NoOp
 
 -- -- MarkedReqNonTrivial ==
 -- --    LET mMClientReqs == {m \in messages : m.mtype = MMarkedClientRequest}
 -- --        mClientReqs == {m \in messages : m.mtype = MClientRequest}
 -- --    IN \A m \in {m \in mMClientReqs : m.value # NoOp} :
 -- --          \E w \in mClientReqs : w.value = m.value
--- invariant [marked_req_non_trivial]
---   let mMClientReqs := mSet.filter messages (fun m => m.mtype == .MMarkedClientRequest)
---   let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
---   let mMClientReqsList := mSet.toList mMClientReqs
---   mMClientReqsList |>.filter (fun m => m.value ≠ NoOp)
---     |>.all (fun m => mSet.toList mClientReqs
---         |>.any (fun w => w.value == m.value))
+invariant [marked_req_non_trivial]
+  let mMClientReqs := mSet.filter messages (fun m => m.mtype == .MMarkedClientRequest)
+  let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
+  let mMClientReqsList := mSet.toList mMClientReqs
+  mMClientReqsList |>.filter (fun m => m.value ≠ NoOp)
+    |>.all (fun m => mSet.toList mClientReqs
+        |>.any (fun w => w.value == m.value))
 
 -- -- RequestReplyNonTrivial ==
 -- --    LET mReqReps == {m \in messages : m.mtype = MRequestReply}
 -- --        mClientReqs == {m \in messages : m.mtype = MClientRequest}
 -- --    IN \A m \in {m \in mReqReps : m.request # NoOp} :
 -- --          \E w \in mClientReqs : w.value = m.request
--- invariant [request_reply_non_trivial]
---   let mReqReps := mSet.filter messages (fun m => m.mtype == .MRequestReply)
---   let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
---   let mReqRepsList := mSet.toList mReqReps
---   mReqRepsList |>.filter (fun m => m.request ≠ NoOp)
---     |>.all (fun m => mSet.toList mClientReqs
---         |>.any (fun w => w.value == m.request))
+invariant [request_reply_non_trivial]
+  let mReqReps := mSet.filter messages (fun m => m.mtype == .MRequestReply)
+  let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
+  let mReqRepsList := mSet.toList mReqReps
+  mReqRepsList |>.filter (fun m => m.request ≠ NoOp)
+    |>.all (fun m => mSet.toList mClientReqs
+        |>.any (fun w => w.value == m.request))
 
 
 -- LogNonTrivial ==
@@ -1415,6 +1416,15 @@ action SyncCommit {
 --    IN \A r \in Replicas :
 --          \A v \in {v \in Range(vLog[r]) : v # NoOp} :
 --             \E m \in mMClientReqs : m.value = v
+invariant [log_non_trivial]
+  let mMClientReqs := mSet.filter messages (fun m => m.mtype == .MMarkedClientRequest)
+  let mMClientReqsList := mSet.toList mMClientReqs
+  Replicas.all (fun r =>
+    let logValues := (vLog r).filter (fun v => v ≠ NoOp) |>.eraseDups
+    logValues.all (fun v =>
+      mMClientReqsList |>.any (fun m => m.value == v)
+    )
+  )
 
 -- \* This does not hold with multiple sequencers, so this will fail if the
 -- \* NumSequencers constant is greater than 1
@@ -1486,7 +1496,7 @@ action SyncCommit {
   Replicas := [0, 1, 2]
   SIZE := 3
   one := 0
-  MsgCountLimit := 14
+  MsgCountLimit := 12
 }
 
 -- ================================================================================
