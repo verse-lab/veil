@@ -76,16 +76,18 @@ action Return (c : client) {
 -- Next ==
 --   \E c \in Clients, S \in SUBSET Resources :
 --      Request(c,S) \/ Allocate(c,S) \/ Return(c,S)
-
-invariant [resource_mutex] ∀ c1 c2 : client, c1 ≠ c2 → ¬(∃s, (resSet.contains s (alloc c1) ∧ resSet.contains s (alloc c2)))
+-- ResourceMutex ==
+--   \A c1,c2 \in Clients : c1 # c2 => alloc[c1] \cap alloc[c2] = {}
+invariant [resource_mutex] ∀ c1 c2 : client, c1 ≠ c2 → (resSet.intersection (alloc c1) (alloc c2) = resSet.empty)
 #gen_spec
 
+
 #model_check
-{ client := Fin 3,
-  resource := Fin 2,
-  ClientsSet := (Std.ExtTreeSet (Fin 3)),
-  ResourceSet := (Std.ExtTreeSet (Fin 2)) }
-{ Resources := Std.ExtTreeSet.empty.insertMany [0, 1],
-  Clients := [0, 1, 2] }
+{ client := Fin 4,
+  resource := Fin 3,
+  ClientsSet := (Std.ExtTreeSet (Fin 4)),
+  ResourceSet := (Std.ExtTreeSet (Fin 3)) }
+{ Resources := Std.ExtTreeSet.empty.insertMany [0, 1, 2],
+  Clients := [0, 1, 2, 3] }
 
 end SimpleAllocator

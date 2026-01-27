@@ -746,6 +746,7 @@ ConstrainedNext ==
     /\ MsgCountLimit
     /\ Next
 
+
 Spec == Init /\ [][Next]_vars
 ConstrainedSpec == Init /\ [][ConstrainedNext]_vars
 

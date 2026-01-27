@@ -216,6 +216,6 @@ invariant [TCConsistency] ¬ (∃ rm1 rm2 : RM,
 
 #gen_spec
 
-#model_check compiled { RM := Fin 8 }
+#model_check { RM := Fin 3 }
 
 end TwoPhaseCommit

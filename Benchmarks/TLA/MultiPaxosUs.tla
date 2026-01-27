@@ -1,4 +1,5 @@
 ------------------------------- MODULE MultiPaxosUs -------------------------------
+\* source: https://github.com/sachand/HistVar/blob/master/Multi-Paxos/MultiPaxosUs.tla
 (***************************************************************************)
 (* This is a TLA+ specification of the MultiPaxos Consensus algorithm,     *)
 (* described in                                                            *)
@@ -9,7 +10,7 @@
 (* and a TLAPS-checked proof of its correctness. This is an extension of   *)
 (* the proof of Basic Paxos found in TLAPS examples directory.             *)
 (***************************************************************************)
-EXTENDS Integers
+EXTENDS Integers, FiniteSets
 \* TLAPS
 
 CONSTANTS Acceptors, Values, Quorums, Proposers, MaxBallot, MaxSlot
@@ -132,7 +133,18 @@ Next == \/ \E p \in Proposers : Phase1a(p)
         \/ \E a \in Acceptors : Phase1b(a) 
         \/ \E a \in Acceptors : Phase2b(a)
 
-Spec == Init /\ [][Next]_vars       
+
+\* Only used for bounded checking
+MsgCountLimit == Cardinality(sent) < 8
+ConstrainedNext ==
+\/ UNCHANGED vars
+\/ /\ MsgCountLimit
+    /\ Next
+ConstraintedSpec == Init /\ [][ConstrainedNext]_vars
+
+
+Spec == Init /\ [][Next]_vars    
+
 -----------------------------------------------------------------------------
 (***************************************************************************)
 (* How a value is chosen:                                                  *)

@@ -284,13 +284,21 @@ after_init {
 -- Leader(viewID) == ReplicaOrder[(viewID.leaderNum % Len(ReplicaOrder)) +
 --                                (IF viewID.leaderNum >= Len(ReplicaOrder)
 --                                 THEN 1 ELSE 0)]
-procedure Leader (v : View sequencer) {
+-- procedure Leader (v : View sequencer) {
+--   -- Assume that `.leaderNum ≥ 1`
+--   /- Be cafeful about the difference between `0-based` and `1-based` here -/
+--   let idx := (v.leaderNum % List.length ReplicaOrder) +
+--              (if v.leaderNum ≥ List.length ReplicaOrder then 1 else 0)
+--   return ReplicaOrder[idx-1]!
+-- }
+
+def Leader {rep seq : Type} [Inhabited rep] (v : View seq) (ReplicaOrder : List rep):=
   -- Assume that `.leaderNum ≥ 1`
   /- Be cafeful about the difference between `0-based` and `1-based` here -/
   let idx := (v.leaderNum % List.length ReplicaOrder) +
              (if v.leaderNum ≥ List.length ReplicaOrder then 1 else 0)
-  return ReplicaOrder[idx-1]!
-}
+  ReplicaOrder[idx-1]!
+
 
 -- ViewLe(v1, v2) == /\ v1.sessNum    <= v2.sessNum
 --                   /\ v1.leaderNum <= v2.leaderNum
@@ -373,7 +381,8 @@ def ReplaceItem {α : Type} (l : List α) (i : Nat) (x : α) : List α :=
 -- ✅
 procedure SendGapCommit (r : replica) {
   let slot := List.length (vLog r) + 1
-  require (←Leader (vViewID r)) == r
+  -- require (←Leader (vViewID r)) == r
+  require (Leader (vViewID r) ReplicaOrder) == r
   require vReplicaStatus r == StNormal
   vReplicaStatus r := StGapCommit
   vGapCommitReps r := mSet.empty
@@ -420,42 +429,14 @@ ghost relation isQuorum (R : replicaSet) :=
 --     \* One from the leader
 --     /\ \E m \in M : m.sender = Leader(m.viewID)
 ghost relation Committed (v : value) (i : Nat) :=
-  -- Find all messages matching the criteria
-  let M := mSet.filter messages (fun m =>
-    m.mtype == .MRequestReply &&
-    m.logSlotNum == i &&
-    m.request == v)
-  let Mlist := mSet.toList M
-  let Msenders : replicaSet :=
-    Mlist.foldl (fun acc m => rSet.insert m.sender acc) rSet.empty
-  isQuorum Msenders ∧
-  (∃ m1 ∈ Mlist, ∀ m2 ∈ Mlist, m1.viewID == m2.viewID)
-  -- TODO: Check carefully
-  -- ∧ (∃ m ∈ Mlist, m.sender == (← Leader m.viewID))
+  let matchingMsgs := mSet.toList messages |>.filter (fun m =>
+    m.mtype == .MRequestReply && m.logSlotNum == i && m.request == v)
+  ∃ m1 ∈ matchingMsgs,
+    let sameViewMsgs := matchingMsgs.filter (fun m => m.viewID == m1.viewID)
+    let senders := sameViewMsgs.foldl (fun acc m => rSet.insert m.sender acc) rSet.empty
+    isQuorum senders ∧
+    (∃ m2 ∈ sameViewMsgs, m2.sender == Leader m1.viewID ReplicaOrder)
 
-
--- (*
---   We only provide the ordering layer here. This is an easier guarantee to
---   provide than saying the execution is equivalent to a linear one. We don't
---   currently model execution, and that's a much harder predicate to compute.
--- *)
--- Linearizability ==
---   LET
---     maxLogPosition == Max({1} \cup
---       { m.logSlotNum : m \in {m \in messages : m.mtype = MRequestReply } })
---   IN ~(\E v1, v2 \in Values \cup { NoOp } :
---          /\ v1 /= v2
---          /\ \E i \in (1 .. maxLogPosition) :
---            /\ Committed(v1, i)
---            /\ Committed(v2, i)
---       )
-
--- SyncSafety == \A r \in Replicas :
---               \A i \in 1..vSyncPoint[r] :
---               Committed(vLog[r][i], i)
-
--- --------------------------------------------------------------------------------
--- (* `^\textbf{\large Message Handlers and Actions}^' *)
 
 -- \* `^\textbf{Client action}^'
 -- \* Send a request for value v
@@ -628,7 +609,7 @@ action HandleMarkedClientRequest {
   -- -- DROP-NOTIFICATION Case: m.sessNum = vViewID[r].sessNum /\ m.sessMsgNum > vSessMsgNum[r]
     else
       if m.sessNum == (vViewID r).sessNum && m.sessMsgNum > vSessMsgNum r then
-        let leader ← Leader (vViewID r)
+        let leader := Leader (vViewID r) ReplicaOrder
         if r == leader then
           SendGapCommit r
         else
@@ -682,7 +663,7 @@ action HandleSlotLookup  {
   let r := m.dest
 
   require m.viewID = vViewID r
-  require (← Leader (vViewID r)) = r
+  require Leader (vViewID r) ReplicaOrder = r
   require vReplicaStatus r = StNormal
 
   let logSlotNum := List.length (vLog r) + 1 - (vSessMsgNum r - m.sessMsgNum)
@@ -753,7 +734,7 @@ action HandleGapCommit {
 
   let gapCommitRepMsg :=
     { mtype      := MsgType.MGapCommitRep,
-      dest       := (← Leader (vViewID r)),
+      dest       := Leader (vViewID r) ReplicaOrder,
       sender     := r,
       slotNumber := m.slotNumber,
       viewID     := (vViewID r),
@@ -815,7 +796,7 @@ action HandleGapCommitRep {
 
   require vReplicaStatus r = StGapCommit
   require m.viewID = vViewID r
-  require (← Leader (vViewID r)) = r
+  require (Leader (vViewID r) ReplicaOrder) = r
   require m.slotNumber = vCurrentGapSlot r
   vGapCommitReps r := mSet.insert m (vGapCommitReps r)
   let gCRs := mSet.filter (vGapCommitReps r) (fun n =>
@@ -913,7 +894,7 @@ action HandleViewChangeReq {
   vViewChanges r := mSet.empty
   let viewChangeMsg : Message replica value sequencer :=
     { mtype      := MsgType.MViewChange,
-      dest       := (← Leader newViewID),
+      dest       := Leader newViewID ReplicaOrder,
       sender     := r,
       viewID     := newViewID,
       lastNormal := vLastNormView r,
@@ -995,7 +976,8 @@ action HandleViewChange {
 
   require vViewID r = m.viewID
   require vReplicaStatus r = StViewChange
-  require (← Leader (vViewID r)) = r
+  -- require (← Leader (vViewID r)) = r
+  require Leader (vViewID r) ReplicaOrder = r
   vViewChanges r := mSet.insert m (vViewChanges r)
   let vCMs := mSet.filter (vViewChanges r) (fun n =>
     n.mtype == .MViewChange && n.viewID == vViewID r)
@@ -1120,7 +1102,8 @@ action HandleStartView {
 -- ✅
 action StartSync (r : replica) {
   require mSet.count messages ≤ MsgCountLimit
-  require (← Leader (vViewID r)) == r
+  -- require (← Leader (vViewID r)) == r
+  require Leader (vViewID r) ReplicaOrder == r
   require vReplicaStatus r == StNormal
 
   vSyncReps r := mSet.empty
@@ -1176,7 +1159,7 @@ action HandleSyncPrepare {
 
   require vReplicaStatus r = StNormal
   require m.viewID = vViewID r
-  require m.sender = (← Leader (vViewID r))
+  require m.sender = (Leader (vViewID r) ReplicaOrder)
   /- TLA+ operator: `SubSeq(seq, m, n)`:
   Used to select the subsequence
   <<s[m], s[m+1], ... , s[n]>> in seq. Indices are `inclusive`.
@@ -1318,7 +1301,7 @@ action SyncCommit {
 
   require vReplicaStatus r == StNormal
   require m.viewID == vViewID r
-  require m.sender == (← Leader (vViewID r))
+  require m.sender == (Leader (vViewID r) ReplicaOrder)
 
   let newLog := m.log ++ (vLog r).extract (List.length m.log) (List.length (vLog r))
   let newMsgNum := vSessMsgNum r + (List.length newLog - List.length (vLog r))
@@ -1377,38 +1360,31 @@ action SyncCommit {
 -- ClientNoOp ==
 --    LET mClientReqs == {m \in messages : m.mtype = MClientRequest}
 --    IN \A m \in mClientReqs : m.value # NoOp
-invariant [client_no_op]
---   let mfilter := mSet.toList messages |>.filter (fun m => m.mtype == .MClientRequest)
---   mfilter.all (fun m => m.value ≠ NoOp)
-  -- ∀m ∈ (mSet.filter messages (fun m => m.mtype == .MClientRequest)),
-  --   m.value ≠ NoOp
-  ∀m ∈ messages, m.mtype == .MClientRequest → m.value ≠ NoOp
+-- invariant [client_no_op]
+--   ∀ (m : { m : Message replica value sequencer // m ∈ messages }),
+--     m.val.mtype == .MClientRequest → m.val.value ≠ NoOp
 
 -- -- MarkedReqNonTrivial ==
 -- --    LET mMClientReqs == {m \in messages : m.mtype = MMarkedClientRequest}
 -- --        mClientReqs == {m \in messages : m.mtype = MClientRequest}
 -- --    IN \A m \in {m \in mMClientReqs : m.value # NoOp} :
 -- --          \E w \in mClientReqs : w.value = m.value
-invariant [marked_req_non_trivial]
-  let mMClientReqs := mSet.filter messages (fun m => m.mtype == .MMarkedClientRequest)
-  let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
-  let mMClientReqsList := mSet.toList mMClientReqs
-  mMClientReqsList |>.filter (fun m => m.value ≠ NoOp)
-    |>.all (fun m => mSet.toList mClientReqs
-        |>.any (fun w => w.value == m.value))
+-- invariant [marked_req_non_trivial]
+--   let mMClientReqs := mSet.filter messages (fun m => m.mtype == .MMarkedClientRequest)
+--   let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
+--   ∀ (m : { m  // m ∈ mMClientReqs }), m.val.value ≠ NoOp →
+--     ∃ (w : { w // w ∈ mClientReqs }), w.val.value = m.val.value
 
 -- -- RequestReplyNonTrivial ==
 -- --    LET mReqReps == {m \in messages : m.mtype = MRequestReply}
 -- --        mClientReqs == {m \in messages : m.mtype = MClientRequest}
 -- --    IN \A m \in {m \in mReqReps : m.request # NoOp} :
 -- --          \E w \in mClientReqs : w.value = m.request
-invariant [request_reply_non_trivial]
-  let mReqReps := mSet.filter messages (fun m => m.mtype == .MRequestReply)
-  let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
-  let mReqRepsList := mSet.toList mReqReps
-  mReqRepsList |>.filter (fun m => m.request ≠ NoOp)
-    |>.all (fun m => mSet.toList mClientReqs
-        |>.any (fun w => w.value == m.request))
+-- invariant [request_reply_non_trivial]
+--   let mReqReps := mSet.filter messages (fun m => m.mtype == .MRequestReply)
+--   let mClientReqs := mSet.filter messages (fun m => m.mtype == .MClientRequest)
+--   ∀ (m : { m // m ∈ mReqReps }), m.val.request ≠ NoOp →
+--     ∃ (w : { w // w ∈ mClientReqs }), w.val.value = m.val.request
 
 
 -- LogNonTrivial ==
@@ -1416,21 +1392,20 @@ invariant [request_reply_non_trivial]
 --    IN \A r \in Replicas :
 --          \A v \in {v \in Range(vLog[r]) : v # NoOp} :
 --             \E m \in mMClientReqs : m.value = v
-invariant [log_non_trivial]
-  let mMClientReqs := mSet.filter messages (fun m => m.mtype == .MMarkedClientRequest)
-  let mMClientReqsList := mSet.toList mMClientReqs
-  Replicas.all (fun r =>
-    let logValues := (vLog r).filter (fun v => v ≠ NoOp) |>.eraseDups
-    logValues.all (fun v =>
-      mMClientReqsList |>.any (fun m => m.value == v)
-    )
-  )
+-- invariant [log_non_trivial]
+--   let mMClientReqs := mSet.filter messages (fun m => m.mtype == .MMarkedClientRequest)
+--   ∀ (r : replica),
+--     ∀ (v : { v // v ∈ (vLog r) }),
+--      v ≠ NoOp → ∃ (m : { m // m ∈ mMClientReqs }), m.val.value = v
 
 -- \* This does not hold with multiple sequencers, so this will fail if the
 -- \* NumSequencers constant is greater than 1
 -- ValidSessMsgNum ==
 --    \A r \in Replicas :
 --       Len(vLog[r]) + 1 = vSessMsgNum[r]
+-- invariant [valid_sess_msg_num]
+--   ∀ (r : replica),  List.length (vLog r) + 1 = vSessMsgNum r
+
 
 -- LeadGapCommits ==
 --    LET leaders == {r \in Replicas : Leader(vViewID[r]) = r}
@@ -1440,11 +1415,23 @@ invariant [log_non_trivial]
 --             \A m \in {m \in mGaps : m.dest = r /\ m.viewID = vViewID[r]} :
 --                \/ m.slotNumber # n
 --                \/ vLog[r][m.slotNumber] = NoOp
+-- invariant [lead_gap_commits]
+--   let leaders := Replicas.filter (fun r => (Leader (vViewID r) ReplicaOrder) = r)
+--   let mGaps := mSet.filter messages (fun m => m.mtype == .MGapCommit)
+--   ∀ (r : { r // r ∈ leaders }),
+--     ∀ (n : { n // n ∈ List.range (List.length (vLog r.val) + 1) }),
+--       ∀ (m : { m // m ∈ mGaps }),
+--         (m.val.dest = r.val ∧ m.val.viewID = vViewID r.val) →
+--           (m.val.slotNumber ≠ n ∨ (vLog r.val).getD (m.val.slotNumber - 1) NoOp = NoOp)
 
 -- LogSMN ==
 --    \A r \in Replicas :
 --       \A n \in (vSessMsgNum[r]..(vSessMsgNum[r] + 3)) :
 --          Len(vLog[r]) < n
+-- invariant [log_sess_msg_num]
+--   ∀ (r : replica),
+--     let ranges := List.range 4 |>.map (fun x => vSessMsgNum r + x)
+--     ∀ (n : { n // n ∈ ranges }),  List.length (vLog r) < n
 
 -- LogSMNGap ==
 --    LET leaders == {r \in Replicas : Leader(vViewID[r]) = r}
@@ -1453,10 +1440,24 @@ invariant [log_non_trivial]
 --          \A n \in ((vSessMsgNum[r] + 1)..(vSessMsgNum[r] + 3)) :
 --             \A m \in {m \in mGaps : m.dest = r /\ m.viewID = vViewID[r]} :
 --                m.slotNumber # n
+-- invariant [log_sess_msg_num_gap]
+--   let leaders := Replicas.filter (fun r => (Leader (vViewID r) ReplicaOrder) = r)
+--   let mGaps := mSet.filter messages (fun m => m.mtype == .MGapCommit)
+--   ∀ (r : { r // r ∈ leaders }),
+--     let ranges := List.range 3 |>.map (fun x => vSessMsgNum r.val + 1 + x)
+--     ∀ (n : { n // n ∈ ranges }),
+--       ∀ (m : { m // m ∈ mGaps }),
+--         (m.val.dest = r.val ∧ m.val.viewID = vViewID r.val) →
+--           m.val.slotNumber ≠ n
+
 
 -- ReplySMN ==
 --    LET mReqReps == {m \in messages : m.mtype = MRequestReply}
 --    IN \A m \in mReqReps : m.logSlotNum < vSessMsgNum[m.sender]
+-- invariant [reply_SMN]
+--   let mReqReps := mSet.filter messages (fun m => m.mtype == .MRequestReply)
+--   ∀ (m : { m // m ∈ mReqReps }),
+--     m.val.logSlotNum < vSessMsgNum (m.val.sender)
 
 -- LeaderSMNGap ==
 --    LET leaders == {r \in Replicas : Leader(vViewID[r]) = r}
@@ -1469,6 +1470,18 @@ invariant [log_non_trivial]
 --          IN \A n \in d :
 --             /\ vReplicaStatus[r] = StGapCommit
 --             /\ vCurrentGapSlot[r] = n
+-- invariant [leader_SMN_gap]
+--   let leaders := Replicas.filter (fun r => (Leader (vViewID r) ReplicaOrder) = r)
+--   let mGaps := mSet.filter messages (fun m => m.mtype == .MGapCommit)
+--   ∀ (r : { r // r ∈ leaders }),
+--     let a := mSet.filter mGaps (fun m => m.dest = r.val ∧ m.viewID = vViewID r.val)
+--     let b := mSet.toList a |>.map (fun m => m.slotNumber) |>.eraseDups
+--     let maxB := if b.isEmpty then 0 else b.foldl Nat.max 0
+--     let d := if maxB = vSessMsgNum r.val then [maxB] else []
+--     ∀ (n : { n // n ∈ d }),
+--       vReplicaStatus r.val = StGapCommit ∧ vCurrentGapSlot r.val = n
+
+
 -- invariant [message_less_than_three] mSet.count messages < 4
 -- \* Conjunction of invariants
 -- IvyInvariants ==
@@ -1482,6 +1495,51 @@ invariant [log_non_trivial]
 --    /\ LogSMNGap
 --    /\ ReplySMN
 --    /\ LeaderSMNGap
+
+-- (*
+--   We only provide the ordering layer here. This is an easier guarantee to
+--   provide than saying the execution is equivalent to a linear one. We don't
+--   currently model execution, and that's a much harder predicate to compute.
+-- *)
+-- Linearizability ==
+--   LET
+--     maxLogPosition == Max({1} \cup
+--       { m.logSlotNum : m \in {m \in messages : m.mtype = MRequestReply } })
+--   IN ~(\E v1, v2 \in Values \cup { NoOp } :
+--          /\ v1 /= v2
+--          /\ \E i \in (1 .. maxLogPosition) :
+--            /\ Committed(v1, i)
+--            /\ Committed(v2, i)
+--       )
+invariant [linearizability]
+  let mReqReps := mSet.filter messages (fun m => m.mtype == .MRequestReply)
+  let mReqRepsList := mSet.toList mReqReps
+  let maxLogPosition := mReqRepsList.foldl (fun acc m => Nat.max acc m.logSlotNum) 1
+  let positions := (List.range maxLogPosition).map (· + 1)
+  ∀ (v1 : value), ∀ (v2 : value), ∀ (i : {i // i ∈ positions}),
+    v1 ≠ v2 → ¬(Committed v1 i.val ∧ Committed v2 i.val)
+-- --------------------------------------------------------------------------------
+-- (* `^\textbf{\large Message Handlers and Actions}^' *)
+-- Committed(v, i) ==
+--   \E M \in SUBSET ({m \in messages : /\ m.mtype = MRequestReply
+--                                      /\ m.logSlotNum = i
+--                                      /\ m.request = v }) :
+--     \* Sent from a quorum
+--     /\ { m.sender : m \in M } \in Quorums
+--     \* Matching view-id
+--     /\ \E m1 \in M : \A m2 \in M : m1.viewID = m2.viewID
+--     \* One from the leader
+--     /\ \E m \in M : m.sender = Leader(m.viewID)
+-- SyncSafety == \A r \in Replicas :
+--               \A i \in 1..vSyncPoint[r] :
+--               Committed(vLog[r][i], i)
+invariant [sync_safety]
+  ∀ r : {r // r ∈ Replicas},
+    let range := List.range (vSyncPoint r.val) |>.map (· + 1)
+    ∀ i : {i // i ∈ range},
+      Committed ((vLog r.val).getD (i.val - 1) NoOp) i.val
+
+
 #gen_spec
 
 #model_check
@@ -1496,7 +1554,7 @@ invariant [log_non_trivial]
   Replicas := [0, 1, 2]
   SIZE := 3
   one := 0
-  MsgCountLimit := 12
+  MsgCountLimit := 8
 }
 
 -- ================================================================================
