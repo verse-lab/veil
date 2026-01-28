@@ -2,6 +2,7 @@ import Std
 import Veil.Frontend.DSL.State.Concrete
 import Veil.Frontend.DSL.State.Data
 import Mathlib.Data.List.Sublists
+import Mathlib.Data.List.Dedup
 import Std.Data.ExtTreeMap.Lemmas
 namespace Veil
 open Lean Std
@@ -183,19 +184,46 @@ instance instEnumerationForExtTreeMap [Ord α] [Ord β]
   [Std.LawfulEqOrd α] [Std.LawfulEqOrd β]
   : Veil.Enumeration (Std.ExtTreeMap α β) where
   allValues :=
-    let pairs := Veil.Enumeration.allValues (α := α × β)
+    let pairs := (Veil.Enumeration.allValues (α := α × β)).dedup
     pairs.sublists.map (Std.ExtTreeMap.ofList ·)
   complete := by
-      intro m
-      rw [List.mem_map]
-      let pairs := Veil.Enumeration.allValues (α := α × β)
-      let l := pairs.filter fun ⟨k, v⟩ => k ∈ m ∧ m.get? k = some v
-      exists l
-      constructor
-      · rw [List.mem_sublists]
-        exact List.filter_sublist
-      · sorry
-
+    intro m
+    rw [List.mem_map]
+    let pairs := (Veil.Enumeration.allValues (α := α × β)).dedup
+    let l := pairs.filter (· ∈ m.toList)
+    refine ⟨l, List.mem_sublists.mpr List.filter_sublist, ?_⟩
+    apply Std.ExtTreeMap.ext_getElem?
+    intro k
+    have hmem_toList : ∀ x ∈ l, x ∈ m.toList := fun x hx => by
+      have := (List.mem_filter.mp hx).2; simp only [decide_eq_true_eq] at this; exact this
+    have hl_nodup : l.Nodup := List.Nodup.filter _ (List.nodup_dedup _)
+    have hdistinct : l.Pairwise (fun a b => ¬ compare a.1 b.1 = .eq) := by
+      rw [List.pairwise_iff_forall_sublist]
+      intro a b hab
+      have ha := hmem_toList a (hab.subset (by simp))
+      have hb := hmem_toList b (hab.subset (by simp))
+      have hab_ne : a ≠ b := by
+        intro heq; subst heq
+        have : [a, a].Nodup := List.Sublist.nodup hab hl_nodup
+        simp [List.nodup_cons] at this
+      intro heq
+      have hx' := Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some.mp ha
+      have hy' := Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some.mp hb
+      have hget : m[a.1]? = m[b.1]? := Std.ExtTreeMap.getElem?_congr heq
+      rw [hx', hy'] at hget
+      exact hab_ne (Prod.ext (Std.LawfulEqCmp.eq_of_compare heq) (by simp at hget; exact hget))
+    cases hm : m[k]? with
+    | none =>
+      rw [Std.ExtTreeMap.getElem?_ofList_of_contains_eq_false]
+      simp only [List.contains_eq_any_beq, List.any_eq_false, List.mem_map, beq_iff_eq]
+      intro p hp
+      obtain ⟨q, hq, rfl⟩ := hp
+      have hget := Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some.mp (hmem_toList q hq)
+      intro heq; rw [heq, hget] at hm; exact Option.noConfusion hm
+    | some v =>
+      have hmem : (k, v) ∈ m.toList := Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some.mpr hm
+      have hl_mem : (k, v) ∈ l := List.mem_filter.mpr ⟨List.mem_dedup.mpr (Veil.Enumeration.complete _), by simp only [decide_eq_true_eq]; exact hmem⟩
+      rw [Std.ExtTreeMap.getElem?_ofList_of_mem (Std.ReflCmp.compare_self) hdistinct hl_mem]
 /-
 instance [DecidableEq α] [Ord α] [a : Enumeration α]: Enumeration (Std.TreeSet α) where
   allValues := (List.sublistsFast a.allValues).map (fun l => Std.TreeSet.ofList l)
