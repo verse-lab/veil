@@ -110,7 +110,7 @@ action _pre_check_lock (self : process) {
 action _prepare_wait_util (self : process) {
   require self ≠ NONE
   require pc self prepare_wait_util
-  -- locked := false -- BUG: releases lock it doesn't own
+  locked := false -- BUG: releases lock it doesn't own
   pc self S := S == wait_until
 }
 
@@ -347,6 +347,6 @@ termination [AllDone] ∀s ≠ NONE, pc s Done = true
 
 -- set_option veil.violationIsError false in
 /- `Fin n` means `n-1` valid threads.-/
-#model_check { process := Fin 4 } { NONE := 0 }
+#model_check { process := Fin 10 } { NONE := 0 }
 
 end Mutex
