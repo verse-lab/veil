@@ -91,6 +91,7 @@ immutable individual txIdUniv : TxIds
 #gen_state
 
 procedure SetToSeq (L : Ops) { return opsSet.toList L }
+
 procedure effects (curState : KVState) (transaction : List (Op key txId)) {
   let newState := transaction.foldl (fun acc o =>
     match o.op with
@@ -123,8 +124,6 @@ procedure executions (initState : KVState) (trans : List (List (Op key txId))) {
 
 
 procedure updatePools {
-  -- let txIdUniv :| ∀ t : txId, ∧ t ≠ noVal → txIdSet.contains t txIdUniv
-  -- Convert txIdUniv to a list for iteration
   let allTxIds := txIdSet.toList txIdUniv
   let allTransactions := allTxIds.map (fun t => ops t)
   let nonEmptyTransactions := allTransactions.filter (fun t => t.length > 0)
@@ -152,14 +151,7 @@ after_init {
   read_keys T := keySet.empty
   write_keys T := keySet.empty
   ops T := []
-  -- updatePools
-  let allTxIds := txIdSet.toList txIdUniv
-  let allTransactions := allTxIds.map (fun t => ops t)
-  let nonEmptyTransactions := allTransactions.filter (fun t => t.length > 0)
-  TransactionsPool := nonEmptyTransactions.eraseDups
-  let allExecs ← executions initialState TransactionsPool
-  ExecutionsPool := allExecs.eraseDups
-
+  updatePools
   pc T S := S == START
 }
 
@@ -175,7 +167,7 @@ after_init {
 action _START (self : txId) {
   require self ≠ noVal
   require pc self START
-  require ¬ tx self
+  -- require ¬ tx self
   tx self := true
   snapshotStore self K := store K
   let rk :| keySet.count rk > 0
@@ -193,20 +185,13 @@ action _START (self : txId) {
 action _READ (self : txId) {
   require self ≠ noVal
   require pc self READ
-  let readKeysUniv :| ∀k, keySet.contains k (read_keys self) → keySet.contains k readKeysUniv
-  let readOps : Ops := keySet.map readKeysUniv (fun k =>
+  let readOps : Ops := keySet.map (read_keys self) (fun k =>
     { op := OpType.Read,
       key := k,
       value := snapshotStore self k : Op key txId })
   let readOpsSeq ← SetToSeq readOps
   ops self := ops self ++ readOpsSeq
-  -- updatePools
-  let allTxIds := txIdSet.toList txIdUniv
-  let allTransactions := allTxIds.map (fun t => ops t)
-  let nonEmptyTransactions := allTransactions.filter (fun t => t.length > 0)
-  TransactionsPool := nonEmptyTransactions.eraseDups
-  let allExecs ← executions initialState TransactionsPool
-  ExecutionsPool := allExecs.eraseDups
+  updatePools
 
   pc self S := S == UPDATE
 }
@@ -241,21 +226,14 @@ action _COMMIT (self : txId) {
     tx self := false
     missed O := if tx O then keySet.union (missed O) (write_keys self) else missed O
     store K := if keySet.contains K (write_keys self) then (snapshotStore self K) else store K
-    let writeKeysUniv :| ∀k, keySet.contains k (write_keys self) → keySet.contains k writeKeysUniv
-    let writeOps : Ops := keySet.map writeKeysUniv (fun k =>
+    let writeOps : Ops := keySet.map (write_keys self) (fun k =>
       { op := OpType.Write,
         key := k,
         value := self : Op key txId })
     let writeOpsSeq ← SetToSeq writeOps
     ops self := ops self ++ writeOpsSeq
 
-    -- updatePools
-    let allTxIds := txIdSet.toList txIdUniv
-    let allTransactions := allTxIds.map (fun t => ops t)
-    let nonEmptyTransactions := allTransactions.filter (fun t => t.length > 0)
-    TransactionsPool := nonEmptyTransactions.eraseDups
-    let allExecs ← executions initialState TransactionsPool
-    ExecutionsPool := allExecs.eraseDups
+    updatePools
 
   pc self S := S == Done
 }
@@ -301,8 +279,7 @@ invariant [serializability]
                         else initialState
         isComplete exec trans parentSt)
 
--- invariant [size_less_than_two]
---   TransactionsPool.length < 4
+
 termination [all_thread_done] (∀ t : txId, t ≠ noVal → pc t Done)
 
 -- veil_set_option useNewExtraction true
@@ -313,7 +290,7 @@ termination [all_thread_done] (∀ t : txId, t ≠ noVal → pc t Done)
 def m1 : Std.ExtTreeMap key_IndT txId_IndT compare :=
   ExtTreeMap.ofList [
     (.K1, .noVal),
-    (.K2, .noVal)
+    (.K2, .noVal),
   ] compare
 
 
@@ -334,7 +311,7 @@ set_option veil.violationIsError false in
 {
   initialState := Std.ExtTreeMap.ofList [
     (key_IndT.K1, txId_IndT.noVal),
-    (key_IndT.K2, txId_IndT.noVal)
+    (key_IndT.K2, txId_IndT.noVal),
   ] compare
   -- initialState := m1
 ,
