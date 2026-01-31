@@ -241,4 +241,7 @@ invariant [crashed_same_when_count_eq_round]
 -- followed by `assume ...`) causes very slow compilation for model checking.
 -- Prefer imperative assignments (e.g., `seen N V := seen N V || ...`) when possible.
 
+-- [FIXME] `model_check` should support reachability queries directly without the
+-- need to hack it via error-finding (negating safety properties).
+
 end FloodSet
