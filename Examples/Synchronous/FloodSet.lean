@@ -71,7 +71,7 @@ ghost relation uniqueProposal :=
 
 after_init {
   seen N V := *
-  -- assume uniqueProposal
+  assume uniqueProposal
 
   alive N := true
   decision N V := false
