@@ -206,8 +206,10 @@ def isDecidableInstance (type : Expr) : TermElabM Bool := do
 
 /-- Elaborates the term (ignoring typeclass inference failures) and
 returns the set of `Decidable` instances needed to make it elaborate
-correctly. -/
-def getRequiredDecidableInstances (stx : Term) (folding : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
+correctly. `decBodyTransform` is for simplifying the body of the
+propositions to decide (e.g., removing unnecessary arguments, or
+exposing types explicitly for certain dependently-typed terms). -/
+def getRequiredDecidableInstances (stx : Term) (decBodyTransform : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
   /- We want to throw an error if anything fails or is missing during
   elaboration. -/
   Term.withoutErrToSorry $ do
@@ -237,9 +239,9 @@ where
     -- trace[veil.debug] "simplifyMVarType {mv}:\n{tyOriginal}\n~~> {ty}"
     Meta.forallTelescope ty fun ys body => do
       if !(← keepBodyIf body) then return none
-      -- trace[veil.debug] "simplifyMVarType {mv}:\n{body}\n~~> {body'}"
-      let simplified_type ← Meta.mkForallFVars ys body (usedOnly := true)
-      let simplified_type ← folding simplified_type
+      let simplified_body ← decBodyTransform body
+      let simplified_type ← Meta.mkForallFVars ys simplified_body (usedOnly := true)
+      trace[veil.debug] "ty = {ty}, simplified_body: {simplified_body}, simplified_type: {simplified_type}, ty has mvar? {body.hasMVar}"
       -- Create a new mvar to replace the old one
       let decl ← mv.mvarId!.getDecl
       let mv' ← Meta.mkFreshExprMVar (.some simplified_type) (kind := decl.kind) (userName := ← mkFreshUserName `dec_pred)
@@ -249,7 +251,7 @@ where
         -- (e.g., automatically applying them to the body); we workaround this
         -- by using a dummy fvar and then doing replacement
         Meta.withLocalDeclD decl.userName simplified_type fun z => do
-          let tmp ← Meta.mkLambdaFVars ys $ mkAppN z (ys.filter fun y => y.occurs body)
+          let tmp ← Meta.mkLambdaFVars ys $ mkAppN z (ys.filter fun y => y.occurs simplified_body)
           pure $ tmp.replaceFVar z mv'
       mv.mvarId!.assign mv_pf
       -- IMPORTANT: the type might have _delayed assignment metavariables_ if an
