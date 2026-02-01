@@ -71,7 +71,7 @@ ghost relation uniqueProposal :=
 
 after_init {
   seen N V := *
-  assume uniqueProposal
+  -- assume uniqueProposal
 
   alive N := true
   decision N V := false
@@ -96,8 +96,10 @@ action crash (n : node) {
 action advanceRound {
   require round < t + 1
 
-  -- Some nodes may receive values from dead nodes
-  let receivedFromDead : node → Bool :| true
+  -- Some nodes may receive values from some dead nodes
+  -- The first argument is a possibly dead source
+  -- The second is a possibly allive destination
+  let deadToAliveDelivery : node → node → Bool :| true
 
   -- Alive nodes exchange values
   seen N V := seen N V ||
@@ -105,8 +107,7 @@ action advanceRound {
       -- Get from alive nodes
       decide ((∃ m, alive m ∧ seen m V) ∨
       -- Get from some recently deceased nodes, too
-       (receivedFromDead N ∧
-        ∃ d, crashedInThisRound d ∧ seen d V))
+       (∃ d, deadToAliveDelivery d N ∧ crashedInThisRound d ∧ seen d V))
 
   -- Reset crash-related bookkeeping for the next round
   crashedInThisRound N := false
@@ -211,7 +212,7 @@ invariant [crashed_same_when_count_eq_round]
 --------------------------------------------------------------------------------
 
 -- Small instance, one crash
-#model_check interpreted { node := Fin 3, value := Fin 2 } { t := 1 }
+#model_check { node := Fin 3, value := Fin 2 } { t := 1 }
 
 -- Larger instance (slower but more thorough)
 -- #model_check { node := Fin 5, value := Fin 2 } { t := 3 }
