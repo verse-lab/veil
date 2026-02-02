@@ -102,10 +102,17 @@ set_option synthInstance.maxSize 10000
 
 open " ++ specNamespace ++ "
 
+def flushStdoutAndStderr : IO Unit := do
+  let stdout ← IO.getStdout
+  let stderr ← IO.getStderr
+  stdout.flush
+  stderr.flush
+
 def exitWhenParentDies : IO Unit := do
   let stdin ← IO.getStdin
   let _ ← stdin.readToEnd
-  IO.Process.exit 2
+  flushStdoutAndStderr
+  IO.Process.forceExit 2
 
 def main (args : List String) : IO Unit := do
   let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
@@ -123,7 +130,8 @@ def main (args : List String) : IO Unit := do
   let cancelTk ← IO.CancelToken.new
   let res ← modelCheckerResult pcfg 0 cancelTk
   IO.println s!\"{Lean.toJson res}\"
-  IO.Process.exit 0
+  flushStdoutAndStderr
+  IO.Process.forceExit 0
 "
 
 /-- Create the temp build folder with all necessary files.
