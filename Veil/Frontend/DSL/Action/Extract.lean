@@ -131,6 +131,24 @@ def buildingTermWithDefaultχSpecialized (mod : Module)
 
 end Specialization
 
+-- Ideally, we should not require this, but the `DefEq` check during
+-- typeclass resolution seems to really have difficulty without this.
+-- NOTE: This simplification still seems incomplete (it doesn't perform
+-- certain beta-reductions), but `DefEq` checking seems to work fine with this,
+-- as long as `simpFieldRepresentationGet` and `simpFieldRepresentationSetSingle`
+-- are applied.
+open Tactic in
+/-- Simplify the types of `Decidable` instance arguments in the local context. -/
+scoped elab "veil_dsimp_decidable_instances_before_extraction" : tactic => withMainContext do
+  let mut targets : Array Ident := #[]
+  let lctx ← getLCtx
+  for ldecl in lctx do
+    let ltype := ldecl.type
+    if ltype.getForallBody.isAppOfArity ``Decidable 1 then
+      targets := targets.push (mkIdent ldecl.userName)
+  let simps := #[``Preprocessing.simpFieldRepresentationSetSingle, ``Preprocessing.simpFieldRepresentationGet].map Lean.mkIdent
+  evalTactic <| ← `(tactic| dsimp -$(mkIdent `failIfUnchanged) only [$[$simps:ident],*] at $targets:ident* )
+
 section Extraction
 
 variable [Monad m] [MonadQuotation m] [MonadError m]
@@ -195,6 +213,7 @@ def specializeAndExtractSingle (mod : Module) (pi : ProcedureInfo) (extractedNam
   (attrs : Array (TSyntax ``Lean.Parser.Term.attrInstance) := #[]) : CommandElabM Unit := do
   let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
   let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak intoMonadicActions pi.name (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC
+  let extractBody ← `(by veil_dsimp_decidable_instances_before_extraction; exact $extractBody)
   let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
   let cmd ← if attrs.isEmpty
     then `(command| def $(mkIdent extractedName):ident := $defBody:term)
@@ -229,6 +248,7 @@ def specializeAndExtractActions (mod : Module) : CommandElabM Unit := do
     let multiExecType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState $(mkIdent ``Unit))
     -- Need this annotation to avoid the `failed to elaborate eliminator, expected type is not available` error
     `(fun ($lIdent : $labelT) => (($lIdent.$(mkIdent `casesOn) $alts*) : $multiExecType))
+  let finalBody ← `(by veil_dsimp_decidable_instances_before_extraction; exact $finalBody)
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
   let defBody ← buildingTermWithDefaultχSpecialized baseParams extraParams injectedBinders finalBody mod
