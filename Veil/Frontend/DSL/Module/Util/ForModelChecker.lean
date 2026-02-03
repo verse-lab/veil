@@ -88,7 +88,7 @@ lean_lib Model where
 
 lean_exe ModelCheckerMain where
   root := `ModelCheckerMain
-  buildType := .release
+  buildType := .relWithDebInfo
 "
 
 /-- Template for the ModelCheckerMain.lean in the temp project.

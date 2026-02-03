@@ -71,7 +71,7 @@ where
     else
       let startLineStartPos := fmap.source.findLineStart r.start
       -- the substring from the start of the line where `stx` is on to the beginning of `stx`
-      let substr := Substring.mk fmap.source startLineStartPos r.start
+      let substr := Substring.Raw.mk fmap.source startLineStartPos r.start
       -- trace[veil.debug] "substring before tactic {stx}: {substr}"
       return substr.all Char.isWhitespace
 

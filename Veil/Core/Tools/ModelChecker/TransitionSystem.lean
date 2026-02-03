@@ -134,7 +134,19 @@ theorem reachable_equiv_relational
   (sys : EnumerableTransitionSystem ρ ρSet σ σSet ε l outcomeSet th)
   :
   sys.reachable s ↔ (sys.toRelational.reachable th s) := by
-  constructor <;> (intro hreach ; induction hreach with | _ => grind)
+  constructor
+  · intro h
+    induction h with
+    | init s hinit =>
+      exact RelationalTransitionSystem.reachable.init s rfl hinit
+    | step s s' _ hnext ih =>
+      exact RelationalTransitionSystem.reachable.step s s' ih hnext
+  · intro h
+    induction h with
+    | init s _ hinit =>
+      exact reachable.init s hinit
+    | step s s' _ hnext ih =>
+      exact reachable.step s s' ih hnext
 
 end EnumerableTransitionSystem
 
