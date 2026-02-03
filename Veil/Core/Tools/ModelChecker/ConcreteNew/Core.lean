@@ -287,4 +287,10 @@ def extractSuccessfulTransitions (outcomes : List (κ × ExecutionOutcome Int σ
     | .success st => some (label, st)
     | _ => none
 
+theorem extractSuccessfulTransitions_spec {κ σ : Type} (outcomes : List (κ × ExecutionOutcome Int σ)) :
+  ∀ {label : κ} {st : σ},
+    (label, st) ∈ extractSuccessfulTransitions outcomes ↔
+    (label, ExecutionOutcome.success st) ∈ outcomes := by
+  introv ; simp [extractSuccessfulTransitions, List.mem_filterMap] ; grind
+
 end Veil.ModelChecker.Concrete
