@@ -7,6 +7,7 @@ open Std
 open Veil fQueue
 
 
+-- CHECK inline this later? seems a good target to inline
 /-- Process a single neighbor node during BFS traversal.
 If the neighbor has been seen, return the current context unchanged.
 Otherwise, add it to seen set and log, then enqueue it. -/
@@ -21,34 +22,35 @@ def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
   (fpSt : σₕ)         -- fingerprint of state we're coming from (pre-state), for logging
   (depth : Nat)       -- depth of the current state (neighbor will be at depth + 1)
   (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (neighbor : κ × σ)  -- Only successful transitions are passed here
-  (h_neighbor : sys.reachable neighbor.2)
+  -- (neighbor : κ × σ)  -- Only successful transitions are passed here
+  (label : κ)
+  (succ : σ)
+  (h_neighbor : sys.reachable succ)
   (h_not_finished : !ctx.hasFinished)
   (h_deque_head : ∃tl, ctx.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tl))
   : {ctx' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
       ctx'.finished = ctx.finished ∧
-      ctx'.seen.contains (fp.view neighbor.2) ∧
+      ctx'.seen.contains (fp.view succ) ∧
       ∃tail', ctx'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') ∧
       ∀fp, ctx.seen.contains fp → ctx'.seen.contains fp } :=
-  let ⟨label, succ⟩ := neighbor
   let fingerprint := fp.view succ
   have h_succ_reachable : sys.reachable succ := h_neighbor
   if h_has_seen : ctx.seen.contains fingerprint then
-    ⟨ctx, by constructor <;> grind⟩
+    ⟨ctx, by grind⟩
   else
-    have h_not_in_seen : !ctx.seen.contains fingerprint := by simp [h_has_seen]
-    let newActionStatsMap := match ctx.actionStatsMap[label]? with
-      | some stat => ctx.actionStatsMap.insert label { stat with distinctStates := stat.distinctStates + 1 }
-      | none => ctx.actionStatsMap.insert label { statesGenerated := 0, distinctStates := 1 }  -- shouldn't happen if processState ran first
+    -- Use `.alter` to ensure linear usage
+    let newActionStatsMap := ctx.actionStatsMap.alter label fun
+      | some stat => Option.some { stat with distinctStates := stat.distinctStates + 1 }
+      | none => Option.some { statesGenerated := 0, distinctStates := 1 }  -- shouldn't happen if processState ran first
     ⟨{ ctx with
         seen := ctx.seen.insert fingerprint,
         sq   := ctx.sq.enqueue ⟨fingerprint, succ, depth + 1⟩,
         log  := ctx.log.insert fingerprint (fpSt, label),
-        invs := insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_neighbor rfl
         actionStatsMap := newActionStatsMap,
+        invs := insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_neighbor rfl
         stable_closed  := insert_and_enqueue_preserves_stable_closed sys params ctx fingerprint succ depth h_succ_reachable rfl
         terminate_empty_queue := by intro h_finished; unfold BaseSearchContext.hasFinished at h_not_finished; grind
-    }, (by constructor <;> grind)⟩
+    }, (by grind)⟩
 
 
 -- @[inline, specialize]
@@ -89,7 +91,7 @@ def SequentialSearchContext.processSuccessors {ρ σ κ σₕ : Type}
       have h_next : sys.next curr postState := ⟨tr, h_in_sys_tr⟩
       let h_neighbor_reachable : sys.reachable postState := EnumerableTransitionSystem.reachable.step curr postState h_curr h_next
       have h_dequeue_head_curr : ∃tail, current_ctx.val.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail) := current_ctx.property.2
-      let neighbor_result := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth current_ctx.val ⟨tr, postState⟩ h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
+      let neighbor_result := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth current_ctx.val tr postState h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
       (⟨neighbor_result.val, by constructor <;> grind⟩))
   ⟨result.val, result.property⟩
 
@@ -151,7 +153,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
           EnumerableTransitionSystem.reachable.step curr postState h_curr h_next
         have h_dequeue_head_curr : ∃tail, current_ctx.val.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail) :=
           current_ctx.property.2
-        let neighbor_result := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth current_ctx.val ⟨tr, postState⟩ h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
+        let neighbor_result := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth current_ctx.val tr postState h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
         ⟨neighbor_result.val, by
           constructor
           · have h_finished_preserved := neighbor_result.property.1
@@ -199,7 +201,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
         let h_dequeue_head_curr : ∃tail, init_ctx.val.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail) :=
           init_ctx.property.2
         let neighbor_result := tryExploreNeighbor sys curr fpSt depth
-          init_ctx.val ⟨tr_hd, postState_hd⟩ h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
+          init_ctx.val tr_hd postState_hd h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
         -- tryExploreNeighbor ensures the neighbor is added to seen
         have h_in_result_seen : neighbor_result.val.seen.contains (fp.view postState_hd) :=
           neighbor_result.property.2.1
@@ -261,7 +263,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
               EnumerableTransitionSystem.reachable.step curr post' h_curr h_next'
             let h_deq' : ∃tail, ctx1.val.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail) := ctx1.property.2
             let result' := tryExploreNeighbor sys curr fpSt depth
-              ctx1.val ⟨tr', post'⟩ h_reach' h_not_fin' h_deq'
+              ctx1.val tr' post' h_reach' h_not_fin' h_deq'
             obtain ⟨_, _, h_mono'⟩ := result'.property.2.2
             exact h_mono' fp_elem h_contains
         exact h_mono next_ctx tl (fp.view v) h_v_in_next
@@ -287,7 +289,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
         let h_dequeue_head_curr : ∃tail, init_ctx.val.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail) :=
           init_ctx.property.2
         let neighbor_result := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth
-          init_ctx.val ⟨tr_hd, postState_hd⟩ h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
+          init_ctx.val tr_hd postState_hd h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
         let next_ctx : { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
           p'.finished = ctx.finished ∧
           ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') } :=
