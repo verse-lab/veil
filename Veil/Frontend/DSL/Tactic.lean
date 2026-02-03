@@ -69,9 +69,11 @@ where
       -- trace[veil.debug] "file map positions: {fmap.positions}"
       return false
     else
-      let startLineStartPos := fmap.source.findLineStart r.start
+      let s := fmap.source
+      let some startPos := s.pos? r.start | return false
+      let some startLineStartPos := startPos.revFind? '\n' | return false
       -- the substring from the start of the line where `stx` is on to the beginning of `stx`
-      let substr := Substring.Raw.mk fmap.source startLineStartPos r.start
+      let some substr := s.slice? startLineStartPos startPos | return false
       -- trace[veil.debug] "substring before tactic {stx}: {substr}"
       return substr.all Char.isWhitespace
 

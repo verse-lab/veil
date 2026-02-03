@@ -12,6 +12,6 @@ def getNumCores : IO Nat := do
   else
     -- Linux and other Unix-like systems (POSIX compliant)
     let output ← IO.Process.output { cmd := "getconf", args := #["_NPROCESSORS_ONLN"] }
-    return output.stdout.trim.toNat!
+    return output.stdout.trimAscii.toNat!
 
 end Veil

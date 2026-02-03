@@ -443,7 +443,7 @@ private partial def withAutoBoundCont
   (conditionToBind : Name → TermElabM Bool)
   (unboundCont : Exception → Name → TermElabM α)
   : TermElabM α := do
-  withReader (fun ctx => { ctx with autoBoundImplicit := true, autoBoundImplicits := {} }) do
+  withReader (fun ctx => { ctx with autoBoundImplicitContext := Option.some (AutoBoundImplicitContext.mk true {}) }) do
     let rec loop (s : Term.SavedState) : TermElabM α := withIncRecDepth do
       try
         k
@@ -454,7 +454,9 @@ private partial def withAutoBoundCont
             -- Restore state, declare `n`, and try again
               s.restore
               Meta.withLocalDecl n .default (← Meta.mkFreshTypeMVar) fun x =>
-                withReader (fun ctx => { ctx with autoBoundImplicits := ctx.autoBoundImplicits.push x } ) do
+                withReader (fun ctx => { ctx with
+                  autoBoundImplicitContext := Option.some (AutoBoundImplicitContext.mk true
+                    (ctx.autoBoundImplicitContext.map AutoBoundImplicitContext.boundVariables |>.getD {} |>.push x )) } ) do
                   loop (← saveState)
             else unboundCont ex n
           | none   => throw ex

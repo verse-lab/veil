@@ -70,7 +70,7 @@ structure VeilTrace where
 /-! ## Name Pattern Matchers -/
 
 /-- Parse a natural number from a string, returning none if it's not a valid number. -/
-private def parseNat? (s : String) : Option Nat :=
+private def parseNat? (s : String.Slice) : Option Nat :=
   s.toNat?
 
 /-- Check if a name matches the pattern "st{n}.fieldName" and return (n, fieldName).
@@ -91,7 +91,7 @@ def isTransitionTag (name : Name) : Option Nat :=
   match name with
   | .str .anonymous s =>
     if s.startsWith "_tr" && s.endsWith "_tag" then
-      let middle := (s.drop 3).dropRight 4  -- Remove "_tr" prefix and "_tag" suffix
+      let middle := (s.drop 3).dropEnd 4  -- Remove "_tr" prefix and "_tag" suffix
       parseNat? middle
     else none
   | _ => none

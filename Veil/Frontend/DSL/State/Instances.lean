@@ -219,7 +219,7 @@ instance instEnumerationForExtTreeMap [Ord α] [Ord β]
       intro p hp
       obtain ⟨q, hq, rfl⟩ := hp
       have hget := Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some.mp (hmem_toList q hq)
-      intro heq; rw [heq, hget] at hm; exact Option.noConfusion hm
+      intro heq; rw [heq, hget] at hm; grind
     | some v =>
       have hmem : (k, v) ∈ m.toList := Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some.mpr hm
       have hl_mem : (k, v) ∈ l := List.mem_filter.mpr ⟨List.mem_dedup.mpr (Veil.Enumeration.complete _), by simp only [decide_eq_true_eq]; exact hmem⟩

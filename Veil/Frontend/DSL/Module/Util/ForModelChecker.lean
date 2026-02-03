@@ -10,7 +10,7 @@ def findPosAfterImports (src : String) : String.Pos.Raw :=
   let lines := src.splitOn "\n"
   let (_, lastImportEnd) := lines.foldl (init := ((0 : Nat), (0 : Nat))) fun (pos, lastImportEnd) line =>
     let nextPos := pos + line.utf8ByteSize + 1  -- +1 for newline
-    (nextPos, if line.trimLeft.startsWith "import " then nextPos else lastImportEnd)
+    (nextPos, if line.trimAsciiStart.startsWith "import " then nextPos else lastImportEnd)
   ⟨lastImportEnd⟩
 
 /-- Status of the model checker compilation process for a single model. -/
@@ -216,7 +216,7 @@ def runProcessWithStatusCallback (cfg : IO.Process.SpawnArgs)
       let line ← handle.getLine
       if line.isEmpty then break
       accum.modify (· ++ line)
-      lineCallback line.trimRight isError ((← IO.monoMsNow) - startTime)
+      lineCallback line.trimAsciiEnd.toString isError ((← IO.monoMsNow) - startTime)
   let stdoutTask ← IO.asTask (prio := .dedicated) (readLines proc.stdout stdoutAccum false)
   let stderrTask ← IO.asTask (prio := .dedicated) (readLines proc.stderr stderrAccum true)
   let waitTask ← IO.asTask (prio := .dedicated) proc.wait

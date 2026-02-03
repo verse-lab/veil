@@ -22,9 +22,9 @@ lemma VeilExecM.total_imp_partial (act : VeilExecM m ρ σ α) :
   simp [VeilExecM.wp_eq, PartialCorrectness.DivM.wp_eq, TotalCorrectness.DivM.wp_eq]
   intro r s; cases (act r s) <;> aesop (add safe simp loomLogicSimp)
 
-lemma VeilM.assumptions_eq (act : VeilM m ρ σ α) (ex : ExtractNonDet WeakFindable act) :
-  [DemonFail| ExtractNonDet.prop act ex] = [AngelFail| ExtractNonDet.prop act ex] := by
-  induction ex <;> simp [ExtractNonDet.prop, -top_le_iff, VeilExecM.wlp_eq, *]
+-- lemma VeilM.assumptions_eq (act : VeilM m ρ σ α) (ex : ExtractNonDet WeakFindable act) :
+--   [DemonFail| ExtractNonDet.prop act ex] = [AngelFail| ExtractNonDet.prop act ex] := by
+--   induction ex <;> simp [ExtractNonDet.prop, -top_le_iff, VeilExecM.wlp_eq, *]
 
 lemma VeilExecM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [IgnoreEx (fun _ => True)| iwp act post] = [AngelFail| wp act post] := by
@@ -77,22 +77,22 @@ lemma VeilM.terminates_preservesInvariants (act : VeilM m ρ σ α) (inv : SProp
   intros h₁ h₂; apply le_trans
   apply le_inf h₁ h₂; simp [VeilM.terminates_preservesInvariants_wp]
 
-lemma VeilM.triple_sound
-  (act : VeilM m ρ σ α) (inv : SProp ρ σ) (chs : act.choices) :
-  act.doesNotThrow inv ->
-  act.preservesInvariantsIfSuccesful inv ->
-  (act.run chs).operationalTriple inv (fun _ => inv) := by
-    intros term invs
-    have : [DemonFail| triple inv (act.run chs) (fun _ => inv)] := by
-      open DemonicChoice ExceptionAsFailure in
-      apply ExtractNonDet.extract_refines_triple_weak;
-      apply VeilM.terminates_preservesInvariants <;> simp [*]
-    revert this; simp [triple]
-    generalize (act.run chs) = act
-    introv h r hinv;
-    have := h _ _ hinv; revert this
-    simp [VeilExecM.operational, VeilExecM.wp_eq, DivM.wp_eq]
-    cases act r s₀ <;> aesop
+-- lemma VeilM.triple_sound
+--   (act : VeilM m ρ σ α) (inv : SProp ρ σ) (chs : act.choices) :
+--   act.doesNotThrow inv ->
+--   act.preservesInvariantsIfSuccesful inv ->
+--   (act.run chs).operationalTriple inv (fun _ => inv) := by
+--     intros term invs
+--     have : [DemonFail| triple inv (act.run chs) (fun _ => inv)] := by
+--       open DemonicChoice ExceptionAsFailure in
+--       apply ExtractNonDet.extract_refines_triple_weak;
+--       apply VeilM.terminates_preservesInvariants <;> simp [*]
+--     revert this; simp [triple]
+--     generalize (act.run chs) = act
+--     introv h r hinv;
+--     have := h _ _ hinv; revert this
+--     simp [VeilExecM.operational, VeilExecM.wp_eq, DivM.wp_eq]
+--     cases act r s₀ <;> aesop
 
 lemma VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
@@ -143,77 +143,77 @@ end DerivingSemanticsTheorems
 
 section TransitionSemanticsTheorems
 
-instance (act : VeilM m ρ σ α) : Nonempty act.choices := by
-  unhygienic induction act <;> constructor
-  { exact (ExtractNonDet.pure _) }
-  { exact (ExtractNonDet.vis _ _ (fun a => f_ih a |>.some)) }
-  apply ExtractNonDet.pickSuchThat;  refine ⟨fun _ => .none, by simp⟩
-  exact fun t => f_ih t |>.some
+-- instance (act : VeilM m ρ σ α) : Nonempty act.choices := by
+--   unhygienic induction act <;> constructor
+--   { exact (ExtractNonDet.pure _) }
+--   { exact (ExtractNonDet.vis _ _ (fun a => f_ih a |>.some)) }
+--   apply ExtractNonDet.pickSuchThat;  refine ⟨fun _ => .none, by simp⟩
+--   exact fun t => f_ih t |>.some
 
-noncomputable instance (act : VeilM m ρ σ α) : Inhabited act.choices := by
-  exact Classical.inhabited_of_nonempty'
+-- noncomputable instance (act : VeilM m ρ σ α) : Inhabited act.choices := by
+--   exact Classical.inhabited_of_nonempty'
 
-open Classical in
-lemma VeilM.angel_fail_imp_assumptions (act : VeilM m ρ σ α) :
-  [AngelFail| wp act post r s] <= ∃ chs, (act.run chs).axiomatic r s post := by
-  unhygienic induction act generalizing r s <;> simp [-top_le_iff]
-  { intro; exists (ExtractNonDet.pure _); }
-  { open TotalCorrectness ExceptionAsFailure in
-    rw [ReaderT.wp_eq]; simp only [StateT.wp_eq, wp_tot_eq, DivM.wp_eq]
-    split; simp
-    rename_i bs heq
-    rcases bs with ⟨(_ | b), s'⟩ <;> simp; intro h
-    specialize f_ih _ h; rcases f_ih with ⟨ex, h⟩
-    exists (ExtractNonDet.vis _ _ (fun b' => if hb : b' = b then by rw [hb]; exact ex else default))
-    simp only [eq_mpr_eq_cast]
-    simp only [VeilExecM.axiomatic, run, NonDetT.runWeak, NonDetT.extractWeak, NonDetT.extractGen,
-      bind, ReaderT.bind, StateT.bind, ExceptT.bind, ExceptT.mk, monadLift_self, ExceptT.bindCont]
-    simp [*]; apply h }
-  simp [loomLogicSimp]; intros x px h
-  specialize f_ih _ h; rcases f_ih with ⟨ex, h⟩
-  exists (@ExtractNonDet.pickSuchThat _ _ _ _ _ _ ?_ ?_)
-  { refine ⟨fun _ => .some x, by simp [*]⟩ }
-  { exact fun b => if h : b = x then by rw [h]; exact ex else default }
-  simp only [VeilExecM.axiomatic, run, NonDetT.runWeak, NonDetT.extractWeak, NonDetT.extractGen,
-    ↓reduceDIte, eq_mpr_eq_cast, cast_eq]
-  apply h
+-- open Classical in
+-- lemma VeilM.angel_fail_imp_assumptions (act : VeilM m ρ σ α) :
+--   [AngelFail| wp act post r s] <= ∃ chs, (act.run chs).axiomatic r s post := by
+--   unhygienic induction act generalizing r s <;> simp [-top_le_iff]
+--   { intro; exists (ExtractNonDet.pure _); }
+--   { open TotalCorrectness ExceptionAsFailure in
+--     rw [ReaderT.wp_eq]; simp only [StateT.wp_eq, wp_tot_eq, DivM.wp_eq]
+--     split; simp
+--     rename_i bs heq
+--     rcases bs with ⟨(_ | b), s'⟩ <;> simp; intro h
+--     specialize f_ih _ h; rcases f_ih with ⟨ex, h⟩
+--     exists (ExtractNonDet.vis _ _ (fun b' => if hb : b' = b then by rw [hb]; exact ex else default))
+--     simp only [eq_mpr_eq_cast]
+--     simp only [VeilExecM.axiomatic, run, NonDetT.runWeak, NonDetT.extractWeak, NonDetT.extractGen,
+--       bind, ReaderT.bind, StateT.bind, ExceptT.bind, ExceptT.mk, monadLift_self, ExceptT.bindCont]
+--     simp [*]; apply h }
+--   simp [loomLogicSimp]; intros x px h
+--   specialize f_ih _ h; rcases f_ih with ⟨ex, h⟩
+--   exists (@ExtractNonDet.pickSuchThat _ _ _ _ _ _ ?_ ?_)
+--   { refine ⟨fun _ => .some x, by simp [*]⟩ }
+--   { exact fun b => if h : b = x then by rw [h]; exact ex else default }
+--   simp only [VeilExecM.axiomatic, run, NonDetT.runWeak, NonDetT.extractWeak, NonDetT.extractGen,
+--     ↓reduceDIte, eq_mpr_eq_cast, cast_eq]
+--   apply h
 
-lemma VeilM.toTransition_sound (act : VeilM m ρ σ α) :
-  act.toTransition r₀ s₀ s₁ ->
-  ∃ chs a, (act.run chs).operational r₀ s₀ s₁ (Except.ok a) := by
-  intro h; specialize h r₀ s₀
-  simp only [and_self, le_Prop_eq, forall_const] at h
-  have h := act.angel_fail_imp_assumptions h
-  rcases h with ⟨chs, h⟩;
-  simp [VeilExecM.axiomatic] at h
-  exists chs; revert h
-  simp only [VeilExecM.operational]
-  rcases act.run chs r₀ s₀ with ((⟨_|a, s⟩)|_) <;> simp only [IsEmpty.forall_iff]
-  rintro rfl; exists a
+-- lemma VeilM.toTransition_sound (act : VeilM m ρ σ α) :
+--   act.toTransition r₀ s₀ s₁ ->
+--   ∃ chs a, (act.run chs).operational r₀ s₀ s₁ (Except.ok a) := by
+--   intro h; specialize h r₀ s₀
+--   simp only [and_self, le_Prop_eq, forall_const] at h
+--   have h := act.angel_fail_imp_assumptions h
+--   rcases h with ⟨chs, h⟩;
+--   simp [VeilExecM.axiomatic] at h
+--   exists chs; revert h
+--   simp only [VeilExecM.operational]
+--   rcases act.run chs r₀ s₀ with ((⟨_|a, s⟩)|_) <;> simp only [IsEmpty.forall_iff]
+--   rintro rfl; exists a
 
-lemma VeilM.toTransition_complete (act : VeilM m ρ σ α) (chs : act.choices) :
-  (act.run chs).operational r₀ s₀ s₁ (Except.ok a) ->
-  act.toTransition r₀ s₀ s₁ := by
-  intro h
-  open AngelicChoice TotalCorrectness ExceptionAsFailure in
-  apply ExtractNonDet.extract_refines_triple (inst := chs)
-  intro r s; simp; rintro rfl rfl
-  revert h; simp only [VeilExecM.operational, run, NonDetT.runWeak, reduceCtorEq, false_and,
-    Except.ok.injEq, VeilExecM.wp_eq, true_and, DivM.wp_eq]
-  cases (NonDetT.extractWeak act chs r s) <;> simp [*]
-  split <;> aesop
+-- lemma VeilM.toTransition_complete (act : VeilM m ρ σ α) (chs : act.choices) :
+--   (act.run chs).operational r₀ s₀ s₁ (Except.ok a) ->
+--   act.toTransition r₀ s₀ s₁ := by
+--   intro h
+--   open AngelicChoice TotalCorrectness ExceptionAsFailure in
+--   apply ExtractNonDet.extract_refines_triple (inst := chs)
+--   intro r s; simp; rintro rfl rfl
+--   revert h; simp only [VeilExecM.operational, run, NonDetT.runWeak, reduceCtorEq, false_and,
+--     Except.ok.injEq, VeilExecM.wp_eq, true_and, DivM.wp_eq]
+--   cases (NonDetT.extractWeak act chs r s) <;> simp [*]
+--   split <;> aesop
 
 lemma VeilM.toTransitionDerived_sound (act : VeilM m ρ σ α) :
   act.toTransition = act.toTransitionDerived := by
     unfold VeilM.toTransition VeilM.toTransitionDerived VeilSpecM.toTransitionDerived
     simp [←VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, LE.le,]
 
-lemma VeilM.toTransitionDerived_complete (act : VeilM m ρ σ α) (chs : act.choices) :
-  (act.run chs).operational r₀ s₀ s₁ (Except.ok a) ->
-  act.toTransitionDerived r₀ s₀ s₁ := by
-  intro h
-  rw [← VeilM.toTransitionDerived_sound]
-  apply VeilM.toTransition_complete act chs h
+-- lemma VeilM.toTransitionDerived_complete (act : VeilM m ρ σ α) (chs : act.choices) :
+--   (act.run chs).operational r₀ s₀ s₁ (Except.ok a) ->
+--   act.toTransitionDerived r₀ s₀ s₁ := by
+--   intro h
+--   rw [← VeilM.toTransitionDerived_sound]
+--   apply VeilM.toTransition_complete act chs h
 
 lemma Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM m ρ σ α) (pre post : SProp ρ σ) :
   act.toTransition.meetsSpecificationIfSuccessful pre post = act.meetsSpecificationIfSuccessful pre (fun _ => post) := by

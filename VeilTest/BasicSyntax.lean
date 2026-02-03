@@ -1,5 +1,5 @@
 import Veil
-import Test.TestUtil
+import VeilTest.TestUtil
 
 
 veil module Test

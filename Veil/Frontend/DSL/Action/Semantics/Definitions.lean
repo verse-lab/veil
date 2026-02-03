@@ -1,4 +1,3 @@
-import Loom.MonadAlgebras.NonDetT'.Extract
 import Loom.MonadAlgebras.NonDetT'.ExtractList
 import Veil.Frontend.DSL.State.SubState
 
@@ -183,9 +182,9 @@ def VeilM.meetsSpecificationIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu 
 def VeilM.preservesInvariantsIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (inv : SProp ρ σ) : Prop :=
   VeilM.meetsSpecificationIfSuccessfulAssuming act assu inv inv
 
-abbrev VeilM.choices (act : VeilM m ρ σ α) := ExtractNonDet WeakFindable act
+-- abbrev VeilM.choices (act : VeilM m ρ σ α) := ExtractNonDet WeakFindable act
 
-noncomputable def VeilM.run (act : VeilM m ρ σ α) (chs : act.choices) : VeilExecM m ρ σ α := act.runWeak chs
+-- noncomputable def VeilM.run (act : VeilM m ρ σ α) (chs : act.choices) : VeilExecM m ρ σ α := act.runWeak chs
 
 end WeakestPreconditionsSemantics
 

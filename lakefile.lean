@@ -1,7 +1,7 @@
 import Lake
 open Lake DSL System
 
-require smt from git "https://github.com/zqy1018/lean-smt.git" @ "v4.27.0"
+require smt from git "https://github.com/zqy1018/lean-smt.git" @ "v4.27.0-for-veil"
 require Loom from git "https://github.com/verse-lab/loom.git" @ "temp-extract-list-v4.27.0-for-veil"
 
 package veil where
@@ -96,8 +96,8 @@ lean_lib «Veil» {
 }
 
 @[default_target, test_driver]
-lean_lib Test {
-  globs := #[Glob.submodules `Test]
+lean_lib VeilTest {
+  globs := #[Glob.submodules `VeilTest]
 }
 
 lean_lib Examples {
