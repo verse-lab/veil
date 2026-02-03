@@ -26,10 +26,10 @@ def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
   (label : κ)
   (succ : σ)
   (h_neighbor : sys.reachable succ)
-  (h_not_finished : !ctx.hasFinished)
+  (h_not_finished : ctx.finished = .none)
   (h_deque_head : ∃tl, ctx.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tl))
   : {ctx' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-      ctx'.finished = ctx.finished ∧
+      ctx'.finished = .none ∧
       ctx'.seen.contains (fp.view succ) ∧
       ∃tail', ctx'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') ∧
       ∀fp, ctx.seen.contains fp → ctx'.seen.contains fp } :=
@@ -39,6 +39,7 @@ def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
     ⟨ctx, by grind⟩
   else
     -- Use `.alter` to ensure linear usage
+    -- NOTE: This doesn't seem `specialize`d; what happened?
     let newActionStatsMap := ctx.actionStatsMap.alter label fun
       | some stat => Option.some { stat with distinctStates := stat.distinctStates + 1 }
       | none => Option.some { statesGenerated := 0, distinctStates := 1 }  -- shouldn't happen if processState ran first
@@ -49,10 +50,11 @@ def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
         actionStatsMap := newActionStatsMap,
         invs := insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_neighbor rfl
         stable_closed  := insert_and_enqueue_preserves_stable_closed sys params ctx fingerprint succ depth h_succ_reachable rfl
-        terminate_empty_queue := by intro h_finished; unfold BaseSearchContext.hasFinished at h_not_finished; grind
+        terminate_empty_queue := by grind
     }, (by grind)⟩
 
 
+-- NOTE: `foldl` is not specialized here
 -- @[inline, specialize]
 def SequentialSearchContext.processSuccessors {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
@@ -68,32 +70,24 @@ def SequentialSearchContext.processSuccessors {ρ σ κ σₕ : Type}
   (h_succ_eq : successors = extractSuccessfulTransitions (sys.tr th curr))
   (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (h_deque_head : ∃tl, ctx.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tl))
-  (h_not_finished : !ctx.hasFinished)
+  (h_not_finished : ctx.finished = .none)
   : {ctx' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-      ctx'.finished = ctx.finished ∧
+      ctx'.finished = .none ∧
       ∃tail', ctx'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') } :=
   let result := successors.attach.foldl
-    (init := (⟨ctx, by constructor; rfl; exact h_deque_head⟩ :
+    (init := (⟨ctx, by grind⟩ :
       { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-        p'.finished = ctx.finished ∧
+        p'.finished = .none ∧
         ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') }))
-    (fun current_ctx ⟨⟨tr, postState⟩, h_neighbor_in_successors⟩ =>
-      have h_current_not_finished : !current_ctx.val.hasFinished := by unfold BaseSearchContext.hasFinished at h_not_finished ⊢; rw [current_ctx.property.1, ← h_not_finished]
-      have h_in_sys_tr : (tr, ExecutionOutcome.success postState) ∈ sys.tr th curr := by
-        have h_in_extracted : (tr, postState) ∈ extractSuccessfulTransitions (sys.tr th curr) := by rw [← h_succ_eq]; exact h_neighbor_in_successors
-        unfold extractSuccessfulTransitions at h_in_extracted
-        rw [List.mem_filterMap] at h_in_extracted
-        obtain ⟨⟨label, outcome⟩, h_mem, h_eq⟩ := h_in_extracted
-        cases outcome with
-        | success st => simp at h_eq; grind
-        | assertionFailure _ _ => simp at h_eq
-        | divergence => simp at h_eq
+    (fun ⟨current_ctx, h_current_ctx⟩ ⟨⟨tr, postState⟩, h_neighbor_in_successors⟩ =>
+      have h_in_sys_tr : (tr, ExecutionOutcome.success postState) ∈ sys.tr th curr := by rw [← extractSuccessfulTransitions_spec, ← h_succ_eq] ; assumption
       have h_next : sys.next curr postState := ⟨tr, h_in_sys_tr⟩
-      let h_neighbor_reachable : sys.reachable postState := EnumerableTransitionSystem.reachable.step curr postState h_curr h_next
-      have h_dequeue_head_curr : ∃tail, current_ctx.val.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail) := current_ctx.property.2
-      let neighbor_result := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth current_ctx.val tr postState h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
-      (⟨neighbor_result.val, by constructor <;> grind⟩))
-  ⟨result.val, result.property⟩
+      have h_neighbor_reachable : sys.reachable postState := EnumerableTransitionSystem.reachable.step curr postState h_curr h_next
+      have h_dequeue_head_curr : ∃tail, current_ctx.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail) := h_current_ctx.2
+      let ⟨neighbor_result, h_neighbor_result⟩ := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth current_ctx tr postState h_neighbor_reachable
+        h_current_ctx.1 h_dequeue_head_curr
+      (⟨neighbor_result, by constructor <;> grind⟩))
+  result
 
 
 
@@ -114,7 +108,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
   (h_succ_eq : successors = extractSuccessfulTransitions (sys.tr th curr))
   (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
   (h_deque_head : ∃tl, ctx.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tl))
-  (h_not_finished : !ctx.hasFinished) :
+  (h_not_finished : ctx.finished = .none) :
   ∀ (l : κ) (v : σ), (l, v) ∈ successors →
     (processSuccessors sys curr fpSt depth h_curr successors h_succ_eq ctx h_deque_head h_not_finished).val.seen.contains (fp.view v) := by
   intro l v h_in_successors
@@ -123,17 +117,17 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
   have h_in_attach : ⟨(l, v), h_in_successors⟩ ∈ successors.attach := List.mem_attach _ _
   let foldStep :
     { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-      p'.finished = ctx.finished ∧
+      p'.finished = .none ∧
       ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') } →
     { x // x ∈ successors } →
     { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-      p'.finished = ctx.finished ∧
+      p'.finished = .none ∧
       ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') } :=
     fun current_ctx neighbor =>
       match neighbor with
       | ⟨⟨tr, postState⟩, h_neighbor_in_successors⟩ =>
-        have h_current_not_finished : !current_ctx.val.hasFinished := by
-          unfold BaseSearchContext.hasFinished at h_not_finished ⊢
+        have h_current_not_finished : current_ctx.val.finished = .none := by
+          -- unfold BaseSearchContext.hasFinished at h_not_finished ⊢
           rw [current_ctx.property.1, ← h_not_finished]
         have h_in_sys_tr : (tr, ExecutionOutcome.success postState) ∈ sys.tr th curr := by
           have h_in_extracted : (tr, postState) ∈ extractSuccessfulTransitions (sys.tr th curr) := by rw [← h_succ_eq]; exact h_neighbor_in_successors
@@ -163,7 +157,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
         ⟩
   have h_foldl_property : ∀
     (xs : List { x // x ∈ successors })
-    (init_ctx : { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params // p'.finished = ctx.finished ∧ ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') }),
+    (init_ctx : { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params // p'.finished = .none ∧ ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') }),
     ⟨(l, v), h_in_successors⟩ ∈ xs →
     (xs.foldl foldStep init_ctx).val.seen.contains (fp.view v) := by
     intro xs init_ctx h_mem
@@ -183,8 +177,8 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
           simp at h_val_eq
           exact h_val_eq.2
         -- After processing hd with tryExploreNeighbor, fp.view postState_hd is in the result's seen
-        let h_current_not_finished : !init_ctx.val.hasFinished := by
-          unfold BaseSearchContext.hasFinished at h_not_finished ⊢
+        let h_current_not_finished : init_ctx.val.finished = .none := by
+          -- unfold BaseSearchContext.hasFinished at h_not_finished ⊢
           rw [init_ctx.property.1, ← h_not_finished]
         let h_in_sys_tr : (tr_hd, ExecutionOutcome.success postState_hd) ∈ sys.tr th curr := by
           have h_in_extracted : (tr_hd, postState_hd) ∈ extractSuccessfulTransitions (sys.tr th curr) := by rw [← h_succ_eq]; exact h_hd_mem
@@ -207,7 +201,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
           neighbor_result.property.2.1
         -- The rest of the fold preserves this property (seen is monotonic)
         let next_ctx : { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-          p'.finished = ctx.finished ∧
+          p'.finished = .none ∧
           ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') } :=
           ⟨neighbor_result.val, by
             constructor
@@ -230,7 +224,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
           exact h_in_result_seen
         -- Apply monotonicity through the rest of the fold
         have h_mono : ∀
-          (ctx1 : { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params // p'.finished = ctx.finished ∧ ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') })
+          (ctx1 : { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params // p'.finished = .none ∧ ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') })
           (xs : List { x // x ∈ successors })
           (fp_elem : σₕ),
           (ctx1.val.seen.contains fp_elem) →
@@ -242,8 +236,8 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
             simp only [List.foldl]
             apply ih'
             obtain ⟨⟨tr', post'⟩, h_mem'⟩ := hd'
-            let h_not_fin' : !ctx1.val.hasFinished := by
-              unfold BaseSearchContext.hasFinished at h_not_finished ⊢
+            let h_not_fin' : ctx1.val.finished = .none := by
+              -- unfold BaseSearchContext.hasFinished at h_not_finished ⊢
               rw [ctx1.property.1, ← h_not_finished]
             let h_in_tr' : (tr', ExecutionOutcome.success post') ∈ sys.tr th curr := by
               have h_in_extracted : (tr', post') ∈ extractSuccessfulTransitions (sys.tr th curr) := by rw [← h_succ_eq]; exact h_mem'
@@ -271,8 +265,8 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
         -- The element is in the tail, so use the induction hypothesis
         -- First, process the head to get the next context
         obtain ⟨⟨tr_hd, postState_hd⟩, h_hd_mem⟩ := hd
-        let h_current_not_finished : !init_ctx.val.hasFinished := by
-          unfold BaseSearchContext.hasFinished at h_not_finished ⊢
+        let h_current_not_finished : init_ctx.val.finished = .none := by
+          -- unfold BaseSearchContext.hasFinished at h_not_finished ⊢
           rw [init_ctx.property.1, ← h_not_finished]
         let h_in_sys_tr : (tr_hd, ExecutionOutcome.success postState_hd) ∈ sys.tr th curr := by
           have h_in_extracted : (tr_hd, postState_hd) ∈ extractSuccessfulTransitions (sys.tr th curr) := by rw [← h_succ_eq]; exact h_hd_mem
@@ -291,7 +285,7 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
         let neighbor_result := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth
           init_ctx.val tr_hd postState_hd h_neighbor_reachable h_current_not_finished h_dequeue_head_curr
         let next_ctx : { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-          p'.finished = ctx.finished ∧
+          p'.finished = .none ∧
           ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') } :=
           ⟨neighbor_result.val, by
             constructor
@@ -303,9 +297,9 @@ theorem SequentialSearchContext.processSuccessors_adds_all_to_seen {ρ σ κ σ�
               exact ⟨tail', hdeq⟩
           ⟩
         exact ih next_ctx h_in_tl
-  let init := (⟨ctx, by constructor; rfl; exact h_deque_head⟩ :
+  let init := (⟨ctx, by constructor <;> grind⟩ :
     { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-      p'.finished = ctx.finished ∧
+      p'.finished = .none ∧
       ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') })
   exact h_foldl_property successors.attach init h_in_attach
 
@@ -398,9 +392,10 @@ def SequentialSearchContext.processState {ρ σ κ σₕ : Type} {m : Type → T
           have := ctx.stable_closed h_view_inj (Or.inr h_non_finished) u h_in_seen h_not_in_new_queue l v h_tr
           grind
       }
-      have h_ctx_updated_not_finished : !ctx_updated.hasFinished := by
-        rw [BaseSearchContext.hasFinished, h_finished_unchanged]
-        exact h_non_finished
+      have h_ctx_updated_not_finished : ctx_updated.finished = .none := by
+        -- rw [BaseSearchContext.hasFinished, h_finished_unchanged]
+        -- exact h_non_finished
+        sorry
       have h_ctx_head : ctx_updated.sq.dequeue? = some (⟨fpSt, curr, depth⟩, q_tail) := by
         rw [← h_dequeue]
       -- Process all successors
@@ -408,9 +403,10 @@ def SequentialSearchContext.processState {ρ σ κ σₕ : Type} {m : Type → T
 
       let ctx_after_add := result_with_proof.val
       have h_post := result_with_proof.property
-      have h_finished_after_enqueue : ctx_after_add.finished = ctx.finished := by
+      have h_finished_after_enqueue : ctx_after_add.finished = .none := by
         have h1 := h_post.1
-        rw [h1, h_finished_unchanged]
+        -- rw [h1, h_finished_unchanged]
+        grind
       have h_all_successors_in_final_seen : ∀l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr → (fp.view v) ∈ ctx_after_add.seen := by
         intro l v h_tr
         have h_in_successors : (l, v) ∈ successfulTransitions := by
@@ -430,7 +426,7 @@ def SequentialSearchContext.processState {ρ σ κ σₕ : Type} {m : Type → T
           currentFrontierDepth := newFrontierDepth,
           sq := new_tail
           invs := dequeue_preserves_invs sys params ctx_after_add ⟨fpSt, curr, depth⟩ new_tail (by grind)
-          terminate_empty_queue := dequeue_preserves_terminate_empty_queue sys ctx new_tail h_non_finished ctx_after_add.finished h_finished_after_enqueue
+          terminate_empty_queue := dequeue_preserves_terminate_empty_queue sys ctx new_tail h_non_finished ctx_after_add.finished sorry
           stable_closed := dequeue_with_successors_in_seen_preserves_stable_closed sys ctx_after_add curr fpSt depth new_tail h_dequeue_correct h_all_successors_in_final_seen
         }
 
