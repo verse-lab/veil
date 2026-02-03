@@ -10,7 +10,7 @@ import Veil.Core.Tools.Verifier.Server
 import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
-import Veil.Core.Tools.ModelChecker.Concrete.Checker
+import Veil.Core.Tools.ModelChecker.ConcreteNew.Checker
 import Veil.Frontend.DSL.Action.Extract
 import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing

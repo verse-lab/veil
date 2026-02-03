@@ -60,7 +60,7 @@ def toArray {α} (q : fQueue α) : Array α :=
 
 @[grind]
 def ofList {α} (xs : List α) : fQueue α :=
-  xs.foldl fQueue.enqueue fQueue.empty
+  ⟨xs, [], xs.length, rfl⟩
 
 -- ## Functional correctness of the functional queue
 
@@ -257,16 +257,7 @@ theorem enqueue_preserves_head {α : Type} (q : fQueue α) (x : α) (head : α)
 /-- If an element is in a list, it is in the queue constructed from that list -/
 theorem mem_ofList {α : Type} (L : List α) (x : α) (h : x ∈ L)
   : x ∈ fQueue.ofList L := by
-  unfold fQueue.ofList
-  have h_toList : (List.foldl fQueue.enqueue fQueue.empty L).toList = fQueue.empty.toList ++ L :=
-    fQueue.foldl_enqueue_toList L fQueue.empty
-  rw [fQueue.toList_empty] at h_toList
-  simp only [List.nil_append] at h_toList
-  rw [← h_toList] at h
-  unfold fQueue.toList at h
-  unfold Membership.mem instMembership
-  simp only [List.mem_append, List.mem_reverse] at h
-  exact h
+  unfold fQueue.ofList ; simp [Membership.mem] at * ; grind
 
 end fQueue
 
