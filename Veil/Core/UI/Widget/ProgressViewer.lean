@@ -9,7 +9,7 @@ import Lean.Elab.Command
 import ProofWidgets.Component.Basic
 import ProofWidgets.Component.HtmlDisplay
 import Veil.Core.UI.Widget.RefreshComponent
-import Veil.Core.Tools.ModelChecker.Concrete.Progress
+import Veil.Core.Tools.ModelChecker.ConcreteNew.Progress
 import Veil.Core.UI.Trace.TraceDisplay
 import ProofWidgets.Component.Recharts
 
