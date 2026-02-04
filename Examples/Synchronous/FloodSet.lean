@@ -107,7 +107,7 @@ action advanceRound {
       -- Get from alive nodes
       decide ((∃ m, alive m ∧ seen m V) ∨
       -- Get from some recently deceased nodes, too
-       (∃ d, deadToAliveDelivery d N ∧ crashedInThisRound d ∧ seen d V))
+              (∃ d, deadToAliveDelivery d N ∧ crashedInThisRound d ∧ seen d V))
 
   -- Reset crash-related bookkeeping for the next round
   crashedInThisRound N := false
@@ -134,6 +134,7 @@ action nodeDecide (n : node) {
 safety [agreement]
   ∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2
 
+-- [TODO] We need to refer to some node's initial state
 safety [validity]
   ∀ n v, decision n v → seen n v
 
@@ -213,6 +214,7 @@ invariant [crashed_same_when_count_eq_round]
 
 -- Small instance, one crash
 #model_check { node := Fin 3, value := Fin 2 } { t := 1 }
+
 
 -- Larger instance (slower but more thorough)
 -- #model_check { node := Fin 5, value := Fin 2 } { t := 3 }
