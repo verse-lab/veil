@@ -36,8 +36,8 @@ def recoverTrace {ρ σ κ σₕ : Type} {m : Type → Type}
   [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  {params : SearchParameters ρ σ}
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  -- (params : SearchParameters ρ σ)
+  (ctx : BaseSearchContext σ κ σₕ)
   (targetFingerprint : σₕ)
   (assertionFailureExId : Option Int := none)
   : m (Trace ρ σ κ) := do
@@ -51,7 +51,7 @@ def recoverTrace {ρ σ κ σₕ : Type} {m : Type → Type}
   for step in stepsFp do
     let outcomes := sys.tr th curSt
     -- Extract successful transitions for trace recovery
-    let successfulTransitions := extractSuccessfulTransitions outcomes
+    let (successfulTransitions, _) := partitionExecutionOutcome outcomes
     let (transitionLabel, nextSt) :=
       match successfulTransitions.find? (fun (_, s) => fp.view s == step.nextState) with
       | some (tr, s) => (tr, s)
@@ -84,8 +84,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
-  let ctx ← breadthFirstSearchSequential sys params progressInstanceId cancelToken
-  let ctx := ctx.toBaseSearchContext
+  let (ctx, _) ← breadthFirstSearchSequential params sys progressInstanceId cancelToken
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
