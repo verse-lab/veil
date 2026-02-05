@@ -53,7 +53,10 @@ structure ActionStatDisplay extends ActionStat where
 
 /-- Convert actionStatsMap to List ActionStat for progress reporting. -/
 def toActionStatsList [BEq κ] [Hashable κ] [Repr κ] (m : Std.HashMap κ ActionStat) : List ActionStatDisplay :=
-  m.toList.map fun (label, stat) => { name := repr label |>.pretty, statesGenerated := stat.statesGenerated, distinctStates := stat.distinctStates }
+  m.fold (init := []) fun acc label stat =>
+    { name := repr label |>.pretty,
+      statesGenerated := stat.statesGenerated,
+      distinctStates := stat.distinctStates } :: acc
 
 /-- A single point in the progress history time series for charting. -/
 structure ProgressHistoryPoint where

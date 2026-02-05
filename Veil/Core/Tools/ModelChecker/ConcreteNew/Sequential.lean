@@ -6,89 +6,184 @@ namespace Veil.ModelChecker.Concrete
 open Std
 open Veil fQueue
 
+abbrev SequentialSearchContext (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
+  BaseSearchContext σ κ σₕ × fQueue (QueueItem σₕ σ)
+
+variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]
+  (params : SearchParameters ρ σ) (th : ρ)
+
+-- Use `.alter` to ensure linear usage
+-- NOTE: This doesn't seem `specialize`d; what happened?
+@[inline]
+def updateActionStatsMap (distinct? : Bool) (label : κ) (amap : Std.HashMap κ ActionStat) : Std.HashMap κ ActionStat :=
+  if distinct? then
+    amap.alter label fun
+      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds + 1⟩
+      | none => Option.some { statesGenerated := 1, distinctStates := 1 }
+  else
+    amap.alter label fun
+      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds⟩
+      | none => Option.some { statesGenerated := 1, distinctStates := 0 }
 
 -- CHECK inline this later? seems a good target to inline
 /-- Process a single neighbor node during BFS traversal.
 If the neighbor has been seen, return the current context unchanged.
 Otherwise, add it to seen set and log, then enqueue it. -/
 -- @[inline, specialize]
-def SequentialSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  {params : SearchParameters ρ σ}
-  (curr : σ)          -- current state being processed
+def SequentialSearchContext.tryExploreNeighbor
   (fpSt : σₕ)         -- fingerprint of state we're coming from (pre-state), for logging
-  (depth : Nat)       -- depth of the current state (neighbor will be at depth + 1)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  -- (neighbor : κ × σ)  -- Only successful transitions are passed here
+  (nextDepth : Nat)       -- depth of the current state + 1
+  (sctx : SequentialSearchContext σ κ σₕ)
   (label : κ)
   (succ : σ)
-  (h_neighbor : sys.reachable succ)
-  (h_not_finished : ctx.finished = .none)
-  (h_deque_head : ∃tl, ctx.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tl))
-  : {ctx' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-      ctx'.finished = .none ∧
-      ctx'.seen.contains (fp.view succ) ∧
-      ∃tail', ctx'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') ∧
-      ∀fp, ctx.seen.contains fp → ctx'.seen.contains fp } :=
+  : SequentialSearchContext σ κ σₕ :=
+  let (ctx, sq) := sctx
   let fingerprint := fp.view succ
-  have h_succ_reachable : sys.reachable succ := h_neighbor
-  if h_has_seen : ctx.seen.contains fingerprint then
-    ⟨ctx, by grind⟩
+  if ctx.seen.contains fingerprint then
+    ({ ctx with actionStatsMap := updateActionStatsMap false label ctx.actionStatsMap }, sq)
   else
-    -- Use `.alter` to ensure linear usage
-    -- NOTE: This doesn't seem `specialize`d; what happened?
-    let newActionStatsMap := ctx.actionStatsMap.alter label fun
-      | some stat => Option.some { stat with distinctStates := stat.distinctStates + 1 }
-      | none => Option.some { statesGenerated := 0, distinctStates := 1 }  -- shouldn't happen if processState ran first
-    ⟨{ ctx with
-        seen := ctx.seen.insert fingerprint,
-        sq   := ctx.sq.enqueue ⟨fingerprint, succ, depth + 1⟩,
-        log  := ctx.log.insert fingerprint (fpSt, label),
-        actionStatsMap := newActionStatsMap,
-        invs := insert_and_enqueue_preserves_invs sys params ctx fingerprint succ depth h_neighbor rfl
-        stable_closed  := insert_and_enqueue_preserves_stable_closed sys params ctx fingerprint succ depth h_succ_reachable rfl
-        terminate_empty_queue := by grind
-    }, (by grind)⟩
+    ({ ctx with
+      seen := ctx.seen.insert fingerprint,
+      log  := ctx.log.insert fingerprint (fpSt, label),
+      actionStatsMap := updateActionStatsMap true label ctx.actionStatsMap,
+    }, sq.enqueue ⟨fingerprint, succ, nextDepth⟩)
 
-
--- NOTE: `foldl` is not specialized here
+-- CHECK inline this later? seems a good target to inline
+-- NOTE: `foldl` is not specialized here; why?
 -- @[inline, specialize]
-def SequentialSearchContext.processSuccessors {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  {params : SearchParameters ρ σ}
-  (curr : σ)      -- current state being processed
+def SequentialSearchContext.processSuccessors
   (fpSt : σₕ)     -- fingerprint of curr
   (depth : Nat)   -- depth of curr
-  (h_curr : sys.reachable curr)
   (successors : List (κ × σ))
-  (h_succ_eq : successors = extractSuccessfulTransitions (sys.tr th curr))
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (h_deque_head : ∃tl, ctx.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tl))
-  (h_not_finished : ctx.finished = .none)
-  : {ctx' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-      ctx'.finished = .none ∧
-      ∃tail', ctx'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') } :=
-  let result := successors.attach.foldl
-    (init := (⟨ctx, by grind⟩ :
-      { p' : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params //
-        p'.finished = .none ∧
-        ∃tail', p'.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail') }))
-    (fun ⟨current_ctx, h_current_ctx⟩ ⟨⟨tr, postState⟩, h_neighbor_in_successors⟩ =>
-      have h_in_sys_tr : (tr, ExecutionOutcome.success postState) ∈ sys.tr th curr := by rw [← extractSuccessfulTransitions_spec, ← h_succ_eq] ; assumption
-      have h_next : sys.next curr postState := ⟨tr, h_in_sys_tr⟩
-      have h_neighbor_reachable : sys.reachable postState := EnumerableTransitionSystem.reachable.step curr postState h_curr h_next
-      have h_dequeue_head_curr : ∃tail, current_ctx.sq.dequeue? = some (⟨fpSt, curr, depth⟩, tail) := h_current_ctx.2
-      let ⟨neighbor_result, h_neighbor_result⟩ := SequentialSearchContext.tryExploreNeighbor sys curr fpSt depth current_ctx tr postState h_neighbor_reachable
-        h_current_ctx.1 h_dequeue_head_curr
-      (⟨neighbor_result, by constructor <;> grind⟩))
-  result
+  (sctx : SequentialSearchContext σ κ σₕ) : SequentialSearchContext σ κ σₕ :=
+  let nextDepth := depth + 1
+  successors.foldl (init := sctx) fun current_sctx (tr, postState) =>
+    SequentialSearchContext.tryExploreNeighbor fpSt nextDepth current_sctx tr postState
 
+def SequentialSearchContext.processState
+  (fpSt : σₕ)
+  (depth : Nat)  -- depth of the current state
+  (curr : σ)
+  (outcomes : List (κ × ExecutionOutcome ℤ σ))
+  (sctx : SequentialSearchContext σ κ σₕ)
+  -- Depth tracking information computed by caller
+  (newCompletedDepth : Nat)
+  (newFrontierDepth : Nat) :
+  SequentialSearchContext σ κ σₕ :=
+  let (ctx, sq) := sctx
+  let (ctx', outcomesOpt) := ctx.processState params th fpSt curr outcomes
+  match outcomesOpt with
+  | none =>
+    -- Early termination case: processState returned none, meaning we're terminating early
+    -- CHECK What does this update mean?
+    ({ ctx' with
+      completedDepth := newCompletedDepth,
+      currentFrontierDepth := newFrontierDepth
+    }, sq)
+  | some successfulTransitions =>
+    -- CHECK Is it useful/possible to remove the call to `successfulTransitions.length`?
+    let newStatesFound := ctx.statesFound + successfulTransitions.length
+    let ctx'' := { ctx with
+      completedDepth := newCompletedDepth,
+      currentFrontierDepth := newFrontierDepth
+      statesFound := newStatesFound
+    }
+    SequentialSearchContext.processSuccessors fpSt depth successfulTransitions (ctx'', sq)
+
+set_option trace.compiler.ir.result true in
+/-- Perform one step of BFS. -/
+-- @[inline, specialize]
+def SequentialSearchContext.bfsStep
+  (outcomesComputer : ρ → σ → List (κ × ExecutionOutcome ℤ σ))
+  (sctx : SequentialSearchContext σ κ σₕ) : SequentialSearchContext σ κ σₕ :=
+  let (ctx, sq) := sctx
+  match sq.dequeue? with
+  | none =>
+    -- Queue is empty: finished searching
+    ({ ctx with finished := some (.exploredAllReachableStates) }, sq)
+  | some (⟨fpSt, curr, depth⟩, q_tail) =>
+    -- Update completed depth when we move to a new frontier level
+    let (newCompletedDepth, newFrontierDepth) :=
+      if depth > ctx.currentFrontierDepth then
+        (depth - 1, depth)  -- All states at previous depth are now fully explored
+      else
+        (ctx.completedDepth, ctx.currentFrontierDepth)
+    -- Process curr: add successors to seen, enqueue them, and dequeue curr
+    -- processState handles the complete lifecycle of processing a state
+    SequentialSearchContext.processState params th fpSt depth curr (outcomesComputer th curr)
+      (ctx, q_tail) newCompletedDepth newFrontierDepth
+
+@[inline]
+def updateProgressDuringBFS [Monad m]
+  [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
+  (progressInstanceId : Nat)
+  (ctx : BaseSearchContext σ κ σₕ)
+  (sq : fQueue (QueueItem σₕ σ)) : m Unit := do
+  updateProgress progressInstanceId
+    ctx.currentFrontierDepth ctx.statesFound ctx.seen.size sq.size
+    (toActionStatsList ctx.actionStatsMap)
+
+inductive SequentialSearchPeriodicProgressUpdate where
+  | searchCancelled
+  | noUpdate
+  | updateTime (newtime : Nat)
+
+set_option trace.compiler.ir.result true in
+-- @[specialize]
+omit th in
+def breadthFirstSearchSequential {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (progressInstanceId : Nat)
+  (cancelToken : IO.CancelToken) :
+  m (SequentialSearchContext σ κ σₕ) := do
+  let mut sctx : SequentialSearchContext σ κ σₕ := (BaseSearchContext.initial sys.initStates, fQueue.ofList (sys.initStates.map (fun s => ⟨fp.view s, s, 0⟩)))
+  let mut lastUpdateTime : Nat := 0
+  while h_not_finished : !sctx.1.hasFinished do
+    let oldFrontierDepth := sctx.1.currentFrontierDepth
+    let (ctx', sq') := sctx.bfsStep params th sys.tr
+    -- If we found a violation, mark it so handoff is prevented
+    trySetViolationFound ctx'
+    tryUpdateProgressWithNewFrontierDepth oldFrontierDepth ctx' sq'
+    let (ctx'', newtime?) ← checkCancellation lastUpdateTime cancelToken ctx' sq'
+    sctx := (ctx'', sq')
+    match newtime? with
+    | .updateTime t => lastUpdateTime := t
+    | .searchCancelled => break
+    | .noUpdate => pure ()
+  -- Final update to ensure stats reflect finished state
+  updateProgressDuringBFS progressInstanceId sctx.1 sctx.2
+  return sctx
+where
+ -- NOTE: Any attempt to inline these functions might lead to
+ -- **significant** performance degradation, due to certain reason
+ trySetViolationFound (ctx : BaseSearchContext σ κ σₕ) : m Unit := do
+  if let some (.earlyTermination cond) := ctx.finished then
+    if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
+ tryUpdateProgressWithNewFrontierDepth
+  (oldFrontierDepth : Nat)
+  (ctx : BaseSearchContext σ κ σₕ)
+  (sq : fQueue (QueueItem σₕ σ)) : m Unit := do
+  if ctx.currentFrontierDepth > oldFrontierDepth then
+    updateProgressDuringBFS progressInstanceId ctx sq
+ checkCancellation
+  (lastUpdateTime : Nat)
+  (cancelToken : IO.CancelToken)
+  (ctx : BaseSearchContext σ κ σₕ)
+  (sq : fQueue (QueueItem σₕ σ)) : m (BaseSearchContext σ κ σₕ × SequentialSearchPeriodicProgressUpdate) := do
+  let now ← IO.monoMsNow
+  if now - lastUpdateTime ≥ 1000 then
+    if ← shouldStop cancelToken progressInstanceId then
+      let ctx' := { ctx with finished := some (.earlyTermination .cancelled) }
+      return (ctx', .searchCancelled)
+    else
+      updateProgressDuringBFS progressInstanceId ctx sq
+      return (ctx, .updateTime now)
+  else
+    return (ctx, .noUpdate)
+
+#exit
 
 
 /- Theorem: processSuccessors adds all successors to the seen set.

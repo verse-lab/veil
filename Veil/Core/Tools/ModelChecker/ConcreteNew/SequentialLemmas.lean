@@ -2,6 +2,7 @@ import Veil.Core.Tools.ModelChecker.ConcreteNew.SearchContext
 
 namespace Veil.ModelChecker.Concrete
 
+#exit
 
 -- structure SequentialSearchContext {ρ σ κ σₕ : Type}
 --   [fp : StateFingerprint σ σₕ]
