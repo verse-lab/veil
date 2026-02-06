@@ -266,6 +266,22 @@ theorem mem_ofList {α : Type} (L : List α) (x : α) :
   x ∈ L ↔ x ∈ fQueue.ofList L := by
   unfold fQueue.ofList ; simp [fQueue.instMembership] at *
 
+theorem mem_toList {α : Type} (L : fQueue α) (x : α) :
+  x ∈ L ↔ x ∈ fQueue.toList L := by
+  unfold fQueue.toList ; simp [fQueue.instMembership] at *
+
+@[grind =]
+theorem mem_enqueue_iff {α : Type} (q : fQueue α) (x y : α) :
+  x ∈ q.enqueue y ↔ x ∈ q ∨ x = y := by
+  rw [mem_toList, mem_toList, toList_enqueue] ; simp
+
+@[grind .]
+theorem mem_dequeue_iff {α : Type} (q q' : fQueue α) (x y : α)
+  (h : q.dequeue? = some (y, q')) :
+  x ∈ q ↔ x ∈ q' ∨ x = y := by
+  have tmp := dequeue?_spec q ; simp [h] at tmp
+  rw [mem_toList, mem_toList, tmp] ; grind
+
 end fQueue
 
 
