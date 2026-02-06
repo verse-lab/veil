@@ -2,112 +2,38 @@ import Veil.Core.Tools.ModelChecker.ConcreteNew.SearchContext
 
 namespace Veil.ModelChecker.Concrete
 
-#exit
-
--- structure SequentialSearchContext {ρ σ κ σₕ : Type}
---   [fp : StateFingerprint σ σₕ]
---   [instBEq : BEq κ] [instHash : Hashable κ]
---   {th : ρ}
---   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
---   (params : SearchParameters ρ σ)
--- extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
--- where
---   /- Queue storing (fingerprint, state, depth) tuples for BFS traversal -/
---   sq    : fQueue (QueueItem σₕ σ)
---   /- Inner invariants that hold at all times -/
---   invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem sq) (Membership.mem seen)
---   /-- Outer invariant relating finished and pcState - only holds at bfsStep boundaries -/
---   terminate_empty_queue : finished = some (.exploredAllReachableStates) → sq.isEmpty
---   stable_closed :  Function.Injective fp.view →
---     (finished = some (.exploredAllReachableStates) ∨ finished = none)
---       → ∀ u : σ, (fp.view u) ∈ seen → (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sq) →
---       ∀l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u → (fp.view v) ∈ seen
-
-
-theorem SequentialSearchContext.bfs_completeness {ρ σ κ σₕ : Type}
+variable {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (h_starts : ∀ s, s ∈ sys.initStates → (fp.view s) ∈ ctx.seen)
-  (h_explore_all : ctx.finished = some (.exploredAllReachableStates))
+
+def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ :=
+  (BaseSearchContext.initial sys.initStates, fQueue.ofList (sys.initStates.map (fun s => ⟨fp.view s, s, 0⟩)))
+
+theorem SequentialSearchContextInvariants.initial :
+  SequentialSearchContextInvariants sys params (SequentialSearchContext.initial (fp := fp) sys) := by
+  constructor ; on_goal 1=> constructor
+  all_goals simp [SequentialSearchContext.initial, BaseSearchContext.initial, ← fQueue.mem_ofList] ; (try solve | intros ; grind)
+  · intro hinj s s' hinit h ; have := hinj h ; grind
+  · intro hinj s s' hinit h ; have := hinj h ; grind
+
+theorem SequentialSearchContext.bfs_completeness
+  {sctx : SequentialSearchContext σ κ σₕ}
+  (sctx_invs : SequentialSearchContextInvariants sys params sctx)
+  (h_explore_all : sctx.1.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.Injective fp.view) :
-  ∀ s : σ, sys.reachable s → (fp.view s) ∈ ctx.seen := by
+  ∀ s : σ, sys.reachable s → (fp.view s) ∈ sctx.1.seen := by
+  rcases sctx with ⟨ctx, sq⟩ ; rcases sctx_invs with ⟨⟨h1, h2⟩, h3, h4, h5⟩ ; dsimp only at *
   intro s h_reachable
   induction h_reachable with
-  | init s h_s_in_initStates =>
-    exact h_starts s h_s_in_initStates
+  | init s h_s_in_initStates => grind   -- using the initial seen set
   | step u v h_u_reach h_transition ih =>
-    obtain ⟨l, h_tr⟩ := h_transition
-    have h_u_in_seen : fp.view u ∈ ctx.seen := ih
-    have h_queue_empty : ctx.sq.isEmpty := ctx.terminate_empty_queue h_explore_all
-    have h_u_not_in_queue : ∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ ctx.sq := by
-      intro d h_in
-      have h_dequeue_none := fQueue.dequeue?_none_of_isEmpty ctx.sq h_queue_empty
-      have h_spec := fQueue.dequeue?_spec ctx.sq
-      rw [h_dequeue_none] at h_spec
-      unfold Membership.mem fQueue.instMembership at h_in
-      simp only [fQueue.toList] at h_in h_spec
-      grind
-    have h_finished_cond : ctx.finished = some (.exploredAllReachableStates) ∨ ctx.finished = none := by
-      left; exact h_explore_all
-    exact ctx.stable_closed h_view_inj h_finished_cond u h_u_in_seen h_u_not_in_queue l v h_tr
+    -- The key is to apply `stable_closed`, but `grind` is too powerful
+    simp [fQueue.not_mem_iff_isEmpty] at h4 ; grind
 
-
-def SequentialSearchContext.initial {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) :
-  @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params := {
-    BaseSearchContext.initial sys params with
-    sq := fQueue.ofList (sys.initStates |> Functor.map (fun s => ⟨fp.view s, s, 0⟩)),
-    invs := by
-      constructor
-      · -- queue_sound: all states in queue are reachable
-        dsimp only [Functor.map]
-        intro x d h_in_queue
-        simp [fQueue.ofList, fQueue.instMembership] at h_in_queue ; grind
-      · -- visited_sound: all seen states are reachable
-        intro h_view_inj x h_in_seen
-        simp only [BaseSearchContext.initial] at h_in_seen
-        have h_in_list : fp.view x ∈ sys.initStates.map fp.view := by
-          exact Std.HashSet.mem_list_of_mem_insertMany h_in_seen
-        simp only [List.mem_map] at h_in_list
-        obtain ⟨s, h_s_in, h_eq_view⟩ := h_in_list
-        have h_eq_st : s = x := h_view_inj h_eq_view
-        rw [← h_eq_st]
-        exact EnumerableTransitionSystem.reachable.init s h_s_in
-      · -- queue_sub_visited: queue elements are in seen set
-        intro x d h_in_queue
-        dsimp only [Functor.map]
-        simp [BaseSearchContext.initial]
-        simp [fQueue.ofList, fQueue.instMembership] at h_in_queue ; grind
-      · -- queue_wellformed: fingerprints match states
-        dsimp only [Functor.map]
-        intro fp' st d h_in_queue
-        simp [fQueue.ofList, fQueue.instMembership] at h_in_queue ; grind
-    terminate_empty_queue := by
-      intro h_finished;
-      contradiction
-    stable_closed := by
-      intro h_view_inj h_finished u h_in_seen h_not_in_queue l v h_tr
-      unfold BaseSearchContext.initial at h_in_seen
-      have h_in_list := Std.HashSet.mem_list_of_mem_insertMany h_in_seen
-      simp only [Functor.map, List.mem_map] at h_in_list
-      obtain ⟨s, h_s_in_init, h_view_eq⟩ := h_in_list
-      have h_eq : s = u := h_view_inj h_view_eq
-      subst h_eq
-      exfalso
-      apply h_not_in_queue 0
-      apply fQueue.mem_ofList
-      simp only [Functor.map, List.mem_map]
-      exact ⟨s, h_s_in_init, rfl⟩
-  }
-
+#exit
 
 -- High-level theorem: enqueue operation preserves invariants when fingerprint is in seen
 theorem SequentialSearchContext.enqueue_preserves_invs {ρ σ κ σₕ : Type}
@@ -116,7 +42,7 @@ theorem SequentialSearchContext.enqueue_preserves_invs {ρ σ κ σₕ : Type}
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : SequentialSearchContext σ κ σₕ)
   (fingerprint : σₕ)
   (succ : σ)
   (depth : Nat)
@@ -224,7 +150,7 @@ theorem SequentialSearchContext.insert_seen_preserves_invs {ρ σ κ σₕ : Typ
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : SequentialSearchContext σ κ σₕ)
   (fingerprint : σₕ)
   (succ : σ)
   (h_neighbor : sys.reachable succ)
@@ -266,7 +192,7 @@ theorem SequentialSearchContext.dequeue_preserves_invs {ρ σ κ σₕ : Type}
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : SequentialSearchContext σ κ σₕ)
   (item : QueueItem σₕ σ)
   (q_tail : fQueue (QueueItem σₕ σ))
   (h_dequeue : ctx.sq.dequeue? = some (item, q_tail)) :
@@ -343,7 +269,7 @@ theorem SequentialSearchContext.insert_and_enqueue_preserves_invs {ρ σ κ σ�
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : SequentialSearchContext σ κ σₕ)
   (fingerprint : σₕ)
   (succ : σ)
   (depth : Nat)
@@ -470,7 +396,7 @@ theorem SequentialSearchContext.insert_and_enqueue_preserves_stable_closed {ρ �
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : SequentialSearchContext σ κ σₕ)
   (fingerprint : σₕ)
   (succ : σ)
   (depth : Nat)
@@ -532,7 +458,7 @@ theorem SequentialSearchContext.update_base_after_processState_preserves_invs {�
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : SequentialSearchContext σ κ σₕ)
   (fpSt : σₕ)
   (curr : σ)
   (baseCtx' : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
@@ -566,7 +492,7 @@ theorem SequentialSearchContext.dequeue_preserves_terminate_empty_queue {ρ σ �
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : SequentialSearchContext σ κ σₕ)
   (new_sq : fQueue (QueueItem σₕ σ))
   (h_non_finished : !ctx.hasFinished)
   (new_finished : Option (TerminationReason σₕ))
@@ -591,7 +517,7 @@ theorem SequentialSearchContext.dequeue_with_successors_in_seen_preserves_stable
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   {params : SearchParameters ρ σ}
-  (ctx : @SequentialSearchContext ρ σ κ σₕ fp _ _ th sys params)
+  (ctx : SequentialSearchContext σ κ σₕ)
   (curr : σ)
   (fpCurr : σₕ)
   (depth : Nat)

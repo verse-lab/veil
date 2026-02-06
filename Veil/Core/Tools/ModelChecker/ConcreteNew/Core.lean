@@ -61,6 +61,8 @@ structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  -- NOTE: Although `params` is not used in the invariants below yet,
+  -- we should better keep it here for future extensions.
   (params : SearchParameters ρ σ)
   (inQueue : QueueItem σₕ σ → Prop)
   (seen : σₕ → Prop) : Prop
