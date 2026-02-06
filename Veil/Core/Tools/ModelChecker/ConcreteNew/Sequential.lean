@@ -6,9 +6,6 @@ namespace Veil.ModelChecker.Concrete
 open Std
 open Veil fQueue
 
-abbrev SequentialSearchContext (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
-  BaseSearchContext σ κ σₕ × fQueue (QueueItem σₕ σ)
-
 variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]
   (params : SearchParameters ρ σ) (th : ρ)
 
@@ -90,7 +87,6 @@ def SequentialSearchContext.processState
     }
     SequentialSearchContext.processSuccessors fpSt depth successfulTransitions (ctx'', sq)
 
-set_option trace.compiler.ir.result true in
 /-- Perform one step of BFS. -/
 -- @[inline, specialize]
 def SequentialSearchContext.bfsStep
@@ -128,7 +124,6 @@ inductive SequentialSearchPeriodicProgressUpdate where
   | noUpdate
   | updateTime (newtime : Nat)
 
-set_option trace.compiler.ir.result true in
 -- @[specialize]
 omit th in
 def breadthFirstSearchSequential {m : Type → Type}
@@ -138,22 +133,25 @@ def breadthFirstSearchSequential {m : Type → Type}
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :
   m (SequentialSearchContext σ κ σₕ) := do
-  let mut sctx : SequentialSearchContext σ κ σₕ := (BaseSearchContext.initial sys.initStates, fQueue.ofList (sys.initStates.map (fun s => ⟨fp.view s, s, 0⟩)))
+  let mut sctx : Subtype (SequentialSearchContextInvariants sys params) :=
+    Subtype.mk (SequentialSearchContext.initial sys) (SequentialSearchContextInvariants.initial sys params)
   let mut lastUpdateTime : Nat := 0
-  while h_not_finished : !sctx.1.hasFinished do
-    let oldFrontierDepth := sctx.1.currentFrontierDepth
-    let (ctx', sq') := sctx.bfsStep params th sys.tr
+  while h_not_finished : !sctx.val.1.hasFinished do
+    let ⟨sctx_val, h_sctx⟩ := sctx
+    let oldFrontierDepth := sctx_val.1.currentFrontierDepth
+    let (ctx', sq') := sctx_val.bfsStep params th sys.tr
     -- If we found a violation, mark it so handoff is prevented
     trySetViolationFound ctx'
     tryUpdateProgressWithNewFrontierDepth oldFrontierDepth ctx' sq'
     let (ctx'', newtime?) ← checkCancellation lastUpdateTime cancelToken ctx' sq'
-    sctx := (ctx'', sq')
+    sctx := Subtype.mk (ctx'', sq') sorry
     match newtime? with
     | .updateTime t => lastUpdateTime := t
     | .searchCancelled => break
     | .noUpdate => pure ()
   -- Final update to ensure stats reflect finished state
-  updateProgressDuringBFS progressInstanceId sctx.1 sctx.2
+  let ⟨sctx_val, h_sctx⟩ := sctx
+  updateProgressDuringBFS progressInstanceId sctx_val.1 sctx_val.2
   return sctx
 where
  -- NOTE: Any attempt to inline these functions might lead to

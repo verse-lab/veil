@@ -199,6 +199,13 @@ theorem isEmpty_iff_empty_lists {α : Type} (q : fQueue α) :
   simp only [Bool.and_eq_true]
   grind
 
+/-- isEmpty returns true iff both front and back are empty -/
+@[grind =]
+theorem not_mem_iff_isEmpty {α : Type} (q : fQueue α) :
+    q.isEmpty = true ↔ ∀ a : α, a ∉ q := by
+  simp [isEmpty_iff_empty_lists, fQueue.instMembership, List.eq_nil_iff_forall_not_mem]
+  grind
+
 /-- If isEmpty is true, then dequeue? returns none -/
 @[grind =]
 theorem dequeue?_none_of_isEmpty {α : Type} (q : fQueue α)
@@ -255,9 +262,9 @@ theorem enqueue_preserves_head {α : Type} (q : fQueue α) (x : α) (head : α)
 
 
 /-- If an element is in a list, it is in the queue constructed from that list -/
-theorem mem_ofList {α : Type} (L : List α) (x : α) (h : x ∈ L)
-  : x ∈ fQueue.ofList L := by
-  unfold fQueue.ofList ; simp [Membership.mem] at * ; grind
+theorem mem_ofList {α : Type} (L : List α) (x : α) :
+  x ∈ L ↔ x ∈ fQueue.ofList L := by
+  unfold fQueue.ofList ; simp [fQueue.instMembership] at *
 
 end fQueue
 
