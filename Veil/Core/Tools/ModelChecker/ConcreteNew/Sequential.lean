@@ -234,27 +234,35 @@ def breadthFirstSearchSequential {m : Type → Type}
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :
   m (SequentialSearchContext σ κ σₕ) := do
-  let mut sctx : LawfulSequentialSearchContext sys params :=
+  let mut sctx : LawfulSequentialSearchContext (fp := fp) sys params :=
     Subtype.mk (SequentialSearchContext.initial sys) (SequentialSearchContextInvariants.initial sys params)
   let mut lastUpdateTime : Nat := 0
+  let mut cancelled := false
   while h_not_finished : sctx.val.1.hasFinished = false do
     let ⟨sctx_val, h_sctx⟩ := sctx
     let oldFrontierDepth := sctx_val.1.currentFrontierDepth
-    let (ctx', sq') := sctx_val.bfsStep params th sys.tr
-    let h_sctx' := SequentialSearchContext.bfsStep_preserves_invs params th h_not_finished h_sctx
-    -- If we found a violation, mark it so handoff is prevented
-    trySetViolationFound ctx'
-    tryUpdateProgressWithNewFrontierDepth oldFrontierDepth ctx' sq'
-    let (ctx'', newtime?) ← checkCancellation lastUpdateTime cancelToken ctx' sq'
-    sctx := Subtype.mk (ctx'', sq') sorry
-    match newtime? with
-    | .updateTime t => lastUpdateTime := t
-    | .searchCancelled => break
-    | .noUpdate => pure ()
-  -- Final update to ensure stats reflect finished state
-  let ⟨sctx_val, h_sctx⟩ := sctx
-  updateProgressDuringBFS progressInstanceId sctx_val.1 sctx_val.2
-  return sctx
+    let sctx' := sctx_val.bfsStep params th sys.tr
+    let h_sctx' : SequentialSearchContextInvariants sys params .none sctx' :=
+      SequentialSearchContext.bfsStep_preserves_invs params th h_not_finished h_sctx
+    match heq : sctx' with
+    | ⟨ctx', sq'⟩ =>
+      -- If we found a violation, mark it so handoff is prevented
+      trySetViolationFound ctx'
+      tryUpdateProgressWithNewFrontierDepth oldFrontierDepth ctx' sq'
+      let newtime? ← checkCancellation lastUpdateTime cancelToken ctx' sq'
+      sctx := Subtype.mk (ctx', sq') (heq.symm ▸ h_sctx')
+      match newtime? with
+      | .updateTime t => lastUpdateTime := t
+      | .searchCancelled => cancelled := true ; break
+      | .noUpdate => pure ()
+  let ⟨sctx_val, _⟩ := sctx
+  let (ctx, sq) := sctx_val
+  updateProgressDuringBFS progressInstanceId ctx sq
+  if cancelled then
+    let ctx' := { ctx with finished := some (.earlyTermination .cancelled) }
+    return (ctx', sq)
+  else
+    return (ctx, sq)
 where
  -- NOTE: Any attempt to inline these functions might lead to
  -- **significant** performance degradation, due to certain reason
@@ -271,16 +279,15 @@ where
   (lastUpdateTime : Nat)
   (cancelToken : IO.CancelToken)
   (ctx : BaseSearchContext σ κ σₕ)
-  (sq : fQueue (QueueItem σₕ σ)) : m (BaseSearchContext σ κ σₕ × SequentialSearchPeriodicProgressUpdate) := do
+  (sq : fQueue (QueueItem σₕ σ)) : m SequentialSearchPeriodicProgressUpdate := do
   let now ← IO.monoMsNow
   if now - lastUpdateTime ≥ 1000 then
     if ← shouldStop cancelToken progressInstanceId then
-      let ctx' := { ctx with finished := some (.earlyTermination .cancelled) }
-      return (ctx', .searchCancelled)
+      return .searchCancelled
     else
       updateProgressDuringBFS progressInstanceId ctx sq
-      return (ctx, .updateTime now)
+      return .updateTime now
   else
-    return (ctx, .noUpdate)
+    return .noUpdate
 
 end Veil.ModelChecker.Concrete
