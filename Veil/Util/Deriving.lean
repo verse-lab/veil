@@ -318,6 +318,22 @@ def mkToJsonInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info i
     $(mkIdent ``ToJson) $(header.targetType) where
     $(mkIdent `toJson):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $toJsonBody)
 
+def mkReprInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+  let fieldNames := info.fieldNames
+  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Repr indVal header.argNames fieldNames
+  let s ← mkIdent <$> mkFreshUserName `s
+  let n ← mkIdent <$> mkFreshUserName `n
+  let embeddedStringStx (x : String) : TSyntax `str :=
+    { raw := Lean.Syntax.node Lean.SourceInfo.none `str #[Lean.Syntax.atom Lean.SourceInfo.none ("\"" ++ x ++ " := \"")] }
+  let fieldReprs ← fieldNames.zipWithM (bs := localInsts) fun field inst => do
+    `(term| $(mkIdent ``Std.Format.append) $(embeddedStringStx <| toString field)
+      ($(mkIdent inst).$(mkIdent `reprPrec) ($s.$(mkIdent field)) $n))
+  let fieldsFormat ← if fieldReprs.isEmpty then `(term| "") else `(term| $(mkIdent ``Std.Format.joinSep) [$fieldReprs,*] ", ")
+  `(command|
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+    $(mkIdent ``Repr) $(header.targetType) where
+    $(mkIdent `reprPrec):ident $s:ident $n:ident := $(mkIdent ``Std.Format.bracket) "{ " $fieldsFormat " }")
+
 end
 
 syntax "veil_deriving " ident "for" ident ("with_name" ident)? ("with_priority" prio)? : command
@@ -332,6 +348,7 @@ elab_rules : command
   | ``Hashable    => mkHashableInstCmd declName target? priority?
   | ``Inhabited   => mkInhabitedInstCmd declName target? priority?
   | ``ToJson      => mkToJsonInstCmd declName target? priority?
+  | ``Repr        => mkReprInstCmd declName target? priority?
   | _             => throwError "Unsupported class {className}"
 
 end ForStructure

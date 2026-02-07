@@ -171,7 +171,7 @@ private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m
   let defCmds ← structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.mutableComponents.mapM fun sc => sc.getSimpleBinder)
   let isHOInst ← mkIsHigherOrderInstance
-  return defCmds ++ #[← `(command| deriving_repr_via_finite_sorts $(mkIdent stateName)), isHOInst]
+  return defCmds ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $stateIdent), isHOInst]
 where
   mkIsHigherOrderInstance : m (TSyntax `command) := do
     let binders ← mod.sortBinders
@@ -188,7 +188,7 @@ private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation 
     let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
     `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $ty)
   let defCmds ← structureDefinitionStx stateName (← mod.sortBindersForTheoryOrState true) (deriveInstances := false) fields
-  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkDecidableEqInstance] ++ (← mkToJsonInstances) ++ #[← `(command| deriving_repr_via_fields $(mkIdent stateName)), ← mkIsHigherOrderInstance]
+  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkDecidableEqInstance] ++ (← mkToJsonInstances) ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $stateIdent), ← mkIsHigherOrderInstance]
 where
   /-- Generate an `IsHigherOrder` instance for `State χ`. -/
   mkIsHigherOrderInstance : m (TSyntax `command) := do
@@ -231,7 +231,7 @@ where
 private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
   let defCmds ← structureDefinitionStx theoryName (← mod.sortBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.immutableComponents.mapM fun sc => sc.getSimpleBinder)
-  return defCmds ++ #[← `(command| deriving_repr_via_finite_sorts $(mkIdent theoryName)), (← mkToJsonInstance)]
+  return defCmds ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $theoryIdent), (← mkToJsonInstance)]
 where
   mkToJsonInstance : m Command := do
     let toJsonTy ← `(term| $(mkIdent ``Lean.ToJson) ($(mkIdent theoryName) $(← mod.sortIdents)*))
