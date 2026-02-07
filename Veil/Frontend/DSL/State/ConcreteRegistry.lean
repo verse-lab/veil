@@ -67,13 +67,15 @@ deriving Inhabited
 
 namespace ConcreteRepRegistry
 
+-- FIXME: Make the registration more convenient
+
 /-- Configuration for `Std.ExtTreeSet` (default for relations). -/
 def extTreeSetConfig : ConcreteRepConfig := {
   kind := .finsetLike
   typeName := ``Std.ExtTreeSet
   domainTypeInstances := #[``Ord]
-  domainFieldRepInstances := #[``Ord, ``Std.TransOrd]
-  domainLawfulFieldRepInstances := #[``DecidableEq, ``Ord, ``Std.TransOrd, ``Std.LawfulEqOrd]
+  domainFieldRepInstances := #[``DecidableEq, ``Enumeration, ``Ord, ``Std.TransOrd]
+  domainLawfulFieldRepInstances := #[``DecidableEq, ``Enumeration, ``Ord, ``Std.TransOrd, ``Std.LawfulEqOrd]
   fieldRepInstance := ``instFinsetLikeAsFieldRep
   lawfulFieldRepInstance := ``instFinsetLikeLawfulFieldRep
 }
@@ -84,9 +86,9 @@ def extTreeMapConfig : ConcreteRepConfig := {
   typeName := ``Std.ExtTreeMap
   domainTypeInstances := #[``Ord]
   codomainTypeInstances := #[]
-  domainFieldRepInstances := #[``Ord, ``Std.TransOrd]
+  domainFieldRepInstances := #[``DecidableEq, ``Enumeration, ``Ord, ``Std.TransOrd]
   codomainFieldRepInstances := #[``Inhabited]
-  domainLawfulFieldRepInstances := #[``DecidableEq, ``Ord, ``Std.TransOrd, ``Std.LawfulEqOrd]
+  domainLawfulFieldRepInstances := #[``DecidableEq, ``Enumeration, ``Ord, ``Std.TransOrd, ``Std.LawfulEqOrd]
   codomainLawfulFieldRepInstances := #[``Inhabited]
   fieldRepInstance := ``instFinmapLikeAsFieldRep
   lawfulFieldRepInstance := ``instFinmapLikeLawfulFieldRep

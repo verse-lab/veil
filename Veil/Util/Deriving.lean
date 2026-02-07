@@ -176,15 +176,18 @@ Utilities for deriving instances for structures by assuming
 instances for their fields.
 -/
 
-/-- Similar to `type_of%`, but returns the body type of a `∀`-type.
+/-- Similar to `type_of%`, but returns the body type of a `∀`-type
+after stripping exactly one forall binder (the structure argument).
 Throws an error if the body type has loose bound variables. -/
-elab "body_type_of% " t:term : term => do
+elab "body_type_of_struct_field% " t:term : term => do
   let e ← elabTerm t none
   let type ← inferType e
-  let res := type.consumeMData.getForallBody
-  if res.hasLooseBVars then
+  let type := type.consumeMData
+  let .forallE _ _ body _ := type
+    | throwError "Expected a ∀-type, got {type}"
+  if body.hasLooseBVars then
     throwError "The body type of {t} has loose bound variables"
-  return res
+  return body
 
 open TSyntax.Compat in
 /-- Similar to `Lean.Elab.Deriving.mkHeader`, but does not add implicit
@@ -216,7 +219,7 @@ def mkInstImplicitBindersForFields (className : Name) (indVal : InductiveVal) (a
   fieldNames.mapIdxM fun i fieldName => do
     let proj ← mkStructureProj indVal argNames fieldName
     let nm ← mkFreshUserName <| Name.mkSimple s!"inst{i}"
-    let fieldType ← `(body_type_of% ($proj))
+    let fieldType ← `(body_type_of_struct_field% ($proj))
     let binder ← `(Lean.Elab.Deriving.instBinderF| [ $(mkIdent nm) : $(mkCIdent className):ident ($fieldType) ])
     pure (nm, binder)
 where
@@ -232,6 +235,7 @@ namespace ForStructure
 def mkInstCmdTemplate (declName : Name)
   (k : StructureInfo → InductiveVal → Header → TermElabM Command) : CommandElabM Bool := do
   let env ← getEnv
+  let declName ← resolveGlobalConstNoOverloadCore declName
   let some info := getStructureInfo? env declName
     | return false
   let indVal ← getConstInfoInduct declName
@@ -241,7 +245,13 @@ def mkInstCmdTemplate (declName : Name)
   elabVeilCommand cmd
   return true
 
-def mkBEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+section
+
+variable (declName : Name) (target? : Option Ident) (priority? : Option (TSyntax `prio))
+
+-- FIXME: How to configure scoped vs non-scoped instances?
+
+def mkBEqInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``BEq indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 2 header.targetType
@@ -249,11 +259,11 @@ def mkBEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate decl
   let beqTerms ← fieldNames.zipWithM (bs := localInsts) fun field inst => `(term| $(mkIdent inst).$(mkIdent `beq) $s1.$(mkIdent field) $s2.$(mkIdent field))
   let beqBody ← repeatedOp ``Bool.and beqTerms (default := ← `(term| true))
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``BEq) $(header.targetType) where
     $(mkIdent `beq):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $beqBody)
 
-def mkDecidableEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+def mkDecidableEqInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (_, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``DecidableEq indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 2 header.targetType
@@ -262,12 +272,12 @@ def mkDecidableEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTempl
   let eqTerms ← fieldNames.mapM fun field => `(term| $s1.$(mkIdent field) = $s2.$(mkIdent field))
   let eqBody ← repeatedAnd eqTerms
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``DecidableEq) $(header.targetType) :=
     fun $(targetTypeArgBinders.map TSyntax.mk)* =>
     $(mkIdent ``decidable_of_iff) $eqBody (by cases $s1:ident; cases $s2:ident; grind))
 
-def mkHashableInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+def mkHashableInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Hashable indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 1 header.targetType
@@ -281,20 +291,20 @@ def mkHashableInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate
       fs.zip localInsts |>.foldlM (init := first) fun acc (field, inst) => do
         `(term| $acc |> $(mkIdent ``mixHash) ($(mkIdent inst).$(mkIdent `hash) ($s.$(mkIdent field))))
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``Hashable) $(header.targetType) where
     $(mkIdent `hash):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $hashBody)
 
-def mkInhabitedInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+def mkInhabitedInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Inhabited indVal header.argNames fieldNames
   let defaults ← localInsts.mapM fun inst => `(term| $(mkIdent inst).$(mkIdent `default))
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``Inhabited) $(header.targetType) where
     $(mkIdent `default):ident := ⟨$defaults,*⟩)
 
-def mkToJsonInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+def mkToJsonInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``ToJson indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 1 header.targetType
@@ -304,19 +314,24 @@ def mkToJsonInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate d
     `(term| ($(Syntax.mkStrLit fieldStr), $(mkIdent inst).$(mkIdent `toJson) $s.$(mkIdent field)))
   let toJsonBody ← `(term| $(mkIdent ``Lean.Json.mkObj) [$[$jsonPairs],*])
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``ToJson) $(header.targetType) where
     $(mkIdent `toJson):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $toJsonBody)
 
-elab "veil_deriving" idt:ident "for" decl:ident : command => do
+end
+
+syntax "veil_deriving " ident "for" ident ("with_name" ident)? ("with_priority" prio)? : command
+
+elab_rules : command
+| `(veil_deriving $idt:ident for $decl:ident $[with_name $target?:ident]? $[with_priority $priority?:prio]?) => do
   let declName := decl.getId
   let className ← resolveGlobalConstNoOverload idt
   let _ ← match className with
-  | ``BEq         => mkBEqInstCmd declName
-  | ``DecidableEq => mkDecidableEqInstCmd declName
-  | ``Hashable    => mkHashableInstCmd declName
-  | ``Inhabited   => mkInhabitedInstCmd declName
-  | ``ToJson      => mkToJsonInstCmd declName
+  | ``BEq         => mkBEqInstCmd declName target? priority?
+  | ``DecidableEq => mkDecidableEqInstCmd declName target? priority?
+  | ``Hashable    => mkHashableInstCmd declName target? priority?
+  | ``Inhabited   => mkInhabitedInstCmd declName target? priority?
+  | ``ToJson      => mkToJsonInstCmd declName target? priority?
   | _             => throwError "Unsupported class {className}"
 
 end ForStructure

@@ -128,23 +128,19 @@ def elabConcreteRepresentation : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot configure concrete representation outside of a Veil module!")
   mod.throwIfStateAlreadyDefined
   match stx with
-  | `(concrete_representation relation $typeName:ident) => do
+  | `(veil_set_field_representation $c:concreteRepField $typeName:ident) => do
+    let kind := match c with
+      | `(concreteRepField| relation) => StateComponentKind.relation
+      | `(concreteRepField| function) => StateComponentKind.function
+      | _ => unreachable!
     let name := typeName.getId
     -- Verify the type is registered in the registry
-    let some cfg ← lookupConcreteRep name
-      | throwErrorAt typeName s!"Unknown concrete representation type '{name}'. Available types: Std.ExtTreeSet, Std.HashSet (for relations), Std.ExtTreeMap, Std.HashMap (for functions)."
-    unless cfg.kind == .finsetLike do
-      throwErrorAt typeName s!"'{name}' is not a valid representation for relations. It is a {repr cfg.kind} type."
-    let new_mod := { mod with _concreteRepConfig := mod._concreteRepConfig.insert .relation name }
-    localEnv.modifyModule (fun _ => new_mod)
-  | `(concrete_representation function $typeName:ident) => do
-    let name := typeName.getId
-    -- Verify the type is registered in the registry
-    let some cfg ← lookupConcreteRep name
-      | throwErrorAt typeName s!"Unknown concrete representation type '{name}'. Available types: Std.ExtTreeSet, Std.HashSet (for relations), Std.ExtTreeMap, Std.HashMap (for functions)."
-    unless cfg.kind == .finmapLike do
-      throwErrorAt typeName s!"'{name}' is not a valid representation for functions. It is a {repr cfg.kind} type."
-    let new_mod := { mod with _concreteRepConfig := mod._concreteRepConfig.insert .function name }
+    let some cfg ← ConcreteRepRegistry.lookupConcreteRep name
+      | throwErrorAt typeName s!"Unknown concrete representation type '{name}'"
+    unless (cfg.kind == .finsetLike && kind == StateComponentKind.relation) ||
+            (cfg.kind == .finmapLike && kind == StateComponentKind.function) do
+      throwErrorAt typeName s!"Concrete representation '{name}' is not compatible with state component kind '{kind}'"
+    let new_mod := { mod with _concreteRepConfig := mod._concreteRepConfig.insert kind name }
     localEnv.modifyModule (fun _ => new_mod)
   | _ => throwUnsupportedSyntax
 
