@@ -626,7 +626,7 @@ where
     `((let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-         ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType $instSortArgs*)
+         ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
          ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
          $sp : _ → _ → _ → IO _))
 
