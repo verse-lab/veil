@@ -118,16 +118,19 @@ def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [Mon
   for sc in fields do
     match sc.kind with
     | .relation =>
-      for nm in sc.domainTerms.map (·.raw.getId) do
-        for className in domainInsts repConfigs.relationConfig do
-          sortToAssumingClasses := updateSortToAssumingClassesTable sortToAssumingClasses nm className
+      -- NOTE: It seems this 3-level nested loop is unavoidable, due to the similar reason in `assumeForOneSort`
+      for dom in sc.domainTerms do
+        for nm in sortsAppearingInDomainType dom sorts do
+          for className in domainInsts repConfigs.relationConfig do
+            sortToAssumingClasses := updateSortToAssumingClassesTable sortToAssumingClasses nm className
     | .function =>
-      for nm in sc.domainTerms.map (·.raw.getId) do
-        for className in domainInsts repConfigs.functionConfig do
+      for dom in sc.domainTerms do
+        for nm in sortsAppearingInDomainType dom sorts do
+          for className in domainInsts repConfigs.functionConfig do
+            sortToAssumingClasses := updateSortToAssumingClassesTable sortToAssumingClasses nm className
+      for nm in sortsAppearingInDomainType sc.codomainTerm sorts do
+        for className in codomainInsts repConfigs.functionConfig do
           sortToAssumingClasses := updateSortToAssumingClassesTable sortToAssumingClasses nm className
-      let codNm := sc.codomainTerm.raw.getId
-      for className in codomainInsts repConfigs.functionConfig do
-        sortToAssumingClasses := updateSortToAssumingClassesTable sortToAssumingClasses codNm className
     | _ => pure ()
   -- then generate binders
   let mut binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder) := #[]
@@ -138,10 +141,14 @@ def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [Mon
       | some binder => binders := binders.push binder
       | none => pure ()
   return binders
-where updateSortToAssumingClassesTable (tb : Std.HashMap Name (Array Name)) (domainTypeName className : Name) : Std.HashMap Name (Array Name) :=
+where
+ updateSortToAssumingClassesTable (tb : Std.HashMap Name (Array Name)) (domainTypeName className : Name) : Std.HashMap Name (Array Name) :=
   tb.alter domainTypeName fun
     | some arr => some <| if arr.contains className then arr else arr.push className
     | none => none      -- if this type is not a sort, we do nothing
+ sortsAppearingInDomainType (dom : Term) (sorts : Array Name) : Array Name :=
+  sorts.filter fun sortName =>
+    Option.isSome <| dom.raw.find? fun subtm => subtm == mkIdent sortName
 
 /-- Get binders for assuming that every sort has an instance of `className` (e.g. `Ord node`). -/
 def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (className : Name) (filterWithHeuristics : Bool := true) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
