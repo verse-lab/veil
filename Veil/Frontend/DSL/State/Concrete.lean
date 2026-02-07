@@ -434,12 +434,13 @@ end ConcreteUpdates
 
 section ConcreteInstances
 
-abbrev BitVecAsFinset (α) [FinEnum α] := BitVec (FinEnum.card α)
+-- CHECK maybe ultimately, `Nat` is enough?
+abbrev BitVecAsFinset (α) [FinEncodable α] := BitVec (FinEncodable.card α)
 
-instance [FinEnum α] : Membership α (BitVecAsFinset α) where
-  mem a b := a[FinEnum.equiv b]
+instance [FinEncodable α] : Membership α (BitVecAsFinset α) where
+  mem a b := a[FinEncodable.equiv b]
 
-instance [FinEnum α] : DecidableRel (Membership.mem (γ := BitVecAsFinset α)) := by
+instance [FinEncodable α] : DecidableRel (Membership.mem (γ := BitVecAsFinset α)) := by
   dsimp only [Membership.mem] ; infer_instance
 
 -- CHECK this might not be efficient enough; is there actually an operation
@@ -447,9 +448,9 @@ instance [FinEnum α] : DecidableRel (Membership.mem (γ := BitVecAsFinset α)) 
 -- CHECK this might not be efficient, from another point, since
 -- `insert` and `erase` requires yet another check of existence,
 -- which is not necessary in this case
-instance [FinEnum α] : FinsetLike (BitVecAsFinset α) where
-  insert a b _ := b ||| (BitVec.twoPow _ (FinEnum.equiv a))
-  erase a b _ := b ^^^ (BitVec.twoPow _ (FinEnum.equiv a))
+instance [FinEncodable α] : FinsetLike (BitVecAsFinset α) where
+  insert a b _ := b ||| (BitVec.twoPow _ (FinEncodable.equiv a))
+  erase a b _ := b ^^^ (BitVec.twoPow _ (FinEncodable.equiv a))
 
 instance [BEq α] [Hashable α] : FinsetLike (Std.HashSet α) where
   insert a b _ := b.insert a
@@ -463,8 +464,8 @@ instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : FinsetLike (Std.Ext
   insert a b _ := b.insert a
   erase a b _ := b.erase a
 
-instance [FinEnum α] : LawfulFinsetLike (BitVecAsFinset α) where
-  toFinset b := List.finRange (FinEnum.card α) |>.filterMap (fun a => if b[a] then some (FinEnum.equiv.symm a) else none) |>.toFinset
+instance [FinEncodable α] [DecidableEq α] : LawfulFinsetLike (BitVecAsFinset α) where
+  toFinset b := List.finRange (FinEncodable.card α) |>.filterMap (fun a => if b[a] then some (FinEncodable.equiv.symm a) else none) |>.toFinset
   toFinset_mem_iff a b := by simp ; simp [Membership.mem] ; grind
   insert_toFinset a b h := by
     ext a ; simp [FinsetLike.insert] ; grind
@@ -498,27 +499,23 @@ instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
   erase_toFinset a b h := by
     ext a ; simp [FinsetLike.erase] ; aesop
 
-abbrev BitVecsAsFinmap (α β) [FinEnum α] [FinEnum β] :=
-  BitVec ((FinEnum.card α) * (Nat.bitLength (FinEnum.card β)))
+abbrev BitVecsAsFinmap (α β) [FinEncodable α] [FinEncodable β] :=
+  BitVec ((FinEncodable.card α) * (Nat.bitLength (FinEncodable.card β)))
 
-instance [FinEnum α] [FinEnum β] [Inhabited β] : FinmapLike α β (BitVecsAsFinmap α β) where
+instance [FinEncodable α] [FinEncodable β] [Inhabited β] : FinmapLike α β (BitVecsAsFinmap α β) where
   get mp a :=
     -- this special check is kind of annoying, but there seems no better way?
-    if h : FinEnum.card β = 0 then
-      let fin0 := h ▸ FinEnum.equiv (default : β)
-      Fin.elim0 fin0
-    else
-      let ida := FinEnum.equiv a
-      -- bit range: `[ida * (bitLength β), (ida + 1) * (bitLength β))`
-      let bl := Nat.bitLength (FinEnum.card β)
-      let res := mp.extractLsb' (ida * bl) bl
-      FinEnum.equiv.symm <| Fin.minCast (FinEnum.card β) h res.toFin
+    let ida := FinEncodable.equiv a
+    -- bit range: `[ida * (bitLength β), (ida + 1) * (bitLength β))`
+    let bl := Nat.bitLength (FinEncodable.card β)
+    let res := mp.extractLsb' (ida * bl) bl
+    FinEncodable.equiv.invFun <| Fin.minCast (FinEncodable.card β) FinEncodable.card_ne_0_if_Inhabited res.toFin
   insert a b mp :=
-    let ida := FinEnum.equiv a
-    let bl := Nat.bitLength (FinEnum.card β)
+    let ida := FinEncodable.equiv a
+    let bl := Nat.bitLength (FinEncodable.card β)
     let offset := ida * bl
     let oldval := mp.extractLsb' offset bl
-    let idb := FinEnum.equiv b
+    let idb := FinEncodable.equiv b
     let newval := BitVec.ofFin <| idb.castLE Nat.bitLength_range
     mp ^^^ ((newval ^^^ oldval |>.zeroExtend _) <<< offset)
 
@@ -539,14 +536,12 @@ instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Inhabited β] : Finm
   get mp a := mp.getD a default
   insert a b mp := mp.insert a b
 
-instance [FinEnum α] [FinEnum β] [Inhabited β] : LawfulFinmapLike (BitVecsAsFinmap α β) where
+instance [FinEncodable α] [FinEncodable β] [Inhabited β] [DecidableEq α] : LawfulFinmapLike (BitVecsAsFinmap α β) where
   insert_get a a' b mp := by
     dsimp only [FinmapLike.get, FinmapLike.insert]
-    split <;> rename_i h1
-    on_goal 1=> apply Fin.elim0 (h1 ▸ FinEnum.equiv (default : β))
     split_ifs with h2
     · subst a'
-      have tmp1 : ↑(FinEnum.equiv a) + 1 ≤ FinEnum.card α := by grind
+      have tmp1 : ↑(FinEncodable.equiv a) + 1 ≤ FinEncodable.card α := by grind
       rw [BitVec.extractLsb'_xor, BitVec.zeroExtend]
       rewrite (occs := .neg [1]) [← BitVec.setWidth_ushiftRight_eq_extractLsb]
       rw [BitVec.shiftLeft_then_ushiftRight_eq]
@@ -558,19 +553,20 @@ instance [FinEnum α] [FinEnum β] [Inhabited β] : LawfulFinmapLike (BitVecsAsF
       all_goals try apply Nat.le_mul_of_pos_left ; grind
       rewrite (occs := .pos [1]) [BitVec.xor_comm, BitVec.xor_assoc, BitVec.xor_self]
       simp only [BitVec.xor_zero, BitVec.toFin_ofFin]
+      simp only [Equiv.invFun_as_coe]
       symm ; rw [← Equiv.apply_eq_iff_eq_symm_apply]
       ext ; dsimp ; symm ; trans ; apply Nat.min_eq_left
       all_goals grind
     · congr! 3
       rw [BitVec.extractLsb'_xor, BitVec.zeroExtend, BitVec.xor_getself_iff]
       ext i hi ; simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_shiftLeft]
-      set ida' := ↑(FinEnum.equiv a')
-      set ida := ↑(FinEnum.equiv a)
-      cases h : (decide (ida' * Nat.bitLength (FinEnum.card β) + i < ida * Nat.bitLength (FinEnum.card β)))
+      set ida' := ↑(FinEncodable.equiv a')
+      set ida := ↑(FinEncodable.equiv a)
+      cases h : (decide (ida' * Nat.bitLength (FinEncodable.card β) + i < ida * Nat.bitLength (FinEncodable.card β)))
       · simp at h
         simp only [BitVec.getLsbD_setWidth]
         rw [BitVec.getLsbD_of_ge] ; simp
-        generalize Nat.bitLength (FinEnum.card β) = bl at *
+        generalize Nat.bitLength (FinEncodable.card β) = bl at *
         have tmp1 : (ida : Nat) < ↑ida' := by
           rcases Nat.lt_trichotomy ida ida' with hlt | heq | hgt
           · assumption
