@@ -109,11 +109,12 @@ def Module.assumeForOneSort [Monad m] [MonadQuotation m] [MonadError m] (mod : M
 def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [MonadError m] (mod : Module)
   (fields : Array StateComponent) (repConfigs : ResolvedConcreteRepConfigs)
   (domainInsts codomainInsts : ConcreteRepConfig → Array Name)
+  (extraInstancesToAssume : Array Name := #[])
   (filterWithHeuristics : Bool := true) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   -- first compute all pairs of `(sort, className)` to assume
   -- NOTE: using `Name` here since there is no `Hashable` for `Ident`
   let sorts := mod.sortNames
-  let mut sortToAssumingClasses : Std.HashMap Name (Array Name) := Std.HashMap.ofList <| sorts.toList.map fun a => (a, #[])
+  let mut sortToAssumingClasses : Std.HashMap Name (Array Name) := Std.HashMap.ofList <| sorts.toList.map fun a => (a, extraInstancesToAssume)
   for sc in fields do
     match sc.kind with
     | .relation =>
@@ -268,13 +269,12 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [M
   let stateDefs ← mod.fieldsAbstractedStateDefinitionStx
   let concreteFieldRepInsts ← mkFieldRepresentationInstancesForConcrete mod repConfigs
   let abstractFieldRepInsts ← mkFieldRepresentationInstancesForAbstract mod
-  -- TODO revisit this later
-  -- let enumerationInst ← mkEnumerationInstance mod
+  let enumerationInst ← `(command| deriving instance $(mkIdent ``Enumeration):ident for $stateIdent)
   let stateStx ← mod.stateStx (withFieldConcreteType? := true)
   let smtAttr ← `(attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `mk ++ `injEq):ident)
   let eqMkTheorem ← mkEqMkTheorem mod
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[/- enumerationInst, -/ smtAttr, eqMkTheorem])
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[enumerationInst, smtAttr, eqMkTheorem])
 where
   /-- Generate `FieldRepresentation` and `LawfulFieldRepresentation` instances for a given field type dispatcher. -/
   mkFieldRepresentationInstancesCore (mod : Module)
