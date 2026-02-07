@@ -220,7 +220,7 @@ where
     -- Abstract instance: ToJson (FieldAbstractType sorts* f)
     let fieldLabelIdent := mkVeilImplementationDetailIdent `f
     let fieldLabel ← `(bracketedBinder|($fieldLabelIdent : $(structureFieldLabelType stateName)))
-    let abstractBinders := (← mod.sortBinders) ++ (← #[``Lean.ToJson, ``Ord, ``FinEnum].flatMapM mod.assumeForEverySort) ++ #[fieldLabel]
+    let abstractBinders := (← mod.sortBinders) ++ (← #[``Lean.ToJson, ``Ord, ``Enumeration].flatMapM mod.assumeForEverySort) ++ #[fieldLabel]
     let abstractTy ← `(term| $(mkIdent ``Lean.ToJson) ($fieldAbstractDispatcher $sorts* $fieldLabelIdent))
     let abstractInst ← `(scoped instance $[$abstractBinders]* : $abstractTy := by cases $fieldLabelIdent:ident <;> infer_instance_for_iterated_prod')
     return #[concreteInst, abstractInst]
@@ -242,7 +242,7 @@ where
       `(term| ($(Syntax.mkStrLit fieldStr), $(mkIdent ``Lean.ToJson.toJson) $ρ.$(mkIdent field)))
     let toJsonBody ← `(term| $(mkIdent ``Lean.Json.mkObj) [$[$jsonPairs],*])
     let sortBinders ← mod.sortBinders
-    let assumedInstances ← #[``Lean.ToJson, ``FinEnum].flatMapM fun className => mod.assumeForEverySort className
+    let assumedInstances ← #[``Lean.ToJson, ``Enumeration].flatMapM fun className => mod.assumeForEverySort className
     `(scoped instance $[$sortBinders]* $[$assumedInstances]* : $toJsonTy where toJson := fun $ρ => $toJsonBody)
 
 /-! ## Public Structure Declaration APIs -/
@@ -584,7 +584,7 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   -- let instances ← #[``Enumeration, ``Ord, ``ToJson].flatMapM fun inst => return (← mod.declareInstanceLiftingForDomain inst) ++ (← mod.declareInstanceLiftingForCodomain inst)
   let instances : Array Syntax := #[]
   -- Use the domain type instances from the config for instance lifting
-  let abstractInstances ← #[(``ToJson, #[``ToJson, ``FinEnum])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldAbstractDispatcher)
+  let abstractInstances ← #[(``ToJson, #[``ToJson, ``Enumeration])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldAbstractDispatcher)
   -- add the `fieldConcreteType` parameter
   let fieldConcreteTypeParam ← Parameter.fieldConcreteType
   -- add the `FieldRepresentation` and `LawfulFieldRepresentation` typeclass parameters

@@ -276,16 +276,16 @@ instance (priority := low) jsonOfRepr [Repr α] : ToJson α where
 
 /-- ToJson for curried finite functions: uncurry and use the product instance. -/
 instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
-    [ToJson α₁] [FinEnum α₁] [ToJson α₂] [FinEnum α₂] [ToJson β]
+    [ToJson α₁] [Enumeration α₁] [ToJson α₂] [Enumeration α₂] [ToJson β]
     [inst : ToJson (α₁ × α₂ → β)] : ToJson (α₁ → α₂ → β) where
   toJson := fun f => inst.toJson (fun (x, y) => f x y)
 
 /-- ToJson for finite functions: enumerate all input/output pairs as flat tuples.
     For a function `(a, b) -> c`, produces `[[a, b, c], ...]` rather than `[[[a, b], c], ...]`. -/
 instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
-    [ToJson α] [FinEnum α] [ToJson β] : ToJson (α → β) where
+    [ToJson α] [Enumeration α] [ToJson β] : ToJson (α → β) where
   toJson := fun f =>
-    let l := FinEnum.toList α
+    let l : List α := Enumeration.allValues
     Json.arr <| l.toArray.map (fun a =>
       let keyJson := toJson a
       let valJson := toJson (f a)
@@ -295,8 +295,8 @@ instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
 
 /-- ToJson for boolean predicates: show only the elements where the predicate is true. -/
 instance (priority := high) essentiallyFinSetToJson (α : Type u)
-    [ToJson α] [FinEnum α] : ToJson (α → Bool) where
-  toJson := fun f => toJson (FinEnum.toList α |>.filter f)
+    [ToJson α] [Enumeration α] : ToJson (α → Bool) where
+  toJson := fun f => toJson (Enumeration.allValues (α := α) |>.filter f)
 
 instance jsonOfTreeSet [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
   toJson s := Json.arr <| s.toArray.map toJson
