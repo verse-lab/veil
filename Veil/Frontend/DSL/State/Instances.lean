@@ -19,6 +19,12 @@ instance [Ord α] [BEq α]: BEq (Std.TreeSet α) where
 instance [Ord α] [BEq α] [BEq β]: BEq (Std.TreeMap α β) where
   beq s1 s2 := s1.toArray == s2.toArray
 
+instance [Ord α] [BEq α] [Std.TransOrd α]: BEq (Std.ExtTreeSet α) where
+  beq s1 s2 := s1.toList == s2.toList
+
+instance [Ord α] [BEq α] [BEq β] [Std.TransOrd α]: BEq (Std.ExtTreeMap α β) where
+  beq s1 s2 := s1.toList == s2.toList
+
 -- FIXME: provide more reasonable `BEq` instances; same below
 instance : BEq (CanonicalFieldWrapper FieldDomain FieldCodomain) where
   beq _ _ := true
