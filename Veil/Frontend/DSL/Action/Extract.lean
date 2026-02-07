@@ -274,7 +274,7 @@ private def bindersToInjectForExecution [Monad m] [MonadQuotation m] [MonadError
   let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
   let binders ← mod.assumeInstArgsWithConcreteRepConfig mod.mutableComponents repConfigs
     ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
-    #[``Repr, ``Enumeration] false
+    #[``Repr, ``Enumeration] #[``Inhabited, ``DecidableEq] false
   return binders
 
 def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do

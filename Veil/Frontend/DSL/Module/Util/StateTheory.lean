@@ -110,6 +110,8 @@ def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [Mon
   (fields : Array StateComponent) (repConfigs : ResolvedConcreteRepConfigs)
   (domainInsts codomainInsts : ConcreteRepConfig → Array Name)
   (extraInstancesToAssume : Array Name := #[])
+  -- FIXME: This `instancesToRemove` argument is very ad-hoc, need a better way
+  (instancesToRemove : Array Name := #[])
   (filterWithHeuristics : Bool := true) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   -- first compute all pairs of `(sort, className)` to assume
   -- NOTE: using `Name` here since there is no `Hashable` for `Ident`
@@ -136,7 +138,7 @@ def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [Mon
   let mut binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder) := #[]
   for (sortName, classNames) in sortToAssumingClasses do
     let sortIdent := mkIdent sortName
-    for className in classNames do
+    for className in classNames.filter fun cn => !instancesToRemove.contains cn do
       match ← mod.assumeForOneSort className sortIdent filterWithHeuristics with
       | some binder => binders := binders.push binder
       | none => pure ()
