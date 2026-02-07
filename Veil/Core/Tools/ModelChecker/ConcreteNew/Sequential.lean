@@ -231,6 +231,7 @@ def breadthFirstSearchSequential {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (updateTimeInterval : Nat)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :
   m (SequentialSearchContext σ κ σₕ) := do
@@ -281,7 +282,7 @@ where
   (ctx : BaseSearchContext σ κ σₕ)
   (sq : fQueue (QueueItem σₕ σ)) : m SequentialSearchPeriodicProgressUpdate := do
   let now ← IO.monoMsNow
-  if now - lastUpdateTime ≥ 1000 then
+  if now - lastUpdateTime ≥ updateTimeInterval then
     if ← shouldStop cancelToken progressInstanceId then
       return .searchCancelled
     else

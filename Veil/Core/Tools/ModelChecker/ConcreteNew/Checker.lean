@@ -75,7 +75,7 @@ either the sequential or parallel implementation based on configuration. -/
 def findReachable {ρ σ κ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [Inhabited κ] [inhabσ : Inhabited σ] [Repr κ]
-  [BEq σ] [BEq κ] [Hashable κ]
+  [BEq κ] [Hashable κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   [fp : StateFingerprint σ UInt64]
@@ -84,7 +84,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
-  let (ctx, _) ← breadthFirstSearchSequential params sys progressInstanceId cancelToken
+  let (ctx, _) ← breadthFirstSearchSequential params sys 60000 progressInstanceId cancelToken
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
