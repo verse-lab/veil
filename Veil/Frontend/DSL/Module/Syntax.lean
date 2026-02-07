@@ -303,22 +303,14 @@ This command must be used before `#gen_state`.
 
 Example:
 ```lean
-concrete_representation relation Std.HashSet
-concrete_representation function Std.HashMap
+veil_set_field_representation relation Std.ExtTreeSet
+veil_set_field_representation function Std.ExtTreeMap
 ```
-
-Available representations for relations (finset-like):
-- `Std.ExtTreeSet` (default) - uses `Ord` ordering
-- `Std.HashSet` - uses `BEq` and `Hashable`
-
-Available representations for functions (finmap-like):
-- `Std.ExtTreeMap` (default) - uses `Ord` ordering
-- `Std.HashMap` - uses `BEq` and `Hashable`
 -/
 declare_syntax_cat concreteRepField
 syntax (name := crRelation) kw_relation : concreteRepField
 syntax (name := crFunction) kw_function : concreteRepField
 
-syntax (name := concreteRepresentationDecl) "concrete_representation " concreteRepField ident : command
+syntax (name := concreteRepresentationDecl) "veil_set_field_representation " concreteRepField ident : command
 
 end Veil
