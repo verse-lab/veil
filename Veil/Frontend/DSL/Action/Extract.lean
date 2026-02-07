@@ -270,8 +270,15 @@ elab_rules : command
     let injectedBinders := injectedBinders.getD #[]
     specializeAndExtract injectedBinders extraDsimps logelem notUseWeakSign.isNone
 
+private def bindersToInjectForExecution [Monad m] [MonadQuotation m] [MonadError m] [Monad m] [MonadEnv m] (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
+  let binders ← mod.assumeInstArgsWithConcreteRepConfig mod.mutableComponents repConfigs
+    ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
+    #[``Repr, ``Enumeration] false
+  return binders
+
 def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
-  let binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp, ``Repr].flatMapM (mod.assumeForEverySort · false)
+  let binders ← bindersToInjectForExecution mod
   let execListCmd ← `(command |
     attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
     #extract! log_entry_being $(mkIdent ``Std.Format)
@@ -376,7 +383,7 @@ def extractAssertionFailures (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (
     | .assertionFailure e s => some (e, s)
     | _ => none
 
-def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
+def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadEnv m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
   mod.throwIfAlreadyDeclared enumerableTransitionSystemName
 
   -- Step 1: Use mkDerivedDefinitionsParamsMapFn pattern (like specializeActionsCore)
@@ -397,7 +404,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     | _ => none
 
   -- Step 2: Prepare injectedBinders
-  let nextAct'Binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp, ``Repr].flatMapM (mod.assumeForEverySort · false)
+  let nextAct'Binders ← bindersToInjectForExecution mod
   let labelsId := mkVeilImplementationDetailIdent `labels
   let labelsBinder ← `(bracketedBinder| [$labelsId : $(mkIdent ``Veil.Enumeration) $(← mod.labelTypeStx)])
   let theoryId := mkVeilImplementationDetailIdent `theory
