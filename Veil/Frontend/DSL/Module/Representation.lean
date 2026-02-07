@@ -370,6 +370,10 @@ structure Module where
   protected _useLocalRPropTC : Bool := true
 
   protected _fieldRepMetaData : Std.HashMap Name (Array Term) := Std.HashMap.emptyWithCapacity
+
+  /-- Per-module configuration of which concrete types to use for fields.
+  Key is the field kind (`relation` or `function`), value is the type name. -/
+  protected _concreteRepConfig : Std.HashMap StateComponentKind Name := Std.HashMap.emptyWithCapacity
 deriving Inhabited
 
 def Module.defaultAssertionSet (mod : Module) : Name := mod.name

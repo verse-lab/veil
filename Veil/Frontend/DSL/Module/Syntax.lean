@@ -298,4 +298,27 @@ syntax (name := compiled) "compiled" : modelCheckMode
 
 syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig : command
 
+/-- Configure the concrete runtime representation for `relation` or `function` fields.
+This command must be used before `#gen_state`.
+
+Example:
+```lean
+concrete_representation relation Std.HashSet
+concrete_representation function Std.HashMap
+```
+
+Available representations for relations (finset-like):
+- `Std.ExtTreeSet` (default) - uses `Ord` ordering
+- `Std.HashSet` - uses `BEq` and `Hashable`
+
+Available representations for functions (finmap-like):
+- `Std.ExtTreeMap` (default) - uses `Ord` ordering
+- `Std.HashMap` - uses `BEq` and `Hashable`
+-/
+declare_syntax_cat concreteRepField
+syntax (name := crRelation) kw_relation : concreteRepField
+syntax (name := crFunction) kw_function : concreteRepField
+
+syntax (name := concreteRepresentationDecl) "concrete_representation " concreteRepField ident : command
+
 end Veil

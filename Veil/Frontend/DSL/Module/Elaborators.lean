@@ -5,6 +5,7 @@ import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.Elaborators
 import Veil.Frontend.DSL.State.SubState
+import Veil.Frontend.DSL.State.ConcreteRegistry
 import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.Tools.Verifier.Server
 import Veil.Core.Tools.Verifier.Results
@@ -122,6 +123,31 @@ def elabInstantiate : CommandElab := fun stx => do
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
 
+@[command_elab Veil.concreteRepresentationDecl]
+def elabConcreteRepresentation : CommandElab := fun stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot configure concrete representation outside of a Veil module!")
+  mod.throwIfStateAlreadyDefined
+  match stx with
+  | `(concrete_representation relation $typeName:ident) => do
+    let name := typeName.getId
+    -- Verify the type is registered in the registry
+    let some cfg ← lookupConcreteRep name
+      | throwErrorAt typeName s!"Unknown concrete representation type '{name}'. Available types: Std.ExtTreeSet, Std.HashSet (for relations), Std.ExtTreeMap, Std.HashMap (for functions)."
+    unless cfg.kind == .finsetLike do
+      throwErrorAt typeName s!"'{name}' is not a valid representation for relations. It is a {repr cfg.kind} type."
+    let new_mod := { mod with _concreteRepConfig := mod._concreteRepConfig.insert .relation name }
+    localEnv.modifyModule (fun _ => new_mod)
+  | `(concrete_representation function $typeName:ident) => do
+    let name := typeName.getId
+    -- Verify the type is registered in the registry
+    let some cfg ← lookupConcreteRep name
+      | throwErrorAt typeName s!"Unknown concrete representation type '{name}'. Available types: Std.ExtTreeSet, Std.HashSet (for relations), Std.ExtTreeMap, Std.HashMap (for functions)."
+    unless cfg.kind == .finmapLike do
+      throwErrorAt typeName s!"'{name}' is not a valid representation for functions. It is a {repr cfg.kind} type."
+    let new_mod := { mod with _concreteRepConfig := mod._concreteRepConfig.insert .function name }
+    localEnv.modifyModule (fun _ => new_mod)
+  | _ => throwUnsupportedSyntax
+
 @[command_elab Veil.enumDeclaration]
 def elabEnumDeclaration : CommandElab := fun stx => do
   match stx with
@@ -207,8 +233,10 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
   if mod.isStateDefined then
     return mod
   let (mod, stateStxs) ← do (if mod._useFieldRepTC then do
-      let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers
-      let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure
+      -- Resolve concrete representation configurations
+      let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
+      let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers repConfigs
+      let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure repConfigs
       return (mod, fieldStxs ++ stateStxs)
     else mod.declareStateStructure)
   let (mod, theoryStxs) ← mod.declareTheoryStructure
