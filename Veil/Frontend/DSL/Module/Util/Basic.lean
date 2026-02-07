@@ -355,7 +355,7 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotat
 
 /-! ## Sort Parameter Utilities -/
 
-private def Module.sortFilterMapFn [Monad m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
+private def Module.sortFilterMapFn [Monad m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
   mod.parameters.filterMapM fun p => do match p.kind with
   | .sort _ => f p
   | _ => pure .none
@@ -365,6 +365,8 @@ def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (T
 
 def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
   mod.sortFilterMapFn (·.ident)
+
+def Module.sortNames (mod : Module) : Array Name := mod.sortFilterMapFn (m := Id) (·.name)
 
 /-- Returns sort parameters along with their kind (uninterpreted or enum). -/
 def Module.sortParams (mod : Module) : Array (Parameter × SortKind) :=
