@@ -50,10 +50,14 @@ open TotalOrder
 -- - alive: whether each node is still functioning
 -- - decision: the decided value (if any) for each node
 -- - crashedInThisRound: nodes that crashed in the current round (before advanceRound)
+-- - initialValue: snapshot of each node's initial proposal (for extended validity)
 
 immutable individual t : Nat
+
 individual round : Nat
 individual crashCount : Nat
+
+function initialValue : node → value
 relation seen : node → value → Bool
 relation alive : node → Bool
 relation decision : node → value → Bool
@@ -62,16 +66,13 @@ relation crashedInThisRound : node → Bool
 #gen_state
 
 --------------------------------------------------------------------------------
--- PART 2: TRANSITIONS
+-- PART 2: ACTIONS
 --------------------------------------------------------------------------------
 
 -- Initial state: each node has exactly one proposal value
-ghost relation uniqueProposal :=
-  (∀ n, ∃ v, seen n v) ∧ (∀ n v1 v2, seen n v1 ∧ seen n v2 → v1 = v2)
-
 after_init {
-  seen N V := *
-  assume uniqueProposal
+  initialValue := *
+  seen N V := initialValue N == V
 
   alive N := true
   decision N V := false
@@ -107,7 +108,7 @@ action advanceRound {
       -- Get from alive nodes
       decide ((∃ m, alive m ∧ seen m V) ∨
       -- Get from some recently deceased nodes, too
-              (∃ d, deadToAliveDelivery d N ∧ crashedInThisRound d ∧ seen d V))
+              (∃ d, crashedInThisRound d ∧ deadToAliveDelivery d N ∧ seen d V))
 
   -- Reset crash-related bookkeeping for the next round
   crashedInThisRound N := false
@@ -134,11 +135,20 @@ action nodeDecide (n : node) {
 safety [agreement]
   ∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2
 
--- [TODO] We need to refer to some node's initial state
+-- Validity: decided value was some node's initial proposal
 safety [validity]
-  ∀ n v, decision n v → seen n v
+  ∀ n v, decision n v → (∃ m, initialValue m == v)
 
 -- Supporting invariants
+
+-- Seen decision: decided value was seen by the deciding node
+invariant [seen_decision]
+  ∀ n v, decision n v → seen n v
+
+-- Key invariant for extended validity: all seen values were initially proposed by some node
+invariant [seen_is_initial]
+  ∀ n v, seen n v → (∃ m, initialValue m == v)
+
 invariant [decided_implies_alive]
   ∀ n v, decision n v → alive n
 
@@ -215,10 +225,6 @@ invariant [crashed_same_when_count_eq_round]
 -- Small instance, one crash
 #model_check { node := Fin 3, value := Fin 2 } { t := 1 }
 
-
--- Larger instance (slower but more thorough)
--- #model_check { node := Fin 5, value := Fin 2 } { t := 3 }
-
 --------------------------------------------------------------------------------
 -- PART 5: DEDUCTIVE VERIFICATION
 --
@@ -231,20 +237,5 @@ invariant [crashed_same_when_count_eq_round]
 --------------------------------------------------------------------------------
 
 #check_invariants
-
---------------------------------------------------------------------------------
--- APPENDIX: KNOWN ISSUES
---------------------------------------------------------------------------------
-
--- [FIXME] `sat trace` doesn't work well with complex assertions (simp overflow).
--- Use negated safety properties instead to test reachability: if the model
--- checker finds a "violation", it means the positive property IS reachable.
-
--- [FIXME] Using `assume` with nondeterministic assignments (e.g., `seen N V := *`
--- followed by `assume ...`) causes very slow compilation for model checking.
--- Prefer imperative assignments (e.g., `seen N V := seen N V || ...`) when possible.
-
--- [FIXME] `model_check` should support reachability queries directly without the
--- need to hack it via error-finding (negating safety properties).
 
 end FloodSet
