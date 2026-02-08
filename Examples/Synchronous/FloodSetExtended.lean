@@ -135,15 +135,15 @@ action nodeDecide (n : node) {
 safety [agreement]
   ∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2
 
--- Simple validity: decided value was seen by the deciding node
+-- Validity: decided value was some node's initial proposal
 safety [validity]
-  ∀ n v, decision n v → seen n v
-
--- Extended validity: decided value was some node's initial proposal
-safety [extended_validity]
   ∀ n v, decision n v → (∃ m, initialValue m == v)
 
 -- Supporting invariants
+
+-- Seen decision: decided value was seen by the deciding node
+invariant [seen_decision]
+  ∀ n v, decision n v → seen n v
 
 -- Key invariant for extended validity: all seen values were initially proposed by some node
 invariant [seen_is_initial]
