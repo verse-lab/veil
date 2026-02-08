@@ -20,7 +20,7 @@ Partial delivery: When a node crashes mid-round, it may have sent its values to
 some nodes but not others. We model this with `receivedFromDead`.
 -/
 
-veil module FloodSetExtended
+veil module FloodSet
 
 --------------------------------------------------------------------------------
 -- PART 1: STATE
@@ -53,13 +53,15 @@ open TotalOrder
 -- - initialValue: snapshot of each node's initial proposal (for extended validity)
 
 immutable individual t : Nat
+
 individual round : Nat
 individual crashCount : Nat
+
+function initialValue : node → value
 relation seen : node → value → Bool
 relation alive : node → Bool
 relation decision : node → value → Bool
 relation crashedInThisRound : node → Bool
-function initialValue : node → value
 
 #gen_state
 
@@ -68,9 +70,6 @@ function initialValue : node → value
 --------------------------------------------------------------------------------
 
 -- Initial state: each node has exactly one proposal value
-ghost relation uniqueProposal :=
-  (∀ n, ∃ v, seen n v) ∧ (∀ n v1 v2, seen n v1 ∧ seen n v2 → v1 = v2)
-
 after_init {
   initialValue := *
   seen N V := initialValue N == V
@@ -109,7 +108,7 @@ action advanceRound {
       -- Get from alive nodes
       decide ((∃ m, alive m ∧ seen m V) ∨
       -- Get from some recently deceased nodes, too
-              (∃ d, deadToAliveDelivery d N ∧ crashedInThisRound d ∧ seen d V))
+              (∃ d, crashedInThisRound d ∧ deadToAliveDelivery d N ∧ seen d V))
 
   -- Reset crash-related bookkeeping for the next round
   crashedInThisRound N := false
@@ -258,4 +257,4 @@ invariant [crashed_same_when_count_eq_round]
 -- [FIXME] `model_check` should support reachability queries directly without the
 -- need to hack it via error-finding (negating safety properties).
 
-end FloodSetExtended
+end FloodSet
