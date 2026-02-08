@@ -460,50 +460,60 @@ instance : FinEncodable Bool where
       right_inv := by grind }
 
 @[inline]
+def FinEncodable.encodeProd {α : Type u} {β : Type v} {n m : Nat}
+  (fa : α → Fin n) (fb : β → Fin m) (p : α × β) : Fin (n * m) :=
+  let (a, b) := p
+  let i := fa a
+  let j := fb b
+  ⟨i.val * m + j.val, by
+    calc i.val * m + j.val
+      _ < i.val * m + m := Nat.add_lt_add_left j.isLt _
+      _ = (i.val + 1) * m := by rw [Nat.add_mul, Nat.one_mul]
+      _ ≤ n * m := Nat.mul_le_mul_right _ i.isLt⟩
+
+@[inline]
+def FinEncodable.decodeProd {α : Type u} {β : Type v} {n m : Nat}
+  (fa : Fin n → α) (fb : Fin m → β) (k : Fin (n * m)) : α × β :=
+  have hpos : 0 < m := Nat.pos_of_ne_zero (by
+    intro h; simp only [h, Nat.mul_zero] at k; exact Fin.elim0 k)
+  have hdiv : k.val / m < n := by
+    rw [Nat.div_lt_iff_lt_mul hpos]
+    exact k.isLt
+  let i : Fin n := ⟨k.val / m, hdiv⟩
+  let j : Fin m := ⟨k.val % m, Nat.mod_lt _ hpos⟩
+  (fa i, fb j)
+
+theorem FinEncodable.decodeProd_encodeProd {α : Type u} {β : Type v} {n m : Nat}
+  (equiva : α ≃ Fin n) (equivb : β ≃ Fin m) (p : α × β) :
+  FinEncodable.decodeProd equiva.symm equivb.symm (FinEncodable.encodeProd equiva equivb p) = p := by
+  rcases p with ⟨a, b⟩
+  have hb := (equivb b).isLt
+  have hpos : 0 < m := Nat.zero_lt_of_lt hb
+  have heq1 : ((equiva a).val * m + (equivb b).val) / m =
+      (equiva a).val := by
+    conv_lhs => rw [Nat.add_comm, Nat.mul_comm]
+    rw [Nat.add_mul_div_left _ _ hpos, Nat.div_eq_of_lt hb, Nat.zero_add]
+  have heq2 : ((equiva a).val * m + (equivb b).val) % m =
+      (equivb b).val := by
+    conv_lhs => rw [Nat.add_comm, Nat.mul_comm]
+    rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hb]
+  simp only [encodeProd, decodeProd, Prod.mk.injEq]
+  constructor <;> rw [Equiv.symm_apply_eq] <;> ext <;> assumption
+
+theorem FinEncodable.encodeProd_decodeProd {α : Type u} {β : Type v} {n m : Nat}
+  (equiva : α ≃ Fin n) (equivb : β ≃ Fin m) (k : Fin (n * m)) :
+  FinEncodable.encodeProd equiva equivb (FinEncodable.decodeProd equiva.symm equivb.symm k) = k := by
+  simp only [encodeProd, decodeProd, Fin.ext_iff, Equiv.apply_symm_apply]
+  apply Nat.div_add_mod'
+
+@[inline]
 instance [insta : FinEncodable α] [instb : FinEncodable β] : FinEncodable (α × β) where
   card := insta.card * instb.card
   equiv :=
-    { toFun := fun (a, b) =>
-        let i := insta.equiv a
-        let j := instb.equiv b
-        ⟨i.val * instb.card + j.val, by
-          calc i.val * instb.card + j.val
-            _ < i.val * instb.card + instb.card := Nat.add_lt_add_left j.isLt _
-            _ = (i.val + 1) * instb.card := by rw [Nat.add_mul, Nat.one_mul]
-            _ ≤ insta.card * instb.card := Nat.mul_le_mul_right _ i.isLt⟩
-      invFun := fun k =>
-        have hpos : 0 < instb.card := Nat.pos_of_ne_zero (by
-          intro h; simp only [h, Nat.mul_zero] at k; exact Fin.elim0 k)
-        have hdiv : k.val / instb.card < insta.card := by
-          rw [Nat.div_lt_iff_lt_mul hpos]
-          exact k.isLt
-        let i : Fin insta.card := ⟨k.val / instb.card, hdiv⟩
-        let j : Fin instb.card := ⟨k.val % instb.card, Nat.mod_lt _ hpos⟩
-        (insta.equiv.symm i, instb.equiv.symm j)
-      left_inv := by
-        intro ⟨a, b⟩
-        have hb := (instb.equiv b).isLt
-        have hpos : 0 < instb.card := Nat.zero_lt_of_lt hb
-        have heq1 : ((insta.equiv a).val * instb.card + (instb.equiv b).val) / instb.card =
-            (insta.equiv a).val := by
-          conv_lhs => rw [Nat.add_comm, Nat.mul_comm]
-          rw [Nat.add_mul_div_left _ _ hpos, Nat.div_eq_of_lt hb, Nat.zero_add]
-        have heq2 : ((insta.equiv a).val * instb.card + (instb.equiv b).val) % instb.card =
-            (instb.equiv b).val := by
-          conv_lhs => rw [Nat.add_comm, Nat.mul_comm]
-          rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hb]
-        simp only [Prod.mk.injEq]
-        constructor
-        · rw [Equiv.symm_apply_eq]
-          ext
-          exact heq1
-        · rw [Equiv.symm_apply_eq]
-          ext
-          exact heq2
-      right_inv := by
-        intro k
-        simp only [Fin.ext_iff, Equiv.apply_symm_apply]
-        exact Nat.div_add_mod' k.val instb.card }
+    { toFun := fun p => FinEncodable.encodeProd insta.equiv instb.equiv p
+      invFun := fun k => FinEncodable.decodeProd insta.equiv.symm instb.equiv.symm k
+      left_inv := FinEncodable.decodeProd_encodeProd insta.equiv instb.equiv
+      right_inv := FinEncodable.encodeProd_decodeProd insta.equiv instb.equiv }
 
 @[inline]
 instance [insta : FinEncodable α] [instb : FinEncodable β] : FinEncodable (α ⊕ β) where
@@ -526,6 +536,52 @@ instance [insta : FinEncodable α] [instb : FinEncodable β] : FinEncodable (α 
         intro k
         simp only [Fin.ext_iff]
         split_ifs with h <;> simp only [Equiv.apply_symm_apply]; omega }
+
+@[inline]
+instance [insta : FinEncodable α] : FinEncodable (Option α) where
+  card := insta.card + 1
+  equiv :=
+    { toFun := fun
+        | none => ⟨0, Nat.zero_lt_succ _⟩
+        | some a => ⟨(insta.equiv a).val + 1, Nat.add_lt_add_right (insta.equiv a).isLt 1⟩
+      invFun := fun k =>
+        match k with
+        | ⟨0, _⟩ => none
+        | ⟨n + 1, h⟩ => some (insta.equiv.symm ⟨n, Nat.lt_of_succ_lt_succ h⟩)
+      left_inv := by
+        intro x
+        cases x <;> simp [Equiv.symm_apply_apply]
+      right_inv := by
+        intro ⟨k, hk⟩
+        cases k <;> simp [Equiv.apply_symm_apply] }
+
+-- NOTE: after inlining, there seems to be no temporary pair allocation
+@[inline]
+def FinEncodable.encodeNonDepSigma {α : Type u} {β : Type v} {n m : Nat}
+  (fa : α → Fin n) (fb : β → Fin m) (p : (_ : α) × β) : Fin (n * m) :=
+  match p with
+  | ⟨a, b⟩ => FinEncodable.encodeProd fa fb (a, b)
+
+@[inline]
+def FinEncodable.decodeNonDepSigma {α : Type u} {β : Type v} {n m : Nat}
+  (fa : Fin n → α) (fb : Fin m → β) (k : Fin (n * m)) : (_ : α) × β :=
+  let (a, b) := FinEncodable.decodeProd fa fb k
+  ⟨a, b⟩
+
+@[inline]
+instance instFinEncodableNonDepSigma {α : Type u} {β : Type v} [insta : FinEncodable α] [instb : FinEncodable β] : FinEncodable ((_ : α) × β) where
+  card := insta.card * instb.card
+  equiv :=
+    { toFun := fun p => FinEncodable.encodeNonDepSigma insta.equiv instb.equiv p
+      invFun := fun k => FinEncodable.decodeNonDepSigma insta.equiv.symm instb.equiv.symm k
+      left_inv := by
+        have tmp := FinEncodable.decodeProd_encodeProd insta.equiv instb.equiv
+        whnf ; simp [FinEncodable.encodeNonDepSigma, FinEncodable.decodeNonDepSigma]
+        grind
+      right_inv := by
+        have tmp := FinEncodable.encodeProd_decodeProd insta.equiv instb.equiv
+        whnf ; simp [FinEncodable.encodeNonDepSigma, FinEncodable.decodeNonDepSigma]
+        grind }
 
 theorem FinEncodable.card_ne_0_if_Inhabited [Inhabited α] [inst : FinEncodable α] : inst.card ≠ 0 :=
   if h : inst.card = 0 then
