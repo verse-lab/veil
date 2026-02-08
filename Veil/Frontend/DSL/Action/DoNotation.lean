@@ -212,7 +212,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
         let x ← TupleUpdate.findFirstAppearance pat
         if x.any (·.2.isSome) then
           throwErrorAt stx s!"When using field representation typeclass, you cannot use the same capitalized identifier more than once in the assignment:\n\n{name} {pat}\n\nsince it can lead to unexpected semantics."
-      let componentsSize := mod._fieldRepMetaData.get? name |>.elim 0 (·.size)
+      let componentsSize := mod.signature.find? (·.name == name) |>.elim 0 (·.domainTerms.size)
       let (patUsed, patResidue) := (pat.take componentsSize, pat.drop componentsSize)
       let vPadded ← do
         let funBinders : Array (TSyntax `Lean.Parser.Term.funBinder) ←
