@@ -549,8 +549,6 @@ update the module to include the new parameters for concrete field type,
 `FieldRepresentation` and `LawfulFieldRepresentation`. -/
 def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × Array Syntax) := do
   let components := mod.mutableComponents
-  -- this might be useful later, so store it as metadata in the module
-  let argTypesAsMap : Std.HashMap Name (Array Term) := Std.HashMap.ofList (components.zipWith (fun sc args => (sc.name, args)) (components.map (·.domainTerms)) |>.toList)
   -- declare field label type
   let (stateLabelTypeName, stateLabelTypeDefStx) ← declareStructureFieldLabelType stateName components
   -- declare field dispatchers
@@ -580,7 +578,7 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   let lawfulFieldRepType ← `(∀ $f, $(mkIdent ``LawfulFieldRepresentation) $toDomainTerm $toCodomainTerm $fieldConcreteTypeApplied ($fieldRepresentation $f))
   let lawfulFieldRep : Parameter := { kind := .moduleTypeclass .lawfulFieldRepresentation, name := lawfulFieldRepresentationName, «type» := lawfulFieldRepType, userSyntax := .missing }
   return ({ mod with parameters := mod.parameters ++ #[fieldConcreteTypeParam, fieldRep, lawfulFieldRep] ,
-                     _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter ,
-                     _fieldRepMetaData := argTypesAsMap }, (#[stateLabelTypeDefStx] ++ dispatcherStxs ++ #[fieldAbstractTypeStx] ++ specificInstances ++ #[allSomeCheckStx] ++ instances ++ #[fieldConcreteTypeStx]))
+                     _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter },
+          (#[stateLabelTypeDefStx] ++ dispatcherStxs ++ #[fieldAbstractTypeStx] ++ specificInstances ++ #[allSomeCheckStx] ++ instances ++ #[fieldConcreteTypeStx]))
 
 end Veil
