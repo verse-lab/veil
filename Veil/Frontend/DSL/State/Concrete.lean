@@ -117,10 +117,15 @@ class LawfulFinmapLike /- (α : outParam (Type u)) (β : outParam (Type v)) -/ (
   insert_get : ∀ (a a' : α) (b : β) (mp : γ),
     inst.get (inst.insert a b mp) a' = if a = a' then b else inst.get mp a'
 
-abbrev ArrayAsFinmap (n : Nat) (β : Type v) := { mp : Array β // n = mp.size }
+abbrev ArrayAsFinmap (α : Type u) [inst : FinEncodable α] (β : Type v) := { mp : Array β // inst.card = mp.size }
 
-instance [Inhabited β] : Inhabited (ArrayAsFinmap n β) :=
-  ⟨⟨Array.replicate n default, Eq.symm Array.size_replicate⟩⟩
+abbrev ArrayAsFinset (α : Type u) [inst : FinEncodable α] := ArrayAsFinmap α Bool
+
+instance [inst : FinEncodable α] [Inhabited β] : Inhabited (ArrayAsFinmap α β) :=
+  ⟨⟨Array.replicate inst.card default, Eq.symm Array.size_replicate⟩⟩
+
+instance [inst : FinEncodable α] : Membership α (ArrayAsFinset α) where
+  mem b a := b.val[inst.equiv a]
 
 end FinmapLike
 
@@ -452,6 +457,12 @@ instance [FinEncodable α] : FinsetLike (BitVecAsFinset α) where
   insert a b _ := b ||| (BitVec.twoPow _ (FinEncodable.equiv a))
   erase a b _ := b ^^^ (BitVec.twoPow _ (FinEncodable.equiv a))
 
+instance [inst : FinEncodable α] : FinsetLike (ArrayAsFinset α) where
+  insert a b _ := ⟨b.val.set (inst.equiv a) true,
+    (Eq.symm (Array.size_set (xs := b.val) (i := inst.equiv a) (v := true) (b.prop ▸ (inst.equiv a |>.prop)))) ▸ b.prop⟩
+  erase a b _ := ⟨b.val.set (inst.equiv a) false,
+    (Eq.symm (Array.size_set (xs := b.val) (i := inst.equiv a) (v := false) (b.prop ▸ (inst.equiv a |>.prop)))) ▸ b.prop⟩
+
 instance [BEq α] [Hashable α] : FinsetLike (Std.HashSet α) where
   insert a b _ := b.insert a
   erase a b _ := b.erase a
@@ -466,6 +477,14 @@ instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : FinsetLike (Std.Ext
 
 instance [FinEncodable α] [DecidableEq α] : LawfulFinsetLike (BitVecAsFinset α) where
   toFinset b := List.finRange (FinEncodable.card α) |>.filterMap (fun a => if b[a] then some (FinEncodable.equiv.symm a) else none) |>.toFinset
+  toFinset_mem_iff a b := by simp ; simp [Membership.mem] ; grind
+  insert_toFinset a b h := by
+    ext a ; simp [FinsetLike.insert] ; grind
+  erase_toFinset a b h := by
+    ext a ; simp [FinsetLike.erase] ; simp [Membership.mem] at h ; grind
+
+instance [inst : FinEncodable α] [DecidableEq α] : LawfulFinsetLike (ArrayAsFinset α) where
+  toFinset b := List.finRange (inst.card) |>.filterMap (fun a => if b.val[a] then some (inst.equiv.symm a) else none) |>.toFinset
   toFinset_mem_iff a b := by simp ; simp [Membership.mem] ; grind
   insert_toFinset a b h := by
     ext a ; simp [FinsetLike.insert] ; grind
@@ -519,10 +538,10 @@ instance [FinEncodable α] [FinEncodable β] [Inhabited β] : FinmapLike α β (
     let newval := BitVec.ofFin <| idb.castLE Nat.bitLength_range
     mp ^^^ ((newval ^^^ oldval |>.zeroExtend _) <<< offset)
 
-instance : FinmapLike (Fin n) β (ArrayAsFinmap n β) where
-  get mp a := mp.val[a.val]'(mp.property ▸ a.prop)
-  insert a b mp := ⟨mp.val.set a.val b (mp.property ▸ a.prop),
-    (Eq.symm (Array.size_set (xs := mp.val) (i := a.val) (mp.property ▸ a.prop))) ▸ mp.prop⟩
+instance [inst : FinEncodable α] : FinmapLike α β (ArrayAsFinmap α β) where
+  get mp a := mp.val[inst.equiv a]
+  insert a b mp := ⟨mp.val.set (inst.equiv a) b,
+    (Eq.symm (Array.size_set (xs := mp.val) (i := inst.equiv a) (v := b) (mp.prop ▸ (inst.equiv a |>.prop)))) ▸ mp.prop⟩
 
 instance [BEq α] [Hashable α] [Inhabited β] : FinmapLike α β (Std.HashMap α β) where
   get mp a := mp.getD a default
@@ -582,7 +601,7 @@ instance [FinEncodable α] [FinEncodable β] [Inhabited β] [DecidableEq α] : L
         apply Nat.le_mul_of_pos_left ; grind
       · simp
 
-instance : LawfulFinmapLike (ArrayAsFinmap n β) where
+instance [DecidableEq α] [inst : FinEncodable α] : LawfulFinmapLike (ArrayAsFinmap α β) where
   insert_get a a' b mp := by
     dsimp [FinmapLike.get, FinmapLike.insert]
     simp [Array.getElem_set, Fin.val_inj]
