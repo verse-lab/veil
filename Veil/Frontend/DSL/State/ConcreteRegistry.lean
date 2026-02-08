@@ -94,9 +94,32 @@ def extTreeMapConfig : ConcreteRepConfig := {
   lawfulFieldRepInstance := ``instFinmapLikeLawfulFieldRep
 }
 
+def bitvecAsFinsetConfig : ConcreteRepConfig := {
+  kind := .finsetLike
+  typeName := ``BitVecAsFinset
+  domainTypeInstances := #[``FinEncodable]
+  domainFieldRepInstances := #[``DecidableEq, ``FinEncodable, ``Enumeration]
+  domainLawfulFieldRepInstances := #[``DecidableEq, ``FinEncodable, ``Enumeration]
+  fieldRepInstance := ``instFinsetLikeAsFieldRep
+  lawfulFieldRepInstance := ``instFinsetLikeLawfulFieldRep
+}
+
+def bitvecAsFinmapConfig : ConcreteRepConfig := {
+  kind := .finmapLike
+  typeName := ``BitVecAsFinmap
+  domainTypeInstances := #[``FinEncodable]
+  codomainTypeInstances := #[``FinEncodable]
+  domainFieldRepInstances := #[``DecidableEq, ``FinEncodable, ``Enumeration]
+  codomainFieldRepInstances := #[``Inhabited, ``FinEncodable]
+  domainLawfulFieldRepInstances := #[``DecidableEq, ``FinEncodable, ``Enumeration]
+  codomainLawfulFieldRepInstances := #[``Inhabited, ``FinEncodable]
+  fieldRepInstance := ``instFinmapLikeAsFieldRep
+  lawfulFieldRepInstance := ``instFinmapLikeLawfulFieldRep
+}
+
 /-- All built-in concrete representation configs. -/
 def builtinConcreteRepConfigs : List ConcreteRepConfig :=
-  [extTreeSetConfig, extTreeMapConfig]
+  [extTreeSetConfig, extTreeMapConfig, bitvecAsFinsetConfig, bitvecAsFinmapConfig]
 
 end ConcreteRepRegistry
 

@@ -95,9 +95,9 @@ def Module.assumeForOneSort [Monad m] [MonadQuotation m] [MonadError m] (mod : M
   -- Special case `TransCmp` and `LawfulEqCmp`
   if #[``Std.TransCmp, ``Std.LawfulEqCmp, ``Std.ReflCmp].contains className then
     `(bracketedBinder|[$(mkIdent className) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $sort) ))])
-  else if className == ``Veil.Enumeration then
-    -- A special check for `Enumeration`: if this sort does not appear in the
-    -- domain of any *state field*, then *do not* add `Enumeration` instance binder.
+  else if [``Veil.Enumeration, ``Veil.FinEncodable].contains className then
+    -- A special check for enumerative typeclass: if this sort does not appear in the
+    -- domain of any *state field*, then *do not* add enumerative typeclass instance binder.
     -- FIXME: This is a very ad-hoc condition checking; ideally, we should
     -- check *semantically* by using `remove_unused_args%` or something similar
     if !filterWithHeuristics || (mod.mutableComponents.any fun sc => sc.domainTerms.any fun tm => Option.isSome <| tm.raw.find? fun subtm => subtm == sort) then
@@ -106,7 +106,7 @@ def Module.assumeForOneSort [Monad m] [MonadQuotation m] [MonadError m] (mod : M
   else
     `(bracketedBinder|[$(mkIdent className) $sort])
 
-def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [MonadError m] (mod : Module)
+def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module)
   (fields : Array StateComponent) (repConfigs : ResolvedConcreteRepConfigs)
   (domainInsts codomainInsts : ConcreteRepConfig → Array Name)
   (extraInstancesToAssume : Array Name := #[])
@@ -273,7 +273,7 @@ def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (m
 
 /-- Similar to `Module.declareStateStructure` but here `FieldRepresentation`
 is involved. -/
-def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × (Array Syntax)) := do
+def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × (Array Syntax)) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
   let stateDefs ← mod.fieldsAbstractedStateDefinitionStx
   let concreteFieldRepInsts ← mkFieldRepresentationInstancesForConcrete mod repConfigs
@@ -310,8 +310,10 @@ where
     let fields := mod.mutableComponents
     let fieldRepAssumed ← mod.assumeInstArgsWithConcreteRepConfig fields repConfigs
       ConcreteRepConfig.domainFieldRepInstances ConcreteRepConfig.codomainFieldRepInstances
+      (filterWithHeuristics := false)
     let lawfulAssumed ← mod.assumeInstArgsWithConcreteRepConfig fields repConfigs
       ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
+      (filterWithHeuristics := false)
     mkFieldRepresentationInstancesCore mod fieldConcreteDispatcher instFieldRepresentation instLawfulFieldRepresentation
       fieldRepAssumed
       lawfulAssumed
@@ -463,7 +465,7 @@ private def declareStructureFieldLabelType [Monad m] [MonadQuotation m] [MonadEr
 /-- Declare dispatchers that given the label for a specific field, returns the
 types of its arguments and its codomain, as well as the concrete and abstract
 types of the field. -/
-private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (base : Name) (fields : Array StateComponent) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (repConfigs : ResolvedConcreteRepConfigs)
+private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module) (base : Name) (fields : Array StateComponent) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (repConfigs : ResolvedConcreteRepConfigs)
   : m ((Array (Name × Syntax)) × (Name × Syntax) × (Name × Syntax)) := do
   let domainComponents ← fields.mapM (·.domainList)
   let coDomainComponents := fields.map (·.codomainTerm)
@@ -483,6 +485,7 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadEr
   -- Use domain type instances from the resolved configs (codomain instances are separate)
   let typeInstanceBinders ← mod.assumeInstArgsWithConcreteRepConfig fields repConfigs
     ConcreteRepConfig.domainTypeInstances ConcreteRepConfig.codomainTypeInstances
+    (filterWithHeuristics := false)
   let cParams := params ++ typeInstanceBinders ++ [fieldLabel]
   let concreteTypes ← fields.mapM (fieldKindToConcreteType sortIdents repConfigs)
   let toconcretetype ← `(abbrev $fieldConcreteDispatcher $cParams* : Type := $(mkIdent casesOnName) $f $concreteTypes*)
@@ -572,7 +575,7 @@ private def Module.declareInstanceLiftingForDispatcher [Monad m] [MonadQuotation
 /-- Return the syntax for declaring `State.Label` and dispatchers; also
 update the module to include the new parameters for concrete field type,
 `FieldRepresentation` and `LawfulFieldRepresentation`. -/
-def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × Array Syntax) := do
+def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × Array Syntax) := do
   let components := mod.mutableComponents
   -- this might be useful later, so store it as metadata in the module
   let argTypesAsMap : Std.HashMap Name (Array Term) := Std.HashMap.ofList (components.zipWith (fun sc args => (sc.name, args)) (components.map (·.domainTerms)) |>.toList)

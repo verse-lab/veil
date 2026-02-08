@@ -499,10 +499,10 @@ instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
   erase_toFinset a b h := by
     ext a ; simp [FinsetLike.erase] ; aesop
 
-abbrev BitVecsAsFinmap (α β) [FinEncodable α] [FinEncodable β] :=
+abbrev BitVecAsFinmap (α β) [FinEncodable α] [FinEncodable β] :=
   BitVec ((FinEncodable.card α) * (Nat.bitLength (FinEncodable.card β)))
 
-instance [FinEncodable α] [FinEncodable β] [Inhabited β] : FinmapLike α β (BitVecsAsFinmap α β) where
+instance [FinEncodable α] [FinEncodable β] [Inhabited β] : FinmapLike α β (BitVecAsFinmap α β) where
   get mp a :=
     -- this special check is kind of annoying, but there seems no better way?
     let ida := FinEncodable.equiv a
@@ -536,7 +536,7 @@ instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Inhabited β] : Finm
   get mp a := mp.getD a default
   insert a b mp := mp.insert a b
 
-instance [FinEncodable α] [FinEncodable β] [Inhabited β] [DecidableEq α] : LawfulFinmapLike (BitVecsAsFinmap α β) where
+instance [FinEncodable α] [FinEncodable β] [Inhabited β] [DecidableEq α] : LawfulFinmapLike (BitVecAsFinmap α β) where
   insert_get a a' b mp := by
     dsimp only [FinmapLike.get, FinmapLike.insert]
     split_ifs with h2
