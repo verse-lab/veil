@@ -143,8 +143,8 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
       $(← repeatedOr exs) :=
     by
       constructor
-      { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> grind }
-      { grind })
+      { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> (try solve | grind | aesop) }
+      { (try solve | grind | aesop) })
   let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (casesLemma, mod)
