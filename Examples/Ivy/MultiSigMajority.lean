@@ -2,7 +2,7 @@ import Veil
 -- https://github.com/aman-goel/ivybench/blob/d2c9298fdd099001c71a34bc2e118db6f07d8404/multisig/ivy/multisig-majority.ivy
 
 
-veil module MultiSigMaj
+veil module MultiSigMajority
 
 type validator
 type destination
@@ -93,4 +93,4 @@ invariant [ic3po_global3] sig V1 D1 V2 D2 S1 → sig_auth S1
 
 #check_invariants
 
-end MultiSigMaj
+end MultiSigMajority

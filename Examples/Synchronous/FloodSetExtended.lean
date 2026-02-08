@@ -20,7 +20,7 @@ Partial delivery: When a node crashes mid-round, it may have sent its values to
 some nodes but not others. We model this with `receivedFromDead`.
 -/
 
-veil module FloodSet
+veil module FloodSetExtended
 
 --------------------------------------------------------------------------------
 -- PART 1: STATE
@@ -257,4 +257,4 @@ invariant [crashed_same_when_count_eq_round]
 -- [FIXME] `model_check` should support reachability queries directly without the
 -- need to hack it via error-finding (negating safety properties).
 
-end FloodSet
+end FloodSetExtended

@@ -18,7 +18,7 @@ We model the stack in the algorithm using lean's `structure` definition
 (`append`, `head`, `tail`).
 
 -/
-veil module Mutex
+veil module MutexViolation
 
 type process
 -- enum process = {NONE, P1, P2, P3}
@@ -349,4 +349,4 @@ termination [AllDone] ∀s ≠ NONE, pc s Done = true
 /- `Fin n` means `n-1` valid threads.-/
 #model_check { process := Fin 10 } { NONE := 0 }
 
-end Mutex
+end MutexViolation

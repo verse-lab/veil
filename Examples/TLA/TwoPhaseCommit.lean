@@ -1,6 +1,6 @@
 import Veil
 
-veil module TwoPhaseCommit
+veil module TwoPhaseCommitTLA
 -- ------------------------------- MODULE TwoPhase -----------------------------
 -- (***************************************************************************)
 -- (* This specification describes the Two-Phase Commit protocol, in which a  *)
@@ -218,4 +218,4 @@ invariant [TCConsistency] ¬ (∃ rm1 rm2 : RM,
 
 #model_check { RM := Fin 3 }
 
-end TwoPhaseCommit
+end TwoPhaseCommitTLA

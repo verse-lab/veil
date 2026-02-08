@@ -2,7 +2,7 @@ import Veil
 
 /- https://muratbuffalo.blogspot.com/2025/11/tla-modeling-of-aws-outage-dns-race.html?m=1 -/
 
-veil module AwsDNSRace
+veil module AWSDnsRace
 
 enum ENACTORS = {e1, e2}
 
@@ -93,4 +93,4 @@ invariant [uniqueDelete] plan_deleted C F ∧ plan_deleted C T → F = T
 set_option veil.violationIsError false in
 #model_check {}{ max_plan := 5, plan_age_threshold := 2 }
 
-end AwsDNSRace
+end AWSDnsRace

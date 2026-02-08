@@ -2,7 +2,7 @@ import Veil
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/chord_ring_maintenance.ivy
 
 
-veil module ChordRing
+veil module ChordRingMaintenance
 
 class RingTopology (t : Type) where
   -- Y is on the acyclic path from X to Z
@@ -163,4 +163,4 @@ invariant [manual_17] ¬ (s1 V0 V1 ∧ V1 ≠ org ∧ s2 V0 V2 ∧ ring.btw V0 o
 
 #check_invariants
 
-end ChordRing
+end ChordRingMaintenance

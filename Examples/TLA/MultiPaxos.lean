@@ -14,7 +14,7 @@ open Std
 -- (***************************************************************************)
 -- EXTENDS Integers, TLAPS
 
-veil module MultiPaxosUs
+veil module MultiPaxos
 -- CONSTANTS Acceptors, Values, Quorums, Proposers
 type ballot
 type slot
@@ -430,4 +430,4 @@ A rough comparison:
 }
 
 
-end MultiPaxosUs
+end MultiPaxos

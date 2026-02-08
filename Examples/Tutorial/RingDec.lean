@@ -1,6 +1,6 @@
 import Veil
 
-veil module Ring
+veil module RingDec
 
 type node
 instantiate tot : TotalOrder node
@@ -58,4 +58,4 @@ unsat trace {
 
 #check_invariants
 
-end Ring
+end RingDec

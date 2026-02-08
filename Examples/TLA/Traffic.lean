@@ -1,5 +1,5 @@
 import Veil
-veil module traffic
+veil module Traffic
 -------------------------------- MODULE traffic ------------------------------
 
 -- src: https://github.com/Apress/practical-tla-plus/blob/master/Chapter%206/traffic.tla
@@ -73,4 +73,4 @@ safety [puzzle_unsolvable]
 set_option veil.violationIsError false in
 #model_check { ProcSet := ProcSet_IndT, Color := Color_IndT, states := states_IndT } {}
 
-end traffic
+end Traffic
