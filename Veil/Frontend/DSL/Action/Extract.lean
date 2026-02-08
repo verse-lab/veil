@@ -270,7 +270,7 @@ elab_rules : command
     let injectedBinders := injectedBinders.getD #[]
     specializeAndExtract injectedBinders extraDsimps logelem notUseWeakSign.isNone
 
-private def bindersToInjectForExecution [Monad m] [MonadQuotation m] [MonadError m] [Monad m] [MonadEnv m] (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+private def bindersToInjectForExecution [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] [MonadEnv m] (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
   let binders ← mod.assumeInstArgsWithConcreteRepConfig mod.mutableComponents repConfigs
     ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
