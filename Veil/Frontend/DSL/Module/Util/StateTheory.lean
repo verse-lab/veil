@@ -225,16 +225,7 @@ where
   mkDecidableEqInstance : m Syntax := do
     `(veil_deriving $(mkIdent ``DecidableEq) for $stateIdent with_priority low)
   mkToJsonInstances : m (Array Syntax) := do
-    let sorts ← mod.sortIdents
-    let concreteInst ← `(veil_deriving $(mkIdent ``Lean.ToJson) for $stateIdent with_priority low)
-    -- Abstract instance: ToJson (FieldAbstractType sorts* f)
-    let fieldLabelIdent := mkVeilImplementationDetailIdent `f
-    let fieldLabel ← `(bracketedBinder|($fieldLabelIdent : $(structureFieldLabelType stateName)))
-    let abstractBinders := (← mod.sortBinders) ++ (← #[``Lean.ToJson, ``Ord, ``Enumeration].flatMapM mod.assumeForEverySort) ++ #[fieldLabel]
-    let abstractTy ← `(term| $(mkIdent ``Lean.ToJson) ($fieldAbstractDispatcher $sorts* $fieldLabelIdent))
-    let abstractInst ← `(scoped instance $[$abstractBinders]* : $abstractTy := by cases $fieldLabelIdent:ident <;> infer_instance_for_iterated_prod')
-    return #[concreteInst, abstractInst]
-
+    pure #[← `(veil_deriving $(mkIdent ``Lean.ToJson) for $stateIdent with_priority low)]
 
 /-- Syntax for *defining* the immutable background theory of a module as a
 `structure`. The syntax for the type is `mod.theoryStx`. -/
@@ -244,16 +235,7 @@ private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError 
   return defCmds ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $theoryIdent), (← mkToJsonInstance)]
 where
   mkToJsonInstance : m Command := do
-    let toJsonTy ← `(term| $(mkIdent ``Lean.ToJson) ($(mkIdent theoryName) $(← mod.sortIdents)*))
-    let ρ := mkIdent `ρ
-    let fieldNames := mod.immutableComponents.map (·.name)
-    let jsonPairs ← fieldNames.mapM fun field => do
-      let fieldStr := toString field
-      `(term| ($(Syntax.mkStrLit fieldStr), $(mkIdent ``Lean.ToJson.toJson) $ρ.$(mkIdent field)))
-    let toJsonBody ← `(term| $(mkIdent ``Lean.Json.mkObj) [$[$jsonPairs],*])
-    let sortBinders ← mod.sortBinders
-    let assumedInstances ← #[``Lean.ToJson, ``Enumeration].flatMapM fun className => mod.assumeForEverySort className
-    `(scoped instance $[$sortBinders]* $[$assumedInstances]* : $toJsonTy where toJson := fun $ρ => $toJsonBody)
+    `(veil_deriving $(mkIdent ``Lean.ToJson) for $theoryIdent with_priority low)
 
 /-! ## Public Structure Declaration APIs -/
 
@@ -340,13 +322,7 @@ where
       let lawfulAssumed ← #[``DecidableEq].flatMapM mod.assumeForEverySort
       mkFieldRepresentationInstancesCore mod fieldAbstractDispatcher instAbstractFieldRepresentation instLawfulAbstractFieldRepresentation
         fieldRepAssumed lawfulAssumed abstractTactic lawfulAbstractTactic
-    -- Inhabited instance for State (FieldAbstractType sorts*)
-    let sorts ← mod.sortIdents
-    let inhabitedTy ← `(term|$(mkIdent ``Inhabited) ($stateIdent ($fieldAbstractDispatcher $sorts*)))
-    let inhabitedBinders := (← mod.sortBinders) ++ (← #[``Inhabited, ``DecidableEq].flatMapM mod.assumeForEverySort)
-    let (toDomainId, toCodomainId) := (mkIdent (fieldLabelToDomainName stateName), mkIdent (fieldLabelToCodomainName stateName))
-    let inhabitedStx ← `(scoped instance $[$inhabitedBinders]* : $inhabitedTy := by constructor; constructor <;> (dsimp [$toDomainId:ident, $toCodomainId:ident]; exact $(mkIdent ``Inhabited.default)))
-    return repInsts ++ #[inhabitedStx]
+    return repInsts
   /-- `NN` indicates "not necessarily". -/
   mkFieldRepresentationSolverTactic (relTFinCase funTFinCase relTNNFinCase funTNNFinCase : Name) (sorts : Array Ident) (fieldLabelIdent : Ident) : m (TSyntax `tactic) := do
     let fieldLabelIdentBackup := mkVeilImplementationDetailIdent `f_backup
@@ -479,7 +455,7 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMess
   let tocodomain ← `(abbrev $(fieldLabelToCodomain base) $dParams* : Type := $(mkIdent casesOnName) $f $coDomainComponents*)
   -- abstract field representation dispatcher (CanonicalField Domain Codomain)
   let sortIdents ← mod.sortIdents
-  let abstractTypes ← fields.mapM (fieldKindToAbstractType sortIdents)
+  let abstractTypes ← fields.mapM (·.typeStx)
   let toabstracttype ← `(abbrev $fieldAbstractDispatcher $dParams* : Type := $(mkIdent casesOnName) $f $abstractTypes*)
   -- concrete field representation dispatcher
   -- Use domain type instances from the resolved configs (codomain instances are separate)
@@ -498,10 +474,6 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMess
     let domainGetter ← `(term|($(fieldLabelToDomain base):ident $sortIdents*) $f:ident)
     let codomainGetter ← `(term|($(fieldLabelToCodomain base):ident $sortIdents*) $f:ident)
     return (f, domainGetter, codomainGetter)
-  /-- Generate the abstract (canonical/functional) type for a field: `CanonicalField Domain Codomain`. -/
-  fieldKindToAbstractType (sortIdents : Array Ident) (sc : StateComponent) : m (TSyntax `term) := do
-    let (_, domainGetter, codomainGetter) ← fieldDomainCodomainGetters sortIdents sc
-    `(term| $(mkIdent ``Veil.CanonicalField) $domainGetter $codomainGetter)
   /-- Generate the concrete type for a field based on its kind, using the configured representation. -/
   fieldKindToConcreteType (sortIdents : Array Ident) (repConfigs : ResolvedConcreteRepConfigs) (sc : StateComponent) : m (TSyntax `term) := do
     let (stateLabelCtor, domainGetter, codomainGetter) ← fieldDomainCodomainGetters sortIdents sc
@@ -595,8 +567,6 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   -- NOTE: not actually needed, but left here for completeness to document what needs to exist
   -- let instances ← #[``Enumeration, ``Ord, ``ToJson].flatMapM fun inst => return (← mod.declareInstanceLiftingForDomain inst) ++ (← mod.declareInstanceLiftingForCodomain inst)
   let instances : Array Syntax := #[]
-  -- Use the domain type instances from the config for instance lifting
-  let abstractInstances ← #[(``ToJson, #[``ToJson, ``Enumeration])].flatMapM fun (deriveClass, assumingClasses) => mod.declareInstanceLiftingForDispatcher deriveClass assumingClasses (dispatcher := fieldAbstractDispatcher)
   -- add the `fieldConcreteType` parameter
   let fieldConcreteTypeParam ← Parameter.fieldConcreteType
   -- add the `FieldRepresentation` and `LawfulFieldRepresentation` typeclass parameters
@@ -611,6 +581,6 @@ def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m]
   let lawfulFieldRep : Parameter := { kind := .moduleTypeclass .lawfulFieldRepresentation, name := lawfulFieldRepresentationName, «type» := lawfulFieldRepType, userSyntax := .missing }
   return ({ mod with parameters := mod.parameters ++ #[fieldConcreteTypeParam, fieldRep, lawfulFieldRep] ,
                      _declarations := mod._declarations.insert fieldConcreteTypeParam.name .moduleParameter ,
-                     _fieldRepMetaData := argTypesAsMap }, (#[stateLabelTypeDefStx] ++ dispatcherStxs ++ #[fieldAbstractTypeStx] ++ specificInstances ++ #[allSomeCheckStx] ++ instances ++ #[fieldConcreteTypeStx] ++ abstractInstances))
+                     _fieldRepMetaData := argTypesAsMap }, (#[stateLabelTypeDefStx] ++ dispatcherStxs ++ #[fieldAbstractTypeStx] ++ specificInstances ++ #[allSomeCheckStx] ++ instances ++ #[fieldConcreteTypeStx]))
 
 end Veil
