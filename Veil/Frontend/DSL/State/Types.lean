@@ -609,14 +609,15 @@ def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
     let x ← liftCoreM <| mkIdent <$> mkFreshUserName `x
     -- CHECK Will this proof result in huge proof object?
     let cmd ← `(command|
+      set_option linter.unusedTactic false in
       instance : $(mkIdent ``FinEncodable) $(mkIdent declName) where
         $(mkIdent `card):ident := $(mkIdent ``List.length) $(mkIdent enumListName)
         $(mkIdent `equiv):ident :=
           { $(mkIdent `toFun):ident := fun $x:ident => ⟨$(mkIdent ctorIdxName) $x, $(mkIdent ``enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt) $(mkIdent ctorThmName) $x⟩
             $(mkIdent `invFun):ident := fun $x:ident => $(mkIdent enumListName)[$x]
             $(mkIdent `left_inv):ident := by
-              whnf ; simp only [$(mkIdent ``Fin.getElem_fin):ident]
-              intros ; rw [$(mkIdent ``List.getElem_eq_iff):ident] ; apply $(mkIdent ctorThmName)
+              whnf ; intros ; simp only [$(mkIdent ``Fin.getElem_fin):ident]
+              try (rw [$(mkIdent ``List.getElem_eq_iff):ident] ; apply $(mkIdent ctorThmName))
             $(mkIdent `right_inv):ident := by
               whnf ; simp only [$(mkIdent ``Fin.getElem_fin):ident] ; unfold $(mkIdent enumListName) ; dsimp ; decide
           })
