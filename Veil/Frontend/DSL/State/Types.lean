@@ -392,9 +392,10 @@ def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
 def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
   if ← isEnumType declName then
     -- make use of `Fintype` deriving for enums, since it defines auxiliary definitions
-    Mathlib.Deriving.Fintype.mkFintypeEnum declName
     let ctorIdxName := declName.mkStr "ctorIdx"
     let enumListName := declName.mkStr "enumList"
+    unless (← getEnv).contains enumListName do
+      Mathlib.Deriving.Fintype.mkFintypeEnum declName
     let ctorThmName := declName.mkStr "enumList_getElem?_ctorIdx_eq"
     let x ← liftCoreM <| mkIdent <$> mkFreshUserName `x
     let cmd ← `(command|
@@ -589,6 +590,46 @@ theorem FinEncodable.card_ne_0_if_Inhabited [Inhabited α] [inst : FinEncodable 
     Fin.elim0 fin0
   else
     Nat.ne_of_gt (Nat.pos_of_ne_zero h)
+
+section FinEncodableDerivingHandler
+
+open Lean Meta Elab Term Command Deriving
+
+private theorem enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt {α : Type u} {l : List α}
+  {f : α → Nat} (h : ∀ a : α, l[f a]? = some a) : ∀ a : α, f a < l.length := by grind
+
+def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
+  if ← isEnumType declName then
+    -- make use of `Fintype` deriving for enums, since it defines auxiliary definitions
+    let ctorIdxName := declName.mkStr "ctorIdx"
+    let enumListName := declName.mkStr "enumList"
+    unless (← getEnv).contains enumListName do
+      Mathlib.Deriving.Fintype.mkFintypeEnum declName
+    let ctorThmName := declName.mkStr "enumList_getElem?_ctorIdx_eq"
+    let x ← liftCoreM <| mkIdent <$> mkFreshUserName `x
+    -- CHECK Will this proof result in huge proof object?
+    let cmd ← `(command|
+      instance : $(mkIdent ``FinEncodable) $(mkIdent declName) where
+        $(mkIdent `card):ident := $(mkIdent ``List.length) $(mkIdent enumListName)
+        $(mkIdent `equiv):ident :=
+          { $(mkIdent `toFun):ident := fun $x:ident => ⟨$(mkIdent ctorIdxName) $x, $(mkIdent ``enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt) $(mkIdent ctorThmName) $x⟩
+            $(mkIdent `invFun):ident := fun $x:ident => $(mkIdent enumListName)[$x]
+            $(mkIdent `left_inv):ident := by
+              whnf ; simp only [$(mkIdent ``Fin.getElem_fin):ident]
+              intros ; rw [$(mkIdent ``List.getElem_eq_iff):ident] ; apply $(mkIdent ctorThmName)
+            $(mkIdent `right_inv):ident := by
+              whnf ; simp only [$(mkIdent ``Fin.getElem_fin):ident] ; unfold $(mkIdent enumListName) ; dsimp ; decide
+          })
+    elabVeilCommand cmd
+    return true
+  -- orM (mkFinEncodableInstCmdForStructure declName) (mkFinEncodableInstCmdGeneralCase declName)
+  return false
+
+def mkFinEncodableHandler := onlyHandleOne mkFinEncodableInstCmd
+
+initialize registerDerivingHandler ``FinEncodable mkFinEncodableHandler
+
+end FinEncodableDerivingHandler
 
 end FinEncodable
 
