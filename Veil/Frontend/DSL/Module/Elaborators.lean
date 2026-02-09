@@ -241,7 +241,7 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     elabVeilCommand stx
   generateIgnoreFn mod
   let mod := { mod with _stateDefined := true }
-  if mod._useLocalRPropTC then
+  if mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
     let (localRPropTCStx, stx2) ← liftTermElabM mod.declareLocalRPropTC
     elabVeilCommand localRPropTCStx
     elabVeilCommand stx2
@@ -265,20 +265,22 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   let mod ← mod.ensureStateIsDefined
   warnIfNoInvariantsDefined mod
   warnIfNoActionsDefined mod
-  let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
-    let (assumptionCmd, mod) ← mod.assembleAssumptions
-    elabVeilCommand assumptionCmd
-    return mod
-  let mod ← withTraceNode `veil.perf.elaborator.decl.Invariants (fun _ => return "Invariants") do
-    let (invariantCmd, mod) ← mod.assembleInvariants
-    trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
-    elabVeilCommand invariantCmd
-    return mod
-  let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
-    let (safetyCmd, mod) ← mod.assembleSafeties
-    trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
-    elabVeilCommand safetyCmd
-    return mod
+  let mod ← if (← isModelCheckCompileMode) then pure mod else do
+    let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
+      let (assumptionCmd, mod) ← mod.assembleAssumptions
+      elabVeilCommand assumptionCmd
+      return mod
+    let mod ← withTraceNode `veil.perf.elaborator.decl.Invariants (fun _ => return "Invariants") do
+      let (invariantCmd, mod) ← mod.assembleInvariants
+      trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
+      elabVeilCommand invariantCmd
+      return mod
+    let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
+      let (safetyCmd, mod) ← mod.assembleSafeties
+      trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
+      elabVeilCommand safetyCmd
+      return mod
+    pure mod
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do
     elabVeilCommand cmd
@@ -287,7 +289,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   -- NOTE: ActionTag is query-local (not a module sort), but we generate the
   -- axiomatisation class and concrete type here for convenience
   let actionNames := mod.actions.map (fun (a : ProcedureSpecification) => Lean.mkIdent a.name)
-  if !actionNames.isEmpty then
+  if !actionNames.isEmpty && !(← isModelCheckCompileMode) then
     let (className, classDecl) ← mkEnumAxiomatisation actionTagType actionNames
     elabVeilCommand classDecl
     for cmd in (← mkEnumConcreteType actionTagType actionNames) do
@@ -295,21 +297,24 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     elabVeilCommand $ ← `(open $className:ident)
     -- TODO: Generate equivalence lemma (ActionTag.label_equiv) here
 
-  let (nextCmd, mod) ← mod.assembleNext
-  elabVeilCommand nextCmd
-  let (nextTrCmd, mod) ← mod.assembleNextTransition
-  elabVeilCommand nextTrCmd
-  let (initCmd, mod) ← mod.assembleInit
-  elabVeilCommand initCmd
+  let mod ← if (← isModelCheckCompileMode) then pure mod else do
+    let (nextCmd, mod) ← mod.assembleNext
+    elabVeilCommand nextCmd
+    let (nextTrCmd, mod) ← mod.assembleNextTransition
+    elabVeilCommand nextTrCmd
+    let (initCmd, mod) ← mod.assembleInit
+    elabVeilCommand initCmd
+    let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
+    elabVeilCommand rtsCmd
+    pure mod
   Extract.runGenExtractCommand mod
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
-  let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
-  elabVeilCommand rtsCmd
-  Verifier.runManager
-  mod.generateDoesNotThrowVCs
-  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
-  mod.generateInvariantVCs
+  unless (← isModelCheckCompileMode) do
+    Verifier.runManager
+    mod.generateDoesNotThrowVCs
+    -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
+    Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+    mod.generateInvariantVCs
   -- The invariant VCs are started only when `#check_invariants` is run
   return { mod with _specFinalizedAt := some stx }
 
@@ -437,7 +442,7 @@ def elabGhostRelationDefinition : CommandElab := fun stx => do
     | `(command|theory ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, false, ← mod.defineGhostRelation nm.getId br t (justTheory := true))
     | _ => throwUnsupportedSyntax
     elabVeilCommand cmd
-    if mod._useLocalRPropTC && stateGhost? then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
+    if mod._useLocalRPropTC && stateGhost? && !(← isModelCheckCompileMode) then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
     localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.assertionDeclaration]
@@ -465,7 +470,7 @@ def elabAssertion : CommandElab := fun stx => do
     let (cmd, mod') ← mod.defineAssertion assertion
     elabVeilCommand cmd
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
-    if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
+    if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) && !(← isModelCheckCompileMode) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
     localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]
