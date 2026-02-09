@@ -367,19 +367,20 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
     -- Elaborate the definitions in the Lean environment
     liftTermElabM $ do
       let nmDo := pi.nameInMode .none
-      let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
+      let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}]) (compile := !(← isModelCheckCompileMode))
       let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
-      let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
+      let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
       AuxiliaryDefinitions.defineWp mod nmInt .internal intKind
 
       -- Procedures are never considered in their external view, so save some
       -- time by not elaborating those definitions.
       if pi matches .initializer | .action _ _ then do
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
-        let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
-        AuxiliaryDefinitions.defineWp mod nmExt .external extKind
-        if deriveTransition? then
-          AuxiliaryDefinitions.defineTransition mod nmExt extKind
+        let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
+        unless (← isModelCheckCompileMode) do
+          AuxiliaryDefinitions.defineWp mod nmExt .external extKind
+          if deriveTransition? then
+            AuxiliaryDefinitions.defineTransition mod nmExt extKind
     return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
@@ -410,7 +411,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
     instantiateMVars tmp
   -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
-  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr
+  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr (compile := !(← isModelCheckCompileMode))
   mod.defineProcedureCore pi eDo ps false
 
 end Veil
