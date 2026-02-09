@@ -234,8 +234,8 @@ def specializeAndExtractInternalMode (mod : Module) : CommandElabM Unit := do
   let procs := mod.procedures.filter fun p => match p.info with | .procedure _ => true | _ => false
   for ps in procs do
     let attr1 ← `(Parser.Term.attrInstance| $(mkIdent `multiextracted):ident )
-    let attr2 ← `(Parser.Term.attrInstance| multiExtractSimp ↓)
-    specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak false mod ps.info (attrs := #[attr1, attr2])
+    -- let attr2 ← `(Parser.Term.attrInstance| multiExtractSimp ↓)
+    specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak false mod ps.info (attrs := #[attr1/-, attr2 -/])
 
 def specializeAndExtractActions (mod : Module) : CommandElabM Unit := do
   let lIdent := mkIdent `l
@@ -446,6 +446,6 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     injectedBinders finalBody mod specializeToOther
 
   -- Step 5: Add @[specialize] attribute
-  `(command| @[specialize] def $enumerableTransitionSystem:ident := $enumerableTransitionSystemTerm)
+  `(command| def $enumerableTransitionSystem:ident := $enumerableTransitionSystemTerm)
 
 end Veil.Extract
