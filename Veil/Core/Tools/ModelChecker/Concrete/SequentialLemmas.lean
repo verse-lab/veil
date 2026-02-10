@@ -69,25 +69,8 @@ def SequentialSearchContext.initial {ρ σ κ σₕ : Type}
       · -- queue_sound: all states in queue are reachable
         dsimp only [Functor.map]
         intro x d h_in_queue
-        unfold Membership.mem at h_in_queue
-        -- Convert queue membership to list membership
-        have h_in_toList : (⟨fp.view x, x, d⟩ : QueueItem σₕ σ) ∈
-            fQueue.toList (List.foldl fQueue.enqueue fQueue.empty
-              (List.map (fun s => (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ)) sys.initStates)) := by
-          simp only [fQueue.toList, List.mem_append, List.mem_reverse]
-          -- unfold fQueue.ofList at h_in_queue
-          exact h_in_queue
-        rw [fQueue.foldl_enqueue_toList] at h_in_toList
-        simp only [fQueue.toList_empty, List.nil_append] at h_in_toList
-        simp only [List.mem_map] at h_in_toList
-        obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_toList
-        have h_state_eq : s = x := by
-          have : (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ).state =
-                 (⟨fp.view x, x, d⟩ : QueueItem σₕ σ).state := by
-            rw [h_eq]
-          exact this
-        rw [← h_state_eq]
-        exact EnumerableTransitionSystem.reachable.init s h_s_in_init
+        simp [fQueue.instMembership] at h_in_queue
+        grind
       · -- visited_sound: all seen states are reachable
         intro h_view_inj x h_in_seen
         simp only [BaseSearchContext.initial] at h_in_seen
@@ -102,50 +85,13 @@ def SequentialSearchContext.initial {ρ σ κ σₕ : Type}
         intro x d h_in_queue
         dsimp only [Functor.map]
         simp only [BaseSearchContext.initial]
-        unfold Membership.mem fQueue.instMembership at h_in_queue
-        have h_in_toList : (⟨fp.view x, x, d⟩ : QueueItem σₕ σ) ∈
-            fQueue.toList (List.foldl fQueue.enqueue fQueue.empty
-              (List.map (fun s => (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ)) sys.initStates)) := by
-          simp only [fQueue.toList, List.mem_append, List.mem_reverse]
-          exact h_in_queue
-        rw [fQueue.foldl_enqueue_toList] at h_in_toList
-        simp only [fQueue.toList_empty, List.nil_append] at h_in_toList
-        simp only [List.mem_map] at h_in_toList
-        obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_toList
-        have h_fp_eq : fp.view s = fp.view x := by
-          have : (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ).fingerprint =
-                 (⟨fp.view x, x, d⟩ : QueueItem σₕ σ).fingerprint := by
-            rw [h_eq]
-          exact this
-        rw [← h_fp_eq]
-        apply Std.HashSet.mem_insertMany_of_mem_list
-        show fp.view s ∈ List.map fp.view sys.initStates
-        simp only [List.mem_map]
-        exact ⟨s, h_s_in_init, rfl⟩
+        simp [fQueue.instMembership] at h_in_queue
+        simp ; grind
       · -- queue_wellformed: fingerprints match states
         dsimp only [Functor.map]
         intro fp' st d h_in_queue
-        unfold Membership.mem fQueue.instMembership at h_in_queue
-        have h_in_toList : (⟨fp', st, d⟩ : QueueItem σₕ σ) ∈
-            fQueue.toList (List.foldl fQueue.enqueue fQueue.empty
-              (List.map (fun s => (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ)) sys.initStates)) := by
-          simp only [fQueue.toList, List.mem_append, List.mem_reverse]
-          exact h_in_queue
-        rw [fQueue.foldl_enqueue_toList] at h_in_toList
-        simp only [fQueue.toList_empty, List.nil_append] at h_in_toList
-        simp only [List.mem_map] at h_in_toList
-        obtain ⟨s, h_s_in_init, h_eq⟩ := h_in_toList
-        have h_fp_eq : fp.view s = fp' := by
-          have : (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ).fingerprint =
-                 (⟨fp', st, d⟩ : QueueItem σₕ σ).fingerprint := by
-            rw [h_eq]
-          exact this
-        have h_st_eq : s = st := by
-          have : (⟨fp.view s, s, 0⟩ : QueueItem σₕ σ).state =
-                 (⟨fp', st, d⟩ : QueueItem σₕ σ).state := by
-            rw [h_eq]
-          exact this
-        rw [← h_st_eq, ← h_fp_eq]
+        simp [fQueue.instMembership] at h_in_queue
+        grind
     terminate_empty_queue := by
       intro h_finished;
       contradiction
@@ -159,9 +105,8 @@ def SequentialSearchContext.initial {ρ σ κ σₕ : Type}
       subst h_eq
       exfalso
       apply h_not_in_queue 0
-      apply fQueue.mem_ofList
-      simp only [Functor.map, List.mem_map]
-      exact ⟨s, h_s_in_init, rfl⟩
+      simp [← fQueue.mem_ofList]
+      grind
   }
 
 
