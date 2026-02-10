@@ -14,6 +14,15 @@ verification for transition systems and their properties expressed
 decidable fragments of first-order logic, with the full power of a
 modern higher-order proof assistant for when automation falls short.
 
+## New: Veil 2.0 Preview!
+
+The upcoming version of Veil is coming soon, with vastly improved user
+experience and a TLC-style explicit state model checker.
+
+The pre-release version is available on the [`veil-2.0-preview`](https://github.com/verse-lab/veil/tree/veil-2.0-preview) branch.
+
+Try it out! (And do [let us know](https://github.com/verse-lab/veil/issues/new) if you encounter issues.)
+
 ## Using `veil`
 
 To use `veil` in your project, add the following to your
