@@ -16,12 +16,16 @@ modern higher-order proof assistant for when automation falls short.
 
 ## Veil 2.0 Pre-Release
 
-You are looking at a **pre-release version** of Veil 2.0, the upcoming major
+You are looking at a pre-release version of Veil 2.0, the upcoming major
 version of Veil. There are still quite a few bugs and rough edges.
 
 If you encounter issues, please [report them to
 us](https://github.com/verse-lab/veil/issues/new), so we can fix them before
 the release. Your patience and feedback are greatly appreciated!
+
+You can ask questions on the [Veil
+channel](https://leanprover.zulipchat.com/#narrow/channel/537982-Veil) on the
+Lean Zulip, and we will be happy to answer.
 
 ## Online Playground
 
