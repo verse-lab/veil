@@ -23,6 +23,10 @@ The pre-release version is available on the [`veil-2.0-preview`](https://github.
 
 Try it out! (And do [let us know](https://github.com/verse-lab/veil/issues/new) if you encounter issues.)
 
+You can ask questions on the [Veil
+channel](https://leanprover.zulipchat.com/#narrow/channel/537982-Veil) on the
+Lean Zulip, and we will be happy to answer.
+
 ## Using `veil`
 
 To use `veil` in your project, add the following to your
