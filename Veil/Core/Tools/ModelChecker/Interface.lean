@@ -101,6 +101,8 @@ structure ParallelConfig where
   If the worklist size is below this threshold, sequential processing
   is used. -/
   thresholdToParallel : Nat := 20
+  -- /-- Number of states processed in a batch by each worker. -/
+  -- batchSize : Nat := 512
 deriving Inhabited, Repr
 
 instance ParallelConfig.hasQuote : Quote ParallelConfig `term where

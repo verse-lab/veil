@@ -370,7 +370,8 @@ between acceptors and quorums.
 --   minusOne := 0
 --   validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
 -- }
-#model_check
+set_option trace.veil.desugar true
+#model_check compiled
 {
   ballot := Fin 4,   -- 0 = minusOne, 1..3 = valid ballots (matches TLA+ MaxBallot = 2, i.e., 0..2)
   value := Fin 2,    -- matches TLA+ Values = {v1, v2}
@@ -393,5 +394,8 @@ between acceptors and quorums.
   minusOne := 0
   validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
 }
+-- (sequential := true)
+(parallelCfg := some { numSubTasks := 8, thresholdToParallel := 20
+/-, batchSize := 1024-/})
 
 end Paxos
