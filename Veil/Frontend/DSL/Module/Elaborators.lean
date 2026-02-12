@@ -772,20 +772,51 @@ where
     let some resultJson ← ModelChecker.Concrete.getResultJson ctx.instanceId | return
     logModelCheckResult ctx.stx resultJson
 
-  /-- Compile the model. Returns the build folder path if compilation succeeded, none otherwise. -/
+  /-- Compile the model. Returns the build folder path if compilation succeeded, none otherwise.
+      If `verbose` is true, runs with `--verbose` flag and captures compile/link commands for future use. -/
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
-      (instanceId : Nat) : IO (Option System.FilePath) := do
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
-    ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
+      (instanceId : Nat) (buildFolderOpt : Option System.FilePath := .none) (markInProgress : Bool := true)
+      (verbose : Bool := false) : IO (Option System.FilePath) := do
+    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString (buildFolderOpt := buildFolderOpt)
+    if markInProgress then
+      -- If in verbose mode, then this means we've already marked the registry in progress
+      ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
+    let args := if verbose then #["build", "ModelCheckerMain", "--verbose"] else #["build", "ModelCheckerMain"]
     let result ← ModelChecker.Compilation.runProcessWithStatusCallback
-      { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
+      { cmd := "lake", args := args, cwd := buildFolder }
       (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
       (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
     if result.exitCode != 0 then
       ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (mkCompilationErrorMsg result))
       return none
+    -- Extract and save compile/link commands from verbose output (only when verbose)
+    if verbose then
+      let output := result.stdout ++ "\n" ++ result.stderr
+      if let some (compileCmd, linkCmd) := ModelChecker.Compilation.extractCompileLinkCommands output then
+        ModelChecker.Compilation.saveAdaptedCompileScript buildFolder compileCmd linkCmd
     ModelChecker.Concrete.updateCompilationStatus instanceId .succeeded
     return some buildFolder
+
+  /-- Try to generate C code from the current environment using addMain + emitC.
+      Must be called in CommandElabM context. Returns the C code if successful, none if failed. -/
+  tryGenerateCCode (mod : Module) (callExpr : Term) : CommandElabM (Option String) := do
+    try
+      -- Use `withoutModifyingEnv` to add main without affecting the actual environment
+      withoutModifyingEnv do
+        -- Add the model checking result call
+        elabModelCheckInternalMode mod callExpr
+        -- Add the main entry point
+        ModelChecker.Compilation.ToBeInsertedIntoMain.addMain
+        -- Emit C code for the Model module
+        let env ← getEnv
+        match IR.emitC env `Model with
+        | .ok cCode => return some cCode
+        | .error err =>
+          trace[veil.debug] s!"emitC failed: {err}"
+          return none
+    catch e =>
+      trace[veil.debug] s!"tryGenerateCCode failed: {← e.toMessageData.toString}"
+      return none
 
   /-- Core elaboration logic shared by all model checking modes. -/
   elabModelCheckCore (stx : Syntax) (mode : ModelCheckingMode) (instTerm : Term)
@@ -810,7 +841,7 @@ where
     match isCompileMode, mode with
     | true, _            => elabModelCheckInternalMode mod callExpr  -- In compiled binary
     | false, .interpreted => elabModelCheckInterpretedMode mod stx callExpr parallelCfg
-    | false, .compiled    => elabModelCheckCompiledMode mod stx parallelCfg
+    | false, .compiled    => elabModelCheckCompiledMode mod stx callExpr parallelCfg
     | false, .default     => elabModelCheckWithHandoff mod stx callExpr parallelCfg
 
   /-- Handle interpreted mode: evaluate and display results directly. -/
@@ -831,17 +862,43 @@ where
     Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
     ModelChecker.displayStreamingProgress stx ctx.instanceId
 
-  /-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
-  elabModelCheckCompiledMode (mod : Module) (stx : Syntax)
+  /-- Handle compiled-only mode: compile and run binary without interpreted fallback.
+      This implements a two-phase approach:
+      1. If a compile script exists, try the new approach (emitC + run script)
+      2. If no script exists or new approach fails, fall back to old approach (`lake build --verbose`)
+         and capture the compile/link commands for future use. -/
+  elabModelCheckCompiledMode (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     -- dbg_trace "elabModelCheckCompiledMode"
     let ctx ← allocModelCheckContext mod stx parallelCfg
     let sourceFile ← getFileName
     let modelSource ← generateModelSource mod stx
 
+    -- Check if we can try the new approach (script exists)
+    let buildFolder ← ModelChecker.Compilation.generateBuildFolderName sourceFile
+    let scriptExists ← ModelChecker.Compilation.compileScriptExists buildFolder
+
+    -- If script exists, try to generate C code before going async
+    let cCodeOpt ← if scriptExists then tryGenerateCCode mod callExpr else pure none
+
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
+        let fallBackToOld ← match cCodeOpt with
+        | .some cCode =>
+          -- Write C code to build folder
+          let _ ← ModelChecker.Compilation.createBuildFolderForCCode sourceFile cCode (buildFolderOpt := .some buildFolder)
+          ModelChecker.Compilation.markRegistryInProgress sourceFile ctx.instanceId buildFolder
+          -- Try running the compile script
+          let (success, _stdout, _stderr) ← ModelChecker.Compilation.runCompileScript buildFolder
+          pure !success
+        | none => pure true
+
+        -- Fall back to old approach with `--verbose` (captures commands for future use)
+        if fallBackToOld then
+          let _ ← compileModel mod sourceFile modelSource ctx.instanceId (buildFolderOpt := .some buildFolder) (markInProgress := cCodeOpt.isNone) (verbose := true)
+        else pure ()
+
+        -- At this point, the binary should be ready anyway
         if ← checkCancelled ctx.cancelToken ctx.instanceId then return
         runBinaryAndLogResult ctx buildFolder sourceFile
       catch e : Exception =>

@@ -1,6 +1,38 @@
 import Veil.Core.UI.Widget.ProgressViewer
+import Veil.Util.Meta
+import Batteries.Data.String.Matcher
 
 namespace Veil.ModelChecker.Compilation
+
+/-!
+
+NOTE: Currently there are two approaches for running the model checker call after
+compilation, both in this file.
+- Old approach: copy the file under editing into the temporary Lake project
+directory with name `Model.lean`, set the `veil.__modelCheckCompileMode` option
+at the beginning of `Model.lean`, and compile the copy together with a temporarily
+generated main entry file `ModelCheckerMain.lean`
+- New approach: first bring the `modelCheckerResult` and `main` definitions into
+the current environment, then use `Lean.IR.emitC` to output the C IR, still to a
+temporary directory, and finally compile the C IR into an object file, and link
+this object file with the other dependent object files
+
+For now, the compilation and linking command in the new approach is obtained from
+the verbose output of the old approach, so at this stage the new approach is based
+on the old one. To get rid of this dependency, some more thorough hack into `lake`
+is required.
+
+That said, there are some things to take care of, regardless of whether the old
+approach will be kept:
+- More definitions should be removed from the environment before compiling into C,
+including the `act.do`, `act` and `act.ext` definitions
+- The main entry function might be made into an object-level definition instead
+of a meta-level one (i.e., syntax)
+- There seems to be some time gap in starting running the model checker and
+displaying the result; what's happening there?
+- The workflow of `compiled` mode and handoff mode should reuse more code
+
+-/
 
 open Lean Meta Elab Command
 
@@ -91,6 +123,39 @@ lean_exe ModelCheckerMain where
   buildType := .release
 "
 
+namespace ToBeInsertedIntoMain
+
+private def flushStdoutAndStderr : IO Unit := do
+  let stdout ← IO.getStdout
+  let stderr ← IO.getStderr
+  stdout.flush
+  stderr.flush
+
+private def exitWhenParentDies : IO Unit := do
+  let stdin ← IO.getStdin
+  let _ ← stdin.readToEnd
+  flushStdoutAndStderr
+  IO.Process.forceExit 2
+
+def addMain : CommandElabM Unit := do
+  elabVeilCommand <| ← `(command|def $(mkIdent `main) : IO Unit := do
+    let _ ← IO.asTask (prio := .dedicated) $(mkIdent ``ToBeInsertedIntoMain.exitWhenParentDies):term
+    -- Enable progress reporting to stderr for the IDE to read
+    Veil.ModelChecker.Concrete.enableCompiledModeProgress
+    let pcfg : Option Veil.ModelChecker.ParallelConfig := $(mkIdent ``Option.none)
+    -- Instance ID is not used in compiled mode, pass 0
+    -- Cancel token is created locally; cancellation is handled by killing the process from outside
+    let cancelTk ← IO.CancelToken.new
+    -- `modelCheckerResult` is to be defined in the model
+    -- NOTE: For now, just sequential
+    let res ← $(mkIdent `modelCheckerResult):term pcfg 0 cancelTk
+    IO.println s!"{Lean.toJson res}"
+    $(mkIdent ``ToBeInsertedIntoMain.flushStdoutAndStderr):term
+    IO.Process.forceExit 0
+  )
+
+end ToBeInsertedIntoMain
+
 /-- Template for the ModelCheckerMain.lean in the temp project.
     Takes the namespace of the specification to open scoped instances. -/
 def modelCheckerMainTemplate (specNamespace : String) : String :=
@@ -136,9 +201,12 @@ def main (args : List String) : IO Unit := do
 
 /-- Create the temp build folder with all necessary files.
 Returns the absolute path to the build folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String) : IO System.FilePath := do
+def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
+  (buildFolderOpt : Option System.FilePath := .none) : IO System.FilePath := do
   let veilPath ← IO.currentDir
-  let buildFolder ← generateBuildFolderName sourceFile
+  let buildFolder ← match buildFolderOpt with
+    | some p => pure p
+    | none => generateBuildFolderName sourceFile
   -- Create the build folder
   IO.FS.createDirAll buildFolder
   -- Write the lakefile
@@ -248,5 +316,134 @@ def runProcessWithStatusCallback (cfg : IO.Process.SpawnArgs)
 --             IO.FS.removeDirAll entry.path
 --             count := count + 1
 --   return count
+
+/-- Path to the compile script in the build folder. -/
+def getCompileScriptPath (buildFolder : System.FilePath) : System.FilePath :=
+  buildFolder / "compile_and_link.sh"
+
+/-- Check if the compile script exists. -/
+def compileScriptExists (buildFolder : System.FilePath) : IO Bool :=
+  (getCompileScriptPath buildFolder).pathExists
+
+/-- Extract compile and link commands from `lake --verbose` output.
+    Returns `(compileCommand, linkCommand)` if both are found.
+    Looks for commands related to `Model` or `ModelCheckerMain` compilation.
+
+    The verbose output from `lake build --verbose` has lines like:
+    - `trace: .> ... -c -o .../ModelCheckerMain.c.o.export .../ModelCheckerMain.c ...`  (C compile)
+    - `trace: .> ... -o .../bin/ModelCheckerMain .../ModelCheckerMain.c.o.export ...`  (link)
+
+    The C compile command has `-c` flag and the output `.c.o` file.
+    The link command has `-o` followed by the binary output path `/bin/ModelCheckerMain`. -/
+def extractCompileLinkCommands (verboseOutput : String) : Option (String × String) := Id.run do
+  let lines := verboseOutput.splitOn "\n"
+  let mut compileCmd : Option String := none
+  let mut linkCmd : Option String := none
+  for line in lines do
+    let trimmed := line.trim
+    if trimmed.isEmpty then continue
+    -- Look for C compile command: compiling `.c` to `.o` using `clang`
+    -- Contains `-c` and `ModelCheckerMain.c.o*` (the output object file)
+    if hasSubstr trimmed "-c" && hasSubstr trimmed "ModelCheckerMain.c.o" && compileCmd.isNone then
+      compileCmd := some (stripTracePrefix trimmed)
+    -- Look for link command: linking `.o` files to create executable
+    -- Contains `-o` followed by the binary path `.../bin/ModelCheckerMain`
+    else if hasSubstr trimmed "/bin/ModelCheckerMain " && linkCmd.isNone then
+      linkCmd := some (stripTracePrefix trimmed)
+    else pure ()
+  match compileCmd, linkCmd with
+  | some c, some l => some (c, l)
+  | _, _ => none
+where
+ hasSubstr (s : String) (pattern : String) : Bool :=
+  s.containsSubstr pattern.toSubstring
+ stripTracePrefix (line : String) : String :=
+  let tracePrefix := "trace: .> "
+  if line.startsWith tracePrefix then
+    line.drop tracePrefix.length
+  else
+    line
+
+-- CHECK `saveCompileScript` might be called from `IO.Process.spawn`?
+-- CHECK `createBuildFolderForCCode` might be merged with `createBuildFolder`?
+
+/-- Save compile and link commands to a script file. -/
+def saveCompileScript (buildFolder : System.FilePath) (compileCmd linkCmd : String) : IO Unit := do
+  let scriptPath := getCompileScriptPath buildFolder
+  let scriptContent := s!"#!/bin/bash
+set -e
+
+# Working directory: {buildFolder}
+cd \"{buildFolder}\"
+
+# Compile C to object file
+{compileCmd}
+
+# Link to create executable
+{linkCmd}
+"
+  IO.FS.writeFile scriptPath scriptContent
+
+/-- Run the compile script. Returns `(success, stdout, stderr)`. -/
+def runCompileScript (buildFolder : System.FilePath) : IO (Bool × String × String) := do
+  let scriptPath := getCompileScriptPath buildFolder
+  let result ← IO.Process.output { cmd := "/bin/bash", args := #[scriptPath.toString], cwd := buildFolder }
+  return (result.exitCode == 0, result.stdout, result.stderr)
+
+/-- The IR directory for the new approach (different from Lake's default to avoid clashing). -/
+def getNewApproachIrDir (buildFolder : System.FilePath) : System.FilePath :=
+  buildFolder / ".lake" / "model_check_build" / "ir"
+
+/-- Create the temp build folder and write C code for the new approach.
+    Unlike `createBuildFolder`, this does not write `Model.lean` or `ModelCheckerMain.lean`,
+    only the C code file. The C file is written to `.lake/model_check_build/ir/` to avoid
+    clashing with Lake's default `.lake/build/ir/` directory.
+    Returns the absolute path to the build folder. -/
+def createBuildFolderForCCode (sourceFile : String) (cCode : String)
+  (buildFolderOpt : Option System.FilePath := .none) : IO System.FilePath := do
+  let veilPath ← IO.currentDir
+  let buildFolder ← match buildFolderOpt with
+    | some p => pure p
+    | none => generateBuildFolderName sourceFile
+  -- Create the build folder and the IR subdirectory
+  let irDir := getNewApproachIrDir buildFolder
+  IO.FS.createDirAll irDir
+  -- Write the lakefile (needed even for C compilation for dependency paths)
+  IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
+  -- Write the C code file to the IR directory
+  IO.FS.writeFile (irDir / "ModelCheckerMain.c") cCode
+  -- Create a minimal lean-toolchain file (copy from parent)
+  let toolchainPath := veilPath / "lean-toolchain"
+  if ← toolchainPath.pathExists then
+    let toolchain ← IO.FS.readFile toolchainPath
+    IO.FS.writeFile (buildFolder / "lean-toolchain") toolchain
+  return buildFolder
+
+/-- Adapt a compile command for the new approach.
+    Changes `.lake/build/ir/ModelCheckerMain.c` to `.lake/model_check_build/ir/ModelCheckerMain.c`
+    for both source and target paths. -/
+def adaptCompileCommand (cmd : String) : String :=
+  -- Replace the old IR path with the new one for ModelCheckerMain files
+  cmd.replace ".lake/build/ir/ModelCheckerMain" ".lake/model_check_build/ir/ModelCheckerMain"
+
+/-- Adapt a link command for the new approach.
+    - Changes `.lake/build/ir/ModelCheckerMain.c.o.export` to `.lake/model_check_build/ir/ModelCheckerMain.c.o.export`
+    - Removes references to `Model.c.o.export` since in the new approach there's only ModelCheckerMain -/
+def adaptLinkCommand (cmd : String) : String :=
+  -- First, replace the ModelCheckerMain path
+  let cmd := cmd.replace ".lake/build/ir/ModelCheckerMain" ".lake/model_check_build/ir/ModelCheckerMain"
+  -- Escape `'`
+  let cmd := cmd.replace "\'" "\\\'"
+  -- Then remove any `Model.c.o.export` references
+  -- Split by spaces, filter out `Model.c.o.export` paths, rejoin
+  let parts := cmd.splitOn " "
+  let filtered := parts.filter fun part => !part.containsSubstr ".lake/build/ir/Model.c.o.export".toSubstring
+  " ".intercalate filtered
+
+/-- Save adapted compile and link commands to a script file for the new approach. -/
+def saveAdaptedCompileScript (buildFolder : System.FilePath) (compileCmd linkCmd : String) : IO Unit := do
+  let adaptedCompile := adaptCompileCommand compileCmd
+  let adaptedLink := adaptLinkCommand linkCmd
+  saveCompileScript buildFolder adaptedCompile adaptedLink
 
 end Veil.ModelChecker.Compilation
