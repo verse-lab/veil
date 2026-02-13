@@ -657,11 +657,10 @@ where
         return true
     return false
 
-  /-- Handle internal mode: define and export the model checker result. -/
+  /-- Handle internal mode: define the model checker result and the main function. -/
   elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
     elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat) (cancelToken : IO.CancelToken) := $callExpr pcfg progressInstanceId cancelToken))
-    elabVeilCommand (← `(end $(mkIdent mod.name)))
-    elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
+    liftTermElabM <| ModelChecker.Compilation.ToBeInsertedIntoMain.addMain mod.name
 
   /-- Build compilation error message from process result. -/
   mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResult) : String :=
@@ -777,7 +776,7 @@ where
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
       (instanceId : Nat) (buildFolderOpt : Option System.FilePath := .none) (markInProgress : Bool := true)
       (verbose : Bool := false) : IO (Option System.FilePath) := do
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString (buildFolderOpt := buildFolderOpt)
+    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource (buildFolderOpt := buildFolderOpt)
     if markInProgress then
       -- If in verbose mode, then this means we've already marked the registry in progress
       ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
@@ -803,10 +802,8 @@ where
     try
       -- Use `withoutModifyingEnv` to add main without affecting the actual environment
       withoutModifyingEnv do
-        -- Add the model checking result call
+        -- Add the model checking result call and the main entry point
         elabModelCheckInternalMode mod callExpr
-        -- Add the main entry point
-        ModelChecker.Compilation.ToBeInsertedIntoMain.addMain
         -- Emit C code for the Model module
         let env ← getEnv
         match IR.emitC env `Model with
@@ -886,7 +883,7 @@ where
         let fallBackToOld ← match cCodeOpt with
         | .some cCode =>
           -- Write C code to build folder
-          let _ ← ModelChecker.Compilation.createBuildFolderForCCode sourceFile cCode (buildFolderOpt := .some buildFolder)
+          let _ ← ModelChecker.Compilation.writeCCode cCode buildFolder
           ModelChecker.Compilation.markRegistryInProgress sourceFile ctx.instanceId buildFolder
           -- Try running the compile script
           let (success, _stdout, _stderr) ← ModelChecker.Compilation.runCompileScript buildFolder

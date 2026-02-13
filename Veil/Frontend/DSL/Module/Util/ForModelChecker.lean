@@ -115,9 +115,6 @@ require batteries from \"../../../.lake/packages/batteries\"
 
 package veilmodel
 
-lean_lib Model where
-  globs := #[Glob.one `Model]
-
 lean_exe ModelCheckerMain where
   root := `ModelCheckerMain
   buildType := .release
@@ -137,8 +134,11 @@ private def exitWhenParentDies : IO Unit := do
   flushStdoutAndStderr
   IO.Process.forceExit 2
 
-def addMain : CommandElabM Unit := do
-  elabVeilCommand <| ← `(command|def $(mkIdent `main) : IO Unit := do
+-- NOTE: This uses `addVeilDefinition` to avoid prepending the name `main`
+-- with the current scope name
+def addMain (specNamespace : Name) : TermElabM Unit := do
+  let mainType := mkApp (mkConst ``IO) (mkConst ``Unit)
+  let mainBody ← Term.elabTerm (← `(term|do
     let _ ← IO.asTask (prio := .dedicated) $(mkIdent ``ToBeInsertedIntoMain.exitWhenParentDies):term
     -- Enable progress reporting to stderr for the IDE to read
     Veil.ModelChecker.Concrete.enableCompiledModeProgress
@@ -148,60 +148,20 @@ def addMain : CommandElabM Unit := do
     let cancelTk ← IO.CancelToken.new
     -- `modelCheckerResult` is to be defined in the model
     -- NOTE: For now, just sequential
-    let res ← $(mkIdent `modelCheckerResult):term pcfg 0 cancelTk
+    let res ← $(mkIdent <| specNamespace ++ `modelCheckerResult):term pcfg 0 cancelTk
     IO.println s!"{Lean.toJson res}"
     $(mkIdent ``ToBeInsertedIntoMain.flushStdoutAndStderr):term
     IO.Process.forceExit 0
-  )
+  )) mainType
+  Term.synthesizeSyntheticMVarsNoPostponing
+  let mainBody ← instantiateMVars mainBody
+  let _ ← addVeilDefinition `main mainBody (type := mainType) (addNamespace := false)
 
 end ToBeInsertedIntoMain
 
-/-- Template for the ModelCheckerMain.lean in the temp project.
-    Takes the namespace of the specification to open scoped instances. -/
-def modelCheckerMainTemplate (specNamespace : String) : String :=
-"import Model
-
-set_option maxHeartbeats 6400000
-set_option synthInstance.maxHeartbeats 200000
-set_option synthInstance.maxSize 10000
-
-open " ++ specNamespace ++ "
-
-def flushStdoutAndStderr : IO Unit := do
-  let stdout ← IO.getStdout
-  let stderr ← IO.getStderr
-  stdout.flush
-  stderr.flush
-
-def exitWhenParentDies : IO Unit := do
-  let stdin ← IO.getStdin
-  let _ ← stdin.readToEnd
-  flushStdoutAndStderr
-  IO.Process.forceExit 2
-
-def main (args : List String) : IO Unit := do
-  let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
-  -- Enable progress reporting to stderr for the IDE to read
-  Veil.ModelChecker.Concrete.enableCompiledModeProgress
-  let pcfg : Option Veil.ModelChecker.ParallelConfig :=
-    match args with
-    | [a, b] =>
-      match a.toNat?, b.toNat? with
-      | some n1, some n2 => some <| Veil.ModelChecker.ParallelConfig.mk n1 n2
-      | _, _ => none
-    | _ => none
-  -- Instance ID is not used in compiled mode, pass 0
-  -- Cancel token is created locally; cancellation is handled by killing the process from outside
-  let cancelTk ← IO.CancelToken.new
-  let res ← modelCheckerResult pcfg 0 cancelTk
-  IO.println s!\"{Lean.toJson res}\"
-  flushStdoutAndStderr
-  IO.Process.forceExit 0
-"
-
 /-- Create the temp build folder with all necessary files.
 Returns the absolute path to the build folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
+def createBuildFolder (sourceFile : String) (modelSource : String)
   (buildFolderOpt : Option System.FilePath := .none) : IO System.FilePath := do
   let veilPath ← IO.currentDir
   let buildFolder ← match buildFolderOpt with
@@ -212,9 +172,7 @@ def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespac
   -- Write the lakefile
   IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
   -- Write the model source (renamed to Model.lean)
-  IO.FS.writeFile (buildFolder / "Model.lean") modelSource
-  -- Write the ModelCheckerMain.lean
-  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") (modelCheckerMainTemplate specNamespace)
+  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") modelSource
   -- Create a minimal lean-toolchain file (copy from parent)
   let toolchainPath := veilPath / "lean-toolchain"
   if ← toolchainPath.pathExists then
@@ -394,30 +352,16 @@ def runCompileScript (buildFolder : System.FilePath) : IO (Bool × String × Str
 def getNewApproachIrDir (buildFolder : System.FilePath) : System.FilePath :=
   buildFolder / ".lake" / "model_check_build" / "ir"
 
-/-- Create the temp build folder and write C code for the new approach.
-    Unlike `createBuildFolder`, this does not write `Model.lean` or `ModelCheckerMain.lean`,
-    only the C code file. The C file is written to `.lake/model_check_build/ir/` to avoid
-    clashing with Lake's default `.lake/build/ir/` directory.
-    Returns the absolute path to the build folder. -/
-def createBuildFolderForCCode (sourceFile : String) (cCode : String)
-  (buildFolderOpt : Option System.FilePath := .none) : IO System.FilePath := do
-  let veilPath ← IO.currentDir
-  let buildFolder ← match buildFolderOpt with
-    | some p => pure p
-    | none => generateBuildFolderName sourceFile
+/-- Write C code for the new approach. Unlike `createBuildFolder`, this skips
+some steps, as by calling this function, we assume the temporary Lake project is
+already set up. The C file is written to `.lake/model_check_build/ir/` to avoid
+clashing with Lake's default `.lake/build/ir/` directory. -/
+def writeCCode (cCode : String) (buildFolder : System.FilePath) : IO Unit := do
   -- Create the build folder and the IR subdirectory
   let irDir := getNewApproachIrDir buildFolder
   IO.FS.createDirAll irDir
-  -- Write the lakefile (needed even for C compilation for dependency paths)
-  IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
   -- Write the C code file to the IR directory
   IO.FS.writeFile (irDir / "ModelCheckerMain.c") cCode
-  -- Create a minimal lean-toolchain file (copy from parent)
-  let toolchainPath := veilPath / "lean-toolchain"
-  if ← toolchainPath.pathExists then
-    let toolchain ← IO.FS.readFile toolchainPath
-    IO.FS.writeFile (buildFolder / "lean-toolchain") toolchain
-  return buildFolder
 
 /-- Adapt a compile command for the new approach.
     Changes `.lake/build/ir/ModelCheckerMain.c` to `.lake/model_check_build/ir/ModelCheckerMain.c`
@@ -427,18 +371,13 @@ def adaptCompileCommand (cmd : String) : String :=
   cmd.replace ".lake/build/ir/ModelCheckerMain" ".lake/model_check_build/ir/ModelCheckerMain"
 
 /-- Adapt a link command for the new approach.
-    - Changes `.lake/build/ir/ModelCheckerMain.c.o.export` to `.lake/model_check_build/ir/ModelCheckerMain.c.o.export`
-    - Removes references to `Model.c.o.export` since in the new approach there's only ModelCheckerMain -/
+    Changes `.lake/build/ir/ModelCheckerMain.c.o.export` to `.lake/model_check_build/ir/ModelCheckerMain.c.o.export`. -/
 def adaptLinkCommand (cmd : String) : String :=
   -- First, replace the ModelCheckerMain path
   let cmd := cmd.replace ".lake/build/ir/ModelCheckerMain" ".lake/model_check_build/ir/ModelCheckerMain"
   -- Escape `'`
   let cmd := cmd.replace "\'" "\\\'"
-  -- Then remove any `Model.c.o.export` references
-  -- Split by spaces, filter out `Model.c.o.export` paths, rejoin
-  let parts := cmd.splitOn " "
-  let filtered := parts.filter fun part => !part.containsSubstr ".lake/build/ir/Model.c.o.export".toSubstring
-  " ".intercalate filtered
+  cmd
 
 /-- Save adapted compile and link commands to a script file for the new approach. -/
 def saveAdaptedCompileScript (buildFolder : System.FilePath) (compileCmd linkCmd : String) : IO Unit := do
