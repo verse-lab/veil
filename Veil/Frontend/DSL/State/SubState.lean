@@ -75,7 +75,17 @@ theorem setIn_makeExplicit {σₛ σ : Type} {S : IsSubStateOf σₛ σ} {x : σ
     { intro h; exists x }
     { rintro ⟨s₁, ⟨heq, h⟩⟩; rw [← heq]; apply h}
 
+theorem instIsSubReaderOfRefl.readFrom_id {ρ : Type} (x : ρ) : instIsSubReaderOfRefl.readFrom x = x := rfl
+theorem instIsSubStateOfRefl.setIn_overwrite {σ : Type} (x y : σ) : instIsSubStateOfRefl.setIn x y = x := rfl
+theorem instIsSubStateOfRefl.getFrom_id {σ : Type} (x : σ) : instIsSubStateOfRefl.getFrom x = x := rfl
+
 open Lean Meta Elab Term in
 def Veil.dsimpSubReaderSubStateRefl (e : Expr) : TermElabM Expr := do
-  let res ← (Simp.dsimp #[``instIsSubReaderOfRefl, ``instIsSubStateOfRefl, ``id]) e
+  -- NOTE: The previous simp is too aggressive, since it unfold `instIsSubReaderOfRefl`
+  -- and `instIsSubStateOfRefl`, which can expose the proof objects inside, and as a result,
+  -- in delaboration the proof objects will be printed as `⋯`, which is not desirable.
+  -- For example, when the simp target is a term containing an application of a ghost
+  -- relation, then since the ghost relation relies on `instIsSubReaderOfRefl` and
+  -- `instIsSubStateOfRefl`, the simp will unfold these two instances and cause trouble.
+  let res ← (Simp.dsimp #[``instIsSubReaderOfRefl.readFrom_id, ``instIsSubStateOfRefl.setIn_overwrite, ``instIsSubStateOfRefl.getFrom_id]) e
   pure res.1
