@@ -22,21 +22,21 @@ abbrev SequentialSearchContext.isStableClosed (sctx : SequentialSearchContext σ
   (stateInTransit : Option σ) : Prop :=
   Function.Injective fp.view →
     (sctx.1.finished = some (.exploredAllReachableStates) ∨ sctx.1.finished = none) →
-      ∀ u ∉ stateInTransit, (fp.view u) ∈ sctx.1.seen →
+      ∀ u ∉ stateInTransit, (fp.view u) ∈ sctx.1.log →
         (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sctx.2) →
           ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u →
-            (fp.view v) ∈ sctx.1.seen
+            (fp.view v) ∈ sctx.1.log
 
 -- TODO conjecture: executable things should not become part of this structure
 -- (e.g., arguments), otherwise some reference counting will boom?
 structure SequentialSearchContextInvariants
   (stateInTransit : Option σ)
   (sctx : SequentialSearchContext σ κ σₕ)
-extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (· ∈ sctx.2) (· ∈ sctx.1.seen)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (· ∈ sctx.2) (· ∈ sctx.1.log)
 where
   -- NOTE: should be strengthened to talk about depth, with this
   -- being a special case
-  init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ sctx.1.seen
+  init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ sctx.1.log
   terminate_empty_queue : sctx.1.finished = some (.exploredAllReachableStates) → sctx.2.isEmpty
   stable_closed : sctx.isStableClosed sys stateInTransit
 
@@ -51,7 +51,7 @@ theorem SequentialSearchContextInvariants.finish_stateInTransit
   {curr : σ}
   (sctx_invs : SequentialSearchContextInvariants sys params (.some curr) sctx)
   (h_neighbors_seen : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr →
-    (fp.view v) ∈ sctx.1.seen) :
+    (fp.view v) ∈ sctx.1.log) :
   SequentialSearchContextInvariants sys params .none sctx := by
   rcases sctx with ⟨ctx, sq⟩ ; rcases sctx_invs with ⟨h1, h2, h3, h_closed⟩ ; dsimp only at *
   constructor <;> try assumption

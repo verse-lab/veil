@@ -36,12 +36,11 @@ def SequentialSearchContext.tryExploreNeighbor
   : SequentialSearchContext σ κ σₕ :=
   let (ctx, sq) := sctx
   let fingerprint := fp.view succ
-  if ctx.seen.contains fingerprint then
+  if ctx.log.contains fingerprint then
     ({ ctx with actionStatsMap := updateActionStatsMap false label ctx.actionStatsMap }, sq)
   else
     ({ ctx with
-      seen := ctx.seen.insert fingerprint,
-      log  := ctx.log.insert fingerprint (fpSt, label),
+      log  := ctx.log.insert fingerprint (Option.some (fpSt, label)),
       actionStatsMap := updateActionStatsMap true label ctx.actionStatsMap,
     }, sq.enqueue ⟨fingerprint, succ, nextDepth⟩)
 
@@ -144,7 +143,7 @@ theorem SequentialSearchContext.processSuccessors_add_to_seen
   {sctx : SequentialSearchContext σ κ σₕ}
   {fpSt depth succs} :
   letI res := sctx.processSuccessors fpSt depth succs
-  ∀ l v, (l, v) ∈ succs.reverse → (fp.view v) ∈ res.1.seen := by
+  ∀ l v, (l, v) ∈ succs.reverse → (fp.view v) ∈ res.1.log := by
   unfold processSuccessors ; dsimp
   -- use `foldr` to make induction easier
   rw [List.foldl_eq_foldr_reverse]
@@ -217,7 +216,7 @@ def updateProgressDuringBFS [Monad m]
   (ctx : BaseSearchContext σ κ σₕ)
   (sq : fQueue (QueueItem σₕ σ)) : m Unit := do
   updateProgress progressInstanceId
-    ctx.currentFrontierDepth ctx.statesFound ctx.seen.size sq.size
+    ctx.currentFrontierDepth ctx.statesFound ctx.log.size sq.size
     (toActionStatsList ctx.actionStatsMap)
 
 inductive SequentialSearchPeriodicProgressUpdate where

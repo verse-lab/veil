@@ -41,10 +41,9 @@ structure BaseSearchContext (σ κ σₕ : Type)
   [fp : StateFingerprint σ σₕ]
   [BEq κ] [Hashable κ]
 where
-  seen  : Std.HashSet σₕ
   /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
   will make it easier to reconstruct counterexample trace. -/
-  log                : Std.HashMap σₕ (σₕ × κ)
+  log                : Std.HashMap σₕ (Option (σₕ × κ))
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
   finished           : Option (TerminationReason σₕ)
@@ -78,10 +77,9 @@ def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ) : Bool :
 
 -- @[inline]
 def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ :=
-  let initStates := initialStates.map fp.view
+  let initStates := initialStates.map fun x => (fp.view x, Option.none)
   {
-    seen := HashSet.ofList initStates,
-    log := Std.HashMap.emptyWithCapacity,
+    log := Std.HashMap.ofList initStates,
     violatingStates := [],
     finished := none,
     completedDepth := 0,

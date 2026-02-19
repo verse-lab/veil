@@ -24,7 +24,7 @@ theorem SequentialSearchContext.bfs_completeness
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx)
   (h_explore_all : sctx.1.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.Injective fp.view) :
-  ∀ s : σ, sys.reachable s → (fp.view s) ∈ sctx.1.seen := by
+  ∀ s : σ, sys.reachable s → (fp.view s) ∈ sctx.1.log := by
   rcases sctx with ⟨ctx, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
   intro s h_reachable
   induction h_reachable with

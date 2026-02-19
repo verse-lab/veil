@@ -11,12 +11,12 @@ that contains fingerprint-based state references. -/
 state to an initial state. Returns `(initialStateFingerprint, steps)` where
 each step has the transition label and the fingerprint of the post-state. -/
 partial def retraceSteps [BEq σₕ] [Hashable σₕ]
-  (log : Std.HashMap σₕ (σₕ × κ)) (cur : σₕ)
+  (log : Std.HashMap σₕ (Option (σₕ × κ))) (cur : σₕ)
   (acc : List (Step σₕ κ) := []) : σₕ × List (Step σₕ κ) :=
-  match log.get? cur with
-  | none => (cur, acc)
-  | some (prev, label) =>
+  match log[cur]? with
+  | some (some (prev, label)) =>
     retraceSteps log prev ({ transitionLabel := label, nextState := cur } :: acc)
+  | _ => (cur, acc)
 
 /-- Find a full state from a list that matches a given fingerprint. -/
 @[inline, specialize]
@@ -102,7 +102,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
     return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverTrace sys ctx fingerprint (some exId)))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
-    return ModelCheckingResult.noViolationFound ctx.seen.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
+    return ModelCheckingResult.noViolationFound ctx.log.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
   | some (.earlyTermination .cancelled) =>
     -- Search was cancelled by the user
     return ModelCheckingResult.cancelled
@@ -115,7 +115,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
         | _ => none
       return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace sys ctx fingerprint assertionExId))
     else
-      return ModelCheckingResult.noViolationFound ctx.seen.size (.exploredAllReachableStates)
+      return ModelCheckingResult.noViolationFound ctx.log.size (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."
 
 end Veil.ModelChecker.Concrete
