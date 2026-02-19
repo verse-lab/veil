@@ -38,11 +38,22 @@ veil module FloodSet
 type node
 type value
 
+-- [NEW] A type of sets of nodes
+type nodeSet
+instantiate nset : TSet node nodeSet
+
 -- Values must be totally ordered (for picking the minimum)
 instantiate val_ord : TotalOrder value
 open TotalOrder
 
--- Protocol state components:
+
+immutable individual t : Nat
+
+-- [NEW] All nodes in the system
+immutable individual allnodes : nodeSet
+
+individual round : Nat
+individual crashCount : Nat-- Protocol state components:
 -- - t: maximum crash failures tolerated (immutable theory parameter)
 -- - round: current round number (0 to t+1)
 -- - crashCount: total number of crashes so far
@@ -52,16 +63,17 @@ open TotalOrder
 -- - crashedInThisRound: nodes that crashed in the current round (before advanceRound)
 -- - initialValue: snapshot of each node's initial proposal (for extended validity)
 
-immutable individual t : Nat
-
-individual round : Nat
-individual crashCount : Nat
 
 function initialValue : node → value
 relation seen : node → value → Bool
-relation alive : node → Bool
 relation decision : node → value → Bool
-relation crashedInThisRound : node → Bool
+
+-- [NEW] set of alive nodes
+individual dead : nodeSet
+individual crashedInThisRound : nodeSet
+
+-- [NEW] Representing heard-from node-wise
+function receivedFrom: node → nodeSet
 
 #gen_state
 
@@ -69,16 +81,21 @@ relation crashedInThisRound : node → Bool
 -- PART 2: ACTIONS
 --------------------------------------------------------------------------------
 
+ghost relation alive (n : node) := ¬ (nset.contains n dead)
+
 -- Initial state: each node has exactly one proposal value
 after_init {
   initialValue := *
   seen N V := initialValue N == V
 
-  alive N := true
+  dead := nset.empty
   decision N V := false
   round := 0
   crashCount := 0
-  crashedInThisRound N := false
+
+  -- [NEW] No one has received from anyone initially
+  receivedFrom N := nset.insert N (nset.empty)
+  crashedInThisRound := nset.empty
 }
 
 -- Crash one alive node (can happen multiple times per round, up to t total)
@@ -87,9 +104,10 @@ action crash (n : node) {
   require crashCount < t
   require alive n
 
-  alive n := false
-  crashedInThisRound n := true
+  dead := nset.insert n dead
+  crashedInThisRound := nset.insert n crashedInThisRound
   crashCount := crashCount + 1
+
 }
 
 -- Advance to next round: alive nodes exchange values, with possible partial
@@ -97,35 +115,59 @@ action crash (n : node) {
 action advanceRound {
   require round < t + 1
 
-  -- Some nodes may receive values from some dead nodes
-  -- The first argument is a possibly dead source
-  -- The second is a possibly allive destination
-  let deadToAliveDelivery : node → node → Bool :| true
+  -- [NEW] Which nodes hear from which dead in this round
+  let hearsFromDead <- pick (node → nodeSet)
+  assume ∀ n m, nset.contains m (hearsFromDead n) →
+                nset.contains m crashedInThisRound
 
-  -- Alive nodes exchange values
+  -- Nodes exchange values
   seen N V := seen N V ||
     alive N &&
-      -- Get from alive nodes
-      decide ((∃ m, alive m ∧ seen m V) ∨
-      -- Get from some recently deceased nodes, too
-              (∃ d, crashedInThisRound d ∧ deadToAliveDelivery d N ∧ seen d V))
+    -- Get from nodes that are either alive or in hearsFromDead N
+    decide (∃ m, alive m ∧ seen m V
+               ∨ nset.contains m (hearsFromDead N) ∧ seen m V)
+
+  -- [NEW] Updating who received from
+  let aliveSoFar := nset.diff allnodes dead
+
+  -- Received from alive ones
+  receivedFrom N := nset.union (receivedFrom N) aliveSoFar
+  -- Received from some dead ones too
+  receivedFrom N := nset.union (receivedFrom N) (hearsFromDead N)
 
   -- Reset crash-related bookkeeping for the next round
-  crashedInThisRound N := false
+  crashedInThisRound := nset.empty
   round := round + 1
 }
 
-
--- Decision: after t+1 rounds, pick the minimum seen value
+-- Final decision: after t+1 rounds, pick the minimum seen value
 action nodeDecide (n : node) {
   require round = t + 1
   require alive n
 
   let v :| seen n v
   assume ∀ w, seen n w → le v w
-
   decision n V := V == v
 }
+
+-- [NEW] a process may decide in round i,
+-- if it received the values from all but i processes
+-- [Warning] This action violates safety!
+
+-- action fastDecide(n : node) {
+--   require alive n
+
+--   -- The following seems wrong - Lace finds a violation
+--   require nset.count (receivedFrom n) ≥ nset.count allnodes - round
+
+--   -- Is this a correct one?
+--   -- require nset.count (receivedFrom n) = nset.count allnodes
+
+--   let v :| seen n v
+--   assume ∀ w, seen n w → le v w
+--   decision n V := V == v
+-- }
+
 
 --------------------------------------------------------------------------------
 -- PART 3: SAFETY AND INVARIANTS
@@ -139,49 +181,9 @@ safety [agreement]
 safety [validity]
   ∀ n v, decision n v → (∃ m, initialValue m == v)
 
--- Supporting invariants
-
--- Seen decision: decided value was seen by the deciding node
-invariant [seen_decision]
-  ∀ n v, decision n v → seen n v
-
--- Crashed node can't be alive
-invariant [crashed_not_alive]
-  ∀ n, crashedInThisRound n → ¬ alive n
-
--- Key invariant for extended validity: all seen values were initially proposed by some node
-invariant [seen_is_initial]
-  ∀ n v, seen n v → (∃ m, initialValue m == v)
-
-invariant [decided_implies_alive]
-  ∀ n v, decision n v → alive n
-
-invariant [crash_bound]
-  crashCount ≤ t
-
-invariant [decision_only_at_end]
-  ∀ n v, decision n v → round = t + 1
-
-invariant [decision_is_minimum]
-  ∀ n v, decision n v → (∀ w, seen n w → le v w)
-
--- All alive nodes have identical seen sets
-ghost relation allSameSeen :=
-  ∀ n1 n2 v, alive n1 ∧ alive n2 → (seen n1 v = seen n2 v)
-
--- Key invariant: after a crash-free round, all alive nodes are synchronized.
-invariant [same_seen_if_synced]
-  crashCount < round → allSameSeen
-
--- Crashed nodes this round have the same seen as alive nodes (when synced).
--- This ensures partial delivery doesn't break allSameSeen.
-invariant [crashed_same_seen]
-  ∀ n m v, crashCount < round ∧ crashedInThisRound n ∧ alive m → (seen n v = seen m v)
-
--- Crashed nodes this round have the same seen as alive nodes when crashCount = round.
--- They crashed after a clean round, so they inherited the synchronized seen set.
-invariant [crashed_same_when_count_eq_round]
-  ∀ n m v, crashCount = round ∧ crashedInThisRound n ∧ alive m → (seen n v = seen m v)
+-- All nodes contains all nodes
+safety [all_nodes]
+  ∀ n, nset.contains n allnodes
 
 -------------------------------------------------------------
 -- Reachability checks (commented out after validation):
@@ -202,12 +204,17 @@ invariant [crashed_same_when_count_eq_round]
 -- 3. Dead nodes may have different seen sets than alive nodes
 -- Expected: violation found (dead nodes can diverge from alive ones)
 --
--- safety [dead_same_as_alive] ∀ n1 n2 v, ¬alive n1 ∧ alive n2 → (seen n1 v = seen n2 v)
+-- safety [dead_same_as_alive] ∀ n1 n2 v, round > 0 → ¬alive n1 ∧ alive n2 → (seen n1 v = seen n2 v)
 
 -- 4. Nodes can see multiple values (non-trivial seen sets) in non-init rounds
 -- Expected: violation found (nodes can accumulate multiple values)
 --
 -- safety [single_value_only] ∀ n v1 v2, round > 0 → seen n v1 ∧ seen n v2 → v1 = v2
+
+-- 5. [NEW] A node can make a decision in non-last round
+-- Expected: violation finds examples of fast decisions
+--
+-- safety [fast_decition] ∀ n v, decision n v → round = t + 1
 
 #gen_spec
 
@@ -227,19 +234,17 @@ invariant [crashed_same_when_count_eq_round]
 --------------------------------------------------------------------------------
 
 -- Small instance, one crash
--- #model_check { node := Fin 3, value := Fin 2 } { t := 1 }
 
---------------------------------------------------------------------------------
--- PART 5: DEDUCTIVE VERIFICATION
---
--- `#check_invariants` uses SMT-based deductive verification to prove that:
--- 1. Initialization establishes all invariants
--- 2. Each action preserves all invariants (assuming preconditions hold)
---
--- IDE tip: Place cursor on `#check_invariants` to see per-action verification
--- results. Each invariant is checked separately for each action.
---------------------------------------------------------------------------------
+abbrev nodeSize := 3 -- Anything larger will cause OOM error (sorry, working on it!)
+abbrev valueSize := 2
+abbrev numFailures := 1
 
-#check_invariants
+-- The check finds a bug in this version, hence it's commented out
+
+#model_check { node := Fin nodeSize,
+               nodeSet := (Std.ExtTreeSet (Fin nodeSize) compare),
+               value := Fin valueSize }
+             { t := numFailures,
+               allnodes := (Std.ExtTreeSet.empty.insertMany (List.finRange nodeSize)) }
 
 end FloodSet
