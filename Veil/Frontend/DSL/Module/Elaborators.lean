@@ -76,6 +76,19 @@ def elabTypeDeclaration : CommandElab := fun stx => do
       localEnv.modifyModule (fun _ => mod)
   | _ => throwUnsupportedSyntax
 
+@[command_elab Veil.parameterDeclaration]
+def elabParameterDeclaration : CommandElab := fun stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot declare a parameter outside of a Veil module!")
+  mod.throwIfStateAlreadyDefined
+  let (id, tp) ← match stx with
+  | `(param $id:ident : $tp:term) => pure (id, tp)
+  | _ => throwUnsupportedSyntax
+  let nm := id.getId
+  mod.throwIfAlreadyDeclared nm
+  let p : Parameter := { kind := .userParameter, name := nm, «type» := tp, userSyntax := stx }
+  let newMod := { mod with parameters := mod.parameters.push p, _declarations := mod._declarations.insert nm .moduleParameter }
+  localEnv.modifyModule (fun _ => newMod)
+
 @[command_elab Veil.stateComponentDeclaration]
 def elabStateComponent : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot declare a state component outside of a Veil module!")
@@ -121,8 +134,8 @@ def elabInstantiate : CommandElab := fun stx => do
   mod.throwIfStateAlreadyDefined
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
-    let param : Parameter := { kind := .moduleTypeclass .userDefined, name := inst.getId, «type» := tp, userSyntax := stx }
-    pure { mod with parameters := mod.parameters.push param }
+    let p : Parameter := { kind := .moduleTypeclass .userDefined, name := inst.getId, «type» := tp, userSyntax := stx }
+    pure { mod with parameters := mod.parameters.push p }
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
 
@@ -671,7 +684,7 @@ where
       (instTerm theoryTerm : Term) : CommandElabM Term := do
     let inst := mkVeilImplementationDetailIdent `inst
     let th := mkVeilImplementationDetailIdent `th
-    let instSortArgs ← (← mod.sortIdents).mapM fun sortIdent => `($inst.$(sortIdent))
+    let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
     let sp ← mkSearchParameters mod config
     -- Model checker call with type annotation to help inference
     -- Note: findReachable takes parallelCfg, progressInstanceId, and cancelToken as the last three args

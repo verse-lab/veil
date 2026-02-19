@@ -26,6 +26,7 @@ syntax (name := kw_module) "module" : veilKeyword
 
 syntax (name := kw_type) "type" : veilKeyword
 syntax (name := kw_enum) "enum" : veilKeyword
+syntax (name := kw_param) "param" : veilKeyword
 syntax (name := kw_instantiate) "instantiate" : veilKeyword
 
 syntax (name := kw_immutable) "immutable" : veilKeyword
@@ -108,6 +109,35 @@ instantiate tot : TotalOrder node
 ```
 -/
 syntax (name := instanceDeclaration) kw_instantiate ident " : " term : command
+
+/-- Declare an uninterpreted parameter of arbitrary type.
+`type` is a special case of `param` (equivalent to `param name : Type`
+plus auto-generated `DecidableEq` and `Inhabited` instances).
+Dependencies between `param`s are allowed.
+
+`param` is superficially similar to `immutable individual`, since both
+introduce named *values*. However, there are important structural differences:
+
+- **Structural role**: `param` values are universal parameters of `State`,
+  `Theory`, and `Label` (like `type`). In contrast, `immutable` values are
+  fields of the `Theory` structure.
+- **Type dependency**: State components (mutable and immutable) can depend on
+  `param`s in their types (e.g., `function f : node → Fin n` when
+  `param n : Nat`). State component types cannot depend on `immutable` values.
+- **Instantiation vs Theory**: `param` values are provided in the
+  `Instantiation` structure (first argument of `#model_check`). `immutable`
+  values are provided in the `Theory` term (second argument).
+- **No auto-instances**: Unlike `type`, `param` does **NOT** auto-generate
+  `DecidableEq` or `Inhabited` instances. In other words, `type` is `param name : Type`
+  plus some instance declarations.
+
+Example:
+```lean
+param n : Nat
+param m : Fin n   -- dependent parameters allowed
+```
+-/
+syntax (name := parameterDeclaration) kw_param ident " : " term : command
 
 /- ## State -/
 declare_syntax_cat stateMutability

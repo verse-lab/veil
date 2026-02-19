@@ -125,7 +125,7 @@ are generated according to `targets`.
 - `motiveType`: Optional type to use for the motive in the `casesOn` eliminators;
   if `none`, the motive type will be `_` (to be inferred).
 - `stateSortTerm`: Optional term to use as the sort argument for state casesOn.
-  If not provided, uses `mod.sortIdentsForTheoryOrState mod._useFieldRepTC`. -/
+  If not provided, uses `mod.uninterpretedParamIdentsForTheoryOrState mod._useFieldRepTC`. -/
 def Module.withTheoryAndStateTermTemplate (mod : Module)
   (targets : List (TheoryAndStateTermTemplateArgKind × Ident))
   (motiveType : Option Term)
@@ -152,7 +152,7 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
     | .theory =>
       let tmp ← mkFunSyntax theoryFields body
       `(term|
-        @$(mkIdent casesOnTheory) $(← mod.sortIdents)*
+        @$(mkIdent casesOnTheory) $(← mod.uninterpretedParamIdents)*
         ($motive := $motiveBody)
         ($(mkIdent ``readFrom) $i)
         ($tmp))
@@ -171,7 +171,7 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
       let tmp ← mkFunSyntax (if !mod._useFieldRepTC then sfs else sfsConc) body'
       let sortTerms ← match stateSortTerm with
         | some sortTerm => pure #[sortTerm]
-        | none => pure (← mod.sortIdentsForTheoryOrState mod._useFieldRepTC)
+        | none => pure (← mod.uninterpretedParamIdentsForTheoryOrState mod._useFieldRepTC)
       `(term|
         @$(mkIdent casesOnState) $sortTerms*
         ($motive := $motiveBody)

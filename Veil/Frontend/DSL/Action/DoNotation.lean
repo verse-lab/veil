@@ -227,7 +227,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       let patTerm ← do
         let patOpt ← patUsed.mapM fun i => if isCapital i.raw.getId then `($(mkIdent ``Option.none)) else `(($(mkIdent ``Option.some) $i))
         let components ← `($(fieldLabelToDomain stateName)
-          $(← mod.sortIdents):ident*
+          $(← mod.uninterpretedParamIdents):ident*
           $(mkIdent <| structureFieldLabelTypeName stateName ++ name):ident)
         `(veil_dsimp% [$(mkIdent `fieldRepresentationPatSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
       let concreteField := concreteFieldFromName name

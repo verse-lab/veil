@@ -56,6 +56,11 @@ inductive ParameterKind where
   /-- A (FOL) sort, i.e. a Lean type. The `sort` parameters are those that
   are used to declare the `State` type of the module. -/
   | sort (kind : SortKind)
+  /-- A user-declared parameter of arbitrary type (e.g., `param n : Nat`).
+  These flow through the system like sorts (parameterizing `State`, `Theory`, `Label`,
+  etc.) but do not trigger sort-specific behaviors like auto-generated
+  `DecidableEq`/`Inhabited` instances. -/
+  | userParameter
   /-- The type of the state of the _environment_ that this module
   operates in. The module's own state will be a sub-state of this. -/
   | environmentState -- i.e. `σ`

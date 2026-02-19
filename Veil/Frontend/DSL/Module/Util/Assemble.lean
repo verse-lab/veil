@@ -113,7 +113,7 @@ def Module.assembleSafeties [Monad m] [MonadQuotation m] [MonadError m] (mod : M
 /-! ## Label Type Utilities -/
 
 def Module.labelTypeStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term := do
-  `(term|$labelType $(← mod.sortIdents)*)
+  `(term|$labelType $(← mod.uninterpretedParamIdents)*)
 
 /-! ## Label Assembly (Private) -/
 
@@ -126,10 +126,10 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
   let labelDef ← do
     let instances := #[``DecidableEq,``Repr, ``ToJson, ``Hashable, ``Veil.Enumeration].map Lean.mkIdent
     if ctors.isEmpty then
-      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $[$instances:ident],*)
+      `(inductive $labelType $(← mod.uninterpretedParamBinders)* where $[$ctors]* deriving $[$instances:ident],*)
     else
       let instances := instances ++ #[``Inhabited, ``Nonempty].map Lean.mkIdent
-      `(inductive $labelType $(← mod.sortBinders)* where $[$ctors]* deriving $[$instances:ident],*)
+      `(inductive $labelType $(← mod.uninterpretedParamBinders)* where $[$ctors]* deriving $[$instances:ident],*)
   let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := actionNames, stx := labelDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (labelDef, mod)
@@ -159,17 +159,22 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
   return (casesLemma, mod)
 
 def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Command := do
-  let sortParams := mod.sortParams
-  let fields ← sortParams.mapM fun (param, sortKind) => do
-    let sort ← param.ident
-    match sortKind with
-    | .enumSort =>
-      -- Enum type: add default value of SortName_IndT
-      let defaultType := Ident.toEnumConcreteType sort
-      `(Command.structSimpleBinder| $sort:ident : Type := $defaultType)
-    | .uninterpretedSort =>
-      -- Regular sort: no default
-      `(Command.structSimpleBinder| $sort:ident : Type)
+  let fields ← mod.parameters.filterMapM fun p => do
+    match p.kind with
+    | .sort sortKind =>
+      let sort ← p.ident
+      match sortKind with
+      | .enumSort =>
+        -- Enum type: add default value of SortName_IndT
+        let defaultType := Ident.toEnumConcreteType sort
+        `(Command.structSimpleBinder| $sort:ident : Type := $defaultType)
+      | .uninterpretedSort =>
+        -- Regular sort: no default
+        `(Command.structSimpleBinder| $sort:ident : Type)
+    | .userParameter =>
+      let id ← p.ident
+      `(Command.structSimpleBinder| $id:ident : $(p.type))
+    | _ => pure .none
   let instances := #[``Inhabited, ``Repr].map Lean.mkIdent
   `(structure $instantiationType where $[$fields]* deriving $[$instances:ident],*)
 
@@ -266,9 +271,9 @@ def Module.assembleInit [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
     This is a noncomputable definition that uses Classical logic. -/
 def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared assembledRTSName
-  let sorts ← mod.sortIdents
-  -- Sort binders: (node : Type)
-  let sortBinders ← mod.sortBinders
+  let sorts ← mod.uninterpretedParamIdents
+  -- Module parameter binders: (node : Type) (n : Nat) etc.
+  let sortBinders ← mod.uninterpretedParamBinders
   -- Inhabited instances for every sort: [Inhabited node]
   let inhabitedBinders ← mod.assumeForEverySort ``Inhabited
   -- User-defined typeclass parameters

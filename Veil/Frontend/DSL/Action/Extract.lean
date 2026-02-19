@@ -126,9 +126,9 @@ def buildingTermWithχSpecialized
 def buildingTermWithDefaultχSpecialized (mod : Module)
   (specializedToOther : Parameter → Option Term := fun _ => none) : m Term := do
   buildingTermWithχSpecialized baseParams extraParams injectedBinders finalBody
-    (← `(($fieldConcreteDispatcher $(← mod.sortIdents)*)))
-    (← `($instFieldRepresentation $(← mod.sortIdents)*))
-    (← `($instLawfulFieldRepresentation $(← mod.sortIdents)*))
+    (← `(($fieldConcreteDispatcher $(← mod.uninterpretedParamIdents)*)))
+    (← `($instFieldRepresentation $(← mod.uninterpretedParamIdents)*))
+    (← `($instLawfulFieldRepresentation $(← mod.uninterpretedParamIdents)*))
     specializedToOther
 
 end Specialization
@@ -415,7 +415,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
 
   -- Step 3: Build finalBody as struct literal
   let finalBody ← do
-    let fieldConcrete ← `($fieldConcreteDispatcher $(← mod.sortIdents)*)
+    let fieldConcrete ← `($fieldConcreteDispatcher $(← mod.uninterpretedParamIdents)*)
     let stateStx ← if mod._useFieldRepTC then `($stateIdent $fieldConcrete) else mod.stateStx
     let labelStx ← mod.labelTypeStx
     let (CInit, CNext) := (mkVeilImplementationDetailIdent `CInit, mkVeilImplementationDetailIdent `CNext)
@@ -426,10 +426,10 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     -- NOTE: Use the `ext` version of `initializer` below!!!
     `({
       $(mkIdent `initStates):ident :=
-        let $CInit := $(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.sortIdents)*
+        let $CInit := $(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
         $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
       $(mkIdent `tr):ident := fun $th $st =>
-        let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.sortIdents)*
+        let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
         $(mkIdent ``List.flatMap) (fun ($label : $labelStx) =>
          $(mkIdent ``List.map) (fun $next => ($label, $next)) ($(mkIdent ``extractAllOutcomes) ($CNext $label) $th $st))
          (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId)

@@ -257,9 +257,9 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
     classifyTraceModelValues model mod numStates
 
   -- Build sort instantiation info
-  let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((param, _), cardExpr) => do
+  let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do
     let typeStr ← Meta.ppExpr cardExpr
-    pure (param.name, typeStr.pretty)
+    pure (sp.name, typeStr.pretty)
 
   -- Build Theory expression and type
   let theoryExpr ← buildTheoryExpr mod sortArgs theoryFields enumAdapts

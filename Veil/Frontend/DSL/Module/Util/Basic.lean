@@ -132,8 +132,8 @@ def Parameter.mode [Monad m] [MonadQuotation m] : m Parameter :=
 def Parameter.fieldConcreteType [Monad m] [MonadQuotation m] : m Parameter :=
   return { kind := .fieldConcreteType, name := fieldConcreteTypeName, «type» := ← `($(structureFieldLabelType stateName) → Type), userSyntax := .missing }
 
-def Parameter.isRelatedToFieldRep (param : Parameter) : Bool :=
-  match param.kind with
+def Parameter.isRelatedToFieldRep (p : Parameter) : Bool :=
+  match p.kind with
   | .fieldConcreteType => true
   | .moduleTypeclass .fieldRepresentation | .moduleTypeclass .lawfulFieldRepresentation => true
   | _ => false
@@ -237,24 +237,63 @@ def bracketedBinderToParameter [Monad m] [MonadQuotation m] [MonadError m] (stx 
   | `(bracketedBinder| [$id:ident : $tp]) => return { kind := .definitionParameter forDef .typeclass, name := id.getId, «type» := tp, userSyntax := stx }
   | _ => throwError "[bracketedBinderToParameter]: unexpected syntax: {stx}"
 
+/-! ## Sort Parameter Utilities -/
+
+private def Module.sortFilterMapFn [Monad m] (mod : Module) (f : Parameter → SortKind → m α) : m (Array α) := do
+  mod.parameters.filterMapM fun p => do match p.kind with
+  | .sort k => f p k
+  | _ => pure .none
+
+def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
+  mod.sortFilterMapFn fun p _ => p.binder
+
+def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) :=
+  mod.sortFilterMapFn fun p _ => p.ident
+
+def Module.sortNames (mod : Module) : Array Name := mod.sortFilterMapFn (m := Id) fun p _ => p.name
+
+/-- Returns sort parameters along with their kind (uninterpreted or enum). -/
+def Module.sortParams (mod : Module) : Array (Parameter × SortKind) := mod.sortFilterMapFn (m := Id) fun p k => (p, k)
+
+/-! ## Uninterpreted Parameter Utilities (sorts + user parameters) -/
+
+/-- Filters and maps over uninterpreted parameters, including sorts and user-declared
+parameters. These parameterize `State`, `Theory`, `Label`, etc. -/
+private def Module.uninterpretedParamFilterMapFn [Monad m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
+  mod.parameters.filterMapM fun p => do match p.kind with
+  | .sort _ | .userParameter => f p
+  | _ => pure .none
+
+def Module.uninterpretedParamBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
+  mod.uninterpretedParamFilterMapFn (·.binder)
+
+def Module.uninterpretedParamIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
+  mod.uninterpretedParamFilterMapFn (·.ident)
+
+/-- Almost the same as `Module.uninterpretedParamBinders`, but this is _only_ for uninterpreted parameters
+of theory or states, or their related definitions (e.g., `casesOn` functions). -/
+def Module.uninterpretedParamBindersForTheoryOrState [Monad m] [MonadQuotation m] (mod : Module) (forStateWithFieldConcreteType? : Bool := false) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  if forStateWithFieldConcreteType?
+  then Parameter.fieldConcreteType >>= Parameter.binder >>= (pure #[·])
+  else mod.uninterpretedParamBinders
+
+/-- Almost the same as `Module.uninterpretedParamIdents`, but this is _only_ for uninterpreted parameters
+of theory or states, or their related definitions (e.g., `casesOn` functions). -/
+def Module.uninterpretedParamIdentsForTheoryOrState [Monad m] [MonadQuotation m] (mod : Module) (forStateWithFieldConcreteType? : Bool := false) : m (Array Ident) := do
+  if forStateWithFieldConcreteType? then pure #[fieldConcreteType] else mod.uninterpretedParamIdents
+
 /-! ## Declaration Parameter Queries -/
 
 def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (k : DeclarationKind) : m (Array Parameter) := do
   match k with
   | .moduleParameter => throwError "[Module.declarationBaseParams]: moduleParameter has no base parameters"
-  | .stateComponent _ _ => sortParameters mod
+  | .stateComponent _ _ => mod.uninterpretedParamFilterMapFn (pure ·)
   | .stateAssertion .assumption => pure (theoryParameters mod)
   | .stateAssertion .invariant | .stateAssertion .safety | .stateAssertion .trustedInvariant => pure mod.parameters
   | .stateAssertion .termination => pure mod.parameters -- the same as `invariant`
   | .procedure _ => pure mod.parameters
   | .derivedDefinition k _ => derivedDefinitionBaseParams mod k
 where
-  sortFilterMapFn {α : Type} (mod : Module) (f : Parameter → m α) : m (Array α) := do
-    mod.parameters.filterMapM fun p => do match p.kind with
-    | .sort _ => f p
-    | _ => pure .none
-  sortParameters (mod : Module) : m (Array Parameter) := do
-    sortFilterMapFn mod (pure ·)
   theoryParameters (mod : Module) : Array Parameter :=
     mod.parameters.filterMap fun p => match p.kind with
     | .environmentState | .fieldConcreteType => .none
@@ -265,7 +304,7 @@ where
     | _ => .some p
   derivedDefinitionBaseParams (mod : Module) (k : DerivedDefinitionKind) : m (Array Parameter) := do
     match k with
-    | .stateLike => sortParameters mod
+    | .stateLike => mod.uninterpretedParamFilterMapFn (pure ·)
     | .assumptionLike | .theoryGhost _ => pure (theoryParameters mod)
     | .invariantLike | .actionLike | .theoremLike | .ghost _ => pure mod.parameters
     | .actionDoLike => pure $ #[← Parameter.mode] ++ mod.parameters
@@ -352,39 +391,6 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotat
     | _ => throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} (included in derivedFrom) has unsupported kind")
     pure $ Array.flatten extraParams)
   return (← baseParams.mapM f, ← extraParams.mapM f)
-
-/-! ## Sort Parameter Utilities -/
-
-private def Module.sortFilterMapFn [Monad m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
-  mod.parameters.filterMapM fun p => do match p.kind with
-  | .sort _ => f p
-  | _ => pure .none
-
-def Module.sortBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
-  mod.sortFilterMapFn (·.binder)
-
-def Module.sortIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
-  mod.sortFilterMapFn (·.ident)
-
-def Module.sortNames (mod : Module) : Array Name := mod.sortFilterMapFn (m := Id) (·.name)
-
-/-- Returns sort parameters along with their kind (uninterpreted or enum). -/
-def Module.sortParams (mod : Module) : Array (Parameter × SortKind) :=
-  mod.parameters.filterMap fun p => match p.kind with
-  | .sort k => some (p, k)
-  | _ => none
-
-/-- Almost the same as `Module.sortBinders`, but this is _only_ for sort parameters
-of theory or states, or their related definitions (e.g., `casesOn` functions). -/
-def Module.sortBindersForTheoryOrState [Monad m] [MonadQuotation m] (mod : Module) (forStateWithFieldConcreteType? : Bool := false) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
-  if forStateWithFieldConcreteType?
-  then Parameter.fieldConcreteType >>= Parameter.binder >>= (pure #[·])
-  else mod.sortBinders
-
-/-- Almost the same as `Module.sortIdents`, but this is _only_ for sort parameters
-of theory or states, or their related definitions (e.g., `casesOn` functions). -/
-def Module.sortIdentsForTheoryOrState [Monad m] [MonadQuotation m] (mod : Module) (forStateWithFieldConcreteType? : Bool := false) : m (Array Ident) := do
-  if forStateWithFieldConcreteType? then pure #[fieldConcreteType] else mod.sortIdents
 
 /-! ## Assertion & Procedure Filters -/
 
@@ -491,9 +497,9 @@ where
 /-! ## Syntax Generation -/
 
 def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (withFieldConcreteType? : Bool := false) : m Term :=
-  return ← `(term| @$(mkIdent stateName) $(← mod.sortIdentsForTheoryOrState withFieldConcreteType?)*)
+  return ← `(term| @$(mkIdent stateName) $(← mod.uninterpretedParamIdentsForTheoryOrState withFieldConcreteType?)*)
 
 def Module.theoryStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
-  return ← `(term| @$(mkIdent theoryName) $(← mod.sortIdents)*)
+  return ← `(term| @$(mkIdent theoryName) $(← mod.uninterpretedParamIdents)*)
 
 end Veil
