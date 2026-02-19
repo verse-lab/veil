@@ -13,7 +13,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   mod.throwIfAlreadyDeclared base.name
   let mut mod := mod
   let justTheory := match base.kind with | .assumption => true | _ => false
-  let (extraParams, thstBinders, term, _) ← liftTermElabM $ mod.mkVeilTerm base.name base.declarationKind (params := .none) base.term (justTheory := justTheory)
+  let (extraParams, thstBinders, term, _) ← liftTermElabM $ mod.mkVeilTerm base.name base.declarationKind (params := .none) base.term (some $ ← `(term| Prop)) (justTheory := justTheory) (quantifyCapitals := true)
   mod ← mod.registerAssertion { base with extraParams := extraParams }
   -- This includes the required `Decidable` instances
   let (binders, _) ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
@@ -35,13 +35,18 @@ def Module.registerDerivedDefinition [Monad m] [MonadError m] [MonadQuotation m]
   mod.throwIfAlreadyDeclared ddef.name
   return { mod with _declarations := mod._declarations.insert ddef.name ddef.declarationKind, _derivedDefinitions := mod._derivedDefinitions.insert ddef.name ddef }
 
-def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) (justTheory : Bool := false) : CommandElabM (Command × Module) := do
+def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) (justTheory : Bool := false)
+  (isRelation : Bool := true) (retType : Option Term := none) : CommandElabM (Command × Module) := do
   mod.throwIfAlreadyDeclared name
   let kind? := .stateAssertion .invariant -- a ghost relation is a predicate that depends on the state
-  let ddKind : DerivedDefinitionKind := if justTheory then .theoryGhost else .ghost
+  let ddKind : DerivedDefinitionKind := if justTheory then .theoryGhost isRelation else .ghost isRelation
   let dk : DeclarationKind := .derivedDefinition ddKind (Std.HashSet.emptyWithCapacity 0)
   let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) dk
-  let (extraParams, thstBinders, term, _) ← liftTermElabM $ mod.mkVeilTerm name kind? params term justTheory
+  let motiveType ← if isRelation then pure (some $ ← `(term| Prop)) else
+    match retType with
+    | some ty => pure (some ty)
+    | none => pure none
+  let (extraParams, thstBinders, term, _) ← liftTermElabM $ mod.mkVeilTerm name kind? params term motiveType (justTheory := justTheory) (quantifyCapitals := isRelation)
   let params := (← explicitBindersToParameters params name) ++ (← thstBinders.mapM (bracketedBinderToParameter · name))
   let baseBinders ← (baseParams ).mapM (·.binder)
   -- FIXME: for the following line, we implicitly assume that this is the order in
@@ -50,8 +55,12 @@ def Module.defineGhostRelation (mod : Module) (name : Name) (params : Option (TS
   -- binders, and then create the syntax.
   -- See NOTE(SUBTLE).
   let binders := (← baseBinders.mapM mkImplicitBinder) ++ (← params.mapM (·.binder)) ++ (← extraParams.mapM (·.binder))
-  let attrs ← ((if justTheory then #[`invSimp] else #[]) ++ #[`ghostRelSimp, `nextSimp]).mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let stx ← `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
+  let attrs ← if isRelation
+    then ((if justTheory then #[`invSimp] else #[]) ++ #[`ghostRelSimp, `nextSimp]).mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
+    else pure #[]
+  let stx ← match retType with
+    | some ty => `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* : $ty := $term)
+    | none => `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
   trace[veil.debug] "stx: {stx}"
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
   let mod ← mod.registerDerivedDefinition ddef

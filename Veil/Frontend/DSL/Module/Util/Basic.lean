@@ -266,8 +266,8 @@ where
   derivedDefinitionBaseParams (mod : Module) (k : DerivedDefinitionKind) : m (Array Parameter) := do
     match k with
     | .stateLike => sortParameters mod
-    | .assumptionLike | .theoryGhost => pure (theoryParameters mod)
-    | .invariantLike | .actionLike | .theoremLike | .ghost => pure mod.parameters
+    | .assumptionLike | .theoryGhost _ => pure (theoryParameters mod)
+    | .invariantLike | .actionLike | .theoremLike | .ghost _ => pure mod.parameters
     | .actionDoLike => pure $ #[← Parameter.mode] ++ mod.parameters
 
 /-- For an **existing** declaration, return the parameters it needs, split into

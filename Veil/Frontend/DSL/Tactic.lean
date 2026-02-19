@@ -667,7 +667,7 @@ private def ghostRelationSSACore (derivedDefns : Std.HashMap Name DerivedDefinit
   let nms := e.getUsedConstantsAsSet
   let mut info : Array (Name × Expr × Nat) := #[]
   for (nm, dd) in derivedDefns do
-    unless dd.kind matches .ghost do
+    unless dd.kind matches .ghost true do
       continue
     -- maybe the full name should be stored as metadata
     let nmFull ← resolveGlobalConstNoOverloadCore nm
@@ -700,7 +700,7 @@ local declarations to complete the axiomatization.
 Currently, it is only performed over one hypothesis or the main target,
 depending on whether `hyp` is provided. -/
 def ghostRelationSSA (mod : Module) (hyp : Option Name) : TacticM Unit := veilWithMainContext do
-  let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .ghost (Std.HashSet.emptyWithCapacity 0))
+  let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition (.ghost true) (Std.HashSet.emptyWithCapacity 0))
   let ty ← match hyp with
     | .some hname => do
       let ldecl ← getLocalDeclFromUserName hname

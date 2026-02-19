@@ -153,10 +153,12 @@ inductive DerivedDefinitionKind where
   /-- This derived definition is like a `theorem` in terms of the
   parameters it needs. -/
   | theoremLike
-  /-- This is a ghost relation, i.e. a predicate over background theory and state. -/
-  | ghost
-  /-- This is a theory ghost relation, i.e. a predicate over background theory only. -/
-  | theoryGhost
+  /-- This is a ghost definition over background theory and state.
+  When `isRelation` is true, it is a ghost relation (a predicate returning `Prop`). -/
+  | ghost (isRelation : Bool)
+  /-- This is a ghost definition over background theory only.
+  When `isRelation` is true, it is a ghost relation (a predicate returning `Prop`). -/
+  | theoryGhost (isRelation : Bool)
 deriving Inhabited, BEq, Hashable, Repr
 
 inductive DeclarationKind where

@@ -159,7 +159,7 @@ syntax moduleAbbrev := (kw_as ident)
 /-- Declare a dependency on another module. -/
 syntax (name := declareDependency) kw_includes ident term:max* moduleAbbrev : command
 
-/- ## Ghost relations -/
+/- ## Ghost definitions -/
 
 /-- Define a ghost relation. By default, `ghost relation`s depend on both the
 background theory and the state. If you want to define a ghost relation that
@@ -171,6 +171,20 @@ only depends on the background theory, define a `theory ghost relation`. Example
   ```
 -/
 syntax (name := ghostRelationDefinition) kw_theory ? kw_ghost kw_relation ident explicitBinders ? ":=" term : command
+
+/-- Define a ghost function. Ghost functions are like ghost relations but can
+return any type (not just `Prop`). An optional return type annotation is
+supported. By default, ghost functions depend on both the background theory
+and the state. Use `theory ghost function` for functions that depend only on
+the background theory. Example:
+
+  ```lean
+  ghost function myFn (n : node) : SomeType := body
+  ghost function myFn (n : node) := body
+  theory ghost function myFn (n : node) : SomeType := body
+  ```
+-/
+syntax (name := ghostFunctionDefinition) kw_theory ? kw_ghost kw_function ident explicitBinders ? (":" term)? ":=" term : command
 
 /- ## Initial state -/
 

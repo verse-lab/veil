@@ -229,7 +229,7 @@ private def processTransition (ctx : TraceElabCtx) (curr next : Ident) (trIdx : 
 private def processAssertion (ctx : TraceElabCtx) (currState : Ident) (t : Term) : TermElabM (TSyntax `term) := do
   let fieldRepInstance ← `(term| $instAbstractFieldRepresentation $(ctx.sorts)*)
   let stateSortTerm ← `(term| $fieldAbstractDispatcher $(ctx.sorts)*)
-  let wrappedTerm ← withTheoryAndStateFn ctx.mod (← `(uqc% (($t:term):Prop))) ctx.theoryT ctx.stateT fieldRepInstance stateSortTerm
+  let wrappedTerm ← withTheoryAndStateFn ctx.mod (← `(uqc% (($t:term):Prop))) (some $ ← `(term|Prop)) ctx.theoryT ctx.stateT fieldRepInstance stateSortTerm
   `(term|($wrappedTerm $(ctx.theoryId) $currState))
 
 /-- Expand anyNActions into individual anyAction entries -/

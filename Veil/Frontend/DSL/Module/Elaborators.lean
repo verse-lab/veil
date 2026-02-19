@@ -36,6 +36,9 @@ def extractDefinitionName (stx : Syntax) : Name :=
   -- ghostRelationDefinition
   | `(command|ghost relation $nm:ident $_br:explicitBinders ? := $_t:term) => nm.getId
   | `(command|theory ghost relation $nm:ident $_br:explicitBinders ? := $_t:term) => nm.getId
+  -- ghostFunctionDefinition
+  | `(command|ghost function $nm:ident $_br:explicitBinders ? $[: $_tp:term]? := $_t:term) => nm.getId
+  | `(command|theory ghost function $nm:ident $_br:explicitBinders ? $[: $_tp:term]? := $_t:term) => nm.getId
   | _ => `unknown
 
 private def overrideLeanDefaults : CommandElabM Unit := do
@@ -445,6 +448,7 @@ def elabTransition : CommandElab := fun stx => do
         let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
         let unchangedFields := unchangedFields.map Lean.mkIdent
         let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
+          (some $ ← `(term|Prop))
           (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
         -- NOTE: We wrap the transition in a `decide` to ensure the required `Decidable` instance
         -- becomes an instance argument and can be used in extraction
@@ -470,20 +474,22 @@ def elabProcedureWithSpec : CommandElab := fun stx => do
     | _ => throwUnsupportedSyntax
     localEnv.modifyModule (fun _ => new_mod)
 
-@[command_elab Veil.ghostRelationDefinition]
-def elabGhostRelationDefinition : CommandElab := fun stx => do
+@[command_elab Veil.ghostRelationDefinition, command_elab Veil.ghostFunctionDefinition]
+def elabGhostDefinition : CommandElab := fun stx => do
   let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the ghost relation name
-  withTraceNode (`veil.perf.elaborator.ghostRelation ++ nm) (fun _ => return s!"ghost {nm}") do
-    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost relation outside of a Veil module!")
+  withTraceNode (`veil.perf.elaborator.ghostDefinition ++ nm) (fun _ => return s!"ghost {nm}") do
+    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost definition outside of a Veil module!")
     mod ← mod.ensureStateIsDefined
     mod.throwIfSpecAlreadyFinalized
-    let (nm, stateGhost?, (cmd, new_mod)) ← match stx with
-    | `(command|ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, true, ← mod.defineGhostRelation nm.getId br t (justTheory := false))
-    | `(command|theory ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, false, ← mod.defineGhostRelation nm.getId br t (justTheory := true))
+    let (isRelation, stateGhost?, (cmd, new_mod)) ← match stx with
+    | `(command|$[theory%$forTheory]? ghost relation $nm:ident $br:explicitBinders ? := $t:term) =>
+      pure (true, forTheory.isNone, ← mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := true))
+    | `(command|$[theory%$forTheory]? ghost function $nm:ident $br:explicitBinders ? $[: $retTy:term]? := $t:term) =>
+      pure (false, forTheory.isNone, ← mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := false) (retType := retTy))
     | _ => throwUnsupportedSyntax
     elabVeilCommand cmd
-    if mod._useLocalRPropTC && stateGhost? && !(← isModelCheckCompileMode) then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
+    if isRelation && mod._useLocalRPropTC && stateGhost? && !(← isModelCheckCompileMode) then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
     localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.assertionDeclaration]

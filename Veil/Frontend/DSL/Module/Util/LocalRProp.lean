@@ -6,6 +6,9 @@ namespace Veil
 
 /-! ## LocalRProp Typeclass Declaration -/
 
+-- NOTE: `LocalRPropTC` actually does not have to be about `Prop`s, but currently
+-- we only use it for `Prop`s, so it is dealt with as such.
+
 /-- Declare the `LocalRProp` typeclass for the module.
 Its general form is:
 ```lean
@@ -38,7 +41,7 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (Command × Command) := do
   let th ← Lean.mkIdent <$> mkFreshUserName `th
   let st ← Lean.mkIdent <$> mkFreshUserName `st
   let coreEqType ← do
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] fun theoryFieldNames stateFieldNames =>
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] (some $ ← `(term| Prop)) fun theoryFieldNames stateFieldNames =>
       pure <| Syntax.mkApp core (#[a] ++ theoryFieldNames ++ stateFieldNames)
     `(term| ∀ ($a : $α) ($th : $environmentTheory) ($st : $environmentState),
     $post $a $th $st = $body)
@@ -113,7 +116,7 @@ error message.
 
 This function returns the instance. Its error message shall be handled
 by the caller. -/
-def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name) : MetaM Expr := do
+private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name) : MetaM Expr := do
   let nmFull ← resolveGlobalConstNoOverloadCore nm
   let info ← getConstInfoDefn nmFull
   -- exploit the shape of `info.value`
