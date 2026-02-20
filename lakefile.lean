@@ -103,3 +103,97 @@ lean_lib VeilTest {
 lean_lib Examples {
   globs := #[.submodules `Examples]
 }
+
+/--
+Run performance tests with timeout enforcement.
+
+USAGE:
+  lake script run perftest
+
+Runs all `.lean` files under `Test/Performance/` and checks that each
+completes within the timeout specified in its accompanying `.timeout` file
+(in seconds). If no `.timeout` file exists, a default of 20 seconds is used.
+
+Example `.timeout` file contents:
+```
+20
+```
+-/
+script perftest do
+  let perfDir : FilePath := "Test" / "Performance"
+  if !(← perfDir.pathExists) then
+    IO.println "No Test/Performance/ directory found."
+    return 1
+  let entries ← perfDir.readDir
+  let tests := entries.filterMap fun e =>
+    if e.path.extension = some "lean" then some e.path else none
+  if tests.isEmpty then
+    IO.println "No performance tests found in Test/Performance/."
+    return 0
+  let lean ← getLean
+  let env ← getAugmentedEnv
+  let mut allPassed := true
+  for test in tests do
+    let timeoutSec ← readTimeout test
+    IO.println s!"Running {test} (timeout: {timeoutSec}s) ..."
+    let (timedOut, elapsedMs, exitCode, stdout, stderr) ←
+      runWithTimeout lean.toString #[test.toString] env (timeoutSec * 1000)
+    let elapsedSec := elapsedMs / 1000
+    if timedOut then
+      IO.println s!"  TIMEOUT after {elapsedSec}s (limit: {timeoutSec}s)"
+      allPassed := false
+    else if exitCode ≠ 0 then
+      IO.println s!"  FAILED (exit code {exitCode}, {elapsedSec}s)"
+      if !stderr.isEmpty then
+        IO.println s!"  Stderr: {stderr.trim}"
+      allPassed := false
+    else
+      IO.println s!"  PASSED ({elapsedSec}s)"
+      if !stdout.isEmpty then
+        for line in stdout.trim.splitOn "\n" do
+          IO.println s!"    {line}"
+  return if allPassed then 0 else 1
+where
+  readTimeout (test : FilePath) : IO Nat := do
+    let timeoutFile := test.withExtension "timeout"
+    if ← timeoutFile.pathExists then
+      let content ← IO.FS.readFile timeoutFile
+      return content.trim.toNat?.getD 20
+    else return 120
+  runWithTimeout (cmd : String) (args : Array String)
+      (env : Array (String × Option String)) (timeoutMs : Nat)
+      : IO (Bool × Nat × UInt32 × String × String) := do
+    IO.println s!"  Executing: {cmd} {String.intercalate " " args.toList}"
+    let child ← IO.Process.spawn {
+      cmd := cmd
+      args := args
+      env := env
+      stdout := .piped
+      stderr := .piped
+    }
+    -- Read stdout/stderr in background tasks to avoid pipe deadlock
+    let stdoutTask ← IO.asTask child.stdout.readToEnd
+    let stderrTask ← IO.asTask child.stderr.readToEnd
+    -- Track process completion via shared flag
+    let doneRef ← IO.mkRef false
+    let exitCodeRef ← IO.mkRef (0 : UInt32)
+    let _ ← IO.asTask do
+      let code ← child.wait
+      exitCodeRef.set code
+      doneRef.set true
+    -- Poll until done or timeout
+    let startTime ← IO.monoMsNow
+    let mut timedOut := false
+    repeat
+      if ← doneRef.get then break
+      IO.sleep 1000
+      let elapsed := (← IO.monoMsNow) - startTime
+      if elapsed > timeoutMs then
+        timedOut := true
+        child.kill
+        break
+    let exitCode ← exitCodeRef.get
+    let stdout ← IO.ofExcept stdoutTask.get
+    let stderr ← IO.ofExcept stderrTask.get
+    let elapsed := (← IO.monoMsNow) - startTime
+    return (timedOut, elapsed, exitCode, stdout, stderr)
