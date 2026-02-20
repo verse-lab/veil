@@ -59,6 +59,8 @@ syntax (name := kw_trusted) "trusted" : veilKeyword
 syntax (name := kw_assumption) "assumption" : veilKeyword
 syntax (name := kw_invariant) "invariant" : veilKeyword
 syntax (name := kw_safety) "safety" : veilKeyword
+syntax (name := kw_termination) "termination" : veilKeyword
+syntax (name := kw_state_constraint) "state_constraint" : veilKeyword
 
 syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
 
@@ -289,7 +291,11 @@ syntax (name := safetyKind) kw_safety : propertyKind
 
 /--`termination` is also a synonym for `invariant`, but only used for model checker,
 which would not be emitted to VC generator while verification. -/
-syntax (name := terminationKind) "termination" : propertyKind
+syntax (name := terminationKind) kw_termination : propertyKind
+
+/-- A `state_constraint` filters out states during model checking.
+States that do not satisfy the constraint are not explored. -/
+syntax (name := stateConstraintKind) kw_state_constraint : propertyKind
 
 /-- An assertion. -/
 syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command

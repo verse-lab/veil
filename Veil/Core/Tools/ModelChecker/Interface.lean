@@ -230,9 +230,18 @@ structure SearchParameters (ρ σ : Type) where
   deadlock has occurred. -/
   terminating : SafetyProperty ρ σ := default
 
+  /-- State constraints filter out states during model checking. A state is
+  explored only if ALL constraints hold on it. States violating any constraint
+  are silently skipped (not flagged as violations). -/
+  stateConstraints : List (SafetyProperty ρ σ) := []
+
   /-- Stop the search if _any_ of the stopping conditions are met. Of course,
   the search also terminates if all reachable states have been explored. -/
   earlyTerminationConditions : List EarlyTerminationCondition
+
+/-- Check if a state satisfies all state constraints. -/
+def SearchParameters.satisfiesConstraints (params : SearchParameters ρ σ) (th : ρ) (st : σ) : Bool :=
+  params.stateConstraints.all fun c => c.holdsOn th st
 
 -- class ModelChecker (ts : TransitionSystem ρ σ l) where
 --   isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ

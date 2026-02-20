@@ -133,6 +133,9 @@ inductive StateAssertionKind
   that is only assumed, not checked. -/
   | trustedInvariant
   | termination
+  /-- A `state_constraint` filters out states during model checking.
+  States that do not satisfy the constraint are not explored. -/
+  | stateConstraint
 deriving BEq, Hashable, Repr
 
 instance : Inhabited StateAssertionKind where

@@ -93,6 +93,7 @@ instance : ToString StateAssertionKind where
     | StateAssertionKind.trustedInvariant => "trusted invariant"
     | StateAssertionKind.safety => "safety"
     | StateAssertionKind.termination => "termination"
+    | StateAssertionKind.stateConstraint => "state_constraint"
 
 instance : ToString StateAssertion where
   toString sa := s!"{sa.kind} [{sa.name}] {sa.term}"
@@ -290,7 +291,7 @@ def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadError m] (mo
   | .stateComponent _ _ => mod.uninterpretedParamFilterMapFn (pure ·)
   | .stateAssertion .assumption => pure (theoryParameters mod)
   | .stateAssertion .invariant | .stateAssertion .safety | .stateAssertion .trustedInvariant => pure mod.parameters
-  | .stateAssertion .termination => pure mod.parameters -- the same as `invariant`
+  | .stateAssertion .termination | .stateAssertion .stateConstraint => pure mod.parameters -- the same as `invariant`
   | .procedure _ => pure mod.parameters
   | .derivedDefinition k _ => derivedDefinitionBaseParams mod k
 where
@@ -404,21 +405,19 @@ def Module.actions (mod : Module) : Array ProcedureSpecification :=
 def Module.invariants (mod : Module) : Array StateAssertion :=
   mod.assertions.filter fun a => match a.kind with
   | .invariant | .safety | .trustedInvariant => true
-  | .termination => false
-  | .assumption => false
+  | _ => false
 
 def Module.terminations (mod : Module) : Array StateAssertion :=
-  mod.assertions.filter fun a => match a.kind with
-  | .invariant | .safety | .trustedInvariant => false
-  | .termination => true
-  | .assumption => false
+  mod.assertions.filter fun a => a.kind matches .termination
+
+def Module.stateConstraints (mod : Module) : Array StateAssertion :=
+  mod.assertions.filter fun a => a.kind matches .stateConstraint
 
 /-- All `invariant`s and `safety`s.-/
 def Module.checkableInvariants (mod : Module) : Array StateAssertion :=
   mod.assertions.filter fun a => match a.kind with
   | .invariant | .safety => true
-  | .termination => false
-  | .trustedInvariant | .assumption => false
+  | _ => false
 
 def Module.trustedInvariants (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .trustedInvariant)

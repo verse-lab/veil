@@ -84,6 +84,14 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
+  -- Create a "filtered" version of the system
+  let sys := if params.stateConstraints.isEmpty then sys else {
+    initStates := sys.initStates.filter (params.satisfiesConstraints th)
+    tr := fun th' s => (sys.tr th' s).filter (fun (_, o) => match o with
+      | .success s' => params.satisfiesConstraints th s'
+      | .assertionFailure _ s' => params.satisfiesConstraints th s' -- assertion failures should satisfy constraints to be considered
+      | .divergence => true) -- well
+  }
   let (ctx, _) ← breadthFirstSearchSequential params sys 60000 progressInstanceId cancelToken
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do

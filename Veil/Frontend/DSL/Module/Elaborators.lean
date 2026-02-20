@@ -517,6 +517,7 @@ def elabAssertion : CommandElab := fun stx => do
   | `(command|safety $name:propertyName ? $prop:term) => mod.mkAssertion .safety name prop stx
   | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop stx
   | `(command|termination $name:propertyName ? $prop:term) => mod.mkAssertion .termination name prop stx
+  | `(command|state_constraint $name:propertyName ? $prop:term) => mod.mkAssertion .stateConstraint name prop stx
   | _ => throwUnsupportedSyntax
   -- Use dynamic trace class name that includes the assertion name and kind
   let kindStr := match assertion.kind with
@@ -525,6 +526,7 @@ def elabAssertion : CommandElab := fun stx => do
     | .safety => "safety"
     | .trustedInvariant => "trusted_invariant"
     | .termination => "termination"
+    | .stateConstraint => "state_constraint"
   withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
     -- Elaborate the assertion in the Lean environment
     let (cmd, mod') ← mod.defineAssertion assertion
@@ -667,9 +669,11 @@ where
           ($(mkIdent `name) := $(quote sa.name))
           ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
     let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+    -- FIXME: Only recognizing the first termination property might confuse users
     let terminatingProp ← match mod.terminations[0]? with
       | some t => mkProp t
       | none => `($(mkIdent `default))
+    let constraintList ← `([$((← mod.stateConstraints.mapM mkProp)),*])
     let earlyTermConds ← do
       let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
                     $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
@@ -677,6 +681,7 @@ where
       if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
       else pure base
     `({ $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
+        $(mkIdent `stateConstraints):ident := $constraintList,
         $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
 
   /-- Build the core model checker call syntax (without parallel config). -/
