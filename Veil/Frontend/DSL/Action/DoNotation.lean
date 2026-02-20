@@ -142,12 +142,12 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:ident : $t:term then $thn else pure ())
   -- Non-deterministic assignments
   | `(Term.doSeqItem| $id:ident := *) =>
-    let (fr, ex) ← freshPick mod id
-    return ex ++ (← expandDoElemVeil proc $ ← `(Term.doSeqItem|$id:ident := $fr))
+    let (frApp, ex) ← freshPick mod id
+    return ex ++ (← expandDoElemVeil proc $ ← `(Term.doSeqItem|$id:ident := $frApp))
   | `(Term.doSeqItem| $idts:term := *) =>
     let some (id, ts) := idts.isApp? | throwErrorAt stx "wrong syntax for non-deterministic assignment {stx}"
-    let (fr, ex) ← freshPick mod id
-    return ex ++ (← expandDoElemVeil proc $ ← `(Term.doSeqItem|$idts:term := $fr:ident $ts*))
+    let (frApp, ex) ← freshPick mod id ts
+    return ex ++ (← expandDoElemVeil proc $ ← `(Term.doSeqItem|$idts:term := $frApp))
   -- Deterministic assignments
   | `(Term.doSeqItem| $id:ident := $t:term) => assignState mod id t
   | `(Term.doSeqItem| $id:ident ← $t:term) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $id:ident := ← $t:term)
@@ -167,10 +167,34 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   -- binders for the state variables, as the state might have changed
   | doE => return #[doE] ++ (← getState mod)
 where
-freshPick (mod : Module) (id : Ident) : TermElabM (Ident × Array doSeqItem) := do
-  let ty ← mod.getStateComponentTypeStx id.getId
-  let fr := mkIdent <| ← mkFreshUserName $ (Name.mkSimple s!"pick_{id.getId}")
-  return (fr, #[← `(Term.doSeqItem| let $fr ← pick ($ty:term))])
+freshPick (mod : Module) (id : Ident) (ts : Array Term := #[]) : TermElabM (Term × Array doSeqItem) := do
+  let nm := id.getId
+  let fr := mkIdent <| ← mkFreshUserName $ (Name.mkSimple s!"pick_{nm}")
+  let some sc := mod.signature.find? (·.name = nm)
+    | throwErrorAt (← getRef) s!"State component {nm} not found in module {mod.name}"
+  -- When we have arguments (`ts`) and can look up the component, build a
+  -- narrower pick type that only includes domain dimensions for capitalized
+  -- (universally quantified) arguments. Non-capitalized arguments represent
+  -- specific values and don't need to be enumerated.
+  if ts.isEmpty then
+    let ty ← mod.getStateComponentTypeStx nm
+    return (fr, #[← `(Term.doSeqItem| let $fr ← pick ($ty:term))])
+  let domainTerms := sc.domainTerms
+  let componentsSize := domainTerms.size
+  let tsUsed := ts.take componentsSize
+  let tsResidue := ts.drop componentsSize
+  let mut pickDomainTerms : Array Term := #[]
+  let mut capitalArgs : Array Term := #[]
+  for i in [:tsUsed.size] do
+    if isCapital tsUsed[i]!.raw.getId then
+      pickDomainTerms := pickDomainTerms.push domainTerms[i]!
+      capitalArgs := capitalArgs.push tsUsed[i]!
+  -- Domain terms beyond ts.size are not specified, so include them in pick type
+  for i in [tsUsed.size:componentsSize] do
+    pickDomainTerms := pickDomainTerms.push domainTerms[i]!
+  let pickType ← mkArrowStx pickDomainTerms.toList (some sc.codomainTerm)
+  let frApp := Syntax.mkApp fr <| capitalArgs ++ tsResidue
+  return (frApp, #[← `(Term.doSeqItem| let $fr ← pick ($pickType:term))])
 
 assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem) := do
   let name := id.getId
