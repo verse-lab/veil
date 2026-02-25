@@ -120,9 +120,10 @@ def main (args : List String) : IO Unit := do
   Veil.ModelChecker.Concrete.enableCompiledModeProgress
   let pcfg : Option Veil.ModelChecker.ParallelConfig :=
     match args with
-    | [a, b] =>
+    | a :: b :: args' =>
+      let numSubSteps := args'.head?.bind String.toNat? |>.getD 1
       match a.toNat?, b.toNat? with
-      | some n1, some n2 => some <| Veil.ModelChecker.ParallelConfig.mk n1 n2
+      | some numSubTasks, some thresholdToParallel => some { numSubTasks, thresholdToParallel, numSubSteps : Veil.ModelChecker.ParallelConfig }
       | _, _ => none
     | _ => none
   -- Instance ID is not used in compiled mode, pass 0

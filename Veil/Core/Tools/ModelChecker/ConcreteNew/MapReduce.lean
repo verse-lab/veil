@@ -141,35 +141,50 @@ def breadthFirstSearchParallel {m : Type → Type}
         mctx := ({ base with finished := some (.exploredAllReachableStates) }, tovisitArr, globalSeen)
         break
       else
-        -- Compute chunk ranges for splitting the work
-        let ranges := ParallelConfig.chunkRanges parallelCfg tovisitArr.size
-        -- Split the queue into sub-arrays of `QueueItems`
-        -- Use `Subarray` to avoid copying the data for each chunk
-        let splitArrays := ranges.map fun lr => tovisitArr.extract lr.1 lr.2
+        -- Split the frontier into fine-grained chunks for sub-stepping.
+        -- Each BFS layer is processed in `numSubSteps` sub-steps, with a reduce
+        -- (merge) after each sub-step to update `globalSeen`, reducing redundant
+        -- state exploration across threads.
+        let numSubSteps := max 1 parallelCfg.numSubSteps
+        let totalChunks := if tovisitArr.size < parallelCfg.thresholdToParallel then 1
+          else max 1 parallelCfg.numSubTasks * numSubSteps
+        let fineRanges := computeChunkRanges totalChunks tovisitArr.size
+        let allChunkArrays := fineRanges.toArray.map fun lr => tovisitArr.extract lr.1 lr.2
+        -- Compute sub-step intervals: each covers ~numSubTasks consecutive chunk arrays
+        let effectiveSubSteps := if tovisitArr.size < parallelCfg.thresholdToParallel then 1 else numSubSteps
+        let subStepIntervals := computeChunkRanges effectiveSubSteps allChunkArrays.size
         let completedDepth := base.completedDepth
-        -- Map step: spawn parallel tasks
-        -- **CAVEAT**: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
-        -- as that might cause parallelism to vanish!!! Instead, the call should be defined
-        -- in some other file.
-        let tasks ← IteratedProd.taskSplit splitArrays fun subArr _ =>
-          (pure (MapReduceSearchContextLocal.bfsBigStep params th globalSeen sys.tr completedDepth subArr) : IO _)
-        let results ← IteratedProd.mapM (fun task => IO.ofExcept task.get) tasks
-        -- Reduce step
-        -- CHECK rewrite into a bind to prevent the reuse of `base` and `tovisitArr`?
-        let mctx' := mctx.mergeWithLocalOnes results
-
-        match mctx' with
-        | (base', tovisitArr', globalSeen') =>
-          trySetViolationFound progressInstanceId base'
-          -- Update progress on every diameter change
-          updateProgressDuringBFS progressInstanceId base' tovisitArr'.size
-          mctx := (base', tovisitArr', globalSeen')
-          -- Check for cancellation/handoff at most once per second
-          let newtime? ← checkCancellationWithoutPeriodicUpdate progressInstanceId lastUpdateTime 1000 cancelToken
-          match newtime? with
-          | .updateTime t => lastUpdateTime := t
-          | .searchCancelled => cancelled := true ; break
-          | .noUpdate => pure ()
+        let mut currentGlobalSeen := globalSeen
+        let mut currentBase := base
+        let mut accumulatedQueue : Array (QueueItem σₕ σ) := #[]
+        -- Inner loop: process each sub-step, merging after each to update globalSeen
+        for (subL, subR) in subStepIntervals do
+          if currentBase.hasFinished || cancelled then break
+          let splitArrays := (allChunkArrays.extract subL subR).toList
+          -- Map step: spawn parallel tasks
+          -- **CAVEAT**: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
+          -- as that might cause parallelism to vanish!!! Instead, the call should be defined
+          -- in some other file.
+          let tasks ← IteratedProd.taskSplit splitArrays fun subArr _ =>
+            (pure (MapReduceSearchContextLocal.bfsBigStep params th currentGlobalSeen sys.tr completedDepth subArr) : IO _)
+          let results ← IteratedProd.mapM (fun task => IO.ofExcept task.get) tasks
+          -- Reduce step: merge results and update globalSeen
+          let tempMctx : MapReduceSearchContextMain σ κ σₕ := (currentBase, #[], currentGlobalSeen)
+          let merged := tempMctx.mergeWithLocalOnes results
+          match merged with
+          | (newBase, newQueueItems, newGlobalSeen) =>
+            currentBase := newBase
+            accumulatedQueue := accumulatedQueue ++ newQueueItems
+            currentGlobalSeen := newGlobalSeen
+            trySetViolationFound progressInstanceId newBase
+            updateProgressDuringBFS progressInstanceId newBase accumulatedQueue.size
+            let newtime? ← checkCancellationWithoutPeriodicUpdate progressInstanceId lastUpdateTime 1000 cancelToken
+            match newtime? with
+            | .updateTime t => lastUpdateTime := t
+            | .searchCancelled => cancelled := true
+            | .noUpdate => pure ()
+        mctx := (currentBase, accumulatedQueue, currentGlobalSeen)
+        if cancelled then break
   -- Final update to ensure stats reflect finished state
   updateProgressDuringBFS progressInstanceId mctx.1 mctx.2.1.size
   if cancelled then
