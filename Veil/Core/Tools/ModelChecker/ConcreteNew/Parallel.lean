@@ -69,7 +69,7 @@ def MapReduceSearchContextLocal.processState
 
 def MapReduceSearchContextLocal.processWorkQueue
   (outcomesComputer : ρ → σ → List (κ × ExecutionOutcome ℤ σ))
-  (queue : Subarray (QueueItem σₕ σ))
+  (queue : Array (QueueItem σₕ σ))
   (lctx : MapReduceSearchContextLocal σ κ σₕ) : MapReduceSearchContextLocal σ κ σₕ := Id.run do
   let mut res := lctx
   for item in queue do
@@ -83,7 +83,7 @@ def MapReduceSearchContextLocal.processWorkQueue
 def MapReduceSearchContextLocal.bfsBigStep
   (outcomesComputer : ρ → σ → List (κ × ExecutionOutcome ℤ σ))
   (completedDepth : Nat)
-  (queue : Subarray (QueueItem σₕ σ)) : MapReduceSearchContextLocal σ κ σₕ :=
+  (queue : Array (QueueItem σₕ σ)) : MapReduceSearchContextLocal σ κ σₕ :=
   let lctx : MapReduceSearchContextLocal σ κ σₕ := MapReduceSearchContextLocal.initial completedDepth
   MapReduceSearchContextLocal.processWorkQueue params th globalSeen outcomesComputer queue lctx
 
@@ -145,7 +145,7 @@ def breadthFirstSearchParallel {m : Type → Type}
         let ranges := ParallelConfig.chunkRanges parallelCfg tovisitArr.size
         -- Split the queue into sub-arrays of `QueueItems`
         -- Use `Subarray` to avoid copying the data for each chunk
-        let splitArrays := ranges.map fun lr => tovisitArr.toSubarray lr.1 lr.2
+        let splitArrays := ranges.map fun lr => tovisitArr.extract lr.1 lr.2
         let completedDepth := base.completedDepth
         -- Map step: spawn parallel tasks
         -- **CAVEAT**: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
