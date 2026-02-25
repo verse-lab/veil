@@ -69,14 +69,14 @@ def MapReduceSearchContextLocal.processState
 def MapReduceSearchContextLocal.processWorkQueue
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (globalLog : Std.HashMap σₕ (Option (σₕ × κ)))
-  (queueList : List (QueueItem σₕ σ))
-  (lctx : MapReduceSearchContextLocal σ κ σₕ) : MapReduceSearchContextLocal σ κ σₕ :=
-  match queueList with
-  | [] => lctx
-  | ⟨fpSt, curr, depth⟩ :: rest =>
-    let lctx' := MapReduceSearchContextLocal.processState params th globalLog fpSt depth curr (sys.tr th curr) lctx
-    if lctx'.hasFinished then lctx'
-    else processWorkQueue sys globalLog rest lctx'
+  (queue : Subarray (QueueItem σₕ σ))
+  (lctx : MapReduceSearchContextLocal σ κ σₕ) : MapReduceSearchContextLocal σ κ σₕ := Id.run do
+  let mut res := lctx
+  for item in queue do
+    if res.hasFinished then break else pure ()
+    let ⟨fpSt, curr, depth⟩ := item
+    res := MapReduceSearchContextLocal.processState params th globalLog fpSt depth curr (sys.tr th curr) res
+  return res
 
 /-- Main worker entry point. Creates a neutral context and processes the work queue.
     This function is called by each parallel task. -/
@@ -84,9 +84,9 @@ def MapReduceSearchContextLocal.bfsBigStep
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (globalLog : Std.HashMap σₕ (Option (σₕ × κ)))
   (completedDepth : Nat)
-  (queue : Array (QueueItem σₕ σ)) : MapReduceSearchContextLocal σ κ σₕ :=
+  (queue : Subarray (QueueItem σₕ σ)) : MapReduceSearchContextLocal σ κ σₕ :=
   let lctx : MapReduceSearchContextLocal σ κ σₕ := MapReduceSearchContextLocal.initial completedDepth
-  MapReduceSearchContextLocal.processWorkQueue params th sys globalLog queue.toList lctx
+  MapReduceSearchContextLocal.processWorkQueue params th sys globalLog queue lctx
 
 omit params th in
 def MapReduceSearchContextMain.mergeWithLocalOnes {as : List α}
@@ -96,7 +96,6 @@ def MapReduceSearchContextMain.mergeWithLocalOnes {as : List α}
   let (mbase, mq, _) := IteratedProd.foldl (elements := lctxs)
     (init := (ctx, (#[] : Array (QueueItem σₕ σ)), (Std.HashSet.emptyWithCapacity : Std.HashSet σₕ))) fun acc r =>
     let (mbase, mq, st) := acc
-    -- TODO need to think about the semantics of `st`
     let (lbase, lq) := r
     let (mq', st') := lq.foldl (init := (mq, st)) fun (mq_acc, st_acc) item =>
       if !st_acc.contains item.fingerprint then
@@ -144,10 +143,8 @@ def breadthFirstSearchParallel {m : Type → Type}
         -- Compute chunk ranges for splitting the work
         let ranges := ParallelConfig.chunkRanges parallelCfg tovisitArr.size
         -- Split the queue into sub-arrays of `QueueItems`
-        -- CHECK Is the memory usage of this split correct? In any case, if we replace the `Array` with `List`,
-        -- we should be able to somehow minimize the additional memory allocation.
-        -- A similar issue happens above in the `queueList` above.
-        let splitArrays := ranges.map fun lr => tovisitArr.extract lr.1 lr.2
+        -- Use `Subarray` to avoid copying the data for each chunk
+        let splitArrays := ranges.map fun lr => tovisitArr.toSubarray lr.1 lr.2
         let globalLog := base.log    -- CHECK sharing --> bad copy?
         let completedDepth := base.completedDepth
         -- Map step: spawn parallel tasks
