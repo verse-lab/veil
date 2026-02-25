@@ -283,4 +283,60 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
   }
   return some newCancelToken
 
+section Utilities
+
+variable {σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
+  (progressInstanceId : Nat)
+
+@[inline]
+def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ) (qSize : Nat) : m Unit := do
+  updateProgress progressInstanceId
+    ctx.currentFrontierDepth ctx.statesFound ctx.log.size qSize
+    (toActionStatsList ctx.actionStatsMap)
+
+-- NOTE: Any attempt to inline these functions might lead to **significant** performance
+-- regression, due to certain reason
+
+/-- A thin wrapper around `setViolationFound`.
+    If we found a violation, mark it so handoff is prevented. -/
+def trySetViolationFound (ctx : BaseSearchContext σ κ σₕ) : m Unit := do
+  if let some (.earlyTermination cond) := ctx.finished then
+    if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
+
+def tryUpdateProgressWithNewFrontierDepth (oldFrontierDepth : Nat) (ctx : BaseSearchContext σ κ σₕ) (qSize : Nat) : m Unit := do
+  if ctx.currentFrontierDepth > oldFrontierDepth then
+    updateProgressDuringBFS progressInstanceId ctx qSize
+
+inductive SearchPeriodicProgressUpdate where
+  | searchCancelled
+  | noUpdate
+  | updateTime (newtime : Nat)
+
+-- FIXME: Use `Option` to unify the two functions?
+def checkCancellationWithPeriodicUpdate (lastUpdateTime updateTimeInterval : Nat)
+  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ) (qSize : Nat) : m SearchPeriodicProgressUpdate := do
+  let now ← IO.monoMsNow
+  if now - lastUpdateTime ≥ updateTimeInterval then
+    if ← shouldStop cancelToken progressInstanceId then
+      return .searchCancelled
+    else
+      updateProgressDuringBFS progressInstanceId ctx qSize
+      return .updateTime now
+  else
+    return .noUpdate
+
+def checkCancellationWithoutPeriodicUpdate (lastUpdateTime updateTimeInterval : Nat)
+  (cancelToken : IO.CancelToken) : m SearchPeriodicProgressUpdate := do
+  let now ← IO.monoMsNow
+  if now - lastUpdateTime ≥ updateTimeInterval then
+    if ← shouldStop cancelToken progressInstanceId then
+      return .searchCancelled
+    else
+      return .updateTime now
+  else
+    return .noUpdate
+
+end Utilities
+
 end Veil.ModelChecker.Concrete

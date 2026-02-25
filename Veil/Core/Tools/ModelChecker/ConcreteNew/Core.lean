@@ -1,6 +1,7 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 import Veil.Core.Tools.ModelChecker.Interface
 import Veil.Core.Tools.ModelChecker.Trace
+import Batteries.Lean.HashMap
 
 namespace Veil.ModelChecker.Concrete
 open Std
@@ -35,6 +36,8 @@ structure ActionStat where
   distinctStates : Nat
 deriving Lean.ToJson, Lean.FromJson, BEq, DecidableEq, Repr, Inhabited
 
+abbrev ActionStatsMap κ [BEq κ] [Hashable κ] := Std.HashMap κ ActionStat
+
 /-- A model checker search context is parametrised by the system that's being
 checked and the theory it's being checked under. -/
 structure BaseSearchContext (σ κ σₕ : Type)
@@ -54,7 +57,28 @@ where
   /-- Total number of post-states generated (before deduplication) -/
   statesFound : Nat
   /-- Per-action statistics: label → stats -/
-  actionStatsMap : Std.HashMap κ ActionStat
+  actionStatsMap : ActionStatsMap κ
+
+-- Use `.alter` to ensure linear usage
+-- NOTE: This doesn't seem `specialize`d; what happened?
+@[inline]
+def ActionStatsMap.update [BEq κ] [Hashable κ] (distinct? : Bool) (label : κ) (amap : ActionStatsMap κ) : ActionStatsMap κ :=
+  if distinct? then
+    amap.alter label fun
+      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds + 1⟩
+      | none => Option.some { statesGenerated := 1, distinctStates := 1 }
+  else
+    amap.alter label fun
+      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds⟩
+      | none => Option.some { statesGenerated := 1, distinctStates := 0 }
+
+/-- Merge two `ActionStatsMap`s. Note that the time complexity depends on the *second* one;
+but in the case here, the domain size of `m2` should be mostly fixed, so it should not
+matter too much which operand the time complexity depends on. -/
+def ActionStatsMap.combine [BEq κ] [Hashable κ] (m1 m2 : ActionStatsMap κ) : ActionStatsMap κ :=
+  m1.mergeWith (other := m2) fun _ as1 as2 =>
+     { statesGenerated := as1.statesGenerated + as2.statesGenerated,
+       distinctStates := as1.distinctStates + as2.distinctStates }
 
 structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
@@ -75,7 +99,7 @@ variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hash
 @[inline]
 def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ) : Bool := ctx.finished.isSome
 
--- @[inline]
+@[inline]
 def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ :=
   let initStates := initialStates.map fun x => (fp.view x, Option.none)
   {
@@ -164,5 +188,14 @@ def BaseSearchContext.processState
       | .cancelled => {ctx with finished := some (.earlyTermination .cancelled)}
     | none => ctx
   (ctx, if earlyTermination.isSome then none else some successfulTransitions)
+
+def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ) : BaseSearchContext σ κ σₕ :=
+  { log := ctx1.log.union ctx2.log,
+    violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
+    finished := ctx1.finished.or ctx2.finished,
+    completedDepth := ctx1.completedDepth,    -- no change
+    currentFrontierDepth := ctx1.currentFrontierDepth,    -- no change
+    statesFound := ctx1.statesFound + ctx2.statesFound,
+    actionStatsMap := ctx1.actionStatsMap.combine ctx2.actionStatsMap }
 
 end Veil.ModelChecker.Concrete

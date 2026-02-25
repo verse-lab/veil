@@ -9,19 +9,6 @@ open Veil fQueue
 variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]
   (params : SearchParameters ρ σ) (th : ρ)
 
--- Use `.alter` to ensure linear usage
--- NOTE: This doesn't seem `specialize`d; what happened?
-@[inline]
-def updateActionStatsMap (distinct? : Bool) (label : κ) (amap : Std.HashMap κ ActionStat) : Std.HashMap κ ActionStat :=
-  if distinct? then
-    amap.alter label fun
-      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds + 1⟩
-      | none => Option.some { statesGenerated := 1, distinctStates := 1 }
-  else
-    amap.alter label fun
-      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds⟩
-      | none => Option.some { statesGenerated := 1, distinctStates := 0 }
-
 -- CHECK inline this later? seems a good target to inline
 /-- Process a single neighbor node during BFS traversal.
 If the neighbor has been seen, return the current context unchanged.
@@ -37,11 +24,11 @@ def SequentialSearchContext.tryExploreNeighbor
   let (ctx, sq) := sctx
   let fingerprint := fp.view succ
   if ctx.log.contains fingerprint then
-    ({ ctx with actionStatsMap := updateActionStatsMap false label ctx.actionStatsMap }, sq)
+    ({ ctx with actionStatsMap := ctx.actionStatsMap.update false label }, sq)
   else
     ({ ctx with
       log  := ctx.log.insert fingerprint (Option.some (fpSt, label)),
-      actionStatsMap := updateActionStatsMap true label ctx.actionStatsMap,
+      actionStatsMap := ctx.actionStatsMap.update true label,
     }, sq.enqueue ⟨fingerprint, succ, nextDepth⟩)
 
 -- CHECK inline this later? seems a good target to inline
@@ -78,8 +65,8 @@ def SequentialSearchContext.processState
     }, sq)
   | some successfulTransitions =>
     -- CHECK Is it useful/possible to remove the call to `successfulTransitions.length`?
-    let newStatesFound := ctx.statesFound + successfulTransitions.length
-    let ctx'' := { ctx with
+    let newStatesFound := ctx'.statesFound + successfulTransitions.length
+    let ctx'' := { ctx' with
       completedDepth := newCompletedDepth,
       currentFrontierDepth := newFrontierDepth
       statesFound := newStatesFound
@@ -209,21 +196,6 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
   · introv ; intro h1 ; apply SequentialSearchContext.processSuccessors_add_to_seen l v
     simp ; rw [← partitionExecutionOutcome.fst_spec, h_eq_part] at h1 ; exact h1
 
-@[inline]
-def updateProgressDuringBFS [Monad m]
-  [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
-  (progressInstanceId : Nat)
-  (ctx : BaseSearchContext σ κ σₕ)
-  (sq : fQueue (QueueItem σₕ σ)) : m Unit := do
-  updateProgress progressInstanceId
-    ctx.currentFrontierDepth ctx.statesFound ctx.log.size sq.size
-    (toActionStatsList ctx.actionStatsMap)
-
-inductive SequentialSearchPeriodicProgressUpdate where
-  | searchCancelled
-  | noUpdate
-  | updateTime (newtime : Nat)
-
 -- @[specialize]
 omit th in
 def breadthFirstSearchSequential {m : Type → Type}
@@ -247,9 +219,9 @@ def breadthFirstSearchSequential {m : Type → Type}
     match heq : sctx' with
     | ⟨ctx', sq'⟩ =>
       -- If we found a violation, mark it so handoff is prevented
-      trySetViolationFound ctx'
-      tryUpdateProgressWithNewFrontierDepth oldFrontierDepth ctx' sq'
-      let newtime? ← checkCancellation lastUpdateTime cancelToken ctx' sq'
+      trySetViolationFound progressInstanceId ctx'
+      tryUpdateProgressWithNewFrontierDepth progressInstanceId oldFrontierDepth ctx' sq'.size
+      let newtime? ← checkCancellationWithPeriodicUpdate progressInstanceId lastUpdateTime updateTimeInterval cancelToken ctx' sq'.size
       sctx := Subtype.mk (ctx', sq') (heq.symm ▸ h_sctx')
       match newtime? with
       | .updateTime t => lastUpdateTime := t
@@ -257,37 +229,11 @@ def breadthFirstSearchSequential {m : Type → Type}
       | .noUpdate => pure ()
   let ⟨sctx_val, _⟩ := sctx
   let (ctx, sq) := sctx_val
-  updateProgressDuringBFS progressInstanceId ctx sq
+  updateProgressDuringBFS progressInstanceId ctx sq.size
   if cancelled then
     let ctx' := { ctx with finished := some (.earlyTermination .cancelled) }
     return (ctx', sq)
   else
     return (ctx, sq)
-where
- -- NOTE: Any attempt to inline these functions might lead to
- -- **significant** performance degradation, due to certain reason
- trySetViolationFound (ctx : BaseSearchContext σ κ σₕ) : m Unit := do
-  if let some (.earlyTermination cond) := ctx.finished then
-    if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
- tryUpdateProgressWithNewFrontierDepth
-  (oldFrontierDepth : Nat)
-  (ctx : BaseSearchContext σ κ σₕ)
-  (sq : fQueue (QueueItem σₕ σ)) : m Unit := do
-  if ctx.currentFrontierDepth > oldFrontierDepth then
-    updateProgressDuringBFS progressInstanceId ctx sq
- checkCancellation
-  (lastUpdateTime : Nat)
-  (cancelToken : IO.CancelToken)
-  (ctx : BaseSearchContext σ κ σₕ)
-  (sq : fQueue (QueueItem σₕ σ)) : m SequentialSearchPeriodicProgressUpdate := do
-  let now ← IO.monoMsNow
-  if now - lastUpdateTime ≥ updateTimeInterval then
-    if ← shouldStop cancelToken progressInstanceId then
-      return .searchCancelled
-    else
-      updateProgressDuringBFS progressInstanceId ctx sq
-      return .updateTime now
-  else
-    return .noUpdate
 
 end Veil.ModelChecker.Concrete
