@@ -1,4 +1,5 @@
 import Veil.Core.Tools.ModelChecker.ConcreteNew.Sequential
+import Veil.Core.Tools.ModelChecker.ConcreteNew.Parallel
 
 namespace Veil.ModelChecker.Concrete
 
@@ -92,7 +93,9 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
       | .assertionFailure _ s' => params.satisfiesConstraints th s' -- assertion failures should satisfy constraints to be considered
       | .divergence => true) -- well
   }
-  let (ctx, _) ← breadthFirstSearchSequential params sys 60000 progressInstanceId cancelToken
+  let ctx ← match parallelCfg with
+    | some cfg => do pure (← breadthFirstSearchParallel params sys cfg progressInstanceId cancelToken).base
+    | none     => do pure (← breadthFirstSearchSequential params sys 60000 progressInstanceId cancelToken).1
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))

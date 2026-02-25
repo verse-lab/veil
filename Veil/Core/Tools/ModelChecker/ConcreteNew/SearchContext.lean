@@ -4,6 +4,8 @@ import Veil.Core.Tools.ModelChecker.Concrete.Containers
 
 namespace Veil.ModelChecker.Concrete
 
+section Sequential
+
 abbrev SequentialSearchContext (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
   BaseSearchContext σ κ σₕ × fQueue (QueueItem σₕ σ)
 
@@ -60,5 +62,37 @@ theorem SequentialSearchContextInvariants.finish_stateInTransit
   by_cases heq : curr = u
   on_goal 2=> grind
   subst u ; eapply h_neighbors_seen ; assumption
+
+end Sequential
+
+section MapReduce
+
+-- FIXME: The depth information in `QueueItem` is more or less useless here
+
+structure MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] where
+  base : BaseSearchContext σ κ σₕ
+  -- CHECK I strongly suspect there is some bad memory usage here ...
+  /-- Recording the nodes to visit in the next depth as an Array for efficient iteration/splitting. -/
+  tovisitQueue : Array (QueueItem σₕ σ)
+  /-- HashSet for O(1) membership checking of fingerprints in the queue. -/
+  tovisitSet : Std.HashSet σₕ
+
+abbrev MapReduceSearchContextLocal (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
+  BaseSearchContext σ κ σₕ × Array (QueueItem σₕ σ)
+
+variable {ρ σ κ σₕ : Type}
+  [fp : StateFingerprint σ σₕ]
+  [instBEq : BEq κ] [instHash : Hashable κ]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
+
+-- structure MapReduceSearchContextMainInvariants
+--   (mmctx : MapReduceSearchContextMain σ κ σₕ)
+-- extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (· ∈ mmctx.tovisitQueue) (· ∈ mmctx.base.log)
+-- where
+  -- tovisitConsistent : ∀ h, h ∈ tovisitSet ↔ ∃ item ∈ tovisitQueue, item.fingerprint = h
+
+end MapReduce
 
 end Veil.ModelChecker.Concrete
