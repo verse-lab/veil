@@ -1,4 +1,4 @@
-import Veil.Core.Tools.ModelChecker.ConcreteNew.ParallelLemmas
+import Veil.Core.Tools.ModelChecker.ConcreteNew.MapReduceLemmas
 import Veil.Core.Tools.ModelChecker.ConcreteNew.Progress
 import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
 
