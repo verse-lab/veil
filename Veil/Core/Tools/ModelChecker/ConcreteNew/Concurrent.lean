@@ -105,7 +105,7 @@ end StripedSeenSet
 structure SearchResultState (σ κ σₕ : Type) [BEq σₕ] [Hashable σₕ] [BEq κ] [Hashable κ] where
   /-- Transition log: post-state fingerprint → (pre-state fingerprint, action label).
       Used for counterexample trace reconstruction. -/
-  log : Std.HashMap σₕ (σₕ × κ) := {}
+  log : Std.HashMap σₕ (Option (σₕ × κ))
   /-- Collected invariant/safety violations. -/
   violatingStates : List (σₕ × ViolationKind) := []
   /-- Reason for search termination, if any. -/
@@ -146,13 +146,15 @@ def ParallelSearchContext.new {σ κ σₕ : Type}
   (initialStates : List σ) (numWorkers : Nat) :
   IO (ParallelSearchContext σ κ σₕ) := do
   -- Striped seen set with initial fingerprints distributed across shards
-  let seen ← StripedSeenSet.new (initialStates.map fp.view)
+  let fps := initialStates.map fp.view
+  let seen ← StripedSeenSet.new fps
   -- Queue: initial states at depth 0
   let initQueue := initialStates.foldl (fun acc s =>
     acc.push ⟨fp.view s, s, 0⟩) #[]
   let workQueue ← Mutex.new { queue := initQueue : WorkQueueState σₕ σ }
   let workAvailable ← Condvar.new
   let results ← Mutex.new {
+    log := Std.HashMap.ofList (fps.map fun fp => (fp, none))  -- initial states have no predecessor
     statesFound := initialStates.length : SearchResultState σ κ σₕ }
   let progressLock ← Mutex.new false
   let progressNotify ← Condvar.new
@@ -166,10 +168,8 @@ def ParallelSearchContext.toBaseSearchContext {σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]
   (ctx : ParallelSearchContext σ κ σₕ) :
   IO (BaseSearchContext σ κ σₕ) := do
-  let seenSet ← ctx.seen.mergeAll
   let res ← ctx.results.atomically fun ref => ref.get
   return {
-    seen := seenSet
     log := res.log
     violatingStates := res.violatingStates
     finished := res.terminationReason
@@ -520,7 +520,7 @@ def breadthFirstSearchParallel {ρ σ κ σₕ : Type}
   -- Final progress update
   let result ← ctx.toBaseSearchContext
   updateProgress progressInstanceId
-    result.completedDepth result.statesFound result.seen.size 0
+    result.completedDepth result.statesFound result.log.size 0
     (toActionStatsList result.actionStatsMap)
   return result
 

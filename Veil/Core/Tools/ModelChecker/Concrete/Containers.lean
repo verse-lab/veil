@@ -48,19 +48,56 @@ def toList {α} (q : fQueue α) : List α :=
   q.front ++ q.back.reverse
 
 @[grind]
-def isEmpty {α} (q : fQueue α) : Bool :=
-  q.front.isEmpty && q.back.isEmpty
+def isEmpty {α} (q : fQueue α) : Bool := q.sz = 0
 
+-- FIXME: Why not just name `sz` as `size` in the structure definition?
 @[grind]
 def size {α} (q : fQueue α) : Nat := q.sz
 
 @[grind]
 def toArray {α} (q : fQueue α) : Array α :=
+  -- CHECK Is there an implementation with better complexity
   q.front.toArray ++ q.back.toArray.reverse
 
 @[grind]
 def ofList {α} (xs : List α) : fQueue α :=
   ⟨xs, [], xs.length, rfl⟩
+
+/-- Enqueue multiple elements, maintaining FIFO order. O(|items|). -/
+def enqueueBatch {α} (q : fQueue α) (items : List α) : fQueue α :=
+  ⟨q.front, items.reverseAux q.back, q.sz + items.length, by
+    simp [List.reverseAux_eq, List.length_append, List.length_reverse, q.h_sz]
+    omega⟩
+
+/-- Dequeue up to `n` elements. Returns dequeued elements (in FIFO order)
+    and the remaining queue. O(min(n, sz)) amortized. -/
+def dequeueBatch {α} (q : fQueue α) (n : Nat) : List α × fQueue α :=
+  if h : q.sz ≤ n then
+    -- Not enough elements — return everything
+    (q.toList, ⟨[], [], 0, rfl⟩)
+  else
+    -- q.sz > n: will dequeue exactly n elements
+    let res := q.front.splitAt n
+    match h' : res with
+    | (fromFront, frontRest) =>
+      let nFront := fromFront.length
+      if h'' : nFront ≥ n then
+        -- Got all n from front
+        (fromFront, ⟨frontRest, q.back, q.sz - n, by
+          rcases q with ⟨f, b, sz, h_sz⟩
+          subst res nFront ; dsimp only at *
+          grind
+          ⟩)
+      else
+        -- front had < n, need (n - nFront) more from back.
+        -- Since q.sz > n, back has enough → result size = q.sz - n.
+        let res' := q.back.reverse.splitAt (n - nFront)
+        match h''' : res' with
+        | (fromBack, backRest) =>
+          (fromFront ++ fromBack, ⟨backRest, [], q.sz - n, by
+            rcases q with ⟨f, b, sz, h_sz⟩
+            subst res nFront ; dsimp only at *
+            grind⟩)
 
 -- ## Functional correctness of the functional queue
 
@@ -194,10 +231,7 @@ theorem mem_of_dequeue {α : Type} (q q' : fQueue α) (x : α)
 /-- isEmpty returns true iff both front and back are empty -/
 @[grind =]
 theorem isEmpty_iff_empty_lists {α : Type} (q : fQueue α) :
-    q.isEmpty = true ↔ q.front = [] ∧ q.back = [] := by
-  unfold isEmpty
-  simp only [Bool.and_eq_true]
-  grind
+    q.isEmpty = true ↔ q.front = [] ∧ q.back = [] := by cases q ; simp [isEmpty] ; aesop
 
 /-- isEmpty returns true iff both front and back are empty -/
 @[grind =]
@@ -219,22 +253,7 @@ theorem dequeue?_none_of_isEmpty {α : Type} (q : fQueue α)
 
 @[grind =]
 theorem isEmpty_of_dequeue?_none {α : Type} (q : fQueue α) (h : q.dequeue? = none) :
-    q.isEmpty = true := by
-  have h_toList := dequeue?_eq_none_iff_toList_nil q |>.mp h
-  unfold toList at h_toList
-  have h_front : q.front = [] := by grind
-  unfold fQueue.isEmpty
-  rw [h_front]
-  simp only [List.isEmpty_nil, Bool.true_and]
-  have h_back_nil : q.back = [] := by
-    rw [h_front] at h_toList
-    simp only [List.nil_append] at h_toList
-    simp at h_toList
-    exact h_toList
-  rw [h_back_nil]
-  simp only [List.isEmpty_nil]
-
-
+    q.isEmpty = true := by cases q ; simp [isEmpty, fQueue.toList] at * ; grind
 
 /-- Enqueue preserves the head element: if dequeue? returns some (head, tail),
     then after enqueuing a new element, dequeue? still returns the same head -/
