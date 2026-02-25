@@ -79,8 +79,8 @@ structure MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint
   tovisitSet : Std.HashSet σₕ
 -/
 
-abbrev MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
-  BaseSearchContext σ κ σₕ × Array (QueueItem σₕ σ)
+abbrev MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [Ord σₕ] [BEq κ] [Hashable κ] :=
+  BaseSearchContext σ κ σₕ × Array (QueueItem σₕ σ) × Std.TreeSet σₕ
 
 abbrev MapReduceSearchContextLocal (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
   BaseSearchContext σ κ σₕ × Array (QueueItem σₕ σ)

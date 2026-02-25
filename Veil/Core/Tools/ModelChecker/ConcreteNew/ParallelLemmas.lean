@@ -4,7 +4,7 @@ namespace Veil.ModelChecker.Concrete
 
 variable {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
+  [BEq κ] [Hashable κ] [Ord σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
@@ -17,7 +17,9 @@ def MapReduceSearchContextMain.initial : MapReduceSearchContextMain σ κ σₕ 
 -/
 
 def MapReduceSearchContextMain.initial : MapReduceSearchContextMain σ κ σₕ :=
-  (BaseSearchContext.initial sys.initStates, sys.initStates.map (fun s => ⟨fp.view s, s, 0⟩) |>.toArray)
+  let iss := sys.initStates
+  let fps := iss.map fp.view
+  (BaseSearchContext.initial iss, fps.zipWith (fun fp s => ⟨fp, s, 0⟩) iss |>.toArray, Std.TreeSet.ofList fps)
 
 /-- Create an empty local context with the given `completedDepth`. -/
 def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ :=
