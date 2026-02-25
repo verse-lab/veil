@@ -10,7 +10,8 @@ variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hash
 
 @[inline]
 def MapReduceSearchContextMain.hasFinished (mctx : MapReduceSearchContextMain σ κ σₕ) : Bool :=
-  mctx.base.hasFinished
+  -- mctx.base.hasFinished
+  mctx.1.hasFinished
 
 @[inline]
 def MapReduceSearchContextLocal.hasFinished (lctx : MapReduceSearchContextLocal σ κ σₕ) : Bool :=
@@ -91,6 +92,20 @@ omit params th in
 def MapReduceSearchContextMain.mergeWithLocalOnes {as : List α}
   (mctx : MapReduceSearchContextMain σ κ σₕ)
   (lctxs : IteratedProd (as.map fun _ => MapReduceSearchContextLocal σ κ σₕ)) : MapReduceSearchContextMain σ κ σₕ :=
+  let ctx := mctx.1   -- OK, why would you bother with the queue on the last depth?
+  let (mbase, mq, _) := IteratedProd.foldl (elements := lctxs)
+    (init := (ctx, (#[] : Array (QueueItem σₕ σ)), (Std.HashSet.emptyWithCapacity : Std.HashSet σₕ))) fun acc r =>
+    let (mbase, mq, st) := acc
+    -- TODO need to think about the semantics of `st`
+    let (lbase, lq) := r
+    let (mq', st') := lq.foldl (init := (mq, st)) fun (mq_acc, st_acc) item =>
+      if !st_acc.contains item.fingerprint then
+        (mq_acc.push item, st_acc.insert item.fingerprint)
+      else
+        (mq_acc, st_acc)
+    ⟨mbase.mergeWithoutDepthChange lbase, mq', st'⟩
+  (mbase, mq)
+  /-
   IteratedProd.foldl (elements := lctxs) (init := mctx) fun acc r =>
     let ⟨mbase, mq, st⟩ := acc
     -- TODO need to think about the semantics of `st`
@@ -101,17 +116,7 @@ def MapReduceSearchContextMain.mergeWithLocalOnes {as : List α}
       else
         (mq_acc, st_acc)
     ⟨mbase.mergeWithoutDepthChange lbase, mq', st'⟩
-
--- FIXME: This is also very similar to the sequential version
-@[inline]
-def updateProgressDuringBFSParallel [Monad m]
-  [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
-  (progressInstanceId : Nat)
-  (ctx : BaseSearchContext σ κ σₕ)
-  (sq : Array (QueueItem σₕ σ)) : m Unit := do
-  updateProgress progressInstanceId
-    ctx.currentFrontierDepth ctx.statesFound ctx.log.size sq.size
-    (toActionStatsList ctx.actionStatsMap)
+  -/
 
 omit th in
 @[specialize]
@@ -130,44 +135,48 @@ def breadthFirstSearchParallel {m : Type → Type}
   while h_not_finished : mctx.hasFinished = false do
     -- FIXME: Need to add a sequential fallback if the frontier is too small
     -- Check if the frontier is empty
-    if mctx.tovisitQueue.isEmpty then
-      mctx := { mctx with base := { mctx.base with finished := some (.exploredAllReachableStates) } }
+    if mctx.2.isEmpty then
+      mctx := ({ mctx.1 with finished := some (.exploredAllReachableStates) }, mctx.2)
       break
     else
-      let tovisitArr := mctx.tovisitQueue
-      -- Compute chunk ranges for splitting the work
-      let ranges := ParallelConfig.chunkRanges parallelCfg tovisitArr.size
-      -- Split the queue into sub-arrays of `QueueItems`
-      -- CHECK Is the memory usage of this split correct? In any case, if we replace the `Array` with `List`,
-      -- we should be able to somehow minimize the additional memory allocation.
-      -- A similar issue happens above in the `queueList` above.
-      let splitArrays := ranges.map fun lr => tovisitArr.extract lr.1 lr.2
-      let globalLog := mctx.base.log    -- CHECK sharing --> bad copy?
-      let completedDepth := mctx.base.completedDepth
-      -- Map step: spawn parallel tasks
-      -- **CAVEAT**: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
-      -- as that might cause parallelism to vanish!!! Instead, the call should be defined
-      -- in some other file.
-      let tasks ← IteratedProd.taskSplit splitArrays fun subArr _h_subArr_in =>
-        (pure (MapReduceSearchContextLocal.bfsBigStep params th sys globalLog completedDepth subArr) : IO _)
-      let results ← IteratedProd.mapM (fun task => IO.ofExcept task.get) tasks
-      -- Reduce step
-      mctx := mctx.mergeWithLocalOnes results
+      match mctx with
+      | ⟨base, tovisitArr⟩ =>
+        -- Compute chunk ranges for splitting the work
+        let ranges := ParallelConfig.chunkRanges parallelCfg tovisitArr.size
+        -- Split the queue into sub-arrays of `QueueItems`
+        -- CHECK Is the memory usage of this split correct? In any case, if we replace the `Array` with `List`,
+        -- we should be able to somehow minimize the additional memory allocation.
+        -- A similar issue happens above in the `queueList` above.
+        let splitArrays := ranges.map fun lr => tovisitArr.extract lr.1 lr.2
+        let globalLog := base.log    -- CHECK sharing --> bad copy?
+        let completedDepth := base.completedDepth
+        -- Map step: spawn parallel tasks
+        -- **CAVEAT**: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
+        -- as that might cause parallelism to vanish!!! Instead, the call should be defined
+        -- in some other file.
+        let tasks ← IteratedProd.taskSplit splitArrays fun subArr _ =>
+          (pure (MapReduceSearchContextLocal.bfsBigStep params th sys globalLog completedDepth subArr) : IO _)
+        let results ← IteratedProd.mapM (fun task => IO.ofExcept task.get) tasks
+        -- Reduce step
+        -- CHECK rewrite into a bind to prevent the reuse of `base` and `tovisitArr`?
+        let mctx' := mctx.mergeWithLocalOnes results
 
-      trySetViolationFound progressInstanceId mctx.base
-      -- Update progress on every diameter change
-      updateProgressDuringBFS progressInstanceId mctx.base mctx.tovisitQueue.size
-      -- Check for cancellation/handoff at most once per second
-      let newtime? ← checkCancellationWithoutPeriodicUpdate progressInstanceId lastUpdateTime 1000 cancelToken
-      -- sctx := Subtype.mk (ctx', sq') (heq.symm ▸ h_sctx')
-      match newtime? with
-      | .updateTime t => lastUpdateTime := t
-      | .searchCancelled => cancelled := true ; break
-      | .noUpdate => pure ()
+        match mctx' with
+        | ⟨base', tovisitArr'⟩ =>
+          trySetViolationFound progressInstanceId base'
+          -- Update progress on every diameter change
+          updateProgressDuringBFS progressInstanceId base' tovisitArr'.size
+          -- Check for cancellation/handoff at most once per second
+          let newtime? ← checkCancellationWithoutPeriodicUpdate progressInstanceId lastUpdateTime 1000 cancelToken
+          -- sctx := Subtype.mk (ctx', sq') (heq.symm ▸ h_sctx')
+          match newtime? with
+          | .updateTime t => lastUpdateTime := t
+          | .searchCancelled => cancelled := true ; break
+          | .noUpdate => pure ()
   -- Final update to ensure stats reflect finished state
-  updateProgressDuringBFS progressInstanceId mctx.base mctx.tovisitQueue.size
+  updateProgressDuringBFS progressInstanceId mctx.1 mctx.2.size
   if cancelled then
-    let mctx' := { mctx with base := {mctx.base with finished := some (.earlyTermination .cancelled) }}
+    let mctx' := ({ mctx.1 with finished := some (.earlyTermination .cancelled) }, mctx.2)
     return mctx'
   else
     return mctx

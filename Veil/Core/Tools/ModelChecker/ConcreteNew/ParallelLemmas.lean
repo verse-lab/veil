@@ -9,10 +9,15 @@ variable {ρ σ κ σₕ : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
 
+/-
 def MapReduceSearchContextMain.initial : MapReduceSearchContextMain σ κ σₕ :=
   { base := BaseSearchContext.initial sys.initStates,
     tovisitQueue := sys.initStates.map (fun s => ⟨fp.view s, s, 0⟩) |>.toArray,
     tovisitSet := Std.HashSet.ofList <| sys.initStates.map fp.view }
+-/
+
+def MapReduceSearchContextMain.initial : MapReduceSearchContextMain σ κ σₕ :=
+  (BaseSearchContext.initial sys.initStates, sys.initStates.map (fun s => ⟨fp.view s, s, 0⟩) |>.toArray)
 
 /-- Create an empty local context with the given `completedDepth`. -/
 def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ :=

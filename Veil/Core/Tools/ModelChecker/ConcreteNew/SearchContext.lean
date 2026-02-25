@@ -69,6 +69,7 @@ section MapReduce
 
 -- FIXME: The depth information in `QueueItem` is more or less useless here
 
+/-
 structure MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] where
   base : BaseSearchContext σ κ σₕ
   -- CHECK I strongly suspect there is some bad memory usage here ...
@@ -76,6 +77,10 @@ structure MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint
   tovisitQueue : Array (QueueItem σₕ σ)
   /-- HashSet for O(1) membership checking of fingerprints in the queue. -/
   tovisitSet : Std.HashSet σₕ
+-/
+
+abbrev MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
+  BaseSearchContext σ κ σₕ × Array (QueueItem σₕ σ)
 
 abbrev MapReduceSearchContextLocal (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
   BaseSearchContext σ κ σₕ × Array (QueueItem σₕ σ)
