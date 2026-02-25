@@ -1,6 +1,10 @@
 
 namespace Veil
 
+/-- Returns true when running in the online environment. -/
+def isVeilOnlineEnv : IO Bool := do
+  return (← IO.getEnv "VEIL_ONLINE_ENV").isSome
+
 def getNumCores : IO Nat := do
   -- First check if LEAN_NUM_THREADS is set (controls the Lean runtime thread pool)
   if let some n := (← IO.getEnv "LEAN_NUM_THREADS") then

@@ -776,13 +776,17 @@ where
     let config := { config with parallelCfg := parallelCfg }
     let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
 
-    -- Dispatch based on compilation mode (set via option) and mode keyword
+    -- Dispatch based on compilation mode (set via option) and mode keyword.
     let isCompileMode ← isModelCheckCompileMode
-    match isCompileMode, mode with
-    | true, _            => elabModelCheckInternalMode mod callExpr  -- In compiled binary
-    | false, .interpreted => elabModelCheckInterpretedMode mod stx callExpr parallelCfg
-    | false, .compiled    => elabModelCheckCompiledMode mod stx parallelCfg
-    | false, .default     => elabModelCheckWithHandoff mod stx callExpr parallelCfg
+    if isCompileMode then
+      elabModelCheckInternalMode mod callExpr  -- In compiled binary
+    else
+      -- In the online environment, force interpreted mode to avoid spawning compiled workers.
+      let effectiveMode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
+      match effectiveMode with
+      | .interpreted => elabModelCheckInterpretedMode mod stx callExpr parallelCfg
+      | .compiled    => elabModelCheckCompiledMode mod stx parallelCfg
+      | .default     => elabModelCheckWithHandoff mod stx callExpr parallelCfg
 
   /-- Handle interpreted mode: evaluate and display results directly. -/
   elabModelCheckInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term)
