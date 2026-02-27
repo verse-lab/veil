@@ -211,11 +211,10 @@ attribute [ifSimp] ite_true ite_false dite_true dite_false ite_self
   if_true_left if_true_right if_false_left if_false_right
 
 @[ifSimp] theorem not_if {_ : Decidable c} :
-  ¬ (if c then t else e) =
-  if c then ¬ t else ¬ e := by
+  (¬ (if c then t else e)) = (if c then ¬ t else ¬ e) := by
   by_cases c <;> simp_all
 
-attribute [ifSimp] HasCompl.compl Classical.not_forall
+attribute [ifSimp] Compl.compl Classical.not_forall
 
 attribute [invSimp] RelationalTransitionSystem.assumptions
 attribute [nextSimp] RelationalTransitionSystem.init RelationalTransitionSystem.tr RelationalTransitionSystem.next
@@ -443,7 +442,7 @@ def elabVeilConcretizeStateTr : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tacticSeq|open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at * )
 
   -- Step 1: Double negation elimination + destructuring (sometimes required to enable `subst`)
-  let doubleNegTac ← `(tacticSeq|veil_simp only [$(mkIdent ``HasCompl.compl):ident, $(mkIdent ``Classical.not_imp):ident, $(mkIdent ``Classical.not_not):ident, $(mkIdent ``Classical.not_forall):ident] at *; $veilDestruct)
+  let doubleNegTac ← `(tacticSeq|veil_simp only [$(mkIdent ``Compl.compl):ident, $(mkIdent ``Classical.not_imp):ident, $(mkIdent ``Classical.not_not):ident, $(mkIdent ``Classical.not_forall):ident] at *; $veilDestruct)
   veilWithMainContext $ veilEvalTactic doubleNegTac
 
   -- Step 2: For each abstract state hyp, try rewriting with setIn_makeExplicit and subst
@@ -854,7 +853,7 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
 def elabVeilConcretizeTr : DesugarTacticM Unit := veilWithMainContext do
   -- FIXME: figure out how to do the axiomatisation for ghost relations in TR
   let ghostRel ← `(tactic| veil_simp only [ghostRelSimp] at *)
-  let tac ← `(tacticSeq| __veil_neutralize_decidable_inst; __veil_concretize_state_tr; __veil_concretize_fields_tr; $ghostRel)
+  let tac ← `(tacticSeq| __veil_neutralize_decidable_inst; $ghostRel; __veil_concretize_state_tr; __veil_concretize_fields_tr)
   veilEvalTactic tac
 
 def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
@@ -883,7 +882,7 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
   -- if they're not used. This is undesirable when the variable is an action
   -- parameter, because we need to keep it in the context for model extraction.
-  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_smt))
+  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_smt))
   veilEvalTactic tac
 
 @[inherit_doc veil_bmc]
