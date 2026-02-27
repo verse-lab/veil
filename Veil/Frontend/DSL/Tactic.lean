@@ -381,7 +381,7 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
         let lctx ← getLCtx
         -- we want the new hypotheses to have fresh names so they're
         -- not included in the ignore list, hence we don't reuse `$name`
-        let x := mkIdent $ lctx.getUnusedName (← existsBinderName hyp.type)
+        let x := mkIdent $ lctx.getUnusedName (← existsBinderName hypType)
         let name' := mkIdent $ lctx.getUnusedName name.getId
         veilEvalTactic $ ← `(tactic| rcases $name:ident with ⟨$x, $name'⟩)
   -- Recursively call ourselves until the context stops changing
@@ -389,7 +389,7 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
     elabVeilDestructAllHyps recursive ignoreHyps onlyStructs
 where
   existsBinderName (whnfType : Expr) : MetaM Name := do
-    match_expr whnfType with
+  match_expr whnfType with
   | Exists _ body => return body.bindingName!
   | _ => throwError "Expected an existential quantifier, got {whnfType}"
 
