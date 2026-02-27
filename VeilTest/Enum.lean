@@ -71,3 +71,52 @@ invariant [all] state = a
 #gen_spec
 
 end EnumTest2
+
+veil module EnumNamesInCTIs
+
+-- Tests that CTIs refer to enum symbolic names, rather than the underlying
+-- numeric values returned by the SMT solver.
+
+enum EnumA = {nop}
+enum EnumB = {a,b}
+
+function req : EnumA → EnumB
+
+after_init {
+  pure ()
+}
+
+action foo {
+  let x ← pick EnumA
+  let y ← pick EnumB
+  req x := y
+}
+
+invariant req T ≠ a
+
+#gen_spec
+
+/--
+error: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  inv_0 ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  foo
+    doesNotThrow ... ✅
+    inv_0 ... ❌
+      Counterexample (WP):
+        Pre-state:
+          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.b]]
+        Action: foo
+      Counterexample (TR):
+        Pre-state:
+          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.b]]
+        Action: foo
+        Post-state:
+          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.a]]
+-/
+#guard_msgs in
+#check_invariants
+
+
+end EnumNamesInCTIs

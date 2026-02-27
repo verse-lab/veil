@@ -114,12 +114,12 @@ def fieldLabelToCodomain (base : Name) : Ident := mkIdent <| fieldLabelToCodomai
 def localRPropTCName : Name := `LocalRProp
 def localRPropTC : Ident := mkIdent localRPropTCName
 
-/-- `t_Enum` is a type class. -/
-def Name.toEnumClass (name : Name) : Name := name.appendAfter "_Enum"
+/-- `t_EnumClass` is a type class. -/
+def Name.toEnumClass (name : Name) : Name := name.appendAfter "_EnumClass"
 def Ident.toEnumClass (id : Ident) : Ident := mkIdent $ Name.toEnumClass id.getId
 
-/-- `t_isEnum` is an instance, where `t` is declared as an `enum` type. -/
-def Name.toEnumInst (name : Name) : Name := name.appendAfter "_isEnum"
+/-- `t_Enum` is an instance, where `t` is declared as an `enum` type. -/
+def Name.toEnumInst (name : Name) : Name := name.appendAfter "_Enum"
 def Ident.toEnumInst (id : Ident) : Ident := mkIdent $ Name.toEnumInst id.getId
 
 def Name.toEnumConcreteTypeName (name : Name) : Name := name.appendAfter "_IndT"

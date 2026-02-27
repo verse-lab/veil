@@ -46,6 +46,8 @@ structure VeilCTI where
   /-- Sort substitution: maps sort parameter fvars to their concrete types (e.g., `Fin 3`).
   Used for substituting abstract types before JSON serialization. -/
   sortSubst : Array (Expr × Expr) := #[]
+  /-- Enum sort adaptations used for converting SMT `Fin` values to enum constructors. -/
+  enumAdapts : Array EnumSortAdaptation := #[]
 
   /-- Sorts not part of module's Instantiation -/
   extraSorts : Array (Expr × Expr)
@@ -107,7 +109,7 @@ unsafe def VeilCTI.toJson (vm : VeilCTI) : MetaM Json := do
       let nameStr := (← Meta.ppExpr nameExpr).pretty
       let concreteType := ((← Meta.inferType nameExpr).replaceFVars sortFVars sortTypes).replace
         fun e => if e.isProp then some (mkConst ``Bool) else none
-      let adapted ← adaptSmtExprType valueExpr concreteType
+      let adapted ← adaptSmtExprType valueExpr concreteType vm.enumAdapts
       return (nameStr, ← evalExprToJson (← Meta.inferType adapted) adapted)
 
   return Json.mkObj [
@@ -157,6 +159,101 @@ def parseSortsFromModel (model : Model) : IO (Std.HashMap Name Expr) := do
     if let some name := name? then
       sortMap := sortMap.insert name cardExpr
   return sortMap
+
+/-- Parse model sorts into a map from sort name to sort fvar expression. -/
+def parseSortExprsFromModel (model : Model) : IO (Std.HashMap Name Expr) := do
+  let mut sortExprMap : Std.HashMap Name Expr := {}
+  for (sortExpr, _) in model.sorts do
+    let name? ← getExprName model.ctx sortExpr
+    if let some name := name? then
+      sortExprMap := sortExprMap.insert name sortExpr
+  return sortExprMap
+
+/-- Collect enum assignments from model entries named `<Sort>_Enum.<ctor>`. -/
+def parseEnumAssignmentsFromModel (model : Model)
+    : IO (Std.HashMap Name (Std.HashMap Name Nat)) := do
+  let mut enumAssignments : Std.HashMap Name (Std.HashMap Name Nat) := {}
+  for (nameExpr, valueExpr) in model.values do
+    let some name ← getExprName model.ctx nameExpr | continue
+    let .str enumInst ctorName := name | continue
+    let some idx ← extractFinValue model.ctx valueExpr | continue
+    let ctorMap := enumAssignments[enumInst]?.getD {}
+    enumAssignments := enumAssignments.insert enumInst (ctorMap.insert (.mkSimple ctorName) idx)
+  return enumAssignments
+
+/-- Get constructor names of an inductive type, preserving declaration order. -/
+def getInductiveConstructors (indName : Name) : MetaM (Array Name) := do
+  let env ← getEnv
+  match env.find? indName with
+  | some (.inductInfo info) => pure info.ctors.toArray
+  | _ => pure #[]
+
+/-- Fallback sort type used when the model does not provide a cardinality. -/
+private def defaultSmtSortType : Expr :=
+  mkApp (mkConst ``Fin) (mkNatLit 1)
+
+/-- Build enum index-to-constructor mapping if model assignments are complete and one-to-one. -/
+private def buildEnumIndexToCtor? (ctors : Array Name) (ctorMap : Std.HashMap Name Nat)
+    : Option (Array (Nat × Expr)) := do
+  guard (!ctors.isEmpty)
+  guard (ctorMap.size == ctors.size)
+  let mut idxToCtor : Array (Nat × Expr) := #[]
+  let mut seenIdxs : Std.HashSet Nat := {}
+  for ctor in ctors do
+    let idx ← ctorMap[Name.mkSimple ctor.getString!]?
+    guard (!seenIdxs.contains idx)
+    seenIdxs := seenIdxs.insert idx
+    idxToCtor := idxToCtor.push (idx, mkConst ctor)
+  pure idxToCtor
+
+/-- Resolve one enum sort to either concrete enum type + adaptation, or none if mapping is not usable. -/
+private def resolveEnumSortArg? (modName paramName : Name) (smtType : Expr)
+    (enumAssignments : Std.HashMap Name (Std.HashMap Name Nat))
+    : MetaM (Option (Expr × EnumSortAdaptation)) := do
+  let enumInstName := Name.toEnumInst paramName
+  let enumTypeName := modName ++ Name.toEnumConcreteTypeName paramName
+  let some ctorMap := enumAssignments[enumInstName]? | return none
+  let ctors ← getInductiveConstructors enumTypeName
+  let some idxToCtor := buildEnumIndexToCtor? ctors ctorMap | return none
+  let enumType := mkConst enumTypeName
+  return some (enumType, {
+    smtType := smtType
+    enumType := enumType
+    indexToCtor := idxToCtor
+  })
+
+/-- Resolve module sort arguments and enum adaptations from model data.
+    For enum sorts, uses concrete enum types only when model mappings are complete. -/
+def resolveSortArgsAndEnumAdapts (model : Model) (mod : Module) (sortMap : Std.HashMap Name Expr)
+    : MetaM (Array Expr × Array EnumSortAdaptation) := do
+  let enumAssignments ← parseEnumAssignmentsFromModel model
+  let mut sortArgs : Array Expr := #[]
+  let mut enumAdapts : Array EnumSortAdaptation := #[]
+
+  for (param, sortKind) in mod.sortParams do
+    let smtType := sortMap[param.name]?.getD defaultSmtSortType
+    let (sortArg, enumAdapt?) ← match sortKind with
+      | .uninterpretedSort =>
+        pure (smtType, none)
+      | .enumSort =>
+        match (← resolveEnumSortArg? mod.name param.name smtType enumAssignments) with
+        | some (enumType, enumAdapt) => pure (enumType, some enumAdapt)
+        | none => pure (smtType, none)
+    sortArgs := sortArgs.push sortArg
+    if let some enumAdapt := enumAdapt? then
+      enumAdapts := enumAdapts.push enumAdapt
+
+  return (sortArgs, enumAdapts)
+
+/-- Build sort substitution map from resolved sort arguments. -/
+def buildSortSubstFromSortArgs (model : Model) (mod : Module) (sortArgs : Array Expr)
+    : IO (Array (Expr × Expr)) := do
+  let sortExprMap ← parseSortExprsFromModel model
+  let mut sortSubst : Array (Expr × Expr) := #[]
+  for ((param, _), sortArg) in mod.sortParams.zip sortArgs do
+    if let some sortExpr := sortExprMap[param.name]? then
+      sortSubst := sortSubst.push (sortExpr, sortArg)
+  return sortSubst
 
 /-- Classify model values into state fields, theory fields, action params, and extras. -/
 def classifyModelValues (model : Model) (mod : Module) (actionName : Name)
@@ -209,22 +306,16 @@ def classifyModelValues (model : Model) (mod : Module) (actionName : Name)
 
 /-! ## Expression Building Functions -/
 
-/-- Build an Instantiation struct literal expression from model sorts. -/
-def buildInstantiationExpr (mod : Module) (sortMap : Std.HashMap Name Expr) : MetaM Expr := do
+/-- Build an Instantiation struct literal expression from resolved sort arguments. -/
+def buildInstantiationExpr (mod : Module) (sortArgs : Array Expr) : MetaM Expr := do
   let instName := mod.name ++ `Instantiation
-  let sortArgs ← mod.sortParams.mapM fun (param, _) =>
-    match sortMap[param.name]? with
-    | some e => pure e
-    | none =>
-      -- dbg_trace "Sort {param.name} not found in model, using Fin 1 as default"
-      pure (mkApp (mkConst ``Fin) (mkNatLit 1))
   mkAppM (instName ++ `mk) sortArgs
 
 /-- Build a State struct literal expression from field values.
     Handles Prop<->Bool conversion for SMT model values.
     Uses `default` for fields not present in the model. -/
 def buildStateExpr (mod : Module) (sortArgs : Array Expr)
-    (fieldMap : Std.HashMap Name Expr) : MetaM Expr := do
+    (fieldMap : Std.HashMap Name Expr) (enumAdapts : Array EnumSortAdaptation := #[]) : MetaM Expr := do
   let stateName := mod.name ++ `State
   let fieldAbstractTypeName := mod.name ++ fieldAbstractDispatcherName
   let dispatcher ← mkAppM fieldAbstractTypeName sortArgs
@@ -234,7 +325,7 @@ def buildStateExpr (mod : Module) (sortArgs : Array Expr)
     let fieldLabel := mkConst fieldLabelName
     let expectedType ← Meta.reduceAll (← mkAppM fieldAbstractTypeName (sortArgs.push fieldLabel))
     match fieldMap[sc.name]? with
-    | some e => adaptSmtExprType e expectedType
+    | some e => adaptSmtExprType e expectedType enumAdapts
     | none =>
       -- dbg_trace "State field {sc.name} not found in model, using default"
       mkAppOptM ``default #[some expectedType, none]
@@ -244,7 +335,7 @@ def buildStateExpr (mod : Module) (sortArgs : Array Expr)
     Handles Prop<->Bool conversion for SMT model values.
     Uses `default` for fields not present in the model. -/
 def buildTheoryExpr (mod : Module) (sortArgs : Array Expr)
-    (fieldMap : Std.HashMap Name Expr) : MetaM Expr := do
+    (fieldMap : Std.HashMap Name Expr) (enumAdapts : Array EnumSortAdaptation := #[]) : MetaM Expr := do
   let theoryName := mod.name ++ `Theory
   let fieldValues ← mod.immutableComponents.mapM fun sc => do
     -- Get expected type from the field projector: Theory.fieldName : ∀ sorts..., Theory sorts... → FieldType
@@ -255,7 +346,7 @@ def buildTheoryExpr (mod : Module) (sortArgs : Array Expr)
     -- Extract the return type (FieldType) by skipping only the first forall (the Theory argument)
     let expectedType ← Meta.reduceAll (← Meta.forallBoundedTelescope projTypeInstantiated (some 1) fun _ retTy => pure retTy)
     match fieldMap[sc.name]? with
-    | some e => adaptSmtExprType e expectedType
+    | some e => adaptSmtExprType e expectedType enumAdapts
     | none =>
       -- dbg_trace "Theory field {sc.name} not found in model, using default"
       mkAppOptM ``default #[some expectedType, none]
@@ -267,7 +358,8 @@ def buildTheoryExpr (mod : Module) (sortArgs : Array Expr)
 
     The `lookupParam` function takes the parameter index and returns an optional expression. -/
 def buildLabelExprCore (mod : Module) (sortArgs : Array Expr)
-    (actionName : Name) (lookupParam : Nat → Option Expr) : MetaM (Option Expr) := do
+    (actionName : Name) (lookupParam : Nat → Option Expr)
+    (enumAdapts : Array EnumSortAdaptation := #[]) : MetaM (Option Expr) := do
   let some p := mod.procedures.find? (·.name == actionName) | return none
   -- Initializers don't have a Label constructor
   if p.info == .initializer then return none
@@ -278,7 +370,7 @@ def buildLabelExprCore (mod : Module) (sortArgs : Array Expr)
     p.params.mapIdxM fun idx _param => do
       let expectedType ← Meta.reduceAll (← Meta.inferType args[idx]!)
       match lookupParam idx with
-      | some e => adaptSmtExprType e expectedType
+      | some e => adaptSmtExprType e expectedType enumAdapts
       | none => mkAppOptM ``default #[some expectedType, none]
   some <$> mkAppOptM labelName ((sortArgs ++ paramValues).map (Option.some ·))
 
@@ -286,11 +378,13 @@ def buildLabelExprCore (mod : Module) (sortArgs : Array Expr)
     Uses `default` for parameters not present in the model.
     Returns `none` if the action is an initializer (which has no Label constructor). -/
 def buildLabelExpr (mod : Module) (sortArgs : Array Expr)
-    (actionName : Name) (paramMap : Std.HashMap Name Expr) : MetaM (Option Expr) := do
+    (actionName : Name) (paramMap : Std.HashMap Name Expr)
+    (enumAdapts : Array EnumSortAdaptation := #[]) : MetaM (Option Expr) := do
   let paramNames := mod.procedures.find? (·.name == actionName)
     |>.map (·.params.map (·.name)) |>.getD #[]
-  buildLabelExprCore mod sortArgs actionName fun idx =>
+  buildLabelExprCore mod sortArgs actionName (fun idx =>
     if h : idx < paramNames.size then paramMap[paramNames[idx]]? else none
+  ) enumAdapts
 
 /-! ## Main Construction -/
 
@@ -318,24 +412,23 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
   -- Parse sorts from model
   let sortMap ← parseSortsFromModel model
 
-  -- Build sort substitution map: module sort fvars -> concrete types
-  let moduleSortNames := mod.sortParams.map (·.1.name) |>.toList
-  let sortSubst ← model.sorts.filterM fun (sortExpr, _) => do
-    return (← getExprName model.ctx sortExpr).any moduleSortNames.contains
+  -- Resolve sort arguments (including enum concretization when mappings are complete)
+  let (sortArgs, enumAdapts) ← resolveSortArgsAndEnumAdapts model mod sortMap
+
+  -- Build sort substitution map from resolved sort args
+  let sortSubst ← buildSortSubstFromSortArgs model mod sortArgs
 
   -- Separate extra sorts (those not part of module's Instantiation)
+  let moduleSortNames := mod.sortParams.map (·.1.name) |>.toList
   let extraSorts ← model.sorts.filterM fun (sortExpr, _) => do
     return !(← getExprName model.ctx sortExpr).any moduleSortNames.contains
-
-  -- Get sort arguments in module order
-  let sortArgs ← getSortArgs mod sortMap
 
   -- Classify model values
   let (preStateFields, postStateFields, theoryFields, actionParams, extraVals) ←
     classifyModelValues model mod actionName
 
   -- Build Instantiation expression and type
-  let instExpr ← buildInstantiationExpr mod sortMap
+  let instExpr ← buildInstantiationExpr mod sortArgs
   let instType := mkConst (mod.name ++ `Instantiation)
   -- Build sort instantiation info (for JSON serialization, since Type is erased at runtime)
   let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((param, _), cardExpr) => do
@@ -344,12 +437,12 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
   -- dbg_trace "instExpr: {← ppExpr instExpr} | instType: {← ppExpr instType}"
 
   -- Build Theory expression and type
-  let theoryExpr ← buildTheoryExpr mod sortArgs theoryFields
+  let theoryExpr ← buildTheoryExpr mod sortArgs theoryFields enumAdapts
   let theoryType ← mkAppOptM (mod.name ++ `Theory) <| sortArgs.map (Option.some ·)
   -- dbg_trace "theoryExpr: {← ppExpr theoryExpr} | theoryType: {← ppExpr theoryType}"
 
   -- Build State expressions and type
-  let preStateExpr ← buildStateExpr mod sortArgs preStateFields
+  let preStateExpr ← buildStateExpr mod sortArgs preStateFields enumAdapts
   let fieldAbstractTypeName := mod.name ++ fieldAbstractDispatcherName
   let dispatcher ← mkAppM fieldAbstractTypeName sortArgs
   let stateType ← mkAppM (mod.name ++ `State) #[dispatcher]
@@ -358,18 +451,18 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
   let postStateExpr ← if postStateFields.isEmpty then
     pure none
   else
-    some <$> buildStateExpr mod sortArgs postStateFields
+    some <$> buildStateExpr mod sortArgs postStateFields enumAdapts
   -- dbg_trace "postStateExpr: {← if postStateExpr.isSome then do ppExpr postStateExpr.get! else pure "none"} | postStateType: { ← ppExpr stateType}"
 
   -- Build Label expression and type (none for initializers)
-  let labelExpr ← buildLabelExpr mod sortArgs actionName actionParams
+  let labelExpr ← buildLabelExpr mod sortArgs actionName actionParams enumAdapts
   let labelType ← match labelExpr with
     | some _ => some <$> mkAppM (mod.name ++ `Label) sortArgs
     | none => pure none
   -- dbg_trace "labelExpr: {← match labelExpr with | some e => ppExpr e | none => pure "none"} | labelType: {← match labelType with | some t => ppExpr t | none => pure "none"}"
 
   return {
-    instExpr, instType, sortInstInfo, sortSubst
+    instExpr, instType, sortInstInfo, sortSubst, enumAdapts
     theoryExpr, theoryType
     preStateExpr, stateType
     postStateExpr
