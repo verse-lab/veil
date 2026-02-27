@@ -190,7 +190,7 @@ def LocalSearchContext.tryExploreNeighbor {ρ σ κ σₕ : Type}
   (ctx : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx)
   (neighbor : κ × σ)
   (h_neighbor : sys.reachable neighbor.2)
-  (h_not_finished : !ctx.hasFinished)
+  (_h_not_finished : !ctx.hasFinished)
 : {ctx' : @LocalSearchContext ρ σ κ σₕ fp _ _ th sys params baseCtx //
     ctx'.finished = ctx.finished ∧
     (∀fp, fp ∈ ctx.tovisitSet → fp ∈ ctx'.tovisitSet) ∧

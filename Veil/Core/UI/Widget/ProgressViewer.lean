@@ -576,17 +576,18 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
      | none => noResultData}
   </div>
 
+private partial def runProgressUpdates (id : Nat) (token : RefreshToken) : CoreM Unit := do
+  IO.sleep 100
+  let progress ← getProgress id
+  if progress.isRunning then
+    token.refresh (progressToHtml progress (some id))
+    runProgressUpdates id token
+  else
+    token.refresh (mkFinalResultHtml progress (← getResultJson id))
+
 /-- Create a streaming progress widget that polls progress by instance ID. -/
 def mkProgressWidget (instanceId : Nat) : CoreM Html := do
-  mkRefreshComponent (.text "Starting model checker...") (getProgressStep instanceId)
-where
-  getProgressStep (id : Nat) : CoreM RefreshComponent.RefreshStep := do
-    IO.sleep 100
-    let progress ← getProgress id
-    if progress.isRunning then
-      return .cont (progressToHtml progress (some id))
-    else
-      return .last (mkFinalResultHtml progress (← getResultJson id))
+  mkRefreshComponentM (.text "Starting model checker...") (runProgressUpdates instanceId)
 
 /-- Display a streaming progress widget at the given syntax. -/
 def displayStreamingProgress (atStx : Syntax) (instanceId : Nat) : CommandElabM Unit := do

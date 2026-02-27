@@ -63,20 +63,22 @@ def displayResults (atStx : Syntax) (results : VerificationResults VCMetadata Sm
   let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
   displayWidget atStx html
 
+private partial def runStreamingResults (insertPosition : Lsp.Position) (documentUri : String)
+    (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
+    (token : RefreshToken) : CoreM Unit := do
+  vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
+  let (results, status) ← getter
+  let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
+  token.refresh html
+  match status with
+  | .running => runStreamingResults insertPosition documentUri getter token
+  | .done => pure ()
+
 def displayStreamingResults (atStx : Syntax) (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus)) : CommandElabM Unit := do
   let (insertPosition, documentUri) ← getInsertInfo atStx
-  let html ← liftCoreM <| ProofWidgets.mkRefreshComponent (.text "Loading...")
-    (getStreamingResults insertPosition documentUri getter)
+  let html ← liftCoreM <| ProofWidgets.mkRefreshComponentM (.text "Loading...")
+    (runStreamingResults insertPosition documentUri getter)
   displayWidget atStx html
-  where
-  getStreamingResults (insertPosition : Lsp.Position) (documentUri : String)
-      (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus)) : CoreM RefreshStep := do
-    vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
-    let (results, status) ← getter
-    let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
-    match status with
-    | .running => return .cont html
-    | .done => return .last html
 
 /-- Map VCStatus to emoji for text output. -/
 def statusEmoji (status : Option VCStatus) : String :=

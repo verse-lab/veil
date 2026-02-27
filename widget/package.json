@@ -11,15 +11,21 @@
     "clean": "rm -rf dist/"
   },
   "dependencies": {
-    "@leanprover/infoview": "~0.8.3",
+    "@leanprover/infoview": "~0.11.0",
+    "deep-equal": "^2.2.3",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "recharts": "^2.5.0",
+    "use-resize-observer": "^9.1.0",
+    "vscode-languageserver-protocol": "^3.17.2",
+    "react-fast-compare": "^3.2.2"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.1",
     "@rollup/plugin-node-resolve": "^15.0.2",
     "@rollup/plugin-replace": "^6.0.1",
     "@rollup/plugin-terser": "^0.4.0",
+    "@types/deep-equal": "^1.0.4",
     "@types/react": "^18.0.33",
     "@types/react-dom": "^18.0.11",
     "glob": "^11.0.0",

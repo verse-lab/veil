@@ -293,31 +293,34 @@ private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) 
 
 private def traceLoadingMessage : String := "⏳ Verifying trace query..."
 
+private partial def runTraceRefreshStep (isExpectedSat : Bool) (_vcName : Name)
+    (vcFilter : VCMetadata → Bool) (token : RefreshToken) : CoreM Unit := do
+  Verifier.vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
+  let result? ← Verifier.vcManager.atomically fun ref => do
+    let mgr ← ref.get
+    if mgr.isDoneFiltered vcFilter then
+      return (← mgr.toResults vcFilter).vcs.find? (vcFilter ·.metadata)
+    return none
+  match result? with
+  | none =>
+    token.refresh (.text traceLoadingMessage)
+    runTraceRefreshStep isExpectedSat _vcName vcFilter token
+  | some vcResult =>
+    -- Show trace widget if we have JSON, otherwise show status message
+    if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
+      token.refresh (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical", rawHtml := rawHtml? } #[])
+    else
+      token.refresh (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
+
 /-- Display a streaming widget for trace verification that shows the TraceDisplayViewer when done. -/
 private def displayTraceStreamingResults (stx : Syntax) (isExpectedSat : Bool)
     (vcName : Name) (vcFilter : VCMetadata → Bool) : CommandElabM Unit := do
-  let html ← liftCoreM <| mkRefreshComponent (.text traceLoadingMessage)
-    (getTraceRefreshStep isExpectedSat vcName vcFilter)
+  let html ← liftCoreM <| mkRefreshComponentM (.text traceLoadingMessage)
+    (runTraceRefreshStep isExpectedSat vcName vcFilter)
   liftCoreM <| Widget.savePanelWidgetInfo
     (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← Server.rpcEncode html) })
     stx
-where
-  getTraceRefreshStep (isExpectedSat : Bool) (_vcName : Name) (vcFilter : VCMetadata → Bool)
-      : CoreM RefreshStep := do
-    Verifier.vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
-    let result? ← Verifier.vcManager.atomically fun ref => do
-      let mgr ← ref.get
-      if mgr.isDoneFiltered vcFilter then
-        return (← mgr.toResults vcFilter).vcs.find? (vcFilter ·.metadata)
-      return none
-    match result? with
-    | none => return .cont (.text traceLoadingMessage)
-    | some vcResult =>
-      -- Show trace widget if we have JSON, otherwise show status message
-      if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
-        return .last (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical", rawHtml := rawHtml? } #[])
-      return .last (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
 /-- Log trace verification results (called asynchronously). -/
 private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name)
