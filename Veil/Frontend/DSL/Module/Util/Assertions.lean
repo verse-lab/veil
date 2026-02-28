@@ -74,24 +74,34 @@ def elabExactState : TacticM Unit := withMainContext do
   let comp := mod.mutableComponents.map (·.name)
   -- find all available state components in the local context
   let lctx ← getLCtx
-  let some ldecls := comp.mapM (m := Option) lctx.findFromUserName?
-    | throwError "not all state components are available in the local context"
   let actualFields : Array Term ← if mod._useFieldRepTC
     then
-      -- find the concrete field from the _values_ of `ldecls`
+      -- find the concrete field from the _values_ of `ldecls`, or from the `fieldname_conc` local declarations
+      -- CHECK We might actually consider always referring to the `fieldname_conc` local declarations?
       -- here, only use some simple heuristics to do the matching
-      ldecls.mapM fun ldecl => do
-        let some v := ldecl.value? true
-          | throwError "state component {ldecl.userName} has no value in the local context"
-        let v := match_expr v with
-          | id _ vv => vv | _ => v
-        match_expr v with
-        | Veil.FieldRepresentation.get _ _ _ _ cf =>
-          if let .fvar fv := cf
-          then let nm ← fv.getUserName ; `(term| $(mkIdent nm) )
-          else delabVeilExpr cf
-        | _ => throwError "unable to extract concrete field from state component {ldecl.userName}"
+      comp.mapM fun nm => do
+        try
+          let some ldecl := lctx.findFromUserName? nm
+            | throwError "state component {nm} is not available in the local context"
+          let some v := ldecl.value? true
+            | throwError "state component {nm} has no value in the local context"
+          let v := match_expr v with
+            | id _ vv => vv | _ => v
+          match_expr v with
+          | Veil.FieldRepresentation.get _ _ _ _ cf =>
+            if let .fvar fv := cf
+            then let nm ← fv.getUserName ; `(term| $(mkIdent nm) )
+            else delabVeilExpr cf
+          | _ => throwError "unable to extract concrete field from state component {ldecl.userName}"
+        catch _ =>
+          -- try to find a local declaration with the `_conc` suffix
+          let conc := nm.appendAfter "_conc"
+          let some ldecl := lctx.findFromUserName? conc
+            | throwError "state component {nm} is not available in the local context (neither {nm} nor {conc})"
+          `(term| $(mkIdent ldecl.userName) )
     else
+      let some ldecls := comp.mapM (m := Option) lctx.findFromUserName?
+        | throwError "not all state components are available in the local context"
       ldecls.mapM fun a => `(term| $(mkIdent a.userName) )
   -- NOTE: It is very weird that if not doing it using `exact`
   -- (e.g., instead constructing the state `Expr` and using
