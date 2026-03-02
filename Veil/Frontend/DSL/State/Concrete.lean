@@ -487,7 +487,7 @@ instance [inst : FinEncodable α] [DecidableEq α] : LawfulFinsetLike (ArrayAsFi
   toFinset b := List.finRange (inst.card) |>.filterMap (fun a => if b.val[a] then some (inst.equiv.symm a) else none) |>.toFinset
   toFinset_mem_iff a b := by simp ; simp [Membership.mem] ; grind
   insert_toFinset a b h := by
-    ext a ; simp [FinsetLike.insert] ; grind
+    ext a ; simp [FinsetLike.insert, Array.getElem_set] ; grind
   erase_toFinset a b h := by
     ext a ; simp [FinsetLike.erase] ; simp [Membership.mem] at h ; grind
 

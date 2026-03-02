@@ -16,8 +16,6 @@ theorem SequentialSearchContextInvariants.initial :
   SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial (fp := fp) sys) := by
   constructor ; on_goal 1=> constructor
   all_goals simp [SequentialSearchContext.isStableClosed, SequentialSearchContext.initial, BaseSearchContext.initial, ← fQueue.mem_ofList] ; (try solve | intros ; grind)
-  · intro hinj s s' hinit h ; have := hinj h ; grind
-  · intro hinj s s' hinit h ; have := hinj h ; grind
 
 theorem SequentialSearchContext.bfs_completeness
   {sctx : SequentialSearchContext σ κ σₕ}

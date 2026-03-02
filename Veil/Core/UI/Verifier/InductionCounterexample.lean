@@ -230,13 +230,13 @@ def resolveSortArgsAndEnumAdapts (model : Model) (mod : Module) (sortMap : Std.H
   let mut sortArgs : Array Expr := #[]
   let mut enumAdapts : Array EnumSortAdaptation := #[]
 
-  for (param, sortKind) in mod.sortParams do
-    let smtType := sortMap[param.name]?.getD defaultSmtSortType
+  for (p, sortKind) in mod.sortParams do
+    let smtType := sortMap[p.name]?.getD defaultSmtSortType
     let (sortArg, enumAdapt?) ← match sortKind with
       | .uninterpretedSort =>
         pure (smtType, none)
       | .enumSort =>
-        match (← resolveEnumSortArg? mod.name param.name smtType enumAssignments) with
+        match (← resolveEnumSortArg? mod.name p.name smtType enumAssignments) with
         | some (enumType, enumAdapt) => pure (enumType, some enumAdapt)
         | none => pure (smtType, none)
     sortArgs := sortArgs.push sortArg
@@ -250,8 +250,8 @@ def buildSortSubstFromSortArgs (model : Model) (mod : Module) (sortArgs : Array 
     : IO (Array (Expr × Expr)) := do
   let sortExprMap ← parseSortExprsFromModel model
   let mut sortSubst : Array (Expr × Expr) := #[]
-  for ((param, _), sortArg) in mod.sortParams.zip sortArgs do
-    if let some sortExpr := sortExprMap[param.name]? then
+  for ((p, _), sortArg) in mod.sortParams.zip sortArgs do
+    if let some sortExpr := sortExprMap[p.name]? then
       sortSubst := sortSubst.push (sortExpr, sortArg)
   return sortSubst
 

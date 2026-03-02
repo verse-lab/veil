@@ -110,7 +110,7 @@ Run performance tests with timeout enforcement.
 USAGE:
   lake script run perftest
 
-Runs all `.lean` files under `Test/Performance/` and checks that each
+Runs all `.lean` files under `VeilTest/Performance/` and checks that each
 completes within the timeout specified in its accompanying `.timeout` file
 (in seconds). If no `.timeout` file exists, a default of 20 seconds is used.
 
@@ -120,15 +120,15 @@ Example `.timeout` file contents:
 ```
 -/
 script perftest do
-  let perfDir : FilePath := "Test" / "Performance"
+  let perfDir : FilePath := "VeilTest" / "Performance"
   if !(← perfDir.pathExists) then
-    IO.println "No Test/Performance/ directory found."
+    IO.println "No VeilTest/Performance/ directory found."
     return 1
   let entries ← perfDir.readDir
   let tests := entries.filterMap fun e =>
     if e.path.extension = some "lean" then some e.path else none
   if tests.isEmpty then
-    IO.println "No performance tests found in Test/Performance/."
+    IO.println "No performance tests found in VeilTest/Performance/."
     return 0
   let lean ← getLean
   let env ← getAugmentedEnv
@@ -145,12 +145,12 @@ script perftest do
     else if exitCode ≠ 0 then
       IO.println s!"  FAILED (exit code {exitCode}, {elapsedSec}s)"
       if !stderr.isEmpty then
-        IO.println s!"  Stderr: {stderr.trim}"
+        IO.println s!"  Stderr: {stderr.trimAscii}"
       allPassed := false
     else
       IO.println s!"  PASSED ({elapsedSec}s)"
       if !stdout.isEmpty then
-        for line in stdout.trim.splitOn "\n" do
+        for line in stdout.trimAscii.toString.splitOn "\n" do
           IO.println s!"    {line}"
   return if allPassed then 0 else 1
 where
@@ -158,7 +158,7 @@ where
     let timeoutFile := test.withExtension "timeout"
     if ← timeoutFile.pathExists then
       let content ← IO.FS.readFile timeoutFile
-      return content.trim.toNat?.getD 20
+      return content.trimAscii.toNat?.getD 20
     else return 120
   runWithTimeout (cmd : String) (args : Array String)
       (env : Array (String × Option String)) (timeoutMs : Nat)
