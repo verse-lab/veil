@@ -6,6 +6,8 @@ open Veil
 variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] [Ord σₕ]
   (params : SearchParameters ρ σ) (th : ρ)
 
+-- For now, do not bother with it
+/-
 omit th in
 def breadthFirstSearchParallelWithPredefinedInterruptions {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
@@ -79,5 +81,6 @@ def breadthFirstSearchParallelWithPredefinedInterruptions {m : Type → Type}
     return mctx'
   else
     return mctx
+-/
 
 end Veil.ModelChecker.Concrete

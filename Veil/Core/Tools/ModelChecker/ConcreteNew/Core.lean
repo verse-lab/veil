@@ -31,6 +31,9 @@ structure QueueItem (σₕ σ : Type) where
   depth : Nat
 deriving BEq, DecidableEq, Repr
 
+theorem QueueItem.fold_unfold {σₕ σ : Type} (item : QueueItem σₕ σ) :
+  item = ⟨item.fingerprint, item.state, item.depth⟩ := rfl
+
 structure ActionStat where
   statesGenerated : Nat
   distinctStates : Nat
