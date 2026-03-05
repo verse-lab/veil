@@ -18,7 +18,7 @@ variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hash
 
 def MapReduceSearchContextMain.initial (initStates : List σ) : MapReduceSearchContextMain σ κ σₕ :=
   let fps := initStates.map fp.view
-  let tovisit := fps.zipWith (fun fp s => ⟨fp, s, 0⟩) initStates
+  let tovisit := fps.zipWith (fun fp s => ⟨fp, s⟩) initStates
   { base := BaseSearchContext.initial initStates,
     tovisitLen := tovisit.length,
     tovisit := tovisit,
@@ -80,7 +80,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
 
 theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_invs
   {globalSeen : Std.TreeSet σₕ}
-  {p q : QueueItem σₕ σ → Prop}
+  {p q : MapReduceQueueItem σₕ σ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ}
   (h_finished : lctx.1.hasFinished = true)
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx) :
@@ -92,11 +92,11 @@ theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_in
 
 theorem MapReduceSearchContextLocalInvariants.progress_by_one_state
   {globalSeen : Std.TreeSet σₕ}
-  {p q : QueueItem σₕ σ → Prop}
+  {p q : MapReduceQueueItem σₕ σ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ}
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx)
   (h : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr → ((fp.view v) ∈ globalSeen ∨ (fp.view v) ∈ lctx.1.log))
-  (hpq : ∀ item, q item ↔ p item ∨ item = ⟨fpSt, curr, depth⟩) :
+  (hpq : ∀ item, q item ↔ p item ∨ item = ⟨fpSt, curr⟩) :
   MapReduceSearchContextLocalInvariants sys params globalSeen q lctx := by
   rcases lctx with ⟨ctx, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
   constructor ; on_goal 1=> constructor

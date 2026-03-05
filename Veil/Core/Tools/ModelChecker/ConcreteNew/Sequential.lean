@@ -122,7 +122,7 @@ theorem SequentialSearchContext.processSuccessors_preserves_invs
       -- enqueue case
       rename_i ctx sq fingerprint h_not_seen ; subst fingerprint
       simp at h_not_seen h_not_finished
-      rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩
+      rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; simp at h_q_sound
       constructor ; on_goal 1=> constructor
       all_goals dsimp only at * ; grind
 
@@ -151,7 +151,7 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
   (h_not_finished : sctx.1.hasFinished = false)
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx) :
   SequentialSearchContextInvariants sys params .none (sctx.bfsStep params th sys.tr) := by
-  rcases sctx with ⟨ctx, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
+  rcases sctx with ⟨ctx, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at * ; simp at h_q_sound
   simp [BaseSearchContext.hasFinished] at h_not_finished
   unfold SequentialSearchContext.bfsStep ; dsimp only
   rcases h_deq : sq.dequeue? with _ | ⟨⟨fpSt, curr, depth⟩, q_tail⟩ <;> dsimp only
@@ -183,7 +183,7 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
     all_goals (try solve
       | dsimp
         constructor ; on_goal 1=> constructor
-        all_goals dsimp only at * ; try solve | assumption | grind)
+        all_goals dsimp only at * ; (try solve | assumption | grind))
   subst ctx' ctx'' ; dsimp ; rw [h_not_finished]
   -- normal case, in transit
   apply SequentialSearchContextInvariants.finish_stateInTransit (curr := curr)
@@ -192,7 +192,7 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
     · grind
     · introv ; rw [← partitionExecutionOutcome.fst_spec, h_eq_part]
     · constructor ; on_goal 1=> constructor
-      all_goals dsimp only [isStableClosed] at * ; try grind
+      all_goals dsimp only [isStableClosed] at * ; grind
   · introv ; intro h1 ; apply SequentialSearchContext.processSuccessors_add_to_seen l v
     simp ; rw [← partitionExecutionOutcome.fst_spec, h_eq_part] at h1 ; exact h1
 

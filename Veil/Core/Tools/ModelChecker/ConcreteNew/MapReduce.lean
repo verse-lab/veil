@@ -23,7 +23,7 @@ variable (globalSeen : Std.TreeSet σₕ)
     `globalSeen` is the main context's log, used to check if a state is already globally seen. -/
 @[inline]
 def MapReduceSearchContextLocal.tryExploreNeighbor
-  (fpSt : σₕ) (nextDepth : Nat)
+  (fpSt : σₕ)
   (lctx : MapReduceSearchContextLocal σ κ σₕ)
   (label : κ) (succ : σ) : MapReduceSearchContextLocal σ κ σₕ :=
   let (ctx, q) := lctx
@@ -34,22 +34,21 @@ def MapReduceSearchContextLocal.tryExploreNeighbor
     ({ ctx with
       log := ctx.log.insert fingerprint (Option.some (fpSt, label)),
       actionStatsMap := ctx.actionStatsMap.update true label
-    }, ⟨fingerprint, succ, nextDepth⟩ :: q)
+    }, ⟨fingerprint, succ⟩ :: q)
 
 /-- Process all successors of a state in the local context. -/
 def MapReduceSearchContextLocal.processSuccessors
-  (fpSt : σₕ) (depth : Nat)
+  (fpSt : σₕ)
   (successors : List (κ × σ))
   (lctx : MapReduceSearchContextLocal σ κ σₕ) : MapReduceSearchContextLocal σ κ σₕ :=
-  let nextDepth := depth + 1
   successors.foldl (init := lctx) fun current_lctx (label, postState) =>
-    MapReduceSearchContextLocal.tryExploreNeighbor globalSeen fpSt nextDepth current_lctx label postState
+    MapReduceSearchContextLocal.tryExploreNeighbor globalSeen fpSt current_lctx label postState
 
 /-- Process a single state: check violations via BaseSearchContext.processState,
     then process successors if no early termination. -/
 def MapReduceSearchContextLocal.processState
   (params : SearchParameters ρ σ) (th : ρ)
-  (fpSt : σₕ) (depth : Nat) (curr : σ)
+  (fpSt : σₕ) (curr : σ)
   (outcomes : List (κ × ExecutionOutcome ℤ σ))
   (lctx : MapReduceSearchContextLocal σ κ σₕ) : MapReduceSearchContextLocal σ κ σₕ :=
   let (ctx, q) := lctx
@@ -59,7 +58,7 @@ def MapReduceSearchContextLocal.processState
   | some successfulTransitions =>
     -- CHECK Is it useful/possible to remove the call to `successfulTransitions.length`?
     let ctx'' := { ctx' with statesFound := ctx'.statesFound + successfulTransitions.length }
-    MapReduceSearchContextLocal.processSuccessors globalSeen fpSt depth successfulTransitions (ctx'', q)
+    MapReduceSearchContextLocal.processSuccessors globalSeen fpSt successfulTransitions (ctx'', q)
 
 end
 
@@ -73,14 +72,14 @@ variable {params : SearchParameters ρ σ} {th : ρ}
   {globalSeen : Std.TreeSet σₕ}
 
 theorem MapReduceSearchContextLocalInvariants.processSuccessors_preserves_invs
-  {p : QueueItem σₕ σ → Prop}
-  {fpSt depth} (curr : σ) {succs}
+  {p : MapReduceQueueItem σₕ σ → Prop}
+  {fpSt} (curr : σ) {succs}
   (h_not_finished : lctx.1.finished = .none)
   (h_reachable : sys.reachable curr)
   (h_succs : ∀ (label : κ) (st : σ),
     (label, st) ∈ succs ↔ (label, ExecutionOutcome.success st) ∈ sys.tr th curr)
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx) :
-  MapReduceSearchContextLocalInvariants sys params globalSeen p (lctx.processSuccessors globalSeen fpSt depth succs) := by
+  MapReduceSearchContextLocalInvariants sys params globalSeen p (lctx.processSuccessors globalSeen fpSt succs) := by
   unfold MapReduceSearchContextLocal.processSuccessors ; dsimp
   -- need to attach some proofs
   have htmp := List.unattach_attachWith (p := fun a => (a.1, ExecutionOutcome.success a.2) ∈ sys.tr th curr)
@@ -105,8 +104,8 @@ theorem MapReduceSearchContextLocalInvariants.processSuccessors_preserves_invs
 
 omit params th sys in
 theorem MapReduceSearchContextLocalInvariants.processSuccessors_successors_collected
-  {fpSt depth succs} :
-  letI res := lctx.processSuccessors globalSeen fpSt depth succs
+  {fpSt succs} :
+  letI res := lctx.processSuccessors globalSeen fpSt succs
   ∀ l v, (l, v) ∈ succs.reverse → ((fp.view v) ∈ globalSeen ∨ (fp.view v) ∈ res.1.log) := by
   unfold MapReduceSearchContextLocal.processSuccessors ; dsimp
   -- use `foldr` to make induction easier
@@ -118,18 +117,18 @@ theorem MapReduceSearchContextLocalInvariants.processSuccessors_successors_colle
     rcases x with ⟨label, postState⟩ ; dsimp [List.foldr]
     simp only [List.mem_cons] ; introv ; intro h1 ; rcases h1 with h1 | h1
     · injection h1 with h1 h2 ; subst l v
-      fun_cases MapReduceSearchContextLocal.tryExploreNeighbor globalSeen fpSt (depth + 1) (List.foldr _ lctx succs) label postState <;> grind
+      fun_cases MapReduceSearchContextLocal.tryExploreNeighbor globalSeen fpSt (List.foldr _ lctx succs) label postState <;> grind
     · rewrite (occs := .pos [1]) [MapReduceSearchContextLocal.tryExploreNeighbor]
       split_ifs with h <;> dsimp <;> grind
 
 theorem MapReduceSearchContextLocalInvariants.processState_progress
-  {p : QueueItem σₕ σ → Prop}
-  (fpSt : σₕ) (curr : σ) (depth : Nat)
+  {p : MapReduceQueueItem σₕ σ → Prop}
+  (fpSt : σₕ) (curr : σ)
   (h_reachable : sys.reachable curr)
   (h_not_finished : lctx.1.finished = .none)
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx) :
-  MapReduceSearchContextLocalInvariants sys params globalSeen (fun x => p x ∨ x = ⟨fpSt, curr, depth⟩)
-    (MapReduceSearchContextLocal.processState globalSeen params th fpSt depth curr (sys.tr th curr) lctx) := by
+  MapReduceSearchContextLocalInvariants sys params globalSeen (fun x => p x ∨ x = ⟨fpSt, curr⟩)
+    (MapReduceSearchContextLocal.processState globalSeen params th fpSt curr (sys.tr th curr) lctx) := by
   rcases lctx with ⟨ctx, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_succ_coll⟩ ; dsimp only at *
 
   dsimp [MapReduceSearchContextLocal.processState]
@@ -152,7 +151,7 @@ theorem MapReduceSearchContextLocalInvariants.processState_progress
         all_goals dsimp only at * ; try solve | assumption | grind)
   subst ctx' ctx'' ; dsimp ; rw [h_not_finished]
   -- normal case
-  apply MapReduceSearchContextLocalInvariants.progress_by_one_state (p := p) (curr := curr) (fpSt := fpSt) (depth := depth)
+  apply MapReduceSearchContextLocalInvariants.progress_by_one_state (p := p) (curr := curr) (fpSt := fpSt)
   · apply MapReduceSearchContextLocalInvariants.processSuccessors_preserves_invs
     · rfl
     · exact h_reachable
@@ -201,8 +200,8 @@ def processWorkQueue
   {params : SearchParameters ρ σ} {th : ρ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
   {globalSeen : Std.TreeSet σₕ}
-  (queue : List (QueueItem σₕ σ))
-  {p q : QueueItem σₕ σ → Prop} (h : ∀ x, q x ↔ p x ∨ x ∈ queue)
+  (queue : List (MapReduceQueueItem σₕ σ))
+  {p q : MapReduceQueueItem σₕ σ → Prop} (h : ∀ x, q x ↔ p x ∨ x ∈ queue)
   (h_inqueue_reachable : ∀ item ∈ queue, sys.reachable item.state)
   (lctx : LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen p) :
     LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen q :=
@@ -213,14 +212,14 @@ def processWorkQueue
     if h_finished : v.hasFinished
     then ⟨v, hl.finished_change_visited_pred_in_invs h_finished⟩
     else
-      let ⟨fpSt, curr, depth⟩ := item
-      let v' := v.processState globalSeen params th fpSt depth curr (sys.tr th curr)
+      let ⟨fpSt, curr⟩ := item
+      let v' := v.processState globalSeen params th fpSt curr (sys.tr th curr)
       -- CHECK Is this proper tail-recursive?
       processWorkQueue rest
         (processWorkQueue.subproof2 h)
         (processWorkQueue.subproof4 h_inqueue_reachable)
-        <| Subtype.mk v' <| hl.processState_progress fpSt curr depth
-          (processWorkQueue.subproof5 (α := QueueItem σₕ σ) h_inqueue_reachable)
+        <| Subtype.mk v' <| hl.processState_progress fpSt curr
+          (processWorkQueue.subproof5 (α := MapReduceQueueItem σₕ σ) h_inqueue_reachable)
           (processWorkQueue.subproof3 h_finished)
 
 /-- Main worker entry point. Creates a neutral context and processes the work queue.
@@ -231,7 +230,7 @@ def bfsBigStep
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th)
   (globalSeen : Std.TreeSet σₕ)
   (completedDepth : Nat)
-  (queue : List (QueueItem σₕ σ))
+  (queue : List (MapReduceQueueItem σₕ σ))
   (h_inqueue_reachable : ∀ item ∈ queue, sys.reachable item.state) :
   m (LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen (· ∈ queue)) :=
   let lctx : LawfulMapReduceSearchContextLocal sys params globalSeen (fun _ => False) :=
@@ -243,8 +242,8 @@ end LawfulMapReduceSearchContextLocal
 
 @[inline]
 def MapReduceSearchContextTemp.mergeOne.innerMerge
-  (acc : List (QueueItem σₕ σ) × Std.HashSet σₕ) (item : QueueItem σₕ σ) :
-  List (QueueItem σₕ σ) × Std.HashSet σₕ :=
+  (acc : List (MapReduceQueueItem σₕ σ) × Std.HashSet σₕ) (item : MapReduceQueueItem σₕ σ) :
+  List (MapReduceQueueItem σₕ σ) × Std.HashSet σₕ :=
   let (mq_acc, st_acc) := acc
   if !st_acc.contains item.fingerprint then
     (item :: mq_acc, st_acc.insert item.fingerprint)
@@ -252,17 +251,17 @@ def MapReduceSearchContextTemp.mergeOne.innerMerge
     (mq_acc, st_acc)
 
 def MapReduceSearchContextTemp.mergeOne.innerMergeDescription
-  (acc res : List (QueueItem σₕ σ) × Std.HashSet σₕ) (inQ : QueueItem σₕ σ → Prop) : Prop :=
+  (acc res : List (MapReduceQueueItem σₕ σ) × Std.HashSet σₕ) (inQ : MapReduceQueueItem σₕ σ → Prop) : Prop :=
   ∃ pfx, res.1 = pfx ++ acc.1 ∧
-    (pfx.map QueueItem.fingerprint).Nodup ∧
+    (pfx.map MapReduceQueueItem.fingerprint).Nodup ∧
     (∀ fp, (∃ item, inQ item ∧ item.fingerprint = fp) → fp ∉ acc.2 →
-      fp ∈ (pfx.map QueueItem.fingerprint)) ∧
+      fp ∈ (pfx.map MapReduceQueueItem.fingerprint)) ∧
     (∀ item ∈ pfx, inQ item ∧ item.fingerprint ∉ acc.2) ∧
-    (∀ fp, fp ∈ res.2 ↔ fp ∈ acc.2 ∨ fp ∈ (pfx.map QueueItem.fingerprint))
+    (∀ fp, fp ∈ res.2 ↔ fp ∈ acc.2 ∨ fp ∈ (pfx.map MapReduceQueueItem.fingerprint))
 
 omit [Ord σₕ] in
 theorem MapReduceSearchContextTemp.mergeOne.innerMergeDescription.concat
-  {p q : QueueItem σₕ σ → Prop} {a1 a2 a3}
+  {p q : MapReduceQueueItem σₕ σ → Prop} {a1 a2 a3}
   (h1 : mergeOne.innerMergeDescription a1 a2 p) (h2 : mergeOne.innerMergeDescription a2 a3 q) :
   mergeOne.innerMergeDescription a1 a3 fun x => p x ∨ q x := by
   rcases h1 with ⟨pfx1, h_pfx1, h_nodup1, h_inQ1, h_fps1⟩
@@ -271,7 +270,7 @@ theorem MapReduceSearchContextTemp.mergeOne.innerMergeDescription.concat
 
 omit [Ord σₕ] in
 theorem MapReduceSearchContextTemp.mergeOne.innerMerge_foldl_descriptive
-  (acc : List (QueueItem σₕ σ) × Std.HashSet σₕ) (lq : List (QueueItem σₕ σ)) :
+  (acc : List (MapReduceQueueItem σₕ σ) × Std.HashSet σₕ) (lq : List (MapReduceQueueItem σₕ σ)) :
   let res := lq.foldl (init := acc) mergeOne.innerMerge
   mergeOne.innerMergeDescription acc res (· ∈ lq) := by
   dsimp only [innerMergeDescription]
@@ -343,7 +342,7 @@ def MapReduceSearchContextMain.mergeWithLocalOnes
   {params : SearchParameters ρ σ} {th : ρ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
   (mctx : MapReduceSearchContextMain σ κ σₕ)
-  {splitLists : List (List (QueueItem σₕ σ))}
+  {splitLists : List (List (MapReduceQueueItem σₕ σ))}
   {globalSeen : Std.TreeSet σₕ}
   (lctxs : IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen (· ∈ a))) :
   MapReduceSearchContextMain σ κ σₕ :=
@@ -380,18 +379,19 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   (lctxs :
     let splitLists := ListSplit.splitList numSplits chunkSize numLarge mctx.tovisit
     IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params mctx.globalSeen (· ∈ a))) :
-  let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes ⟨mctx.base, 0, [], mctx.globalSeen⟩ lctxs
+  let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes ⟨{ mctx.base with completedDepth := mctx.base.completedDepth + 1 }, 0, [], mctx.globalSeen⟩ lctxs
   MapReduceSearchContextMainInvariants sys params mctx' := by
   rcases mctx with ⟨ctx, mlen_orig, tovisit, gs⟩
+  let ctx' := { ctx with completedDepth := ctx.completedDepth + 1 }
   dsimp ; unfold mergeWithLocalOnes
   simp only [IteratedProd.subtypesToList_foldl_eq_list_foldl]
   have h_local_invs := IteratedProd.externalize_proofs lctxs ; dsimp at h_local_invs
   rcases h_local_invs with ⟨h_length_eq, h_local_invs⟩
   generalize IteratedProd.subtypesToList lctxs = lctxs' at *
   set merged := lctxs'.foldl _ _ with heq
-  have htmp2 := ({ base := ctx, tovisit := [], tempSeen := Std.HashSet.emptyWithCapacity : MapReduceSearchContextTemp σ κ σₕ }).mergeOne_foldl_descriptive lctxs'
+  have htmp2 := ({ base := ctx', tovisit := [], tempSeen := Std.HashSet.emptyWithCapacity : MapReduceSearchContextTemp σ κ σₕ }).mergeOne_foldl_descriptive lctxs'
   dsimp at htmp2 ; rw [← heq] at htmp2 ; rcases htmp2 with ⟨h_base, h_merge_desc⟩
-  have h_base_desc := BaseSearchContext.mergeWithoutDepthChange_foldl_description ctx (lctxs'.map Prod.fst)
+  have h_base_desc := BaseSearchContext.mergeWithoutDepthChange_foldl_description ctx' (lctxs'.map Prod.fst)
   simp [BaseSearchContext.hasFinished] at h_not_finished
   dsimp at h_base_desc ; rw [← h_base, h_not_finished] at h_base_desc ; dsimp at h_base_desc
   clear lctxs heq h_base ; clear_value merged
@@ -420,7 +420,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
 
   constructor ; on_goal 1=> constructor
   · simp
-    intro fpSt curr depth hh
+    intro fpSt curr hh
     specialize h_inQ _ hh
     rcases h_inQ with ⟨lbctx, lq, h_in_lctxs', h_in_q⟩
     -- This is annoying ...
@@ -434,7 +434,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   · simp
     intro hinj x hh ; rcases hh with hh | hh
     · grind
-    · rw [h_fps] at hh ; rcases hh with ⟨⟨fpSt, curr, depth⟩, hh, heq⟩ ; dsimp at heq ; subst fpSt
+    · rw [h_fps] at hh ; rcases hh with ⟨⟨fpSt, curr⟩, hh, heq⟩ ; dsimp at heq ; subst fpSt
       -- NOTE: This is repeating
       specialize h_inQ _ hh
       rcases h_inQ with ⟨lbctx, lq, h_in_lctxs', h_in_q⟩
@@ -455,11 +455,11 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
     · by_cases h_in_tovisit? : (∀ item ∈ tovisit, item.fingerprint ≠ StateView.view u)
       · grind  -- easy case
       · clear h_closed
-        simp at h_in_tovisit? ; rcases h_in_tovisit? with ⟨⟨fpSt, curr, depth⟩, h_in_tovisit, heq⟩
+        simp at h_in_tovisit? ; rcases h_in_tovisit? with ⟨⟨fpSt, curr⟩, h_in_tovisit, heq⟩
         dsimp at heq ; subst fpSt
-        have := hinj (h_q_sound _ _ _ h_in_tovisit |>.right.right) ; subst curr -- unify `curr` with `u`
+        have := hinj (h_q_sound _ _ h_in_tovisit |>.right.right) ; subst curr -- unify `curr` with `u`
         -- here, need the split covering theorem
-        obtain ⟨chunk, h_chunk_in, h_in_chunk⟩ := ListSplit.splitList_mem numSplits chunkSize numLarge tovisit ⟨fp.view u, u, depth⟩ h_in_tovisit
+        obtain ⟨chunk, h_chunk_in, h_in_chunk⟩ := ListSplit.splitList_mem numSplits chunkSize numLarge tovisit ⟨fp.view u, u⟩ h_in_tovisit
         rw [List.mem_iff_getElem] at h_chunk_in
         rcases h_chunk_in with ⟨j, h_j, h_getElem_chunk⟩
         have h_in_zip := List.zip_mem (by apply Nat.le_of_eq ; symm ; apply h_length_eq) (by exact h_j)
@@ -475,12 +475,12 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
         set e := getElem lctxs' j _
         specialize heq e.1 e.2 (by simp [e]) ; simp [BaseSearchContext.hasFinished] at heq
         rcases h_local_invs with ⟨_, _, h_dj, h_same_dom, h_succ_coll⟩
-        specialize h_succ_coll heq (fp.view u) u depth (h_getElem_chunk ▸ h_in_chunk)
+        specialize h_succ_coll heq (fp.view u) u (h_getElem_chunk ▸ h_in_chunk)
         grind
     · grind
   · simp
     -- use the disjointness
-    rw [← Std.HashSet.length_toList, ← List.length_map QueueItem.fingerprint]
+    rw [← Std.HashSet.length_toList, ← List.length_map MapReduceQueueItem.fingerprint]
     apply List.Perm.length_eq ; rw [List.perm_ext_iff_of_nodup]
     · simp ; exact h_fps
     · unfold Std.HashSet.toList ; apply Std.HashMap.nodup_keys    -- this is actually kind of reusable
@@ -492,15 +492,15 @@ private theorem breadthFirstSearchParallel.subproof1 {ρ σₕ σ : Type}
   {th : ρ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
   {seen : σₕ → Prop}
-  {tovisit : List (QueueItem σₕ σ)}
-  (h : ∀ x st d, ⟨x, st, d⟩ ∈ tovisit → sys.reachable st ∧ seen x ∧ x = fp.view st)
-  (splitLists : List (List (QueueItem σₕ σ)))
+  {tovisit : List (MapReduceQueueItem σₕ σ)}
+  (h : ∀ x st, ⟨x, st⟩ ∈ tovisit → sys.reachable st ∧ seen x ∧ x = fp.view st)
+  (splitLists : List (List (MapReduceQueueItem σₕ σ)))
   (h_mem_inv : ∀ item, (∃ l ∈ splitLists, item ∈ l) → item ∈ tovisit) :
   ∀ sublist ∈ splitLists,
     ∀ item ∈ sublist, sys.reachable item.state := by
   intro sublist h_sublist_in item h_item_in
-  specialize h item.fingerprint item.state item.depth ; rw [← QueueItem.fold_unfold] at h
-  exact (h (h_mem_inv _ ⟨sublist, h_sublist_in, h_item_in⟩)).1
+  have : (⟨item.fingerprint, item.state⟩ : MapReduceQueueItem σₕ σ) = item := rfl
+  exact (h item.fingerprint item.state (this ▸ h_mem_inv _ ⟨sublist, h_sublist_in, h_item_in⟩)).1
 
 def breadthFirstSearchParallel {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
@@ -548,7 +548,7 @@ def breadthFirstSearchParallel {m : Type → Type}
         -- CHECK Ideally, `tovisit` should not be involved in any computational part from this point on
         -- Reduce step
         let mctxValForMerge : MapReduceSearchContextMain σ κ σₕ :=
-          { base := base, tovisitLen := 0, tovisit := [], globalSeen := globalSeen }
+          { base := { base with completedDepth := base.completedDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen }
         let mctxVal' := mctxValForMerge.mergeWithLocalOnes results
         have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' :=
           MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished h_mctx results

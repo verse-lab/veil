@@ -34,6 +34,14 @@ deriving BEq, DecidableEq, Repr
 theorem QueueItem.fold_unfold {σₕ σ : Type} (item : QueueItem σₕ σ) :
   item = ⟨item.fingerprint, item.state, item.depth⟩ := rfl
 
+/-- A queue item for the MapReduce checker, without the depth field.
+    In MapReduce BFS, all items in the frontier share the same depth,
+    tracked externally via `completedDepth`. -/
+structure MapReduceQueueItem (σₕ σ : Type) where
+  fingerprint : σₕ
+  state : σ
+deriving BEq, DecidableEq, Repr
+
 structure ActionStat where
   statesGenerated : Nat
   distinctStates : Nat
@@ -90,10 +98,10 @@ structure SearchContextInvariants {ρ σ κ σₕ : Type}
   -- NOTE: Although `params` is not used in the invariants below yet,
   -- we should better keep it here for future extensions.
   (params : SearchParameters ρ σ)
-  (inQueue : QueueItem σₕ σ → Prop)
+  (inQueue : σₕ → σ → Prop)
   (seen : σₕ → Prop) : Prop
 where
-  queue_sound        : ∀ x st d, inQueue ⟨x, st, d⟩ → sys.reachable st ∧ seen x ∧ x = fp.view st
+  queue_sound        : ∀ x st, inQueue x st → sys.reachable st ∧ seen x ∧ x = fp.view st
   visited_sound      : Function.Injective fp.view → ∀ x, seen (fp.view x) → sys.reachable x
 
 variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]

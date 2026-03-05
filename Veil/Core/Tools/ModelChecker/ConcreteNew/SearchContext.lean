@@ -34,7 +34,7 @@ abbrev SequentialSearchContext.isStableClosed (sctx : SequentialSearchContext σ
 structure SequentialSearchContextInvariants
   (stateInTransit : Option σ)
   (sctx : SequentialSearchContext σ κ σₕ)
-extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (· ∈ sctx.2) (· ∈ sctx.1.log)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun (x : σₕ) (st : σ) => ∃ d, ⟨x, st, d⟩ ∈ sctx.2) (· ∈ sctx.1.log)
 where
   -- NOTE: should be strengthened to talk about depth, with this
   -- being a special case
@@ -49,20 +49,18 @@ end Sequential
 
 section MapReduce
 
--- FIXME: The depth information in `QueueItem` is more or less useless here
-
 structure MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [Ord σₕ] [BEq κ] [Hashable κ] where
   base : BaseSearchContext σ κ σₕ
   tovisitLen : Nat
-  tovisit : List (QueueItem σₕ σ)
+  tovisit : List (MapReduceQueueItem σₕ σ)
   globalSeen : Std.TreeSet σₕ
 
 abbrev MapReduceSearchContextLocal (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
-  BaseSearchContext σ κ σₕ × List (QueueItem σₕ σ)
+  BaseSearchContext σ κ σₕ × List (MapReduceQueueItem σₕ σ)
 
 structure MapReduceSearchContextTemp (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] where
   base : BaseSearchContext σ κ σₕ
-  tovisit : List (QueueItem σₕ σ)
+  tovisit : List (MapReduceQueueItem σₕ σ)
   tempSeen : Std.HashSet σₕ
 
 variable {ρ σ κ σₕ : Type}
@@ -86,7 +84,7 @@ abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextM
 
 structure MapReduceSearchContextMainInvariants
   (mctx : MapReduceSearchContextMain σ κ σₕ)
-extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (· ∈ mctx.tovisit) (· ∈ mctx.globalSeen)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ⟨x, st⟩ ∈ mctx.tovisit) (· ∈ mctx.globalSeen)
 where
   init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ mctx.globalSeen
   terminate_empty_queue : mctx.base.finished = some (.exploredAllReachableStates) → mctx.tovisit.isEmpty
@@ -98,23 +96,22 @@ abbrev LawfulMapReduceSearchContextMain : Type :=
 
 structure MapReduceSearchContextLocalInvariants
   (globalSeen : Std.TreeSet σₕ)
-  (visited : QueueItem σₕ σ → Prop)
+  (visited : MapReduceQueueItem σₕ σ → Prop)
   (lctx : MapReduceSearchContextLocal σ κ σₕ)
-extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (· ∈ lctx.2) (fun h => ∃ s d, ⟨h, s, d⟩ ∈ lctx.2)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ⟨x, st⟩ ∈ lctx.2) (fun h => ∃ s, ⟨h, s⟩ ∈ lctx.2)
 where
   not_explored_all : lctx.1.finished ≠ some (.exploredAllReachableStates)   -- OK, but why?
   tovisit_globalSeen_disjoint : ∀ item ∈ lctx.2, item.fingerprint ∉ globalSeen
   -- NOTE: This might be eventually removed
   tovisit_log_same_domain : ∀ fpSt, fpSt ∈ lctx.1.log ↔ ∃ item ∈ lctx.2, item.fingerprint = fpSt
-  successor_collected : lctx.1.finished = none → ∀ fingerprint st d, visited ⟨fingerprint, st, d⟩ →
+  successor_collected : lctx.1.finished = none → ∀ fingerprint st, visited ⟨fingerprint, st⟩ →
     ∀ (l : κ) (v : σ), (l, .success v) ∈ sys.tr th st →
       ((fp.view v) ∈ globalSeen ∨
-        -- ∃ d, ⟨fp.view v, v, d⟩ ∈ lctx.1.log)
         fp.view v ∈ lctx.1.log)
 
 abbrev LawfulMapReduceSearchContextLocal
   (globalSeen : Std.TreeSet σₕ)
-  (visited : QueueItem σₕ σ → Prop) : Type :=
+  (visited : MapReduceQueueItem σₕ σ → Prop) : Type :=
   Subtype (α := MapReduceSearchContextLocal σ κ σₕ) (MapReduceSearchContextLocalInvariants sys params globalSeen visited)
 
 end MapReduce
