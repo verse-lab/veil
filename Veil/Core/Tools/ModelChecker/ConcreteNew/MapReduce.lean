@@ -376,9 +376,9 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   {mctx : MapReduceSearchContextMain σ κ σₕ}
   (h_not_finished : mctx.base.hasFinished = false)
   (h_mctx : MapReduceSearchContextMainInvariants sys params mctx)
-  {numSplits chunkSize : Nat}
+  {numSplits chunkSize numLarge : Nat}
   (lctxs :
-    let splitLists := ListSplit.splitList numSplits chunkSize mctx.tovisit
+    let splitLists := ListSplit.splitList numSplits chunkSize numLarge mctx.tovisit
     IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params mctx.globalSeen (· ∈ a))) :
   let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes ⟨mctx.base, 0, [], mctx.globalSeen⟩ lctxs
   MapReduceSearchContextMainInvariants sys params mctx' := by
@@ -459,7 +459,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
         dsimp at heq ; subst fpSt
         have := hinj (h_q_sound _ _ _ h_in_tovisit |>.right.right) ; subst curr -- unify `curr` with `u`
         -- here, need the split covering theorem
-        obtain ⟨chunk, h_chunk_in, h_in_chunk⟩ := ListSplit.splitList_mem numSplits chunkSize tovisit ⟨fp.view u, u, depth⟩ h_in_tovisit
+        obtain ⟨chunk, h_chunk_in, h_in_chunk⟩ := ListSplit.splitList_mem numSplits chunkSize numLarge tovisit ⟨fp.view u, u, depth⟩ h_in_tovisit
         rw [List.mem_iff_getElem] at h_chunk_in
         rcases h_chunk_in with ⟨j, h_j, h_getElem_chunk⟩
         have h_in_zip := List.zip_mem (by apply Nat.le_of_eq ; symm ; apply h_length_eq) (by exact h_j)
@@ -529,9 +529,10 @@ def breadthFirstSearchParallel {m : Type → Type}
         -- FIXME: Need to add a proper sequential fallback if the frontier is too small
         -- Split the queue into sub-lists; fall back to 1 split (sequential) if frontier is too small
         let numSplits := if tovisitLen < parallelCfg.thresholdToParallel then 1
-                         else parallelCfg.numSubTasks
-        let chunkSize := tovisitLen / max 1 numSplits
-        let splitLists := ListSplit.splitList numSplits chunkSize tovisit
+                         else max 1 parallelCfg.numSubTasks
+        let chunkSize := tovisitLen / numSplits
+        let numLarge := tovisitLen % numSplits
+        let splitLists := ListSplit.splitList numSplits chunkSize numLarge tovisit
         let completedDepth := base.completedDepth
         -- Map step: spawn parallel tasks
         -- **CAVEAT**: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
@@ -540,7 +541,7 @@ def breadthFirstSearchParallel {m : Type → Type}
         let tasks ← IteratedProd.taskSplit splitLists fun subList h_sublist_in =>
           LawfulMapReduceSearchContextLocal.bfsBigStep params sys globalSeen completedDepth subList
             (breadthFirstSearchParallel.subproof1 h_mctx.queue_sound splitLists
-              (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize tovisit item).mp hm) _ h_sublist_in)
+              (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize numLarge tovisit item).mp hm) _ h_sublist_in)
         let results ← IteratedProd.mapM
           (T₂ := (fun a => LawfulMapReduceSearchContextLocal sys params globalSeen (· ∈ a)))
           (fun task => IO.ofExcept task.get) tasks
