@@ -18,8 +18,10 @@ variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hash
 
 def MapReduceSearchContextMain.initial (initStates : List σ) : MapReduceSearchContextMain σ κ σₕ :=
   let fps := initStates.map fp.view
+  let tovisit := fps.zipWith (fun fp s => ⟨fp, s, 0⟩) initStates
   { base := BaseSearchContext.initial initStates,
-    tovisit := fps.zipWith (fun fp s => ⟨fp, s, 0⟩) initStates |>.toArray,
+    tovisitLen := tovisit.length,
+    tovisit := tovisit,
     globalSeen := Std.TreeSet.ofList fps }
 
 /-- Create an empty local context with the given `completedDepth`. -/
@@ -30,16 +32,16 @@ def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearch
      completedDepth := completedDepth,
      currentFrontierDepth := completedDepth + 1,
      statesFound := 0,
-     actionStatsMap := Std.HashMap.emptyWithCapacity }, #[])
+     actionStatsMap := Std.HashMap.emptyWithCapacity }, [])
 
 theorem MapReduceSearchContextMainInvariants.initial [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) :
   MapReduceSearchContextMainInvariants sys params (MapReduceSearchContextMain.initial (fp := fp) sys.initStates) := by
   simp [MapReduceSearchContextMain.initial, BaseSearchContext.initial]
-  simp [← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip]
   constructor ; on_goal 1=> constructor
-  all_goals simp [MapReduceSearchContextMain.isStableClosed] ; (try solve | intros ; grind)
+  all_goals simp [MapReduceSearchContextMain.isStableClosed,
+    ← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip] ; (try solve | intros ; grind)
 
 theorem MapReduceSearchContextLocalInvariants.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
@@ -61,7 +63,7 @@ theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx) :
   MapReduceSearchContextMainInvariants sys params
     { mctx with base := { mctx.base with finished := some (.exploredAllReachableStates) } } := by
-  rcases mctx with ⟨ctx, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
+  rcases mctx with ⟨ctx, mlen, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
   simp [BaseSearchContext.hasFinished] at h_not_finished
   constructor ; on_goal 1=> constructor
   all_goals dsimp only ; try solve | assumption | grind
@@ -72,7 +74,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
   (h_explore_all : mctx.base.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.Injective fp.view) :
   ∀ s : σ, sys.reachable s → (fp.view s) ∈ mctx.globalSeen := by
-  rcases mctx with ⟨ctx, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
+  rcases mctx with ⟨ctx, mlen, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
   intro s h_reachable
   induction h_reachable <;> grind
 

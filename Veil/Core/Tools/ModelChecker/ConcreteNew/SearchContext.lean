@@ -53,15 +53,16 @@ section MapReduce
 
 structure MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [Ord σₕ] [BEq κ] [Hashable κ] where
   base : BaseSearchContext σ κ σₕ
-  tovisit : Array (QueueItem σₕ σ)
+  tovisitLen : Nat
+  tovisit : List (QueueItem σₕ σ)
   globalSeen : Std.TreeSet σₕ
 
 abbrev MapReduceSearchContextLocal (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
-  BaseSearchContext σ κ σₕ × Array (QueueItem σₕ σ)
+  BaseSearchContext σ κ σₕ × List (QueueItem σₕ σ)
 
 structure MapReduceSearchContextTemp (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] where
   base : BaseSearchContext σ κ σₕ
-  tovisit : Array (QueueItem σₕ σ)
+  tovisit : List (QueueItem σₕ σ)
   tempSeen : Std.HashSet σₕ
 
 variable {ρ σ κ σₕ : Type}
@@ -90,6 +91,7 @@ where
   init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ mctx.globalSeen
   terminate_empty_queue : mctx.base.finished = some (.exploredAllReachableStates) → mctx.tovisit.isEmpty
   stable_closed : mctx.isStableClosed sys
+  tovisit_len : mctx.tovisitLen = mctx.tovisit.length
 
 abbrev LawfulMapReduceSearchContextMain : Type :=
   Subtype (α := MapReduceSearchContextMain σ κ σₕ) (MapReduceSearchContextMainInvariants sys params)
