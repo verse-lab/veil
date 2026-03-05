@@ -544,6 +544,7 @@ class TSet (α : outParam (Type u)) (κ : Type v) where
   count : κ → Nat
   contains : α → κ → Bool
   empty : κ
+  isEmpty : κ → Bool
   insert : α → κ → κ
   remove : α → κ → κ
   ofList : List α → κ
@@ -556,6 +557,7 @@ class TSet (α : outParam (Type u)) (κ : Type v) where
 
   empty_count : count empty = 0
   empty_contains (elem : α) : contains elem empty = false
+  isEmpty_iff_count_zero (s : κ) : isEmpty s = true ↔ count s = 0
   contains_insert_self (elem : α) (s : κ) :
     contains elem (insert elem s) = true
   contains_insert_other (elem₁ elem₂ : α) (s : κ) (h : elem₁ ≠ elem₂) :
@@ -661,6 +663,7 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   count := ExtTreeSet.size
   contains := fun a s => s.contains a
   empty := ExtTreeSet.empty
+  isEmpty := fun s => s.isEmpty
   insert := fun a s => s.insert a
   remove := fun a s => s.erase a
   ofList := fun l => Std.ExtTreeSet.ofList l
@@ -672,6 +675,7 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   subsets := fun s => s.toList.sublists.map (Std.ExtTreeSet.ofList · compare)
   empty_count := by grind
   empty_contains := by grind
+  isEmpty_iff_count_zero := by intro s ; rw [Std.ExtTreeSet.isEmpty_eq_size_beq_zero] ; grind
   contains_insert_self := by intros; grind
   contains_insert_other := by intro elem₁ elem₂ s h; grind
   count_insert := by grind
@@ -699,6 +703,7 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   count := fun s => s.val.length
   contains := fun a s => sortedContains a s.val
   empty := OrdList.empty
+  isEmpty := fun s => s.val.isEmpty
   insert := fun a s => ⟨sortedInsertNoDup a s.val, sortedInsertNoDup_sorted a s.val s.property⟩
   remove := fun a s => ⟨sortedRemove a s.val, sortedRemove_sorted a s.val s.property⟩
   ofList := OrdList.ofList
@@ -715,6 +720,7 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
       (fun ⟨sl, h⟩ => ⟨sl, s.property.sublist (List.mem_sublists.mp h)⟩)
   empty_count := by simp [OrdList.empty]
   empty_contains := by intro ; rfl
+  isEmpty_iff_count_zero := by simp
   contains_insert_self := fun a s =>
     sortedInsertNoDup_contains_self a s.val s.property
   contains_insert_other := fun a₁ a₂ s h =>
