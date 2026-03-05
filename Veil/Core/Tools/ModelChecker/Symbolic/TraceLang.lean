@@ -381,7 +381,8 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
 
     let vcName ← match name with | some n => pure n.getId | none => mkFreshUserName `trace
     let conjunction ← repeatedAnd finalState.assertions
-    let allBinders := (← collectModuleBinders mod) ++ (← mkActionTagBinders) ++ finalState.binders.all
+    let actionTagBinders ← if mod.actions.isEmpty then pure #[] else mkActionTagBinders
+    let allBinders := (← collectModuleBinders mod) ++ actionTagBinders ++ finalState.binders.all
     let bracketedBinders := allBinders.map (·.1)
     let stateNames := stateIds.toArray
     -- let explicitBinders := allBinders.map (·.2)
