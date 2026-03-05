@@ -368,6 +368,8 @@ private theorem List.zip_mem {α : Type u} {β : Type v} {l1 : List α} {l2 : Li
         simp only [List.length_cons] at hl h
         exact .tail _ (ih (by omega) (by omega))
 
+-- FIXME: Later make this update of `depth` a reusable definition
+
 theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   {params : SearchParameters ρ σ} {th : ρ}
@@ -379,10 +381,11 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   (lctxs :
     let splitLists := ListSplit.splitList numSplits chunkSize numLarge mctx.tovisit
     IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params mctx.globalSeen (· ∈ a))) :
-  let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes ⟨{ mctx.base with completedDepth := mctx.base.completedDepth + 1 }, 0, [], mctx.globalSeen⟩ lctxs
+  let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes
+    ⟨{ mctx.base with completedDepth := mctx.base.currentFrontierDepth, currentFrontierDepth := mctx.base.currentFrontierDepth + 1 }, 0, [], mctx.globalSeen⟩ lctxs
   MapReduceSearchContextMainInvariants sys params mctx' := by
   rcases mctx with ⟨ctx, mlen_orig, tovisit, gs⟩
-  let ctx' := { ctx with completedDepth := ctx.completedDepth + 1 }
+  let ctx' := { ctx with completedDepth := ctx.currentFrontierDepth, currentFrontierDepth := ctx.currentFrontierDepth + 1 }
   dsimp ; unfold mergeWithLocalOnes
   simp only [IteratedProd.subtypesToList_foldl_eq_list_foldl]
   have h_local_invs := IteratedProd.externalize_proofs lctxs ; dsimp at h_local_invs
@@ -548,7 +551,7 @@ def breadthFirstSearchParallel {m : Type → Type}
         -- CHECK Ideally, `tovisit` should not be involved in any computational part from this point on
         -- Reduce step
         let mctxValForMerge : MapReduceSearchContextMain σ κ σₕ :=
-          { base := { base with completedDepth := base.completedDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen }
+          { base := { base with completedDepth := base.currentFrontierDepth, currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen }
         let mctxVal' := mctxValForMerge.mergeWithLocalOnes results
         have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' :=
           MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished h_mctx results
@@ -567,6 +570,7 @@ def breadthFirstSearchParallel {m : Type → Type}
           | .noUpdate => pure ()
   -- Final update to ensure stats reflect finished state
   let ⟨mctxVal, _⟩ := mctx
+  let mctxVal := { mctxVal with base := { mctxVal.base with currentFrontierDepth := mctxVal.base.completedDepth } }
   updateProgressDuringBFS progressInstanceId mctxVal.base mctxVal.tovisitLen
   if cancelled then
     return { mctxVal with base := { mctxVal.base with finished := some (.earlyTermination .cancelled) } }
