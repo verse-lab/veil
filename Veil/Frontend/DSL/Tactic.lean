@@ -256,9 +256,13 @@ def hypTypesToClear : List Name := [``IsSubReaderOf, ``IsSubStateOf, ``Decidable
 def hypNamesToClear : List Name := [environmentTheoryName,
   environmentStateName, fieldConcreteTypeName]
 
-/-- Hypotheses which should not be touched by our tactics and which
-should not be sent to the SMT solver. -/
+/-- Hypotheses which should not be sent to the SMT solver. -/
 def hypTypesToIgnore : List Name := hypTypesToClear ++ [``Inhabited, ``Nonempty]
+
+/-- Hypotheses which should not be destructed by `veil_destruct`.
+Note: `Inhabited` is intentionally NOT here — we want to destruct it
+so that `Inhabited` instance in the goal gets replaced by a concrete variable. -/
+def hypTypesToSkipDestruct : List Name := hypTypesToClear ++ [``Nonempty]
 
 /-- Get all the names of the propositions found in the context. This
 ignores some Veil-specific typeclasses that should not be sent to the
@@ -372,7 +376,7 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
     if isStructure then
       let sn := hyp.type.getAppFn.constName!
       -- Skip if onlyStructs is non-empty and this structure is not in the list
-      if !hypTypesToIgnore.contains sn && (onlyStructs.isEmpty || onlyStructs.contains sn) then
+      if !hypTypesToSkipDestruct.contains sn && (onlyStructs.isEmpty || onlyStructs.contains sn) then
         let dtac ← `(tactic| veil_destruct $name:ident)
         veilEvalTactic dtac
     else
@@ -889,9 +893,9 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
 def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
   -- FIXME: sometimes we still have abstract dispatchers in the types, so as a
   -- hack, we just dsimp them here
-  let dsimpLemmas := #[fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
+  let dsimpLemmas := #[mkIdent ``Inhabited.default, fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
   let dsimpTac←  `(tactic| try dsimp [$[$dsimpLemmas:ident],*])
-  let tac ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; veil_destruct; veil_simp only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
+  let tac ← `(tacticSeq| veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; veil_destruct; $dsimpTac; veil_simp only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do

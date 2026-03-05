@@ -19,8 +19,8 @@ open Lean Expr Lean.Meta in
 simproc ↓ funextEq (_ = _) :=
   fun e => do
   let_expr Eq _ lhs rhs := e | return .continue
-  let lhsT ← inferType lhs
-  if lhsT.isArrow && (← inferType rhs).isArrow then
+  let lhsT ← whnf (← inferType lhs)
+  if lhsT.isArrow && (← whnf (← inferType rhs)).isArrow then
     -- NOTE: this cannot be `anonymous` because it is used in the SMT-LIB
     -- translation, which gets confused in the presence of multiple anonymous
     -- binders. TODO: generate a more informative name.
@@ -66,5 +66,6 @@ attribute [smtSimp] ite_true ite_false dite_true dite_false ite_self
 -- Dealing with the mix of `==` and `decide (· = ·)`
 attribute [smtSimp] Bool.ite_eq_true_distrib Bool.ite_eq_false_distrib
   Bool.ite_eq_false beq_iff_eq beq_eq_false_iff_ne BEq.rfl
+
 
 end Veil
