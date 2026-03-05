@@ -219,9 +219,15 @@ this to elaborate assertions in `sat trace` commands. -/
 def withTheoryAndStateFn (mod : Module) (t : Term) (theoryT stateT : Term)
     (fieldRepInstance : Term) (stateSortTerm : Term) : MetaM Term := do
   let (th, st) := (mkIdent `th, mkIdent `st)
+  -- When using field representation TC, ghost relations' default `st`
+  -- parameter uses `by veil_exact_state` which constructs `@State χ`.
+  -- We need `χ` in scope so the tactic can resolve it.
+  let t' ← if mod._useFieldRepTC then
+    `(let $(mkIdent fieldConcreteTypeName) := $stateSortTerm; $t)
+  else pure t
   let tmp ← mod.withTheoryAndStateTermTemplate
     [(.theory, th), (.state .none "_conc", st)]
-    (fun _ _ => pure t)
+    (fun _ _ => pure t')
     fieldRepInstance
     (stateSortTerm := some stateSortTerm)
   `(term| (fun ($th : $theoryT) ($st : $stateT) => $tmp))
