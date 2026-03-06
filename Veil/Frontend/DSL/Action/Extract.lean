@@ -421,6 +421,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     let (CInit, CNext) := (mkVeilImplementationDetailIdent `CInit, mkVeilImplementationDetailIdent `CNext)
     let (th, st) := (mkVeilImplementationDetailIdent `th, mkVeilImplementationDetailIdent `st)
     let (label, next) := (mkVeilImplementationDetailIdent `label, mkVeilImplementationDetailIdent `next)
+    let lbls := mkVeilImplementationDetailIdent `lbls
     let filterMap ← `($(mkIdent ``List.filterMap) $(mkIdent ``id))
 
     -- NOTE: Use the `ext` version of `initializer` below!!!
@@ -428,11 +429,11 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
       $(mkIdent `initStates):ident :=
         let $CInit := $(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
         $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
-      $(mkIdent `tr):ident := fun $th $st =>
+      $(mkIdent `tr):ident := let $lbls := (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId) ; fun $th $st =>
         let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
         $(mkIdent ``List.flatMap) (fun ($label : $labelStx) =>
          $(mkIdent ``List.map) (fun $next => ($label, $next)) ($(mkIdent ``extractAllOutcomes) ($CNext $label) $th $st))
-         (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId)
+        $lbls
       : $(mkIdent ``Veil.EnumerableTransitionSystem)
         $theoryStx ($(mkIdent ``List) $theoryStx)
         $stateStx ($(mkIdent ``List) $stateStx)

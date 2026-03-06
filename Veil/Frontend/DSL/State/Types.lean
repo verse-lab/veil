@@ -246,6 +246,7 @@ class Enumeration (α : Type u) where
   allValues : List α
   complete : ∀ a : α, a ∈ allValues
 
+@[inline]
 def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] (h : α ≃ β) : Enumeration β where
   allValues := inst.allValues.map h
   complete := by simp ; intro b ; exists (h.symm b) ; simp ; apply inst.complete
