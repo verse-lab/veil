@@ -1,8 +1,8 @@
 import Veil.Core.Tools.ModelChecker.ConcreteNew.SequentialLemmas
+import Veil.Util.TreeSetMisc
 
 /-- `TreeSet.insertMany` on a `HashSet` is equal to `TreeSet.insertMany` on the `HashSet`'s `toList`.
     This follows from the fact that `forIn` on a `HashSet` is equivalent to `forIn` on its `toList`. -/
-@[simp, grind =]
 theorem Std.TreeSet.insertMany_hashset_eq_insertMany_toList
   {α : Type} {cmp : α → α → Ordering}
   [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] [Hashable α]
@@ -11,6 +11,16 @@ theorem Std.TreeSet.insertMany_hashset_eq_insertMany_toList
   unfold Std.TreeSet.insertMany Std.TreeMap.insertManyIfNewUnit Std.DTreeMap.Const.insertManyIfNewUnit
     Std.DTreeMap.Internal.Impl.Const.insertManyIfNewUnit
   grind [Std.HashSet.forIn_eq_forIn_toList]
+
+theorem Std.TreeSet.insertManyFast_hashset_eq_insertManyFast_toList
+  {α : Type} {cmp : α → α → Ordering}
+  [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] [Hashable α]
+  {t : Std.TreeSet α cmp} {hs : Std.HashSet α} :
+  t.insertManyFast hs = t.insertManyFast hs.toList := by
+  unfold Std.TreeSet.insertManyFast Std.TreeMap.insertMany Std.DTreeMap.Const.insertMany
+    Std.DTreeMap.Internal.Impl.Const.insertMany
+  congr! 4
+  simp only [WithUnit.ForIn, Std.HashSet.forIn_eq_forIn_toList]
 
 namespace Veil.ModelChecker.Concrete
 
@@ -22,7 +32,7 @@ def MapReduceSearchContextMain.initial (initStates : List σ) : MapReduceSearchC
   { base := BaseSearchContext.initial initStates,
     tovisitLen := tovisit.length,
     tovisit := tovisit,
-    globalSeen := Std.TreeSet.ofList fps }
+    globalSeen := Std.TreeSet.ofListFast fps }
 
 /-- Create an empty local context with the given `completedDepth`. -/
 def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ :=
@@ -41,7 +51,7 @@ theorem MapReduceSearchContextMainInvariants.initial [Std.TransOrd σₕ] [Std.L
   simp [MapReduceSearchContextMain.initial, BaseSearchContext.initial]
   constructor ; on_goal 1=> constructor
   all_goals simp [MapReduceSearchContextMain.isStableClosed,
-    ← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip] ; (try solve | intros ; grind)
+    ← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip, Std.TreeSet.mem_ofListFast] ; (try solve | intros ; grind [= Std.TreeSet.insertManyFast_hashset_eq_insertManyFast_toList])
 
 theorem MapReduceSearchContextLocalInvariants.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)

@@ -351,7 +351,7 @@ def MapReduceSearchContextMain.mergeWithLocalOnes
   let ⟨mbase, mq, st⟩ := IteratedProd.foldl (β := MapReduceSearchContextTemp σ κ σₕ) (elements := lctxs)
     (init := ⟨ctx, q, (Std.HashSet.emptyWithCapacity : Std.HashSet σₕ)⟩)
       fun acc lctx => acc.mergeOne lctx.val
-  ⟨mbase, len + st.size, mq, globalSeen.insertMany st⟩
+  ⟨mbase, len + st.size, mq, globalSeen.insertManyFast st⟩
 
 private theorem List.zip_mem {α : Type u} {β : Type v} {l1 : List α} {l2 : List β}
   (hl : l1.length ≤ l2.length) (h : i < l1.length) :
@@ -370,6 +370,7 @@ private theorem List.zip_mem {α : Type u} {β : Type v} {l1 : List α} {l2 : Li
 
 -- FIXME: Later make this update of `depth` a reusable definition
 
+attribute [local simp] Std.TreeSet.insertManyFast_hashset_eq_insertManyFast_toList Std.TreeSet.mem_insertManyFast_list in
 theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   {params : SearchParameters ρ σ} {th : ρ}
