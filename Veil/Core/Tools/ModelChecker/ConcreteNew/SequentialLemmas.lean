@@ -10,7 +10,8 @@ variable {ρ σ κ σₕ : Type}
   (params : SearchParameters ρ σ)
 
 def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ :=
-  (BaseSearchContext.initial sys.initStates, fQueue.ofList (sys.initStates.map (fun s => ⟨fp.view s, s, 0⟩)))
+  let iss := sys.initStates
+  (BaseSearchContext.initial iss, fQueue.ofList (iss.map (fun s => ⟨fp.view s, s, 0⟩)))
 
 theorem SequentialSearchContextInvariants.initial :
   SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial (fp := fp) sys) := by
