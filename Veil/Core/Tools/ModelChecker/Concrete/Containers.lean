@@ -17,6 +17,92 @@ instance : Membership α (fQueue α) where
 
 def empty {α} : fQueue α := ⟨[], [], 0, rfl⟩
 
+instance {α} : Inhabited (fQueue α) := ⟨empty⟩
+
+instance [BEq α] : BEq (fQueue α) where
+  beq q1 q2 := q1.front == q2.front && q1.back == q2.back
+
+private instance [BEq α] [PartialEquivBEq α] : PartialEquivBEq (List α) where
+  symm {l1 l2} h := by
+    induction l1 generalizing l2 with
+    | nil => cases l2 <;> simp_all
+    | cons x xs ih =>
+      match l2 with
+      | [] => simp at h
+      | y :: ys =>
+        show List.beq (y :: ys) (x :: xs) = true
+        have h : List.beq (x :: xs) (y :: ys) = true := h
+        rw [List.beq_cons₂, Bool.and_eq_true] at h ⊢
+        exact ⟨(BEq.comm (α := α) ▸ h.1 :), ih h.2⟩
+  trans {l1 l2 l3} h1 h2 := by
+    induction l1 generalizing l2 l3 with
+    | nil =>
+      match l2 with
+      | [] => simpa using h2
+      | _ :: _ => simp at h1
+    | cons x xs ih =>
+      match l2, l3 with
+      | [], _ => simp at h1
+      | _ :: _, [] => simp at h2
+      | y :: ys, z :: zs =>
+        show List.beq (x :: xs) (z :: zs) = true
+        have h1 : List.beq (x :: xs) (y :: ys) = true := h1
+        have h2 : List.beq (y :: ys) (z :: zs) = true := h2
+        rw [List.beq_cons₂, Bool.and_eq_true] at h1 h2 ⊢
+        exact ⟨BEq.trans h1.1 h2.1, ih h1.2 h2.2⟩
+
+private instance [BEq α] [ReflBEq α] : ReflBEq (List α) where
+  rfl {l} := by
+    induction l with
+    | nil => rfl
+    | cons x xs ih =>
+      show List.beq (x :: xs) (x :: xs) = true
+      rw [List.beq_cons₂, Bool.and_eq_true]
+      exact ⟨beq_self_eq_true x, ih⟩
+
+instance [BEq α] [EquivBEq α] : EquivBEq (fQueue α) where
+  symm {a b} h := by
+    change (b.front == a.front && b.back == a.back) = true
+    have h : (a.front == b.front && a.back == b.back) = true := h
+    simp only [Bool.and_eq_true] at h ⊢
+    exact ⟨(BEq.comm (α := List α) ▸ h.1 :), (BEq.comm (α := List α) ▸ h.2 :)⟩
+  trans {a b c} h1 h2 := by
+    change (a.front == c.front && a.back == c.back) = true
+    have h1 : (a.front == b.front && a.back == b.back) = true := h1
+    have h2 : (b.front == c.front && b.back == c.back) = true := h2
+    simp only [Bool.and_eq_true] at h1 h2 ⊢
+    exact ⟨BEq.trans (α := List α) h1.1 h2.1, BEq.trans (α := List α) h1.2 h2.2⟩
+  rfl {a} := by
+    change (a.front == a.front && a.back == a.back) = true
+    simp
+
+instance [BEq α] [LawfulBEq α] : LawfulBEq (fQueue α) where
+  eq_of_beq {q1 q2} h := by
+    rcases q1 with ⟨f1, b1, s1, hs1⟩
+    rcases q2 with ⟨f2, b2, s2, hs2⟩
+    change (f1 == f2 && b1 == b2) = true at h
+    rw [Bool.and_eq_true] at h
+    have hf := eq_of_beq h.1; have hb := eq_of_beq h.2
+    subst hf; subst hb
+    have : s1 = s2 := by omega
+    subst this; rfl
+
+instance [Hashable α] : Hashable (fQueue α) where
+  hash q :=
+    -- Step 1: hash front left-to-right
+    let h1 := q.front.foldl (init := 0) fun acc x => mixHash acc (hash x)
+    -- Step 2: continue hashing rear right-to-left (= rear.reverse order)
+    q.back.foldr (init := h1) fun x acc => mixHash acc (hash x)
+
+instance [BEq α] [Hashable α] [LawfulBEq α] [LawfulHashable α] : LawfulHashable (fQueue α) where
+  hash_eq {q1 q2} h := by
+    rcases q1 with ⟨f1, b1, s1, hs1⟩
+    rcases q2 with ⟨f2, b2, s2, hs2⟩
+    change (f1 == f2 && b1 == b2) = true at h
+    rw [Bool.and_eq_true] at h
+    have hf := eq_of_beq h.1; have hb := eq_of_beq h.2
+    subst hf; subst hb; rfl
+
 @[grind]
 def norm {α} (q : fQueue α) : fQueue α :=
   match hf : q.front with
@@ -38,6 +124,16 @@ def dequeue? {α} (q : fQueue α) : Option (α × fQueue α) :=
   match hf : nq.front with
   | []        => none
   | x :: xs   => some (x, ⟨xs, nq.back, q.sz - 1, by
+      have h1 := nq.h_sz
+      have h2 : nq.sz = q.sz := norm_sz q
+      simp only [hf, List.length_cons] at h1
+      omega⟩)
+
+def dequeueD {α} [Inhabited α] (q : fQueue α) : α × fQueue α :=
+  let nq := norm q
+  match hf : nq.front with
+  | []        => (default, nq)
+  | x :: xs   => (x, ⟨xs, nq.back, q.sz - 1, by
       have h1 := nq.h_sz
       have h2 : nq.sz = q.sz := norm_sz q
       simp only [hf, List.length_cons] at h1
