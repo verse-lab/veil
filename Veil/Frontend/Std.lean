@@ -579,6 +579,8 @@ class TSet (α : outParam (Type u)) (κ : Type v) where
     contains elem (diff s1 s2) = (contains elem s1 && not (contains elem s2))
   toList_contains_iff (elem : α) (s : κ) :
     contains elem s = true ↔ elem ∈ toList s
+  subsets_iff (s1 s2 : κ) :
+    s1 ∈ subsets s2 ↔ (∀ elem, contains elem s1 = true → contains elem s2 = true)
 
 @[inline]
 instance [TSet α κ] : Membership α κ where
@@ -591,24 +593,18 @@ instance instEnumerationTSetContains [TSet α κ] (k : κ) : Veil.Enumeration ({
   allValues := TSet.toList k |>.attachWith _ (fun x => TSet.toList_contains_iff _ _ |>.mpr)
   complete := by simp [TSet.toList_contains_iff]
 
-instance instEnumerationTSetSubset [TSet α κ] [Veil.Enumeration κ] (superSet : κ) : Veil.Enumeration ({ s : κ // ∀e, TSet.contains e s → TSet.contains e superSet }) where
-  allValues :=
-    Veil.Enumeration.allValues (α := κ) |>.filter (fun s =>
-      TSet.toList s |>.all (fun e => TSet.contains e superSet)) |>.attachWith _ (by
-        intro s hmem
-        simp only [List.mem_filter] at hmem
-        intro e he
-        have := hmem.2
-        rw [List.all_eq_true] at this
-        exact this e ((TSet.toList_contains_iff e s).mp he))
-  complete := by
-    intro ⟨s, hs⟩
-    simp only [List.mem_attachWith, List.mem_filter]
-    constructor
-    · exact Veil.Enumeration.complete s
-    · rw [List.all_eq_true]
-      intro e he
-      exact hs e ((TSet.toList_contains_iff e s).mpr he)
+def TSet.isSubset [TSet α κ] (s1 s2 : κ) : Prop :=
+  ∀ elem, TSet.contains elem s1 = true → TSet.contains elem s2 = true
+
+instance [TSet α κ] (s1 s2 : κ) : Decidable (TSet.isSubset s1 s2) :=
+  if h : (TSet.toList s1).all (fun elem => TSet.contains elem s2 = true) then
+    isTrue (fun elem hmem => by simp [← TSet.toList_contains_iff] at h ; exact h _ hmem)
+  else
+    isFalse (by simp [← TSet.toList_contains_iff] at h ; simp [TSet.isSubset] ; exact h)
+
+instance (priority := high) instEnumerationTSetSubset [TSet α κ] (superSet : κ) : Veil.Enumeration ({ s : κ // TSet.isSubset s superSet }) where
+  allValues := TSet.subsets superSet |>.attachWith _ (fun x => TSet.subsets_iff x superSet |>.mp)
+  complete := by simp [TSet.isSubset, TSet.subsets_iff]
 
 instance [TSet α κ] (k : κ) : Veil.Enumeration ({ a : α // a ∈ k }) := instEnumerationTSetContains k
 
@@ -696,6 +692,13 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   toList_contains_iff := by
     intros elem s
     simp [Std.ExtTreeSet.contains_iff_mem]
+  subsets_iff := by
+    intros s1 s2
+    simp [Std.ExtTreeSet.contains_iff_mem, Std.ExtTreeSet.ext_mem_iff]
+    simp only [← Std.ExtTreeSet.mem_toList (t := s2)]
+    constructor
+    · grind
+    · intro h ; exists s2.toList.filter (fun a => s1.contains a) ; simp at h ⊢ ; grind
 
 open OrdList in
 instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
@@ -745,6 +748,23 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   contains_diff := fun a s1 s2 =>
     sortedDiffNoDup_contains a s1.val s2.val s1.property s2.property
   toList_contains_iff := fun a s => sortedContains_iff a s.val s.property
+  subsets_iff := by
+    simp ; intro l1 hl1 l2 hl2 ; simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2]
+    constructor
+    · grind
+    · intro h ; induction l1 generalizing l2 with
+      | nil => simp
+      | cons x l1 ih =>
+        simp at hl1 h ⊢ ; rcases hl1 with ⟨hx, hl1⟩ ; rcases h with ⟨hxin, h⟩
+        specialize ih hl1
+        rw [List.mem_iff_append] at hxin ; rcases hxin with ⟨pf, sf, heq⟩ ; subst l2
+        simp [List.pairwise_append] at hl2 ; rcases hl2 with ⟨hpf, ⟨hxsf, hsf⟩, hxpf⟩
+        apply List.sublist_append_of_sublist_right
+        apply List.Sublist.cons₂ ; apply ih
+        · grind
+        · intro e hin ; specialize h _ hin ; specialize hx _ hin ; whnf at hx
+          simp at h ; rcases h with h | h | h <;> try grind
+          specialize hxpf _ h ; simp [cmpLt] at hxpf ; have := OrientedCmp.gt_of_lt hx ; grind
 
 class TMultiset (α : outParam (Type u)) (κ : Type v) where
   empty : κ
