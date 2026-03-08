@@ -23,9 +23,9 @@ open Std
 section Defs
 variable {α : Type u} [Ord α]
 
+@[inline]
 def empty : OrdList α := ⟨[], List.Pairwise.nil⟩
 
-@[inline]
 def ofList.inner [TransOrd α] (l : List α) : List α :=
   (l.mergeSort (fun a b => compare a b != .gt)).destutter cmpLt
 
@@ -110,6 +110,7 @@ theorem ofList.inner_spec [TransOrd α] [LawfulEqOrd α] (l : List α) :
         exact mem_destutter'_of_weakly_sorted a t hsorted x hmem_sorted
 
 /-- Build an `OrdList` from an arbitrary list by sorting and removing duplicates. -/
+@[inline]
 def ofList [TransOrd α] [LawfulEqOrd α] (l : List α) : OrdList α :=
   ⟨ofList.inner l, (ofList.inner_spec l).left⟩
 
@@ -873,6 +874,35 @@ theorem filter_sortedContains_inter [TransOrd α] [LawfulEqOrd α] (a : α) (l�
   · rw [sortedContains_iff _ _ hsf, List.mem_filter]
     exact ⟨(sortedContains_iff _ _ hs₁).mp h1, h2⟩
 
+/-! ### Sublists lemmas -/
+
+private theorem sublists_all_sorted [TransOrd α] [LawfulEqOrd α] (l : List α) (hs : l.Pairwise (cmpLt (α := α))) :
+  ∀ sl ∈ l.sublists, sl.Pairwise (cmpLt (α := α)) := by intro sl hin ; simp at hin ; apply hs.sublist hin
+
+@[inline]
+def sublists [TransOrd α] [LawfulEqOrd α] (l : OrdList α) : List (OrdList α) :=
+  l.val.sublists.attachWith _ (sublists_all_sorted l.val l.property)
+
+-- TODO check these instances later?
+
+scoped instance cmpLt_irrefl [TransOrd α] [OrientedOrd α] :
+    Std.Irrefl (cmpLt (α := α)) where
+  irrefl a h := by simp [cmpLt, ReflOrd.compare_self] at h
+
+scoped instance cmpLt_antisymm [TransOrd α] [OrientedOrd α] :
+    Std.Antisymm (cmpLt (α := α)) where
+  antisymm {a} {b} hab hba := by
+    exact absurd (TransCmp.lt_trans hab hba) (by simp [ReflOrd.compare_self])
+
+theorem mem_contains_then_is_sublist [TransOrd α] [LawfulEqOrd α] (l1 l2 : List α)
+  (hs1 : l1.Pairwise (cmpLt (α := α))) (hs2 : l2.Pairwise (cmpLt (α := α)))
+  (h : ∀ x, x ∈ l1 → x ∈ l2) : l1.Sublist l2 := by
+  apply @List.sublist_of_subperm_of_pairwise _ _ (cmpLt_antisymm (α := α))
+  · apply List.subperm_of_subset (sorted_nodup hs1)
+    grind
+  · grind
+  · grind
+
 /-
 /-! ### Foldl insert lemmas -/
 
@@ -931,36 +961,16 @@ instance [Std.TransOrd α] : Std.TransOrd (OrdList α) where
 
 /-! ### Enumeration -/
 
--- TODO check these instances later?
-
-private instance cmpLt_irrefl [TransOrd α] [OrientedOrd α] :
-    Std.Irrefl (cmpLt (α := α)) where
-  irrefl a h := by simp [cmpLt, ReflOrd.compare_self] at h
-
-private instance cmpLt_antisymm [TransOrd α] [OrientedOrd α] :
-    Std.Antisymm (cmpLt (α := α)) where
-  antisymm {a} {b} hab hba := by
-    exact absurd (TransCmp.lt_trans hab hba) (by simp [ReflOrd.compare_self])
-
 instance instEnumerationOrdList [TransOrd α] [LawfulEqOrd α] [DecidableEq α] [Veil.Enumeration α]
     : Veil.Enumeration (OrdList α) where
   allValues :=
-    let univ := ofList.inner <| Veil.Enumeration.allValues (α := α)
-    have h_sorted : univ.Pairwise (cmpLt (α := α)) := (ofList.inner_spec _).left
-    (univ.sublists.attachWith (· ∈ univ.sublists) (fun _ h => h)).map
-      (fun ⟨sl, h⟩ => ⟨sl, h_sorted.sublist (List.mem_sublists.mp h)⟩)
+    OrdList.ofList (Veil.Enumeration.allValues (α := α)) |>.sublists
   complete := by
     intro ⟨l, hl⟩
-    simp only [List.mem_map, List.mem_attachWith]
+    simp [OrdList.ofList, OrdList.sublists, List.mem_attachWith]
     have h_sorted : (ofList.inner (Veil.Enumeration.allValues (α := α))).Pairwise (cmpLt (α := α)) :=
       (ofList.inner_spec _).left
-    have hmem : l ∈ (ofList.inner (Veil.Enumeration.allValues (α := α))).sublists := by
-      rw [List.mem_sublists]
-      apply @List.sublist_of_subperm_of_pairwise _ _ (cmpLt_antisymm (α := α))
-      · exact List.subperm_of_subset (sorted_nodup hl) (fun x hx =>
-          (ofList.inner_spec _).right x |>.mpr (Veil.Enumeration.complete x))
-      · exact hl
-      · exact h_sorted
-    exact ⟨⟨l, hmem⟩, hmem, rfl⟩
+    apply mem_contains_then_is_sublist <;> try assumption
+    intros ; simp [ofList.inner_spec, Veil.Enumeration.complete]
 
 end Instances

@@ -7,6 +7,7 @@ import Veil.Frontend.DSL.State.Types
 import Veil.Frontend.DSL.State.Instances
 import Std.Data.ExtTreeSet.Lemmas
 import Veil.Util.SortedList
+import Veil.Util.SortedArray
 
 open Std
 
@@ -718,9 +719,7 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
     sortedDiffNoDup_sorted s1.val s2.val s1.property s2.property⟩
   intersection := fun s1 s2 => ⟨sortedIntersectNoDup s1.val s2.val,
     sortedIntersectNoDup_sorted s1.val s2.val s1.property s2.property⟩
-  subsets := fun s =>
-    (s.val.sublists.attachWith (· ∈ s.val.sublists) (fun _ h => h)).map
-      (fun ⟨sl, h⟩ => ⟨sl, s.property.sublist (List.mem_sublists.mp h)⟩)
+  subsets := OrdList.sublists
   empty_count := by simp [OrdList.empty]
   empty_contains := by intro ; rfl
   isEmpty_iff_count_zero := by simp
@@ -749,22 +748,86 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
     sortedDiffNoDup_contains a s1.val s2.val s1.property s2.property
   toList_contains_iff := fun a s => sortedContains_iff a s.val s.property
   subsets_iff := by
-    simp ; intro l1 hl1 l2 hl2 ; simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2]
+    simp ; intro l1 hl1 l2 hl2 ; simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, sublists]
     constructor
     · grind
-    · intro h ; induction l1 generalizing l2 with
-      | nil => simp
-      | cons x l1 ih =>
-        simp at hl1 h ⊢ ; rcases hl1 with ⟨hx, hl1⟩ ; rcases h with ⟨hxin, h⟩
-        specialize ih hl1
-        rw [List.mem_iff_append] at hxin ; rcases hxin with ⟨pf, sf, heq⟩ ; subst l2
-        simp [List.pairwise_append] at hl2 ; rcases hl2 with ⟨hpf, ⟨hxsf, hsf⟩, hxpf⟩
-        apply List.sublist_append_of_sublist_right
-        apply List.Sublist.cons₂ ; apply ih
-        · grind
-        · intro e hin ; specialize h _ hin ; specialize hx _ hin ; whnf at hx
-          simp at h ; rcases h with h | h | h <;> try grind
-          specialize hxpf _ h ; simp [cmpLt] at hxpf ; have := OrientedCmp.gt_of_lt hx ; grind
+    · apply OrdList.mem_contains_then_is_sublist <;> assumption
+
+open OrdList OrdArray in
+instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+  : TSet α (OrdArray α) where
+  count := fun s => s.val.size
+  contains := fun a s => sortedContains a s.val.toList
+  empty := OrdArray.empty
+  isEmpty := fun s => s.val.isEmpty
+  insert := fun a s => ⟨ordArrayInsert a s.val,
+    ordArrayInsert_sorted a s.val s.property⟩
+  remove := fun a s => ⟨ordArrayRemove a s.val,
+    ordArrayRemove_sorted a s.val s.property⟩
+  ofList := OrdArray.ofList
+  toList := fun s => s.val.toList
+  filter := fun s p => ⟨s.val.filter p, array_filter_sorted s.val p s.property⟩
+  union := fun s1 s2 => ⟨Array.mergeDedup s1.val s2.val,
+    mergeDedup_sorted s1.val s2.val s1.property s2.property⟩
+  diff := fun s1 s2 => ⟨ordArrayDiff s1.val s2.val,
+    ordArrayDiff_sorted s1.val s2.val s1.property s2.property⟩
+  intersection := fun s1 s2 => ⟨ordArrayIntersect s1.val s2.val,
+    ordArrayIntersect_sorted s1.val s2.val s1.property s2.property⟩
+  subsets := OrdArray.subarrays
+  -- Proofs: reduce to sorted list lemmas via bridge lemmas
+  empty_count := by simp [OrdArray.empty]
+  empty_contains := by intro ; rfl
+  isEmpty_iff_count_zero := by simp [Array.isEmpty]
+  contains_insert_self := fun a s => by
+    show sortedContains a (ordArrayInsert a s.val).toList = true
+    rw [ordArrayInsert_toList a s.val s.property]
+    exact sortedInsertNoDup_contains_self a s.val.toList s.property
+  contains_insert_other := fun a₁ a₂ s h => by
+    show sortedContains a₁ (ordArrayInsert a₂ s.val).toList = sortedContains a₁ s.val.toList
+    rw [ordArrayInsert_toList a₂ s.val s.property]
+    exact sortedInsertNoDup_contains_other a₁ a₂ s.val.toList h s.property
+  insert_idempotent := fun a s => by
+    show (ordArrayInsert a (ordArrayInsert a s.val)).toList =
+         (ordArrayInsert a s.val).toList
+    rw [ordArrayInsert_toList a (ordArrayInsert a s.val)
+          (ordArrayInsert_sorted a s.val s.property),
+        ordArrayInsert_toList a s.val s.property]
+    exact sortedInsertNoDup_idempotent a s.val.toList s.property
+  count_insert := fun a s => by
+    show (ordArrayInsert a s.val).size =
+      if sortedContains a s.val.toList then s.val.size else s.val.size + 1
+    rw [Array.size_eq_length_toList, ordArrayInsert_toList a s.val s.property]
+    simp [sortedInsertNoDup_length a s.val.toList s.property]
+  contains_remove_self := fun a s => by
+    show sortedContains a (ordArrayRemove a s.val).toList = false
+    rw [ordArrayRemove_toList a s.val s.property]
+    exact sortedRemove_contains_self a s.val.toList s.property
+  contains_remove_other := fun a₁ a₂ s h => by
+    show sortedContains a₁ (ordArrayRemove a₂ s.val).toList = sortedContains a₁ s.val.toList
+    rw [ordArrayRemove_toList a₂ s.val s.property]
+    exact sortedRemove_contains_other a₁ a₂ s.val.toList h s.property
+  count_remove := fun a s => by
+    show (ordArrayRemove a s.val).size =
+      if sortedContains a s.val.toList then s.val.size - 1 else s.val.size
+    rw [Array.size_eq_length_toList, ordArrayRemove_toList a s.val s.property]
+    simp [sortedRemove_length a s.val.toList s.property]
+  contains_union := fun a s1 s2 => by
+    show sortedContains a (Array.mergeDedup s1.val s2.val).toList =
+      (sortedContains a s1.val.toList || sortedContains a s2.val.toList)
+    rw [mergeDedup_toList s1.val s2.val s1.property s2.property]
+    exact sortedMergeNoDup_contains a s1.val.toList s2.val.toList s1.property s2.property
+  contains_diff := fun a s1 s2 => by
+    show sortedContains a (ordArrayDiff s1.val s2.val).toList =
+      (sortedContains a s1.val.toList && !sortedContains a s2.val.toList)
+    rw [ordArrayDiff_toList s1.val s2.val]
+    exact sortedDiffNoDup_contains a s1.val.toList s2.val.toList s1.property s2.property
+  toList_contains_iff := fun a s => sortedContains_iff a s.val.toList s.property
+  subsets_iff := by
+    simp ; intro l1 hl1 l2 hl2 ; simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, subarrays, sublists, toOrdList, ofOrdList]
+    constructor
+    · grind
+    · intro h ; exists l1.toList ; simp ; apply OrdList.mem_contains_then_is_sublist <;> try assumption
+      simp ; assumption
 
 class TMultiset (α : outParam (Type u)) (κ : Type v) where
   empty : κ
