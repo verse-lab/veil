@@ -762,11 +762,12 @@ def elabGhostRelationSSA (hyp : Option Ident) : DesugarTacticM Unit := veilWithM
 def elabVeilSmt (stx : Syntax) (trace : Bool := false) : DesugarTacticM Unit := veilWithMainContext do
   let idents ← getPropsInContext
   let fmfEnabled := veil.smt.finiteModelFind.get (← getOptions)
+  let timeout := veil.smt.timeout.get (← getOptions)
   let fmfValue := if fmfEnabled then "true" else "false"
   let solverOptions ← `(term| [("finite-model-find", $(Syntax.mkStrLit fmfValue)), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
   -- It's necessary to `open Classical` to make proof reconstruction work.
   -- Otherwise, sometimes it fails due to failing to infer `Decidable` instances.
-  let auto_tac ← `(tactic| open $(mkIdent `Classical):ident in smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
+  let auto_tac ← `(tactic| open $(mkIdent `Classical):ident in smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := .some $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
   if trace then
     addSuggestion stx auto_tac
   else

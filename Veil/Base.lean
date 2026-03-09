@@ -92,4 +92,9 @@ register_option veil.smt.finiteModelFind : Bool := {
   If you work in a decidable fragment, this will tend to speed things up."
 }
 
+register_option veil.smt.timeout : Nat := {
+  defValue := 60
+  descr := "Timeout for the SMT solver in seconds. Default is 60 seconds."
+}
+
 end Veil
