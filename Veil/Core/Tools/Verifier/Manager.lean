@@ -219,6 +219,8 @@ inductive VCStatus where
   | unknown
   /-- All dischargers returned an error/threw an exception. -/
   | error
+  /-- All dischargers timed out. -/
+  | timeout
 deriving Inhabited, BEq, Hashable
 
 instance : ToString VCStatus where
@@ -228,6 +230,7 @@ instance : ToString VCStatus where
     | .disproven => "❌"
     | .unknown => "❓"
     | .error => "💥"
+    | .timeout => "⏱️"
 
 def VCStatus.emoji (status : VCStatus) : String := toString status
 
@@ -237,6 +240,7 @@ def VCStatus.kindString (status : VCStatus) : String :=
   | .disproven => "disproven"
   | .unknown => "unknown"
   | .error => "error"
+  | .timeout => "timeout"
 
 -- Based on [RustDagcuter](https://github.com/busyster996/RustDagcuter)
 structure VCManager (VCMetaT ResultT: Type) where
@@ -469,7 +473,12 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
       mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
   | .disproven _ _ => vcStatus := .disproven
   | .unknown _ _ => vcStatus := .unknown
-  | .error _ _ => vcStatus := .error
+  | .error exs _ =>
+    if exs.any (fun (_, json) => match json with
+      | .str s => (s.splitOn "TIMEOUT").length > 1
+      | _ => false)
+    then vcStatus := .timeout
+    else vcStatus := .error
   -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
   if (← vc.nextDischarger?).isNone then
     mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }

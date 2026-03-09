@@ -93,7 +93,7 @@ interface VCTiming {
 interface VerificationCondition {
   id: number;
   name: string;
-  status: 'proven' | 'disproven' | 'unknown' | 'error' | null;
+  status: 'proven' | 'disproven' | 'unknown' | 'error' | 'timeout' | null;
   metadata: VCMetadata;
   timing: VCTiming;
   alternativeFor?: number | null;
@@ -123,7 +123,7 @@ interface VerificationResultsProps {
   documentUri: string;
 }
 
-type StatusFilter = 'all' | 'proven' | 'disproven' | 'unknown' | 'error' | 'pending';
+type StatusFilter = 'all' | 'proven' | 'disproven' | 'unknown' | 'error' | 'timeout' | 'pending';
 
 // ========== Helpers ==========
 
@@ -487,10 +487,10 @@ const ManualProofBanner: React.FC<{
   const [inserting, setInserting] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(false);
 
-  // Get VCs that need manual proof (unknown/error, not disproven - those have counterexamples)
+  // Get VCs that need manual proof (unknown/error/timeout, not disproven - those have counterexamples)
   const needsManualProofVCs = vcs.filter(vc =>
     vc.theoremText &&
-    (vc.status === 'unknown' || vc.status === 'error')
+    (vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout')
   );
 
   const count = needsManualProofVCs.length;
@@ -536,6 +536,7 @@ function getStatusIcon(status: VerificationCondition['status']): React.ReactNode
     case 'disproven': return '❌';
     case 'unknown': return '❓';
     case 'error': return '💥';
+    case 'timeout': return '⏱️';
     case null: return <span className="spinner">⏳</span>;
     default: return '⭕';
   }
@@ -630,6 +631,8 @@ function getFilterButtonContent(filter: StatusFilter): React.ReactNode {
       return <>❓ {label}</>;
     case 'error':
       return <>💥 {label}</>;
+    case 'timeout':
+      return <>⏱️ {label}</>;
     default:
       return label;
   }
@@ -654,7 +657,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   // Theorem insertion
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   // Only highlight unknown/error as "needs manual proof" - disproven VCs have counterexamples and aren't provable
-  const needsManualProof = vc.status === 'unknown' || vc.status === 'error';
+  const needsManualProof = vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout';
   const hasTheoremText = !!vc.theoremText;
   const hasTRTheoremText = !!alternativeVC?.theoremText;
 
@@ -981,10 +984,10 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   const [inserting, setInserting] = React.useState(false);
 
-  // Get VCs that need manual proof (unknown/error, not disproven - those have counterexamples)
+  // Get VCs that need manual proof (unknown/error/timeout, not disproven - those have counterexamples)
   const needsManualProofVCs = vcs.filter(vc =>
     vc.theoremText &&
-    (vc.status === 'unknown' || vc.status === 'error')
+    (vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout')
   );
   const needsManualProofCount = needsManualProofVCs.length;
 
@@ -1069,6 +1072,10 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
         border: '#1890ff',  // blue
         bg: withOpacity('#1890ff', 0.1),
       },
+      timeout: {
+        border: '#faad14',  // amber
+        bg: withOpacity('#faad14', 0.1),
+      },
       pending: {
         border: '#d9d9d9',  // gray
         bg: withOpacity('#d9d9d9', 0.05),
@@ -1097,6 +1104,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
       disproven: 0,
       unknown: 0,
       error: 0,
+      timeout: 0,
     };
 
     visibleVCs.forEach((vc) => {
@@ -1110,6 +1118,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
         counts.unknown++;
       } else if (vc.status === 'error') {
         counts.error++;
+      } else if (vc.status === 'timeout') {
+        counts.timeout++;
       }
     });
 
@@ -1396,6 +1406,11 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
     .property-row.status-unknown {
       background: ${statusColors.unknown.bg};
       border-left: 3px solid ${statusColors.unknown.border};
+    }
+
+    .property-row.status-timeout {
+      background: ${statusColors.timeout.bg};
+      border-left: 3px solid ${statusColors.timeout.border};
     }
 
     .property-row.status-pending {
@@ -1892,7 +1907,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
             {/* Filters */}
             <div className="vr-filters">
               <span className="vr-filter-label">Filter by status ({visibleVCs.length} VCs):</span>
-              {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => {
+              {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error', 'timeout'] as StatusFilter[]).map((filter) => {
                 // Only show filter buttons for groups with elements
                 if (statusCounts[filter] === 0) return null;
                 return (

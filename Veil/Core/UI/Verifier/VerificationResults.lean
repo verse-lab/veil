@@ -87,6 +87,7 @@ def statusEmoji (status : Option VCStatus) : String :=
   | some .disproven => "❌"
   | some .unknown => "❓"
   | some .error => "💥"
+  | some .timeout => "⏱️"
   | none => "⏳"
 
 /-- Format a JSON value as a string, with support for nested structures. -/

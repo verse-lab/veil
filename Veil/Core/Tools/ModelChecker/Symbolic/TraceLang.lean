@@ -289,6 +289,7 @@ private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) 
   | some .disproven => if isExpectedSat then "No satisfying trace exists" else "Counterexample found"
   | some .unknown => "Solver returned unknown"
   | some .error => "Verification error"
+  | some .timeout => "Solver timed out"
   | none => "Verification did not complete"
 
 private def traceLoadingMessage : String := "⏳ Verifying trace query..."
@@ -344,6 +345,7 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
     else logViolation "Counterexample found"
   | some .unknown => logViolation "Solver returned unknown"
   | some .error => logViolation "Verification error"; logDischargerErrors vcResult.timing.dischargers
+  | some .timeout => logViolation "Solver timed out"; logDischargerErrors vcResult.timing.dischargers
   | none => logViolation "Verification did not complete"
 
   if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
