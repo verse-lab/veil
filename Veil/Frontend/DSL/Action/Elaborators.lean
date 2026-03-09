@@ -306,20 +306,20 @@ def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
     withVeilModeVar BinderInfo.default fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
-    let (mvars, e) ← elabTermDecidable stx (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+    let (decInstsMvars, e) ← elabTermDecidable stx (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+    let (decInsts, mvars) := decInstsMvars.unzip
     let e ← Meta.mkLambdaFVarsImplicit ((if addModeArg then #[mode] else #[]) ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
     -- `e` should not contain any metavariable; capture the error here
     if e.hasMVar then
       throwError "mvar(s) exist in the elaborated expression. Consider adding more type annotations."
     -- NOTE: Doing `dsimp` on `act.do`, `act` or `act.ext` will inline
     -- `let` bindings, which _might_ lead to performance issues
-    return (← mvars.mapIdxM (fun i mvar => mvarToParam pi.name mvar i), e)
+    return (← decInsts.mapIdxM (fun i p => mvarToParam pi.name i p), e)
   catch ex =>
     throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
 where
-  mvarToParam (inAction : Name) (mvar : Expr) (i : Nat) : TermElabM Parameter := do
-    let mvarTypeStx ← delabVeilExpr (← Meta.inferType mvar) true
-    return { kind := .definitionParameter inAction .typeclass, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := mvarTypeStx, userSyntax := .missing }
+  mvarToParam (inAction : Name) (i : Nat) (typeSyntax : Term) : TermElabM Parameter := do
+    return { kind := .definitionParameter inAction .typeclass, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := typeSyntax, userSyntax := .missing }
 
 def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Array Parameter × Expr) := do
   let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)

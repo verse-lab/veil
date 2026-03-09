@@ -1,4 +1,5 @@
 import Lean
+import Mathlib.Util.TermReduce
 open Lean Elab Command
 
 /-! # Meta-programming utility functions
@@ -127,6 +128,7 @@ def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
   (attr : Array Attribute := #[])
   (type : Option Expr := none)
   (addNamespace : Bool := true)
+  (levels : List Name := [])
   : TermElabM Name := do
   let type ← match type with
   | .some t => pure t
@@ -135,7 +137,7 @@ def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
   let addFn := if compile then addAndCompile else addDecl
   addFn <|
     Declaration.defnDecl <|
-      mkDefinitionValEx fullName [] type e red
+      mkDefinitionValEx fullName levels type e red
       (DefinitionSafety.safe) []
   trace[veil.desugar] "{← stxForVeilDefinition red attr n type e}"
   return fullName
@@ -145,10 +147,11 @@ def addVeilDefinition (n : Name) (e : Expr) (compile := true)
   (attr : Array Attribute := #[])
   (type : Option Expr := none)
   (addNamespace : Bool := true)
+  (levels : List Name := [])
   : TermElabM Name := do
   -- Use dynamic trace class name so each definition appears separately in the profiler
   withTraceNode (`veil.perf.definition ++ n) (fun _ => return s!"def {n}") do
-    let n ← addVeilDefinitionAsync n e compile red attr type addNamespace
+    let n ← addVeilDefinitionAsync n e compile red attr type addNamespace levels
     enableRealizationsForConst n
     Term.applyAttributes n attr
     return n
@@ -261,7 +264,27 @@ where
       let tyMVars ← Meta.getMVars simplified_type
       if !tyMVars.isEmpty then
         throwError "(type still has mvars after simplification):\n{simplified_type}"
-      let tyStx ← delabVeilExpr simplified_type
+      -- Create an `abbrev` definition for the type to avoid
+      -- delaboration round-trips that can fail or be slow.
+      let usedFvars := collectFVars {} simplified_type |>.fvarIds |>.map Expr.fvar
+      let closedType ← Meta.mkLambdaFVars usedFvars simplified_type
+      -- FIXME: Without using this global name counter?
+      let ngen ← getNGen
+      let idx := ngen.idx
+      setNGen { ngen with idx := idx + 1 }
+      let defName := Name.mkSimple s!"_veil_dec_type_{idx}"
+      let fullName ← do
+        -- NOTE: Sometimes, things will go wrong without doing `levelMVarToParam`; not clear why
+        let closedType ← Term.levelMVarToParam closedType
+        let params := collectLevelParams {} closedType |>.params.toList
+        addVeilDefinition defName closedType (red := .abbrev) (compile := false) (attr := #[]) (levels := params)
+      -- Delaborate the applied definition
+      let tyStx ← do
+        let fn ← `(@$(mkIdent fullName))
+        let appStx := Syntax.mkApp fn <| ← usedFvars.mapM fun v => Lean.mkIdent <$> v.fvarId!.getUserName
+        -- NOTE: Lean can still recognize this application as a typeclass, but
+        -- it can cause problems in verification if we do not unfold it like this
+        `(delta% $appStx)
       -- trace[veil.debug] "simplifyMVarType {mv}:\n{ty}\n~~> {simplified_type}"
       return (tyStx, mv')
 
@@ -275,11 +298,10 @@ where
   that need to be `Decidable` for this action to be executable, and the
   elaborated term itself.
 -/
-def elabTermDecidable (stx : Term) (folding : Expr → TermElabM Expr) : TermElabM (Array Expr × Expr) := do
+def elabTermDecidable (stx : Term) (folding : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
   let (decInsts, e) ← getRequiredDecidableInstances stx folding
-  let mvars := decInsts.map (fun (_tyStx, mv) => mv)
   let e ← instantiateMVars e
-  return (mvars, e)
+  return (decInsts, e)
 
 /-- Given `nm : type`, return `type` -/
 def getSimpleBinderType [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Command.structSimpleBinder) : m (TSyntax `term) := do
