@@ -299,6 +299,40 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
     unless ← isModelCheckCompileMode do
       logInfoAt stx msg
 
+private def runFilteredInvariantCheck
+    (stx : Syntax)
+    (filter : VCMetadata → Bool)
+    : CommandElabM Unit := do
+  Verifier.runFilteredAsync filter (logVerificationResults stx)
+  Verifier.displayStreamingResults stx <|
+    Verifier.vcManager.atomically fun ref => do
+      let mgr ← ref.get
+      let results ← mgr.toResults filter
+      pure (results, if mgr.isDoneFiltered filter then .done else .running)
+
+private def isInductionForAction (actionName : Name) : VCMetadata → Bool
+  | .induction m => m.action == actionName
+  | .trace _ => false
+
+private def getCheckableAction? (mod : Module) (actionName : Name) : Option ProcedureSpecification :=
+  mod.procedures.find? fun proc =>
+    proc.name == actionName &&
+    match proc.info with
+    | .action _ _ => true
+    | .initializer | .procedure _ => false
+
+private def throwUnknownCheckAction (mod : Module) (actionName : Name) : CommandElabM α := do
+  let availableActions := mod.procedures.filterMap fun proc =>
+    match proc.info with
+    | .action _ _ => some proc.name.toString
+    | .initializer | .procedure _ => none
+  let suggestion :=
+    if availableActions.isEmpty then
+      "This module does not define any actions."
+    else
+      s!"Available actions: {", ".intercalate availableActions.toList}"
+  throwError s!"Unknown action {actionName} for #check_action. {suggestion}"
+
 @[command_elab Veil.checkInvariants]
 def elabCheckInvariants : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
@@ -307,16 +341,20 @@ def elabCheckInvariants : CommandElab := fun stx => do
     if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
     mod.throwIfSpecNotFinalized
-    Verifier.runFilteredAsync VCMetadata.isInduction (logVerificationResults stx)
-    Verifier.displayStreamingResults stx getResults
-  where
-  getResults : CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus) := do
-    Verifier.vcManager.atomically
-      (fun ref => do
-        let mgr ← ref.get
-        let results ← mgr.toVerificationResults
-        let isDone := mgr.isDone
-        return (results, if isDone then .done else .running))
+    runFilteredInvariantCheck stx VCMetadata.isInduction
+
+@[command_elab Veil.checkAction]
+def elabCheckAction : CommandElab := fun stx => do
+  withTraceNode `veil.perf.elaborator.checkAction (fun _ => return "#check_action") do
+    if ← isModelCheckCompileMode then return
+    let mod ← getCurrentModule (errMsg := "You cannot #check_action outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    unless stx.getKind == `Veil.checkAction do
+      throwUnsupportedSyntax
+    let actionName := stx[1].getId
+    unless (getCheckableAction? mod actionName).isSome do
+      throwUnknownCheckAction mod actionName
+    runFilteredInvariantCheck stx (isInductionForAction actionName)
 
 
 @[command_elab Veil.genState]

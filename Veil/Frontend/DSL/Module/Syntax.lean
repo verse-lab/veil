@@ -255,6 +255,8 @@ syntax (name := genSpec) kw_gen_spec : command
 
 syntax (name := checkInvariants) "#check_invariants" : command
 
+syntax (name := checkAction) "#check_action" ident : command
+
 /-- Run the explicit state model checker on the current module with the given
 type instantiation and theory. The optional `maxDepth` parameter limits how
 deep the breadth-first search will go before terminating.

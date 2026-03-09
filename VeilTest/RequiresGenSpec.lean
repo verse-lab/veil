@@ -23,6 +23,10 @@ invariant ¬ flag
 #guard_msgs in
 #check_invariants
 
+/-- error: The specification of module TestCheckInvariants has not been finalized. Please call #gen_spec first! -/
+#guard_msgs in
+#check_action set_flag
+
 end TestCheckInvariants
 
 
