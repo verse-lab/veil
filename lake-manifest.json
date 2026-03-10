@@ -5,7 +5,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "37fe56324c533a2b0ed28ce637ee7c32e728b61d",
+   "rev": "5dabf9f5593585c2a79f8a42bfe1839841f84ee6",
    "name": "Loom",
    "manifestFile": "lake-manifest.json",
    "inputRev": "temp-extract-list-v4.27.0-for-veil",
