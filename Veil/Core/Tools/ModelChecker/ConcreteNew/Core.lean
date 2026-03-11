@@ -209,4 +209,15 @@ def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ 
     statesFound := ctx1.statesFound + ctx2.statesFound,
     actionStatsMap := ctx1.actionStatsMap.combine ctx2.actionStatsMap }
 
+/-- Like `mergeWithoutDepthChange` but does NOT merge the `log` field.
+    Used in the MapReduce path to delay log merging until trace recovery is needed. -/
+def BaseSearchContext.mergeWithoutDepthChangeNoLog (ctx1 ctx2 : BaseSearchContext σ κ σₕ) : BaseSearchContext σ κ σₕ :=
+  { log := ctx1.log,
+    violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
+    finished := ctx1.finished.or ctx2.finished,
+    completedDepth := ctx1.completedDepth,
+    currentFrontierDepth := ctx1.currentFrontierDepth,
+    statesFound := ctx1.statesFound + ctx2.statesFound,
+    actionStatsMap := ctx1.actionStatsMap.combine ctx2.actionStatsMap }
+
 end Veil.ModelChecker.Concrete

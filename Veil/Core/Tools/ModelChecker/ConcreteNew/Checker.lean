@@ -93,9 +93,13 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
       | .assertionFailure _ s' => params.satisfiesConstraints th s' -- assertion failures should satisfy constraints to be considered
       | .divergence => true) -- well
   }
-  let ctx ← match parallelCfg with
-    | some cfg => do pure (← breadthFirstSearchParallel params sys cfg progressInstanceId cancelToken).1
-    | none     => do pure (← breadthFirstSearchSequential params sys 60000 progressInstanceId cancelToken).1
+  let (ctx, distinctCount) ← match parallelCfg with
+    | some cfg => do
+      let mctx ← breadthFirstSearchParallel params sys cfg progressInstanceId cancelToken
+      pure (mctx.base, mctx.globalSeen.size)
+    | none => do
+      let sctx ← breadthFirstSearchSequential params sys 60000 progressInstanceId cancelToken
+      pure (sctx.1, sctx.1.log.size)
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
@@ -105,7 +109,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
     return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverTrace sys ctx fingerprint (some exId)))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
-    return ModelCheckingResult.noViolationFound ctx.log.size (.earlyTermination (.reachedDepthBound ctx.completedDepth))
+    return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
   | some (.earlyTermination .cancelled) =>
     -- Search was cancelled by the user
     return ModelCheckingResult.cancelled
@@ -118,7 +122,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
         | _ => none
       return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace sys ctx fingerprint assertionExId))
     else
-      return ModelCheckingResult.noViolationFound ctx.log.size (.exploredAllReachableStates)
+      return ModelCheckingResult.noViolationFound distinctCount (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."
 
 end Veil.ModelChecker.Concrete

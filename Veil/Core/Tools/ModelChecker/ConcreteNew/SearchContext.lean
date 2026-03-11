@@ -55,6 +55,9 @@ structure MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint
   tovisitLen : Nat
   tovisit : List (MapReduceQueueItem σₕ σ)
   globalSeen : ShardedTreeSetUSize σₕ
+  /-- Collected local logs per BFS round (not yet merged into base.log). Merged at search end iff violations exist.
+      Each inner list contains per-shard logs from one BFS iteration; the outer list groups by iteration. -/
+  accumulatedLogs : List (List (Std.HashMap σₕ (Option (σₕ × κ)))) := []
 
 abbrev MapReduceSearchContextLocal (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
   BaseSearchContext σ κ σₕ × List (MapReduceQueueItem σₕ σ)

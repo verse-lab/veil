@@ -299,13 +299,13 @@ def MapReduceSearchContextTemp.mergeOne {numShards : USize}
   let ⟨mbase, mq, st⟩ := acc
   let (lbase, lq) := lctx
   let (mq', st') := lq.foldl (init := (mq, st)) mergeOne.innerMerge
-  ⟨mbase.mergeWithoutDepthChange lbase, mq', st'⟩
+  ⟨mbase.mergeWithoutDepthChangeNoLog lbase, mq', st'⟩
 
 omit [Ord σₕ] in
 theorem MapReduceSearchContextTemp.mergeOne_foldl_descriptive {numShards : USize}
   (acc : MapReduceSearchContextTemp σ κ σₕ numShards) (lctxs : List (MapReduceSearchContextLocal σ κ σₕ)) :
   let res := lctxs.foldl (init := acc) MapReduceSearchContextTemp.mergeOne
-  res.base = (lctxs.map Prod.fst).foldl (init := acc.base) BaseSearchContext.mergeWithoutDepthChange ∧
+  res.base = (lctxs.map Prod.fst).foldl (init := acc.base) BaseSearchContext.mergeWithoutDepthChangeNoLog ∧
   mergeOne.innerMergeDescription (acc.tovisit, acc.tempSeen) (res.tovisit, res.tempSeen)
     (∃ lctx ∈ lctxs, · ∈ lctx.2) := by
   dsimp only
@@ -344,6 +344,24 @@ theorem BaseSearchContext.mergeWithoutDepthChange_foldl_description
     on_goal 2=> grind
     dsimp ; rfl
 
+omit [Ord σₕ] in
+theorem BaseSearchContext.mergeWithoutDepthChangeNoLog_foldl_description
+  (acc : BaseSearchContext σ κ σₕ) (ctxs : List (BaseSearchContext σ κ σₕ)) :
+  let res := ctxs.foldl (init := acc) BaseSearchContext.mergeWithoutDepthChangeNoLog
+  res.finished = acc.finished.or ((ctxs.find? (·.hasFinished)).bind (fun x => x.finished)) := by
+  dsimp only
+  induction ctxs generalizing acc with
+  | nil => simp [List.foldl]
+  | cons ctx ctxs ih =>
+    dsimp [List.foldl, List.find?, BaseSearchContext.hasFinished]
+    rw [ih] ; clear ih
+    unfold mergeWithoutDepthChangeNoLog ; dsimp
+    rcases acc.finished with _ | _
+    on_goal 2=> rfl
+    dsimp ; rcases h : ctx.finished with _ | _
+    on_goal 2=> grind
+    dsimp ; rfl
+
 def MapReduceSearchContextMain.mergeWithLocalOnes
   {params : SearchParameters ρ σ} {th : ρ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
@@ -352,11 +370,14 @@ def MapReduceSearchContextMain.mergeWithLocalOnes
   {globalSeen : ShardedTreeSetUSize σₕ}
   (lctxs : IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen (· ∈ a))) :
   MapReduceSearchContextMain σ κ σₕ :=
-  let ⟨ctx, len, q, globalSeen⟩ := mctx
+  let ⟨ctx, len, q, globalSeen, accLogs⟩ := mctx
   let ⟨mbase, mq, st⟩ := IteratedProd.foldl (β := MapReduceSearchContextTemp σ κ σₕ globalSeen.numShards) (elements := lctxs)
     (init := ⟨ctx, q, ShardedHashSetUSize.emptyUSize globalSeen.numShards globalSeen.h_numShards_pos⟩)
       fun acc lctx => acc.mergeOne lctx.val
-  ⟨mbase, len + st.size, mq, globalSeen.insertManyFastSHS st⟩
+  -- Collect local logs from this round as one entry (O(1) cons, deferred merging)
+  let lctxsList := IteratedProd.subtypesToList lctxs
+  let newLogs := lctxsList.map (fun lctx => lctx.1.log)
+  ⟨mbase, len + st.size, mq, globalSeen.insertManyFastSHS st, newLogs :: accLogs⟩
 
 private theorem List.zip_mem {α : Type u} {β : Type v} {l1 : List α} {l2 : List β}
   (hl : l1.length ≤ l2.length) (h : i < l1.length) :
@@ -388,9 +409,9 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
     let splitLists := ListSplit.splitList numSplits chunkSize numLarge mctx.tovisit
     IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params mctx.globalSeen (· ∈ a))) :
   let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes
-    ⟨{ mctx.base with completedDepth := mctx.base.currentFrontierDepth, currentFrontierDepth := mctx.base.currentFrontierDepth + 1 }, 0, [], mctx.globalSeen⟩ lctxs
+    ⟨{ mctx.base with completedDepth := mctx.base.currentFrontierDepth, currentFrontierDepth := mctx.base.currentFrontierDepth + 1 }, 0, [], mctx.globalSeen, mctx.accumulatedLogs⟩ lctxs
   MapReduceSearchContextMainInvariants sys params mctx' := by
-  rcases mctx with ⟨ctx, mlen_orig, tovisit, gs⟩
+  rcases mctx with ⟨ctx, mlen_orig, tovisit, gs, accLogs⟩
   let ctx' := { ctx with completedDepth := ctx.currentFrontierDepth, currentFrontierDepth := ctx.currentFrontierDepth + 1 }
   dsimp ; unfold mergeWithLocalOnes
   simp only [IteratedProd.subtypesToList_foldl_eq_list_foldl]
@@ -400,7 +421,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   set merged := lctxs'.foldl _ _ with heq
   have htmp2 := ({ base := ctx', tovisit := [], tempSeen := ShardedHashSetUSize.emptyUSize gs.numShards gs.h_numShards_pos : MapReduceSearchContextTemp σ κ σₕ gs.numShards }).mergeOne_foldl_descriptive lctxs'
   dsimp at htmp2 ; rw [← heq] at htmp2 ; rcases htmp2 with ⟨h_base, h_merge_desc⟩
-  have h_base_desc := BaseSearchContext.mergeWithoutDepthChange_foldl_description ctx' (lctxs'.map Prod.fst)
+  have h_base_desc := BaseSearchContext.mergeWithoutDepthChangeNoLog_foldl_description ctx' (lctxs'.map Prod.fst)
   simp [BaseSearchContext.hasFinished] at h_not_finished
   dsimp at h_base_desc ; rw [← h_base, h_not_finished] at h_base_desc ; dsimp at h_base_desc
   clear lctxs heq h_base ; clear_value merged
@@ -540,10 +561,10 @@ def breadthFirstSearchParallel {m : Type → Type}
   let mut cancelled := false
   while h_not_finished : mctx.val.base.hasFinished = false do
     match mctx with
-    | ⟨⟨base, tovisitLen, tovisit, globalSeen⟩, h_mctx⟩ =>
+    | ⟨⟨base, tovisitLen, tovisit, globalSeen, accLogs⟩, h_mctx⟩ =>
       -- Check if the frontier is empty
       if h_empty : tovisit.isEmpty then
-        mctx := Subtype.mk ⟨{ base with finished := some (.exploredAllReachableStates) }, tovisitLen, tovisit, globalSeen⟩
+        mctx := Subtype.mk ⟨{ base with finished := some (.exploredAllReachableStates) }, tovisitLen, tovisit, globalSeen, accLogs⟩
           (h_mctx.setExploredAll_preserves_invs h_not_finished h_empty)
         break
       else
@@ -569,17 +590,17 @@ def breadthFirstSearchParallel {m : Type → Type}
         -- CHECK Ideally, `tovisit` should not be involved in any computational part from this point on
         -- Reduce step
         let mctxValForMerge : MapReduceSearchContextMain σ κ σₕ :=
-          { base := { base with completedDepth := base.currentFrontierDepth, currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen }
+          { base := { base with completedDepth := base.currentFrontierDepth, currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen, accumulatedLogs := accLogs }
         let mctxVal' := mctxValForMerge.mergeWithLocalOnes results
         have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' :=
           MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished h_mctx results
         match heq : mctxVal' with
-        | ⟨base', tovisitLen', tovisit', globalSeen'⟩ =>
+        | ⟨base', tovisitLen', tovisit', globalSeen', accLogs'⟩ =>
           trySetViolationFound progressInstanceId base'
           -- Update progress on every diameter change
-          updateProgressDuringBFS progressInstanceId base' tovisitLen'
+          updateProgressDuringBFS progressInstanceId base' tovisitLen' globalSeen'.size
           -- Prove invariants are preserved using local invariants from `lawfulResults`
-          mctx := Subtype.mk ⟨base', tovisitLen', tovisit', globalSeen'⟩ (heq.symm ▸ h_mctx')
+          mctx := Subtype.mk ⟨base', tovisitLen', tovisit', globalSeen', accLogs'⟩ (heq.symm ▸ h_mctx')
           -- Check for cancellation/handoff at most once per second
           let newtime? ← checkCancellationWithoutPeriodicUpdate progressInstanceId lastUpdateTime 1000 cancelToken
           match newtime? with
@@ -589,7 +610,18 @@ def breadthFirstSearchParallel {m : Type → Type}
   -- Final update to ensure stats reflect finished state
   let ⟨mctxVal, _⟩ := mctx
   let mctxVal := { mctxVal with base := { mctxVal.base with currentFrontierDepth := mctxVal.base.completedDepth } }
-  updateProgressDuringBFS progressInstanceId mctxVal.base mctxVal.tovisitLen
+  updateProgressDuringBFS progressInstanceId mctxVal.base mctxVal.tovisitLen mctxVal.globalSeen.size
+  -- Merge accumulated logs only if violations were found (needed for recoverTrace)
+  let needsLog := !mctxVal.base.violatingStates.isEmpty ||
+    (match mctxVal.base.finished with
+     | some (.earlyTermination (.foundViolatingState ..)) => true
+     | some (.earlyTermination (.deadlockOccurred ..)) => true
+     | some (.earlyTermination (.assertionFailed ..)) => true
+     | _ => false)
+  let mctxVal := if needsLog then
+    { mctxVal with base := { mctxVal.base with
+        log := (mctxVal.accumulatedLogs.flatten).foldl (fun acc m => acc.union m) mctxVal.base.log } }
+  else mctxVal
   if cancelled then
     return { mctxVal with base := { mctxVal.base with finished := some (.earlyTermination .cancelled) } }
   else

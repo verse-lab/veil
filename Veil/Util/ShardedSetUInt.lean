@@ -134,6 +134,10 @@ def getShard [Hashable α] (st : ShardedTreeSetUSize α cmp) (k : α) : TreeSet 
 def contains [Hashable α] (st : ShardedTreeSetUSize α cmp) (k : α) : Bool :=
   (st.getShard k).contains k
 
+/-- Total number of elements across all shards. -/
+def size (st : ShardedTreeSetUSize α cmp) : Nat :=
+  st.shards.val.foldl (init := 0) fun acc shard => acc + shard.size
+
 -- NOTE: `Membership.mem` has signature `γ → α → Prop` (container first, element second)
 @[inline]
 instance instMembership [Hashable α] : Membership α (ShardedTreeSetUSize α cmp) where

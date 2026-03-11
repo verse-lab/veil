@@ -290,9 +290,10 @@ variable {σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashabl
   (progressInstanceId : Nat)
 
 @[inline]
-def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ) (qSize : Nat) : m Unit := do
+def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ) (qSize : Nat)
+    (distinctNumState : Nat := ctx.log.size) : m Unit := do
   updateProgress progressInstanceId
-    ctx.currentFrontierDepth ctx.statesFound ctx.log.size qSize
+    ctx.currentFrontierDepth ctx.statesFound distinctNumState qSize
     (toActionStatsList ctx.actionStatsMap)
 
 -- NOTE: Any attempt to inline these functions might lead to **significant** performance
