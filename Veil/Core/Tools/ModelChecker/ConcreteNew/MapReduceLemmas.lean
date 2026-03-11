@@ -1,38 +1,18 @@
 import Veil.Core.Tools.ModelChecker.ConcreteNew.SequentialLemmas
 import Veil.Util.TreeSetMisc
-
-/-- `TreeSet.insertMany` on a `HashSet` is equal to `TreeSet.insertMany` on the `HashSet`'s `toList`.
-    This follows from the fact that `forIn` on a `HashSet` is equivalent to `forIn` on its `toList`. -/
-theorem Std.TreeSet.insertMany_hashset_eq_insertMany_toList
-  {α : Type} {cmp : α → α → Ordering}
-  [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] [Hashable α]
-  {t : Std.TreeSet α cmp} {hs : Std.HashSet α} :
-  t.insertMany hs = t.insertMany hs.toList := by
-  unfold Std.TreeSet.insertMany Std.TreeMap.insertManyIfNewUnit Std.DTreeMap.Const.insertManyIfNewUnit
-    Std.DTreeMap.Internal.Impl.Const.insertManyIfNewUnit
-  grind [Std.HashSet.forIn_eq_forIn_toList]
-
-theorem Std.TreeSet.insertManyFast_hashset_eq_insertManyFast_toList
-  {α : Type} {cmp : α → α → Ordering}
-  [TransCmp cmp] [BEq α] [LawfulBEqCmp cmp] [Hashable α]
-  {t : Std.TreeSet α cmp} {hs : Std.HashSet α} :
-  t.insertManyFast hs = t.insertManyFast hs.toList := by
-  unfold Std.TreeSet.insertManyFast Std.TreeMap.insertMany Std.DTreeMap.Const.insertMany
-    Std.DTreeMap.Internal.Impl.Const.insertMany
-  congr! 4
-  simp only [WithUnit.ForIn, Std.HashSet.forIn_eq_forIn_toList]
-
 namespace Veil.ModelChecker.Concrete
 
 variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] [Ord σₕ] {th : ρ}
 
-def MapReduceSearchContextMain.initial (initStates : List σ) : MapReduceSearchContextMain σ κ σₕ :=
+def MapReduceSearchContextMain.initial (initStates : List σ) (numShards : Nat)
+  (h_pos : 0 < USize.ofNat numShards := by native_decide)
+  (h_small : numShards < USize.size := by native_decide) : MapReduceSearchContextMain σ κ σₕ :=
   let fps := initStates.map fp.view
   let tovisit := fps.zipWith (fun fp s => ⟨fp, s⟩) initStates
   { base := BaseSearchContext.initial initStates,
     tovisitLen := tovisit.length,
     tovisit := tovisit,
-    globalSeen := Std.TreeSet.ofListFast fps }
+    globalSeen := ShardedTreeSetUSize.ofListFastByHash fps numShards h_pos h_small }
 
 /-- Create an empty local context with the given `completedDepth`. -/
 def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ :=
@@ -46,17 +26,17 @@ def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearch
 
 theorem MapReduceSearchContextMainInvariants.initial [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) :
-  MapReduceSearchContextMainInvariants sys params (MapReduceSearchContextMain.initial (fp := fp) sys.initStates) := by
+  (params : SearchParameters ρ σ) (numShards : Nat) {h_pos} {h_small} :
+  MapReduceSearchContextMainInvariants sys params (MapReduceSearchContextMain.initial (fp := fp) sys.initStates numShards h_pos h_small) := by
   simp [MapReduceSearchContextMain.initial, BaseSearchContext.initial]
   constructor ; on_goal 1=> constructor
   all_goals simp [MapReduceSearchContextMain.isStableClosed,
-    ← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip, Std.TreeSet.mem_ofListFast] ; (try solve | intros ; grind [= Std.TreeSet.insertManyFast_hashset_eq_insertManyFast_toList])
+    ← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip, ShardedTreeSetUSize.mem_ofListFastByHash] ; (try solve | intros ; grind [= Std.TreeSet.insertManyFast_hashset_eq_insertManyFast_toList])
 
 theorem MapReduceSearchContextLocalInvariants.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
-  (globalSeen : Std.TreeSet σₕ) (completedDepth : Nat) :
+  (globalSeen : ShardedTreeSetUSize σₕ) (completedDepth : Nat) :
   MapReduceSearchContextLocalInvariants sys params globalSeen (fun _ => False)
     (MapReduceSearchContextLocal.initial (fp := fp) completedDepth) := by
   simp [MapReduceSearchContextLocal.initial]
@@ -89,7 +69,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
   induction h_reachable <;> grind
 
 theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_invs
-  {globalSeen : Std.TreeSet σₕ}
+  {globalSeen : ShardedTreeSetUSize σₕ}
   {p q : MapReduceQueueItem σₕ σ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ}
   (h_finished : lctx.1.hasFinished = true)
@@ -101,7 +81,7 @@ theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_in
   all_goals dsimp only ; try solve | assumption | grind
 
 theorem MapReduceSearchContextLocalInvariants.progress_by_one_state
-  {globalSeen : Std.TreeSet σₕ}
+  {globalSeen : ShardedTreeSetUSize σₕ}
   {p q : MapReduceQueueItem σₕ σ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ}
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx)

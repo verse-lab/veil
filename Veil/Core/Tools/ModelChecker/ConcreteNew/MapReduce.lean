@@ -6,6 +6,10 @@ import Veil.Util.ListSplit
 namespace Veil.ModelChecker.Concrete
 open Veil
 
+attribute [local grind =] ShardedTreeSetUSize.contains_iff_mem ShardedHashSetUSize.contains_iff_mem
+attribute [local simp] ShardedTreeSetUSize.contains_iff_mem ShardedHashSetUSize.contains_iff_mem
+  ShardedHashSetUSize.not_mem_emptyUSize
+
 variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] [Ord σₕ]
 
 @[inline]
@@ -14,7 +18,7 @@ def MapReduceSearchContextLocal.hasFinished (lctx : MapReduceSearchContextLocal 
 
 section
 
-variable (globalSeen : Std.TreeSet σₕ)
+variable (globalSeen : ShardedTreeSetUSize σₕ)
 
 -- FIXME: The logic of `tryExploreNeighbor`, `processSuccessors`, and `processState`
 -- seems very similar to the sequential processing logic. We should try to unify them
@@ -69,7 +73,7 @@ section
 variable {params : SearchParameters ρ σ} {th : ρ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
   {lctx : MapReduceSearchContextLocal σ κ σₕ}
-  {globalSeen : Std.TreeSet σₕ}
+  {globalSeen : ShardedTreeSetUSize σₕ}
 
 theorem MapReduceSearchContextLocalInvariants.processSuccessors_preserves_invs
   {p : MapReduceQueueItem σₕ σ → Prop}
@@ -199,7 +203,7 @@ private theorem processWorkQueue.subproof6 {α : Type u} {l : List α} :
 def processWorkQueue
   {params : SearchParameters ρ σ} {th : ρ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
-  {globalSeen : Std.TreeSet σₕ}
+  {globalSeen : ShardedTreeSetUSize σₕ}
   (queue : List (MapReduceQueueItem σₕ σ))
   {p q : MapReduceQueueItem σₕ σ → Prop} (h : ∀ x, q x ↔ p x ∨ x ∈ queue)
   (h_inqueue_reachable : ∀ item ∈ queue, sys.reachable item.state)
@@ -228,7 +232,7 @@ def bfsBigStep
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   (params : SearchParameters ρ σ) {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th)
-  (globalSeen : Std.TreeSet σₕ)
+  (globalSeen : ShardedTreeSetUSize σₕ)
   (completedDepth : Nat)
   (queue : List (MapReduceQueueItem σₕ σ))
   (h_inqueue_reachable : ∀ item ∈ queue, sys.reachable item.state) :
@@ -241,17 +245,17 @@ def bfsBigStep
 end LawfulMapReduceSearchContextLocal
 
 @[inline]
-def MapReduceSearchContextTemp.mergeOne.innerMerge
-  (acc : List (MapReduceQueueItem σₕ σ) × Std.HashSet σₕ) (item : MapReduceQueueItem σₕ σ) :
-  List (MapReduceQueueItem σₕ σ) × Std.HashSet σₕ :=
+def MapReduceSearchContextTemp.mergeOne.innerMerge {numShards : USize}
+  (acc : List (MapReduceQueueItem σₕ σ) × ShardedHashSetUSize σₕ numShards) (item : MapReduceQueueItem σₕ σ) :
+  List (MapReduceQueueItem σₕ σ) × ShardedHashSetUSize σₕ numShards :=
   let (mq_acc, st_acc) := acc
   if !st_acc.contains item.fingerprint then
     (item :: mq_acc, st_acc.insert item.fingerprint)
   else
     (mq_acc, st_acc)
 
-def MapReduceSearchContextTemp.mergeOne.innerMergeDescription
-  (acc res : List (MapReduceQueueItem σₕ σ) × Std.HashSet σₕ) (inQ : MapReduceQueueItem σₕ σ → Prop) : Prop :=
+def MapReduceSearchContextTemp.mergeOne.innerMergeDescription {numShards : USize}
+  (acc res : List (MapReduceQueueItem σₕ σ) × ShardedHashSetUSize σₕ numShards) (inQ : MapReduceQueueItem σₕ σ → Prop) : Prop :=
   ∃ pfx, res.1 = pfx ++ acc.1 ∧
     (pfx.map MapReduceQueueItem.fingerprint).Nodup ∧
     (∀ fp, (∃ item, inQ item ∧ item.fingerprint = fp) → fp ∉ acc.2 →
@@ -261,16 +265,17 @@ def MapReduceSearchContextTemp.mergeOne.innerMergeDescription
 
 omit [Ord σₕ] in
 theorem MapReduceSearchContextTemp.mergeOne.innerMergeDescription.concat
-  {p q : MapReduceQueueItem σₕ σ → Prop} {a1 a2 a3}
+  {numShards : USize} {p q : MapReduceQueueItem σₕ σ → Prop}
+  {a1 a2 a3 : List (MapReduceQueueItem σₕ σ) × ShardedHashSetUSize σₕ numShards}
   (h1 : mergeOne.innerMergeDescription a1 a2 p) (h2 : mergeOne.innerMergeDescription a2 a3 q) :
   mergeOne.innerMergeDescription a1 a3 fun x => p x ∨ q x := by
-  rcases h1 with ⟨pfx1, h_pfx1, h_nodup1, h_inQ1, h_fps1⟩
-  rcases h2 with ⟨pfx2, h_pfx2, h_nodup2, h_inQ2, h_fps2⟩
+  rcases h1 with ⟨pfx1, h_pfx1, h_nodup1, h_inQ1, h_fps1, h_mem_iff1⟩
+  rcases h2 with ⟨pfx2, h_pfx2, h_nodup2, h_inQ2, h_fps2, h_mem_iff2⟩
   exists (pfx2 ++ pfx1) ; grind
 
 omit [Ord σₕ] in
-theorem MapReduceSearchContextTemp.mergeOne.innerMerge_foldl_descriptive
-  (acc : List (MapReduceQueueItem σₕ σ) × Std.HashSet σₕ) (lq : List (MapReduceQueueItem σₕ σ)) :
+theorem MapReduceSearchContextTemp.mergeOne.innerMerge_foldl_descriptive {numShards : USize}
+  (acc : List (MapReduceQueueItem σₕ σ) × ShardedHashSetUSize σₕ numShards) (lq : List (MapReduceQueueItem σₕ σ)) :
   let res := lq.foldl (init := acc) mergeOne.innerMerge
   mergeOne.innerMergeDescription acc res (· ∈ lq) := by
   dsimp only [innerMergeDescription]
@@ -280,24 +285,25 @@ theorem MapReduceSearchContextTemp.mergeOne.innerMerge_foldl_descriptive
     dsimp [List.foldl]
     specialize ih (mergeOne.innerMerge acc item)
     revert ih ; fun_cases mergeOne.innerMerge acc item
-    · intro ih ; rcases ih with ⟨pfx, h_pfx, h_nodup, h_subseq, h_fps⟩
+    · intro ih ; rcases ih with ⟨pfx, h_pfx, h_nodup, h_subseq, h_fps, h_mem_iff⟩
       rename_i mq_acc st_acc hh ; simp at *
       exists (pfx ++ [item]) ; simp ; split_ands <;> try grind
-    · grind
+    · intro ih ; rcases ih with ⟨pfx, h_pfx, h_nodup, h_subseq, h_fps, h_mem_iff⟩
+      exists pfx ; split_ands <;> grind
 
 omit [Ord σₕ] in
 @[inline]
-def MapReduceSearchContextTemp.mergeOne
-  (acc : MapReduceSearchContextTemp σ κ σₕ) (lctx : MapReduceSearchContextLocal σ κ σₕ) :
-  MapReduceSearchContextTemp σ κ σₕ :=
+def MapReduceSearchContextTemp.mergeOne {numShards : USize}
+  (acc : MapReduceSearchContextTemp σ κ σₕ numShards) (lctx : MapReduceSearchContextLocal σ κ σₕ) :
+  MapReduceSearchContextTemp σ κ σₕ numShards :=
   let ⟨mbase, mq, st⟩ := acc
   let (lbase, lq) := lctx
   let (mq', st') := lq.foldl (init := (mq, st)) mergeOne.innerMerge
   ⟨mbase.mergeWithoutDepthChange lbase, mq', st'⟩
 
 omit [Ord σₕ] in
-theorem MapReduceSearchContextTemp.mergeOne_foldl_descriptive
-  (acc : MapReduceSearchContextTemp σ κ σₕ) (lctxs : List (MapReduceSearchContextLocal σ κ σₕ)) :
+theorem MapReduceSearchContextTemp.mergeOne_foldl_descriptive {numShards : USize}
+  (acc : MapReduceSearchContextTemp σ κ σₕ numShards) (lctxs : List (MapReduceSearchContextLocal σ κ σₕ)) :
   let res := lctxs.foldl (init := acc) MapReduceSearchContextTemp.mergeOne
   res.base = (lctxs.map Prod.fst).foldl (init := acc.base) BaseSearchContext.mergeWithoutDepthChange ∧
   mergeOne.innerMergeDescription (acc.tovisit, acc.tempSeen) (res.tovisit, res.tempSeen)
@@ -343,15 +349,14 @@ def MapReduceSearchContextMain.mergeWithLocalOnes
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
   (mctx : MapReduceSearchContextMain σ κ σₕ)
   {splitLists : List (List (MapReduceQueueItem σₕ σ))}
-  {globalSeen : Std.TreeSet σₕ}
+  {globalSeen : ShardedTreeSetUSize σₕ}
   (lctxs : IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen (· ∈ a))) :
   MapReduceSearchContextMain σ κ σₕ :=
   let ⟨ctx, len, q, globalSeen⟩ := mctx
-  -- CHECK There are two choices for `st`: `HashSet` or `TreeSet`. Which is better?
-  let ⟨mbase, mq, st⟩ := IteratedProd.foldl (β := MapReduceSearchContextTemp σ κ σₕ) (elements := lctxs)
-    (init := ⟨ctx, q, (Std.HashSet.emptyWithCapacity : Std.HashSet σₕ)⟩)
+  let ⟨mbase, mq, st⟩ := IteratedProd.foldl (β := MapReduceSearchContextTemp σ κ σₕ globalSeen.numShards) (elements := lctxs)
+    (init := ⟨ctx, q, ShardedHashSetUSize.emptyUSize globalSeen.numShards globalSeen.h_numShards_pos⟩)
       fun acc lctx => acc.mergeOne lctx.val
-  ⟨mbase, len + st.size, mq, globalSeen.insertManyFast st⟩
+  ⟨mbase, len + st.size, mq, globalSeen.insertManyFastSHS st⟩
 
 private theorem List.zip_mem {α : Type u} {β : Type v} {l1 : List α} {l2 : List β}
   (hl : l1.length ≤ l2.length) (h : i < l1.length) :
@@ -370,7 +375,7 @@ private theorem List.zip_mem {α : Type u} {β : Type v} {l1 : List α} {l2 : Li
 
 -- FIXME: Later make this update of `depth` a reusable definition
 
-attribute [local simp] Std.TreeSet.insertManyFast_hashset_eq_insertManyFast_toList Std.TreeSet.mem_insertManyFast_list in
+attribute [local simp] ShardedTreeSetUSize.mem_insertManyFastSHS in
 theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   {params : SearchParameters ρ σ} {th : ρ}
@@ -393,7 +398,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   rcases h_local_invs with ⟨h_length_eq, h_local_invs⟩
   generalize IteratedProd.subtypesToList lctxs = lctxs' at *
   set merged := lctxs'.foldl _ _ with heq
-  have htmp2 := ({ base := ctx', tovisit := [], tempSeen := Std.HashSet.emptyWithCapacity : MapReduceSearchContextTemp σ κ σₕ }).mergeOne_foldl_descriptive lctxs'
+  have htmp2 := ({ base := ctx', tovisit := [], tempSeen := ShardedHashSetUSize.emptyUSize gs.numShards gs.h_numShards_pos : MapReduceSearchContextTemp σ κ σₕ gs.numShards }).mergeOne_foldl_descriptive lctxs'
   dsimp at htmp2 ; rw [← heq] at htmp2 ; rcases htmp2 with ⟨h_base, h_merge_desc⟩
   have h_base_desc := BaseSearchContext.mergeWithoutDepthChange_foldl_description ctx' (lctxs'.map Prod.fst)
   simp [BaseSearchContext.hasFinished] at h_not_finished
@@ -484,10 +489,12 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
     · grind
   · simp
     -- use the disjointness
-    rw [← Std.HashSet.length_toList, ← List.length_map MapReduceQueueItem.fingerprint]
+    rw [ShardedHashSetUSize.length_toList, ← List.length_map MapReduceQueueItem.fingerprint]
     apply List.Perm.length_eq ; rw [List.perm_ext_iff_of_nodup]
-    · simp ; exact h_fps
-    · unfold Std.HashSet.toList ; apply Std.HashMap.nodup_keys    -- this is actually kind of reusable
+    · simp [ShardedHashSetUSize.toList]
+      simp [ShardedHashSetUSize.mem_iff_exists_shard] at h_fps
+      exact h_fps
+    · apply ShardedHashSetUSize.nodup_elements
     · exact h_nodup
 
 omit [BEq κ] [Hashable κ] in
@@ -506,6 +513,13 @@ private theorem breadthFirstSearchParallel.subproof1 {ρ σₕ σ : Type}
   have : (⟨item.fingerprint, item.state⟩ : MapReduceQueueItem σₕ σ) = item := rfl
   exact (h item.fingerprint item.state (this ▸ h_mem_inv _ ⟨sublist, h_sublist_in, h_item_in⟩)).1
 
+private theorem not_too_small_not_too_large (n : Nat) :
+  let t := max 1 (min n 4294967295)
+  0 < USize.ofNat t ∧ t < USize.size := by
+  apply (fun (p : _ → _) q => And.intro (p q) q)
+  · intro h ; simp [USize.lt_ofNat_iff h]
+  · cases USize.size_eq <;> rename_i h <;> rw [h] <;> omega
+
 def breadthFirstSearchParallel {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [Repr κ]
@@ -517,8 +531,11 @@ def breadthFirstSearchParallel {m : Type → Type}
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :
   m (MapReduceSearchContextMain σ κ σₕ) := do
+  let numShards := max 1 <| min parallelCfg.numSubTasks 4294967295
+  have ⟨h_pos, h_small⟩ := not_too_small_not_too_large parallelCfg.numSubTasks
   let mut mctx : LawfulMapReduceSearchContextMain (fp := fp) sys params :=
-    Subtype.mk (MapReduceSearchContextMain.initial sys.initStates) (MapReduceSearchContextMainInvariants.initial sys params)
+    Subtype.mk (MapReduceSearchContextMain.initial sys.initStates numShards h_pos h_small)
+      (MapReduceSearchContextMainInvariants.initial sys params numShards)
   let mut lastUpdateTime : Nat := 0
   let mut cancelled := false
   while h_not_finished : mctx.val.base.hasFinished = false do

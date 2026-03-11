@@ -1,6 +1,7 @@
 import Veil.Core.Tools.ModelChecker.ConcreteNew.Core
 import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
 import Veil.Core.Tools.ModelChecker.Concrete.Containers
+import Veil.Util.ShardedSetUInt
 
 namespace Veil.ModelChecker.Concrete
 
@@ -53,15 +54,15 @@ structure MapReduceSearchContextMain (σ κ σₕ : Type) [fp : StateFingerprint
   base : BaseSearchContext σ κ σₕ
   tovisitLen : Nat
   tovisit : List (MapReduceQueueItem σₕ σ)
-  globalSeen : Std.TreeSet σₕ
+  globalSeen : ShardedTreeSetUSize σₕ
 
 abbrev MapReduceSearchContextLocal (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] :=
   BaseSearchContext σ κ σₕ × List (MapReduceQueueItem σₕ σ)
 
-structure MapReduceSearchContextTemp (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] where
+structure MapReduceSearchContextTemp (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] (n : USize) where
   base : BaseSearchContext σ κ σₕ
   tovisit : List (MapReduceQueueItem σₕ σ)
-  tempSeen : Std.HashSet σₕ
+  tempSeen : ShardedHashSetUSize σₕ n
 
 variable {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
@@ -95,7 +96,7 @@ abbrev LawfulMapReduceSearchContextMain : Type :=
   Subtype (α := MapReduceSearchContextMain σ κ σₕ) (MapReduceSearchContextMainInvariants sys params)
 
 structure MapReduceSearchContextLocalInvariants
-  (globalSeen : Std.TreeSet σₕ)
+  (globalSeen : ShardedTreeSetUSize σₕ)
   (visited : MapReduceQueueItem σₕ σ → Prop)
   (lctx : MapReduceSearchContextLocal σ κ σₕ)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ⟨x, st⟩ ∈ lctx.2) (fun h => ∃ s, ⟨h, s⟩ ∈ lctx.2)
@@ -110,7 +111,7 @@ where
         fp.view v ∈ lctx.1.log)
 
 abbrev LawfulMapReduceSearchContextLocal
-  (globalSeen : Std.TreeSet σₕ)
+  (globalSeen : ShardedTreeSetUSize σₕ)
   (visited : MapReduceQueueItem σₕ σ → Prop) : Type :=
   Subtype (α := MapReduceSearchContextLocal σ κ σₕ) (MapReduceSearchContextLocalInvariants sys params globalSeen visited)
 
