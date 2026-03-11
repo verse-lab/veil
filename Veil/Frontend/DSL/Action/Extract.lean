@@ -367,16 +367,13 @@ def getPostState (c : DivM ((Except ε α) × σ)) : Option σ :=
 def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ) :=
   c.map getPostState
 
-def getAllExecutionOutcomes (c : List (DivM ((Except ε α) × σ))) : List (Veil.ExecutionOutcome ε σ) :=
-  c.map getExecutionOutcome
-
 /-- Extract all valid states from a VeilMultiExecM computation -/
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllPostStates
 
 /-- Extract all execution outcomes (including assertion failures) from a VeilMultiExecM computation -/
 def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome ℤ σ) :=
-  exec rd st |>.map Prod.snd |> getAllExecutionOutcomes
+  exec rd st |>.map fun (_, st) => getExecutionOutcome st
 
 /-- Extract only assertion failures from a VeilMultiExecM computation.
 Returns a list of (exception ID, state at failure) pairs. -/
@@ -447,6 +444,6 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     injectedBinders finalBody mod specializeToOther
 
   -- Step 5: Add @[specialize] attribute
-  `(command| def $enumerableTransitionSystem:ident := $enumerableTransitionSystemTerm)
+  `(command| @[inline] def $enumerableTransitionSystem:ident := $enumerableTransitionSystemTerm)
 
 end Veil.Extract

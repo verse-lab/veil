@@ -12,6 +12,7 @@ structure SafetyProperty (ρ σ : Type) where
   property : ρ → σ → Prop
   [decidable : ∀ th st, Decidable (property th st)]
 
+@[inline, specialize]
 def SafetyProperty.holdsOn (p : SafetyProperty ρ σ) (th : ρ) (st : σ) : Bool :=
   @decide (p.property th st) (p.decidable th st)
 
