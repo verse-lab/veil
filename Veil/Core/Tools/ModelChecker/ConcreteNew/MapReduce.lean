@@ -375,8 +375,8 @@ def MapReduceSearchContextMain.mergeWithLocalOnes
     (init := ⟨ctx, q, ShardedHashSetUSize.emptyUSize globalSeen.numShards globalSeen.h_numShards_pos⟩)
       fun acc lctx => acc.mergeOne lctx.val
   -- Collect local logs from this round as one entry (O(1) cons, deferred merging)
-  let lctxsList := IteratedProd.subtypesToList lctxs
-  let newLogs := lctxsList.map (fun lctx => lctx.1.log)
+  let newLogs := IteratedProd.foldl (β := List _) (elements := lctxs) (init := [])
+    fun acc lctx => lctx.val.1.log :: acc
   ⟨mbase, len + st.size, mq, globalSeen.insertManyFastSHS st, newLogs :: accLogs⟩
 
 private theorem List.zip_mem {α : Type u} {β : Type v} {l1 : List α} {l2 : List β}
@@ -424,7 +424,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   have h_base_desc := BaseSearchContext.mergeWithoutDepthChangeNoLog_foldl_description ctx' (lctxs'.map Prod.fst)
   simp [BaseSearchContext.hasFinished] at h_not_finished
   dsimp at h_base_desc ; rw [← h_base, h_not_finished] at h_base_desc ; dsimp at h_base_desc
-  clear lctxs heq h_base ; clear_value merged
+  clear heq h_base ; clear_value merged
 
   rcases merged with ⟨mbase, mq, st⟩
   rcases h_merge_desc with ⟨pfx, h_pfx, h_nodup, h_in_pfx, h_inQ, h_fps⟩
