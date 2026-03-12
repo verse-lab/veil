@@ -45,19 +45,6 @@ instance : FromJson CompilationStatus where
     | "failed" => return .failed (← j.getObjValAs? String "error")
     | _ => throw s!"Unknown compilation status: {status}"
 
-/-- Statistics for a single action (transition label). -/
-structure ActionStatDisplay extends ActionStat where
-  /-- Action name (e.g., "Label.send_msg 1 2") -/
-  name : String
-  deriving ToJson, FromJson, Inhabited, Repr
-
-/-- Convert actionStatsMap to List ActionStat for progress reporting. -/
-def toActionStatsList [BEq κ] [Hashable κ] [Repr κ] (m : Std.HashMap κ ActionStat) : List ActionStatDisplay :=
-  m.fold (init := []) fun acc label stat =>
-    { name := repr label |>.pretty,
-      statesGenerated := stat.statesGenerated,
-      distinctStates := stat.distinctStates } :: acc
-
 /-- A single point in the progress history time series for charting. -/
 structure ProgressHistoryPoint where
   /-- Timestamp in milliseconds since start -/
@@ -285,27 +272,27 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
 
 section Utilities
 
-variable {σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]
+variable {σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [inst : ActionStatUpdate κ asm]
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
   (progressInstanceId : Nat)
 
 @[inline]
-def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ) (qSize : Nat)
+def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat)
     (distinctNumState : Nat := ctx.log.size) : m Unit := do
   updateProgress progressInstanceId
     ctx.currentFrontierDepth ctx.statesFound distinctNumState qSize
-    (toActionStatsList ctx.actionStatsMap)
+    (inst.dump ctx.actionStatsMap)
 
 -- NOTE: Any attempt to inline these functions might lead to **significant** performance
 -- regression, due to certain reason
 
 /-- A thin wrapper around `setViolationFound`.
     If we found a violation, mark it so handoff is prevented. -/
-def trySetViolationFound (ctx : BaseSearchContext σ κ σₕ) : m Unit := do
+def trySetViolationFound (ctx : BaseSearchContext σ κ σₕ asm) : m Unit := do
   if let some (.earlyTermination cond) := ctx.finished then
     if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
 
-def tryUpdateProgressWithNewFrontierDepth (oldFrontierDepth : Nat) (ctx : BaseSearchContext σ κ σₕ) (qSize : Nat) : m Unit := do
+def tryUpdateProgressWithNewFrontierDepth (oldFrontierDepth : Nat) (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat) : m Unit := do
   if ctx.currentFrontierDepth > oldFrontierDepth then
     updateProgressDuringBFS progressInstanceId ctx qSize
 
@@ -316,7 +303,7 @@ inductive SearchPeriodicProgressUpdate where
 
 -- FIXME: Use `Option` to unify the two functions?
 def checkCancellationWithPeriodicUpdate (lastUpdateTime updateTimeInterval : Nat)
-  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ) (qSize : Nat) : m SearchPeriodicProgressUpdate := do
+  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat) : m SearchPeriodicProgressUpdate := do
   let now ← IO.monoMsNow
   if now - lastUpdateTime ≥ updateTimeInterval then
     if ← shouldStop cancelToken progressInstanceId then

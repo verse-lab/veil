@@ -10,6 +10,38 @@ open Std
 
 /-! ## UInt operations for sharding -/
 
+namespace Array
+
+@[inline]
+unsafe def modifyInBoundUnsafe (xs : Array α) (i : Nat) (f : α → α) (h_lt : i < xs.size) : Array α :=
+  let v                := xs[i]'h_lt
+  -- Replace a[i] by `box(0)`.  This ensures that `v` remains unshared if possible.
+  -- Note: we assume that arrays have a uniform representation irrespective
+  -- of the element type, and that it is valid to store `box(0)` in any array.
+  let xs'               := xs.set i (unsafeCast ()) h_lt
+  let v := f v
+  xs'.set i v (Nat.lt_of_lt_of_eq h_lt (size_set ..).symm)
+
+@[implemented_by modifyInBoundUnsafe]
+def modifyInBound (xs : Array α) (i : Nat) (f : α → α) (h_lt : i < xs.size) : Array α :=
+  let v := xs[i]'h_lt
+  xs.set i (f v) h_lt
+
+theorem size_modifyInBound {xs : Array α} {i : Nat} {f : α → α} {h_lt : i < xs.size} :
+  (modifyInBound xs i f h_lt).size = xs.size := by
+  simp only [modifyInBound, size_set]
+
+end Array
+
+namespace Vector
+
+@[inline]
+def modify {α : Type u} {n : Nat} (v : Vector α n) (i : Nat) (f : α → α) (h_lt : i < n) : Vector α n :=
+  ⟨v.toArray.modifyInBound i f (v.size_toArray.symm ▸ h_lt),
+   (Eq.trans Array.size_modifyInBound v.size_toArray)⟩
+
+end Vector
+
 namespace ShardedSetUInt
 
 variable {α : Type u} [Hashable α]

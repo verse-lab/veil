@@ -2,11 +2,11 @@ import Veil.Core.Tools.ModelChecker.ConcreteNew.SequentialLemmas
 import Veil.Util.TreeSetMisc
 namespace Veil.ModelChecker.Concrete
 
-variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ] [Ord σₕ] {th : ρ}
+variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] [Ord σₕ] {th : ρ}
 
 def MapReduceSearchContextMain.initial (initStates : List σ) (numShards : Nat)
   (h_pos : 0 < USize.ofNat numShards := by native_decide)
-  (h_small : numShards < USize.size := by native_decide) : MapReduceSearchContextMain σ κ σₕ :=
+  (h_small : numShards < USize.size := by native_decide) : MapReduceSearchContextMain σ κ σₕ asm :=
   let fps := initStates.map fp.view
   let tovisit := fps.zipWith (fun fp s => ⟨fp, s⟩) initStates
   { base := BaseSearchContext.initial initStates,
@@ -15,14 +15,14 @@ def MapReduceSearchContextMain.initial (initStates : List σ) (numShards : Nat)
     globalSeen := ShardedTreeSetUSize.ofListFastByHash fps numShards h_pos h_small }
 
 /-- Create an empty local context with the given `completedDepth`. -/
-def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ :=
+def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
   ({ log := Std.HashMap.emptyWithCapacity,
      violatingStates := [],
      finished := none,
      completedDepth := completedDepth,
      currentFrontierDepth := completedDepth + 1,
      statesFound := 0,
-     actionStatsMap := Std.HashMap.emptyWithCapacity }, [])
+     actionStatsMap := ActionStatUpdate.empty (κ := κ) }, [])
 
 theorem MapReduceSearchContextMainInvariants.initial [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
@@ -47,7 +47,7 @@ variable {params : SearchParameters ρ σ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
 
 theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
-  {mctx : MapReduceSearchContextMain σ κ σₕ}
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm}
   (h_not_finished : mctx.base.hasFinished = false)
   (h_empty : mctx.tovisit.isEmpty)
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx) :
@@ -59,7 +59,7 @@ theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
   all_goals dsimp only ; try solve | assumption | grind
 
 theorem MapReduceSearchContextMainInvariants.bfs_completeness
-  {mctx : MapReduceSearchContextMain σ κ σₕ}
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm}
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx)
   (h_explore_all : mctx.base.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.Injective fp.view) :
@@ -71,7 +71,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
 theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_invs
   {globalSeen : ShardedTreeSetUSize σₕ}
   {p q : MapReduceQueueItem σₕ σ → Prop}
-  {lctx : MapReduceSearchContextLocal σ κ σₕ}
+  {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   (h_finished : lctx.1.hasFinished = true)
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx) :
   MapReduceSearchContextLocalInvariants sys params globalSeen q lctx := by
@@ -83,7 +83,7 @@ theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_in
 theorem MapReduceSearchContextLocalInvariants.progress_by_one_state
   {globalSeen : ShardedTreeSetUSize σₕ}
   {p q : MapReduceQueueItem σₕ σ → Prop}
-  {lctx : MapReduceSearchContextLocal σ κ σₕ}
+  {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx)
   (h : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr → ((fp.view v) ∈ globalSeen ∨ (fp.view v) ∈ lctx.1.log))
   (hpq : ∀ item, q item ↔ p item ∨ item = ⟨fpSt, curr⟩) :

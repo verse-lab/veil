@@ -124,7 +124,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
   let ctors ← mod.actions.mapM (fun a => do
     `(Command.ctor| | $(mkIdent a.name):ident $(← a.binders)* : $labelT ))
   let labelDef ← do
-    let instances := #[``DecidableEq,``Repr, ``ToJson, ``Hashable, ``Veil.Enumeration].map Lean.mkIdent
+    let instances := #[``DecidableEq,``Repr, ``ToJson, ``Hashable, ``Veil.Enumeration, ``Veil.FinEncodableInjOnly].map Lean.mkIdent
     if ctors.isEmpty then
       `(inductive $labelType $(← mod.uninterpretedParamBinders)* where $[$ctors]* deriving $[$instances:ident],*)
     else

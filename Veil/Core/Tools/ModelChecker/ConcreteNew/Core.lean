@@ -1,6 +1,8 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 import Veil.Core.Tools.ModelChecker.Interface
 import Veil.Core.Tools.ModelChecker.Trace
+import Veil.Frontend.DSL.State.Types
+import Veil.Util.ShardedSetUInt
 import Batteries.Lean.HashMap
 
 namespace Veil.ModelChecker.Concrete
@@ -47,13 +49,66 @@ structure ActionStat where
   distinctStates : Nat
 deriving Lean.ToJson, Lean.FromJson, BEq, DecidableEq, Repr, Inhabited
 
-abbrev ActionStatsMap κ [BEq κ] [Hashable κ] := Std.HashMap κ ActionStat
+/-- Statistics for a single action (transition label), for display. -/
+structure ActionStatDisplay extends ActionStat where
+  /-- Action name (e.g., "Label.send_msg 1 2") -/
+  name : String
+  deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
+
+/-- Abstract action statistics map. `asm` tracks `statesGenerated` per action label. -/
+class ActionStatUpdate (κ : Type u) (asm : outParam (Type v)) where
+  /-- Empty stats map -/
+  empty : asm
+  /-- Increment `statesGenerated` for `label` by `n` -/
+  increment : κ → Nat → asm → asm
+  /-- Combine (sum) two stats maps -/
+  merge : asm → asm → asm
+  -- /-- Read the count for a specific label -/
+  -- lookup : κ → asm → Nat
+  dump : asm → List ActionStatDisplay
+
+/-- Array-based instance: O(1) increment and lookup.
+    Selected when `FinEncodableInjOnly κ` is available. -/
+instance (priority := high) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] : ActionStatUpdate κ (Array Nat) where
+  empty := Array.replicate instf.card 0
+  increment label n arr := arr.modify (instf.encode label).val (· + n)
+  merge arr1 arr2 := arr1.zipWith (· + ·) arr2
+  dump arr := inste.allValues.map fun label =>
+    { name := repr label |>.pretty,
+      statesGenerated := arr.getD (instf.encode label).val 0,
+      distinctStates := 0 }
+
+abbrev VectorForActionStatUpdate (α : Type u) (κ : Type v) [enc : FinEncodableInjOnly κ] := Vector α enc.card
+
+/-- Vector-based instance: O(1) increment and lookup. -/
+instance (priority := high + 100) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] : ActionStatUpdate κ (VectorForActionStatUpdate Nat κ) where
+  empty := Vector.replicate instf.card 0
+  increment label n vec :=
+    let idx := instf.encode label
+    vec.modify idx.val (fun x => x + n) idx.isLt
+  merge arr1 arr2 := Vector.zipWith (· + ·) arr1 arr2
+  dump vec := inste.allValues.map fun label =>
+    let idx := instf.encode label
+    { name := repr label |>.pretty,
+      statesGenerated := vec[idx],
+      distinctStates := 0 }
+
+/-- HashMap-based fallback instance for types without `FinEncodableInjOnly`. -/
+instance (priority := low) [BEq κ] [Hashable κ] [Repr κ] : ActionStatUpdate κ (Std.HashMap κ Nat) where
+  empty := {}
+  increment label n m := m.alter label (fun | some v => some (v + n) | none => some n)
+  merge m1 m2 := m1.mergeWith (other := m2) fun _ as1 as2 => as1 + as2
+  -- lookup label m := m.getD label 0
+  dump m := m.fold (init := []) fun acc label stat =>
+    { name := repr label |>.pretty,
+      statesGenerated := stat,
+      distinctStates := 0 } :: acc
 
 /-- A model checker search context is parametrised by the system that's being
 checked and the theory it's being checked under. -/
-structure BaseSearchContext (σ κ σₕ : Type)
+structure BaseSearchContext (σ κ σₕ asm : Type)
   [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
+  [ActionStatUpdate κ asm]
 where
   /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
   will make it easier to reconstruct counterexample trace. -/
@@ -67,29 +122,8 @@ where
   currentFrontierDepth : Nat
   /-- Total number of post-states generated (before deduplication) -/
   statesFound : Nat
-  /-- Per-action statistics: label → stats -/
-  actionStatsMap : ActionStatsMap κ
-
--- Use `.alter` to ensure linear usage
--- NOTE: This doesn't seem `specialize`d; what happened?
-@[inline]
-def ActionStatsMap.update [BEq κ] [Hashable κ] (distinct? : Bool) (label : κ) (amap : ActionStatsMap κ) : ActionStatsMap κ :=
-  if distinct? then
-    amap.alter label fun
-      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds + 1⟩
-      | none => Option.some { statesGenerated := 1, distinctStates := 1 }
-  else
-    amap.alter label fun
-      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds⟩
-      | none => Option.some { statesGenerated := 1, distinctStates := 0 }
-
-/-- Merge two `ActionStatsMap`s. Note that the time complexity depends on the *second* one;
-but in the case here, the domain size of `m2` should be mostly fixed, so it should not
-matter too much which operand the time complexity depends on. -/
-def ActionStatsMap.combine [BEq κ] [Hashable κ] (m1 m2 : ActionStatsMap κ) : ActionStatsMap κ :=
-  m1.mergeWith (other := m2) fun _ as1 as2 =>
-     { statesGenerated := as1.statesGenerated + as2.statesGenerated,
-       distinctStates := as1.distinctStates + as2.distinctStates }
+  /-- Per-action statistics (only `statesGenerated`) -/
+  actionStatsMap : asm
 
 structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
@@ -104,14 +138,14 @@ where
   queue_sound        : ∀ x st, inQueue x st → sys.reachable st ∧ seen x ∧ x = fp.view st
   visited_sound      : Function.Injective fp.view → ∀ x, seen (fp.view x) → sys.reachable x
 
-variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]
+variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
   (params : SearchParameters ρ σ) (th : ρ) (fpSt : σₕ) (curr : σ)
 
 @[inline]
-def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ) : Bool := ctx.finished.isSome
+def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ asm) : Bool := ctx.finished.isSome
 
 @[inline]
-def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ :=
+def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ asm :=
   let initStates := initialStates.map fun x => (fp.view x, Option.none)
   {
     log := Std.HashMap.ofList initStates,
@@ -120,7 +154,7 @@ def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ �
     completedDepth := 0,
     currentFrontierDepth := 0,
     statesFound := initStates.length,
-    actionStatsMap := {}
+    actionStatsMap := ActionStatUpdate.empty (κ := κ)
   }
 
 -- NOTE: Hopefully, if `outcomes` does not have any other reference, then
@@ -181,7 +215,7 @@ def checkViolationsAndMaybeTerminate
 -- @[inline, specialize]
 def BaseSearchContext.processState
   (outcomes : List (κ × ExecutionOutcome ℤ σ))
-  (ctx : BaseSearchContext σ κ σₕ) : BaseSearchContext σ κ σₕ × Option (List (κ × σ)) :=
+  (ctx : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm × Option (List (κ × σ)) :=
   let (successfulTransitions, assertionFailures) := partitionExecutionOutcome outcomes
   let hasSuccessfulTransition := !successfulTransitions.isEmpty
   let completedDepth := ctx.completedDepth
@@ -200,24 +234,24 @@ def BaseSearchContext.processState
     | none => ctx
   (ctx, if earlyTermination.isSome then none else some successfulTransitions)
 
-def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ) : BaseSearchContext σ κ σₕ :=
+def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
   { log := ctx1.log.union ctx2.log,
     violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
     finished := ctx1.finished.or ctx2.finished,
     completedDepth := ctx1.completedDepth,    -- no change
     currentFrontierDepth := ctx1.currentFrontierDepth,    -- no change
     statesFound := ctx1.statesFound + ctx2.statesFound,
-    actionStatsMap := ctx1.actionStatsMap.combine ctx2.actionStatsMap }
+    actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
 
 /-- Like `mergeWithoutDepthChange` but does NOT merge the `log` field.
     Used in the MapReduce path to delay log merging until trace recovery is needed. -/
-def BaseSearchContext.mergeWithoutDepthChangeNoLog (ctx1 ctx2 : BaseSearchContext σ κ σₕ) : BaseSearchContext σ κ σₕ :=
+def BaseSearchContext.mergeWithoutDepthChangeNoLog (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
   { log := ctx1.log,
     violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
     finished := ctx1.finished.or ctx2.finished,
     completedDepth := ctx1.completedDepth,
     currentFrontierDepth := ctx1.currentFrontierDepth,
     statesFound := ctx1.statesFound + ctx2.statesFound,
-    actionStatsMap := ctx1.actionStatsMap.combine ctx2.actionStatsMap }
+    actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
 
 end Veil.ModelChecker.Concrete

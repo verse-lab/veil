@@ -30,15 +30,15 @@ This re-executes transitions to recover full state objects from fingerprints.
 The `targetFingerprint` parameter specifies which violating state's trace to recover.
 If `assertionFailureExId` is provided, this is an assertion failure trace and we'll
 find the failing transition to populate the `failingStep` field. -/
-def recoverTrace {ρ σ κ σₕ : Type} {m : Type → Type}
+def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
   [Inhabited κ] [Inhabited σ] [Repr σₕ]
-  [BEq κ] [Hashable κ]
+  [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   -- (params : SearchParameters ρ σ)
-  (ctx : BaseSearchContext σ κ σₕ)
+  (ctx : BaseSearchContext σ κ σₕ asm)
   (targetFingerprint : σₕ)
   (assertionFailureExId : Option Int := none)
   : m (Trace ρ σ κ) := do
@@ -76,7 +76,7 @@ either the sequential or parallel implementation based on configuration. -/
 def findReachable {ρ σ κ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [Inhabited κ] [inhabσ : Inhabited σ] [Repr κ]
-  [BEq κ] [Hashable κ]
+  [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   [fp : StateFingerprint σ UInt64]

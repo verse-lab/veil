@@ -461,17 +461,43 @@ instance : FinEncodable Bool where
       left_inv := by grind
       right_inv := by grind }
 
+/-- Mixed-radix bound: `a * m + b < n * m` when `a < n` and `b < m`.
+    Used by both `FinEncodable` and `FinEncodableInjOnly` product instances. -/
+theorem Nat.mixed_radix_lt {a b n m : Nat}
+    (ha : a < n) (hb : b < m) : a * m + b < n * m := by
+  calc a * m + b < a * m + m := Nat.add_lt_add_left hb _
+    _ = (a + 1) * m := by rw [Nat.add_mul, Nat.one_mul]
+    _ ≤ n * m := Nat.mul_le_mul_right _ ha
+
+/-- Mixed-radix injectivity: if `a * m + b = a' * m + b'` with `b, b' < m`,
+    then `a = a'` and `b = b'`. -/
+theorem Nat.mixed_radix_inj {a b a' b' m : Nat}
+    (hb : b < m) (hb' : b' < m) (h : a * m + b = a' * m + b') : a = a' ∧ b = b' := by
+  have ha : a = a' := by
+    by_contra hne
+    rcases Nat.lt_or_gt_of_ne hne with h1 | h1
+    · have := Nat.mixed_radix_lt h1 hb; omega
+    · have := Nat.mixed_radix_lt h1 hb'; omega
+  subst ha; exact ⟨rfl, by omega⟩
+
 @[inline]
 def FinEncodable.encodeProd {α : Type u} {β : Type v} {n m : Nat}
   (fa : α → Fin n) (fb : β → Fin m) (p : α × β) : Fin (n * m) :=
   let (a, b) := p
   let i := fa a
   let j := fb b
-  ⟨i.val * m + j.val, by
-    calc i.val * m + j.val
-      _ < i.val * m + m := Nat.add_lt_add_left j.isLt _
-      _ = (i.val + 1) * m := by rw [Nat.add_mul, Nat.one_mul]
-      _ ≤ n * m := Nat.mul_le_mul_right _ i.isLt⟩
+  ⟨i.val * m + j.val, Nat.mixed_radix_lt i.isLt j.isLt⟩
+
+/-- `encodeProd` is injective when both components are injective. -/
+theorem FinEncodable.encodeProd_inj {α : Type u} {β : Type v} {n m : Nat}
+    {fa : α → Fin n} {fb : β → Fin m}
+    (ha : Function.Injective fa) (hb : Function.Injective fb)
+    {p q : α × β} (h : encodeProd fa fb p = encodeProd fa fb q) : p = q := by
+  simp only [encodeProd, Fin.mk.injEq] at h
+  have ⟨h1, h2⟩ := Nat.mixed_radix_inj (fb p.2).isLt (fb q.2).isLt h
+  have := ha (Fin.ext h1)
+  have := hb (Fin.ext h2)
+  ext <;> assumption
 
 @[inline]
 def FinEncodable.decodeProd {α : Type u} {β : Type v} {n m : Nat}
@@ -634,6 +660,211 @@ initialize registerDerivingHandler ``FinEncodable mkFinEncodableHandler
 end FinEncodableDerivingHandler
 
 end FinEncodable
+
+section FinEncodableInjOnly
+
+/-- Injection-only finite encoding. Weaker than `FinEncodable` — no inverse
+    function or surjectivity required. Sufficient for array-indexed maps. -/
+class FinEncodableInjOnly (κ : Type u) where
+  /-- Upper bound: all encodings are strictly below this value -/
+  card : Nat
+  /-- Encoding function (bound proof baked into `Fin`) -/
+  encode : κ → Fin card
+  /-- The encoding is injective -/
+  encode_inj : Function.Injective encode
+
+instance (priority := low) [inst : FinEncodable κ] : FinEncodableInjOnly κ where
+  card := inst.card
+  encode k := inst.equiv k
+  encode_inj := inst.equiv.injective
+
+/-- Transfer `FinEncodableInjOnly` across an `Equiv`. Given `e : ProxyType ≃ TargetType`
+    and `[FinEncodableInjOnly ProxyType]`, produce `FinEncodableInjOnly TargetType`. -/
+@[inline]
+def FinEncodableInjOnly.ofEquiv {β : Type u} [inst : FinEncodableInjOnly β] {α : Type v}
+    (e : α ≃ β) : FinEncodableInjOnly α where
+  card := inst.card
+  encode a := inst.encode (e a)
+  encode_inj := by intro a b h; exact e.injective (inst.encode_inj h)
+
+@[always_inline]
+instance instFinEncodableInjOnlySum [insta : FinEncodableInjOnly α] [instb : FinEncodableInjOnly β] :
+    FinEncodableInjOnly (α ⊕ β) where
+  card := insta.card + instb.card
+  encode
+    | .inl a => ⟨(insta.encode a).val, by have := (insta.encode a).isLt; omega⟩
+    | .inr b => ⟨insta.card + (instb.encode b).val, by have := (instb.encode b).isLt; omega⟩
+  encode_inj := by
+    intro a b h
+    cases a <;> cases b <;> simp_all (config := { decide := false }) [Fin.ext_iff]
+    · exact insta.encode_inj (Fin.ext ‹_›)
+    · have := (insta.encode ‹_›).isLt; omega
+    · have := (insta.encode ‹_›).isLt; omega
+    · exact instb.encode_inj (Fin.ext (by omega))
+
+@[always_inline]
+instance instFinEncodableInjOnlyNonDepSigma [insta : FinEncodableInjOnly α] [instb : FinEncodableInjOnly β] :
+    FinEncodableInjOnly ((_ : α) × β) where
+  card := insta.card * instb.card
+  encode p := FinEncodable.encodeProd insta.encode instb.encode (p.1, p.2)
+  encode_inj := by
+    intro ⟨a1, b1⟩ ⟨a2, b2⟩ h
+    have := FinEncodable.encodeProd_inj insta.encode_inj instb.encode_inj h
+    simp [Prod.mk.injEq] at this
+    exact Sigma.ext this.1 (heq_of_eq this.2)
+
+/-- Transfer `FinEncodableInjOnly` across an `Equiv`, with a custom (deforested) encoding
+    function. `enc` computes the same `Nat` value as the proxy-type's encode — verified by the
+    `h_enc` proof, typically `by intro x; cases x <;> rfl`. Proofs are transferred from the
+    proxy-type instance (erased at runtime); only `enc` survives compilation. -/
+@[inline]
+def FinEncodableInjOnly.ofEquivWithEnc {β : Type u} [inst : FinEncodableInjOnly β] {α : Type v}
+    (e : α ≃ β) (enc : α → Nat) (h_enc : ∀ a, enc a = (inst.encode (e a)).val)
+    : FinEncodableInjOnly α where
+  card := inst.card
+  encode a := ⟨enc a, h_enc a ▸ (inst.encode (e a)).isLt⟩
+  encode_inj {a₁ a₂} heq := by
+    have h : inst.encode (e a₁) = inst.encode (e a₂) :=
+      Fin.ext (by simp only [Fin.mk.injEq] at heq; rw [← h_enc, ← h_enc]; exact heq)
+    have hh := inst.encode_inj h ; simp at hh ; exact hh
+
+section FinEncodableInjOnlyDerivingHandler
+
+open Lean Meta Elab Term Command Deriving
+open Lean.Parser.Term (matchAltExpr matchDiscr matchAlt)
+
+/-- Convert a simple type `Expr` to `Syntax`, mapping parameter fvars to `header.argNames`.
+    Handles `const`, `app`, `fvar`, `sort`, `bvar`, and `mdata`. Sufficient for field types
+    of simple (non-indexed, non-recursive) inductive types. -/
+private partial def typeExprToSyntax (paramFvars : Array Expr) (argNames : Array Name) (e : Expr) : TermElabM Term := do
+  -- Check if it's a parameter fvar
+  for i in [:paramFvars.size] do
+    if paramFvars[i]! == e then return ⟨mkIdent argNames[i]!⟩
+  match e with
+  | .const name lvls =>
+    if lvls.isEmpty then `($(mkCIdent name))
+    else `($(mkCIdent name))  -- universe levels are inferred
+  | .app f a => do
+    let fStx ← typeExprToSyntax paramFvars argNames f
+    let aStx ← typeExprToSyntax paramFvars argNames a
+    `($fStx $aStx)
+  | .fvar id => `($(mkIdent (← id.getUserName)))
+  | .mdata _ e' => typeExprToSyntax paramFvars argNames e'
+  | .sort .. => `(Type _)
+  | _ => throwError "typeExprToSyntax: unsupported expression kind {e}"
+
+/-- Generate the cardinality expression for a constructor's fields, matching
+    the right-nested Sigma structure that `proxy_equiv%` generates.
+    - 0 fields → `(1 : Nat)` (Unit card)
+    - 1 field  → `FinEncodableInjOnly.card (κ := τ)`
+    - k fields → `card τ₁ * (card τ₂ * (... * card τₖ))` (right-associated) -/
+private def mkCtorCardSyntax : List Term → TermElabM Term
+  | [] => `((1 : Nat))
+  | [t] => `(FinEncodableInjOnly.card (κ := $t))
+  | t :: rest => do
+    let restCard ← mkCtorCardSyntax rest
+    `(FinEncodableInjOnly.card (κ := $t) * $restCard)
+
+/-- Generate the local encoding expression for a constructor's fields.
+    Takes paired (fieldIdent, fieldTypeSyntax) to avoid needing to infer types from values.
+    - 0 fields → `(0 : Nat)`
+    - 1 field  → `(FinEncodableInjOnly.encode f).val`
+    - k fields → `encode(f₁).val * tailCard + (encode(f₂).val * ... + encode(fₖ).val)` -/
+private def mkLocalEncodeSyntax : List (Ident × Term) → TermElabM Term
+  | [] => `((0 : Nat))
+  | [(f, _)] => `((FinEncodableInjOnly.encode ($f)).val)
+  | (f, _) :: rest => do
+    let tailCard ← mkTailCardFromPairs rest
+    let restEnc ← mkLocalEncodeSyntax rest
+    `((FinEncodableInjOnly.encode ($f)).val * $tailCard + $restEnc)
+where
+  mkTailCardFromPairs : List (Ident × Term) → TermElabM Term
+    | [] => `((1 : Nat))
+    | [(_, t)] => `(FinEncodableInjOnly.card (κ := $t))
+    | (_, t) :: rest => do
+      let restCard ← mkTailCardFromPairs rest
+      `(FinEncodableInjOnly.card (κ := $t) * $restCard)
+
+/-- Generate the full encoding with right-nested offset structure, matching
+    the right-nested Sum encoding that `proxy_equiv%` generates.
+    Produces: `card₀ + (card₁ + (... + (cardₙ₋₁ + localEncode)))` -/
+private def mkFullEncodeSyntax : List Term → Term → TermElabM Term
+  | [], localEncode => pure localEncode
+  | card :: rest, localEncode => do
+    let inner ← mkFullEncodeSyntax rest localEncode
+    `($card + $inner)
+
+def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool := do
+  let indVal ← getConstInfoInduct declName
+  let cmd ← liftTermElabM do
+    let instName ← mkInstName ``FinEncodableInjOnly declName
+    let header ← mkHeader ``FinEncodableInjOnly 0 indVal
+    let levels := indVal.levelParams.map mkLevelParam
+    -- Collect match arms and constructor cardinalities
+    let mut allMatchAlts : Array (TSyntax ``matchAltExpr) := #[]
+    let mut prevCtorCards : List Term := []
+    for ctorName in indVal.ctors do
+      let ctorExpr := Lean.mkConst ctorName levels
+      let ctorType ← inferType ctorExpr
+      -- Extract field names and field type syntaxes (for offset cardinalities).
+      -- Uses typeExprToSyntax to map parameter fvars → header.argNames (no `delab`).
+      let (fieldNameIdents, fieldTypeSyntaxes) ← forallTelescopeReducing ctorType fun xs _ => do
+        let paramFvars := xs[:indVal.numParams]
+        let fields := xs[indVal.numParams:]
+        let mut names : Array Ident := #[]
+        let mut types : Array Term := #[]
+        for i in [:fields.size] do
+          let field := fields[i]!
+          let fieldType ← inferType field
+          let fieldTypeSyntax ← typeExprToSyntax paramFvars header.argNames fieldType
+          names := names.push (mkIdent (Name.mkSimple s!"_f{i}"))
+          types := types.push fieldTypeSyntax
+        return (names, types)
+      -- Compute local encoding for this constructor's fields
+      let localEncode ← mkLocalEncodeSyntax (fieldNameIdents.zip fieldTypeSyntaxes).toList
+      -- Build full encoding with right-nested offset
+      let fullEncode ← mkFullEncodeSyntax prevCtorCards localEncode
+      -- Build match arm: | .ctorName f0 f1 ... => fullEncode
+      let ctorShortName := ctorName.replacePrefix declName .anonymous
+      let ctorIdent := mkIdent ctorShortName
+      let fieldTerms : Array Term := fieldNameIdents.map (⟨·.raw⟩)
+      let arm ←
+        if fieldTerms.isEmpty then
+          `(matchAltExpr| | .$ctorIdent => $fullEncode)
+        else
+          `(matchAltExpr| | .$ctorIdent $fieldTerms:term* => $fullEncode)
+      allMatchAlts := allMatchAlts.push arm
+      -- Compute this constructor's cardinality for subsequent offsets
+      let ctorCard ← mkCtorCardSyntax fieldTypeSyntaxes.toList
+      prevCtorCards := prevCtorCards ++ [ctorCard]
+    -- Build the encode function using match
+    let alts : Array (TSyntax ``matchAlt) := allMatchAlts.map (⟨·.raw⟩)
+    let xIdent : Ident := mkIdent `__x
+    let discr ← `(matchDiscr| $xIdent:ident)
+    let discrs := #[discr]
+    let matchExpr ← `(match $[$discrs],* with $alts:matchAlt*)
+    let encFn ← `(fun $xIdent => $matchExpr)
+    -- Build the full instance definition
+    let funBinders ← header.binders.mapM bracketedBinderToFunBinder
+    let target ← `((FinEncodableInjOnly.ofEquivWithEnc (proxy_equiv% $header.targetType).symm
+      $encFn
+      (by intro x; cases x <;> rfl) :
+      FinEncodableInjOnly $header.targetType))
+    let defBody ← mkFunSyntax funBinders target
+    `(command|@[instance] def $(mkIdent instName) := remove_unused_args% $defBody)
+  elabVeilCommand cmd
+  return true
+
+def mkFinEncodableInjOnlyInstCmd (declName : Name) : CommandElabM Bool :=
+  mkFinEncodableInjOnlyInstCmdDeforested declName
+
+def mkFinEncodableInjOnlyHandler := onlyHandleOne mkFinEncodableInjOnlyInstCmd
+
+initialize registerDerivingHandler ``FinEncodableInjOnly mkFinEncodableInjOnlyHandler
+
+end FinEncodableInjOnlyDerivingHandler
+
+end FinEncodableInjOnly
 
 section OptionalTypeclassInstance
 

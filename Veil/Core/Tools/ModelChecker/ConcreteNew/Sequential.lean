@@ -6,7 +6,7 @@ namespace Veil.ModelChecker.Concrete
 open Std
 open Veil fQueue
 
-variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [BEq κ] [Hashable κ]
+variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
   (params : SearchParameters ρ σ) (th : ρ)
 
 -- CHECK inline this later? seems a good target to inline
@@ -17,18 +17,18 @@ Otherwise, add it to seen set and log, then enqueue it. -/
 def SequentialSearchContext.tryExploreNeighbor
   (fpSt : σₕ)         -- fingerprint of state we're coming from (pre-state), for logging
   (nextDepth : Nat)       -- depth of the current state + 1
-  (sctx : SequentialSearchContext σ κ σₕ)
+  (sctx : SequentialSearchContext σ κ σₕ asm)
   (label : κ)
   (succ : σ)
-  : SequentialSearchContext σ κ σₕ :=
+  : SequentialSearchContext σ κ σₕ asm :=
   let (ctx, sq) := sctx
   let fingerprint := fp.view succ
   if ctx.log.contains fingerprint then
-    ({ ctx with actionStatsMap := ctx.actionStatsMap.update false label }, sq)
+    ({ ctx with actionStatsMap := ActionStatUpdate.increment label 1 ctx.actionStatsMap }, sq)
   else
     ({ ctx with
       log  := ctx.log.insert fingerprint (Option.some (fpSt, label)),
-      actionStatsMap := ctx.actionStatsMap.update true label,
+      actionStatsMap := ActionStatUpdate.increment label 1 ctx.actionStatsMap,
     }, sq.enqueue ⟨fingerprint, succ, nextDepth⟩)
 
 -- CHECK inline this later? seems a good target to inline
@@ -38,7 +38,7 @@ def SequentialSearchContext.processSuccessors
   (fpSt : σₕ)     -- fingerprint of curr
   (depth : Nat)   -- depth of curr
   (successors : List (κ × σ))
-  (sctx : SequentialSearchContext σ κ σₕ) : SequentialSearchContext σ κ σₕ :=
+  (sctx : SequentialSearchContext σ κ σₕ asm) : SequentialSearchContext σ κ σₕ asm :=
   let nextDepth := depth + 1
   successors.foldl (init := sctx) fun current_sctx (tr, postState) =>
     SequentialSearchContext.tryExploreNeighbor fpSt nextDepth current_sctx tr postState
@@ -48,11 +48,11 @@ def SequentialSearchContext.processState
   (depth : Nat)  -- depth of the current state
   (curr : σ)
   (outcomes : List (κ × ExecutionOutcome ℤ σ))
-  (sctx : SequentialSearchContext σ κ σₕ)
+  (sctx : SequentialSearchContext σ κ σₕ asm)
   -- Depth tracking information computed by caller
   (newCompletedDepth : Nat)
   (newFrontierDepth : Nat) :
-  SequentialSearchContext σ κ σₕ :=
+  SequentialSearchContext σ κ σₕ asm :=
   let (ctx, sq) := sctx
   let (ctx', outcomesOpt) := ctx.processState params th fpSt curr outcomes
   match outcomesOpt with
@@ -77,7 +77,7 @@ def SequentialSearchContext.processState
 -- @[inline, specialize]
 def SequentialSearchContext.bfsStep
   (outcomesComputer : ρ → σ → List (κ × ExecutionOutcome ℤ σ))
-  (sctx : SequentialSearchContext σ κ σₕ) : SequentialSearchContext σ κ σₕ :=
+  (sctx : SequentialSearchContext σ κ σₕ asm) : SequentialSearchContext σ κ σₕ asm :=
   let (ctx, sq) := sctx
   match sq.dequeue? with
   | none =>
@@ -97,7 +97,7 @@ def SequentialSearchContext.bfsStep
 
 theorem SequentialSearchContext.processSuccessors_preserves_invs
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
-  {sctx : SequentialSearchContext σ κ σₕ}
+  {sctx : SequentialSearchContext σ κ σₕ asm}
   (h_not_finished : sctx.1.finished = .none)
   {fpSt depth} (curr : σ) {succs}
   (h_reachable : sys.reachable curr)
@@ -127,7 +127,7 @@ theorem SequentialSearchContext.processSuccessors_preserves_invs
       all_goals dsimp only at * ; grind
 
 theorem SequentialSearchContext.processSuccessors_add_to_seen
-  {sctx : SequentialSearchContext σ κ σₕ}
+  {sctx : SequentialSearchContext σ κ σₕ asm}
   {fpSt depth succs} :
   letI res := sctx.processSuccessors fpSt depth succs
   ∀ l v, (l, v) ∈ succs.reverse → (fp.view v) ∈ res.1.log := by
@@ -147,7 +147,7 @@ theorem SequentialSearchContext.processSuccessors_add_to_seen
 
 theorem SequentialSearchContext.bfsStep_preserves_invs
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
-  {sctx : SequentialSearchContext σ κ σₕ}
+  {sctx : SequentialSearchContext σ κ σₕ asm}
   (h_not_finished : sctx.1.hasFinished = false)
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx) :
   SequentialSearchContextInvariants sys params .none (sctx.bfsStep params th sys.tr) := by
@@ -199,13 +199,13 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
 -- @[specialize]
 omit th in
 def breadthFirstSearchSequential {m : Type → Type}
-  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (updateTimeInterval : Nat)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :
-  m (SequentialSearchContext σ κ σₕ) := do
+  m (SequentialSearchContext σ κ σₕ asm) := do
   let mut sctx : LawfulSequentialSearchContext (fp := fp) sys params :=
     Subtype.mk (SequentialSearchContext.initial sys) (SequentialSearchContextInvariants.initial sys params)
   let mut lastUpdateTime : Nat := 0
