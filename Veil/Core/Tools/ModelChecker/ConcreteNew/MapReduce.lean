@@ -33,11 +33,11 @@ def MapReduceSearchContextLocal.tryExploreNeighbor
   let (ctx, q) := lctx
   let fingerprint := fp.view succ
   if globalSeen.contains fingerprint || ctx.log.contains fingerprint then
-    ({ ctx with actionStatsMap := ActionStatUpdate.increment label 1 ctx.actionStatsMap }, q)
+    ({ ctx with actionStatsMap := ActionStatUpdate.increment label false ctx.actionStatsMap }, q)
   else
     ({ ctx with
       log := ctx.log.insert fingerprint (Option.some (fpSt, label)),
-      actionStatsMap := ActionStatUpdate.increment label 1 ctx.actionStatsMap
+      actionStatsMap := ActionStatUpdate.increment label true ctx.actionStatsMap
     }, ⟨fingerprint, succ⟩ :: q)
 
 /-- Process all successors of a state in the local context. -/

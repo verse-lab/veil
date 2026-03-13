@@ -49,6 +49,38 @@ structure ActionStat where
   distinctStates : Nat
 deriving Lean.ToJson, Lean.FromJson, BEq, DecidableEq, Repr, Inhabited
 
+@[inline]
+def ActionStat.update (distinct? : Bool) (stat : ActionStat) : ActionStat :=
+  let ⟨sg, ds⟩ := stat
+  if distinct? then ⟨sg.succ, ds.succ⟩ else ⟨sg.succ, ds⟩
+
+@[inline]
+def ActionStat.merge (stat1 stat2 : ActionStat) : ActionStat :=
+  let ⟨sg1, ds1⟩ := stat1
+  let ⟨sg2, ds2⟩ := stat2
+  ⟨sg1 + sg2, ds1 + ds2⟩
+
+abbrev ActionStatsMap κ [BEq κ] [Hashable κ] := Std.HashMap κ ActionStat
+
+-- Use `.alter` to ensure linear usage
+-- NOTE: This doesn't seem `specialize`d; what happened?
+@[inline]
+def ActionStatsMap.update [BEq κ] [Hashable κ] (distinct? : Bool) (label : κ) (amap : ActionStatsMap κ) : ActionStatsMap κ :=
+  if distinct? then
+    amap.alter label fun
+      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds + 1⟩
+      | none => Option.some { statesGenerated := 1, distinctStates := 1 }
+  else
+    amap.alter label fun
+      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds⟩
+      | none => Option.some { statesGenerated := 1, distinctStates := 0 }
+
+/-- Merge two `ActionStatsMap`s. Note that the time complexity depends on the *second* one;
+but in the case here, the domain size of `m2` should be mostly fixed, so it should not
+matter too much which operand the time complexity depends on. -/
+def ActionStatsMap.combine [BEq κ] [Hashable κ] (m1 m2 : ActionStatsMap κ) : ActionStatsMap κ :=
+  m1.mergeWith (other := m2) fun _ => ActionStat.merge
+
 /-- Statistics for a single action (transition label), for display. -/
 structure ActionStatDisplay extends ActionStat where
   /-- Action name (e.g., "Label.send_msg 1 2") -/
@@ -59,8 +91,7 @@ structure ActionStatDisplay extends ActionStat where
 class ActionStatUpdate (κ : Type u) (asm : outParam (Type v)) where
   /-- Empty stats map -/
   empty : asm
-  /-- Increment `statesGenerated` for `label` by `n` -/
-  increment : κ → Nat → asm → asm
+  increment : κ → Bool → asm → asm
   /-- Combine (sum) two stats maps -/
   merge : asm → asm → asm
   -- /-- Read the count for a specific label -/
@@ -69,40 +100,39 @@ class ActionStatUpdate (κ : Type u) (asm : outParam (Type v)) where
 
 /-- Array-based instance: O(1) increment and lookup.
     Selected when `FinEncodableInjOnly κ` is available. -/
-instance (priority := high) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] : ActionStatUpdate κ (Array Nat) where
-  empty := Array.replicate instf.card 0
-  increment label n arr := arr.modify (instf.encode label).val (· + n)
-  merge arr1 arr2 := arr1.zipWith (· + ·) arr2
+instance (priority := high) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] :
+  ActionStatUpdate κ (Array ActionStat) where
+  empty := Array.replicate instf.card default
+  increment label distinct? arr := arr.modify (instf.encode label).val (ActionStat.update distinct?)
+  merge arr1 arr2 := arr1.zipWith ActionStat.merge arr2
   dump arr := inste.allValues.map fun label =>
-    { name := repr label |>.pretty,
-      statesGenerated := arr.getD (instf.encode label).val 0,
-      distinctStates := 0 }
+    let idx := instf.encode label
+    let stat := arr.getD idx.val default
+    { stat with name := repr label |>.pretty }
 
 abbrev VectorForActionStatUpdate (α : Type u) (κ : Type v) [enc : FinEncodableInjOnly κ] := Vector α enc.card
 
 /-- Vector-based instance: O(1) increment and lookup. -/
-instance (priority := high + 100) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] : ActionStatUpdate κ (VectorForActionStatUpdate Nat κ) where
-  empty := Vector.replicate instf.card 0
-  increment label n vec :=
+instance (priority := high + 100) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] :
+  ActionStatUpdate κ (VectorForActionStatUpdate ActionStat κ) where
+  empty := Vector.replicate instf.card default
+  increment label distinct? vec :=
     let idx := instf.encode label
-    vec.modify idx.val (fun x => x + n) idx.isLt
-  merge arr1 arr2 := Vector.zipWith (· + ·) arr1 arr2
+    vec.modify idx.val (ActionStat.update distinct?) idx.isLt
+  merge vec1 vec2 := vec1.zipWith ActionStat.merge vec2
   dump vec := inste.allValues.map fun label =>
     let idx := instf.encode label
-    { name := repr label |>.pretty,
-      statesGenerated := vec[idx],
-      distinctStates := 0 }
+    let stat := vec[idx]
+    { stat with name := repr label |>.pretty }
 
 /-- HashMap-based fallback instance for types without `FinEncodableInjOnly`. -/
-instance (priority := low) [BEq κ] [Hashable κ] [Repr κ] : ActionStatUpdate κ (Std.HashMap κ Nat) where
+instance (priority := low) [BEq κ] [Hashable κ] [Repr κ] : ActionStatUpdate κ (ActionStatsMap κ) where
   empty := {}
-  increment label n m := m.alter label (fun | some v => some (v + n) | none => some n)
-  merge m1 m2 := m1.mergeWith (other := m2) fun _ as1 as2 => as1 + as2
+  increment label distinct? m := m.update distinct? label
+  merge m1 m2 := m1.combine m2
   -- lookup label m := m.getD label 0
   dump m := m.fold (init := []) fun acc label stat =>
-    { name := repr label |>.pretty,
-      statesGenerated := stat,
-      distinctStates := 0 } :: acc
+    { stat with name := repr label |>.pretty } :: acc
 
 /-- A model checker search context is parametrised by the system that's being
 checked and the theory it's being checked under. -/

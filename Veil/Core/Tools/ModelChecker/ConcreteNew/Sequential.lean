@@ -24,11 +24,11 @@ def SequentialSearchContext.tryExploreNeighbor
   let (ctx, sq) := sctx
   let fingerprint := fp.view succ
   if ctx.log.contains fingerprint then
-    ({ ctx with actionStatsMap := ActionStatUpdate.increment label 1 ctx.actionStatsMap }, sq)
+    ({ ctx with actionStatsMap := ActionStatUpdate.increment label false ctx.actionStatsMap }, sq)
   else
     ({ ctx with
       log  := ctx.log.insert fingerprint (Option.some (fpSt, label)),
-      actionStatsMap := ActionStatUpdate.increment label 1 ctx.actionStatsMap,
+      actionStatsMap := ActionStatUpdate.increment label true ctx.actionStatsMap,
     }, sq.enqueue ⟨fingerprint, succ, nextDepth⟩)
 
 -- CHECK inline this later? seems a good target to inline
