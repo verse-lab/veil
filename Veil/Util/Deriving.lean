@@ -135,11 +135,93 @@ local elab "destruct_proxy_type" : tactic => withMainContext do
         return
   throwError "No target proxy type hypothesis found to destruct"
 
+/-- Recursively collect the leaf patterns from a nested `Sum` type into a flat array. -/
+partial def collectSumLeaves (ty : Expr) : MetaM (Array (TSyntax `rcasesPat)) := do
+  let ty ← whnf ty
+  let_expr Sum l r := ty | return #[← `(rcasesPat| _)]
+  let left ← collectSumLeaves l
+  let right ← collectSumLeaves r
+  return left ++ right
+
+/-- Build an `rcasesPatMed` that fully flattens a `Sum` type using alternation. -/
+def buildSumPattern (ty : Expr) : MetaM (TSyntax ``Lean.Parser.Tactic.rcasesPatMed) := do
+  let leaves ← collectSumLeaves ty
+  `(Lean.Parser.Tactic.rcasesPatMed| $leaves:rcasesPat|*)
+
+/-- Recursively build an `rcases` pattern that fully flattens a `Sigma` type in one shot. -/
+partial def buildSigmaPattern (ty : Expr) : MetaM (TSyntax `rcasesPat) := do
+  let ty ← whnf ty
+  let_expr Sigma fst body := ty | return (← `(rcasesPat| _))
+  let left ← buildSigmaPattern fst
+  let right ← lambdaTelescope body fun _ body => buildSigmaPattern body
+  `(rcasesPat| ⟨$left, $right⟩)
+
+open Lean.Parser.Tactic Tactic in
+/-- Fully destruct a `Sum`-typed hypothesis using a deep `rcases` pattern. -/
+scoped elab "destruct_proxy_sum" : tactic => withMainContext do
+  let lctx ← getLCtx
+  for decl in lctx do
+    if decl.isImplementationDetail then continue
+    let ty ← whnf decl.type
+    if ty.getAppFn'.isConstOf ``Sum then
+      let pat ← buildSumPattern ty
+      let hyp := mkIdent decl.userName
+      evalTactic (← `(tactic| rcases $hyp:ident with $pat))
+      return
+  throwError "No Sum-typed hypothesis found to destruct"
+
+open Tactic in
+/-- Fully destruct a `Sigma`-typed hypothesis using a deep `rcases` pattern. -/
+local elab "destruct_proxy_sigma" : tactic => withMainContext do
+  let lctx ← getLCtx
+  for decl in lctx do
+    if decl.isImplementationDetail then continue
+    let ty ← whnf decl.type
+    if ty.getAppFn'.isConstOf ``Sigma then
+      let pat ← buildSigmaPattern ty
+      let hyp := mkIdent decl.userName
+      evalTactic (← `(tactic| rcases $hyp:ident with $pat))
+      return
+  throwError "No Sigma-typed hypothesis found to destruct"
+
 -- NOTE: The following code register `lexOrdForNonDepSigma` and `sumOrd`
 -- *to be local instances*. In this case, users don't need to consider
 -- which instances to use when writing `deriving`, but this might introduce
 -- some unexpected behaviors in other situations.
+
+/-- Ensure the homomorphism proof theorem exists for `declName`, creating it if needed.
+Returns the theorem name. When both `Std.TransOrd` and `Std.LawfulEqOrd` are derived
+for the same type, the second derivation reuses the cached theorem.
+Assume `declName` is the fully qualified name. -/
+def ensureOrdHomProof (declName : Name) : CommandElabM Name := do
+  let thmName := declName ++ `_proxyOrdHom
+  if (← getEnv).find? thmName |>.isSome then
+    return thmName
+  let indVal ← getConstInfoInduct declName
+  -- Compute a name relative to the current namespace so that
+  -- `elabVeilCommand` (which uses the current namespace) doesn't double it.
+  let currNs ← getCurrNamespace
+  let relThmName := thmName.replacePrefix currNs .anonymous
+  let cmd ← liftTermElabM do
+    let header ← mkHeader ``Ord 0 indVal
+    let localInsts := #[``lexOrdForNonDepSigma, ``sumOrd].map mkCIdent
+    let a1 ← mkIdent <$> mkFreshUserName `a1
+    let a2 ← mkIdent <$> mkFreshUserName `a2
+    `(command|
+      attribute [scoped instance] $localInsts* in
+      theorem $(mkIdent relThmName) $header.binders:bracketedBinder* :
+        ∀ $a1:ident $a2:ident,
+          compare $a1:ident $a2:ident = compare ((proxy_equiv% $header.targetType) $a1:ident) ((proxy_equiv% $header.targetType) $a2:ident) := by
+            intros
+            conv => rhs ; whnf
+            simp ($(mkIdent `failIfUnchanged):ident := false) only [$(mkCIdent ``Ordering.then_eq):ident]
+            try (destruct_proxy_sum <;> destruct_proxy_sum <;> try rfl)
+            all_goals (first | rfl | (destruct_proxy_sigma ; first | rfl | grind)))
+  elabVeilCommand cmd
+  return thmName
+
 def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
+  let thmName ← ensureOrdHomProof declName
   let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
     let header ← mkHeader ``Ord 0 indVal
@@ -150,11 +232,7 @@ def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
       scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* : $(mkCIdent className) ($header.targetType) :=
         $(mkCIdent <| `Veil ++ className ++ `by_equiv)
           (proxy_equiv% $header.targetType)
-          (by
-            intros
-            conv => rhs ; whnf
-            simp ($(mkIdent `failIfUnchanged):ident := false) only [$(mkCIdent ``Ordering.then_eq):ident]
-            repeat' (first | rfl | destruct_proxy_type | grind)))
+          $(mkCIdent thmName))
   elabVeilCommand cmd
   return true
 
