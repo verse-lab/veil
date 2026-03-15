@@ -31,6 +31,8 @@ inductive ConcreteRepKind where
   | finsetLike
   /-- For `function` fields (finmap-like: map from domain to codomain) -/
   | finmapLike
+  /-- For both `relation` and `function` fields (canonical functional representation) -/
+  | canonical
 deriving Inhabited, BEq, Hashable, Repr
 
 /-- Configuration for a concrete representation type. -/
@@ -55,7 +57,7 @@ structure ConcreteRepConfig where
   fieldRepInstance : Name
   /-- Name of the `LawfulFieldRepresentation` instance -/
   lawfulFieldRepInstance : Name
-deriving Inhabited, Repr
+deriving Inhabited, Repr, BEq
 
 /-- The global registry of available concrete representations. -/
 structure ConcreteRepRegistry where
@@ -140,11 +142,26 @@ def arrayAsFinmapConfig : ConcreteRepConfig := {
   lawfulFieldRepInstance := ``instFinmapLikeLawfulFieldRep
 }
 
+/-- Configuration for `CanonicalField` (functional representation, works for both relations and functions). -/
+def canonicalFieldConfig : ConcreteRepConfig := {
+  kind := .canonical
+  typeName := ``CanonicalField
+  domainTypeInstances := #[]
+  codomainTypeInstances := #[]
+  domainFieldRepInstances := #[``DecidableEq]
+  codomainFieldRepInstances := #[]
+  domainLawfulFieldRepInstances := #[``DecidableEq]
+  codomainLawfulFieldRepInstances := #[]
+  fieldRepInstance := ``canonicalFieldRepresentation
+  lawfulFieldRepInstance := ``canonicalFieldRepresentationLawful
+}
+
 /-- All built-in concrete representation configs. -/
 def builtinConcreteRepConfigs : List ConcreteRepConfig :=
   [extTreeSetConfig, extTreeMapConfig,
    bitvecAsFinsetConfig, bitvecAsFinmapConfig,
-   arrayAsFinsetConfig, arrayAsFinmapConfig]
+   arrayAsFinsetConfig, arrayAsFinmapConfig,
+   canonicalFieldConfig]
 
 end ConcreteRepRegistry
 

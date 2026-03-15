@@ -7,6 +7,8 @@ import Std.Data.ExtTreeMap.Lemmas
 namespace Veil
 open Lean Std
 
+-- FIXME: Some instances here are already defined in `Std.Data.TreeSet.Basic`
+
 /-!
 `BEq` instances
 
@@ -44,6 +46,19 @@ instance instHashableOfExtTreeMap [Ord α] [Hashable α] [Hashable β] [Std.Tran
 
 instance : Hashable (CanonicalFieldWrapper FieldDomain FieldCodomain) where
   hash _ := 13
+
+instance instHashableForFiniteFunction {α : Type u} {β : Type v}
+  [Veil.Enumeration α] [Hashable α] [Hashable β] : Hashable (α → β) where
+  hash f :=
+    let l := Veil.Enumeration.allValues (α := α)
+    l.foldl (fun r a => mixHash r (hash (f a))) 7
+
+instance [Hashable β] : Hashable (Veil.CanonicalField [] β) where
+  hash b := hash <| @id β b
+
+@[inline]
+instance [Veil.Enumeration α] [Hashable α] [Hashable <| Veil.CanonicalField αs β] : Hashable (Veil.CanonicalField (α :: αs) β) :=
+  instHashableForFiniteFunction
 
 deriving instance Hashable for Sum
 
@@ -253,6 +268,9 @@ instance [DecidableEq α] [DecidableEq β] [Ord α] [a : Enumeration α] [b : En
 
 instance instInhabitedForExtTreeSet [Inhabited α] [Ord α]: Inhabited (Std.ExtTreeSet α) :=
   ⟨Std.ExtTreeSet.empty⟩
+
+instance [Inhabited β] : Inhabited (Veil.CanonicalField α β) where
+  default := Veil.IteratedArrow.curry fun _ => default
 
 /-!
 `ToJson` instances

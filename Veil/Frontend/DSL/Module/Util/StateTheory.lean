@@ -296,6 +296,8 @@ where
     let lawfulAssumed ← mod.assumeInstArgsWithConcreteRepConfig fields repConfigs
       ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
       (filterWithHeuristics := false)
+    let relIsCanonical := repConfigs.relationConfig.kind == .canonical
+    let funIsCanonical := repConfigs.functionConfig.kind == .canonical
     mkFieldRepresentationInstancesCore mod fieldConcreteDispatcher instFieldRepresentation instLawfulFieldRepresentation
       fieldRepAssumed
       lawfulAssumed
@@ -304,12 +306,14 @@ where
         repConfigs.relationConfig.fieldRepInstance
         repConfigs.functionConfig.fieldRepInstance
         ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeAsFieldRep
-        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeAsFieldRep)
+        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeAsFieldRep
+        relIsCanonical funIsCanonical)
       (mkLawfulFieldRepresentationSolverTactic
         repConfigs.relationConfig.lawfulFieldRepInstance
         repConfigs.functionConfig.lawfulFieldRepInstance
         ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeLawfulFieldRep
-        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeLawfulFieldRep)
+        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeLawfulFieldRep
+        relIsCanonical funIsCanonical)
     -- (← fieldRepAssumed.flatMapM mod.assumeForEverySort)
     -- (← lawfulAssumed.flatMapM mod.assumeForEverySort)
   mkFieldRepresentationInstancesForAbstract (mod : Module) : m (Array Syntax) := do
@@ -324,7 +328,7 @@ where
         fieldRepAssumed lawfulAssumed abstractTactic lawfulAbstractTactic
     return repInsts
   /-- `NN` indicates "not necessarily". -/
-  mkFieldRepresentationSolverTactic (relTFinCase funTFinCase relTNNFinCase funTNNFinCase : Name) (sorts : Array Ident) (fieldLabelIdent : Ident) : m (TSyntax `tactic) := do
+  mkFieldRepresentationSolverTactic (relTFinCase funTFinCase relTNNFinCase funTNNFinCase : Name) (relIsCanonical funIsCanonical : Bool) (sorts : Array Ident) (fieldLabelIdent : Ident) : m (TSyntax `tactic) := do
     let fieldLabelIdentBackup := mkVeilImplementationDetailIdent `f_backup
     let instEnumerationForIteratedProdApplied ← `(($instEnumerationForIteratedProd $sorts*) $fieldLabelIdentBackup)
     let realEnumerationForIteratedProd ← do
@@ -337,25 +341,36 @@ where
         $optionBindProd $instEnumerationForIteratedProdApplied)
     let equiv := mkIdent ``Veil.IteratedProd'.equiv
     let tacLet ← `(tactic|let $fieldLabelIdentBackup := $fieldLabelIdent)
+    -- Build tactic arms dynamically
+    let mut arms : Array (TSyntax `tactic) := #[← `(tactic| infer_instance)]
+    if relIsCanonical || funIsCanonical then
+      arms := arms.push (← `(tactic| (exact $(mkIdent ``Veil.canonicalFieldRepresentation) (by infer_instance_for_iterated_prod))))
+    if !relIsCanonical then
+      arms := arms.push (← `(tactic| (exact (meta_match_option $realEnumerationForIteratedProd
+          => ($(mkIdent relTFinCase) ($equiv) ·)
+          => ($(mkIdent relTNNFinCase) ($equiv) ($instEnumerationForIteratedProdApplied) (by infer_instance_for_iterated_prod))))))
+    if !funIsCanonical then
+      arms := arms.push (← `(tactic| (exact (meta_match_option $realEnumerationForIteratedProd
+          => ($(mkIdent funTFinCase) ($equiv) ·)
+          => ($(mkIdent funTNNFinCase) ($equiv) ($instEnumerationForIteratedProdApplied) (by infer_instance_for_iterated_prod))))))
+    let seqs ← arms.mapM fun a => `(tacticSeq| $a:tactic)
     `(tactic|($tacLet:tactic ; cases $fieldLabelIdent:ident) <;>
-    first
-    | infer_instance
-    | (exact (meta_match_option $realEnumerationForIteratedProd
-        => ($(mkIdent relTFinCase) ($equiv) ·)      -- `·` is required here!
-        => ($(mkIdent relTNNFinCase) ($equiv) ($instEnumerationForIteratedProdApplied) (by infer_instance_for_iterated_prod))))
-    | (exact (meta_match_option $realEnumerationForIteratedProd
-        => ($(mkIdent funTFinCase) ($equiv) ·)
-        => ($(mkIdent funTNNFinCase) ($equiv) ($instEnumerationForIteratedProdApplied) (by infer_instance_for_iterated_prod)))))
+    first $[| $seqs]*)
   -- Since the `FieldRepresentation` instances are determined, just apply the appropriate ones
-  mkLawfulFieldRepresentationSolverTactic (relTFinCase funTFinCase relTNNFinCase funTNNFinCase : Name) (_ : Array Ident) (fieldLabelIdent : Ident) : m (TSyntax `tactic) := do
+  mkLawfulFieldRepresentationSolverTactic (relTFinCase funTFinCase relTNNFinCase funTNNFinCase : Name) (relIsCanonical funIsCanonical : Bool) (_ : Array Ident) (fieldLabelIdent : Ident) : m (TSyntax `tactic) := do
+    let mut arms : Array (TSyntax `tactic) := #[
+      ← `(tactic| infer_instance),
+      ← `(tactic| apply $(mkIdent ``instLawfulFieldRepresentationIndividual))
+    ]
+    if relIsCanonical || funIsCanonical then
+      arms := arms.push (← `(tactic| apply $(mkIdent ``Veil.canonicalFieldRepresentationLawful)))
+    if !relIsCanonical then
+      arms := arms ++ #[← `(tactic| apply $(mkIdent relTFinCase)), ← `(tactic| apply $(mkIdent relTNNFinCase))]
+    if !funIsCanonical then
+      arms := arms ++ #[← `(tactic| apply $(mkIdent funTFinCase)), ← `(tactic| apply $(mkIdent funTNNFinCase))]
+    let seqs ← arms.mapM fun a => `(tacticSeq| $a:tactic)
     `(tactic|cases $fieldLabelIdent:ident <;>
-    first
-    | infer_instance
-    | apply $(mkIdent ``instLawfulFieldRepresentationIndividual)
-    | apply $(mkIdent relTFinCase)
-    | apply $(mkIdent relTNNFinCase)
-    | apply $(mkIdent funTFinCase)
-    | apply $(mkIdent funTNNFinCase))
+    first $[| $seqs]*)
   /-- Build the chained flatMap/map expression for `Enumeration` instance.
       For fields [f1, f2, f3], generates:
       ```
@@ -481,13 +496,21 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMess
     match sc.kind with
     | .individual => pure codomainGetter
     | .relation =>
-      let allSomeCase ← `(term| $(mkIdent repConfigs.relationConfig.typeName) $mapKeyTerm)
-      let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinsetLikeUpdates.HybridFinsetLike) ($allSomeCase) ($domainGetter))
-      chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
+      if repConfigs.relationConfig.kind == .canonical then
+        -- Canonical: concrete type IS the abstract type (no IteratedProd', no hybrid fallback)
+        `(term| $(mkIdent ``Veil.CanonicalField) $domainGetter $codomainGetter)
+      else
+        let allSomeCase ← `(term| $(mkIdent repConfigs.relationConfig.typeName) $mapKeyTerm)
+        let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinsetLikeUpdates.HybridFinsetLike) ($allSomeCase) ($domainGetter))
+        chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .function =>
-      let allSomeCase ← `(term| $(mkIdent repConfigs.functionConfig.typeName) $mapKeyTerm $mapValueTerm)
-      let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinmapLikeUpdates.HybridFinmapLike) ($allSomeCase) ($domainGetter) ($codomainGetter))
-      chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
+      if repConfigs.functionConfig.kind == .canonical then
+        -- Canonical: concrete type IS the abstract type (no IteratedProd', no hybrid fallback)
+        `(term| $(mkIdent ``Veil.CanonicalField) $domainGetter $codomainGetter)
+      else
+        let allSomeCase ← `(term| $(mkIdent repConfigs.functionConfig.typeName) $mapKeyTerm $mapValueTerm)
+        let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinmapLikeUpdates.HybridFinmapLike) ($allSomeCase) ($domainGetter) ($codomainGetter))
+        chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .module => throwError "[fieldKindToConcreteType] module kind is not supported"
   /-- Choose between two concrete field types based on whether the domain is
   finite or not. -/

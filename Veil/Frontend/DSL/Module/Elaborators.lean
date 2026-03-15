@@ -154,7 +154,8 @@ def elabConcreteRepresentation : CommandElab := fun stx => do
     let some cfg ← ConcreteRepRegistry.lookupConcreteRep name
       | throwErrorAt typeName s!"Unknown concrete representation type '{name}'"
     unless (cfg.kind == .finsetLike && kind == StateComponentKind.relation) ||
-            (cfg.kind == .finmapLike && kind == StateComponentKind.function) do
+            (cfg.kind == .finmapLike && kind == StateComponentKind.function) ||
+            (cfg.kind == .canonical && (kind == StateComponentKind.relation || kind == StateComponentKind.function)) do
       throwErrorAt typeName s!"Concrete representation '{name}' is not compatible with state component kind '{kind}'"
     let new_mod := { mod with _concreteRepConfig := mod._concreteRepConfig.insert kind name }
     localEnv.modifyModule (fun _ => new_mod)
