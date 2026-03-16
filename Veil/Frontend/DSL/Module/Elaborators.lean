@@ -953,8 +953,7 @@ def elabSimulate : CommandElab := fun stx => do
         ("traces_run",  Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.tracesRun r)),
         ("elapsed_ms",  Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.elapsedMs r)),
         ("seed",        Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.seed r)),
-        ("depth",       Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.depth r)),
-        ("total_steps", Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.totalSteps r))
+        ("depth",       Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.depth r))
       ]) $callExpr:term)
     trace[veil.desugar] "{wrappedCallExpr}"
     let ioJson ← liftTermElabM do
@@ -970,16 +969,14 @@ def elabSimulate : CommandElab := fun stx => do
     let tracesRun := (combinedJson.getObjValD "traces_run").getNat? |>.getD 0
     let elapsedMs := (combinedJson.getObjValD "elapsed_ms").getNat? |>.getD 0
     let depth := (combinedJson.getObjValD "depth").getNat? |>.getD 0
-    let totalSteps := (combinedJson.getObjValD "total_steps").getNat? |>.getD 0
     let tracesPerSec := if elapsedMs > 0 then tracesRun * 1000 / elapsedMs else 0
-    let stepsPerSec := if elapsedMs > 0 then totalSteps * 1000 / elapsedMs else 0
     let isViolation := resultJson.getObjValD "result" == Json.str "found_violation" ||
       resultJson.getObjValD "error" != .null
     -- Log simulation-specific summary
     let summary := if isViolation then
       s!"simulation: found violation at depth {depth} (trace #{tracesRun}, {elapsedMs}ms, seed := {seed}). A shorter violation may exist at depth < {depth}."
     else
-      s!"simulation: no violation in {tracesRun} traces ({totalSteps} steps, {elapsedMs}ms, {stepsPerSec} steps/s, seed := {seed}). Not exhaustive -- use #model_check for full coverage."
+      s!"simulation: no violation in {tracesRun} traces ({elapsedMs}ms, {tracesPerSec} traces/s, seed := {seed}). Not exhaustive -- use #model_check for full coverage."
     logInfoAt stx summary
     -- Log the same trace display as #model_check
     elabModelCheck.logModelCheckResult stx resultJson

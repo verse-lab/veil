@@ -20,7 +20,6 @@ structure SimulateResult (ρ σ κ : Type) where
   elapsedMs : Nat
   seed : Nat
   depth : Nat
-  totalSteps : Nat
 
 /-- Return names of invariants violated in the given state. -/
 @[inline]
@@ -186,13 +185,11 @@ partial def simulate {ρ σ κ : Type} {th₀ : ρ}
     else pure cfg.seed
   let startMs ← IO.monoMsNow
   let mut i := 0
-  let mut totalSteps := 0
   while i < cfg.maxTraces do
     let traceSeed := actualSeed + i
     try
       -- Fast scan: no trace allocation
       let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-      totalSteps := totalSteps + stepsUsed
       if violated then
         -- Replay with same seed to build counterexample trace
         let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
@@ -205,7 +202,6 @@ partial def simulate {ρ σ κ : Type} {th₀ : ρ}
             elapsedMs := elapsedMs
             seed := actualSeed
             depth := stepsUsed
-            totalSteps := totalSteps
           }
         | none =>
           i := i + 1
@@ -222,7 +218,6 @@ partial def simulate {ρ σ κ : Type} {th₀ : ρ}
     elapsedMs := elapsedMs
     seed := actualSeed
     depth := 0
-    totalSteps := totalSteps
   }
 
 
