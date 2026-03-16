@@ -11,6 +11,7 @@ import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
+import Veil.Core.Tools.ModelChecker.Simulation
 import Veil.Frontend.DSL.Action.Extract
 import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing
@@ -523,6 +524,8 @@ def defaultThresholdToParallel : Nat := 20
 
 declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 
+declare_command_config_elab elabSimulateConfig ModelChecker.Simulation.SimulateConfig
+
 /-- Model checking mode: interpreted only, compiled only, or default (both with handoff). -/
 inductive ModelCheckingMode where
   | interpreted
@@ -911,5 +914,107 @@ where
     Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
 
     ModelChecker.displayStreamingProgress stx ctx.instanceId
+
+/-- Build the simulator call syntax. -/
+private def mkSimulatorCall (mod : Module) (instTerm theoryTerm : Term)
+    (sp : Term) (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Term := do
+  let inst := mkVeilImplementationDetailIdent `inst
+  let th := mkVeilImplementationDetailIdent `th
+  let instSortArgs ← (← mod.sortIdents).mapM fun sortIdent => `($inst.$(sortIdent))
+  let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
+      $(quote cfg.maxTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
+  `((let $inst : $instantiationType := $instTerm
+     let $th : $theoryIdent $instSortArgs* := $theoryTerm
+     $(mkIdent ``Veil.ModelChecker.Simulation.simulate)
+       ($(Lean.mkIdent (mod.name ++ `enumerableTransitionSystem)) $instSortArgs* $th)
+       $sp $th $cfgTerm))
+
+@[command_elab Veil.simulate]
+def elabSimulate : CommandElab := fun stx => do
+  withTraceNode `veil.perf.elaborator.simulate (fun _ => return "#simulate") do
+    let instTerm : Term := ⟨stx[1]⟩
+    let theoryTermOpt : Option Term := if stx[2].isNone then none else some ⟨stx[2][0]⟩
+    let mod ← getCurrentModule (errMsg := "You cannot #simulate outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm
+    let cfg0 ← elabSimulateConfig stx[3]
+    let opts ← getOptions
+    let maxTraces := if cfg0.maxTraces == 10000 then veil.simulate.maxTraces.get opts else cfg0.maxTraces
+    let maxSteps := if cfg0.maxSteps == 100 then veil.simulate.maxSteps.get opts else cfg0.maxSteps
+    let cfg : ModelChecker.Simulation.SimulateConfig := { cfg0 with maxTraces, maxSteps }
+    let mcCfg : ModelCheckerConfig := { maxDepth := 0, sequential := false, parallelCfg := none }
+    let sp ← mkSearchParameters mod mcCfg
+    let callExpr ← mkSimulatorCall mod instTerm theoryTerm sp cfg
+    let wrappedCallExpr ← `(Functor.map (fun r => Lean.Json.mkObj [
+        ("result",      Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.result r)),
+        ("traces_run",  Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.tracesRun r)),
+        ("elapsed_ms",  Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.elapsedMs r)),
+        ("seed",        Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.seed r)),
+        ("depth",       Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.depth r)),
+        ("total_steps", Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.totalSteps r))
+      ]) $callExpr:term)
+    trace[veil.desugar] "{wrappedCallExpr}"
+    let ioJson ← liftTermElabM do
+      let expr ← Term.elabTerm wrappedCallExpr none
+      Term.synthesizeSyntheticMVarsNoPostponing
+      unsafe Meta.evalExpr (IO Lean.Json)
+        (mkApp (mkConst ``IO) (mkConst ``Lean.Json))
+        (← instantiateMVars expr)
+    let combinedJson ← liftIO ioJson
+    let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
+    let resultJson := enrichJsonWithAssertions (combinedJson.getObjValD "result") assertionSources
+    let seed := (combinedJson.getObjValD "seed").getNat? |>.getD 0
+    let tracesRun := (combinedJson.getObjValD "traces_run").getNat? |>.getD 0
+    let elapsedMs := (combinedJson.getObjValD "elapsed_ms").getNat? |>.getD 0
+    let depth := (combinedJson.getObjValD "depth").getNat? |>.getD 0
+    let totalSteps := (combinedJson.getObjValD "total_steps").getNat? |>.getD 0
+    let tracesPerSec := if elapsedMs > 0 then tracesRun * 1000 / elapsedMs else 0
+    let stepsPerSec := if elapsedMs > 0 then totalSteps * 1000 / elapsedMs else 0
+    let isViolation := resultJson.getObjValD "result" == Json.str "found_violation" ||
+      resultJson.getObjValD "error" != .null
+    let summary := if isViolation then
+      s!"simulation: found violation at depth {depth} (trace #{tracesRun}, {elapsedMs}ms, seed := {seed}). A shorter violation may exist at depth < {depth}."
+    else
+      s!"simulation: no violation in {tracesRun} traces ({totalSteps} steps, {elapsedMs}ms, {stepsPerSec} steps/s, seed := {seed}). Not exhaustive -- use #model_check for full coverage."
+    let details := TraceDisplay.formatModelCheckingResult resultJson
+    let msg := summary ++ "\n" ++ details
+    let violationIsError := veil.violationIsError.get opts
+    if isViolation && violationIsError then logErrorAt stx msg else logInfoAt stx msg
+where
+  /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
+      Throws a helpful error if theory fields exist but no term was provided. -/
+  getTheoryTerm (theoryTermOpt : Option Term) (mod : Module) (instTerm : Term) : CommandElabM Term := do
+    match theoryTermOpt with
+    | some t => pure t
+    | none =>
+      unless mod.immutableComponents.isEmpty do
+        let fieldStrs := mod.immutableComponents.map (fun c => s!"{c.name} := ...")
+        let theoryExample := "{ " ++ ", ".intercalate fieldStrs.toList ++ " }"
+        throwError "This module has immutable fields, so you must specify the theory instantiation:\n\
+          #simulate {instTerm} {theoryExample}"
+      `({})
+
+  /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
+  mkIdentWithModName (mod : Module) (name : Name) : Ident :=
+    Lean.mkIdent (mod.name ++ name)
+
+  /-- Build search parameters reused by simulator execution. -/
+  mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
+    let mkProp (sa : StateAssertion) : CommandElabM Term :=
+      `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
+          ($(mkIdent `name) := $(quote sa.name))
+          ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
+    let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+    let terminatingProp ← match mod.terminations[0]? with
+      | some t => mkProp t
+      | none => `($(mkIdent `default))
+    let earlyTermConds ← do
+      let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
+                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
+                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
+      if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
+      else pure base
+    `({ $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
+        $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
 
 end Veil
