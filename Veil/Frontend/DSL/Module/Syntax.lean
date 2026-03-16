@@ -382,4 +382,10 @@ scoped syntax (name := crFunction) kw_function : concreteRepField
 
 scoped syntax (name := concreteRepresentationDecl) "veil_set_field_representation " concreteRepField ident : command
 
+/-- Run random-walk simulation on the current module.
+    Explores random traces to find shallow invariant violations quickly.
+    Seed defaults to current timestamp if omitted (always shown in output for reproducibility).
+    Example: `#simulate {}` or `#simulate {} (maxTraces := 100, seed := 42)` -/
+syntax (name := simulate) "#simulate " term:max (term:max)? Parser.Tactic.optConfig : command
+
 end Veil
