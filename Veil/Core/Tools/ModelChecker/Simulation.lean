@@ -188,27 +188,30 @@ partial def simulate {ρ σ κ : Type} {th₀ : ρ}
   let mut totalSteps := 0
   while i < cfg.maxTraces do
     let traceSeed := actualSeed + i
-    -- Fast scan: no trace allocation
-    let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-    totalSteps := totalSteps + stepsUsed
-    if violated then
-      -- Replay with same seed to build counterexample trace
-      let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-      match maybeResult with
-      | some result =>
-        let elapsedMs := (← IO.monoMsNow) - startMs
-        return {
-          result := result
-          tracesRun := i + 1
-          elapsedMs := elapsedMs
-          seed := actualSeed
-          depth := stepsUsed
-          totalSteps := totalSteps
-        }
-      | none =>
-        -- Scan flagged violation but replay didn't reproduce (should not happen)
+    try
+      -- Fast scan: no trace allocation
+      let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
+      totalSteps := totalSteps + stepsUsed
+      if violated then
+        -- Replay with same seed to build counterexample trace
+        let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
+        match maybeResult with
+        | some result =>
+          let elapsedMs := (← IO.monoMsNow) - startMs
+          return {
+            result := result
+            tracesRun := i + 1
+            elapsedMs := elapsedMs
+            seed := actualSeed
+            depth := stepsUsed
+            totalSteps := totalSteps
+          }
+        | none =>
+          i := i + 1
+      else
         i := i + 1
-    else
+    catch e =>
+      IO.eprintln s!"#simulate: error on trace {i} (seed := {traceSeed}): {e.toString}"
       i := i + 1
   let elapsedMs := (← IO.monoMsNow) - startMs
   return {
