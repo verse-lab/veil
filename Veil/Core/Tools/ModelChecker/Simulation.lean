@@ -113,20 +113,17 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   | stepsLeft + 1 =>
     let outcomes := sys.tr th currSt
     -- Check assertion failures first (highest priority)
-    let assertionFailures := outcomes.filterMap fun (_, outcome) =>
+    let failingStep := outcomes.findSome? fun (label, outcome) =>
       match outcome with
-      | .assertionFailure exId _ => some exId
+      | .assertionFailure exId st =>
+        some (exId, { transitionLabel := label, nextState := st })
       | _ => none
-    match assertionFailures.head? with
-    | some exId =>
-      let failingStep := outcomes.findSome? fun (label, outcome) =>
-        match outcome with
-        | .assertionFailure exId' st =>
-          if exId' == exId then some { transitionLabel := label, nextState := st } else none
-        | _ => none
-      let failedTrace := { trace with failingStep := failingStep }
+    match failingStep with
+    | some (exId, step) =>
+      let failedTrace := { trace with failingStep := some step }
+      -- +1 for the failing action itself (not in trace.steps, stored in failingStep)
       (some (.foundViolation () (.assertionFailure exId) (some failedTrace)),
-        gen, trace.steps.size)
+        gen, trace.steps.size + 1)
     | none =>
       let nexts := Concrete.extractSuccessfulTransitions outcomes
       if nexts.isEmpty then
