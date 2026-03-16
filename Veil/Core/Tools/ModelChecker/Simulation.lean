@@ -94,7 +94,8 @@ partial def scanOnce {ρ σ κ : Type} {th₀ : ρ}
       scanOnceLoop sys params th maxSteps initSt gen
 
 
-/-- Full trace loop: walk and record every step for counterexample.
+/-- Inner loop of a single random trace: walk from `currSt` for up to
+`stepsLeft` steps, picking a random enabled transition at each step.
 Returns `(violation?, updatedRng, stepsTaken)`. Used only for replay. -/
 @[inline, specialize]
 partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
@@ -111,6 +112,7 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   | 0 => (none, gen, 0)
   | stepsLeft + 1 =>
     let outcomes := sys.tr th currSt
+    -- Check assertion failures first (highest priority)
     let assertionFailures := outcomes.filterMap fun (_, outcome) =>
       match outcome with
       | .assertionFailure exId _ => some exId
@@ -129,6 +131,7 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
       let nexts := Concrete.extractSuccessfulTransitions outcomes
       if nexts.isEmpty then
         if !params.terminating.holdsOn th currSt then
+          -- No enabled transitions and not a terminating state: deadlock
           (some (.foundViolation () .deadlock (some trace)), gen, trace.steps.size)
         else
           (none, gen, trace.steps.size)
@@ -144,7 +147,8 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
           simulateOnceLoop sys params th stepsLeft nextSt trace gen
 
 
-/-- Full trace run from random init state. Used only for replay. -/
+/-- Run a single random trace from a randomly chosen initial state.
+Returns `(violation?, updatedRng, stepsTaken)`. Used only for replay. -/
 @[inline, specialize]
 partial def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)

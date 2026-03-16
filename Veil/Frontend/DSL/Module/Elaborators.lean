@@ -556,6 +556,7 @@ private def getActionLabelNames (mod : Module) : CommandElabM (List String) := d
   let labelTypeName ← resolveGlobalConstNoOverload labelType
   return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
 
+/-- Warn if the module contains transitions (which are slow to model check). -/
 private def warnAboutTransitions (mod : Module) : CommandElabM Unit := do
   let transitions := mod.procedures.filter (·.info.isTransition)
   if transitions.isEmpty then return
@@ -566,6 +567,7 @@ private def warnAboutTransitions (mod : Module) : CommandElabM Unit := do
     transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
     Consider encoding transitions as imperative actions where possible."
 
+/-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields. -/
 private def resolveTheoryTerm (cmdName : String) (theoryTermOpt : Option Term)
     (mod : Module) (instTerm : Term) : CommandElabM Term := do
   match theoryTermOpt with
@@ -584,6 +586,7 @@ private def mkIdentWithModName' (mod : Module) (name : Name) : Ident :=
 
 /-- Build search parameters for model checking / simulation. -/
 private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
+  -- Build SafetyProperty.mk syntax for a StateAssertion
   let mkProp (sa : StateAssertion) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
         ($(mkIdent `name) := $(quote sa.name))
