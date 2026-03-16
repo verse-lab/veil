@@ -550,7 +550,6 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
     | `(modelCheckMode| compiled) => .compiled
     | _ => .default
 
-
 /-- Get all action label names for never-enabled action warnings. -/
 private def getActionLabelNames (mod : Module) : CommandElabM (List String) := do
   let labelTypeName ← resolveGlobalConstNoOverload labelType
@@ -603,15 +602,6 @@ private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) :
     else pure base
   `({ $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
       $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
-
-/-- Display a TraceDisplayViewer widget with the given result JSON. -/
-private def displayResultWidget (stx : Syntax) (resultTerm : Term) : CommandElabM Unit := do
-  let widgetExpr ← `(open ProofWidgets.Jsx in
-    <ProofWidgets.TraceDisplayViewer result={$resultTerm} layout={"vertical"} />)
-  let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
-  liftCoreM <| Widget.savePanelWidgetInfo
-    (hash ProofWidgets.HtmlDisplayPanel.javascript)
-    (return json% { html: $(← Server.rpcEncode html) }) stx
 
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
