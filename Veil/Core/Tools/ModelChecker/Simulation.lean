@@ -30,9 +30,72 @@ def violatedInvariantNames {ρ σ : Type}
     if !p.holdsOn th st then some p.name else none
 
 
-/-- Inner loop of a single random trace: walk from `currSt` for up to
-`stepsLeft` steps, picking a random enabled transition at each step.
-Returns `(violation?, updatedRng, stepsTaken)`. -/
+/-- Lightweight scan loop: walk without building a trace.
+Returns `(violated?, updatedRng, stepsTaken)`. -/
+@[inline, specialize]
+partial def scanOnceLoop {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (stepsLeft : Nat)
+  (currSt : σ)
+  (gen : StdGen)
+  [Inhabited (κ × σ)]
+  : Bool × StdGen × Nat :=
+  match stepsLeft with
+  | 0 => (false, gen, 0)
+  | stepsLeft + 1 =>
+    let outcomes := sys.tr th currSt
+    let assertionFailureFound := outcomes.any fun (_, outcome) =>
+      match outcome with
+      | .assertionFailure _ _ => true
+      | _ => false
+    if assertionFailureFound then
+      (true, gen, 1)
+    else
+      let nexts := Concrete.extractSuccessfulTransitions outcomes
+      if nexts.isEmpty then
+        if !params.terminating.holdsOn th currSt then
+          (true, gen, 0)  -- deadlock
+        else
+          (false, gen, 0)
+      else
+        let (idx, gen) := randNat gen 0 (nexts.length - 1)
+        let (_, nextSt) := nexts[idx]!
+        let violations := violatedInvariantNames params th nextSt
+        if !violations.isEmpty then
+          (true, gen, 1)
+        else
+          let (violated, gen, innerSteps) := scanOnceLoop sys params th stepsLeft nextSt gen
+          (violated, gen, innerSteps + 1)
+
+
+/-- Lightweight scan: pick random init state, walk without trace.
+Returns `(violated?, updatedRng, stepsTaken)`. -/
+@[inline, specialize]
+partial def scanOnce {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (gen : StdGen)
+  (maxSteps : Nat)
+  [Inhabited σ]
+  [Inhabited (κ × σ)]
+  : Bool × StdGen × Nat :=
+  if sys.initStates.isEmpty then
+    (false, gen, 0)
+  else
+    let (idx, gen) := randNat gen 0 (sys.initStates.length - 1)
+    let initSt := sys.initStates[idx]!
+    let initViolations := violatedInvariantNames params th initSt
+    if !initViolations.isEmpty then
+      (true, gen, 0)
+    else
+      scanOnceLoop sys params th maxSteps initSt gen
+
+
+/-- Full trace loop: walk and record every step for counterexample.
+Returns `(violation?, updatedRng, stepsTaken)`. Used only for replay. -/
 @[inline, specialize]
 partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -48,7 +111,6 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   | 0 => (none, gen, 0)
   | stepsLeft + 1 =>
     let outcomes := sys.tr th currSt
-    -- Check assertion failures first (highest priority)
     let assertionFailures := outcomes.filterMap fun (_, outcome) =>
       match outcome with
       | .assertionFailure exId _ => some exId
@@ -67,7 +129,6 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
       let nexts := Concrete.extractSuccessfulTransitions outcomes
       if nexts.isEmpty then
         if !params.terminating.holdsOn th currSt then
-          -- No enabled transitions and not a terminating state: deadlock
           (some (.foundViolation () .deadlock (some trace)), gen, trace.steps.size)
         else
           (none, gen, trace.steps.size)
@@ -83,8 +144,7 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
           simulateOnceLoop sys params th stepsLeft nextSt trace gen
 
 
-/-- Run a single random trace from a randomly chosen initial state.
-Returns `(violation?, updatedRng, stepsTaken)`. -/
+/-- Full trace run from random init state. Used only for replay. -/
 @[inline, specialize]
 partial def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -109,8 +169,8 @@ partial def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
 
 
 /-- Run `maxTraces` independent random traces, stopping on first violation.
-Each trace uses an independent seed derived from `(masterSeed + traceIndex)`
-for maximum prefix diversity across traces. -/
+Scans without trace recording for speed; replays only the violating trace.
+Each trace uses an independent seed derived from `(masterSeed + traceIndex)`. -/
 @[inline, specialize]
 partial def simulate {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -127,21 +187,28 @@ partial def simulate {ρ σ κ : Type} {th₀ : ρ}
   let mut i := 0
   let mut totalSteps := 0
   while i < cfg.maxTraces do
-    let traceGen := mkStdGen (actualSeed + i)
-    let (maybeResult, _, stepsUsed) := simulateOnce sys params th traceGen cfg.maxSteps
+    let traceSeed := actualSeed + i
+    -- Fast scan: no trace allocation
+    let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
     totalSteps := totalSteps + stepsUsed
-    match maybeResult with
-    | some result =>
-      let elapsedMs := (← IO.monoMsNow) - startMs
-      return {
-        result := result
-        tracesRun := i + 1
-        elapsedMs := elapsedMs
-        seed := actualSeed
-        depth := stepsUsed
-        totalSteps := totalSteps
-      }
-    | none =>
+    if violated then
+      -- Replay with same seed to build counterexample trace
+      let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
+      match maybeResult with
+      | some result =>
+        let elapsedMs := (← IO.monoMsNow) - startMs
+        return {
+          result := result
+          tracesRun := i + 1
+          elapsedMs := elapsedMs
+          seed := actualSeed
+          depth := stepsUsed
+          totalSteps := totalSteps
+        }
+      | none =>
+        -- Scan flagged violation but replay didn't reproduce (should not happen)
+        i := i + 1
+    else
       i := i + 1
   let elapsedMs := (← IO.monoMsNow) - startMs
   return {
