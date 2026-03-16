@@ -4,14 +4,12 @@ import Veil.Core.Tools.ModelChecker.Concrete.Core
 
 namespace Veil.ModelChecker.Simulation
 
-
 /-- Configuration for the `#simulate` command. -/
 structure SimulateConfig where
   maxTraces : Nat := 10000
   maxSteps : Nat := 100
   seed : Nat := 0
 deriving Inhabited, Repr
-
 
 /-- Result of a simulation run, wrapping a `ModelCheckingResult` with metadata. -/
 structure SimulateResult (ρ σ κ : Type) where
@@ -28,9 +26,9 @@ def violatedInvariantNames {ρ σ : Type}
   params.invariants.filterMap fun p =>
     if !p.holdsOn th st then some p.name else none
 
-
 /-- Lightweight scan loop: walk without building a trace.
 Returns `(violated?, updatedRng, stepsTaken)`. -/
+-- NOTE: keep in sync with `simulateOnceLoop` (trace-building variant for replay)
 @[inline, specialize]
 partial def scanOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -61,13 +59,11 @@ partial def scanOnceLoop {ρ σ κ : Type} {th₀ : ρ}
       else
         let (idx, gen) := randNat gen 0 (nexts.length - 1)
         let (_, nextSt) := nexts[idx]!
-        let violations := violatedInvariantNames params th nextSt
-        if !violations.isEmpty then
+        if !(violatedInvariantNames params th nextSt).isEmpty then
           (true, gen, 1)
         else
           let (violated, gen, innerSteps) := scanOnceLoop sys params th stepsLeft nextSt gen
           (violated, gen, innerSteps + 1)
-
 
 /-- Lightweight scan: pick random init state, walk without trace.
 Returns `(violated?, updatedRng, stepsTaken)`. -/
@@ -86,16 +82,15 @@ partial def scanOnce {ρ σ κ : Type} {th₀ : ρ}
   else
     let (idx, gen) := randNat gen 0 (sys.initStates.length - 1)
     let initSt := sys.initStates[idx]!
-    let initViolations := violatedInvariantNames params th initSt
-    if !initViolations.isEmpty then
+    if !(violatedInvariantNames params th initSt).isEmpty then
       (true, gen, 0)
     else
       scanOnceLoop sys params th maxSteps initSt gen
 
-
 /-- Inner loop of a single random trace: walk from `currSt` for up to
 `stepsLeft` steps, picking a random enabled transition at each step.
 Returns `(violation?, updatedRng, stepsTaken)`. Used only for replay. -/
+-- NOTE: keep in sync with `scanOnceLoop` (allocation-free variant for scanning)
 @[inline, specialize]
 partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -142,7 +137,6 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
         else
           simulateOnceLoop sys params th stepsLeft nextSt trace gen
 
-
 /-- Run a single random trace from a randomly chosen initial state.
 Returns `(violation?, updatedRng, stepsTaken)`. Used only for replay. -/
 @[inline, specialize]
@@ -166,7 +160,6 @@ partial def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
       (some (.foundViolation () (.safetyFailure initViolations) (some initTrace)), gen, 0)
     else
       simulateOnceLoop sys params th maxSteps initSt initTrace gen
-
 
 /-- Run `maxTraces` independent random traces, stopping on first violation.
 Scans without trace recording for speed; replays only the violating trace.
@@ -219,6 +212,5 @@ partial def simulate {ρ σ κ : Type} {th₀ : ρ}
     seed := actualSeed
     depth := 0
   }
-
 
 end Veil.ModelChecker.Simulation
