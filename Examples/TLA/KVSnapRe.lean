@@ -91,6 +91,9 @@ individual ExecutionsPool : List (List (ExecutionElem key txId KVState))
 immutable individual txIdUniv : TxIds
 
 
+veil_set_field_representation relation Veil.ArrayAsFinset
+veil_set_field_representation function Veil.ArrayAsFinmap
+
 
 #gen_state
 
@@ -297,7 +300,6 @@ def m1 : Std.ExtTreeMap key_IndT txId_IndT compare :=
     (.K2, .noVal),
   ] compare
 
-
 /- In interactive mode, reconstruct this counterexample trace is
 very slow, taking about ~4 minutes (241738ms).
 time: 250844ms -/
@@ -306,11 +308,14 @@ set_option veil.violationIsError false in
 #time #model_check compiled
 {
   key := key_IndT,
-  Keys := Std.ExtTreeSet key_IndT compare,
   txId := txId_IndT,
-  TxIds := Std.ExtTreeSet txId_IndT compare,
   states := states_IndT,
-  Ops := ExtTreeSet (Op key_IndT txId_IndT),
+  -- Keys := Std.ExtTreeSet key_IndT compare,
+  -- TxIds := Std.ExtTreeSet txId_IndT compare,
+  -- Ops := ExtTreeSet (Op key_IndT txId_IndT),
+  Keys := OrdList key_IndT,
+  TxIds := OrdList txId_IndT,
+  Ops := OrdList (Op key_IndT txId_IndT),
   KVState := ExtTreeMap key_IndT txId_IndT
 }
 {
@@ -321,7 +326,8 @@ set_option veil.violationIsError false in
   ] compare
   -- initialState := m1
 ,
-  txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
+  -- txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
+  txIdUniv := OrdList.ofList [txId_IndT.T1, txId_IndT.T2, txId_IndT.T3],
 }
 /-BUG:
 If we pass parameter from context (e.g., m1), then compilation will be failed.
