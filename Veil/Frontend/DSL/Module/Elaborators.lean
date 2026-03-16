@@ -706,6 +706,77 @@ elab_rules : command
     let resultTerm ← mkVeilExecActionResultTerm mod instTerm theoryTerm stateTerm actionTerm
     elabVeilCommand <| ← `(command| #eval $resultTerm)
 
+/-- Get all action label names for never-enabled action warnings. -/
+private def getActionLabelNames (mod : Module) : CommandElabM (List String) := do
+  let labelTypeName ← resolveGlobalConstNoOverload labelType
+  return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
+
+/-- Warn if the module contains transitions (which are slow to model check). -/
+private def warnAboutTransitions (mod : Module) : CommandElabM Unit := do
+  let transitions := mod.procedures.filter (·.info.isTransition)
+  if transitions.isEmpty then return
+  let names := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
+  logWarning m!"Explicit state model checking of transitions is SLOW!\n\n\
+    The current implementation enumerates all possible states and filters those satisfying \
+    the transition relation. Your specification has {transitions.size} \
+    transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
+    Consider encoding transitions as imperative actions where possible."
+
+/-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
+      Throws a helpful error if theory fields exist but no term was provided. -/
+private def getTheoryTerm (cmdName : String) (theoryTermOpt : Option Term)
+    (mod : Module) (instTerm : Term) : CommandElabM Term := do
+  match theoryTermOpt with
+  | some t => pure t
+  | none =>
+    unless mod.immutableComponents.isEmpty do
+      let fieldStrs := mod.immutableComponents.map (fun c => s!"{c.name} := ...")
+      let theoryExample := "{ " ++ ", ".intercalate fieldStrs.toList ++ " }"
+      throwError "This module has immutable fields, so you must specify the theory instantiation:\n\
+        {cmdName} {instTerm} {theoryExample}"
+    `({})
+
+/-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
+private def mkIdentWithModName (mod : Module) (name : Name) : Ident :=
+  Lean.mkIdent (mod.name ++ name)
+
+/-- Build search parameters for model checking / simulation. -/
+private def mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
+  let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
+    `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
+        ($(mkIdent `name) := $(quote sa.name))
+        ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName mod sa.name) $(mkIdent `th)))
+  -- Build SafetyProperty.mk syntax for a StateAssertion
+  let mkProp (sa : StateAssertion) : CommandElabM Term :=
+    `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
+        ($(mkIdent `name) := $(quote sa.name))
+        ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
+  let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
+  let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+  -- FIXME: Only recognizing the first termination property might confuse users
+  let terminatingProp ← match mod.terminations[0]? with
+    | some t => mkProp t
+    | none => `($(mkIdent `default))
+  let constraintList ← `([$((← mod.stateConstraints.mapM mkProp)),*])
+  let earlyTermConds ← do
+    let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
+                  $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
+                  $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
+    if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
+    else pure base
+  `({ $(mkIdent `assumptions):ident := $assumptionList, $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
+        $(mkIdent `stateConstraints):ident := $constraintList,
+        $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
+
+/-- Display a TraceDisplayViewer widget with the given result term. -/
+private def displayResultWidget (stx : Syntax) (resultTerm : Term) : CommandElabM Unit := do
+  let widgetExpr ← `(open ProofWidgets.Jsx in
+    <ProofWidgets.TraceDisplayViewer result={$resultTerm} layout={"vertical"} />)
+  let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
+  liftCoreM <| Widget.savePanelWidgetInfo
+    (hash ProofWidgets.HtmlDisplayPanel.javascript)
+    (return json% { html: $(← Server.rpcEncode html) }) stx
+
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
@@ -720,19 +791,6 @@ def elabModelCheck : CommandElab := fun stx => do
     let cfg := stx[4]
     elabModelCheckCore stx mode instTerm theoryTermOpt assumptionsHoldBy cfg
 where
-  /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
-      Throws a helpful error if theory fields exist but no term was provided. -/
-  getTheoryTerm (theoryTermOpt : Option Term) (mod : Module) (instTerm : Term) : CommandElabM Term := do
-    match theoryTermOpt with
-    | some t => pure t
-    | none =>
-      unless mod.immutableComponents.isEmpty do
-        let fieldStrs := mod.immutableComponents.map (fun c => s!"{c.name} := ...")
-        let theoryExample := "{ " ++ ", ".intercalate fieldStrs.toList ++ " }"
-        throwError "This module has immutable fields, so you must specify the theory instantiation:\n\
-          #model_check {instTerm} {theoryExample}"
-      `({})
-
   /-- Generate the model source for compilation:
       1. Insert `set_option veil.__modelCheckCompileMode true` after imports
       2. Keep everything up to the point where the spec was finalized
@@ -761,46 +819,6 @@ where
     let modelCheckCmd := String.Pos.Raw.extract src modelCheckStart modelCheckEnd
     return beforeImports ++ compileModePreamble ++ afterImportsToSpecFinalized ++ "\n" ++ modelCheckCmd ++ "\n"
 
-  /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
-  mkIdentWithModName (mod : Module) (name : Name) : Ident :=
-    Lean.mkIdent (mod.name ++ name)
-
-  /-- Display a TraceDisplayViewer widget with the given result term. -/
-  displayResultWidget (stx : Syntax) (resultTerm : Term) : CommandElabM Unit := do
-    let widgetExpr ← `(open ProofWidgets.Jsx in
-      <ProofWidgets.TraceDisplayViewer result={$resultTerm} layout={"vertical"} />)
-    let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
-    liftCoreM <| Widget.savePanelWidgetInfo
-      (hash ProofWidgets.HtmlDisplayPanel.javascript)
-      (return json% { html: $(← Server.rpcEncode html) }) stx
-
-  mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
-    let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
-      `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
-          ($(mkIdent `name) := $(quote sa.name))
-          ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName mod sa.name) $(mkIdent `th)))
-    -- Build SafetyProperty.mk syntax for a StateAssertion
-    let mkProp (sa : StateAssertion) : CommandElabM Term :=
-      `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
-          ($(mkIdent `name) := $(quote sa.name))
-          ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
-    let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
-    let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
-    -- FIXME: Only recognizing the first termination property might confuse users
-    let terminatingProp ← match mod.terminations[0]? with
-      | some t => mkProp t
-      | none => `($(mkIdent `default))
-    let constraintList ← `([$((← mod.stateConstraints.mapM mkProp)),*])
-    let earlyTermConds ← do
-      let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
-                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
-                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
-      if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
-      else pure base
-    `({ $(mkIdent `assumptions):ident := $assumptionList, $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
-        $(mkIdent `stateConstraints):ident := $constraintList,
-        $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
-
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
       (instTerm theoryTerm : Term) : CommandElabM Term := do
@@ -816,17 +834,6 @@ where
          ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
          ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
          $sp : _ → _ → _ → IO _))
-
-  /-- Warn if the module contains transitions (which are slow to model check). -/
-  warnAboutTransitions (mod : Module) : CommandElabM Unit := do
-    let transitions := mod.procedures.filter (·.info.isTransition)
-    if transitions.isEmpty then return
-    let names := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
-    logWarning m!"Explicit state model checking of transitions is SLOW!\n\n\
-      The current implementation enumerates all possible states and filters those satisfying \
-      the transition relation. Your specification has {transitions.size} \
-      transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
-      Consider encoding transitions as imperative actions where possible."
 
   /-- Check that the provided theory satisfies all module assumptions by
       elaborating a proof obligation using the assembled `Assumptions` definition.
@@ -939,11 +946,6 @@ where
       Term.synthesizeSyntheticMVarsNoPostponing
       unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
-  /-- Get all action label names for never-enabled action warnings. -/
-  getActionLabelNames (mod : Module) : CommandElabM (List String) := do
-    let labelTypeName ← resolveGlobalConstNoOverload labelType
-    return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
-
   /-- Log model checking result. -/
   logModelCheckResult (stx : Syntax) (resultJson : Json) : CommandElabM Unit := do
     let msg := TraceDisplay.formatModelCheckingResult resultJson
@@ -1003,7 +1005,7 @@ where
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     mod.throwIfSpecNotFinalized
 
-    let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm
+    let theoryTerm ← getTheoryTerm "#model_check" theoryTermOpt mod instTerm
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
@@ -1129,7 +1131,7 @@ private def mkSimulatorCall (mod : Module) (instTerm theoryTerm : Term)
   `((let $inst : $instantiationType := $instTerm
      let $th : $theoryIdent $instSortArgs* := $theoryTerm
      $(mkIdent ``Veil.ModelChecker.Simulation.simulate)
-       ($(Lean.mkIdent (mod.name ++ `enumerableTransitionSystem)) $instSortArgs* $th)
+       ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
        $sp $th $cfgTerm))
 
 @[command_elab Veil.simulate]
@@ -1139,7 +1141,8 @@ def elabSimulate : CommandElab := fun stx => do
     let theoryTermOpt : Option Term := if stx[2].isNone then none else some ⟨stx[2][0]⟩
     let mod ← getCurrentModule (errMsg := "You cannot #simulate outside of a Veil module!")
     mod.throwIfSpecNotFinalized
-    let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm
+    let theoryTerm ← getTheoryTerm "#simulate" theoryTermOpt mod instTerm
+    warnAboutTransitions mod
     let cfg0 ← elabSimulateConfig stx[3]
     let opts ← getOptions
     let maxTraces := if cfg0.maxTraces == 10000 then veil.simulate.maxTraces.get opts else cfg0.maxTraces
@@ -1175,49 +1178,16 @@ def elabSimulate : CommandElab := fun stx => do
     let stepsPerSec := if elapsedMs > 0 then totalSteps * 1000 / elapsedMs else 0
     let isViolation := resultJson.getObjValD "result" == Json.str "found_violation" ||
       resultJson.getObjValD "error" != .null
+    -- Log simulation-specific summary
     let summary := if isViolation then
       s!"simulation: found violation at depth {depth} (trace #{tracesRun}, {elapsedMs}ms, seed := {seed}). A shorter violation may exist at depth < {depth}."
     else
       s!"simulation: no violation in {tracesRun} traces ({totalSteps} steps, {elapsedMs}ms, {stepsPerSec} steps/s, seed := {seed}). Not exhaustive -- use #model_check for full coverage."
-    let details := TraceDisplay.formatModelCheckingResult resultJson
-    let msg := summary ++ "\n" ++ details
-    let violationIsError := veil.violationIsError.get opts
-    if isViolation && violationIsError then logErrorAt stx msg else logInfoAt stx msg
-where
-  /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
-      Throws a helpful error if theory fields exist but no term was provided. -/
-  getTheoryTerm (theoryTermOpt : Option Term) (mod : Module) (instTerm : Term) : CommandElabM Term := do
-    match theoryTermOpt with
-    | some t => pure t
-    | none =>
-      unless mod.immutableComponents.isEmpty do
-        let fieldStrs := mod.immutableComponents.map (fun c => s!"{c.name} := ...")
-        let theoryExample := "{ " ++ ", ".intercalate fieldStrs.toList ++ " }"
-        throwError "This module has immutable fields, so you must specify the theory instantiation:\n\
-          #simulate {instTerm} {theoryExample}"
-      `({})
-
-  /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
-  mkIdentWithModName (mod : Module) (name : Name) : Ident :=
-    Lean.mkIdent (mod.name ++ name)
-
-  /-- Build search parameters reused by simulator execution. -/
-  mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
-    let mkProp (sa : StateAssertion) : CommandElabM Term :=
-      `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
-          ($(mkIdent `name) := $(quote sa.name))
-          ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
-    let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
-    let terminatingProp ← match mod.terminations[0]? with
-      | some t => mkProp t
-      | none => `($(mkIdent `default))
-    let earlyTermConds ← do
-      let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
-                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
-                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
-      if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
-      else pure base
-    `({ $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
-        $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
-
+    logInfoAt stx summary
+    -- Log the same trace display as #model_check
+    elabModelCheck.logModelCheckResult stx resultJson
+    -- Display the same TraceDisplayViewer widget as #model_check
+    let (instanceId, _) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
+    ModelChecker.Concrete.finishProgress instanceId resultJson
+    ModelChecker.displayStreamingProgress stx instanceId
 end Veil
