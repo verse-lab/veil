@@ -5,7 +5,7 @@ Authors: George Pîrlea
 -/
 import Lean.Data.Json
 import Std.Data.HashMap
-import Veil.Core.Tools.ModelChecker.ConcreteNew.Core
+import Veil.Core.Tools.ModelChecker.Concrete.Core
 
 namespace Veil.ModelChecker.Concrete
 open Lean

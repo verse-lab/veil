@@ -1,4 +1,4 @@
-import Veil.Core.Tools.ModelChecker.ConcreteNew.SearchContext
+import Veil.Core.Tools.ModelChecker.Concrete.SearchContext
 
 namespace Veil.ModelChecker.Concrete
 

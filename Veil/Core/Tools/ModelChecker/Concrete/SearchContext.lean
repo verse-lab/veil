@@ -1,4 +1,4 @@
-import Veil.Core.Tools.ModelChecker.ConcreteNew.Core
+import Veil.Core.Tools.ModelChecker.Concrete.Core
 import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
 import Veil.Core.Tools.ModelChecker.Concrete.Containers
 

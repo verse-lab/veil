@@ -1,4 +1,4 @@
-import Veil.Core.Tools.ModelChecker.ConcreteNew.SequentialLemmas
+import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
 import Veil.Util.TreeSetMisc
 namespace Veil.ModelChecker.Concrete
 

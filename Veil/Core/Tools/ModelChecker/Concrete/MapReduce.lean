@@ -1,5 +1,5 @@
-import Veil.Core.Tools.ModelChecker.ConcreteNew.MapReduceLemmas
-import Veil.Core.Tools.ModelChecker.ConcreteNew.Progress
+import Veil.Core.Tools.ModelChecker.Concrete.MapReduceLemmas
+import Veil.Core.Tools.ModelChecker.Concrete.Progress
 import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
 import Veil.Util.ListSplit
 
