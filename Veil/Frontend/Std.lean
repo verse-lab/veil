@@ -905,14 +905,6 @@ instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
     intros elem s
     simp [Std.ExtTreeMap.contains_iff_mem, Std.ExtTreeMap.foldl_eq_foldl_toList,
       Std.ExtTreeMap.getElem?_eq_some_iff]
-  -- contains_def elem s := by grind
-  -- count_insert_self elem s := by grind
-  -- count_insert_other elem₁ elem₂ s h := by grind
-  -- size_insert elem s := by sorry
-  -- count_remove_self elem s := by grind
-  -- count_remove_other elem₁ elem₂ s h := by grind
-  -- size_remove elem s := by sorry
-
 
 instance instTMultisetForFin (n : Nat) : TMultiset (Fin n) (TMapMultiset (Fin n)) :=
   instTMultiSetWithExtTreeMap

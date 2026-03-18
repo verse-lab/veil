@@ -239,28 +239,6 @@ instance instEnumerationForExtTreeMap [Ord α] [Ord β]
       have hmem : (k, v) ∈ m.toList := Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some.mpr hm
       have hl_mem : (k, v) ∈ l := List.mem_filter.mpr ⟨List.mem_dedup.mpr (Veil.Enumeration.complete _), by simp only [decide_eq_true_eq]; exact hmem⟩
       rw [Std.ExtTreeMap.getElem?_ofList_of_mem (Std.ReflCmp.compare_self) hdistinct hl_mem]
-/-
-instance [DecidableEq α] [Ord α] [a : Enumeration α]: Enumeration (Std.TreeSet α) where
-  allValues := (List.sublistsFast a.allValues).map (fun l => Std.TreeSet.ofList l)
-  complete := by sorry
-
-instance [DecidableEq α] [DecidableEq β] [Ord α] [a : Enumeration α] [b : Enumeration β]
-    : Enumeration (Std.TreeMap α β) where
-  allValues :=
-    let keys := a.allValues
-    let vals := b.allValues
-    ((List.sublistsFast keys).map (fun ks =>
-      (allMappings ks vals).map (fun pairs => Std.TreeMap.ofList pairs))).flatten
-  complete := by sorry
-
-instance [DecidableEq α] [DecidableEq β] [Ord α] [a : Enumeration α] [b : Enumeration β]
-    : Enumeration (Veil.TotalTreeMap α β) where
-  allValues :=
-    let keys := a.allValues
-    let vals := b.allValues
-    (allMappings keys vals).map (fun pairs => ⟨Std.TreeMap.ofList pairs, by sorry⟩)
-  complete := by sorry
--/
 
 /-!
 `Inhabited` instances
