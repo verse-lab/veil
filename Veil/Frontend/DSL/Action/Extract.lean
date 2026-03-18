@@ -12,10 +12,10 @@ syntax injectBindersStx := "injection_begin" bracketedBinder* "injection_end"
 namespace Preprocessing
 
 attribute [dsimpFieldRepresentationGet ↓] FieldRepresentation.get FieldRepresentation.mkFromSingleSet
-  instFinsetLikeAsFieldRep instFinmapLikeAsFieldRep IteratedArrow.curry
+  instFinmapLikeAsFieldRep IteratedArrow.curry
   Equiv.coe_fn_mk Function.comp IteratedProd'.equiv IteratedProd.toIteratedProd'
 attribute [dsimpFieldRepresentationSet ↓] FieldRepresentation.setSingle FieldRepresentation.mkFromSingleSet
-  instFinsetLikeAsFieldRep instFinmapLikeAsFieldRep FieldRepresentation.FinsetLike.setSingle' FieldRepresentation.FinmapLike.setSingle'
+  instFinmapLikeAsFieldRep FieldRepresentation.FinmapLike.setSingle'
   IteratedArrow.curry IteratedProd'.equiv Equiv.coe_fn_mk IteratedProd.toIteratedProd' IteratedArrow.uncurry List.foldr
   IteratedProd.foldMap FieldUpdatePat.footprintRaw IteratedProd.zipWith Option.elim List.foldl
 

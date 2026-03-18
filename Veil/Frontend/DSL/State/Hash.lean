@@ -76,52 +76,41 @@ def toLawfulFieldRepresentation
 
 end Simple
 
-namespace IncrementalFinsetLike
+/-
+-- FIXME: This needs more investigation
+namespace IncrementalFinmapLike
 
--- TODO maybe adapt this to map structures as well, later
-
-variable {α : Type u}
-  [DecidableEq α] [Membership α β]
-  [instf : FinsetLike β] [instl : LawfulFinsetLike β]
+variable {α : Type u} {β : Type v}
+  [DecidableEq α] [inst : FinmapLike α Bool β] [instl : LawfulFinmapLike β]
   [AddCommGroup ι] [insth : HashAsAddCommGroup α ι]
+  [Fintype α]
 
 abbrev sumAsHash (inner : β) : ι :=
-  ∑ a ∈ LawfulFinsetLike.toFinset inner, insth.op a
+  ∑ a ∈ Finset.filter (fun a => inst.get inner a) Finset.univ, insth.op a
 
 local macro "aop" : term => `(sumAsHash)
 
-def insert (a : α) (b : HashCompanioned β ι aop) (h : a ∉ b) : HashCompanioned β ι aop :=
-  { inner := FinsetLike.insert a b.inner h
-    hashval := HashAsAddCommGroup.op a + b.hashval
-    invariant := by
-      rw [sumAsHash, b.invariant, instl.insert_toFinset]
-      have h' : a ∉ instl.toFinset b.inner := by rw [← instl.toFinset_mem_iff] ; exact h
-      rw [Finset.sum_insert' (M := ι) h']
-  }
+def insert' (a : α) (b : Bool) (c : HashCompanioned β ι aop) : HashCompanioned β ι aop :=
+  let newInner := inst.insert a b c.inner
+  { inner := newInner
+    hashval := sumAsHash newInner
+    invariant := rfl }
 
-def erase (a : α) (b : HashCompanioned β ι aop) (h : a ∈ b) : HashCompanioned β ι aop :=
-  { inner := FinsetLike.erase a b.inner h
-    hashval := b.hashval - HashAsAddCommGroup.op a
-    invariant := by
-      rw [sumAsHash, b.invariant, instl.erase_toFinset]
-      have h' : a ∈ instl.toFinset b.inner := by rw [← instl.toFinset_mem_iff] ; exact h
-      rw [Finset.sum_erase_eq_sub h']
-  }
+scoped instance : FinmapLike α Bool (HashCompanioned β ι aop) where
+  get c a := inst.get c.inner a
+  insert a b c := insert' a b c
 
-scoped instance : FinsetLike (HashCompanioned β ι aop) where
-  insert := insert
-  erase := erase
-
-scoped instance : LawfulFinsetLike (HashCompanioned β ι aop) where
-  toFinset b := instl.toFinset b.inner
-  toFinset_mem_iff a b := instl.toFinset_mem_iff a b.inner
-  insert_toFinset a b h := instl.insert_toFinset a b.inner h
-  erase_toFinset a b h := instl.erase_toFinset a b.inner h
+scoped instance : LawfulFinmapLike (HashCompanioned β ι aop) where
+  insert_get a a' b mp := by
+    simp only [FinmapLike.get, FinmapLike.insert, insert']
+    exact instl.insert_get a a' b mp.inner
 
 scoped instance [Hashable α] : Hashable (HashCompanioned β UInt64 aop) where
   hash := HashCompanioned.hashval
 
-end IncrementalFinsetLike
+end IncrementalFinmapLike
+
+-/
 
 end HashCompanioned
 

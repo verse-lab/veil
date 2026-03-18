@@ -305,13 +305,13 @@ where
       (mkFieldRepresentationSolverTactic
         repConfigs.relationConfig.fieldRepInstance
         repConfigs.functionConfig.fieldRepInstance
-        ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeAsFieldRep
+        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeAsFieldRep
         ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeAsFieldRep
         relIsCanonical funIsCanonical)
       (mkLawfulFieldRepresentationSolverTactic
         repConfigs.relationConfig.lawfulFieldRepInstance
         repConfigs.functionConfig.lawfulFieldRepInstance
-        ``NotNecessarilyFinsetLikeUpdates.instHybridFinsetLikeLawfulFieldRep
+        ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeLawfulFieldRep
         ``NotNecessarilyFinmapLikeUpdates.instHybridFinmapLikeLawfulFieldRep
         relIsCanonical funIsCanonical)
     -- (← fieldRepAssumed.flatMapM mod.assumeForEverySort)
@@ -501,7 +501,7 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMess
         `(term| $(mkIdent ``Veil.CanonicalField) $domainGetter $codomainGetter)
       else
         let allSomeCase ← `(term| $(mkIdent repConfigs.relationConfig.typeName) $mapKeyTerm)
-        let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinsetLikeUpdates.HybridFinsetLike) ($allSomeCase) ($domainGetter))
+        let notNecessarilyFiniteCase ← `($(mkIdent ``Veil.NotNecessarilyFinmapLikeUpdates.HybridFinmapLike) ($allSomeCase) ($domainGetter) ($codomainGetter))
         chooseFieldConcreteTypeByEnumAllSomeCheck stateLabelCtor allSomeCase notNecessarilyFiniteCase
     | .function =>
       if repConfigs.functionConfig.kind == .canonical then

@@ -221,10 +221,10 @@ attribute [nextSimp] RelationalTransitionSystem.init RelationalTransitionSystem.
 
 -- Collected from the various `FieldRepresentation` atrributes
 attribute [nextSimp] FieldRepresentation.get FieldRepresentation.set
-FieldRepresentation.mkFromSingleSet instFinsetLikeAsFieldRep
+FieldRepresentation.mkFromSingleSet instFinmapLikeAsFieldRep
 IteratedArrow.curry Equiv.coe_fn_mk Function.comp IteratedProd'.equiv
 IteratedProd.toIteratedProd' FieldRepresentation.setSingle
-FieldRepresentation.FinsetLike.setSingle' IteratedArrow.uncurry List.foldr
+FieldRepresentation.FinmapLike.setSingle' IteratedArrow.uncurry List.foldr
 IteratedProd.foldMap FieldUpdatePat.footprintRaw IteratedProd.zipWith
 Option.elim List.foldl FieldUpdatePat.pad IteratedProd.default HAppend.hAppend
 IteratedProd.append Eq.mp LawfulFieldRepresentationSet.set_append

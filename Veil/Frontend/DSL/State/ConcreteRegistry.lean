@@ -78,8 +78,8 @@ def extTreeSetConfig : ConcreteRepConfig := {
   domainTypeInstances := #[``Ord]
   domainFieldRepInstances := #[``DecidableEq, ``Enumeration, ``Ord, ``Std.TransOrd]
   domainLawfulFieldRepInstances := #[``DecidableEq, ``Enumeration, ``Ord, ``Std.TransOrd, ``Std.LawfulEqOrd]
-  fieldRepInstance := ``instFinsetLikeAsFieldRep
-  lawfulFieldRepInstance := ``instFinsetLikeLawfulFieldRep
+  fieldRepInstance := ``instFinmapLikeAsFieldRep
+  lawfulFieldRepInstance := ``instFinmapLikeLawfulFieldRep
 }
 
 /-- Configuration for `Std.ExtTreeMap` (default for functions). -/
@@ -102,8 +102,8 @@ def bitvecAsFinsetConfig : ConcreteRepConfig := {
   domainTypeInstances := #[``FinEncodable]
   domainFieldRepInstances := #[``DecidableEq, ``FinEncodable, ``Enumeration]
   domainLawfulFieldRepInstances := #[``DecidableEq, ``FinEncodable, ``Enumeration]
-  fieldRepInstance := ``instFinsetLikeAsFieldRep
-  lawfulFieldRepInstance := ``instFinsetLikeLawfulFieldRep
+  fieldRepInstance := ``instFinmapLikeAsFieldRep
+  lawfulFieldRepInstance := ``instFinmapLikeLawfulFieldRep
 }
 
 def bitvecAsFinmapConfig : ConcreteRepConfig := {
@@ -125,8 +125,8 @@ def arrayAsFinsetConfig : ConcreteRepConfig := {
   domainTypeInstances := #[``FinEncodable]
   domainFieldRepInstances := #[``DecidableEq, ``FinEncodable, ``Enumeration]
   domainLawfulFieldRepInstances := #[``DecidableEq, ``FinEncodable, ``Enumeration]
-  fieldRepInstance := ``instFinsetLikeAsFieldRep
-  lawfulFieldRepInstance := ``instFinsetLikeLawfulFieldRep
+  fieldRepInstance := ``instFinmapLikeAsFieldRep
+  lawfulFieldRepInstance := ``instFinmapLikeLawfulFieldRep
 }
 
 def arrayAsFinmapConfig : ConcreteRepConfig := {

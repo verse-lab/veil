@@ -41,70 +41,7 @@ theorem BitVec.xor_getself_iff {x y : BitVec w} :
     rw [BitVec.xor_right_inj] at h ; exact h
   · intro h ; subst y ; simp
 
-/-! ## Generalised Sets and Total Maps -/
-
-section FinsetLike
-
-class FinsetLike (β : Type v) [Membership α β] where
-  insert : (a : α) → (b : β) → a ∉ b → β
-  erase : (a : α) → (b : β) → a ∈ b → β
-
-class LawfulFinsetLike /- (α : outParam (Type u)) -/ (β : Type v)
-  [Membership α β] [inst : FinsetLike β] [DecidableEq α] where
-  toFinset : β → Finset α
-  toFinset_mem_iff : ∀ (a : α) (b : β), a ∈ b ↔ a ∈ toFinset b
-  insert_toFinset :
-    ∀ (a : α) (b : β) (h : a ∉ b), toFinset (inst.insert a b h) = insert a (toFinset b)
-  erase_toFinset :
-    ∀ (a : α) (b : β) (h : a ∈ b), toFinset (inst.erase a b h) = (toFinset b).erase a
-
-section DerivedOperations
-
-variable {α : Type u} {β : Type v}
-  [instm : Membership α β] [inst : FinsetLike β]
-  [instdm : DecidableRel instm.mem]
-
-@[specialize]
-def FinsetLike.update (a : α) (in?' : Bool) (mp : β) : β :=
-  if in? : a ∈ mp then
-    if !in?' then inst.erase a mp in? else mp
-  else
-    if in?' then inst.insert a mp in? else mp
-
--- CHECK there are two ways of implementation: (1) `fold` and (2) `let mut` with loop.
--- which is faster? do both use the object linearly?
--- CHECK will typeclass affect things like reference counting?
-def FinsetLike.batchUpdate (as : List α) (v : α → Bool) (mp : β) : β := Id.run do
-  let mut res := mp
-  for a in as do
-    let in?' := v a
-    if in? : a ∈ res then
-      if !in?' then
-        res := inst.erase a res in?
-    else
-      if in?' then
-        res := inst.insert a res in?
-  return res
-
--- a fairly "raw" proof about for-loop
-theorem FinsetLike.batchUpdate_eq_foldl_update (as : List α) (v : α → Bool) (mp : β) :
-  inst.batchUpdate as v mp = as.foldl (init := mp) fun acc a => inst.update a (v a) acc := by
-  simp [batchUpdate, Id.run]
-  conv =>
-    enter [1]
-    conv =>
-      enter [3, p, r] ; simp [pure]
-      conv => enter [2] ; intro h ; rw [← apply_ite ForInStep.yield]
-      conv => enter [3] ; intro h ; rw [← apply_ite ForInStep.yield]
-      repeat rw [← apply_dite ForInStep.yield]
-      conv => enter [1] ; rw [← Id.run_pure (dite ..)] ; dsimp only [pure]
-      rw [← Id.run_map _ ForInStep.yield]
-    apply List.idRun_forIn_yield_eq_foldl
-  congr ; ext b a ; simp [Id.run, update]
-
-end DerivedOperations
-
-end FinsetLike
+/-! ## Total Maps -/
 
 section FinmapLike
 
@@ -130,91 +67,6 @@ instance [inst : FinEncodable α] : Membership α (ArrayAsFinset α) where
 end FinmapLike
 
 section ConcreteUpdates
-
-section FinsetLikeUpdates
-
-variable {FieldDomain : List Type}
-  [instd : DecidableEq α]
-  [instm : Membership α β]
-  [inst : FinsetLike β]
-  [instl : LawfulFinsetLike β]
-  [instdm : DecidableRel instm.mem]
-  (equiv : IteratedProd FieldDomain ≃ α)
-  (instfin : IteratedProd (FieldDomain.map Enumeration))
-
-def FieldRepresentation.FinsetLike.get (fc : β) : CanonicalField FieldDomain Bool :=
-  IteratedArrow.curry (instm.mem fc ∘ equiv)
-
-def FieldRepresentation.FinsetLike.setSingle
-  (fa : FieldUpdatePat FieldDomain)
-  (v : CanonicalField FieldDomain Bool) (fc : β) :=
-  inst.batchUpdate
-    ((fa.footprintRaw instfin).cartesianProduct.map equiv) (v.uncurry ∘ equiv.symm) fc
-
-def FieldRepresentation.FinsetLike.setSingle'Core
-  (v : CanonicalField FieldDomain Bool) (fc : β)
-  (footprint : IteratedProd (FieldDomain.map (fun {ty} => Unit → List ty))) :=
-  let vv := v.uncurry
-  IteratedProd.foldMap fc (IteratedArrow.curry fun arg fc' =>
-    inst.update (equiv arg) (vv arg) fc') footprint
-
-def FieldRepresentation.FinsetLike.setSingle'
-  (fa : FieldUpdatePat FieldDomain)
-  (v : CanonicalField FieldDomain Bool) (fc : β) :=
-  delta% FieldRepresentation.FinsetLike.setSingle'Core equiv v fc (fa.footprintRaw instfin)
-
-omit instd instl in
-theorem FieldRepresentation.FinsetLike.setSingle_eq fa v (fc : β) :
-  setSingle equiv instfin fa v fc = setSingle' equiv instfin fa v fc := by
-  unfold setSingle setSingle'
-  simp [FinsetLike.batchUpdate_eq_foldl_update, IteratedProd.foldMap_eq_cartesianProduct, IteratedArrow.uncurry_curry,
-    List.foldl_map, Function.comp_apply]
-
-instance instFinsetLikeAsFieldRep : FieldRepresentation FieldDomain Bool β :=
-  FieldRepresentation.mkFromSingleSet
-    (get := delta% FieldRepresentation.FinsetLike.get equiv)
-    (setSingle := FieldRepresentation.FinsetLike.setSingle' equiv instfin)
-
-theorem FieldRepresentation.FinsetLike.get_set_for_validFootprint
-  (dec : IteratedProd (List.map DecidableEq FieldDomain)) (fc : β)
-  (fa : FieldUpdatePat FieldDomain) (v : CanonicalField FieldDomain Bool)
-  (footprint : _) (h : fa.validFootprint footprint) :
-  get equiv (setSingle'Core equiv v fc footprint) =
-    CanonicalField.set dec [(fa, v)] (get equiv fc) := by classical
-  simp +unfoldPartialApp [get, setSingle'Core, CanonicalField.set,
-    IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
-    Function.comp]
-  simp [← (FieldUpdatePat.footprint_match_iff_when_valid dec h)]
-  congr! 1 ; ext args ; rw [Bool.eq_iff_iff] ; simp
-  -- `foldr` is more convenient for induction here
-  rw [List.foldl_eq_foldr_reverse]
-  conv => enter [2, 1] ; rw [← List.mem_reverse]
-  generalize footprint.cartesianProduct.reverse = prods
-  unfold FinsetLike.update
-  generalize (v.uncurry) = vv
-  generalize e : (fun x y => _) = ff
-  induction prods with
-  | nil => simp
-  | cons p prods ih =>
-    simp [ite_or, ← ih] ; clear ih
-    generalize (List.foldr ..) = acc
-    subst ff ; dsimp ; split_ifs <;> (try solve | grind)
-    · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.erase_toFinset]
-    · simp [instl.toFinset_mem_iff, instl.erase_toFinset] ; simp_all
-    · subst p ; simp_all ; simp [instl.toFinset_mem_iff, instl.insert_toFinset]
-    · simp [instl.toFinset_mem_iff, instl.insert_toFinset] ; simp_all
-
-instance instFinsetLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain Bool β
-    -- TODO this is awkward; synthesis fails here
-    (instFinsetLikeAsFieldRep equiv instfin) where
-  toLawfulFieldRepresentationSet :=
-    LawfulFieldRepresentationSet.mkFromSingleSet ..
-  get_set_idempotent := by
-    introv
-    apply FieldRepresentation.FinsetLike.get_set_for_validFootprint
-    apply FieldUpdatePat.footprintRaw_valid
-
-end FinsetLikeUpdates
 
 /-- A wrapper around `CanonicalField` to indicate that this field is used
 as part of a hybrid finset-like representation. It might have special
@@ -258,63 +110,6 @@ instance [Repr (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Repr α] :
 instance [Inhabited α] : Inhabited (HybridFieldType α FieldDomain FieldCodomain) :=
   ⟨HybridFieldType.concrete default⟩
 
-namespace NotNecessarilyFinsetLikeUpdates
-
-variable {FieldDomain : List Type}
-  [instd : DecidableEq α]
-  [instm : Membership α β]
-  [inst : FinsetLike β]
-  [instl : LawfulFinsetLike β]
-  [instdm : DecidableRel instm.mem]
-  (equiv : IteratedProd FieldDomain ≃ α)
-  (instfin : IteratedProd (FieldDomain.map (OptionalTC ∘ Enumeration)))
-  (instdeceq : IteratedProd (FieldDomain.map DecidableEq))
-
-abbrev HybridFinsetLike (β) (FieldDomain : List Type) := HybridFieldType β FieldDomain Bool
-
-def HybridFinsetLike.get : HybridFinsetLike β FieldDomain → CanonicalField FieldDomain Bool
-  | .canonical cf => cf.inner
-  | .concrete fc => delta% FieldRepresentation.FinsetLike.get equiv fc
-
-def HybridFinsetLike.setSingle
-  (fa : FieldUpdatePat FieldDomain)
-  (v : CanonicalField FieldDomain Bool) (fc : HybridFinsetLike β FieldDomain)
-  : HybridFinsetLike β FieldDomain :=
-  match fc with
-  | .canonical cf => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)] cf.inner
-  | .concrete fc' =>
-    match fa.footprintRestricted instfin with
-    | none => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)]
-      <| FieldRepresentation.FinsetLike.get equiv fc'
-    | some footprint => .concrete <|
-      FieldRepresentation.FinsetLike.setSingle'Core equiv v fc' footprint
-
-instance instHybridFinsetLikeAsFieldRep : FieldRepresentation FieldDomain Bool
-  (HybridFinsetLike β FieldDomain) :=
-  FieldRepresentation.mkFromSingleSet
-    (get := delta% HybridFinsetLike.get equiv)
-    (setSingle := HybridFinsetLike.setSingle equiv instfin instdeceq)
-
-instance instHybridFinsetLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain Bool
-    (HybridFinsetLike β FieldDomain)
-    -- TODO this is awkward; synthesis fails here
-    (instHybridFinsetLikeAsFieldRep equiv instfin instdeceq) where
-  toLawfulFieldRepresentationSet :=
-    LawfulFieldRepresentationSet.mkFromSingleSet ..
-  get_set_idempotent := by open Classical in
-    introv ; rcases fav with ⟨fa, v⟩
-    simp +unfoldPartialApp [instHybridFinsetLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
-      FieldRepresentation.set, HybridFinsetLike.setSingle]
-    rcases fc with cf | fc <;> dsimp only
-    · congr ; apply IteratedProd.map_DecidableEq_eq
-    · rcases h : FieldUpdatePat.footprintRestricted instfin fa with _ | footprint <;> dsimp only
-      · congr ; apply IteratedProd.map_DecidableEq_eq
-      · apply FieldRepresentation.FinsetLike.get_set_for_validFootprint
-        apply FieldUpdatePat.footprintRestricted_valid
-        apply h
-
-end NotNecessarilyFinsetLikeUpdates
-
 section FinmapLikeUpdates
 
 variable {FieldDomain : List Type} {FieldCodomain : Type}
@@ -350,7 +145,6 @@ theorem FieldRepresentation.FinmapLike.get_set_for_validFootprint
   (footprint : _) (h : fa.validFootprint footprint) :
   get equiv (setSingle'Core equiv v fc footprint) =
     CanonicalField.set dec [(fa, v)] (get equiv fc) := by classical
-  -- TODO this proof seems repetitive
   simp +unfoldPartialApp [get, setSingle'Core, CanonicalField.set,
     IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
     Function.comp]
@@ -379,7 +173,6 @@ end FinmapLikeUpdates
 
 namespace NotNecessarilyFinmapLikeUpdates
 
--- TODO the following seems repetitive; how can we eliminate repetition?
 variable {FieldDomain : List Type} {FieldCodomain : Type}
   [instd : DecidableEq α]
   [inst : FinmapLike α FieldCodomain γ]
@@ -448,75 +241,47 @@ instance [FinEncodable α] : Membership α (BitVecAsFinset α) where
 instance [FinEncodable α] : DecidableRel (Membership.mem (γ := BitVecAsFinset α)) := by
   dsimp only [Membership.mem] ; infer_instance
 
--- CHECK this might not be efficient enough; is there actually an operation
--- for setting a bit?
--- CHECK this might not be efficient, from another point, since
--- `insert` and `erase` requires yet another check of existence,
--- which is not necessary in this case
-instance [FinEncodable α] : FinsetLike (BitVecAsFinset α) where
-  insert a b _ := b ||| (BitVec.twoPow _ (FinEncodable.equiv a))
-  erase a b _ := b ^^^ (BitVec.twoPow _ (FinEncodable.equiv a))
+instance [FinEncodable α] : FinmapLike α Bool (BitVecAsFinset α) where
+  get mp a := mp[FinEncodable.equiv a]
+  insert a b mp :=
+    let mask := BitVec.twoPow _ (FinEncodable.equiv a)
+    if b then mp ||| mask else mp &&& ~~~mask
 
-instance [inst : FinEncodable α] : FinsetLike (ArrayAsFinset α) where
-  insert a b _ := ⟨b.val.set (inst.equiv a) true,
-    (Eq.symm (Array.size_set (xs := b.val) (i := inst.equiv a) (v := true) (b.prop ▸ (inst.equiv a |>.prop)))) ▸ b.prop⟩
-  erase a b _ := ⟨b.val.set (inst.equiv a) false,
-    (Eq.symm (Array.size_set (xs := b.val) (i := inst.equiv a) (v := false) (b.prop ▸ (inst.equiv a |>.prop)))) ▸ b.prop⟩
+instance [BEq α] [Hashable α] : FinmapLike α Bool (Std.HashSet α) where
+  get mp a := mp.contains a
+  insert a b mp := if b then mp.insert a else mp.erase a
 
-instance [BEq α] [Hashable α] : FinsetLike (Std.HashSet α) where
-  insert a b _ := b.insert a
-  erase a b _ := b.erase a
+instance {cmp : α → α → Ordering} : FinmapLike α Bool (Std.TreeSet α cmp) where
+  get mp a := mp.contains a
+  insert a b mp := if b then mp.insert a else mp.erase a
 
-instance {cmp : α → α → Ordering} : FinsetLike (Std.TreeSet α cmp) where
-  insert a b _ := b.insert a
-  erase a b _ := b.erase a
+instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : FinmapLike α Bool (Std.ExtTreeSet α cmp) where
+  get mp a := mp.contains a
+  insert a b mp := if b then mp.insert a else mp.erase a
 
-instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : FinsetLike (Std.ExtTreeSet α cmp) where
-  insert a b _ := b.insert a
-  erase a b _ := b.erase a
+instance [FinEncodable α] [DecidableEq α] : LawfulFinmapLike (BitVecAsFinset α) where
+  insert_get a a' b mp := by
+    simp only [FinmapLike.get, FinmapLike.insert]
+    have := FinEncodable.equiv (α := α) |>.injective
+    split_ifs <;> simp_all <;> grind [Fin.val_inj]
 
-instance [FinEncodable α] [DecidableEq α] : LawfulFinsetLike (BitVecAsFinset α) where
-  toFinset b := List.finRange (FinEncodable.card α) |>.filterMap (fun a => if b[a] then some (FinEncodable.equiv.symm a) else none) |>.toFinset
-  toFinset_mem_iff a b := by simp ; simp [Membership.mem] ; grind
-  insert_toFinset a b h := by
-    ext a ; simp [FinsetLike.insert] ; grind
-  erase_toFinset a b h := by
-    ext a ; simp [FinsetLike.erase] ; simp [Membership.mem] at h ; grind
-
-instance [inst : FinEncodable α] [DecidableEq α] : LawfulFinsetLike (ArrayAsFinset α) where
-  toFinset b := List.finRange (inst.card) |>.filterMap (fun a => if b.val[a] then some (inst.equiv.symm a) else none) |>.toFinset
-  toFinset_mem_iff a b := by simp ; simp [Membership.mem] ; grind
-  insert_toFinset a b h := by
-    ext a ; simp [FinsetLike.insert, Array.getElem_set] ; grind
-  erase_toFinset a b h := by
-    ext a ; simp [FinsetLike.erase] ; simp [Membership.mem] at h ; grind
-
-instance [DecidableEq α] [Hashable α] : LawfulFinsetLike (Std.HashSet α) where
-  toFinset b := List.toFinset b.toList
-  toFinset_mem_iff a b := by simp
-  insert_toFinset a b h := by
-    ext a ; simp [FinsetLike.insert] ; aesop
-  erase_toFinset a b h := by
-    ext a ; simp [FinsetLike.erase] ; aesop
+instance [DecidableEq α] [Hashable α] [LawfulHashable α] : LawfulFinmapLike (Std.HashSet α) where
+  insert_get a a' b mp := by
+    dsimp only [FinmapLike.get, FinmapLike.insert]
+    split_ifs <;> simp_all
 
 instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
-  [DecidableEq α]   -- NOTE: this might be derived from `Std.LawfulEqCmp cmp`
-  : LawfulFinsetLike (Std.TreeSet α cmp) where
-  toFinset b := List.toFinset b.toList
-  toFinset_mem_iff a b := by simp
-  insert_toFinset a b h := by
-    ext a ; simp [FinsetLike.insert] ; aesop
-  erase_toFinset a b h := by
-    ext a ; simp [FinsetLike.erase] ; aesop
+  [DecidableEq α]
+  : LawfulFinmapLike (Std.TreeSet α cmp) where
+  insert_get a a' b mp := by
+    dsimp only [FinmapLike.get, FinmapLike.insert]
+    split_ifs <;> simp_all
 
 instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
-  [DecidableEq α] : LawfulFinsetLike (Std.ExtTreeSet α cmp) where
-  toFinset b := List.toFinset b.toList
-  toFinset_mem_iff a b := by simp
-  insert_toFinset a b h := by
-    ext a ; simp [FinsetLike.insert] ; aesop
-  erase_toFinset a b h := by
-    ext a ; simp [FinsetLike.erase] ; aesop
+  [DecidableEq α] : LawfulFinmapLike (Std.ExtTreeSet α cmp) where
+  insert_get a a' b mp := by
+    dsimp only [FinmapLike.get, FinmapLike.insert]
+    split_ifs <;> simp_all
 
 abbrev BitVecAsFinmap (α β) [FinEncodable α] [FinEncodable β] :=
   BitVec ((FinEncodable.card α) * (Nat.bitLength (FinEncodable.card β)))
