@@ -9,8 +9,7 @@ Veil is a Lean library focusing on specifying, testing and verifying transition 
 - `Veil`: The source of Veil
   - `Veil/Frontend`: Related to the Veil specification syntax and semantics
   - `Veil/Util`: Some generic utilities, not very specific to Veil
-  - `Veil/Core/Tools/ModelChecker/ConcreteNew`: Explicit-state model checker for Veil specifications
-  - `Veil/Core/Tools/ModelChecker/Concrete`: **Deprecated, do not check this directory unless instructed**
+  - `Veil/Core/Tools/ModelChecker/Concrete`: Explicit-state model checker for Veil specifications
 
 ## Important Notes
 
