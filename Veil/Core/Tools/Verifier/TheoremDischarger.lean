@@ -41,7 +41,7 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
   let id : DischargerIdentifier := {
     vcId := vc.uid
     dischargerId := dischargerId
-    name := theoremName
+    name := Name.mkSimple s!"{theoremName.getString!}_INTERACTIVE"
     managerId := mgr._managerId
   }
   let cancelTk ← IO.CancelToken.new

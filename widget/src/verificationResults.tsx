@@ -547,27 +547,41 @@ function getStatusClass(status: VerificationCondition['status']): string {
   return status || 'pending';
 }
 
-// Extract exceptions from dischargers (deduplicated)
-function getExceptionsFromVC(vc: VerificationCondition): string[] {
-  const exceptionsSet = new Set<string>();
+interface ExceptionGroup {
+  message: string;
+  dischargerNames: string[];
+}
+
+// Extract exceptions from dischargers, preserving which dischargers produced them.
+function getExceptionGroupsFromVC(vc: VerificationCondition): ExceptionGroup[] {
+  const exceptionMap = new Map<string, Set<string>>();
   for (const discharger of vc.timing.dischargers) {
+    const addException = (message: string) => {
+      const dischargerNames = exceptionMap.get(message) ?? new Set<string>();
+      dischargerNames.add(discharger.name);
+      exceptionMap.set(message, dischargerNames);
+    };
+
     // Check if status is an object with finished.res.exceptions
     if (typeof discharger.status === 'object' && discharger.status !== null) {
       const finished = (discharger.status as DischargerStatusFinished).finished;
       if (finished?.res?.exceptions) {
         for (const ex of finished.res.exceptions) {
-          exceptionsSet.add(ex);
+          addException(ex);
         }
       }
     }
     // Also check the result field for exceptions
     if (discharger.result?.exceptions) {
       for (const ex of discharger.result.exceptions) {
-        exceptionsSet.add(ex);
+        addException(ex);
       }
     }
   }
-  return Array.from(exceptionsSet);
+  return Array.from(exceptionMap.entries()).map(([message, dischargerNames]) => ({
+    message,
+    dischargerNames: Array.from(dischargerNames).sort(),
+  }));
 }
 
 // Helper to check if a VC is an induction VC
@@ -721,14 +735,25 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   // Default to TR counterexample if available, otherwise WP
   const activeCounterexample = (showTRCounterexample && trCounterexample) || wpCounterexample;
 
-  // Get all exceptions from both VCs (deduplicated)
+  // Get all exceptions from both VCs, grouped by message with discharger provenance.
   const allExceptions = React.useMemo(() => {
-    const set = new Set<string>();
-    for (const ex of getExceptionsFromVC(vc)) set.add(ex);
+    const exceptionMap = new Map<string, Set<string>>();
+    const mergeGroups = (groups: ExceptionGroup[]) => {
+      for (const group of groups) {
+        const names = exceptionMap.get(group.message) ?? new Set<string>();
+        for (const name of group.dischargerNames) names.add(name);
+        exceptionMap.set(group.message, names);
+      }
+    };
+
+    mergeGroups(getExceptionGroupsFromVC(vc));
     if (alternativeVC) {
-      for (const ex of getExceptionsFromVC(alternativeVC)) set.add(ex);
+      mergeGroups(getExceptionGroupsFromVC(alternativeVC));
     }
-    return Array.from(set);
+    return Array.from(exceptionMap.entries()).map(([message, dischargerNames]) => ({
+      message,
+      dischargerNames: Array.from(dischargerNames).sort(),
+    }));
   }, [vc, alternativeVC]);
   const hasExceptions = allExceptions.length > 0;
 
@@ -912,7 +937,10 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
           <div className="exceptions-label">Exceptions</div>
           <div className="exceptions-content">
             {allExceptions.map((exception, idx) => (
-              <pre key={idx} className="exception-item">{exception}</pre>
+              <div key={idx} className="exception-entry">
+                <div className="exception-source">{exception.dischargerNames.join(', ')}</div>
+                <pre className="exception-item">{exception.message}</pre>
+              </div>
             ))}
           </div>
         </div>
@@ -1526,6 +1554,20 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
       display: flex;
       flex-direction: column;
       gap: 8px;
+    }
+
+    .exception-entry {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .exception-source {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--vscode-descriptionForeground);
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
     }
 
     .exception-item {

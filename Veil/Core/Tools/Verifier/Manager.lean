@@ -358,16 +358,13 @@ dischargers without success, re-open it so the new discharger can affect the
 reported status. -/
 def VCManager.addDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId)
     (discharger : Discharger ResultT) : VCManager VCMetaT ResultT := Id.run do
-  match mgr.nodes[vcId]? with
-  | none => mgr
-  | some vc =>
-    let mgr := { mgr with
-      nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push discharger } }
-    if vc.successful.isNone then
-      let mgr' := { mgr with _doneWith := mgr._doneWith.erase vcId }
-      mgr'
-    else
-      mgr
+  let some vc := mgr.nodes[vcId]? | return mgr
+  let mut mgr := mgr
+  let vc := { vc with dischargers := vc.dischargers.push discharger }
+  mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
+  if vc.successful.isNone then
+    mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
+  return mgr
 
 open Lean.Elab.Command in
 def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do
@@ -477,6 +474,45 @@ def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0)
     -- dbg_trace "[VCManager.start] finished scheduling {toExecute.length} ready tasks (out of {ready.length} total ready)"
   return mgr'
 
+private def dischargerErrorIsTimeout (res : DischargerResult ResultT) : Bool :=
+  match res with
+  | .error exs _ =>
+    exs.any fun (_, json) =>
+      match json with
+      | .str s => (s.splitOn "TIMEOUT").length > 1
+      | _ => false
+  | _ => false
+
+/-- Compute the final status for a VC whose dischargers have been exhausted.
+Concrete outcomes take priority, and among failures a non-timeout `error`
+outranks `unknown`; we only report `timeout` when every recorded error was a
+timeout. -/
+private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) : VCStatus :=
+  if vc.successful.isSome then
+    .proven
+  else
+    let results := vc.dischargers.filterMap fun discharger =>
+      mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]?
+    let (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout) :=
+      results.foldl
+        (init := (false, false, false, true))
+        fun (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout) result =>
+          match result with
+          | .disproven _ _ => (true, hasUnknown, hasError, allErrorsAreTimeout)
+          | .unknown _ _ => (hasDisproven, true, hasError, allErrorsAreTimeout)
+          | .error _ _ =>
+            (hasDisproven, hasUnknown, true, allErrorsAreTimeout && dischargerErrorIsTimeout result)
+          | .proven _ _ _ => (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout)
+    if hasDisproven then
+      .disproven
+    else if hasError then
+      if allErrorsAreTimeout then .timeout else .error
+    else if hasUnknown then
+      .unknown
+    else
+      .unknown
+
 def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr := mgr
   let vcId := id.vcId
@@ -502,15 +538,11 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
         mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
   | .disproven _ _ => vcStatus := .disproven
   | .unknown _ _ => vcStatus := .unknown
-  | .error exs _ =>
-    if exs.any (fun (_, json) => match json with
-      | .str s => (s.splitOn "TIMEOUT").length > 1
-      | _ => false)
-    then vcStatus := .timeout
-    else vcStatus := .error
+  | .error _ _ => vcStatus := .error
   let .some vc' := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} disappeared"; return mgr
   -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
   if vc'.successful.isSome || (← vc'.nextDischarger?).isNone then
+    vcStatus := mgr.exhaustedVCStatus vc'
     mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
     -- Trigger alternative VCs if this VC failed (not proven)
     if vcStatus != .proven then
