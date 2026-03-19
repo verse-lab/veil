@@ -65,11 +65,8 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
             if dischargerId.managerId != mgr._managerId then
               -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV dischargerResult from manager ID {dischargerId.managerId} (our ID: {mgr._managerId}); ignoring"
               return #[]
-            mgr := {mgr with _totalDischarged := mgr._totalDischarged + 1}
-            if res.isSuccessful then
-              mgr := {mgr with _totalSolved := mgr._totalSolved + 1}
             -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV {res.kindString} notification from discharger {dischargerId} after {res.time}ms (solved: {mgr._totalSolved}/{mgr.nodes.size})"
-            mgr ← mgr.markDischarger dischargerId res
+            mgr ← mgr.recordDischargerResult dischargerId res
             -- Get ready tasks AFTER markDischarger so freshly woken alternatives can be scheduled
             let ready ← mgr.readyTasks
             let ready := ready.take 1  -- Only start 1 at a time

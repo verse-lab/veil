@@ -129,6 +129,9 @@ abbrev SnapshotTreeTask := Task Language.SnapshotTree
 /-- A way of discharging / proving a VC.-/
 structure Discharger (ResultT : Type) where
   id : DischargerIdentifier
+  /-- Whether this discharger comes from an explicitly tagged interactive proof
+  theorem rather than automatic tooling. -/
+  isInteractive : Bool := false
   /-- Optionally, a VC discharger can provide term (e.g. a proof script) that
   can be shown to the user, e.g. when a VC's corresponding `theorem` is
   pretty-printed. -/
@@ -343,14 +346,36 @@ def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
   }
   (mgr'', altId)
 
+private def VCManager.mkDischargerIdentifier (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) : DischargerIdentifier :=
+  { vcId := vc.uid
+    dischargerId := vc.dischargers.size
+    name := Name.mkSimple s!"{vc.name}_{vc.dischargers.size}"
+    managerId := mgr._managerId }
+
+/-- Add a discharger to an existing VC. If the VC had previously exhausted its
+dischargers without success, re-open it so the new discharger can affect the
+reported status. -/
+def VCManager.addDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId)
+    (discharger : Discharger ResultT) : VCManager VCMetaT ResultT := Id.run do
+  match mgr.nodes[vcId]? with
+  | none => mgr
+  | some vc =>
+    let mgr := { mgr with
+      nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push discharger } }
+    if vc.successful.isNone then
+      let mgr' := { mgr with _doneWith := mgr._doneWith.erase vcId }
+      mgr'
+    else
+      mgr
+
 open Lean.Elab.Command in
 def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do
   let .some ch := mgr.ch | throwError "VCManager.mkAddDischarger called without a channel"
   match mgr.nodes[vcId]? with
   | some vc => do
-    let dischargerId := vc.dischargers.size
-    let id : DischargerIdentifier := {vcId, dischargerId, name := Name.mkSimple s!"{vc.name}_{dischargerId}", managerId := mgr._managerId }
-    pure { mgr with nodes := mgr.nodes.insert vcId { vc with dischargers := vc.dischargers.push (← mk vc.toVCStatement id ch) } }
+    let id := mgr.mkDischargerIdentifier vc
+    pure <| mgr.addDischarger vcId (← mk vc.toVCStatement id ch)
   | none => pure mgr
 
 def VCManager.theorems [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
@@ -375,17 +400,16 @@ def Discharger.run (discharger : Discharger ResultT) : BaseIO (Discharger Result
     return { discharger with task := some task }
 
 def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatus ResultT) := do
-  match discharger.task with
-  | none => return .notStarted
-  | some _ =>
-    -- Check if the result promise has been resolved
-    let resultTask := discharger.resultPromise.result?
-    match ← IO.hasFinished resultTask with
-    | true =>
-      match resultTask.get with
-      | some res => return .finished res
-      | none => panic! "Discharger.status: result promise resolved to none"
-    | false => return .running
+  let resultTask := discharger.resultPromise.result?
+  match ← IO.hasFinished resultTask with
+  | true =>
+    match resultTask.get with
+    | some res => return .finished res
+    | none => panic! "Discharger.status: result promise resolved to none"
+  | false =>
+    match discharger.task with
+    | none => return .notStarted
+    | some _ => return .running
 
 def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
   match (← discharger.status) with
@@ -460,17 +484,22 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
   let mut vcStatus := .unknown
   -- Store the discharger result for JSON serialization
   mgr := { mgr with _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res }
+  -- A late failure from another discharger must not undo a proof we already recorded.
+  if vc.successful.isSome && !res.isSuccessful then
+    return { mgr with _doneWith := mgr._doneWith.insert vcId .proven }
   -- Update downstream in-degrees
   match res with
   | .proven _ _ _ => do
     vcStatus := .proven
-    mgr := { mgr with nodes := mgr.nodes.insert vcId { vc with successful := some id.dischargerId }}
-    let downstream := match mgr.downstream[vcId]? with
-    | some downstream => downstream
-    | none => HashSet.emptyWithCapacity 0
-    for downstreamVc in downstream do
-      let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
-      mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
+    if vc.successful.isNone then
+      vc := { vc with successful := some id.dischargerId }
+      mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
+      let downstream := match mgr.downstream[vcId]? with
+      | some downstream => downstream
+      | none => HashSet.emptyWithCapacity 0
+      for downstreamVc in downstream do
+        let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
+        mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
   | .disproven _ _ => vcStatus := .disproven
   | .unknown _ _ => vcStatus := .unknown
   | .error exs _ =>
@@ -479,8 +508,9 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
       | _ => false)
     then vcStatus := .timeout
     else vcStatus := .error
+  let .some vc' := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} disappeared"; return mgr
   -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
-  if (← vc.nextDischarger?).isNone then
+  if vc'.successful.isSome || (← vc'.nextDischarger?).isNone then
     mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
     -- Trigger alternative VCs if this VC failed (not proven)
     if vcStatus != .proven then
@@ -489,6 +519,19 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
           -- Wake up the alternative VC by removing from dormant set
           mgr := { mgr with dormantVCs := mgr.dormantVCs.erase altId }
   return mgr
+
+/-- Record a finished discharger result, updating aggregate counters and VC
+status bookkeeping together. -/
+def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
+    (id : DischargerIdentifier) (res : DischargerResult ResultT) :
+    BaseIO (VCManager VCMetaT ResultT) := do
+  let alreadySolved := match mgr.nodes[id.vcId]? with
+    | some vc => vc.successful.isSome
+    | none => false
+  let mut mgr := { mgr with _totalDischarged := mgr._totalDischarged + 1 }
+  if res.isSuccessful && !alreadySolved then
+    mgr := { mgr with _totalSolved := mgr._totalSolved + 1 }
+  mgr.markDischarger id res
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
   match mgr._doneWith[vcId]? with

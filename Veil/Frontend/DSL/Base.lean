@@ -12,6 +12,7 @@ import Veil.Frontend.DSL.Tactic
 import Veil.Frontend.DSL.State.Instances
 import Veil.Frontend.DSL.State.Repr
 import Veil.Core.Tools.ModelChecker.Symbolic.TraceLang
+import Veil.Core.Tools.Verifier.TheoremDischarger
 
 
 /-! # Veil DSL

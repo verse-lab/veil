@@ -77,6 +77,7 @@ type DischargerStatus = string | DischargerStatusFinished;
 interface Discharger {
   id: number;
   name: string;
+  isInteractive: boolean;
   status: DischargerStatus;
   time: number | null;
   startTime: number | null;
@@ -698,6 +699,25 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   const hasAnyCounterexample = hasWPCounterexample || hasTRCounterexample;
   const hasBothCounterexamples = hasWPCounterexample && hasTRCounterexample;
 
+  const getSuccessfulDischarger = (targetVC?: VerificationCondition): Discharger | null => {
+    if (!targetVC || targetVC.status !== 'proven') return null;
+    const successfulId = targetVC.timing.successfulDischargerId;
+    if (successfulId == null) return null;
+    return targetVC.timing.dischargers.find(d => d.id === successfulId) ?? null;
+  };
+
+  const hasInteractiveDischarger = (targetVC?: VerificationCondition): boolean =>
+    targetVC?.timing.dischargers.some(d => d.isInteractive === true) === true;
+
+  const primarySuccessfulDischarger = getSuccessfulDischarger(vc);
+  const trSuccessfulDischarger = getSuccessfulDischarger(alternativeVC);
+  const isInteractiveProven =
+    primarySuccessfulDischarger?.isInteractive === true ||
+    trSuccessfulDischarger?.isInteractive === true;
+  const hasInteractiveAttempt =
+    hasInteractiveDischarger(vc) ||
+    hasInteractiveDischarger(alternativeVC);
+
   // Default to TR counterexample if available, otherwise WP
   const activeCounterexample = (showTRCounterexample && trCounterexample) || wpCounterexample;
 
@@ -876,6 +896,11 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
         {trWasInvoked && (
           <span className={`vc-style-badge tr-badge ${trIsRunning ? 'tr-running' : ''}`}>
             TR{trIsRunning && '...'}
+          </span>
+        )}
+        {(isInteractiveProven || hasInteractiveAttempt) && (
+          <span className="vc-style-badge interactive-badge">
+            Interactive
           </span>
         )}
         {timeDisplay && (
@@ -1573,6 +1598,12 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
 
     .tr-badge.tr-running {
       animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .interactive-badge {
+      background: rgba(82, 196, 26, 0.15);
+      color: #52c41a;
+      border: 1px solid rgba(82, 196, 26, 0.3);
     }
 
     @keyframes pulse {

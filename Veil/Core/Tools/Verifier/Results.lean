@@ -36,6 +36,8 @@ structure DischargerResultData (ResultT : Type) where
   id : DischargerId
   /-- The name of the discharger. -/
   name : Name
+  /-- True iff this result comes from a theorem tagged with `@[veil]`. -/
+  isInteractive : Bool := false
   /-- The status of the discharger. -/
   status : DischargeStatus ResultT
   /-- The time taken by the discharger (in milliseconds), if available. -/
@@ -55,6 +57,7 @@ instance [ToJson ResultT] : ToJson (DischargerResultData ResultT) where
     Json.mkObj [
       ("id", toJson data.id),
       ("name", toJson data.name.toString),
+      ("isInteractive", toJson data.isInteractive),
       ("status", Json.str statusStr),
       ("time", match time.orElse (fun _ => data.time) with | some t => toJson t | none => Json.null),
       ("startTime", match data.startTime with | some t => toJson t | none => Json.null),
@@ -162,6 +165,7 @@ def mkDischargerResultData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr :
   return {
     id := dischargerId
     name := discharger.id.name
+    isInteractive := discharger.isInteractive
     status := status
     time := time
     startTime := startTime
