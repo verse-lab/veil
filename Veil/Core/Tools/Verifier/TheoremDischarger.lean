@@ -17,6 +17,15 @@ private def findMatchingVCs (mgr : VCManager VCMetadata SmtResult)
   mgr.nodes.toArray.filterMap fun (vcId, vc) =>
     if vcNameMatches vc.name declName then some vcId else none
 
+private def interactiveDischargerName (theoremName : Name) : Name :=
+  Name.mkSimple s!"{theoremName.getString!}_INTERACTIVE"
+
+private def findInteractiveDischargerId? (vc : VerificationCondition VCMetadata SmtResult)
+    (theoremName : Name) : Option DischargerId :=
+  let interactiveName := interactiveDischargerName theoremName
+  vc.dischargers.findIdx? fun discharger =>
+    discharger.isInteractive && discharger.id.name == interactiveName
+
 private def validateTheoremWitness (declName : Name) (vcStatement : VCStatement) :
     CoreM (Except Exception Expr) := do
   try
@@ -35,13 +44,14 @@ private def validateTheoremWitness (declName : Name) (vcStatement : VCStatement)
 
 private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
     (vc : VerificationCondition VCMetadata SmtResult) (theoremName : Name)
+    (existingId? : Option DischargerId := none)
     (result : DischargerResult SmtResult) :
     BaseIO (Discharger SmtResult × DischargerResult SmtResult) := do
-  let dischargerId := vc.dischargers.size
+  let dischargerId := existingId?.getD vc.dischargers.size
   let id : DischargerIdentifier := {
     vcId := vc.uid
     dischargerId := dischargerId
-    name := Name.mkSimple s!"{theoremName.getString!}_INTERACTIVE"
+    name := interactiveDischargerName theoremName
     managerId := mgr._managerId
   }
   let cancelTk ← IO.CancelToken.new
@@ -73,9 +83,19 @@ private def registerFinishedTheoremDischarger
       let vcId := vcIds[0]!
       let some vc := mgr.nodes[vcId]?
         | pure <| Except.error s!"`@[veil]` found verification condition {vcId}, but it is no longer registered"
-      let (discharger, result) ← mkFinishedTheoremDischarger mgr vc declName result
-      let mgr := mgr.addDischarger vcId discharger
-      let mgr ← mgr.recordDischargerResult discharger.id result
+      let existingId? := findInteractiveDischargerId? vc declName
+      let (discharger, result) ← mkFinishedTheoremDischarger mgr vc declName existingId? result
+      let vc := match existingId? with
+        | some existingId =>
+          { vc with
+            dischargers := vc.dischargers.set! existingId discharger
+            successful := if vc.successful == some existingId && !result.isSuccessful then none else vc.successful }
+        | none =>
+          { vc with dischargers := vc.dischargers.push discharger }
+      let mut mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
+      if vc.successful.isNone then
+        mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
+      mgr ← mgr.recordDischargerResult discharger.id result
       ref.set mgr
       pure (Except.ok ())
     else
