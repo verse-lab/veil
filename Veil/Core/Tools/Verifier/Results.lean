@@ -208,11 +208,11 @@ def VCManager.findPrimaryVC (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Op
   return none
 
 /-- Generate theorem text from a VC using proper pretty-printing.
-    Format: `theorem <name> <params> : <statement> := by sorry` -/
+    Format: `@[veil] theorem <name> <params> : <statement> := by sorry` -/
 def mkTheoremText (vc : VerificationCondition VCMetaT ResultT) : CoreM String := do
   let cmd ← vc.theoremStx
   let fmt ← Lean.PrettyPrinter.ppCommand cmd
-  return fmt.pretty
+  return s!"@[veil]\n{fmt.pretty}"
 
 /-- Build `VCResult` for a specific VC. -/
 def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m] (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : m (VCResult VCMetaT ResultT) := do
