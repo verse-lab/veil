@@ -90,6 +90,26 @@ def statusEmoji (status : Option VCStatus) : String :=
   | some .timeout => "⏱️"
   | none => "⏳"
 
+/-- Resolve the user-visible status for a primary VC together with any active
+TR-style alternatives. Conclusive outcomes win over sibling errors. -/
+private def effectiveStatusOrder : List (Option VCStatus) :=
+  [some .proven, some .disproven, none, some .error, some .timeout, some .unknown]
+
+private def activeStatuses (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Array (Option VCStatus) :=
+  allVCs.foldl (init := #[vc.status]) fun acc altVC =>
+    if altVC.alternativeFor == some vc.id && !altVC.isDormant then
+      acc.push altVC.status
+    else
+      acc
+
+private def effectiveStatus (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Option VCStatus := Id.run do
+  if vc.alternativeFor.isSome then
+    return vc.status
+  let statuses := activeStatuses vc allVCs
+  return effectiveStatusOrder.find? statuses.contains |>.getD vc.status
+
 /-- Format a JSON value as a string, with support for nested structures. -/
 private partial def formatJsonValue (json : Json) : String :=
   match json with
@@ -177,8 +197,9 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
     msg := msg ++ m!"Initialization must establish the invariant:\n"
     for vc in initVCs do
       let .induction m := vc.metadata | continue
-      msg := msg ++ m!"  {m.property} ... {statusEmoji vc.status}\n"
-      if includeCounterexamples && vc.status == some .disproven then
+      let status := effectiveStatus vc results.vcs
+      msg := msg ++ m!"  {m.property} ... {statusEmoji status}\n"
+      if includeCounterexamples && status == some .disproven then
         if let some ceMsg := formatCounterexamples vc results.vcs then
           msg := msg ++ ceMsg
   unless actionGroups.isEmpty do
@@ -187,8 +208,9 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
       msg := msg ++ m!"  {actionName}\n"
       for vc in vcs do
         let .induction m := vc.metadata | continue
-        msg := msg ++ m!"    {m.property} ... {statusEmoji vc.status}\n"
-        if includeCounterexamples && vc.status == some .disproven then
+        let status := effectiveStatus vc results.vcs
+        msg := msg ++ m!"    {m.property} ... {statusEmoji status}\n"
+        if includeCounterexamples && status == some .disproven then
           if let some ceMsg := formatCounterexamples vc results.vcs then
             msg := msg ++ ceMsg
   return msg
@@ -197,6 +219,6 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
 def hasFailedVCs (results : VerificationResults VCMetadata SmtResult) : Bool :=
   results.vcs.any fun vc =>
     vc.metadata.isInduction && !vc.isDormant && vc.alternativeFor.isNone &&
-    vc.status != some .proven
+    effectiveStatus vc results.vcs != some .proven
 
 end Veil.Verifier

@@ -481,9 +481,10 @@ const useTheoremInserter = (documentUri: string, insertPosition: InsertPosition)
 /** Banner shown when there are VCs that need manual proof (unknown/error status) */
 const ManualProofBanner: React.FC<{
   vcs: VerificationCondition[];
+  alternativeMap: Map<number, VerificationCondition>;
   documentUri: string;
   insertPosition: InsertPosition;
-}> = ({ vcs, documentUri, insertPosition }) => {
+}> = ({ vcs, alternativeMap, documentUri, insertPosition }) => {
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   const [inserting, setInserting] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(false);
@@ -491,7 +492,7 @@ const ManualProofBanner: React.FC<{
   // Get VCs that need manual proof (unknown/error/timeout, not disproven - those have counterexamples)
   const needsManualProofVCs = vcs.filter(vc =>
     vc.theoremText &&
-    (vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout')
+    isManualProofStatus(getVisibleStatus(vc, alternativeMap))
   );
 
   const count = needsManualProofVCs.length;
@@ -623,6 +624,49 @@ function buildAlternativeMap(vcs: VerificationCondition[]): Map<number, Verifica
   return map;
 }
 
+const EFFECTIVE_STATUS_ORDER: VerificationCondition['status'][] = [
+  'proven',
+  'disproven',
+  null,
+  'error',
+  'timeout',
+  'unknown',
+];
+
+function getActiveStatuses(
+  vc: VerificationCondition,
+  alternativeVC?: VerificationCondition
+): VerificationCondition['status'][] {
+  const statuses: VerificationCondition['status'][] = [vc.status];
+  if (alternativeVC && !alternativeVC.isDormant) {
+    statuses.push(alternativeVC.status);
+  }
+  return statuses;
+}
+
+function getEffectiveStatus(
+  vc: VerificationCondition,
+  alternativeVC?: VerificationCondition
+): VerificationCondition['status'] {
+  const statuses = getActiveStatuses(vc, alternativeVC);
+  return EFFECTIVE_STATUS_ORDER.find(status => statuses.includes(status)) ?? vc.status;
+}
+
+function getVisibleStatus(
+  vc: VerificationCondition,
+  alternativeMap: Map<number, VerificationCondition>
+): VerificationCondition['status'] {
+  return getEffectiveStatus(vc, alternativeMap.get(vc.id));
+}
+
+function isManualProofStatus(status: VerificationCondition['status']): boolean {
+  return status === 'unknown' || status === 'error' || status === 'timeout';
+}
+
+function hasRunningDischarger(targetVC?: VerificationCondition): boolean {
+  return targetVC?.timing.dischargers.some(d => d.status === 'running') === true;
+}
+
 // Filter to only show primary induction VCs (exclude all alternatives, trace VCs, and dormant VCs)
 function filterToVisibleVCs(vcs: VerificationCondition[]): VerificationCondition[] {
   return vcs.filter(vc => vc.alternativeFor == null && isInductionVC(vc) && !vc.isDormant);
@@ -665,6 +709,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   const [expanded, setExpanded] = React.useState(false);
   const [showTRCounterexample, setShowTRCounterexample] = React.useState(true);
   const [showRawHtml, setShowRawHtml] = React.useState(false);
+  const effectiveStatus = getEffectiveStatus(vc, alternativeVC);
 
   // Cache the last known time to prevent flickering during state transitions
   const lastKnownTimeRef = React.useRef<number | null>(null);
@@ -672,7 +717,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   // Theorem insertion
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   // Only highlight unknown/error as "needs manual proof" - disproven VCs have counterexamples and aren't provable
-  const needsManualProof = vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout';
+  const needsManualProof = isManualProofStatus(effectiveStatus);
   const hasTheoremText = !!vc.theoremText;
   const hasTRTheoremText = !!alternativeVC?.theoremText;
 
@@ -777,7 +822,10 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   };
 
   // Check if this VC is queued (pending but no dischargers running yet)
-  const isQueued = vc.status === null && !isAnyDischargerRunning(vc);
+  const isQueued =
+    effectiveStatus === null &&
+    !isAnyDischargerRunning(vc) &&
+    !hasRunningDischarger(alternativeVC);
 
   // Format elapsed time with in-progress styling (reduced opacity)
   const formatElapsedTime = (elapsed: number | null): React.ReactNode => {
@@ -908,7 +956,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   return (
     <>
       <div
-        className={`property-row status-${getStatusClass(vc.status)} ${isExpandable ? 'expandable' : ''} ${needsManualProof && hasTheoremText ? 'insertable' : ''}`}
+        className={`property-row status-${getStatusClass(effectiveStatus)} ${isExpandable ? 'expandable' : ''} ${needsManualProof && hasTheoremText ? 'insertable' : ''}`}
         onClick={handleRowClick}
         style={{ cursor: isExpandable || hasTheoremText ? 'pointer' : 'default' }}
         title={getTooltip()}
@@ -916,7 +964,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
         {isExpandable && (
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
         )}
-        <span className="property-icon">{isQueued ? '⏳' : getStatusIcon(vc.status)}</span>
+        <span className="property-icon">{isQueued ? '⏳' : getStatusIcon(effectiveStatus)}</span>
         <span className="property-name">{getInductionData(vc)?.property}</span>
         {trWasInvoked && (
           <span className={`vc-style-badge tr-badge ${trIsRunning ? 'tr-running' : ''}`}>
@@ -1040,7 +1088,7 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
   // Get VCs that need manual proof (unknown/error/timeout, not disproven - those have counterexamples)
   const needsManualProofVCs = vcs.filter(vc =>
     vc.theoremText &&
-    (vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout')
+    isManualProofStatus(getVisibleStatus(vc, alternativeMap))
   );
   const needsManualProofCount = needsManualProofVCs.length;
 
@@ -1161,30 +1209,33 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
     };
 
     visibleVCs.forEach((vc) => {
-      if (vc.status === null) {
+      const effectiveStatus = getVisibleStatus(vc, alternativeMap);
+      if (effectiveStatus === null) {
         counts.pending++;
-      } else if (vc.status === 'proven') {
+      } else if (effectiveStatus === 'proven') {
         counts.proven++;
-      } else if (vc.status === 'disproven') {
+      } else if (effectiveStatus === 'disproven') {
         counts.disproven++;
-      } else if (vc.status === 'unknown') {
+      } else if (effectiveStatus === 'unknown') {
         counts.unknown++;
-      } else if (vc.status === 'error') {
+      } else if (effectiveStatus === 'error') {
         counts.error++;
-      } else if (vc.status === 'timeout') {
+      } else if (effectiveStatus === 'timeout') {
         counts.timeout++;
       }
     });
 
     return counts;
-  }, [visibleVCs]);
+  }, [visibleVCs, alternativeMap]);
 
   // Filter VCs based on status (from already-visible VCs)
   const filteredVCs = React.useMemo(() => {
     if (statusFilter === 'all') return visibleVCs;
-    if (statusFilter === 'pending') return visibleVCs.filter((vc) => vc.status === null);
-    return visibleVCs.filter((vc) => vc.status === statusFilter);
-  }, [visibleVCs, statusFilter]);
+    if (statusFilter === 'pending') {
+      return visibleVCs.filter((vc) => getVisibleStatus(vc, alternativeMap) === null);
+    }
+    return visibleVCs.filter((vc) => getVisibleStatus(vc, alternativeMap) === statusFilter);
+  }, [visibleVCs, statusFilter, alternativeMap]);
 
   // Group VCs by action
   const actionGroups = React.useMemo(() => groupByAction(filteredVCs), [filteredVCs]);
@@ -1998,6 +2049,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
             {/* Banner for VCs needing manual proof */}
             <ManualProofBanner
               vcs={visibleVCs}
+              alternativeMap={alternativeMap}
               documentUri={documentUri}
               insertPosition={insertPosition}
             />
