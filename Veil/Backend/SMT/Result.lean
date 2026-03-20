@@ -15,6 +15,19 @@ namespace Veil
 
 abbrev SmtOutput := (Name × Nat) × Smt.AsyncOutput
 
+inductive UnknownExplanation where
+  | timeout
+  | incomplete
+deriving BEq, Inhabited
+
+def unknownExplanation? (message : String) : Option UnknownExplanation :=
+  if message.contains "TIMEOUT" then
+    some .timeout
+  else if message.contains "Reason: INCOMPLETE" then
+    some .incomplete
+  else
+    none
+
 instance : ToJson Smt.Model where
   toJson model :=
     Json.mkObj [

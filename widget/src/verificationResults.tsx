@@ -57,6 +57,7 @@ interface Counterexample {
 interface DischargerResultData {
   kind: string;
   counterexamples?: Counterexample[];
+  reasons?: string[];
 }
 
 interface DischargerResult {
@@ -585,6 +586,26 @@ function getExceptionGroupsFromVC(vc: VerificationCondition): ExceptionGroup[] {
   }));
 }
 
+function getUnknownReasonGroupsFromVC(vc: VerificationCondition): ExceptionGroup[] {
+  const reasonMap = new Map<string, Set<string>>();
+
+  for (const discharger of vc.timing.dischargers) {
+    const reasons = discharger.result?.data?.reasons;
+    if (!reasons) continue;
+
+    for (const reason of reasons) {
+      const dischargerNames = reasonMap.get(reason) ?? new Set<string>();
+      dischargerNames.add(discharger.name);
+      reasonMap.set(reason, dischargerNames);
+    }
+  }
+
+  return Array.from(reasonMap.entries()).map(([message, dischargerNames]) => ({
+    message,
+    dischargerNames: Array.from(dischargerNames).sort(),
+  }));
+}
+
 // Helper to check if a VC is an induction VC
 function isInductionVC(vc: VerificationCondition): boolean {
   return vc.metadata.type === 'induction';
@@ -802,8 +823,30 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   }, [vc, alternativeVC]);
   const hasExceptions = allExceptions.length > 0;
 
-  // Row is expandable if it has counterexamples or exceptions
-  const isExpandable = hasAnyCounterexample || hasExceptions;
+  const allUnknownReasons = React.useMemo(() => {
+    const reasonMap = new Map<string, Set<string>>();
+    const mergeGroups = (groups: ExceptionGroup[]) => {
+      for (const group of groups) {
+        const names = reasonMap.get(group.message) ?? new Set<string>();
+        for (const name of group.dischargerNames) names.add(name);
+        reasonMap.set(group.message, names);
+      }
+    };
+
+    mergeGroups(getUnknownReasonGroupsFromVC(vc));
+    if (alternativeVC) {
+      mergeGroups(getUnknownReasonGroupsFromVC(alternativeVC));
+    }
+
+    return Array.from(reasonMap.entries()).map(([message, dischargerNames]) => ({
+      message,
+      dischargerNames: Array.from(dischargerNames).sort(),
+    }));
+  }, [vc, alternativeVC]);
+  const hasUnknownReasons = allUnknownReasons.length > 0;
+
+  // Row is expandable if it has counterexamples, exceptions, or unknown reasons.
+  const isExpandable = hasAnyCounterexample || hasExceptions || hasUnknownReasons;
 
   // Helper to check if any discharger is currently running
   const isAnyDischargerRunning = (targetVC: VerificationCondition): boolean => {
@@ -988,6 +1031,19 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
               <div key={idx} className="exception-entry">
                 <div className="exception-source">{exception.dischargerNames.join(', ')}</div>
                 <pre className="exception-item">{exception.message}</pre>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {expanded && hasUnknownReasons && (
+        <div className="exceptions-container">
+          <div className="exceptions-label">Reasons for Unknown</div>
+          <div className="exceptions-content">
+            {allUnknownReasons.map((reason, idx) => (
+              <div key={idx} className="exception-entry">
+                <div className="exception-source">{reason.dischargerNames.join(', ')}</div>
+                <pre className="exception-item">{reason.message}</pre>
               </div>
             ))}
           </div>

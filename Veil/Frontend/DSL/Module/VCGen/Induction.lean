@@ -60,7 +60,10 @@ private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT
   | .none =>
     match data with
     | .inl witness => return .proven (some witness) .none time
-    | .inr ex => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
+    | .inr ex =>
+      match ← unknownReasonFromException? ex with
+      | some reason => return .unknown (.some (.unknown #[reason])) time
+      | none => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
 
 /-! ## VC Discharger -/
 

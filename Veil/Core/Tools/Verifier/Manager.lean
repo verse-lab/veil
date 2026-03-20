@@ -1,5 +1,6 @@
 import Lean
 import Std.Sync.Channel
+import Veil.Backend.SMT.Result
 open Lean Std
 
 namespace Veil
@@ -479,7 +480,7 @@ private def dischargerErrorIsTimeout (res : DischargerResult ResultT) : Bool :=
   | .error exs _ =>
     exs.any fun (_, json) =>
       match json with
-      | .str s => (s.splitOn "TIMEOUT").length > 1
+      | .str s => unknownExplanation? s == some .timeout
       | _ => false
   | _ => false
 
