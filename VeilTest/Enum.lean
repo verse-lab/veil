@@ -105,10 +105,18 @@ The following set of actions must preserve the invariant and successfully termin
     doesNotThrow ... ✅
     inv_0 ... ❌
       Counterexample (WP):
+        Theory:
+          EnumA_Enum.nop = EnumNamesInCTIs.EnumA_IndT.nop
+          EnumB_Enum.a = EnumNamesInCTIs.EnumB_IndT.a
+          EnumB_Enum.b = EnumNamesInCTIs.EnumB_IndT.b
         Pre-state:
           req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.b]]
         Action: foo
       Counterexample (TR):
+        Theory:
+          EnumA_Enum.nop = EnumNamesInCTIs.EnumA_IndT.nop
+          EnumB_Enum.a = EnumNamesInCTIs.EnumB_IndT.a
+          EnumB_Enum.b = EnumNamesInCTIs.EnumB_IndT.b
         Pre-state:
           req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.b]]
         Action: foo

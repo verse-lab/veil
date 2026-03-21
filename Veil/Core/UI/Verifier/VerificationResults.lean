@@ -126,6 +126,19 @@ private def formatJsonObject (json : Json) (indent : String := "  ") : String :=
   | .obj kvs => "\n".intercalate (kvs.toArray.map fun (k, v) => s!"{indent}{k} = {formatJsonValue v}").toList
   | _ => formatJsonValue json
 
+/-- Extract theory entries, including theory-related `extraVals` such as
+`tot.le` that the widget folds into the theory panel. -/
+private def extractTheoryEntries (json : Json) : Json := Id.run do
+  let theoryEntries := match json.getObjValD "theory" with
+    | .obj kvs => kvs.toArray
+    | _ => #[]
+  let extraTheoryEntries := match json.getObjValD "extraVals" with
+    -- Fold any entries with dot names into the theory output, since
+    -- that's how the widget treats them. These are typically instances.
+    | .obj kvs => kvs.toArray.filter fun (k, _) => k.contains "."
+    | _ => #[]
+  Json.mkObj (theoryEntries ++ extraTheoryEntries).toList
+
 /-- Format a label JSON (action with parameters). -/
 private def formatLabelJson (json : Json) : String :=
   match json with
@@ -149,13 +162,12 @@ private def extractCounterexampleJson (vc : VCResult VCMetadata SmtResult) : Opt
 
 /-- Format a single counterexample JSON as MessageData. -/
 private def formatCounterexampleJson (json : Json) (style : String) : MessageData := Id.run do
-  let theory := json.getObjValD "theory"
+  let theory := extractTheoryEntries json
   let preState := json.getObjValD "preState"
   let postState := json.getObjValD "postState"
   let label := json.getObjValD "label"
   let mut msg := m!"      Counterexample ({style}):\n"
-  unless theory == .null || theory == .obj {} do
-    msg := msg ++ m!"        Theory:\n{formatJsonObject theory "          "}\n"
+  msg := msg ++ m!"        Theory:\n{formatJsonObject theory "          "}\n"
   msg := msg ++ m!"        Pre-state:\n{formatJsonObject preState "          "}\n"
   msg := msg ++ m!"        Action: {formatLabelJson label}\n"
   unless postState == .null do
