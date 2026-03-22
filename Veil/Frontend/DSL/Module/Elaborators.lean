@@ -605,12 +605,15 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
 def elabModelCheck : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode `veil.perf.elaborator.modelCheck (fun _ => return "#model_check") do
-    -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory, stx[4] is config
+    -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory,
+    -- stx[4] is config, stx[5] is optional `assumptions_hold_by`
     let mode := getModelCheckingMode stx[1]
     let instTerm : Term := ⟨stx[2]⟩
     let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
+    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[5].isNone then none else some ⟨stx[5][0][1]⟩
     let cfg := stx[4]
-    elabModelCheckCore stx mode instTerm theoryTermOpt cfg
+    elabModelCheckCore stx mode instTerm theoryTermOpt assumptionsHoldBy cfg
 where
   /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
       Throws a helpful error if theory fields exist but no term was provided. -/
@@ -638,7 +641,10 @@ where
     let some specFinalizedAtStx := mod.specFinalizedAtStx
       | throwError "Internal error: spec should be finalized before generating model source"
     let some modelCheckStart := stx.getPos? | throwError "Unexpected error: #model_check has no position"
-    let some modelCheckEnd := stx.getTailPos? | throwError "Unexpected error: #model_check has no end position"
+    -- Strip the optional `assumptions_hold_by` clause (stx[5]) from compiled source,
+    -- since the proof is not needed (and may reference unavailable definitions).
+    let some modelCheckEnd := (if stx[5].isNone then stx.getTailPos? else stx[5].getPos?)
+      | throwError (if stx[5].isNone then "Unexpected error: #model_check has no end position" else "Unexpected error: assumptions_hold_by has no position")
     -- If #model_check itself triggered finalization, use its start position to avoid duplication.
     -- Otherwise, use the tail position of the finalizing command (e.g., #gen_spec, #check_invariants).
     let modelCheckTriggeredFinalization := specFinalizedAtStx.getPos? == stx.getPos?
@@ -711,6 +717,32 @@ where
       the transition relation. Your specification has {transitions.size} \
       transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
       Consider encoding transitions as imperative actions where possible."
+
+  /-- Check that the provided theory satisfies all module assumptions by
+      elaborating a proof obligation using the assembled `Assumptions` definition.
+      Always unfolds `Assumptions` via `dsimp` first, then runs the user's tactic
+      or defaults to `first | decide | native_decide`. -/
+  checkTheorySatisfiesAssumptions (mod : Module) (instTerm theoryTerm : Term)
+      (tac : Option (TSyntax `Lean.Parser.Tactic.tacticSeq)) : CommandElabM Unit := do
+    let inst := mkVeilImplementationDetailIdent `inst
+    let th := mkVeilImplementationDetailIdent `th
+    let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+    -- Wrap the user tactic (a tacticSeq) as a single tactic via parentheses,
+    -- or default to `first | decide | native_decide`.
+    let userTac : TSyntax `tactic ← match tac with
+      | some t => `(tactic| ($t:tacticSeq))
+      | none => `(tactic| first | decide | native_decide)
+    -- Call `Assumptions` using the same named-argument pattern as in
+    -- `assembleRelationalTransitionSystem`: `Assumptions (ρ := TheoryType) sorts* th`
+    let ρArg := mkIdent `ρ
+    let theoryT ← `($theoryIdent $instSortArgs*)
+    let proofCmd ← `(command|
+      example : (let $inst : $instantiationType := $instTerm
+                 let $th : $theoryIdent $instSortArgs* := $theoryTerm
+                 $assembledAssumptions ($ρArg := $theoryT) $instSortArgs* $th) := by
+        dsimp only [$assembledAssumptions:ident]
+        $userTac:tactic)
+    elabVeilCommand proofCmd
 
   /-- Create an error JSON object. -/
   errorJson (msg : String) : Json := Json.mkObj [("error", msg)]
@@ -855,7 +887,9 @@ where
 
   /-- Core elaboration logic shared by all model checking modes. -/
   elabModelCheckCore (stx : Syntax) (mode : ModelCheckingMode) (instTerm : Term)
-      (theoryTermOpt : Option Term) (cfg : Syntax) : CommandElabM Unit := do
+      (theoryTermOpt : Option Term)
+      (assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq))
+      (cfg : Syntax) : CommandElabM Unit := do
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     mod.throwIfSpecNotFinalized
 
@@ -863,6 +897,9 @@ where
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
+    -- Check assumptions if clause is present (skip in compile mode and if no assumptions)
+    if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
+      checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
     let parallelCfg ← match config.sequential, config.parallelCfg with
       | true, _ => pure none

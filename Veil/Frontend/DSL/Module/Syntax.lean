@@ -348,7 +348,12 @@ declare_syntax_cat modelCheckMode
 syntax (name := interpreted) "interpreted" : modelCheckMode
 syntax (name := compiled) "compiled" : modelCheckMode
 
-syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig : command
+/-- Optional clause to check that the provided theory satisfies the module's
+assumptions before model checking. `Assumptions` is automatically unfolded via
+`dsimp` first; if no tactic is given, `first | decide | native_decide` is used. -/
+syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
+
+syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
 /-- Configure the concrete runtime representation for `relation` or `function` fields.
 This command must be used before `#gen_state`.
