@@ -235,7 +235,7 @@ def withTheoryAndStateFn (mod : Module) (t : Term) (motiveType : Option Term) (t
   let tmp ← mod.withTheoryAndStateTermTemplate
     [(.theory, th), (.state .none "_conc", st)]
     motiveType
-    (fun _ _ => pure t)
+    (fun _ _ => pure t')
     fieldRepInstance
     (stateSortTerm := some stateSortTerm)
   `(term| (fun ($th : $theoryT) ($st : $stateT) => $tmp))
