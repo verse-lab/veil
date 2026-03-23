@@ -165,6 +165,15 @@ instance (n : Nat): TotalOrderWithMinimum (Fin n.succ) where
   zero := ⟨0, by simp⟩
   zero_lt := by simp ;
 
+instance total_order_with_minimum_fin_dec (n : Nat) : ∀ a b, Decidable (TotalOrderWithMinimum.le (t := Fin n.succ) a b) := by
+  dsimp [TotalOrderWithMinimum.le]; apply inferInstance
+
+instance total_order_with_minimum_fin_lt_dec (n : Nat) : ∀ a b, Decidable (TotalOrderWithMinimum.lt (t := Fin n.succ) a b) := by
+  dsimp [TotalOrderWithMinimum.lt]; apply inferInstance
+
+instance total_order_with_minimum_fin_next_dec (n : Nat) : ∀ a b, Decidable (TotalOrderWithMinimum.next (t := Fin n.succ) a b) := by
+  dsimp [TotalOrderWithMinimum.next]; apply inferInstance
+
 /-! ## Ring topology -/
 
 /-- Ring topology -/
