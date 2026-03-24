@@ -521,13 +521,11 @@ the field representation, then calls `elabVeilConcretizeFields`, and finally
 simplifies with `smtSimp`. -/
 def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
   -- The label type is `State.Label`, resolve it to fully qualified name
-  let resolvedNames ← resolveGlobalConst (structureFieldLabelType stateName)
-  let some labelTypeName := resolvedNames[0]? | return
+  let labelTypeName ← resolveGlobalConstNoOverloadCore (structureFieldLabelTypeName stateName)
 
   let lctx ← getLCtx
   -- Find the χ fvar (field concrete type) in the local context
-  let some χFvarId := lctx.findDeclM? (fun d =>
-    if d.userName == fieldConcreteTypeName then pure (some d.fvarId) else pure none) | return
+  let some χFvarId := (lctx.findFromUserName? fieldConcreteTypeName).map LocalDecl.fvarId | return
 
   -- Step 1: Identify hypotheses where the equality's type involves a field label.
   -- These are equalities like:
@@ -543,8 +541,7 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
     -- Check if the type is an equality
     let some (eqType, _, _) := decl.type.eq? | continue
     -- Check if the equality type is `χ Label.field` (e.g., `χ State.Label.leader`)
-    let some eqTypeFnFvarId := eqType.getAppFn'.fvarId? | continue
-    if eqTypeFnFvarId != χFvarId then continue
+    if eqType.getAppFn'.fvarId? != some χFvarId then continue
     let some fieldLabelName := eqType.getAppArgs'[0]?.bind (·.constName?) | continue
     if labelTypeName.isPrefixOf fieldLabelName && fieldLabelName != labelTypeName then
       hypsToTransform := hypsToTransform.push (mkIdent decl.userName)
@@ -552,18 +549,22 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
   -- Apply `congrArg (χ_rep _).get` to each identified hypothesis
   -- to "view" the equality through the field representation
   for hyp in hypsToTransform do
-    let tac ← `(tactic| apply congrArg ($(fieldRepresentation) _).get at $hyp:ident)
+    let tac ← `(tactic| apply $(mkIdent ``congrArg) ($(fieldRepresentation) _).$(mkIdent `get) at $hyp:ident)
     veilEvalTactic tac
 
   -- Step 2: Concretize fields using the standard procedure
   elabVeilConcretizeFieldsWp false
 
   -- Step 3: Final simplification
-  veilWithMainContext $ veilEvalTactic (← `(tactic| veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident] at *))
+  -- NOTE: `Bool.eq_decide_to_iff` is ONLY used here for now; it might be
+  -- added into `smtSimp` as well, but just to be very conservative
+  veilWithMainContext $ veilEvalTactic (← `(tactic| veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident,
+    $(mkIdent ``Bool.eq_decide_to_iff):ident] at *))
 
 @[inherit_doc __veil_neutralize_decidable_inst]
 def elabVeilNeutralizeDecidableInst : DesugarTacticM Unit := veilWithMainContext do
-  veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident])
+  -- NOTE: Apply this at `*` since in cases like `tr` VCs, `decide` can appear in the local context
+  veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident] at *)
   clearDecidableInsts
 where
   clearDecidableInsts : DesugarTacticM Unit := veilWithMainContext do
