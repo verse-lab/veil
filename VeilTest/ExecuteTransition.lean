@@ -21,8 +21,20 @@ transition byz {
     (is_byz src ∧ (initial_msg src r v → initial_msg' src r v)))
 }
 
+/--
+warning: you have not defined any invariants for this specification; did you forget?
+-/
+#guard_msgs in
 #gen_spec
 
-#model_check interpreted { address := Fin 2 }
+/--
+warning: Explicit state model checking of transitions is SLOW!
+
+The current implementation enumerates all possible states and filters those satisfying the transition relation. Your specification has 1 transition: byz
+
+Consider encoding transitions as imperative actions where possible.
+-/
+#guard_msgs(error, warning) in
+#model_check interpreted { address := Fin 2 } {} (parallelCfg := some { numSubTasks := 4 })
 
 end ExecuteTransition
