@@ -262,10 +262,13 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [A
   let abstractFieldRepInsts ← mkFieldRepresentationInstancesForAbstract mod
   let enumerationInst ← `(command| deriving instance $(mkIdent ``Enumeration):ident for $stateIdent)
   let stateStx ← mod.stateStx (withFieldConcreteType? := true)
-  let smtAttr ← `(attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `mk ++ `injEq):ident)
+  -- `State.mk.injEq` is only generated when the structure has fields, so skip it when there is no field
+  let smtAttr : Array Syntax ← if mod.mutableComponents.isEmpty then pure #[] else
+    let tmp : Syntax ← `(attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `mk ++ `injEq):ident)
+    pure #[tmp]
   let eqMkTheorem ← mkEqMkTheorem mod
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[enumerationInst, smtAttr, eqMkTheorem])
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[enumerationInst] ++ smtAttr ++ #[eqMkTheorem])
 where
   /-- Generate `FieldRepresentation` and `LawfulFieldRepresentation` instances for a given field type dispatcher. -/
   mkFieldRepresentationInstancesCore (mod : Module)
@@ -465,13 +468,13 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMess
   let fieldLabel ← `(bracketedBinder| ($f : $(structureFieldLabelType base)))
   let dParams := params ++ [fieldLabel]
   -- to domain dispatcher
-  let todomain ← `(abbrev $(fieldLabelToDomain base) $dParams* : $(mkIdent ``List) Type := $(mkIdent casesOnName) $f $domainComponents*)
+  let todomain ← `(abbrev $(fieldLabelToDomain base) $dParams* : $(mkIdent ``List) Type := $(mkIdent casesOnName) ($(mkIdent `motive):ident := fun _ => $(mkIdent ``List) Type) $f $domainComponents*)
   -- to codomain dispatcher
-  let tocodomain ← `(abbrev $(fieldLabelToCodomain base) $dParams* : Type := $(mkIdent casesOnName) $f $coDomainComponents*)
+  let tocodomain ← `(abbrev $(fieldLabelToCodomain base) $dParams* : Type := $(mkIdent casesOnName) ($(mkIdent `motive):ident := fun _ => Type) $f $coDomainComponents*)
   -- abstract field representation dispatcher (CanonicalField Domain Codomain)
   let sortIdents ← mod.uninterpretedParamIdents
   let abstractTypes ← fields.mapM (·.typeStx)
-  let toabstracttype ← `(abbrev $fieldAbstractDispatcher $dParams* : Type := $(mkIdent casesOnName) $f $abstractTypes*)
+  let toabstracttype ← `(abbrev $fieldAbstractDispatcher $dParams* : Type := $(mkIdent casesOnName) ($(mkIdent `motive):ident := fun _ => Type) $f $abstractTypes*)
   -- concrete field representation dispatcher
   -- Use domain type instances from the resolved configs (codomain instances are separate)
   let typeInstanceBinders ← mod.assumeInstArgsWithConcreteRepConfig fields repConfigs
@@ -479,7 +482,7 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMess
     (filterWithHeuristics := false)
   let cParams := params ++ typeInstanceBinders ++ [fieldLabel]
   let concreteTypes ← fields.mapM (fieldKindToConcreteType sortIdents repConfigs)
-  let toconcretetype ← `(abbrev $fieldConcreteDispatcher $cParams* : Type := $(mkIdent casesOnName) $f $concreteTypes*)
+  let toconcretetype ← `(abbrev $fieldConcreteDispatcher $cParams* : Type := $(mkIdent casesOnName) ($(mkIdent `motive):ident := fun _ => Type) $f $concreteTypes*)
   return (#[(fieldLabelToDomainName base, todomain), (fieldLabelToCodomainName base, tocodomain)], (fieldAbstractDispatcherName, toabstracttype), (fieldConcreteTypeName, toconcretetype))
   where
   /-- Get domain and codomain getter terms for a field (e.g.,

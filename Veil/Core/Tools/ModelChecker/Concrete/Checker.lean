@@ -33,7 +33,7 @@ find the failing transition to populate the `failingStep` field. -/
 def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [fp : StateFingerprint σ σₕ]
-  [Inhabited κ] [Inhabited σ] [Repr σₕ]
+  [Inhabited σ] [Repr σₕ]
   [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
@@ -47,16 +47,17 @@ def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
   -- Recover initial state by matching fingerprint
   let initialState := findByFingerprint sys.initStates initFp default
   -- Recover trace steps by re-executing transitions and matching fingerprints
+  -- FIXME: Ideally, this should never fail, due to the proof we have ...
   let mut curSt := initialState
   let mut steps : Steps σ κ := #[]
   for step in stepsFp do
     let outcomes := sys.tr th curSt
     -- Extract successful transitions for trace recovery
     let (successfulTransitions, _) := partitionExecutionOutcome outcomes
-    let (transitionLabel, nextSt) :=
+    let (transitionLabel, nextSt) ←
       match successfulTransitions.find? (fun (_, s) => fp.view s == step.nextState) with
-      | some (tr, s) => (tr, s)
-      | none => panic! s!"Could not recover transition from fingerprint {repr (fp.view curSt)} to {repr step.nextState}!"
+      | some (tr, s) => pure (tr, s)
+      | none => IO.ofExcept <| Except.error s!"Could not recover transition from fingerprint {repr (fp.view curSt)} to {repr step.nextState}!"
     curSt := nextSt
     steps := steps.push { transitionLabel := transitionLabel, nextState := nextSt }
   return { theory := th, initialState := initialState, steps := steps, failingStep := findFailingStep curSt assertionFailureExId }
@@ -75,7 +76,7 @@ either the sequential or parallel implementation based on configuration. -/
 
 def findReachable {ρ σ κ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [Inhabited κ] [inhabσ : Inhabited σ] [Repr κ]
+  [inhabσ : Inhabited σ] [Repr κ]
   [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)

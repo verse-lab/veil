@@ -272,6 +272,10 @@ private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
   if mod.actions.isEmpty then
     logWarning "you have not defined any actions for this specification; did you forget?"
 
+private def throwIfNoInitializerDefined (mod : Module) : CommandElabM Unit := do
+  unless mod.procedures.any (·.info matches .initializer) do
+    throwError "no `after_init` block has been defined for this specification; every Veil module must have one"
+
 /-- Crystallizes the specification of the module, i.e. it finalizes the set of
 `procedures` and `assertions`. The `stx` parameter is the syntax of the command
 that triggered the finalization; it is stored for use by `#model_check` when
@@ -280,6 +284,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   if mod.isSpecFinalized then
     return mod
   let mod ← mod.ensureStateIsDefined
+  throwIfNoInitializerDefined mod
   warnIfNoInvariantsDefined mod
   warnIfNoActionsDefined mod
   let mod ← if (← isModelCheckCompileMode) then pure mod else do

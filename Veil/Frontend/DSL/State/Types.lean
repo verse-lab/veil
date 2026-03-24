@@ -360,8 +360,11 @@ private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Arr
     `(fun $fieldIdents* $res => ⟨$fieldIdents,*⟩ :: $res)
   let enums ← do
     let arr ← localInsts.mapM fun inst => `(fun (_ : $(mkIdent ``Unit)) => $(mkIdent inst).$(mkIdent `allValues))
-    let arr := arr.push (← `($(mkIdent ``Unit.unit)))
-    `(⟨$arr,*⟩)
+    -- NOTE: It seems that Lean does not recognize ``(($arr,*))` as the syntax of a tuple?
+    if arr.isEmpty then `($(mkIdent ``PUnit.unit))
+    else
+      let arr := arr.push (← `($(mkIdent ``PUnit.unit)))
+      `(⟨$arr,*⟩)
   `(@$(mkIdent ``IteratedProd.foldMap) _ $ts $init $f $enums)
 
 def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
@@ -370,7 +373,7 @@ def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := Fo
   let allValues ← mkAllValuesFromHeader header localInsts fieldNames
   let completeProof ← do
     let aIdent ← mkIdent <$> mkFreshUserName `a
-    `(by intro $aIdent:ident ; cases $aIdent:ident ; simp [$(mkIdent ``IteratedProd.foldMap):ident] ; grind)
+    `(by intro $aIdent:ident ; cases $aIdent:ident ; try (simp [$(mkIdent ``IteratedProd.foldMap):ident] ; try grind))
   `(instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
       $(mkIdent ``Enumeration) $(header.targetType) where
     $(mkIdent `allValues):ident := $allValues
@@ -904,10 +907,11 @@ private def genAllSomePredicateCore (dfName : Name) : MetaM (Name × Array Bool)
       pure (ty, args.size)
   let some labelTypeName := labelType.constName?
     | throwError "Could not determine label type from definition {dfName}"
-  unless ← isEnumType labelTypeName do
-    throwError "Label type {labelTypeName} is not an enum type"
   let .inductInfo indVal ← getConstInfo labelTypeName
     | throwError "Could not retrieve inductive info for {labelTypeName}"
+  -- Allow empty inductives (zero constructors); for non-empty ones, check enum-ness
+  unless indVal.ctors.isEmpty || (← isEnumType labelTypeName) do
+    throwError "Label type {labelTypeName} is not an enum type"
   let results ← do
     indVal.ctors.mapM fun ctor => do
       lambdaBoundedTelescope dfExpr (argsSize - 1) fun _ body => do
