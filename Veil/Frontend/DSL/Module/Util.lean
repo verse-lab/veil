@@ -4,6 +4,7 @@ import Veil.Frontend.DSL.Module.Util.Assertions
 import Veil.Frontend.DSL.Module.Util.LocalRProp
 import Veil.Frontend.DSL.Module.Util.Assemble
 import Veil.Frontend.DSL.Module.Util.ForModelChecker
+import Veil.Frontend.DSL.Module.Util.VeilDeclAttr
 
 /-!
 # Module Utilities
@@ -17,4 +18,5 @@ The implementation is split across multiple files for better organization:
 - `Util/LocalRProp.lean`: LocalRProp typeclass and locality proofs
 - `Util/Assemble.lean`: Definition registration and assembly functions
 - `Util/ForModelChecker.lean`: Utilities for model checking
+- `Util/VeilDeclAttr.lean`: Implementing the `veil_decl` attribute
 -/
