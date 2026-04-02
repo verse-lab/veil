@@ -408,7 +408,9 @@ def explicitBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : TS
 open Lean.Parser.Term in
 def bracketedBinderToFunBinder [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax ``bracketedBinder) : m (TSyntax ``funBinder) := do
   match stx with
-  | `(bracketedBinder| ($id:ident : $tp:term)) => `(funBinder| ($id:ident : $tp:term))
+  | `(bracketedBinder| ($id:ident : $tp:term))
+  | `(bracketedBinder| ($id:ident : $tp:term := by $_))
+  | `(bracketedBinder| ($id:ident : $tp:term := $_)) => `(funBinder| ($id:ident : $tp:term))
   | `(bracketedBinder| [$id:ident : $tp:term]) => `(funBinder| [$id:ident : $tp:term])
   | `(bracketedBinder| [$tp:term]) => `(funBinder| [$tp:term])
   | `(bracketedBinder| {$id:ident*}) => `(funBinder| {$id:ident*})
