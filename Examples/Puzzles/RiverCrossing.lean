@@ -8,7 +8,6 @@ individual goat_pos : position
 individual cabbage_pos : position
 individual farmer_pos : position
 
-#print position_Enum
 -- enum act = {Init, FarmerAndWolf, FarmerAndGoat, FarmerAndCabbage, FarmerAlone}
 -- individual lastAction : act
 
@@ -82,6 +81,6 @@ invariant [unsolved] ¬ (goat_pos = far ∧ wolf_pos = far ∧ cabbage_pos = far
 #time #gen_spec
 
 set_option veil.violationIsError false in
-#model_check {  }
+#model_check interpreted {  }
 
 end RiverCrossing

@@ -46,6 +46,22 @@ def Std.LawfulEqOrd.by_equiv [inst : Std.LawfulEqOrd α] : Std.LawfulEqOrd β wh
 
 end VariousByEquiv
 
+-- Well, why `PUnit` has no `Ord` instance? Let's just make one
+instance : Ord PUnit where
+  compare _ _ := Ordering.eq
+
+instance : Std.ReflOrd PUnit where
+  compare_self := rfl
+
+instance : Std.OrientedOrd PUnit where
+  eq_swap := by intros ; rfl
+
+instance : Std.TransOrd PUnit where
+  isLE_trans := by intros ; rfl
+
+instance : Std.LawfulEqOrd PUnit where
+  eq_of_compare := by intros ; rfl
+
 def sumOrd [Ord α] [Ord β] : Ord (Sum α β) where
   compare
     | Sum.inl a1, Sum.inl a2 => compare a1 a2
