@@ -445,8 +445,8 @@ def elabVeilConcretizeStateTr : DesugarTacticM Unit := veilWithMainContext do
   let initialSimps := #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp].map Lean.mkIdent
   veilEvalTactic $ ← `(tacticSeq|open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at * )
 
-  -- Step 1: Double negation elimination + destructuring (sometimes required to enable `subst`)
-  let doubleNegTac ← `(tacticSeq|veil_simp only [$(mkIdent ``Compl.compl):ident, $(mkIdent ``Classical.not_imp):ident, $(mkIdent ``Classical.not_not):ident, $(mkIdent ``Classical.not_forall):ident] at *; $veilDestruct)
+  -- Step 1: Destructuring (sometimes required to enable `subst`)
+  let doubleNegTac ← `(tactic| $veilDestruct )
   veilWithMainContext $ veilEvalTactic doubleNegTac
 
   -- Step 2: For each abstract state hyp, try rewriting with setIn_makeExplicit and subst
@@ -888,7 +888,7 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
   -- if they're not used. This is undesirable when the variable is an action
   -- parameter, because we need to keep it in the context for model extraction.
-  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident] at *; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_smt))
+  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_smt))
   veilEvalTactic tac
 
 @[inherit_doc veil_bmc]
@@ -901,8 +901,8 @@ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do
-  veilEvalTactic (← `(tactic| veil_simp only [$(mkIdent `ifSimp):ident] at *)) (isDesugared := false)
-  veilEvalTactic $ ← `(tactic| try unhygienic split_ifs at *)
+  veilEvalTactic $ ← `(tactic| try split_ifs at *)
+  veilEvalTactic $ ← `(tactic| all_goals expose_names )
 
 def elabVeilFail : TacticM Unit := veilWithMainContext do
   throwError "veil_fail: failing on purpose"
