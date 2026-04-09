@@ -5,6 +5,7 @@ import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
 import Mathlib.Tactic.Push
+import Veil.Util.ReplacingInstances
 
 open Lean Elab Command Term
 
@@ -153,6 +154,307 @@ private def proveEqABoutBody (lhs : Expr) (rhs : Name) (xs : Array Expr) (proof 
   let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars xs proof
   let _ ← addVeilTheorem eqThmName eqStatement eqProof (attr := eqThmAttrs)
 
+-- FIXME: Unfolding ghost relation as below is not very good. We might want
+-- a new design of `LocalRProp` and have some meta theory over it to avoid
+-- such unfolding.
+open Meta in
+/-- Generate a theorem `wp_local_eq` that rewrites the raw `wp` body to a
+simplified form with `LocalRProp.core` in the postcondition and substate/field-
+representation machinery largely eliminated.
+
+General idea: consider `act.ext.wp`.
+- Step 1: show that
+  ```
+  act.ext.wp (ρ := ρ) (σ := σ) post r s ↔
+  act.ext.wp (ρ := Theory) (σ := State χ) (fun u _ st => post u r (setIn st s)) (readFrom r) (getFrom s)
+  ```
+  By unfolding and simplifying the *latter* and see if after simplification it `isDefEq`
+  *(modulo decidable instances)* to the former. Note that the latter needs simplification
+  because the `getFrom` and `setIn` might bring back some already simplified things
+  in `act.ext.wp`. For example, consider `act.ext.wp post r s = post r s`. Then
+  the latter reduces to `post r (setIn (getFrom s) s)`, which is not definitionally equal
+  to the former, but after simplification it is.
+- Step 2: changing the `(fun u _ st => post u r (setIn st s))` into
+  ```
+  fun u _ st => Theory.casesOn (readFrom r) <|
+    State.casesOn (getFrom st) fun ... =>
+    let ... := (χ_rep _).get ...
+    LocalRProp.core u ... ...
+  ```
+  by using `LocalRProp.core_eq` and `substateSimp`. This step does not require unfolding
+  `act.ext.wp`.
+- Step 3: show that
+  ```
+  act.ext.wp (ρ := Theory) (σ := State χ) (fun u _ st => ... LocalRProp.core ...) (readFrom r) (getFrom s) ↔
+  act.ext.wp (ρ := Theory) (σ := State FieldAbstractType)
+    (fun u _ st => ... LocalRProp.core ...)   -- without (χ_rep _).get let-bindings
+    (readFrom r)
+    (State.casesOn (getFrom s) fun ... =>
+      let ... := (χ_rep _).get ...
+      (⟨...⟩ : State FieldAbstractType))
+  ```
+  by doing `dsimp -zeta [instIsSubStateOfRefl, ...]` + `simp [get_set_idempotent']`
+  on the *former* expression. Currently it also unfolds ghost relations since the content
+  of ghost relations also need simplification.
+
+Special note: this simplification also incorporates a lightweight `Decidable` neutralization
+step. It's required since the `Decidable` instance arguments will not have matching
+types after specializing `ρ`/`σ` to other types. (E.g., a `Decidable` instance argument
+for the original `wp` can have type `(s : σ) → ...`, but after specialization it cannot
+be an argument of the new `wp`.) This issue might be resolved from a different angle by
+doing certain generalization step when generating the `Decidable` instances, but that's
+more complicated. Here we are only transforming a fully applied `wp` into a "downstream"
+`Prop` for verification, so whether the `Decidable` instances are computational should
+not matter much.
+
+Special note: for transition-generated WPs, we skip Step 3 since they are typically in
+the shape of `∀ (s : State χ), ...`, for which proving `↔` might be impossible.
+-/
+private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (wpAppAfterSimp : Meta.Simp.Result)
+    (vs : Array Expr) (handler post : Expr)
+    (dk : DeclarationKind) (wpDef_fqn : Name) (notFromTransition? : Bool) : TermElabM Unit := do
+  -- NOTE: Transition-generated WPs are typically in the shape of `∀ (s : State χ), ...`,
+  -- for which proving `↔` in step 3 might be impossible, and consequently, the tactic workflow
+  -- needs to be different based on whether step 3 is done. This makes things
+  -- complicated, so we just skip the whole `wp_local_eq` generation for transition-generated WPs.
+  unless notFromTransition? do
+    return
+
+  -- FIXME: this way of obtaining the arguments required by `LocalRPropTC` is hacky
+  let vs' := vs.take mod.parameters.size
+  let localRPropTCArgName := mkVeilImplementationDetailName `localRPropTC
+  let localRPropTCArgIdent := mkIdent localRPropTCArgName
+  let localRPropTCFqn ← resolveGlobalConstNoOverloadCore localRPropTCName
+  -- `post : RProp Unit ρ σ`; apply to `()` to get `SProp ρ σ` for the new `LocalRProp` typeclass
+  let localRPropTCArg ← mkAppOptM localRPropTCFqn (vs'.map Option.some |>.push (mkApp post (mkConst ``Unit.unit)))
+  withLocalDecl localRPropTCArgName BinderInfo.instImplicit localRPropTCArg fun inst => do
+    -- Further telescope into r : ρ and s : σ
+    let originalWpApp ← etaExpand originalWpApp
+    lambdaTelescope originalWpApp fun rs originalWpAppBody => do
+      if rs.size != 2 then
+        throwError "defineWpLocalEq: expected body to have exactly 2 lambda binders (r, s), got {rs.size}"
+      let (r, s) := (rs[0]!, rs[1]!)
+
+      -- Get params
+      let (allModParams, actualParams) ← mod.declarationAllParams nm dk
+      let allParams := allModParams ++ actualParams
+      let readFromArg ← mkAppM ``readFrom #[r]
+      let getFromArg ← mkAppM ``getFrom #[s]
+      let theoryType ← (inferType readFromArg >>= instantiateMVars)
+      let stateType ← (inferType getFromArg >>= instantiateMVars)
+
+      let uName := mkVeilImplementationDetailName `u
+      let thName := mkVeilImplementationDetailName `th
+      let stName := mkVeilImplementationDetailName `st
+      let uIdent := mkIdent uName
+      let thIdent := mkIdent thName
+      let stIdent := mkIdent stName
+
+      -- ===== Step 1 (generalize state) =====
+      let (curTarget, proof) ← generalizeState
+        allParams readFromArg getFromArg theoryType stateType
+        uName thName stName handler post r s wpDef_fqn wpAppAfterSimp vs
+
+      -- ===== Step 2 (LocalRProp): apply core_eq + substateSimp =====
+      let (curTarget, proof) ← applyLocalRProp curTarget proof nm
+
+      -- ===== Step 3 (eliminate field rep) =====
+      let (curTarget, proof) ←
+        if mod._useFieldRepTC then
+          eliminateFieldRep curTarget proof nm
+            allParams theoryType stateType
+            uIdent thIdent stIdent localRPropTCArgIdent
+            readFromArg getFromArg handler wpDef_fqn vs
+        else
+          pure (curTarget, proof)
+
+      -- Register theorem: ∀ (vs handler post inst r s), rawBody = curResult.expr
+      let fvars := (vs ++ #[handler, post, inst, r, s])
+      let eqStatement ← instantiateMVars $ ← mkForallFVars fvars (← mkEq originalWpAppBody curTarget)
+      let eqProof ← do
+        -- NOTE: `wpAppAfterSimp` DOES NOT have `r` and `s`, so need to do a congruence here
+        let pf ← do
+          let pfPre ← wpAppAfterSimp.getProof
+          let pfPreCongr ← mkCongrFun pfPre r
+          let pfPreCongr ← mkCongrFun pfPreCongr s
+          mkEqTrans pfPreCongr proof
+        instantiateMVars $ ← mkLambdaFVars fvars pf
+      trace[veil.debug] "final eq statement: {eqStatement}"
+      let _ ← do
+        let attr ← elabAttr $ ← `(Parser.Term.attrInstance| wpLOSimp ↓ )
+        addVeilTheorem (toWpLocalEqName nm) eqStatement eqProof (attr := #[attr])
+where
+  /-- Simplify using the locally assumed `LocalRProp` instance for `post` *only*. -/
+  buildLocalRPropSimp : TermElabM Simplifier := do
+    let ctx ← mkVeilSimpCtx #[]
+    let simpTerm ← `(term| $(mkIdent `LocalRProp.core_eq) ($(mkIdent `self) := by assumption))
+    let arr := #[(simpTerm, (← mkFreshUserName `LocalRProp.core_eq))]
+    let ctx' ← elabSimpArgForTerms ctx arr
+    pure <| Simp.simpCore ctx'
+  /-- A meta-level construction for turning a `x : State χ` into `State FieldAbstractType`. -/
+  toAbstractStateFun (abstractStateSortTerm : Term) (stateType abstractStateTypeExpr : Expr) : TermElabM Expr := do
+    let stIdent := mkVeilImplementationDetailIdent `st    -- locally used here
+    let body ← mod.withTheoryAndStateTermTemplate
+      [(.state .none "_conc", stIdent, false)]
+      (some (← `($stateIdent $abstractStateSortTerm)))
+      (fun _ stateFields => `(⟨$[$stateFields],*⟩))
+    let argTy ← `($stateIdent $fieldConcreteType)
+    let funTerm ← `(fun ($stIdent : $argTy) => $body)
+    let funTypeExpr ← mkArrow stateType abstractStateTypeExpr
+    let funExpr ← withoutErrToSorry $ elabTermAndSynthesize funTerm (some funTypeExpr)
+    pure funExpr
+  isDefEqModuloDecidableInstances (e1 e2 : Expr) : MetaM (Option <| Option Expr) := do
+    if ← isDefEq e1 e2 then
+      return some none
+    let e1 ← whnf e1
+    let e2 ← whnf e2
+    let r1 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInst]) e1
+    let r2 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInst]) e2
+    if ← isDefEq r1.expr r2.expr then
+      -- Return the proof that `e1` = `e2`
+      -- `r1.proof : e1 = r1.expr, r2.proof : e2 = r2.expr`
+      -- So `Eq.trans (r1.proof) (Eq.symm (r2.proof)) : e1 = e2`
+      let pf1 ← r1.getProof
+      let pf2 ← r2.getProof >>= mkEqSymm
+      let pf ← mkEqTrans pf1 pf2
+      return some (some pf)
+    else
+      return none
+  specializeArgsForStateχ (allParams : Array Parameter) (vs : Array Expr) (theoryType stateType : Expr) : TermElabM (Array <| Option Expr) := do
+    allParams.zipWithM (bs := vs) fun p v => do
+      match p.kind with
+      | .backgroundTheory => pure <| some theoryType        -- NOTE: Without this, there seems to be some unification issue
+      | .environmentState => pure <| some stateType
+      | .moduleTypeclass .backgroundTheory | .moduleTypeclass .environmentState => pure none
+      | .definitionParameter _ .typeclass =>
+        -- If `v` is a `Decidable`, then skip
+        let ty ← inferType v
+        if ty.getForallBody.getAppFn'.isConstOf ``Decidable then pure none else pure <| some v
+      | _ => pure <| some v
+  specializeArgsForStateAbstract (allParams : Array Parameter) (vs : Array Expr)
+    (theoryType abstractStateTypeExpr abstractStateSortExpr : Expr) : TermElabM (Array <| Option Expr) := do
+    allParams.zipWithM (bs := vs) fun p v => do
+      match p.kind with
+      | .backgroundTheory => pure <| some theoryType
+      | .environmentState => pure <| some abstractStateTypeExpr
+      | .fieldConcreteType => pure <| some abstractStateSortExpr
+      | .moduleTypeclass .fieldRepresentation
+      | .moduleTypeclass .lawfulFieldRepresentation
+      | .moduleTypeclass .backgroundTheory | .moduleTypeclass .environmentState => pure none
+      | .definitionParameter _ .typeclass =>
+        -- If `v` is a `Decidable`, then skip
+        let ty ← inferType v
+        if ty.getForallBody.getAppFn'.isConstOf ``Decidable then pure none else pure <| some v
+      | _ => pure <| some v
+  /-- Step 1: Construct the wp specialized to `(Theory, State χ)` with reflexive
+  substate instances, adjusted post (`fun u _ st => post u r (setIn st s)`),
+  and `readFrom r`/`getFrom s`. -/
+  generalizeState (allParams : Array Parameter)
+      (readFromArg getFromArg theoryType stateType : Expr)
+      (uName thName stName : Name)
+      (handler post r s : Expr) (wpDef_fqn : Name)
+      (wpAppAfterSimp : Meta.Simp.Result) (vs : Array Expr)
+      : TermElabM (Expr × Expr) := do
+    let step1AllArgs ← specializeArgsForStateχ allParams vs theoryType stateType
+    let step1Post ← withLocalDeclsDND #[(uName, mkConst ``Unit), (thName, theoryType), (stName, stateType)] fun arr => do
+      let setInSt ← mkAppM ``setIn #[arr[2]!, s]
+      mkLambdaFVars arr (mkAppN post #[arr[0]!, r, setInSt])
+    let step1Target ← Tactic.classical <|
+      mkAppOptM wpDef_fqn <| step1AllArgs ++ #[some handler, some step1Post, some readFromArg, some getFromArg]
+    trace[veil.debug] "step 1 target: {step1Target}"
+    let step1Simp := (Simp.unfold #[wpDef_fqn] |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp]))
+    let step1Result ← step1Simp step1Target
+    let source := mkAppN wpAppAfterSimp.expr #[r, s]
+    let some decidableNeutralizationPf ← isDefEqModuloDecidableInstances source step1Result.expr
+      | throwError m!"wp_local_eq step 1 (generalize state) failed, not definitionally equal\n  source: {source}\n  step1Result: {step1Result.expr}"
+    -- Goal: `source = step1Target`
+    let proof ← do
+      -- `pf1 : step1Target = step1Result.expr`
+      let pf1 ← step1Result.getProof
+      -- `pf1Symm : step1Result.expr = step1Target`
+      let pf1Symm ← mkEqSymm pf1
+      match decidableNeutralizationPf with
+      | none => pure pf1Symm
+      | some pf2 => do
+        -- `pf2 : source = step1Result.expr`
+        mkEqTrans pf2 pf1Symm
+    return (step1Target, proof)
+  /-- Step 2: Apply `LocalRProp.core_eq` + `substateSimp` to replace the
+  postcondition with `inst.core`. -/
+  applyLocalRProp (source proof : Expr) (nm : Name) : TermElabM (Expr × Expr) := do
+    let step2Simp ← do
+      let localRPropSimp ← buildLocalRPropSimp
+      pure <| localRPropSimp |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp])
+    let step2Result ← step2Simp source
+    if step2Result.expr == source then
+      throwError s!"wp_local_eq step 2 (LocalRProp) had no effect for {nm}"
+    let proof ← mkEqTrans proof (← step2Result.getProof)
+    return (step2Result.expr, proof)
+  getAbstractStateRelated (stateType : Expr) : TermElabM (Term × Expr × Expr) := do
+    let sortIdents ← mod.uninterpretedParamIdents
+    -- NOTE: If possible, the following should be changed into `Expr`-level manipulation
+    let abstractStateSortTerm ← `($fieldAbstractDispatcher $sortIdents*)
+    let abstractStateSortExpr ← withoutErrToSorry $ elabTermAndSynthesize abstractStateSortTerm none
+    -- kind of hacky here
+    let abstractStateTypeExpr := mkApp stateType.getAppFn' abstractStateSortExpr
+    pure (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr)
+  /-- Step 3: Construct the target at abstract field types using
+  `withTheoryAndStateTermTemplate`, then prove equality by simplifying
+  the Step 2 result with `dsimp -zeta` + `get_set_idempotent'`. -/
+  eliminateFieldRep (source proof : Expr) (nm : Name)
+      (allParams : Array Parameter)
+      (theoryType stateType : Expr)
+      (uIdent thIdent stIdent : Ident)
+      (localRPropTCArgIdent : Ident)
+      (readFromArg getFromArg : Expr)
+      (handler : Expr) (wpDef_fqn : Name) (vs : Array Expr)
+      : TermElabM (Expr × Expr) := do
+    let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← getAbstractStateRelated stateType
+    -- (a) Abstract post: fun u th st => Theory.casesOn th ... => State.casesOn st ... => inst.core ...
+    let step3Post ← do
+      let step3PostBody ← mod.withTheoryAndStateTermTemplate
+        [(.theory, thIdent, false), (.state .none .none, stIdent, false)]
+        (some (← `(Prop)))
+        (fun theoryFields stateFields => do
+          pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) (theoryFields ++ stateFields))
+        (stateSortTerm := some abstractStateSortTerm)
+        (considerFieldRepTC := false)
+      let step3PostTerm ← `(fun $uIdent $thIdent $stIdent => $step3PostBody)
+      let step3PostTypeExpr ← mkArrowN #[mkConst ``Unit, theoryType, abstractStateTypeExpr] (Expr.sort 0)
+      withoutErrToSorry $ elabTermAndSynthesize step3PostTerm (some step3PostTypeExpr)
+    -- (b) Abstract pre-state: State.casesOn (getFrom s) fun f_conc... => let f := (χ_rep _).get f_conc; ...; ⟨f...⟩
+    let step3PreState ← do
+      let funExpr ← toAbstractStateFun abstractStateSortTerm stateType abstractStateTypeExpr
+      Core.betaReduce <| mkApp funExpr getFromArg
+    -- (c) Build wp application with abstract types
+    let step3AllArgs ← specializeArgsForStateAbstract allParams vs theoryType abstractStateTypeExpr abstractStateSortExpr
+    let step3Target ← Tactic.classical <|
+      mkAppOptM wpDef_fqn <| step3AllArgs ++ #[some handler, some step3Post, some readFromArg, some step3PreState]
+    trace[veil.debug] "step 3 target: {step3Target}"
+    -- (d) Prove source = step3Target by simplifying source
+    let step3Simp ← do
+      let dsimpSubstate : Simplifier :=
+        Simp.dsimp #[``instIsSubStateOfRefl, ``instIsSubReaderOfRefl, ``id, `ghostRelSimp] { zeta := false }    -- note the ``ghostRelSimp` here
+      let getSetSimp ← simplifierGetSetForFieldRepTC
+      -- let localRPropSimp : Simplifier := (evalOpenClassical ∘ (Simp.simp #[`LocalRProp.core_eq]))
+      pure <| Simp.unfold #[wpDef_fqn] |>.andThen dsimpSubstate
+        -- |>.andThen localRPropSimp
+        |>.andThen (evalOpenClassical ∘ getSetSimp)
+    let step3SimpResult ← step3Simp source
+    -- unless ← isDefEq step3SimpResult.expr step3Target do
+    let some decidableNeutralizationPf ← isDefEqModuloDecidableInstances step3SimpResult.expr step3Target
+      | throwError m!"wp_local_eq step 3 (eliminate field rep) failed for {nm}\n  step3SimpResult: {step3SimpResult.expr}\n  step3Target: {step3Target}"
+    let subproof ← do
+      -- `pf1 : source = step3SimpResult.expr`
+      let pf1 ← step3SimpResult.getProof
+      match decidableNeutralizationPf with
+      | none => pure pf1
+      | some pf2 => do
+        -- `pf2 : step3SimpResult.expr = step3Target`
+        mkEqTrans pf1 pf2
+    let proof ← mkEqTrans proof subproof
+    return (step3Target, proof)
+
 /-- **Pre-compute** the `wp` for the given action, store it in the `act.wp`
 definition, and prove `act.wp_eq` which states that this definition is equal to
 `wp act post`.
@@ -160,7 +462,7 @@ definition, and prove `act.wp_eq` which states that this definition is equal to
 We can then rewrite/simp using `act.wp_eq` to not have to recompute the WP
 for every VC. This is an optimisation — Veil would work without it, but it
 would be significantly slower. -/
-private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationKind) : TermElabM Unit := do
+private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationKind) (notFromTransition? : Bool) : TermElabM Unit := do
   let modeStr := match mode with | .internal => "internal" | .external => "external"
   -- Use dynamic trace class name so each WP computation appears separately in the profiler
   withTraceNode (`veil.perf.extract.defineWp ++ nm) (fun _ => return s!"defineWp {nm} ({modeStr})") do
@@ -215,35 +517,19 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       -- instances. So instead of constructing this equality at the syntax level,
       -- we construct it directly as an `Expr`.
       -- (*) it's easier to construct the proof here with the body
-      let #[_handler, post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
+      let #[handler, post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
       let wpSimpAttrHigh ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ high)
       proveEqABoutBody body wpDef_fqn (vs ++ xs) (← resBody.getProof) (toWpEqName nm) #[wpSimpAttrHigh]
 
       if mod._useLocalRPropTC then
       if dk matches .derivedDefinition .actionLike _ then
       if mode matches .external then
-        -- FIXME: this way of obtaining the arguments required by `LocalRPropTC` is hacky
-        let vs' := vs.take mod.parameters.size
-        let localRPropTCFqn ← resolveGlobalConstNoOverloadCore localRPropTCName
-        let localRPropTCArg ← Meta.mkAppOptM localRPropTCFqn (vs'.map Option.some |>.push none |>.push post)
-        Meta.withLocalDecl `localRPropTC BinderInfo.instImplicit localRPropTCArg fun inst => do
-          -- add `LocalRProp` specific simplification
-          let simp : Simplifier ← do
-            let ctx ← mkVeilSimpCtx #[]
-            let simpTerm ← `(term| $(mkIdent `LocalRProp.core_eq) ($(mkIdent `self) := by assumption))
-            let arr := #[(simpTerm, (← mkFreshUserName `LocalRProp.core_eq))]
-            let ctx' ← elabSimpArgForTerms ctx arr
-            pure <| Simp.simpCore ctx'
-          let simp := simp.andThen mainSimp
-          let resBody' ← simp resBody.expr
-          let fvars := (vs ++ xs).push inst
-          let wpExpr' ← instantiateMVars $ ← Meta.mkLambdaFVars fvars resBody'.expr
-          let wpDef_fqn' ← addVeilDefinition (toWpLOName nm) wpExpr' (attr := #[{name := `reducible}, wpSimpAttrLow])
-
-          let resBody' ← resBody.mkEqTrans resBody'
-          let wpSimpAttrHigher ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ (high + 100))
-          -- NOTE: The proof term might be reduced by reusing the previous `wp_eq` theorem
-          proveEqABoutBody body wpDef_fqn' fvars (← resBody'.getProof) (toWpLOEqName nm) #[wpSimpAttrHigher]
+      if veil.experimental.generateWpLocalEq.get (← getOptions) then
+        try
+          defineWpLocalEq mod nm body resBody vs handler post dk wpDef_fqn notFromTransition?
+        catch ex =>
+          -- For non-transition wps, warn if any step fails (all 3 steps expected)
+          logWarning m!"unable to generate wp_local_eq for {nm}: {ex.toMessageData}"
 
 -- NOTE: This is for simplifying `.tr` form definitions
 -- FIXME: This is probably not the best place to put this
@@ -383,7 +669,7 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
       let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}]) (compile := !(← isModelCheckCompileMode))
       let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
       let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
-      AuxiliaryDefinitions.defineWp mod nmInt .internal intKind
+      AuxiliaryDefinitions.defineWp mod nmInt .internal intKind deriveTransition?
 
       -- Procedures are never considered in their external view, so save some
       -- time by not elaborating those definitions.
@@ -391,7 +677,7 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
         let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
         unless (← isModelCheckCompileMode) do
-          AuxiliaryDefinitions.defineWp mod nmExt .external extKind
+          AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
           if deriveTransition? then
             AuxiliaryDefinitions.defineTransition mod nmExt extKind
     return mod

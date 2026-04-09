@@ -40,8 +40,6 @@ def toExQuantifiedTransitionEqName (n : Name) : Name := n ++ `exTr_eq
 
 -- def toEndToEndEqName (n : Name) : Name := n ++ `twoState_eq
 
--- LO: Locally Optimized
-def toWpLOName (n : Name) : Name := n ++ `wplo
-def toWpLOEqName (n : Name) : Name := n ++ `wplo_eq
+def toWpLocalEqName (n : Name) : Name := n ++ `wp_local_eq
 
 end Veil

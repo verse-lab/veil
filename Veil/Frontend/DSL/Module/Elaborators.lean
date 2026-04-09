@@ -234,9 +234,9 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
   generateIgnoreFn mod
   let mod := { mod with _stateDefined := true }
   if mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
-    let (localRPropTCStx, stx2) ← liftTermElabM mod.declareLocalRPropTC
-    elabVeilCommand localRPropTCStx
-    elabVeilCommand stx2
+    let stxs ← liftTermElabM mod.declareLocalRPropTC
+    for stx in stxs do
+      elabVeilCommand stx
   pure mod
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
@@ -271,6 +271,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       let (invariantCmd, mod) ← mod.assembleInvariants
       trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
       elabVeilCommand invariantCmd
+      liftTermElabM $ mod.simplifyAssembledWithLocalRProp assembledInvariantsName
       return mod
     let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
       let (safetyCmd, mod) ← mod.assembleSafeties
@@ -483,7 +484,7 @@ def elabTransition : CommandElab := fun stx => do
       let trStx ← do
         let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
         let unchangedFields := unchangedFields.map Lean.mkIdent
-        let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
+        let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "conc", st, true), (.state "'" "conc'", st', true)]
           (some $ ← `(term|Prop))
           (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
         -- NOTE: We wrap the transition in a `decide` to ensure the required `Decidable` instance

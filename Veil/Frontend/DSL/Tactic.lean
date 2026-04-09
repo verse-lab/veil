@@ -30,6 +30,15 @@ def AccumulatedTactics.toFormat (sep : Std.Format) (s : AccumulatedTactics) : Co
 
 abbrev DesugarTacticM := StateRefT AccumulatedTactics TacticM
 
+/-- `<|>` for `DesugarTacticM` that also backtracks the accumulated tactics
+state. The default `Alternative` instance for `StateRefT'` does not restore
+the mutable ref cell on failure, so tactics recorded by the first branch
+would leak into the second. This wraps `TacticM`'s `<|>` (which properly
+backtracks tactic state) with manual save/restore of the ref cell. -/
+def DesugarTacticM.orElse (x : DesugarTacticM α) (y : Unit → DesugarTacticM α) : DesugarTacticM α := fun ref => do
+  let saved ← ref.get
+  x ref <|> (do ref.set saved; y () ref)
+
 def DesugarTacticM.runCore (giveSuggestion? : Bool) (stx : Syntax) (x : DesugarTacticM α) : TacticM α := do
   let ref ← IO.mkRef (#[] : AccumulatedTactics)
   let showSuggestion : TacticM Unit := do
@@ -188,7 +197,9 @@ syntax (name := veil_smt) "veil_smt" : tactic
 syntax (name := veil_smt_trace) "veil_smt?" : tactic
 
 syntax (name := veil_split_ifs) "veil_split_ifs" : tactic
-syntax (name := veil_solve_wp) "veil_solve_wp" ("!")? : tactic
+syntax (name := veil_solve_wp) "veil_solve_wp" : tactic
+syntax (name := __veil_solve_wplo) "__veil_solve_wplo" : tactic
+syntax (name := __veil_solve_wp_conservative) "__veil_solve_wp_conservative" : tactic
 /-- Solve transition-style goals. This includes:
 1. Introducing hypotheses with `veil_intros`
 2. Simplifying with `invSimp`
@@ -618,7 +629,7 @@ where
 private def smallScaleAxiomatizationSimpSet (withLocalRPropTC? : Bool) : Array Name :=
   let base := #[``id, ``instIsSubStateOfRefl, ``instIsSubReaderOfRefl]
   if withLocalRPropTC? then
-    base.push ``Veil.replaceLocalRProp |>.push `LocalRProp.core
+    base.push ``Veil.replaceLocalRPropReflCase |>.push `LocalRProp.core
   else base.push `ghostRelSimp
 
 /-- Perform "small-scale axiomatization" for a ghost relation `nmFull` based
@@ -893,24 +904,32 @@ where
         introsDep
     | _ => pure ()
 
+/-- Shared tactic sequence: simplify with
+initial simp sets, introduce HO values, and handle ghost relations. Used by
+both `elabVeilConcretizeWp` and `elabVeilSolveWplo`. -/
+private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuotation m] (fast : Bool) : m (TSyntax ``Lean.Parser.Tactic.tacticSeq) := do
+  let classicalIdent := mkIdent `Classical
+  let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
+  let initialSimps := if fast
+    then #[`invSimp, `smtSimp]
+    else #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp]
+  let initialSimps := if unfoldghostRel? then initialSimps.push `ghostRelSimp else initialSimps
+  let initialSimps := initialSimps.map Lean.mkIdent
+  let ghostRelTac ← if unfoldghostRel?
+    then `(tactic| skip )
+    -- NOTE: Both here and below assume the hypothesis for `Invariants` has name `hinv`
+    else `(tactic| (__veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
+  let simpTac ← `(tactic| open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at *)
+  `(tacticSeq| $simpTac ; veil_intro_ho ; $ghostRelTac )
+
 @[inherit_doc veil_concretize_wp]
 def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
-  let tac ← do
-    let classicalIdent := mkIdent `Classical
-    let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
-    let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
-    let initialSimps := if fast
-      then #[`invSimp, `smtSimp]
-      else #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp]
-    let initialSimps := if unfoldghostRel? then initialSimps.push `ghostRelSimp else initialSimps
-    let initialSimps := initialSimps.map Lean.mkIdent
-    let ghostRelTac ← if unfoldghostRel?
-      then `(tactic| skip )
-      else `(tactic| (__veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
-    let concretizeFieldsTac ← if fast
-      then `(tactic| __veil_concretize_fields_wp !)
-      else `(tactic| __veil_concretize_fields_wp)
-    `(tacticSeq| $inferNonemptyTac:tactic; (open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at * ); veil_intro_ho; $ghostRelTac; __veil_neutralize_decidable_inst; __veil_concretize_state_wp; $concretizeFieldsTac)
+  let preTac ← elabSimplifyBeforeConcretizeWp fast
+  let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
+  let concretizeFieldsTac ← if fast
+    then `(tactic| __veil_concretize_fields_wp !)
+    else `(tactic| __veil_concretize_fields_wp)
+  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; ($preTac) ; __veil_neutralize_decidable_inst ; __veil_concretize_state_wp ; $concretizeFieldsTac )
   veilEvalTactic tac
 
 @[inherit_doc veil_concretize_tr]
@@ -937,11 +956,46 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst; veil_concretize_wp; veil_clear; veil_simp at *)
 
-def elabVeilSolveWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
-  let concretizeTac ← if fast then `(tactic|veil_concretize_wp !) else `(tactic|veil_concretize_wp)
-  let folTactic ← if fast then `(tactic| veil_fol !) else `(tactic| veil_fol)
-  let tac ← `(tactic| veil_intros; veil_wp; $concretizeTac; $folTactic; veil_solve)
+/-- The wplo-specific continuation after `veil_intros` + wpLoTac + invCoreEqTac have succeeded. -/
+def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
+  let simpBeforeConcretizeTac ← elabSimplifyBeforeConcretizeWp true
+  let tac ← `(tacticSeq|
+    veil_dsimp only [$(mkIdent `invSimp):ident] at $(mkIdent `has):ident
+    __veil_concretize_state_wp
+    __veil_concretize_fields_wp !
+    veil_wp
+    veil_dsimp only [$(mkIdent `LocalRProp.core):ident, $(mkIdent `nextSimp):ident] at *
+    __veil_neutralize_decidable_inst
+    ($simpBeforeConcretizeTac)
+    veil_fol !
+    veil_smt
+    )
   veilEvalTactic tac
+
+/-- The conservative WP solver (the original approach without wp_local_eq). -/
+def elabVeilSolveWpConservative : DesugarTacticM Unit := veilWithMainContext do
+  let tac ← `(tactic| veil_wp; veil_concretize_wp; veil_fol; veil_smt)
+  veilEvalTactic tac
+
+/-- Try the wplo path first; if the probe fails, fall back to conservative.
+The probe consists of `wpLoTac` and `invCoreEqTac` (using raw `simp` to avoid
+`-failIfUnchanged`). Once the probe succeeds, we commit to the wplo path
+without backtracking. -/
+def elabVeilSolveWp : DesugarTacticM Unit := veilWithMainContext do
+  -- Step 1: veil_intros (common to both paths)
+  veilEvalTactic $ ← `(tactic| veil_intros)
+  -- Step 2: probe — try wpLoTac + invCoreEqTac
+  let classicalIdent := mkIdent `Classical
+  -- NOTE: using `simp` (not `veil_simp`) so that `failIfUnchanged` defaults to true,
+  -- which causes the probe to fail cleanly when wpLOSimp lemmas don't apply
+  let wpLoTac ← `(tactic| open $classicalIdent:ident in simp +$(mkIdent `failIfUnchanged):ident only [↓ $(mkIdent `wpLOSimp):ident])
+  -- NOTE: the `_` argument to `Invariants.core_eq` is required for `simp` to work
+  let invCoreEqTac ← `(tactic| simp +$(mkIdent `failIfUnchanged):ident only [$(mkIdent `Invariants.core_eq):ident _] at $(mkIdent `hinv):ident)
+  let probeTac ← `(tactic| ($wpLoTac; $invCoreEqTac))
+  DesugarTacticM.orElse
+    (do veilWithMainContext $ veilEvalTactic probeTac
+        veilWithMainContext $ elabVeilSolveWplo)
+    (fun _ => veilWithMainContext $ elabVeilSolveWpConservative)
 
 @[inherit_doc veil_solve_tr]
 def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
@@ -978,6 +1032,8 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic __veil_concretize_fields_tr,
   tactic __veil_neutralize_decidable_inst,
   tactic __veil_ghost_relation_ssa,
+  tactic __veil_solve_wplo,
+  tactic __veil_solve_wp_conservative,
   -- User-facing tactics
   tactic veil_solve,
   tactic veil_infer_nonempty,
@@ -1059,8 +1115,12 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_concretize_tr") elabVeilConcretizeTr
   | `(tactic| veil_fol $[!%$agg]?) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_fol") (elabVeilFol (agg.isSome))
-  | `(tactic| veil_solve_wp $[!%$agg]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_wp") (elabVeilSolveWp (agg.isSome))
+  | `(tactic| veil_solve_wp) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_wp") elabVeilSolveWp
+  | `(tactic| __veil_solve_wplo) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_wplo") elabVeilSolveWplo
+  | `(tactic| __veil_solve_wp_conservative) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_wp_conservative") elabVeilSolveWpConservative
   | `(tactic| veil_solve_tr) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_tr") elabVeilSolveTr
   | `(tactic| veil_bmc) => do

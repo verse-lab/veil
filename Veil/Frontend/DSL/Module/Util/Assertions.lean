@@ -128,13 +128,15 @@ are generated according to `targets`.
 - `stateSortTerm`: Optional term to use as the sort argument for state casesOn.
   If not provided, uses `mod.uninterpretedParamIdentsForTheoryOrState mod._useFieldRepTC`. -/
 def Module.withTheoryAndStateTermTemplate (mod : Module)
-  (targets : List (TheoryAndStateTermTemplateArgKind × Ident))
+  -- The `Bool` below indicates whether to wrap the `Term` with `readFrom`/`getFrom`
+  (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool))
   (motiveType : Option Term)
   (t : Array Ident /- field names of theory -/ →
        Array Ident /- field names of state -/ →
        MetaM (TSyntax `term))
   (fieldRepInstance : Term := fieldRepresentation)
   (stateSortTerm : Option Term := none)
+  (considerFieldRepTC : Bool := mod._useFieldRepTC)
   : MetaM (TSyntax `term) := do
   let motive := mkIdent `motive
   let motiveBody ← match motiveType with
@@ -148,19 +150,18 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
   let stateFieldsWithSuffix suf : Array Ident :=
     stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
   let t ← t theoryFields stateFields
-  targets.foldrM (init := t) fun (kind, i) body => do
+  targets.foldrM (init := t) fun (kind, i, wrap?) body => do
     match kind with
     | .theory =>
       let tmp ← mkFunSyntax theoryFields body
+      let i ← if wrap? then `(term| $(mkIdent ``readFrom) $i) else pure i
       `(term|
         @$(mkIdent casesOnTheory) $(← mod.uninterpretedParamIdents)*
-        ($motive := $motiveBody)
-        ($(mkIdent ``readFrom) $i)
-        ($tmp))
+        ($motive := $motiveBody) ($i) ($tmp))
     | .state suffix suffixConc =>
       let sfs := suffix.elim stateFields stateFieldsWithSuffix
       let sfsConc := suffixConc.elim stateFields stateFieldsWithSuffix
-      let body' ← if !mod._useFieldRepTC then pure body else
+      let body' ← if !considerFieldRepTC then pure body else
         -- annotate types here, otherwise there can be issues like: for `f a`
         -- where `f` has a complicated type but definitionally equal to `node → Bool`,
         -- coercions will not be inserted to make `f a` into `Prop`
@@ -169,15 +170,14 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
         let bundled := sfs.zip fieldTypes |>.zip sfsConc
         bundled.foldrM (init := body) fun ((f, ty), fConc) b => do
           `(let $f:ident : $ty := ($fieldRepInstance _).$(mkIdent `get) $fConc:ident ; $b)
-      let tmp ← mkFunSyntax (if !mod._useFieldRepTC then sfs else sfsConc) body'
+      let tmp ← mkFunSyntax (if !considerFieldRepTC then sfs else sfsConc) body'
       let sortTerms ← match stateSortTerm with
         | some sortTerm => pure #[sortTerm]
-        | none => pure (← mod.uninterpretedParamIdentsForTheoryOrState mod._useFieldRepTC)
+        | none => pure (← mod.uninterpretedParamIdentsForTheoryOrState considerFieldRepTC)
+      let i ← if wrap? then `(term| $(mkIdent ``getFrom) $i) else pure i
       `(term|
         @$(mkIdent casesOnState) $sortTerms*
-        ($motive := $motiveBody)
-        ($(mkIdent ``getFrom) $i)
-        ($tmp))
+        ($motive := $motiveBody) ($i) ($tmp))
 
 /-! ## Convenience Wrappers -/
 
@@ -189,7 +189,7 @@ def withTheory (t : Term) (motiveType : Option Term) : MetaM (Array (TSyntax `Le
   let mut mod ← getCurrentModule
   let th := mkIdent `th
   let fn ← do
-    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th)] motiveType (fun _ _ => pure t)
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th, true)] motiveType (fun _ _ => pure t)
     `(term| (fun ($th : $environmentTheory) => $tmp))
   -- See NOTE(SUBTLE) to see why this is not actually ill-typed.
   let binders := #[← `(bracketedBinder| ($th : $environmentTheory := by veil_exact_theory))]
@@ -204,7 +204,7 @@ def withTheoryAndState (t : Term) (motiveType : Option Term) (fieldRepInstance :
   let mut mod ← getCurrentModule
   let (th, st) := (mkIdent `th, mkIdent `st)
   let fn ← do
-    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "_conc", st)] motiveType (fun _ _ => pure t) (fieldRepInstance := fieldRepInstance)
+    let tmp ← mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "_conc", st, true)] motiveType (fun _ _ => pure t) (fieldRepInstance := fieldRepInstance)
     `(term| (fun ($th : $environmentTheory) ($st : $environmentState) => $tmp))
   -- NOTE(SUBTLE): `by veil_exact_theory` and `by veil_exact_state` work in a
   -- counter-intuitive way when applied to assertions. Concretely, these tactics
@@ -233,7 +233,7 @@ def withTheoryAndStateFn (mod : Module) (t : Term) (motiveType : Option Term) (t
     `(let $(mkIdent fieldConcreteTypeName) := $stateSortTerm; $t)
   else pure t
   let tmp ← mod.withTheoryAndStateTermTemplate
-    [(.theory, th), (.state .none "_conc", st)]
+    [(.theory, th, true), (.state .none "_conc", st, true)]
     motiveType
     (fun _ _ => pure t')
     fieldRepInstance

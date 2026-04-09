@@ -5,8 +5,9 @@ namespace Veil
 /-- Attribute added to `Wp` constructs, to unfold them. -/
 register_simp_attr wpSimp
 
-/-- Attribute added to `wp` equations of monadic constructs and actions/procedures. -/
-register_simp_attr wpEqSimp
+/-- Attribute added to `wp` equations of monadic constructs and actions/procedures
+that are specialized for local optimization. -/
+register_simp_attr wpLOSimp
 
 /-- Attribute added to `.wpgen` definitions of actions/procedures. -/
 register_simp_attr wpDefUnfoldSimp
