@@ -271,7 +271,21 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       let (invariantCmd, mod) ← mod.assembleInvariants
       trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
       elabVeilCommand invariantCmd
-      liftTermElabM $ mod.simplifyAssembledWithLocalRProp assembledInvariantsName
+      -- Pre-define the LocalRProp instance for Invariants to avoid expensive
+      -- re-synthesis during verification
+      if mod._useLocalRPropTC && !(← isModelCheckCompileMode) && !mod.invariants.isEmpty then
+        try
+          let some dk := mod._declarations[assembledInvariantsName]?
+            | throwError "predefineLocalRPropInstance: {assembledInvariantsName} not found"
+          let (allModParams, _) ← mod.declarationAllParams assembledInvariantsName dk
+          let invsBinders ← allModParams.mapM (·.binder)
+          let invsArgs ← allModParams.mapM (·.arg)
+          let localRPropTCArgs ← mod.parameters.mapM (·.arg)
+          let cmd ← `(command| scoped instance $[$invsBinders]* :
+              @$localRPropTC $localRPropTCArgs* <| @$(mkIdent assembledInvariantsName) $invsArgs* := $(mkIdent ``inferInstance))
+          elabVeilCommand cmd
+        catch ex =>
+          logWarningAt invariantCmd m!"unable to pre-define LocalRProp instance for {assembledInvariantsName}: {ex.toMessageData}"
       return mod
     let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
       let (safetyCmd, mod) ← mod.assembleSafeties

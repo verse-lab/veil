@@ -984,14 +984,18 @@ without backtracking. -/
 def elabVeilSolveWp : DesugarTacticM Unit := veilWithMainContext do
   -- Step 1: veil_intros (common to both paths)
   veilEvalTactic $ ← `(tactic| veil_intros)
-  -- Step 2: probe — try wpLoTac + invCoreEqTac
+  -- Step 2: probe — try wpLoTac + coreEqTac
   let classicalIdent := mkIdent `Classical
+  let mod ← getCurrentModule
+  let paramArgs ← mod.parameters.mapM (·.arg)
   -- NOTE: using `simp` (not `veil_simp`) so that `failIfUnchanged` defaults to true,
   -- which causes the probe to fail cleanly when wpLOSimp lemmas don't apply
   let wpLoTac ← `(tactic| open $classicalIdent:ident in simp +$(mkIdent `failIfUnchanged):ident only [↓ $(mkIdent `wpLOSimp):ident])
-  -- NOTE: the `_` argument to `Invariants.core_eq` is required for `simp` to work
-  let invCoreEqTac ← `(tactic| simp +$(mkIdent `failIfUnchanged):ident only [$(mkIdent `Invariants.core_eq):ident _] at $(mkIdent `hinv):ident)
-  let probeTac ← `(tactic| ($wpLoTac; $invCoreEqTac))
+  -- Use `@LocalRProp.core_eq <module params>` to rewrite invariants to core form.
+  -- The And-composition instance makes this work for `Invariants` (a conjunction).
+  let coreEqLemma ← `(Lean.Parser.Tactic.simpLemma| @$(mkIdent <| localRPropTCName ++ `core_eq) $paramArgs*)
+  let coreEqTac ← `(tactic| simp +$(mkIdent `failIfUnchanged):ident only [$coreEqLemma] at $(mkIdent `hinv):ident)
+  let probeTac ← `(tactic| ($wpLoTac; $coreEqTac))
   DesugarTacticM.orElse
     (do veilWithMainContext $ veilEvalTactic probeTac
         veilWithMainContext $ elabVeilSolveWplo)

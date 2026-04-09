@@ -53,23 +53,24 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
       $core:ident : $coreType
       $core_eq:ident : $coreEqType)
   let cmd2 ← `(command| attribute [$(mkIdent `wpSimp):ident] $(mkIdent <| localRPropTCName ++ `core):ident)
-  -- NOTE: This part is not useful since this instance contains too many arguments
-  -- that cannot be filled automatically, which prevents it from being used
-  /-
-  -- Trivial instance for `⊤` (needed for `doesNotThrow` VCs which use `⊤` as postcondition)
+  -- Instance for composing `LocalRProp` over `∧`:
+  -- Given `[LocalRProp p]` and `[LocalRProp q]`, derive `LocalRProp (fun th st => p th st ∧ q th st)`.
+  -- This allows `Invariants` (a conjunction) to automatically get a `LocalRProp` instance.
   let cmd3 ← do
+    let implBinders ← paramBinders.mapM mkImplicitBinder
+    let p ← Lean.mkIdent <$> mkFreshUserName `p ; let q ← Lean.mkIdent <$> mkFreshUserName `q
+    let inst1 ← Lean.mkIdent <$> mkFreshUserName `inst1 ; let inst2 ← Lean.mkIdent <$> mkFreshUserName `inst2
     let args ← params.mapM (·.arg)
-    let args := args.push <| ← `(fun _ _ => $(mkIdent ``True)) -- ← `(⊤)
-    let binders ← paramBinders.mapM mkImplicitBinder
-    let wildcards : Array (TSyntax ``Lean.Parser.Term.funBinder) ← do
-      let wc ← `(Lean.Parser.Term.funBinder| _ )
-      pure <| Array.replicate (mod.immutableComponents.size + mod.mutableComponents.size) wc
-    let coreStx ← mkFunSyntax wildcards (← `(term| $(mkIdent ``True)))
-    `(command| scoped instance $localRPropTCInstForTop:ident $[$binders]* : @$localRPropTC $args* where
-      core := $coreStx
-      core_eq := fun _ _ => rfl)
-  -/
-  return [cmd1, cmd2]
+    let fieldNames : Array Ident := (mod.immutableComponents ++ mod.mutableComponents).map fun sc => mkIdent sc.name
+    let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f => `(Lean.Parser.Term.funBinder| $f)
+    let fieldArgs : Array Term ← fieldNames.mapM fun f => `(term| $f)
+    let coreFn ← mkFunSyntax fieldBinders (← `(term| $inst1.$(mkIdent `core) $fieldArgs* ∧ $inst2.$(mkIdent `core) $fieldArgs*))
+    `(command| scoped instance $[$implBinders]* ($p $q : $(mkIdent ``SProp) $environmentTheory $environmentState)
+        [$inst1 : @$localRPropTC $args* $p] [$inst2 : @$localRPropTC $args* $q] :
+        @$localRPropTC $args* (fun $th $st => $p $th $st ∧ $q $th $st) where
+      $core:ident := $coreFn
+      $core_eq:ident := fun $th $st => $(mkIdent ``congrArg₂) $(mkIdent ``And) ($inst1.$(mkIdent `core_eq) $th $st) ($inst2.$(mkIdent `core_eq) $th $st))
+  return [cmd1, cmd2, cmd3]
 
 /-! ## Simplification Infrastructure -/
 
