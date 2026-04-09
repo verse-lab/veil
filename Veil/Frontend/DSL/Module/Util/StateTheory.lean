@@ -266,9 +266,10 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [A
   let smtAttr : Array Syntax ← if mod.mutableComponents.isEmpty then pure #[] else
     let tmp : Syntax ← `(attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `mk ++ `injEq):ident)
     pure #[tmp]
-  let eqMkTheorem ← mkEqMkTheorem mod
+  let extAttr ← `(command| attribute [ext] $stateIdent)   -- cannot use `$(mkIdent `ext)` here
+  let extIffAttr ← `(command| attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `ext_iff):ident)
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[enumerationInst] ++ smtAttr ++ #[eqMkTheorem])
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[enumerationInst] ++ smtAttr ++ #[extAttr, extIffAttr])
 where
   /-- Generate `FieldRepresentation` and `LawfulFieldRepresentation` instances for a given field type dispatcher. -/
   mkFieldRepresentationInstancesCore (mod : Module)
@@ -374,75 +375,6 @@ where
     let seqs ← arms.mapM fun a => `(tacticSeq| $a:tactic)
     `(tactic|cases $fieldLabelIdent:ident <;>
     first $[| $seqs]*)
-  /-- Build the chained flatMap/map expression for `Enumeration` instance.
-      For fields [f1, f2, f3], generates:
-      ```
-      Enumeration.allValues |>.flatMap fun l =>
-      Enumeration.allValues |>.flatMap fun p =>
-      Enumeration.allValues |>.map fun f =>
-      State.mk l p f
-      ```
-  -/
-  mkEnumerationAllValuesBody (fields : List Name) (varNames : Array Ident) : m Term := do
-    match fields with
-    | [] => `(term| [$(mkIdent `State.mk)])
-    | [f] =>
-      let varName := mkIdent $ Name.mkSimple s!"{f}"
-      let allVars := varNames.push varName
-      let ctorApp ← `(term| $(mkIdent `State.mk) $allVars*)
-      `(term| $(mkIdent ``Enumeration.allValues) |>.$(mkIdent `map) fun $varName => $ctorApp)
-    | f :: rest =>
-      let varName := mkIdent $ Name.mkSimple s!"{f}"
-      let innerBody ← mkEnumerationAllValuesBody rest (varNames.push varName)
-      `(term| $(mkIdent ``Enumeration.allValues) |>.$(mkIdent `flatMap) fun $varName => $innerBody)
-  /-- Generate an `Enumeration` instance for `State (FieldConcreteType sorts*)`.
-      This allows enumerating all possible state values when sorts are finite. -/
-  mkEnumerationInstance (mod : Module) : m Syntax := do
-    let sorts ← mod.uninterpretedParamIdents
-    -- Generate binders: (node : Type) [Inhabited node] [Ord node] [DecidableEq node] [Enumeration node] ...
-    let assumedInstances := #[``Ord, ``DecidableEq, ``Enumeration]
-    let sortInstanceBinders := (← mod.uninterpretedParamBinders) ++ (← assumedInstances.flatMapM mod.assumeForEverySort)
-    -- Generate [Veil.Enumeration (FieldConcreteType $sorts* State.Label.$fieldName)] for each field
-    -- We add these as explicit assumptions to avoid `grind` throwing errors
-    -- in `#gen_spec` when they're not satisfied at runtime
-    let fieldEnumerationBinders ← mod.mutableComponents.mapM fun sc => do
-      let fieldLabel := mkIdent <| Name.append (structureFieldLabelTypeName stateName) sc.name
-      `(bracketedBinder|[$(mkIdent ``Veil.Enumeration) ($fieldConcreteDispatcher $sorts* $fieldLabel)])
-    -- Generate [DecidableEq (State (FieldConcreteType sorts*))]
-    let stateType ← `(term| $stateIdent ($fieldConcreteDispatcher $sorts*))
-    let allBinders := sortInstanceBinders ++ fieldEnumerationBinders
-    -- Generate instance type: Veil.Enumeration (State (FieldConcreteType sorts*))
-    let instType ← `(term| $(mkIdent ``Veil.Enumeration) $stateType)
-    -- Generate allValues body with nested flatMap/map calls
-    let fieldNames := mod.mutableComponents.map (·.name)
-    let allValuesBody ← mkEnumerationAllValuesBody fieldNames.toList #[]
-    -- Generate complete proof tactic
-    `(scoped instance $[$allBinders]* : $instType where
-      $(mkIdent `allValues):ident := $allValuesBody
-      $(mkIdent `complete):ident := by simp only [$(mkIdent ``List.mem_flatMap):ident, $(mkIdent ``List.mem_map):ident]; grind only [← $(mkIdent ``Enumeration.complete):ident])
-  /-- Generate a theorem `State.eqMk` that characterizes equality of a state with a structure literal.
-      For fields [leader, pending], generates:
-      ```
-      theorem State.eqMk {χ : State.Label → Type} (st : State χ)
-        (leader : χ State.Label.leader) (pending: χ State.Label.pending) :
-        (st = { leader := leader, pending := pending }) = (st.leader = leader ∧ st.pending = pending) :=
-        by grind only [cases State, cases Or]
-      ```
-  -/
-  mkEqMkTheorem (mod : Module) : m Command := do
-    let fieldNames := mod.mutableComponents.map (·.name)
-    let (χ, st) := (mkIdent `χ, mkIdent `st)
-    let χBinder ← `(bracketedBinder| {$χ : $(structureFieldLabelType stateName) → Type})
-    let stBinder ← `(bracketedBinder| ($st : $stateIdent $χ))
-    let fieldBinders ← fieldNames.mapM fun f =>
-      `(bracketedBinder| ($(mkIdent f) : $χ $(mkIdent <| structureFieldLabelTypeName stateName ++ f)))
-    let structFields ← fieldNames.mapM fun f =>
-      `(Lean.Parser.Term.structInstField| $(mkIdent f):ident := $(mkIdent f))
-    let eqTerms ← fieldNames.mapM fun f => `(term| $st.$(mkIdent f) = $(mkIdent f))
-    let prop ← `(term| ($st = { $[$structFields:structInstField],* }) = $(← repeatedAnd eqTerms))
-    let allBinders := #[χBinder, stBinder] ++ fieldBinders
-    `(@[$(mkIdent `smtSimp):ident] theorem $(mkIdent <| stateName ++ `eqMk) $[$allBinders]* : $prop :=
-        by grind only [cases $stateIdent, cases $(mkIdent ``Or)])
 
 /-! ## Field Label Type & Metadata (Private) -/
 
