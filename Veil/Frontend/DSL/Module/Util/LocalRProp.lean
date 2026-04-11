@@ -235,6 +235,73 @@ where
   generateLocalRPropInstName (nm : Name) : Name :=
     Name.mkSimple <| "instLocalRProp" ++ nm.capitalize.toString
 
+/-! ## Simplified LocalRProp for Assembled Definitions -/
+
+-- NOTE: There are two ways to use this pre-simplification.
+-- One is to store the simplified result as an instance and rely on the
+-- instance resolution to use it, the other is to directly save the simplified
+-- result as a theorem and use it in the proof. Here, we use the latter.
+
+/-- Simplify the `LocalRProp.core` for a definition. -/
+def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit := do
+  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  let some dk := mod._declarations[nm]?
+    | throwError "simplifyLocalRPropCore: {nm} not found in module declarations"
+  let (nmParams, _) ← mod.declarationAllParams nm dk
+  -- `nm` may take more parameters than `LocalRProp` (e.g. `Invariants`
+  -- takes extra params beyond the module parameters)
+  let nmBinders ← nmParams.mapM (·.binder)
+  elabBinders nmBinders fun vs => do
+    let localRPropArgs ← mod.parameters.mapM (·.arg)
+    -- Step 1: construct and synthesize the LocalRProp instance
+    let nmApp ← do
+      let nmFull ← resolveGlobalConstNoOverloadCore nm
+      mkAppOptM nmFull (vs.map some)
+    let instType ← do
+      -- NOTE: Ideally, we could also construct it only at the `Expr` level,
+      -- but that requires filtering out the parameters that are not needed,
+      -- which is a bit tricky.
+      let tm ← `(@$localRPropTC $localRPropArgs*)
+      let tc ← withoutErrToSorry <| elabTermAndSynthesize tm none
+      pure <| mkApp tc nmApp
+    let inst ← synthInstance instType
+    let core ← mkProjection inst `core
+    -- Step 2: simplify the `core` field
+    -- NOTE: can do more `simp` here, can do less `dsimp` here
+    let core' ← (Simp.dsimp #[`LocalRProp.core, `nextSimp]) core
+    -- Step 3: save simplified core as a definition
+    let coreSimplifiedFqn ← do
+      let e ← instantiateMVars $ ← mkLambdaFVars vs core'.expr
+      -- let attr ← do
+      --   let tmp ← `(Parser.Term.attrInstance| $(mkIdent `derivedInvSimp):ident)
+      --   elabAttrs (#[tmp])
+      addVeilDefinition (toCoreSimplifiedName nm) e --(attr := attr)
+    -- Step 4: save the equality as a theorem
+    -- NOTE: The RHS should not directly contain `core'.expr`, since
+    -- after beta reduction, all its arguments will be substituted into
+    -- the body, and this makes generalization difficult. That's why
+    -- we save the simplified `core` as a definition and use it in the RHS.
+    let coreEq ← mkProjection inst `core_eq
+    let ty ← (inferType coreEq >>= instantiateMVars)
+    -- Here, the inferred type might have `nm` unfolded, so explicitly
+    -- construct this equality
+    forallTelescope ty fun xs eq => do
+      let some (_, _, rhs) := eq.eq? | throwError "unexpected shape of core_eq type for {nm}"
+      let lhs := mkAppN nmApp xs
+      let rhs' ← do
+        let core'' ← mkAppOptM coreSimplifiedFqn (vs.map some)
+        -- This is kind of hacky, but should in general work
+        pure <| rhs.replace fun a => if a == core then some core'' else none
+      -- Only do `iota` like simp in this step
+      let rhs' ← (Simp.dsimp #[]) rhs'
+      let fvars := vs ++ xs
+      withImplicitBinderInfos vs do
+        let eqStatement ← do
+          let eq' ← mkEq lhs rhs'.expr
+          instantiateMVars $ ← mkForallFVars fvars eq'
+        let eqProof ← instantiateMVars $ ← mkLambdaFVars vs coreEq
+        let _ ← addVeilTheorem (toCoreSimplifiedEqName nm) eqStatement eqProof
+
 /-! ## Assembled Definition Simplification -/
 
 /-- Simplify an assembled definition (e.g. `Invariants`) by applying

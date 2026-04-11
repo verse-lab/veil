@@ -964,6 +964,7 @@ def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
     __veil_concretize_state_wp
     __veil_concretize_fields_wp !
     veil_wp
+    veil_dsimp only [$(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident] at $(mkIdent `hinv):ident
     veil_dsimp only [$(mkIdent `LocalRProp.core):ident, $(mkIdent `nextSimp):ident] at *
     __veil_neutralize_decidable_inst
     ($simpBeforeConcretizeTac)
@@ -986,20 +987,15 @@ def elabVeilSolveWp : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| veil_intros)
   -- Step 2: probe — try wpLoTac + coreEqTac
   let classicalIdent := mkIdent `Classical
-  let mod ← getCurrentModule
-  let paramArgs ← mod.parameters.mapM (·.arg)
   -- NOTE: using `simp` (not `veil_simp`) so that `failIfUnchanged` defaults to true,
   -- which causes the probe to fail cleanly when wpLOSimp lemmas don't apply
   let wpLoTac ← `(tactic| open $classicalIdent:ident in simp +$(mkIdent `failIfUnchanged):ident only [↓ $(mkIdent `wpLOSimp):ident])
-  -- Use `@LocalRProp.core_eq <module params>` to rewrite invariants to core form.
-  -- The And-composition instance makes this work for `Invariants` (a conjunction).
-  let coreEqLemma ← `(Lean.Parser.Tactic.simpLemma| @$(mkIdent <| localRPropTCName ++ `core_eq) $paramArgs*)
-  let coreEqTac ← `(tactic| simp +$(mkIdent `failIfUnchanged):ident only [$coreEqLemma] at $(mkIdent `hinv):ident)
+  let coreEqTac ← `(tactic| rw [$(mkIdent <| toCoreSimplifiedEqName assembledInvariantsName):ident] at $(mkIdent `hinv):ident)
   let probeTac ← `(tactic| ($wpLoTac; $coreEqTac))
   DesugarTacticM.orElse
     (do veilWithMainContext $ veilEvalTactic probeTac
-        veilWithMainContext $ elabVeilSolveWplo)
-    (fun _ => veilWithMainContext $ elabVeilSolveWpConservative)
+        veilWithMainContext $ veilEvalTactic $ ← `(tactic| __veil_solve_wplo))
+    (fun _ => do veilWithMainContext $ veilEvalTactic $ ← `(tactic| __veil_solve_wp_conservative))
 
 @[inherit_doc veil_solve_tr]
 def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do

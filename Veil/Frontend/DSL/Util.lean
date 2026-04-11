@@ -42,4 +42,7 @@ def toExQuantifiedTransitionEqName (n : Name) : Name := n ++ `exTr_eq
 
 def toWpLocalEqName (n : Name) : Name := n ++ `wp_local_eq
 
+def toCoreSimplifiedName (n : Name) : Name := n ++ `core_simplified
+def toCoreSimplifiedEqName (n : Name) : Name := n ++ `core_simplified_eq
+
 end Veil
