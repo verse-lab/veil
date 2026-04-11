@@ -269,6 +269,11 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
     -- Step 2: simplify the `core` field
     -- NOTE: can do more `simp` here, can do less `dsimp` here
     let core' ← (Simp.dsimp #[`LocalRProp.core, `nextSimp]) core
+    let core' ← do
+      let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
+      let simps := #[`invSimp, `smtSimp]
+      let simps := if unfoldghostRel? then simps.push `ghostRelSimp else simps
+      (Simp.simp simps) core'.expr
     -- Step 3: save simplified core as a definition
     let coreSimplifiedFqn ← do
       let e ← instantiateMVars $ ← mkLambdaFVars vs core'.expr
@@ -288,10 +293,15 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
     forallTelescope ty fun xs eq => do
       let some (_, _, rhs) := eq.eq? | throwError "unexpected shape of core_eq type for {nm}"
       let lhs := mkAppN nmApp xs
-      let rhs' ← do
+      let (rhs', eqProof) ← do
         let core'' ← mkAppOptM coreSimplifiedFqn (vs.map some)
-        -- This is kind of hacky, but should in general work
-        pure <| rhs.replace fun a => if a == core then some core'' else none
+        -- The following works in a similar way as `rewrite` does
+        let rhsAbs ← Meta.kabstract rhs core
+        let rhsFun := Expr.lam `_a (← inferType core) rhsAbs BinderInfo.default
+        let rhs' := Expr.instantiate1 rhsAbs core''
+        let congrProof ← mkCongrArg rhsFun (← core'.getProof)
+        let eqProof ← mkEqTrans (mkAppN coreEq xs) congrProof
+        pure (rhs', eqProof)
       -- Only do `iota` like simp in this step
       let rhs' ← (Simp.dsimp #[]) rhs'
       let fvars := vs ++ xs
@@ -299,7 +309,7 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
         let eqStatement ← do
           let eq' ← mkEq lhs rhs'.expr
           instantiateMVars $ ← mkForallFVars fvars eq'
-        let eqProof ← instantiateMVars $ ← mkLambdaFVars vs coreEq
+        let eqProof ← instantiateMVars $ ← mkLambdaFVars fvars eqProof
         let _ ← addVeilTheorem (toCoreSimplifiedEqName nm) eqStatement eqProof
 
 /-! ## Assembled Definition Simplification -/

@@ -907,7 +907,7 @@ where
 /-- Shared tactic sequence: simplify with
 initial simp sets, introduce HO values, and handle ghost relations. Used by
 both `elabVeilConcretizeWp` and `elabVeilSolveWplo`. -/
-private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuotation m] (fast : Bool) : m (TSyntax ``Lean.Parser.Tactic.tacticSeq) := do
+private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuotation m] (fast simpHinv : Bool) : m (TSyntax ``Lean.Parser.Tactic.tacticSeq) := do
   let classicalIdent := mkIdent `Classical
   let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
   let initialSimps := if fast
@@ -919,12 +919,15 @@ private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuot
     then `(tactic| skip )
     -- NOTE: Both here and below assume the hypothesis for `Invariants` has name `hinv`
     else `(tactic| (__veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
-  let simpTac ← `(tactic| open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at *)
+  let simpTac ← if simpHinv
+    then `(tactic| open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at *)
+    else -- skip `hinv`
+      `(tactic| open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at $(mkIdent `has):ident ⊢ )
   `(tacticSeq| $simpTac ; veil_intro_ho ; $ghostRelTac )
 
 @[inherit_doc veil_concretize_wp]
 def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
-  let preTac ← elabSimplifyBeforeConcretizeWp fast
+  let preTac ← elabSimplifyBeforeConcretizeWp fast true
   let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
   let concretizeFieldsTac ← if fast
     then `(tactic| __veil_concretize_fields_wp !)
@@ -958,7 +961,7 @@ def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
 
 /-- The wplo-specific continuation after `veil_intros` + wpLoTac + invCoreEqTac have succeeded. -/
 def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
-  let simpBeforeConcretizeTac ← elabSimplifyBeforeConcretizeWp true
+  let simpBeforeConcretizeTac ← elabSimplifyBeforeConcretizeWp true false
   let tac ← `(tacticSeq|
     veil_dsimp only [$(mkIdent `invSimp):ident] at $(mkIdent `has):ident
     __veil_concretize_state_wp
