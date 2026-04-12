@@ -1,4 +1,5 @@
 import Veil.Core.Tools.ModelChecker.Simulation.Basic
+import Veil.Core.Tools.ModelChecker.Simulation.Path
 import Veil.Core.Tools.ModelChecker.Concrete.Core
 
 namespace Veil.ModelChecker.Simulation
@@ -45,6 +46,27 @@ theorem StepList.validFromSimulation_sound {ρ σ κ : Type} {th₀ : ρ}
         exact (Veil.ModelChecker.Concrete.partitionExecutionOutcome.fst_spec _ _ _).mp hmem
       · exact StepList.validFromSimulation_sound sys params th step.nextState steps h'.2
 
+theorem StepList.validFromSimulation_complete {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) (st : σ) :
+  ∀ steps, StepList.validFrom (simulationTransitionSystem sys params) th st steps ->
+    StepList.validFromSimulation sys params th st steps = true
+  | [], _ => by simp [StepList.validFromSimulation]
+  | step :: steps, h => by
+      rcases h with ⟨hStep, hTail⟩
+      have hStep' : (step.transitionLabel, ExecutionOutcome.success step.nextState) ∈
+          filterOutcomesByConstraints sys params th st := by
+        simpa [simulationTransitionSystem] using hStep
+      have hContains : (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+          (filterOutcomesByConstraints sys params th st)).fst.contains
+            (step.transitionLabel, step.nextState) = true := by
+        exact List.elem_eq_true_of_mem <|
+          (Veil.ModelChecker.Concrete.partitionExecutionOutcome.fst_spec _ _ _).mpr hStep'
+      rw [StepList.validFromSimulation]
+      rw [hContains]
+      simp [StepList.validFromSimulation_complete sys params th step.nextState steps hTail]
+
 def Trace.isSimulationValidB {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -73,9 +95,65 @@ theorem Trace.isSimulationValid_sound {ρ σ κ : Type} {th₀ : ρ}
     initialStateSatisfiesInit := ?_
     stepsValid := ?_
   }
-  · simpa [simulationTransitionSystem] using h'.1
+  · exact by
+      have hMem : trace.initialState ∈ filterInitStatesByConstraints sys params trace.theory :=
+        List.mem_of_elem_eq_true h'.1
+      simpa [simulationTransitionSystem] using hMem
   · simpa [Steps.validFrom] using
       StepList.validFromSimulation_sound sys params trace.theory trace.initialState trace.steps.toList h'.2
+
+theorem Trace.isSimulationValid_complete {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) :
+  trace.isValid (simulationTransitionSystem sys params) -> Trace.isSimulationValid sys params trace := by
+  intro h
+  have hInitMem : trace.initialState ∈ filterInitStatesByConstraints sys params trace.theory := by
+    simpa [simulationTransitionSystem] using h.initialStateSatisfiesInit
+  have hInit : (filterInitStatesByConstraints sys params trace.theory).contains trace.initialState = true := by
+    exact List.elem_eq_true_of_mem hInitMem
+  have hSteps : StepList.validFromSimulation sys params trace.theory trace.initialState trace.steps.toList = true := by
+    exact StepList.validFromSimulation_complete sys params trace.theory trace.initialState trace.steps.toList (by
+      simpa [Steps.validFrom] using h.stepsValid)
+  rw [Trace.isSimulationValid, Trace.isSimulationValidB]
+  rw [hInit, hSteps]
+  simp
+
+theorem pickedTransition_valid {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  [Inhabited (κ × σ)]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) (currSt : σ)
+  (nexts : List (κ × σ))
+  (hNexts : nexts = (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+    (filterOutcomesByConstraints sys params th currSt)).fst)
+  (hNonempty : nexts ≠ []) (gen : StdGen) :
+  let picked := pickNextTransition nexts gen hNonempty
+  (simulationTransitionSystem sys params).tr th currSt picked.value.1 picked.value.2 := by
+  intro picked
+  have hmem : picked.value ∈ nexts := by simpa [picked] using pickNextTransition_mem nexts gen hNonempty
+  have hGood : picked.value ∈
+      (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+        (filterOutcomesByConstraints sys params th currSt)).fst := by
+    simpa [hNexts] using hmem
+  exact (Veil.ModelChecker.Concrete.partitionExecutionOutcome.fst_spec _ _ _).mp hGood
+
+theorem pickedInitialState_valid {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  [Inhabited σ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ)
+  (initStates : List σ)
+  (hInitStates : initStates = filterInitStatesByConstraints sys params th)
+  (hNonempty : initStates ≠ []) (gen : StdGen) :
+  let picked := pickInitialState initStates gen hNonempty
+  ({ theory := th, initialState := picked.value, steps := #[] } : Trace ρ σ κ).isValid
+    (simulationTransitionSystem sys params) := by
+  intro picked
+  have hmem : picked.value ∈ initStates := by simpa [picked] using pickInitialState_mem initStates gen hNonempty
+  refine Trace.isValid_empty (simulationTransitionSystem sys params) th picked.value ?_ ?_
+  · simp [simulationTransitionSystem]
+  · simpa [simulationTransitionSystem, hInitStates] using hmem
 
 instance instDecidableTraceIsSimulationValid {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
