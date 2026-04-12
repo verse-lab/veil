@@ -109,11 +109,89 @@ def Trace.witnessesSimulationViolationB {ρ σ κ : Type} {th₀ : ρ}
             (step.transitionLabel, ExecutionOutcome.assertionFailure exId step.nextState)
       | none => false
 
-abbrev Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
+def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (violation : ViolationKind) : Prop :=
-  Trace.witnessesSimulationViolationB sys params trace violation = true
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : ViolationKind → Prop
+  | .safetyFailure violates =>
+      trace.isValid (simulationTransitionSystem sys params) ∧
+      trace.failingStep = none ∧
+      violatedInvariantNames params trace.theory trace.lastState = violates ∧
+      violates ≠ []
+  | .deadlock =>
+      trace.isValid (simulationTransitionSystem sys params) ∧
+      trace.failingStep = none ∧
+      params.terminating.holdsOn trace.theory trace.lastState = false ∧
+      let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome
+        (filterOutcomesByConstraints sys params trace.theory trace.lastState)
+      nexts = []
+  | .assertionFailure exId =>
+      trace.isValid (simulationTransitionSystem sys params) ∧
+      ∃ step,
+        trace.failingStep = some step ∧
+        (filterOutcomesByConstraints sys params trace.theory trace.lastState).contains
+          (step.transitionLabel, ExecutionOutcome.assertionFailure exId step.nextState) = true
+
+theorem Trace.witnessesSimulationViolation_of_check_true {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (violation : ViolationKind) :
+  Trace.witnessesSimulationViolationB sys params trace violation = true →
+    Trace.witnessesSimulationViolation sys params trace violation := by
+  intro h
+  cases violation with
+  | safetyFailure violates =>
+      have hValid : Trace.isSimulationValidB sys params trace = true := by
+        have h' : ((Trace.isSimulationValidB sys params trace = true ∧ trace.failingStep.isNone = true) ∧
+            decide (violatedInvariantNames params trace.theory trace.lastState = violates) = true) ∧
+            (!violates.isEmpty) = true := by
+          simpa [Trace.witnessesSimulationViolationB, Bool.and_eq_true] using h
+        exact h'.1.1.1
+      refine ⟨Trace.isSimulationValid_sound sys params trace hValid, ?_, ?_, ?_⟩
+      · have hNone : trace.failingStep.isNone = true := by
+          have h' : ((Trace.isSimulationValidB sys params trace = true ∧ trace.failingStep.isNone = true) ∧
+              decide (violatedInvariantNames params trace.theory trace.lastState = violates) = true) ∧
+              (!violates.isEmpty) = true := by
+            simpa [Trace.witnessesSimulationViolationB, Bool.and_eq_true] using h
+          exact h'.1.1.2
+        cases hFail : trace.failingStep <;> simp [Option.isNone, hFail] at hNone ⊢
+      · have hEq : decide (violatedInvariantNames params trace.theory trace.lastState = violates) = true := by
+          have h' : ((Trace.isSimulationValidB sys params trace = true ∧ trace.failingStep.isNone = true) ∧
+              decide (violatedInvariantNames params trace.theory trace.lastState = violates) = true) ∧
+              (!violates.isEmpty) = true := by
+            simpa [Trace.witnessesSimulationViolationB, Bool.and_eq_true] using h
+          exact h'.1.2
+        simpa [decide_eq_true_eq] using hEq
+      · intro hNil
+        have h' : (!violates.isEmpty) = true := by
+          have hx : ((Trace.isSimulationValidB sys params trace = true ∧ trace.failingStep.isNone = true) ∧
+              decide (violatedInvariantNames params trace.theory trace.lastState = violates) = true) ∧
+              (!violates.isEmpty) = true := by
+            simpa [Trace.witnessesSimulationViolationB, Bool.and_eq_true] using h
+          exact hx.2
+        simpa [hNil] using h'
+  | deadlock =>
+      have h' : ((Trace.isSimulationValidB sys params trace = true ∧ trace.failingStep.isNone = true) ∧
+          (!params.terminating.holdsOn trace.theory trace.lastState) = true) ∧
+          (let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome
+            (filterOutcomesByConstraints sys params trace.theory trace.lastState)
+           nexts.isEmpty) = true := by
+        simpa [Trace.witnessesSimulationViolationB, Bool.and_eq_true] using h
+      refine ⟨Trace.isSimulationValid_sound sys params trace h'.1.1.1, ?_, ?_, ?_⟩
+      · have hNone : trace.failingStep.isNone = true := h'.1.1.2
+        cases hFail : trace.failingStep <;> simp [Option.isNone, hFail] at hNone ⊢
+      · simpa using h'.1.2
+      · simpa using h'.2
+  | assertionFailure exId =>
+      cases hFail : trace.failingStep with
+      | none => simp [Trace.witnessesSimulationViolationB, hFail] at h
+      | some step =>
+          have h' : Trace.isSimulationValidB sys params trace = true ∧
+              (filterOutcomesByConstraints sys params trace.theory trace.lastState).contains
+                (step.transitionLabel, ExecutionOutcome.assertionFailure exId step.nextState) = true := by
+            simpa [Trace.witnessesSimulationViolationB, hFail, Bool.and_eq_true] using h
+          refine ⟨Trace.isSimulationValid_sound sys params trace h'.1, step, hFail, ?_⟩
+          simpa using h'.2
 
 theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
@@ -123,35 +201,17 @@ theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th₀ : ρ}
     trace.isValid (simulationTransitionSystem sys params) := by
   intro h
   cases violation with
-  | safetyFailure violates =>
-      have hValid : Trace.isSimulationValidB sys params trace = true := by
-        have h' : ((Trace.isSimulationValidB sys params trace = true ∧ trace.failingStep.isNone = true) ∧
-            decide (violatedInvariantNames params trace.theory trace.lastState = violates) = true) ∧
-            (!violates.isEmpty) = true := by
-          simpa [Trace.witnessesSimulationViolation, Trace.witnessesSimulationViolationB, Bool.and_eq_true] using h
-        exact h'.1.1.1
-      exact Trace.isSimulationValid_sound sys params trace hValid
-  | deadlock =>
-      have hValid : Trace.isSimulationValidB sys params trace = true := by
-        have h' : ((Trace.isSimulationValidB sys params trace = true ∧ trace.failingStep.isNone = true) ∧
-            (!params.terminating.holdsOn trace.theory trace.lastState) = true) ∧
-            (let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome
-              (filterOutcomesByConstraints sys params trace.theory trace.lastState)
-             nexts.isEmpty) = true := by
-          simpa [Trace.witnessesSimulationViolation, Trace.witnessesSimulationViolationB, Bool.and_eq_true] using h
-        exact h'.1.1.1
-      exact Trace.isSimulationValid_sound sys params trace hValid
-  | assertionFailure exId =>
-      cases hFail : trace.failingStep with
-      | none => simp [Trace.witnessesSimulationViolation, Trace.witnessesSimulationViolationB, hFail] at h
-      | some step =>
-          have hValid : Trace.isSimulationValidB sys params trace = true := by
-            have h' : Trace.isSimulationValidB sys params trace = true ∧
-                (filterOutcomesByConstraints sys params trace.theory trace.lastState).contains
-                  (step.transitionLabel, ExecutionOutcome.assertionFailure exId step.nextState) = true := by
-              simpa [Trace.witnessesSimulationViolation, Trace.witnessesSimulationViolationB, hFail, Bool.and_eq_true] using h
-            exact h'.1
-          exact Trace.isSimulationValid_sound sys params trace hValid
+  | safetyFailure _ => exact h.1
+  | deadlock => exact h.1
+  | assertionFailure _ => exact h.1
+
+noncomputable instance instDecidableTraceWitnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (violation : ViolationKind) :
+  Decidable (Trace.witnessesSimulationViolation sys params trace violation) := by
+  classical
+  infer_instance
 
 def ResultSoundB {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
@@ -167,14 +227,34 @@ def ResultSound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) : Prop :=
-  ResultSoundB sys params result = true
+  match result with
+  | .foundViolation _ violation (some trace) => Trace.witnessesSimulationViolation sys params trace violation
+  | .foundViolation _ _ none => False
+  | .noViolationFound _ _ => True
+  | .cancelled => True
 
-instance instDecidableResultSound {ρ σ κ : Type} {th₀ : ρ}
+theorem resultSound_of_check_true {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) :
+  ResultSoundB sys params result = true → ResultSound sys params result := by
+  intro h
+  cases result with
+  | foundViolation _ violation traceOpt =>
+      cases traceOpt with
+      | none => simp [ResultSoundB] at h
+      | some trace =>
+          simp [ResultSound]
+          exact Trace.witnessesSimulationViolation_of_check_true sys params trace violation h
+  | noViolationFound _ _ => simp [ResultSound]
+  | cancelled => simp [ResultSound]
+
+noncomputable instance instDecidableResultSound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) :
   Decidable (ResultSound sys params result) := by
-  unfold ResultSound
+  classical
   infer_instance
 
 end Veil.ModelChecker.Simulation
