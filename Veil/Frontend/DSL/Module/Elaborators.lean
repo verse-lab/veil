@@ -1073,11 +1073,14 @@ private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : 
     unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
 private def emitSimulateArtifacts (mod : Module) (instTerm theoryTerm sp pureCallExpr : Term)
+    (cfg : ModelChecker.Simulation.SimulateConfig)
     (resultIdent soundIdent : Ident) : CommandElabM Unit := do
   elabVeilCommand (← `(def $resultIdent := $pureCallExpr))
   let inst := mkVeilImplementationDetailIdent `inst
   let th := mkVeilImplementationDetailIdent `th
   let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+  let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
+      $(quote cfg.maxTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
   elabVeilCommand (← `(theorem $soundIdent :
       (let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
@@ -1087,15 +1090,11 @@ private def emitSimulateArtifacts (mod : Module) (instTerm theoryTerm sp pureCal
           ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent)) := by
        let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
-       exact $(mkIdent ``Veil.ModelChecker.Simulation.resultSound_of_check_true)
-         ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-         $sp
-         ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent)
-         (by native_decide :
-           $(mkIdent ``Veil.ModelChecker.Simulation.ResultSoundB)
-             ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-             $sp
-             ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent) = true)))
+       simpa [$resultIdent:ident] using $(mkIdent ``Veil.ModelChecker.Simulation.simulateCore_sound)
+          ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
+           $sp
+           $th
+           $cfgTerm))
 
 private def logSimulationSummary (stx : Syntax) (combinedJson : Json) : CommandElabM Json := do
   let resultJson := combinedJson
@@ -1237,12 +1236,12 @@ def elabSimulate : CommandElab := fun stx => do
     if ← isModelCheckCompileMode then
       let simulateResultIdent := mkVeilImplementationDetailIdent `simulateResultValue
       let simulateSoundIdent := mkVeilImplementationDetailIdent `simulateSound
-      emitSimulateArtifacts mod instTerm theoryTerm sp pureCallExpr simulateResultIdent simulateSoundIdent
+      emitSimulateArtifacts mod instTerm theoryTerm sp pureCallExpr cfg simulateResultIdent simulateSoundIdent
       elabSimulateInternalMode mod runtimeCallExpr
       return
     let simulateResultIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName (mkVeilImplementationDetailName `simulateResult))
     let simulateSoundIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName (mkVeilImplementationDetailName `simulateSound))
-    emitSimulateArtifacts mod instTerm theoryTerm sp pureCallExpr simulateResultIdent simulateSoundIdent
+    emitSimulateArtifacts mod instTerm theoryTerm sp pureCallExpr cfg simulateResultIdent simulateSoundIdent
     let effectiveMode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
     match effectiveMode with
     | .interpreted => elabSimulateInterpretedMode mod stx runtimeCallExpr
