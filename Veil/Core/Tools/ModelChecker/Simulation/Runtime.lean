@@ -111,7 +111,7 @@ def simulate {ρ σ κ : Type} {th₀ : ρ}
   let cancelToken ← IO.CancelToken.new
   simulateWithProgress sys params th cfg 0 cancelToken
 
-private theorem simulateLoopM_id_check {ρ σ κ : Type} {th₀ : ρ}
+private theorem simulateLoopM_id_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   [Inhabited σ] [Inhabited (κ × σ)]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -119,19 +119,19 @@ private theorem simulateLoopM_id_check {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (cfg : SimulateConfig) :
   ∀ remaining traceIndex,
-    ResultSoundB sys params
+    ResultSound sys params
       (SimulateResult.result
         (Id.run <| simulateLoopM
           { shouldStop := fun _ => false
             onTraceProgress := fun _ => PUnit.unit
             onViolation := PUnit.unit }
-          sys params th cfg remaining traceIndex)) = true := by
+          sys params th cfg remaining traceIndex)) := by
   intro remaining
   induction remaining with
   | zero =>
       intro traceIndex
       have hStop : Id.run false = false := rfl
-      simp [simulateLoopM, ResultSoundB, hStop]
+      simp [simulateLoopM, ResultSound, hStop]
   | succ remaining ih =>
       intro traceIndex
       simp [simulateLoopM, Id.run]
@@ -143,7 +143,7 @@ private theorem simulateLoopM_id_check {ρ σ κ : Type} {th₀ : ρ}
         | some pair =>
             rcases pair with ⟨result, depth⟩
             simp [hRun]
-            exact runTraceAtSeed_check sys params th cfg traceIndex result depth hRun
+            exact runTraceAtSeed_sound sys params th cfg traceIndex result depth hRun
 
 theorem simulateCore_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
@@ -153,6 +153,6 @@ theorem simulateCore_sound {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (cfg : SimulateConfig) :
   ResultSound sys params (SimulateResult.result (simulateCore sys params th cfg)) := by
-  exact resultSound_of_check_true sys params _ (simulateLoopM_id_check sys params th cfg cfg.maxTraces 0)
+  exact simulateLoopM_id_sound sys params th cfg cfg.maxTraces 0
 
 end Veil.ModelChecker.Simulation
