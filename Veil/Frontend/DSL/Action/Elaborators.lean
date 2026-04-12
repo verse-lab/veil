@@ -311,8 +311,8 @@ where
       return some none
     let e1 ← whnf e1
     let e2 ← whnf e2
-    let r1 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInst]) e1
-    let r2 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInst]) e2
+    let r1 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneral]) e1
+    let r2 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneral]) e2
     if ← isDefEq r1.expr r2.expr then
       -- Return the proof that `e1` = `e2`
       -- `r1.proof : e1 = r1.expr, r2.proof : e2 = r2.expr`
@@ -831,7 +831,8 @@ where
       pure <| mkIdent userName
     let h := mkIdent `h
     -- NOTE: Below, `h` is not `applied` because `__veil_neutralize_decidable_inst` might
-    -- unexpectedly simplify away certain things
+    -- unexpectedly simplify away certain things. Also, using `__veil_neutralize_decidable_inst !`
+    -- since the instances might not be fully applied
     let tac ← `(term| by
       classical
       have $h := @$transitionWeakeningLemma $modArgs* $rssIdents*
@@ -841,7 +842,7 @@ where
         ($trDerivedEq := by intros; rw [$(mkIdent derivedEqThm):ident])
         ($wpLocalEq := by intros; rw [$(mkIdent wpLocalEqThm):ident])
         ($wpEq := by intros; rw [$(mkIdent wpEqThm):ident])
-      __veil_neutralize_decidable_inst
+      __veil_neutralize_decidable_inst !
       exact $h
       )
     proveAndCheck tac goal nm "source → target (via transitionWeakeningLemma)"
