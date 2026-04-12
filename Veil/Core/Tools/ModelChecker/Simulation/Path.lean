@@ -33,7 +33,7 @@ theorem randNat_lt_length {α : Type} (xs : List α) (h : xs ≠ []) (gen : StdG
   simp [Nat.not_lt.mpr (Nat.zero_le (xs.length - 1)), hk]
   exact Nat.mod_lt _ hlen
 
-private structure PickedTransition {σ κ : Type} (nexts : List (κ × σ)) where
+structure PickedTransition {σ κ : Type} (nexts : List (κ × σ)) where
   value : κ × σ
   mem : value ∈ nexts
   gen : StdGen
@@ -54,7 +54,7 @@ theorem pickNextTransition_mem {σ κ : Type}
   (pickNextTransition nexts gen h).value ∈ nexts :=
   (pickNextTransition nexts gen h).mem
 
-private structure PickedInitState {σ : Type} (initStates : List σ) where
+structure PickedInitState {σ : Type} (initStates : List σ) where
   value : σ
   mem : value ∈ initStates
   gen : StdGen
@@ -193,11 +193,7 @@ def runTraceAtSeed {ρ σ κ : Type} {th₀ : ρ}
   [Inhabited (κ × σ)]
   : Option (ModelCheckingResult ρ σ κ Unit × Nat) :=
   let traceSeed := cfg.seed + traceIndex
-  let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-  if violated then
-    let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-    maybeResult.map (fun result => (result, stepsUsed))
-  else
-    none
+  let (maybeResult, _, depth) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
+  maybeResult.map (fun result => (result, depth))
 
 end Veil.ModelChecker.Simulation
