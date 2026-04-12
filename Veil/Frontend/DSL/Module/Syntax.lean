@@ -369,8 +369,25 @@ scoped syntax (name := concreteRepresentationDecl) "veil_set_field_representatio
 
 /-- Run random-walk simulation on the current module.
     Explores random traces to find shallow invariant violations quickly.
-    Seed defaults to current timestamp if omitted (always shown in output for reproducibility).
-    Example: `#simulate {}` or `#simulate {} (maxTraces := 100, seed := 42)` -/
-syntax (name := simulate) "#simulate " term:max (term:max)? Parser.Tactic.optConfig : command
+
+## Execution Modes
+
+**Default behavior** (`#simulate`):
+- Runs interpreted mode immediately and shows streaming progress
+- Starts compilation in background
+- When compilation finishes before interpreted mode does, restarts with the
+  compiled binary using the same chosen seed
+
+**Interpreted-only mode** (`#simulate interpreted`):
+- Runs only interpreted mode without background compilation
+
+**Compiled-only mode** (`#simulate compiled`):
+- Builds and runs the compiled binary directly
+
+Seed defaults to a generated value if omitted; the chosen seed is always shown
+in output for reproducibility and reused consistently across mode handoff.
+
+Example: `#simulate {}` or `#simulate compiled {} (maxTraces := 100, seed := 42)` -/
+syntax (name := simulate) "#simulate " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig : command
 
 end Veil

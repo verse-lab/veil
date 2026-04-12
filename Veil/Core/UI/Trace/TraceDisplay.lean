@@ -99,7 +99,10 @@ def formatModelCheckingResult (j : Json) : MessageData :=
   | "no_violation_found" =>
     let trace := j.getObjValD "trace"
     if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}"
-    else m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states)"
+    else if j.getObjValD "simulation" == Json.bool true then
+      m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces"
+    else
+      m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states)"
   | "cancelled" => m!"⚠️ Cancelled"
   | r => if j.getObjValD "error" != .null then m!"💥 Error: {fmtJson (j.getObjValD "error")}" else m!"Unknown: {r}"
 
