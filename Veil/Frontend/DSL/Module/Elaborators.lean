@@ -1021,13 +1021,7 @@ private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
 
 /-- Build the simulator runtime call syntax with progress and cancellation hooks. -/
 private def mkSimulateJsonExpr (resultIdent : Ident) : CommandElabM Term :=
-  `(Lean.Json.mkObj [
-      ("result", Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.result $resultIdent)),
-      ("traces_run", Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.tracesRun $resultIdent)),
-      ("elapsed_ms", Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.elapsedMs $resultIdent)),
-      ("seed", Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.seed $resultIdent)),
-      ("depth", Lean.toJson (Veil.ModelChecker.Simulation.SimulateResult.depth $resultIdent))
-    ])
+  `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.toDisplayJson) $resultIdent)
 
 private def generateCompiledModelSourcePrefix (mod : Module) (stx : Syntax) : CommandElabM String := do
   let src := (← getFileMap).source
@@ -1078,17 +1072,6 @@ private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : 
     Term.synthesizeSyntheticMVarsNoPostponing
     unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
-private def attachSimulationMetadata (combinedJson : Json) : Json :=
-  match combinedJson.getObjValD "result" with
-  | .obj kvs =>
-      Json.mkObj <| kvs.toList ++ [
-        ("traces_run", combinedJson.getObjValD "traces_run"),
-        ("elapsed_ms", combinedJson.getObjValD "elapsed_ms"),
-        ("seed", combinedJson.getObjValD "seed"),
-        ("depth", combinedJson.getObjValD "depth")
-      ]
-  | other => other
-
 private def emitSimulateArtifacts (mod : Module) (instTerm theoryTerm sp pureCallExpr : Term)
     (resultIdent soundIdent : Ident) : CommandElabM Unit := do
   elabVeilCommand (← `(def $resultIdent := $pureCallExpr))
@@ -1105,11 +1088,11 @@ private def emitSimulateArtifacts (mod : Module) (instTerm theoryTerm sp pureCal
        native_decide))
 
 private def logSimulationSummary (stx : Syntax) (combinedJson : Json) : CommandElabM Json := do
-  let resultJson := attachSimulationMetadata combinedJson
-  let seed := (combinedJson.getObjValD "seed").getNat? |>.getD 0
-  let tracesRun := (combinedJson.getObjValD "traces_run").getNat? |>.getD 0
-  let elapsedMs := (combinedJson.getObjValD "elapsed_ms").getNat? |>.getD 0
-  let depth := (combinedJson.getObjValD "depth").getNat? |>.getD 0
+  let resultJson := combinedJson
+  let seed := (resultJson.getObjValD "seed").getNat? |>.getD 0
+  let tracesRun := (resultJson.getObjValD "traces_run").getNat? |>.getD 0
+  let elapsedMs := (resultJson.getObjValD "elapsed_ms").getNat? |>.getD 0
+  let depth := (resultJson.getObjValD "depth").getNat? |>.getD 0
   let tracesPerSec := if elapsedMs > 0 then tracesRun * 1000 / elapsedMs else 0
   let isViolation := resultJson.getObjValD "result" == Json.str "found_violation" ||
     resultJson.getObjValD "error" != .null

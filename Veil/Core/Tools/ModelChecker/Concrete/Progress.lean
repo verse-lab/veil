@@ -82,6 +82,14 @@ structure Progress where
   allActionLabels : List String := []
   /-- Time-series history for charting progress over time -/
   history : Array ProgressHistoryPoint := #[]
+  /-- Whether this progress entry is for `#simulate` rather than `#model_check`. -/
+  isSimulation : Bool := false
+  /-- Number of traces completed so far (simulation only). -/
+  tracesRun : Nat := 0
+  /-- Configured maximum trace budget (simulation only). -/
+  maxTraces : Nat := 0
+  /-- Depth reached in the current/last trace (simulation only). -/
+  simulationDepth : Nat := 0
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Refs for tracking progress of a single model checker instance. -/
@@ -173,6 +181,33 @@ def updateProgress (instanceId : Nat)
 def updateStatus (instanceId : Nat) (status : String) : IO Unit := withRefs instanceId fun refs => do
   let now ← IO.monoMsNow
   refs.progressRef.modify fun p => { p with status, elapsedMs := now - p.startTimeMs }
+
+/-- Update progress for a simulation run. -/
+def updateSimulationProgress (instanceId : Nat) (status : String)
+    (tracesRun maxTraces depth : Nat) : IO Unit := do
+  let now ← IO.monoMsNow
+  if let some refs ← getProgressRefs instanceId then
+    refs.progressRef.modify fun p =>
+      { p with
+        status
+        elapsedMs := now - p.startTimeMs
+        isSimulation := true
+        tracesRun
+        maxTraces
+        simulationDepth := depth }
+  if ← compiledModeEnabled.get then
+    let startTime ← compiledModeStartTime.get
+    let p : Progress := {
+      status := status
+      isRunning := true
+      startTimeMs := startTime
+      elapsedMs := now - startTime
+      isSimulation := true
+      tracesRun := tracesRun
+      maxTraces := maxTraces
+      simulationDepth := depth
+    }
+    IO.eprintln (toJson p).compress
 
 /-- Mark progress as complete for a given instance ID. -/
 def finishProgress (instanceId : Nat) (resultJson : Lean.Json) : IO Unit := withRefs instanceId fun refs => do
