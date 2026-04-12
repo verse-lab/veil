@@ -1078,17 +1078,10 @@ private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : 
     Term.synthesizeSyntheticMVarsNoPostponing
     unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
-private def setJsonField (json : Json) (key : String) (value : Json) : Json :=
-  match json with
-  | .obj kvs =>
-      Json.mkObj <| (kvs.toList.filter fun (entry : String × Json) => entry.1 != key) ++ [(key, value)]
-  | _ => json
-
 private def attachSimulationMetadata (combinedJson : Json) : Json :=
   match combinedJson.getObjValD "result" with
   | .obj kvs =>
       Json.mkObj <| kvs.toList ++ [
-        ("simulation", Json.bool true),
         ("traces_run", combinedJson.getObjValD "traces_run"),
         ("elapsed_ms", combinedJson.getObjValD "elapsed_ms"),
         ("seed", combinedJson.getObjValD "seed"),
