@@ -503,7 +503,7 @@ def elabVeilConcretizeStateTr : DesugarTacticM Unit := veilWithMainContext do
     -- Only apply setIn_makeExplicit to mutable state (environmentState), not to background theory
     if k matches .environmentState then
       let name := mkIdent s.userName
-      let tac ← `(tacticSeq| (try rw [$(mkIdent ``setIn_makeExplicit):ident $name] at *); $veilDestruct; (try subst $name))
+      let tac ← `(tacticSeq| (try rw [$(mkIdent ``IsSubStateOf.setIn_makeExplicit):ident $name] at *); $veilDestruct; (try subst $name))
       if (← getUnsolvedGoals).length != 0 then
         veilWithMainContext $ veilEvalTactic tac
 

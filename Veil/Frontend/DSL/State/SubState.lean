@@ -69,7 +69,7 @@ instance (priority := high + 1) [IsSubStateOf σₛ σ] [Monad m] : MonadStateOf
 
 /-- Used in transition-style goals to ensure the post-state is an
 explicit hypothesis, so it gets included in models returned by SMT. -/
-theorem setIn_makeExplicit {σₛ σ : Type} {S : IsSubStateOf σₛ σ} {x : σₛ} {pre : σ} (post : σ) :
+theorem IsSubStateOf.setIn_makeExplicit {σₛ σ : Type} {S : IsSubStateOf σₛ σ} {x : σₛ} {pre : σ} (post : σ) :
   setIn x pre = post ↔ (∃ st', st' = x ∧ setIn st' pre = post) := by
     constructor
     { intro h; exists x }
