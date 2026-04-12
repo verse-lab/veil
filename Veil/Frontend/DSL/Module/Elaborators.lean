@@ -237,6 +237,13 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     let stxs ← liftTermElabM mod.declareLocalRPropTC
     for stx in stxs do
       elabVeilCommand stx
+    -- Generate the transition weakening lemma for this module
+    if mod._useFieldRepTC then
+      try
+        let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
+        elabVeilCommand cmd
+      catch ex =>
+        logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
   pure mod
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do

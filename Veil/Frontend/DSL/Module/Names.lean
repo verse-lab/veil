@@ -147,4 +147,7 @@ def exception : Ident := mkIdent exceptionName
 def actionTagEnumInstName : Name := mkVeilImplementationDetailName `tag
 def actionTagEnumInst : Ident := mkIdent actionTagEnumInstName
 
+def transitionWeakeningLemmaName : Name := `_transitionWeakeningLemma
+def transitionWeakeningLemma : Ident := mkIdent transitionWeakeningLemmaName
+
 end Veil

@@ -6,6 +6,7 @@ import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
 import Mathlib.Tactic.Push
 import Veil.Util.ReplacingInstances
+import Veil.Frontend.DSL.Tactic
 
 open Lean Elab Command Term
 
@@ -291,13 +292,15 @@ where
     let arr := #[(simpTerm, (← mkFreshUserName `LocalRProp.core_eq))]
     let ctx' ← elabSimpArgForTerms ctx arr
     pure <| Simp.simpCore ctx'
+  toAbstractStateBodyStx (scrutinee abstractStateSortTerm : Term) : TermElabM Term := do
+    mod.withTheoryAndStateTermTemplate
+      [(.state .none "_conc", scrutinee, false)]
+      (some (← `($stateIdent $abstractStateSortTerm)))
+      (fun _ stateFields => `(⟨$[$stateFields],*⟩))
   /-- A meta-level construction for turning a `x : State χ` into `State FieldAbstractType`. -/
   toAbstractStateFun (abstractStateSortTerm : Term) (stateType abstractStateTypeExpr : Expr) : TermElabM Expr := do
     let stIdent := mkVeilImplementationDetailIdent `st    -- locally used here
-    let body ← mod.withTheoryAndStateTermTemplate
-      [(.state .none "_conc", stIdent, false)]
-      (some (← `($stateIdent $abstractStateSortTerm)))
-      (fun _ stateFields => `(⟨$[$stateFields],*⟩))
+    let body ← toAbstractStateBodyStx stIdent abstractStateSortTerm
     let argTy ← `($stateIdent $fieldConcreteType)
     let funTerm ← `(fun ($stIdent : $argTy) => $body)
     let funTypeExpr ← mkArrow stateType abstractStateTypeExpr
@@ -398,6 +401,15 @@ where
     -- kind of hacky here
     let abstractStateTypeExpr := mkApp stateType.getAppFn' abstractStateSortExpr
     pure (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr)
+  step3PostTerm (uIdent thIdent stIdent localRPropTCArgIdent : Ident) (abstractStateSortTerm : Term) : TermElabM Term := do
+    let step3PostBody ← mod.withTheoryAndStateTermTemplate
+      [(.theory, thIdent, false), (.state .none .none, stIdent, false)]
+      (some (← `(Prop)))
+      (fun theoryFields stateFields => do
+        pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) (theoryFields ++ stateFields))
+      (stateSortTerm := some abstractStateSortTerm)
+      (considerFieldRepTC := false)
+    `(fun $uIdent $thIdent $stIdent => $step3PostBody)
   /-- Step 3: Construct the target at abstract field types using
   `withTheoryAndStateTermTemplate`, then prove equality by simplifying
   the Step 2 result with `dsimp -zeta` + `get_set_idempotent'`. -/
@@ -412,14 +424,7 @@ where
     let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← getAbstractStateRelated stateType
     -- (a) Abstract post: fun u th st => Theory.casesOn th ... => State.casesOn st ... => inst.core ...
     let step3Post ← do
-      let step3PostBody ← mod.withTheoryAndStateTermTemplate
-        [(.theory, thIdent, false), (.state .none .none, stIdent, false)]
-        (some (← `(Prop)))
-        (fun theoryFields stateFields => do
-          pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) (theoryFields ++ stateFields))
-        (stateSortTerm := some abstractStateSortTerm)
-        (considerFieldRepTC := false)
-      let step3PostTerm ← `(fun $uIdent $thIdent $stIdent => $step3PostBody)
+      let step3PostTerm ← step3PostTerm uIdent thIdent stIdent localRPropTCArgIdent abstractStateSortTerm
       let step3PostTypeExpr ← mkArrowN #[mkConst ``Unit, theoryType, abstractStateTypeExpr] (Expr.sort 0)
       withoutErrToSorry $ elabTermAndSynthesize step3PostTerm (some step3PostTypeExpr)
     -- (b) Abstract pre-state: State.casesOn (getFrom s) fun f_conc... => let f := (χ_rep _).get f_conc; ...; ⟨f...⟩
@@ -592,6 +597,265 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
 
 end AuxiliaryDefinitions
 
+/-! ## Transition Weakening Lemma -/
+
+/-- Generate the transition weakening lemma for this module. Called after `#gen_state`. -/
+def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command := do
+  let params := mod.parameters
+  let paramBinders ← params.mapM (·.binder)
+  let paramArgs ← params.mapM (·.arg)
+  let polyParams := params.filter isPolyParam
+  let polyBinders ← polyParams.mapM (·.binder)
+  let polyArgs ← polyParams.mapM (·.arg)
+
+  -- Prepare
+  let sortIdents ← mod.uninterpretedParamIdents
+  let abstractStateSortTerm ← `($fieldAbstractDispatcher $sortIdents*)
+  let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
+  let theoryTy ← `($theoryIdent $sortIdents*)
+  let hole ← `(term| _ )
+  let specializedPolyArgs := specializeArgsForStateAbstractStx polyParams polyArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
+
+  -- Main variables and additional idents for proof sub-terms
+  let [tr, act, pred, trDerivedEq, wpLocalEq, wpEq, r₀, s₀, s₁,
+    auxhandler, auxpost, auxlocalRPropInst, auxr, auxs, auxx, auxth, auxst] :=
+    [`tr, `act, `pred, `tr_derived_eq, `wp_local_eq, `wp_eq, `r₀, `s₀, `s₁,
+      `handler, `post, `localRPropTC, `r, `s, `x, `th, `st].map mkVeilImplementationDetailIdent
+    | unreachable!
+
+  let absst ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $auxs)) abstractStateSortTerm
+  let absst₀ ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $s₀)) abstractStateSortTerm
+  let absst₁ ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $s₁)) abstractStateSortTerm
+
+  -- Arguments
+  let transitionTy ← `(∀ $[$polyBinders]*, $(mkIdent ``Transition) $environmentTheory $environmentState)
+  let veilMStx ← `($(mkIdent ``VeilM) $(mkIdent ``Mode.external) $environmentTheory $environmentState)
+  let actTy ← do
+    let a := Syntax.mkApp veilMStx #[(mkIdent ``Unit)]
+    `(∀ $[$polyBinders]*, $a)
+  let actFullyApplied ← `(@$act $polyArgs*)
+  let predTy ← do
+    let intToProp ← `($(mkIdent ``Int) → Prop)
+    let veilSpecMUnit ← `($(mkIdent ``VeilSpecM) $theoryTy $abstractStateTypeTerm $(mkIdent ``Unit))
+    `($intToProp → $veilSpecMUnit)
+  let trDerivedEqTy ← do
+    let mainTy ← `($(mkIdent ``VeilM.toTransitionDerived) $actFullyApplied = @$tr $polyArgs*)
+    `(∀ $[$polyBinders]*, $mainTy)
+  let wpLocalEqTy ← do
+    let mainTy ← do
+      let wpLocalEqLhs ← `([IgnoreEx $auxhandler| $(mkIdent ``wp) $actFullyApplied $auxpost $auxr $auxs])
+      let wpLocalEqRhs ← do
+        let post ← AuxiliaryDefinitions.defineWpLocalEq.step3PostTerm mod auxx auxth auxst auxlocalRPropInst abstractStateSortTerm
+        `($pred $auxhandler $post ($(mkIdent ``readFrom) $auxr) $absst)
+      `($wpLocalEqLhs = $wpLocalEqRhs)
+    let localRPropInstTypeStx ← `(@$localRPropTC $paramArgs* ($auxpost $(mkIdent ``Unit.unit)))
+    `(∀ $auxhandler:ident $auxpost:ident [$auxlocalRPropInst : $localRPropInstTypeStx]
+        ($auxr : $environmentTheory) ($auxs : $environmentState), $mainTy)
+  let wpEqTy ← do
+    let mainTy ← `([IgnoreEx $auxhandler| $(mkIdent ``wp) (@$act $specializedPolyArgs*) $auxpost] = $pred $auxhandler $auxpost)
+    `(∀ $auxhandler:ident $auxpost:ident, $mainTy)
+  let allBinders : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := paramBinders ++ [
+    (← `(bracketedBinder| ($r₀ : $environmentTheory)) ),
+    (← `(bracketedBinder| ($s₀ : $environmentState)) ),
+    (← `(bracketedBinder| ($s₁ : $environmentState)) ),
+    (← `(bracketedBinder| ($tr : $transitionTy)) ),
+    (← `(bracketedBinder| ($act : $actTy)) ),
+    (← `(bracketedBinder| ($pred : $predTy)) ),
+    (← `(bracketedBinder| ($trDerivedEq : $trDerivedEqTy)) ),
+    (← `(bracketedBinder| ($wpLocalEq : $wpLocalEqTy)) ),
+    (← `(bracketedBinder| ($wpEq : $wpEqTy)) ),
+  ]
+
+  -- Conclusion terms
+  let conclusion ← `(@$tr $polyArgs* $r₀ $s₀ $s₁ → @$tr $specializedPolyArgs* ($(mkIdent ``readFrom) $r₀) $absst₀ $absst₁)
+
+  -- Proof sub-terms
+  let transIntermediate ← `([IgnoreEx (fun _ => $(mkIdent ``True))|
+      $(mkIdent ``wp) $actFullyApplied
+        (fun $auxx $auxr $auxs =>
+          ¬($(mkIdent ``readFrom) $auxr = $(mkIdent ``readFrom) $r₀ ∧ $absst = $absst₁))
+        $r₀ $s₀])
+  let declareLocalRPropInst ← do
+    let auxrr := mkVeilImplementationDetailIdent `rr
+    let auxss := mkVeilImplementationDetailIdent `ss
+    let post ← do
+      let absst ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $auxs)) abstractStateSortTerm
+      `(fun $auxr $auxs => ¬ ($(mkIdent ``readFrom) $auxr = $auxrr ∧ $absst = $auxss))
+    let ty ← `(@$localRPropTC $paramArgs* $post)
+    let coreStx ← do
+      let theoryFieldIdents : Array Ident := mod.immutableComponents.map fun sc => mkIdent sc.name
+      let stateFieldIdents : Array Ident := mod.mutableComponents.map fun sc => mkIdent sc.name
+      let fieldIdents : Array Ident := theoryFieldIdents ++ stateFieldIdents
+      let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldIdents.mapM fun f =>
+        `(Lean.Parser.Term.funBinder| $f)
+      let body ← `(¬(⟨$[$theoryFieldIdents],*⟩ = $auxrr ∧ ⟨$[$stateFieldIdents],*⟩ = $auxss))
+      mkFunSyntax fieldBinders body
+    `(tactic| let _ ($auxrr : $theoryTy) ($auxss : $abstractStateTypeTerm) : $ty := {
+      $(mkIdent `core):ident := $coreStx
+      $(mkIdent `core_eq):ident := by intros ; dsimp
+    })
+  -- Build the command
+  let cmd ← do
+    let h := mkIdent `h
+    `(command|theorem $transitionWeakeningLemma $[$allBinders]* : $conclusion := by
+      $declareLocalRPropInst:tactic
+      repeat rw [← $trDerivedEq:ident]
+      unfold $(mkIdent ``VeilM.toTransitionDerived) $(mkIdent ``VeilSpecM.toTransitionDerived)
+      simp only [$(mkIdent ``Cont.inv):ident, $(mkIdent ``Compl.compl):ident]
+      contrapose
+      trans $transIntermediate
+      · dsimp
+        conv => rhs; rw [$wpLocalEq:ident]; rw [← $wpEq:ident]; dsimp only [$(mkIdent <| localRPropTCName ++ `core):ident]
+        intro $h:ident ; convert $h:ident
+        try (simp ; (try rw [$(mkIdent $ stateName ++ `ext_iff):ident]) ; try simp)
+      · dsimp only
+        apply [IgnoreEx (fun _ => $(mkIdent ``True))| $(mkIdent ``wp_cons) ($(mkIdent `m) := $veilMStx)]
+        simp only [$(mkIdent ``LE.le):ident]
+        try grind
+      )
+  return cmd
+where
+  specializeArgsForStateAbstractStx (params : Array Parameter) (args : Array Term)
+    (theoryStx stateStx fieldRepStx hole : Term) : Array Term :=
+    params.zipWith (bs := args) fun p arg =>
+      match p.kind with
+      | .backgroundTheory => theoryStx
+      | .environmentState => stateStx
+      | .fieldConcreteType => fieldRepStx
+      -- NOTE: The consideration here is that `definitionParameter` might
+      -- not have correct type under different specialized types
+      | .moduleTypeclass _ | .definitionParameter _ .typeclass => hole
+      | _ => arg
+  isPolyParam (p : Parameter) : Bool :=
+    match p.kind with
+    | .backgroundTheory | .environmentState | .fieldConcreteType => true
+    | .moduleTypeclass .fieldRepresentation
+    | .moduleTypeclass .lawfulFieldRepresentation
+    | .moduleTypeclass .environmentState
+    | .moduleTypeclass .backgroundTheory => true
+    | _ => false
+
+open Meta AuxiliaryDefinitions in
+/-- For an action's `.ext.tr`, generate a theorem:
+`act.ext.tr r s s' → act.ext.tr (readFrom r) (toAbstractState (getFrom s)) (toAbstractState (getFrom s'))`
+where `toAbstractState` converts `State χ` to `State (FieldAbstractType ...)` by
+applying `(χ_rep _).get` to each field. -/
+private def defineTransitionAbstract (mod : Module) (nm : Name) (dk : DeclarationKind)
+  (notFromTransition? : Bool) : TermElabM Unit := do
+  -- The approach here is hybrid: the statement is constructed at the `Expr` level,
+  -- but the proof is done by tactics.
+  let trFqn ← getFullyQualifiedName (toTransitionName nm)
+  let (allModParams, actualParams) ← mod.declarationAllParams nm dk
+  let allParams := allModParams ++ actualParams
+  let allArgs ← allParams.mapM (·.arg)
+  let allBinders ← allParams.mapM (·.binder)
+  elabBinders allBinders fun vs => do
+    let trPartialApp ← mkAppOptM trFqn (vs.map some)
+    let trPartialApp ← etaExpand trPartialApp
+    lambdaTelescope trPartialApp fun rss trApp => do
+      unless rss.size == 3 do
+        throwError "defineTransitionAbstract: expected body to have exactly 3 lambda binders (r, s, s'), got {rss.size}"
+      let (r, s, s') := (rss[0]!, rss[1]!, rss[2]!)
+
+      let readFromArg ← mkAppM ``readFrom #[r]
+      let getFromArg ← mkAppM ``getFrom #[s]
+      let getFromArg' ← mkAppM ``getFrom #[s']
+      let theoryType ← (inferType readFromArg >>= instantiateMVars)
+      let stateType ← (inferType getFromArg >>= instantiateMVars)
+      let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← defineWpLocalEq.getAbstractStateRelated mod stateType
+
+      let source := trApp
+      let target ← do
+        let funExpr ← defineWpLocalEq.toAbstractStateFun mod abstractStateSortTerm stateType abstractStateTypeExpr
+        let preState ← Core.betaReduce <| mkApp funExpr getFromArg
+        let postState ← Core.betaReduce <| mkApp funExpr getFromArg'
+        let targetArgs ← defineWpLocalEq.specializeArgsForStateAbstract allParams vs theoryType abstractStateTypeExpr abstractStateSortExpr
+        Tactic.classical <|
+          mkAppOptM trFqn <| targetArgs ++ #[some readFromArg, some preState, some postState]
+      let sourceImpTarget ← mkArrow source target
+
+      let proof ←
+        if notFromTransition? then
+          proveViaTransitionWeakeningLemma sourceImpTarget nm allParams allArgs abstractStateSortTerm rss
+        else
+          -- For "native transitions", the proof is much easier
+          proveSourceImpliesTargetForNativeTransition sourceImpTarget trFqn nm
+      let allFVars := vs ++ rss
+      let statement ← mkForallFVars allFVars sourceImpTarget >>= instantiateMVars
+      let proof ← mkLambdaFVars allFVars proof >>= instantiateMVars
+      let _ ← addVeilTheorem (toTransitionAbstractName nm) statement proof
+where
+  proveAndCheck (tac : Term) (ty : Expr) (nm : Name) (step : String) : TermElabM Expr := do
+    try
+      let pf ← withoutErrToSorry $ elabTermAndSynthesize tac ty
+      check pf
+      instantiateMVars pf
+    catch ex =>
+      throwError m!"Failed to prove {step} for {nm} in defineTransitionAbstract, goal: {ty}, proof script: {tac}, error: {ex.toMessageData}"
+  -- FIXME: This piece of code is a mixture of syntax construction and `Expr` construction, kind of mess
+  /-- Prove `source → target` by applying the module's `_transitionWeakeningLemma`
+  with the action's `derived_eq`, `wp_local_eq`, and `wp_eq` theorems. -/
+  proveViaTransitionWeakeningLemma (goal : Expr) (nm : Name) (allParams : Array Parameter)
+    (allArgs : Array Term) (abstractStateSortTerm : Term) (rss : Array Expr) : TermElabM Expr := do
+    let modParams := mod.parameters
+    let modArgs ← modParams.mapM (·.arg)
+    let polyParams := modParams.filter Module.declareTransitionWeakeningLemma.isPolyParam
+    let polyArgs : Array Term := polyParams.map fun x => mkIdent <| x.name.appendAfter "_"
+    let polyFunBinders ← polyParams.mapM fun x => `(Lean.Parser.Term.funBinder| $(mkIdent <| x.name.appendAfter "_"):ident)
+    let hole ← `(term| _)
+    let specializedArgsForTrAndAct := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs
+      (polyParams.findIdx? (·.kind == .backgroundTheory) |>.map (polyArgs[·]!) |>.getD hole)
+      (polyParams.findIdx? (·.kind == .environmentState) |>.map (polyArgs[·]!) |>.getD hole)
+      (polyParams.findIdx? (·.kind == .fieldConcreteType) |>.map (polyArgs[·]!) |>.getD hole)
+      hole
+    let trStx ← do
+      let body ← `(@$(mkIdent <| toTransitionName nm) $specializedArgsForTrAndAct*)
+      mkFunSyntax polyFunBinders body
+    let actStx ← do
+      let body ← `(@$(mkIdent nm) $specializedArgsForTrAndAct*)
+      mkFunSyntax polyFunBinders body
+    let predStx ← do
+      let sortIdents ← mod.uninterpretedParamIdents
+      let theoryTy ← `($theoryIdent $sortIdents*)
+      let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
+      let specializedArgsForPred := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
+      `(@$(mkIdent <| toWpName nm) $specializedArgsForPred*)
+    let derivedEqThm := toDerivedEqName nm
+    let wpLocalEqThm := toWpLocalEqName nm
+    let wpEqThm := toWpEqName nm
+    let [tr, act, pred, trDerivedEq, wpLocalEq, wpEq] :=
+      [`tr, `act, `pred, `tr_derived_eq, `wp_local_eq, `wp_eq].map mkVeilImplementationDetailIdent
+      | unreachable!
+    let rssIdents ← rss.mapM fun x => do
+      let userName ← x.fvarId!.getUserName
+      pure <| mkIdent userName
+    let h := mkIdent `h
+    -- NOTE: Below, `h` is not `applied` because `__veil_neutralize_decidable_inst` might
+    -- unexpectedly simplify away certain things
+    let tac ← `(term| by
+      classical
+      have $h := @$transitionWeakeningLemma $modArgs* $rssIdents*
+        ($tr := $trStx)
+        ($act := $actStx)
+        ($pred := $predStx)
+        ($trDerivedEq := by intros; rw [$(mkIdent derivedEqThm):ident])
+        ($wpLocalEq := by intros; rw [$(mkIdent wpLocalEqThm):ident])
+        ($wpEq := by intros; rw [$(mkIdent wpEqThm):ident])
+      __veil_neutralize_decidable_inst
+      exact $h
+      )
+    proveAndCheck tac goal nm "source → target (via transitionWeakeningLemma)"
+  proveSourceImpliesTargetForNativeTransition (goal : Expr) (trFqn nm : Name) : TermElabM Expr := do
+    let h := mkIdent `h
+    -- Idea: the two sides should really equal modulo decidable instances
+    let tac ← `(term| by
+      intro $h:ident
+      convert $h:ident
+      dsimp only [$(mkIdent trFqn):ident]
+      __veil_neutralize_decidable_inst
+      rfl)
+    proveAndCheck tac goal nm "source → target (native transition case)"
+
 /-! ## Procedure elaboration -/
 
 private def withVeilModeVar (bi : BinderInfo) (k : Expr → TermElabM α) : TermElabM α :=
@@ -680,6 +944,11 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
           AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
           if deriveTransition? then
             AuxiliaryDefinitions.defineTransition mod nmExt extKind
+            if mod._useFieldRepTC then
+              try
+                defineTransitionAbstract mod nmExt extKind deriveTransition?
+              catch ex =>
+                logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
     return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
