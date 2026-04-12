@@ -197,6 +197,10 @@ def main():
     cmap = plt.colormaps['Set2']
     colors = cmap(np.linspace(0, 1, max(len(labels), 3)))
 
+    row_height = 0.4 + max(0, len(labels) - 3) * 0.1
+    fig.set_size_inches(14, max(6, len(top_funcs) * row_height))
+    label_fontsize = max(5, 7 - max(0, len(labels) - 4) * 0.5)
+
     for j, label in enumerate(labels):
         offset = (j - len(labels) / 2 + 0.5) * bar_width
         bars = ax.barh(x + offset, data_sec[:, j], bar_width * 0.9,
@@ -205,10 +209,10 @@ def main():
         for bar, val in zip(bars, data_sec[:, j]):
             if val > 0:
                 ax.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height() / 2,
-                        f'{val:.1f}', va='center', fontsize=7, color='#333')
+                        f'{val:.1f}', va='center', fontsize=label_fontsize, color='#333')
             else:
                 ax.text(0.1, bar.get_y() + bar.get_height() / 2,
-                        '0.0', va='center', fontsize=7, color='#999')
+                        '0.0', va='center', fontsize=label_fontsize, color='#999')
 
     ax.set_yticks(x)
     # Shorten long labels
