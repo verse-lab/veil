@@ -7,6 +7,8 @@ import Std.Data.ExtTreeMap.Lemmas
 namespace Veil
 open Lean Std
 
+-- FIXME: Some instances here are already defined in `Std.Data.TreeSet.Basic`
+
 /-!
 `BEq` instances
 
@@ -44,6 +46,19 @@ instance instHashableOfExtTreeMap [Ord α] [Hashable α] [Hashable β] [Std.Tran
 
 instance : Hashable (CanonicalFieldWrapper FieldDomain FieldCodomain) where
   hash _ := 13
+
+instance instHashableForFiniteFunction {α : Type u} {β : Type v}
+  [Veil.Enumeration α] [Hashable α] [Hashable β] : Hashable (α → β) where
+  hash f :=
+    let l := Veil.Enumeration.allValues (α := α)
+    l.foldl (fun r a => mixHash r (hash (f a))) 7
+
+instance [Hashable β] : Hashable (Veil.CanonicalField [] β) where
+  hash b := hash <| @id β b
+
+@[inline]
+instance [Veil.Enumeration α] [Hashable α] [Hashable <| Veil.CanonicalField αs β] : Hashable (Veil.CanonicalField (α :: αs) β) :=
+  instHashableForFiniteFunction
 
 deriving instance Hashable for Sum
 
@@ -224,28 +239,6 @@ instance instEnumerationForExtTreeMap [Ord α] [Ord β]
       have hmem : (k, v) ∈ m.toList := Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some.mpr hm
       have hl_mem : (k, v) ∈ l := List.mem_filter.mpr ⟨List.mem_dedup.mpr (Veil.Enumeration.complete _), by simp only [decide_eq_true_eq]; exact hmem⟩
       rw [Std.ExtTreeMap.getElem?_ofList_of_mem (Std.ReflCmp.compare_self) hdistinct hl_mem]
-/-
-instance [DecidableEq α] [Ord α] [a : Enumeration α]: Enumeration (Std.TreeSet α) where
-  allValues := (List.sublistsFast a.allValues).map (fun l => Std.TreeSet.ofList l)
-  complete := by sorry
-
-instance [DecidableEq α] [DecidableEq β] [Ord α] [a : Enumeration α] [b : Enumeration β]
-    : Enumeration (Std.TreeMap α β) where
-  allValues :=
-    let keys := a.allValues
-    let vals := b.allValues
-    ((List.sublistsFast keys).map (fun ks =>
-      (allMappings ks vals).map (fun pairs => Std.TreeMap.ofList pairs))).flatten
-  complete := by sorry
-
-instance [DecidableEq α] [DecidableEq β] [Ord α] [a : Enumeration α] [b : Enumeration β]
-    : Enumeration (Veil.TotalTreeMap α β) where
-  allValues :=
-    let keys := a.allValues
-    let vals := b.allValues
-    (allMappings keys vals).map (fun pairs => ⟨Std.TreeMap.ofList pairs, by sorry⟩)
-  complete := by sorry
--/
 
 /-!
 `Inhabited` instances
@@ -253,6 +246,9 @@ instance [DecidableEq α] [DecidableEq β] [Ord α] [a : Enumeration α] [b : En
 
 instance instInhabitedForExtTreeSet [Inhabited α] [Ord α]: Inhabited (Std.ExtTreeSet α) :=
   ⟨Std.ExtTreeSet.empty⟩
+
+instance [Inhabited β] : Inhabited (Veil.CanonicalField α β) where
+  default := Veil.IteratedArrow.curry fun _ => default
 
 /-!
 `ToJson` instances
@@ -276,16 +272,16 @@ instance (priority := low) jsonOfRepr [Repr α] : ToJson α where
 
 /-- ToJson for curried finite functions: uncurry and use the product instance. -/
 instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
-    [ToJson α₁] [FinEnum α₁] [ToJson α₂] [FinEnum α₂] [ToJson β]
+    [ToJson α₁] [Enumeration α₁] [ToJson α₂] [Enumeration α₂] [ToJson β]
     [inst : ToJson (α₁ × α₂ → β)] : ToJson (α₁ → α₂ → β) where
   toJson := fun f => inst.toJson (fun (x, y) => f x y)
 
 /-- ToJson for finite functions: enumerate all input/output pairs as flat tuples.
     For a function `(a, b) -> c`, produces `[[a, b, c], ...]` rather than `[[[a, b], c], ...]`. -/
 instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
-    [ToJson α] [FinEnum α] [ToJson β] : ToJson (α → β) where
+    [ToJson α] [Enumeration α] [ToJson β] : ToJson (α → β) where
   toJson := fun f =>
-    let l := FinEnum.toList α
+    let l : List α := Enumeration.allValues
     Json.arr <| l.toArray.map (fun a =>
       let keyJson := toJson a
       let valJson := toJson (f a)
@@ -295,8 +291,8 @@ instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
 
 /-- ToJson for boolean predicates: show only the elements where the predicate is true. -/
 instance (priority := high) essentiallyFinSetToJson (α : Type u)
-    [ToJson α] [FinEnum α] : ToJson (α → Bool) where
-  toJson := fun f => toJson (FinEnum.toList α |>.filter f)
+    [ToJson α] [Enumeration α] : ToJson (α → Bool) where
+  toJson := fun f => toJson (Enumeration.allValues (α := α) |>.filter f)
 
 instance jsonOfTreeSet [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
   toJson s := Json.arr <| s.toArray.map toJson

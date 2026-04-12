@@ -54,6 +54,42 @@ def IteratedProd.foldl {ts : List α} {T₁ : α → Type}
     let res := prod init lis
     IteratedProd.foldl res prod elements
 
+def IteratedProd.foldr {ts : List α} {T₁ : α → Type}
+  (init : β)
+  (prod : ∀ {a : α}, T₁ a → β → β)
+  (elements : IteratedProd (ts.map T₁)) : β :=
+  match ts, elements with
+  | [], _ => init
+  | _ :: _, (lis, elements) =>
+    let res := IteratedProd.foldr init prod elements
+    prod lis res
+
+abbrev IteratedProd.subtypesToList {α : Type u} {β : Type} {as : List α} {p : α → β → Prop}
+  (v : IteratedProd (as.map fun x => Subtype (p x))) : List β :=
+  IteratedProd.foldr (elements := v) (init := []) fun r acc => r.val :: acc
+
+theorem IteratedProd.externalize_proofs {α : Type u} {β : Type} {as : List α} {p : α → β → Prop}
+  (v : IteratedProd (as.map fun x => Subtype (p x))) :
+  let bs := IteratedProd.subtypesToList v
+  bs.length = as.length ∧ ∀ x b, (x, b) ∈ as.zip bs → p x b := by
+  dsimp [subtypesToList]
+  induction as with
+  | nil => simp [IteratedProd.foldr]
+  | cons a as ih => rcases v with ⟨⟨b, _⟩, v⟩ ; simp [IteratedProd.foldr] ; grind
+
+theorem IteratedProd.subtypesToList_foldl_eq_list_foldl {α : Type u} {β : Type} {as : List α} {p : α → β → Prop}
+  {γ : Type w} (f : γ → β → γ) (f' : ∀ {a : α}, γ → Subtype (p a) → γ)
+  (h : ∀ {a} c (b : Subtype (p a)), f c b.val = f' c b)
+  (init : γ) (v : IteratedProd (as.map fun x => Subtype (p x))) :
+  IteratedProd.foldl (elements := v) (init := init) f' =
+  (IteratedProd.subtypesToList v |>.foldl (init := init) f) := by
+  induction as generalizing init with
+  | nil => simp [IteratedProd.foldl, IteratedProd.foldr, subtypesToList]
+  | cons a as ih =>
+    rcases v with ⟨⟨b, _⟩, v⟩
+    simp [IteratedProd.foldl, IteratedProd.foldr, subtypesToList, ← h]
+    grind
+
 /-- A thin wrapper around `IO.asTask` to produce an `IteratedProd` of `Task`s. -/
 def IteratedProd.taskSplit {β : α → Type} [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   (as : List α) (f : (a : α) → a ∈ as → IO (β a)) : m (IteratedProd <| as.map fun a => (Task (Except IO.Error <| β a))) := do

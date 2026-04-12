@@ -162,9 +162,9 @@ private def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState ne
     return (← mkTransitionExpr rtsExpr theoryId currState nextState tagId act.name argIdents, binders)
   return (← repeatedOr (results.map (·.1)), results.flatMap (·.2))
 
-/-- Collect module-level binders (sorts, sort assumptions, user-defined typeclasses) -/
+/-- Collect module-level binders (sorts, user parameters, sort assumptions, user-defined typeclasses) -/
 private def collectModuleBinders (mod : Module) : TermElabM (Array BinderPair) := do
-  let sortBinders ← mod.sortBinders
+  let sortBinders ← mod.uninterpretedParamBinders
   let typeclassParams := mod.parameters.filter fun p =>
     match p.kind with
     | .moduleTypeclass .sortAssumption | .moduleTypeclass .userDefined => true
@@ -229,7 +229,7 @@ private def processTransition (ctx : TraceElabCtx) (curr next : Ident) (trIdx : 
 private def processAssertion (ctx : TraceElabCtx) (currState : Ident) (t : Term) : TermElabM (TSyntax `term) := do
   let fieldRepInstance ← `(term| $instAbstractFieldRepresentation $(ctx.sorts)*)
   let stateSortTerm ← `(term| $fieldAbstractDispatcher $(ctx.sorts)*)
-  let wrappedTerm ← withTheoryAndStateFn ctx.mod (← `(uqc% (($t:term):Prop))) ctx.theoryT ctx.stateT fieldRepInstance stateSortTerm
+  let wrappedTerm ← withTheoryAndStateFn ctx.mod (← `(uqc% (($t:term):Prop))) (some $ ← `(term|Prop)) ctx.theoryT ctx.stateT fieldRepInstance stateSortTerm
   `(term|($wrappedTerm $(ctx.theoryId) $currState))
 
 /-- Expand anyNActions into individual anyAction entries -/
@@ -368,7 +368,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let numTransitions := expandedSpec.filter (!· matches .assertion _) |>.length
     let stateIds := (List.range (numTransitions + 1)).map fun i => mkIdent (Name.mkSimple s!"st{i}")
 
-    let sorts ← mod.sortIdents
+    let sorts ← mod.uninterpretedParamIdents
     let theoryId := mkIdent `th
     let theoryT ← mod.theoryStx
     let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))

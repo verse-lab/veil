@@ -1,4 +1,5 @@
 import Lean
+import Veil.Backend.SMT.Result
 import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Core.Tools.Verifier.Server
@@ -35,13 +36,25 @@ def collectSmtOutputs [Monad m] [MonadError m] [MonadLiftT BaseIO m]
     outputs := outputs.push ((name, index), output)
   return outputs
 
+/-- Extract an unknown reason from an exception when it represents a solver
+outcome that should be surfaced as `unknown` rather than `error`. -/
+def unknownReasonFromException? [Monad m] [MonadLiftT BaseIO m]
+    (ex : Exception) : m (Option String) := do
+  let message ← ex.toMessageData.toString
+  if unknownExplanation? message == some .incomplete then
+    return some message
+  return none
+
 /-- Categorize SMT outputs into separate arrays for errors, sat, unknown, and unsat results. -/
-def categorizeSmtOutputs (outputs : Array SmtOutput)
-    : Array Exception × Array (Option Smt.Model) × Array String × Array SmtUnsatCore := Id.run do
+def categorizeSmtOutputs [Monad m] [MonadLiftT BaseIO m] (outputs : Array SmtOutput)
+    : m (Array Exception × Array (Option Smt.Model) × Array String × Array SmtUnsatCore) := do
   let mut (errors, sat, unknown, unsat) := (#[], #[], #[], #[])
   for output in outputs do
     match output with
-    | (_, .exception ex) => errors := errors.push ex
+    | (_, .exception ex) =>
+      match ← unknownReasonFromException? ex with
+      | some reason => unknown := unknown.push reason
+      | none => errors := errors.push ex
     | (_, .result (.sat ce)) => sat := sat.push ce
     | (_, .result (.unknown reason)) => unknown := unknown.push reason
     | (_, .result (.unsat _ core)) => unsat := unsat.push core
@@ -55,7 +68,7 @@ def buildSmtResult [Monad m] [MonadError m] [MonadLiftT BaseIO m]
     (outputs : Array SmtOutput)
     (satHandler : Array (Option Smt.Model) → m (Array (Option AnnotatedSmtModel)))
     : m (Option SmtResult) := do
-  let (errors, sat, unknown, unsat) := categorizeSmtOutputs outputs
+  let (errors, sat, unknown, unsat) ← categorizeSmtOutputs outputs
 
   if errors.size > 0 then
     return .some $ .error (← errors.mapM (fun ex => do

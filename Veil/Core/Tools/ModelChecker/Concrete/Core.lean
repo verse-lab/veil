@@ -1,6 +1,9 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 import Veil.Core.Tools.ModelChecker.Interface
 import Veil.Core.Tools.ModelChecker.Trace
+import Veil.Frontend.DSL.State.Types
+import Veil.Util.ShardedSetUInt
+import Batteries.Lean.HashMap
 
 namespace Veil.ModelChecker.Concrete
 open Std
@@ -30,24 +33,116 @@ structure QueueItem (σₕ σ : Type) where
   depth : Nat
 deriving BEq, DecidableEq, Repr
 
+theorem QueueItem.fold_unfold {σₕ σ : Type} (item : QueueItem σₕ σ) :
+  item = ⟨item.fingerprint, item.state, item.depth⟩ := rfl
+
+/-- A queue item for the MapReduce checker, without the depth field.
+    In MapReduce BFS, all items in the frontier share the same depth,
+    tracked externally via `completedDepth`. -/
+structure MapReduceQueueItem (σₕ σ : Type) where
+  fingerprint : σₕ
+  state : σ
+deriving BEq, DecidableEq, Repr
+
 structure ActionStat where
   statesGenerated : Nat
   distinctStates : Nat
 deriving Lean.ToJson, Lean.FromJson, BEq, DecidableEq, Repr, Inhabited
 
+@[inline]
+def ActionStat.update (distinct? : Bool) (stat : ActionStat) : ActionStat :=
+  let ⟨sg, ds⟩ := stat
+  if distinct? then ⟨sg.succ, ds.succ⟩ else ⟨sg.succ, ds⟩
+
+@[inline]
+def ActionStat.merge (stat1 stat2 : ActionStat) : ActionStat :=
+  let ⟨sg1, ds1⟩ := stat1
+  let ⟨sg2, ds2⟩ := stat2
+  ⟨sg1 + sg2, ds1 + ds2⟩
+
+abbrev ActionStatsMap κ [BEq κ] [Hashable κ] := Std.HashMap κ ActionStat
+
+-- Use `.alter` to ensure linear usage
+-- NOTE: This doesn't seem `specialize`d; what happened?
+@[inline]
+def ActionStatsMap.update [BEq κ] [Hashable κ] (distinct? : Bool) (label : κ) (amap : ActionStatsMap κ) : ActionStatsMap κ :=
+  if distinct? then
+    amap.alter label fun
+      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds + 1⟩
+      | none => Option.some { statesGenerated := 1, distinctStates := 1 }
+  else
+    amap.alter label fun
+      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds⟩
+      | none => Option.some { statesGenerated := 1, distinctStates := 0 }
+
+/-- Merge two `ActionStatsMap`s. Note that the time complexity depends on the *second* one;
+but in the case here, the domain size of `m2` should be mostly fixed, so it should not
+matter too much which operand the time complexity depends on. -/
+def ActionStatsMap.combine [BEq κ] [Hashable κ] (m1 m2 : ActionStatsMap κ) : ActionStatsMap κ :=
+  m1.mergeWith (other := m2) fun _ => ActionStat.merge
+
+/-- Statistics for a single action (transition label), for display. -/
+structure ActionStatDisplay extends ActionStat where
+  /-- Action name (e.g., "Label.send_msg 1 2") -/
+  name : String
+  deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
+
+/-- Abstract action statistics map. `asm` tracks `statesGenerated` per action label. -/
+class ActionStatUpdate (κ : Type u) (asm : outParam (Type v)) where
+  /-- Empty stats map -/
+  empty : asm
+  increment : κ → Bool → asm → asm
+  /-- Combine (sum) two stats maps -/
+  merge : asm → asm → asm
+  -- /-- Read the count for a specific label -/
+  -- lookup : κ → asm → Nat
+  dump : asm → List ActionStatDisplay
+
+/-- Array-based instance: O(1) increment and lookup.
+    Selected when `FinEncodableInjOnly κ` is available. -/
+instance (priority := high) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] :
+  ActionStatUpdate κ (Array ActionStat) where
+  empty := Array.replicate instf.card default
+  increment label distinct? arr := arr.modify (instf.encode label).val (ActionStat.update distinct?)
+  merge arr1 arr2 := arr1.zipWith ActionStat.merge arr2
+  dump arr := inste.allValues.map fun label =>
+    let idx := instf.encode label
+    let stat := arr.getD idx.val default
+    { stat with name := repr label |>.pretty }
+
+abbrev VectorForActionStatUpdate (α : Type u) (κ : Type v) [enc : FinEncodableInjOnly κ] := Vector α enc.card
+
+/-- Vector-based instance: O(1) increment and lookup. -/
+instance (priority := high + 100) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] :
+  ActionStatUpdate κ (VectorForActionStatUpdate ActionStat κ) where
+  empty := Vector.replicate instf.card default
+  increment label distinct? vec :=
+    let idx := instf.encode label
+    vec.modify idx.val (ActionStat.update distinct?) idx.isLt
+  merge vec1 vec2 := vec1.zipWith ActionStat.merge vec2
+  dump vec := inste.allValues.map fun label =>
+    let idx := instf.encode label
+    let stat := vec[idx]
+    { stat with name := repr label |>.pretty }
+
+/-- HashMap-based fallback instance for types without `FinEncodableInjOnly`. -/
+instance (priority := low) [BEq κ] [Hashable κ] [Repr κ] : ActionStatUpdate κ (ActionStatsMap κ) where
+  empty := {}
+  increment label distinct? m := m.update distinct? label
+  merge m1 m2 := m1.combine m2
+  -- lookup label m := m.getD label 0
+  dump m := m.fold (init := []) fun acc label stat =>
+    { stat with name := repr label |>.pretty } :: acc
+
 /-- A model checker search context is parametrised by the system that's being
 checked and the theory it's being checked under. -/
-structure BaseSearchContext {ρ σ κ σₕ : Type}
+structure BaseSearchContext (σ κ σₕ asm : Type)
   [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
+  [ActionStatUpdate κ asm]
 where
-  seen  : Std.HashSet σₕ
   /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
   will make it easier to reconstruct counterexample trace. -/
-  log                : Std.HashMap σₕ (σₕ × κ)
+  log                : Std.HashMap σₕ (Option (σₕ × κ))
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
   finished           : Option (TerminationReason σₕ)
@@ -57,235 +152,136 @@ where
   currentFrontierDepth : Nat
   /-- Total number of post-states generated (before deduplication) -/
   statesFound : Nat
-  /-- Per-action statistics: label → stats -/
-  actionStatsMap : Std.HashMap κ ActionStat
+  /-- Per-action statistics (only `statesGenerated`) -/
+  actionStatsMap : asm
 
 structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  -- NOTE: Although `params` is not used in the invariants below yet,
+  -- we should better keep it here for future extensions.
   (params : SearchParameters ρ σ)
-  (inQueue : QueueItem σₕ σ → Prop)
+  (inQueue : σₕ → σ → Prop)
   (seen : σₕ → Prop) : Prop
 where
-  queue_sound        : ∀ x : σ, ∀ d : Nat, inQueue ⟨fp.view x, x, d⟩ → sys.reachable x
+  queue_sound        : ∀ x st, inQueue x st → sys.reachable st ∧ seen x ∧ x = fp.view st
   visited_sound      : Function.Injective fp.view → ∀ x, seen (fp.view x) → sys.reachable x
-  queue_sub_visited  : ∀ x : σ, ∀ d : Nat, inQueue ⟨fp.view x, x, d⟩ → seen (fp.view x)
-  queue_wellformed   : ∀ fingerprint st d, inQueue ⟨fingerprint, st, d⟩ → fingerprint = fp.view st
 
-
-@[inline, specialize]
-def BaseSearchContext.hasFinished {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params) : Bool := ctx.finished.isSome
+variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
+  (params : SearchParameters ρ σ) (th : ρ) (fpSt : σₕ) (curr : σ)
 
 @[inline]
-def BaseSearchContext.initial {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) :
-  @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params :=
-  let initStates := sys.initStates |> Functor.map fp.view
+def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ asm) : Bool := ctx.finished.isSome
+
+@[inline]
+def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ asm :=
+  let initStates := initialStates.map fun x => (fp.view x, Option.none)
   {
-    seen := HashSet.insertMany HashSet.emptyWithCapacity initStates,
-    log := Std.HashMap.emptyWithCapacity,
+    log := Std.HashMap.ofList initStates,
     violatingStates := [],
     finished := none,
     completedDepth := 0,
     currentFrontierDepth := 0,
     statesFound := initStates.length,
-    actionStatsMap := {}
+    actionStatsMap := ActionStatUpdate.empty (κ := κ)
   }
 
-def SearchContextInvariants.initial {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) :
-  @SearchContextInvariants ρ σ κ σₕ fp th sys params
-    (· ∈ (sys.initStates |> Functor.map (fun s => ⟨fp.view s, s, 0⟩)))
-    (· ∈ (sys.initStates |> Functor.map fp.view)) := {
-    queue_sound := by dsimp only [Functor.map]; grind
-    visited_sound := by
-      dsimp only [Functor.map]
-      intro h_view_inj x h_in
-      simp only [List.mem_map] at h_in
-      obtain ⟨s, h_s_in, h_eq_view⟩ := h_in
-      have h_eq_st : s = x := h_view_inj h_eq_view
-      rw [← h_eq_st]
-      exact EnumerableTransitionSystem.reachable.init s h_s_in
-    queue_sub_visited := by dsimp only [Functor.map]; grind
-    queue_wellformed := by dsimp only [Functor.map]; grind
-  }
+-- NOTE: Hopefully, if `outcomes` does not have any other reference, then
+-- Lean should be able to reuse constructors inside it? Can we somehow
+-- achieve zero additional memory allocation here?
 
+/-- Partition a list of `(label × ExecutionOutcome)` pairs into two components:
+a list of successful transitions, and a list of transitions where exceptions
+were raised. The divergence part is discarded. -/
+def partitionExecutionOutcome (outcomes : List (κ × ExecutionOutcome Int σ)) :
+  List (κ × σ) × List (Int × σ) :=
+  outcomes.foldr
+    (init := ([], []))
+    (fun (label, outcome) (succs, exns) =>
+      match outcome with
+      | .success st => ((label, st) :: succs, exns)
+      | .assertionFailure exId st => (succs, (exId, st) :: exns)
+      | .divergence => (succs, exns))
 
+theorem partitionExecutionOutcome.fst_spec {κ σ : Type} (outcomes : List (κ × ExecutionOutcome Int σ)) :
+  ∀ (label : κ) (st : σ),
+    (label, st) ∈ (partitionExecutionOutcome outcomes).fst ↔
+    (label, ExecutionOutcome.success st) ∈ outcomes := by
+  introv ; unfold partitionExecutionOutcome
+  induction outcomes with
+  | nil => simp
+  | cons x l ih => rcases x with ⟨l, _ | _ | _⟩ <;> grind
 
-/-- Check a state for violations and optionally terminate early.
-Returns the updated context with any violations recorded, and optionally
-an early termination condition if we should stop the search.
-This function ONLY modifies the `violatingStates` field, keeping all other fields unchanged. -/
-@[inline, specialize]
-def BaseSearchContext.checkViolationsAndMaybeTerminate {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  {params : SearchParameters ρ σ}
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (fpSt : σₕ)
-  (currSt : σ)
-  (outcomes : List (κ × ExecutionOutcome Int σ))
-  : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params × Option (EarlyTerminationReason σₕ) :=
-  match ctx.finished with
-  | some (.earlyTermination condition) => (ctx, some condition)
-  | _ =>
-    -- Compute all violation conditions once
-    let safetyViolations := params.invariants.filterMap fun p =>
-      if !p.holdsOn th currSt then some p.name else none
-    let safetyViolation := !safetyViolations.isEmpty
-    let hasSuccessfulTransition := outcomes.any fun (_, outcome) =>
-      match outcome with | .success _ => true | _ => false
-    let deadlock := !hasSuccessfulTransition && !params.terminating.holdsOn th currSt
-    let assertionFailures := outcomes.filterMap fun (_, outcome) =>
-      match outcome with | .assertionFailure exId _ => some exId | _ => none
+-- NOTE: If this function is put inside `BaseSearchContext.checkViolationsAndMaybeTerminate`,
+-- `specialize` of `List.filterMap` may not exhibit
+def checkViolationsAndMaybeTerminate
+  (completedDepth : Nat)
+  (hasSuccessfulTransition : Bool)
+  (assertionFailures : List (Int × σ)) :
+  List (σₕ × ViolationKind) × Option (EarlyTerminationReason σₕ) :=
+  -- Compute all violation conditions once
+  let safetyViolations := params.invariants.filterMap fun p =>
+    if !p.holdsOn th curr then some p.name else none
+  let safetyViolation := !safetyViolations.isEmpty
+  let deadlock := !hasSuccessfulTransition && !params.terminating.holdsOn th curr
 
-    -- Collect all violations to add in a single list
-    let newViolations : List (σₕ × ViolationKind) :=
-      (if safetyViolation then [(fpSt, .safetyFailure safetyViolations)] else []) ++
-      (if deadlock then [(fpSt, .deadlock)] else []) ++
-      (assertionFailures.map fun exId => (fpSt, .assertionFailure exId))
+  -- Collect all violations to add in a single list
+  let newViolations : List (σₕ × ViolationKind) :=
+    (if safetyViolation then [(fpSt, .safetyFailure safetyViolations)] else []) ++
+    (if deadlock then [(fpSt, .deadlock)] else []) ++
+    -- NOTE: This should be further optimized to avoid extra memory allocation
+    (assertionFailures.map fun (exId, _) => (fpSt, .assertionFailure exId))
 
-    -- Update context with all violations at once (only modifying violatingStates)
-    let ctx := {ctx with violatingStates := newViolations ++ ctx.violatingStates}
-    let earlyTermination := params.earlyTerminationConditions.findSome? fun
-      | .foundViolatingState => if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
-      | .reachedDepthBound bound => if ctx.completedDepth >= bound then some (.reachedDepthBound bound) else none
-      | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
-      | .assertionFailed => assertionFailures.head?.map (.assertionFailed fpSt)
-      | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
-    (ctx, earlyTermination)
-
+  let earlyTermination := params.earlyTerminationConditions.findSome? fun
+    | .foundViolatingState => if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
+    | .reachedDepthBound bound => if completedDepth >= bound then some (.reachedDepthBound bound) else none
+    | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
+    | .assertionFailed => assertionFailures.head?.map fun (exId, _) => .assertionFailed fpSt exId
+    | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
+  (newViolations, earlyTermination)
 
 /-- Process the current state, queuing its successors. -/
-@[inline, specialize]
-def BaseSearchContext.processState {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  {params : SearchParameters ρ σ}
-  (fpSt : σₕ)
-  -- (depth : Nat)  -- depth of the current state
-  (curr : σ)
-  -- (h_curr : sys.reachable curr)
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params) :
-  (@BaseSearchContext ρ σ κ σₕ fp _ _ th sys params ×
-    Option ({ l : List (κ × ExecutionOutcome Int σ) // l = sys.tr th curr })) :=
-  let outcomes := sys.tr th curr
+-- @[inline, specialize]
+def BaseSearchContext.processState
+  (outcomes : List (κ × ExecutionOutcome ℤ σ))
+  (ctx : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm × Option (List (κ × σ)) :=
+  let (successfulTransitions, assertionFailures) := partitionExecutionOutcome outcomes
+  let hasSuccessfulTransition := !successfulTransitions.isEmpty
+  let completedDepth := ctx.completedDepth
+  let (newViolations, earlyTermination) :=
+    checkViolationsAndMaybeTerminate params th fpSt curr completedDepth hasSuccessfulTransition assertionFailures
+  let ctx := {ctx with violatingStates := newViolations ++ ctx.violatingStates}
   -- Check for violations, record them, and determine if we should terminate early
-  match ctx.checkViolationsAndMaybeTerminate sys fpSt curr outcomes with
-  | (ctx, some (.foundViolatingState fp violations)) => ({ctx with finished := some (.earlyTermination (.foundViolatingState fp violations))}, none)
-  | (ctx, some (.reachedDepthBound bound)) => ({ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}, none)
-  | (ctx, some (.deadlockOccurred fp)) => ({ctx with finished := some (.earlyTermination (.deadlockOccurred fp))}, none)
-  | (ctx, some (.assertionFailed fp exId)) => ({ctx with finished := some (.earlyTermination (.assertionFailed fp exId))}, none)
-  | (ctx, some .cancelled) => ({ctx with finished := some (.earlyTermination .cancelled)}, none)
-  -- If not terminating early, explore all neighbors of the current state
-  | (ctx, none) => (ctx, some ⟨outcomes, rfl⟩)
+  let ctx := match earlyTermination with
+    | some x =>
+      match x with
+      | .foundViolatingState fp violations => {ctx with finished := some (.earlyTermination (.foundViolatingState fp violations))}
+      | .reachedDepthBound bound => {ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}
+      | .deadlockOccurred fp => {ctx with finished := some (.earlyTermination (.deadlockOccurred fp))}
+      | .assertionFailed fp exId => {ctx with finished := some (.earlyTermination (.assertionFailed fp exId))}
+      | .cancelled => {ctx with finished := some (.earlyTermination .cancelled)}
+    | none => ctx
+  (ctx, if earlyTermination.isSome then none else some successfulTransitions)
 
+def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
+  { log := ctx1.log.union ctx2.log,
+    violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
+    finished := ctx1.finished.or ctx2.finished,
+    completedDepth := ctx1.completedDepth,    -- no change
+    currentFrontierDepth := ctx1.currentFrontierDepth,    -- no change
+    statesFound := ctx1.statesFound + ctx2.statesFound,
+    actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
 
-theorem BaseSearchContext.processState_returns_some_implies_not_finished {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [BEq σ] [BEq κ] [Hashable κ] [Repr σ] [Repr σₕ]
-  {th : ρ} {params : _}
-  (sys : _)
-  (fpSt : σₕ)
-  (curr : σ)
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (ctx' : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
-  (outcomes : { l : List (κ × ExecutionOutcome Int σ) // l = sys.tr th curr })
-  (h_input_not_finished : ¬ ctx.finished = some .exploredAllReachableStates)
-  (h_process : ctx.processState sys fpSt curr = (ctx', some outcomes)) :
-  ctx'.finished.isSome = false := by
-  unfold processState at h_process
-  simp only at h_process
-  split at h_process <;> try (injection h_process with _ h_snd; simp at h_snd)
-  rename_i ctx_temp heq_check h_split
-  rw [← h_split]
-  unfold checkViolationsAndMaybeTerminate at heq_check
-  simp only at heq_check
-  split at heq_check
-  · injection heq_check with _ h_opt_eq
-    simp at h_opt_eq
-  · injection heq_check with h_ctx_temp_eq h_opt_eq
-    rw [← h_ctx_temp_eq]
-    simp only
-    cases h_finished : ctx.finished
-    · simp
-    · rename_i reason
-      cases reason
-      · contradiction
-      · simp [h_finished] at *
-
-
-
-/-- Theorem: checkViolationsAndMaybeTerminate preserves key fields of BaseSearchContext.
-    This is critical for proving that processState doesn't unexpectedly modify the search context. -/
-theorem BaseSearchContext.checkViolationsAndMaybeTerminate_preserves_fields {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [instBEq : BEq κ] [instHash : Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params)
-  (fpSt : σₕ)
-  (currSt : σ)
-  (outcomes : List (κ × ExecutionOutcome Int σ)) :
-  let ⟨post, _⟩ := ctx.checkViolationsAndMaybeTerminate sys fpSt currSt outcomes
-  post.seen = ctx.seen ∧
-  post.log = ctx.log ∧
-  post.finished = ctx.finished ∧
-  post.completedDepth = ctx.completedDepth ∧
-  post.currentFrontierDepth = ctx.currentFrontierDepth ∧
-  post.statesFound = ctx.statesFound ∧
-  post.actionStatsMap = ctx.actionStatsMap := by
-  simp only [checkViolationsAndMaybeTerminate]
-  split<;> simp
-
-
-/-- Theorem: processState preserves the seen field.
-    This is essential for maintaining invariants during state exploration. -/
-theorem BaseSearchContext.processState_preserves_seen {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [instBEq : BEq κ] [instHash : Hashable κ]
-  [BEq σ] [Repr σ] [Repr σₕ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-  (fpSt : σₕ)
-  (curr : σ)
-  (ctx : @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params) :
-  (ctx.processState sys fpSt curr).1.seen = ctx.seen := by
-  unfold BaseSearchContext.processState
-  simp only
-  have h := checkViolationsAndMaybeTerminate_preserves_fields sys params ctx fpSt curr (sys.tr th curr)
-  split <;>
-  grind
-
-
-
-/-- Extract successful transitions from a list of outcomes. -/
-@[inline]
-def extractSuccessfulTransitions (outcomes : List (κ × ExecutionOutcome Int σ)) : List (κ × σ) :=
-  outcomes.filterMap fun (label, outcome) =>
-    match outcome with
-    | .success st => some (label, st)
-    | _ => none
+/-- Like `mergeWithoutDepthChange` but does NOT merge the `log` field.
+    Used in the MapReduce path to delay log merging until trace recovery is needed. -/
+def BaseSearchContext.mergeWithoutDepthChangeNoLog (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
+  { log := ctx1.log,
+    violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
+    finished := ctx1.finished.or ctx2.finished,
+    completedDepth := ctx1.completedDepth,
+    currentFrontierDepth := ctx1.currentFrontierDepth,
+    statesFound := ctx1.statesFound + ctx2.statesFound,
+    actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
 
 end Veil.ModelChecker.Concrete

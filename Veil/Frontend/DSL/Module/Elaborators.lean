@@ -5,6 +5,7 @@ import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Action.Elaborators
 import Veil.Frontend.DSL.State.SubState
+import Veil.Frontend.DSL.State.ConcreteRegistry
 import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.Tools.Verifier.Server
 import Veil.Core.Tools.Verifier.Results
@@ -36,6 +37,9 @@ def extractDefinitionName (stx : Syntax) : Name :=
   -- ghostRelationDefinition
   | `(command|ghost relation $nm:ident $_br:explicitBinders ? := $_t:term) => nm.getId
   | `(command|theory ghost relation $nm:ident $_br:explicitBinders ? := $_t:term) => nm.getId
+  -- ghostFunctionDefinition
+  | `(command|ghost function $nm:ident $_br:explicitBinders ? $[: $_tp:term]? := $_t:term) => nm.getId
+  | `(command|theory ghost function $nm:ident $_br:explicitBinders ? $[: $_tp:term]? := $_t:term) => nm.getId
   | _ => `unknown
 
 private def overrideLeanDefaults : CommandElabM Unit := do
@@ -53,6 +57,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     let lenv ← localEnv.get
     if let some mod := lenv.currentModule then
       throwError s!"Module {mod.name} is already open, but you are now trying to open module {name}. Nested modules are not supported!"
+    elabVeilCommand $ ← `(open Veil)
     elabVeilCommand $ ← `(namespace $modName)
     if genv.containsModule name then
       logInfo "Module {name} has been previously defined. Importing it here."
@@ -72,6 +77,19 @@ def elabTypeDeclaration : CommandElab := fun stx => do
       let mod ← mod.declareUninterpretedSort id.getId stx
       localEnv.modifyModule (fun _ => mod)
   | _ => throwUnsupportedSyntax
+
+@[command_elab Veil.parameterDeclaration]
+def elabParameterDeclaration : CommandElab := fun stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot declare a parameter outside of a Veil module!")
+  mod.throwIfStateAlreadyDefined
+  let (id, tp) ← match stx with
+  | `(param $id:ident : $tp:term) => pure (id, tp)
+  | _ => throwUnsupportedSyntax
+  let nm := id.getId
+  mod.throwIfAlreadyDeclared nm
+  let p : Parameter := { kind := .userParameter, name := nm, «type» := tp, userSyntax := stx }
+  let newMod := { mod with parameters := mod.parameters.push p, _declarations := mod._declarations.insert nm .moduleParameter }
+  localEnv.modifyModule (fun _ => newMod)
 
 @[command_elab Veil.stateComponentDeclaration]
 def elabStateComponent : CommandElab := fun stx => do
@@ -118,10 +136,32 @@ def elabInstantiate : CommandElab := fun stx => do
   mod.throwIfStateAlreadyDefined
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
-    let param : Parameter := { kind := .moduleTypeclass .userDefined, name := inst.getId, «type» := tp, userSyntax := stx }
-    pure { mod with parameters := mod.parameters.push param }
+    let p : Parameter := { kind := .moduleTypeclass .userDefined, name := inst.getId, «type» := tp, userSyntax := stx }
+    pure { mod with parameters := mod.parameters.push p }
   | _ => throwUnsupportedSyntax
   localEnv.modifyModule (fun _ => new_mod)
+
+@[command_elab Veil.concreteRepresentationDecl]
+def elabConcreteRepresentation : CommandElab := fun stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot configure concrete representation outside of a Veil module!")
+  mod.throwIfStateAlreadyDefined
+  match stx with
+  | `(veil_set_field_representation $c:concreteRepField $typeName:ident) => do
+    let kind := match c with
+      | `(concreteRepField| relation) => StateComponentKind.relation
+      | `(concreteRepField| function) => StateComponentKind.function
+      | _ => unreachable!
+    let name := typeName.getId
+    -- Verify the type is registered in the registry
+    let some cfg ← ConcreteRepRegistry.lookupConcreteRep name
+      | throwErrorAt typeName s!"Unknown concrete representation type '{name}'"
+    unless (cfg.kind == .finsetLike && kind == StateComponentKind.relation) ||
+            (cfg.kind == .finmapLike && kind == StateComponentKind.function) ||
+            (cfg.kind == .canonical && (kind == StateComponentKind.relation || kind == StateComponentKind.function)) do
+      throwErrorAt typeName s!"Concrete representation '{name}' is not compatible with state component kind '{kind}'"
+    let new_mod := { mod with _concreteRepConfig := mod._concreteRepConfig.insert kind name }
+    localEnv.modifyModule (fun _ => new_mod)
+  | _ => throwUnsupportedSyntax
 
 @[command_elab Veil.enumDeclaration]
 def elabEnumDeclaration : CommandElab := fun stx => do
@@ -175,41 +215,16 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
   elabVeilCommand cmd
 
 
-@[command_elab Veil.inlineBuiltinDeclaration]
-def elabInlineBuiltinDeclaration : CommandElab := fun stx => do
-  match stx with
-  | `(@[veil_decl] structure $name:ident $[$args]* where $[$fields]*) => do
-    elabCommand (← `(structure $name:ident $[$args]* where $[$fields]*))
-    tryDerivingInstances name stx
-  | `(@[veil_decl] inductive $name:ident $[$args]* where $[$ctors]*) => do
-    elabCommand (← `(inductive $name:ident $[$args]* where $[$ctors]*))
-    tryDerivingInstances name stx
-  | `(@[veil_decl] inductive $name:ident $[$args]* $[$ctors:ctor]*) => do
-    elabCommand (← `(inductive $name:ident $[$args]* $[$ctors:ctor]*))
-    tryDerivingInstances name stx
-  | _ => throwUnsupportedSyntax
-where
-  /-- Try to derive instances, suppressing errors and showing warnings instead -/
-  tryDerivingInstances (name : Ident) (_origStx : Syntax) : CommandElabM Unit := do
-    for className in defaultDerivingClasses do
-      let classIdent := Lean.mkIdent className
-      try elabVeilCommand $ ← `(command| deriving instance $classIdent:ident for $name:ident)
-      catch _ => logWarning m!"Could not automatically derive {className} for {name.getId}. You may need to provide a manual instance."
-  defaultDerivingClasses : List Name := [
-    ``Inhabited, ``Nonempty, ``DecidableEq, ``Lean.ToJson,
-    ``Hashable, ``Ord, ``Repr,
-    ``Std.TransOrd, ``Std.LawfulEqOrd,
-    -- ``Veil.Enumeration
-]
-
 /-- Crystallizes the state of the module, i.e. it defines it as a Lean
 `structure` definition, if that hasn't already happened. -/
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
   let (mod, stateStxs) ← do (if mod._useFieldRepTC then do
-      let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers
-      let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure
+      -- Resolve concrete representation configurations
+      let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
+      let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers repConfigs
+      let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure repConfigs
       return (mod, fieldStxs ++ stateStxs)
     else mod.declareStateStructure)
   let (mod, theoryStxs) ← mod.declareTheoryStructure
@@ -218,7 +233,7 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     elabVeilCommand stx
   generateIgnoreFn mod
   let mod := { mod with _stateDefined := true }
-  if mod._useLocalRPropTC then
+  if mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
     let (localRPropTCStx, stx2) ← liftTermElabM mod.declareLocalRPropTC
     elabVeilCommand localRPropTCStx
     elabVeilCommand stx2
@@ -232,6 +247,10 @@ private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
   if mod.actions.isEmpty then
     logWarning "you have not defined any actions for this specification; did you forget?"
 
+private def throwIfNoInitializerDefined (mod : Module) : CommandElabM Unit := do
+  unless mod.procedures.any (·.info matches .initializer) do
+    throwError "no `after_init` block has been defined for this specification; every Veil module must have one"
+
 /-- Crystallizes the specification of the module, i.e. it finalizes the set of
 `procedures` and `assertions`. The `stx` parameter is the syntax of the command
 that triggered the finalization; it is stored for use by `#model_check` when
@@ -240,22 +259,25 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   if mod.isSpecFinalized then
     return mod
   let mod ← mod.ensureStateIsDefined
+  throwIfNoInitializerDefined mod
   warnIfNoInvariantsDefined mod
   warnIfNoActionsDefined mod
-  let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
-    let (assumptionCmd, mod) ← mod.assembleAssumptions
-    elabVeilCommand assumptionCmd
-    return mod
-  let mod ← withTraceNode `veil.perf.elaborator.decl.Invariants (fun _ => return "Invariants") do
-    let (invariantCmd, mod) ← mod.assembleInvariants
-    trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
-    elabVeilCommand invariantCmd
-    return mod
-  let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
-    let (safetyCmd, mod) ← mod.assembleSafeties
-    trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
-    elabVeilCommand safetyCmd
-    return mod
+  let mod ← if (← isModelCheckCompileMode) then pure mod else do
+    let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
+      let (assumptionCmd, mod) ← mod.assembleAssumptions
+      elabVeilCommand assumptionCmd
+      return mod
+    let mod ← withTraceNode `veil.perf.elaborator.decl.Invariants (fun _ => return "Invariants") do
+      let (invariantCmd, mod) ← mod.assembleInvariants
+      trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
+      elabVeilCommand invariantCmd
+      return mod
+    let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
+      let (safetyCmd, mod) ← mod.assembleSafeties
+      trace[veil.debug] s!"Elaborating safeties: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic safetyCmd}"
+      elabVeilCommand safetyCmd
+      return mod
+    pure mod
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do
     elabVeilCommand cmd
@@ -264,7 +286,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   -- NOTE: ActionTag is query-local (not a module sort), but we generate the
   -- axiomatisation class and concrete type here for convenience
   let actionNames := mod.actions.map (fun (a : ProcedureSpecification) => Lean.mkIdent a.name)
-  if !actionNames.isEmpty then
+  if !actionNames.isEmpty && !(← isModelCheckCompileMode) then
     let (className, classDecl) ← mkEnumAxiomatisation actionTagType actionNames
     elabVeilCommand classDecl
     for cmd in (← mkEnumConcreteType actionTagType actionNames) do
@@ -272,21 +294,24 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     elabVeilCommand $ ← `(open $className:ident)
     -- TODO: Generate equivalence lemma (ActionTag.label_equiv) here
 
-  let (nextCmd, mod) ← mod.assembleNext
-  elabVeilCommand nextCmd
-  let (nextTrCmd, mod) ← mod.assembleNextTransition
-  elabVeilCommand nextTrCmd
-  let (initCmd, mod) ← mod.assembleInit
-  elabVeilCommand initCmd
+  let mod ← if (← isModelCheckCompileMode) then pure mod else do
+    let (nextCmd, mod) ← mod.assembleNext
+    elabVeilCommand nextCmd
+    let (nextTrCmd, mod) ← mod.assembleNextTransition
+    elabVeilCommand nextTrCmd
+    let (initCmd, mod) ← mod.assembleInit
+    elabVeilCommand initCmd
+    let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
+    elabVeilCommand rtsCmd
+    pure mod
   Extract.runGenExtractCommand mod
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
-  let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
-  elabVeilCommand rtsCmd
-  Verifier.runManager
-  mod.generateDoesNotThrowVCs
-  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
-  mod.generateInvariantVCs
+  unless (← isModelCheckCompileMode) do
+    Verifier.runManager
+    mod.generateDoesNotThrowVCs
+    -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
+    Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+    mod.generateInvariantVCs
   -- The invariant VCs are started only when `#check_invariants` is run
   return { mod with _specFinalizedAt := some stx }
 
@@ -406,14 +431,18 @@ def elabTransition : CommandElab := fun stx => do
       -- check immutability of changed fields
       let changedFn (f : Name) := t.raw.find? (·.getId == f.appendAfter "'") |>.isSome
       let fields ← mod.getFieldsRecursively
-      let (changedFields, unchangedFields) := fields.partition changedFn
-      for f in changedFields do
+      for f in fields.filter changedFn do
         mod.throwIfImmutable f (isTransition := true)
+      -- Only mutable fields need "unchanged" constraints
+      -- (immutable fields don't have primed versions in transitions)
+      let mutableFieldNames := mod.mutableComponents.map (·.name)
+      let unchangedFields := mutableFieldNames.filter (!changedFn ·)
       -- obtain the "real" transition term
       let trStx ← do
         let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
         let unchangedFields := unchangedFields.map Lean.mkIdent
         let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th), (.state .none "conc", st), (.state "'" "conc'", st')]
+          (some $ ← `(term|Prop))
           (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
         -- NOTE: We wrap the transition in a `decide` to ensure the required `Decidable` instance
         -- becomes an instance argument and can be used in extraction
@@ -439,20 +468,22 @@ def elabProcedureWithSpec : CommandElab := fun stx => do
     | _ => throwUnsupportedSyntax
     localEnv.modifyModule (fun _ => new_mod)
 
-@[command_elab Veil.ghostRelationDefinition]
-def elabGhostRelationDefinition : CommandElab := fun stx => do
+@[command_elab Veil.ghostRelationDefinition, command_elab Veil.ghostFunctionDefinition]
+def elabGhostDefinition : CommandElab := fun stx => do
   let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the ghost relation name
-  withTraceNode (`veil.perf.elaborator.ghostRelation ++ nm) (fun _ => return s!"ghost {nm}") do
-    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost relation outside of a Veil module!")
+  withTraceNode (`veil.perf.elaborator.ghostDefinition ++ nm) (fun _ => return s!"ghost {nm}") do
+    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost definition outside of a Veil module!")
     mod ← mod.ensureStateIsDefined
     mod.throwIfSpecAlreadyFinalized
-    let (nm, stateGhost?, (cmd, new_mod)) ← match stx with
-    | `(command|ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, true, ← mod.defineGhostRelation nm.getId br t (justTheory := false))
-    | `(command|theory ghost relation $nm:ident $br:explicitBinders ? := $t:term) => pure (nm.getId, false, ← mod.defineGhostRelation nm.getId br t (justTheory := true))
+    let (isRelation, stateGhost?, (cmd, new_mod)) ← match stx with
+    | `(command|$[theory%$forTheory]? ghost relation $nm:ident $br:explicitBinders ? := $t:term) =>
+      pure (true, forTheory.isNone, ← mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := true))
+    | `(command|$[theory%$forTheory]? ghost function $nm:ident $br:explicitBinders ? $[: $retTy:term]? := $t:term) =>
+      pure (false, forTheory.isNone, ← mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := false) (retType := retTy))
     | _ => throwUnsupportedSyntax
     elabVeilCommand cmd
-    if mod._useLocalRPropTC && stateGhost? then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
+    if isRelation && mod._useLocalRPropTC && stateGhost? && !(← isModelCheckCompileMode) then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
     localEnv.modifyModule (fun _ => new_mod)
 
 @[command_elab Veil.assertionDeclaration]
@@ -467,6 +498,7 @@ def elabAssertion : CommandElab := fun stx => do
   | `(command|safety $name:propertyName ? $prop:term) => mod.mkAssertion .safety name prop stx
   | `(command|trusted invariant $name:propertyName ? $prop:term) => mod.mkAssertion .trustedInvariant name prop stx
   | `(command|termination $name:propertyName ? $prop:term) => mod.mkAssertion .termination name prop stx
+  | `(command|state_constraint $name:propertyName ? $prop:term) => mod.mkAssertion .stateConstraint name prop stx
   | _ => throwUnsupportedSyntax
   -- Use dynamic trace class name that includes the assertion name and kind
   let kindStr := match assertion.kind with
@@ -475,12 +507,13 @@ def elabAssertion : CommandElab := fun stx => do
     | .safety => "safety"
     | .trustedInvariant => "trusted_invariant"
     | .termination => "termination"
+    | .stateConstraint => "state_constraint"
   withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
     -- Elaborate the assertion in the Lean environment
     let (cmd, mod') ← mod.defineAssertion assertion
     elabVeilCommand cmd
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
-    if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
+    if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) && !(← isModelCheckCompileMode) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
     localEnv.modifyModule (fun _ => mod')
 
 @[command_elab Veil.genSpec]
@@ -591,9 +624,11 @@ private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) :
         ($(mkIdent `name) := $(quote sa.name))
         ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName' mod sa.name) $(mkIdent `th) $(mkIdent `st)))
   let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+  -- FIXME: Only recognizing the first termination property might confuse users
   let terminatingProp ← match mod.terminations[0]? with
     | some t => mkProp t
     | none => `($(mkIdent `default))
+  let constraintList ← `([$((← mod.stateConstraints.mapM mkProp)),*])
   let earlyTermConds ← do
     let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
                   $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
@@ -601,18 +636,22 @@ private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) :
     if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
     else pure base
   `({ $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
+      $(mkIdent `stateConstraints):ident := $constraintList,
       $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
 
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode `veil.perf.elaborator.modelCheck (fun _ => return "#model_check") do
-    -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory, stx[4] is config
+    -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory,
+    -- stx[4] is config, stx[5] is optional `assumptions_hold_by`
     let mode := getModelCheckingMode stx[1]
     let instTerm : Term := ⟨stx[2]⟩
     let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
+    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[5].isNone then none else some ⟨stx[5][0][1]⟩
     let cfg := stx[4]
-    elabModelCheckCore stx mode instTerm theoryTermOpt cfg
+    elabModelCheckCore stx mode instTerm theoryTermOpt assumptionsHoldBy cfg
 where
   /-- Generate the model source for compilation:
       1. Insert `set_option veil.__modelCheckCompileMode true` after imports
@@ -627,7 +666,10 @@ where
     let some specFinalizedAtStx := mod.specFinalizedAtStx
       | throwError "Internal error: spec should be finalized before generating model source"
     let some modelCheckStart := stx.getPos? | throwError "Unexpected error: #model_check has no position"
-    let some modelCheckEnd := stx.getTailPos? | throwError "Unexpected error: #model_check has no end position"
+    -- Strip the optional `assumptions_hold_by` clause (stx[5]) from compiled source,
+    -- since the proof is not needed (and may reference unavailable definitions).
+    let some modelCheckEnd := (if stx[5].isNone then stx.getTailPos? else stx[5].getPos?)
+      | throwError (if stx[5].isNone then "Unexpected error: #model_check has no end position" else "Unexpected error: assumptions_hold_by has no position")
     -- If #model_check itself triggered finalization, use its start position to avoid duplication.
     -- Otherwise, use the tail position of the finalizing command (e.g., #gen_spec, #check_invariants).
     let modelCheckTriggeredFinalization := specFinalizedAtStx.getPos? == stx.getPos?
@@ -644,17 +686,42 @@ where
       (instTerm theoryTerm : Term) : CommandElabM Term := do
     let inst := mkVeilImplementationDetailIdent `inst
     let th := mkVeilImplementationDetailIdent `th
-    let instSortArgs ← (← mod.sortIdents).mapM fun sortIdent => `($inst.$(sortIdent))
+    let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
     let sp ← buildSearchParameters mod config
     -- Model checker call with type annotation to help inference
     -- Note: findReachable takes parallelCfg, progressInstanceId, and cancelToken as the last three args
     `((let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-         ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType $instSortArgs*)
-         ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-         $sp : _ → _ → _ → IO _))
+          ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
+          ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
+          $sp : _ → _ → _ → IO _))
 
+  /-- Check that the provided theory satisfies all module assumptions by
+      elaborating a proof obligation using the assembled `Assumptions` definition.
+      Always unfolds `Assumptions` via `dsimp` first, then runs the user's tactic
+      or defaults to `first | decide | native_decide`. -/
+  checkTheorySatisfiesAssumptions (mod : Module) (instTerm theoryTerm : Term)
+      (tac : Option (TSyntax `Lean.Parser.Tactic.tacticSeq)) : CommandElabM Unit := do
+    let inst := mkVeilImplementationDetailIdent `inst
+    let th := mkVeilImplementationDetailIdent `th
+    let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+    -- Wrap the user tactic (a tacticSeq) as a single tactic via parentheses,
+    -- or default to `first | decide | native_decide`.
+    let userTac : TSyntax `tactic ← match tac with
+      | some t => `(tactic| ($t:tacticSeq))
+      | none => `(tactic| first | decide | native_decide)
+    -- Call `Assumptions` using the same named-argument pattern as in
+    -- `assembleRelationalTransitionSystem`: `Assumptions (ρ := TheoryType) sorts* th`
+    let ρArg := mkIdent `ρ
+    let theoryT ← `($theoryIdent $instSortArgs*)
+    let proofCmd ← `(command|
+      example : (let $inst : $instantiationType := $instTerm
+                 let $th : $theoryIdent $instSortArgs* := $theoryTerm
+                 $assembledAssumptions ($ρArg := $theoryT) $instSortArgs* $th) := by
+        dsimp only [$assembledAssumptions:ident]
+        $userTac:tactic)
+    elabVeilCommand proofCmd
   /-- Create an error JSON object. -/
   errorJson (msg : String) : Json := Json.mkObj [("error", msg)]
 
@@ -793,7 +860,9 @@ where
 
   /-- Core elaboration logic shared by all model checking modes. -/
   elabModelCheckCore (stx : Syntax) (mode : ModelCheckingMode) (instTerm : Term)
-      (theoryTermOpt : Option Term) (cfg : Syntax) : CommandElabM Unit := do
+      (theoryTermOpt : Option Term)
+      (assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq))
+      (cfg : Syntax) : CommandElabM Unit := do
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     mod.throwIfSpecNotFinalized
 
@@ -801,6 +870,9 @@ where
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
+    -- Check assumptions if clause is present (skip in compile mode and if no assumptions)
+    if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
+      checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
     let parallelCfg ← match config.sequential, config.parallelCfg with
       | true, _ => pure none

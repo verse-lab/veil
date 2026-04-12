@@ -56,7 +56,10 @@ private def mkTraceDischargerResult [Monad m] [MonadEnv m] [MonadError m] [Monad
   let result ← overallSmtResultForTrace numTransitions isExpectedSat outputs
   match result with
   | .none => match ex? with
-    | some ex => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
+    | some ex =>
+      match ← unknownReasonFromException? ex with
+      | some reason => return .unknown (.some (.unknown #[reason])) time
+      | none => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
     | none => return .proven none .none time
   | .some (.error exs) => return .error exs time
   | .some (.unknown _) => return .unknown result time

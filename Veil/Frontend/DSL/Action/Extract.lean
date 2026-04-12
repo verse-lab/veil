@@ -11,9 +11,11 @@ syntax injectBindersStx := "injection_begin" bracketedBinder* "injection_end"
 
 namespace Preprocessing
 
-attribute [dsimpFieldRepresentationGet ↓] FieldRepresentation.get FieldRepresentation.mkFromSingleSet instFinsetLikeAsFieldRep IteratedArrow.curry
+attribute [dsimpFieldRepresentationGet ↓] FieldRepresentation.get FieldRepresentation.mkFromSingleSet
+  instFinmapLikeAsFieldRep IteratedArrow.curry
   Equiv.coe_fn_mk Function.comp IteratedProd'.equiv IteratedProd.toIteratedProd'
-attribute [dsimpFieldRepresentationSet ↓] FieldRepresentation.setSingle FieldRepresentation.mkFromSingleSet instFinsetLikeAsFieldRep FieldRepresentation.FinsetLike.setSingle'
+attribute [dsimpFieldRepresentationSet ↓] FieldRepresentation.setSingle FieldRepresentation.mkFromSingleSet
+  instFinmapLikeAsFieldRep FieldRepresentation.FinmapLike.setSingle'
   IteratedArrow.curry IteratedProd'.equiv Equiv.coe_fn_mk IteratedProd.toIteratedProd' IteratedArrow.uncurry List.foldr
   IteratedProd.foldMap FieldUpdatePat.footprintRaw IteratedProd.zipWith Option.elim List.foldl
 
@@ -124,9 +126,9 @@ def buildingTermWithχSpecialized
 def buildingTermWithDefaultχSpecialized (mod : Module)
   (specializedToOther : Parameter → Option Term := fun _ => none) : m Term := do
   buildingTermWithχSpecialized baseParams extraParams injectedBinders finalBody
-    (← `(($fieldConcreteDispatcher $(← mod.sortIdents)*)))
-    (← `($instFieldRepresentation $(← mod.sortIdents)*))
-    (← `($instLawfulFieldRepresentation $(← mod.sortIdents)*))
+    (← `(($fieldConcreteDispatcher $(← mod.uninterpretedParamIdents)*)))
+    (← `($instFieldRepresentation $(← mod.uninterpretedParamIdents)*))
+    (← `($instLawfulFieldRepresentation $(← mod.uninterpretedParamIdents)*))
     specializedToOther
 
 end Specialization
@@ -232,8 +234,8 @@ def specializeAndExtractInternalMode (mod : Module) : CommandElabM Unit := do
   let procs := mod.procedures.filter fun p => match p.info with | .procedure _ => true | _ => false
   for ps in procs do
     let attr1 ← `(Parser.Term.attrInstance| $(mkIdent `multiextracted):ident )
-    let attr2 ← `(Parser.Term.attrInstance| multiExtractSimp ↓)
-    specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak false mod ps.info (attrs := #[attr1, attr2])
+    -- let attr2 ← `(Parser.Term.attrInstance| multiExtractSimp ↓)
+    specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak false mod ps.info (attrs := #[attr1/-, attr2 -/])
 
 def specializeAndExtractActions (mod : Module) : CommandElabM Unit := do
   let lIdent := mkIdent `l
@@ -270,8 +272,15 @@ elab_rules : command
     let injectedBinders := injectedBinders.getD #[]
     specializeAndExtract injectedBinders extraDsimps logelem notUseWeakSign.isNone
 
+private def bindersToInjectForExecution [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] [MonadEnv m] (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
+  let binders ← mod.assumeInstArgsWithConcreteRepConfig mod.mutableComponents repConfigs
+    ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
+    #[``Repr, ``Enumeration] #[``Inhabited, ``DecidableEq] false
+  return binders
+
 def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
-  let binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp, ``Repr].flatMapM (mod.assumeForEverySort · false)
+  let binders ← bindersToInjectForExecution mod
   let execListCmd ← `(command |
     attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
     #extract! log_entry_being $(mkIdent ``Std.Format)
@@ -358,16 +367,13 @@ def getPostState (c : DivM ((Except ε α) × σ)) : Option σ :=
 def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ) :=
   c.map getPostState
 
-def getAllExecutionOutcomes (c : List (DivM ((Except ε α) × σ))) : List (Veil.ExecutionOutcome ε σ) :=
-  c.map getExecutionOutcome
-
 /-- Extract all valid states from a VeilMultiExecM computation -/
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllPostStates
 
 /-- Extract all execution outcomes (including assertion failures) from a VeilMultiExecM computation -/
 def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome ℤ σ) :=
-  exec rd st |>.map Prod.snd |> getAllExecutionOutcomes
+  exec rd st |>.map fun (_, st) => getExecutionOutcome st
 
 /-- Extract only assertion failures from a VeilMultiExecM computation.
 Returns a list of (exception ID, state at failure) pairs. -/
@@ -376,7 +382,7 @@ def extractAssertionFailures (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (
     | .assertionFailure e s => some (e, s)
     | _ => none
 
-def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
+def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadEnv m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
   mod.throwIfAlreadyDeclared enumerableTransitionSystemName
 
   -- Step 1: Use mkDerivedDefinitionsParamsMapFn pattern (like specializeActionsCore)
@@ -397,7 +403,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     | _ => none
 
   -- Step 2: Prepare injectedBinders
-  let nextAct'Binders ← #[``Veil.Enumeration, ``Hashable, ``Ord, ``Std.LawfulEqCmp, ``Std.TransCmp, ``Repr].flatMapM (mod.assumeForEverySort · false)
+  let nextAct'Binders ← bindersToInjectForExecution mod
   let labelsId := mkVeilImplementationDetailIdent `labels
   let labelsBinder ← `(bracketedBinder| [$labelsId : $(mkIdent ``Veil.Enumeration) $(← mod.labelTypeStx)])
   let theoryId := mkVeilImplementationDetailIdent `theory
@@ -406,24 +412,25 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
 
   -- Step 3: Build finalBody as struct literal
   let finalBody ← do
-    let fieldConcrete ← `($fieldConcreteDispatcher $(← mod.sortIdents)*)
+    let fieldConcrete ← `($fieldConcreteDispatcher $(← mod.uninterpretedParamIdents)*)
     let stateStx ← if mod._useFieldRepTC then `($stateIdent $fieldConcrete) else mod.stateStx
     let labelStx ← mod.labelTypeStx
     let (CInit, CNext) := (mkVeilImplementationDetailIdent `CInit, mkVeilImplementationDetailIdent `CNext)
     let (th, st) := (mkVeilImplementationDetailIdent `th, mkVeilImplementationDetailIdent `st)
     let (label, next) := (mkVeilImplementationDetailIdent `label, mkVeilImplementationDetailIdent `next)
+    let lbls := mkVeilImplementationDetailIdent `lbls
     let filterMap ← `($(mkIdent ``List.filterMap) $(mkIdent ``id))
 
     -- NOTE: Use the `ext` version of `initializer` below!!!
     `({
       $(mkIdent `initStates):ident :=
-        let $CInit := $(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.sortIdents)*
+        let $CInit := $(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
         $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
-      $(mkIdent `tr):ident := fun $th $st =>
-        let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.sortIdents)*
+      $(mkIdent `tr):ident := let $lbls := (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId) ; fun $th $st =>
+        let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
         $(mkIdent ``List.flatMap) (fun ($label : $labelStx) =>
          $(mkIdent ``List.map) (fun $next => ($label, $next)) ($(mkIdent ``extractAllOutcomes) ($CNext $label) $th $st))
-         (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId)
+        $lbls
       : $(mkIdent ``Veil.EnumerableTransitionSystem)
         $theoryStx ($(mkIdent ``List) $theoryStx)
         $stateStx ($(mkIdent ``List) $stateStx)
@@ -437,6 +444,6 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
     injectedBinders finalBody mod specializeToOther
 
   -- Step 5: Add @[specialize] attribute
-  `(command| @[specialize] def $enumerableTransitionSystem:ident := $enumerableTransitionSystemTerm)
+  `(command| @[inline] def $enumerableTransitionSystem:ident := $enumerableTransitionSystemTerm)
 
 end Veil.Extract

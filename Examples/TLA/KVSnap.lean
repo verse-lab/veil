@@ -15,7 +15,11 @@ veil module KVSnap
 --             TxId,           \* The set of all transaction IDs.
 --             NoVal           \* NoVal, which all keys are initialized with.
 -- type key
-enum key = { K1, K2 }
+    -- Key = {k1, k2, k3}
+    -- Val = {v1, v2}
+    -- TxId = {t1, t2, t3}
+    -- NoVal = NoVal
+enum key = { K1, K2, K3 }
 type Keys
 enum txId = { noVal, T1, T2, T3}
 type TxIds
@@ -297,8 +301,9 @@ def m1 : Std.ExtTreeMap key_IndT txId_IndT compare :=
 /- In interactive mode, reconstruct this counterexample trace is
 very slow, taking about ~4 minutes (241738ms).
 time: 250844ms -/
+
 set_option veil.violationIsError false in
-#time #model_check
+#time #model_check compiled
 {
   key := key_IndT,
   Keys := Std.ExtTreeSet key_IndT compare,
@@ -312,6 +317,7 @@ set_option veil.violationIsError false in
   initialState := Std.ExtTreeMap.ofList [
     (key_IndT.K1, txId_IndT.noVal),
     (key_IndT.K2, txId_IndT.noVal),
+    (key_IndT.K3, txId_IndT.noVal),
   ] compare
   -- initialState := m1
 ,

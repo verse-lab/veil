@@ -57,6 +57,7 @@ interface Counterexample {
 interface DischargerResultData {
   kind: string;
   counterexamples?: Counterexample[];
+  reasons?: string[];
 }
 
 interface DischargerResult {
@@ -77,6 +78,7 @@ type DischargerStatus = string | DischargerStatusFinished;
 interface Discharger {
   id: number;
   name: string;
+  isInteractive: boolean;
   status: DischargerStatus;
   time: number | null;
   startTime: number | null;
@@ -480,9 +482,10 @@ const useTheoremInserter = (documentUri: string, insertPosition: InsertPosition)
 /** Banner shown when there are VCs that need manual proof (unknown/error status) */
 const ManualProofBanner: React.FC<{
   vcs: VerificationCondition[];
+  alternativeMap: Map<number, VerificationCondition>;
   documentUri: string;
   insertPosition: InsertPosition;
-}> = ({ vcs, documentUri, insertPosition }) => {
+}> = ({ vcs, alternativeMap, documentUri, insertPosition }) => {
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   const [inserting, setInserting] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(false);
@@ -490,7 +493,7 @@ const ManualProofBanner: React.FC<{
   // Get VCs that need manual proof (unknown/error/timeout, not disproven - those have counterexamples)
   const needsManualProofVCs = vcs.filter(vc =>
     vc.theoremText &&
-    (vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout')
+    isManualProofStatus(getVisibleStatus(vc, alternativeMap))
   );
 
   const count = needsManualProofVCs.length;
@@ -546,27 +549,61 @@ function getStatusClass(status: VerificationCondition['status']): string {
   return status || 'pending';
 }
 
-// Extract exceptions from dischargers (deduplicated)
-function getExceptionsFromVC(vc: VerificationCondition): string[] {
-  const exceptionsSet = new Set<string>();
+interface ExceptionGroup {
+  message: string;
+  dischargerNames: string[];
+}
+
+// Extract exceptions from dischargers, preserving which dischargers produced them.
+function getExceptionGroupsFromVC(vc: VerificationCondition): ExceptionGroup[] {
+  const exceptionMap = new Map<string, Set<string>>();
   for (const discharger of vc.timing.dischargers) {
+    const addException = (message: string) => {
+      const dischargerNames = exceptionMap.get(message) ?? new Set<string>();
+      dischargerNames.add(discharger.name);
+      exceptionMap.set(message, dischargerNames);
+    };
+
     // Check if status is an object with finished.res.exceptions
     if (typeof discharger.status === 'object' && discharger.status !== null) {
       const finished = (discharger.status as DischargerStatusFinished).finished;
       if (finished?.res?.exceptions) {
         for (const ex of finished.res.exceptions) {
-          exceptionsSet.add(ex);
+          addException(ex);
         }
       }
     }
     // Also check the result field for exceptions
     if (discharger.result?.exceptions) {
       for (const ex of discharger.result.exceptions) {
-        exceptionsSet.add(ex);
+        addException(ex);
       }
     }
   }
-  return Array.from(exceptionsSet);
+  return Array.from(exceptionMap.entries()).map(([message, dischargerNames]) => ({
+    message,
+    dischargerNames: Array.from(dischargerNames).sort(),
+  }));
+}
+
+function getUnknownReasonGroupsFromVC(vc: VerificationCondition): ExceptionGroup[] {
+  const reasonMap = new Map<string, Set<string>>();
+
+  for (const discharger of vc.timing.dischargers) {
+    const reasons = discharger.result?.data?.reasons;
+    if (!reasons) continue;
+
+    for (const reason of reasons) {
+      const dischargerNames = reasonMap.get(reason) ?? new Set<string>();
+      dischargerNames.add(discharger.name);
+      reasonMap.set(reason, dischargerNames);
+    }
+  }
+
+  return Array.from(reasonMap.entries()).map(([message, dischargerNames]) => ({
+    message,
+    dischargerNames: Array.from(dischargerNames).sort(),
+  }));
 }
 
 // Helper to check if a VC is an induction VC
@@ -606,6 +643,49 @@ function buildAlternativeMap(vcs: VerificationCondition[]): Map<number, Verifica
     }
   }
   return map;
+}
+
+const EFFECTIVE_STATUS_ORDER: VerificationCondition['status'][] = [
+  'proven',
+  'disproven',
+  null,
+  'error',
+  'timeout',
+  'unknown',
+];
+
+function getActiveStatuses(
+  vc: VerificationCondition,
+  alternativeVC?: VerificationCondition
+): VerificationCondition['status'][] {
+  const statuses: VerificationCondition['status'][] = [vc.status];
+  if (alternativeVC && !alternativeVC.isDormant) {
+    statuses.push(alternativeVC.status);
+  }
+  return statuses;
+}
+
+function getEffectiveStatus(
+  vc: VerificationCondition,
+  alternativeVC?: VerificationCondition
+): VerificationCondition['status'] {
+  const statuses = getActiveStatuses(vc, alternativeVC);
+  return EFFECTIVE_STATUS_ORDER.find(status => statuses.includes(status)) ?? vc.status;
+}
+
+function getVisibleStatus(
+  vc: VerificationCondition,
+  alternativeMap: Map<number, VerificationCondition>
+): VerificationCondition['status'] {
+  return getEffectiveStatus(vc, alternativeMap.get(vc.id));
+}
+
+function isManualProofStatus(status: VerificationCondition['status']): boolean {
+  return status === 'unknown' || status === 'error' || status === 'timeout';
+}
+
+function hasRunningDischarger(targetVC?: VerificationCondition): boolean {
+  return targetVC?.timing.dischargers.some(d => d.status === 'running') === true;
 }
 
 // Filter to only show primary induction VCs (exclude all alternatives, trace VCs, and dormant VCs)
@@ -650,6 +730,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   const [expanded, setExpanded] = React.useState(false);
   const [showTRCounterexample, setShowTRCounterexample] = React.useState(true);
   const [showRawHtml, setShowRawHtml] = React.useState(false);
+  const effectiveStatus = getEffectiveStatus(vc, alternativeVC);
 
   // Cache the last known time to prevent flickering during state transitions
   const lastKnownTimeRef = React.useRef<number | null>(null);
@@ -657,7 +738,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   // Theorem insertion
   const insertTheorem = useTheoremInserter(documentUri, insertPosition);
   // Only highlight unknown/error as "needs manual proof" - disproven VCs have counterexamples and aren't provable
-  const needsManualProof = vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout';
+  const needsManualProof = isManualProofStatus(effectiveStatus);
   const hasTheoremText = !!vc.theoremText;
   const hasTRTheoremText = !!alternativeVC?.theoremText;
 
@@ -698,22 +779,74 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   const hasAnyCounterexample = hasWPCounterexample || hasTRCounterexample;
   const hasBothCounterexamples = hasWPCounterexample && hasTRCounterexample;
 
+  const getSuccessfulDischarger = (targetVC?: VerificationCondition): Discharger | null => {
+    if (!targetVC || targetVC.status !== 'proven') return null;
+    const successfulId = targetVC.timing.successfulDischargerId;
+    if (successfulId == null) return null;
+    return targetVC.timing.dischargers.find(d => d.id === successfulId) ?? null;
+  };
+
+  const hasInteractiveDischarger = (targetVC?: VerificationCondition): boolean =>
+    targetVC?.timing.dischargers.some(d => d.isInteractive === true) === true;
+
+  const primarySuccessfulDischarger = getSuccessfulDischarger(vc);
+  const trSuccessfulDischarger = getSuccessfulDischarger(alternativeVC);
+  const isInteractiveProven =
+    primarySuccessfulDischarger?.isInteractive === true ||
+    trSuccessfulDischarger?.isInteractive === true;
+  const hasInteractiveAttempt =
+    hasInteractiveDischarger(vc) ||
+    hasInteractiveDischarger(alternativeVC);
+
   // Default to TR counterexample if available, otherwise WP
   const activeCounterexample = (showTRCounterexample && trCounterexample) || wpCounterexample;
 
-  // Get all exceptions from both VCs (deduplicated)
+  // Get all exceptions from both VCs, grouped by message with discharger provenance.
   const allExceptions = React.useMemo(() => {
-    const set = new Set<string>();
-    for (const ex of getExceptionsFromVC(vc)) set.add(ex);
+    const exceptionMap = new Map<string, Set<string>>();
+    const mergeGroups = (groups: ExceptionGroup[]) => {
+      for (const group of groups) {
+        const names = exceptionMap.get(group.message) ?? new Set<string>();
+        for (const name of group.dischargerNames) names.add(name);
+        exceptionMap.set(group.message, names);
+      }
+    };
+
+    mergeGroups(getExceptionGroupsFromVC(vc));
     if (alternativeVC) {
-      for (const ex of getExceptionsFromVC(alternativeVC)) set.add(ex);
+      mergeGroups(getExceptionGroupsFromVC(alternativeVC));
     }
-    return Array.from(set);
+    return Array.from(exceptionMap.entries()).map(([message, dischargerNames]) => ({
+      message,
+      dischargerNames: Array.from(dischargerNames).sort(),
+    }));
   }, [vc, alternativeVC]);
   const hasExceptions = allExceptions.length > 0;
 
-  // Row is expandable if it has counterexamples or exceptions
-  const isExpandable = hasAnyCounterexample || hasExceptions;
+  const allUnknownReasons = React.useMemo(() => {
+    const reasonMap = new Map<string, Set<string>>();
+    const mergeGroups = (groups: ExceptionGroup[]) => {
+      for (const group of groups) {
+        const names = reasonMap.get(group.message) ?? new Set<string>();
+        for (const name of group.dischargerNames) names.add(name);
+        reasonMap.set(group.message, names);
+      }
+    };
+
+    mergeGroups(getUnknownReasonGroupsFromVC(vc));
+    if (alternativeVC) {
+      mergeGroups(getUnknownReasonGroupsFromVC(alternativeVC));
+    }
+
+    return Array.from(reasonMap.entries()).map(([message, dischargerNames]) => ({
+      message,
+      dischargerNames: Array.from(dischargerNames).sort(),
+    }));
+  }, [vc, alternativeVC]);
+  const hasUnknownReasons = allUnknownReasons.length > 0;
+
+  // Row is expandable if it has counterexamples, exceptions, or unknown reasons.
+  const isExpandable = hasAnyCounterexample || hasExceptions || hasUnknownReasons;
 
   // Helper to check if any discharger is currently running
   const isAnyDischargerRunning = (targetVC: VerificationCondition): boolean => {
@@ -732,7 +865,10 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   };
 
   // Check if this VC is queued (pending but no dischargers running yet)
-  const isQueued = vc.status === null && !isAnyDischargerRunning(vc);
+  const isQueued =
+    effectiveStatus === null &&
+    !isAnyDischargerRunning(vc) &&
+    !hasRunningDischarger(alternativeVC);
 
   // Format elapsed time with in-progress styling (reduced opacity)
   const formatElapsedTime = (elapsed: number | null): React.ReactNode => {
@@ -863,7 +999,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   return (
     <>
       <div
-        className={`property-row status-${getStatusClass(vc.status)} ${isExpandable ? 'expandable' : ''} ${needsManualProof && hasTheoremText ? 'insertable' : ''}`}
+        className={`property-row status-${getStatusClass(effectiveStatus)} ${isExpandable ? 'expandable' : ''} ${needsManualProof && hasTheoremText ? 'insertable' : ''}`}
         onClick={handleRowClick}
         style={{ cursor: isExpandable || hasTheoremText ? 'pointer' : 'default' }}
         title={getTooltip()}
@@ -871,11 +1007,16 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
         {isExpandable && (
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
         )}
-        <span className="property-icon">{isQueued ? '⏳' : getStatusIcon(vc.status)}</span>
+        <span className="property-icon">{isQueued ? '⏳' : getStatusIcon(effectiveStatus)}</span>
         <span className="property-name">{getInductionData(vc)?.property}</span>
         {trWasInvoked && (
           <span className={`vc-style-badge tr-badge ${trIsRunning ? 'tr-running' : ''}`}>
             TR{trIsRunning && '...'}
+          </span>
+        )}
+        {(isInteractiveProven || hasInteractiveAttempt) && (
+          <span className="vc-style-badge interactive-badge">
+            Interactive
           </span>
         )}
         {timeDisplay && (
@@ -887,7 +1028,23 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
           <div className="exceptions-label">Exceptions</div>
           <div className="exceptions-content">
             {allExceptions.map((exception, idx) => (
-              <pre key={idx} className="exception-item">{exception}</pre>
+              <div key={idx} className="exception-entry">
+                <div className="exception-source">{exception.dischargerNames.join(', ')}</div>
+                <pre className="exception-item">{exception.message}</pre>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {expanded && hasUnknownReasons && (
+        <div className="exceptions-container">
+          <div className="exceptions-label">Reasons for Unknown</div>
+          <div className="exceptions-content">
+            {allUnknownReasons.map((reason, idx) => (
+              <div key={idx} className="exception-entry">
+                <div className="exception-source">{reason.dischargerNames.join(', ')}</div>
+                <pre className="exception-item">{reason.message}</pre>
+              </div>
             ))}
           </div>
         </div>
@@ -987,7 +1144,7 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
   // Get VCs that need manual proof (unknown/error/timeout, not disproven - those have counterexamples)
   const needsManualProofVCs = vcs.filter(vc =>
     vc.theoremText &&
-    (vc.status === 'unknown' || vc.status === 'error' || vc.status === 'timeout')
+    isManualProofStatus(getVisibleStatus(vc, alternativeMap))
   );
   const needsManualProofCount = needsManualProofVCs.length;
 
@@ -1108,30 +1265,33 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
     };
 
     visibleVCs.forEach((vc) => {
-      if (vc.status === null) {
+      const effectiveStatus = getVisibleStatus(vc, alternativeMap);
+      if (effectiveStatus === null) {
         counts.pending++;
-      } else if (vc.status === 'proven') {
+      } else if (effectiveStatus === 'proven') {
         counts.proven++;
-      } else if (vc.status === 'disproven') {
+      } else if (effectiveStatus === 'disproven') {
         counts.disproven++;
-      } else if (vc.status === 'unknown') {
+      } else if (effectiveStatus === 'unknown') {
         counts.unknown++;
-      } else if (vc.status === 'error') {
+      } else if (effectiveStatus === 'error') {
         counts.error++;
-      } else if (vc.status === 'timeout') {
+      } else if (effectiveStatus === 'timeout') {
         counts.timeout++;
       }
     });
 
     return counts;
-  }, [visibleVCs]);
+  }, [visibleVCs, alternativeMap]);
 
   // Filter VCs based on status (from already-visible VCs)
   const filteredVCs = React.useMemo(() => {
     if (statusFilter === 'all') return visibleVCs;
-    if (statusFilter === 'pending') return visibleVCs.filter((vc) => vc.status === null);
-    return visibleVCs.filter((vc) => vc.status === statusFilter);
-  }, [visibleVCs, statusFilter]);
+    if (statusFilter === 'pending') {
+      return visibleVCs.filter((vc) => getVisibleStatus(vc, alternativeMap) === null);
+    }
+    return visibleVCs.filter((vc) => getVisibleStatus(vc, alternativeMap) === statusFilter);
+  }, [visibleVCs, statusFilter, alternativeMap]);
 
   // Group VCs by action
   const actionGroups = React.useMemo(() => groupByAction(filteredVCs), [filteredVCs]);
@@ -1503,6 +1663,20 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
       gap: 8px;
     }
 
+    .exception-entry {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .exception-source {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--vscode-descriptionForeground);
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+
     .exception-item {
       margin: 0;
       padding: 8px 12px;
@@ -1573,6 +1747,12 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
 
     .tr-badge.tr-running {
       animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .interactive-badge {
+      background: rgba(82, 196, 26, 0.15);
+      color: #52c41a;
+      border: 1px solid rgba(82, 196, 26, 0.3);
     }
 
     @keyframes pulse {
@@ -1925,6 +2105,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
             {/* Banner for VCs needing manual proof */}
             <ManualProofBanner
               vcs={visibleVCs}
+              alternativeMap={alternativeMap}
               documentUri={documentUri}
               insertPosition={insertPosition}
             />

@@ -60,15 +60,22 @@ private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT
   | .none =>
     match data with
     | .inl witness => return .proven (some witness) .none time
-    | .inr ex => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
+    | .inr ex =>
+      match ← unknownReasonFromException? ex with
+      | some reason => return .unknown (.some (.unknown #[reason])) time
+      | none => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
 
 /-! ## VC Discharger -/
 
 /-- Create a discharger for inductive verification conditions. -/
 def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatement)
     (dischargerId : DischargerIdentifier)
+    (nameSuffix : String := "")
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
+  let dischargerId :=
+    if nameSuffix.isEmpty then dischargerId
+    else { dischargerId with name := Name.mkSimple s!"{dischargerId.name.getString!}{nameSuffix}" }
   -- let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
   let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new
@@ -246,7 +253,7 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
     for (act, vc) in vcData do
       let mgr ← ref.get
       let (mgr, vcId) := mgr.addVC vc {} #[]
-      let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name)
+      let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
       ref.set mgr
 
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
@@ -270,10 +277,10 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
       let mgr ← ref.get
       -- WP-style VC (primary)
       let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
-      let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name)
+      let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
       -- TR-style VC (alternative) - only runs when WP-style VC fails
       let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
-      let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name)
+      let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
       ref.set mgr
 
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/

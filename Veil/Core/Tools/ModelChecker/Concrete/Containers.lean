@@ -17,6 +17,92 @@ instance : Membership α (fQueue α) where
 
 def empty {α} : fQueue α := ⟨[], [], 0, rfl⟩
 
+instance {α} : Inhabited (fQueue α) := ⟨empty⟩
+
+instance [BEq α] : BEq (fQueue α) where
+  beq q1 q2 := q1.front == q2.front && q1.back == q2.back
+
+private instance [BEq α] [PartialEquivBEq α] : PartialEquivBEq (List α) where
+  symm {l1 l2} h := by
+    induction l1 generalizing l2 with
+    | nil => cases l2 <;> simp_all
+    | cons x xs ih =>
+      match l2 with
+      | [] => simp at h
+      | y :: ys =>
+        show List.beq (y :: ys) (x :: xs) = true
+        have h : List.beq (x :: xs) (y :: ys) = true := h
+        rw [List.beq_cons₂, Bool.and_eq_true] at h ⊢
+        exact ⟨(BEq.comm (α := α) ▸ h.1 :), ih h.2⟩
+  trans {l1 l2 l3} h1 h2 := by
+    induction l1 generalizing l2 l3 with
+    | nil =>
+      match l2 with
+      | [] => simpa using h2
+      | _ :: _ => simp at h1
+    | cons x xs ih =>
+      match l2, l3 with
+      | [], _ => simp at h1
+      | _ :: _, [] => simp at h2
+      | y :: ys, z :: zs =>
+        show List.beq (x :: xs) (z :: zs) = true
+        have h1 : List.beq (x :: xs) (y :: ys) = true := h1
+        have h2 : List.beq (y :: ys) (z :: zs) = true := h2
+        rw [List.beq_cons₂, Bool.and_eq_true] at h1 h2 ⊢
+        exact ⟨BEq.trans h1.1 h2.1, ih h1.2 h2.2⟩
+
+private instance [BEq α] [ReflBEq α] : ReflBEq (List α) where
+  rfl {l} := by
+    induction l with
+    | nil => rfl
+    | cons x xs ih =>
+      show List.beq (x :: xs) (x :: xs) = true
+      rw [List.beq_cons₂, Bool.and_eq_true]
+      exact ⟨beq_self_eq_true x, ih⟩
+
+instance [BEq α] [EquivBEq α] : EquivBEq (fQueue α) where
+  symm {a b} h := by
+    change (b.front == a.front && b.back == a.back) = true
+    have h : (a.front == b.front && a.back == b.back) = true := h
+    simp only [Bool.and_eq_true] at h ⊢
+    exact ⟨(BEq.comm (α := List α) ▸ h.1 :), (BEq.comm (α := List α) ▸ h.2 :)⟩
+  trans {a b c} h1 h2 := by
+    change (a.front == c.front && a.back == c.back) = true
+    have h1 : (a.front == b.front && a.back == b.back) = true := h1
+    have h2 : (b.front == c.front && b.back == c.back) = true := h2
+    simp only [Bool.and_eq_true] at h1 h2 ⊢
+    exact ⟨BEq.trans (α := List α) h1.1 h2.1, BEq.trans (α := List α) h1.2 h2.2⟩
+  rfl {a} := by
+    change (a.front == a.front && a.back == a.back) = true
+    simp
+
+instance [BEq α] [LawfulBEq α] : LawfulBEq (fQueue α) where
+  eq_of_beq {q1 q2} h := by
+    rcases q1 with ⟨f1, b1, s1, hs1⟩
+    rcases q2 with ⟨f2, b2, s2, hs2⟩
+    change (f1 == f2 && b1 == b2) = true at h
+    rw [Bool.and_eq_true] at h
+    have hf := eq_of_beq h.1; have hb := eq_of_beq h.2
+    subst hf; subst hb
+    have : s1 = s2 := by omega
+    subst this; rfl
+
+instance [Hashable α] : Hashable (fQueue α) where
+  hash q :=
+    -- Step 1: hash front left-to-right
+    let h1 := q.front.foldl (init := 0) fun acc x => mixHash acc (hash x)
+    -- Step 2: continue hashing rear right-to-left (= rear.reverse order)
+    q.back.foldr (init := h1) fun x acc => mixHash acc (hash x)
+
+instance [BEq α] [Hashable α] [LawfulBEq α] [LawfulHashable α] : LawfulHashable (fQueue α) where
+  hash_eq {q1 q2} h := by
+    rcases q1 with ⟨f1, b1, s1, hs1⟩
+    rcases q2 with ⟨f2, b2, s2, hs2⟩
+    change (f1 == f2 && b1 == b2) = true at h
+    rw [Bool.and_eq_true] at h
+    have hf := eq_of_beq h.1; have hb := eq_of_beq h.2
+    subst hf; subst hb; rfl
+
 @[grind]
 def norm {α} (q : fQueue α) : fQueue α :=
   match hf : q.front with
@@ -43,24 +129,71 @@ def dequeue? {α} (q : fQueue α) : Option (α × fQueue α) :=
       simp only [hf, List.length_cons] at h1
       omega⟩)
 
+def dequeueD {α} [Inhabited α] (q : fQueue α) : α × fQueue α :=
+  let nq := norm q
+  match hf : nq.front with
+  | []        => (default, nq)
+  | x :: xs   => (x, ⟨xs, nq.back, q.sz - 1, by
+      have h1 := nq.h_sz
+      have h2 : nq.sz = q.sz := norm_sz q
+      simp only [hf, List.length_cons] at h1
+      omega⟩)
+
 @[grind]
 def toList {α} (q : fQueue α) : List α :=
   q.front ++ q.back.reverse
 
 @[grind]
-def isEmpty {α} (q : fQueue α) : Bool :=
-  q.front.isEmpty && q.back.isEmpty
+def isEmpty {α} (q : fQueue α) : Bool := q.sz = 0
 
+-- FIXME: Why not just name `sz` as `size` in the structure definition?
 @[grind]
 def size {α} (q : fQueue α) : Nat := q.sz
 
 @[grind]
 def toArray {α} (q : fQueue α) : Array α :=
+  -- CHECK Is there an implementation with better complexity
   q.front.toArray ++ q.back.toArray.reverse
 
 @[grind]
 def ofList {α} (xs : List α) : fQueue α :=
-  xs.foldl fQueue.enqueue fQueue.empty
+  ⟨xs, [], xs.length, rfl⟩
+
+/-- Enqueue multiple elements, maintaining FIFO order. O(|items|). -/
+def enqueueBatch {α} (q : fQueue α) (items : List α) : fQueue α :=
+  ⟨q.front, items.reverseAux q.back, q.sz + items.length, by
+    simp [List.reverseAux_eq, List.length_append, List.length_reverse, q.h_sz]
+    omega⟩
+
+/-- Dequeue up to `n` elements. Returns dequeued elements (in FIFO order)
+    and the remaining queue. O(min(n, sz)) amortized. -/
+def dequeueBatch {α} (q : fQueue α) (n : Nat) : List α × fQueue α :=
+  if h : q.sz ≤ n then
+    -- Not enough elements — return everything
+    (q.toList, ⟨[], [], 0, rfl⟩)
+  else
+    -- q.sz > n: will dequeue exactly n elements
+    let res := q.front.splitAt n
+    match h' : res with
+    | (fromFront, frontRest) =>
+      let nFront := fromFront.length
+      if h'' : nFront ≥ n then
+        -- Got all n from front
+        (fromFront, ⟨frontRest, q.back, q.sz - n, by
+          rcases q with ⟨f, b, sz, h_sz⟩
+          subst res nFront ; dsimp only at *
+          grind
+          ⟩)
+      else
+        -- front had < n, need (n - nFront) more from back.
+        -- Since q.sz > n, back has enough → result size = q.sz - n.
+        let res' := q.back.reverse.splitAt (n - nFront)
+        match h''' : res' with
+        | (fromBack, backRest) =>
+          (fromFront ++ fromBack, ⟨backRest, [], q.sz - n, by
+            rcases q with ⟨f, b, sz, h_sz⟩
+            subst res nFront ; dsimp only at *
+            grind⟩)
 
 -- ## Functional correctness of the functional queue
 
@@ -194,9 +327,13 @@ theorem mem_of_dequeue {α : Type} (q q' : fQueue α) (x : α)
 /-- isEmpty returns true iff both front and back are empty -/
 @[grind =]
 theorem isEmpty_iff_empty_lists {α : Type} (q : fQueue α) :
-    q.isEmpty = true ↔ q.front = [] ∧ q.back = [] := by
-  unfold isEmpty
-  simp only [Bool.and_eq_true]
+    q.isEmpty = true ↔ q.front = [] ∧ q.back = [] := by cases q ; simp [isEmpty] ; aesop
+
+/-- isEmpty returns true iff both front and back are empty -/
+@[grind =]
+theorem not_mem_iff_isEmpty {α : Type} (q : fQueue α) :
+    q.isEmpty = true ↔ ∀ a : α, a ∉ q := by
+  simp [isEmpty_iff_empty_lists, fQueue.instMembership, List.eq_nil_iff_forall_not_mem]
   grind
 
 /-- If isEmpty is true, then dequeue? returns none -/
@@ -212,22 +349,7 @@ theorem dequeue?_none_of_isEmpty {α : Type} (q : fQueue α)
 
 @[grind =]
 theorem isEmpty_of_dequeue?_none {α : Type} (q : fQueue α) (h : q.dequeue? = none) :
-    q.isEmpty = true := by
-  have h_toList := dequeue?_eq_none_iff_toList_nil q |>.mp h
-  unfold toList at h_toList
-  have h_front : q.front = [] := by grind
-  unfold fQueue.isEmpty
-  rw [h_front]
-  simp only [List.isEmpty_nil, Bool.true_and]
-  have h_back_nil : q.back = [] := by
-    rw [h_front] at h_toList
-    simp only [List.nil_append] at h_toList
-    simp at h_toList
-    exact h_toList
-  rw [h_back_nil]
-  simp only [List.isEmpty_nil]
-
-
+    q.isEmpty = true := by cases q ; simp [isEmpty, fQueue.toList] at * ; grind
 
 /-- Enqueue preserves the head element: if dequeue? returns some (head, tail),
     then after enqueuing a new element, dequeue? still returns the same head -/
@@ -255,18 +377,25 @@ theorem enqueue_preserves_head {α : Type} (q : fQueue α) (x : α) (head : α)
 
 
 /-- If an element is in a list, it is in the queue constructed from that list -/
-theorem mem_ofList {α : Type} (L : List α) (x : α) (h : x ∈ L)
-  : x ∈ fQueue.ofList L := by
-  unfold fQueue.ofList
-  have h_toList : (List.foldl fQueue.enqueue fQueue.empty L).toList = fQueue.empty.toList ++ L :=
-    fQueue.foldl_enqueue_toList L fQueue.empty
-  rw [fQueue.toList_empty] at h_toList
-  simp only [List.nil_append] at h_toList
-  rw [← h_toList] at h
-  unfold fQueue.toList at h
-  unfold Membership.mem instMembership
-  simp only [List.mem_append, List.mem_reverse] at h
-  exact h
+theorem mem_ofList {α : Type} (L : List α) (x : α) :
+  x ∈ L ↔ x ∈ fQueue.ofList L := by
+  unfold fQueue.ofList ; simp [fQueue.instMembership] at *
+
+theorem mem_toList {α : Type} (L : fQueue α) (x : α) :
+  x ∈ L ↔ x ∈ fQueue.toList L := by
+  unfold fQueue.toList ; simp [fQueue.instMembership] at *
+
+@[grind =]
+theorem mem_enqueue_iff {α : Type} (q : fQueue α) (x y : α) :
+  x ∈ q.enqueue y ↔ x ∈ q ∨ x = y := by
+  rw [mem_toList, mem_toList, toList_enqueue] ; simp
+
+@[grind .]
+theorem mem_dequeue_iff {α : Type} (q q' : fQueue α) (x y : α)
+  (h : q.dequeue? = some (y, q')) :
+  x ∈ q ↔ x ∈ q' ∨ x = y := by
+  have tmp := dequeue?_spec q ; simp [h] at tmp
+  rw [mem_toList, mem_toList, tmp] ; grind
 
 end fQueue
 

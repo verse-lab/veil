@@ -4,108 +4,119 @@ import Veil.Core.Tools.ModelChecker.Concrete.Containers
 
 namespace Veil.ModelChecker.Concrete
 
-/-- The frontier-closed property: all states that are discovered (in `seen`) and not in the frontier
-    (not in `tovisit`) have all their successors discovered. This is the key invariant for BFS correctness.
-    This version uses HashSet for O(1) membership checking. -/
-abbrev FrontierClosed {ρ σ κ σₕ : Type}
+section Sequential
+
+abbrev SequentialSearchContext (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] :=
+  BaseSearchContext σ κ σₕ asm × fQueue (QueueItem σₕ σ)
+
+variable {ρ σ κ σₕ asm : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
+  [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (seen : Std.HashSet σₕ)
-  (tovisitSet : Std.HashSet σₕ)
-  (finished : Option (TerminationReason σₕ)) : Prop :=
+  (params : SearchParameters ρ σ)
+
+/-- A sequential search context is stable closed if for any state `u` that
+has been seen and has been fully processed (i.e., not in the queue, not being
+processed), then all its successfully reachable have also been seen. -/
+abbrev SequentialSearchContext.isStableClosed (sctx : SequentialSearchContext σ κ σₕ asm)
+  -- (Optional) state that is currently being processed
+  (stateInTransit : Option σ) : Prop :=
   Function.Injective fp.view →
-    (finished = some (.exploredAllReachableStates) ∨ finished = none) →
-    ∀ (s : σ), fp.view s ∈ seen →
-      (fp.view s ∉ tovisitSet) →
-      ∀ l next_s, (l, .success next_s) ∈ sys.tr th s →
-      fp.view next_s ∈ seen
+    (sctx.1.finished = some (.exploredAllReachableStates) ∨ sctx.1.finished = none) →
+      ∀ u ∉ stateInTransit, (fp.view u) ∈ sctx.1.log →
+        (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sctx.2) →
+          ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u →
+            (fp.view v) ∈ sctx.1.log
 
+-- TODO conjecture: executable things should not become part of this structure
+-- (e.g., arguments), otherwise some reference counting will boom?
+structure SequentialSearchContextInvariants
+  (stateInTransit : Option σ)
+  (sctx : SequentialSearchContext σ κ σₕ asm)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun (x : σₕ) (st : σ) => ∃ d, ⟨x, st, d⟩ ∈ sctx.2) (· ∈ sctx.1.log)
+where
+  -- NOTE: should be strengthened to talk about depth, with this
+  -- being a special case
+  init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ sctx.1.log
+  terminate_empty_queue : sctx.1.finished = some (.exploredAllReachableStates) → sctx.2.isEmpty
+  stable_closed : sctx.isStableClosed sys stateInTransit
 
-/-- The property that all successors of items in `items` satisfy the `inSeen` predicate.
-    Used as a key invariant in parallel BFS to express that successors have been collected. -/
-abbrev SuccessorsCollected {ρ σ κ σₕ : Type _}
+abbrev LawfulSequentialSearchContext (stateInTransit : Option σ := .none) : Type :=
+  Subtype (α := SequentialSearchContext σ κ σₕ asm) (SequentialSearchContextInvariants sys params stateInTransit)
+
+end Sequential
+
+section MapReduce
+
+structure MapReduceSearchContextMain (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [Ord σₕ] [ActionStatUpdate κ asm] where
+  base : BaseSearchContext σ κ σₕ asm
+  tovisitLen : Nat
+  tovisit : List (MapReduceQueueItem σₕ σ)
+  globalSeen : ShardedTreeSetUSize σₕ
+  /-- Collected local logs per BFS round (not yet merged into base.log). Merged at search end iff violations exist.
+      Each inner list contains per-shard logs from one BFS iteration; the outer list groups by iteration. -/
+  accumulatedLogs : List (List (Std.HashMap σₕ (Option (σₕ × κ)))) := []
+
+abbrev MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] :=
+  BaseSearchContext σ κ σₕ asm × List (MapReduceQueueItem σₕ σ)
+
+structure MapReduceSearchContextTemp (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] (n : USize) where
+  base : BaseSearchContext σ κ σₕ asm
+  tovisit : List (MapReduceQueueItem σₕ σ)
+  tempSeen : ShardedHashSetUSize σₕ n
+
+variable {ρ σ κ σₕ asm : Type}
   [fp : StateFingerprint σ σₕ]
-  [BEq κ] [Hashable κ]
+  [ActionStatUpdate κ asm]
+  [Ord σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (inQueue : QueueItem σₕ σ → Prop)
-  (hasFinished : Bool)
-  (seen : σₕ → Prop) : Prop :=
-  !hasFinished → ∀ fingerprint st d, inQueue ⟨fingerprint, st, d⟩ →
+  (params : SearchParameters ρ σ)
+
+/-- A map-reduce main context is stable closed if for any state `u` that
+has been seen (in globalSeen) and has been fully processed (i.e., not in the
+frontier array), then all its successfully reachable states have also been seen. -/
+abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextMain σ κ σₕ asm) : Prop :=
+  Function.Injective fp.view →
+    (mctx.base.finished = some (.exploredAllReachableStates) ∨ mctx.base.finished = none) →
+      ∀ u, (fp.view u) ∈ mctx.globalSeen →
+        (∀ item ∈ mctx.tovisit, item.fingerprint ≠ fp.view u) →
+          ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u →
+            (fp.view v) ∈ mctx.globalSeen
+
+structure MapReduceSearchContextMainInvariants
+  (mctx : MapReduceSearchContextMain σ κ σₕ asm)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ⟨x, st⟩ ∈ mctx.tovisit) (· ∈ mctx.globalSeen)
+where
+  init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ mctx.globalSeen
+  terminate_empty_queue : mctx.base.finished = some (.exploredAllReachableStates) → mctx.tovisit.isEmpty
+  stable_closed : mctx.isStableClosed sys
+  tovisit_len : mctx.tovisitLen = mctx.tovisit.length
+
+abbrev LawfulMapReduceSearchContextMain : Type :=
+  Subtype (α := MapReduceSearchContextMain σ κ σₕ asm) (MapReduceSearchContextMainInvariants sys params)
+
+structure MapReduceSearchContextLocalInvariants
+  (globalSeen : ShardedTreeSetUSize σₕ)
+  (visited : MapReduceQueueItem σₕ σ → Prop)
+  (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ⟨x, st⟩ ∈ lctx.2) (fun h => ∃ s, ⟨h, s⟩ ∈ lctx.2)
+where
+  not_explored_all : lctx.1.finished ≠ some (.exploredAllReachableStates)   -- OK, but why?
+  tovisit_globalSeen_disjoint : ∀ item ∈ lctx.2, item.fingerprint ∉ globalSeen
+  -- NOTE: This might be eventually removed
+  tovisit_log_same_domain : ∀ fpSt, fpSt ∈ lctx.1.log ↔ ∃ item ∈ lctx.2, item.fingerprint = fpSt
+  successor_collected : lctx.1.finished = none → ∀ fingerprint st, visited ⟨fingerprint, st⟩ →
     ∀ (l : κ) (v : σ), (l, .success v) ∈ sys.tr th st →
-    seen (fp.view v)
+      ((fp.view v) ∈ globalSeen ∨
+        fp.view v ∈ lctx.1.log)
 
+abbrev LawfulMapReduceSearchContextLocal
+  (globalSeen : ShardedTreeSetUSize σₕ)
+  (visited : MapReduceQueueItem σₕ σ → Prop) : Type :=
+  Subtype (α := MapReduceSearchContextLocal σ κ σₕ asm) (MapReduceSearchContextLocalInvariants sys params globalSeen visited)
 
-structure SequentialSearchContext {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [instBEq : BEq κ] [instHash : Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
-where
-  sq    : fQueue (QueueItem σₕ σ)
-  invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem sq) (Membership.mem seen)
-  terminate_empty_queue : finished = some (.exploredAllReachableStates) → sq.isEmpty
-  stable_closed :  Function.Injective fp.view →
-    (finished = some (.exploredAllReachableStates) ∨ finished = none)
-      → ∀ u : σ, (fp.view u) ∈ seen → (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sq) →
-      ∀l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u → (fp.view v) ∈ seen
-
-
-structure ParallelSearchContext {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [instBEq : BEq κ] [instHash : Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
-where
-  /-- Recording the nodes to visit in the next depth as an Array for efficient iteration/splitting. -/
-  tovisitQueue : Array (QueueItem σₕ σ)
-  /-- HashSet for O(1) membership checking of fingerprints in the queue. -/
-  tovisitSet : Std.HashSet σₕ
-  /-- Consistency between queue and set: a fingerprint is in the set iff some item with that fingerprint is in the queue. -/
-  tovisitConsistent : ∀ h, h ∈ tovisitSet ↔ ∃ item ∈ tovisitQueue, item.fingerprint = h
-  invs  : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisitQueue) (Membership.mem seen)
-  frontier_closed : FrontierClosed sys seen tovisitSet finished
-  starts_in_seen : ∀s₀, s₀ ∈ sys.initStates → fp.view s₀ ∈ seen
-  terminate_empty_tovisit :
-    finished = some (.exploredAllReachableStates) → tovisitQueue.isEmpty
-
-
-structure LocalSearchContext {ρ σ κ σₕ : Type}
-  [fp : StateFingerprint σ σₕ]
-  [instBEq : BEq κ] [instHash : Hashable κ]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ)
-  (baseCtx : @BaseSearchContext ρ σ κ σₕ fp _ _ th sys params)
-extends @BaseSearchContext ρ σ κ σₕ fp instBEq instHash th sys params
-where
-  /-- Recording the nodes to visit as an Array for efficient iteration. -/
-  tovisitQueue : Array (QueueItem σₕ σ)
-  /-- HashSet for O(1) membership checking of fingerprints in the queue. -/
-  tovisitSet : Std.HashSet σₕ
-  /-- Consistency between queue and set: a fingerprint is in the set iff some item with that fingerprint is in the queue. -/
-  tovisitConsistent : ∀ h, h ∈ tovisitSet ↔ ∃ item ∈ tovisitQueue, item.fingerprint = h
-  localLog : Std.HashMap σₕ (σₕ × κ)
-  seenUnaltered : ∀s, s ∈ baseCtx.seen ↔ s ∈ seen
-  invs : @SearchContextInvariants ρ σ κ σₕ fp th sys params (Membership.mem tovisitQueue) (fun h => h ∈ seen ∨ h ∈ tovisitSet)
-  /-- Local count of post-states generated (before deduplication) -/
-  localStatesFound : Nat := 0
-  /-- Local per-action statistics: label → stats -/
-  localActionStatsMap : Std.HashMap κ ActionStat := {}
-  excludeAllStatesFinish : finished ≠ some (.exploredAllReachableStates)
-
-
-/-- Merge action stats maps by summing counts for each action. -/
-private def mergeActionStatsMaps [BEq κ] [Hashable κ] (m1 m2 : Std.HashMap κ ActionStat) : Std.HashMap κ ActionStat :=
-  m2.fold (init := m1) fun acc label stat2 =>
-    match acc[label]? with
-    | some stat1 => acc.insert label { statesGenerated := stat1.statesGenerated + stat2.statesGenerated, distinctStates := stat1.distinctStates + stat2.distinctStates }
-    | none => acc.insert label stat2
+end MapReduce
 
 end Veil.ModelChecker.Concrete

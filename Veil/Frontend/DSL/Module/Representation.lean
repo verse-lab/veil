@@ -56,6 +56,11 @@ inductive ParameterKind where
   /-- A (FOL) sort, i.e. a Lean type. The `sort` parameters are those that
   are used to declare the `State` type of the module. -/
   | sort (kind : SortKind)
+  /-- A user-declared parameter of arbitrary type (e.g., `param n : Nat`).
+  These flow through the system like sorts (parameterizing `State`, `Theory`, `Label`,
+  etc.) but do not trigger sort-specific behaviors like auto-generated
+  `DecidableEq`/`Inhabited` instances. -/
+  | userParameter
   /-- The type of the state of the _environment_ that this module
   operates in. The module's own state will be a sub-state of this. -/
   | environmentState -- i.e. `σ`
@@ -128,6 +133,9 @@ inductive StateAssertionKind
   that is only assumed, not checked. -/
   | trustedInvariant
   | termination
+  /-- A `state_constraint` filters out states during model checking.
+  States that do not satisfy the constraint are not explored. -/
+  | stateConstraint
 deriving BEq, Hashable, Repr
 
 instance : Inhabited StateAssertionKind where
@@ -153,10 +161,12 @@ inductive DerivedDefinitionKind where
   /-- This derived definition is like a `theorem` in terms of the
   parameters it needs. -/
   | theoremLike
-  /-- This is a ghost relation, i.e. a predicate over background theory and state. -/
-  | ghost
-  /-- This is a theory ghost relation, i.e. a predicate over background theory only. -/
-  | theoryGhost
+  /-- This is a ghost definition over background theory and state.
+  When `isRelation` is true, it is a ghost relation (a predicate returning `Prop`). -/
+  | ghost (isRelation : Bool)
+  /-- This is a ghost definition over background theory only.
+  When `isRelation` is true, it is a ghost relation (a predicate returning `Prop`). -/
+  | theoryGhost (isRelation : Bool)
 deriving Inhabited, BEq, Hashable, Repr
 
 inductive DeclarationKind where
@@ -369,7 +379,9 @@ structure Module where
 
   protected _useLocalRPropTC : Bool := true
 
-  protected _fieldRepMetaData : Std.HashMap Name (Array Term) := Std.HashMap.emptyWithCapacity
+  /-- Per-module configuration of which concrete types to use for fields.
+  Key is the field kind (`relation` or `function`), value is the type name. -/
+  protected _concreteRepConfig : Std.HashMap StateComponentKind Name := Std.HashMap.emptyWithCapacity
 deriving Inhabited
 
 def Module.defaultAssertionSet (mod : Module) : Name := mod.name

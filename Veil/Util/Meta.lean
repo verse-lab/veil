@@ -207,12 +207,15 @@ def isDecidableInstance (type : Expr) : TermElabM Bool := do
   Meta.forallTelescope ty fun _ body => do
     return (← Meta.whnf body).getAppFn.constName? == some ``Decidable
 
+private def mkVeilDecidableTypeName (owner : Name) (idx : Nat) : Name :=
+  owner.mkStr s!"_veil_dec_type_{idx}"
+
 /-- Elaborates the term (ignoring typeclass inference failures) and
 returns the set of `Decidable` instances needed to make it elaborate
 correctly. `decBodyTransform` is for simplifying the body of the
 propositions to decide (e.g., removing unnecessary arguments, or
 exposing types explicitly for certain dependently-typed terms). -/
-def getRequiredDecidableInstances (stx : Term) (decBodyTransform : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
+def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
   /- We want to throw an error if anything fails or is missing during
   elaboration. -/
   Term.withoutErrToSorry $ do
@@ -224,8 +227,8 @@ def getRequiredDecidableInstances (stx : Term) (decBodyTransform : Expr → Term
   let e ← Term.elabTerm stx none
   Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
   let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
-  let mvars' ← mvars.filterMapM (simplifyMVarType · isBodyDecidable)
-  return (mvars', e)
+  let decInsts ← mvars.zipIdx.filterMapM fun (mv, idx) => simplifyMVarType idx mv isBodyDecidable
+  return (decInsts, e)
 where
   isBodyDecidable (body : Expr) : TermElabM Bool := do
     return (← Meta.whnf body).getAppFn.constName? == some ``Decidable
@@ -233,7 +236,7 @@ where
   for the predicate. This method gets rid of those unnecessary
   arguments. Moreover, it only returns those `mv`ars whose final result
   type passes the given filter. -/
-  simplifyMVarType (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option (Term × Expr)) := do
+  simplifyMVarType (idx : Nat) (mv : Expr) (keepBodyIf : Expr → TermElabM Bool := fun _ => return true): TermElabM (Option (Term × Expr)) := do
     -- NOTE: It is **very difficult** to control to what extent `ty`
     -- should be simplified, so here we just use `reduce`.
     let tyOriginal ← Meta.inferType mv
@@ -241,6 +244,7 @@ where
     let ty ← Meta.withTransparency .reducible <| Meta.reduce (skipTypes := false) tyOriginal
     -- trace[veil.debug] "simplifyMVarType {mv}:\n{tyOriginal}\n~~> {ty}"
     Meta.forallTelescope ty fun ys body => do
+
       if !(← keepBodyIf body) then return none
       let simplified_body ← decBodyTransform body
       let simplified_type ← Meta.mkForallFVars ys simplified_body (usedOnly := true)
@@ -268,11 +272,7 @@ where
       -- delaboration round-trips that can fail or be slow.
       let usedFvars := collectFVars {} simplified_type |>.fvarIds |>.map Expr.fvar
       let closedType ← Meta.mkLambdaFVars usedFvars simplified_type
-      -- FIXME: Without using this global name counter?
-      let ngen ← getNGen
-      let idx := ngen.idx
-      setNGen { ngen with idx := idx + 1 }
-      let defName := Name.mkSimple s!"_veil_dec_type_{idx}"
+      let defName := mkVeilDecidableTypeName owner idx
       let fullName ← do
         -- NOTE: Sometimes, things will go wrong without doing `levelMVarToParam`; not clear why
         let closedType ← Term.levelMVarToParam closedType
@@ -298,8 +298,8 @@ where
   that need to be `Decidable` for this action to be executable, and the
   elaborated term itself.
 -/
-def elabTermDecidable (stx : Term) (folding : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
-  let (decInsts, e) ← getRequiredDecidableInstances stx folding
+def elabTermDecidable (owner : Name) (stx : Term) (folding : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
+  let (decInsts, e) ← getRequiredDecidableInstances owner stx folding
   let e ← instantiateMVars e
   return (decInsts, e)
 
@@ -408,7 +408,9 @@ def explicitBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : TS
 open Lean.Parser.Term in
 def bracketedBinderToFunBinder [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax ``bracketedBinder) : m (TSyntax ``funBinder) := do
   match stx with
-  | `(bracketedBinder| ($id:ident : $tp:term)) => `(funBinder| ($id:ident : $tp:term))
+  | `(bracketedBinder| ($id:ident : $tp:term))
+  | `(bracketedBinder| ($id:ident : $tp:term := by $_))
+  | `(bracketedBinder| ($id:ident : $tp:term := $_)) => `(funBinder| ($id:ident : $tp:term))
   | `(bracketedBinder| [$id:ident : $tp:term]) => `(funBinder| [$id:ident : $tp:term])
   | `(bracketedBinder| [$tp:term]) => `(funBinder| [$tp:term])
   | `(bracketedBinder| {$id:ident*}) => `(funBinder| {$id:ident*})

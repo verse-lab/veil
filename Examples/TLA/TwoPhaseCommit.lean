@@ -216,6 +216,11 @@ invariant [TCConsistency] ¬ (∃ rm1 rm2 : RM,
 
 #gen_spec
 
-#model_check { RM := Fin 3 }
+set_option trace.veil.desugar true
+#model_check compiled { RM := Fin 5 }
+{}
+-- (sequential := true)
+(parallelCfg := some { numSubTasks := 4, thresholdToParallel := 20})
+-- (sequential := false)
 
 end TwoPhaseCommitTLA

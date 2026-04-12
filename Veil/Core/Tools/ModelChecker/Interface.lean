@@ -12,6 +12,7 @@ structure SafetyProperty (ρ σ : Type) where
   property : ρ → σ → Prop
   [decidable : ∀ th st, Decidable (property th st)]
 
+@[inline, specialize]
 def SafetyProperty.holdsOn (p : SafetyProperty ρ σ) (th : ρ) (st : σ) : Bool :=
   @decide (p.property th st) (p.decidable th st)
 
@@ -101,26 +102,39 @@ structure ParallelConfig where
   If the worklist size is below this threshold, sequential processing
   is used. -/
   thresholdToParallel : Nat := 20
+  -- /-- Number of states processed in a batch by each worker. -/
+  -- batchSize : Nat := 512
+  /-- Number of sub-steps per BFS layer. Each sub-step processes
+  ~(1/numSubSteps) of the frontier, then runs the reduce step to update
+  the global seen set. Higher values reduce redundant state exploration
+  but add synchronization overhead. 1 = no sub-stepping (original behavior). -/
+  numSubSteps : Nat := 1
 deriving Inhabited, Repr
 
 instance ParallelConfig.hasQuote : Quote ParallelConfig `term where
   quote cfg :=
     Syntax.mkCApp ``ParallelConfig.mk
       #[Syntax.mkNumLit (toString cfg.numSubTasks),
-        Syntax.mkNumLit (toString cfg.thresholdToParallel)]
+        Syntax.mkNumLit (toString cfg.thresholdToParallel),
+        Syntax.mkNumLit (toString cfg.numSubSteps)]
 
-/-- Pure function that computes the chunk ranges for splitting a worklist.
+/-- Core chunking logic: split `[0, totalSize)` into `numSplits` ranges.
+Returns a list of `(left, right)` index pairs. -/
+def computeChunkRanges (numSplits : Nat) (totalSize : Nat) : List (Nat × Nat) :=
+  let numSplits := max 1 numSplits
+  let chunkSize := totalSize / numSplits
+  List.range numSplits |>.map fun i =>
+    let l := i * chunkSize
+    let r := if i == numSplits - 1 then totalSize else (i + 1) * chunkSize
+    (l, r)
+
+/-- Compute chunk ranges for splitting a worklist, with threshold check.
 Returns a list of (left, right) index pairs representing subarrays. -/
 def ParallelConfig.chunkRanges (cfg : ParallelConfig) (totalSize : Nat) : List (Nat × Nat) :=
   if totalSize < cfg.thresholdToParallel then
     [(0, totalSize)]
   else
-    let numSubTasks := max 1 cfg.numSubTasks
-    let chunkSize := totalSize / numSubTasks
-    List.range numSubTasks |>.map fun i =>
-      let l := i * chunkSize
-      let r := if i == numSubTasks - 1 then totalSize else (i + 1) * chunkSize
-      (l, r)
+    computeChunkRanges cfg.numSubTasks totalSize
 
 /-- ParallelConfig.chunkRanges produces valid ranges (within bounds). -/
 theorem ParallelConfig.chunkRanges_valid (cfg : ParallelConfig) (n : Nat) :
@@ -132,6 +146,7 @@ theorem ParallelConfig.chunkRanges_valid (cfg : ParallelConfig) (n : Nat) :
     grind
   · rename_i h_not_small
     simp at h_not_small
+    unfold computeChunkRanges at h_lr_in
     simp [List.mem_map] at h_lr_in
     obtain ⟨i, h_i_in, h_lr_eq⟩ := h_lr_in
     split
@@ -169,6 +184,7 @@ theorem ParallelConfig.chunkRanges_cover (cfg : ParallelConfig) (n : Nat) :
     simp
     omega
   · rename_i h_not_small
+    unfold computeChunkRanges
     let k := max 1 cfg.numSubTasks
     let s := n / k
     have hk_pos : 0 < k := Nat.le_max_left 1 _
@@ -230,9 +246,18 @@ structure SearchParameters (ρ σ : Type) where
   deadlock has occurred. -/
   terminating : SafetyProperty ρ σ := default
 
+  /-- State constraints filter out states during model checking. A state is
+  explored only if ALL constraints hold on it. States violating any constraint
+  are silently skipped (not flagged as violations). -/
+  stateConstraints : List (SafetyProperty ρ σ) := []
+
   /-- Stop the search if _any_ of the stopping conditions are met. Of course,
   the search also terminates if all reachable states have been explored. -/
   earlyTerminationConditions : List EarlyTerminationCondition
+
+/-- Check if a state satisfies all state constraints. -/
+def SearchParameters.satisfiesConstraints (params : SearchParameters ρ σ) (th : ρ) (st : σ) : Bool :=
+  params.stateConstraints.all fun c => c.holdsOn th st
 
 -- class ModelChecker (ts : TransitionSystem ρ σ l) where
 --   isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ

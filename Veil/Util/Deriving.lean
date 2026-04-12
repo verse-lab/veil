@@ -46,6 +46,22 @@ def Std.LawfulEqOrd.by_equiv [inst : Std.LawfulEqOrd α] : Std.LawfulEqOrd β wh
 
 end VariousByEquiv
 
+-- Well, why `PUnit` has no `Ord` instance? Let's just make one
+instance : Ord PUnit where
+  compare _ _ := Ordering.eq
+
+instance : Std.ReflOrd PUnit where
+  compare_self := rfl
+
+instance : Std.OrientedOrd PUnit where
+  eq_swap := by intros ; rfl
+
+instance : Std.TransOrd PUnit where
+  isLE_trans := by intros ; rfl
+
+instance : Std.LawfulEqOrd PUnit where
+  eq_of_compare := by intros ; rfl
+
 def sumOrd [Ord α] [Ord β] : Ord (Sum α β) where
   compare
     | Sum.inl a1, Sum.inl a2 => compare a1 a2
@@ -135,11 +151,93 @@ local elab "destruct_proxy_type" : tactic => withMainContext do
         return
   throwError "No target proxy type hypothesis found to destruct"
 
+/-- Recursively collect the leaf patterns from a nested `Sum` type into a flat array. -/
+partial def collectSumLeaves (ty : Expr) : MetaM (Array (TSyntax `rcasesPat)) := do
+  let ty ← whnf ty
+  let_expr Sum l r := ty | return #[← `(rcasesPat| _)]
+  let left ← collectSumLeaves l
+  let right ← collectSumLeaves r
+  return left ++ right
+
+/-- Build an `rcasesPatMed` that fully flattens a `Sum` type using alternation. -/
+def buildSumPattern (ty : Expr) : MetaM (TSyntax ``Lean.Parser.Tactic.rcasesPatMed) := do
+  let leaves ← collectSumLeaves ty
+  `(Lean.Parser.Tactic.rcasesPatMed| $leaves:rcasesPat|*)
+
+/-- Recursively build an `rcases` pattern that fully flattens a `Sigma` type in one shot. -/
+partial def buildSigmaPattern (ty : Expr) : MetaM (TSyntax `rcasesPat) := do
+  let ty ← whnf ty
+  let_expr Sigma fst body := ty | return (← `(rcasesPat| _))
+  let left ← buildSigmaPattern fst
+  let right ← lambdaTelescope body fun _ body => buildSigmaPattern body
+  `(rcasesPat| ⟨$left, $right⟩)
+
+open Lean.Parser.Tactic Tactic in
+/-- Fully destruct a `Sum`-typed hypothesis using a deep `rcases` pattern. -/
+scoped elab "destruct_proxy_sum" : tactic => withMainContext do
+  let lctx ← getLCtx
+  for decl in lctx do
+    if decl.isImplementationDetail then continue
+    let ty ← whnf decl.type
+    if ty.getAppFn'.isConstOf ``Sum then
+      let pat ← buildSumPattern ty
+      let hyp := mkIdent decl.userName
+      evalTactic (← `(tactic| rcases $hyp:ident with $pat))
+      return
+  throwError "No Sum-typed hypothesis found to destruct"
+
+open Tactic in
+/-- Fully destruct a `Sigma`-typed hypothesis using a deep `rcases` pattern. -/
+local elab "destruct_proxy_sigma" : tactic => withMainContext do
+  let lctx ← getLCtx
+  for decl in lctx do
+    if decl.isImplementationDetail then continue
+    let ty ← whnf decl.type
+    if ty.getAppFn'.isConstOf ``Sigma then
+      let pat ← buildSigmaPattern ty
+      let hyp := mkIdent decl.userName
+      evalTactic (← `(tactic| rcases $hyp:ident with $pat))
+      return
+  throwError "No Sigma-typed hypothesis found to destruct"
+
 -- NOTE: The following code register `lexOrdForNonDepSigma` and `sumOrd`
 -- *to be local instances*. In this case, users don't need to consider
 -- which instances to use when writing `deriving`, but this might introduce
 -- some unexpected behaviors in other situations.
+
+/-- Ensure the homomorphism proof theorem exists for `declName`, creating it if needed.
+Returns the theorem name. When both `Std.TransOrd` and `Std.LawfulEqOrd` are derived
+for the same type, the second derivation reuses the cached theorem.
+Assume `declName` is the fully qualified name. -/
+def ensureOrdHomProof (declName : Name) : CommandElabM Name := do
+  let thmName := declName ++ `_proxyOrdHom
+  if (← getEnv).find? thmName |>.isSome then
+    return thmName
+  let indVal ← getConstInfoInduct declName
+  -- Compute a name relative to the current namespace so that
+  -- `elabVeilCommand` (which uses the current namespace) doesn't double it.
+  let currNs ← getCurrNamespace
+  let relThmName := thmName.replacePrefix currNs .anonymous
+  let cmd ← liftTermElabM do
+    let header ← mkHeader ``Ord 0 indVal
+    let localInsts := #[``lexOrdForNonDepSigma, ``sumOrd].map mkCIdent
+    let a1 ← mkIdent <$> mkFreshUserName `a1
+    let a2 ← mkIdent <$> mkFreshUserName `a2
+    `(command|
+      attribute [scoped instance] $localInsts* in
+      theorem $(mkIdent relThmName) $header.binders:bracketedBinder* :
+        ∀ $a1:ident $a2:ident,
+          compare $a1:ident $a2:ident = compare ((proxy_equiv% $header.targetType) $a1:ident) ((proxy_equiv% $header.targetType) $a2:ident) := by
+            intros
+            conv => rhs ; whnf
+            simp ($(mkIdent `failIfUnchanged):ident := false) only [$(mkCIdent ``Ordering.then_eq):ident]
+            try (destruct_proxy_sum <;> destruct_proxy_sum <;> try rfl)
+            all_goals (first | rfl | (destruct_proxy_sigma ; first | rfl | grind)))
+  elabVeilCommand cmd
+  return thmName
+
 def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
+  let thmName ← ensureOrdHomProof declName
   let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
     let header ← mkHeader ``Ord 0 indVal
@@ -150,11 +248,7 @@ def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
       scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* : $(mkCIdent className) ($header.targetType) :=
         $(mkCIdent <| `Veil ++ className ++ `by_equiv)
           (proxy_equiv% $header.targetType)
-          (by
-            intros
-            conv => rhs ; whnf
-            simp ($(mkIdent `failIfUnchanged):ident := false) only [$(mkCIdent ``Ordering.then_eq):ident]
-            repeat' (first | rfl | destruct_proxy_type | grind)))
+          $(mkCIdent thmName))
   elabVeilCommand cmd
   return true
 
@@ -176,15 +270,18 @@ Utilities for deriving instances for structures by assuming
 instances for their fields.
 -/
 
-/-- Similar to `type_of%`, but returns the body type of a `∀`-type.
+/-- Similar to `type_of%`, but returns the body type of a `∀`-type
+after stripping exactly one forall binder (the structure argument).
 Throws an error if the body type has loose bound variables. -/
-elab "body_type_of% " t:term : term => do
+elab "body_type_of_struct_field% " t:term : term => do
   let e ← elabTerm t none
   let type ← inferType e
-  let res := type.consumeMData.getForallBody
-  if res.hasLooseBVars then
+  let type := type.consumeMData
+  let .forallE _ _ body _ := type
+    | throwError "Expected a ∀-type, got {type}"
+  if body.hasLooseBVars then
     throwError "The body type of {t} has loose bound variables"
-  return res
+  return body
 
 open TSyntax.Compat in
 /-- Similar to `Lean.Elab.Deriving.mkHeader`, but does not add implicit
@@ -216,7 +313,7 @@ def mkInstImplicitBindersForFields (className : Name) (indVal : InductiveVal) (a
   fieldNames.mapIdxM fun i fieldName => do
     let proj ← mkStructureProj indVal argNames fieldName
     let nm ← mkFreshUserName <| Name.mkSimple s!"inst{i}"
-    let fieldType ← `(body_type_of% ($proj))
+    let fieldType ← `(body_type_of_struct_field% ($proj))
     let binder ← `(Lean.Elab.Deriving.instBinderF| [ $(mkIdent nm) : $(mkCIdent className):ident ($fieldType) ])
     pure (nm, binder)
 where
@@ -232,6 +329,7 @@ namespace ForStructure
 def mkInstCmdTemplate (declName : Name)
   (k : StructureInfo → InductiveVal → Header → TermElabM Command) : CommandElabM Bool := do
   let env ← getEnv
+  let declName ← resolveGlobalConstNoOverloadCore declName
   let some info := getStructureInfo? env declName
     | return false
   let indVal ← getConstInfoInduct declName
@@ -241,7 +339,13 @@ def mkInstCmdTemplate (declName : Name)
   elabVeilCommand cmd
   return true
 
-def mkBEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+section
+
+variable (declName : Name) (target? : Option Ident) (priority? : Option (TSyntax `prio))
+
+-- FIXME: How to configure scoped vs non-scoped instances?
+
+def mkBEqInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``BEq indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 2 header.targetType
@@ -249,11 +353,11 @@ def mkBEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate decl
   let beqTerms ← fieldNames.zipWithM (bs := localInsts) fun field inst => `(term| $(mkIdent inst).$(mkIdent `beq) $s1.$(mkIdent field) $s2.$(mkIdent field))
   let beqBody ← repeatedOp ``Bool.and beqTerms (default := ← `(term| true))
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``BEq) $(header.targetType) where
     $(mkIdent `beq):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $beqBody)
 
-def mkDecidableEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+def mkDecidableEqInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (_, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``DecidableEq indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 2 header.targetType
@@ -262,12 +366,12 @@ def mkDecidableEqInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTempl
   let eqTerms ← fieldNames.mapM fun field => `(term| $s1.$(mkIdent field) = $s2.$(mkIdent field))
   let eqBody ← repeatedAnd eqTerms
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``DecidableEq) $(header.targetType) :=
     fun $(targetTypeArgBinders.map TSyntax.mk)* =>
     $(mkIdent ``decidable_of_iff) $eqBody (by cases $s1:ident; cases $s2:ident; grind))
 
-def mkHashableInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+def mkHashableInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Hashable indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 1 header.targetType
@@ -281,20 +385,20 @@ def mkHashableInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate
       fs.zip localInsts |>.foldlM (init := first) fun acc (field, inst) => do
         `(term| $acc |> $(mkIdent ``mixHash) ($(mkIdent inst).$(mkIdent `hash) ($s.$(mkIdent field))))
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``Hashable) $(header.targetType) where
     $(mkIdent `hash):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $hashBody)
 
-def mkInhabitedInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+def mkInhabitedInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Inhabited indVal header.argNames fieldNames
   let defaults ← localInsts.mapM fun inst => `(term| $(mkIdent inst).$(mkIdent `default))
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``Inhabited) $(header.targetType) where
     $(mkIdent `default):ident := ⟨$defaults,*⟩)
 
-def mkToJsonInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+def mkToJsonInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``ToJson indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 1 header.targetType
@@ -304,19 +408,41 @@ def mkToJsonInstCmd (declName : Name) : CommandElabM Bool := mkInstCmdTemplate d
     `(term| ($(Syntax.mkStrLit fieldStr), $(mkIdent inst).$(mkIdent `toJson) $s.$(mkIdent field)))
   let toJsonBody ← `(term| $(mkIdent ``Lean.Json.mkObj) [$[$jsonPairs],*])
   `(command|
-  scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
     $(mkIdent ``ToJson) $(header.targetType) where
     $(mkIdent `toJson):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $toJsonBody)
 
-elab "veil_deriving" idt:ident "for" decl:ident : command => do
+def mkReprInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+  let fieldNames := info.fieldNames
+  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Repr indVal header.argNames fieldNames
+  let s ← mkIdent <$> mkFreshUserName `s
+  let n ← mkIdent <$> mkFreshUserName `n
+  let embeddedStringStx (x : String) : TSyntax `str :=
+    { raw := Lean.Syntax.node Lean.SourceInfo.none `str #[Lean.Syntax.atom Lean.SourceInfo.none ("\"" ++ x ++ " := \"")] }
+  let fieldReprs ← fieldNames.zipWithM (bs := localInsts) fun field inst => do
+    `(term| $(mkIdent ``Std.Format.append) $(embeddedStringStx <| toString field)
+      ($(mkIdent inst).$(mkIdent `reprPrec) ($s.$(mkIdent field)) $n))
+  let fieldsFormat ← if fieldReprs.isEmpty then `(term| "") else `(term| $(mkIdent ``Std.Format.joinSep) [$fieldReprs,*] ", ")
+  `(command|
+  scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
+    $(mkIdent ``Repr) $(header.targetType) where
+    $(mkIdent `reprPrec):ident $s:ident $n:ident := $(mkIdent ``Std.Format.bracket) "{ " $fieldsFormat " }")
+
+end
+
+syntax "veil_deriving " ident "for" ident ("with_name" ident)? ("with_priority" prio)? : command
+
+elab_rules : command
+| `(veil_deriving $idt:ident for $decl:ident $[with_name $target?:ident]? $[with_priority $priority?:prio]?) => do
   let declName := decl.getId
   let className ← resolveGlobalConstNoOverload idt
   let _ ← match className with
-  | ``BEq         => mkBEqInstCmd declName
-  | ``DecidableEq => mkDecidableEqInstCmd declName
-  | ``Hashable    => mkHashableInstCmd declName
-  | ``Inhabited   => mkInhabitedInstCmd declName
-  | ``ToJson      => mkToJsonInstCmd declName
+  | ``BEq         => mkBEqInstCmd declName target? priority?
+  | ``DecidableEq => mkDecidableEqInstCmd declName target? priority?
+  | ``Hashable    => mkHashableInstCmd declName target? priority?
+  | ``Inhabited   => mkInhabitedInstCmd declName target? priority?
+  | ``ToJson      => mkToJsonInstCmd declName target? priority?
+  | ``Repr        => mkReprInstCmd declName target? priority?
   | _             => throwError "Unsupported class {className}"
 
 end ForStructure

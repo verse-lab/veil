@@ -24,42 +24,45 @@ declare_syntax_cat veilKeyword
 syntax (name := kw_veil) "veil" : veilKeyword
 syntax (name := kw_module) "module" : veilKeyword
 
-syntax (name := kw_type) "type" : veilKeyword
-syntax (name := kw_enum) "enum" : veilKeyword
-syntax (name := kw_instantiate) "instantiate" : veilKeyword
+scoped syntax (name := kw_type) "type" : veilKeyword
+scoped syntax (name := kw_enum) "enum" : veilKeyword
+scoped syntax (name := kw_param) "param" : veilKeyword
+scoped syntax (name := kw_instantiate) "instantiate" : veilKeyword
 
-syntax (name := kw_immutable) "immutable" : veilKeyword
-syntax (name := kw_mutable) "mutable" : veilKeyword
+scoped syntax (name := kw_immutable) "immutable" : veilKeyword
+scoped syntax (name := kw_mutable) "mutable" : veilKeyword
 
-syntax (name := kw_individual) "individual" : veilKeyword
-syntax (name := kw_relation) "relation" : veilKeyword
-syntax (name := kw_function) "function" : veilKeyword
+scoped syntax (name := kw_individual) "individual" : veilKeyword
+scoped syntax (name := kw_relation) "relation" : veilKeyword
+scoped syntax (name := kw_function) "function" : veilKeyword
 
-syntax (name := kw_theory) "theory" : veilKeyword
-syntax (name := kw_ghost) "ghost" : veilKeyword
+scoped syntax (name := kw_theory) "theory" : veilKeyword
+scoped syntax (name := kw_ghost) "ghost" : veilKeyword
 
-syntax (name := kw_includes) "includes" : veilKeyword
+scoped syntax (name := kw_includes) "includes" : veilKeyword
 
-syntax (name := kw_as) "as" : veilKeyword
+scoped syntax (name := kw_as) "as" : veilKeyword
 
-syntax (name := kw_gen_state) "#gen_state" : veilKeyword
+scoped syntax (name := kw_gen_state) "#gen_state" : veilKeyword
 
-syntax (name := kw_after_init) "after_init" : veilKeyword
+scoped syntax (name := kw_after_init) "after_init" : veilKeyword
 
-syntax (name := kw_transition) "transition" : veilKeyword
-syntax (name := kw_action) "action" : veilKeyword
-syntax (name := kw_procedure) "procedure" : veilKeyword
+scoped syntax (name := kw_transition) "transition" : veilKeyword
+scoped syntax (name := kw_action) "action" : veilKeyword
+scoped syntax (name := kw_procedure) "procedure" : veilKeyword
 
-syntax (name := kw_open_isolate) "open_isolate" : veilKeyword
-syntax (name := kw_close_isolate) "close_isolate" : veilKeyword
+scoped syntax (name := kw_open_isolate) "open_isolate" : veilKeyword
+scoped syntax (name := kw_close_isolate) "close_isolate" : veilKeyword
 
-syntax (name := kw_trusted) "trusted" : veilKeyword
+scoped syntax (name := kw_trusted) "trusted" : veilKeyword
 
-syntax (name := kw_assumption) "assumption" : veilKeyword
-syntax (name := kw_invariant) "invariant" : veilKeyword
-syntax (name := kw_safety) "safety" : veilKeyword
+scoped syntax (name := kw_assumption) "assumption" : veilKeyword
+scoped syntax (name := kw_invariant) "invariant" : veilKeyword
+scoped syntax (name := kw_safety) "safety" : veilKeyword
+scoped syntax (name := kw_termination) "termination" : veilKeyword
+scoped syntax (name := kw_state_constraint) "state_constraint" : veilKeyword
 
-syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
+scoped syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
 
 end VeilKeywords
 
@@ -89,7 +92,7 @@ Example:
 type node
 ```
 -/
-syntax (name := typeDeclaration) kw_type ident : command
+scoped syntax (name := typeDeclaration) kw_type ident : command
 
 /--Declare an enum type.
 
@@ -98,7 +101,7 @@ Example:
 enum switch_state = {on, off}
 ```
 -/
-syntax (name := enumDeclaration) kw_enum ident "=" "{" ident,+ "}" : command
+scoped syntax (name := enumDeclaration) kw_enum ident "=" "{" ident,+ "}" : command
 
 /-- Instantiate a typeclass instance.
 
@@ -107,30 +110,59 @@ Example:
 instantiate tot : TotalOrder node
 ```
 -/
-syntax (name := instanceDeclaration) kw_instantiate ident " : " term : command
+scoped syntax (name := instanceDeclaration) kw_instantiate ident " : " term : command
+
+/-- Declare an uninterpreted parameter of arbitrary type.
+`type` is a special case of `param` (equivalent to `param name : Type`
+plus auto-generated `DecidableEq` and `Inhabited` instances).
+Dependencies between `param`s are allowed.
+
+`param` is superficially similar to `immutable individual`, since both
+introduce named *values*. However, there are important structural differences:
+
+- **Structural role**: `param` values are universal parameters of `State`,
+  `Theory`, and `Label` (like `type`). In contrast, `immutable` values are
+  fields of the `Theory` structure.
+- **Type dependency**: State components (mutable and immutable) can depend on
+  `param`s in their types (e.g., `function f : node → Fin n` when
+  `param n : Nat`). State component types cannot depend on `immutable` values.
+- **Instantiation vs Theory**: `param` values are provided in the
+  `Instantiation` structure (first argument of `#model_check`). `immutable`
+  values are provided in the `Theory` term (second argument).
+- **No auto-instances**: Unlike `type`, `param` does **NOT** auto-generate
+  `DecidableEq` or `Inhabited` instances. In other words, `type` is `param name : Type`
+  plus some instance declarations.
+
+Example:
+```lean
+param n : Nat
+param m : Fin n   -- dependent parameters allowed
+```
+-/
+scoped syntax (name := parameterDeclaration) kw_param ident " : " term : command
 
 /- ## State -/
 declare_syntax_cat stateMutability
 
 /-- This state component cannot be modified. If you have `immutable` state, you
 typically want to make `assumption`s about it. -/
-syntax (name := immutableState) kw_immutable : stateMutability
+scoped syntax (name := immutableState) kw_immutable : stateMutability
 /-- This state component can be modified. This is the default. -/
-syntax (name := mutableState) kw_mutable : stateMutability
+scoped syntax (name := mutableState) kw_mutable : stateMutability
 
 declare_syntax_cat stateComponentKind
 
 /-- A state component that is an individual value, e.g.
 `individual currentRound : round`
 -/
-syntax (name := individualStateComponent) kw_individual : stateComponentKind
+scoped syntax (name := individualStateComponent) kw_individual : stateComponentKind
 /-- A state component that is a relation, e.g.
 `relation initial_msg : address → address → round → value → Prop`
 
 Relations can also be defined with names for the arguments, e.g.
 `relation sent (n : address) (r : round)`
 -/
-syntax (name := relationStateComponent) kw_relation : stateComponentKind
+scoped syntax (name := relationStateComponent) kw_relation : stateComponentKind
 
 /-- A state component that is a function, e.g.
 `function currentRound : address → round`
@@ -138,28 +170,25 @@ syntax (name := relationStateComponent) kw_relation : stateComponentKind
 Functions can also be defined with names for the arguments, e.g.
 `function currentRound (n : address) : round`
 -/
-syntax (name := functionStateComponent) kw_function : stateComponentKind
+scoped syntax (name := functionStateComponent) kw_function : stateComponentKind
 
 /-- This state component is the state of another module. -/
-syntax (name := moduleStateComponent) kw_module : stateComponentKind
-
-/-- Inline Lean's built-in `structure` and `inductive` definitions in module. -/
-syntax (name := inlineBuiltinDeclaration) "@[veil_decl]" command : command
+scoped syntax (name := moduleStateComponent) kw_module : stateComponentKind
 
 /-- Assemble the state type for this Veil module, based on the previously
 declared state components. -/
-syntax (name := genState) "#gen_state" : command
+scoped syntax (name := genState) "#gen_state" : command
 
 /-- Declares a state component using the `[mut] [kind] name (args) : type` syntax. -/
-syntax (name := stateComponentDeclaration) (stateMutability)? stateComponentKind ident bracketedBinder* (":" term)? : command
+scoped syntax (name := stateComponentDeclaration) (stateMutability)? stateComponentKind ident bracketedBinder* (":" term)? : command
 
 /-- A module abbreviation, e.g. `as rb`. -/
 syntax moduleAbbrev := (kw_as ident)
 
 /-- Declare a dependency on another module. -/
-syntax (name := declareDependency) kw_includes ident term:max* moduleAbbrev : command
+scoped syntax (name := declareDependency) kw_includes ident term:max* moduleAbbrev : command
 
-/- ## Ghost relations -/
+/- ## Ghost definitions -/
 
 /-- Define a ghost relation. By default, `ghost relation`s depend on both the
 background theory and the state. If you want to define a ghost relation that
@@ -170,14 +199,28 @@ only depends on the background theory, define a `theory ghost relation`. Example
   theory ghost relation V (v : value) := [definition]
   ```
 -/
-syntax (name := ghostRelationDefinition) kw_theory ? kw_ghost kw_relation ident explicitBinders ? ":=" term : command
+scoped syntax (name := ghostRelationDefinition) kw_theory ? kw_ghost kw_relation ident explicitBinders ? ":=" term : command
+
+/-- Define a ghost function. Ghost functions are like ghost relations but can
+return any type (not just `Prop`). An optional return type annotation is
+supported. By default, ghost functions depend on both the background theory
+and the state. Use `theory ghost function` for functions that depend only on
+the background theory. Example:
+
+  ```lean
+  ghost function myFn (n : node) : SomeType := body
+  ghost function myFn (n : node) := body
+  theory ghost function myFn (n : node) : SomeType := body
+  ```
+-/
+scoped syntax (name := ghostFunctionDefinition) kw_theory ? kw_ghost kw_function ident explicitBinders ? (":" term)? ":=" term : command
 
 /- ## Initial state -/
 
 /-- Define the initial state as an imperative program that executes on top of a
 non-deterministic initial state. The initial state is given by the post-state
 after executing `after_init` starting from the unspecified initial state. -/
-syntax (name := initializerDefinition) kw_after_init "{" doSeq "}" : command
+scoped syntax (name := initializerDefinition) kw_after_init "{" doSeq "}" : command
 
 /- ## Actions -/
 
@@ -197,32 +240,32 @@ transition byz = {
     (is_byz src ∧ (initial_msg src dst r v → initial_msg' src dst r v))) ∧
 ```
  -/
-syntax (name := transitionDefinition) (priority := high) kw_transition ident explicitBinders ? "{" term "}" : command
+scoped syntax (name := transitionDefinition) (priority := high) kw_transition ident explicitBinders ? "{" term "}" : command
 
 declare_syntax_cat procedureKind
 
-syntax (name := actionKind) kw_action : procedureKind
-syntax (name := procedureKind) kw_procedure : procedureKind
+scoped syntax (name := actionKind) kw_action : procedureKind
+scoped syntax (name := procedureKind) kw_procedure : procedureKind
 
 /-- An imperative `procedure` or `action` in Veil. -/
-syntax (name := procedureDefinition) procedureKind ident (explicitBinders)? "{" doSeq "}" : command
+scoped syntax (name := procedureDefinition) procedureKind ident (explicitBinders)? "{" doSeq "}" : command
 
-syntax (name := procedureDefinitionWithSpec) procedureKind ident (explicitBinders)? doSeq "{" doSeq "}" : command
+scoped syntax (name := procedureDefinitionWithSpec) procedureKind ident (explicitBinders)? doSeq "{" doSeq "}" : command
 
 /- ## Assertions -/
 
 declare_syntax_cat propertyName
-syntax (name := propertyName) "[" ident "]" : propertyName
+scoped syntax (name := propertyName) "[" ident "]" : propertyName
 
-syntax (name := openIsolate) kw_open_isolate ident ("with" ident+)? : command
-syntax (name := closeIsolate) kw_close_isolate : command
+scoped syntax (name := openIsolate) kw_open_isolate ident ("with" ident+)? : command
+scoped syntax (name := closeIsolate) kw_close_isolate : command
 
 declare_syntax_cat propertyTrustKind
 
 /-- This property is assumed to hold. `assumption`s can only talk about
 `immutable` state components, so if you want an 'assumption' about a `mutable`
 state component, you must use `trusted invariant`. -/
-syntax (name := trustedProperty) kw_trusted : propertyTrustKind
+scoped syntax (name := trustedProperty) kw_trusted : propertyTrustKind
 
 declare_syntax_cat propertyKind
 
@@ -231,31 +274,35 @@ declare_syntax_cat propertyKind
 
 If you want to assume facts about `mutable` state components, use
 `trusted invariant`. -/
-syntax (name := assumptionKind) kw_assumption : propertyKind
+scoped syntax (name := assumptionKind) kw_assumption : propertyKind
 
-syntax (name := trustedInvariantKind) kw_trusted kw_invariant : propertyKind
+scoped syntax (name := trustedInvariantKind) kw_trusted kw_invariant : propertyKind
 
 /-- An `invariant` is a property that we are asserting holds for all reachable
 states of the system. Invariants can refer to both `immutable` and `mutable`
 state components. -/
-syntax (name := invariantKind) kw_invariant : propertyKind
+scoped syntax (name := invariantKind) kw_invariant : propertyKind
 
 /-- `safety` is a synonym for `invariant`. As a co-/
-syntax (name := safetyKind) kw_safety : propertyKind
+scoped syntax (name := safetyKind) kw_safety : propertyKind
 
 /--`termination` is also a synonym for `invariant`, but only used for model checker,
 which would not be emitted to VC generator while verification. -/
-syntax (name := terminationKind) "termination" : propertyKind
+scoped syntax (name := terminationKind) kw_termination : propertyKind
+
+/-- A `state_constraint` filters out states during model checking.
+States that do not satisfy the constraint are not explored. -/
+scoped syntax (name := stateConstraintKind) kw_state_constraint : propertyKind
 
 /-- An assertion. -/
-syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
+scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 
 /-- Assemble the specification. -/
-syntax (name := genSpec) kw_gen_spec : command
+scoped syntax (name := genSpec) kw_gen_spec : command
 
-syntax (name := checkInvariants) "#check_invariants" : command
+scoped syntax (name := checkInvariants) "#check_invariants" : command
 
-syntax (name := checkAction) "#check_action" ident : command
+scoped syntax (name := checkAction) "#check_action" ident : command
 
 /-- Run the explicit state model checker on the current module with the given
 type instantiation and theory. The optional `maxDepth` parameter limits how
@@ -295,10 +342,30 @@ This means that it should only be used for testing. In the future, we will add
 support for complete enumeration of background theories.
 -/
 declare_syntax_cat modelCheckMode
-syntax (name := interpreted) "interpreted" : modelCheckMode
-syntax (name := compiled) "compiled" : modelCheckMode
+scoped syntax (name := interpreted) "interpreted" : modelCheckMode
+scoped syntax (name := compiled) "compiled" : modelCheckMode
 
-syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig : command
+/-- Optional clause to check that the provided theory satisfies the module's
+assumptions before model checking. `Assumptions` is automatically unfolded via
+`dsimp` first; if no tactic is given, `first | decide | native_decide` is used. -/
+syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
+
+scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
+
+/-- Configure the concrete runtime representation for `relation` or `function` fields.
+This command must be used before `#gen_state`.
+
+Example:
+```lean
+veil_set_field_representation relation Std.ExtTreeSet
+veil_set_field_representation function Std.ExtTreeMap
+```
+-/
+declare_syntax_cat concreteRepField
+scoped syntax (name := crRelation) kw_relation : concreteRepField
+scoped syntax (name := crFunction) kw_function : concreteRepField
+
+scoped syntax (name := concreteRepresentationDecl) "veil_set_field_representation " concreteRepField ident : command
 
 /-- Run random-walk simulation on the current module.
     Explores random traces to find shallow invariant violations quickly.

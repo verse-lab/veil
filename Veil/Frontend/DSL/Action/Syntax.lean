@@ -10,20 +10,20 @@ section VeilActionKeywords
 
 declare_syntax_cat veilActionKeyword
 
-syntax (name := kw_require) "require" : veilActionKeyword
-syntax (name := kw_assume) "assume" : veilActionKeyword
-syntax (name := kw_assert) "assert" : veilActionKeyword
-syntax (name := kw_pick) "pick" : veilActionKeyword
+scoped syntax (name := kw_require) "require" : veilActionKeyword
+scoped syntax (name := kw_assume) "assume" : veilActionKeyword
+scoped syntax (name := kw_assert) "assert" : veilActionKeyword
+scoped syntax (name := kw_pick) "pick" : veilActionKeyword
 
 /-- Precondition -/
-syntax (name := kw_requires) "requires" : veilActionKeyword
+scoped syntax (name := kw_requires) "requires" : veilActionKeyword
 
 /-- Postcondition -/
-syntax (name := kw_ensures) "ensures" : veilActionKeyword
+scoped syntax (name := kw_ensures) "ensures" : veilActionKeyword
 
-syntax (name := kw_with) "with" : veilActionKeyword
-syntax (name := kw_unchanged) "unchanged" : veilActionKeyword
-syntax (name := kw_unchanged_fields) "unchanged_fields" : veilActionKeyword
+scoped syntax (name := kw_with) "with" : veilActionKeyword
+scoped syntax (name := kw_unchanged) "unchanged" : veilActionKeyword
+scoped syntax (name := kw_unchanged_fields) "unchanged_fields" : veilActionKeyword
 
 end VeilActionKeywords
 
@@ -55,24 +55,24 @@ as type inference failures might lead to confusing error messages. -/
 syntax (name := pickExpression) kw_pick (lineEq term) ? : term
 
 /-- Binds a variable to a value that satisfies a predicate. -/
-syntax (name := letPick) "let" term ":|" term : doElem
+scoped syntax (name := letPick) "let" term ":|" term : doElem
 
-syntax (name := havocAssignment) (priority := high) atomic(term ":=" "*") : doElem
+scoped syntax (name := havocAssignment) (priority := high) atomic(term ":=" "*") : doElem
 
 declare_syntax_cat unchanged_decl
 declare_syntax_cat spec
 
 /-- A precondition and postcondition specification, where the
 postcondition depends on the return value. -/
-syntax (name := prePostSpecWithRetValInPost) kw_requires term colGe kw_ensures rcasesPat  "," term : spec
+scoped syntax (name := prePostSpecWithRetValInPost) kw_requires term colGe kw_ensures rcasesPat  "," term : spec
 
 /-- A precondition and postcondition specification, where the
 postcondition does not depend on the return value. -/
-syntax (name := prePostSpec) (priority := high) kw_requires term colGe kw_ensures term : spec
+scoped syntax (name := prePostSpec) (priority := high) kw_requires term colGe kw_ensures term : spec
 
-syntax atomic(kw_with kw_unchanged) "[" ident,* "]" : unchanged_decl
-syntax spec (colGe unchanged_decl)? : term
-syntax atomic("[" kw_unchanged "|") str "|" ident* "]" : term
-syntax atomic("[" kw_unchanged_fields "|") str "|" ident* "]" : term
+scoped syntax atomic(kw_with kw_unchanged) "[" ident,* "]" : unchanged_decl
+scoped syntax spec (colGe unchanged_decl)? : term
+scoped syntax atomic("[" kw_unchanged "|") str "|" ident* "]" : term
+scoped syntax atomic("[" kw_unchanged_fields "|") str "|" ident* "]" : term
 
 end Veil
