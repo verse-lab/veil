@@ -193,6 +193,11 @@ private def pickNextTransition {σ κ : Type}
   let (idx, gen) := randNat gen 0 (nexts.length - 1)
   (nexts[idx]!, gen)
 
+private structure SimulationHooks (m : Type → Type) where
+  shouldStop : Nat → m Bool
+  onTraceProgress : Nat → m PUnit
+  onViolation : m PUnit
+
 /-- Lightweight scan loop: walk without building a trace.
 Returns `(violated?, updatedRng, stepsTaken)`. -/
 @[inline, specialize]
@@ -308,10 +313,25 @@ partial def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
     else
       simulateOnceLoop sys params th maxSteps initSt initTrace gen
 
-/-- Pure simulation core for a fixed seed.
-Scans without trace recording for speed; replays only the violating trace. -/
-@[inline, specialize]
-def simulateCoreLoop {ρ σ κ : Type} {th₀ : ρ}
+private def runTraceAtSeed {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (cfg : SimulateConfig)
+  (traceIndex : Nat)
+  [Inhabited σ]
+  [Inhabited (κ × σ)]
+  : Option (ModelCheckingResult ρ σ κ Unit × Nat) :=
+  let traceSeed := cfg.seed + traceIndex
+  let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
+  if violated then
+    let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
+    maybeResult.map (fun result => (result, stepsUsed))
+  else
+    none
+
+private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ : ρ}
+  (hooks : SimulationHooks m)
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
@@ -320,32 +340,40 @@ def simulateCoreLoop {ρ σ κ : Type} {th₀ : ρ}
   (traceIndex : Nat)
   [Inhabited σ]
   [Inhabited (κ × σ)]
-  : SimulateResult ρ σ κ :=
-  match remaining with
-  | 0 => {
-      result := .noViolationFound cfg.maxTraces
-        (.earlyTermination (.reachedDepthBound cfg.maxTraces))
-      tracesRun := cfg.maxTraces
+  : m (SimulateResult ρ σ κ) := do
+  if ← hooks.shouldStop traceIndex then
+    return {
+      result := .cancelled
+      tracesRun := traceIndex
       elapsedMs := 0
       seed := cfg.seed
       depth := 0
     }
+  match remaining with
+  | 0 =>
+      return {
+        result := .noViolationFound cfg.maxTraces
+          (.earlyTermination (.reachedDepthBound cfg.maxTraces))
+        tracesRun := cfg.maxTraces
+        elapsedMs := 0
+        seed := cfg.seed
+        depth := 0
+      }
   | remaining + 1 =>
-      let traceSeed := cfg.seed + traceIndex
-      let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-      if violated then
-        let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-        match maybeResult with
-        | some result => {
+      hooks.onTraceProgress traceIndex
+      match runTraceAtSeed sys params th cfg traceIndex with
+      | some (result, stepsUsed) =>
+          hooks.onViolation
+          return {
             result := result
             tracesRun := traceIndex + 1
             elapsedMs := 0
             seed := cfg.seed
             depth := stepsUsed
           }
-        | none => simulateCoreLoop sys params th cfg remaining (traceIndex + 1)
-      else
-        simulateCoreLoop sys params th cfg remaining (traceIndex + 1)
+      | none =>
+          simulateLoopM hooks sys params th cfg remaining (traceIndex + 1)
+termination_by remaining
 
 /-- Run `maxTraces` independent random traces for a fixed seed.
 This function is pure and is the proof-producing core used by `#simulate`. -/
@@ -358,7 +386,11 @@ def simulateCore {ρ σ κ : Type} {th₀ : ρ}
   [inhabσ : Inhabited σ]
   [inhabκσ : Inhabited (κ × σ)]
   : SimulateResult ρ σ κ :=
-  simulateCoreLoop sys params th cfg cfg.maxTraces 0
+  Id.run <| simulateLoopM
+    { shouldStop := fun _ => false
+      onTraceProgress := fun _ => PUnit.unit
+      onViolation := PUnit.unit }
+    sys params th cfg cfg.maxTraces 0
 
 /-- IO simulation runner with progress and cancellation hooks.
 Uses the configured seed exactly once and reuses its per-trace derivation scheme. -/
@@ -376,46 +408,19 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
   let actualSeed ← if cfg.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg.seed
   let cfg := { cfg with seed := actualSeed }
   let startMs ← IO.monoMsNow
-  let mut tracesRun := 0
-  let mut lastStatusUpdate := startMs
-  while tracesRun < cfg.maxTraces do
-    if ← Veil.ModelChecker.Concrete.shouldStop cancelToken progressInstanceId then
-      return {
-        result := .cancelled
-        tracesRun
-        elapsedMs := (← IO.monoMsNow) - startMs
-        seed := actualSeed
-        depth := 0
-      }
-    let now ← IO.monoMsNow
-    if now - lastStatusUpdate ≥ 100 then
-      Veil.ModelChecker.Concrete.updateStatus progressInstanceId s!"Running random traces ({tracesRun}/{cfg.maxTraces})"
-      lastStatusUpdate := now
-    let traceSeed := cfg.seed + tracesRun
-    let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-    if violated then
-      let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-      match maybeResult with
-      | some result =>
-          Veil.ModelChecker.Concrete.setViolationFound progressInstanceId
-          return {
-            result
-            tracesRun := tracesRun + 1
-            elapsedMs := (← IO.monoMsNow) - startMs
-            seed := actualSeed
-            depth := stepsUsed
-          }
-      | none =>
-          tracesRun := tracesRun + 1
-    else
-      tracesRun := tracesRun + 1
-  return {
-    result := .noViolationFound cfg.maxTraces (.earlyTermination (.reachedDepthBound cfg.maxTraces))
-    tracesRun := cfg.maxTraces
-    elapsedMs := (← IO.monoMsNow) - startMs
-    seed := actualSeed
-    depth := 0
-  }
+  let lastStatusUpdateRef ← IO.mkRef startMs
+  let simResult ← simulateLoopM
+    { shouldStop := fun _ => Veil.ModelChecker.Concrete.shouldStop cancelToken progressInstanceId
+      onTraceProgress := fun tracesRun => do
+        let now ← IO.monoMsNow
+        let lastStatusUpdate ← lastStatusUpdateRef.get
+        if now - lastStatusUpdate ≥ 100 then
+          Veil.ModelChecker.Concrete.updateStatus progressInstanceId s!"Running random traces ({tracesRun}/{cfg.maxTraces})"
+          lastStatusUpdateRef.set now
+      onViolation := do
+        Veil.ModelChecker.Concrete.setViolationFound progressInstanceId }
+    sys params th cfg cfg.maxTraces 0
+  return { simResult with elapsedMs := (← IO.monoMsNow) - startMs }
 
 /-- IO wrapper around `simulateCore` that fills in a seed when omitted and records
 wall-clock time for UI/reporting. -/
