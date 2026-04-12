@@ -51,13 +51,17 @@ def getBuildBaseDir : IO System.FilePath := do
   let pwd ← IO.currentDir
   return pwd / ".lake" / "model_checker_builds"
 
-/-- Generate a build folder name based on the source file name, so that for the
-same source file we get the same build folder. -/
-def generateBuildFolderName (sourceFile : String) : IO System.FilePath := do
-  -- Use the source file's stem (filename without extension) for readability
+structure CompiledCommandSpec where
+  exportedName : String
+  supportsParallelConfig : Bool := false
+
+/-- Generate a build folder name based on the source file and exported command,
+so distinct compiled commands do not race on the same temp project. -/
+def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
+  let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName))
   let baseDir ← getBuildBaseDir
-  return baseDir / stem
+  return baseDir / s!"{stem}_{command.exportedName}_{suffix}"
 
 /-- Template for the `lakefile.lean` in the temp project. Note that it does
 not only require the parent Veil project, but also *all the dependencies*;
@@ -93,7 +97,7 @@ lean_exe ModelCheckerMain where
 
 /-- Template for the ModelCheckerMain.lean in the temp project.
     Takes the namespace of the specification to open scoped instances. -/
-def modelCheckerMainTemplate (specNamespace : String) : String :=
+def modelCheckerMainTemplate (specNamespace : String) (command : CompiledCommandSpec) : String :=
 "import Model
 
 set_option maxHeartbeats 6400000
@@ -129,17 +133,21 @@ def main (args : List String) : IO Unit := do
   -- Instance ID is not used in compiled mode, pass 0
   -- Cancel token is created locally; cancellation is handled by killing the process from outside
   let cancelTk ← IO.CancelToken.new
-  let res ← modelCheckerResult pcfg 0 cancelTk
-  IO.println s!\"{Lean.toJson res}\"
+  let res ← " ++
+    (if command.supportsParallelConfig
+      then command.exportedName ++ " pcfg 0 cancelTk"
+      else command.exportedName ++ " 0 cancelTk") ++ "
+  IO.println s!\"{res}\"
   flushStdoutAndStderr
   IO.Process.forceExit 0
 "
 
 /-- Create the temp build folder with all necessary files.
 Returns the absolute path to the build folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String) : IO System.FilePath := do
+def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
+    (command : CompiledCommandSpec) : IO System.FilePath := do
   let veilPath ← IO.currentDir
-  let buildFolder ← generateBuildFolderName sourceFile
+  let buildFolder ← generateBuildFolderName sourceFile command
   -- Create the build folder
   IO.FS.createDirAll buildFolder
   -- Write the lakefile
@@ -147,7 +155,7 @@ def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespac
   -- Write the model source (renamed to Model.lean)
   IO.FS.writeFile (buildFolder / "Model.lean") modelSource
   -- Write the ModelCheckerMain.lean
-  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") (modelCheckerMainTemplate specNamespace)
+  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") (modelCheckerMainTemplate specNamespace command)
   -- Create a minimal lean-toolchain file (copy from parent)
   let toolchainPath := veilPath / "lean-toolchain"
   if ← toolchainPath.pathExists then
@@ -199,11 +207,10 @@ def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
   | .ok exitCode => return { exitCode, stdout, stderr, interrupted }
   | .error err => return { exitCode := 1, stdout, stderr := s!"{stderr}\nIO error: {err}", interrupted }
 
-/-- Run a process with callbacks for status updates and line-by-line output capture.
-    - `statusCallback` is called periodically (every 500ms) with the elapsed time in ms.
-    - `lineCallback` is called for each line of output (content, isError, elapsedMs).
-    This variant does not check for cancellation - it runs to completion. -/
-def runProcessWithStatusCallback (cfg : IO.Process.SpawnArgs)
+/-- Run a process with callbacks for status updates and line-by-line output capture,
+checking both explicit cancellation and whether this compilation is still current. -/
+def runProcessWithStatusCallback (sourceFile : String) (cfg : IO.Process.SpawnArgs)
+    (instanceId : Nat) (_statusPrefix : String) (cancelToken : IO.CancelToken)
     (statusCallback : Nat → IO Unit)
     (lineCallback : String → Bool → Nat → IO Unit := fun _ _ _ => pure ())
     : IO ProcessResult := do
@@ -221,14 +228,24 @@ def runProcessWithStatusCallback (cfg : IO.Process.SpawnArgs)
   let stdoutTask ← IO.asTask (prio := .dedicated) (readLines proc.stdout stdoutAccum false)
   let stderrTask ← IO.asTask (prio := .dedicated) (readLines proc.stderr stderrAccum true)
   let waitTask ← IO.asTask (prio := .dedicated) proc.wait
+  let mut interrupted := false
   while !(← IO.hasFinished waitTask) do
-    statusCallback ((← IO.monoMsNow) - startTime)
+    if ← cancelToken.isSet then
+      proc.kill
+      interrupted := true
+      break
+    let current? ← stillCurrentCont sourceFile instanceId do
+      statusCallback ((← IO.monoMsNow) - startTime)
+    unless current? do
+      proc.kill
+      interrupted := true
+      break
     IO.sleep 500
   let _ ← IO.wait stdoutTask
   let _ ← IO.wait stderrTask
   match ← IO.wait waitTask with
-  | .ok exitCode => return { exitCode, stdout := ← stdoutAccum.get, stderr := ← stderrAccum.get, interrupted := false }
-  | .error err => return { exitCode := 1, stdout := ← stdoutAccum.get, stderr := s!"{← stderrAccum.get}\nIO error: {err}", interrupted := false }
+  | .ok exitCode => return { exitCode, stdout := ← stdoutAccum.get, stderr := ← stderrAccum.get, interrupted }
+  | .error err => return { exitCode := 1, stdout := ← stdoutAccum.get, stderr := s!"{← stderrAccum.get}\nIO error: {err}", interrupted }
 
 -- /-- Clean up all build folders older than the specified age (in milliseconds). -/
 -- def cleanupOldBuildFolders (maxAgeMs : Nat := 24 * 60 * 60 * 1000) : IO Nat := do

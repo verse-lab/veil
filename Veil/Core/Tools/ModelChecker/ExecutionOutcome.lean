@@ -21,7 +21,7 @@ inductive ExecutionOutcome (ε σ : Type) where
   | assertionFailure (error : ε) (state : σ)
   /-- The action diverged (did not terminate). -/
   | divergence
-deriving Repr, BEq, Inhabited
+deriving Repr, BEq, DecidableEq, Inhabited
 
 namespace ExecutionOutcome
 

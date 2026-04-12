@@ -1,8 +1,10 @@
 import Veil.Core.Tools.ModelChecker.Interface
 import Veil.Core.Tools.ModelChecker.Trace
 import Veil.Core.Tools.ModelChecker.Concrete.Core
+import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 namespace Veil.ModelChecker.Simulation
+open Veil.ModelChecker.Concrete
 
 /-- Configuration for the `#simulate` command. -/
 structure SimulateConfig where
@@ -26,6 +28,142 @@ def violatedInvariantNames {ρ σ : Type}
   params.invariants.filterMap fun p =>
     if !p.holdsOn th st then some p.name else none
 
+/-- Filter initial states according to the search parameters' state constraints. -/
+@[inline]
+def filterInitStatesByConstraints {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) : List σ :=
+  if params.stateConstraints.isEmpty then
+    sys.initStates
+  else
+    sys.initStates.filter (params.satisfiesConstraints th)
+
+/-- Filter transition outcomes according to the search parameters' state constraints.
+Successful and assertion-failure outcomes whose post-state violates a state
+constraint are silently skipped, matching `Concrete.findReachable`. -/
+@[inline]
+def filterOutcomesByConstraints {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List (κ × ExecutionOutcome Int σ) :=
+  if params.stateConstraints.isEmpty then
+    sys.tr th st
+  else
+    (sys.tr th st).filter fun (_, outcome) =>
+      match outcome with
+      | .success st' => params.satisfiesConstraints th st'
+      | .assertionFailure _ st' => params.satisfiesConstraints th st'
+      | .divergence => true
+
+/-- Relational view of simulation semantics: initial states and successful
+transitions filtered by the configured state constraints. -/
+def simulationTransitionSystem {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) : RelationalTransitionSystem ρ σ κ where
+  assumptions := fun _ => True
+  init := fun th st => st ∈ filterInitStatesByConstraints sys params th
+  tr := fun th st label st' =>
+    (label, ExecutionOutcome.success st') ∈ filterOutcomesByConstraints sys params th st
+
+/-- Boolean check that a concrete step list follows successful constrained
+simulation transitions. Used as the decision procedure for simulation soundness. -/
+def StepList.validFromSimulation {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : StepList σ κ → Bool
+  | [] => true
+  | step :: steps =>
+      (filterOutcomesByConstraints sys params th st).any fun (label, outcome) =>
+        match outcome with
+        | .success st' => label == step.transitionLabel && st' == step.nextState
+        | _ => false
+      && StepList.validFromSimulation sys params th step.nextState steps
+
+/-- Boolean validity check for simulation traces, matching the constrained
+search semantics used by `#simulate`. -/
+def Trace.isSimulationValidB {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : Bool :=
+  (filterInitStatesByConstraints sys params trace.theory).contains trace.initialState &&
+  StepList.validFromSimulation sys params trace.theory trace.initialState trace.steps.toList
+
+/-- Validity predicate for simulation traces, matching the constrained search
+semantics used by `#simulate`. -/
+abbrev Trace.isSimulationValid {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : Prop :=
+  Trace.isSimulationValidB sys params trace = true
+
+instance instDecidableTraceIsSimulationValid {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) :
+  Decidable (Trace.isSimulationValid sys params trace) := by
+  unfold Trace.isSimulationValid
+  infer_instance
+
+/-- Boolean checker used to decide whether a trace witnesses a simulation
+violation; the exported theorem remains Prop-level. -/
+def Trace.witnessesSimulationViolationB {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : ViolationKind → Bool
+  | .safetyFailure violates =>
+      Trace.isSimulationValidB sys params trace &&
+      trace.failingStep.isNone &&
+      decide (violatedInvariantNames params trace.theory trace.lastState = violates) &&
+      !violates.isEmpty
+  | .deadlock =>
+      Trace.isSimulationValidB sys params trace &&
+      trace.failingStep.isNone &&
+      !params.terminating.holdsOn trace.theory trace.lastState &&
+      let (nexts, _) := partitionExecutionOutcome
+        (filterOutcomesByConstraints sys params trace.theory trace.lastState)
+      nexts.isEmpty
+  | .assertionFailure exId =>
+      match trace.failingStep with
+      | some step =>
+          Trace.isSimulationValidB sys params trace &&
+          (filterOutcomesByConstraints sys params trace.theory trace.lastState).contains
+            (step.transitionLabel, ExecutionOutcome.assertionFailure exId step.nextState)
+      | none => false
+
+/-- A concrete trace witnesses a particular simulation violation. -/
+abbrev Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (violation : ViolationKind) : Prop :=
+  Trace.witnessesSimulationViolationB sys params trace violation = true
+
+def ResultSoundB {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) : Bool :=
+  match result with
+  | .foundViolation _ violation (some trace) => Trace.witnessesSimulationViolationB sys params trace violation
+  | .foundViolation _ _ none => false
+  | .noViolationFound _ _ => true
+  | .cancelled => true
+
+/-- Soundness predicate for `#simulate` results.
+Simulation is not complete, so `noViolationFound` carries no proof obligation,
+but any reported violation must come with a valid witness trace. -/
+def ResultSound {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) : Prop :=
+  ResultSoundB sys params result = true
+
+instance instDecidableResultSound {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) :
+  Decidable (ResultSound sys params result) := by
+  unfold ResultSound
+  infer_instance
+
 /-- Lightweight scan loop: walk without building a trace.
 Returns `(violated?, updatedRng, stepsTaken)`. -/
 -- NOTE: keep in sync with `simulateOnceLoop` (trace-building variant for replay)
@@ -42,7 +180,7 @@ partial def scanOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   match stepsLeft with
   | 0 => (false, gen, 0)
   | stepsLeft + 1 =>
-    let outcomes := sys.tr th currSt
+    let outcomes := filterOutcomesByConstraints sys params th currSt
     let assertionFailureFound := outcomes.any fun (_, outcome) =>
       match outcome with
       | .assertionFailure _ _ => true
@@ -77,11 +215,12 @@ partial def scanOnce {ρ σ κ : Type} {th₀ : ρ}
   [Inhabited σ]
   [Inhabited (κ × σ)]
   : Bool × StdGen × Nat :=
-  if sys.initStates.isEmpty then
+  let initStates := filterInitStatesByConstraints sys params th
+  if initStates.isEmpty then
     (false, gen, 0)
   else
-    let (idx, gen) := randNat gen 0 (sys.initStates.length - 1)
-    let initSt := sys.initStates[idx]!
+    let (idx, gen) := randNat gen 0 (initStates.length - 1)
+    let initSt := initStates[idx]!
     if !(violatedInvariantNames params th initSt).isEmpty then
       (true, gen, 0)
     else
@@ -105,7 +244,7 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   match stepsLeft with
   | 0 => (none, gen, 0)
   | stepsLeft + 1 =>
-    let outcomes := sys.tr th currSt
+    let outcomes := filterOutcomesByConstraints sys params th currSt
     -- Check assertion failures first (highest priority)
     let failingStep := outcomes.findSome? fun (label, outcome) =>
       match outcome with
@@ -149,11 +288,12 @@ partial def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   [Inhabited σ]
   [Inhabited (κ × σ)]
   : Option (ModelCheckingResult ρ σ κ Unit) × StdGen × Nat :=
-  if sys.initStates.isEmpty then
+  let initStates := filterInitStatesByConstraints sys params th
+  if initStates.isEmpty then
     (none, gen, 0)
   else
-    let (idx, gen) := randNat gen 0 (sys.initStates.length - 1)
-    let initSt := sys.initStates[idx]!
+    let (idx, gen) := randNat gen 0 (initStates.length - 1)
+    let initSt := initStates[idx]!
     let initTrace : Trace ρ σ κ := { theory := th, initialState := initSt, steps := #[] }
     let initViolations := violatedInvariantNames params th initSt
     if !initViolations.isEmpty then
@@ -161,56 +301,127 @@ partial def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
     else
       simulateOnceLoop sys params th maxSteps initSt initTrace gen
 
-/-- Run `maxTraces` independent random traces, stopping on first violation.
-Scans without trace recording for speed; replays only the violating trace.
-Each trace uses an independent seed derived from `(masterSeed + traceIndex)`. -/
+/-- Pure simulation core for a fixed seed.
+Scans without trace recording for speed; replays only the violating trace. -/
 @[inline, specialize]
-partial def simulate {ρ σ κ : Type} {th₀ : ρ}
+def simulateCoreLoop {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)
+  (remaining : Nat)
+  (traceIndex : Nat)
   [Inhabited σ]
   [Inhabited (κ × σ)]
-  : IO (SimulateResult ρ σ κ) := do
-  let actualSeed ← if cfg.seed == 0
-    then IO.rand 0 0xFFFFFFFFFFFFFFFF
-    else pure cfg.seed
-  let startMs ← IO.monoMsNow
-  let mut i := 0
-  while i < cfg.maxTraces do
-    let traceSeed := actualSeed + i
-    try
-      -- Fast scan: no trace allocation
+  : SimulateResult ρ σ κ :=
+  match remaining with
+  | 0 => {
+      result := .noViolationFound cfg.maxTraces
+        (.earlyTermination (.reachedDepthBound cfg.maxTraces))
+      tracesRun := cfg.maxTraces
+      elapsedMs := 0
+      seed := cfg.seed
+      depth := 0
+    }
+  | remaining + 1 =>
+      let traceSeed := cfg.seed + traceIndex
       let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
       if violated then
-        -- Replay with same seed to build counterexample trace
         let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
         match maybeResult with
-        | some result =>
-          let elapsedMs := (← IO.monoMsNow) - startMs
-          return {
+        | some result => {
             result := result
-            tracesRun := i + 1
-            elapsedMs := elapsedMs
+            tracesRun := traceIndex + 1
+            elapsedMs := 0
+            seed := cfg.seed
+            depth := stepsUsed
+          }
+        | none => simulateCoreLoop sys params th cfg remaining (traceIndex + 1)
+      else
+        simulateCoreLoop sys params th cfg remaining (traceIndex + 1)
+
+/-- Run `maxTraces` independent random traces for a fixed seed.
+This function is pure and is the proof-producing core used by `#simulate`. -/
+@[inline, specialize]
+def simulateCore {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (cfg : SimulateConfig)
+  [inhabσ : Inhabited σ]
+  [inhabκσ : Inhabited (κ × σ)]
+  : SimulateResult ρ σ κ :=
+  simulateCoreLoop sys params th cfg cfg.maxTraces 0
+
+/-- IO simulation runner with progress and cancellation hooks.
+Uses the configured seed exactly once and reuses its per-trace derivation scheme. -/
+@[inline, specialize]
+def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (cfg : SimulateConfig)
+  (progressInstanceId : Nat)
+  (cancelToken : IO.CancelToken)
+  [inhabσ : Inhabited σ]
+  [inhabκσ : Inhabited (κ × σ)]
+  : IO (SimulateResult ρ σ κ) := do
+  let actualSeed ← if cfg.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg.seed
+  let cfg := { cfg with seed := actualSeed }
+  let startMs ← IO.monoMsNow
+  let mut tracesRun := 0
+  let mut lastStatusUpdate := startMs
+  while tracesRun < cfg.maxTraces do
+    if ← Veil.ModelChecker.Concrete.shouldStop cancelToken progressInstanceId then
+      return {
+        result := .cancelled
+        tracesRun
+        elapsedMs := (← IO.monoMsNow) - startMs
+        seed := actualSeed
+        depth := 0
+      }
+    let now ← IO.monoMsNow
+    if now - lastStatusUpdate ≥ 100 then
+      Veil.ModelChecker.Concrete.updateStatus progressInstanceId s!"Running random traces ({tracesRun}/{cfg.maxTraces})"
+      lastStatusUpdate := now
+    let traceSeed := cfg.seed + tracesRun
+    let (violated, _, stepsUsed) := scanOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
+    if violated then
+      let (maybeResult, _, _) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
+      match maybeResult with
+      | some result =>
+          Veil.ModelChecker.Concrete.setViolationFound progressInstanceId
+          return {
+            result
+            tracesRun := tracesRun + 1
+            elapsedMs := (← IO.monoMsNow) - startMs
             seed := actualSeed
             depth := stepsUsed
           }
-        | none =>
-          i := i + 1
-      else
-        i := i + 1
-    catch e =>
-      IO.eprintln s!"#simulate: error on trace {i} (seed := {traceSeed}): {e.toString}"
-      i := i + 1
-  let elapsedMs := (← IO.monoMsNow) - startMs
+      | none =>
+          tracesRun := tracesRun + 1
+    else
+      tracesRun := tracesRun + 1
   return {
-    result := .noViolationFound cfg.maxTraces
-      (.earlyTermination (.reachedDepthBound cfg.maxTraces))
+    result := .noViolationFound cfg.maxTraces (.earlyTermination (.reachedDepthBound cfg.maxTraces))
     tracesRun := cfg.maxTraces
-    elapsedMs := elapsedMs
+    elapsedMs := (← IO.monoMsNow) - startMs
     seed := actualSeed
     depth := 0
   }
+
+/-- IO wrapper around `simulateCore` that fills in a seed when omitted and records
+wall-clock time for UI/reporting. -/
+@[inline, specialize]
+def simulate {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (cfg : SimulateConfig)
+  [inhabσ : Inhabited σ]
+  [inhabκσ : Inhabited (κ × σ)]
+  : IO (SimulateResult ρ σ κ) := do
+  let cancelToken ← IO.CancelToken.new
+  simulateWithProgress sys params th cfg 0 cancelToken
 
 end Veil.ModelChecker.Simulation
