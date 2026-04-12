@@ -164,9 +164,37 @@ instance instDecidableResultSound {ρ σ κ : Type} {th₀ : ρ}
   unfold ResultSound
   infer_instance
 
+private inductive StepDecision (σ κ : Type) where
+  | assertionFailure (exId : Int) (step : Step σ κ)
+  | deadlock
+  | terminated
+  | continue (nexts : List (κ × σ))
+
+private def decideAtState {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) (currSt : σ) : StepDecision σ κ :=
+  let outcomes := filterOutcomesByConstraints sys params th currSt
+  let failingStep := outcomes.findSome? fun (label, outcome) =>
+    match outcome with
+    | .assertionFailure exId st =>
+      some (exId, { transitionLabel := label, nextState := st })
+    | _ => none
+  match failingStep with
+  | some (exId, step) => .assertionFailure exId step
+  | none =>
+      let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
+      if nexts.isEmpty then
+        if !params.terminating.holdsOn th currSt then .deadlock else .terminated
+      else
+        .continue nexts
+
+private def pickNextTransition {σ κ : Type}
+  (nexts : List (κ × σ)) (gen : StdGen) [Inhabited (κ × σ)] : (κ × σ) × StdGen :=
+  let (idx, gen) := randNat gen 0 (nexts.length - 1)
+  (nexts[idx]!, gen)
+
 /-- Lightweight scan loop: walk without building a trace.
 Returns `(violated?, updatedRng, stepsTaken)`. -/
--- NOTE: keep in sync with `simulateOnceLoop` (trace-building variant for replay)
 @[inline, specialize]
 partial def scanOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -180,23 +208,15 @@ partial def scanOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   match stepsLeft with
   | 0 => (false, gen, 0)
   | stepsLeft + 1 =>
-    let outcomes := filterOutcomesByConstraints sys params th currSt
-    let assertionFailureFound := outcomes.any fun (_, outcome) =>
-      match outcome with
-      | .assertionFailure _ _ => true
-      | _ => false
-    if assertionFailureFound then
-      (true, gen, 1)
-    else
-      let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
-      if nexts.isEmpty then
-        if !params.terminating.holdsOn th currSt then
-          (true, gen, 0)  -- deadlock
-        else
-          (false, gen, 0)
-      else
-        let (idx, gen) := randNat gen 0 (nexts.length - 1)
-        let (_, nextSt) := nexts[idx]!
+    match decideAtState sys params th currSt with
+    | .assertionFailure _ _ =>
+        (true, gen, 1)
+    | .deadlock =>
+        (true, gen, 0)
+    | .terminated =>
+        (false, gen, 0)
+    | .continue nexts =>
+        let ((_, nextSt), gen) := pickNextTransition nexts gen
         if !(violatedInvariantNames params th nextSt).isEmpty then
           (true, gen, 1)
         else
@@ -229,7 +249,6 @@ partial def scanOnce {ρ σ κ : Type} {th₀ : ρ}
 /-- Inner loop of a single random trace: walk from `currSt` for up to
 `stepsLeft` steps, picking a random enabled transition at each step.
 Returns `(violation?, updatedRng, stepsTaken)`. Used only for replay. -/
--- NOTE: keep in sync with `scanOnceLoop` (allocation-free variant for scanning)
 @[inline, specialize]
 partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -244,30 +263,18 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   match stepsLeft with
   | 0 => (none, gen, 0)
   | stepsLeft + 1 =>
-    let outcomes := filterOutcomesByConstraints sys params th currSt
-    -- Check assertion failures first (highest priority)
-    let failingStep := outcomes.findSome? fun (label, outcome) =>
-      match outcome with
-      | .assertionFailure exId st =>
-        some (exId, { transitionLabel := label, nextState := st })
-      | _ => none
-    match failingStep with
-    | some (exId, step) =>
-      let failedTrace := { trace with failingStep := some step }
-      -- +1 for the failing action itself (not in trace.steps, stored in failingStep)
-      (some (.foundViolation () (.assertionFailure exId) (some failedTrace)),
-        gen, trace.steps.size + 1)
-    | none =>
-      let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
-      if nexts.isEmpty then
-        if !params.terminating.holdsOn th currSt then
-          -- No enabled transitions and not a terminating state: deadlock
-          (some (.foundViolation () .deadlock (some trace)), gen, trace.steps.size)
-        else
-          (none, gen, trace.steps.size)
-      else
-        let (idx, gen) := randNat gen 0 (nexts.length - 1)
-        let (label, nextSt) := nexts[idx]!
+    match decideAtState sys params th currSt with
+    | .assertionFailure exId step =>
+        let failedTrace := { trace with failingStep := some step }
+        -- +1 for the failing action itself (not in trace.steps, stored in failingStep)
+        (some (.foundViolation () (.assertionFailure exId) (some failedTrace)),
+          gen, trace.steps.size + 1)
+    | .deadlock =>
+        (some (.foundViolation () .deadlock (some trace)), gen, trace.steps.size)
+    | .terminated =>
+        (none, gen, trace.steps.size)
+    | .continue nexts =>
+        let ((label, nextSt), gen) := pickNextTransition nexts gen
         let trace := trace.push { transitionLabel := label, nextState := nextSt }
         let violations := violatedInvariantNames params th nextSt
         if !violations.isEmpty then
