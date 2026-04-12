@@ -1,4 +1,5 @@
 import Veil.Core.Tools.ModelChecker.Simulation.Path
+import Veil.Core.Tools.ModelChecker.Simulation.Soundness
 import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 namespace Veil.ModelChecker.Simulation
@@ -109,5 +110,49 @@ def simulate {ρ σ κ : Type} {th₀ : ρ}
   : IO (SimulateResult ρ σ κ) := do
   let cancelToken ← IO.CancelToken.new
   simulateWithProgress sys params th cfg 0 cancelToken
+
+private theorem simulateLoopM_id_check {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  [Inhabited σ] [Inhabited (κ × σ)]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (cfg : SimulateConfig) :
+  ∀ remaining traceIndex,
+    ResultSoundB sys params
+      (SimulateResult.result
+        (Id.run <| simulateLoopM
+          { shouldStop := fun _ => false
+            onTraceProgress := fun _ => PUnit.unit
+            onViolation := PUnit.unit }
+          sys params th cfg remaining traceIndex)) = true := by
+  intro remaining
+  induction remaining with
+  | zero =>
+      intro traceIndex
+      have hStop : Id.run false = false := rfl
+      simp [simulateLoopM, ResultSoundB, hStop]
+  | succ remaining ih =>
+      intro traceIndex
+      simp [simulateLoopM, Id.run]
+      by_cases hTrace : runTraceAtSeed sys params th cfg traceIndex = none
+      · simp [hTrace]
+        exact ih (traceIndex + 1)
+      · cases hRun : runTraceAtSeed sys params th cfg traceIndex with
+        | none => contradiction
+        | some pair =>
+            rcases pair with ⟨result, depth⟩
+            simp [hRun]
+            exact runTraceAtSeed_check sys params th cfg traceIndex result depth hRun
+
+theorem simulateCore_sound {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  [Inhabited σ] [Inhabited (κ × σ)]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (cfg : SimulateConfig) :
+  ResultSound sys params (SimulateResult.result (simulateCore sys params th cfg)) := by
+  exact resultSound_of_check_true sys params _ (simulateLoopM_id_check sys params th cfg cfg.maxTraces 0)
 
 end Veil.ModelChecker.Simulation
