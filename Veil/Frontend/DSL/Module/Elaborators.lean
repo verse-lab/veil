@@ -1085,7 +1085,17 @@ private def emitSimulateArtifacts (mod : Module) (instTerm theoryTerm sp pureCal
           ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
           $sp
           ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent)) := by
-       native_decide))
+       let $inst : $instantiationType := $instTerm
+       let $th : $theoryIdent $instSortArgs* := $theoryTerm
+       exact $(mkIdent ``Veil.ModelChecker.Simulation.resultSound_of_check_true)
+         ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
+         $sp
+         ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent)
+         (by native_decide :
+           $(mkIdent ``Veil.ModelChecker.Simulation.ResultSoundB)
+             ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
+             $sp
+             ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent) = true)))
 
 private def logSimulationSummary (stx : Syntax) (combinedJson : Json) : CommandElabM Json := do
   let resultJson := combinedJson
