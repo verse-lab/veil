@@ -50,7 +50,7 @@ partial def scanOnceLoop {ρ σ κ : Type} {th₀ : ρ}
     if assertionFailureFound then
       (true, gen, 1)
     else
-      let nexts := Concrete.extractSuccessfulTransitions outcomes
+      let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
       if nexts.isEmpty then
         if !params.terminating.holdsOn th currSt then
           (true, gen, 0)  -- deadlock
@@ -119,7 +119,7 @@ partial def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
       (some (.foundViolation () (.assertionFailure exId) (some failedTrace)),
         gen, trace.steps.size + 1)
     | none =>
-      let nexts := Concrete.extractSuccessfulTransitions outcomes
+      let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
       if nexts.isEmpty then
         if !params.terminating.holdsOn th currSt then
           -- No enabled transitions and not a terminating state: deadlock
