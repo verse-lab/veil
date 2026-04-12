@@ -89,7 +89,9 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
         let now ← IO.monoMsNow
         let lastStatusUpdate ← lastStatusUpdateRef.get
         if now - lastStatusUpdate ≥ 100 then
-          Veil.ModelChecker.Concrete.updateStatus progressInstanceId s!"Running random traces ({tracesRun}/{cfg.maxTraces})"
+          Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
+            s!"Running random traces ({tracesRun}/{cfg.maxTraces})"
+            tracesRun cfg.maxTraces 0
           lastStatusUpdateRef.set now
       onViolation := do
         Veil.ModelChecker.Concrete.setViolationFound progressInstanceId }

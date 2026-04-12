@@ -519,15 +519,15 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
       </div>}
     <table style={json% {"borderCollapse": "collapse"}}>
       <tbody>
-        {statRow "Diameter:" (toString p.diameter)}
-        {statRow "States Found:" (toString p.statesFound)}
-        {statRow "Distinct States:" (toString p.distinctStates)}
-        {statRow "Queue:" (toString p.queue)}
+        {if p.isSimulation then statRow "Traces Run:" (toString p.tracesRun) else statRow "Diameter:" (toString p.diameter)}
+        {if p.isSimulation then statRow "Max Traces:" (toString p.maxTraces) else statRow "States Found:" (toString p.statesFound)}
+        {if p.isSimulation then statRow "Depth:" (toString p.simulationDepth) else statRow "Distinct States:" (toString p.distinctStates)}
+        {if p.isSimulation then .text "" else statRow "Queue:" (toString p.queue)}
         {statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)}
       </tbody>
     </table>
-    {metricsHistoryHtml p.history}
-    {actionCoverageHtml p.actionStats p.allActionLabels}
+    {if p.isSimulation then .text "" else metricsHistoryHtml p.history}
+    {if p.isSimulation then .text "" else actionCoverageHtml p.actionStats p.allActionLabels}
     {match p.compilationStatus with
      | .inProgress ms lines => if lines.isEmpty then .text "" else compilationLogHtml ms lines
      | .failed err => compilationFailureHtml err
