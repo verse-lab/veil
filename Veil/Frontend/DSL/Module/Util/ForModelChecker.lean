@@ -148,7 +148,9 @@ def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespac
     (command : CompiledCommandSpec) : IO System.FilePath := do
   let veilPath ← IO.currentDir
   let buildFolder ← generateBuildFolderName sourceFile command
-  -- Create the build folder
+  -- Recreate the build folder from scratch to avoid stale Lake state from prior runs.
+  if ← buildFolder.pathExists then
+    IO.FS.removeDirAll buildFolder
   IO.FS.createDirAll buildFolder
   -- Write the lakefile
   IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
