@@ -1078,23 +1078,28 @@ private def emitSimulateArtifacts (mod : Module) (instTerm theoryTerm sp pureCal
   elabVeilCommand (← `(def $resultIdent := $pureCallExpr))
   let inst := mkVeilImplementationDetailIdent `inst
   let th := mkVeilImplementationDetailIdent `th
+  let ρArg := mkIdent `ρ
   let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+  let theoryT ← `($theoryIdent $instSortArgs*)
+  let assumptionsTerm ← `($assembledAssumptions ($ρArg := $theoryT) $instSortArgs* $th)
   let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
       $(quote cfg.maxTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
   elabVeilCommand (← `(theorem $soundIdent :
       (let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
-       $(mkIdent ``Veil.ModelChecker.Simulation.ResultSound)
+       $(mkIdent ``Veil.ModelChecker.Simulation.ResultSoundUnder)
+          (fun $ρArg : $theoryT => $assembledAssumptions ($ρArg := $theoryT) $instSortArgs* $ρArg)
           ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-          $sp
+          $sp $th
           ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent)) := by
        let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
-       simpa [$resultIdent:ident] using $(mkIdent ``Veil.ModelChecker.Simulation.simulateCore_sound)
-          ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-           $sp
-           $th
-           $cfgTerm))
+       exact fun _ => by
+         simpa [$resultIdent:ident] using $(mkIdent ``Veil.ModelChecker.Simulation.simulateCore_sound)
+             ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
+             $sp
+             $th
+             $cfgTerm))
 
 private def logSimulationSummary (stx : Syntax) (combinedJson : Json) : CommandElabM Json := do
   let resultJson := combinedJson

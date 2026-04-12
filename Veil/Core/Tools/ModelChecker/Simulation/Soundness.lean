@@ -252,6 +252,13 @@ def ResultSound {ρ σ κ : Type} {th₀ : ρ}
   | .noViolationFound _ _ => True
   | .cancelled => True
 
+def ResultSoundUnder {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (assumptions : ρ → Prop)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) (result : ModelCheckingResult ρ σ κ Unit) : Prop :=
+  assumptions th → ResultSound sys params result
+
 theorem simulateOnceLoop_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ] [Inhabited (κ × σ)]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -386,6 +393,15 @@ noncomputable instance instDecidableResultSound {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) :
   Decidable (ResultSound sys params result) := by
+  classical
+  infer_instance
+
+noncomputable instance instDecidableResultSoundUnder {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  (assumptions : ρ → Prop)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) (result : ModelCheckingResult ρ σ κ Unit) :
+  Decidable (ResultSoundUnder assumptions sys params th result) := by
   classical
   infer_instance
 
