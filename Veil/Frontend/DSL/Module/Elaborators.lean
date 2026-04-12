@@ -1223,6 +1223,8 @@ def elabSimulate : CommandElab := fun stx => do
     let mode := getModelCheckingMode stx[1]
     let instTerm : Term := ⟨stx[2]⟩
     let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
+    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[5].isNone then none else some ⟨stx[5][0][1]⟩
     let mod ← getCurrentModule (errMsg := "You cannot #simulate outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     let theoryTerm ← resolveTheoryTerm "#simulate" theoryTermOpt mod instTerm
@@ -1234,6 +1236,8 @@ def elabSimulate : CommandElab := fun stx => do
     let seed ← liftIO <| if cfg0.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg0.seed
     let cfg : ModelChecker.Simulation.SimulateConfig := { cfg0 with maxTraces, maxSteps, seed }
     let mcCfg : ModelCheckerConfig := { maxDepth := 0, sequential := false, parallelCfg := none }
+    if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
+      elabModelCheck.checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     let sp ← buildSearchParameters mod mcCfg
     let pureCallExpr ← mkSimulatorCall mod instTerm theoryTerm sp cfg
     let runtimeCallExpr ← mkSimulatorRuntimeCall mod instTerm theoryTerm sp cfg

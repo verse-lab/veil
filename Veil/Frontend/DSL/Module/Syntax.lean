@@ -388,6 +388,6 @@ Seed defaults to a generated value if omitted; the chosen seed is always shown
 in output for reproducibility and reused consistently across mode handoff.
 
 Example: `#simulate {}` or `#simulate compiled {} (maxTraces := 100, seed := 42)` -/
-syntax (name := simulate) "#simulate " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig : command
+scoped syntax (name := simulate) "#simulate " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
 end Veil
