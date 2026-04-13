@@ -945,11 +945,11 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
           AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
           if deriveTransition? then
             AuxiliaryDefinitions.defineTransition mod nmExt extKind
-            if mod._useFieldRepTC then
-              try
-                defineTransitionAbstract mod nmExt extKind deriveTransition?
-              catch ex =>
-                logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
+          if mod._useFieldRepTC then
+            try
+              defineTransitionAbstract mod nmExt extKind deriveTransition?
+            catch ex =>
+              logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
     return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
