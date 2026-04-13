@@ -38,6 +38,11 @@ def assembledAssumptionsName : Name := `Assumptions
 /-- The conjunction of all assumption clauses. -/
 def assembledAssumptions : Ident := mkIdent assembledAssumptionsName
 
+def simulateCoreSoundName : Name := `simulateCoreSound
+def simulateCoreSound : Ident := mkIdent simulateCoreSoundName
+def simulateCommandSoundName : Name := `simulateSound
+def simulateCommandSound : Ident := mkIdent simulateCommandSoundName
+
 def assembledInvariantsName : Name := `Invariants
 /-- The conjunction of all `invariant`, `safety`, and `trusted
 invariant` clauses. -/
