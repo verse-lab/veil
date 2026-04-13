@@ -54,6 +54,62 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
           simulateLoopM hooks sys params th cfg remaining (traceIndex + 1)
 termination_by remaining
 
+private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
+  (shouldStop : Nat → Bool)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (cfg : SimulateConfig)
+  (remaining : Nat)
+  (traceIndex : Nat)
+  [Inhabited σ]
+  [Inhabited (κ × σ)]
+  : SimulateResult ρ σ κ :=
+  if shouldStop traceIndex then
+    {
+      result := .cancelled
+      tracesRun := traceIndex
+      elapsedMs := 0
+      seed := cfg.seed
+      depth := 0
+    }
+  else
+    match remaining with
+    | 0 =>
+        {
+          result := .noViolationFound cfg.maxTraces
+            (.earlyTermination (.reachedDepthBound cfg.maxTraces))
+          tracesRun := cfg.maxTraces
+          elapsedMs := 0
+          seed := cfg.seed
+          depth := 0
+        }
+    | remaining + 1 =>
+        match runTraceAtSeed sys params th cfg traceIndex with
+        | some (result, stepsUsed) =>
+            {
+              result := result
+              tracesRun := traceIndex + 1
+              elapsedMs := 0
+              seed := cfg.seed
+              depth := stepsUsed
+            }
+        | none =>
+            simulateLoopId shouldStop sys params th cfg remaining (traceIndex + 1)
+termination_by remaining
+
+@[inline, specialize]
+def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (shouldStop : Nat → Bool)
+  (cfg : SimulateConfig)
+  [inhabσ : Inhabited σ]
+  [inhabκσ : Inhabited (κ × σ)]
+  : SimulateResult ρ σ κ :=
+  simulateLoopId shouldStop sys params th cfg cfg.maxTraces 0
+
 @[inline, specialize]
 def simulateCore {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -63,11 +119,7 @@ def simulateCore {ρ σ κ : Type} {th₀ : ρ}
   [inhabσ : Inhabited σ]
   [inhabκσ : Inhabited (κ × σ)]
   : SimulateResult ρ σ κ :=
-  Id.run <| simulateLoopM
-    { shouldStop := fun _ => false
-      onTraceProgress := fun _ => PUnit.unit
-      onViolation := PUnit.unit }
-    sys params th cfg cfg.maxTraces 0
+  simulateCommandSemantics sys params th (fun _ => false) cfg
 
 @[inline, specialize]
 def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
@@ -117,33 +169,40 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
-  (cfg : SimulateConfig) :
+  (cfg : SimulateConfig)
+  (shouldStop : Nat → Bool) :
   ∀ remaining traceIndex,
-    ResultSound sys params
-      (SimulateResult.result
-        (Id.run <| simulateLoopM
-          { shouldStop := fun _ => false
-            onTraceProgress := fun _ => PUnit.unit
-            onViolation := PUnit.unit }
-          sys params th cfg remaining traceIndex)) := by
+    ResultSound sys params (SimulateResult.result (simulateLoopId shouldStop sys params th cfg remaining traceIndex)) := by
   intro remaining
   induction remaining with
   | zero =>
       intro traceIndex
-      have hStop : Id.run false = false := rfl
-      simp [simulateLoopM, ResultSound, hStop]
+      cases hStop : shouldStop traceIndex <;> simp [simulateLoopId, hStop, ResultSound]
   | succ remaining ih =>
       intro traceIndex
-      simp [simulateLoopM, Id.run]
-      by_cases hTrace : runTraceAtSeed sys params th cfg traceIndex = none
-      · simp [hTrace]
-        exact ih (traceIndex + 1)
-      · cases hRun : runTraceAtSeed sys params th cfg traceIndex with
-        | none => contradiction
-        | some pair =>
-            rcases pair with ⟨result, depth⟩
-            simp [hRun]
-            exact runTraceAtSeed_sound sys params th cfg traceIndex result depth hRun
+      cases hStop : shouldStop traceIndex with
+      | true =>
+          simp [simulateLoopId, hStop, ResultSound]
+      | false =>
+          by_cases hTrace : runTraceAtSeed sys params th cfg traceIndex = none
+          · simpa [simulateLoopId, hStop, hTrace] using ih (traceIndex + 1)
+          · cases hRun : runTraceAtSeed sys params th cfg traceIndex with
+            | none => contradiction
+            | some pair =>
+                rcases pair with ⟨result, depth⟩
+                simpa [simulateLoopId, hStop, hRun] using
+                  runTraceAtSeed_sound sys params th cfg traceIndex result depth hRun
+
+theorem simulateCommandSemantics_sound {ρ σ κ : Type} {th₀ : ρ}
+  [DecidableEq σ] [DecidableEq κ]
+  [Inhabited σ] [Inhabited (κ × σ)]
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (shouldStop : Nat → Bool)
+  (cfg : SimulateConfig) :
+  ResultSound sys params (SimulateResult.result (simulateCommandSemantics sys params th shouldStop cfg)) := by
+  exact simulateLoopM_id_sound sys params th cfg shouldStop cfg.maxTraces 0
 
 theorem simulateCore_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
@@ -153,6 +212,6 @@ theorem simulateCore_sound {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (cfg : SimulateConfig) :
   ResultSound sys params (SimulateResult.result (simulateCore sys params th cfg)) := by
-  exact simulateLoopM_id_sound sys params th cfg cfg.maxTraces 0
+  simpa [simulateCore] using simulateCommandSemantics_sound sys params th (fun _ => false) cfg
 
 end Veil.ModelChecker.Simulation
