@@ -857,6 +857,101 @@ where
       rfl)
     proveAndCheck tac goal nm "source → target (native transition case)"
 
+def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Command) := do
+  -- Completely syntax-based approach here
+  if mod.actions.isEmpty then
+    return none
+
+  -- Prepare
+  let [r₀, s₀, s₁, r₀', s₀', s₁', label] := [`r₀, `s₀, `s₁, `r₀', `s₀', `s₁', `label].map mkVeilImplementationDetailIdent | unreachable!
+  let sortIdents ← mod.uninterpretedParamIdents
+  let abstractStateSortTerm ← `($fieldAbstractDispatcher $sortIdents*)
+  let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
+  let theoryTy ← `($theoryIdent $sortIdents*)
+  let hole ← `(term| _ )
+
+  let absr₀ ← `($(mkIdent ``readFrom) $r₀)
+  let absst₀ ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $s₀)) abstractStateSortTerm
+  let absst₁ ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $s₁)) abstractStateSortTerm
+
+  let some dk := mod._declarations[assembledNextName]?
+    | throwError "simplifyLocalRPropCore: {assembledNextName} not found in module declarations"
+  let (params, _) ← mod.declarationAllParams assembledNextName dk
+  let binders ← params.mapM (·.binder)
+  let allBinders : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := binders ++ [
+    (← `(bracketedBinder| ($r₀ : $environmentTheory)) ),
+    (← `(bracketedBinder| ($s₀ : $environmentState)) ),
+    (← `(bracketedBinder| ($s₁ : $environmentState)) )]
+  let actions := mod.actions
+  -- Sanity check
+  for act in actions do
+    let _ ← resolveGlobalConstNoOverloadCore <| toTransitionAbstractName <| toExtName act.name
+
+  let nextStx ← do
+    let args ← params.mapM (·.arg)
+    -- FIXME: Is this ordering of these 4 variables hardcoded?
+    `(term| ∃ $label:ident, @$(mkIdent <| assembledNextName.appendAfter "'") $args* $r₀ $s₀ $label $s₁)
+  let res ← actions.mapM fun s => do
+    let tr := Lean.mkIdent <| toTransitionName <| toExtName s.name
+    let (allModParams, actualParams) ← mod.declarationAllParams s.name s.declarationKind
+    let allParams := allModParams ++ actualParams
+    let allArgs ← allParams.mapM (·.arg)
+    -- NOTE: This line comes from `assembleLabelCasesLemma`
+    let actualArgs ← parametersToExplicitBinders actualParams
+    let specializedArgs := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
+    let stx ← `(term| exists? $actualArgs, @$tr $specializedArgs* $r₀' $s₀' $s₁')
+    pure (stx, (allArgs, actualParams))
+  let (specializedActTrStxs, actArgsAndActualParams) := res.unzip
+  let goalStx ← do
+    let rhs ← repeatedOr specializedActTrStxs
+    -- Use `letI` to avoid too many occurrences of the same huge expressions
+    `(letI $r₀' := $absr₀
+      letI $s₀' := $absst₀
+      letI $s₁' := $absst₁
+      $nextStx → $rhs)
+
+  let tac ← do
+    let simps :=
+      -- let derivedEqs := actions.map fun s => toDerivedEqName <| toExtName s.name
+      -- derivedEqs.map Lean.mkIdent ++ #[labelCases, assembledNext, assembledNextAct]
+      #[labelCases, mkIdent <| assembledNextName.appendAfter "'"]
+    let h := mkVeilImplementationDetailIdent `h
+    let splitOrPat ← do
+      let tmp := Array.replicate actions.size h
+      `(Lean.Parser.Tactic.rcasesPatMed| $tmp:rcasesPat|*)
+    let leafTacs ← do
+      let rightTac ← `(tactic| right )
+      let leftTac ← `(tactic| left )
+      let res ← actions.zip actArgsAndActualParams |>.mapIdxM fun i (s, allArgs, actualParams) => do
+        let pathFindingTac ← do
+          let seq := Array.replicate i rightTac
+          let seq := if i == actions.size - 1 then seq else seq.push leftTac
+          if seq.isEmpty then `(tactic| skip) else `(tactic| ($seq*) )
+        let existsTac ← if actualParams.isEmpty then
+          `(tactic| skip )
+        else
+          let args := actualParams.map fun p => mkIdent p.name
+          let casesPat ← do
+            let tmp := args.push h
+            `(Lean.Parser.Tactic.rcasesPatMed| ⟨$tmp,*⟩)
+          `(tactic| (rcases $h:ident with $casesPat ; exists $args,*) )
+        let revertAndApplyTac ← do
+          -- NOTE: As somewhere mentioned, directly `apply` can sometimes fail due to
+          -- failing to synthesize instance of instance does not match, so need to
+          -- be very careful here
+          let thm ← `(@$(mkIdent <| toTransitionAbstractName <| toExtName s.name) $allArgs* $r₀ $s₀ $s₁)
+          let tmp := mkIdent `tmp   -- using `mkVeilImplementationDetailIdent` here causes some problem
+          `(tactic| (revert $h:ident ; have $tmp := $thm ; __veil_neutralize_decidable_inst ! ; exact $tmp) )
+        pure #[pathFindingTac, existsTac, revertAndApplyTac]
+      pure res.flatten
+    `(term| by
+      intro $h:ident
+      simp only [$[$simps:ident],*] at $h:ident
+      rcases $h:ident with $splitOrPat
+      $leafTacs*
+    )
+  `(open $(mkIdent `Classical):ident in theorem $(mkIdent <| toTransitionAbstractName assembledNextName) $allBinders* : $goalStx := $tac)
+
 /-! ## Procedure elaboration -/
 
 private def withVeilModeVar (bi : BinderInfo) (k : Expr → TermElabM α) : TermElabM α :=

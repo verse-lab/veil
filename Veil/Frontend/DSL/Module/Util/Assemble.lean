@@ -238,6 +238,30 @@ def Module.assembleNextTransition [Monad m] [MonadQuotation m] [MonadError m] [M
   let mod ← mod.registerDerivedDefinition derivedDef
   return (nextTrDef, mod)
 
+-- FIXME: The following is just an expedient solution to the lack of soundness
+-- of `Transition.toVeilM`. It is **NOT** meant to be maintained and should be
+-- immediately removed once that issue is fixed.
+
+def Module.assembleNextTransition' [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
+  let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
+  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
+  let binders ← (baseParams ++ extraParams).mapM (·.binder)
+  let labelT ← mod.labelTypeStx
+  let nextTrT ← `(term| $environmentTheory → $environmentState → $labelT → $environmentState → Prop)
+  let (rd, st, st', label) := (mkIdent `rd, mkIdent `st, mkIdent `st', mkIdent `label)
+  let branches ← mod.actions.mapM fun s => do
+    let name := Lean.mkIdent <| toTransitionName <| toExtName s.name
+    let (params, actualParams) ← mod.declarationAllParams s.name s.declarationKind
+    let args ← (params ++ actualParams).mapM (·.arg)
+    let actualBinders ← actualParams.mapM (·.binder)
+    let actualBinders ← actualBinders.mapM bracketedBinderToFunBinder
+    mkFunSyntax actualBinders <| ← `(@$name $args* $rd $st $st')
+  let body ← `($label.$(mkIdent `casesOn) $branches*)
+  let nextTrDef ← `(command|
+    def $(mkIdent <| assembledNextName.appendAfter "'") $[$(binders)]* : $nextTrT :=
+      fun ($rd : $environmentTheory) ($st : $environmentState) ($label : $labelT) ($st' : $environmentState) => $body)
+  return nextTrDef
+
 /-! ## Init Predicate Assembly -/
 
 /-- Assembles the `Init` predicate from the initializer.

@@ -311,6 +311,13 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     elabVeilCommand nextCmd
     let (nextTrCmd, mod) ← mod.assembleNextTransition
     elabVeilCommand nextTrCmd
+    let nextTr'Cmd ← mod.assembleNextTransition'
+    elabVeilCommand nextTr'Cmd
+    try
+      if let some abstractNextCmd ← liftTermElabM mod.defineTransitionAbstractForNext then
+        elabVeilCommand abstractNextCmd
+    catch ex =>
+      logWarningAt stx m!"unable to prove {toTransitionAbstractName assembledNextName}: {ex.toMessageData}"
     let (initCmd, mod) ← mod.assembleInit
     elabVeilCommand initCmd
     let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
