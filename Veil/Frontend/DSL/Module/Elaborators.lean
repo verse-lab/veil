@@ -1116,27 +1116,8 @@ private def emitSimulateArtifacts (mod : Module) (instTerm theoryTerm sp pureCal
              (fun _ => false)
              $cfgTerm))
 
-private def logSimulationSummary (stx : Syntax) (combinedJson : Json) : CommandElabM Json := do
-  let resultJson := combinedJson
-  let seed := (resultJson.getObjValD "seed").getNat? |>.getD 0
-  let tracesRun := (resultJson.getObjValD "traces_run").getNat? |>.getD 0
-  let elapsedMs := (resultJson.getObjValD "elapsed_ms").getNat? |>.getD 0
-  let depth := (resultJson.getObjValD "depth").getNat? |>.getD 0
-  let tracesPerSec := if elapsedMs > 0 then tracesRun * 1000 / elapsedMs else 0
-  let isViolation := resultJson.getObjValD "result" == Json.str "found_violation" ||
-    resultJson.getObjValD "error" != .null
-  let summary := if isViolation then
-    s!"simulation: found violation at depth {depth} (trace #{tracesRun}, {elapsedMs}ms, seed := {seed}). A shorter violation may exist at depth < {depth}."
-  else if resultJson.getObjValD "result" == Json.str "cancelled" then
-    s!"simulation: cancelled after {tracesRun} traces ({elapsedMs}ms, seed := {seed})."
-  else
-    s!"simulation: no violation in {tracesRun} traces ({elapsedMs}ms, {tracesPerSec} traces/s, seed := {seed}). Not exhaustive -- use #model_check for full coverage."
-  logInfoAt stx summary
-  return resultJson
-
 private def finishWithSimulationResult (ctx : ModelCheckContext) (combinedJson : Json) : CommandElabM Unit := do
-  let resultJson ← logSimulationSummary ctx.stx combinedJson
-  elabModelCheck.finishWithResult ctx resultJson
+  elabModelCheck.finishWithResult ctx combinedJson
 
 private def runSimulateBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder : System.FilePath)
     (sourceFile : String) : CommandElabM Unit := do
