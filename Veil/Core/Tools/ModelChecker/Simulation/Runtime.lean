@@ -149,7 +149,11 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
       onViolation := do
         Veil.ModelChecker.Concrete.setViolationFound progressInstanceId }
     sys params th cfg cfg.maxTraces 0
-  return { simResult with elapsedMs := (← IO.monoMsNow) - startMs }
+  let simResult := { simResult with elapsedMs := (← IO.monoMsNow) - startMs }
+  Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
+    "Complete"
+    simResult.tracesRun cfg.maxTraces simResult.depth
+  return simResult
 
 @[inline, specialize]
 def simulate {ρ σ κ : Type} {th₀ : ρ}
