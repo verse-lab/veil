@@ -1145,12 +1145,19 @@ private def runSimulateBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder
   ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
   finishWithSimulationResult ctx combinedJson
 
-private def elabSimulateInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
+private def elabSimulateInternalMode (mod : Module) (callExpr : Term)
+    (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Unit := do
   let resultIdent := mkVeilImplementationDetailIdent `simulateRuntimeResult
   let jsonExpr ← mkSimulateJsonExpr resultIdent
   elabVeilCommand (← `(def $(mkIdent `simulateResult)
       (progressInstanceId : Nat) (cancelToken : IO.CancelToken) : IO Lean.Json := do
     let $resultIdent ← ($callExpr progressInstanceId cancelToken)
+    Veil.ModelChecker.Concrete.updateSimulationProgress
+      progressInstanceId
+      "Complete"
+      ($resultIdent).tracesRun
+      $(quote cfg.maxTraces)
+      ($resultIdent).depth
     pure $jsonExpr))
   elabVeilCommand (← `(end $(mkIdent mod.name)))
   elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `simulateResult))))
@@ -1258,7 +1265,7 @@ def elabSimulate : CommandElab := fun stx => do
       let simulateCoreSoundIdent := mkVeilImplementationDetailIdent `simulateCoreSound
       let simulateSoundIdent := mkVeilImplementationDetailIdent `simulateSound
       emitSimulateArtifacts mod instTerm theoryTerm sp pureCallExpr cfg simulateResultIdent simulateCoreSoundIdent simulateSoundIdent
-      elabSimulateInternalMode mod runtimeCallExpr
+      elabSimulateInternalMode mod runtimeCallExpr cfg
       return
     let simulateResultIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName (mkVeilImplementationDetailName `simulateResult))
     let simulateCoreSoundIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName (mkVeilImplementationDetailName `simulateCoreSound))
