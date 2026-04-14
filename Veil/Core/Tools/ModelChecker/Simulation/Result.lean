@@ -33,6 +33,13 @@ private def terminationReasonToJson (reason : TerminationReason Unit) : Json :=
       ("condition", earlyTerminationReasonToJson condition)
     ]
 
+private def simulationTerminationReasonToJson (r : SimulateResult ρ σ κ) : Json :=
+  Json.mkObj [
+    ("kind", "reached_trace_limit"),
+    ("traces_run", Lean.toJson r.tracesRun),
+    ("max_traces", Lean.toJson r.maxTraces)
+  ]
+
 private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   (result : ModelCheckingResult ρ σ κ Unit) : Json :=
   match result with
@@ -51,8 +58,14 @@ private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
 
 instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ] : ToJson (SimulateResult ρ σ κ) where
   toJson r := Json.mkObj [
-    ("result", resultToJson r.result),
+    ("result", match r.result with
+      | .noViolationFound _ _ => Json.mkObj [
+          ("result", "no_violation_found"),
+          ("termination_reason", simulationTerminationReasonToJson r)
+        ]
+      | other => resultToJson other),
     ("traces_run", Lean.toJson r.tracesRun),
+    ("max_traces", Lean.toJson r.maxTraces),
     ("elapsed_ms", Lean.toJson r.elapsedMs),
     ("seed", Lean.toJson r.seed),
     ("depth", Lean.toJson r.depth)
@@ -60,10 +73,17 @@ instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJ
 
 def SimulateResult.toDisplayJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   (r : SimulateResult ρ σ κ) : Json :=
-  match resultToJson r.result with
+  let resultJson := match r.result with
+    | .noViolationFound _ _ => Json.mkObj [
+        ("result", "no_violation_found"),
+        ("termination_reason", simulationTerminationReasonToJson r)
+      ]
+    | other => resultToJson other
+  match resultJson with
   | Json.obj kvs =>
       Json.mkObj <| kvs.toList ++ [
         ("traces_run", Lean.toJson r.tracesRun),
+        ("max_traces", Lean.toJson r.maxTraces),
         ("elapsed_ms", Lean.toJson r.elapsedMs),
         ("seed", Lean.toJson r.seed),
         ("depth", Lean.toJson r.depth)
@@ -72,6 +92,7 @@ def SimulateResult.toDisplayJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJs
       Json.mkObj [
         ("result", other),
         ("traces_run", Lean.toJson r.tracesRun),
+        ("max_traces", Lean.toJson r.maxTraces),
         ("elapsed_ms", Lean.toJson r.elapsedMs),
         ("seed", Lean.toJson r.seed),
         ("depth", Lean.toJson r.depth)

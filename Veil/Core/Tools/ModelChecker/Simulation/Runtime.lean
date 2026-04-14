@@ -24,6 +24,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
     return {
       result := .cancelled
       tracesRun := traceIndex
+      maxTraces := cfg.maxTraces
       elapsedMs := 0
       seed := cfg.seed
       depth := 0
@@ -34,6 +35,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
         result := .noViolationFound cfg.maxTraces
           (.earlyTermination (.reachedDepthBound cfg.maxTraces))
         tracesRun := cfg.maxTraces
+        maxTraces := cfg.maxTraces
         elapsedMs := 0
         seed := cfg.seed
         depth := 0
@@ -46,6 +48,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
           return {
             result := result
             tracesRun := traceIndex + 1
+            maxTraces := cfg.maxTraces
             elapsedMs := 0
             seed := cfg.seed
             depth := stepsUsed
@@ -69,6 +72,7 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
     {
       result := .cancelled
       tracesRun := traceIndex
+      maxTraces := cfg.maxTraces
       elapsedMs := 0
       seed := cfg.seed
       depth := 0
@@ -80,6 +84,7 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
           result := .noViolationFound cfg.maxTraces
             (.earlyTermination (.reachedDepthBound cfg.maxTraces))
           tracesRun := cfg.maxTraces
+          maxTraces := cfg.maxTraces
           elapsedMs := 0
           seed := cfg.seed
           depth := 0
@@ -90,6 +95,7 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
             {
               result := result
               tracesRun := traceIndex + 1
+              maxTraces := cfg.maxTraces
               elapsedMs := 0
               seed := cfg.seed
               depth := stepsUsed
@@ -152,7 +158,7 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
   let simResult := { simResult with elapsedMs := (← IO.monoMsNow) - startMs }
   Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
     "Complete"
-    simResult.tracesRun cfg.maxTraces simResult.depth
+    simResult.tracesRun simResult.maxTraces simResult.depth
   return simResult
 
 @[inline, specialize]
