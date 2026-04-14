@@ -41,18 +41,18 @@ theorem decideAtState_assertionFailure_mem {ρ σ κ : Type} {th₀ : ρ}
       | nil =>
           by_cases hTerm : params.terminating.holdsOn th currSt = false
           · have : False := by
-              simpa [decideAtState, outcomes, assertionFailureWitness, hFind, hNexts, hTerm] using h
+              simp [decideAtState, outcomes, hFind, hNexts, hTerm] at h
             exact False.elim this
           · have : False := by
-              simpa [decideAtState, outcomes, assertionFailureWitness, hFind, hNexts, hTerm] using h
+              simp [decideAtState, outcomes, hFind, hNexts, hTerm] at h
             exact False.elim this
       | cons hd tl =>
           have : False := by
-            simpa [decideAtState, outcomes, assertionFailureWitness, hFind, hNexts] using h
+            simp [decideAtState, outcomes, hFind, hNexts] at h
           exact False.elim this
   | some found =>
       rcases found with ⟨foundExId, foundStep⟩
-      simp [decideAtState, outcomes, assertionFailureWitness, hFind] at h
+      simp [decideAtState, outcomes, hFind] at h
       rcases h with ⟨rfl, rfl⟩
       obtain ⟨entry, hEntryMem, hEntryEq⟩ := List.exists_of_findSome?_eq_some hFind
       rcases entry with ⟨label, outcome⟩
@@ -73,16 +73,18 @@ theorem decideAtState_deadlock_spec {ρ σ κ : Type} {th₀ : ρ}
   cases hFind : outcomes.findSome? assertionFailureWitness with
   | some found =>
       have : False := by
-        simpa [decideAtState, outcomes, assertionFailureWitness, hFind] using h
+        simp [decideAtState, outcomes, hFind] at h
       exact False.elim this
   | none =>
       cases hNexts : (Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes).fst with
       | nil =>
           have hTerm : params.terminating.holdsOn th currSt = false := by
-            simpa [decideAtState, outcomes, assertionFailureWitness, hFind, hNexts] using h
-          exact ⟨hTerm, by simpa [outcomes] using hNexts⟩
+            have h' := h
+            simp [decideAtState, outcomes, hFind, hNexts] at h'
+            exact h'
+          exact ⟨hTerm, rfl⟩
       | cons hd tl =>
-          simp [decideAtState, outcomes, assertionFailureWitness, hFind, hNexts] at h
+          simp [decideAtState, outcomes, hFind, hNexts] at h
 
 theorem decideAtState_continue_nexts {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -96,23 +98,23 @@ theorem decideAtState_continue_nexts {ρ σ κ : Type} {th₀ : ρ}
   cases hFind : outcomes.findSome? assertionFailureWitness with
   | some found =>
       have : False := by
-        simpa [decideAtState, outcomes, assertionFailureWitness, hFind] using h
+        simp [decideAtState, outcomes, hFind] at h
       exact False.elim this
   | none =>
       cases hNexts : (Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes).fst with
       | nil =>
           by_cases hTerm : params.terminating.holdsOn th currSt = false
           · have : False := by
-              simpa [decideAtState, outcomes, assertionFailureWitness, hFind, hNexts, hTerm] using h
+              simp [decideAtState, outcomes, hFind, hNexts, hTerm] at h
             exact False.elim this
           · have : False := by
-              simpa [decideAtState, outcomes, assertionFailureWitness, hFind, hNexts, hTerm] using h
+              simp [decideAtState, outcomes, hFind, hNexts, hTerm] at h
             exact False.elim this
       | cons hd tl =>
           have h' := h
-          simp [decideAtState, outcomes, assertionFailureWitness, hFind, hNexts] at h'
+          simp [decideAtState, outcomes, hFind, hNexts] at h'
           cases h'
-          simpa [outcomes] using hNexts.symm
+          rfl
 
 theorem randNat_lt_length {α : Type} (xs : List α) (h : xs ≠ []) (gen : StdGen) :
   (let p := randNat gen 0 (xs.length - 1); p.1 < xs.length) := by
@@ -133,9 +135,10 @@ def pickNextTransition {σ κ : Type}
   let idx := p.1
   let gen' := p.2
   have hlt : idx < nexts.length := by
-    simpa [p, idx] using randNat_lt_length nexts h gen
+    dsimp [idx, p]
+    exact randNat_lt_length nexts h gen
   { value := nexts.get ⟨idx, hlt⟩
-    mem := by simpa using List.get_mem nexts ⟨idx, hlt⟩
+    mem := by exact List.get_mem nexts ⟨idx, hlt⟩
     gen := gen' }
 
 theorem pickNextTransition_mem {σ κ : Type}
@@ -154,9 +157,10 @@ def pickInitialState {σ : Type}
   let idx := p.1
   let gen' := p.2
   have hlt : idx < initStates.length := by
-    simpa [p, idx] using randNat_lt_length initStates h gen
+    dsimp [idx, p]
+    exact randNat_lt_length initStates h gen
   { value := initStates.get ⟨idx, hlt⟩
-    mem := by simpa using List.get_mem initStates ⟨idx, hlt⟩
+    mem := by exact List.get_mem initStates ⟨idx, hlt⟩
     gen := gen' }
 
 theorem pickInitialState_mem {σ : Type}
