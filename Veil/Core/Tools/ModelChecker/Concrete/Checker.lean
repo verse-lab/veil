@@ -111,6 +111,8 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
     return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
+  | some (.earlyTermination (.reachedTraceLimit maxTraces)) =>
+    return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedTraceLimit maxTraces))
   | some (.earlyTermination .cancelled) =>
     -- Search was cancelled by the user
     return ModelCheckingResult.cancelled

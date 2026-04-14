@@ -40,6 +40,7 @@ inductive EarlyTerminationCondition where
   | deadlockOccurred
   | assertionFailed
   | reachedDepthBound (depth : Nat)
+  | reachedTraceLimit (maxTraces : Nat)
   | cancelled
 deriving Inhabited, Hashable, BEq, Repr
 
@@ -50,13 +51,14 @@ inductive EarlyTerminationReason (σₕ : Type) where
   | deadlockOccurred (fp : σₕ)
   | assertionFailed (fp : σₕ) (exceptionId : Int)
   | reachedDepthBound (depth : Nat)
+  | reachedTraceLimit (maxTraces : Nat)
   | cancelled
 deriving Inhabited, Hashable, BEq, Repr
 
 /-- Check if the termination reason represents a violation that should prevent handoff. -/
 def EarlyTerminationReason.isViolation {σₕ : Type} : EarlyTerminationReason σₕ → Bool
   | .foundViolatingState _ _ | .deadlockOccurred _ | .assertionFailed _ _ => true
-  | .reachedDepthBound _ | .cancelled => false
+  | .reachedDepthBound _ | .reachedTraceLimit _ | .cancelled => false
 
 instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
   toJson
@@ -64,6 +66,7 @@ instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
     | .deadlockOccurred fp => Json.mkObj [("kind", "deadlock_occurred"), ("state_fingerprint", toJson fp)]
     | .assertionFailed fp exId => Json.mkObj [("kind", "assertion_failed"), ("state_fingerprint", toJson fp), ("exception_id", toJson exId)]
     | .reachedDepthBound depth => Json.mkObj [("kind", "reached_depth_bound"), ("depth", toJson depth)]
+    | .reachedTraceLimit maxTraces => Json.mkObj [("kind", "reached_trace_limit"), ("max_traces", toJson maxTraces)]
     | .cancelled => Json.mkObj [("kind", "cancelled")]
 
 inductive TerminationReason (σₕ : Type) where
