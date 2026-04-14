@@ -328,10 +328,10 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type} {th₀ : ρ}
               cases h
               have hNonempty : violatedInvariantNames params th picked.value.2 ≠ [] := by
                 intro hNil
-                simpa [hNil] using hViol
+                simp [hNil] at hViol
               have hViolEq : violatedInvariantNames params trace'.theory trace'.lastState =
                   violatedInvariantNames params th picked.value.2 := by
-                simpa [hTheory', hLast']
+                simp [hTheory', hLast']
               exact ⟨Trace.isSimulationValid_complete sys params trace' hValid', hNoFail', hViolEq, hNonempty⟩
 
 theorem simulateOnce_sound {ρ σ κ : Type} {th₀ : ρ}
@@ -360,8 +360,8 @@ theorem simulateOnce_sound {ρ σ κ : Type} {th₀ : ρ}
           cases h
           have hNonempty : violatedInvariantNames params th picked.value ≠ [] := by
             intro hNil
-            simpa [hNil] using hViol
-          exact ⟨Trace.isSimulationValid_complete sys params initTrace hValid, hNoFail, by simpa [hLast], hNonempty⟩
+            simp [hNil] at hViol
+          exact ⟨Trace.isSimulationValid_complete sys params initTrace hValid, hNoFail, rfl, hNonempty⟩
 
 theorem runTraceAtSeed_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ] [Inhabited σ] [Inhabited (κ × σ)]
