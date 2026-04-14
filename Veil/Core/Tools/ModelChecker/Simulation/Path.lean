@@ -9,14 +9,6 @@ inductive StepDecision (σ κ : Type) where
   | terminated
   | continue (nexts : List (κ × σ)) (hNonempty : nexts ≠ [])
 
-private def StepDecision.assertionInfo? : StepDecision σ κ → Option (Int × Step σ κ)
-  | .assertionFailure exId step => some (exId, step)
-  | _ => none
-
-private def StepDecision.continueNexts? : StepDecision σ κ → Option (List (κ × σ))
-  | .continue nexts _ => some nexts
-  | _ => none
-
 private def assertionFailureWitness {σ κ : Type} : κ × ExecutionOutcome Int σ → Option (Int × Step σ κ)
   | (label, .assertionFailure exId st) => some (exId, { transitionLabel := label, nextState := st })
   | _ => none
@@ -171,56 +163,6 @@ theorem pickInitialState_mem {σ : Type}
   (initStates : List σ) (gen : StdGen) (h : initStates ≠ []) [Inhabited σ] :
   (pickInitialState initStates gen h).value ∈ initStates :=
   (pickInitialState initStates gen h).mem
-
-@[inline, specialize]
-def scanOnceLoop {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ)
-  (th : ρ)
-  (stepsLeft : Nat)
-  (currSt : σ)
-  (gen : StdGen)
-  [Inhabited (κ × σ)]
-  : Bool × StdGen × Nat :=
-  match stepsLeft with
-  | 0 => (false, gen, 0)
-  | stepsLeft + 1 =>
-    match decideAtState sys params th currSt with
-    | .assertionFailure _ _ => (true, gen, 1)
-    | .deadlock => (true, gen, 0)
-    | .terminated => (false, gen, 0)
-    | .continue nexts hNonempty =>
-        let picked := pickNextTransition nexts gen hNonempty
-        let (_, nextSt) := picked.value
-        let gen := picked.gen
-        if !(violatedInvariantNames params th nextSt).isEmpty then
-          (true, gen, 1)
-        else
-          let (violated, gen, innerSteps) := scanOnceLoop sys params th stepsLeft nextSt gen
-          (violated, gen, innerSteps + 1)
-termination_by stepsLeft
-
-@[inline, specialize]
-def scanOnce {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ)
-  (th : ρ)
-  (gen : StdGen)
-  (maxSteps : Nat)
-  [Inhabited σ]
-  [Inhabited (κ × σ)]
-  : Bool × StdGen × Nat :=
-  let initStates := filterInitStatesByConstraints sys params th
-  match initStates with
-  | [] => (false, gen, 0)
-  | hd :: tl =>
-      let picked := pickInitialState (hd :: tl) gen (by simp)
-      let initSt := picked.value
-      let gen := picked.gen
-      if !(violatedInvariantNames params th initSt).isEmpty then
-        (true, gen, 0)
-      else
-          scanOnceLoop sys params th maxSteps initSt gen
 
 @[inline, specialize]
 def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
