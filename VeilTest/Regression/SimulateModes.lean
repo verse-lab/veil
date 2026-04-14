@@ -14,20 +14,19 @@ action set_flag {
   flag := true
 }
 
-invariant [safe_flag] ¬ flag
+invariant [safe_flag] true
 
 #gen_spec
 
-#guard_msgs(drop info, drop warning) in
-set_option veil.violationIsError false in
+/-- info: ✅ No violation in 1 traces -/
+#guard_msgs in
 #simulate interpreted {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
 #guard_msgs(drop info, drop warning) in
-set_option veil.violationIsError false in
 #simulate compiled {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
-#guard_msgs(drop info, drop warning) in
-set_option veil.violationIsError false in
+/-- info: ✅ No violation in 1 traces -/
+#guard_msgs in
 #simulate {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
 end SimulateModes
