@@ -80,6 +80,8 @@ type ModelCheckingResult =
       result: "no_violation_found";
       explored_states: number;
       termination_reason: TerminationReason;
+      traces_run?: number;
+      max_traces?: number;
       trace?: TraceData | null;
     }
   | {
@@ -301,7 +303,9 @@ const ResultHeader: React.FC<{
   violation?: Violation;
   exploredStates?: number;
   terminationReason?: TerminationReason;
-}> = ({ resultType, violation, exploredStates, terminationReason }) => {
+  tracesRun?: number;
+  maxTraces?: number;
+}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, maxTraces }) => {
   if (resultType === "cancelled") {
     return (
       <div className="result-header result-cancelled">
@@ -377,6 +381,9 @@ const ResultHeader: React.FC<{
         case "reached_depth_bound":
           return `Reached depth bound ${reason.condition.depth}${countSuffix}`;
         case "reached_trace_limit":
+          if (tracesRun !== undefined && maxTraces !== undefined) {
+            return `Checked ${tracesRun}/${maxTraces} traces`;
+          }
           if (reason.condition.traces_run !== undefined && reason.condition.max_traces !== undefined) {
             return `Checked ${reason.condition.traces_run}/${reason.condition.max_traces} traces`;
           }
@@ -809,6 +816,8 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                     resultType="no_violation_found"
                     exploredStates={result.explored_states}
                     terminationReason={result.termination_reason}
+                    tracesRun={result.traces_run}
+                    maxTraces={result.max_traces}
                   />
                 ) : (
                   <ResultHeader
