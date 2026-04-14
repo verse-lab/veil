@@ -11,6 +11,7 @@ deriving Inhabited, Repr
 structure SimulateResult (ρ σ κ : Type) where
   result : ModelCheckingResult ρ σ κ Unit
   tracesRun : Nat
+  maxTraces : Nat
   elapsedMs : Nat
   seed : Nat
   depth : Nat
