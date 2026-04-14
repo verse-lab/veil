@@ -236,6 +236,7 @@ def checkViolationsAndMaybeTerminate
   let earlyTermination := params.earlyTerminationConditions.findSome? fun
     | .foundViolatingState => if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
     | .reachedDepthBound bound => if completedDepth >= bound then some (.reachedDepthBound bound) else none
+    | .reachedTraceLimit _ => none
     | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
     | .assertionFailed => assertionFailures.head?.map fun (exId, _) => .assertionFailed fpSt exId
     | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
@@ -258,6 +259,7 @@ def BaseSearchContext.processState
       match x with
       | .foundViolatingState fp violations => {ctx with finished := some (.earlyTermination (.foundViolatingState fp violations))}
       | .reachedDepthBound bound => {ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}
+      | .reachedTraceLimit maxTraces => {ctx with finished := some (.earlyTermination (.reachedTraceLimit maxTraces))}
       | .deadlockOccurred fp => {ctx with finished := some (.earlyTermination (.deadlockOccurred fp))}
       | .assertionFailed fp exId => {ctx with finished := some (.earlyTermination (.assertionFailed fp exId))}
       | .cancelled => {ctx with finished := some (.earlyTermination .cancelled)}

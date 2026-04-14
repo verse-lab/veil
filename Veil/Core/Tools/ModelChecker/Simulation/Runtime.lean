@@ -33,7 +33,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
   | 0 =>
       return {
         result := .noViolationFound cfg.maxTraces
-          (.earlyTermination (.reachedDepthBound cfg.maxTraces))
+          (.earlyTermination (.reachedTraceLimit cfg.maxTraces))
         tracesRun := cfg.maxTraces
         maxTraces := cfg.maxTraces
         elapsedMs := 0
@@ -82,7 +82,7 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
     | 0 =>
         {
           result := .noViolationFound cfg.maxTraces
-            (.earlyTermination (.reachedDepthBound cfg.maxTraces))
+            (.earlyTermination (.reachedTraceLimit cfg.maxTraces))
           tracesRun := cfg.maxTraces
           maxTraces := cfg.maxTraces
           elapsedMs := 0

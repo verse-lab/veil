@@ -23,6 +23,10 @@ private def earlyTerminationReasonToJson (reason : EarlyTerminationReason Unit) 
       ("kind", "reached_depth_bound"),
       ("depth", toJson depth)
     ]
+  | .reachedTraceLimit maxTraces => Json.mkObj [
+      ("kind", "reached_trace_limit"),
+      ("max_traces", toJson maxTraces)
+    ]
   | .cancelled => Json.mkObj [("kind", "cancelled")]
 
 private def terminationReasonToJson (reason : TerminationReason Unit) : Json :=
@@ -32,13 +36,6 @@ private def terminationReasonToJson (reason : TerminationReason Unit) : Json :=
       ("kind", "early_termination"),
       ("condition", earlyTerminationReasonToJson condition)
     ]
-
-private def simulationTerminationReasonToJson (r : SimulateResult ρ σ κ) : Json :=
-  Json.mkObj [
-    ("kind", "reached_trace_limit"),
-    ("traces_run", Lean.toJson r.tracesRun),
-    ("max_traces", Lean.toJson r.maxTraces)
-  ]
 
 private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   (result : ModelCheckingResult ρ σ κ Unit) : Json :=
@@ -58,12 +55,7 @@ private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
 
 instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ] : ToJson (SimulateResult ρ σ κ) where
   toJson r := Json.mkObj [
-    ("result", match r.result with
-      | .noViolationFound _ _ => Json.mkObj [
-          ("result", "no_violation_found"),
-          ("termination_reason", simulationTerminationReasonToJson r)
-        ]
-      | other => resultToJson other),
+    ("result", resultToJson r.result),
     ("traces_run", Lean.toJson r.tracesRun),
     ("max_traces", Lean.toJson r.maxTraces),
     ("elapsed_ms", Lean.toJson r.elapsedMs),
@@ -73,12 +65,7 @@ instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJ
 
 def SimulateResult.toDisplayJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   (r : SimulateResult ρ σ κ) : Json :=
-  let resultJson := match r.result with
-    | .noViolationFound _ _ => Json.mkObj [
-        ("result", "no_violation_found"),
-        ("termination_reason", simulationTerminationReasonToJson r)
-      ]
-    | other => resultToJson other
+  let resultJson := resultToJson r.result
   match resultJson with
   | Json.obj kvs =>
       Json.mkObj <| kvs.toList ++ [
