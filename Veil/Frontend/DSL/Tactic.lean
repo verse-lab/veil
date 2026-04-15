@@ -996,10 +996,13 @@ def elabVeilSolveWp : DesugarTacticM Unit := veilWithMainContext do
   let wpLoTac ← `(tactic| open $classicalIdent:ident in simp +$(mkIdent `failIfUnchanged):ident only [↓ $(mkIdent `wpLOSimp):ident])
   let coreEqTac ← `(tactic| rw [$(mkIdent <| toCoreSimplifiedEqName assembledInvariantsName):ident] at $(mkIdent `hinv):ident)
   let probeTac ← `(tactic| ($wpLoTac; $coreEqTac))
-  DesugarTacticM.orElse
-    (do veilWithMainContext $ veilEvalTactic probeTac
-        veilWithMainContext $ veilEvalTactic $ ← `(tactic| __veil_solve_wplo))
-    (fun _ => do veilWithMainContext $ veilEvalTactic $ ← `(tactic| __veil_solve_wp_conservative))
+  let probeSucceeds? ← DesugarTacticM.orElse
+    (do
+      veilWithMainContext <| veilEvalTactic probeTac
+      pure true)
+    (fun _ => pure false)
+  veilWithMainContext $ veilEvalTactic <| ←
+    (if probeSucceeds? then `(tactic| __veil_solve_wplo) else `(tactic| __veil_solve_wp_conservative))
 
 @[inherit_doc veil_solve_tr]
 def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
