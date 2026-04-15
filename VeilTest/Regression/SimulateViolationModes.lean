@@ -24,6 +24,7 @@ error: ❌ Violation: safety_failure (violates: safe_flag)
     flag = false
   State 1 (via set_flag):
     flag = true
+Seed: 1
 -/
 #guard_msgs in
 #simulate interpreted {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
@@ -38,6 +39,7 @@ error: ❌ Violation: safety_failure (violates: safe_flag)
     flag = false
   State 1 (via set_flag):
     flag = true
+Seed: 1
 -/
 #guard_msgs in
 #simulate {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)

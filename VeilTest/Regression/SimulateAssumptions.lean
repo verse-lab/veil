@@ -26,7 +26,10 @@ invariant true
 
 #gen_spec
 
-/-- info: ✅ No violation in 1 traces -/
+/--
+info: ✅ No violation in 1 traces
+Seed: 1
+-/
 #guard_msgs in
 #simulate interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
@@ -38,18 +41,25 @@ error: Tactic `native_decide` evaluated that the proposition
 is false
 ---
 info: ✅ No violation in 1 traces
+Seed: 1
 -/
 #guard_msgs in
 #simulate interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) || n == (1 : Fin 3) }
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
   assumptions_hold_by native_decide
 
-/-- info: ✅ No violation in 1 traces -/
+/--
+info: ✅ No violation in 1 traces
+Seed: 1
+-/
 #guard_msgs in
 #simulate interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) || n == (1 : Fin 3) }
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
-/-- info: ✅ No violation in 1 traces -/
+/--
+info: ✅ No violation in 1 traces
+Seed: 1
+-/
 #guard_msgs in
 #simulate interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
@@ -60,7 +70,10 @@ info: ✅ No violation in 1 traces
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
   assumptions_hold_by native_decide
 
-/-- info: ✅ No violation in 1 traces -/
+/--
+info: ✅ No violation in 1 traces
+Seed: 1
+-/
 #guard_msgs in
 #simulate { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
@@ -93,7 +106,10 @@ invariant true
 
 #gen_spec
 
-/-- info: ✅ No violation in 1 traces -/
+/--
+info: ✅ No violation in 1 traces
+Seed: 1
+-/
 #guard_msgs in
 #simulate interpreted { node := Fin 3 } { weight := fun (n : Fin 3) => n.val + 1 }
   (seed := 1) (maxTraces := 1) (maxSteps := 1)

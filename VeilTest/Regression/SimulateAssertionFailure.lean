@@ -31,6 +31,7 @@ error: ❌ Violation: assertion_failure
     pending = []
   State 1 (via send(n=0, next=0)):
     pending = []
+Seed: 1
 -/
 #guard_msgs in
 #simulate interpreted { node := Fin 2 } {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
