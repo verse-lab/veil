@@ -639,6 +639,12 @@ private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) :
       $(mkIdent `stateConstraints):ident := $constraintList,
       $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
 
+/-- Stable identity for a single compiled command invocation within a file. -/
+private def getCompiledCommandId (cmdName : String) (stx : Syntax) : CommandElabM String := do
+  let some startPos := stx.getPos? | throwError s!"Unexpected error: {cmdName} has no position"
+  let some endPos := stx.getTailPos? | throwError s!"Unexpected error: {cmdName} has no end position"
+  pure s!"{startPos.1}-{endPos.1}"
+
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
@@ -833,25 +839,37 @@ where
     logModelCheckResult ctx.stx json
     ModelChecker.Concrete.finishProgress ctx.instanceId json
 
+  modelCheckerCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
+    exportedName := "modelCheckerResult"
+    supportsParallelConfig := true
+  }
+
+  simulateCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
+    exportedName := "simulateResult"
+  }
+
   /-- Run the compiled binary and log the result. -/
   runBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder : System.FilePath)
-      (sourceFile : String) : CommandElabM Unit := do
+      (sourceFile : String) (command : ModelChecker.Compilation.CompiledCommandSpec)
+      (commandId : String) : CommandElabM Unit := do
     let some binPath ← verifyBinaryExists buildFolder ctx.instanceId | return
     let args := ctx.parallelCfg.map (fun p => #[s!"{p.numSubTasks}", s!"{p.thresholdToParallel}"]) |>.getD #[]
     let some json ← runBinaryForJson binPath args ctx.instanceId ctx.cancelToken | return
     ModelChecker.Concrete.finishProgress ctx.instanceId (enrichJsonWithAssertions json ctx.assertionSources)
-    ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
+    ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
     let some resultJson ← ModelChecker.Concrete.getResultJson ctx.instanceId | return
     logModelCheckResult ctx.stx resultJson
 
   /-- Compile the model. Returns the build folder path if compilation succeeded, none otherwise. -/
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
-      (instanceId : Nat) (cancelToken : IO.CancelToken)
+      (commandId : String) (instanceId : Nat) (cancelToken : IO.CancelToken)
       (command : ModelChecker.Compilation.CompiledCommandSpec) : IO (Option System.FilePath) := do
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString command
-    ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
+    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString command commandId
+    ModelChecker.Compilation.markRegistryInProgress sourceFile command commandId instanceId buildFolder
     let result ← ModelChecker.Compilation.runProcessWithStatusCallback
       sourceFile
+      command
+      commandId
       { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
       instanceId "Compiling model" cancelToken
       (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
@@ -923,14 +941,15 @@ where
     -- dbg_trace "elabModelCheckCompiledMode"
     let ctx ← allocModelCheckContext mod stx parallelCfg
     let sourceFile ← getFileName
+    let commandId ← getCompiledCommandId "#model_check" stx
     let modelSource ← generateModelSource mod stx
 
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId ctx.cancelToken
-          { exportedName := "modelCheckerResult", supportsParallelConfig := true } | return
+        let some buildFolder ← compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
+          modelCheckerCommandSpec | return
         if ← checkCancelled ctx.cancelToken ctx.instanceId then return
-        runBinaryAndLogResult ctx buildFolder sourceFile
+        runBinaryAndLogResult ctx buildFolder sourceFile modelCheckerCommandSpec commandId
       catch e : Exception =>
         handleModelCheckError ctx e
     ) ctx.cancelToken
@@ -945,6 +964,7 @@ where
     -- dbg_trace "elabModelCheckWithHandoff"
     let ctx ← allocModelCheckContext mod stx parallelCfg
     let sourceFile ← getFileName
+    let commandId ← getCompiledCommandId "#model_check" stx
     let modelSource ← generateModelSource mod stx
     let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
 
@@ -966,11 +986,11 @@ where
     let compilationCancelTk ← IO.CancelToken.new
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId compilationCancelTk
-          { exportedName := "modelCheckerResult", supportsParallelConfig := true } | return
+        let some buildFolder ← compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
+          modelCheckerCommandSpec | return
         -- Skip handoff if violation found or interpreted finished
         if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) then
-          ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
+          ModelChecker.Compilation.markRegistryFinished sourceFile modelCheckerCommandSpec commandId buildFolder
           return
         -- Handoff to compiled binary
         ModelChecker.Concrete.requestHandoff ctx.instanceId
@@ -978,7 +998,7 @@ where
         let _ ← IO.wait interpretedTask
         let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
         let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
-        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile
+        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile modelCheckerCommandSpec commandId
       catch e : Exception =>
         ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
     ) compilationCancelTk
@@ -1120,10 +1140,10 @@ private def finishWithSimulationResult (ctx : ModelCheckContext) (combinedJson :
   elabModelCheck.finishWithResult ctx combinedJson
 
 private def runSimulateBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder : System.FilePath)
-    (sourceFile : String) : CommandElabM Unit := do
+    (sourceFile : String) (commandId : String) : CommandElabM Unit := do
   let some binPath ← elabModelCheck.verifyBinaryExists buildFolder ctx.instanceId | return
   let some combinedJson ← elabModelCheck.runBinaryForJson binPath #[] ctx.instanceId ctx.cancelToken | return
-  ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
+  ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
   finishWithSimulationResult ctx combinedJson
 
 private def elabSimulateInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
@@ -1155,13 +1175,14 @@ private def elabSimulateCompiledMode (mod : Module) (stx : Syntax)
     (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Unit := do
   let ctx ← elabModelCheck.allocModelCheckContext mod stx none
   let sourceFile ← getFileName
+  let commandId ← getCompiledCommandId "#simulate" stx
   let modelSource ← generateSimulateModelSource mod stx cfg
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
-      let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource ctx.instanceId ctx.cancelToken
-        { exportedName := "simulateResult", supportsParallelConfig := false } | return
+      let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
+        elabModelCheck.simulateCommandSpec | return
       if ← elabModelCheck.checkCancelled ctx.cancelToken ctx.instanceId then return
-      runSimulateBinaryAndLogResult ctx buildFolder sourceFile
+      runSimulateBinaryAndLogResult ctx buildFolder sourceFile commandId
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
   ) ctx.cancelToken
@@ -1173,6 +1194,7 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
     (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Unit := do
   let ctx ← elabModelCheck.allocModelCheckContext mod stx none
   let sourceFile ← getFileName
+  let commandId ← getCompiledCommandId "#simulate" stx
   let modelSource ← generateSimulateModelSource mod stx cfg
   let ioComputation ← elaborateSimulateComputation ctx.instanceId callExpr
   let compilationCancelTk ← IO.CancelToken.new
@@ -1192,17 +1214,17 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
-      let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource ctx.instanceId compilationCancelTk
-        { exportedName := "simulateResult", supportsParallelConfig := false } | return
+      let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
+        elabModelCheck.simulateCommandSpec | return
       if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) then
-        ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
+        ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
         return
       ModelChecker.Concrete.requestHandoff ctx.instanceId
       ctx.cancelToken.set
       let _ ← IO.wait interpretedTask
       let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
       let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
-      runSimulateBinaryAndLogResult ctxWithNewToken buildFolder sourceFile
+      runSimulateBinaryAndLogResult ctxWithNewToken buildFolder sourceFile commandId
     catch e : Exception =>
       ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
   ) compilationCancelTk

@@ -19,17 +19,36 @@ inductive Status
   | finished (buildDir : System.FilePath)
   deriving Inhabited
 
-/-- Global state tracking compilation status for multiple models.
-Keyed by the source file path (absolute path).
-Uses `Std.Mutex` to prevent race conditions when multiple tasks access the registry. -/
-initialize compilationRegistry : Std.Mutex (Std.HashMap String Status) ←
+structure CompiledCommandSpec where
+  exportedName : String
+  supportsParallelConfig : Bool := false
+
+structure CompilationKey where
+  sourceFile : String
+  exportedName : String
+  commandId : String
+  deriving BEq, Hashable, Inhabited
+
+/-- Global state tracking compilation status for multiple compiled commands.
+    Keyed by source file path, exported command name, and command identity so
+    different command invocations in the same file do not supersede each other.
+    Uses `Std.Mutex` to prevent race conditions when multiple tasks access the registry. -/
+initialize compilationRegistry : Std.Mutex (Std.HashMap CompilationKey Status) ←
   Std.Mutex.new {}
 
 @[inline]
-def stillCurrentCont (sourceFile : String) (instanceId : Nat) (k : Std.AtomicT (Std.HashMap String Status) IO Unit) : IO Bool :=
+def mkCompilationKey (sourceFile : String) (command : CompiledCommandSpec) (commandId : String) : CompilationKey := {
+  sourceFile,
+  exportedName := command.exportedName,
+  commandId,
+}
+
+@[inline]
+def stillCurrentCont (sourceFile : String) (command : CompiledCommandSpec) (commandId : String) (instanceId : Nat)
+    (k : Std.AtomicT (Std.HashMap CompilationKey Status) IO Unit) : IO Bool :=
   compilationRegistry.atomically fun ref => do
     let registry ← ref.get
-    match registry[sourceFile]? with
+    match registry[mkCompilationKey sourceFile command commandId]? with
     | some info =>
       match info with
       | .inProgress id _ => if id == instanceId then k ref ; pure true else pure false
@@ -37,29 +56,29 @@ def stillCurrentCont (sourceFile : String) (instanceId : Nat) (k : Std.AtomicT (
     | none => pure false
 
 /-- Mark compilation as finished in the registry. -/
-def markRegistryFinished (sourceFile : String) (buildFolder : System.FilePath) : IO Unit :=
+def markRegistryFinished (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
+    (buildFolder : System.FilePath) : IO Unit :=
   compilationRegistry.atomically fun ref =>
-    ref.modify fun registry => registry.insert sourceFile (.finished buildFolder)
+    ref.modify fun registry =>
+      registry.insert (mkCompilationKey sourceFile command commandId) (.finished buildFolder)
 
 /-- Mark compilation as in progress in the registry. -/
-def markRegistryInProgress (sourceFile : String) (instanceId : Nat) (buildFolder : System.FilePath) : IO Unit :=
+def markRegistryInProgress (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
+    (instanceId : Nat) (buildFolder : System.FilePath) : IO Unit :=
   compilationRegistry.atomically fun ref =>
-    ref.modify fun registry => registry.insert sourceFile (.inProgress instanceId buildFolder)
+    ref.modify fun registry =>
+      registry.insert (mkCompilationKey sourceFile command commandId) (.inProgress instanceId buildFolder)
 
 /-- Base directory for model checker build folders. This is an absolute path. -/
 def getBuildBaseDir : IO System.FilePath := do
   let pwd ← IO.currentDir
   return pwd / ".lake" / "model_checker_builds"
 
-structure CompiledCommandSpec where
-  exportedName : String
-  supportsParallelConfig : Bool := false
-
 /-- Generate a build folder name based on the source file and exported command,
-so distinct compiled commands do not race on the same temp project. -/
-def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) : IO System.FilePath := do
+so distinct compiled command invocations do not race on the same temp project. -/
+def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) (commandId : String) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
-  let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName))
+  let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName ++ ":" ++ commandId))
   let baseDir ← getBuildBaseDir
   return baseDir / s!"{stem}_{command.exportedName}_{suffix}"
 
@@ -145,9 +164,9 @@ def main (args : List String) : IO Unit := do
 /-- Create the temp build folder with all necessary files.
 Returns the absolute path to the build folder. -/
 def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
-    (command : CompiledCommandSpec) : IO System.FilePath := do
+    (command : CompiledCommandSpec) (commandId : String) : IO System.FilePath := do
   let veilPath ← IO.currentDir
-  let buildFolder ← generateBuildFolderName sourceFile command
+  let buildFolder ← generateBuildFolderName sourceFile command commandId
   -- Recreate the build folder from scratch to avoid stale Lake state from prior runs.
   if ← buildFolder.pathExists then
     IO.FS.removeDirAll buildFolder
@@ -181,7 +200,8 @@ structure ProcessResult where
 
 /-- Run a process with status updates, checking if compilation is still current or cancelled.
     Returns the exit code, stdout, stderr, and whether it was interrupted. -/
-def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
+def runProcessWithStatus (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
+    (cfg : IO.Process.SpawnArgs)
     (instanceId : Nat) (statusPrefix : String) (cancelToken : IO.CancelToken) : IO ProcessResult := do
   let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
   -- Start reading stdout/stderr in background tasks to avoid blocking
@@ -196,7 +216,7 @@ def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
       interrupted := true
       break
     -- Check if this compilation is still current (not superseded)
-    let current? ← stillCurrentCont sourceFile instanceId do
+    let current? ← stillCurrentCont sourceFile command commandId instanceId do
       updateElapsedTimeStatus instanceId statusPrefix
     unless current? do
       proc.kill
@@ -211,7 +231,8 @@ def runProcessWithStatus (sourceFile : String) (cfg : IO.Process.SpawnArgs)
 
 /-- Run a process with callbacks for status updates and line-by-line output capture,
 checking both explicit cancellation and whether this compilation is still current. -/
-def runProcessWithStatusCallback (sourceFile : String) (cfg : IO.Process.SpawnArgs)
+def runProcessWithStatusCallback (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
+    (cfg : IO.Process.SpawnArgs)
     (instanceId : Nat) (_statusPrefix : String) (cancelToken : IO.CancelToken)
     (statusCallback : Nat → IO Unit)
     (lineCallback : String → Bool → Nat → IO Unit := fun _ _ _ => pure ())
@@ -236,7 +257,7 @@ def runProcessWithStatusCallback (sourceFile : String) (cfg : IO.Process.SpawnAr
       proc.kill
       interrupted := true
       break
-    let current? ← stillCurrentCont sourceFile instanceId do
+    let current? ← stillCurrentCont sourceFile command commandId instanceId do
       statusCallback ((← IO.monoMsNow) - startTime)
     unless current? do
       proc.kill
