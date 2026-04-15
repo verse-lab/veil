@@ -17,8 +17,6 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
   (cfg : SimulateConfig)
   (remaining : Nat)
   (traceIndex : Nat)
-  [Inhabited σ]
-  [Inhabited (κ × σ)]
   : m (SimulateResult ρ σ κ) := do
   if ← hooks.shouldStop traceIndex then
     return {
@@ -65,8 +63,6 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
   (cfg : SimulateConfig)
   (remaining : Nat)
   (traceIndex : Nat)
-  [Inhabited σ]
-  [Inhabited (κ × σ)]
   : SimulateResult ρ σ κ :=
   if shouldStop traceIndex then
     {
@@ -111,8 +107,6 @@ def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (shouldStop : Nat → Bool)
   (cfg : SimulateConfig)
-  [inhabσ : Inhabited σ]
-  [inhabκσ : Inhabited (κ × σ)]
   : SimulateResult ρ σ κ :=
   simulateLoopId shouldStop sys params th cfg cfg.maxTraces 0
 
@@ -122,8 +116,6 @@ def simulateCore {ρ σ κ : Type} {th₀ : ρ}
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)
-  [inhabσ : Inhabited σ]
-  [inhabκσ : Inhabited (κ × σ)]
   : SimulateResult ρ σ κ :=
   simulateCommandSemantics sys params th (fun _ => false) cfg
 
@@ -135,8 +127,6 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
   (cfg : SimulateConfig)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken)
-  [inhabσ : Inhabited σ]
-  [inhabκσ : Inhabited (κ × σ)]
   : IO (SimulateResult ρ σ κ) := do
   let actualSeed ← if cfg.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg.seed
   let cfg := { cfg with seed := actualSeed }
@@ -156,9 +146,12 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
         Veil.ModelChecker.Concrete.setViolationFound progressInstanceId }
     sys params th cfg cfg.maxTraces 0
   let simResult := { simResult with elapsedMs := (← IO.monoMsNow) - startMs }
-  Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
-    "Complete"
-    simResult.tracesRun simResult.maxTraces simResult.depth
+  match simResult.result with
+  | .cancelled => pure ()
+  | _ =>
+      Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
+        "Complete"
+        simResult.tracesRun simResult.maxTraces simResult.depth
   return simResult
 
 @[inline, specialize]
@@ -167,8 +160,6 @@ def simulate {ρ σ κ : Type} {th₀ : ρ}
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)
-  [inhabσ : Inhabited σ]
-  [inhabκσ : Inhabited (κ × σ)]
   : IO (SimulateResult ρ σ κ) := do
   let cancelToken ← IO.CancelToken.new
   simulateWithProgress sys params th cfg 0 cancelToken

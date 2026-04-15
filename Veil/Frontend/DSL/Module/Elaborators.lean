@@ -1007,22 +1007,6 @@ where
 
     ModelChecker.displayStreamingProgress stx ctx.instanceId
 
-/-- Build the pure simulator core call syntax. -/
-private def mkSimulatorCall (mod : Module) (instTerm theoryTerm : Term)
-    (sp : Term) (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Term := do
-  let inst := mkVeilImplementationDetailIdent `inst
-  let th := mkVeilImplementationDetailIdent `th
-  let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
-  let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
-      $(quote cfg.maxTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
-  `((let $inst : $instantiationType := $instTerm
-      let $th : $theoryIdent $instSortArgs* := $theoryTerm
-     $(mkIdent ``Veil.ModelChecker.Simulation.simulateCore)
-        ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
-        ($(mkIdent `inhabκσ) := by infer_instance)
-        ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-        $sp $th $cfgTerm))
-
 /-- Build the progress-aware simulator runtime call syntax. -/
 private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
     (sp : Term) (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Term := do
@@ -1034,8 +1018,6 @@ private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
   `((let $inst : $instantiationType := $instTerm
       let $th : $theoryIdent $instSortArgs* := $theoryTerm
       $(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
-        ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
-        ($(mkIdent `inhabκσ) := by infer_instance)
         ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
         $sp $th $cfgTerm : _ → _ → IO _))
 
@@ -1073,13 +1055,6 @@ private def generateSimulateModelSource (mod : Module) (stx : Syntax)
   let cmd := s!"#simulate {instSrc}{theorySrc} (maxTraces := {cfg.maxTraces}) (maxSteps := {cfg.maxSteps}) (seed := {cfg.seed})"
   return srcPrefix ++ cmd ++ "\n"
 
-private def evaluateSimulateJson (resultIdent : Ident) : CommandElabM Lean.Json := do
-  let jsonExpr ← mkSimulateJsonExpr resultIdent
-  liftTermElabM do
-    let expr ← Term.elabTerm jsonExpr none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    unsafe Meta.evalExpr Lean.Json (mkConst ``Lean.Json) (← instantiateMVars expr)
-
 private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : CommandElabM (IO Lean.Json) := do
   let resultIdent := mkVeilImplementationDetailIdent `simulateRuntimeResult
   let jsonExpr ← mkSimulateJsonExpr resultIdent
@@ -1092,52 +1067,16 @@ private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : 
     Term.synthesizeSyntheticMVarsNoPostponing
     unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
-private def emitSimulateArtifacts (mod : Module) (instTerm theoryTerm sp pureCallExpr : Term)
-    (cfg : ModelChecker.Simulation.SimulateConfig)
-    (resultIdent coreSoundIdent commandSoundIdent : Ident) : CommandElabM Unit := do
-  elabVeilCommand (← `(def $resultIdent := $pureCallExpr))
-  let inst := mkVeilImplementationDetailIdent `inst
-  let th := mkVeilImplementationDetailIdent `th
-  let ρArg := mkIdent `ρ
-  let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
-  let theoryT ← `($theoryIdent $instSortArgs*)
-  let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
-      $(quote cfg.maxTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
-  elabVeilCommand (← `(theorem $coreSoundIdent :
-      (let $inst : $instantiationType := $instTerm
-       let $th : $theoryIdent $instSortArgs* := $theoryTerm
-       $(mkIdent ``Veil.ModelChecker.Simulation.ResultSound)
-          ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-          $sp
-          ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent)) := by
-       let $inst : $instantiationType := $instTerm
-       let $th : $theoryIdent $instSortArgs* := $theoryTerm
-       simpa [$resultIdent:ident] using $(mkIdent ``Veil.ModelChecker.Simulation.simulateCommandSemantics_sound)
-           ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-            $sp
-            $th
-            (fun _ => false)
-            $cfgTerm))
-  elabVeilCommand (← `(theorem $commandSoundIdent :
-      (let $inst : $instantiationType := $instTerm
-       let $th : $theoryIdent $instSortArgs* := $theoryTerm
-       $(mkIdent ``Veil.ModelChecker.Simulation.ResultSoundUnder)
-          (fun $ρArg : $theoryT => $assembledAssumptions ($ρArg := $theoryT) $instSortArgs* $ρArg)
-          ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-          $sp $th
-          ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.result) $resultIdent)) := by
-       let $inst : $instantiationType := $instTerm
-       let $th : $theoryIdent $instSortArgs* := $theoryTerm
-       exact fun _ => by
-         simpa [$resultIdent:ident] using $(mkIdent ``Veil.ModelChecker.Simulation.simulateCommandSemantics_sound)
-            ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
-             $sp
-             $th
-             (fun _ => false)
-             $cfgTerm))
+private def simulationResultWasCancelled (combinedJson : Json) : Bool :=
+  match combinedJson.getObjValAs? String "result" |>.toOption with
+  | some "cancelled" => true
+  | _ => false
 
 private def finishWithSimulationResult (ctx : ModelCheckContext) (combinedJson : Json) : CommandElabM Unit := do
-  elabModelCheck.finishWithResult ctx combinedJson
+  if simulationResultWasCancelled combinedJson then
+    liftIO <| ModelChecker.Concrete.cancelProgress ctx.instanceId
+  else
+    elabModelCheck.finishWithResult ctx combinedJson
 
 private def runSimulateBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder : System.FilePath)
     (sourceFile : String) (commandId : String) : CommandElabM Unit := do
@@ -1198,6 +1137,7 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
   let modelSource ← generateSimulateModelSource mod stx cfg
   let ioComputation ← elaborateSimulateComputation ctx.instanceId callExpr
   let compilationCancelTk ← IO.CancelToken.new
+  liftIO <| ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId (some compilationCancelTk)
   let interpretedComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let combinedJson ← IO.ofExcept (← ioComputation.toIO')
@@ -1213,17 +1153,32 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
-        elabModelCheck.simulateCommandSpec | return
-      if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) then
+        elabModelCheck.simulateCommandSpec | do
+          ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+          return
+      if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) ||
+          (← ModelChecker.Concrete.isCancelled ctx.instanceId) then
         ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
+        ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
         return
       ModelChecker.Concrete.requestHandoff ctx.instanceId
       ctx.cancelToken.set
       let _ ← IO.wait interpretedTask
+      if (← ctx.cancelToken.isSet) && !(← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) then
+        ModelChecker.Concrete.cancelProgress ctx.instanceId
+        ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
+        ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+        return
+      if (← ModelChecker.Concrete.getResultJson ctx.instanceId).isSome || (← ModelChecker.Concrete.isCancelled ctx.instanceId) then
+        ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
+        ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+        return
       let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
+      ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
       let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
       runSimulateBinaryAndLogResult ctxWithNewToken buildFolder sourceFile commandId
     catch e : Exception =>
+      ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
       ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
   ) compilationCancelTk
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
@@ -1252,19 +1207,10 @@ def elabSimulate : CommandElab := fun stx => do
     if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
       elabModelCheck.checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     let sp ← buildSearchParameters mod mcCfg
-    let pureCallExpr ← mkSimulatorCall mod instTerm theoryTerm sp cfg
     let runtimeCallExpr ← mkSimulatorRuntimeCall mod instTerm theoryTerm sp cfg
     if ← isModelCheckCompileMode then
-      let simulateResultIdent := mkVeilImplementationDetailIdent `simulateResultValue
-      let simulateCoreSoundIdent := mkVeilImplementationDetailIdent `simulateCoreSound
-      let simulateSoundIdent := mkVeilImplementationDetailIdent `simulateSound
-      emitSimulateArtifacts mod instTerm theoryTerm sp pureCallExpr cfg simulateResultIdent simulateCoreSoundIdent simulateSoundIdent
       elabSimulateInternalMode mod runtimeCallExpr
       return
-    let simulateResultIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName (mkVeilImplementationDetailName `simulateResult))
-    let simulateCoreSoundIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName (mkVeilImplementationDetailName `simulateCoreSound))
-    let simulateSoundIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName (mkVeilImplementationDetailName `simulateSound))
-    emitSimulateArtifacts mod instTerm theoryTerm sp pureCallExpr cfg simulateResultIdent simulateCoreSoundIdent simulateSoundIdent
     let effectiveMode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
     match effectiveMode with
     | .interpreted => elabSimulateInterpretedMode mod stx runtimeCallExpr

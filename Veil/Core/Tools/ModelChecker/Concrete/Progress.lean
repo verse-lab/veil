@@ -98,6 +98,8 @@ structure ProgressRefs where
   resultRef : IO.Ref (Option Lean.Json)
   /-- Cancellation token for this instance. -/
   cancelToken : IO.CancelToken
+  /-- Cancellation token for background compilation, when default handoff is active. -/
+  compilationCancelTokenRef : IO.Ref (Option IO.CancelToken)
   /-- Set by compilation task to signal interpreted mode to stop for handoff. -/
   handoffRequested : IO.Ref Bool
   /-- Set by interpreted mode when a violation is found (prevents handoff). -/
@@ -133,6 +135,7 @@ def allocProgressInstance (allActionLabels : List String := []) : IO (Nat × IO.
     progressRef := ← IO.mkRef { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true, allActionLabels }
     resultRef := ← IO.mkRef none
     cancelToken := cancelTk
+    compilationCancelTokenRef := ← IO.mkRef none
     handoffRequested := ← IO.mkRef false
     violationFound := ← IO.mkRef false
   }
@@ -234,7 +237,15 @@ def isCancelled (instanceId : Nat) : IO Bool := do
   | none => return false
 
 /-- Request cancellation for an instance. -/
-def requestCancellation (instanceId : Nat) : IO Unit := withRefs instanceId (·.cancelToken.set)
+def requestCancellation (instanceId : Nat) : IO Unit := withRefs instanceId fun refs => do
+  refs.cancelToken.set
+  let compilationCancelToken? ← refs.compilationCancelTokenRef.get
+  if let some compilationCancelToken := compilationCancelToken? then
+    compilationCancelToken.set
+
+/-- Register or clear the background compilation cancellation token for an instance. -/
+def setCompilationCancelToken (instanceId : Nat) (cancelToken? : Option IO.CancelToken) : IO Unit :=
+  withRefs instanceId fun refs => refs.compilationCancelTokenRef.set cancelToken?
 
 /-- Mark progress as cancelled for a given instance ID. -/
 def cancelProgress (instanceId : Nat) : IO Unit := withRefs instanceId fun refs => do
