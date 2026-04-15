@@ -559,6 +559,27 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 
 declare_command_config_elab elabSimulateConfig ModelChecker.Simulation.SimulateConfig
 
+private partial def simulateConfigItems (cfgStx : Syntax) : TSyntaxArray ``Lean.Parser.Tactic.configItem :=
+  if cfgStx.isOfKind nullKind then
+    cfgStx.getArgs.flatMap simulateConfigItems
+  else
+    match cfgStx with
+    | `(Lean.Parser.Tactic.optConfig| $items:configItem*) => items
+    | `(Lean.Parser.Tactic.config| (config := $_)) => #[⟨cfgStx⟩]
+    | _ => #[]
+
+/-- Check whether a particular config field was written explicitly in the command syntax. -/
+def simulateConfigHasField (cfgStx : Syntax) (fieldName : Name) : Bool :=
+  Lean.Elab.Tactic.mkConfigItemViews (simulateConfigItems cfgStx) |>.any
+    (fun item => item.option.getId.eraseMacroScopes == fieldName)
+
+/-- Resolve `#simulate` trace-bound fields, preserving explicit default literals. -/
+def resolveSimulateTraceBounds (cfg0 : ModelChecker.Simulation.SimulateConfig)
+    (hasMaxTraces hasMaxSteps : Bool) (optionMaxTraces optionMaxSteps : Nat) : Nat × Nat :=
+  let maxTraces := if hasMaxTraces then cfg0.maxTraces else optionMaxTraces
+  let maxSteps := if hasMaxSteps then cfg0.maxSteps else optionMaxSteps
+  (maxTraces, maxSteps)
+
 /-- Model checking mode: interpreted only, compiled only, or default (both with handoff). -/
 inductive ModelCheckingMode where
   | interpreted
@@ -1199,8 +1220,10 @@ def elabSimulate : CommandElab := fun stx => do
     warnAboutTransitions mod
     let cfg0 ← elabSimulateConfig stx[4]
     let opts ← getOptions
-    let maxTraces := if cfg0.maxTraces == 10000 then veil.simulate.maxTraces.get opts else cfg0.maxTraces
-    let maxSteps := if cfg0.maxSteps == 100 then veil.simulate.maxSteps.get opts else cfg0.maxSteps
+    let hasMaxTraces := simulateConfigHasField stx[4] `maxTraces
+    let hasMaxSteps := simulateConfigHasField stx[4] `maxSteps
+    let (maxTraces, maxSteps) := resolveSimulateTraceBounds cfg0 hasMaxTraces hasMaxSteps
+      (veil.simulate.maxTraces.get opts) (veil.simulate.maxSteps.get opts)
     let seed ← liftIO <| if cfg0.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg0.seed
     let cfg : ModelChecker.Simulation.SimulateConfig := { cfg0 with maxTraces, maxSteps, seed }
     let mcCfg : ModelCheckerConfig := { maxDepth := 0, sequential := false, parallelCfg := none }
