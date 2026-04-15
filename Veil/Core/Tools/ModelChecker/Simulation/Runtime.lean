@@ -4,6 +4,20 @@ import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 namespace Veil.ModelChecker.Simulation
 
+private def noInitialStatesResult {ρ σ κ : Type} (cfg : SimulateConfig) : SimulateResult ρ σ κ := {
+  result := .noViolationFound 0 .exploredAllReachableStates
+  tracesRun := 0
+  maxTraces := cfg.maxTraces
+  elapsedMs := 0
+  seed := cfg.seed
+  depth := 0
+}
+
+private def hasNoInitialStates {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) : Bool :=
+  (filterInitStatesByConstraints sys params th).isEmpty
+
 private structure SimulationHooks (m : Type → Type) where
   shouldStop : Nat → m Bool
   onTraceProgress : Nat → m PUnit
@@ -108,7 +122,10 @@ def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
   (shouldStop : Nat → Bool)
   (cfg : SimulateConfig)
   : SimulateResult ρ σ κ :=
-  simulateLoopId shouldStop sys params th cfg cfg.maxTraces 0
+  if hasNoInitialStates sys params th then
+    noInitialStatesResult cfg
+  else
+    simulateLoopId shouldStop sys params th cfg cfg.maxTraces 0
 
 @[inline, specialize]
 def simulateCore {ρ σ κ : Type} {th₀ : ρ}
@@ -131,6 +148,12 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
   let actualSeed ← if cfg.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg.seed
   let cfg := { cfg with seed := actualSeed }
   let startMs ← IO.monoMsNow
+  if hasNoInitialStates sys params th then
+    let simResult := { noInitialStatesResult cfg with elapsedMs := (← IO.monoMsNow) - startMs }
+    Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
+      "Complete"
+      simResult.tracesRun simResult.maxTraces simResult.depth
+    return simResult
   let lastStatusUpdateRef ← IO.mkRef startMs
   let simResult ← simulateLoopM
     { shouldStop := fun _ => Veil.ModelChecker.Concrete.shouldStop cancelToken progressInstanceId
@@ -203,7 +226,12 @@ theorem simulateCommandSemantics_sound {ρ σ κ : Type} {th₀ : ρ}
   (shouldStop : Nat → Bool)
   (cfg : SimulateConfig) :
   ResultSound sys params (SimulateResult.result (simulateCommandSemantics sys params th shouldStop cfg)) := by
-  exact simulateLoopM_id_sound sys params th cfg shouldStop cfg.maxTraces 0
+  cases hNoInit : hasNoInitialStates sys params th with
+  | true =>
+      simp [simulateCommandSemantics, hNoInit, noInitialStatesResult, ResultSound]
+  | false =>
+      simpa [simulateCommandSemantics, hNoInit] using
+        simulateLoopM_id_sound sys params th cfg shouldStop cfg.maxTraces 0
 
 theorem simulateCore_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
