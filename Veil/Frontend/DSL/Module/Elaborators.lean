@@ -1203,9 +1203,7 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
       let combinedJson ← IO.ofExcept (← ioComputation.toIO')
       match (← ctx.cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) with
       | (true, false) => ModelChecker.Concrete.cancelProgress ctx.instanceId
-      | (false, _) =>
-          compilationCancelTk.set
-          finishWithSimulationResult ctx combinedJson
+      | (false, _) => finishWithSimulationResult ctx combinedJson
       | (true, true) => pure ()
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
