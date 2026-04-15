@@ -130,7 +130,7 @@ structure PickedTransition {σ κ : Type} (nexts : List (κ × σ)) where
   gen : StdGen
 
 def pickNextTransition {σ κ : Type}
-  (nexts : List (κ × σ)) (gen : StdGen) (h : nexts ≠ []) [Inhabited (κ × σ)] : PickedTransition nexts :=
+  (nexts : List (κ × σ)) (gen : StdGen) (h : nexts ≠ []) : PickedTransition nexts :=
   let p := randNat gen 0 (nexts.length - 1)
   let idx := p.1
   let gen' := p.2
@@ -142,7 +142,7 @@ def pickNextTransition {σ κ : Type}
     gen := gen' }
 
 theorem pickNextTransition_mem {σ κ : Type}
-  (nexts : List (κ × σ)) (gen : StdGen) (h : nexts ≠ []) [Inhabited (κ × σ)] :
+  (nexts : List (κ × σ)) (gen : StdGen) (h : nexts ≠ []) :
   (pickNextTransition nexts gen h).value ∈ nexts :=
   (pickNextTransition nexts gen h).mem
 
@@ -152,7 +152,7 @@ structure PickedInitState {σ : Type} (initStates : List σ) where
   gen : StdGen
 
 def pickInitialState {σ : Type}
-  (initStates : List σ) (gen : StdGen) (h : initStates ≠ []) [Inhabited σ] : PickedInitState initStates :=
+  (initStates : List σ) (gen : StdGen) (h : initStates ≠ []) : PickedInitState initStates :=
   let p := randNat gen 0 (initStates.length - 1)
   let idx := p.1
   let gen' := p.2
@@ -164,7 +164,7 @@ def pickInitialState {σ : Type}
     gen := gen' }
 
 theorem pickInitialState_mem {σ : Type}
-  (initStates : List σ) (gen : StdGen) (h : initStates ≠ []) [Inhabited σ] :
+  (initStates : List σ) (gen : StdGen) (h : initStates ≠ []) :
   (pickInitialState initStates gen h).value ∈ initStates :=
   (pickInitialState initStates gen h).mem
 
@@ -177,7 +177,6 @@ def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (currSt : σ)
   (trace : Trace ρ σ κ)
   (gen : StdGen)
-  [Inhabited (κ × σ)]
   : Option (ModelCheckingResult ρ σ κ Unit) × StdGen × Nat :=
   match stepsLeft with
   | 0 => (none, gen, 0)
@@ -209,8 +208,6 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (gen : StdGen)
   (maxSteps : Nat)
-  [Inhabited σ]
-  [Inhabited (κ × σ)]
   : Option (ModelCheckingResult ρ σ κ Unit) × StdGen × Nat :=
   let initStates := filterInitStatesByConstraints sys params th
   match initStates with
@@ -232,8 +229,6 @@ def runTraceAtSeed {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (cfg : SimulateConfig)
   (traceIndex : Nat)
-  [Inhabited σ]
-  [Inhabited (κ × σ)]
   : Option (ModelCheckingResult ρ σ κ Unit × Nat) :=
   let traceSeed := cfg.seed + traceIndex
   let (maybeResult, _, depth) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
