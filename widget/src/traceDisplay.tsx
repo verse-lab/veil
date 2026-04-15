@@ -75,6 +75,7 @@ type ModelCheckingResult =
       result: "found_violation";
       violation: Violation;
       trace: TraceData | null;
+      seed?: number;
     }
   | {
       result: "no_violation_found";
@@ -83,9 +84,11 @@ type ModelCheckingResult =
       traces_run?: number;
       max_traces?: number;
       trace?: TraceData | null;
+      seed?: number;
     }
   | {
       result: "cancelled";
+      seed?: number;
     }
   | {
       // Trace-only data without a result (for displaying execution traces)
@@ -305,7 +308,14 @@ const ResultHeader: React.FC<{
   terminationReason?: TerminationReason;
   tracesRun?: number;
   maxTraces?: number;
-}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, maxTraces }) => {
+  seed?: number;
+}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, maxTraces, seed }) => {
+  const seedDetails = seed !== undefined ? (
+    <div className="result-details">
+      <strong>Seed:</strong> {seed}
+    </div>
+  ) : null;
+
   if (resultType === "cancelled") {
     return (
       <div className="result-header result-cancelled">
@@ -314,6 +324,7 @@ const ResultHeader: React.FC<{
         <div className="result-details">
           Model checking was cancelled before completion
         </div>
+        {seedDetails}
       </div>
     );
   }
@@ -348,6 +359,7 @@ const ResultHeader: React.FC<{
             <strong>Location:</strong> {violation.assertion_info.moduleName}.{violation.assertion_info.procedureName} (line {violation.assertion_info.line}, column {violation.assertion_info.column})
           </div>
         )}
+        {seedDetails}
       </div>
     );
   }
@@ -409,6 +421,7 @@ const ResultHeader: React.FC<{
           <span>{terminationText}</span>
         </div>
       )}
+      {seedDetails}
     </div>
   );
 };
@@ -810,7 +823,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
             {'result' in result && (
               <>
                 {result.result === "cancelled" ? (
-                  <ResultHeader resultType="cancelled" />
+                  <ResultHeader resultType="cancelled" seed={result.seed} />
                 ) : result.result === "no_violation_found" ? (
                   <ResultHeader
                     resultType="no_violation_found"
@@ -818,11 +831,13 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                     terminationReason={result.termination_reason}
                     tracesRun={result.traces_run}
                     maxTraces={result.max_traces}
+                    seed={result.seed}
                   />
                 ) : (
                   <ResultHeader
                     resultType="found_violation"
                     violation={result.violation}
+                    seed={result.seed}
                   />
                 )}
               </>
