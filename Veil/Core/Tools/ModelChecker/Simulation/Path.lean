@@ -61,31 +61,6 @@ theorem decideAtState_assertionFailure_mem {ρ σ κ : Type} {th₀ : ρ}
         rcases hEntryEq with ⟨rfl, rfl⟩
         simpa [outcomes] using hEntryMem
 
-theorem decideAtState_deadlock_spec {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (th : ρ) (currSt : σ) :
-  decideAtState sys params th currSt = .deadlock ->
-    params.terminating.holdsOn th currSt = false ∧
-      (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-        (filterOutcomesByConstraints sys params th currSt)).fst = [] := by
-  intro h
-  let outcomes := filterOutcomesByConstraints sys params th currSt
-  cases hFind : outcomes.findSome? assertionFailureWitness with
-  | some found =>
-      have : False := by
-        simp [decideAtState, outcomes, hFind] at h
-      exact False.elim this
-  | none =>
-      cases hNexts : (Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes).fst with
-      | nil =>
-          have hTerm : params.terminating.holdsOn th currSt = false := by
-            have h' := h
-            simp [decideAtState, outcomes, hFind, hNexts] at h'
-            exact h'
-          exact ⟨hTerm, rfl⟩
-      | cons hd tl =>
-          simp [decideAtState, outcomes, hFind, hNexts] at h
-
 theorem decideAtState_continue_nexts {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (th : ρ) (currSt : σ)
