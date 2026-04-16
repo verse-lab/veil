@@ -211,10 +211,7 @@ def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   | .deadlock =>
       Trace.isSimulationValid sys params trace ∧
       trace.failingStep = none ∧
-      params.terminating.holdsOn trace.theory trace.lastState = false ∧
-      let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome
-        (filterOutcomesByConstraints sys params trace.theory trace.lastState)
-      nexts = []
+      decideAtState sys params trace.theory trace.lastState = .deadlock
   | .assertionFailure exId =>
       Trace.isSimulationValid sys params trace ∧
       ∃ step,
@@ -234,15 +231,7 @@ theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th₀ : ρ}
   | deadlock => exact Trace.isSimulationValid_sound sys params trace h.1
   | assertionFailure _ => exact Trace.isSimulationValid_sound sys params trace h.1
 
-noncomputable instance instDecidableTraceWitnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (violation : ViolationKind) :
-  Decidable (Trace.witnessesSimulationViolation sys params trace violation) := by
-  classical
-  infer_instance
-
-def ResultSound {ρ σ κ : Type} {th₀ : ρ}
+def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) : Prop :=
@@ -251,13 +240,6 @@ def ResultSound {ρ σ κ : Type} {th₀ : ρ}
   | .foundViolation _ _ none => False
   | .noViolationFound _ _ => True
   | .cancelled => True
-
-def ResultSoundUnder {ρ σ κ : Type} {th₀ : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (assumptions : ρ → Prop)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (th : ρ) (result : ModelCheckingResult ρ σ κ Unit) : Prop :=
-  assumptions th → ResultSound sys params result
 
 theorem simulateOnceLoop_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ] [Inhabited (κ × σ)]
@@ -272,7 +254,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type} {th₀ : ρ}
   (hNoFail : trace.failingStep = none) :
   ∀ stepsLeft gen result,
     (simulateOnceLoop sys params th stepsLeft currSt trace gen).1 = some result ->
-      ResultSound sys params result := by
+      ReportedViolationSound sys params result := by
   intro stepsLeft
   induction stepsLeft generalizing currSt trace with
   | zero =>
@@ -302,10 +284,8 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type} {th₀ : ρ}
       | deadlock =>
           simp [simulateOnceLoop, hStep] at h
           cases h
-          have hDead := decideAtState_deadlock_spec sys params th currSt hStep
           exact ⟨Trace.isSimulationValid_complete sys params trace hValid, hNoFail,
-            by simpa [hTheory, hLast] using hDead.1,
-            by simpa [hTheory, hLast] using hDead.2⟩
+            by simpa [hTheory, hLast] using hStep⟩
       | terminated =>
           simp [simulateOnceLoop, hStep] at h
       | «continue» nexts hNonempty =>
@@ -339,7 +319,7 @@ theorem simulateOnce_sound {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (th : ρ) (gen : StdGen) (maxSteps : Nat) (result : ModelCheckingResult ρ σ κ Unit) :
   (simulateOnce sys params th gen maxSteps).1 = some result ->
-    ResultSound sys params result := by
+    ReportedViolationSound sys params result := by
   intro h
   unfold simulateOnce at h
   cases hStates : filterInitStatesByConstraints sys params th with
@@ -372,7 +352,7 @@ theorem runTraceAtSeed_sound {ρ σ κ : Type} {th₀ : ρ}
   (traceIndex : Nat)
   (result : ModelCheckingResult ρ σ κ Unit) (depth : Nat) :
   runTraceAtSeed sys params th cfg traceIndex = some (result, depth) ->
-    ResultSound sys params result := by
+    ReportedViolationSound sys params result := by
   intro h
   unfold runTraceAtSeed at h
   set traceSeed := cfg.seed + traceIndex
@@ -387,22 +367,5 @@ theorem runTraceAtSeed_sound {ρ σ κ : Type} {th₀ : ρ}
       have hSimSome : (simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps).1 = some result' := by
         simp [hSim, hMaybe]
       exact simulateOnce_sound sys params th (mkStdGen traceSeed) cfg.maxSteps result' hSimSome
-
-noncomputable instance instDecidableResultSound {ρ σ κ : Type} {th₀ : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) :
-  Decidable (ResultSound sys params result) := by
-  classical
-  infer_instance
-
-noncomputable instance instDecidableResultSoundUnder {ρ σ κ : Type} {th₀ : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (assumptions : ρ → Prop)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (th : ρ) (result : ModelCheckingResult ρ σ κ Unit) :
-  Decidable (ResultSoundUnder assumptions sys params th result) := by
-  classical
-  infer_instance
 
 end Veil.ModelChecker.Simulation

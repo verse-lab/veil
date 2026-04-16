@@ -196,17 +196,17 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type} {th₀ : ρ}
   (cfg : SimulateConfig)
   (shouldStop : Nat → Bool) :
   ∀ remaining traceIndex,
-    ResultSound sys params (SimulateResult.result (simulateLoopId shouldStop sys params th cfg remaining traceIndex)) := by
+    ReportedViolationSound sys params (SimulateResult.result (simulateLoopId shouldStop sys params th cfg remaining traceIndex)) := by
   intro remaining
   induction remaining with
   | zero =>
       intro traceIndex
-      cases hStop : shouldStop traceIndex <;> simp [simulateLoopId, hStop, ResultSound]
+      cases hStop : shouldStop traceIndex <;> simp [simulateLoopId, hStop, ReportedViolationSound]
   | succ remaining ih =>
       intro traceIndex
       cases hStop : shouldStop traceIndex with
       | true =>
-          simp [simulateLoopId, hStop, ResultSound]
+          simp [simulateLoopId, hStop, ReportedViolationSound]
       | false =>
           by_cases hTrace : runTraceAtSeed sys params th cfg traceIndex = none
           · simpa [simulateLoopId, hStop, hTrace] using ih (traceIndex + 1)
@@ -225,10 +225,10 @@ theorem simulateCommandSemantics_sound {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (shouldStop : Nat → Bool)
   (cfg : SimulateConfig) :
-  ResultSound sys params (SimulateResult.result (simulateCommandSemantics sys params th shouldStop cfg)) := by
+  ReportedViolationSound sys params (SimulateResult.result (simulateCommandSemantics sys params th shouldStop cfg)) := by
   cases hNoInit : hasNoInitialStates sys params th with
   | true =>
-      simp [simulateCommandSemantics, hNoInit, noInitialStatesResult, ResultSound]
+      simp [simulateCommandSemantics, hNoInit, noInitialStatesResult, ReportedViolationSound]
   | false =>
       simpa [simulateCommandSemantics, hNoInit] using
         simulateLoopM_id_sound sys params th cfg shouldStop cfg.maxTraces 0
@@ -240,7 +240,7 @@ theorem simulateCore_sound {ρ σ κ : Type} {th₀ : ρ}
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig) :
-  ResultSound sys params (SimulateResult.result (simulateCore sys params th cfg)) := by
+  ReportedViolationSound sys params (SimulateResult.result (simulateCore sys params th cfg)) := by
   simpa [simulateCore] using simulateCommandSemantics_sound sys params th (fun _ => false) cfg
 
 end Veil.ModelChecker.Simulation
