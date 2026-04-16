@@ -65,8 +65,7 @@ instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJ
 
 def SimulateResult.toDisplayJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   (r : SimulateResult ρ σ κ) : Json :=
-  let resultJson := resultToJson r.result
-  match resultJson with
+  match resultToJson r.result with
   | Json.obj kvs =>
       Json.mkObj <| kvs.toList ++ [
         ("traces_run", Lean.toJson r.tracesRun),
