@@ -35,6 +35,6 @@ invariant [bounded] ∀ (x : node), counter x ≤ n
 #model_check interpreted { node := Fin 2, n := 1, color := Fin 2, m := ⟨1, by decide⟩ } {}
 
 #guard_msgs(drop info) in
-#simulate { node := Fin 2, n := 1, color := Fin 2, m := ⟨1, by decide⟩ } {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate interpreted { node := Fin 2, n := 1, color := Fin 2, m := ⟨1, by decide⟩ } {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
 end TestParameter
