@@ -274,15 +274,15 @@ def updateCompilationStatus (instanceId : Nat) (status : CompilationStatus) : IO
 /-- Update compilation log with a new line. -/
 def updateCompilationLog (instanceId : Nat) (elapsedMs : Nat) (line : String) (isError : Bool) : IO Unit :=
   withRefs instanceId fun refs => refs.progressRef.modify fun p =>
-    let existingLines := match p.compilationStatus with | CompilationStatus.inProgress _ l => l | _ => #[]
+    let existingLines := match p.compilationStatus with | .inProgress _ l => l | _ => #[]
     let newLine : CompilationLogLine := { timestamp := elapsedMs, content := line, isError }
-    { p with compilationStatus := CompilationStatus.inProgress elapsedMs (existingLines.push newLine) }
+    { p with compilationStatus := .inProgress elapsedMs (existingLines.push newLine) }
 
 /-- Update just elapsed time without adding a log line. -/
 def updateCompilationElapsed (instanceId : Nat) (elapsedMs : Nat) : IO Unit :=
   withRefs instanceId fun refs => refs.progressRef.modify fun p =>
-    let lines := match p.compilationStatus with | CompilationStatus.inProgress _ l => l | _ => #[]
-    { p with compilationStatus := CompilationStatus.inProgress elapsedMs lines }
+    let lines := match p.compilationStatus with | .inProgress _ l => l | _ => #[]
+    { p with compilationStatus := .inProgress elapsedMs lines }
 
 def requestHandoff (instanceId : Nat) : IO Unit := withRefs instanceId (·.handoffRequested.set true)
 
