@@ -8,6 +8,7 @@ import Smt
 import Veil.Backend.SMT.Preprocessing
 import Veil.Backend.SMT.Quantifiers
 import Veil.Util.ReplacingInstances
+import Veil.Util.UnhygienicCasesM
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis Parser.Tactic
 namespace Veil
@@ -137,7 +138,10 @@ are given, this destructs all structures in the context into their
 respective fields, recursively.
 
 Use `only [Foo, Bar]` to only destruct structures with those names. -/
-syntax (name := veil_destruct) "veil_destruct" (colGt ident)* ("only" "[" ident,* "]")? : tactic
+syntax (name := veil_destruct) "veil_destruct" (colGt ident)* ("only" "[" ident,* "]")? ("without" "[" ident,* "]")? : tactic
+/-- A different implementation of `veil_destruct` that simply collects
+certain `structure`/`class` types to destruct and then pass them to `cases_type*`. -/
+syntax (name := veil_destruct') "veil_destruct'" : tactic
 /-- Split the goal into sub-goals. -/
 syntax (name := veil_destruct_goal) "veil_destruct_goal" : tactic
 
@@ -383,16 +387,16 @@ mutual
 
 /-- Destruct a structure into its fields. If `onlyStructs` is non-empty, only destructs
 structures whose type names are in the `onlyStructs` list. -/
-partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStructs : List Name := []) : DesugarTacticM Unit := veilWithMainContext do
+partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStructs : List Name := []) (excludedStructs : List Name := []) : DesugarTacticM Unit := veilWithMainContext do
   if ids.size == 0 then
-    elabVeilDestructAllHyps (recursive := true) (onlyStructs := onlyStructs)
+    elabVeilDestructAllHyps (recursive := true) (onlyStructs := onlyStructs) (excludedStructs := excludedStructs)
   else for id in ids do
     let lctx ← getLCtx
     let name := (getNameOfIdent' id)
     let .some ld := lctx.findFromUserName? name | throwError "veil_destruct: {id} is not in the local context"
     let .some sn := ld.type.getAppFn.constName? | throwError "veil_destruct: {id} is not a constant"
     -- If `onlyStructs` is non-empty, skip structures not in the list
-    if !onlyStructs.isEmpty && !onlyStructs.contains sn then
+    if excludedStructs.contains sn || (!onlyStructs.isEmpty && !onlyStructs.contains sn) then
       continue
     let .some _sinfo := getStructureInfo? (← getEnv) sn | throwError "veil_destruct: {id} ({sn} is not a structure)"
     let newFieldNames := _sinfo.fieldNames.map (mkIdent $ Name.append name ·)
@@ -407,27 +411,23 @@ partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStru
 /-- Destruct all structures in the context into their respective
 fields, (potentially) recursively. Also destructs all existentials.
 If `onlyStructs` is non-empty, only destructs structures whose type names are in the list. -/
-partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) (onlyStructs : List Name := []) : DesugarTacticM Unit := veilWithMainContext do
+partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) (onlyStructs : List Name := []) (excludedStructs : List Name := []) : DesugarTacticM Unit := veilWithMainContext do
   let mut ignoreHyps := ignoreHyps
   let hypsToVisit : (Array LocalDecl → DesugarTacticM (Array LocalDecl)) := (fun ignoreHyps => veilWithMainContext do
-    return (← getLCtx).decls.filter Option.isSome
-    |> PersistentArray.map Option.get!
-    |> PersistentArray.toArray
-    |> Array.filter (fun hyp => !ignoreHyps.contains hyp))
+    return (← getLCtx).decls.toArray.filterMap fun hyp? =>
+      hyp?.bind fun hyp => if !ignoreHyps.contains hyp then some hyp else none)
   for hyp in (← hypsToVisit ignoreHyps) do
     ignoreHyps := ignoreHyps.push hyp
     if hyp.isImplementationDetail then
       continue
-    let isStructure ← match hyp.type.getAppFn.constName? with
-    | .none => pure false
-    | .some sn => pure (isStructure (← getEnv) sn)
+    let structureName? ← match hyp.type.getAppFn.constName? with
+    | .none => pure none
+    | .some sn => if (isStructure (← getEnv) sn) then pure (some sn) else pure none
     let name := mkIdent hyp.userName
-    if isStructure then
-      let sn := hyp.type.getAppFn.constName!
+    if let some sn := structureName? then
       -- Skip if onlyStructs is non-empty and this structure is not in the list
-      if !hypTypesToSkipDestruct.contains sn && (onlyStructs.isEmpty || onlyStructs.contains sn) then
-        let dtac ← `(tactic| veil_destruct $name:ident)
-        veilEvalTactic dtac
+      if !hypTypesToSkipDestruct.contains sn && !excludedStructs.contains sn && (onlyStructs.isEmpty || onlyStructs.contains sn) then
+        elabVeilDestructSpecificHyp #[name]
     else
       let hypType ← Meta.whnf hyp.type
       if hypType.isAppOf ``Exists then
@@ -447,6 +447,24 @@ where
   | _ => throwError "Expected an existential quantifier, got {whnfType}"
 
 end
+
+elab (name := veilCasesType) "veil_cases_type" recursive:"*"? heads:(ppSpace colGt ident)+ : tactic =>
+  Veil.Util.elabCasesType heads recursive.isSome true
+
+def elabVeilDestruct' : DesugarTacticM Unit := veilWithMainContext do
+  let mut targets := #[]
+  for hyp in (← getLCtx) do
+    if hyp.isImplementationDetail then continue
+    let structureName? ← match hyp.type.getAppFn'.constName? with
+      | .none => pure none
+      | .some sn => if isStructure (← getEnv) sn then pure (some sn) else pure none
+    let some nm := structureName? | continue
+    if nm ∈ hypTypesToSkipDestruct then continue
+    -- Special check
+    if nm == ``And then continue
+    targets := targets.push nm
+  let targetIdents := targets.map mkIdent
+  veilEvalTactic $ ← `(tactic| veil_cases_type* $[$targetIdents:ident]* ; expose_names )
 
 private inductive GenericStateKind
   | environmentState
@@ -952,7 +970,7 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
       -- especially relations produced after `concretize_fields`. This can
       -- happen for unchanged fields in transitions. The `veil_destruct` is for
       -- destructing conjunctions to expose the equalities.
-      then `(tactic| (veil_destruct; veil_dsimp only at *; veil_intros; (try veil_destruct ; subst_eqs)) )
+      then `(tactic| (veil_destruct' ; veil_dsimp only at *; veil_intros; (try subst_eqs)) )
       else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
     `(tactic| ($inferNonemptyTac:tactic; $tac:tactic))
   veilEvalTactic tac
@@ -1046,6 +1064,7 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic veil_infer_nonempty,
   tactic veil_rename_hyp,
   tactic veil_destruct,
+  tactic veil_destruct',
   tactic veil_clear,
   tactic veil_destruct_goal,
   tactic veil_smt,
@@ -1085,11 +1104,16 @@ def elabVeilTactics : Tactic := fun stx => do
   -- User-facing tactics
   | `(tactic| veil_rename_hyp $[$xs:term => $ys:ident],*) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_rename_hyp") $ elabVeilRenameHyp xs ys
-  | `(tactic| veil_destruct $ids:ident* $[only [$onlyIds:ident,*]]?) => do
+  | `(tactic| veil_destruct $ids:ident* $[only [$onlyIds:ident,*]]? $[without [$excludedIds:ident,*]]?) => do
     let onlyStructs := match onlyIds with
       | some ids => ids.getElems.toList.map (fun id => id.getId)
       | none => []
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct") $ elabVeilDestructSpecificHyp ids onlyStructs
+    let excludedStructs := match excludedIds with
+      | some ids => ids.getElems.toList.map (fun id => id.getId)
+      | none => []
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct") $ elabVeilDestructSpecificHyp ids onlyStructs excludedStructs
+  | `(tactic| veil_destruct' ) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct'") $ elabVeilDestruct'
   | `(tactic| veil_clear $ids:ident*) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_clear") $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do
