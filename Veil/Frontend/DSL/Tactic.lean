@@ -967,7 +967,7 @@ def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
     veil_dsimp only [$(mkIdent `invSimp):ident] at $(mkIdent `has):ident
     __veil_concretize_state_wp
     __veil_concretize_fields_wp !
-    veil_wp
+    veil_dsimp only [$(mkIdent `wpSimp):ident]
     veil_dsimp only [$(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident] at $(mkIdent `hinv):ident
     veil_dsimp only [$(mkIdent `LocalRProp.core):ident, $(mkIdent `nextSimp):ident] at *
     __veil_neutralize_decidable_inst
