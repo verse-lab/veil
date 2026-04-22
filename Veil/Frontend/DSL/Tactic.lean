@@ -180,6 +180,7 @@ syntax (name := __veil_neutralize_decidable_inst) "__veil_neutralize_decidable_i
 
 syntax (name := __veil_ghost_relation_ssa) "__veil_ghost_relation_ssa" ("at" ident)? : tactic
 
+syntax (name := veil_solver) "veil_solver" : tactic
 syntax (name := veil_smt) "veil_smt" : tactic
 syntax (name := veil_smt_trace) "veil_smt?" : tactic
 
@@ -760,15 +761,29 @@ def elabGhostRelationSSA (hyp : Option Ident) : DesugarTacticM Unit := veilWithM
   withMainContextGeneral do
   veilEvalTactic $ ← `(tactic| expose_names ; veil_dsimp only [$[$simps:ident],*])
 
-def elabVeilSmt (stx : Syntax) (trace : Bool := false) : DesugarTacticM Unit := veilWithMainContext do
+def elabVeilSolver : DesugarTacticM Unit := veilWithMainContext do
   let idents ← getPropsInContext
   let fmfEnabled := veil.smt.finiteModelFind.get (← getOptions)
   let timeout := veil.smt.timeout.get (← getOptions)
+  let solver := veil.solver.get (← getOptions)
   let fmfValue := if fmfEnabled then "true" else "false"
   let solverOptions ← `(term| [("finite-model-find", $(Syntax.mkStrLit fmfValue)), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
+  let tac ←
+    match solver with
+    | .smt =>
+        `(tactic| smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
+    | .grind =>
+        `(tactic| grind)
+    | .grindAndSMT =>
+        `(tactic| first | grind | smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
+    | .custom =>
+        `(tactic| fail "Custom solver is not specified")
+  veilEvalTactic tac
+
+def elabVeilSmt (stx : Syntax) (trace : Bool := false) : DesugarTacticM Unit := veilWithMainContext do
   -- It's necessary to `open Classical` to make proof reconstruction work.
   -- Otherwise, sometimes it fails due to failing to infer `Decidable` instances.
-  let auto_tac ← `(tactic| open $(mkIdent `Classical):ident in smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
+  let auto_tac ← `(tactic| open $(mkIdent `Classical):ident in veil_solver)
   if trace then
     addSuggestion stx auto_tac
   else
@@ -918,6 +933,7 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic __veil_neutralize_decidable_inst,
   tactic __veil_ghost_relation_ssa,
   -- User-facing tactics
+  tactic veil_solver,
   tactic veil_rename_hyp,
   tactic veil_destruct,
   tactic veil_clear,
@@ -968,6 +984,8 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_clear") $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct_goal") elabVeilDestructGoal
+  | `(tactic| veil_solver) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_solver") elabVeilSolver
   | `(tactic| veil_smt%$tk) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_smt") $ elabVeilSmt tk
   | `(tactic| veil_smt?%$tk) => do

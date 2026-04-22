@@ -86,6 +86,45 @@ register_option veil.__modelCheckCompileMode : Bool := {
   descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
 }
 
+inductive VeilSolver : Type where
+  | smt
+  | grind
+  | grindAndSMT
+  | custom
+
+instance : Inhabited VeilSolver := ⟨.smt⟩
+
+instance : ToString VeilSolver where
+  toString
+    | .smt => "smt"
+    | .grind => "grind"
+    | .grindAndSMT => "grindAndSMT"
+    | .custom => "custom"
+
+instance : Lean.KVMap.Value VeilSolver where
+  toDataValue s := toString s
+  ofDataValue?
+    | .ofString "smt" => some .smt
+    | .ofString "grind" => some .grind
+    | .ofString "grindAndSMT" => some .grindAndSMT
+    | .ofString "custom" => some .custom
+    | _ => none
+
+register_option veil.solver : VeilSolver := {
+  defValue := .smt
+  descr := "Solver strategy used by `veil_smt`.
+   - `smt` uses the SMT backend
+   - `grind` uses Lean's `grind`
+   - `grindAndSMT` tries `grind` first, then falls back to SMT
+   - `custom` uses a user-provided `veil_solver` tactic
+
+  For `custom`, define a macro such as
+  ```lean
+  macro_rules
+  | `(tactic| veil_solver $[[$hs,*]]?) => `(tactic| <your tactic here>)
+  ```"
+}
+
 register_option veil.smt.finiteModelFind : Bool := {
   defValue := true
   descr := "If true, the SMT solver will use finite model finding mode (finite-model-find). \
