@@ -55,4 +55,21 @@ Seed: 1
 #guard_msgs in
 #simulate interpreted {} {} (seed := 1) (maxTraces := 1) (maxSteps := 100)
 
+set_option veil.simulate.maxSteps 1 in
+/--
+error: ❌ Violation: safety_failure (violates: still_safe)
+  State 0 (via init):
+    flag = false
+    tripped = false
+  State 1 (via set_flag):
+    flag = true
+    tripped = false
+  State 2 (via trip):
+    flag = true
+    tripped = true
+Seed: 1
+-/
+#guard_msgs in
+#simulate interpreted {} {} (config := { maxTraces := 1, maxSteps := 100, seed := 1 })
+
 end SimulateConfigDefaults

@@ -571,7 +571,9 @@ private partial def simulateConfigItems (cfgStx : Syntax) : TSyntaxArray ``Lean.
 /-- Check whether a particular config field was written explicitly in the command syntax. -/
 def simulateConfigHasField (cfgStx : Syntax) (fieldName : Name) : Bool :=
   Lean.Elab.Tactic.mkConfigItemViews (simulateConfigItems cfgStx) |>.any
-    (fun item => item.option.getId.eraseMacroScopes == fieldName)
+    (fun item =>
+      let optionName := item.option.getId.eraseMacroScopes
+      optionName == fieldName || optionName == `config)
 
 /-- Resolve `#simulate` trace-bound fields, preserving explicit default literals. -/
 def resolveSimulateTraceBounds (cfg0 : ModelChecker.Simulation.SimulateConfig)
@@ -1070,7 +1072,7 @@ private def generateSimulateModelSource (mod : Module) (stx : Syntax)
     (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM String := do
   let srcPrefix ← generateCompiledModelSourcePrefix mod stx
   let instSrc ← getSourceSlice stx[2]
-  let theorySrc ← if stx[3].isNone then pure "" else do
+  let theorySrc ← if stx[3].isNone then pure " {}" else do
     let raw ← getSourceSlice stx[3][0]
     pure s!" {raw}"
   let cmd := s!"#simulate {instSrc}{theorySrc} (maxTraces := {cfg.maxTraces}) (maxSteps := {cfg.maxSteps}) (seed := {cfg.seed})"

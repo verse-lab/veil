@@ -28,11 +28,24 @@ Seed: 1
 #guard_msgs(drop info, drop warning) in
 #simulate compiled {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
+set_option veil.simulate.maxTraces 1 in
+set_option veil.simulate.maxSteps 1 in
+#guard_msgs(drop info, drop warning) in
+#simulate compiled {}
+
 /--
 info: ✅ No violation in 1 traces
 Seed: 1
 -/
 #guard_msgs in
 #simulate {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
+
+set_option veil.simulate.maxTraces 2 in
+/--
+info: ✅ No violation in 1 traces
+Seed: 1
+-/
+#guard_msgs in
+#simulate interpreted {} {} (config := { maxTraces := 1, maxSteps := 1, seed := 1 })
 
 end SimulateModes
