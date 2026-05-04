@@ -221,8 +221,9 @@ const CollapsibleFieldsPanel: React.FC<{
 const StructuredCexView: React.FC<{
   data: StructuredJson;
   property: string;
+  isInitializer?: boolean;
   headerRightContent?: React.ReactNode;
-}> = ({ data, property, headerRightContent }) => {
+}> = ({ data, property, isInitializer = false, headerRightContent }) => {
   const { theory, preState, postState, label, instantiation, extraVals } = data;
 
   // State for toolbar features
@@ -391,7 +392,11 @@ const StructuredCexView: React.FC<{
         <StatePanel
           title="Pre-State"
           fields={filteredPreState}
-          statusIndicator={<span className="cex-status-valid">✓ Satisfies all invariants </span>}
+          statusIndicator={
+            isInitializer
+              ? undefined
+              : <span className="cex-status-valid">✓ Satisfies all invariants </span>
+          }
         />
         {/* Narrow view: centered action chip between stacked panels */}
         {!isWideEnough && filteredPostState && (
@@ -1055,6 +1060,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
             <StructuredCexView
               data={activeCounterexample.structuredJson}
               property={getInductionData(vc)?.property ?? ''}
+              isInitializer={getInductionData(vc)?.action === 'initializer'}
               headerRightContent={
                 <>
                   <button

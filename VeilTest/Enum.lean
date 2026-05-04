@@ -99,7 +99,25 @@ invariant req T ≠ a
 /--
 error: Initialization must establish the invariant:
   doesNotThrow ... ✅
-  inv_0 ... ✅
+  inv_0 ... ❌
+      Counterexample (WP):
+        Theory:
+          EnumA_Enum.nop = EnumNamesInCTIs.EnumA_IndT.nop
+          EnumB_Enum.a = EnumNamesInCTIs.EnumB_IndT.a
+          EnumB_Enum.b = EnumNamesInCTIs.EnumB_IndT.b
+        Pre-state:
+          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.a]]
+        Action: initializer
+      Counterexample (TR):
+        Theory:
+          EnumA_Enum.nop = EnumNamesInCTIs.EnumA_IndT.nop
+          EnumB_Enum.a = EnumNamesInCTIs.EnumB_IndT.a
+          EnumB_Enum.b = EnumNamesInCTIs.EnumB_IndT.b
+        Pre-state:
+          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.a]]
+        Action: initializer
+        Post-state:
+          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.a]]
 The following set of actions must preserve the invariant and successfully terminate:
   foo
     doesNotThrow ... ✅
@@ -125,6 +143,5 @@ The following set of actions must preserve the invariant and successfully termin
 -/
 #guard_msgs in
 #check_invariants
-
 
 end EnumNamesInCTIs

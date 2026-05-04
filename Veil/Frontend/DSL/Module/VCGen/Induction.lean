@@ -130,6 +130,19 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
 
 /-! ## VC Statement Building -/
 
+private def DeclarationKind.assumesInvariantsForInductionVC : DeclarationKind → Bool
+  | .procedure .initializer => false
+  | _ => true
+
+private def mkInductionPrecondition [Monad m] [MonadQuotation m] [MonadError m]
+    (mod : Module) (dependsOn : Std.HashSet Name) (assumesInvariants : Bool) : m Term := do
+  if assumesInvariants then
+    let (_, invArgs) ← mod.declarationAllBindersArgs assembledInvariantsName
+      (.derivedDefinition .invariantLike dependsOn)
+    `(term| (@$assembledInvariants $invArgs*))
+  else
+    `(term| (fun _ _ => $(mkIdent ``True)))
+
 private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m]
     [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m]
     [AddMessageContext m] [MonadLiftT IO m]
@@ -139,7 +152,13 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
     (extraBinders : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := #[])
     (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
   -- FIXME: make all the name-related/parameter functions work with `ext` names
-  let dependsOn := extraDeps.insertMany #[actName, assembledAssumptionsName, assembledInvariantsName]
+  let assumesInvariants := actKind.assumesInvariantsForInductionVC
+  let baseDeps :=
+    if assumesInvariants then
+      #[actName, assembledAssumptionsName, assembledInvariantsName]
+    else
+      #[actName, assembledAssumptionsName]
+  let dependsOn := extraDeps.insertMany baseDeps
   let (thmBaseParams, thmExtraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·)
     (.derivedDefinition .theoremLike dependsOn)
   -- NOTE: the VCs are stated in terms of `act.ext` (for WP) or `act.ext.tr` (for TR)
@@ -149,8 +168,7 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
   let ((_, allModArgs), (actBinders, actArgs)) ← mod.declarationSplitBindersArgs actName actKind
   let (_, assArgs) ← mod.declarationAllBindersArgs assembledAssumptionsName
     (.derivedDefinition .assumptionLike dependsOn)
-  let (_, invArgs) ← mod.declarationAllBindersArgs assembledInvariantsName
-    (.derivedDefinition .invariantLike dependsOn)
+  let preTerm ← mkInductionPrecondition mod dependsOn assumesInvariants
   return {
     name := vcName,
     params := ← (thmBaseParams ++ thmExtraParams).mapM (·.binder),
@@ -159,7 +177,7 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
         $(mkIdent specName)
           (@$(mkIdent actionIdent) $allModArgs* $actArgs*)
           (@$assembledAssumptions $assArgs*)
-          (@$assembledInvariants $invArgs*)
+          $preTerm
           $extraTerms:term*
     ),
     metadata := .induction {
@@ -195,7 +213,8 @@ private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m
   mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind
     ``VeilM.meetsSpecificationIfSuccessfulAssuming
     (Name.mkSimple s!"{actName}_{invariantClause}") vcKind
-    (extraDeps := extraDeps) (extraTerms := extraTerms)
+    (extraDeps := extraDeps)
+    (extraTerms := extraTerms)
 
 private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m]
     [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m]
@@ -230,7 +249,8 @@ private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadQuotation
   mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind
     ``Transition.meetsSpecificationIfSuccessfulAssuming
     (Name.mkSimple s!"{actName}_{invariantClause}_tr") vcKind
-    (style := .tr) (extraDeps := extraDeps) (extraTerms := extraTerms)
+    (style := .tr) (extraDeps := extraDeps)
+    (extraTerms := extraTerms)
 
 /-! ## Module VC Generation -/
 

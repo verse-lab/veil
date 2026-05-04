@@ -133,23 +133,24 @@ def getExprName (ctx : ModelContext) (e : Expr) : IO (Option Name) := do
     else
       return none
 
-/-- Check if a name matches the pattern "st.fieldName" and return fieldName. -/
+/-- Check if a name matches one of `prefix.fieldName` and return fieldName. -/
+def isFieldWithPrefix (prefixes : List String) (n : Name) : Option Name :=
+  match n with
+  | .str (.str .anonymous prefixName) fieldName =>
+    if prefixes.contains prefixName then some (.mkSimple fieldName) else none
+  | _ => none
+
+/-- Check if a name matches a pre-state field and return fieldName. -/
 def isPreStateField (n : Name) : Option Name :=
-  match n with
-  | .str (.str .anonymous "st") fieldName => some (.mkSimple fieldName)
-  | _ => none
+  isFieldWithPrefix ["st", "s₀"] n
 
-/-- Check if a name matches the pattern "st'.fieldName" and return fieldName. -/
+/-- Check if a name matches a post-state field and return fieldName. -/
 def isPostStateField (n : Name) : Option Name :=
-  match n with
-  | .str (.str .anonymous "st'") fieldName => some (.mkSimple fieldName)
-  | _ => none
+  isFieldWithPrefix ["st'", "s₁"] n
 
-/-- Check if a name matches the pattern "th.fieldName" and return fieldName. -/
+/-- Check if a name matches a theory field and return fieldName. -/
 def isTheoryField (n : Name) : Option Name :=
-  match n with
-  | .str (.str .anonymous "th") fieldName => some (.mkSimple fieldName)
-  | _ => none
+  isFieldWithPrefix ["th", "r₀"] n
 
 /-- Parse model sorts into a map from sort name to cardinality type (Fin n). -/
 def parseSortsFromModel (model : Model) : IO (Std.HashMap Name Expr) := do
