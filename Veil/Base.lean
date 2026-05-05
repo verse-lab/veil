@@ -106,22 +106,22 @@ instance : Lean.KVMap.Value VeilSolver where
   ofDataValue?
     | .ofString "smt" => some .smt
     | .ofString "grind" => some .grind
-    | .ofString "grindAndSMT" => some .grindAndSMT
+    | .ofString "grind+smt" => some .grindAndSMT
     | .ofString "custom" => some .custom
     | _ => none
 
 register_option veil.solver : VeilSolver := {
   defValue := .smt
-  descr := "Solver strategy used by `veil_smt`.
-   - `smt` uses the SMT backend
+  descr := "Solver strategy used by `veil_solve`.
+   - `smt` uses `veil_smt`
    - `grind` uses Lean's `grind`
-   - `grindAndSMT` tries `grind` first, then falls back to SMT
-   - `custom` uses a user-provided `veil_solver` tactic
+   - `grind+smt` tries `grind` first, then falls back to `veil_smt`
+   - `custom` uses a user-provided `veil_solve` tactic
 
   For `custom`, define a macro such as
   ```lean
   macro_rules
-  | `(tactic| veil_solver $[[$hs,*]]?) => `(tactic| <your tactic here>)
+  | `(tactic| veil_solve) => `(tactic| <your tactic here>)
   ```"
 }
 

@@ -180,7 +180,7 @@ syntax (name := __veil_neutralize_decidable_inst) "__veil_neutralize_decidable_i
 
 syntax (name := __veil_ghost_relation_ssa) "__veil_ghost_relation_ssa" ("at" ident)? : tactic
 
-syntax (name := veil_solver) "veil_solver" : tactic
+syntax (name := veil_solve) "veil_solve" : tactic
 syntax (name := veil_smt) "veil_smt" : tactic
 syntax (name := veil_smt_trace) "veil_smt?" : tactic
 
@@ -191,7 +191,7 @@ syntax (name := veil_solve_wp) "veil_solve_wp" ("!")? : tactic
 2. Simplifying with `invSimp`
 3. Destructing existentials and conjunctions
 4. Splitting on conditionals with `veil_split_ifs`
-5. Concretizing with `veil_concretize_tr` and solving with `veil_fol !; veil_smt` -/
+5. Concretizing with `veil_concretize_tr` and solving with `veil_fol; veil_solve` -/
 syntax (name := veil_solve_tr) "veil_solve_tr" : tactic
 
 /-- Solve bounded model checking (trace) goals. This includes:
@@ -761,29 +761,28 @@ def elabGhostRelationSSA (hyp : Option Ident) : DesugarTacticM Unit := veilWithM
   withMainContextGeneral do
   veilEvalTactic $ ← `(tactic| expose_names ; veil_dsimp only [$[$simps:ident],*])
 
-def elabVeilSolver : DesugarTacticM Unit := veilWithMainContext do
+private def mkVeilSmtTactic : TacticM (TSyntax `tactic) := do
   let idents ← getPropsInContext
   let fmfEnabled := veil.smt.finiteModelFind.get (← getOptions)
   let timeout := veil.smt.timeout.get (← getOptions)
-  let solver := veil.solver.get (← getOptions)
   let fmfValue := if fmfEnabled then "true" else "false"
   let solverOptions ← `(term| [("finite-model-find", $(Syntax.mkStrLit fmfValue)), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
-  let tac ←
-    match solver with
-    | .smt =>
-        `(tactic| smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
-    | .grind =>
-        `(tactic| grind)
-    | .grindAndSMT =>
-        `(tactic| first | grind | smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
-    | .custom =>
-        `(tactic| fail "Custom solver is not specified")
+  `(tactic| smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $(mkIdent ``true), $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
+
+def elabVeilSolve : DesugarTacticM Unit := veilWithMainContext do
+  let solver := veil.solver.get (← getOptions)
+  let tac ← match solver with
+    | .smt => `(tactic| veil_smt)
+    | .grind => `(tactic| grind)
+    | .grindAndSMT => `(tactic| first | grind | veil_smt)
+    | .custom => `(tactic| fail "Custom solver is not specified")
   veilEvalTactic tac
 
 def elabVeilSmt (stx : Syntax) (trace : Bool := false) : DesugarTacticM Unit := veilWithMainContext do
   -- It's necessary to `open Classical` to make proof reconstruction work.
   -- Otherwise, sometimes it fails due to failing to infer `Decidable` instances.
-  let auto_tac ← `(tactic| open $(mkIdent `Classical):ident in veil_solver)
+  let smtTac ← mkVeilSmtTactic
+  let auto_tac ← `(tactic| open $(mkIdent `Classical):ident in $smtTac:tactic)
   if trace then
     addSuggestion stx auto_tac
   else
@@ -895,7 +894,7 @@ def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
 def elabVeilSolveWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   let concretizeTac ← if fast then `(tactic|veil_concretize_wp !) else `(tactic|veil_concretize_wp)
   let folTactic ← if fast then `(tactic| veil_fol !) else `(tactic| veil_fol)
-  let tac ← `(tactic| veil_intros; veil_wp; $concretizeTac; $folTactic; veil_smt)
+  let tac ← `(tactic| veil_intros; veil_wp; $concretizeTac; $folTactic; veil_solve)
   veilEvalTactic tac
 
 @[inherit_doc veil_solve_tr]
@@ -903,7 +902,7 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
   -- if they're not used. This is undesirable when the variable is an action
   -- parameter, because we need to keep it in the context for model extraction.
-  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_smt))
+  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_solve))
   veilEvalTactic tac
 
 @[inherit_doc veil_bmc]
@@ -933,7 +932,7 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic __veil_neutralize_decidable_inst,
   tactic __veil_ghost_relation_ssa,
   -- User-facing tactics
-  tactic veil_solver,
+  tactic veil_solve,
   tactic veil_rename_hyp,
   tactic veil_destruct,
   tactic veil_clear,
@@ -984,8 +983,8 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_clear") $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct_goal") elabVeilDestructGoal
-  | `(tactic| veil_solver) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_solver") elabVeilSolver
+  | `(tactic| veil_solve) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_solve") elabVeilSolve
   | `(tactic| veil_smt%$tk) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_smt") $ elabVeilSmt tk
   | `(tactic| veil_smt?%$tk) => do
