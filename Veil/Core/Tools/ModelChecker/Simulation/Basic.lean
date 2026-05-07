@@ -22,23 +22,17 @@ structure SimulateResult (ρ σ κ : Type) where
   depth : Nat
 
 @[inline]
-def filterInitStatesByConstraints {ρ σ κ : Type} {th₀ : ρ}
+def restrictSystemByStateConstraints {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (th : ρ) : List σ :=
-  if params.stateConstraints.isEmpty then sys.initStates
-  else sys.initStates.filter (params.satisfiesConstraints th)
-
-@[inline]
-def filterOutcomesByConstraints {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List (κ × ExecutionOutcome Int σ) :=
-  if params.stateConstraints.isEmpty then
-    sys.tr th st
-  else
-    (sys.tr th st).filter fun (_, outcome) =>
+  (params : SearchParameters ρ σ) (th : ρ) :
+  EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀ :=
+  if params.stateConstraints.isEmpty then sys else {
+    initStates := sys.initStates.filter (params.satisfiesConstraints th)
+    tr := fun th' st => (sys.tr th' st).filter fun (_, outcome) =>
       match outcome with
       | .success st' => params.satisfiesConstraints th st'
       | .assertionFailure _ st' => params.satisfiesConstraints th st'
       | .divergence => true
+  }
 
 end Veil.ModelChecker.Simulation
