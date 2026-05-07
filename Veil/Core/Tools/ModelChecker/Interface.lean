@@ -282,6 +282,12 @@ def SearchParameters.violatedAssumptions (params : SearchParameters ρ σ) (th :
   params.assumptions.filterMap fun p =>
     if p.holdsOn th then none else some p.name
 
+@[inline]
+def violatedInvariantNames {ρ σ : Type}
+  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List Lean.Name :=
+  params.invariants.filterMap fun p =>
+    if !p.holdsOn th st then some p.name else none
+
 -- class ModelChecker (ts : TransitionSystem ρ σ l) where
 --   isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ
 
