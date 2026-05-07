@@ -149,67 +149,45 @@ theorem nodeDecide_agreement (ρ : Type) (σ : Type) (node : Type) [node_dec_eq 
         (@agreement ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited val_ord χ χ_rep χ_rep_lawful
           σ_sub ρ_sub) :=
   by
-  veil_human
-  intro hround halive hnodec t hWt hmin n₁ n₂ v₁ v₂ hdec₁ hdec₂
+  unveil
   rcases hinv with
     ⟨hagree, _, _, hdecision_min, hcrash_limit, _, hdecision_crashed_after_end, _,
       hcrashed_le_round, _, hdecided_in_seen, _, hcrash_round_gap, _, hparticipants_equal⟩
-  -- Since `round = f + 1` and at most `f` crashes have happened, there was an
-  -- earlier crash-free round.
-  have hgap : ∃ r, r < st.round ∧ ∀ m : node, st.crashed m = false ∨ st.crashedInRound m ≠ r := by
-    apply hcrash_round_gap
-    rw [hround]
-    omega
-  obtain ⟨r, hr_lt, hcrash_free⟩ := hgap
-
-  -- Any node with an old decision must still be a participant in the current
-  -- round: either alive, or crashed exactly now at the end.
-  have hparticipant_of_decision {m : node} {v : value} (hdec : st.decision m v = true) :
+  intro hround halive hnodec t hWt hmin n₁ n₂ v₁ v₂ hdec₁ hdec₂
+  -- By pigeonhole: `f+1` rounds with at most `f` crashes gives a crash-free round.
+  obtain ⟨r, hr_lt, hcrash_free⟩ := hcrash_round_gap (by rw [hround]; omega)
+  -- A node that decided must still be a round participant (alive or crashed this round).
+  have hpart {m : node} {v : value} (hdec : st.decision m v = true) :
       st.crashed m = false ∨ st.crashed m = true ∧ st.crashedInRound m = st.round := by
     by_cases hcr : st.crashed m = true
-    · right
-      refine ⟨hcr, ?_⟩
-      have hafter := hdecision_crashed_after_end m v hdec hcr
-      have hle := hcrashed_le_round m
-      rw [hround] at hle ⊢
-      omega
-    · left
-      cases hcm : st.crashed m <;> simp [hcm] at hcr ⊢
-
-  -- After that crash-free round, all current-round participants have the same
-  -- `W`. Hence every old decided value is the same minimum `t` chosen by `n`.
-  have old_decision_eq_t {m : node} {v : value} (hdec : st.decision m v = true) : v = t := by
-    let hn_part :
-        st.crashed n = false ∨ st.crashed n = true ∧ st.crashedInRound n = st.round := Or.inl halive
-    have hm_part := hparticipant_of_decision hdec
-    have hWm_t : st.W m t = true := by
-      have hEq := hparticipants_equal r hr_lt hcrash_free m n t hm_part hn_part
-      simpa [hEq] using hWt
-    have hWn_v : st.W n v = true := by
-      have hEq := hparticipants_equal r hr_lt hcrash_free m n v hm_part hn_part
-      simpa [hEq] using hdecided_in_seen m v hdec
+    · refine .inr ⟨hcr, ?_⟩
+      have := hdecision_crashed_after_end m v hdec hcr
+      have := hcrashed_le_round m; rw [hround] at *; omega
+    · exact .inl (by grind)
+  -- After the crash-free round, all participants have identical `W` sets,
+  -- so any old decided value must equal the minimum `t` chosen by `n`.
+  have old_eq_t {m : node} {v : value} (hdec : st.decision m v = true) : v = t := by
+    have hn_part : st.crashed n = false ∨ st.crashed n = true ∧ st.crashedInRound n = st.round
+      := .inl halive
+    have hm_part := hpart hdec
     exact @TotalOrder.le_antisymm value val_ord v t
-      (hdecision_min m v hdec t hWm_t)
-      (hmin v hWn_v)
-
-  -- Each post-state decision is either the fresh `(n, t)` decision or an old one.
+      (hdecision_min m v hdec t (by simpa [(hparticipants_equal r hr_lt hcrash_free m n t
+        hm_part hn_part)] using hWt))
+      (hmin v (by simpa [(hparticipants_equal r hr_lt hcrash_free m n v
+        hm_part hn_part)] using
+        hdecided_in_seen m v hdec))
+  -- In the post-state, each decision is either the new `(n, t)` or an old one.
   have new_or_old {m : node} {v : value}
       (hdec : (n = m → ¬ t = v) → st.decision m v = true) :
       (n = m ∧ t = v) ∨ st.decision m v = true := by
     by_cases hnm : n = m
-    · by_cases htv : t = v
-      · exact Or.inl ⟨hnm, htv⟩
-      · exact Or.inr <| hdec (by intro _; exact htv)
-    · exact Or.inr <| hdec (by intro hnm'; exact False.elim (hnm hnm'))
-
-  rcases new_or_old hdec₁ with hnew₁ | hold₁
-  · rcases hnew₁ with ⟨rfl, rfl⟩
-    rcases new_or_old hdec₂ with hnew₂ | hold₂
-    · exact hnew₂.2
-    · exact (old_decision_eq_t hold₂).symm
-  · rcases new_or_old hdec₂ with hnew₂ | hold₂
-    · rcases hnew₂ with ⟨_, rfl⟩
-      exact old_decision_eq_t hold₁
-    · exact hagree n₁ n₂ v₁ v₂ hold₁ hold₂
+    · exact (em (t = v)).elim (fun h => .inl ⟨hnm, h⟩) (fun h => .inr (hdec fun _ => h))
+    · exact .inr (hdec fun h => absurd h hnm)
+  -- Every post-state decision value equals `t`: new ones by definition, old ones by `old_eq_t`.
+  have all_eq_t {m v} (hdec : (n = m → ¬ t = v) → st.decision m v = true) : v = t := by
+    rcases new_or_old hdec with ⟨_, rfl⟩ | hold
+    · rfl
+    · exact old_eq_t hold
+  exact (all_eq_t hdec₁).trans (all_eq_t hdec₂).symm
 
 end FloodSet
