@@ -234,12 +234,11 @@ theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th₀ : ρ}
 def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (result : ModelCheckingResult ρ σ κ Unit) : Prop :=
+  (params : SearchParameters ρ σ) (result : Option (SimulationResult ρ σ κ)) : Prop :=
   match result with
-  | .foundViolation _ violation (some trace) => Trace.witnessesSimulationViolation sys params trace violation
-  | .foundViolation _ _ none => False
-  | .noViolationFound _ _ => True
-  | .cancelled => True
+  | some (.foundViolation violation trace) => Trace.witnessesSimulationViolation sys params trace violation
+  | some .cancelled => True
+  | none => True
 
 theorem simulateOnceLoop_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ] [Inhabited (κ × σ)]
@@ -254,7 +253,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type} {th₀ : ρ}
   (hNoFail : trace.failingStep = none) :
   ∀ stepsLeft gen result,
     (simulateOnceLoop sys params th stepsLeft currSt trace gen).1 = some result ->
-      ReportedViolationSound sys params result := by
+      ReportedViolationSound sys params (some result) := by
   intro stepsLeft
   induction stepsLeft generalizing currSt trace with
   | zero =>
@@ -317,9 +316,9 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type} {th₀ : ρ}
 theorem simulateOnce_sound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ] [Inhabited σ] [Inhabited (κ × σ)]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (th : ρ) (gen : StdGen) (maxSteps : Nat) (result : ModelCheckingResult ρ σ κ Unit) :
+  (params : SearchParameters ρ σ) (th : ρ) (gen : StdGen) (maxSteps : Nat) (result : SimulationResult ρ σ κ) :
   (simulateOnce sys params th gen maxSteps).1 = some result ->
-    ReportedViolationSound sys params result := by
+    ReportedViolationSound sys params (some result) := by
   intro h
   unfold simulateOnce at h
   cases hStates : filterInitStatesByConstraints sys params th with
@@ -350,9 +349,9 @@ theorem runTraceAtSeed_sound {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (cfg : SimulateConfig)
   (traceIndex : Nat)
-  (result : ModelCheckingResult ρ σ κ Unit) (depth : Nat) :
+  (result : SimulationResult ρ σ κ) (depth : Nat) :
   runTraceAtSeed sys params th cfg traceIndex = some (result, depth) ->
-    ReportedViolationSound sys params result := by
+    ReportedViolationSound sys params (some result) := by
   intro h
   unfold runTraceAtSeed at h
   set traceSeed := cfg.seed + traceIndex

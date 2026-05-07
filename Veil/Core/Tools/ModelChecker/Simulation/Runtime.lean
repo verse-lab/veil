@@ -5,7 +5,7 @@ import Veil.Core.Tools.ModelChecker.Concrete.Progress
 namespace Veil.ModelChecker.Simulation
 
 private def noInitialStatesResult {ρ σ κ : Type} (cfg : SimulateConfig) : SimulateResult ρ σ κ := {
-  result := .noViolationFound 0 .exploredAllReachableStates
+  result := none
   tracesRun := 0
   maxTraces := cfg.maxTraces
   elapsedMs := 0
@@ -34,7 +34,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
   : m (SimulateResult ρ σ κ) := do
   if ← hooks.shouldStop traceIndex then
     return {
-      result := .cancelled
+      result := some .cancelled
       tracesRun := traceIndex
       maxTraces := cfg.maxTraces
       elapsedMs := 0
@@ -44,8 +44,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
   match remaining with
   | 0 =>
       return {
-        result := .noViolationFound cfg.maxTraces
-          (.earlyTermination (.reachedTraceLimit cfg.maxTraces))
+        result := none
         tracesRun := cfg.maxTraces
         maxTraces := cfg.maxTraces
         elapsedMs := 0
@@ -58,7 +57,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
       | some (result, stepsUsed) =>
           hooks.onViolation
           return {
-            result := result
+            result := some result
             tracesRun := traceIndex + 1
             maxTraces := cfg.maxTraces
             elapsedMs := 0
@@ -80,7 +79,7 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
   : SimulateResult ρ σ κ :=
   if shouldStop traceIndex then
     {
-      result := .cancelled
+      result := some .cancelled
       tracesRun := traceIndex
       maxTraces := cfg.maxTraces
       elapsedMs := 0
@@ -91,8 +90,7 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
     match remaining with
     | 0 =>
         {
-          result := .noViolationFound cfg.maxTraces
-            (.earlyTermination (.reachedTraceLimit cfg.maxTraces))
+          result := none
           tracesRun := cfg.maxTraces
           maxTraces := cfg.maxTraces
           elapsedMs := 0
@@ -103,7 +101,7 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
         match runTraceAtSeed sys params th cfg traceIndex with
         | some (result, stepsUsed) =>
             {
-              result := result
+              result := some result
               tracesRun := traceIndex + 1
               maxTraces := cfg.maxTraces
               elapsedMs := 0
@@ -170,7 +168,7 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
     sys params th cfg cfg.maxTraces 0
   let simResult := { simResult with elapsedMs := (← IO.monoMsNow) - startMs }
   match simResult.result with
-  | .cancelled => pure ()
+  | some .cancelled => pure ()
   | _ =>
       Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
         "Complete"

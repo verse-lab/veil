@@ -79,8 +79,8 @@ type ModelCheckingResult =
     }
   | {
       result: "no_violation_found";
-      explored_states: number;
-      termination_reason: TerminationReason;
+      explored_states?: number;
+      termination_reason?: TerminationReason;
       traces_run?: number;
       max_traces?: number;
       trace?: TraceData | null;
@@ -369,7 +369,15 @@ const ResultHeader: React.FC<{
     const countSuffix = count !== undefined ? ` (explored ${count} states)` : '';
     const countText = count !== undefined ? `Explored ${count} states` : null;
 
-    if (!reason) return countText;
+    if (!reason) {
+      if (tracesRun !== undefined && maxTraces !== undefined) {
+        return `Checked ${tracesRun}/${maxTraces} traces`;
+      }
+      if (tracesRun !== undefined) {
+        return `Checked ${tracesRun} traces`;
+      }
+      return countText;
+    }
     if (reason.kind === "explored_all_reachable_states") {
       return count !== undefined ? `Explored all reachable states (${count})` : `Explored all reachable states`;
     }

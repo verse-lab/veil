@@ -8,8 +8,13 @@ structure SimulateConfig where
   seed : Nat := 0
 deriving Inhabited, Repr
 
+inductive SimulationResult (ρ σ κ : Type) where
+  | cancelled
+  | foundViolation (violation : ViolationKind) (viaTrace : Trace ρ σ κ)
+deriving Inhabited, Repr
+
 structure SimulateResult (ρ σ κ : Type) where
-  result : ModelCheckingResult ρ σ κ Unit
+  result : Option (SimulationResult ρ σ κ)
   tracesRun : Nat
   maxTraces : Nat
   elapsedMs : Nat

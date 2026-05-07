@@ -152,16 +152,16 @@ def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (currSt : σ)
   (trace : Trace ρ σ κ)
   (gen : StdGen)
-  : Option (ModelCheckingResult ρ σ κ Unit) × StdGen × Nat :=
+  : Option (SimulationResult ρ σ κ) × StdGen × Nat :=
   match stepsLeft with
   | 0 => (none, gen, 0)
   | stepsLeft + 1 =>
     match decideAtState sys params th currSt with
     | .assertionFailure exId step =>
         let failedTrace := { trace with failingStep := some step }
-        (some (.foundViolation () (.assertionFailure exId) (some failedTrace)), gen, trace.steps.size + 1)
+        (some (.foundViolation (.assertionFailure exId) failedTrace), gen, trace.steps.size + 1)
     | .deadlock =>
-        (some (.foundViolation () .deadlock (some trace)), gen, trace.steps.size)
+        (some (.foundViolation .deadlock trace), gen, trace.steps.size)
     | .terminated =>
         (none, gen, trace.steps.size)
     | .continue nexts hNonempty =>
@@ -171,7 +171,7 @@ def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
         let trace := trace.push { transitionLabel := label, nextState := nextSt }
         let violations := violatedInvariantNames params th nextSt
         if !violations.isEmpty then
-          (some (.foundViolation () (.safetyFailure violations) (some trace)), gen, trace.steps.size)
+          (some (.foundViolation (.safetyFailure violations) trace), gen, trace.steps.size)
         else
           simulateOnceLoop sys params th stepsLeft nextSt trace gen
 termination_by stepsLeft
@@ -183,7 +183,7 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (gen : StdGen)
   (maxSteps : Nat)
-  : Option (ModelCheckingResult ρ σ κ Unit) × StdGen × Nat :=
+  : Option (SimulationResult ρ σ κ) × StdGen × Nat :=
   let initStates := filterInitStatesByConstraints sys params th
   match initStates with
   | [] => (none, gen, 0)
@@ -194,7 +194,7 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
       let initTrace : Trace ρ σ κ := { theory := th, initialState := initSt, steps := #[] }
       let initViolations := violatedInvariantNames params th initSt
       if !initViolations.isEmpty then
-        (some (.foundViolation () (.safetyFailure initViolations) (some initTrace)), gen, 0)
+        (some (.foundViolation (.safetyFailure initViolations) initTrace), gen, 0)
       else
         simulateOnceLoop sys params th maxSteps initSt initTrace gen
 
@@ -204,7 +204,7 @@ def runTraceAtSeed {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (cfg : SimulateConfig)
   (traceIndex : Nat)
-  : Option (ModelCheckingResult ρ σ κ Unit × Nat) :=
+  : Option (SimulationResult ρ σ κ × Nat) :=
   let traceSeed := cfg.seed + traceIndex
   let (maybeResult, _, depth) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
   maybeResult.map (fun result => (result, depth))
