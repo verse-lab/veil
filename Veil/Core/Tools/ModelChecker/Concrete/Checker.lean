@@ -91,13 +91,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
     setViolationFound progressInstanceId
     return ModelCheckingResult.foundViolation 0 (.assumptionFailure assumptionViolations) none
   -- Create a "filtered" version of the system
-  let sys := if params.stateConstraints.isEmpty then sys else {
-    initStates := sys.initStates.filter (params.satisfiesConstraints th)
-    tr := fun th' s => (sys.tr th' s).filter (fun (_, o) => match o with
-      | .success s' => params.satisfiesConstraints th s'
-      | .assertionFailure _ s' => params.satisfiesConstraints th s' -- assertion failures should satisfy constraints to be considered
-      | .divergence => true) -- well
-  }
+  let sys := Veil.ModelChecker.restrictSystemByStateConstraints sys params th
   let (ctx, distinctCount) ← match parallelCfg with
     | some cfg => do
       let mctx ← breadthFirstSearchParallel (σₕ := UInt64) params sys cfg progressInstanceId cancelToken
