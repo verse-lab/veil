@@ -16,7 +16,7 @@ private def assertionFailureWitness {σ κ : Type} : κ × ExecutionOutcome Int 
 def decideAtState {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (th : ρ) (currSt : σ) : StepDecision σ κ :=
-  let outcomes := filterOutcomesByConstraints sys params th currSt
+  let outcomes := sys.tr th currSt
   let failingStep := outcomes.findSome? assertionFailureWitness
   match failingStep with
   | some (exId, step) => .assertionFailure exId step
@@ -32,9 +32,9 @@ theorem decideAtState_assertionFailure_mem {ρ σ κ : Type} {th₀ : ρ}
   (exId : Int) (step : Step σ κ) :
   decideAtState sys params th currSt = .assertionFailure exId step ->
     (step.transitionLabel, ExecutionOutcome.assertionFailure exId step.nextState) ∈
-      filterOutcomesByConstraints sys params th currSt := by
+      sys.tr th currSt := by
   intro h
-  let outcomes := filterOutcomesByConstraints sys params th currSt
+  let outcomes := sys.tr th currSt
   cases hFind : outcomes.findSome? assertionFailureWitness with
   | none =>
       cases hNexts : (Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes).fst with
@@ -67,9 +67,9 @@ theorem decideAtState_continue_nexts {ρ σ κ : Type} {th₀ : ρ}
   (nexts : List (κ × σ)) (hNonempty : nexts ≠ []) :
   decideAtState sys params th currSt = .continue nexts hNonempty ->
     nexts = (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-      (filterOutcomesByConstraints sys params th currSt)).fst := by
+      (sys.tr th currSt)).fst := by
   intro h
-  let outcomes := filterOutcomesByConstraints sys params th currSt
+  let outcomes := sys.tr th currSt
   cases hFind : outcomes.findSome? assertionFailureWitness with
   | some found =>
       have : False := by
@@ -184,7 +184,7 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   (gen : StdGen)
   (maxSteps : Nat)
   : Option (SimulationResult ρ σ κ) × StdGen × Nat :=
-  let initStates := filterInitStatesByConstraints sys params th
+  let initStates := sys.initStates
   match initStates with
   | [] => (none, gen, 0)
   | hd :: tl =>
