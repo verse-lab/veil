@@ -262,6 +262,24 @@ structure SearchParameters (ρ σ : Type) where
 def SearchParameters.satisfiesConstraints (params : SearchParameters ρ σ) (th : ρ) (st : σ) : Bool :=
   params.stateConstraints.all fun c => c.holdsOn th st
 
+/-- Create a filtered transition system that explores only states satisfying
+state constraints. -/
+@[inline]
+def restrictSystemByStateConstraints {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) :
+  EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀ :=
+  if params.stateConstraints.isEmpty then sys else {
+    initStates := sys.initStates.filter (params.satisfiesConstraints th)
+    tr := fun th' st => (sys.tr th' st).filter fun (_, outcome) =>
+      match outcome with
+      | .success st' => params.satisfiesConstraints th st'
+      -- Assertion failures should satisfy constraints to be considered.
+      | .assertionFailure _ st' => params.satisfiesConstraints th st'
+      -- Divergence has no successor state to constrain.
+      | .divergence => true
+  }
+
 @[inline]
 def violatedInvariantNames {ρ σ : Type}
   (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List Lean.Name :=
