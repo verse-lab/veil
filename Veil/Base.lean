@@ -131,6 +131,12 @@ register_option veil.smt.finiteModelFind : Bool := {
   If you work in a decidable fragment, this will tend to speed things up."
 }
 
+register_option veil.smt.trust : Bool := {
+  defValue := true
+  descr := "If true, `veil_smt` trusts unsat results from the SMT solver. \
+  If false, `veil_smt` asks the SMT backend to reconstruct Lean proofs."
+}
+
 register_option veil.smt.timeout : Nat := {
   defValue := 60
   descr := "Timeout for the SMT solver in seconds. Default is 60 seconds."

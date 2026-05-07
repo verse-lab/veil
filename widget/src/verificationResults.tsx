@@ -102,6 +102,8 @@ interface VerificationCondition {
   isDormant?: boolean;
   /** Theorem text for inserting into the editor (only for non-proven VCs) */
   theoremText?: string | null;
+  /** True when this VC's selected successful proof witness contains `sorry`. */
+  proofHasSorry?: boolean;
 }
 
 interface VerificationResults {
@@ -120,7 +122,9 @@ interface InsertPosition {
 interface VerificationResultsProps {
   results: VerificationResults;
   /** Position after #check_invariants for theorem insertion */
-  insertPosition: InsertPosition;
+  theoremInsertPos: InsertPosition;
+  /** Position before #gen_spec for option insertion */
+  optionInsertPos?: InsertPosition | null;
   /** Document URI for edit operations */
   documentUri: string;
 }
@@ -451,10 +455,12 @@ const StructuredCexView: React.FC<{
   );
 };
 
-// ========== Theorem Insertion ==========
+const TRUST_RECONSTRUCTION_OPTION = 'set_option veil.smt.trust false';
+
+// ========== Editor Insertion ==========
 
 /** Hook to create a theorem inserter function */
-const useTheoremInserter = (documentUri: string, insertPosition: InsertPosition) => {
+const useTheoremInserter = (documentUri: string, theoremInsertPos: InsertPosition) => {
   const editorCtx = React.useContext(EditorContext);
 
   const insertTheorem = React.useCallback(async (theoremText: string) => {
@@ -467,8 +473,8 @@ const useTheoremInserter = (documentUri: string, insertPosition: InsertPosition)
         textDocument: { uri: documentUri, version: null },
         edits: [{
           range: {
-            start: { line: insertPosition.line, character: insertPosition.character },
-            end: { line: insertPosition.line, character: insertPosition.character }
+            start: { line: theoremInsertPos.line, character: theoremInsertPos.character },
+            end: { line: theoremInsertPos.line, character: theoremInsertPos.character }
           },
           newText: '\n\n' + theoremText
         }]
@@ -479,9 +485,44 @@ const useTheoremInserter = (documentUri: string, insertPosition: InsertPosition)
       console.error('Failed to insert theorem:', e);
       return false;
     }
-  }, [editorCtx, documentUri, insertPosition]);
+  }, [editorCtx, documentUri, theoremInsertPos]);
 
   return insertTheorem;
+};
+
+/** Hook to insert `set_option veil.smt.trust false` above `#gen_spec`. */
+const useTrustOptionInserter = (documentUri: string, optionInsertPos?: InsertPosition | null) => {
+  const editorCtx = React.useContext(EditorContext);
+
+  const insertOption = React.useCallback(async () => {
+    if (!editorCtx) {
+      console.error('EditorContext not available');
+      return false;
+    }
+    if (!optionInsertPos) {
+      console.error('Option insertion position not available');
+      return false;
+    }
+    try {
+      const edit = {
+        textDocument: { uri: documentUri, version: null },
+        edits: [{
+          range: {
+            start: { line: optionInsertPos.line, character: optionInsertPos.character },
+            end: { line: optionInsertPos.line, character: optionInsertPos.character }
+          },
+          newText: `${TRUST_RECONSTRUCTION_OPTION}\n`
+        }]
+      };
+      await editorCtx.api.applyEdit({ documentChanges: [edit] });
+      return true;
+    } catch (e) {
+      console.error('Failed to insert option:', e);
+      return false;
+    }
+  }, [editorCtx, documentUri, optionInsertPos]);
+
+  return insertOption;
 };
 
 /** Banner shown when there are VCs that need manual proof (unknown/error status) */
@@ -489,9 +530,9 @@ const ManualProofBanner: React.FC<{
   vcs: VerificationCondition[];
   alternativeMap: Map<number, VerificationCondition>;
   documentUri: string;
-  insertPosition: InsertPosition;
-}> = ({ vcs, alternativeMap, documentUri, insertPosition }) => {
-  const insertTheorem = useTheoremInserter(documentUri, insertPosition);
+  theoremInsertPos: InsertPosition;
+}> = ({ vcs, alternativeMap, documentUri, theoremInsertPos }) => {
+  const insertTheorem = useTheoremInserter(documentUri, theoremInsertPos);
   const [inserting, setInserting] = React.useState(false);
   const [dismissed, setDismissed] = React.useState(false);
 
@@ -534,6 +575,50 @@ const ManualProofBanner: React.FC<{
       >
         ×
       </button>
+    </div>
+  );
+};
+
+/** Banner shown when one or more VCs were proven by trusting the SMT solver. */
+const TrustedSmtBanner: React.FC<{
+  vcs: VerificationCondition[];
+  documentUri: string;
+  optionInsertPos?: InsertPosition | null;
+}> = ({ vcs, documentUri, optionInsertPos }) => {
+  const insertTrustOption = useTrustOptionInserter(documentUri, optionInsertPos);
+  const [inserting, setInserting] = React.useState(false);
+  const count = vcs.filter(vc =>
+    isInductionVC(vc) &&
+    !vc.isDormant &&
+    vc.proofHasSorry === true
+  ).length;
+
+  if (count === 0) return null;
+
+  const handleInsertTrustOption = async () => {
+    setInserting(true);
+    await insertTrustOption();
+    setInserting(false);
+  };
+
+  return (
+    <div
+      className="vr-trusted-smt-banner"
+      title="These goals were discharged with a trusted SMT result; no Lean proof was reconstructed. `set_option veil.smt.trust false` to enable proof reconstruction."
+    >
+      <span className="vr-trusted-smt-banner-icon">⚠️</span>
+      <span className="vr-trusted-smt-banner-text">
+        Trusting SMT solver for {count} goal{count === 1 ? '' : 's'}.{' '}
+        <button
+          className="vr-trusted-smt-option"
+          onClick={handleInsertTrustOption}
+          disabled={inserting || !optionInsertPos}
+          title="Insert this option above #gen_spec"
+        >
+          <code>{TRUST_RECONSTRUCTION_OPTION}</code>
+        </button>{' '}
+        to enable proof reconstruction.
+      </span>
     </div>
   );
 };
@@ -727,11 +812,11 @@ interface PropertyRowProps {
   vc: VerificationCondition;
   alternativeVC?: VerificationCondition;
   documentUri: string;
-  insertPosition: InsertPosition;
+  theoremInsertPos: InsertPosition;
   serverTime: number;
 }
 
-const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUri, insertPosition, serverTime }) => {
+const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUri, theoremInsertPos, serverTime }) => {
   const [expanded, setExpanded] = React.useState(false);
   const [showTRCounterexample, setShowTRCounterexample] = React.useState(true);
   const [showRawHtml, setShowRawHtml] = React.useState(false);
@@ -741,7 +826,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   const lastKnownTimeRef = React.useRef<number | null>(null);
 
   // Theorem insertion
-  const insertTheorem = useTheoremInserter(documentUri, insertPosition);
+  const insertTheorem = useTheoremInserter(documentUri, theoremInsertPos);
   // Only highlight unknown/error as "needs manual proof" - disproven VCs have counterexamples and aren't provable
   const needsManualProof = isManualProofStatus(effectiveStatus);
   const hasTheoremText = !!vc.theoremText;
@@ -1138,13 +1223,13 @@ interface ActionSectionProps {
   vcs: VerificationCondition[];
   alternativeMap: Map<number, VerificationCondition>;
   documentUri: string;
-  insertPosition: InsertPosition;
+  theoremInsertPos: InsertPosition;
   serverTime: number;
 }
 
-const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeMap, documentUri, insertPosition, serverTime }) => {
+const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeMap, documentUri, theoremInsertPos, serverTime }) => {
   const [expanded, setExpanded] = React.useState(true);
-  const insertTheorem = useTheoremInserter(documentUri, insertPosition);
+  const insertTheorem = useTheoremInserter(documentUri, theoremInsertPos);
   const [inserting, setInserting] = React.useState(false);
 
   // Get VCs that need manual proof (unknown/error/timeout, not disproven - those have counterexamples)
@@ -1191,7 +1276,7 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
               key={vc.id}
               vc={vc}
               documentUri={documentUri}
-              insertPosition={insertPosition}
+              theoremInsertPos={theoremInsertPos}
               alternativeVC={alternativeMap.get(vc.id)}
               serverTime={serverTime}
             />
@@ -1202,7 +1287,7 @@ const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeM
   );
 };
 
-const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, insertPosition, documentUri }) => {
+const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, theoremInsertPos, optionInsertPos, documentUri }) => {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all');
   const [showRawJson, setShowRawJson] = React.useState(false);
 
@@ -1517,6 +1602,53 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
     .vr-failure-banner-dismiss:hover {
       background: var(--vscode-toolbar-hoverBackground);
       color: var(--vscode-foreground);
+    }
+
+    .vr-trusted-smt-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      background: rgba(250, 173, 20, 0.1);
+      border: 1px solid rgba(250, 173, 20, 0.35);
+      border-radius: 6px;
+    }
+
+    .vr-trusted-smt-banner-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .vr-trusted-smt-banner-text {
+      font-size: 13px;
+      color: var(--vscode-foreground);
+      flex-grow: 1;
+    }
+
+    .vr-trusted-smt-option {
+      border: 0;
+      padding: 0;
+      margin: 0;
+      background: none;
+      color: var(--vscode-textLink-foreground);
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .vr-trusted-smt-option code {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .vr-trusted-smt-option:hover code {
+      color: var(--vscode-textLink-activeForeground);
+    }
+
+    .vr-trusted-smt-option:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
     }
 
     /* Section-level failed count and insert action */
@@ -2108,12 +2240,18 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
               })}
             </div>
 
+            <TrustedSmtBanner
+              vcs={results.vcs}
+              documentUri={documentUri}
+              optionInsertPos={optionInsertPos}
+            />
+
             {/* Banner for VCs needing manual proof */}
             <ManualProofBanner
               vcs={visibleVCs}
               alternativeMap={alternativeMap}
               documentUri={documentUri}
-              insertPosition={insertPosition}
+              theoremInsertPos={theoremInsertPos}
             />
 
             {filteredVCs.length === 0 ? (
@@ -2134,7 +2272,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
                             vc={vc}
                             alternativeVC={alternativeMap.get(vc.id)}
                             documentUri={documentUri}
-                            insertPosition={insertPosition}
+                            theoremInsertPos={theoremInsertPos}
                             serverTime={results.serverTime}
                           />
                         ))}
@@ -2157,7 +2295,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
                           vcs={vcs}
                           alternativeMap={alternativeMap}
                           documentUri={documentUri}
-                          insertPosition={insertPosition}
+                          theoremInsertPos={theoremInsertPos}
                           serverTime={results.serverTime}
                         />
                       ))}

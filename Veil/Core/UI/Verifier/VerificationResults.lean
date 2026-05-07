@@ -19,8 +19,10 @@ open Veil in
 structure VerificationResultsProps where
   /-- The verification results to display. -/
   results : VerificationResults VCMetadata SmtResult
-  /-- Position after #check_invariants for theorem insertion (line, character). -/
-  insertPosition : Lsp.Position
+  /-- Position after #check_invariants for inserting generated theorem stubs. -/
+  theoremInsertPos : Lsp.Position
+  /-- Position before #gen_spec for inserting the trust-disabling option. -/
+  optionInsertPos : Option Lsp.Position
   /-- Document URI for edit operations. -/
   documentUri : String
 deriving Server.RpcEncodable
@@ -47,8 +49,8 @@ private def displayWidget (atStx : Syntax) (html : Html) : CommandElabM Unit := 
     (return json% { html: $(← Server.rpcEncode html) })
     atStx
 
-/-- Compute the insert position (line after the syntax) and document URI. -/
-private def getInsertInfo (atStx : Syntax) : CommandElabM (Lsp.Position × String) := do
+/-- Compute the theorem insertion position (line after the syntax) and document URI. -/
+private def getTheoremInsertInfo (atStx : Syntax) : CommandElabM (Lsp.Position × String) := do
   let fileMap ← getFileMap
   let docUri := (← getFileName)
   -- Get position at end of the syntax, then move to start of next line
@@ -59,25 +61,48 @@ private def getInsertInfo (atStx : Syntax) : CommandElabM (Lsp.Position × Strin
   return (insertPos, docUri)
 
 def displayResults (atStx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
-  let (insertPosition, documentUri) ← getInsertInfo atStx
-  let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
+  let (theoremInsertPos, documentUri) ← getTheoremInsertInfo atStx
+  let html := Html.ofComponent VerificationResultsViewer {
+    results,
+    theoremInsertPos,
+    optionInsertPos := none,
+    documentUri
+  } #[]
   displayWidget atStx html
 
-private partial def runStreamingResults (insertPosition : Lsp.Position) (documentUri : String)
+private def getOptionInsertPos? (atStx : Syntax) : CommandElabM (Option Lsp.Position) := do
+  let fileMap ← getFileMap
+  let some startPos := atStx.getPos? | return none
+  let pos := fileMap.toPosition startPos
+  -- `FileMap.toPosition` uses 1-based lines, while LSP edits use 0-based
+  -- lines. The existing tail-position insertion relies on this offset to
+  -- insert after a command; inserting before a command needs the conversion.
+  return some { line := pos.line - 1, character := 0 }
+
+private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
+    (optionInsertPos : Option Lsp.Position) (documentUri : String)
     (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
     (token : RefreshToken) : CoreM Unit := do
   vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
   let (results, status) ← getter
-  let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
+  let html := Html.ofComponent VerificationResultsViewer {
+    results,
+    theoremInsertPos,
+    optionInsertPos,
+    documentUri
+  } #[]
   token.refresh html
   match status with
-  | .running => runStreamingResults insertPosition documentUri getter token
+  | .running => runStreamingResults theoremInsertPos optionInsertPos documentUri getter token
   | .done => pure ()
 
-def displayStreamingResults (atStx : Syntax) (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus)) : CommandElabM Unit := do
-  let (insertPosition, documentUri) ← getInsertInfo atStx
+def displayStreamingResults (atStx : Syntax)
+    (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
+    (optionStx? : Option Syntax := none) : CommandElabM Unit := do
+  let (theoremInsertPos, documentUri) ← getTheoremInsertInfo atStx
+  let optionInsertPos ← optionStx?.mapM getOptionInsertPos? <&> Option.join
   let html ← liftCoreM <| ProofWidgets.mkRefreshComponentM (.text "Loading...")
-    (runStreamingResults insertPosition documentUri getter)
+    (runStreamingResults theoremInsertPos optionInsertPos documentUri getter)
   displayWidget atStx html
 
 /-- Map VCStatus to emoji for text output. -/

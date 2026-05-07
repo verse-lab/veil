@@ -98,6 +98,7 @@ lean_lib «Veil» {
 @[default_target, test_driver]
 lean_lib VeilTest {
   globs := #[Glob.submodules `VeilTest]
+  leanOptions := #[⟨`weak.veil.smt.trust, false⟩]
 }
 
 lean_lib Examples {

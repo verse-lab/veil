@@ -22,6 +22,10 @@ example : True := by
   set_option veil.solver "custom" in
   veil_smt
 
+example : True := by
+  set_option veil.smt.trust true in
+  veil_smt
+
 macro_rules
   | `(tactic| veil_solve) => `(tactic| grind)
 

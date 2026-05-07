@@ -314,6 +314,14 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   -- The invariant VCs are started only when `#check_invariants` is run
   return { mod with _specFinalizedAt := some stx }
 
+private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
+  results.vcs.foldl (init := 0) fun count vc =>
+    if vc.proofHasSorry then count + 1 else count
+
+private def trustedSmtWarning (count : Nat) : MessageData :=
+  let goalWord := if count == 1 then "goal" else "goals"
+  m!"Trusting SMT solver for {count} {goalWord}. `set_option veil.smt.trust false` to enable proof reconstruction."
+
 /-- Log verification results asynchronously after all VCs complete. -/
 def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
   let msg ← Verifier.formatVerificationResults results
@@ -323,17 +331,23 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
   else
     unless ← isModelCheckCompileMode do
       logInfoAt stx msg
+  unless ← isModelCheckCompileMode do
+    let trustedCount := proofHasSorryGoalCount results
+    if trustedCount > 0 then
+      logWarningAt stx (trustedSmtWarning trustedCount)
 
 private def runFilteredInvariantCheck
     (stx : Syntax)
+    (mod : Module)
     (filter : VCMetadata → Bool)
     : CommandElabM Unit := do
   Verifier.runFilteredAsync filter (logVerificationResults stx)
-  Verifier.displayStreamingResults stx <|
-    Verifier.vcManager.atomically fun ref => do
+  Verifier.displayStreamingResults stx
+    (Verifier.vcManager.atomically fun ref => do
       let mgr ← ref.get
       let results ← mgr.toResults filter
-      pure (results, if mgr.isDoneFiltered filter then .done else .running)
+      pure (results, if mgr.isDoneFiltered filter then .done else .running))
+    mod.specFinalizedAtStx
 
 private def isInductionForAction (actionName : Name) : VCMetadata → Bool
   | .induction m => m.action == actionName
@@ -366,7 +380,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
     if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
     mod.throwIfSpecNotFinalized
-    runFilteredInvariantCheck stx VCMetadata.isInduction
+    runFilteredInvariantCheck stx mod VCMetadata.isInduction
 
 @[command_elab Veil.checkAction]
 def elabCheckAction : CommandElab := fun stx => do
@@ -379,7 +393,7 @@ def elabCheckAction : CommandElab := fun stx => do
     let actionName := stx[1].getId
     unless (getCheckableAction? mod actionName).isSome do
       throwUnknownCheckAction mod actionName
-    runFilteredInvariantCheck stx (isInductionForAction actionName)
+    runFilteredInvariantCheck stx mod (isInductionForAction actionName)
 
 
 @[command_elab Veil.genState]
