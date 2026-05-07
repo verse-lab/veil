@@ -221,8 +221,7 @@ def checkViolationsAndMaybeTerminate
   (assertionFailures : List (Int × σ)) :
   List (σₕ × ViolationKind) × Option (EarlyTerminationReason σₕ) :=
   -- Compute all violation conditions once
-  let safetyViolations := params.invariants.filterMap fun p =>
-    if !p.holdsOn th curr then some p.name else none
+  let safetyViolations := violatedInvariantNames params th curr
   let safetyViolation := !safetyViolations.isEmpty
   let deadlock := !hasSuccessfulTransition && !params.terminating.holdsOn th curr
 

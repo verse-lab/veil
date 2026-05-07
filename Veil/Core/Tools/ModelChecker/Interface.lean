@@ -262,6 +262,12 @@ structure SearchParameters (ρ σ : Type) where
 def SearchParameters.satisfiesConstraints (params : SearchParameters ρ σ) (th : ρ) (st : σ) : Bool :=
   params.stateConstraints.all fun c => c.holdsOn th st
 
+@[inline]
+def violatedInvariantNames {ρ σ : Type}
+  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List Lean.Name :=
+  params.invariants.filterMap fun p =>
+    if !p.holdsOn th st then some p.name else none
+
 -- class ModelChecker (ts : TransitionSystem ρ σ l) where
 --   isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ
 

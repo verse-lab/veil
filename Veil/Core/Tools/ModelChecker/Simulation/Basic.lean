@@ -22,12 +22,6 @@ structure SimulateResult (ρ σ κ : Type) where
   depth : Nat
 
 @[inline]
-def violatedInvariantNames {ρ σ : Type}
-  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List Lean.Name :=
-  params.invariants.filterMap fun p =>
-    if !p.holdsOn th st then some p.name else none
-
-@[inline]
 def filterInitStatesByConstraints {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (th : ρ) : List σ :=
