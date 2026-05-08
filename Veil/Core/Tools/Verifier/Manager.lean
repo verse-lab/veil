@@ -1,6 +1,7 @@
 import Lean
 import Std.Sync.Channel
 import Veil.Backend.SMT.Result
+import Veil.Util.TopologicalSort
 open Lean Std
 
 namespace Veil
@@ -388,6 +389,29 @@ def VCManager.undischargedTheorems [Monad m] [MonadQuotation m] [MonadError m] (
 open Lean.Meta.Tactic.TryThis in
 def VCManager.suggestions [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Suggestion) :=
   mgr.nodes.valuesArray.mapM (·.suggestion)
+
+/-- VC ids matching `filter`, ordered so upstream dependencies appear before
+their downstream dependents. Ties are broken by VC id for deterministic theorem
+declaration order. -/
+def VCManager.vcIdsInDependencyOrder (mgr : VCManager VCMetaT ResultT)
+    (filter : VCMetaT → Bool := fun _ => true) : Array VCId := Id.run do
+  let selectedIds := (List.range mgr._nextVcId).filter fun vcId =>
+    match mgr.nodes[vcId]? with
+    | some vc => filter vc.metadata
+    | none => false
+  topologicalSort selectedIds fun vcId =>
+    (mgr.upstream[vcId]?.getD {}).toList
+
+/-- The witness produced by the successful discharger for `vcId`, if there is
+one. Trace VCs can be `.proven` without a proof witness and therefore return
+`none`. -/
+def VCManager.provenWitness? (mgr : VCManager VCMetaT ResultT)
+    (vcId : VCId) : Option (VerificationCondition VCMetaT ResultT × Witness) := do
+  let vc ← mgr.nodes[vcId]?
+  let dischargerId ← vc.successful
+  match mgr._dischargerResults[(vcId, dischargerId)]? with
+  | some (.proven (some witness) _ _) => some (vc, witness)
+  | _ => none
 
 def Discharger.run (discharger : Discharger ResultT) : BaseIO (Discharger ResultT) := do
   match discharger.task with

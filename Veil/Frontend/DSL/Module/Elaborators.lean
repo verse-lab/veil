@@ -311,7 +311,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
     Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
     mod.generateInvariantVCs
-  -- The invariant VCs are started only when `#check_invariants` is run
+  -- Invariant VCs are generated here; verifier commands decide when to start them.
   return { mod with _specFinalizedAt := some stx }
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
@@ -536,6 +536,15 @@ def elabGenSpec : CommandElab := fun stx => do
     let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized stx
     localEnv.modifyModule (fun _ => mod)
+
+@[command_elab Veil.genTheorems]
+def elabGenTheorems : CommandElab := fun _stx => do
+  withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
+    if ← isModelCheckCompileMode then return
+    let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    let _ ← Verifier.waitFilteredSync (fun _ => true)
+    Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/

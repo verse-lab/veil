@@ -82,6 +82,7 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
   -- Create promises to track start time and result
   let startTimePromise ← IO.Promise.new
   let resultPromise ← IO.Promise.new
+  let env0 ← getEnv
   -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
   let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
     -- Wrap in profiler trace for discharger timing
@@ -96,6 +97,7 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
             let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
             let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
               withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+            let witness ← inlineFreshProofs env0 witness
             let endTime ← IO.monoMsNow
             if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
               throwError "unsolved goals"
