@@ -6,13 +6,10 @@ open Lean
 private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   (result : Option (SimulationResult ρ σ κ)) : Json :=
   match result with
-  | some (.foundViolation violation trace) => Json.mkObj
-      [ ("result", "found_violation")
-      , ("violation", toJson violation)
-      , ("trace", toJson trace)
-      , ("state_fingerprint", Json.null)
-      ]
-  | some .cancelled => Json.mkObj [("result", "cancelled")]
+  | some (.foundViolation violation trace) =>
+      toJson (ModelCheckingResult.foundViolation Json.null violation (some trace) : ModelCheckingResult ρ σ κ Json)
+  | some .cancelled =>
+      toJson (ModelCheckingResult.cancelled : ModelCheckingResult ρ σ κ Json)
   | none => Json.mkObj [("result", "no_violation_found")]
 
 instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ] : ToJson (SimulateResult ρ σ κ) where
