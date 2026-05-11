@@ -1,4 +1,5 @@
 import Lean
+import Lean.Meta.Tactic.TryThis
 import Veil.Base
 import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Infra.EnvExtensions
@@ -322,6 +323,23 @@ private def trustedSmtWarning (count : Nat) : MessageData :=
   let goalWord := if count == 1 then "goal" else "goals"
   m!"Trusting SMT solver for {count} {goalWord}. `set_option veil.smt.trust false` to enable proof reconstruction."
 
+private def addUndischargedTheoremSuggestion
+    (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
+  let some theoremText := Verifier.undischargedTheoremStubsText results | return
+  let replacement ← match stx.getPos?, stx.getTailPos? with
+    | some startPos, some endPos =>
+      let commandText := String.Pos.Raw.extract (← getFileMap).source startPos endPos
+      pure s!"{commandText}\n\n{theoremText}"
+    | _, _ =>
+      pure theoremText
+  let label := "Insert theorem stubs for undischarged verification conditions"
+  let suggestion : Lean.Meta.Tactic.TryThis.Suggestion := {
+    suggestion := .string replacement
+    toCodeActionTitle? := some fun _ => label
+  }
+  liftCoreM <| Lean.Meta.Tactic.TryThis.addSuggestion stx suggestion
+    (header := s!"{label}:\n")
+
 /-- Log verification results asynchronously after all VCs complete. -/
 def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
   let msg ← Verifier.formatVerificationResults results
@@ -335,6 +353,7 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
     let trustedCount := proofHasSorryGoalCount results
     if trustedCount > 0 then
       logWarningAt stx (trustedSmtWarning trustedCount)
+    addUndischargedTheoremSuggestion stx results
 
 private def runFilteredInvariantCheck
     (stx : Syntax)

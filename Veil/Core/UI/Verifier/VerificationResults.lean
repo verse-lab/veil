@@ -135,6 +135,38 @@ private def effectiveStatus (vc : VCResult VCMetadata SmtResult)
   let statuses := activeStatuses vc allVCs
   return effectiveStatusOrder.find? statuses.contains |>.getD vc.status
 
+private def isUndischargedStatus : Option VCStatus → Bool
+  | some .unknown | some .error | some .timeout => true
+  | some .proven | some .disproven | none => false
+
+def undischargedTheoremTexts (results : VerificationResults VCMetadata SmtResult) :
+    Array String := Id.run do
+  let mut texts := #[]
+  let vcs := results.vcs.qsort (·.id < ·.id)
+  for vc in vcs do
+    if vc.metadata.isInduction && !vc.isDormant && vc.alternativeFor.isNone &&
+        isUndischargedStatus (effectiveStatus vc results.vcs) then
+      if let some theoremText := vc.theoremText then
+        texts := texts.push theoremText
+  return texts
+
+def undischargedTheoremStubsText (results : VerificationResults VCMetadata SmtResult) :
+    Option String :=
+  let texts := undischargedTheoremTexts results
+  if texts.isEmpty then
+    none
+  else
+    some ("\n\n".intercalate texts.toList)
+
+private def formatUndischargedTheoremMessage
+    (results : VerificationResults VCMetadata SmtResult) : Option MessageData :=
+  let count := (undischargedTheoremTexts results).size
+  if count == 0 then
+    none
+  else
+    let conditionWord := if count == 1 then "condition" else "conditions"
+    some m!"{count} verification {conditionWord} could not be discharged automatically\n"
+
 /-- Format a JSON value as a string, with support for nested structures. -/
 private partial def formatJsonValue (json : Json) : String :=
   match json with
@@ -300,6 +332,8 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
     acc.insert (getAction vc) (acc.getD (getAction vc) #[] |>.push vc)
 
   let mut msg := m!""
+  if let some theoremMsg := formatUndischargedTheoremMessage results then
+    msg := msg ++ theoremMsg
   unless initVCs.isEmpty do
     msg := msg ++ m!"Initialization must establish the invariant:\n"
     for vc in initVCs do
