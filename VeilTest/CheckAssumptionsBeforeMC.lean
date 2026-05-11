@@ -2,10 +2,12 @@ import Veil
 
 set_option linter.unusedVariables false
 
-/-! # Tests for `assumptions_hold_by` clause in `#model_check`
+/-! # Tests for checking assumptions before model checking
 
-These tests verify that the `assumptions_hold_by` trailing clause correctly
-checks whether the provided theory satisfies the module's assumptions.
+These tests verify that `#model_check` evaluates whether the provided theory
+satisfies the module's assumptions before exploring states. The optional
+`assumptions_hold_by` trailing clause is still accepted as an additional static
+proof check.
 -/
 
 veil module CheckAssumptionsTest
@@ -33,26 +35,17 @@ invariant true
 
 #gen_spec
 
--- Test 1: Valid theory with assumptions_hold_by (default tactic: native_decide)
+-- Test 1: Valid theory without assumptions_hold_by
 /-- info: ✅ No violation (explored 2 states) -/
 #guard_msgs in
-#model_check interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) } assumptions_hold_by native_decide
+#model_check interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
 
--- Test 2: Invalid theory with assumptions_hold_by should fail
-/--
-error: Tactic `native_decide` evaluated that the proposition
-  assumption_0 { leader := fun n => n == 0 || n == 1 }
-is false
----
-info: ✅ No violation (explored 4 states)
--/
+-- Test 2: Invalid theory fails before exploring states
+/-- error: ❌ Violation: assumption_failure (violates: assumption_0) -/
 #guard_msgs in
-#model_check interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) || n == (1 : Fin 3) } assumptions_hold_by native_decide
-
--- Test 3: Invalid theory without assumptions_hold_by — no assumption error (backward compat)
 #model_check interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) || n == (1 : Fin 3) }
 
--- Test 4: Valid theory with custom tactic
+-- Test 3: Valid theory with optional static proof tactic
 /-- info: ✅ No violation (explored 2 states) -/
 #guard_msgs in
 #model_check interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) } assumptions_hold_by decide
@@ -84,7 +77,7 @@ invariant true
 
 #gen_spec
 
--- Test 5: Valid theory proved with a custom multi-step tactic
+-- Test 4: Valid theory proved with a custom multi-step tactic
 /-- info: ✅ No violation (explored 8 states) -/
 #guard_msgs in
 #model_check interpreted { node := Fin 3 } { weight := fun (n : Fin 3) => n.val + 1 }

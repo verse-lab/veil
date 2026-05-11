@@ -691,11 +691,16 @@ where
       (return json% { html: $(← Server.rpcEncode html) }) stx
 
   mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
+    let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
+      `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
+          ($(mkIdent `name) := $(quote sa.name))
+          ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName mod sa.name) $(mkIdent `th)))
     -- Build SafetyProperty.mk syntax for a StateAssertion
     let mkProp (sa : StateAssertion) : CommandElabM Term :=
       `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
           ($(mkIdent `name) := $(quote sa.name))
           ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
+    let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
     let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
     -- FIXME: Only recognizing the first termination property might confuse users
     let terminatingProp ← match mod.terminations[0]? with
@@ -708,7 +713,7 @@ where
                     $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
       if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
       else pure base
-    `({ $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
+    `({ $(mkIdent `assumptions):ident := $assumptionList, $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
         $(mkIdent `stateConstraints):ident := $constraintList,
         $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
 
@@ -918,7 +923,8 @@ where
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
-    -- Check assumptions if clause is present (skip in compile mode and if no assumptions)
+    -- Optionally prove assumptions statically; the concrete model checker also
+    -- evaluates them at runtime before BFS.
     if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel

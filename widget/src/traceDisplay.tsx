@@ -28,7 +28,7 @@ interface ParsedState {
 }
 type Trace = ParsedState[];
 
-type ViolationKind = "safety_failure" | "deadlock" | "assertion_failure";
+type ViolationKind = "assumption_failure" | "safety_failure" | "deadlock" | "assertion_failure";
 
 interface AssertionInfo {
   procedureName: string;
@@ -322,6 +322,10 @@ const ResultHeader: React.FC<{
         icon = "💥";
         label = "Assertion Failed";
         break;
+      case "assumption_failure":
+        icon = "⚠️";
+        label = "Assumption Violation Found";
+        break;
       default:
         icon = "⚠️";
         label = "Safety Violation Found";
@@ -330,9 +334,9 @@ const ResultHeader: React.FC<{
       <div className="result-header result-violation">
         <span className="result-icon">{icon}</span>
         <span className="result-label">{label}</span>
-        {violation.kind === "safety_failure" && violation.violates && violation.violates.length > 0 && (
+        {(violation.kind === "safety_failure" || violation.kind === "assumption_failure") && violation.violates && violation.violates.length > 0 && (
           <div className="result-details">
-            <strong>Violated properties:</strong> {violation.violates.join(", ")}
+            <strong>{violation.kind === "assumption_failure" ? "Violated assumptions" : "Violated properties"}:</strong> {violation.violates.join(", ")}
           </div>
         )}
         {violation.kind === "assertion_failure" && violation.assertion_info && (
