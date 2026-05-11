@@ -219,6 +219,76 @@ private def formatCounterexamples (vc : VCResult VCMetadata SmtResult)
 
   if hasAny then some msg else none
 
+private structure DiagnosticEntry where
+  message : String
+  sources : Array String
+deriving Inhabited
+
+private def addDiagnosticEntry (entries : Array DiagnosticEntry) (source message : String) :
+    Array DiagnosticEntry :=
+  match entries.findIdx? (·.message == message) with
+  | some idx =>
+    let entry := entries[idx]!
+    if entry.sources.contains source then
+      entries
+    else
+      entries.set! idx { entry with sources := entry.sources.push source }
+  | none =>
+    entries.push { message, sources := #[source] }
+
+private def dischargerErrorMessages : DischargerResult SmtResult → Array String
+  | .error exs _ => exs.map (fun (_, json) => formatJsonValue json)
+  | .proven _ _ _ | .disproven _ _ | .unknown _ _ => #[]
+
+private def dischargerUnknownReasons : DischargerResult SmtResult → Array String
+  | .unknown (some (.unknown reasons)) _ => reasons
+  | .proven _ _ _ | .disproven _ _ | .unknown _ _ | .error _ _ => #[]
+
+private def activeRelatedVCs (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Array (VCResult VCMetadata SmtResult) :=
+  allVCs.foldl (init := #[vc]) fun acc altVC =>
+    if altVC.alternativeFor == some vc.id && !altVC.isDormant then
+      acc.push altVC
+    else
+      acc
+
+private def collectDiagnostics
+    (extract : DischargerResult SmtResult → Array String)
+    (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Array DiagnosticEntry := Id.run do
+  let mut entries := #[]
+  for relatedVC in activeRelatedVCs vc allVCs do
+    for discharger in relatedVC.timing.dischargers do
+      let source := discharger.name.toString
+      for result in discharger.result.toList do
+        for message in extract result do
+          entries := addDiagnosticEntry entries source message
+  return entries
+
+private def indentBlock (indent text : String) : String :=
+  "\n".intercalate ((text.splitOn "\n").map fun line => indent ++ line)
+
+private def formatDiagnostics (heading : String) (entries : Array DiagnosticEntry) :
+    Option MessageData := Id.run do
+  if entries.isEmpty then
+    return none
+  let mut msg := m!"      {heading}:\n"
+  for entry in entries do
+    msg := msg ++ m!"        {", ".intercalate entry.sources.toList}\n"
+    msg := msg ++ m!"{indentBlock "          " entry.message}\n"
+  return some msg
+
+private def formatFailureDiagnostics (status : Option VCStatus)
+    (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Option MessageData :=
+  match status with
+  | some .error | some .timeout =>
+    formatDiagnostics "Exceptions" (collectDiagnostics dischargerErrorMessages vc allVCs)
+  | some .unknown =>
+    formatDiagnostics "Reasons for Unknown"
+      (collectDiagnostics dischargerUnknownReasons vc allVCs)
+  | some .proven | some .disproven | none => none
+
 /-- Format verification results as text output for logging. -/
 def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationResults VCMetadata SmtResult) : m MessageData := do
   let includeCounterexamples := veil.printCounterexamples.get (← getOptions)
@@ -239,6 +309,8 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
       if includeCounterexamples && status == some .disproven then
         if let some ceMsg := formatCounterexamples vc results.vcs then
           msg := msg ++ ceMsg
+      if let some diagnosticMsg := formatFailureDiagnostics status vc results.vcs then
+        msg := msg ++ diagnosticMsg
   unless actionGroups.isEmpty do
     msg := msg ++ m!"The following set of actions must preserve the invariant and successfully terminate:\n"
     for (actionName, vcs) in actionGroups.toArray do
@@ -250,6 +322,8 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
         if includeCounterexamples && status == some .disproven then
           if let some ceMsg := formatCounterexamples vc results.vcs then
             msg := msg ++ ceMsg
+        if let some diagnosticMsg := formatFailureDiagnostics status vc results.vcs then
+          msg := msg ++ diagnosticMsg
   return msg
 
 /-- Check if any VCs have non-proven status. -/
