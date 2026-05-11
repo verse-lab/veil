@@ -438,6 +438,24 @@ def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := d
   | .finished (.proven _ _ _) => return true
   | _ => return false
 
+/-- Interactive theorem dischargers take precedence over automatic dischargers:
+when a VC has at least one explicit `@[veil]` theorem, only those interactive
+dischargers should contribute to scheduling and aggregate status reporting. -/
+def VerificationCondition.effectiveDischargers
+    (vc : VerificationCondition VCMetaT ResultT) : Array (Discharger ResultT) :=
+  let interactiveDischargers := vc.dischargers.filter (·.isInteractive)
+  if interactiveDischargers.isEmpty then vc.dischargers else interactiveDischargers
+
+def VerificationCondition.hasInteractiveDischarger
+    (vc : VerificationCondition VCMetaT ResultT) : Bool :=
+  vc.dischargers.any (·.isInteractive)
+
+def VerificationCondition.cancelNonInteractiveDischargers
+    (vc : VerificationCondition VCMetaT ResultT) : BaseIO Unit := do
+  for discharger in vc.dischargers do
+    unless discharger.isInteractive do
+      discharger.cancelTk.set
+
 /-- Get the start time if the promise has been resolved (i.e., the discharger has started). -/
 def Discharger.startTime (discharger : Discharger ResultT) : BaseIO (Option Nat) := do
   let task := discharger.startTimePromise.result?
@@ -452,6 +470,8 @@ def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT Re
   match vc.successful with
   | some _ => return .none
   | none =>
+    if vc.hasInteractiveDischarger then
+      return none
     for discharger in vc.dischargers do
       match ← discharger.status with
       | .notStarted => return some discharger
@@ -517,7 +537,7 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
   if vc.successful.isSome then
     .proven
   else
-    let results := vc.dischargers.filterMap fun discharger =>
+    let results := vc.effectiveDischargers.filterMap fun discharger =>
       mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]?
     let (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout) :=
       results.foldl
@@ -542,11 +562,24 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
   let mut mgr := mgr
   let vcId := id.vcId
   let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
+  let incomingIsInteractive := match vc.dischargers[id.dischargerId]? with
+    | some discharger => discharger.isInteractive
+    | none => false
+  if vc.hasInteractiveDischarger && !incomingIsInteractive then
+    return mgr
+  let wasAlreadySuccessful := vc.successful.isSome
+  if incomingIsInteractive then
+    vc.cancelNonInteractiveDischargers
+    if wasAlreadySuccessful then
+      vc := { vc with successful := none }
+      mgr := { mgr with
+        nodes := mgr.nodes.insert vcId vc
+        _doneWith := mgr._doneWith.erase vcId }
   let mut vcStatus := .unknown
   -- Store the discharger result for JSON serialization
   mgr := { mgr with _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res }
   -- A late failure from another discharger must not undo a proof we already recorded.
-  if vc.successful.isSome && !res.isSuccessful then
+  if vc.successful.isSome && !res.isSuccessful && !incomingIsInteractive then
     return { mgr with _doneWith := mgr._doneWith.insert vcId .proven }
   -- Update downstream in-degrees
   match res with
@@ -555,12 +588,13 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
     if vc.successful.isNone then
       vc := { vc with successful := some id.dischargerId }
       mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
-      let downstream := match mgr.downstream[vcId]? with
-      | some downstream => downstream
-      | none => HashSet.emptyWithCapacity 0
-      for downstreamVc in downstream do
-        let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
-        mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
+      unless wasAlreadySuccessful do
+        let downstream := match mgr.downstream[vcId]? with
+        | some downstream => downstream
+        | none => HashSet.emptyWithCapacity 0
+        for downstreamVc in downstream do
+          let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
+          mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
   | .disproven _ _ => vcStatus := .disproven
   | .unknown _ _ => vcStatus := .unknown
   | .error _ _ => vcStatus := .error
@@ -570,7 +604,7 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
     vcStatus := mgr.exhaustedVCStatus vc'
     mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
     -- Trigger alternative VCs if this VC failed (not proven)
-    if vcStatus != .proven then
+    if vcStatus != .proven && !vc'.hasInteractiveDischarger then
       if let .some altIds := mgr.alternativeVCs[vcId]? then
         for altId in altIds do
           -- Wake up the alternative VC by removing from dormant set

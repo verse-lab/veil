@@ -178,8 +178,8 @@ def mkDischargerResultData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr :
 /-- Calculate total time for a VC by summing all completed dischargers; returns none if none finished -/
 def VCManager.vcTotalTime (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Option Nat := do
   let vc ← mgr.nodes[vcId]?
-  let times := (List.range vc.dischargers.size).filterMap fun i =>
-    mgr._dischargerResults[(vcId, i)]?.map (·.time)
+  let times := vc.effectiveDischargers.toList.filterMap fun discharger =>
+    mgr._dischargerResults[(vcId, discharger.id.dischargerId)]?.map (·.time)
   if times.isEmpty then none else some (times.foldl (· + ·) 0)
 
 /-- Get time for successful discharger (if VC is proven) -/
@@ -208,8 +208,8 @@ private def TimingData.proofHasSorry (timing : TimingData ResultT) : Bool :=
 
 /-- Build `TimingData` for a specific VC. -/
 def mkTimingData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) : m (TimingData ResultT) := do
-  let dischargerDetails ← (List.range vc.dischargers.size).toArray.mapM fun i =>
-    mkDischargerResultData mgr vc i
+  let dischargerDetails ← vc.effectiveDischargers.mapM fun discharger =>
+    mkDischargerResultData mgr vc discharger.id.dischargerId
   return {
     totalTime := mgr.vcTotalTime vc.uid
     successfulDischargerId := vc.successful
