@@ -259,6 +259,26 @@ private theorem derive_eq_template {act : VeilM m ρ σ α}
   act.toTransitionDerived = tr :=
   Eq.trans (congrArg VeilSpecM.toTransitionDerived (heq1 (fun _ => True) |> funext)) heq2
 
+private def transitionFromWpSimplifier : Simplifier :=
+  Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config }
+    |>.andThen (Simp.simp #[`wpSimp, ``and_true, ``true_and])
+    |>.andThen (Mathlib.Tactic.Push.pushCore (.const ``Not) {} none)
+
+private def proveDerivedTransitionEq (nm : Name) (allArgs : Array Term) (vs : Array Expr)
+    (trDef_fqn : Name) : TermElabM Unit := do
+  let actionFqn ← getFullyQualifiedName nm
+  let derivedDef ← derivedTransitionTemplate actionFqn allArgs
+  let derivedExpr ← withoutErrToSorry $ elabTermAndSynthesize derivedDef none
+  trace[veil.debug] "[{decl_name%}] derivedExpr for derived_eq: {derivedExpr}"
+  let proof ← do
+    let wpEq_fqn ← resolveGlobalConstNoOverloadCore (toWpEqName nm)
+    let heq1 ← Meta.mkAppOptM wpEq_fqn (vs.map some)
+    let trEq_fqn ← resolveGlobalConstNoOverloadCore (toTransitionEqName nm)
+    let heq2 ← Meta.mkAppOptM trEq_fqn (vs.map some)
+    Meta.mkAppM ``derive_eq_template #[heq1, heq2]
+  let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
+  proveEqABoutBody derivedExpr trDef_fqn vs proof (toDerivedEqName nm) attrs
+
 /-- Pre-compute the transition for the given action, store it in the `act.ext.tr`
 definition, and prove `act.ext.tr_eq` which states that this definition is equal to
 `VeilSpecM.toTransitionDerived (wp act.post)`. -/
@@ -275,10 +295,8 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
       trace[veil.debug] "[{decl_name%}] e: {e}"
       -- (2) Simplify
       Meta.lambdaTelescope e fun xs body => do
-        let simp := Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config }
-          |>.andThen (Simp.simp #[`wpSimp, ``and_true, ``true_and])   -- for rewriting with WP equality theorem, and some minor things
-          |>.andThen (Mathlib.Tactic.Push.pushCore (.const ``Not) {} none)    -- for pushing negations down to get more rewriting opportunities
-        let resBody ← withTraceNode (`veil.perf.extract.trSimp ++ nm) (fun _ => return s!"trSimp {nm}") do simp body
+        let resBody ← withTraceNode (`veil.perf.extract.trSimp ++ nm) (fun _ => return s!"trSimp {nm}") do
+          transitionFromWpSimplifier body
         -- (3) Construct the expression
         -- The expression for `act.ext.tr`; **TODO** register as a derived definition
         let trExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) resBody.expr
@@ -286,23 +304,8 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
         let trDef_fqn ← addVeilDefinition (toTransitionName nm) trExpr (attr := #[{name := `reducible}] ++ attrs)
         -- (4) Prove the equality theorem
         proveEqABoutBody body trDef_fqn (vs ++ xs) (← resBody.getProof) (toTransitionEqName nm) #[]
-        -- (5) Prove the derived_eq theorem: VeilM.toTransitionDerived act.ext = act.ext.tr
-        -- by connecting `toWpEq` and `toTransitionEq` theorems
-        -- Use the action's fully qualified name (nm is already the external mode name)
-        let actionFqn ← getFullyQualifiedName nm
-        let derivedDef ← derivedTransitionTemplate actionFqn allArgs
-        -- Elaborate within the same binder context (vs are already bound)
-        let derivedExpr ← withoutErrToSorry $ elabTermAndSynthesize derivedDef none
-        trace[veil.debug] "[{decl_name%}] derivedExpr for derived_eq: {derivedExpr}"
-        let proof ← do
-          let wpEq_fqn ← resolveGlobalConstNoOverloadCore (toWpEqName nm)
-          let heq1 ← Meta.mkAppOptM wpEq_fqn (vs.map some)
-          let trEq_fqn ← resolveGlobalConstNoOverloadCore (toTransitionEqName nm)
-          let heq2 ← Meta.mkAppOptM trEq_fqn (vs.map some)
-          let res ← Meta.mkAppM ``derive_eq_template #[heq1, heq2]
-          pure res
-        let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
-        proveEqABoutBody derivedExpr trDef_fqn vs proof (toDerivedEqName nm) attrs
+        -- (5) Prove the derived_eq theorem.
+        proveDerivedTransitionEq nm allArgs vs trDef_fqn
 
 end AuxiliaryDefinitions
 
@@ -403,9 +406,10 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams spec l stx
   mod.defineProcedureCore pi eDo ps true
 
-/-- When `act` is given in the transition form, `act.ext.tr` will be defined
-based on its syntax, and `act.do`, `act` and `act.ext` will be defined
-using `Transition.toVeilM`. -/
+/-- When `act` is given in the transition form, `act.do`, `act` and `act.ext`
+will be defined using `Transition.toVeilM`. The `act.ext.tr` relation is then
+derived from `act.ext`'s WP, just like for do-notation actions, so the generated
+WP/TR equivalence theorems remain available. -/
 def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders)) (t : Term) (stx : Syntax) : CommandElabM Module := do
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
@@ -424,7 +428,6 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
     instantiateMVars tmp
   -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
-  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr (compile := !(← isModelCheckCompileMode))
-  mod.defineProcedureCore pi eDo ps false
+  mod.defineProcedureCore pi eDo ps true
 
 end Veil

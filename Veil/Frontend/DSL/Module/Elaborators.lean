@@ -641,6 +641,7 @@ def elabGenTheorems : CommandElab := fun _stx => do
     mod.throwIfSpecNotFinalized
     let _ ← Verifier.waitFilteredSync (fun _ => true)
     Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
+    Verifier.addEquivalentInductionTheoremsInDependencyOrder (fun _ => true)
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/

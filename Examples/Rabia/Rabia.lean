@@ -488,4 +488,6 @@ theorem phase_rnd2_inv_33 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : D
           intro N Valt hVote
           exact hLocked N Valt (fun _ => hVote)) Q hMembersP
 
+#gen_theorems
+
 end Rabia

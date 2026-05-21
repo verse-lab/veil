@@ -1,4 +1,5 @@
 import Veil.Frontend.DSL.Infra.EnvExtensions
+import Veil.Frontend.DSL.Util
 import Veil.Core.Tools.Verifier.Manager
 import Veil.Core.Tools.Verifier.Results
 import Std.Sync.Mutex
@@ -7,7 +8,7 @@ import Veil.Util.Meta
 
 namespace Veil.Verifier
 
-open Lean Elab Command Std
+open Lean Elab Command Term Std
 
 -- FIXME: this should be in `EnvExtensions.lean`, but putting it there triggers
 -- the bug fixed in [#10217](https://github.com/leanprover/lean4/pull/10217).
@@ -184,10 +185,22 @@ private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : 
   unless ← Meta.isDefEq info.type statement do
     throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
 
-private def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
+private def vcTheoremFullName (vc : VerificationCondition VCMetadata SmtResult) : TermElabM Name := do
+  return (← getCurrNamespace).append vc.name
+
+private def vcTheoremAvailable (vc : VerificationCondition VCMetadata SmtResult) : TermElabM Bool := do
+  let fullName ← vcTheoremFullName vc
+  let some info := (← getEnv).find? fullName
+    | return false
+  Meta.isDefEq info.type (← vc.toVCStatement.type)
+
+/-- Add a theorem declaration for a VC using the provided proof witness.
+Existing declarations with the same type are accepted to keep `#gen_theorems`
+idempotent; existing declarations with another type are rejected. -/
+def addVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
     (witness : Witness) : CommandElabM Unit := do
   liftTermElabM do
-    let fullName := (← getCurrNamespace).append vc.name
+    let fullName ← vcTheoremFullName vc
     let statement ← vc.toVCStatement.type
     if (← getEnv).contains fullName then
       ensureExistingTheoremMatches fullName statement
@@ -195,6 +208,71 @@ private def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
     let witness ← instantiateMVars witness
     let _ ← addVeilTheorem vc.name statement witness
     return ()
+
+private def inductionMetadata? (vc : VerificationCondition VCMetadata SmtResult) :
+    Option InductionVCMetadata :=
+  match vc.metadata with
+  | .induction m => some m
+  | .trace _ => none
+
+private def isBridgeableInductionPair (source target : VerificationCondition VCMetadata SmtResult) :
+    Bool :=
+  match inductionMetadata? source, inductionMetadata? target with
+  | some sourceMeta, some targetMeta =>
+    sourceMeta.action == targetMeta.action &&
+      sourceMeta.property == targetMeta.property &&
+      ((sourceMeta.style == .wp && targetMeta.style == .tr) ||
+        (sourceMeta.style == .tr && targetMeta.style == .wp))
+  | _, _ => false
+
+private def derivedTransitionEqFullName? (actName : Name) : TermElabM (Option Name) := do
+  let fullName := (← getCurrNamespace).append (toDerivedEqName (toExtName actName))
+  if (← getEnv).contains fullName then
+    return some fullName
+  else
+    return none
+
+private def mkEquivalentInductionWitness (source target : VerificationCondition VCMetadata SmtResult) :
+    TermElabM (Option Witness) := do
+  let some sourceMeta := inductionMetadata? source | return none
+  let some targetMeta := inductionMetadata? target | return none
+  unless isBridgeableInductionPair source target do
+    return none
+  let some derivedEqName ← derivedTransitionEqFullName? sourceMeta.action
+    | return none
+  let sourceName ← vcTheoremFullName source
+  let sourceIdent := mkIdent sourceName
+  let derivedEqIdent := mkIdent derivedEqName
+  let assumingEqIdent := mkIdent (`Veil ++ `Transition ++ `meetsSpecificationIfSuccessfulAssuming_eq)
+  let soundIdent := mkIdent (`Veil ++ `VeilM ++ `toTransitionDerived_sound)
+  let proofStx? ← match sourceMeta.style, targetMeta.style with
+    | .wp, .tr =>
+      some <$> `(term| by
+        simpa [← $assumingEqIdent:ident, $soundIdent:ident, $derivedEqIdent:ident] using $sourceIdent:ident)
+    | .tr, .wp =>
+      some <$> `(term| by
+        simpa [$assumingEqIdent:ident, ← $soundIdent:ident, ← $derivedEqIdent:ident] using $sourceIdent:ident)
+    | _, _ => pure none
+  let some proofStx := proofStx?
+    | return none
+  let statement ← target.toVCStatement.type
+  let witness ← instantiateMVars <| ← withSynthesize (postpone := .no) <|
+    withoutErrToSorry $ elabTermEnsuringType proofStx statement
+  if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
+    throwError "failed to generate equivalent VC theorem `{target.name}` from `{source.name}`"
+  return some witness
+
+private def addEquivalentTheoremIfAvailable (source target : VerificationCondition VCMetadata SmtResult) :
+    CommandElabM Unit := do
+  let sourceAvailable ← liftTermElabM <| vcTheoremAvailable source
+  unless sourceAvailable do
+    return
+  let targetAvailable ← liftTermElabM <| vcTheoremAvailable target
+  if targetAvailable then
+    return
+  match ← liftTermElabM <| mkEquivalentInductionWitness source target with
+  | some witness => addVCTheorem target witness
+  | none => return
 
 /-- Add theorem declarations for all already-proven VCs matching `filter`.
 
@@ -207,6 +285,26 @@ def addProvenTheoremsInDependencyOrder (filter : VCMetadata → Bool) : CommandE
   let mgr ← vcManager.atomically fun ref => ref.get
   for vcId in mgr.vcIdsInDependencyOrder filter do
     if let some (vc, witness) := mgr.provenWitness? vcId then
-      addProvenVCTheorem vc witness
+      addVCTheorem vc witness
+
+/-- Add theorem declarations for dormant WP/TR alternatives whose paired VC has
+already been materialized as a theorem. These proof terms use the generated
+semantic equivalence theorems and do not affect VC scheduling or SMT state. -/
+def addEquivalentInductionTheoremsInDependencyOrder (filter : VCMetadata → Bool) : CommandElabM Unit := do
+  let mgr ← vcManager.atomically fun ref => ref.get
+  for primaryId in mgr.vcIdsInDependencyOrder filter do
+    let some primaryVC := mgr.nodes[primaryId]?
+      | continue
+    let some altIds := mgr.alternativeVCs[primaryId]?
+      | continue
+    for altId in altIds do
+      let some altVC := mgr.nodes[altId]?
+        | continue
+      unless filter primaryVC.metadata && filter altVC.metadata do
+        continue
+      unless isBridgeableInductionPair primaryVC altVC do
+        continue
+      addEquivalentTheoremIfAvailable primaryVC altVC
+      addEquivalentTheoremIfAvailable altVC primaryVC
 
 end Veil.Verifier

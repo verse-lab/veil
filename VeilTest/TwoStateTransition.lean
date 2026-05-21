@@ -101,4 +101,19 @@ theorem byz_inv_0_tr (ρ : Type) (σ : Type) (address : Type) [address_dec_eq : 
       (@inv_0 ρ σ address address_dec_eq address_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub) :=
   by veil_solve_tr
 
+#gen_theorems
+
+run_cmd do
+  let env ← Lean.getEnv
+  for decl in #[
+    `TwoStateTransitionTest.byz.ext.derived_eq,
+    `TwoStateTransitionTest.byz_inv_0,
+    `TwoStateTransitionTest.byz_inv_0_tr,
+    `TwoStateTransitionTest.withargs.ext.derived_eq,
+    `TwoStateTransitionTest.withargs_inv_0,
+    `TwoStateTransitionTest.withargs_inv_0_tr
+  ] do
+    unless env.contains decl do
+      throwError "expected generated transition theorem declaration `{decl}`"
+
 end TwoStateTransitionTest

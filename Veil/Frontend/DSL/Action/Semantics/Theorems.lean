@@ -238,6 +238,14 @@ lemma Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM m
   apply wp_cons act; rotate_left; apply hwp _ _ hpre
   intro _ _ _; aesop
 
+lemma Transition.meetsSpecificationIfSuccessfulAssuming_eq [Inhabited α] (act : VeilM m ρ σ α)
+    (assu : ρ → Prop) (pre post : SProp ρ σ) :
+  act.toTransition.meetsSpecificationIfSuccessfulAssuming assu pre post =
+    act.meetsSpecificationIfSuccessfulAssuming assu pre post := by
+  unfold Transition.meetsSpecificationIfSuccessfulAssuming
+    VeilM.meetsSpecificationIfSuccessfulAssuming
+  apply Transition.meetsSpecificationIfSuccessful_eq
+
 lemma Transition.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
   act.toTransition.preservesInvariantsIfSuccesful inv = act.preservesInvariantsIfSuccesful inv := by
   apply Transition.meetsSpecificationIfSuccessful_eq
