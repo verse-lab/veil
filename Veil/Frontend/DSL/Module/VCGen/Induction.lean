@@ -282,8 +282,6 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
     These VCs check that each action preserves each invariant clause. -/
 def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
-  let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp) else `(by veil_solve_wp)
-  let trTactic ← `(by veil_solve_tr)
   -- Prepare all VC data outside the lock
   let vcData ← actsToCheck.foldlM (init := #[]) fun acc act => do
     let clauseVCs ← mod.checkableInvariants.foldlM (init := #[]) fun acc' invClause => do
@@ -295,15 +293,80 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
     return acc ++ clauseVCs
   -- Add all VCs atomically
   Verifier.withVCManager fun ref => do
-    for (act, wpVC, trVC) in vcData do
+    for (_act, wpVC, trVC) in vcData do
       let mgr ← ref.get
       -- WP-style VC (primary)
       let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
-      let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
       -- TR-style VC (alternative) - only runs when WP-style VC fails
-      let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
-      let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+      let (mgr, _trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
       ref.set mgr
+
+private def restrictedWpTactic (support : Array Name) : CommandElabM Term := do
+  let supportIds := support.map mkIdent
+  `(by
+    veil_intros
+    veil_wp
+    veil_enforce_invset_support [$[$supportIds],*]
+    veil_concretize_wp
+    veil_fol
+    veil_solve)
+
+private def restrictedTrTactic (support : Array Name) : CommandElabM Term := do
+  let supportIds := support.map mkIdent
+  `(by
+    veil_intros
+    veil_simp only [$(mkIdent `actSimp):ident] at *
+    veil_enforce_invset_support [$[$supportIds],*]
+    veil_simp only [$(mkIdent `invSimp):ident] at *
+    veil_simp only [$(mkIdent `ifSimp):ident] at *
+    veil_destruct only [$(mkIdent ``Exists):ident, $(mkIdent ``And):ident]
+    veil_split_ifs
+    all_goals (veil_concretize_tr; veil_fol; veil_solve))
+
+private def wpTacticForSupport (support? : Option (Array Name)) : CommandElabM Term := do
+  match support? with
+  | some support => restrictedWpTactic support
+  | none => `(by veil_solve_wp)
+
+private def trTacticForSupport (support? : Option (Array Name)) : CommandElabM Term := do
+  match support? with
+  | some support => restrictedTrTactic support
+  | none => `(by veil_solve_tr)
+
+private def shouldAttachInvariantDischarger (filter : VCMetadata → Bool) : VerificationCondition VCMetadata SmtResult → Bool
+  | vc =>
+    if !filter vc.metadata then
+      false
+    else
+      match vc.metadata with
+      | .induction m => m.property != `doesNotThrow
+      | .trace _ => false
+
+def Module.attachInvariantDischargers (_mod : Module) (filter : VCMetadata → Bool)
+    (support? : Option (Array Name) := none) : CommandElabM Unit := do
+  let wpTactic ← wpTacticForSupport support?
+  let trTactic ← trTacticForSupport support?
+  Verifier.withVCManager fun ref => do
+    let mut mgr ← ref.get
+    for (vcId, vc) in mgr.nodes.toArray do
+      unless shouldAttachInvariantDischarger filter vc do
+        continue
+      match vc.metadata with
+      | .induction indMeta =>
+        let tactic ← if indMeta.action == initializerName then
+          match indMeta.style with
+          | .wp => `(by veil_solve_wp)
+          | .tr => `(by veil_solve_tr)
+        else
+          match indMeta.style with
+          | .wp => pure wpTactic
+          | .tr => pure trTactic
+        let suffix := match indMeta.style with
+          | .wp => "_WP"
+          | .tr => "_TR"
+        mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm tactic indMeta.action (nameSuffix := suffix))
+      | .trace _ => pure ()
+    ref.set mgr
 
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/
 def Module.generateVCs (mod : Module) : CommandElabM Unit := do

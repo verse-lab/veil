@@ -136,6 +136,7 @@ syntax (name := __veil_concretize_state_wp) "__veil_concretize_state_wp" : tacti
 syntax (name := __veil_concretize_state_tr) "__veil_concretize_state_tr" : tactic
 syntax (name := __veil_concretize_fields_wp) "__veil_concretize_fields_wp" ("!")? : tactic
 syntax (name := __veil_concretize_fields_tr) "__veil_concretize_fields_tr" : tactic
+syntax (name := veil_enforce_invset_support) "veil_enforce_invset_support" "[" ident,* "]" : tactic
 
 syntax (name := veil_intros) "veil_intros" : tactic
 /-- Do `intros` to bring all higher-order values (e.g., values of structures
@@ -874,6 +875,30 @@ def elabVeilIntros : DesugarTacticM Unit := veilWithMainContext do
   let tac ← `(tactic| unhygienic intros; (try first | $wpIntro:tactic | $trIntro:tactic ); (try unhygienic intros))
   veilEvalTactic tac
 
+def elabVeilEnforceInvSetSupport (supportIds : Array Ident) : DesugarTacticM Unit := veilWithMainContext do
+  let mod ← getCurrentModule
+  let supportFullNames ← supportIds.mapM (fun id => resolveGlobalConstNoOverloadCore id.getId)
+  let supportSet := Std.HashSet.ofArray supportFullNames
+  let invariantFullNames ← mod.invariants.mapM (fun inv => resolveGlobalConstNoOverloadCore inv.name)
+  let invariantSet := Std.HashSet.ofArray invariantFullNames
+
+  veilEvalTactic $ ← `(tactic| try veil_simp only [$(mkIdent `derivedInvSimp):ident] at $(mkIdent `hinv):ident)
+  veilEvalTactic $ ← `(tactic| try veil_destruct only [$(mkIdent ``And):ident])
+
+  let lctx ← getLCtx
+  for decl in lctx do
+    if decl.isImplementationDetail then continue
+    let some fn := decl.type.getAppFn'.constName? | continue
+    if invariantSet.contains fn && !supportSet.contains fn then
+      veilEvalTactic $ ← `(tactic| try clear $(mkIdent decl.userName):ident)
+
+@[tactic veil_enforce_invset_support]
+def evalVeilEnforceInvSetSupport : Tactic := fun stx => do
+  match stx with
+  | `(tactic| veil_enforce_invset_support [$[$supportIds],*]) =>
+    (elabVeilEnforceInvSetSupport supportIds).runByOption stx
+  | _ => throwUnsupportedSyntax
+
 -- NOTE: For now, this is effectively `introv` (but not exactly, since
 -- `introv` does not skip over mdata); if the goal is properly HO-lifted,
 -- then this should bring all higher-order values into the local context.
@@ -906,7 +931,7 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
     let initialSimps := initialSimps.map Lean.mkIdent
     let ghostRelTac ← if unfoldghostRel?
       then `(tactic| skip )
-      else `(tactic| (__veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
+      else `(tactic| (try __veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
     let concretizeFieldsTac ← if fast
       then `(tactic| __veil_concretize_fields_wp !)
       else `(tactic| __veil_concretize_fields_wp)

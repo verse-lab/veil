@@ -55,6 +55,57 @@ def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : State
     mod := { mod with _assertionSets := mod._assertionSets.insert set (currentAssertions.insert sc.name) }
   return mod
 
+/-! ## Invariant Sets -/
+
+def StateAssertion.isInvariantLike (sa : StateAssertion) : Bool :=
+  match sa.kind with
+  | .invariant | .safety | .trustedInvariant => true
+  | _ => false
+
+def Module.findAssertion? (mod : Module) (name : Name) : Option StateAssertion :=
+  mod.assertions.find? (·.name == name)
+
+def Module.findInvariantLikeAssertion? (mod : Module) (name : Name) : Option StateAssertion := do
+  let sa ← mod.findAssertion? name
+  if sa.isInvariantLike then some sa else none
+
+def Module.throwIfInvSetAlreadyDeclared [Monad m] [MonadError m] (mod : Module) (name : Name) : m Unit := do
+  if mod._invSets.contains name then
+    throwError "invset {name} has already been declared"
+
+def Module.registerInvSet [Monad m] [MonadError m] (mod : Module) (invSet : InvSet) : m Module := do
+  mod.throwIfInvSetAlreadyDeclared invSet.name
+  return { mod with _invSets := mod._invSets.insert invSet.name invSet }
+
+def Module.validateInvSetTargets [Monad m] [MonadError m] (mod : Module) (invSet : InvSet) : m Unit := do
+  for target in invSet.targets do
+    unless (mod.findInvariantLikeAssertion? target).isSome do
+      throwError "invset {invSet.name} references unknown invariant clause {target}"
+
+partial def Module.resolveInvSetSupport [Monad m] [MonadError m]
+    (mod : Module) (name : Name) (seen : Std.HashSet Name := {}) : m (Std.HashSet Name) := do
+  if seen.contains name then
+    throwError "cyclic invset extends chain involving {name}"
+  let some invSet := mod._invSets[name]?
+    | throwError "unknown invset {name}"
+  mod.validateInvSetTargets invSet
+  let mut support := invSet.targets
+  let seen := seen.insert name
+  for parent in invSet.parents do
+    support := support.union (← mod.resolveInvSetSupport parent seen)
+  return support
+
+def Module.resolveInvSetTargets [Monad m] [MonadError m]
+    (mod : Module) (name : Name) : m (Std.HashSet Name) := do
+  let some invSet := mod._invSets[name]?
+    | throwError "unknown invset {name}"
+  mod.validateInvSetTargets invSet
+  return invSet.targets
+
+def Module.validateInvSets [Monad m] [MonadError m] (mod : Module) : m Unit := do
+  for invSet in mod._invSets.valuesArray do
+    discard <| mod.resolveInvSetSupport invSet.name
+
 /-! ## Tactic Infrastructure -/
 
 section AssertionElab

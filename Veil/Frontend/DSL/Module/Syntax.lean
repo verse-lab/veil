@@ -53,6 +53,8 @@ scoped syntax (name := kw_procedure) "procedure" : veilKeyword
 
 scoped syntax (name := kw_open_isolate) "open_isolate" : veilKeyword
 scoped syntax (name := kw_close_isolate) "close_isolate" : veilKeyword
+scoped syntax (name := kw_invset) "invset" : veilKeyword
+scoped syntax (name := kw_extends) "extends" : veilKeyword
 
 scoped syntax (name := kw_trusted) "trusted" : veilKeyword
 
@@ -261,6 +263,9 @@ scoped syntax (name := propertyName) "[" ident "]" : propertyName
 scoped syntax (name := openIsolate) kw_open_isolate ident ("with" ident+)? : command
 scoped syntax (name := closeIsolate) kw_close_isolate : command
 
+scoped syntax (name := invsetBlock) kw_invset ident (kw_extends ident*)? "{" command* "}" : command
+scoped syntax (name := invsetExplicit) kw_invset ident (kw_extends ident*)? ":=" "{" ident,* "}" : command
+
 declare_syntax_cat propertyTrustKind
 
 /-- This property is assumed to hold. `assumption`s can only talk about
@@ -304,6 +309,7 @@ scoped syntax (name := genSpec) kw_gen_spec : command
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
 scoped syntax (name := checkInvariants) "#check_invariants" : command
+scoped syntax (name := checkInvariantsInvSet) "#check_invariants" ident ("using" ident*)? : command
 
 scoped syntax (name := checkAction) "#check_action" ident : command
 

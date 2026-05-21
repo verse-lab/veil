@@ -262,6 +262,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   throwIfNoInitializerDefined mod
   warnIfNoInvariantsDefined mod
   warnIfNoActionsDefined mod
+  mod.validateInvSets
   let mod ← if (← isModelCheckCompileMode) then pure mod else do
     let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
       let (assumptionCmd, mod) ← mod.assembleAssumptions
@@ -359,7 +360,9 @@ private def runFilteredInvariantCheck
     (stx : Syntax)
     (mod : Module)
     (filter : VCMetadata → Bool)
+    (support? : Option (Array Name) := none)
     : CommandElabM Unit := do
+  mod.attachInvariantDischargers filter support?
   Verifier.runFilteredAsync filter (logVerificationResults stx)
   Verifier.displayStreamingResults stx
     (Verifier.vcManager.atomically fun ref => do
@@ -370,6 +373,10 @@ private def runFilteredInvariantCheck
 
 private def isInductionForAction (actionName : Name) : VCMetadata → Bool
   | .induction m => m.action == actionName
+  | .trace _ => false
+
+private def isInductionForInvSetTargets (targets : Std.HashSet Name) : VCMetadata → Bool
+  | .induction m => m.property != `doesNotThrow && targets.contains m.property
   | .trace _ => false
 
 private def getCheckableAction? (mod : Module) (actionName : Name) : Option ProcedureSpecification :=
@@ -391,7 +398,19 @@ private def throwUnknownCheckAction (mod : Module) (actionName : Name) : Command
       s!"Available actions: {", ".intercalate availableActions.toList}"
   throwError s!"Unknown action {actionName} for #check_action. {suggestion}"
 
-@[command_elab Veil.checkInvariants]
+private def resolveSupportForInvSetCheck
+    (mod : Module) (target : Name) (supports : Array Name) : CommandElabM (Std.HashSet Name × Std.HashSet Name) := do
+  let targets ← mod.resolveInvSetTargets target
+  let support ← (if supports.isEmpty then
+    mod.resolveInvSetSupport target
+  else do
+    let mut support := targets
+    for supportName in supports do
+      support := support.union (← mod.resolveInvSetSupport supportName)
+    pure support)
+  return (targets, support)
+
+@[command_elab Veil.checkInvariants, command_elab Veil.checkInvariantsInvSet]
 def elabCheckInvariants : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode `veil.perf.elaborator.checkInvariants (fun _ => return "#check_invariants") do
@@ -399,7 +418,16 @@ def elabCheckInvariants : CommandElab := fun stx => do
     if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
     mod.throwIfSpecNotFinalized
-    runFilteredInvariantCheck stx mod VCMetadata.isInduction
+    match stx with
+    | `(command| #check_invariants) =>
+      runFilteredInvariantCheck stx mod VCMetadata.isInduction
+    | `(command| #check_invariants $target:ident) =>
+      let (targets, support) ← resolveSupportForInvSetCheck mod target.getId #[]
+      runFilteredInvariantCheck stx mod (isInductionForInvSetTargets targets) (some support.toArray)
+    | `(command| #check_invariants $target:ident using $supports:ident*) =>
+      let (targets, support) ← resolveSupportForInvSetCheck mod target.getId (supports.map (·.getId))
+      runFilteredInvariantCheck stx mod (isInductionForInvSetTargets targets) (some support.toArray)
+    | _ => throwUnsupportedSyntax
 
 @[command_elab Veil.checkAction]
 def elabCheckAction : CommandElab := fun stx => do
@@ -547,6 +575,55 @@ def elabAssertion : CommandElab := fun stx => do
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
     if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) && !(← isModelCheckCompileMode) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
     localEnv.modifyModule (fun _ => mod')
+
+private def registerInvSetFromCurrentModule
+    (name : Name) (parents : Array Name) (targets : Std.HashSet Name) (stx : Syntax)
+    : CommandElabM Unit := do
+  let mod ← getCurrentModule (errMsg := "You cannot declare an invset outside of a Veil module!")
+  let invSet : InvSet := { name := name, targets := targets, parents := parents, userSyntax := stx }
+  let mod ← mod.registerInvSet invSet
+  localEnv.modifyModule (fun _ => mod)
+
+private def assertionTargetsSince (mod : Module) (startIdx : Nat) : Std.HashSet Name := Id.run do
+  let mut targets := Std.HashSet.emptyWithCapacity
+  for assertion in mod.assertions[startIdx:] do
+    if assertion.isInvariantLike then
+      targets := targets.insert assertion.name
+  return targets
+
+@[command_elab Veil.invsetBlock]
+def elabInvSetBlock : CommandElab := fun stx => do
+  let elaborate (name : Ident) (parents : Array Ident) (cmds : Array (TSyntax `command)) : CommandElabM Unit := do
+    let mod ← getCurrentModule (errMsg := "You cannot declare an invset outside of a Veil module!")
+    mod.throwIfSpecAlreadyFinalized
+    mod.throwIfInvSetAlreadyDeclared name.getId
+    let startIdx := mod.assertions.size
+    for cmd in cmds do
+      elabVeilCommand cmd
+    let mod ← getCurrentModule
+    let targets := assertionTargetsSince mod startIdx
+    registerInvSetFromCurrentModule name.getId (parents.map (·.getId)) targets stx
+  match stx with
+  | `(command|invset $name:ident extends $parents:ident* { $cmds:command* }) =>
+    elaborate name parents cmds
+  | `(command|invset $name:ident { $cmds:command* }) =>
+    elaborate name #[] cmds
+  | _ => throwUnsupportedSyntax
+
+@[command_elab Veil.invsetExplicit]
+def elabInvSetExplicit : CommandElab := fun stx => do
+  let elaborate (name : Ident) (parents : Array Ident) (targets : Array Ident) : CommandElabM Unit := do
+    let mod ← getCurrentModule (errMsg := "You cannot declare an invset outside of a Veil module!")
+    mod.throwIfSpecAlreadyFinalized
+    mod.throwIfInvSetAlreadyDeclared name.getId
+    let targetSet := Std.HashSet.ofArray (targets.map (·.getId))
+    registerInvSetFromCurrentModule name.getId (parents.map (·.getId)) targetSet stx
+  match stx with
+  | `(command|invset $name:ident extends $parents:ident* := { $targets:ident,* }) =>
+    elaborate name parents targets
+  | `(command|invset $name:ident := { $targets:ident,* }) =>
+    elaborate name #[] targets
+  | _ => throwUnsupportedSyntax
 
 @[command_elab Veil.genSpec]
 def elabGenSpec : CommandElab := fun stx => do

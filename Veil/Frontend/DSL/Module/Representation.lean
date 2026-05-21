@@ -255,6 +255,16 @@ deriving Inhabited
 
 def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
 
+structure InvSet where
+  name : Name
+  /-- Invariant-like clauses directly selected by this invset. -/
+  targets : Std.HashSet Name
+  /-- Invsets whose support is available by default when this invset is checked. -/
+  parents : Array Name
+  /-- The user-written syntax that resulted in the declaration of this invset. -/
+  userSyntax : Syntax
+deriving Inhabited
+
 /--
   A `procedure` is a chunk of imperative code that takes arguments and
   potentially returns a value.
@@ -369,6 +379,10 @@ structure Module where
   `#check_invariants` or `#model_check` is invoked. Derived definitions
   can still be added after this. -/
   protected _specFinalizedAt : Option Syntax := none
+
+  /-- Named sets of invariant-like clauses used to choose check targets and
+  tactic-visible support facts. -/
+  protected _invSets : Std.HashMap Name InvSet := Std.HashMap.emptyWithCapacity
 
   /-- Assertions can be grouped into "sets", which are checked
   independently of each other. Sets are per-module. By default, all
