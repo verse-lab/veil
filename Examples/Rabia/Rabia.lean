@@ -278,8 +278,1116 @@ set_option veil.smt.timeout 120
 -- set_option veil.smt.trust false
 #gen_spec
 
-#time #check_invariants Protocol
 
+theorem TotalOrderWithMinimum.prev_unique {α : Type} [TotalOrderWithMinimum α] {p q r : α}
+    (hp : TotalOrderWithMinimum.next p r) (hq : TotalOrderWithMinimum.next q r) : p = q := by
+  have hp_next := (TotalOrderWithMinimum.next_def p r).mp hp
+  have hq_next := (TotalOrderWithMinimum.next_def q r).mp hq
+  by_cases hpq : p = q
+  · exact hpq
+  rcases TotalOrderWithMinimum.le_total p q with hpq_le | hqp_le
+  · have hpq_lt : TotalOrderWithMinimum.lt p q :=
+      (TotalOrderWithMinimum.le_lt p q).mpr ⟨hpq_le, hpq⟩
+    have hrq_le : TotalOrderWithMinimum.le r q := hp_next.2 q hpq_lt
+    have hqr := (TotalOrderWithMinimum.le_lt q r).mp hq_next.1
+    have hqr_eq : q = r := TotalOrderWithMinimum.le_antisymm q r hqr.1 hrq_le
+    exact False.elim (hqr.2 hqr_eq)
+  · have hqp_lt : TotalOrderWithMinimum.lt q p :=
+      (TotalOrderWithMinimum.le_lt q p).mpr ⟨hqp_le, fun h => hpq h.symm⟩
+    have hrp_le : TotalOrderWithMinimum.le r p := hq_next.2 p hqp_lt
+    have hpr := (TotalOrderWithMinimum.le_lt p r).mp hp_next.1
+    have hpr_eq : p = r := TotalOrderWithMinimum.le_antisymm p r hpr.1 hrp_le
+    exact False.elim (hpr.2 hpr_eq)
+
+theorem TotalOrderWithMinimum.next_unique {α : Type} [TotalOrderWithMinimum α] {p q r : α}
+    (hq : TotalOrderWithMinimum.next p q) (hr : TotalOrderWithMinimum.next p r) : q = r := by
+  have hq_next := (TotalOrderWithMinimum.next_def p q).mp hq
+  have hr_next := (TotalOrderWithMinimum.next_def p r).mp hr
+  exact TotalOrderWithMinimum.le_antisymm q r (hq_next.2 r hr_next.1) (hr_next.2 q hq_next.1)
+
+theorem TotalOrderWithMinimum.next_ne {α : Type} [TotalOrderWithMinimum α] {p r : α}
+    (h : TotalOrderWithMinimum.next p r) : p ≠ r := by
+  exact ((TotalOrderWithMinimum.le_lt p r).mp ((TotalOrderWithMinimum.next_def p r).mp h).1).2
+
+theorem TotalOrderWithMinimum.eq_or_lt_of_lt_next {α : Type} [TotalOrderWithMinimum α] {p q r : α}
+    (hnext : TotalOrderWithMinimum.next q r) (hlt : TotalOrderWithMinimum.lt p r) :
+    p = q ∨ TotalOrderWithMinimum.lt p q := by
+  have hn := (TotalOrderWithMinimum.next_def q r).mp hnext
+  rcases TotalOrderWithMinimum.le_total p q with hpq | hqp
+  · by_cases hpq_eq : p = q
+    · exact Or.inl hpq_eq
+    · exact Or.inr ((TotalOrderWithMinimum.le_lt p q).mpr ⟨hpq, hpq_eq⟩)
+  · by_cases hqp_eq : q = p
+    · exact Or.inl hqp_eq.symm
+    · have hq_lt_p : TotalOrderWithMinimum.lt q p :=
+        (TotalOrderWithMinimum.le_lt q p).mpr ⟨hqp, hqp_eq⟩
+      have hr_le_p : TotalOrderWithMinimum.le r p := hn.2 p hq_lt_p
+      have hp_lt_r := (TotalOrderWithMinimum.le_lt p r).mp hlt
+      have hpr_eq : p = r := TotalOrderWithMinimum.le_antisymm p r hp_lt_r.1 hr_le_p
+      exact False.elim (hp_lt_r.2 hpr_eq)
+
+theorem ThreeValuedType.eq_of_ne_question_of_ne_same {α : Type} [ThreeValuedType α] {x y z : α}
+    (hxq : x ≠ ThreeValuedType.vquestion) (hyq : y ≠ ThreeValuedType.vquestion)
+    (hxz : x ≠ z) (hyz : y ≠ z) (hzq : z ≠ ThreeValuedType.vquestion) : x = y := by
+  have hxCases := ThreeValuedType.ax4 x
+  have hyCases := ThreeValuedType.ax4 y
+  have hzCases := ThreeValuedType.ax4 z
+  grind
+
+
+@[veil]
+theorem phase_rnd2_good_succ_good (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
+    [node_inhabited : Inhabited.{1} node] (set_majority : Type) [set_majority_dec_eq : DecidableEq.{1} set_majority]
+    [set_majority_inhabited : Inhabited.{1} set_majority] (set_f_plus_1 : Type)
+    [set_f_plus_1_dec_eq : DecidableEq.{1} set_f_plus_1] [set_f_plus_1_inhabited : Inhabited.{1} set_f_plus_1]
+    [bg : Background node set_majority set_f_plus_1] (phase : Type) [phase_dec_eq : DecidableEq.{1} phase]
+    [phase_inhabited : Inhabited.{1} phase] [tot : TotalOrderWithMinimum phase] (proposal_value : Type)
+    [proposal_value_dec_eq : DecidableEq.{1} proposal_value] [proposal_value_inhabited : Inhabited.{1} proposal_value]
+    (state_value : Type) [state_value_dec_eq : DecidableEq.{1} state_value]
+    [state_value_inhabited : Inhabited.{1} state_value] [tv : ThreeValuedType state_value] (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f) (χ __veil_f)
+          (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ]
+    [ρ_sub : IsSubReaderOf (@Theory node set_majority set_f_plus_1 phase proposal_value state_value) ρ]
+    [phase_rnd2_dec_0 :
+      delta% @Rabia.phase_rnd2._veil_dec_type_0 χ node phase state_value set_majority set_f_plus_1 proposal_value χ_rep]
+    [phase_rnd2_dec_1 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_1 χ phase set_majority node set_f_plus_1 bg state_value proposal_value χ_rep]
+    [phase_rnd2_dec_2 : delta% @Rabia.phase_rnd2._veil_dec_type_2 phase tot]
+    [phase_rnd2_dec_3 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_3 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_4 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_4 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_5 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_5 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_6 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_6 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_7 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_7 χ phase state_value tv node set_majority set_f_plus_1 proposal_value χ_rep] :
+    Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
+      (@phase_rnd2.ext ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub phase_rnd2_dec_0 phase_rnd2_dec_1 phase_rnd2_dec_2 phase_rnd2_dec_3 phase_rnd2_dec_4
+        phase_rnd2_dec_5 phase_rnd2_dec_6 phase_rnd2_dec_7)
+      (@Assumptions ρ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv ρ_sub)
+      (@Invariants ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub)
+      (@good_succ_good ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  rename_i n p psucc
+  rcases hinv with
+    ⟨hProposeUnique, hDecisionFullValInv, hDecisionFullValQuorum, hDecisionFullValValid, hDecisionFullValAgree,
+      hDecisionFullNoValInv, hInPhaseUnique, hVoteRnd1Le, hVoteRnd2Le, hVoteRnd2ImpliesVoteRnd1,
+      hInPhaseVote, hNoFutureVoteRnd1, hNoFutureVoteRnd2, hVoteRnd1NonQuestion, hVoteRnd1Unique,
+      hVoteRnd2Unique, hVoteRnd2Agreement, hVoteRnd2NonQuestionVoteRnd1, hDecisionInPhase,
+      hInPhaseNoDecision, hDecisionNonQuestion, hDecisionFp1, hNoCoinQuestion, hCoin01, hCoinFp1Question,
+      hDecisionNoCoin, hCoinMembers, hNextVoteMembers, hNextVoteNoCoinWitness, hVotePred,
+      hDecisionLockNext, hLockedRnd2, hCoinQuestionMajority, hLockedWitness, hLockedNoCoin, hLockedNext,
+      hDecisionNextWitness, hDecisionNextNoCoin, hLockedDecisionAgree, hDecisionNextAgree,
+      hDecisionSameRoundAgree, hLockedUnique, hGoodSucc, hGoodZero, hStartedPred, hDecisionStarted,
+      hVoteRnd2VoteRnd1, hDecisionVoteRnd1⟩
+  intro hinPhase _ _ hMembers hNext
+  have goodSuccCore
+      (vote' : node → phase → state_value → Prop)
+      (decision' : node → phase → state_value → Prop)
+      (hDecisionStep :
+        ∀ {P P2 : phase} {Val : state_value},
+          (∃ N : node, decision' N P Val) →
+            TotalOrderWithMinimum.next P P2 →
+              ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val)
+      (hLockedStep :
+        ∀ {P P2 : phase} {Val : state_value},
+          (∀ (N : node) (Valt : state_value), vote' N P Valt → Valt = Val) →
+            TotalOrderWithMinimum.next P P2 →
+              ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val) :
+      ∀ (P P2 : phase) (x : node) (x_1 : state_value),
+        vote' x P x_1 →
+          (∀ (P0 : phase), TotalOrderWithMinimum.lt P0 P → ∃ N V, vote' N P0 V) →
+            (∀ (P0 : phase) (V0 : state_value),
+                TotalOrderWithMinimum.lt P0 P →
+                  ∀ (x : node) (x_2 : state_value),
+                    vote' x P0 x_2 →
+                      ((∃ N, decision' N P0 V0) ∨
+                          ∀ (N : node) (Valt : state_value), vote' N P0 Valt → Valt = V0) →
+                        ∀ (N : node) (Valt : state_value), vote' N P Valt → Valt = V0) →
+              TotalOrderWithMinimum.next P P2 →
+                ∀ (x : node) (x_2 : state_value),
+                  vote' x P2 x_2 →
+                    (∃ N V, vote' N P2 V) ∧
+                      (∀ (P0 : phase), TotalOrderWithMinimum.lt P0 P2 → ∃ N V, vote' N P0 V) ∧
+                        ∀ (P0 : phase) (V0 : state_value),
+                          TotalOrderWithMinimum.lt P0 P2 →
+                            ∀ (x : node) (x_3 : state_value),
+                              vote' x P0 x_3 →
+                                ((∃ N, decision' N P0 V0) ∨
+                                    ∀ (N : node) (Valt : state_value), vote' N P0 Valt → Valt = V0) →
+                                  ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = V0 := by
+    intro P P2 x x_1 hStartedP hStartedBeforeP hGoodP hNextPP2 x_2 x_3 hStartedP2
+    constructor
+    · exact ⟨x_2, x_3, hStartedP2⟩
+    constructor
+    · intro P0 hLtP0P2
+      rcases TotalOrderWithMinimum.eq_or_lt_of_lt_next hNextPP2 hLtP0P2 with hP0 | hLtP0P
+      · subst P0
+        exact ⟨x, x_1, hStartedP⟩
+      · exact hStartedBeforeP P0 hLtP0P
+    · intro P0 V0 hLtP0P2 x_4 x_5 hStartedP0 hCause N Valt hVoteP2
+      rcases TotalOrderWithMinimum.eq_or_lt_of_lt_next hNextPP2 hLtP0P2 with hP0 | hLtP0P
+      · subst P0
+        rcases hCause with hDecision | hLocked
+        · exact hDecisionStep hDecision hNextPP2 N Valt hVoteP2
+        · exact hLockedStep hLocked hNextPP2 N Valt hVoteP2
+      · have hLockedP := hGoodP P0 V0 hLtP0P x_4 x_5 hStartedP0 hCause
+        exact hLockedStep hLockedP hNextPP2 N Valt hVoteP2
+  split
+  · intro vnew hNonQuestion fpNode fpQ hfpMem hfpAll
+    let vote' : node → phase → state_value → Prop :=
+      fun N P V => (n = N → psucc = P → ¬vnew = V) → st.vote_rnd1 N P V = true
+    let decision' : node → phase → state_value → Prop :=
+      fun N P V => (n = N → p = P → ¬vnew = V) → st.decision_bc N P V = true
+    have hNoCoinAtP (V : state_value) : st.coin p V = false := by
+      by_cases hCoin : st.coin p V = true
+      · obtain ⟨w, hwMem, hwQuestion⟩ := hCoinFp1Question p V fpQ hCoin
+        have hwNew : st.vote_rnd2 w p vnew = true := (hfpAll w hwMem).2
+        have hqEq : ThreeValuedType.vquestion = vnew :=
+          hVoteRnd2Unique w p ThreeValuedType.vquestion vnew hwQuestion hwNew
+        exact False.elim (hNonQuestion hqEq.symm)
+      · exact Bool.eq_false_iff.mpr hCoin
+    have hLockedStep :
+        ∀ {P P2 : phase} {Val : state_value},
+          (∀ (N : node) (Valt : state_value), vote' N P Valt → Valt = Val) →
+            TotalOrderWithMinimum.next P P2 →
+              ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val := by
+      intro P P2 Val hLocked hNextPP2 N Valt hVote
+      by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+      · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+        subst N
+        subst P2
+        subst Valt
+        have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+        subst P
+        have hLockedOld :
+            ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = Val := by
+          intro N Valt hOldVote
+          exact hLocked N Valt (fun _ => hOldVote)
+        have hEqOr := hLockedRnd2 p Val fpNode vnew hLockedOld ((hfpAll fpNode hfpMem).2)
+        rcases hEqOr with hEq | hQuestion
+        · exact hEq.symm
+        · exact False.elim (hNonQuestion hQuestion)
+      · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+          intro hn hpsucc hv
+          exact hnewVote ⟨hn, hpsucc, hv⟩)
+        have hLockedOld :
+            ∀ (N : node) (Valt : state_value), st.vote_rnd1 N P Valt = true → Valt = Val := by
+          intro N Valt hOldVote
+          exact hLocked N Valt (fun _ => hOldVote)
+        exact hLockedNext P Val P2 hLockedOld hNextPP2 N Valt hOldVote
+    have hDecisionStep :
+        ∀ {P P2 : phase} {Val : state_value},
+          (∃ N : node, decision' N P Val) →
+            TotalOrderWithMinimum.next P P2 →
+              ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val := by
+      intro P P2 Val hDecision hNextPP2 N Valt hVote
+      obtain ⟨Ndec, hDecisionUpdated⟩ := hDecision
+      by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+      · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+        subst N
+        subst P2
+        subst Valt
+        have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+        subst P
+        by_cases hnewDecision : n = Ndec ∧ vnew = Val
+        · rcases hnewDecision with ⟨hN, hVal⟩
+          subst Ndec
+          subst Val
+          rfl
+        · have hOldDecision : st.decision_bc Ndec p Val = true := hDecisionUpdated (by
+            intro hN _ hVal
+            exact hnewDecision ⟨hN, hVal⟩)
+          obtain ⟨Qdec, hQdec⟩ := hDecisionFp1 Ndec p Val hOldDecision
+          obtain ⟨w, _, hwFp⟩ := Background.ax1 t Qdec
+          have hRnd2Val : st.vote_rnd2 w p Val = true := hQdec w hwFp
+          have hEq : Val = vnew :=
+            hVoteRnd2Agreement w p Val fpNode vnew hRnd2Val ((hfpAll fpNode hfpMem).2)
+              (hDecisionNonQuestion Ndec p Val hOldDecision) hNonQuestion
+          exact hEq.symm
+      · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+          intro hn hpsucc hv
+          exact hnewVote ⟨hn, hpsucc, hv⟩)
+        by_cases hnewDecision : n = Ndec ∧ p = P ∧ vnew = Val
+        · rcases hnewDecision with ⟨hN, hP, hVal⟩
+          subst Ndec
+          subst P
+          subst Val
+          have hP2 : P2 = psucc := TotalOrderWithMinimum.next_unique hNextPP2 hNext
+          subst P2
+          obtain ⟨Q, w, hwMaj, hwRnd2⟩ :=
+            hNextVoteNoCoinWitness p psucc N Valt hNext hOldVote
+              (hNoCoinAtP ThreeValuedType.v0) (hNoCoinAtP ThreeValuedType.v1)
+          have hValtNonQuestion : ¬Valt = ThreeValuedType.vquestion :=
+            hVoteRnd1NonQuestion N psucc Valt hOldVote
+          exact hVoteRnd2Agreement w p Valt fpNode vnew hwRnd2 ((hfpAll fpNode hfpMem).2)
+            hValtNonQuestion hNonQuestion
+        · have hOldDecision : st.decision_bc Ndec P Val = true := hDecisionUpdated (by
+            intro hN hP hVal
+            exact hnewDecision ⟨hN, hP, hVal⟩)
+          exact hDecisionLockNext Ndec P Val P2 hOldDecision hNextPP2 N Valt hOldVote
+    exact goodSuccCore vote' decision' hDecisionStep hLockedStep
+  · rename_i hNoDecision
+    split
+    · intro vnew hNonQuestion majNode hMaj hVoteMaj
+      let vote' : node → phase → state_value → Prop :=
+        fun N P V => (n = N → psucc = P → ¬vnew = V) → st.vote_rnd1 N P V = true
+      let decision' : node → phase → state_value → Prop :=
+        fun N P V => st.decision_bc N P V = true
+      have hLockedStep :
+          ∀ {P P2 : phase} {Val : state_value},
+            (∀ (N : node) (Valt : state_value), vote' N P Valt → Valt = Val) →
+              TotalOrderWithMinimum.next P P2 →
+                ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val := by
+        intro P P2 Val hLocked hNextPP2 N Valt hVote
+        by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+        · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+          subst N
+          subst P2
+          subst Valt
+          have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+          subst P
+          have hLockedOld :
+              ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = Val := by
+            intro N Valt hOldVote
+            exact hLocked N Valt (fun _ => hOldVote)
+          have hEqOr := hLockedRnd2 p Val majNode vnew hLockedOld hVoteMaj
+          rcases hEqOr with hEq | hQuestion
+          · exact hEq.symm
+          · exact False.elim (hNonQuestion hQuestion)
+        · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+            intro hn hpsucc hv
+            exact hnewVote ⟨hn, hpsucc, hv⟩)
+          have hLockedOld :
+              ∀ (N : node) (Valt : state_value), st.vote_rnd1 N P Valt = true → Valt = Val := by
+            intro N Valt hOldVote
+            exact hLocked N Valt (fun _ => hOldVote)
+          exact hLockedNext P Val P2 hLockedOld hNextPP2 N Valt hOldVote
+      have hDecisionStep :
+          ∀ {P P2 : phase} {Val : state_value},
+            (∃ N : node, decision' N P Val) →
+              TotalOrderWithMinimum.next P P2 →
+                ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val := by
+        intro P P2 Val hDecision hNextPP2 N Valt hVote
+        obtain ⟨Ndec, hOldDecision⟩ := hDecision
+        by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+        · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+          subst N
+          subst P2
+          subst Valt
+          have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+          subst P
+          obtain ⟨Qdec, hQdec⟩ := hDecisionFp1 Ndec p Val hOldDecision
+          obtain ⟨w, _, hwFp⟩ := Background.ax1 t Qdec
+          have hRnd2Val : st.vote_rnd2 w p Val = true := hQdec w hwFp
+          have hEq : Val = vnew :=
+            hVoteRnd2Agreement w p Val majNode vnew hRnd2Val hVoteMaj
+              (hDecisionNonQuestion Ndec p Val hOldDecision) hNonQuestion
+          exact hEq.symm
+        · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+            intro hn hpsucc hv
+            exact hnewVote ⟨hn, hpsucc, hv⟩)
+          exact hDecisionLockNext Ndec P Val P2 hOldDecision hNextPP2 N Valt hOldVote
+      exact goodSuccCore vote' decision' hDecisionStep hLockedStep
+    · rename_i hNoMajVote
+      split
+      · intro vnew hNonQuestion hCoin
+        let vote' : node → phase → state_value → Prop :=
+          fun N P V => (n = N → psucc = P → ¬vnew = V) → st.vote_rnd1 N P V = true
+        let decision' : node → phase → state_value → Prop :=
+          fun N P V => st.decision_bc N P V = true
+        have hLockedStep :
+            ∀ {P P2 : phase} {Val : state_value},
+              (∀ (N : node) (Valt : state_value), vote' N P Valt → Valt = Val) →
+                TotalOrderWithMinimum.next P P2 →
+                  ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val := by
+          intro P P2 Val hLocked hNextPP2 N Valt hVote
+          by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+          · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+            subst N
+            subst P2
+            subst Valt
+            have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+            subst P
+            have hLockedOld :
+                ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = Val := by
+              intro N Valt hOldVote
+              exact hLocked N Valt (fun _ => hOldVote)
+            have hNoCoin := hLockedNoCoin p Val vnew hLockedOld t hMembers
+            simp [hCoin] at hNoCoin
+          · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+              intro hn hpsucc hv
+              exact hnewVote ⟨hn, hpsucc, hv⟩)
+            have hLockedOld :
+                ∀ (N : node) (Valt : state_value), st.vote_rnd1 N P Valt = true → Valt = Val := by
+              intro N Valt hOldVote
+              exact hLocked N Valt (fun _ => hOldVote)
+            exact hLockedNext P Val P2 hLockedOld hNextPP2 N Valt hOldVote
+        have hDecisionStep :
+            ∀ {P P2 : phase} {Val : state_value},
+              (∃ N : node, decision' N P Val) →
+                TotalOrderWithMinimum.next P P2 →
+                  ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val := by
+          intro P P2 Val hDecision hNextPP2 N Valt hVote
+          obtain ⟨Ndec, hOldDecision⟩ := hDecision
+          by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+          · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+            subst N
+            subst P2
+            subst Valt
+            have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+            subst P
+            have hNoCoin := hDecisionNoCoin Ndec p Val vnew hOldDecision
+            simp [hCoin] at hNoCoin
+          · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+              intro hn hpsucc hv
+              exact hnewVote ⟨hn, hpsucc, hv⟩)
+            exact hDecisionLockNext Ndec P Val P2 hOldDecision hNextPP2 N Valt hOldVote
+        exact goodSuccCore vote' decision' hDecisionStep hLockedStep
+      · intro vnew hNonQuestion
+        let vote' : node → phase → state_value → Prop :=
+          fun N P V => (n = N → psucc = P → ¬vnew = V) → st.vote_rnd1 N P V = true
+        let decision' : node → phase → state_value → Prop :=
+          fun N P V => st.decision_bc N P V = true
+        have hLockedStep :
+            ∀ {P P2 : phase} {Val : state_value},
+              (∀ (N : node) (Valt : state_value), vote' N P Valt → Valt = Val) →
+                TotalOrderWithMinimum.next P P2 →
+                  ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val := by
+          intro P P2 Val hLocked hNextPP2 N Valt hVote
+          by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+          · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+            subst N
+            subst P2
+            subst Valt
+            have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+            subst P
+            have hLockedOld :
+                ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = Val := by
+              intro N Valt hOldVote
+              exact hLocked N Valt (fun _ => hOldVote)
+            obtain ⟨w, hwMaj, hwRnd2⟩ := hLockedWitness p Val hLockedOld t hMembers
+            have hValNonQuestion : ¬Val = ThreeValuedType.vquestion := by
+              obtain ⟨V0, hVote0⟩ := hInPhaseVote n p hinPhase
+              have hEq : V0 = Val := hLockedOld n V0 hVote0
+              simpa [hEq] using hVoteRnd1NonQuestion n p V0 hVote0
+            exact False.elim (hNoMajVote ⟨Val, hValNonQuestion, ⟨w, hwMaj, hwRnd2⟩⟩)
+          · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+              intro hn hpsucc hv
+              exact hnewVote ⟨hn, hpsucc, hv⟩)
+            have hLockedOld :
+                ∀ (N : node) (Valt : state_value), st.vote_rnd1 N P Valt = true → Valt = Val := by
+              intro N Valt hOldVote
+              exact hLocked N Valt (fun _ => hOldVote)
+            exact hLockedNext P Val P2 hLockedOld hNextPP2 N Valt hOldVote
+        have hDecisionStep :
+            ∀ {P P2 : phase} {Val : state_value},
+              (∃ N : node, decision' N P Val) →
+                TotalOrderWithMinimum.next P P2 →
+                  ∀ (N : node) (Valt : state_value), vote' N P2 Valt → Valt = Val := by
+          intro P P2 Val hDecision hNextPP2 N Valt hVote
+          obtain ⟨Ndec, hOldDecision⟩ := hDecision
+          by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+          · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+            subst N
+            subst P2
+            subst Valt
+            have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+            subst P
+            obtain ⟨Qdec, hQdec⟩ := hDecisionFp1 Ndec p Val hOldDecision
+            obtain ⟨w, hwMaj, hwFp⟩ := Background.ax1 t Qdec
+            have hRnd2Val : st.vote_rnd2 w p Val = true := hQdec w hwFp
+            exact False.elim
+              (hNoMajVote ⟨Val, hDecisionNonQuestion Ndec p Val hOldDecision, ⟨w, hwMaj, hRnd2Val⟩⟩)
+          · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+              intro hn hpsucc hv
+              exact hnewVote ⟨hn, hpsucc, hv⟩)
+            exact hDecisionLockNext Ndec P Val P2 hOldDecision hNextPP2 N Valt hOldVote
+        exact goodSuccCore vote' decision' hDecisionStep hLockedStep
+
+@[veil]
+theorem phase_rnd2_inv_35 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
+    [node_inhabited : Inhabited.{1} node] (set_majority : Type) [set_majority_dec_eq : DecidableEq.{1} set_majority]
+    [set_majority_inhabited : Inhabited.{1} set_majority] (set_f_plus_1 : Type)
+    [set_f_plus_1_dec_eq : DecidableEq.{1} set_f_plus_1] [set_f_plus_1_inhabited : Inhabited.{1} set_f_plus_1]
+    [bg : Background node set_majority set_f_plus_1] (phase : Type) [phase_dec_eq : DecidableEq.{1} phase]
+    [phase_inhabited : Inhabited.{1} phase] [tot : TotalOrderWithMinimum phase] (proposal_value : Type)
+    [proposal_value_dec_eq : DecidableEq.{1} proposal_value] [proposal_value_inhabited : Inhabited.{1} proposal_value]
+    (state_value : Type) [state_value_dec_eq : DecidableEq.{1} state_value]
+    [state_value_inhabited : Inhabited.{1} state_value] [tv : ThreeValuedType state_value] (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f) (χ __veil_f)
+          (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ]
+    [ρ_sub : IsSubReaderOf (@Theory node set_majority set_f_plus_1 phase proposal_value state_value) ρ]
+    [phase_rnd2_dec_0 :
+      delta% @Rabia.phase_rnd2._veil_dec_type_0 χ node phase state_value set_majority set_f_plus_1 proposal_value χ_rep]
+    [phase_rnd2_dec_1 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_1 χ phase set_majority node set_f_plus_1 bg state_value proposal_value χ_rep]
+    [phase_rnd2_dec_2 : delta% @Rabia.phase_rnd2._veil_dec_type_2 phase tot]
+    [phase_rnd2_dec_3 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_3 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_4 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_4 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_5 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_5 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_6 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_6 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_7 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_7 χ phase state_value tv node set_majority set_f_plus_1 proposal_value χ_rep] :
+    Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
+      (@phase_rnd2.ext ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub phase_rnd2_dec_0 phase_rnd2_dec_1 phase_rnd2_dec_2 phase_rnd2_dec_3 phase_rnd2_dec_4
+        phase_rnd2_dec_5 phase_rnd2_dec_6 phase_rnd2_dec_7)
+      (@Assumptions ρ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv ρ_sub)
+      (@Invariants ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub)
+      (@inv_35 ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited set_f_plus_1
+        set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  rename_i n p psucc
+  rcases hinv with
+    ⟨hProposeUnique, hDecisionFullValInv, hDecisionFullValQuorum, hDecisionFullValValid, hDecisionFullValAgree,
+      hDecisionFullNoValInv, hInPhaseUnique, hVoteRnd1Le, hVoteRnd2Le, hVoteRnd2ImpliesVoteRnd1,
+      hInPhaseVote, hNoFutureVoteRnd1, hNoFutureVoteRnd2, hVoteRnd1NonQuestion, hVoteRnd1Unique,
+      hVoteRnd2Unique, hVoteRnd2Agreement, hVoteRnd2NonQuestionVoteRnd1, hDecisionInPhase,
+      hInPhaseNoDecision, hDecisionNonQuestion, hDecisionFp1, hNoCoinQuestion, hCoin01, hCoinFp1Question,
+      hDecisionNoCoin, hCoinMembers, hNextVoteMembers, hNextVoteNoCoinWitness, hVotePred,
+      hDecisionLockNext, hLockedRnd2, hCoinQuestionMajority, hLockedWitness, hLockedNoCoin, hLockedNext,
+      hDecisionNextWitness, hDecisionNextNoCoin, hLockedDecisionAgree, hDecisionNextAgree,
+      hDecisionSameRoundAgree, hLockedUnique, hGoodSucc, hGoodZero, hStartedPred, hDecisionStarted,
+      hVoteRnd2VoteRnd1, hDecisionVoteRnd1⟩
+  intro hinPhase _ _ hMembers hNext
+  split
+  · intro vnew hNonQuestion fpNode fpQ hfpMem hfpAll P V P2 hLocked hNextPP2 N Valt hVote
+    by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+    · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+      subst N
+      subst P2
+      subst Valt
+      have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+      subst P
+      have hLockedOld :
+          ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = V := by
+        intro N Valt hOldVote
+        exact hLocked N Valt (fun _ => hOldVote)
+      have hEqOr := hLockedRnd2 p V fpNode vnew hLockedOld ((hfpAll fpNode hfpMem).2)
+      rcases hEqOr with hEq | hQuestion
+      · exact hEq.symm
+      · exact False.elim (hNonQuestion hQuestion)
+    · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+        intro hn hpsucc hv
+        exact hnewVote ⟨hn, hpsucc, hv⟩)
+      have hLockedOld :
+          ∀ (N : node) (Valt : state_value), st.vote_rnd1 N P Valt = true → Valt = V := by
+        intro N Valt hOldVote
+        exact hLocked N Valt (fun _ => hOldVote)
+      exact hLockedNext P V P2 hLockedOld hNextPP2 N Valt hOldVote
+  · rename_i hNoDecision
+    split
+    · intro vnew hNonQuestion majNode hMaj hVoteMaj P V P2 hLocked hNextPP2 N Valt hVote
+      by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+      · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+        subst N
+        subst P2
+        subst Valt
+        have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+        subst P
+        have hLockedOld :
+            ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = V := by
+          intro N Valt hOldVote
+          exact hLocked N Valt (fun _ => hOldVote)
+        have hEqOr := hLockedRnd2 p V majNode vnew hLockedOld hVoteMaj
+        rcases hEqOr with hEq | hQuestion
+        · exact hEq.symm
+        · exact False.elim (hNonQuestion hQuestion)
+      · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+          intro hn hpsucc hv
+          exact hnewVote ⟨hn, hpsucc, hv⟩)
+        have hLockedOld :
+            ∀ (N : node) (Valt : state_value), st.vote_rnd1 N P Valt = true → Valt = V := by
+          intro N Valt hOldVote
+          exact hLocked N Valt (fun _ => hOldVote)
+        exact hLockedNext P V P2 hLockedOld hNextPP2 N Valt hOldVote
+    · rename_i hNoMajVote
+      split
+      · intro vnew hNonQuestion hCoin P V P2 hLocked hNextPP2 N Valt hVote
+        by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+        · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+          subst N
+          subst P2
+          subst Valt
+          have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+          subst P
+          have hLockedOld :
+              ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = V := by
+            intro N Valt hOldVote
+            exact hLocked N Valt (fun _ => hOldVote)
+          have hFalse : False := by
+            have hNoCoin := hLockedNoCoin p V vnew hLockedOld t hMembers
+            simp [hCoin] at hNoCoin
+          exact False.elim hFalse
+        · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+            intro hn hpsucc hv
+            exact hnewVote ⟨hn, hpsucc, hv⟩)
+          have hLockedOld :
+              ∀ (N : node) (Valt : state_value), st.vote_rnd1 N P Valt = true → Valt = V := by
+            intro N Valt hOldVote
+            exact hLocked N Valt (fun _ => hOldVote)
+          exact hLockedNext P V P2 hLockedOld hNextPP2 N Valt hOldVote
+      · intro vnew hNonQuestion P V P2 hLocked hNextPP2 N Valt hVote
+        by_cases hnewVote : n = N ∧ psucc = P2 ∧ vnew = Valt
+        · rcases hnewVote with ⟨hn, hpsucc, hv⟩
+          subst N
+          subst P2
+          subst Valt
+          have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+          subst P
+          have hLockedOld :
+              ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = V := by
+            intro N Valt hOldVote
+            exact hLocked N Valt (fun _ => hOldVote)
+          obtain ⟨w, hwMaj, hwRnd2⟩ := hLockedWitness p V hLockedOld t hMembers
+          have hValNonQuestion : ¬V = ThreeValuedType.vquestion := by
+            obtain ⟨V0, hVote0⟩ := hInPhaseVote n p hinPhase
+            have hEq : V0 = V := hLockedOld n V0 hVote0
+            simpa [hEq] using hVoteRnd1NonQuestion n p V0 hVote0
+          exact False.elim (hNoMajVote ⟨V, hValNonQuestion, ⟨w, hwMaj, hwRnd2⟩⟩)
+        · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
+            intro hn hpsucc hv
+            exact hnewVote ⟨hn, hpsucc, hv⟩)
+          have hLockedOld :
+              ∀ (N : node) (Valt : state_value), st.vote_rnd1 N P Valt = true → Valt = V := by
+            intro N Valt hOldVote
+            exact hLocked N Valt (fun _ => hOldVote)
+          exact hLockedNext P V P2 hLockedOld hNextPP2 N Valt hOldVote
+
+@[veil]
+theorem phase_rnd2_inv_17 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
+    [node_inhabited : Inhabited.{1} node] (set_majority : Type) [set_majority_dec_eq : DecidableEq.{1} set_majority]
+    [set_majority_inhabited : Inhabited.{1} set_majority] (set_f_plus_1 : Type)
+    [set_f_plus_1_dec_eq : DecidableEq.{1} set_f_plus_1] [set_f_plus_1_inhabited : Inhabited.{1} set_f_plus_1]
+    [bg : Background node set_majority set_f_plus_1] (phase : Type) [phase_dec_eq : DecidableEq.{1} phase]
+    [phase_inhabited : Inhabited.{1} phase] [tot : TotalOrderWithMinimum phase] (proposal_value : Type)
+    [proposal_value_dec_eq : DecidableEq.{1} proposal_value] [proposal_value_inhabited : Inhabited.{1} proposal_value]
+    (state_value : Type) [state_value_dec_eq : DecidableEq.{1} state_value]
+    [state_value_inhabited : Inhabited.{1} state_value] [tv : ThreeValuedType state_value] (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f) (χ __veil_f)
+          (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ]
+    [ρ_sub : IsSubReaderOf (@Theory node set_majority set_f_plus_1 phase proposal_value state_value) ρ]
+    [phase_rnd2_dec_0 :
+      delta% @Rabia.phase_rnd2._veil_dec_type_0 χ node phase state_value set_majority set_f_plus_1 proposal_value χ_rep]
+    [phase_rnd2_dec_1 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_1 χ phase set_majority node set_f_plus_1 bg state_value proposal_value χ_rep]
+    [phase_rnd2_dec_2 : delta% @Rabia.phase_rnd2._veil_dec_type_2 phase tot]
+    [phase_rnd2_dec_3 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_3 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_4 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_4 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_5 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_5 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_6 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_6 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_7 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_7 χ phase state_value tv node set_majority set_f_plus_1 proposal_value χ_rep] :
+    Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
+      (@phase_rnd2.ext ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub phase_rnd2_dec_0 phase_rnd2_dec_1 phase_rnd2_dec_2 phase_rnd2_dec_3 phase_rnd2_dec_4
+        phase_rnd2_dec_5 phase_rnd2_dec_6 phase_rnd2_dec_7)
+      (@Assumptions ρ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv ρ_sub)
+      (@Invariants ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub)
+      (@inv_17 ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited set_f_plus_1
+        set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  rename_i n p psucc
+  rcases hinv with
+    ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, hVoteRnd2NonQuestionVoteRnd1, _, _, _, _, _, _,
+      _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _⟩
+  intro _ _ _ _ _
+  have preserve (vnew : state_value) (N : node) (P : phase) (V : state_value)
+      (hVote : st.vote_rnd2 N P V = true) (hNonQuestion : ¬V = ThreeValuedType.vquestion) :
+      ∃ Q : set_majority,
+        ∀ M : node, member_maj M Q → (n = M → psucc = P → ¬vnew = V) → st.vote_rnd1 M P V = true := by
+    obtain ⟨Q, hQ⟩ := hVoteRnd2NonQuestionVoteRnd1 N P V hVote hNonQuestion
+    exact ⟨Q, by
+      intro M hMem _
+      exact hQ M hMem⟩
+  split
+  · intro vnew _ _ _ _ _ N P V hVote hNonQuestion
+    exact preserve vnew N P V hVote hNonQuestion
+  · split
+    · intro vnew _ _ _ _ N P V hVote hNonQuestion
+      exact preserve vnew N P V hVote hNonQuestion
+    · split
+      · intro vnew _ _ N P V hVote hNonQuestion
+        exact preserve vnew N P V hVote hNonQuestion
+      · intro vnew _ N P V hVote hNonQuestion
+        exact preserve vnew N P V hVote hNonQuestion
+
+
+@[veil]
+theorem phase_rnd2_inv_27 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
+    [node_inhabited : Inhabited.{1} node] (set_majority : Type) [set_majority_dec_eq : DecidableEq.{1} set_majority]
+    [set_majority_inhabited : Inhabited.{1} set_majority] (set_f_plus_1 : Type)
+    [set_f_plus_1_dec_eq : DecidableEq.{1} set_f_plus_1] [set_f_plus_1_inhabited : Inhabited.{1} set_f_plus_1]
+    [bg : Background node set_majority set_f_plus_1] (phase : Type) [phase_dec_eq : DecidableEq.{1} phase]
+    [phase_inhabited : Inhabited.{1} phase] [tot : TotalOrderWithMinimum phase] (proposal_value : Type)
+    [proposal_value_dec_eq : DecidableEq.{1} proposal_value] [proposal_value_inhabited : Inhabited.{1} proposal_value]
+    (state_value : Type) [state_value_dec_eq : DecidableEq.{1} state_value]
+    [state_value_inhabited : Inhabited.{1} state_value] [tv : ThreeValuedType state_value] (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f) (χ __veil_f)
+          (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ]
+    [ρ_sub : IsSubReaderOf (@Theory node set_majority set_f_plus_1 phase proposal_value state_value) ρ]
+    [phase_rnd2_dec_0 :
+      delta% @Rabia.phase_rnd2._veil_dec_type_0 χ node phase state_value set_majority set_f_plus_1 proposal_value χ_rep]
+    [phase_rnd2_dec_1 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_1 χ phase set_majority node set_f_plus_1 bg state_value proposal_value χ_rep]
+    [phase_rnd2_dec_2 : delta% @Rabia.phase_rnd2._veil_dec_type_2 phase tot]
+    [phase_rnd2_dec_3 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_3 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_4 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_4 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_5 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_5 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_6 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_6 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_7 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_7 χ phase state_value tv node set_majority set_f_plus_1 proposal_value χ_rep] :
+    Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
+      (@phase_rnd2.ext ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub phase_rnd2_dec_0 phase_rnd2_dec_1 phase_rnd2_dec_2 phase_rnd2_dec_3 phase_rnd2_dec_4
+        phase_rnd2_dec_5 phase_rnd2_dec_6 phase_rnd2_dec_7)
+      (@Assumptions ρ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv ρ_sub)
+      (@Invariants ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub)
+      (@inv_27 ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited set_f_plus_1
+        set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  rename_i n p psucc
+  rcases hinv with
+    ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, hNextVoteMembers, _⟩
+  intro _ _ _ hMembers hNext
+  have preserve (vnew : state_value) (P P2 : phase) (N : node) (V : state_value)
+      (hNextPV : TotalOrderWithMinimum.next P P2)
+      (hVoteUpdated : (n = N → psucc = P2 → ¬vnew = V) → st.vote_rnd1 N P2 V = true) :
+      ∃ Q : set_majority, ∀ N : node, member_maj N Q → ∃ V, st.vote_rnd2 N P V = true := by
+    by_cases hnew : n = N ∧ psucc = P2 ∧ vnew = V
+    · rcases hnew with ⟨hn, hpsucc, hv⟩
+      subst N
+      subst P2
+      subst V
+      have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPV hNext
+      subst P
+      exact ⟨t, hMembers⟩
+    · exact hNextVoteMembers P P2 N V hNextPV (hVoteUpdated (by
+        grind))
+  split
+  · intro vnew _ _ _ _ _ P P2 N V hNextPV hVoteUpdated
+    exact preserve vnew P P2 N V hNextPV hVoteUpdated
+  · split
+    · intro vnew _ _ _ _ P P2 N V hNextPV hVoteUpdated
+      exact preserve vnew P P2 N V hNextPV hVoteUpdated
+    · split
+      · intro vnew _ _ P P2 N V hNextPV hVoteUpdated
+        exact preserve vnew P P2 N V hNextPV hVoteUpdated
+      · intro vnew _ P P2 N V hNextPV hVoteUpdated
+        exact preserve vnew P P2 N V hNextPV hVoteUpdated
+
+@[veil]
+theorem phase_rnd2_inv_28 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
+    [node_inhabited : Inhabited.{1} node] (set_majority : Type) [set_majority_dec_eq : DecidableEq.{1} set_majority]
+    [set_majority_inhabited : Inhabited.{1} set_majority] (set_f_plus_1 : Type)
+    [set_f_plus_1_dec_eq : DecidableEq.{1} set_f_plus_1] [set_f_plus_1_inhabited : Inhabited.{1} set_f_plus_1]
+    [bg : Background node set_majority set_f_plus_1] (phase : Type) [phase_dec_eq : DecidableEq.{1} phase]
+    [phase_inhabited : Inhabited.{1} phase] [tot : TotalOrderWithMinimum phase] (proposal_value : Type)
+    [proposal_value_dec_eq : DecidableEq.{1} proposal_value] [proposal_value_inhabited : Inhabited.{1} proposal_value]
+    (state_value : Type) [state_value_dec_eq : DecidableEq.{1} state_value]
+    [state_value_inhabited : Inhabited.{1} state_value] [tv : ThreeValuedType state_value] (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f) (χ __veil_f)
+          (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ]
+    [ρ_sub : IsSubReaderOf (@Theory node set_majority set_f_plus_1 phase proposal_value state_value) ρ]
+    [phase_rnd2_dec_0 :
+      delta% @Rabia.phase_rnd2._veil_dec_type_0 χ node phase state_value set_majority set_f_plus_1 proposal_value χ_rep]
+    [phase_rnd2_dec_1 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_1 χ phase set_majority node set_f_plus_1 bg state_value proposal_value χ_rep]
+    [phase_rnd2_dec_2 : delta% @Rabia.phase_rnd2._veil_dec_type_2 phase tot]
+    [phase_rnd2_dec_3 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_3 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_4 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_4 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_5 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_5 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_6 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_6 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_7 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_7 χ phase state_value tv node set_majority set_f_plus_1 proposal_value χ_rep] :
+    Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
+      (@phase_rnd2.ext ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub phase_rnd2_dec_0 phase_rnd2_dec_1 phase_rnd2_dec_2 phase_rnd2_dec_3 phase_rnd2_dec_4
+        phase_rnd2_dec_5 phase_rnd2_dec_6 phase_rnd2_dec_7)
+      (@Assumptions ρ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv ρ_sub)
+      (@Invariants ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub)
+      (@inv_28 ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited set_f_plus_1
+        set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  rename_i n p psucc
+  rcases hinv with
+    ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _,
+      hNextVoteNoCoinWitness, _⟩
+  intro _ _ _ _ hNext
+  split
+  · intro vnew _ fpNode fpQ hfpMem hfpAll P P2 N V hNextPV hVoteUpdated hNoCoin0 hNoCoin1
+    by_cases hnew : n = N ∧ psucc = P2 ∧ vnew = V
+    · rcases hnew with ⟨hn, hpsucc, hv⟩
+      subst N
+      subst P2
+      subst V
+      have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPV hNext
+      subst P
+      exact ⟨t, fpNode, (hfpAll fpNode hfpMem).1, (hfpAll fpNode hfpMem).2⟩
+    · exact hNextVoteNoCoinWitness P P2 N V hNextPV (hVoteUpdated (by
+        grind)) hNoCoin0 hNoCoin1
+  · split
+    · intro vnew _ majNode hMaj hVote P P2 N V hNextPV hVoteUpdated hNoCoin0 hNoCoin1
+      by_cases hnew : n = N ∧ psucc = P2 ∧ vnew = V
+      · rcases hnew with ⟨hn, hpsucc, hv⟩
+        subst N
+        subst P2
+        subst V
+        have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPV hNext
+        subst P
+        exact ⟨t, majNode, hMaj, hVote⟩
+      · exact hNextVoteNoCoinWitness P P2 N V hNextPV (hVoteUpdated (by
+          grind)) hNoCoin0 hNoCoin1
+    · split
+      · intro vnew hNonQuestion hCoin P P2 N V hNextPV hVoteUpdated hNoCoin0 hNoCoin1
+        by_cases hnew : n = N ∧ psucc = P2 ∧ vnew = V
+        · rcases hnew with ⟨hn, hpsucc, hv⟩
+          subst N
+          subst P2
+          subst V
+          have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPV hNext
+          subst P
+          exfalso
+          have hvnewCases := ThreeValuedType.ax4 vnew
+          grind
+        · exact hNextVoteNoCoinWitness P P2 N V hNextPV (hVoteUpdated (by
+            grind)) hNoCoin0 hNoCoin1
+      · intro vnew hNonQuestion P P2 N V hNextPV hVoteUpdated hNoCoin0Guard hNoCoin0 hNoCoin1Guard hNoCoin1
+        by_cases hnew : n = N ∧ psucc = P2 ∧ vnew = V
+        · rcases hnew with ⟨hn, hpsucc, hv⟩
+          subst N
+          subst P2
+          subst V
+          have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPV hNext
+          subst P
+          exfalso
+          have hvnewCases := ThreeValuedType.ax4 vnew
+          grind
+        · exact hNextVoteNoCoinWitness P P2 N V hNextPV (hVoteUpdated (by
+            grind)) hNoCoin0 hNoCoin1
+
+@[veil]
+theorem phase_rnd2_vote_rnd1_pred_rnd (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
+    [node_inhabited : Inhabited.{1} node] (set_majority : Type) [set_majority_dec_eq : DecidableEq.{1} set_majority]
+    [set_majority_inhabited : Inhabited.{1} set_majority] (set_f_plus_1 : Type)
+    [set_f_plus_1_dec_eq : DecidableEq.{1} set_f_plus_1] [set_f_plus_1_inhabited : Inhabited.{1} set_f_plus_1]
+    [bg : Background node set_majority set_f_plus_1] (phase : Type) [phase_dec_eq : DecidableEq.{1} phase]
+    [phase_inhabited : Inhabited.{1} phase] [tot : TotalOrderWithMinimum phase] (proposal_value : Type)
+    [proposal_value_dec_eq : DecidableEq.{1} proposal_value] [proposal_value_inhabited : Inhabited.{1} proposal_value]
+    (state_value : Type) [state_value_dec_eq : DecidableEq.{1} state_value]
+    [state_value_inhabited : Inhabited.{1} state_value] [tv : ThreeValuedType state_value] (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation
+          (State.Label.toDomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f)
+          (State.Label.toCodomain node set_majority set_f_plus_1 phase proposal_value state_value __veil_f) (χ __veil_f)
+          (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ]
+    [ρ_sub : IsSubReaderOf (@Theory node set_majority set_f_plus_1 phase proposal_value state_value) ρ]
+    [phase_rnd2_dec_0 :
+      delta% @Rabia.phase_rnd2._veil_dec_type_0 χ node phase state_value set_majority set_f_plus_1 proposal_value χ_rep]
+    [phase_rnd2_dec_1 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_1 χ phase set_majority node set_f_plus_1 bg state_value proposal_value χ_rep]
+    [phase_rnd2_dec_2 : delta% @Rabia.phase_rnd2._veil_dec_type_2 phase tot]
+    [phase_rnd2_dec_3 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_3 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_4 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_4 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_5 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_5 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_6 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_6 χ phase set_majority state_value tv node set_f_plus_1 bg proposal_value
+          χ_rep]
+    [phase_rnd2_dec_7 :
+      delta%
+        @Rabia.phase_rnd2._veil_dec_type_7 χ phase state_value tv node set_majority set_f_plus_1 proposal_value χ_rep] :
+    Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
+      (@phase_rnd2.ext ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub phase_rnd2_dec_0 phase_rnd2_dec_1 phase_rnd2_dec_2 phase_rnd2_dec_3 phase_rnd2_dec_4
+        phase_rnd2_dec_5 phase_rnd2_dec_6 phase_rnd2_dec_7)
+      (@Assumptions ρ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv ρ_sub)
+      (@Invariants ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub)
+      (@vote_rnd1_pred_rnd ρ σ node node_dec_eq node_inhabited set_majority set_majority_dec_eq set_majority_inhabited
+        set_f_plus_1 set_f_plus_1_dec_eq set_f_plus_1_inhabited bg phase phase_dec_eq phase_inhabited tot proposal_value
+        proposal_value_dec_eq proposal_value_inhabited state_value state_value_dec_eq state_value_inhabited tv χ χ_rep
+        χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  rename_i n p psucc
+  rcases hinv with
+    ⟨_, _, _, _, _, _, _, _, _, _, hInPhaseVote, _, _, hVoteRnd1NonQuestion, _, _, _,
+      hVoteRnd2NonQuestionVoteRnd1, _, _, _, _, _, _, _, _, _, _, _, hVotePred, _, _, _, hLockedWitness,
+      hLockedNoCoin, _, _, _, _, _, _, _, _, _, _, _, _, _⟩
+  intro hinPhase _ _ hMembers hNext
+  have pred_from_vote (vnew : state_value) (hNonQuestion : ¬vnew = ThreeValuedType.vquestion)
+      (Nvote : node) (hVote : st.vote_rnd2 Nvote p vnew = true) :
+      ∃ N2 : node, st.vote_rnd1 N2 p vnew = true := by
+    obtain ⟨Q, hQ⟩ := hVoteRnd2NonQuestionVoteRnd1 Nvote p vnew hVote hNonQuestion
+    obtain ⟨w, hwQ, _⟩ := Background.ax0 Q t
+    exact ⟨w, hQ w hwQ⟩
+  have pred_from_forbidden_lock (vnew : state_value) (hNonQuestion : ¬vnew = ThreeValuedType.vquestion)
+      (hForbid :
+        ∀ V : state_value,
+          (∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = V) → False) :
+      ∃ N2 : node, st.vote_rnd1 N2 p vnew = true := by
+    by_cases hPred : ∃ N2 : node, st.vote_rnd1 N2 p vnew = true
+    · exact hPred
+    · exfalso
+      obtain ⟨V0, hVote0⟩ := hInPhaseVote n p hinPhase
+      have hV0NonQuestion : ¬V0 = ThreeValuedType.vquestion := hVoteRnd1NonQuestion n p V0 hVote0
+      have hV0Ne : V0 ≠ vnew := by
+        intro hEq
+        exact hPred ⟨n, by simpa [hEq] using hVote0⟩
+      have hLocked :
+          ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = V0 := by
+        intro N Valt hVote
+        by_cases hValEq : Valt = vnew
+        · exact False.elim (hPred ⟨N, by simpa [hValEq] using hVote⟩)
+        · exact ThreeValuedType.eq_of_ne_question_of_ne_same
+            (hVoteRnd1NonQuestion N p Valt hVote) hV0NonQuestion hValEq hV0Ne hNonQuestion
+      exact hForbid V0 hLocked
+  have preserve (vnew : state_value)
+      (hNewPred : ∃ N2 : node, st.vote_rnd1 N2 p vnew = true)
+      (N1 : node) (P2 : phase) (V1 : state_value) (P : phase)
+      (hVoteUpdated : (n = N1 → psucc = P2 → ¬vnew = V1) → st.vote_rnd1 N1 P2 V1 = true)
+      (hNextPP2 : TotalOrderWithMinimum.next P P2) :
+      ∃ N2 : node, (n = N2 → psucc = P → ¬vnew = V1) → st.vote_rnd1 N2 P V1 = true := by
+    by_cases hnew : n = N1 ∧ psucc = P2 ∧ vnew = V1
+    · rcases hnew with ⟨hn, hpsucc, hv⟩
+      subst N1
+      subst P2
+      subst V1
+      have hP : P = p := TotalOrderWithMinimum.prev_unique hNextPP2 hNext
+      subst P
+      obtain ⟨N2, hPred⟩ := hNewPred
+      exact ⟨N2, fun _ => hPred⟩
+    · obtain ⟨N2, hPred⟩ := hVotePred N1 P2 V1 P (hVoteUpdated (by
+        grind)) hNextPP2
+      exact ⟨N2, fun _ => hPred⟩
+  split
+  · intro vnew hNonQuestion fpNode fpQ hfpMem hfpAll N1 P2 V1 P hVoteUpdated hNextPP2
+    exact preserve vnew (pred_from_vote vnew hNonQuestion fpNode ((hfpAll fpNode hfpMem).2))
+      N1 P2 V1 P hVoteUpdated hNextPP2
+  · rename_i hNoDecision
+    split
+    · intro vnew hNonQuestion majNode hMaj hVote N1 P2 V1 P hVoteUpdated hNextPP2
+      exact preserve vnew (pred_from_vote vnew hNonQuestion majNode hVote)
+        N1 P2 V1 P hVoteUpdated hNextPP2
+    · rename_i hNoMajVote
+      split
+      · intro vnew hNonQuestion hCoin N1 P2 V1 P hVoteUpdated hNextPP2
+        have hNewPred := pred_from_forbidden_lock vnew hNonQuestion (by
+          intro V hLocked
+          have hNoCoin := hLockedNoCoin p V vnew hLocked t hMembers
+          simp [hCoin] at hNoCoin)
+        exact preserve vnew hNewPred N1 P2 V1 P hVoteUpdated hNextPP2
+      · intro vnew hNonQuestion N1 P2 V1 P hVoteUpdated hNextPP2
+        have hNewPred := pred_from_forbidden_lock vnew hNonQuestion (by
+          intro V hLocked
+          obtain ⟨w, hwMem, hwVote⟩ := hLockedWitness p V hLocked t hMembers
+          have hVNonQuestion : ¬V = ThreeValuedType.vquestion := by
+            obtain ⟨V0, hVote0⟩ := hInPhaseVote n p hinPhase
+            have hEq : V0 = V := hLocked n V0 hVote0
+            simpa [hEq] using hVoteRnd1NonQuestion n p V0 hVote0
+          exact hNoMajVote ⟨V, hVNonQuestion, ⟨w, hwMem, hwVote⟩⟩)
+        exact preserve vnew hNewPred N1 P2 V1 P hVoteUpdated hNextPP2
 
 @[veil]
 theorem phase_rnd2_inv_34 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
@@ -488,6 +1596,10 @@ theorem phase_rnd2_inv_33 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : D
           intro N Valt hVote
           exact hLocked N Valt (fun _ => hVote)) Q hMembersP
 
+
+
+#check_invariants
 #gen_theorems
+
 
 end Rabia

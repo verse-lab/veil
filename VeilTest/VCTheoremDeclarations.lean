@@ -53,6 +53,58 @@ run_cmd do
 
 end VCTheoremDeclarations
 
+veil module VCTheoremDeclarationsReverseBridge
+
+type node
+
+relation r : node → Bool
+
+#gen_state
+
+after_init {
+  r N := false
+}
+
+action keep {
+  pure ()
+}
+
+invariant [excluded] r N ∨ ¬ r N
+
+#gen_spec
+
+@[veil]
+theorem keep_excluded_tr (ρ σ node : Type) [node_dec_eq : DecidableEq node] [node_inhabited : Inhabited node]
+    (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f)
+          (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f)
+          (χ __veil_f) (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory node) ρ] :
+    Veil.Transition.meetsSpecificationIfSuccessfulAssuming
+      (@keep.ext.tr ρ σ node node_dec_eq node_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub)
+      (@Assumptions ρ node node_dec_eq node_inhabited ρ_sub)
+      (@Invariants ρ σ node node_dec_eq node_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub)
+      (@excluded ρ σ node node_dec_eq node_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub) := by
+  veil_solve_tr
+
+#gen_theorems
+
+run_cmd do
+  let env ← Lean.getEnv
+  for decl in #[
+    `VCTheoremDeclarationsReverseBridge.keep_excluded,
+    `VCTheoremDeclarationsReverseBridge.keep_excluded_tr
+  ] do
+    unless env.contains decl do
+      throwError "expected theorem declaration `{decl}`"
+
+end VCTheoremDeclarationsReverseBridge
+
 veil module VCTheoremDeclarationNameConflict
 
 type node

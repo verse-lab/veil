@@ -110,11 +110,13 @@ private def genTheoremsPhaseText : GenTheoremsPhase → String
   | .generatingTheorems => "Discharging and generating theorem declarations"
   | .done => "Complete"
 
-private def genTheoremsElapsedText (startTimeMs now : Nat) : String :=
-  let elapsed := now - startTimeMs
+private def genTheoremsDurationText (elapsed : Nat) : String :=
   let seconds := elapsed / 1000
   let tenths := (elapsed % 1000) / 100
   s!"{seconds}.{tenths}s"
+
+private def genTheoremsElapsedText (startTimeMs now : Nat) : String :=
+  genTheoremsDurationText (now - startTimeMs)
 
 private def genTheoremsStat (label value : String) : Html :=
   <div style={json% {"display": "flex", "justifyContent": "space-between", "gap": "16px"}}>
@@ -159,10 +161,14 @@ private def genTheoremsVCStyleText : VCStyle → String
   | .wp => "WP"
   | .tr => "TR"
 
-private def genTheoremsDeclStatusText : GenTheoremsDeclStatus → String
+private def genTheoremsDeclStatusText (decl : GenTheoremsDeclProgress) : String :=
+  match decl.status with
   | .pending => "Pending"
   | .existing => "Already existed"
-  | .generated => "Generated"
+  | .generated =>
+    match decl.generatedTimeMs with
+    | some ms => s!"Generated in {genTheoremsDurationText ms}"
+    | none => "Generated"
   | .failed => "Failed"
 
 private def genTheoremsDeclStatusColor : GenTheoremsDeclStatus → String
@@ -193,12 +199,13 @@ private def genTheoremsDeclRow (decl : GenTheoremsDeclProgress) : Html :=
     ("borderTop", "1px solid var(--vscode-panel-border)"),
     ("verticalAlign", "top"),
     ("fontWeight", "600"),
+    ("whiteSpace", "nowrap"),
     ("color", genTheoremsDeclStatusColor decl.status)
   ]
   .element "tr" #[] #[
     genTheoremsTableCell decl.name.toString baseCellStyle,
     genTheoremsTableCell (genTheoremsVCStyleText decl.style) baseCellStyle,
-    genTheoremsTableCell (genTheoremsDeclStatusText decl.status) statusStyle
+    genTheoremsTableCell (genTheoremsDeclStatusText decl) statusStyle
   ]
 
 private def genTheoremsDeclTable (decls : Array GenTheoremsDeclProgress) : Html :=

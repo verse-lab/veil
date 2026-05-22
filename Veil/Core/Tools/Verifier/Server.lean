@@ -196,6 +196,7 @@ structure GenTheoremsDeclProgress where
   name : Name
   style : VCStyle
   status : GenTheoremsDeclStatus := .pending
+  generatedTimeMs : Option Nat := none
 deriving Inhabited
 
 structure GenTheoremsProgress where
@@ -426,10 +427,22 @@ private def mkEquivalentInductionWitnessFromProof
       let proofStx? ← match sourceMeta.style, targetMeta.style with
         | .wp, .tr =>
           some <$> `(term| by
-            simpa [← $assumingEqIdent:ident, $soundIdent:ident, $derivedEqIdent:ident] using $sourceIdent:ident)
+            intros
+            simp only [
+              ← $derivedEqIdent:ident,
+              ← $soundIdent:ident,
+              $assumingEqIdent:ident,
+              $sourceIdent:ident
+            ])
         | .tr, .wp =>
           some <$> `(term| by
-            simpa [$assumingEqIdent:ident, ← $soundIdent:ident, ← $derivedEqIdent:ident] using $sourceIdent:ident)
+            intros
+            simp only [
+              ← $assumingEqIdent:ident,
+              $soundIdent:ident,
+              $derivedEqIdent:ident,
+              $sourceIdent:ident
+            ])
         | _, _ => pure none
       let some proofStx := proofStx?
         | return sourceProof
@@ -576,11 +589,14 @@ private def equivalentWitnessForReserved
     (mgr : VCManager VCMetadata SmtResult) (availableIds : Std.HashSet VCId)
     (reserved : ReservedVCTheorem) : TermElabM (Option Witness) := do
   for sourceId in alternativePeerIds mgr reserved.vcId do
-    unless availableIds.contains sourceId do
-      continue
     let some sourceVC := mgr.nodes[sourceId]?
       | continue
     unless isBridgeableInductionPair sourceVC reserved.vc do
+      continue
+    if let some (_, sourceWitness) := mgr.provenWitness? sourceId then
+      if let some witness ← mkEquivalentInductionWitnessFromProof sourceVC reserved.vc sourceWitness then
+        return some witness
+    unless availableIds.contains sourceId do
       continue
     if ← vcTheoremAvailable sourceVC then
       let sourceName ← vcTheoremFullName sourceVC
@@ -598,18 +614,21 @@ private def witnessForReserved
 
 private def setDeclStatus
     (decls : Array GenTheoremsDeclProgress) (fullName : Name)
-    (status : GenTheoremsDeclStatus) : Array GenTheoremsDeclProgress :=
+    (status : GenTheoremsDeclStatus) (generatedTimeMs : Option Nat := none) :
+    Array GenTheoremsDeclProgress :=
   decls.map fun decl =>
     if decl.name == fullName then
-      { decl with status := status }
+      { decl with status := status, generatedTimeMs := generatedTimeMs }
     else
       decl
 
-private def markGenerated (progressRef : GenTheoremsProgressRef) (fullName : Name) : BaseIO Unit :=
+private def markGenerated
+    (progressRef : GenTheoremsProgressRef) (fullName : Name) (generatedTimeMs : Nat) :
+    BaseIO Unit :=
   progressRef.modify fun p => {
     p with
       generated := p.generated + 1
-      decls := setDeclStatus p.decls fullName .generated
+      decls := setDeclStatus p.decls fullName .generated (some generatedTimeMs)
   }
 
 private def markFailed
@@ -629,10 +648,10 @@ private def vcDoneOrDormant (mgr : VCManager VCMetadata SmtResult) (vcId : VCId)
 
 private def reservedCannotProduceLater
     (mgr : VCManager VCMetadata SmtResult) (reserved : ReservedVCTheorem) : Bool :=
+  let peers := alternativePeerIds mgr reserved.vcId
   if mgr._doneWith.contains reserved.vcId then
-    true
+    peers.isEmpty || peers.all (vcDoneOrDormant mgr ·)
   else
-    let peers := alternativePeerIds mgr reserved.vcId
     if mgr.dormantVCs.contains reserved.vcId &&
         peers.any (fun peerId => mgr._doneWith[peerId]? == some .proven) then
       true
@@ -647,10 +666,12 @@ private def tryGenerateReservedTheorem
     (mgr : VCManager VCMetadata SmtResult) (availableIds : Std.HashSet VCId)
     (reserved : ReservedVCTheorem) : CommandElabM GenTheoremAttempt := do
   try
+    let startedAt ← IO.monoMsNow
     match ← liftTermElabM <| witnessForReserved mgr availableIds reserved with
     | some witness => do
       liftTermElabM <| commitReservedVCTheorem reserved witness
-      markGenerated progressRef reserved.fullName
+      let finishedAt ← IO.monoMsNow
+      markGenerated progressRef reserved.fullName (finishedAt - startedAt)
       return .generated
     | none => do
       if reservedCannotProduceLater mgr reserved then
