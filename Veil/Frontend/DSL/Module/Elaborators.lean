@@ -356,13 +356,8 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
       logWarningAt stx (trustedSmtWarning trustedCount)
     addUndischargedTheoremSuggestion stx results
 
-private def runFilteredInvariantCheck
-    (stx : Syntax)
-    (mod : Module)
-    (filter : VCMetadata → Bool)
-    (support? : Option (Array Name) := none)
-    : CommandElabM Unit := do
-  mod.attachInvariantDischargers filter support?
+private def runInvariantCheckWithFilter
+    (stx : Syntax) (mod : Module) (filter : VCMetadata → Bool) : CommandElabM Unit := do
   Verifier.runFilteredAsync filter (logVerificationResults stx)
   Verifier.displayStreamingResults stx
     (Verifier.vcManager.atomically fun ref => do
@@ -378,6 +373,50 @@ private def isInductionForAction (actionName : Name) : VCMetadata → Bool
 private def isInductionForInvSetTargets (targets : Std.HashSet Name) : VCMetadata → Bool
   | .induction m => m.property != `doesNotThrow && targets.contains m.property
   | .trace _ => false
+
+private def runFilteredInvariantCheck
+    (stx : Syntax)
+    (mod : Module)
+    (filter : VCMetadata → Bool)
+    (support? : Option (Array Name) := none)
+    : CommandElabM Unit := do
+  mod.attachInvariantDischargers filter support?
+  runInvariantCheckWithFilter stx mod filter
+
+private def isDoesNotThrowOrTargetedInvariant (targets : Std.HashSet Name) : VCMetadata → Bool
+  | .induction m => m.property == `doesNotThrow || targets.contains m.property
+  | .trace _ => false
+
+private def invSetsInDefaultCheckOrder (mod : Module) : Array InvSet :=
+  mod._invSets.valuesArray.qsort fun a b => a.name.toString < b.name.toString
+
+private def standaloneInvariantTargets (mod : Module) (invSetTargets : Std.HashSet Name) :
+    Std.HashSet Name := Id.run do
+  let mut standalone := Std.HashSet.emptyWithCapacity
+  for inv in mod.checkableInvariants do
+    unless invSetTargets.contains inv.name do
+      standalone := standalone.insert inv.name
+  return standalone
+
+private def runDefaultInvariantCheck (stx : Syntax) (mod : Module) : CommandElabM Unit := do
+  let invSets := invSetsInDefaultCheckOrder mod
+  if invSets.isEmpty then
+    runFilteredInvariantCheck stx mod VCMetadata.isInduction
+  else
+    let mut allTargets := Std.HashSet.emptyWithCapacity
+    let mut plans : Array (Std.HashSet Name × Option (Array Name)) := #[]
+    for invSet in invSets do
+      let targets ← mod.resolveInvSetTargets invSet.name
+      let support ← mod.resolveInvSetSupport invSet.name
+      allTargets := allTargets.union targets
+      plans := plans.push (targets, some support.toArray)
+    let standalone := standaloneInvariantTargets mod allTargets
+    unless standalone.toArray.isEmpty do
+      allTargets := allTargets.union standalone
+      plans := plans.push (standalone, none)
+    for (targets, support?) in plans do
+      mod.attachInvariantDischargers (isInductionForInvSetTargets targets) support?
+    runInvariantCheckWithFilter stx mod (isDoesNotThrowOrTargetedInvariant allTargets)
 
 private def getCheckableAction? (mod : Module) (actionName : Name) : Option ProcedureSpecification :=
   mod.procedures.find? fun proc =>
@@ -420,7 +459,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
     mod.throwIfSpecNotFinalized
     match stx with
     | `(command| #check_invariants) =>
-      runFilteredInvariantCheck stx mod VCMetadata.isInduction
+      runDefaultInvariantCheck stx mod
     | `(command| #check_invariants $target:ident) =>
       let (targets, support) ← resolveSupportForInvSetCheck mod target.getId #[]
       runFilteredInvariantCheck stx mod (isInductionForInvSetTargets targets) (some support.toArray)
@@ -634,14 +673,13 @@ def elabGenSpec : CommandElab := fun stx => do
     localEnv.modifyModule (fun _ => mod)
 
 @[command_elab Veil.genTheorems]
-def elabGenTheorems : CommandElab := fun _stx => do
+def elabGenTheorems : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
     if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
     mod.throwIfSpecNotFinalized
-    let _ ← Verifier.waitFilteredSync (fun _ => true)
-    Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
-    Verifier.addEquivalentInductionTheoremsInDependencyOrder (fun _ => true)
+    let progressRef ← Verifier.startGenTheoremsAsync stx
+    Verifier.displayGenTheoremsProgress stx progressRef
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/

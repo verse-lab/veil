@@ -36,7 +36,7 @@ end ProofWidgets
 
 namespace Veil.Verifier
 
-open Lean Elab Command ProofWidgets RefreshComponent
+open Lean Elab Command ProofWidgets Jsx RefreshComponent
 
 inductive StreamingStatus where
   | running
@@ -103,6 +103,192 @@ def displayStreamingResults (atStx : Syntax)
   let optionInsertPos ← optionStx?.mapM getOptionInsertPos? <&> Option.join
   let html ← liftCoreM <| ProofWidgets.mkRefreshComponentM (.text "Loading...")
     (runStreamingResults theoremInsertPos optionInsertPos documentUri getter)
+  displayWidget atStx html
+
+private def genTheoremsPhaseText : GenTheoremsPhase → String
+  | .waitingForVCs => "Discharging verification conditions"
+  | .generatingTheorems => "Discharging and generating theorem declarations"
+  | .done => "Complete"
+
+private def genTheoremsElapsedText (startTimeMs now : Nat) : String :=
+  let elapsed := now - startTimeMs
+  let seconds := elapsed / 1000
+  let tenths := (elapsed % 1000) / 100
+  s!"{seconds}.{tenths}s"
+
+private def genTheoremsStat (label value : String) : Html :=
+  <div style={json% {"display": "flex", "justifyContent": "space-between", "gap": "16px"}}>
+    <span style={json% {"color": "var(--vscode-descriptionForeground)"}}>{.text label}</span>
+    <span>{.text value}</span>
+  </div>
+
+private def genTheoremsFailureList (failures : Array String) : Html :=
+  if failures.isEmpty then
+    .text ""
+  else
+    .element "ul" #[("style", json% {"margin": "8px 0 0 18px", "padding": "0", "color": "#ff8888"})]
+      (failures.map fun failure =>
+        <li style={json% {"marginBottom": "4px"}}>{.text failure}</li>)
+
+private structure GenTheoremsVCStats where
+  total : Nat := 0
+  proven : Nat := 0
+  discharged : Nat := 0
+
+private def genTheoremsVCMetadataStyle? (metadata : VCMetadata) : Option VCStyle :=
+  match metadata with
+  | .induction m => some m.style
+  | .trace _ => none
+
+private def genTheoremsVCStatsFor
+    (mgr : VCManager VCMetadata SmtResult) (style : VCStyle) :
+    GenTheoremsVCStats :=
+  mgr.nodes.toArray.foldl (init := {}) fun stats (vcId, vc) =>
+    if genTheoremsVCMetadataStyle? vc.metadata == some style then
+      let discharged := vc.effectiveDischargers.foldl (init := 0) fun acc discharger =>
+        acc + if (mgr._dischargerResults[(vcId, discharger.id.dischargerId)]?).isSome then 1 else 0
+      {
+        total := stats.total + 1
+        proven := stats.proven + if mgr._doneWith[vcId]? == some .proven then 1 else 0
+        discharged := stats.discharged + discharged
+      }
+    else
+      stats
+
+private def genTheoremsVCStyleText : VCStyle → String
+  | .wp => "WP"
+  | .tr => "TR"
+
+private def genTheoremsDeclStatusText : GenTheoremsDeclStatus → String
+  | .pending => "Pending"
+  | .existing => "Already existed"
+  | .generated => "Generated"
+  | .failed => "Failed"
+
+private def genTheoremsDeclStatusColor : GenTheoremsDeclStatus → String
+  | .pending => "var(--vscode-descriptionForeground)"
+  | .existing => "var(--vscode-descriptionForeground)"
+  | .generated => "#52c41a"
+  | .failed => "#ff8888"
+
+private def genTheoremsTableCell (text : String) (style : Json) : Html :=
+  .element "td" #[("style", style)] #[.text text]
+
+private def genTheoremsTableHeader (text : String) : Html :=
+  .element "th" #[("style", json% {
+      "textAlign": "left",
+      "padding": "4px 8px 4px 0",
+      "fontWeight": "600",
+      "color": "var(--vscode-descriptionForeground)"
+    })] #[.text text]
+
+private def genTheoremsDeclRow (decl : GenTheoremsDeclProgress) : Html :=
+  let baseCellStyle := json% {
+    "padding": "3px 8px 3px 0",
+    "borderTop": "1px solid var(--vscode-panel-border)",
+    "verticalAlign": "top"
+  }
+  let statusStyle := Json.mkObj [
+    ("padding", "3px 8px 3px 0"),
+    ("borderTop", "1px solid var(--vscode-panel-border)"),
+    ("verticalAlign", "top"),
+    ("fontWeight", "600"),
+    ("color", genTheoremsDeclStatusColor decl.status)
+  ]
+  .element "tr" #[] #[
+    genTheoremsTableCell decl.name.toString baseCellStyle,
+    genTheoremsTableCell (genTheoremsVCStyleText decl.style) baseCellStyle,
+    genTheoremsTableCell (genTheoremsDeclStatusText decl.status) statusStyle
+  ]
+
+private def genTheoremsDeclTable (decls : Array GenTheoremsDeclProgress) : Html :=
+  if decls.isEmpty then
+    .text ""
+  else
+    <div style={json% {"marginTop": "12px", "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", "fontSize": "12px"}}>
+      <div style={json% {"fontWeight": "600", "marginBottom": "4px"}}>VC theorem declarations</div>
+      <div style={json% {"maxHeight": "220px", "overflowY": "auto"}}>
+        {.element "table" #[("style", json% {"width": "100%", "borderCollapse": "collapse"})] #[
+          .element "thead" #[] #[
+            .element "tr" #[] #[
+              genTheoremsTableHeader "Name",
+              genTheoremsTableHeader "Style",
+              genTheoremsTableHeader "Status"
+            ]
+          ],
+          .element "tbody" #[] (decls.map genTheoremsDeclRow)
+        ]}
+      </div>
+    </div>
+
+private def genTheoremsProgressHtml
+    (progress : GenTheoremsProgress) (wpStats trStats : GenTheoremsVCStats) (now : Nat) :
+    Html := Id.run do
+  let theoremDone := progress.existing + progress.generated + progress.failed
+  let theoremPending := progress.total - theoremDone
+  let statusColor :=
+    if progress.failed > 0 then "#ff8888"
+    else if progress.isDone then "#52c41a"
+    else "#1890ff"
+  let statusStyle := Json.mkObj [("fontWeight", "600"), ("color", statusColor)]
+  return <div style={json% {
+      "fontFamily": "system-ui, -apple-system, sans-serif",
+      "padding": "12px",
+      "background": "var(--vscode-editorWidget-background)",
+      "border": "1px solid var(--vscode-panel-border)",
+      "borderRadius": "6px",
+      "maxWidth": "760px"
+    }}>
+    <div style={json% {"display": "flex", "alignItems": "center", "gap": "8px", "marginBottom": "10px"}}>
+      <span style={statusStyle}>{.text (genTheoremsPhaseText progress.phase)}</span>
+      <span style={json% {"color": "var(--vscode-descriptionForeground)", "fontSize": "12px"}}>
+        {.text (genTheoremsElapsedText progress.startTimeMs now)}
+      </span>
+    </div>
+    <div style={json% {
+        "display": "grid",
+        "gridTemplateColumns": "repeat(auto-fit, minmax(220px, 1fr))",
+        "gap": "12px",
+        "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        "fontSize": "12px"
+      }}>
+      <div>
+        <div style={json% {"fontWeight": "600", "marginBottom": "4px"}}>Verification conditions</div>
+        {genTheoremsStat "WP VCs" s!"{wpStats.proven}/{wpStats.total} proven"}
+        {genTheoremsStat "WP dischargers" s!"{wpStats.discharged} finished"}
+        {genTheoremsStat "TR VCs" s!"{trStats.proven}/{trStats.total} proven"}
+        {genTheoremsStat "TR dischargers" s!"{trStats.discharged} finished"}
+      </div>
+      <div>
+        <div style={json% {"fontWeight": "600", "marginBottom": "4px"}}>Theorem declarations</div>
+        {genTheoremsStat "Done" s!"{theoremDone}/{progress.total}"}
+        {genTheoremsStat "Generated" (toString progress.generated)}
+        {genTheoremsStat "Already existed" (toString progress.existing)}
+        {genTheoremsStat "Pending" (toString theoremPending)}
+        {genTheoremsStat "Failed" (toString progress.failed)}
+        {genTheoremsStat "Omitted" (toString progress.omitted)}
+      </div>
+    </div>
+    {genTheoremsDeclTable progress.decls}
+    {genTheoremsFailureList progress.failures}
+  </div>
+
+private partial def runGenTheoremsProgressUpdates
+    (progressRef : GenTheoremsProgressRef) (token : RefreshToken) : CoreM Unit := do
+  IO.sleep 100
+  let progress ← progressRef.get
+  let (wpStats, trStats) ← vcManager.atomically fun ref => do
+    let mgr ← ref.get
+    pure (genTheoremsVCStatsFor mgr .wp, genTheoremsVCStatsFor mgr .tr)
+  let now ← IO.monoMsNow
+  token.refresh (genTheoremsProgressHtml progress wpStats trStats now)
+  unless progress.isDone do
+    runGenTheoremsProgressUpdates progressRef token
+
+def displayGenTheoremsProgress (atStx : Syntax)
+    (progressRef : GenTheoremsProgressRef) : CommandElabM Unit := do
+  let html ← liftCoreM <| ProofWidgets.mkRefreshComponentM (.text "Starting #gen_theorems...")
+    (runGenTheoremsProgressUpdates progressRef)
   displayWidget atStx html
 
 /-- Map VCStatus to emoji for text output. -/

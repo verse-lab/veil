@@ -24,16 +24,32 @@ invariant [excluded] r N ∨ ¬ r N
 
 #gen_theorems
 
-#gen_theorems
-
 run_cmd do
+  let expectedLocalNames := #[
+    `initializer_doesNotThrow,
+    `initializer_excluded,
+    `initializer_excluded_tr,
+    `keep_doesNotThrow,
+    `keep_excluded,
+    `keep_excluded_tr
+  ]
+  let mgr ← Veil.Verifier.vcManager.atomically fun ref => ref.get
+  let actualLocalNames := (mgr.vcIdsInDependencyOrder Veil.VCMetadata.isInduction).filterMap fun vcId => do
+    let vc ← mgr.nodes[vcId]?
+    some vc.name
+  unless actualLocalNames.size == expectedLocalNames.size do
+    throwError "expected {expectedLocalNames.size} induction VCs, got {actualLocalNames.size}"
+  for expected in expectedLocalNames do
+    unless actualLocalNames.contains expected do
+      throwError "expected induction VC `{expected}` to be registered"
+  for actual in actualLocalNames do
+    unless expectedLocalNames.contains actual do
+      throwError "unexpected induction VC `{actual}` was registered"
   let env ← Lean.getEnv
-  unless env.contains `VCTheoremDeclarations.keep_excluded do
-    throwError "expected invariant VC theorem to be added to the main environment"
-  unless env.contains `VCTheoremDeclarations.keep_excluded_tr do
-    throwError "expected alternative invariant VC theorem to be added to the main environment"
-  unless env.contains `VCTheoremDeclarations.keep_doesNotThrow do
-    throwError "expected doesNotThrow VC theorem to be added to the main environment"
+  for localName in expectedLocalNames do
+    let fullName := `VCTheoremDeclarations ++ localName
+    unless (env.findConstVal? fullName).isSome do
+      throwError "expected generated theorem declaration `{fullName}`"
 
 end VCTheoremDeclarations
 
