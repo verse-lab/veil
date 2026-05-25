@@ -125,6 +125,49 @@ instance total_order_with_zero_fin (n : Nat) [nz : NeZero n] : TotalOrderWithZer
 instance total_order_with_zero_fin_dec (n : Nat) [nz : NeZero n] : ∀ a b, Decidable (TotalOrderWithZero.le (t := Fin n) a b) := by
   dsimp [TotalOrderWithZero.le]; apply inferInstance
 
+/-! ## Total order with zero and none -/
+
+/-- A total order with both a `zero` minimum valid value and a `none` value
+that is strictly below `zero`. This is useful for protocols where a sentinel
+value represents "not initialized yet". -/
+class TotalOrderWithZeroAndNone (t : Type) where
+  le (x y : t) : Prop
+  le_refl       (x : t) : le x x
+  le_trans  (x y z : t) : le x y → le y z → le x z
+  le_antisymm (x y : t) : le x y → le y x → x = y
+  le_total    (x y : t) : le x y ∨ le y x
+  none : t
+  none_le (x : t) : le none x
+  zero : t
+  none_ne_zero : none ≠ zero
+  zero_le_of_ne_none (x : t) : x ≠ none → le zero x
+
+/-! ### Instances -/
+
+/-- Finite types with at least two elements are total orders with zero and
+none. The first element is `none`; the second is `zero`. -/
+instance total_order_with_zero_and_none_fin (n : Nat) : TotalOrderWithZeroAndNone (Fin n.succ.succ) where
+  le := fun x y => x.val ≤ y.val
+  le_refl := by simp
+  le_trans := by simp ; omega
+  le_antisymm := by simp ; omega
+  le_total := by simp ; omega
+  none := ⟨0, by omega⟩
+  none_le := by simp
+  zero := ⟨1, by omega⟩
+  none_ne_zero := by simp
+  zero_le_of_ne_none := by
+    intro x hne
+    show (1 : Nat) ≤ x.val
+    have h : x.val ≠ 0 := fun heq => hne (Fin.ext heq)
+    omega
+
+/-! ### Decidability -/
+
+instance total_order_with_zero_and_none_fin_dec (n : Nat) :
+    ∀ a b, Decidable (TotalOrderWithZeroAndNone.le (t := Fin n.succ.succ) a b) := by
+  dsimp [TotalOrderWithZeroAndNone.le]; apply inferInstance
+
 /-! ## Total order with minimum -/
 
 class TotalOrderWithMinimum (t : Type) where
@@ -582,6 +625,14 @@ class TSet (α : outParam (Type u)) (κ : Type v) where
     contains elem (union s1 s2) = (contains elem s1 || contains elem s2)
   contains_diff (elem : α) (s1 s2 : κ) :
     contains elem (diff s1 s2) = (contains elem s1 && not (contains elem s2))
+  contains_filter (elem : α) (s : κ) (p : α → Bool) :
+    contains elem (filter s p) = true → p elem = true
+  contains_filter_of (elem : α) (s : κ) (p : α → Bool) :
+    contains elem s = true → p elem = true → contains elem (filter s p) = true
+  contains_of_contains_filter (elem : α) (s : κ) (p : α → Bool) :
+    contains elem (filter s p) = true → contains elem s = true
+  count_zero_not_contains (elem : α) (s : κ) :
+    count s = 0 → contains elem s = false
   toList_contains_iff (elem : α) (s : κ) :
     contains elem s = true ↔ elem ∈ toList s
   subsets_iff (s1 s2 : κ) :
@@ -694,6 +745,36 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   contains_diff := by
     intros elem s1 s2
     exact extTreeSet_contains_filter_not
+  contains_filter := by
+    intros elem s p hcontains
+    rw [Std.ExtTreeSet.contains_iff_mem] at hcontains
+    rw [Std.ExtTreeSet.mem_filter] at hcontains
+    obtain ⟨hmem, hpred⟩ := hcontains
+    have hget : s.get elem hmem = elem := Std.ExtTreeSet.get_eq hmem
+    rw [hget] at hpred
+    exact hpred
+  contains_filter_of := by
+    intros elem s p hcontains hp
+    rw [Std.ExtTreeSet.contains_iff_mem] at hcontains ⊢
+    rw [Std.ExtTreeSet.mem_filter]
+    refine ⟨hcontains, ?_⟩
+    have hget : s.get elem hcontains = elem := Std.ExtTreeSet.get_eq hcontains
+    rw [hget]
+    exact hp
+  contains_of_contains_filter := by
+    intros elem s p hcontains
+    rw [Std.ExtTreeSet.contains_iff_mem] at hcontains ⊢
+    rw [Std.ExtTreeSet.mem_filter] at hcontains
+    exact hcontains.1
+  count_zero_not_contains := by
+    intros elem s hcount
+    by_contra h
+    simp only [Bool.not_eq_false] at h
+    rw [Std.ExtTreeSet.contains_iff_mem] at h
+    rw [← Std.ExtTreeSet.mem_toList] at h
+    have hlen : s.toList.length > 0 := List.length_pos_iff_exists_mem.mpr ⟨elem, h⟩
+    rw [Std.ExtTreeSet.length_toList] at hlen
+    omega
   toList_contains_iff := by
     intros elem s
     simp [Std.ExtTreeSet.contains_iff_mem]
@@ -750,6 +831,24 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
     exact sortedMergeNoDup_contains a s1.val s2.val s1.property s2.property
   contains_diff := fun a s1 s2 =>
     sortedDiffNoDup_contains a s1.val s2.val s1.property s2.property
+  contains_filter := fun a s p hcontains => by
+    have hmem :
+        a ∈ s.val.filter p :=
+      (sortedContains_iff a (s.val.filter p) (sorted_filter s.val p s.property)).mp hcontains
+    exact (List.mem_filter.mp hmem).2
+  contains_filter_of := fun a s p hcontains hp => by
+    have hmem : a ∈ s.val := (sortedContains_iff a s.val s.property).mp hcontains
+    have hmem_filter : a ∈ s.val.filter p := by
+      simp [hmem, hp]
+    exact (sortedContains_iff a (s.val.filter p) (sorted_filter s.val p s.property)).mpr hmem_filter
+  contains_of_contains_filter := fun a s p hcontains => by
+    have hmem :
+        a ∈ s.val.filter p :=
+      (sortedContains_iff a (s.val.filter p) (sorted_filter s.val p s.property)).mp hcontains
+    exact (sortedContains_iff a s.val s.property).mpr (List.mem_of_mem_filter hmem)
+  count_zero_not_contains := fun a s hcount => by
+    have hnil : s.val = [] := List.length_eq_zero_iff.mp hcount
+    simp [hnil, sortedContains]
   toList_contains_iff := fun a s => sortedContains_iff a s.val s.property
   subsets_iff := by
     simp ; intro l1 hl1 l2 hl2 ; simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, sublists]
@@ -825,6 +924,36 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
       (sortedContains a s1.val.toList && !sortedContains a s2.val.toList)
     rw [ordArrayDiff_toList s1.val s2.val]
     exact sortedDiffNoDup_contains a s1.val.toList s2.val.toList s1.property s2.property
+  contains_filter := fun a s p hcontains => by
+    have hmem :
+        a ∈ (s.val.filter p).toList :=
+      (sortedContains_iff a (s.val.filter p).toList (array_filter_sorted s.val p s.property)).mp hcontains
+    have hmem_arr : a ∈ s.val.filter p := by
+      simpa only [Array.mem_toList_iff] using hmem
+    exact (Array.mem_filter.mp hmem_arr).2
+  contains_filter_of := fun a s p hcontains hp => by
+    have hmem : a ∈ s.val.toList := (sortedContains_iff a s.val.toList s.property).mp hcontains
+    have hmem_arr : a ∈ s.val := by
+      simpa only [Array.mem_toList_iff] using hmem
+    have hmem_filter : a ∈ (s.val.filter p).toList := by
+      simpa only [Array.mem_toList_iff] using Array.mem_filter.mpr ⟨hmem_arr, hp⟩
+    exact (sortedContains_iff a (s.val.filter p).toList (array_filter_sorted s.val p s.property)).mpr hmem_filter
+  contains_of_contains_filter := fun a s p hcontains => by
+    have hmem :
+        a ∈ (s.val.filter p).toList :=
+      (sortedContains_iff a (s.val.filter p).toList (array_filter_sorted s.val p s.property)).mp hcontains
+    have hmem_arr : a ∈ s.val.filter p := by
+      simpa only [Array.mem_toList_iff] using hmem
+    have hmem_orig : a ∈ s.val := (Array.mem_filter.mp hmem_arr).1
+    exact (sortedContains_iff a s.val.toList s.property).mpr (by
+      simpa only [Array.mem_toList_iff] using hmem_orig)
+  count_zero_not_contains := fun a s hcount => by
+    have hlen : s.val.toList.length = 0 := by
+      rw [← Array.size_eq_length_toList]
+      exact hcount
+    have hnil : s.val.toList = [] :=
+      List.length_eq_zero_iff.mp hlen
+    simp [hnil, sortedContains]
   toList_contains_iff := fun a s => sortedContains_iff a s.val.toList s.property
   subsets_iff := by
     simp ; intro l1 hl1 l2 hl2 ; simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, subarrays, sublists, toOrdList, ofOrdList]
