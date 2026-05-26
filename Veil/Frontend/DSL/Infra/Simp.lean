@@ -128,6 +128,8 @@ private def getSimprocs (simps : Array Name) : CoreM Meta.Simp.SimprocsArray := 
   for a in simps do
     if (← Meta.Simp.isSimproc a) then
       simprocs ← simprocs.add a false     -- maybe change this later
+    else if let some ext ← Meta.Simp.getSimprocExtension? a then
+      simprocs := simprocs.push (← ext.getSimprocs)
   return simprocs
 
 def simpCore (ctx : Meta.Simp.Context) (simps : Array Name := #[]) : Simplifier := fun e => do
