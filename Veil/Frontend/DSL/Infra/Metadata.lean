@@ -85,6 +85,14 @@ instance : FromJson InductionVCKind where
     | "alternative" => pure .alternative
     | _ => .error s!"Invalid InductionVCKind: {s}"
 
+/-- Stable identity for an induction VC, independent of its generated theorem name. -/
+structure InductionVCKey where
+  actionName : Name
+  property : Name
+  style : VCStyle
+  kind : InductionVCKind
+deriving Inhabited, BEq, Hashable
+
 /-- Metadata for inductive verification conditions (invariant preservation). -/
 structure InductionVCMetadata where
   /-- The kind of this VC (primary, derived, alternative). -/
@@ -105,6 +113,9 @@ structure InductionVCMetadata where
   /-- What the VC is supposed to check. Used to disambiguate between multiple VCs with the same name. -/
   assertion : Option Term := none
 deriving Inhabited
+
+def InductionVCMetadata.key (m : InductionVCMetadata) : InductionVCKey :=
+  { actionName := m.action, property := m.property, style := m.style, kind := m.kind }
 
 instance : BEq InductionVCMetadata where
   beq a b :=

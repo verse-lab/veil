@@ -9,6 +9,7 @@ import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.State.ConcreteRegistry
 import Veil.Frontend.DSL.Module.VCGen
 import Veil.Core.Tools.Verifier.Server
+import Veil.Core.Tools.Verifier.TheoremDischarger
 import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
@@ -252,6 +253,33 @@ private def throwIfNoInitializerDefined (mod : Module) : CommandElabM Unit := do
   unless mod.procedures.any (·.info matches .initializer) do
     throwError "no `after_init` block has been defined for this specification; every Veil module must have one"
 
+private def vcManagerHasExpectedInductionVCs (mod : Module) : CommandElabM Bool := do
+  let expected := mod.expectedPrimaryInductionVCKeys
+  if expected.isEmpty then
+    return true
+  Verifier.vcManager.atomically fun ref => do
+    let mgr ← ref.get
+    let actual := mgr.nodes.valuesArray.foldl (init := Std.HashSet.emptyWithCapacity) fun acc vc =>
+      match vc.metadata with
+      | .induction m => acc.insert m.key
+      | .trace _ => acc
+    return expected.all fun key => actual.contains key
+
+private def generateInductionVCsFor (mod : Module) : CommandElabM Unit := do
+  Verifier.runManager
+  mod.generateDoesNotThrowVCs
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+  mod.generateInvariantVCs
+
+private def ensureInductionVCsAvailable (mod : Module) : CommandElabM Unit := do
+  unless ← isModelCheckCompileMode do
+    unless ← vcManagerHasExpectedInductionVCs mod do
+      generateInductionVCsFor mod
+
+private def prepareInvariantVerification (mod : Module) : CommandElabM Unit := do
+  ensureInductionVCsAvailable mod
+  Verifier.registerAvailableTheoremDischargersFor mod
+
 /-- Crystallizes the specification of the module, i.e. it finalizes the set of
 `procedures` and `assertions`. The `stx` parameter is the syntax of the command
 that triggered the finalization; it is stored for use by `#model_check` when
@@ -308,12 +336,8 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     pure mod
   Extract.runGenExtractCommand mod
   elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
-  unless (← isModelCheckCompileMode) do
-    Verifier.runManager
-    mod.generateDoesNotThrowVCs
-    -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-    Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
-    mod.generateInvariantVCs
+  unless ← isModelCheckCompileMode do
+    generateInductionVCsFor mod
   -- Invariant VCs are generated here; verifier commands decide when to start them.
   return { mod with _specFinalizedAt := some stx }
 
@@ -381,6 +405,7 @@ private def runFilteredInvariantCheck
     (filter : VCMetadata → Bool)
     (support? : Option (Array Name) := none)
     : CommandElabM Unit := do
+  prepareInvariantVerification mod
   mod.attachInvariantDischargers filter support?
   runInvariantCheckWithFilter stx mod filter
 
@@ -681,6 +706,7 @@ def elabGenTheorems : CommandElab := fun stx => do
     if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
     mod.throwIfSpecNotFinalized
+    prepareInvariantVerification mod
     let progressRef ← Verifier.startGenTheoremsAsync stx
     Verifier.displayGenTheoremsProgress stx progressRef
 

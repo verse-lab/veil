@@ -65,6 +65,10 @@ private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT
       | some reason => return .unknown (.some (.unknown #[reason])) time
       | none => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
 
+/-- Canonical generated theorem/VC name for a WP-style induction obligation. -/
+def inductionTheoremName (actName propertyName : Name) : Name :=
+  Name.mkSimple s!"{actName}_{propertyName}"
+
 /-! ## VC Discharger -/
 
 /-- Create a discharger for inductive verification conditions. -/
@@ -199,7 +203,7 @@ private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] 
     (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : InductionVCKind)
     : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `doesNotThrow)
-    ``VeilM.doesNotThrowAssuming_ex (Name.mkSimple s!"{actName}_doesNotThrow") vcKind
+    ``VeilM.doesNotThrowAssuming_ex (inductionTheoremName actName `doesNotThrow) vcKind
     (extraBinders := #[← `(bracketedBinder| ($exception:ident : ExId))])
     (extraTerms := #[← `(term| $exception:ident)])
 
@@ -214,7 +218,7 @@ private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m
       $(← mod.declarationAllArgs invariantClause (.stateAssertion .invariant))*) )]
   mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind
     ``VeilM.meetsSpecificationIfSuccessfulAssuming
-    (Name.mkSimple s!"{actName}_{invariantClause}") vcKind
+    (inductionTheoremName actName invariantClause) vcKind
     (extraDeps := extraDeps)
     (extraTerms := extraTerms)
 
@@ -225,7 +229,7 @@ private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [Mo
     : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `preservesInvariants)
     ``VeilM.preservesInvariantsIfSuccessfulAssuming
-    (Name.mkSimple s!"{actName}_preservesInvariants") vcKind
+    (inductionTheoremName actName `preservesInvariants) vcKind
 
 private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m]
     [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m]
@@ -234,7 +238,7 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
     : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `succeedsAndPreservesInvariants)
     ``VeilM.succeedsAndPreservesInvariantsAssuming
-    (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
+    (inductionTheoremName actName `succeedsAndPreservesInvariants) vcKind
 
 /-- Generate a TR-style (transition-based) VC for checking if an action preserves
 an invariant clause. This is an alternative to the WP-style VC and only runs
@@ -261,6 +265,16 @@ private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
   mod.procedures.filter (fun s => match s.info with
     | .action _ _ | .initializer => true
     | .procedure _ => false)
+
+def primaryWpInductionVCKey (actName propertyName : Name) : InductionVCKey :=
+  { actionName := actName, property := propertyName, style := .wp, kind := .primary }
+
+/-- Expected primary WP VCs for a finalized module.
+Checking primaries is enough because invariant TR alternatives are added atomically with their primaries. -/
+def Module.expectedPrimaryInductionVCKeys (mod : Module) : Array InductionVCKey :=
+  mod.actsToCheck.flatMap fun act =>
+    #[primaryWpInductionVCKey act.name `doesNotThrow] ++
+      mod.checkableInvariants.map (fun inv => primaryWpInductionVCKey act.name inv.name)
 
 /-- Generate doesNotThrow VCs for all actions.
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/
