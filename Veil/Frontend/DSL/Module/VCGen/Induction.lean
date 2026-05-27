@@ -250,7 +250,7 @@ private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadQuotation
       $(← mod.declarationAllArgs invariantClause (.stateAssertion .invariant))*) )]
   mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind
     ``Transition.meetsSpecificationIfSuccessfulAssuming
-    (Name.mkSimple s!"{actName}_{invariantClause}_tr") vcKind
+    (trTheoremName actName invariantClause) vcKind
     (style := .tr) (extraDeps := extraDeps)
     (extraTerms := extraTerms)
 

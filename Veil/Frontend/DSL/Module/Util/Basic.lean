@@ -214,6 +214,46 @@ def Parameter.arg [Monad m] [MonadQuotation m] (p : Parameter) : m Term := do
 
 def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
 
+/-! ## Parameter Substitution -/
+
+/-- A substitution replacing certain module-parameter names with terms.
+Used to instantiate uninterpreted sorts (and user parameters) with concrete
+types when stating theorems derived from a module. -/
+abbrev ParameterSubst := Std.HashMap Name Term
+
+/-- True if `stx` mentions any name that `s` substitutes. Used to decide
+whether a binder/argument depends on a substituted sort and must therefore
+be re-synthesized at the call site. -/
+def ParameterSubst.mentions (s : ParameterSubst) (stx : Syntax) : Bool :=
+  Option.isSome <| stx.find? fun t => s.contains t.getId
+
+/-- Like `Parameter.arg`, but: if `p.name` is substituted, return its image;
+if `p` is a typeclass whose type mentions a substituted name, emit `_` so
+the instance can be re-synthesized under the substitution. -/
+def Parameter.argSubst [Monad m] [MonadQuotation m]
+    (s : ParameterSubst) (p : Parameter) : m Term := do
+  if let some t := s[p.name]? then return t
+  match p.kind with
+  | .moduleTypeclass _ | .definitionParameter _ .typeclass =>
+      if s.mentions p.type then `(term| _) else p.arg
+  | _ => p.arg
+
+/-- Like `Parameter.binder`, but yields `none` when either `p.name` is
+substituted (the binder is replaced by a concrete term at the use site) or
+`p.type` mentions a substituted name (the binder's instance must be
+re-synthesized at the call site under the substitution). -/
+def Parameter.binderSubst? [Monad m] [MonadQuotation m]
+    (s : ParameterSubst) (p : Parameter) :
+    m (Option (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+  if s.contains p.name || s.mentions p.type then return none
+  return some (← p.binder)
+
+/-- Remove duplicate parameters by `name`, keeping the first occurrence. -/
+def Parameter.dedupByName (params : Array Parameter) : Array Parameter :=
+  (params.foldl (init := (#[], (∅ : Std.HashSet Name))) fun (acc, seen) p =>
+    if seen.contains p.name then (acc, seen)
+    else (acc.push p, seen.insert p.name)).1
+
 /-! ## Binder/Parameter Conversions -/
 
 def explicitBindersToParameters [Monad m] [MonadQuotation m] [MonadError m] (stx : Option (TSyntax ``Lean.explicitBinders)) (forDef : Name) : m (Array Parameter) := do
@@ -255,6 +295,18 @@ def Module.sortNames (mod : Module) : Array Name := mod.sortFilterMapFn (m := Id
 
 /-- Returns sort parameters along with their kind (uninterpreted or enum). -/
 def Module.sortParams (mod : Module) : Array (Parameter × SortKind) := mod.sortFilterMapFn (m := Id) fun p k => (p, k)
+
+/-- The `.moduleTypeclass .sortAssumption` parameters whose type mentions
+`className` (e.g. `Inhabited` or `DecidableEq`). These are auto-generated
+by `declareUninterpretedSort` (one `_dec_eq` and one `_inhabited` per
+uninterpreted sort), and consumers that need to surface a specific subset
+to a definition's binders should select from them by class. -/
+def Module.sortAssumptionParamsFor (mod : Module) (className : Name) : Array Parameter :=
+  mod.parameters.filter fun p =>
+    match p.kind with
+    | .moduleTypeclass .sortAssumption =>
+        Option.isSome <| p.type.raw.find? fun s => s.getId == className
+    | _ => false
 
 /-! ## Uninterpreted Parameter Utilities (sorts + user parameters) -/
 
@@ -372,6 +424,15 @@ def Module.declarationAllArgs {m} [Monad m] [MonadError m] [MonadQuotation m] (m
   let ((_, allModArgs), (_, specificArgs)) ← mod.declarationSplitBindersArgs forDeclaration k
   return allModArgs ++ specificArgs
 
+/-- Like `Module.declarationAllArgs`, but applies a `ParameterSubst` to each
+argument: substituted names are replaced by their image, and typeclass
+parameters whose type mentions a substituted name are emitted as `_`. -/
+def Module.declarationAllArgsSubst [Monad m] [MonadError m] [MonadQuotation m]
+    (mod : Module) (s : ParameterSubst) (forDeclaration : Name) (k : DeclarationKind) :
+    m (Array Term) := do
+  let (allModParams, actualParams) ← mod.declarationAllParams forDeclaration k
+  return (← allModParams.mapM (·.argSubst s)) ++ (← actualParams.mapM (·.argSubst s))
+
 /-- Create parameters for a derived definition which **does not
 exist**. FIXME: this is `O(n^2)`-ish, so it might become a bottleneck.
 The solution is to also store an index into the appropriate array in
@@ -391,6 +452,10 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotat
     | .derivedDefinition _ _ => return mod._derivedDefinitions.valuesArray.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | _ => throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} (included in derivedFrom) has unsupported kind")
     pure $ Array.flatten extraParams)
+  -- A `derivedFrom` set may contain both an aggregator (e.g.
+  -- `assembledInvariants`) and one of its members; the same `_dec_{i}`
+  -- instance can be contributed twice. Keep the first occurrence.
+  let extraParams := Parameter.dedupByName extraParams
   return (← baseParams.mapM f, ← extraParams.mapM f)
 
 /-! ## Assertion & Procedure Filters -/

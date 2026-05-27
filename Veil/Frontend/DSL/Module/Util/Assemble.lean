@@ -274,8 +274,14 @@ def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [Mona
   let sorts ← mod.uninterpretedParamIdents
   -- Module parameter binders: (node : Type) (n : Nat) etc.
   let sortBinders ← mod.uninterpretedParamBinders
-  -- Inhabited instances for every sort: [Inhabited node]
-  let inhabitedBinders ← mod.assumeForEverySort ``Inhabited
+  -- Inhabited instances for every sort: pull the named `_inhabited`
+  -- parameters that `declareUninterpretedSort` already registered in
+  -- `mod.parameters`, so the def's binders correspond to actual entries in
+  -- the module's parameter list (rather than being freshly synthesized).
+  -- This lets `declarationAllParams assembledRTSName .stateLike _` describe
+  -- the real binder set.
+  let inhabitedParams := mod.sortAssumptionParamsFor ``Inhabited
+  let inhabitedBinders ← inhabitedParams.mapM (·.binder)
   -- User-defined typeclass parameters
   let userDefinedParams : Array Parameter := mod.parameters.filter fun p =>
     match p.kind with
@@ -302,9 +308,12 @@ def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [Mona
       assumptions := $assumptionsVal
       init := $initVal
       tr := $nextVal)
-  -- Register as derived definition
+  -- Register as derived definition. Use `.stateLike` so the base params are
+  -- sorts + userParameters (matching `sortBinders`); the inhabited and
+  -- user-defined typeclass binders are recorded as `extraParams` so that
+  -- `declarationAllParams` returns the same binder set as the `def`.
   let derivedFrom := Std.HashSet.ofArray #[assembledAssumptionsName, assembledInitName, assembledNextName]
-  let derivedDef : DerivedDefinition := { name := assembledRTSName, kind := .actionLike, params := #[], extraParams := userDefinedParams, derivedFrom := derivedFrom, stx := rtsDef }
+  let derivedDef : DerivedDefinition := { name := assembledRTSName, kind := .stateLike, params := #[], extraParams := inhabitedParams ++ userDefinedParams, derivedFrom := derivedFrom, stx := rtsDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (rtsDef, mod)
 
