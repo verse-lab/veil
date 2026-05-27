@@ -1,5 +1,7 @@
 .lake
 .vscode
+.codex
+__pycache__
 # Docker temp files
 veil.zip
 .veil.tmp/
