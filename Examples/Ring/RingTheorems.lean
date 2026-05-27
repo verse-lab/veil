@@ -57,6 +57,23 @@ private theorem Nat.succ_mod_ne_self_of_lt {i n : Nat} (hi : i < n) (hn : 1 < n)
   · have hmod := Nat.succ_mod_eq_zero_of_not_lt hi hlt
     omega
 
+private theorem Nat.succ_mod_inj_of_lt {i j n : Nat} (hi : i < n) (hj : j < n)
+    (h : (i + 1) % n = (j + 1) % n) :
+    i = j := by
+  by_cases hi_succ : i + 1 < n
+  · have hi_mod : (i + 1) % n = i + 1 := Nat.mod_eq_of_lt hi_succ
+    by_cases hj_succ : j + 1 < n
+    · have hj_mod : (j + 1) % n = j + 1 := Nat.mod_eq_of_lt hj_succ
+      omega
+    · have hj_mod := Nat.succ_mod_eq_zero_of_not_lt hj hj_succ
+      omega
+  · have hi_mod := Nat.succ_mod_eq_zero_of_not_lt hi hi_succ
+    by_cases hj_succ : j + 1 < n
+    · have hj_mod : (j + 1) % n = j + 1 := Nat.mod_eq_of_lt hj_succ
+      omega
+    · have hj_mod := Nat.succ_mod_eq_zero_of_not_lt hj hj_succ
+      omega
+
 -- No index is strictly between `s` and the immediate successor of `s`.
 private theorem not_idxBtw_succ {len s n : Nat} (hs : s < len) (hn : n < len)
     (_hlen : 1 < len) :
@@ -303,6 +320,7 @@ invariant [messages_src_in_allNodes] ∀ m ∈ messages, m.src ∈ allNodes
 invariant [messages_dst_in_allNodes] ∀ m ∈ messages, m.dst ∈ allNodes
 invariant [leader_greatest] ∀ L ∈ leader, ∀ N ∈ allNodes, N ≤ L
 invariant [self_msg_greatest] ∀ m ∈ messages, m.payload = m.dst → ∀ N ∈ allNodes, N ≤ m.payload
+invariant [messages_dst_next_src] ∀ m ∈ messages, m.dst = nextNode m.src
 invariant [drop_smaller] ∀ m ∈ messages, ∀ N ∈ allNodes, btw m.payload N m.dst → N ≤ m.payload
 
 set_option veil.solver "grind+smt"
@@ -451,7 +469,7 @@ theorem send_drop_smaller (ρ : Type) (σ : Type) (χ : State.Label → Type)
   unveil
   intro ht
   rcases has with ⟨hnodup, hnontriv⟩
-  rcases hinv with ⟨_, _, _, _, _, _, _, _, _, hdrop⟩
+  rcases hinv with ⟨_, _, _, _, _, _, _, _, _, _, hdrop⟩
   let msg : Message := { payload := n, src := n, dst := nextNode n th }
   by_cases hmem : msg ∈ st.messages
   · simpa [msg, hmem] using hdrop
@@ -459,6 +477,29 @@ theorem send_drop_smaller (ρ : Type) (σ : Type) (χ : State.Label → Type)
     exact ⟨fun N hN hbtw =>
       False.elim <| ringBtw_no_cyclicNext hnodup hnontriv ht hN
         (by simpa [nextNode, List.cyclicNext, ht, ringBtw, ringLt] using hbtw), hdrop⟩
+
+@[veil]
+theorem send_messages_dst_next_src (ρ : Type) (σ : Type) (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation (State.Label.toDomain __veil_f) (State.Label.toCodomain __veil_f) (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation (State.Label.toDomain __veil_f) (State.Label.toCodomain __veil_f) (χ __veil_f)
+          (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory) ρ] :
+    Veil.VeilM.meetsSpecificationIfSuccessfulAssuming (@send.ext ρ σ χ χ_rep χ_rep_lawful σ_sub ρ_sub)
+      (@Assumptions ρ ρ_sub) (@Invariants ρ σ χ χ_rep χ_rep_lawful σ_sub ρ_sub)
+      (@messages_dst_next_src ρ σ χ χ_rep χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  intro ht
+  rcases hinv with ⟨_, _, _, _, _, _, _, _, _, hshape, _⟩
+  let msg : Message := { payload := n, src := n, dst := nextNode n th }
+  by_cases hmem : msg ∈ st.messages
+  · simpa [msg, hmem] using hshape
+  · simp [msg, hmem, List.mem_insertOrdered]
+    exact hshape
 
 @[veil]
 theorem recv_single_leader (ρ : Type) (σ : Type) (χ : State.Label → Type)
@@ -637,7 +678,7 @@ theorem recv_self_msg_greatest (ρ : Type) (σ : Type) (χ : State.Label → Typ
   unveil
   intro ht
   rcases has with ⟨hnodup, hnontriv⟩
-  rcases hinv with ⟨_, _, _, _, hpayload, _, hdst, _, hself, hdrop⟩
+  rcases hinv with ⟨_, _, _, _, hpayload, _, hdst, _, hself, _, hdrop⟩
   have hself_erase :
       ∀ msg' ∈ st.messages.erase m, msg'.payload = msg'.dst → ∀ N ∈ th.allNodes, N ≤ msg'.payload := by
     intro msg' hm
@@ -681,7 +722,7 @@ theorem recv_drop_smaller (ρ : Type) (σ : Type) (χ : State.Label → Type)
   unveil
   intro ht
   rcases has with ⟨hnodup, hnontriv⟩
-  rcases hinv with ⟨_, _, _, _, hpayload, _, hdst, _, _, hdrop⟩
+  rcases hinv with ⟨_, _, _, _, hpayload, _, hdst, _, _, _, hdrop⟩
   have hpayload_m : m.payload ∈ th.allNodes := hpayload m ht
   have hdst_m : m.dst ∈ th.allNodes := hdst m ht
   let msg : Message := { payload := m.payload, src := m.dst, dst := nextNode m.dst th }
@@ -708,9 +749,80 @@ theorem recv_drop_smaller (ρ : Type) (σ : Type) (χ : State.Label → Type)
       intro msg' hm N hN hbtw
       exact hdrop msg' (List.mem_of_mem_erase (b := m) hm) N hN hbtw
 
+@[veil]
+theorem recv_messages_dst_next_src (ρ : Type) (σ : Type) (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation (State.Label.toDomain __veil_f) (State.Label.toCodomain __veil_f) (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation (State.Label.toDomain __veil_f) (State.Label.toCodomain __veil_f) (χ __veil_f)
+          (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory) ρ] :
+    Veil.VeilM.meetsSpecificationIfSuccessfulAssuming (@recv.ext ρ σ χ χ_rep χ_rep_lawful σ_sub ρ_sub)
+      (@Assumptions ρ ρ_sub) (@Invariants ρ σ χ χ_rep χ_rep_lawful σ_sub ρ_sub)
+      (@messages_dst_next_src ρ σ χ χ_rep χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  intro ht
+  rcases hinv with ⟨_, _, _, _, _, _, _, _, _, hshape, _⟩
+  have hshape_erase :
+      ∀ msg' ∈ st.messages.erase m, msg'.dst = nextNode msg'.src th := by
+    intro msg' hm
+    exact hshape msg' (List.mem_of_mem_erase hm)
+  let msg : Message := { payload := m.payload, src := m.dst, dst := nextNode m.dst th }
+  by_cases hcond : m.payload = m.dst ∧ m.dst ∉ st.leader
+  · simpa [hcond] using hshape_erase
+  · by_cases hle : m.dst ≤ m.payload
+    · by_cases hmem : msg ∈ st.messages.erase m
+      · simpa [hcond, hle, msg, hmem] using hshape_erase
+      · simp [hcond, hle, msg, hmem, List.mem_insertOrdered]
+        exact hshape_erase
+    · simpa [hcond, hle] using hshape_erase
+
 #check_invariants
 
 #model_check { }
   { allNodes := [1, 5, 2, 4, 3] }
+
+/-- `nextNode` preserves membership in the concrete ring. -/
+theorem nextNode_mem {th : Theory} (_hass : Assumptions Theory th) {n : Nat}
+    (hn : n ∈ th.allNodes) :
+    nextNode n th ∈ th.allNodes := by
+  simpa [nextNode] using List.cyclicNext_mem (l := th.allNodes) hn
+
+/-- Under the ring assumptions, `nextNode` is not a self-loop. -/
+theorem nextNode_ne {th : Theory} (hass : Assumptions Theory th) {n : Nat}
+    (hn : n ∈ th.allNodes) :
+    n ≠ nextNode n th := by
+  rcases hass with ⟨hnodup, hnontriv⟩
+  intro heq
+  have heq_next : n = th.allNodes.next n hn := by
+    have hforall : ∀ h : n ∈ th.allNodes, n = th.allNodes.next n h := by
+      simpa [nextNode] using heq
+    exact hforall hn
+  exact (List.cyclicNext_ne (l := th.allNodes) hnodup hnontriv hn)
+    (by simpa [List.cyclicNext, hn] using heq_next)
+
+/-- `nextNode` advances `idxOf` by one modulo the ring length. -/
+theorem idxOf_nextNode {th : Theory} (hass : Assumptions Theory th) {n : Nat}
+    (hn : n ∈ th.allNodes) :
+    th.allNodes.idxOf (nextNode n th) = (th.allNodes.idxOf n + 1) % th.allNodes.length := by
+  rcases hass with ⟨hnodup, _⟩
+  simpa [nextNode] using List.idxOf_cyclicNext (l := th.allNodes) hnodup hn
+
+/-- On ring members, a concrete destination has a unique predecessor. -/
+theorem nextNode_predecessor_unique {th : Theory} (hass : Assumptions Theory th)
+    {src src' : Nat} (hsrc : src ∈ th.allNodes) (hsrc' : src' ∈ th.allNodes)
+    (heq : nextNode src th = nextNode src' th) :
+    src = src' := by
+  have hidx := congrArg (fun n => th.allNodes.idxOf n) heq
+  simp [idxOf_nextNode hass hsrc, idxOf_nextNode hass hsrc'] at hidx
+  have hsrc_idx : th.allNodes.idxOf src < th.allNodes.length :=
+    List.idxOf_lt_length_iff.mpr hsrc
+  have hsrc'_idx : th.allNodes.idxOf src' < th.allNodes.length :=
+    List.idxOf_lt_length_iff.mpr hsrc'
+  exact (List.idxOf_inj hsrc).mp
+    (Nat.succ_mod_inj_of_lt hsrc_idx hsrc'_idx hidx)
 
 end RingTheorems
