@@ -308,6 +308,12 @@ scoped syntax (name := genSpec) kw_gen_spec : command
 
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
+declare_syntax_cat reachableInvariantSubstitution
+scoped syntax ident " := " term : reachableInvariantSubstitution
+
+scoped syntax (name := genReachableInvariants)
+  "#gen_reachable_invariants" (" with " reachableInvariantSubstitution,+)? : command
+
 scoped syntax (name := checkInvariants) "#check_invariants" : command
 scoped syntax (name := checkInvariantsInvSet) "#check_invariants" ident ("using" ident*)? : command
 

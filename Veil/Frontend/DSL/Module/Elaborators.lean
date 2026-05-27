@@ -17,6 +17,7 @@ import Veil.Frontend.DSL.Action.Extract
 import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing
 import Veil.Frontend.DSL.Module.AssertionInfo
+import Veil.Frontend.DSL.Module.ReachableInvariants
 
 open Lean Parser Elab Command
 
@@ -60,7 +61,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     elabVeilCommand $ ← `(open Veil)
     elabVeilCommand $ ← `(namespace $modName)
     if genv.containsModule name then
-      logInfo "Module {name} has been previously defined. Importing it here."
+      logInfo m!"Module {name} has been previously defined. Importing it here."
       let mod := genv.modules[name]!
       localEnv.modifyModule (fun _ => mod)
     else
@@ -671,6 +672,8 @@ def elabGenSpec : CommandElab := fun stx => do
     let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized stx
     localEnv.modifyModule (fun _ => mod)
+    let genv ← globalEnv.get
+    globalEnv.add { genv with modules := genv.modules.insert mod.name mod }
 
 @[command_elab Veil.genTheorems]
 def elabGenTheorems : CommandElab := fun stx => do
@@ -680,6 +683,12 @@ def elabGenTheorems : CommandElab := fun stx => do
     mod.throwIfSpecNotFinalized
     let progressRef ← Verifier.startGenTheoremsAsync stx
     Verifier.displayGenTheoremsProgress stx progressRef
+
+@[command_elab Veil.genReachableInvariants]
+def elabGenReachableInvariants : CommandElab := fun stx => do
+  withTraceNode `veil.perf.elaborator.genReachableInvariants
+      (fun _ => return "#gen_reachable_invariants") do
+    elabGenReachableInvariantsCommand stx
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/

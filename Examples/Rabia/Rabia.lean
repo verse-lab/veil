@@ -704,7 +704,8 @@ theorem phase_rnd2_good_succ_good (ρ : Type) (σ : Type) (node : Type) [node_de
             have hValNonQuestion : ¬Val = ThreeValuedType.vquestion := by
               obtain ⟨V0, hVote0⟩ := hInPhaseVote n p hinPhase
               have hEq : V0 = Val := hLockedOld n V0 hVote0
-              simpa [hEq] using hVoteRnd1NonQuestion n p V0 hVote0
+              intro hValQuestion
+              exact hVoteRnd1NonQuestion n p V0 hVote0 (hEq.trans hValQuestion)
             exact False.elim (hNoMajVote ⟨Val, hValNonQuestion, ⟨w, hwMaj, hwRnd2⟩⟩)
           · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
               intro hn hpsucc hv
@@ -912,7 +913,8 @@ theorem phase_rnd2_inv_35 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : D
           have hValNonQuestion : ¬V = ThreeValuedType.vquestion := by
             obtain ⟨V0, hVote0⟩ := hInPhaseVote n p hinPhase
             have hEq : V0 = V := hLockedOld n V0 hVote0
-            simpa [hEq] using hVoteRnd1NonQuestion n p V0 hVote0
+            intro hVQuestion
+            exact hVoteRnd1NonQuestion n p V0 hVote0 (hEq.trans hVQuestion)
           exact False.elim (hNoMajVote ⟨V, hValNonQuestion, ⟨w, hwMaj, hwRnd2⟩⟩)
         · have hOldVote : st.vote_rnd1 N P2 Valt = true := hVote (by
             intro hn hpsucc hv
@@ -1328,12 +1330,18 @@ theorem phase_rnd2_vote_rnd1_pred_rnd (ρ : Type) (σ : Type) (node : Type) [nod
       have hV0NonQuestion : ¬V0 = ThreeValuedType.vquestion := hVoteRnd1NonQuestion n p V0 hVote0
       have hV0Ne : V0 ≠ vnew := by
         intro hEq
-        exact hPred ⟨n, by simpa [hEq] using hVote0⟩
+        have hVoteNew : st.vote_rnd1 n p vnew = true := by
+          rw [← hEq]
+          exact hVote0
+        exact hPred ⟨n, hVoteNew⟩
       have hLocked :
           ∀ (N : node) (Valt : state_value), st.vote_rnd1 N p Valt = true → Valt = V0 := by
         intro N Valt hVote
         by_cases hValEq : Valt = vnew
-        · exact False.elim (hPred ⟨N, by simpa [hValEq] using hVote⟩)
+        · have hVoteNew : st.vote_rnd1 N p vnew = true := by
+            rw [← hValEq]
+            exact hVote
+          exact False.elim (hPred ⟨N, hVoteNew⟩)
         · exact ThreeValuedType.eq_of_ne_question_of_ne_same
             (hVoteRnd1NonQuestion N p Valt hVote) hV0NonQuestion hValEq hV0Ne hNonQuestion
       exact hForbid V0 hLocked
@@ -1379,7 +1387,8 @@ theorem phase_rnd2_vote_rnd1_pred_rnd (ρ : Type) (σ : Type) (node : Type) [nod
           have hVNonQuestion : ¬V = ThreeValuedType.vquestion := by
             obtain ⟨V0, hVote0⟩ := hInPhaseVote n p hinPhase
             have hEq : V0 = V := hLocked n V0 hVote0
-            simpa [hEq] using hVoteRnd1NonQuestion n p V0 hVote0
+            intro hVQuestion
+            exact hVoteRnd1NonQuestion n p V0 hVote0 (hEq.trans hVQuestion)
           exact hNoMajVote ⟨V, hVNonQuestion, ⟨w, hwMem, hwVote⟩⟩)
         exact preserve vnew hNewPred N1 P2 V1 P hVoteUpdated hNextPP2
 
@@ -1482,16 +1491,21 @@ theorem phase_rnd2_inv_34 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : D
           have hMembersAtP :
               ∀ (N : node), member_maj N q → ∃ V, st.vote_rnd2 N P V = true := by
             intro N hMem
-            simpa [← hp] using hMembers N hMem
+            rw [← hp]
+            exact hMembers N hMem
           obtain ⟨V0, hVote0⟩ := hInPhaseVote n p hinPhase
           have hVote0P : st.vote_rnd1 n P V0 = true := by
-            simpa [← hp] using hVote0
+            rw [← hp]
+            exact hVote0
           have hV0Eq : V0 = V := hLockedOld n V0 hVote0P
           have hVNonQuestion : ¬V = ThreeValuedType.vquestion := by
-            simpa [hV0Eq] using hVoteRnd1NonQuestion n p V0 hVote0
+            intro hVQuestion
+            exact hVoteRnd1NonQuestion n p V0 hVote0 (hV0Eq.trans hVQuestion)
           obtain ⟨N, hNMem, hNRnd2⟩ := hLockedWitness P V hLockedOld q hMembersAtP
           apply hNoMajVote
-          exact ⟨V, hVNonQuestion, ⟨N, hNMem, by simpa [← hp] using hNRnd2⟩⟩
+          exact ⟨V, hVNonQuestion, ⟨N, hNMem, by
+            rw [hp]
+            exact hNRnd2⟩⟩
         · exact hLockedNoCoin P V V2 (by
             intro N Valt hVote
             exact hLocked N Valt (fun _ => hVote)) Q hMembersP
@@ -1734,7 +1748,8 @@ theorem initial_vote1_good_succ_good (ρ : Type) (σ : Type) (node : Type) [node
     have hLtP2 : TotalOrderWithMinimum.lt P P2 :=
       ((TotalOrderWithMinimum.next_def P P2).mp hNext).1
     have hLtZero : TotalOrderWithMinimum.lt P TotalOrderWithMinimum.zero := by
-      simpa [← hZero] using hLtP2
+      rw [← hZero] at hLtP2
+      exact hLtP2
     have hLeAndNe := (TotalOrderWithMinimum.le_lt P TotalOrderWithMinimum.zero).mp hLtZero
     have hZeroLeP : TotalOrderWithMinimum.le TotalOrderWithMinimum.zero P :=
       TotalOrderWithMinimum.zero_lt P
@@ -1876,7 +1891,8 @@ theorem phase_rnd1_inv_33 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : D
     · have hNewEq : vnew = V := by
         obtain ⟨w, hwMem, _⟩ := Background.ax0 q q
         exact hLocked w vnew (by
-          simpa [hp] using hUniform w hwMem)
+          rw [← hp]
+          exact hUniform w hwMem)
       by_cases hnQ : member_maj n Q
       · exact ⟨n, hnQ, by
           intro hUpdated
@@ -1887,8 +1903,10 @@ theorem phase_rnd1_inv_33 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : D
           obtain ⟨Valt, hVoteUpdated⟩ := hMembersUpdated N hNQ
           exact ⟨Valt, hVoteUpdated (by
             intro hn _ _
-            exact hnQ (by
-              simpa [hn] using hNQ))⟩
+            have hnMem : member_maj n Q := by
+              rw [hn]
+              exact hNQ
+            exact hnQ hnMem)⟩
         obtain ⟨w, hwMem, hwVote⟩ := hLockedWitness P V hLocked Q hOldMembers
         exact ⟨w, hwMem, fun _ => hwVote⟩
     · have hOldMembers :
@@ -1908,8 +1926,10 @@ theorem phase_rnd1_inv_33 (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : D
         intro N hNq
         obtain ⟨Valt, hVote⟩ := hMajVoteRnd1 N hNq
         have hValtEq : Valt = V := hLocked N Valt (by
-          simpa [hp] using hVote)
-        simpa [hValtEq] using hVote⟩
+          rw [← hp]
+          exact hVote)
+        rw [← hValtEq]
+        exact hVote⟩
     · have hOldMembers :
           ∀ (N : node), member_maj N Q → ∃ V, st.vote_rnd2 N P V = true := by
         intro N hNQ
