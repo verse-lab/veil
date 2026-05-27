@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem Phase1b_two_a_valid_ballot (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -69,3 +70,5 @@ theorem Phase1b_two_a_valid_ballot (ρ : Type) (σ : Type) (acceptor : Type) [ac
   -- Extract two_a_valid_ballot from hinv (it's the 7th component)
   obtain ⟨_, _, _, _, _, _, htwo_a, _⟩ := hinv
   exact htwo_a m hcontains hmsgtype hbalnone
+
+end Paxos

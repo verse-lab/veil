@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem initializer_MsgInv2a (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -39,3 +40,5 @@ theorem initializer_MsgInv2a (ρ : Type) (σ : Type) (acceptor : Type) [acceptor
   intro hcontains
   have hempty := @TSet.empty_contains _ _ msgTset m
   simp_all
+
+end Paxos

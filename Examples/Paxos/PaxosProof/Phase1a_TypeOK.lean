@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem Phase1a_TypeOK (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -45,3 +46,5 @@ theorem Phase1a_TypeOK (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_e
   -- From hinv we have the pre-state TypeOK
   obtain ⟨_, hTypeOK, _⟩ := hinv
   exact hTypeOK a
+
+end Paxos

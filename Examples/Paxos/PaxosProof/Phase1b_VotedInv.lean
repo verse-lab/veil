@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem Phase1b_VotedInv (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -107,3 +108,5 @@ theorem Phase1b_VotedInv (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec
         exact hmaxBal2 hle_anti.symm
       · simp only [if_neg ha''eq]
         exact hmaxBal2
+
+end Paxos

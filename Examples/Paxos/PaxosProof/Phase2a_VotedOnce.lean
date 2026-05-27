@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem Phase2a_VotedOnce (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -46,9 +47,9 @@ theorem Phase2a_VotedOnce (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_de
   -- VotedOnce: ∀ a1 a2 b v1 v2, VotedForIn a1 v1 b → VotedForIn a2 v2 b → v1 = v2
   -- VotedForIn requires Phase2b messages
   -- Phase2a only adds a Phase2a message, so Phase2b messages are preserved
-  -- Use `intros` to introduce all hypotheses automatically
-  intros
-  rename_i m1 m2 _ _ selectedVal _ _ _ _ _ _ _ _ _ _ hm1_contains hm1_type hm1_val hm1_bal hm1_acc hm2_contains hm2_type hm2_val hm2_bal hm2_acc
+  intro m1 m2 _ _ selectedVal _ _ _ _ _ a1' a1 b' v1 v2
+    hm1_contains hm1_type hm1_val hm1_bal hm1_acc
+    hm2_contains hm2_type hm2_val hm2_bal hm2_acc
   -- The newly added message is a Phase2a message
   let newMsg : Msg acceptor value ballot := { msgType := MsgType.Phase2a, acc := default, val := selectedVal, bal := b, maxVBal := default }
   -- m1 cannot be the newly added Phase2a message (m1 must be Phase2b)
@@ -62,4 +63,8 @@ theorem Phase2a_VotedOnce (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_de
   rw [TSet.contains_insert_other _ _ _ hm2_ne] at hm2_contains
   -- Extract VotedOnce from hinv (it's the 9th/last component)
   obtain ⟨_, _, _, _, _, _, _, _, hVotedOnce⟩ := hinv
-  exact hVotedOnce m1 m2 _ _ _ _ _ hm1_contains hm1_type hm1_val hm1_bal hm1_acc hm2_contains hm2_type hm2_val hm2_bal hm2_acc
+  exact hVotedOnce m1 m2 a1' a1 b' v1 v2
+    hm1_contains hm1_type hm1_val hm1_bal hm1_acc
+    hm2_contains hm2_type hm2_val hm2_bal hm2_acc
+
+end Paxos

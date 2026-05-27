@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem Phase1b_VotedOnce (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -72,3 +73,5 @@ theorem Phase1b_VotedOnce (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_de
   -- Extract VotedOnce from hinv (it's the 9th/last component)
   obtain ⟨_, _, _, _, _, _, _, _, hVotedOnce⟩ := hinv
   exact hVotedOnce m1 m2 a1' a1 b' v1 v2 hc1 ht1 hv1 hb1 ha1 hc2 ht2 hv2 hb2 ha2
+
+end Paxos

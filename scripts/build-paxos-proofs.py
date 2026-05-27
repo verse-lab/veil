@@ -16,7 +16,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 PROOFS_DIR = Path("Examples/Paxos/PaxosProof")
-EXCLUDED_FILES = {"Spec.lean"}  # Files to skip when building all
+EXCLUDED_FILES = {"Spec.lean", "All.lean"}  # Files to skip when building all
 MAX_WORKERS = os.cpu_count() or 4  # Use all available CPUs
 LEAN_INCOMPLETE_TERM = "s" + "orry"
 

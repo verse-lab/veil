@@ -1,10 +1,11 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
 set_option maxHeartbeats 400000
 
+@[veil]
 theorem Phase2b_Consistency (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -283,3 +284,5 @@ theorem Phase2b_Consistency (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_
         rw [TSet.contains_insert_other _ _ _ hm'_ne] at hm'_contains
         exact ⟨m', hm'_contains, hm'_type, hm'_val, hm'_bal, hm'_acc⟩
       exact hcons val1 val2 bal1 quorum1 hvote1_pre bal2 quorum2 hvote2_pre
+
+end Paxos

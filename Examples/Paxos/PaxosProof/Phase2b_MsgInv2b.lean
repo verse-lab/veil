@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem Phase2b_MsgInv2b (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -118,3 +119,5 @@ theorem Phase2b_MsgInv2b (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec
         exact TotalOrderWithZeroAndNone.le_trans _ _ _ hle1 hle_filter
       · simp only [ha, ite_false]
         exact hle_maxVBal
+
+end Paxos

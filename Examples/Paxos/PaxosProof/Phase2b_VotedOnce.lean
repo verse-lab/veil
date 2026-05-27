@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem Phase2b_VotedOnce (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -126,3 +127,5 @@ theorem Phase2b_VotedOnce (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_de
     · -- Both x and x_1 are from pre-state
       rw [TSet.contains_insert_other _ _ _ hx1new] at hx1_contains
       exact hVotedOnce x x_1 a1 a2 b v1 v2 hx_contains hx_type hx_val hx_bal hx_acc hx1_contains hx1_type hx1_val hx1_bal hx1_acc
+
+end Paxos

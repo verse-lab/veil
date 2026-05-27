@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem initializer_AccInv (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -39,3 +40,5 @@ theorem initializer_AccInv (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_d
   -- le th.tot.none th.tot.none ∧ ∀ x c, ... → false = true → ...
   simp_all only [TSet.empty_contains]
   exact ⟨TotalOrderWithZeroAndNone.le_refl _, fun _ _ _ _ h => absurd h Bool.false_ne_true⟩
+
+end Paxos

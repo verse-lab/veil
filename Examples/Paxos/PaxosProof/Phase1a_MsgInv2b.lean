@@ -1,8 +1,9 @@
 import Veil
-import Examples.Paxos.Paxos
+import Examples.Paxos.PaxosSpec
 
-open Paxos
+namespace Paxos
 
+@[veil]
 theorem Phase1a_MsgInv2b (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec_eq : DecidableEq.{1} acceptor]
     [acceptor_inhabited : Inhabited.{1} acceptor] (value : Type) [value_dec_eq : DecidableEq.{1} value]
     [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
@@ -58,3 +59,5 @@ theorem Phase1a_MsgInv2b (ρ : Type) (σ : Type) (acceptor : Type) [acceptor_dec
     simp at hma_type
   rw [TSet.contains_insert_other _ _ _ hmane]
   exact hma_contains
+
+end Paxos
