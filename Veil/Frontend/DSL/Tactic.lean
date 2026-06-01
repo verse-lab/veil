@@ -1000,6 +1000,19 @@ def elabVeilSolveWpConservative : DesugarTacticM Unit := veilWithMainContext do
   let tac ← `(tactic| veil_wp; veil_concretize_wp; veil_fol; veil_smt)
   veilEvalTactic tac
 
+def findHypsHeadedByConst (nm : Name) : TacticM (Array LocalDecl) := do
+  let nm ← resolveGlobalConstNoOverloadCore nm
+  let lctx ← getLCtx
+  let mut hyps := #[]
+  for ldecl in lctx do
+    if ldecl.isImplementationDetail then continue
+    let ty ← instantiateMVars ldecl.type
+    -- Strip leading foralls
+    let body := ty.getForallBody
+    if body.getAppFn'.isConstOf nm then
+      hyps := hyps.push ldecl
+  return hyps
+
 /-- Try the wplo path first; if the probe fails, fall back to conservative.
 The probe consists of `wpLoTac` and `invCoreEqTac` (using raw `simp` to avoid
 `-failIfUnchanged`). Once the probe succeeds, we commit to the wplo path
@@ -1012,15 +1025,20 @@ def elabVeilSolveWp : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: using `simp` (not `veil_simp`) so that `failIfUnchanged` defaults to true,
   -- which causes the probe to fail cleanly when wpLOSimp lemmas don't apply
   let wpLoTac ← `(tactic| open $classicalIdent:ident in simp +$(mkIdent `failIfUnchanged):ident only [↓ $(mkIdent `wpLOSimp):ident])
-  let coreEqTac ← `(tactic| rw [$(mkIdent <| toCoreSimplifiedEqName assembledInvariantsName):ident] at $(mkIdent `hinv):ident)
-  let probeTac ← `(tactic| ($wpLoTac; $coreEqTac))
+  let coreEqTac : DesugarTacticM Unit := veilWithMainContext do
+    let hyps ← findHypsHeadedByConst assembledInvariantsName
+    let some hyp := hyps[0]? | return
+    veilEvalTactic (← `(tactic| rw [$(mkIdent <| toCoreSimplifiedEqName assembledInvariantsName):ident] at $(mkIdent hyp.userName):ident))
   let probeSucceeds? ← DesugarTacticM.orElse
     (do
-      veilWithMainContext <| veilEvalTactic probeTac
+      veilWithMainContext <| veilEvalTactic wpLoTac
       pure true)
     (fun _ => pure false)
-  veilWithMainContext $ veilEvalTactic <| ←
-    (if probeSucceeds? then `(tactic| __veil_solve_wplo) else `(tactic| __veil_solve_wp_conservative))
+  if probeSucceeds? then
+    veilWithMainContext coreEqTac
+    veilWithMainContext <| veilEvalTactic <| ← `(tactic| __veil_solve_wplo)
+  else
+    veilWithMainContext <| veilEvalTactic <| ← `(tactic| __veil_solve_wp_conservative)
 
 @[inherit_doc veil_solve_tr]
 def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
