@@ -204,6 +204,7 @@ syntax (name := veil_split_ifs) "veil_split_ifs" : tactic
 syntax (name := veil_solve_wp) "veil_solve_wp" : tactic
 syntax (name := __veil_solve_wplo) "__veil_solve_wplo" : tactic
 syntax (name := __veil_solve_wp_conservative) "__veil_solve_wp_conservative" : tactic
+syntax (name := veil_solve_wp_doesnotthrow) "veil_solve_wp_doesnotthrow" : tactic
 /-- Solve transition-style goals. This includes:
 1. Introducing hypotheses with `veil_intros`
 2. Simplifying with `invSimp`
@@ -1000,6 +1001,14 @@ def elabVeilSolveWpConservative : DesugarTacticM Unit := veilWithMainContext do
   let tac ← `(tactic| veil_wp; veil_concretize_wp; veil_fol; veil_smt)
   veilEvalTactic tac
 
+def elabVeilSolveWpDoesNotThrow : DesugarTacticM Unit := veilWithMainContext do
+  -- If you don't write `assert`, then most likely the goal is trivial
+  veilEvalTactic <| ← `(tactic| veil_intros; veil_wp )
+  veilWithMainContext do
+    let simpleSolveTac ← `(tactic| veil_simp only
+      [↓ $(mkIdent ``ite_self):ident, ↓ $(mkIdent ``implies_true):ident])
+    veilEvalTactic <| ← `(tactic| solve | $simpleSolveTac:tactic | veil_concretize_wp; veil_fol; veil_smt)
+
 def findHypsHeadedByConst (nm : Name) : TacticM (Array LocalDecl) := do
   let nm ← resolveGlobalConstNoOverloadCore nm
   let lctx ← getLCtx
@@ -1098,6 +1107,7 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic veil_concretize_tr,
   tactic veil_fol,
   tactic veil_solve_wp,
+  tactic veil_solve_wp_doesnotthrow,
   tactic veil_solve_tr,
   tactic veil_bmc,
   tactic veil_split_ifs,
@@ -1170,6 +1180,8 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_wplo") elabVeilSolveWplo
   | `(tactic| __veil_solve_wp_conservative) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_wp_conservative") elabVeilSolveWpConservative
+  | `(tactic| veil_solve_wp_doesnotthrow) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_wp_doesnotthrow") elabVeilSolveWpDoesNotThrow
   | `(tactic| veil_solve_tr) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_tr") elabVeilSolveTr
   | `(tactic| veil_bmc) => do

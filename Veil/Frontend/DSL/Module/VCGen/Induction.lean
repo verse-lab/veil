@@ -263,7 +263,7 @@ private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/
 def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
-  let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp) else `(by veil_solve_wp)
+  let wpTactic ← `(by veil_solve_wp_doesnotthrow)
   -- Prepare VC data outside the lock
   let vcData ← actsToCheck.mapM fun act =>
     return (act, ← mkDoesNotThrowVC mod act.name act.declarationKind InductionVCKind.primary)
