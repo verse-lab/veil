@@ -837,8 +837,9 @@ private def mkVeilSmtTactic : TacticM (TSyntax `tactic) := do
   let trustEnabled := veil.smt.trust.get opts
   let fmfValue := if fmfEnabled then "true" else "false"
   let trustValue := mkIdent <| if trustEnabled then ``true else ``false
+  let trustValueNegated := mkIdent <| if trustEnabled then ``false else ``true
   let solverOptions ← `(term| [("finite-model-find", $(Syntax.mkStrLit fmfValue)), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
-  let smtTac ← `(tactic| smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $trustValue:ident, $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
+  let smtTac ← `(tactic| smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $trustValue:ident, $(mkIdent `embedBool):ident := $trustValueNegated:ident, $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
   if trustEnabled then
     return ← `(tactic| open $(mkIdent `Classical):ident in $smtTac:tactic)
   else
