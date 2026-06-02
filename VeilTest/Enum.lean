@@ -145,3 +145,46 @@ The following set of actions must preserve the invariant and successfully termin
 #check_invariants
 
 end EnumNamesInCTIs
+
+veil module LargeEnumTest
+
+-- Keep this test narrow: the 50-constructor distinctness axiom is the part
+-- that used to expand aggressively before `distinctN`.
+
+enum large_enum = {
+  v00, v01, v02, v03, v04, v05, v06, v07, v08, v09,
+  v10, v11, v12, v13, v14, v15, v16, v17, v18, v19,
+  v20, v21, v22, v23, v24, v25, v26, v27, v28, v29,
+  v30, v31, v32, v33, v34, v35, v36, v37, v38, v39,
+  v40, v41, v42, v43, v44, v45, v46, v47, v48, v49
+}
+
+individual state : large_enum
+
+#gen_state
+
+after_init {
+  state := v00
+}
+
+action set_last {
+  state := v49
+}
+
+invariant [large_distinct] v00 ≠ v49
+
+#gen_spec
+
+/--
+info: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  large_distinct ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  set_last
+    doesNotThrow ... ✅
+    large_distinct ... ✅
+-/
+#guard_msgs in
+#check_invariants
+
+end LargeEnumTest

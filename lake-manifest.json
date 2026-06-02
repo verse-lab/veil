@@ -15,7 +15,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "76b7743f743e469ecebcf2092d78b9cbde44fbd0",
+   "rev": "3acf48704c1dbc71e890eadf0398aa23a1d0ce45",
    "name": "smt",
    "manifestFile": "lake-manifest.json",
    "inputRev": "v4.28.0-for-veil",
