@@ -50,8 +50,11 @@ def mkEnumConcreteType {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Ar
   let instanceAx ← `(command|scoped instance : $(Ident.toEnumClass id) $name where $[$fields]*)
   -- derive instances for the concrete type
   let derivedInsts ← do
-    let insts := #[``Ord, ``Hashable, ``Enumeration, ``FinEncodable, ``Std.TransOrd, ``Std.LawfulEqOrd].map Lean.mkIdent
+    let insts := #[``Hashable, ``Enumeration, ``FinEncodable].map Lean.mkIdent
     `(command| deriving instance $[$insts:ident],* for $name)
-  return #[indType, instanceAx, derivedInsts]
+  let ordInst ← `(command| instance : $(mkIdent ``Ord) $name := $(mkIdent ``Veil.Ord.ofFinEncodable) $name)
+  let transOrdInst ← `(command| instance : $(mkIdent ``Std.TransOrd) $name := $(mkIdent ``Veil.Std.TransOrd.ofFinEncodable) $name)
+  let lawfulEqOrdInst ← `(command| instance : $(mkIdent ``Std.LawfulEqOrd) $name := $(mkIdent ``Veil.Std.LawfulEqOrd.ofFinEncodable) $name)
+  return #[indType, instanceAx, derivedInsts, ordInst, transOrdInst, lawfulEqOrdInst]
 
 end Veil

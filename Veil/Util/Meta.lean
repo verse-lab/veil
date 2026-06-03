@@ -109,48 +109,27 @@ where
 
 /--
 Inline proof constants that were introduced after `env0`.
-
-Async dischargers run in snapshot environment branches. Some tactics create
-auxiliary theorem constants in that branch; proof witnesses mentioning those
-constants cannot be replayed from the main environment. This replaces every
-constant missing from `env0` by its body from the current async environment.
-
-From https://github.com/AeneasVerif/aeneas/blob/afe15e84c31d90fbd371258bc0ca9982e3de74d5/backends/lean/AeneasMeta/Async/Async.lean#L19
+Optimised, based on the version from:
+https://github.com/AeneasVerif/aeneas/blob/afe15e84c31d90fbd371258bc0ca9982e3de74d5/backends/lean/AeneasMeta/Async/Async.lean#L19
 -/
 partial def inlineFreshProofs (env0 : Environment) (e : Expr) (rec := false) : MetaM Expr := do
-  let rec inline (e : Expr) : MetaM Expr := do
-    match e with
-    | .bvar _ | .fvar _ | .mvar _ | .sort _ | .lit _ => pure e
-    | .const declName us =>
-      if env0.contains declName then pure e
-      else
-        -- We need to inline this constant
-        let some const ← pure ((← getEnv).find? declName) | unreachable!
-        let some body := const.value? (allowOpaque := true)
-          | throwError "Could not inline constant: {e}"
-        -- Replace the levels in the body
-        let levels := const.levelParams
-        /- Note that we don't re-explore the body: we don't expect tactics to
-           introduce nested theorems -/
-        let body :=
-          if levels.isEmpty then body
-          else
-            let levels := Std.HashMap.ofList (List.zip (List.map Level.param levels) us)
-            let body := body.replaceLevel (Std.HashMap.get? levels)
-            body
-        /- Re-explore the body -/
-        if rec then inline body else pure body
-    | .app fn arg => pure (.app (← inline fn) (← inline arg))
-    | .lam name ty body info =>
-      pure (.lam name (← inline ty) (← inline body) info)
-    | .forallE name ty body info =>
-      pure (.forallE name (← inline ty) (← inline body) info)
-    | .letE name ty value body nonDep =>
-      pure (.letE name (← inline ty) (← inline value) (← inline body) nonDep)
-    | .mdata data e => pure (.mdata data (← inline e))
-    | .proj name idx struct =>
-      pure (.proj name idx (← inline struct))
-  inline (← instantiateMVars e)
+  let env ← getEnv
+  let e ← instantiateMVars e
+
+  let pre (e : Expr) : MetaM TransformStep := do
+    let .const declName us := e | return .continue
+    if env0.contains declName then
+      return .done e
+
+    let some const := env.find? declName
+      | throwError "unknown constant: {declName}"
+    let some body := const.value? (allowOpaque := true)
+      | throwError "Could not inline constant: {e}"
+
+    let body := body.instantiateLevelParams const.levelParams us
+    return if rec then .visit body else .done body
+
+  Core.transform e (pre := pre)
 
 private def stxForVeilDefinition (red : ReducibilityHints) (attrs : Array Attribute) (baseName : Name) (type : Expr) (e : Expr) : TermElabM (TSyntax `command) := do
   let attrs ← attrs.mapM (·.mkStx)

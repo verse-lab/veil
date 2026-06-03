@@ -433,6 +433,32 @@ class FinEncodable (α : Type u) where
   card : Nat
   equiv : α ≃ Fin card
 
+def Ord.ofFinEncodable (α : Type u) [inst : FinEncodable α] : Ord α where
+  compare a b := compare (inst.equiv a) (inst.equiv b)
+
+def Std.TransOrd.ofFinEncodable (α : Type u) [inst : FinEncodable α] :
+    let _ : Ord α := Ord.ofFinEncodable α
+    Std.TransOrd α :=
+  let _ : Ord α := Ord.ofFinEncodable α
+  { eq_swap := by
+      intro a b
+      exact Std.OrientedOrd.eq_swap (a := inst.equiv a) (b := inst.equiv b)
+    isLE_trans := by
+      intro a b c
+      exact Std.TransOrd.isLE_trans (a := inst.equiv a) (b := inst.equiv b) (c := inst.equiv c) }
+
+def Std.LawfulEqOrd.ofFinEncodable (α : Type u) [inst : FinEncodable α] :
+    let _ : Ord α := Ord.ofFinEncodable α
+    Std.LawfulEqOrd α :=
+  let _ : Ord α := Ord.ofFinEncodable α
+  { compare_self := by
+      intro a
+      exact Std.ReflOrd.compare_self (a := inst.equiv a)
+    eq_of_compare := by
+      intro a b h
+      apply inst.equiv.injective
+      exact Std.LawfulEqOrd.eq_of_compare h }
+
 @[always_inline]
 instance : FinEncodable Unit where
   card := 1
