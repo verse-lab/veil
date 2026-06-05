@@ -4,15 +4,6 @@ import Veil.Core.Tools.ModelChecker.Concrete.Core
 
 namespace Veil.ModelChecker.Simulation
 
-private instance (priority := high) instBEqTransitionOutcome {σ κ : Type}
-  [DecidableEq σ] [DecidableEq κ] : BEq (κ × ExecutionOutcome Int σ) :=
-  ⟨fun a b => decide (a = b)⟩
-
-private instance (priority := high) instLawfulBEqTransitionOutcome {σ κ : Type}
-  [DecidableEq σ] [DecidableEq κ] : LawfulBEq (κ × ExecutionOutcome Int σ) where
-  eq_of_beq := of_decide_eq_true
-  rfl := of_decide_eq_self_eq_true _
-
 def StepList.validFromSimulation {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -176,25 +167,6 @@ private theorem initialTrace_valid {ρ σ κ : Type}
   intro picked trace
   have hValid := pickedInitialState_valid th sys params initStates hInitStates hNonempty gen
   exact ⟨by simpa [trace] using hValid, rfl, by simp [trace], by simp [trace]⟩
-
-instance instDecidableStepListValidFromSimulation {ρ σ κ : Type} {th₀ : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (th : ρ) (st : σ) (steps : StepList σ κ) :
-  Decidable (StepList.validFromSimulation sys params th st steps) := by
-  induction steps generalizing st with
-  | nil => exact isTrue trivial
-  | cons step steps ih =>
-      dsimp [StepList.validFromSimulation]
-      infer_instance
-
-instance instDecidableTraceIsSimulationValid {ρ σ κ : Type} {th₀ : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) :
-  Decidable (Trace.isSimulationValid sys params trace) := by
-  unfold Trace.isSimulationValid
-  infer_instance
 
 def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]

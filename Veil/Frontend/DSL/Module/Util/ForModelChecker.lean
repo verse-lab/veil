@@ -191,12 +191,6 @@ def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespac
     IO.FS.writeFile (buildFolder / "lean-toolchain") toolchain
   return buildFolder
 
-/-- Update elapsed time status for a progress instance. -/
-def updateElapsedTimeStatus (instanceId : Nat) (statusPrefix : String) : IO Unit := do
-  if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
-    let elapsed := ModelChecker.formatElapsedTime (← refs.progressRef.get).elapsedMs
-    ModelChecker.Concrete.updateStatus instanceId s!"{statusPrefix} ({elapsed})"
-
 /-- Result of running a compilation process. -/
 structure ProcessResult where
   exitCode : UInt32
@@ -204,37 +198,6 @@ structure ProcessResult where
   stderr : String
   interrupted : Bool := false
   deriving Inhabited
-
-/-- Run a process with status updates, checking if compilation is still current or cancelled.
-    Returns the exit code, stdout, stderr, and whether it was interrupted. -/
-def runProcessWithStatus (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
-    (cfg : IO.Process.SpawnArgs)
-    (instanceId : Nat) (statusPrefix : String) (cancelToken : IO.CancelToken) : IO ProcessResult := do
-  let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
-  -- Start reading stdout/stderr in background tasks to avoid blocking
-  let stdoutTask ← IO.asTask (prio := .dedicated) proc.stdout.readToEnd
-  let stderrTask ← IO.asTask (prio := .dedicated) proc.stderr.readToEnd
-  let waitTask ← IO.asTask (prio := .dedicated) proc.wait
-  let mut interrupted := false
-  while !(← IO.hasFinished waitTask) do
-    -- Check for explicit cancellation request
-    if ← cancelToken.isSet then
-      proc.kill
-      interrupted := true
-      break
-    -- Check if this compilation is still current (not superseded)
-    let current? ← stillCurrentCont sourceFile command commandId instanceId do
-      updateElapsedTimeStatus instanceId statusPrefix
-    unless current? do
-      proc.kill
-      interrupted := true
-      break
-    IO.sleep 100
-  let stdout ← IO.ofExcept (← IO.wait stdoutTask)
-  let stderr ← IO.ofExcept (← IO.wait stderrTask)
-  match ← IO.wait waitTask with
-  | .ok exitCode => return { exitCode, stdout, stderr, interrupted }
-  | .error err => return { exitCode := 1, stdout, stderr := s!"{stderr}\nIO error: {err}", interrupted }
 
 /-- Run a process with callbacks for status updates and line-by-line output capture,
 checking both explicit cancellation and whether this compilation is still current. -/
