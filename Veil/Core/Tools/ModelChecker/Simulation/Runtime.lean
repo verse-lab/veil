@@ -186,12 +186,12 @@ def simulate {ρ σ κ : Type} {th₀ : ρ}
   let cancelToken ← IO.CancelToken.new
   simulateWithProgress sys params th cfg 0 cancelToken
 
-private theorem simulateLoopM_id_sound {ρ σ κ : Type} {th₀ : ρ}
+private theorem simulateLoopM_id_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   [Inhabited σ] [Inhabited (κ × σ)]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ)
   (th : ρ)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
   (cfg : SimulateConfig)
   (shouldStop : Nat → Bool) :
   ∀ remaining traceIndex,
@@ -214,14 +214,14 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type} {th₀ : ρ}
             | some pair =>
                 rcases pair with ⟨result, depth⟩
                 simpa [simulateLoopId, hStop, hRun] using
-                  runTraceAtSeed_sound sys params th cfg traceIndex result depth hRun
+                  runTraceAtSeed_sound th sys params cfg traceIndex result depth hRun
 
-theorem simulateCommandSemantics_sound {ρ σ κ : Type} {th₀ : ρ}
+theorem simulateCommandSemantics_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   [Inhabited σ] [Inhabited (κ × σ)]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ)
   (th : ρ)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
   (shouldStop : Nat → Bool)
   (cfg : SimulateConfig) :
   ReportedViolationSound (restrictSystemByStateConstraints sys params th) params
@@ -232,17 +232,17 @@ theorem simulateCommandSemantics_sound {ρ σ κ : Type} {th₀ : ρ}
       simp [simulateCommandSemantics, restrictedSys, hNoInit, noInitialStatesResult, ReportedViolationSound]
   | false =>
       simpa [simulateCommandSemantics, restrictedSys, hNoInit] using
-        simulateLoopM_id_sound restrictedSys params th cfg shouldStop cfg.maxTraces 0
+        simulateLoopM_id_sound th restrictedSys params cfg shouldStop cfg.maxTraces 0
 
-theorem simulateCore_sound {ρ σ κ : Type} {th₀ : ρ}
+theorem simulateCore_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   [Inhabited σ] [Inhabited (κ × σ)]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ)
   (th : ρ)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (params : SearchParameters ρ σ)
   (cfg : SimulateConfig) :
   ReportedViolationSound (restrictSystemByStateConstraints sys params th) params
     (SimulateResult.result (simulateCore sys params th cfg)) := by
-  simpa [simulateCore] using simulateCommandSemantics_sound sys params th (fun _ => false) cfg
+  simpa [simulateCore] using simulateCommandSemantics_sound th sys params (fun _ => false) cfg
 
 end Veil.ModelChecker.Simulation
