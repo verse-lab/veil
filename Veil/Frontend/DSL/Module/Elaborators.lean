@@ -1173,7 +1173,7 @@ private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
   `((let $inst : $instantiationType := $instTerm
       let $th : $theoryIdent $instSortArgs* := $theoryTerm
       $(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
-        ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
+        ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
         $sp $th $cfgTerm : _ → _ → IO _))
 
 /-- Build the simulator runtime call syntax with progress and cancellation hooks. -/
