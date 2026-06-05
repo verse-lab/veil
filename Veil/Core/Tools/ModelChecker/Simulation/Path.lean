@@ -103,46 +103,54 @@ theorem randNat_lt_length {α : Type} (xs : List α) (h : xs ≠ []) (gen : StdG
 structure PickedTransition {σ κ : Type} (nexts : List (κ × σ)) where
   value : κ × σ
   mem : value ∈ nexts
-  gen : StdGen
 
 def pickNextTransition {σ κ : Type}
-  (nexts : List (κ × σ)) (gen : StdGen) (h : nexts ≠ []) : PickedTransition nexts :=
+  (nexts : List (κ × σ)) (h : nexts ≠ []) : StateM StdGen (PickedTransition nexts) := do
+  let gen ← get
   let p := randNat gen 0 (nexts.length - 1)
   let idx := p.1
   let gen' := p.2
   have hlt : idx < nexts.length := by
     dsimp [idx, p]
     exact randNat_lt_length nexts h gen
-  { value := nexts.get ⟨idx, hlt⟩
+  set gen'
+  return {
+    value := nexts.get ⟨idx, hlt⟩
     mem := by exact List.get_mem nexts ⟨idx, hlt⟩
-    gen := gen' }
+  }
 
 theorem pickNextTransition_mem {σ κ : Type}
   (nexts : List (κ × σ)) (gen : StdGen) (h : nexts ≠ []) :
-  (pickNextTransition nexts gen h).value ∈ nexts :=
-  (pickNextTransition nexts gen h).mem
+  ((pickNextTransition nexts h).run gen).1.value ∈ nexts :=
+  ((pickNextTransition nexts h).run gen).1.mem
 
 structure PickedInitState {σ : Type} (initStates : List σ) where
   value : σ
   mem : value ∈ initStates
-  gen : StdGen
 
 def pickInitialState {σ : Type}
-  (initStates : List σ) (gen : StdGen) (h : initStates ≠ []) : PickedInitState initStates :=
+  (initStates : List σ) (h : initStates ≠ []) : StateM StdGen (PickedInitState initStates) := do
+  let gen ← get
   let p := randNat gen 0 (initStates.length - 1)
   let idx := p.1
   let gen' := p.2
   have hlt : idx < initStates.length := by
     dsimp [idx, p]
     exact randNat_lt_length initStates h gen
-  { value := initStates.get ⟨idx, hlt⟩
+  set gen'
+  return {
+    value := initStates.get ⟨idx, hlt⟩
     mem := by exact List.get_mem initStates ⟨idx, hlt⟩
-    gen := gen' }
+  }
 
 theorem pickInitialState_mem {σ : Type}
   (initStates : List σ) (gen : StdGen) (h : initStates ≠ []) :
-  (pickInitialState initStates gen h).value ∈ initStates :=
-  (pickInitialState initStates gen h).mem
+  ((pickInitialState initStates h).run gen).1.value ∈ initStates :=
+  ((pickInitialState initStates h).run gen).1.mem
+
+private def SimulationResult.depth {ρ σ κ : Type} : SimulationResult ρ σ κ → Nat
+  | .foundViolation _ trace => trace.steps.size + if trace.failingStep.isSome then 1 else 0
+  | .cancelled => 0
 
 @[inline, specialize]
 def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
@@ -152,29 +160,27 @@ def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (stepsLeft : Nat)
   (currSt : σ)
   (trace : Trace ρ σ κ)
-  (gen : StdGen)
-  : Option (SimulationResult ρ σ κ) × StdGen × Nat :=
+  : StateM StdGen (Option (SimulationResult ρ σ κ)) := do
   match stepsLeft with
-  | 0 => (none, gen, 0)
+  | 0 => return none
   | stepsLeft + 1 =>
     match decideAtState sys params th currSt with
     | .assertionFailure exId step =>
         let failedTrace := { trace with failingStep := some step }
-        (some (.foundViolation (.assertionFailure exId) failedTrace), gen, trace.steps.size + 1)
+        return some (.foundViolation (.assertionFailure exId) failedTrace)
     | .deadlock =>
-        (some (.foundViolation .deadlock trace), gen, trace.steps.size)
+        return some (.foundViolation .deadlock trace)
     | .terminated =>
-        (none, gen, trace.steps.size)
+        return none
     | .continue nexts hNonempty =>
-        let picked := pickNextTransition nexts gen hNonempty
+        let picked ← pickNextTransition nexts hNonempty
         let (label, nextSt) := picked.value
-        let gen := picked.gen
         let trace := trace.push { transitionLabel := label, nextState := nextSt }
         let violations := violatedInvariantNames params th nextSt
         if !violations.isEmpty then
-          (some (.foundViolation (.safetyFailure violations) trace), gen, trace.steps.size)
+          return some (.foundViolation (.safetyFailure violations) trace)
         else
-          simulateOnceLoop sys params th stepsLeft nextSt trace gen
+          simulateOnceLoop sys params th stepsLeft nextSt trace
 termination_by stepsLeft
 
 @[inline, specialize]
@@ -182,22 +188,20 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
-  (gen : StdGen)
   (maxSteps : Nat)
-  : Option (SimulationResult ρ σ κ) × StdGen × Nat :=
+  : StateM StdGen (Option (SimulationResult ρ σ κ)) := do
   let initStates := sys.initStates
   match initStates with
-  | [] => (none, gen, 0)
+  | [] => return none
   | hd :: tl =>
-      let picked := pickInitialState (hd :: tl) gen (by simp)
+      let picked ← pickInitialState (hd :: tl) (by simp)
       let initSt := picked.value
-      let gen := picked.gen
       let initTrace : Trace ρ σ κ := { theory := th, initialState := initSt, steps := #[] }
       let initViolations := violatedInvariantNames params th initSt
       if !initViolations.isEmpty then
-        (some (.foundViolation (.safetyFailure initViolations) initTrace), gen, 0)
+        return some (.foundViolation (.safetyFailure initViolations) initTrace)
       else
-        simulateOnceLoop sys params th maxSteps initSt initTrace gen
+        simulateOnceLoop sys params th maxSteps initSt initTrace
 
 def runTraceAtSeed {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -207,7 +211,7 @@ def runTraceAtSeed {ρ σ κ : Type} {th₀ : ρ}
   (traceIndex : Nat)
   : Option (SimulationResult ρ σ κ × Nat) :=
   let traceSeed := cfg.seed + traceIndex
-  let (maybeResult, _, depth) := simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps
-  maybeResult.map (fun result => (result, depth))
+  let (maybeResult, _) := (simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)
+  maybeResult.map (fun result => (result, SimulationResult.depth result))
 
 end Veil.ModelChecker.Simulation
