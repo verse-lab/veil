@@ -369,7 +369,8 @@ theorem simulateOnce_sound {ρ σ κ : Type}
             simp [hNil] at hViol
           exact ⟨Trace.isSimulationValid_complete sys params initTrace rfl hValid, hNoFail, rfl, hNonempty⟩
 
-theorem runTraceAtSeed_sound {ρ σ κ : Type}
+/-- Any violation reported by a single indexed random trace is sound. -/
+theorem simulateTraceAtIndex_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited σ] [Inhabited (κ × σ)]
   (th : ρ)
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
@@ -377,10 +378,10 @@ theorem runTraceAtSeed_sound {ρ σ κ : Type}
   (cfg : SimulateConfig)
   (traceIndex : Nat)
   (result : SimulationResult ρ σ κ) (depth : Nat) :
-  runTraceAtSeed sys params th cfg traceIndex = some (result, depth) ->
+  simulateTraceAtIndex sys params th cfg traceIndex = some (result, depth) ->
     ReportedViolationSound sys params (some result) := by
   intro h
-  unfold runTraceAtSeed at h
+  unfold simulateTraceAtIndex at h
   set traceSeed := cfg.seed + traceIndex
   rcases hSim : (simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed) with ⟨maybeResult, gen'⟩
   simp [traceSeed, hSim] at h
