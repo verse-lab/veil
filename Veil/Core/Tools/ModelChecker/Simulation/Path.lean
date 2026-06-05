@@ -203,7 +203,11 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
       else
         simulateOnceLoop sys params th maxSteps initSt initTrace
 
-def runTraceAtSeed {ρ σ κ : Type} {th₀ : ρ}
+/--
+Simulates the trace identified by `traceIndex` using seed `cfg.seed + traceIndex`.
+Returns the first violation found by that trace together with its derived trace depth.
+-/
+def simulateTraceAtIndex {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)

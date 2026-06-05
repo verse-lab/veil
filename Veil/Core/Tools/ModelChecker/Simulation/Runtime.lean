@@ -52,7 +52,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
       }
   | remaining + 1 =>
       hooks.onTraceProgress traceIndex
-      match runTraceAtSeed sys params th cfg traceIndex with
+      match simulateTraceAtIndex sys params th cfg traceIndex with
       | some (result, stepsUsed) =>
           hooks.onViolation
           return {
@@ -97,7 +97,7 @@ private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
           depth := 0
         }
     | remaining + 1 =>
-        match runTraceAtSeed sys params th cfg traceIndex with
+        match simulateTraceAtIndex sys params th cfg traceIndex with
         | some (result, stepsUsed) =>
             {
               result := some result
@@ -207,14 +207,14 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type}
       | true =>
           simp [simulateLoopId, hStop, ReportedViolationSound]
       | false =>
-          by_cases hTrace : runTraceAtSeed sys params th cfg traceIndex = none
+          by_cases hTrace : simulateTraceAtIndex sys params th cfg traceIndex = none
           · simpa [simulateLoopId, hStop, hTrace] using ih (traceIndex + 1)
-          · cases hRun : runTraceAtSeed sys params th cfg traceIndex with
+          · cases hRun : simulateTraceAtIndex sys params th cfg traceIndex with
             | none => contradiction
             | some pair =>
                 rcases pair with ⟨result, depth⟩
                 simpa [simulateLoopId, hStop, hRun] using
-                  runTraceAtSeed_sound th sys params cfg traceIndex result depth hRun
+                  simulateTraceAtIndex_sound th sys params cfg traceIndex result depth hRun
 
 theorem simulateCommandSemantics_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
