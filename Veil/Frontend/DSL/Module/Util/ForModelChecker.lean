@@ -233,7 +233,7 @@ def runProcessWithStatus (sourceFile : String) (command : CompiledCommandSpec) (
 checking both explicit cancellation and whether this compilation is still current. -/
 def runProcessWithStatusCallback (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
     (cfg : IO.Process.SpawnArgs)
-    (instanceId : Nat) (_statusPrefix : String) (cancelToken : IO.CancelToken)
+    (instanceId : Nat) (cancelToken : IO.CancelToken)
     (statusCallback : Nat → IO Unit)
     (lineCallback : String → Bool → Nat → IO Unit := fun _ _ _ => pure ())
     : IO ProcessResult := do
