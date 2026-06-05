@@ -12,13 +12,15 @@ private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
       toJson (ModelCheckingResult.cancelled : ModelCheckingResult ρ σ κ Json)
   | none => Json.mkObj [("result", "no_violation_found")]
 
-private def metadataToJsonFields {ρ σ κ : Type} (r : SimulateResult ρ σ κ) : List (String × Json) := [
+private def metadataToJsonFields {ρ σ κ : Type} (r : SimulateResult ρ σ κ) : List (String × Json) :=
+  let reasonField := r.terminationReason.map fun reason => ("termination_reason", Lean.toJson reason)
+  [
     ("traces_run", Lean.toJson r.tracesRun),
     ("max_traces", Lean.toJson r.maxTraces),
     ("elapsed_ms", Lean.toJson r.elapsedMs),
     ("seed", Lean.toJson r.seed),
     ("depth", Lean.toJson r.depth)
-  ]
+  ] ++ reasonField.toList
 
 /-- Flatten the result object while keeping simulation metadata at the top level. -/
 def SimulateResult.toDisplayJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]

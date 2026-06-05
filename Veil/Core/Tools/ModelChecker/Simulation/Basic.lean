@@ -20,5 +20,6 @@ structure SimulateResult (ρ σ κ : Type) where
   elapsedMs : Nat
   seed : Nat
   depth : Nat
+  terminationReason : Option String := none
 
 end Veil.ModelChecker.Simulation

@@ -11,6 +11,7 @@ private def noInitialStatesResult {ρ σ κ : Type} (cfg : SimulateConfig) : Sim
   elapsedMs := 0
   seed := cfg.seed
   depth := 0
+  terminationReason := some "no_initial_states"
 }
 
 private def hasNoInitialStates {ρ σ κ : Type} {th₀ : ρ}

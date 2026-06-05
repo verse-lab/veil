@@ -105,6 +105,8 @@ def formatModelCheckingResult (j : Json) : MessageData :=
   | "no_violation_found" =>
     let trace := j.getObjValD "trace"
     if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}{fmtSeedSuffix j}"
+    else if fmtJson (j.getObjValD "termination_reason") == "no_initial_states" then
+      m!"✅ No initial states available after applying state constraints{fmtSeedSuffix j}"
     else if j.getObjValD "traces_run" != .null then
       m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces{fmtSeedSuffix j}"
     else
