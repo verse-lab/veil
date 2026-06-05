@@ -17,7 +17,7 @@ warning: you have not defined any actions for this specification; did you forget
 #gen_spec
 
 /--
-info: ✅ No violation in 0 traces
+info: ✅ No initial states available after applying state constraints
 Seed: 1
 -/
 #guard_msgs in
