@@ -941,7 +941,7 @@ where
       command
       commandId
       { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
-      instanceId "Compiling model" cancelToken
+      instanceId cancelToken
       (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
       (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
     if result.interrupted then
