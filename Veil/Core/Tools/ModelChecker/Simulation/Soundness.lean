@@ -119,6 +119,11 @@ theorem pickedInitialState_valid {ρ σ κ : Type}
   · simp [EnumerableTransitionSystem.toRelational]
   · simpa [EnumerableTransitionSystem.toRelational, hInitStates] using hmem
 
+private theorem pickNextTransition_run_irrel {σ κ : Type}
+  (nexts : List (κ × σ)) (h₁ h₂ : nexts ≠ []) (gen : StdGen) :
+  (pickNextTransition nexts h₁).run gen = (pickNextTransition nexts h₂).run gen := by
+  rw [show h₁ = h₂ from Subsingleton.elim h₁ h₂]
+
 private theorem pushedTrace_valid {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited (κ × σ)]
   (th : ρ)
@@ -184,7 +189,11 @@ def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   | .deadlock =>
       Trace.isSimulationValid sys params trace ∧
       trace.failingStep = none ∧
-      decideAtState sys params trace.theory trace.lastState = .deadlock
+      (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+        (sys.tr trace.theory trace.lastState)).fst = [] ∧
+      (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+        (sys.tr trace.theory trace.lastState)).snd = [] ∧
+      !params.terminating.holdsOn trace.theory trace.lastState = true
   | .assertionFailure exId =>
       Trace.isSimulationValid sys params trace ∧
       ∃ step,
@@ -236,13 +245,23 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
       simp [simulateOnceLoop] at h
   | succ steps ih =>
       intro gen result h
-      cases hStep : decideAtState sys params th currSt with
-      | assertionFailure exId step =>
-          simp [simulateOnceLoop, hStep] at h
+      cases hPartition : Veil.ModelChecker.Concrete.partitionExecutionOutcome
+          (sys.tr th currSt) with
+      | mk nexts assertionFailures =>
+      cases hFailures : assertionFailures with
+      | cons failure failures =>
+          rcases failure with ⟨label, exId, st⟩
+          simp [simulateOnceLoop, hPartition, hFailures] at h
           cases h
-          have hMem : (step.transitionLabel, ExecutionOutcome.assertionFailure exId step.nextState) ∈
+          have hFailureMem : (label, exId, st) ∈
+              (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+                (sys.tr th currSt)).snd := by
+            rw [hPartition]
+            simp [hFailures]
+          have hMem : (label, ExecutionOutcome.assertionFailure exId st) ∈
               sys.tr th currSt :=
-            decideAtState_assertionFailure_mem sys params th currSt exId step hStep
+            (Veil.ModelChecker.Concrete.partitionExecutionOutcome.snd_spec _ _ _ _).mp hFailureMem
+          let step : Step σ κ := { transitionLabel := label, nextState := st }
           let failedTrace := { trace with failingStep := some step }
           have hValidFail : failedTrace.isValid sys.toRelational := by
             exact {
@@ -254,51 +273,67 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
           have hLastFail : failedTrace.lastState = currSt := by
             simpa [failedTrace, Trace.lastState] using hLast
           rw [hLastFail]
-          simpa [failedTrace, hTheory] using hMem
-      | deadlock =>
-          simp [simulateOnceLoop, hStep] at h
-          cases h
-          exact ⟨Trace.isSimulationValid_complete sys params trace hTheory hValid, hNoFail,
-            by simpa [hTheory, hLast] using hStep⟩
-      | terminated =>
-          simp [simulateOnceLoop, hStep] at h
-      | «continue» nexts hNonempty =>
-          rcases hPick : (pickNextTransition nexts hNonempty).run gen with ⟨picked, gen'⟩
-          let trace' := trace.push { transitionLabel := picked.value.1, nextState := picked.value.2 }
-          have hNexts : nexts = (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-              (sys.tr th currSt)).fst :=
-            decideAtState_continue_nexts sys params th currSt nexts hNonempty hStep
-          have hTrace' := pushedTrace_valid th sys params currSt trace hTheory hValid hLast hNoFail nexts hNexts hNonempty gen
-          have hValid' : trace'.isValid sys.toRelational := by
-            simpa [hPick, trace'] using hTrace'.1
-          have hTheory' : trace'.theory = th := by
-            simpa [hPick, trace'] using hTrace'.2.1
-          have hNoFail' : trace'.failingStep = none := by
-            simpa [hPick, trace'] using hTrace'.2.2.2
-          have hLast' : trace'.lastState = picked.value.2 := by
-            simp [trace']
-          cases hViol : (violatedInvariantNames params th picked.value.2).isEmpty with
-          | true =>
-              have hLoop : ((simulateOnceLoop sys params th steps picked.value.2 trace').run gen').1 = some result := by
-                rw [simulateOnceLoop, hStep] at h
-                simp only [StateT.run_bind, hPick, Id.instMonad] at h
-                simpa [trace', hViol] using h
-              exact ih picked.value.2 trace' hTheory' hValid' hLast' hNoFail' gen' result hLoop
-          | false =>
-              have hFound : (some (SimulationResult.foundViolation
-                  (ViolationKind.safetyFailure (violatedInvariantNames params th picked.value.2)) trace') :
-                  Option (SimulationResult ρ σ κ)) = some result := by
-                rw [simulateOnceLoop, hStep] at h
-                simp only [StateT.run_bind, hPick, Id.instMonad] at h
-                simpa [trace', hViol] using h
-              cases hFound
-              have hNonempty : violatedInvariantNames params th picked.value.2 ≠ [] := by
-                intro hNil
-                simp [hNil] at hViol
-              have hViolEq : violatedInvariantNames params trace'.theory trace'.lastState =
-                  violatedInvariantNames params th picked.value.2 := by
-                simp [hTheory', hLast']
-              exact ⟨Trace.isSimulationValid_complete sys params trace' hTheory' hValid', hNoFail', hViolEq, hNonempty⟩
+          simpa [failedTrace, step, hTheory] using hMem
+      | nil =>
+          cases hNexts : nexts with
+          | nil =>
+              cases hTerminating : !params.terminating.holdsOn th currSt with
+              | true =>
+                  simp [simulateOnceLoop, hPartition, hFailures, hNexts, hTerminating] at h
+                  cases h
+                  have hNoSuccesses : (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+                      (sys.tr trace.theory trace.lastState)).fst = [] := by
+                    simp [hTheory, hLast, hPartition, hNexts]
+                  have hNoFailures : (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+                      (sys.tr trace.theory trace.lastState)).snd = [] := by
+                    simp [hTheory, hLast, hPartition, hFailures]
+                  have hDeadlock : !params.terminating.holdsOn trace.theory trace.lastState = true := by
+                    simpa [hTheory, hLast] using hTerminating
+                  exact ⟨Trace.isSimulationValid_complete sys params trace hTheory hValid,
+                    hNoFail, hNoSuccesses, hNoFailures, hDeadlock⟩
+              | false =>
+                  simp [simulateOnceLoop, hPartition, hFailures, hNexts, hTerminating] at h
+          | cons hd tl =>
+              let nexts' : List (κ × σ) := hd :: tl
+              rcases hPick : (pickNextTransition (hd :: tl) (by simp)).run gen with ⟨picked, gen'⟩
+              let trace' := trace.push { transitionLabel := picked.value.1, nextState := picked.value.2 }
+              have hNextsHd : hd :: tl = (Veil.ModelChecker.Concrete.partitionExecutionOutcome
+                  (sys.tr th currSt)).fst := by
+                simp [hPartition, hNexts]
+              have hTrace' := pushedTrace_valid th sys params currSt trace hTheory hValid hLast hNoFail
+                (hd :: tl) hNextsHd (by simp) gen
+              have hValid' : trace'.isValid sys.toRelational := by
+                simpa [hPick, trace'] using hTrace'.1
+              have hTheory' : trace'.theory = th := by
+                simpa [hPick, trace'] using hTrace'.2.1
+              have hNoFail' : trace'.failingStep = none := by
+                simpa [hPick, trace'] using hTrace'.2.2.2
+              have hLast' : trace'.lastState = picked.value.2 := by
+                simp [trace']
+              cases hViol : (violatedInvariantNames params th picked.value.2).isEmpty with
+              | true =>
+                  have hLoop : ((simulateOnceLoop sys params th steps picked.value.2 trace').run gen').1 = some result := by
+                    rw [simulateOnceLoop] at h
+                    simp only [hPartition, hFailures, hNexts, StateT.run_bind, Id.instMonad] at h
+                    rw [pickNextTransition_run_irrel (hd :: tl) _ (by simp) gen, hPick] at h
+                    simpa [nexts', trace', hViol] using h
+                  exact ih picked.value.2 trace' hTheory' hValid' hLast' hNoFail' gen' result hLoop
+              | false =>
+                  have hFound : (some (SimulationResult.foundViolation
+                      (ViolationKind.safetyFailure (violatedInvariantNames params th picked.value.2)) trace') :
+                      Option (SimulationResult ρ σ κ)) = some result := by
+                    rw [simulateOnceLoop] at h
+                    simp only [hPartition, hFailures, hNexts, StateT.run_bind, Id.instMonad] at h
+                    rw [pickNextTransition_run_irrel (hd :: tl) _ (by simp) gen, hPick] at h
+                    simpa [nexts', trace', hViol] using h
+                  cases hFound
+                  have hNonempty : violatedInvariantNames params th picked.value.2 ≠ [] := by
+                    intro hNil
+                    simp [hNil] at hViol
+                  have hViolEq : violatedInvariantNames params trace'.theory trace'.lastState =
+                      violatedInvariantNames params th picked.value.2 := by
+                    simp [hTheory', hLast']
+                  exact ⟨Trace.isSimulationValid_complete sys params trace' hTheory' hValid', hNoFail', hViolEq, hNonempty⟩
 
 theorem simulateOnce_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited σ] [Inhabited (κ × σ)]
