@@ -12,9 +12,7 @@ private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
       toJson (ModelCheckingResult.cancelled : ModelCheckingResult ρ σ κ Json)
   | none => Json.mkObj [("result", "no_violation_found")]
 
-instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ] : ToJson (SimulateResult ρ σ κ) where
-  toJson r := Json.mkObj [
-    ("result", resultToJson r.result),
+private def metadataToJsonFields {ρ σ κ : Type} (r : SimulateResult ρ σ κ) : List (String × Json) := [
     ("traces_run", Lean.toJson r.tracesRun),
     ("max_traces", Lean.toJson r.maxTraces),
     ("elapsed_ms", Lean.toJson r.elapsedMs),
@@ -22,25 +20,14 @@ instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJ
     ("depth", Lean.toJson r.depth)
   ]
 
+/-- Flatten the result object while keeping simulation metadata at the top level. -/
 def SimulateResult.toDisplayJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   (r : SimulateResult ρ σ κ) : Json :=
   match resultToJson r.result with
-  | Json.obj kvs =>
-      Json.mkObj <| kvs.toList ++ [
-        ("traces_run", Lean.toJson r.tracesRun),
-        ("max_traces", Lean.toJson r.maxTraces),
-        ("elapsed_ms", Lean.toJson r.elapsedMs),
-        ("seed", Lean.toJson r.seed),
-        ("depth", Lean.toJson r.depth)
-      ]
-  | other =>
-      Json.mkObj [
-        ("result", other),
-        ("traces_run", Lean.toJson r.tracesRun),
-        ("max_traces", Lean.toJson r.maxTraces),
-        ("elapsed_ms", Lean.toJson r.elapsedMs),
-        ("seed", Lean.toJson r.seed),
-        ("depth", Lean.toJson r.depth)
-      ]
+  | Json.obj kvs => Json.mkObj <| kvs.toList ++ metadataToJsonFields r
+  | other => Json.mkObj <| ("result", other) :: metadataToJsonFields r
+
+instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ] : ToJson (SimulateResult ρ σ κ) where
+  toJson r := SimulateResult.toDisplayJson r
 
 end Veil.ModelChecker.Simulation
