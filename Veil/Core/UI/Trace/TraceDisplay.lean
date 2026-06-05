@@ -99,7 +99,9 @@ def formatModelCheckingResult (j : Json) : MessageData :=
     let violates := match v.getObjValD "violates" with
       | .arr arr => if arr.isEmpty then "" else s!" (violates: {", ".intercalate (arr.map fmtJson).toList})"
       | _ => ""
-    m!"❌ Violation: {fmtJson (v.getObjValD "kind")}{violates}\n{formatTrace (j.getObjValD "trace")}{fmtSeedSuffix j}"
+    let trace := j.getObjValD "trace"
+    let traceMsg := if trace == .null then "" else s!"\n{formatTrace trace}"
+    m!"❌ Violation: {fmtJson (v.getObjValD "kind")}{violates}{traceMsg}{fmtSeedSuffix j}"
   | "no_violation_found" =>
     let trace := j.getObjValD "trace"
     if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}{fmtSeedSuffix j}"

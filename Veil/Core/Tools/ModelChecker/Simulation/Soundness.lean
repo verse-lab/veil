@@ -203,6 +203,10 @@ def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : ViolationKind → Prop
+  | .assumptionFailure violates =>
+      Trace.isSimulationValid sys params trace ∧
+      params.violatedAssumptions trace.theory = violates ∧
+      violates ≠ []
   | .safetyFailure violates =>
       Trace.isSimulationValid sys params trace ∧
       trace.failingStep = none ∧
@@ -227,6 +231,7 @@ theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th₀ : ρ}
     trace.isValid (simulationTransitionSystem sys params) := by
   intro h
   cases violation with
+  | assumptionFailure _ => exact Trace.isSimulationValid_sound sys params trace h.1
   | safetyFailure _ => exact Trace.isSimulationValid_sound sys params trace h.1
   | deadlock => exact Trace.isSimulationValid_sound sys params trace h.1
   | assertionFailure _ => exact Trace.isSimulationValid_sound sys params trace h.1

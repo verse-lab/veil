@@ -19,8 +19,10 @@ open Veil in
 structure VerificationResultsProps where
   /-- The verification results to display. -/
   results : VerificationResults VCMetadata SmtResult
-  /-- Position after #check_invariants for theorem insertion (line, character). -/
-  insertPosition : Lsp.Position
+  /-- Position after #check_invariants for inserting generated theorem stubs. -/
+  theoremInsertPos : Lsp.Position
+  /-- Position before #gen_spec for inserting the trust-disabling option. -/
+  optionInsertPos : Option Lsp.Position
   /-- Document URI for edit operations. -/
   documentUri : String
 deriving Server.RpcEncodable
@@ -47,8 +49,8 @@ private def displayWidget (atStx : Syntax) (html : Html) : CommandElabM Unit := 
     (return json% { html: $(← Server.rpcEncode html) })
     atStx
 
-/-- Compute the insert position (line after the syntax) and document URI. -/
-private def getInsertInfo (atStx : Syntax) : CommandElabM (Lsp.Position × String) := do
+/-- Compute the theorem insertion position (line after the syntax) and document URI. -/
+private def getTheoremInsertInfo (atStx : Syntax) : CommandElabM (Lsp.Position × String) := do
   let fileMap ← getFileMap
   let docUri := (← getFileName)
   -- Get position at end of the syntax, then move to start of next line
@@ -59,25 +61,48 @@ private def getInsertInfo (atStx : Syntax) : CommandElabM (Lsp.Position × Strin
   return (insertPos, docUri)
 
 def displayResults (atStx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
-  let (insertPosition, documentUri) ← getInsertInfo atStx
-  let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
+  let (theoremInsertPos, documentUri) ← getTheoremInsertInfo atStx
+  let html := Html.ofComponent VerificationResultsViewer {
+    results,
+    theoremInsertPos,
+    optionInsertPos := none,
+    documentUri
+  } #[]
   displayWidget atStx html
 
-private partial def runStreamingResults (insertPosition : Lsp.Position) (documentUri : String)
+private def getOptionInsertPos? (atStx : Syntax) : CommandElabM (Option Lsp.Position) := do
+  let fileMap ← getFileMap
+  let some startPos := atStx.getPos? | return none
+  let pos := fileMap.toPosition startPos
+  -- `FileMap.toPosition` uses 1-based lines, while LSP edits use 0-based
+  -- lines. The existing tail-position insertion relies on this offset to
+  -- insert after a command; inserting before a command needs the conversion.
+  return some { line := pos.line - 1, character := 0 }
+
+private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
+    (optionInsertPos : Option Lsp.Position) (documentUri : String)
     (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
     (token : RefreshToken) : CoreM Unit := do
   vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
   let (results, status) ← getter
-  let html := Html.ofComponent VerificationResultsViewer {results, insertPosition, documentUri} #[]
+  let html := Html.ofComponent VerificationResultsViewer {
+    results,
+    theoremInsertPos,
+    optionInsertPos,
+    documentUri
+  } #[]
   token.refresh html
   match status with
-  | .running => runStreamingResults insertPosition documentUri getter token
+  | .running => runStreamingResults theoremInsertPos optionInsertPos documentUri getter token
   | .done => pure ()
 
-def displayStreamingResults (atStx : Syntax) (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus)) : CommandElabM Unit := do
-  let (insertPosition, documentUri) ← getInsertInfo atStx
+def displayStreamingResults (atStx : Syntax)
+    (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
+    (optionStx? : Option Syntax := none) : CommandElabM Unit := do
+  let (theoremInsertPos, documentUri) ← getTheoremInsertInfo atStx
+  let optionInsertPos ← optionStx?.mapM getOptionInsertPos? <&> Option.join
   let html ← liftCoreM <| ProofWidgets.mkRefreshComponentM (.text "Loading...")
-    (runStreamingResults insertPosition documentUri getter)
+    (runStreamingResults theoremInsertPos optionInsertPos documentUri getter)
   displayWidget atStx html
 
 /-- Map VCStatus to emoji for text output. -/
@@ -109,6 +134,38 @@ private def effectiveStatus (vc : VCResult VCMetadata SmtResult)
     return vc.status
   let statuses := activeStatuses vc allVCs
   return effectiveStatusOrder.find? statuses.contains |>.getD vc.status
+
+private def isUndischargedStatus : Option VCStatus → Bool
+  | some .unknown | some .error | some .timeout => true
+  | some .proven | some .disproven | none => false
+
+def undischargedTheoremTexts (results : VerificationResults VCMetadata SmtResult) :
+    Array String := Id.run do
+  let mut texts := #[]
+  let vcs := results.vcs.qsort (·.id < ·.id)
+  for vc in vcs do
+    if vc.metadata.isInduction && !vc.isDormant && vc.alternativeFor.isNone &&
+        isUndischargedStatus (effectiveStatus vc results.vcs) then
+      if let some theoremText := vc.theoremText then
+        texts := texts.push theoremText
+  return texts
+
+def undischargedTheoremStubsText (results : VerificationResults VCMetadata SmtResult) :
+    Option String :=
+  let texts := undischargedTheoremTexts results
+  if texts.isEmpty then
+    none
+  else
+    some ("\n\n".intercalate texts.toList)
+
+private def formatUndischargedTheoremMessage
+    (results : VerificationResults VCMetadata SmtResult) : Option MessageData :=
+  let count := (undischargedTheoremTexts results).size
+  if count == 0 then
+    none
+  else
+    let conditionWord := if count == 1 then "condition" else "conditions"
+    some m!"{count} verification {conditionWord} could not be discharged automatically\n"
 
 /-- Format a JSON value as a string, with support for nested structures. -/
 private partial def formatJsonValue (json : Json) : String :=
@@ -194,6 +251,76 @@ private def formatCounterexamples (vc : VCResult VCMetadata SmtResult)
 
   if hasAny then some msg else none
 
+private structure DiagnosticEntry where
+  message : String
+  sources : Array String
+deriving Inhabited
+
+private def addDiagnosticEntry (entries : Array DiagnosticEntry) (source message : String) :
+    Array DiagnosticEntry :=
+  match entries.findIdx? (·.message == message) with
+  | some idx =>
+    let entry := entries[idx]!
+    if entry.sources.contains source then
+      entries
+    else
+      entries.set! idx { entry with sources := entry.sources.push source }
+  | none =>
+    entries.push { message, sources := #[source] }
+
+private def dischargerErrorMessages : DischargerResult SmtResult → Array String
+  | .error exs _ => exs.map (fun (_, json) => formatJsonValue json)
+  | .proven _ _ _ | .disproven _ _ | .unknown _ _ => #[]
+
+private def dischargerUnknownReasons : DischargerResult SmtResult → Array String
+  | .unknown (some (.unknown reasons)) _ => reasons
+  | .proven _ _ _ | .disproven _ _ | .unknown _ _ | .error _ _ => #[]
+
+private def activeRelatedVCs (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Array (VCResult VCMetadata SmtResult) :=
+  allVCs.foldl (init := #[vc]) fun acc altVC =>
+    if altVC.alternativeFor == some vc.id && !altVC.isDormant then
+      acc.push altVC
+    else
+      acc
+
+private def collectDiagnostics
+    (extract : DischargerResult SmtResult → Array String)
+    (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Array DiagnosticEntry := Id.run do
+  let mut entries := #[]
+  for relatedVC in activeRelatedVCs vc allVCs do
+    for discharger in relatedVC.timing.dischargers do
+      let source := discharger.name.toString
+      for result in discharger.result.toList do
+        for message in extract result do
+          entries := addDiagnosticEntry entries source message
+  return entries
+
+private def indentBlock (indent text : String) : String :=
+  "\n".intercalate ((text.splitOn "\n").map fun line => indent ++ line)
+
+private def formatDiagnostics (heading : String) (entries : Array DiagnosticEntry) :
+    Option MessageData := Id.run do
+  if entries.isEmpty then
+    return none
+  let mut msg := m!"      {heading}:\n"
+  for entry in entries do
+    msg := msg ++ m!"        {", ".intercalate entry.sources.toList}\n"
+    msg := msg ++ m!"{indentBlock "          " entry.message}\n"
+  return some msg
+
+private def formatFailureDiagnostics (status : Option VCStatus)
+    (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Option MessageData :=
+  match status with
+  | some .error | some .timeout =>
+    formatDiagnostics "Exceptions" (collectDiagnostics dischargerErrorMessages vc allVCs)
+  | some .unknown =>
+    formatDiagnostics "Reasons for Unknown"
+      (collectDiagnostics dischargerUnknownReasons vc allVCs)
+  | some .proven | some .disproven | none => none
+
 /-- Format verification results as text output for logging. -/
 def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationResults VCMetadata SmtResult) : m MessageData := do
   let includeCounterexamples := veil.printCounterexamples.get (← getOptions)
@@ -205,6 +332,8 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
     acc.insert (getAction vc) (acc.getD (getAction vc) #[] |>.push vc)
 
   let mut msg := m!""
+  if let some theoremMsg := formatUndischargedTheoremMessage results then
+    msg := msg ++ theoremMsg
   unless initVCs.isEmpty do
     msg := msg ++ m!"Initialization must establish the invariant:\n"
     for vc in initVCs do
@@ -214,6 +343,8 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
       if includeCounterexamples && status == some .disproven then
         if let some ceMsg := formatCounterexamples vc results.vcs then
           msg := msg ++ ceMsg
+      if let some diagnosticMsg := formatFailureDiagnostics status vc results.vcs then
+        msg := msg ++ diagnosticMsg
   unless actionGroups.isEmpty do
     msg := msg ++ m!"The following set of actions must preserve the invariant and successfully terminate:\n"
     for (actionName, vcs) in actionGroups.toArray do
@@ -225,6 +356,8 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
         if includeCounterexamples && status == some .disproven then
           if let some ceMsg := formatCounterexamples vc results.vcs then
             msg := msg ++ ceMsg
+        if let some diagnosticMsg := formatFailureDiagnostics status vc results.vcs then
+          msg := msg ++ diagnosticMsg
   return msg
 
 /-- Check if any VCs have non-proven status. -/

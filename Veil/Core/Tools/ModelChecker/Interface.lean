@@ -22,7 +22,17 @@ instance : Inhabited (SafetyProperty ρ σ) where
     property := fun _ _ => True
   }
 
+structure TheoryProperty (ρ : Type) where
+  name : Name := Name.anonymous
+  property : ρ → Prop
+  [decidable : ∀ th, Decidable (property th)]
+
+@[inline, specialize]
+def TheoryProperty.holdsOn (p : TheoryProperty ρ) (th : ρ) : Bool :=
+  @decide (p.property th) (p.decidable th)
+
 inductive ViolationKind where
+  | assumptionFailure (violates : List Name)
   | safetyFailure (violates : List Name)
   | deadlock
   /-- An assertion (require/assert) in the code failed during execution. -/
@@ -31,6 +41,7 @@ deriving Inhabited, Hashable, BEq, Repr
 
 instance : ToJson ViolationKind where
   toJson
+    | .assumptionFailure violates => Json.mkObj [("kind", "assumption_failure"), ("violates", toJson violates)]
     | .safetyFailure violates => Json.mkObj [("kind", "safety_failure"), ("violates", toJson violates)]
     | .deadlock => Json.mkObj [("kind", "deadlock")]
     | .assertionFailure exId => Json.mkObj [("kind", "assertion_failure"), ("exception_id", toJson exId)]
@@ -241,6 +252,10 @@ def ParallelConfig.taskSplit (cfg : ParallelConfig) (f : Array α → IO β) (wo
 
 
 structure SearchParameters (ρ σ : Type) where
+  /-- Assumptions that the concrete theory supplied to the model checker must
+  satisfy before any state exploration is meaningful. -/
+  assumptions : List (TheoryProperty ρ) := []
+
   /-- Which properties are we trying to find a violation of? (Typically, this
   list contains all the safety properties and invariants of the system.) -/
   invariants : List (SafetyProperty ρ σ)
@@ -261,6 +276,11 @@ structure SearchParameters (ρ σ : Type) where
 /-- Check if a state satisfies all state constraints. -/
 def SearchParameters.satisfiesConstraints (params : SearchParameters ρ σ) (th : ρ) (st : σ) : Bool :=
   params.stateConstraints.all fun c => c.holdsOn th st
+
+/-- Return the assumptions violated by the concrete theory. -/
+def SearchParameters.violatedAssumptions (params : SearchParameters ρ σ) (th : ρ) : List Name :=
+  params.assumptions.filterMap fun p =>
+    if p.holdsOn th then none else some p.name
 
 /-- Create a filtered transition system that explores only states satisfying
 state constraints. -/
@@ -285,7 +305,6 @@ def violatedInvariantNames {ρ σ : Type}
   (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List Lean.Name :=
   params.invariants.filterMap fun p =>
     if !p.holdsOn th st then some p.name else none
-
 -- class ModelChecker (ts : TransitionSystem ρ σ l) where
 --   isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ
 

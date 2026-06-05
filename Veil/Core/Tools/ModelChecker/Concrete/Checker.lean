@@ -86,6 +86,10 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
+  let assumptionViolations := params.violatedAssumptions th
+  unless assumptionViolations.isEmpty do
+    setViolationFound progressInstanceId
+    return ModelCheckingResult.foundViolation 0 (.assumptionFailure assumptionViolations) none
   -- Create a "filtered" version of the system
   let sys := Veil.ModelChecker.restrictSystemByStateConstraints sys params th
   let (ctx, distinctCount) ← match parallelCfg with

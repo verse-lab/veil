@@ -3,6 +3,7 @@ import Veil.Core.Tools.Verifier.Manager
 import Veil.Core.Tools.Verifier.Results
 import Std.Sync.Mutex
 import Veil.Util.Multiprocessing
+import Veil.Util.Meta
 
 namespace Veil.Verifier
 
@@ -121,9 +122,10 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
       -- dbg_trace "({← IO.monoMsNow}) [Manager] Starting manager loop"
       let _ ← (managerLoop ()).asTask
     else
-      vcManager.atomically (fun ref => do
-        let mgr ← ref.get
-        reset mgr._managerId
+      vcManager.atomically (fun managerRef => do
+        let mgr ← managerRef.get
+        let mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
+        managerRef.set mgr
         -- dbg_trace "({← IO.monoMsNow}) [Manager] Reset state for manager ID {mgr._managerId}"
         )
     ref.set true
@@ -175,5 +177,36 @@ Warning: This blocks the elaborator until all matching VCs complete. -/
 def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
   startFiltered filter
   awaitFilteredWithLogging filter
+
+private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : TermElabM Unit := do
+  let some info := (← getEnv).find? fullName
+    | return
+  unless ← Meta.isDefEq info.type statement do
+    throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
+
+private def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
+    (witness : Witness) : CommandElabM Unit := do
+  liftTermElabM do
+    let fullName := (← getCurrNamespace).append vc.name
+    let statement ← vc.toVCStatement.type
+    if (← getEnv).contains fullName then
+      ensureExistingTheoremMatches fullName statement
+      return
+    let witness ← instantiateMVars witness
+    let _ ← addVeilTheorem vc.name statement witness
+    return ()
+
+/-- Add theorem declarations for all already-proven VCs matching `filter`.
+
+This must run on the command elaboration thread, not in the manager task: it
+mutates the current Lean environment by adding theorem constants whose proofs
+are the witnesses returned by successful dischargers. Declarations are added in
+the manager DAG's dependency order so downstream proof terms can refer to
+upstream VC theorem constants. -/
+def addProvenTheoremsInDependencyOrder (filter : VCMetadata → Bool) : CommandElabM Unit := do
+  let mgr ← vcManager.atomically fun ref => ref.get
+  for vcId in mgr.vcIdsInDependencyOrder filter do
+    if let some (vc, witness) := mgr.provenWitness? vcId then
+      addProvenVCTheorem vc witness
 
 end Veil.Verifier

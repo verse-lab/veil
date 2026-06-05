@@ -335,7 +335,7 @@ theorem check_totality_doesNotThrow (ρ : Type) (σ : Type) (party : Type) [part
           classic_quorum_inhabited amplification_quorum amplification_quorum_dec_eq amplification_quorum_inhabited
           commit_quorum commit_quorum_dec_eq commit_quorum_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub)
     __veil_ex := by
-  veil_human
+  unveil
   intro hfp1 hfp2 hcp1 h_prop h_echo_dis h_vote_dis h_ack_dis h_ready_dis h_commit_dis hcp2
   exfalso
   -- Extract invariant components (order differs from Giuliano.lean)

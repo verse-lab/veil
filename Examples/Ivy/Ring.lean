@@ -42,6 +42,7 @@ invariant [leader_greatest] leader L → le N L
 invariant [self_msg_greatest] pending L L → le N L
 invariant [drop_smaller] pending S D ∧ btw S N D → le N S
 
+set_option veil.smt.trust false
 #time #gen_spec
 
 #model_check { node := Fin 9 } { }

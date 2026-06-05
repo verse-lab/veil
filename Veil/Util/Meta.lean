@@ -107,6 +107,30 @@ where
   applyOptions (s : Options) (opts : Array (Name × DataValue)) : Options :=
     opts.foldl (fun s (n, v) => s.insert n v) s
 
+/--
+Inline proof constants that were introduced after `env0`.
+Optimised, based on the version from:
+https://github.com/AeneasVerif/aeneas/blob/afe15e84c31d90fbd371258bc0ca9982e3de74d5/backends/lean/AeneasMeta/Async/Async.lean#L19
+-/
+partial def inlineFreshProofs (env0 : Environment) (e : Expr) (rec := false) : MetaM Expr := do
+  let env ← getEnv
+  let e ← instantiateMVars e
+
+  let pre (e : Expr) : MetaM TransformStep := do
+    let .const declName us := e | return .continue
+    if env0.contains declName then
+      return .done e
+
+    let some const := env.find? declName
+      | throwError "unknown constant: {declName}"
+    let some body := const.value? (allowOpaque := true)
+      | throwError "Could not inline constant: {e}"
+
+    let body := body.instantiateLevelParams const.levelParams us
+    return if rec then .visit body else .done body
+
+  Core.transform e (pre := pre)
+
 private def stxForVeilDefinition (red : ReducibilityHints) (attrs : Array Attribute) (baseName : Name) (type : Expr) (e : Expr) : TermElabM (TSyntax `command) := do
   let attrs ← attrs.mapM (·.mkStx)
   let attrs? ← if attrs.isEmpty then pure Option.none else pure $ .some $ ← `(Parser.Term.attributes| @[$attrs,*])

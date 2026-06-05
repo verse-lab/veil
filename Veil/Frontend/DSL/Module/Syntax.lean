@@ -63,6 +63,7 @@ scoped syntax (name := kw_termination) "termination" : veilKeyword
 scoped syntax (name := kw_state_constraint) "state_constraint" : veilKeyword
 
 scoped syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
+scoped syntax (name := kw_gen_theorems) "#gen_theorems" : veilKeyword
 
 end VeilKeywords
 
@@ -300,6 +301,8 @@ scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term :
 /-- Assemble the specification. -/
 scoped syntax (name := genSpec) kw_gen_spec : command
 
+scoped syntax (name := genTheorems) kw_gen_theorems : command
+
 scoped syntax (name := checkInvariants) "#check_invariants" : command
 
 scoped syntax (name := checkAction) "#check_action" ident : command
@@ -345,9 +348,12 @@ declare_syntax_cat modelCheckMode
 scoped syntax (name := interpreted) "interpreted" : modelCheckMode
 scoped syntax (name := compiled) "compiled" : modelCheckMode
 
-/-- Optional clause to check that the provided theory satisfies the module's
-assumptions before model checking. `Assumptions` is automatically unfolded via
-`dsimp` first; if no tactic is given, `first | decide | native_decide` is used. -/
+/-- Optional clause supplying a proof tactic for an additional static proof that
+the provided theory satisfies the module's assumptions. `#model_check` always
+evaluates assumptions at runtime before state exploration; this clause can be
+used when a separate elaboration-time proof is desired. `Assumptions` is
+automatically unfolded via `dsimp` first; if no tactic is given,
+`first | decide | native_decide` is used. -/
 syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
 
 scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command

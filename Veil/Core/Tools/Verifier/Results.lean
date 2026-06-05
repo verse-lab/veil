@@ -101,6 +101,8 @@ structure VCResult (VCMetaT ResultT : Type) where
   alternativeFor : Option VCId := none
   /-- Whether this VC is currently dormant (waiting for its primary to fail). -/
   isDormant : Bool := false
+  /-- True iff this VC's selected successful proof witness contains `sorry`. -/
+  proofHasSorry : Bool := false
   /-- The theorem statement text for inserting into the editor.
       Format: `theorem <name> <params> : <statement> := by sorry` -/
   theoremText : Option String := none
@@ -116,6 +118,7 @@ instance [ToJson VCMetaT] [ToJson ResultT] : ToJson (VCResult VCMetaT ResultT) w
       ("timing", toJson vcResult.timing),
       ("alternativeFor", match vcResult.alternativeFor with | some id => toJson id | none => Json.null),
       ("isDormant", toJson vcResult.isDormant),
+      ("proofHasSorry", toJson vcResult.proofHasSorry),
       ("theoremText", match vcResult.theoremText with | some t => toJson t | none => Json.null)
     ]
 
@@ -175,8 +178,8 @@ def mkDischargerResultData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr :
 /-- Calculate total time for a VC by summing all completed dischargers; returns none if none finished -/
 def VCManager.vcTotalTime (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Option Nat := do
   let vc ← mgr.nodes[vcId]?
-  let times := (List.range vc.dischargers.size).filterMap fun i =>
-    mgr._dischargerResults[(vcId, i)]?.map (·.time)
+  let times := vc.effectiveDischargers.toList.filterMap fun discharger =>
+    mgr._dischargerResults[(vcId, discharger.id.dischargerId)]?.map (·.time)
   if times.isEmpty then none else some (times.foldl (· + ·) 0)
 
 /-- Get time for successful discharger (if VC is proven) -/
@@ -189,10 +192,24 @@ def VCManager.vcSuccessfulTime (mgr : VCManager VCMetaT ResultT) (vcId : VCId) :
     | some res => return some res.time
     | none => return none
 
+private def DischargerResult.proofHasSorry : DischargerResult ResultT → Bool
+  | .proven (some witness) _ _ => witness.hasSorry
+  | _ => false
+
+private def TimingData.proofHasSorry (timing : TimingData ResultT) : Bool :=
+  match timing.successfulDischargerId with
+  | none => false
+  | some successfulId =>
+    timing.dischargers.any fun discharger =>
+      discharger.id == successfulId &&
+        match discharger.result with
+        | some result => result.proofHasSorry
+        | none => false
+
 /-- Build `TimingData` for a specific VC. -/
 def mkTimingData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) : m (TimingData ResultT) := do
-  let dischargerDetails ← (List.range vc.dischargers.size).toArray.mapM fun i =>
-    mkDischargerResultData mgr vc i
+  let dischargerDetails ← vc.effectiveDischargers.mapM fun discharger =>
+    mkDischargerResultData mgr vc discharger.id.dischargerId
   return {
     totalTime := mgr.vcTotalTime vc.uid
     successfulDischargerId := vc.successful
@@ -228,6 +245,7 @@ def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM 
     timing := timing
     alternativeFor := mgr.findPrimaryVC vcId
     isDormant := mgr.dormantVCs.contains vcId
+    proofHasSorry := timing.proofHasSorry
     theoremText := theoremText
   }
 

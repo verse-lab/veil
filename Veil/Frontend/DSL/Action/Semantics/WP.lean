@@ -137,13 +137,11 @@ lemma VeilM.wp_read {_ : IsSubReaderOf ρₛ ρ} :
 lemma VeilM.wp_read' :
   wp (read : VeilM m ρ σ ρ) post = fun r s => post r r s := by rfl
 
-@[wpSimp ↓]
 lemma VeilM.wp_pick :
   wp (pick τ : VeilM m ρ σ τ) post = fun r s => ∀ t, post t r s := by
   simp only [MonadNonDet.wp_pick, iInf, sInf, Set.mem_range, eq_iff_iff, Subtype.exists,
     exists_prop, exists_exists_eq_and, forall_exists_index]; aesop
 
-@[wpSimp ↓]
 lemma VeilM.wp_pickSuchThat {m : Mode} {ρ σ τ : Type} {p : τ → Prop} {_ : ∀ x, Decidable (p x)} {post : τ → ρ → σ → Prop} :
   wp (VeilM.pickSuchThat τ p : VeilM m ρ σ τ) post = fun r s => ∀ t, p t -> post t r s := by
   simp only [VeilM.pickSuchThat, MonadNonDet.wp_pickSuchThat, iInf, sInf, himpE, himpPureE, Set.mem_range, eq_iff_iff,
@@ -156,6 +154,92 @@ lemma VeilM.wp_if [Decidable p] :
   if p then wp a post else wp b post := by
   split_ifs <;> simp only
 
-attribute [wpSimp ↓] wp_pure wp_bind wp_map wp_bind
+attribute [wpSimp ↓] wp_pure wp_map VeilM.returnUnit
+
+/-!
+## Binder-preserving WP rewrites for `bind`, `pick`, and `pickSuchThat`
+
+The lemmas `wp_bind`, `VeilM.wp_pick`, and `VeilM.wp_pickSuchThat` are
+logically correct, but applying them as plain simp rules replaces source
+binder names from do-notation with generic ones like `x`, `x_1`, or `t`.
+These simprocs perform the same rewrites and then alpha-rename the
+introduced binders to match the original source names.
+-/
+section PickSimprocs
+
+open Lean Meta
+
+/-- Binder name of a lambda head, if non-anonymous. -/
+private def lambdaName? (e : Expr) : Option Name :=
+  match e.consumeMData with
+  | .lam n .. => if n.isAnonymous then none else some n
+  | _ => none
+
+/-- Like `lambdaName?` but also rejects compiler-generated internal names. -/
+private def lambdaUserName? (e : Expr) : Option Name :=
+  lambdaName? e |>.filter (!·.isInternal)
+
+private def renameBinder (n : Name) : Expr → Expr
+  | .forallE _ ty b bi => .forallE n ty b bi
+  | .lam     _ ty b bi => .lam     n ty b bi
+  | e => e
+
+private partial def underLambdas (f : Expr → Expr) : Expr → Expr
+  | .lam n ty b bi => .lam n ty (underLambdas f b) bi
+  | e => f e
+
+/-- Rewrite `e` at the root with `lem` (one shot — no recursion into the result). -/
+private def rewriteRoot? (e : Expr) (lem : Name) : MetaM (Option (Expr × Expr)) := do
+  let goal ← mkFreshExprMVar (mkConst ``True)
+  let r ←
+    try goal.mvarId!.rewrite e (← mkConstWithFreshMVarLevels lem) (config := { occs := .pos [1] })
+    catch _ => return none
+  unless ← r.mvarIds.allM (·.isAssigned) do return none
+  return some (← instantiateMVars r.eNew, ← instantiateMVars r.eqProof)
+
+/-- Position of the `post` arg in a `wp ...` application (accounts for applied state). -/
+private def wpPostIdx? (e : Expr) : MetaM (Option Nat) := do
+  unless e.getAppFn'.isConstOf ``wp do return none
+  let n := e.getAppNumArgs
+  if n < 2 then return none
+  let applied := (← whnf (← inferType e)).isProp && n ≥ 4
+  return some (if applied then n - 3 else n - 1)
+
+simproc_decl wpChoicePreserveBinder (_) := fun e => do
+  let some postIdx ← wpPostIdx? e | return .continue
+  let args := e.getAppArgs'
+  let act  := args[postIdx - 1]!
+  let post := args[postIdx]!
+  let go (name : Name) (lem : Name) : SimpM Simp.Step := do
+    let some (rhs, proof) ← rewriteRoot? e lem | return .continue
+    return .visit { expr := underLambdas (renameBinder name) rhs.headBeta, proof? := some proof }
+  if act.getAppFn'.isConstOf ``MonadNonDet.pick then
+    go ((lambdaUserName? post).getD `t) ``VeilM.wp_pick
+  else if act.getAppFn'.isConstOf ``VeilM.pickSuchThat then
+    -- `let x : τ :| p` may keep the user name on the predicate, not the post lambda.
+    let name ← match lambdaUserName? post with
+      | some n => pure n
+      | none   =>
+        let p? ← act.getAppArgs'.findSomeM? fun a => do
+          let .forallE _ _ b _ := ← whnf (← inferType a) | return none
+          return if b.isProp then some a else none
+        pure <| (p?.bind lambdaUserName?).getD `t
+    go name ``VeilM.wp_pickSuchThat
+  else return .continue
+
+simproc_decl wpBindPreserveBinder (_) := fun e => do
+  let some postIdx ← wpPostIdx? e | return .continue
+  let act := e.getAppArgs'[postIdx - 1]!
+  unless act.getAppFn'.isConstOf ``Bind.bind do return .continue
+  let name := (lambdaName? act.getAppArgs'.back!).getD `x
+  let some (rhs, proof) ← rewriteRoot? e ``wp_bind | return .continue
+  let some postIdx' ← wpPostIdx? rhs | return .continue
+  let result := mkAppN rhs.getAppFn' (rhs.getAppArgs'.modify postIdx' (renameBinder name))
+  return .visit { expr := result, proof? := some proof }
+
+attribute [wpSimp] wpBindPreserveBinder wpChoicePreserveBinder
+
+end PickSimprocs
+
 
 end Veil

@@ -47,7 +47,7 @@ after_init {
 
 action join (x : node) (y : node) {
   require ¬ a x;
-  require ∀ Y, a Y;
+  require a y;
   require ¬ ring.btw x org y;
   a x := true;
   s1 x Y := y == Y;
@@ -129,7 +129,7 @@ action remove_org (x : node) (y : node) (z : node) {
 action test (x : node) {
   require ∀ X Y, (s1 X Y ∧ a Y ∧ reach Y) → reach X;
   require ∀ X Y Z, (s1 X Y ∧ ¬ a Y ∧ s2 X Z ∧ a Z ∧ reach Z) → reach X;
-  require ∀ Y, (ring.btw x Y org ∧ a Y) → reach x;
+  require ∀ Y, (ring.btw x Y org ∧ a Y) → reach Y;
   require a x;
   require ¬ reach x;
   require in_s1 x → ∃ y, s1 x y;

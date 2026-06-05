@@ -254,6 +254,10 @@ theorem BitVec.allBitVecs_complete {n : Nat} : ∀ (bv : BitVec n), bv ∈ BitVe
   simp only [BitVec.allBitVecs, List.mem_map, List.mem_finRange, true_and]
   exact ⟨bv.toFin, BitVec.ofFin_toFin bv⟩
 
+instance (n : Nat) : Veil.Enumeration (BitVec n) where
+  allValues := BitVec.allBitVecs n
+  complete := BitVec.allBitVecs_complete
+
 -- NOTE: the original design is based on `Finset`, but the `Repr`
 -- instance of `Finset` is marked as `unsafe`, so we use `BitVec` instead,
 -- which saves space and also has `O(1)` membership test.

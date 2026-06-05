@@ -188,7 +188,7 @@ scoped elab "destruct_proxy_sum" : tactic => withMainContext do
 
 open Tactic in
 /-- Fully destruct a `Sigma`-typed hypothesis using a deep `rcases` pattern. -/
-local elab "destruct_proxy_sigma" : tactic => withMainContext do
+scoped elab "destruct_proxy_sigma" : tactic => withMainContext do
   let lctx ← getLCtx
   for decl in lctx do
     if decl.isImplementationDetail then continue

@@ -21,7 +21,21 @@ invariant [inv] (∀ n₁ n₂, (r n₁ = r n₂))
 /--
 error: Initialization must establish the invariant:
   doesNotThrow ... ✅
-  inv ... ✅
+  inv ... ❌
+      Counterexample (WP):
+        Theory:
+
+        Pre-state:
+          r = [0]
+        Action: initializer
+      Counterexample (TR):
+        Theory:
+
+        Pre-state:
+          r = []
+        Action: initializer
+        Post-state:
+          r = [0]
 The following set of actions must preserve the invariant and successfully terminate:
   act
     doesNotThrow ... ✅

@@ -1,4 +1,5 @@
 import Lean
+import Lean.Meta.Tactic.TryThis
 import Veil.Base
 import Veil.Frontend.DSL.Module.Syntax
 import Veil.Frontend.DSL.Infra.EnvExtensions
@@ -312,8 +313,33 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
     Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
     mod.generateInvariantVCs
-  -- The invariant VCs are started only when `#check_invariants` is run
+  -- Invariant VCs are generated here; verifier commands decide when to start them.
   return { mod with _specFinalizedAt := some stx }
+
+private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
+  results.vcs.foldl (init := 0) fun count vc =>
+    if vc.proofHasSorry then count + 1 else count
+
+private def trustedSmtWarning (count : Nat) : MessageData :=
+  let goalWord := if count == 1 then "goal" else "goals"
+  m!"Trusting SMT solver for {count} {goalWord}. `set_option veil.smt.trust false` to enable proof reconstruction."
+
+private def addUndischargedTheoremSuggestion
+    (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
+  let some theoremText := Verifier.undischargedTheoremStubsText results | return
+  let replacement ← match stx.getPos?, stx.getTailPos? with
+    | some startPos, some endPos =>
+      let commandText := String.Pos.Raw.extract (← getFileMap).source startPos endPos
+      pure s!"{commandText}\n\n{theoremText}"
+    | _, _ =>
+      pure theoremText
+  let label := "Insert theorem stubs for undischarged verification conditions"
+  let suggestion : Lean.Meta.Tactic.TryThis.Suggestion := {
+    suggestion := .string replacement
+    toCodeActionTitle? := some fun _ => label
+  }
+  liftCoreM <| Lean.Meta.Tactic.TryThis.addSuggestion stx suggestion
+    (header := s!"{label}:\n")
 
 /-- Log verification results asynchronously after all VCs complete. -/
 def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
@@ -324,17 +350,24 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
   else
     unless ← isModelCheckCompileMode do
       logInfoAt stx msg
+  unless ← isModelCheckCompileMode do
+    let trustedCount := proofHasSorryGoalCount results
+    if trustedCount > 0 then
+      logWarningAt stx (trustedSmtWarning trustedCount)
+    addUndischargedTheoremSuggestion stx results
 
 private def runFilteredInvariantCheck
     (stx : Syntax)
+    (mod : Module)
     (filter : VCMetadata → Bool)
     : CommandElabM Unit := do
   Verifier.runFilteredAsync filter (logVerificationResults stx)
-  Verifier.displayStreamingResults stx <|
-    Verifier.vcManager.atomically fun ref => do
+  Verifier.displayStreamingResults stx
+    (Verifier.vcManager.atomically fun ref => do
       let mgr ← ref.get
       let results ← mgr.toResults filter
-      pure (results, if mgr.isDoneFiltered filter then .done else .running)
+      pure (results, if mgr.isDoneFiltered filter then .done else .running))
+    mod.specFinalizedAtStx
 
 private def isInductionForAction (actionName : Name) : VCMetadata → Bool
   | .induction m => m.action == actionName
@@ -367,7 +400,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
     if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
     mod.throwIfSpecNotFinalized
-    runFilteredInvariantCheck stx VCMetadata.isInduction
+    runFilteredInvariantCheck stx mod VCMetadata.isInduction
 
 @[command_elab Veil.checkAction]
 def elabCheckAction : CommandElab := fun stx => do
@@ -380,7 +413,7 @@ def elabCheckAction : CommandElab := fun stx => do
     let actionName := stx[1].getId
     unless (getCheckableAction? mod actionName).isSome do
       throwUnknownCheckAction mod actionName
-    runFilteredInvariantCheck stx (isInductionForAction actionName)
+    runFilteredInvariantCheck stx mod (isInductionForAction actionName)
 
 
 @[command_elab Veil.genState]
@@ -524,6 +557,15 @@ def elabGenSpec : CommandElab := fun stx => do
     let mod ← mod.ensureSpecIsFinalized stx
     localEnv.modifyModule (fun _ => mod)
 
+@[command_elab Veil.genTheorems]
+def elabGenTheorems : CommandElab := fun _stx => do
+  withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
+    if ← isModelCheckCompileMode then return
+    let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    let _ ← Verifier.waitFilteredSync (fun _ => true)
+    Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
+
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/
 elab "veil_variables" : command => do
@@ -641,11 +683,16 @@ private def mkIdentWithModName' (mod : Module) (name : Name) : Ident :=
 
 /-- Build search parameters for model checking / simulation. -/
 private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
+  let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
+    `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
+        ($(mkIdent `name) := $(quote sa.name))
+        ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName' mod sa.name) $(mkIdent `th)))
   -- Build SafetyProperty.mk syntax for a StateAssertion
   let mkProp (sa : StateAssertion) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
         ($(mkIdent `name) := $(quote sa.name))
         ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName' mod sa.name) $(mkIdent `th) $(mkIdent `st)))
+  let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
   let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
   -- FIXME: Only recognizing the first termination property might confuse users
   let terminatingProp ← match mod.terminations[0]? with
@@ -658,7 +705,7 @@ private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) :
                   $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
     if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
     else pure base
-  `({ $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
+  `({ $(mkIdent `assumptions):ident := $assumptionList, $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
       $(mkIdent `stateConstraints):ident := $constraintList,
       $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
 
@@ -917,7 +964,8 @@ where
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
-    -- Check assumptions if clause is present (skip in compile mode and if no assumptions)
+    -- Optionally prove assumptions statically; the concrete model checker also
+    -- evaluates them at runtime before BFS.
     if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
