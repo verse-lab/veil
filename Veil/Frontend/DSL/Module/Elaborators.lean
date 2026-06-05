@@ -678,7 +678,7 @@ private def resolveTheoryTerm (cmdName : String) (theoryTermOpt : Option Term)
     `({})
 
 /-- Prepend `name` with `mod.name`. -/
-private def mkIdentWithModName' (mod : Module) (name : Name) : Ident :=
+private def mkIdentWithModName (mod : Module) (name : Name) : Ident :=
   Lean.mkIdent (mod.name ++ name)
 
 /-- Build search parameters for model checking / simulation. -/
@@ -686,12 +686,12 @@ private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) :
   let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
         ($(mkIdent `name) := $(quote sa.name))
-        ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName' mod sa.name) $(mkIdent `th)))
+        ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName mod sa.name) $(mkIdent `th)))
   -- Build SafetyProperty.mk syntax for a StateAssertion
   let mkProp (sa : StateAssertion) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
         ($(mkIdent `name) := $(quote sa.name))
-        ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName' mod sa.name) $(mkIdent `th) $(mkIdent `st)))
+        ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
   let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
   let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
   -- FIXME: Only recognizing the first termination property might confuse users
@@ -770,7 +770,7 @@ where
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
           ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
-          ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
+          ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
           $sp : _ → _ → _ → IO _))
 
   /-- Check that the provided theory satisfies all module assumptions by
@@ -1089,7 +1089,7 @@ private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
   `((let $inst : $instantiationType := $instTerm
       let $th : $theoryIdent $instSortArgs* := $theoryTerm
       $(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
-        ($(mkIdentWithModName' mod `enumerableTransitionSystem) $instSortArgs* $th)
+        ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
         $sp $th $cfgTerm : _ → _ → IO _))
 
 /-- Build the simulator runtime call syntax with progress and cancellation hooks. -/
