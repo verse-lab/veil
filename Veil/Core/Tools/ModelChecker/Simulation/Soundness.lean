@@ -99,11 +99,11 @@ theorem pickedTransition_valid {ρ σ κ : Type}
   (hNexts : nexts = (Veil.ModelChecker.Concrete.partitionExecutionOutcome
     (sys.tr th currSt)).fst)
   (hNonempty : nexts ≠ []) (gen : StdGen) :
-  let picked := pickNextTransition nexts gen hNonempty
-  sys.toRelational.tr th currSt picked.value.1 picked.value.2 := by
+  let picked := (pickNextTransition nexts hNonempty).run gen
+  sys.toRelational.tr th currSt picked.1.value.1 picked.1.value.2 := by
   intro picked
-  have hmem : picked.value ∈ nexts := by simpa [picked] using pickNextTransition_mem nexts gen hNonempty
-  have hGood : picked.value ∈
+  have hmem : picked.1.value ∈ nexts := by simpa [picked] using pickNextTransition_mem nexts gen hNonempty
+  have hGood : picked.1.value ∈
       (Veil.ModelChecker.Concrete.partitionExecutionOutcome
         (sys.tr th currSt)).fst := by
     simpa [hNexts] using hmem
@@ -119,12 +119,12 @@ theorem pickedInitialState_valid {ρ σ κ : Type}
   (initStates : List σ)
   (hInitStates : initStates = sys.initStates)
   (hNonempty : initStates ≠ []) (gen : StdGen) :
-  let picked := pickInitialState initStates gen hNonempty
-  ({ theory := th, initialState := picked.value, steps := #[] } : Trace ρ σ κ).isValid
+  let picked := (pickInitialState initStates hNonempty).run gen
+  ({ theory := th, initialState := picked.1.value, steps := #[] } : Trace ρ σ κ).isValid
     sys.toRelational := by
   intro picked
-  have hmem : picked.value ∈ initStates := by simpa [picked] using pickInitialState_mem initStates gen hNonempty
-  refine Trace.isValid_empty sys.toRelational th picked.value ?_ ?_
+  have hmem : picked.1.value ∈ initStates := by simpa [picked] using pickInitialState_mem initStates gen hNonempty
+  refine Trace.isValid_empty sys.toRelational th picked.1.value ?_ ?_
   · simp [EnumerableTransitionSystem.toRelational]
   · simpa [EnumerableTransitionSystem.toRelational, hInitStates] using hmem
 
@@ -144,17 +144,17 @@ private theorem pushedTrace_valid {ρ σ κ : Type}
     (sys.tr th currSt)).fst)
   (hNonempty : nexts ≠ [])
   (gen : StdGen) :
-  let picked := pickNextTransition nexts gen hNonempty
-  let trace' := trace.push { transitionLabel := picked.value.1, nextState := picked.value.2 }
+  let picked := (pickNextTransition nexts hNonempty).run gen
+  let trace' := trace.push { transitionLabel := picked.1.value.1, nextState := picked.1.value.2 }
   trace'.isValid sys.toRelational ∧
     trace'.theory = th ∧
-    trace'.lastState = picked.value.2 ∧
+    trace'.lastState = picked.1.value.2 ∧
     trace'.failingStep = none := by
   intro picked trace'
-  have hRel : sys.toRelational.tr th currSt picked.value.1 picked.value.2 :=
+  have hRel : sys.toRelational.tr th currSt picked.1.value.1 picked.1.value.2 :=
     pickedTransition_valid th sys params currSt nexts hNexts hNonempty gen
   have hValid' : trace'.isValid sys.toRelational := by
-    exact Trace.push_isValid trace { transitionLabel := picked.value.1, nextState := picked.value.2 }
+    exact Trace.push_isValid trace { transitionLabel := picked.1.value.1, nextState := picked.1.value.2 }
       sys.toRelational hValid (by simpa [hTheory, hLast] using hRel)
   exact ⟨hValid', by simpa [trace', hTheory], by simp [trace'], by simpa [trace', hNoFail]⟩
 
@@ -167,11 +167,11 @@ private theorem initialTrace_valid {ρ σ κ : Type}
   (hInitStates : initStates = sys.initStates)
   (hNonempty : initStates ≠ [])
   (gen : StdGen) :
-  let picked := pickInitialState initStates gen hNonempty
-  let trace : Trace ρ σ κ := { theory := th, initialState := picked.value, steps := #[] }
+  let picked := (pickInitialState initStates hNonempty).run gen
+  let trace : Trace ρ σ κ := { theory := th, initialState := picked.1.value, steps := #[] }
   trace.isValid sys.toRelational ∧
     trace.theory = th ∧
-    trace.lastState = picked.value ∧
+    trace.lastState = picked.1.value ∧
   trace.failingStep = none := by
   intro picked trace
   have hValid := pickedInitialState_valid th sys params initStates hInitStates hNonempty gen
@@ -255,7 +255,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
   (hLast : trace.lastState = currSt)
   (hNoFail : trace.failingStep = none) :
   ∀ stepsLeft gen result,
-    (simulateOnceLoop sys params th stepsLeft currSt trace gen).1 = some result ->
+    ((simulateOnceLoop sys params th stepsLeft currSt trace).run gen).1 = some result ->
       ReportedViolationSound sys params (some result) := by
   intro stepsLeft
   induction stepsLeft generalizing currSt trace with
@@ -291,23 +291,35 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
       | terminated =>
           simp [simulateOnceLoop, hStep] at h
       | «continue» nexts hNonempty =>
-          let picked := pickNextTransition nexts gen hNonempty
+          rcases hPick : (pickNextTransition nexts hNonempty).run gen with ⟨picked, gen'⟩
           let trace' := trace.push { transitionLabel := picked.value.1, nextState := picked.value.2 }
           have hNexts : nexts = (Veil.ModelChecker.Concrete.partitionExecutionOutcome
               (sys.tr th currSt)).fst :=
             decideAtState_continue_nexts sys params th currSt nexts hNonempty hStep
           have hTrace' := pushedTrace_valid th sys params currSt trace hTheory hValid hLast hNoFail nexts hNexts hNonempty gen
-          have hValid' : trace'.isValid sys.toRelational := hTrace'.1
-          have hTheory' : trace'.theory = th := hTrace'.2.1
-          have hNoFail' : trace'.failingStep = none := hTrace'.2.2.2
-          have hLast' : trace'.lastState = picked.value.2 := hTrace'.2.2.1
+          have hValid' : trace'.isValid sys.toRelational := by
+            simpa [hPick, trace'] using hTrace'.1
+          have hTheory' : trace'.theory = th := by
+            simpa [hPick, trace'] using hTrace'.2.1
+          have hNoFail' : trace'.failingStep = none := by
+            simpa [hPick, trace'] using hTrace'.2.2.2
+          have hLast' : trace'.lastState = picked.value.2 := by
+            simp [trace']
           cases hViol : (violatedInvariantNames params th picked.value.2).isEmpty with
           | true =>
-              simp [simulateOnceLoop, hStep, picked, hViol] at h
-              exact ih picked.value.2 trace' hTheory' hValid' hLast' hNoFail' picked.gen result h
+              have hLoop : ((simulateOnceLoop sys params th steps picked.value.2 trace').run gen').1 = some result := by
+                rw [simulateOnceLoop, hStep] at h
+                simp only [StateT.run_bind, hPick, Id.instMonad] at h
+                simpa [trace', hViol] using h
+              exact ih picked.value.2 trace' hTheory' hValid' hLast' hNoFail' gen' result hLoop
           | false =>
-              simp [simulateOnceLoop, hStep, picked, hViol] at h
-              cases h
+              have hFound : (some (SimulationResult.foundViolation
+                  (ViolationKind.safetyFailure (violatedInvariantNames params th picked.value.2)) trace') :
+                  Option (SimulationResult ρ σ κ)) = some result := by
+                rw [simulateOnceLoop, hStep] at h
+                simp only [StateT.run_bind, hPick, Id.instMonad] at h
+                simpa [trace', hViol] using h
+              cases hFound
               have hNonempty : violatedInvariantNames params th picked.value.2 ≠ [] := by
                 intro hNil
                 simp [hNil] at hViol
@@ -321,26 +333,37 @@ theorem simulateOnce_sound {ρ σ κ : Type}
   (th : ρ)
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) (gen : StdGen) (maxSteps : Nat) (result : SimulationResult ρ σ κ) :
-  (simulateOnce sys params th gen maxSteps).1 = some result ->
+  ((simulateOnce sys params th maxSteps).run gen).1 = some result ->
     ReportedViolationSound sys params (some result) := by
   intro h
   unfold simulateOnce at h
   cases hStates : sys.initStates with
   | nil => simp [hStates] at h
   | cons initSt rest =>
-      let picked := pickInitialState (initSt :: rest) gen (by simp)
+      rcases hPick : (pickInitialState (initSt :: rest) (by simp)).run gen with ⟨picked, gen'⟩
       let initTrace : Trace ρ σ κ := { theory := th, initialState := picked.value, steps := #[] }
       have hInit := initialTrace_valid th sys params (initSt :: rest) hStates.symm (by simp) gen
-      have hValid : initTrace.isValid sys.toRelational := hInit.1
-      have hLast : initTrace.lastState = picked.value := hInit.2.2.1
-      have hNoFail : initTrace.failingStep = none := hInit.2.2.2
+      have hValid : initTrace.isValid sys.toRelational := by
+        simpa [hPick, initTrace] using hInit.1
+      have hLast : initTrace.lastState = picked.value := by
+        simp [initTrace]
+      have hNoFail : initTrace.failingStep = none := by
+        simp [initTrace]
       cases hViol : (violatedInvariantNames params th picked.value).isEmpty with
       | true =>
-          simp [hStates, picked, hViol] at h
-          exact simulateOnceLoop_sound th sys params picked.value initTrace rfl hValid hLast hNoFail maxSteps picked.gen result h
+          have hLoop : ((simulateOnceLoop sys params th maxSteps picked.value initTrace).run gen').1 = some result := by
+            rw [hStates] at h
+            simp only [StateT.run_bind, hPick, Id.instMonad] at h
+            simpa [initTrace, hViol] using h
+          exact simulateOnceLoop_sound th sys params picked.value initTrace rfl hValid hLast hNoFail maxSteps gen' result hLoop
       | false =>
-          simp [hStates, picked, hViol] at h
-          cases h
+          have hFound : (some (SimulationResult.foundViolation
+              (ViolationKind.safetyFailure (violatedInvariantNames params th picked.value)) initTrace) :
+              Option (SimulationResult ρ σ κ)) = some result := by
+            rw [hStates] at h
+            simp only [StateT.run_bind, hPick, Id.instMonad] at h
+            simpa [initTrace, hViol] using h
+          cases hFound
           have hNonempty : violatedInvariantNames params th picked.value ≠ [] := by
             intro hNil
             simp [hNil] at hViol
@@ -359,7 +382,7 @@ theorem runTraceAtSeed_sound {ρ σ κ : Type}
   intro h
   unfold runTraceAtSeed at h
   set traceSeed := cfg.seed + traceIndex
-  rcases hSim : simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps with ⟨maybeResult, gen', depth'⟩
+  rcases hSim : (simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed) with ⟨maybeResult, gen'⟩
   simp [traceSeed, hSim] at h
   rcases h with ⟨hSome, rfl⟩
   cases hMaybe : maybeResult with
@@ -367,7 +390,7 @@ theorem runTraceAtSeed_sound {ρ σ κ : Type}
   | some result' =>
       simp [hMaybe] at hSome
       subst hSome
-      have hSimSome : (simulateOnce sys params th (mkStdGen traceSeed) cfg.maxSteps).1 = some result' := by
+      have hSimSome : ((simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)).1 = some result' := by
         simp [hSim, hMaybe]
       exact simulateOnce_sound th sys params (mkStdGen traceSeed) cfg.maxSteps result' hSimSome
 
