@@ -4,7 +4,7 @@ open Veil.ModelChecker
 open Veil.ModelChecker.Simulation
 
 /--
-info: {"depth":0,"elapsed_ms":0,"max_traces":3,"result":{"result":"no_violation_found"},"seed":1,"traces_run":3}
+info: {"depth":0,"elapsed_ms":0,"max_traces":3,"result":"no_violation_found","seed":1,"traces_run":3}
 -/
 #guard_msgs in
 #eval IO.println <| (Lean.toJson ({
