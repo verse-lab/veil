@@ -9,19 +9,15 @@ inductive StepDecision (σ κ : Type) where
   | terminated
   | continue (nexts : List (κ × σ)) (hNonempty : nexts ≠ [])
 
-private def assertionFailureWitness {σ κ : Type} : κ × ExecutionOutcome Int σ → Option (Int × Step σ κ)
-  | (label, .assertionFailure exId st) => some (exId, { transitionLabel := label, nextState := st })
-  | _ => none
-
 def decideAtState {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (th : ρ) (currSt : σ) : StepDecision σ κ :=
   let outcomes := sys.tr th currSt
-  let failingStep := outcomes.findSome? assertionFailureWitness
-  match failingStep with
-  | some (exId, step) => .assertionFailure exId step
-  | none =>
-      let (nexts, _) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
+  let (nexts, assertionFailures) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
+  match assertionFailures with
+  | (label, exId, st) :: _ =>
+      .assertionFailure exId { transitionLabel := label, nextState := st }
+  | [] =>
       match nexts with
       | [] => if !params.terminating.holdsOn th currSt then .deadlock else .terminated
       | hd :: tl => .continue (hd :: tl) (by simp)
@@ -35,31 +31,33 @@ theorem decideAtState_assertionFailure_mem {ρ σ κ : Type} {th₀ : ρ}
       sys.tr th currSt := by
   intro h
   let outcomes := sys.tr th currSt
-  cases hFind : outcomes.findSome? assertionFailureWitness with
-  | none =>
-      cases hNexts : (Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes).fst with
+  cases hPart : Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes with
+  | mk nexts assertionFailures =>
+    cases assertionFailures with
+    | nil =>
+      cases nexts with
       | nil =>
           by_cases hTerm : params.terminating.holdsOn th currSt = false
           · have : False := by
-              simp [decideAtState, outcomes, hFind, hNexts, hTerm] at h
+              simp [decideAtState, outcomes, hPart, hTerm] at h
             exact False.elim this
           · have : False := by
-              simp [decideAtState, outcomes, hFind, hNexts, hTerm] at h
+              simp [decideAtState, outcomes, hPart, hTerm] at h
             exact False.elim this
       | cons hd tl =>
           have : False := by
-            simp [decideAtState, outcomes, hFind, hNexts] at h
+            simp [decideAtState, outcomes, hPart] at h
           exact False.elim this
-  | some found =>
-      rcases found with ⟨foundExId, foundStep⟩
-      simp [decideAtState, outcomes, hFind] at h
+    | cons failed _ =>
+      rcases failed with ⟨label, foundExId, foundSt⟩
+      simp [decideAtState, outcomes, hPart] at h
       rcases h with ⟨rfl, rfl⟩
-      obtain ⟨entry, hEntryMem, hEntryEq⟩ := List.exists_of_findSome?_eq_some hFind
-      rcases entry with ⟨label, outcome⟩
-      cases outcome <;> simp [assertionFailureWitness] at hEntryEq
-      case assertionFailure exId' st =>
-        rcases hEntryEq with ⟨rfl, rfl⟩
-        simpa [outcomes] using hEntryMem
+      have hFailed : (label, foundExId, foundSt) ∈
+          (Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes).snd := by
+        rw [hPart]
+        simp
+      simpa [outcomes] using
+        (Veil.ModelChecker.Concrete.partitionExecutionOutcome.snd_spec outcomes label foundExId foundSt).mp hFailed
 
 theorem decideAtState_continue_nexts {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -70,24 +68,27 @@ theorem decideAtState_continue_nexts {ρ σ κ : Type} {th₀ : ρ}
       (sys.tr th currSt)).fst := by
   intro h
   let outcomes := sys.tr th currSt
-  cases hFind : outcomes.findSome? assertionFailureWitness with
-  | some found =>
-      have : False := by
-        simp [decideAtState, outcomes, hFind] at h
-      exact False.elim this
-  | none =>
-      cases hNexts : (Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes).fst with
+  cases hPart : Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes with
+  | mk foundNexts assertionFailures =>
+    cases assertionFailures with
+    | cons failed rest =>
+        have : False := by
+          rcases failed with ⟨label, exId, st⟩
+          simp [decideAtState, outcomes, hPart] at h
+        exact False.elim this
+    | nil =>
+      cases foundNexts with
       | nil =>
           by_cases hTerm : params.terminating.holdsOn th currSt = false
           · have : False := by
-              simp [decideAtState, outcomes, hFind, hNexts, hTerm] at h
+              simp [decideAtState, outcomes, hPart, hTerm] at h
             exact False.elim this
           · have : False := by
-              simp [decideAtState, outcomes, hFind, hNexts, hTerm] at h
+              simp [decideAtState, outcomes, hPart, hTerm] at h
             exact False.elim this
       | cons hd tl =>
           have h' := h
-          simp [decideAtState, outcomes, hFind, hNexts] at h'
+          simp [decideAtState, outcomes, hPart] at h'
           cases h'
           rfl
 
