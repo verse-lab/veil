@@ -19,13 +19,20 @@ inductive Status
   | finished (buildDir : System.FilePath)
   deriving Inhabited
 
+/-- Description of a command that can be compiled into a generated executable. -/
 structure CompiledCommandSpec where
+  /-- Name of the generated definition that the compiled executable calls. -/
   exportedName : String
+  /-- Whether the generated definition accepts an optional parallel configuration. -/
   supportsParallelConfig : Bool := false
 
+/-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
+  /-- Source file containing the compiled command invocation. -/
   sourceFile : String
+  /-- Generated definition called by the compiled executable. -/
   exportedName : String
+  /-- Identity of the specific command invocation within `sourceFile`. -/
   commandId : String
   deriving BEq, Hashable, Inhabited
 
