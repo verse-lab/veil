@@ -81,11 +81,10 @@ def getBuildBaseDir : IO System.FilePath := do
   let pwd ← IO.currentDir
   return pwd / ".lake" / "model_checker_builds"
 
-/-- Generate a build folder name based on the source file and exported command,
-so distinct compiled command invocations do not race on the same temp project. -/
-def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) (commandId : String) : IO System.FilePath := do
+/-- Generate a build folder name based on the source file and exported command. -/
+def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) (_commandId : String) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
-  let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName ++ ":" ++ commandId))
+  let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName))
   let baseDir ← getBuildBaseDir
   return baseDir / s!"{stem}_{command.exportedName}_{suffix}"
 

@@ -11,6 +11,11 @@ open Veil.ModelChecker.Compilation
   let simulateCommand : CompiledCommandSpec := {
     exportedName := "simulateResult"
   }
+  let modelCheckFolderA ← generateBuildFolderName sourceFile modelCheckCommand "model-check-a"
+  let modelCheckFolderB ← generateBuildFolderName sourceFile modelCheckCommand "model-check-b"
+  let simulateFolderA ← generateBuildFolderName sourceFile simulateCommand "simulate-a"
+  assert! (toString modelCheckFolderA == toString modelCheckFolderB)
+  assert! (toString modelCheckFolderA != toString simulateFolderA)
   let modelCheckBuildDirA := System.FilePath.mk "build/model-check-a"
   let modelCheckBuildDirB := System.FilePath.mk "build/model-check-b"
   let simulateBuildDirA := System.FilePath.mk "build/simulate-a"
