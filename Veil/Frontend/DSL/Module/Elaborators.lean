@@ -508,13 +508,12 @@ def elabGhostDefinition : CommandElab := fun stx => do
     let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost definition outside of a Veil module!")
     mod ← mod.ensureStateIsDefined
     mod.throwIfSpecAlreadyFinalized
-    let (isRelation, stateGhost?, (cmd, new_mod)) ← match stx with
+    let (isRelation, stateGhost?, new_mod) ← match stx with
     | `(command|$[theory%$forTheory]? ghost relation $nm:ident $br:explicitBinders ? := $t:term) =>
       pure (true, forTheory.isNone, ← mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := true))
     | `(command|$[theory%$forTheory]? ghost function $nm:ident $br:explicitBinders ? $[: $retTy:term]? := $t:term) =>
       pure (false, forTheory.isNone, ← mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := false) (retType := retTy))
     | _ => throwUnsupportedSyntax
-    elabVeilCommand cmd
     if isRelation && mod._useLocalRPropTC && stateGhost? && !(← isModelCheckCompileMode) then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
     localEnv.modifyModule (fun _ => new_mod)
 
@@ -542,8 +541,7 @@ def elabAssertion : CommandElab := fun stx => do
     | .stateConstraint => "state_constraint"
   withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
     -- Elaborate the assertion in the Lean environment
-    let (cmd, mod') ← mod.defineAssertion assertion
-    elabVeilCommand cmd
+    let mod' ← mod.defineAssertion assertion
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
     if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) && !(← isModelCheckCompileMode) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
     localEnv.modifyModule (fun _ => mod')

@@ -5,29 +5,41 @@ open Lean Parser Elab Command Term Meta Tactic
 
 namespace Veil
 
+-- Definitions introduced through `addVeilDefinition` should behave like
+-- ordinary `abbrev`s in all the places where Veil later inspects or executes
+-- them. `reducible` makes meta-level reduction/typeclass search unfold these
+-- wrappers at reducible transparency, while `inline` makes the compiler and
+-- native evaluator expose the same body. We need both because these paths do
+-- not consult exactly the same reducibility mechanism.
+private def veilAbbrevAttrs : Array Attribute := #[{name := `reducible}, {name := `inline}]
+
+private def cleanupVeilDefinitionExpr (e : Expr) : TermElabM Expr := do
+  -- `addVeilDefinition` installs expressions directly, bypassing Lean's
+  -- ordinary declaration elaboration pipeline. Run the same `let`-to-`have`
+  -- cleanup that `def`/`abbrev` values receive there before adding assertion
+  -- and ghost definitions to the environment.
+  Meta.letToHave e
+
 /-! ## Assertion Definition -/
 
-/-- Register the assertion (and any optional `Decidable` instances)
-in the module, and return the syntax to elaborate. -/
-def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM (Command × Module) := do
+/-- Register the assertion and add its Lean definition, including any optional
+`Decidable` instances extracted during elaboration. -/
+def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM Module := do
   mod.throwIfAlreadyDeclared base.name
   let mut mod := mod
   let justTheory := match base.kind with | .assumption => true | _ => false
-  let (extraParams, thstBinders, term, _) ← liftTermElabM $ mod.mkVeilTerm base.name base.declarationKind (params := .none) base.term (some $ ← `(term| Prop)) (justTheory := justTheory) (quantifyCapitals := true)
-  mod ← mod.registerAssertion { base with extraParams := extraParams }
-  -- This includes the required `Decidable` instances
-  let (binders, _) ← mod.declarationAllParamsMapFn (·.binder) base.name base.declarationKind
   -- NOTE(SUBTLE): we do something counter-intuitive here. Making the `ρ` and `σ`
   -- arguments implicit ensures that whenever the default values for `thstBinders`
   -- are evaluated (i.e. not provided explicitly), the assertion is forced to be
   -- evaluated with `ρ := Theory` and `σ := State`. This makes it possible to do
   -- things like `assert invariant` in action without having to provide any
   -- explicit arguments.
-  let preBinders ← binders.mapM mkImplicitBinder
-  let binders := preBinders ++ thstBinders
-  let attrs ← #[`invSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let stx ← `(@[$attrs,*] abbrev $(mkIdent base.name) $[$binders]* := $term)
-  return (stx, mod)
+  let veilTerm ← liftTermElabM $ mod.mkVeilTerm base.name base.declarationKind (params := .none) base.term (some $ ← `(term| Prop)) (justTheory := justTheory) (quantifyCapitals := true)
+  mod ← mod.registerAssertion { base with extraParams := veilTerm.extraParams }
+  let attrs : Array Attribute := #[{name := `invSimp}, {name := `nextSimp}] ++ veilAbbrevAttrs
+  let expr ← liftTermElabM <| cleanupVeilDefinitionExpr veilTerm.expr
+  let _ ← liftTermElabM <| addVeilDefinition base.name expr (red := .abbrev) (attr := attrs)
+  return mod
 
 /-! ## Derived Definition Management -/
 
@@ -36,35 +48,29 @@ def Module.registerDerivedDefinition [Monad m] [MonadError m] [MonadQuotation m]
   return { mod with _declarations := mod._declarations.insert ddef.name ddef.declarationKind, _derivedDefinitions := mod._derivedDefinitions.insert ddef.name ddef }
 
 def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term) (justTheory : Bool := false)
-  (isRelation : Bool := true) (retType : Option Term := none) : CommandElabM (Command × Module) := do
+  (isRelation : Bool := true) (retType : Option Term := none) : CommandElabM Module := do
   mod.throwIfAlreadyDeclared name
-  let kind? := .stateAssertion .invariant -- a ghost relation is a predicate that depends on the state
   let ddKind : DerivedDefinitionKind := if justTheory then .theoryGhost isRelation else .ghost isRelation
-  let dk : DeclarationKind := .derivedDefinition ddKind (Std.HashSet.emptyWithCapacity 0)
-  let (baseParams, _) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) dk
+  let kind? : DeclarationKind := .derivedDefinition ddKind (Std.HashSet.emptyWithCapacity 0)
   let motiveType ← if isRelation then pure (some $ ← `(term| Prop)) else
     match retType with
     | some ty => pure (some ty)
     | none => pure none
-  let (extraParams, thstBinders, term, _) ← liftTermElabM $ mod.mkVeilTerm name kind? params term motiveType (justTheory := justTheory) (quantifyCapitals := isRelation)
-  let params := (← explicitBindersToParameters params name) ++ (← thstBinders.mapM (bracketedBinderToParameter · name))
-  let baseBinders ← (baseParams ).mapM (·.binder)
+  let veilTerm ← liftTermElabM $ mod.mkVeilTerm name kind? params term motiveType (justTheory := justTheory) (quantifyCapitals := isRelation)
+  let params := (← explicitBindersToParameters params name) ++ (← veilTerm.thstBinders.mapM (bracketedBinderToParameter · name))
   -- FIXME: for the following line, we implicitly assume that this is the order in
   -- which binders get generated for the definition. We should instead first
   -- create a definition without `stx`, use the relevant functions to get the
   -- binders, and then create the syntax.
   -- See NOTE(SUBTLE).
-  let binders := (← baseBinders.mapM mkImplicitBinder) ++ (← params.mapM (·.binder)) ++ (← extraParams.mapM (·.binder))
-  let attrs ← if isRelation
-    then ((if justTheory then #[`invSimp] else #[]) ++ #[`ghostRelSimp, `nextSimp]).mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-    else pure #[]
-  let stx ← match retType with
-    | some ty => `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* : $ty := $term)
-    | none => `(@[$attrs,*] abbrev $(mkIdent name) $[$binders]* := $term)
-  trace[veil.debug] "stx: {stx}"
-  let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := stx }
+  let attrs : Array Attribute := if isRelation
+    then (if justTheory then #[{name := `invSimp}] else #[]) ++ #[{name := `ghostRelSimp}, {name := `nextSimp}] ++ veilAbbrevAttrs
+    else #[]
+  let expr ← liftTermElabM <| cleanupVeilDefinitionExpr veilTerm.expr
+  let _ ← liftTermElabM <| addVeilDefinition name expr (red := .abbrev) (attr := attrs)
+  let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := veilTerm.extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := .none }
   let mod ← mod.registerDerivedDefinition ddef
-  return (stx, mod)
+  return mod
 
 /-! ## Assertion Assembly (Private) -/
 
