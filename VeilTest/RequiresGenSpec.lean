@@ -64,7 +64,7 @@ invariant ¬ flag
 
 /-- error: The specification of module TestSimulate has not been finalized. Please call #gen_spec first! -/
 #guard_msgs in
-#simulate { }
+#simulate interpreted { }
 
 end TestSimulate
 
