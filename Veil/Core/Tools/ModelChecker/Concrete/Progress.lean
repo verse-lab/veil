@@ -59,7 +59,14 @@ structure ProgressHistoryPoint where
   queue : Nat
   deriving ToJson, FromJson, Inhabited, Repr
 
-/-- Progress information for model checking, using TLC-style terminology. -/
+/-- Progress information for a simulation run. -/
+structure SimulationProgress where
+  tracesRun : Nat := 0
+  maxTraces : Nat := 0
+  depth : Nat := 0
+  deriving ToJson, FromJson, Inhabited, Repr
+
+/-- Progress information for model checking or simulation. -/
 structure Progress where
   status : String := "Initializing..."
   /-- Length of the longest behavior found so far (BFS depth) -/
@@ -82,14 +89,8 @@ structure Progress where
   allActionLabels : List String := []
   /-- Time-series history for charting progress over time -/
   history : Array ProgressHistoryPoint := #[]
-  /-- Whether this progress entry is for `#simulate` rather than `#model_check`. -/
-  isSimulation : Bool := false
-  /-- Number of traces completed so far (simulation only). -/
-  tracesRun : Nat := 0
-  /-- Configured maximum trace budget (simulation only). -/
-  maxTraces : Nat := 0
-  /-- Depth reached in the current/last trace (simulation only). -/
-  simulationDepth : Nat := 0
+  /-- Progress information for `#simulate`; absent for `#model_check`. -/
+  simulation : Option SimulationProgress := none
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Refs for tracking progress of a single model checker instance. -/
@@ -194,10 +195,7 @@ def updateSimulationProgress (instanceId : Nat) (status : String)
       { p with
         status
         elapsedMs := now - p.startTimeMs
-        isSimulation := true
-        tracesRun
-        maxTraces
-        simulationDepth := depth }
+        simulation := some { tracesRun, maxTraces, depth } }
   if ← compiledModeEnabled.get then
     let startTime ← compiledModeStartTime.get
     let p : Progress := {
@@ -205,10 +203,7 @@ def updateSimulationProgress (instanceId : Nat) (status : String)
       isRunning := true
       startTimeMs := startTime
       elapsedMs := now - startTime
-      isSimulation := true
-      tracesRun := tracesRun
-      maxTraces := maxTraces
-      simulationDepth := depth
+      simulation := some { tracesRun, maxTraces, depth }
     }
     IO.eprintln (toJson p).compress
 

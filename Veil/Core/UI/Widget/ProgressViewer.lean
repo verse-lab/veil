@@ -519,15 +519,15 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
       </div>}
     <table style={json% {"borderCollapse": "collapse"}}>
       <tbody>
-        {if p.isSimulation then statRow "Traces Run:" (toString p.tracesRun) else statRow "Diameter:" (toString p.diameter)}
-        {if p.isSimulation then statRow "Max Traces:" (toString p.maxTraces) else statRow "States Found:" (toString p.statesFound)}
-        {if p.isSimulation then statRow "Depth:" (toString p.simulationDepth) else statRow "Distinct States:" (toString p.distinctStates)}
-        {if p.isSimulation then .text "" else statRow "Queue:" (toString p.queue)}
+        {match p.simulation with | some sim => statRow "Traces Run:" (toString sim.tracesRun) | none => statRow "Diameter:" (toString p.diameter)}
+        {match p.simulation with | some sim => statRow "Max Traces:" (toString sim.maxTraces) | none => statRow "States Found:" (toString p.statesFound)}
+        {match p.simulation with | some sim => statRow "Depth:" (toString sim.depth) | none => statRow "Distinct States:" (toString p.distinctStates)}
+        {match p.simulation with | some _ => .text "" | none => statRow "Queue:" (toString p.queue)}
         {statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)}
       </tbody>
     </table>
-    {if p.isSimulation then .text "" else metricsHistoryHtml p.history}
-    {if p.isSimulation then .text "" else actionCoverageHtml p.actionStats p.allActionLabels}
+    {match p.simulation with | some _ => .text "" | none => metricsHistoryHtml p.history}
+    {match p.simulation with | some _ => .text "" | none => actionCoverageHtml p.actionStats p.allActionLabels}
     {match p.compilationStatus with
      | .inProgress ms lines => if lines.isEmpty then .text "" else compilationLogHtml ms lines
      | .failed err => compilationFailureHtml err

@@ -847,14 +847,18 @@ where
         match Json.parse line >>= FromJson.fromJson? (α := ModelChecker.Concrete.Progress) with
         | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
             refs.progressRef.modify fun old =>
-              let historyPoint : ModelChecker.Concrete.ProgressHistoryPoint := {
-                timestamp := p.elapsedMs
-                diameter := p.diameter
-                statesFound := p.statesFound
-                distinctStates := p.distinctStates
-                queue := p.queue
-              }
-              { p with allActionLabels := old.allActionLabels, history := old.history.push historyPoint }
+              let history := match p.simulation with
+                | some _ => old.history
+                | none =>
+                  let historyPoint : ModelChecker.Concrete.ProgressHistoryPoint := {
+                    timestamp := p.elapsedMs
+                    diameter := p.diameter
+                    statesFound := p.statesFound
+                    distinctStates := p.distinctStates
+                    queue := p.queue
+                  }
+                  old.history.push historyPoint
+              { p with allActionLabels := old.allActionLabels, history }
         | .error _ => stderrAccum.modify (· ++ line)
     let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
     let waitTask ← IO.asTask (prio := .dedicated) child.wait
