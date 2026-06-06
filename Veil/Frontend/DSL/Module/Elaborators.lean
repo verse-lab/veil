@@ -601,27 +601,31 @@ declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 
 declare_command_config_elab elabSimulateConfig ModelChecker.Simulation.SimulateConfig
 
-private partial def simulateConfigItems (cfgStx : Syntax) : TSyntaxArray ``Lean.Parser.Tactic.configItem :=
-  if cfgStx.isOfKind nullKind then
-    cfgStx.getArgs.flatMap simulateConfigItems
-  else
-    match cfgStx with
-    | `(Lean.Parser.Tactic.optConfig| $items:configItem*) => items
-    | `(Lean.Parser.Tactic.config| (config := $_)) => #[⟨cfgStx⟩]
-    | _ => #[]
+/--
+Check whether a particular config field was written explicitly in the command syntax.
 
-/-- Check whether a particular config field was written explicitly in the command syntax. -/
+`elabSimulateConfig` returns a complete `SimulateConfig`, so omitted fields are
+indistinguishable from fields explicitly written with their structure defaults
+after elaboration. Inspect the raw `Parser.Tactic.optConfig` only for this
+distinction. A `(config := cfg)` item is an opaque full `SimulateConfig`, so it
+is treated as explicitly providing all fields rather than being overlaid with
+global options.
+-/
 def simulateConfigHasField (cfgStx : Syntax) (fieldName : Name) : Bool :=
-  Lean.Elab.Tactic.mkConfigItemViews (simulateConfigItems cfgStx) |>.any
+  Lean.Elab.Tactic.mkConfigItemViews (Lean.Parser.Tactic.getConfigItems cfgStx) |>.any
     (fun item =>
       let optionName := item.option.getId.eraseMacroScopes
       optionName == fieldName || optionName == `config)
 
+/-- Return which `#simulate` trace-bound fields were supplied by command syntax. -/
+private def simulateTraceBoundFieldsExplicit (cfgStx : Syntax) : Bool × Bool :=
+  (simulateConfigHasField cfgStx `maxTraces, simulateConfigHasField cfgStx `maxSteps)
+
 /-- Resolve `#simulate` trace-bound fields, preserving explicit default literals. -/
 def resolveSimulateTraceBounds (cfg0 : ModelChecker.Simulation.SimulateConfig)
-    (hasMaxTraces hasMaxSteps : Bool) (optionMaxTraces optionMaxSteps : Nat) : Nat × Nat :=
-  let maxTraces := if hasMaxTraces then cfg0.maxTraces else optionMaxTraces
-  let maxSteps := if hasMaxSteps then cfg0.maxSteps else optionMaxSteps
+    (commandHasMaxTraces commandHasMaxSteps : Bool) (optionMaxTraces optionMaxSteps : Nat) : Nat × Nat :=
+  let maxTraces := if commandHasMaxTraces then cfg0.maxTraces else optionMaxTraces
+  let maxSteps := if commandHasMaxSteps then cfg0.maxSteps else optionMaxSteps
   (maxTraces, maxSteps)
 
 /-- Model checking mode: interpreted only, compiled only, or default (both with handoff). -/
@@ -1272,12 +1276,14 @@ def elabSimulate : CommandElab := fun stx => do
     mod.throwIfSpecNotFinalized
     let theoryTerm ← resolveTheoryTerm "#simulate" theoryTermOpt mod instTerm
     warnAboutTransitions mod
-    let cfg0 ← elabSimulateConfig stx[4]
+    let simulateCfgStx := stx[4]
+    let cfg0 ← elabSimulateConfig simulateCfgStx
     let opts ← getOptions
-    let hasMaxTraces := simulateConfigHasField stx[4] `maxTraces
-    let hasMaxSteps := simulateConfigHasField stx[4] `maxSteps
+    let (hasMaxTraces, hasMaxSteps) := simulateTraceBoundFieldsExplicit simulateCfgStx
+    let optionMaxTraces := veil.simulate.maxTraces.get opts
+    let optionMaxSteps := veil.simulate.maxSteps.get opts
     let (maxTraces, maxSteps) := resolveSimulateTraceBounds cfg0 hasMaxTraces hasMaxSteps
-      (veil.simulate.maxTraces.get opts) (veil.simulate.maxSteps.get opts)
+      optionMaxTraces optionMaxSteps
     let seed ← liftIO <| if cfg0.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg0.seed
     let cfg : ModelChecker.Simulation.SimulateConfig := { cfg0 with maxTraces, maxSteps, seed }
     let mcCfg : ModelCheckerConfig := { maxDepth := 0, sequential := false, parallelCfg := none }

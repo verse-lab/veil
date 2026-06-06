@@ -12,6 +12,16 @@ example :
     { maxTraces := 10000, maxSteps := 100, seed := 0 }
     false false 7 3 = (7, 3) := rfl
 
+example :
+  Veil.resolveSimulateTraceBounds
+    { maxTraces := 10000, maxSteps := 100, seed := 0 }
+    true false 7 3 = (10000, 3) := rfl
+
+example :
+  Veil.resolveSimulateTraceBounds
+    { maxTraces := 10000, maxSteps := 100, seed := 0 }
+    false true 7 3 = (7, 100) := rfl
+
 veil module SimulateConfigDefaults
 
 individual flag : Bool
