@@ -1217,6 +1217,9 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
   let ioComputation ← elaborateSimulateComputation ctx.instanceId callExpr
   let compilationCancelTk ← IO.CancelToken.new
   liftIO <| ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId (some compilationCancelTk)
+  let finishCompilation (buildFolder : System.FilePath) : IO Unit := do
+    ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
+    ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
   let interpretedComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let combinedJson ← IO.ofExcept (← ioComputation.toIO')
@@ -1237,20 +1240,17 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
           return
       if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) ||
           (← ModelChecker.Concrete.isCancelled ctx.instanceId) then
-        ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
-        ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+        finishCompilation buildFolder
         return
       ModelChecker.Concrete.requestHandoff ctx.instanceId
       ctx.cancelToken.set
       let _ ← IO.wait interpretedTask
       if (← ctx.cancelToken.isSet) && !(← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) then
         ModelChecker.Concrete.cancelProgress ctx.instanceId
-        ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
-        ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+        finishCompilation buildFolder
         return
       if (← ModelChecker.Concrete.getResultJson ctx.instanceId).isSome || (← ModelChecker.Concrete.isCancelled ctx.instanceId) then
-        ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
-        ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+        finishCompilation buildFolder
         return
       let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
       ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
