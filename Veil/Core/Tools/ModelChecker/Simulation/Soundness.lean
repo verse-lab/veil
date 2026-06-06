@@ -4,82 +4,6 @@ import Veil.Core.Tools.ModelChecker.Concrete.Core
 
 namespace Veil.ModelChecker.Simulation
 
-def StepList.validFromSimulation {ρ σ κ : Type} {th₀ : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : StepList σ κ → Prop
-  | [] => True
-  | step :: steps =>
-      (step.transitionLabel, ExecutionOutcome.success step.nextState) ∈
-        sys.tr th st ∧
-      StepList.validFromSimulation sys params th step.nextState steps
-
-theorem StepList.validFromSimulation_sound {ρ σ κ : Type}
-  [DecidableEq σ] [DecidableEq κ]
-  (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) (st : σ) :
-  ∀ steps, StepList.validFromSimulation sys params th st steps →
-    StepList.validFrom sys.toRelational th st steps
-  | [], _ => by simp [StepList.validFrom]
-  | step :: steps, h => by
-      rcases h with ⟨hStep, hTail⟩
-      constructor
-      · simpa [EnumerableTransitionSystem.toRelational] using hStep
-      · exact StepList.validFromSimulation_sound th sys params step.nextState steps hTail
-
-theorem StepList.validFromSimulation_complete {ρ σ κ : Type}
-  [DecidableEq σ] [DecidableEq κ]
-  (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) (st : σ) :
-  ∀ steps, StepList.validFrom sys.toRelational th st steps ->
-    StepList.validFromSimulation sys params th st steps
-  | [], _ => by simp [StepList.validFromSimulation]
-  | step :: steps, h => by
-      rcases h with ⟨hStep, hTail⟩
-      constructor
-      · simpa [EnumerableTransitionSystem.toRelational] using hStep
-      · exact StepList.validFromSimulation_complete th sys params step.nextState steps hTail
-
-def Trace.isSimulationValid {ρ σ κ : Type} {th₀ : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : Prop :=
-  trace.initialState ∈ sys.initStates ∧
-  StepList.validFromSimulation sys params trace.theory trace.initialState trace.steps.toList
-
-theorem Trace.isSimulationValid_sound {ρ σ κ : Type} {th : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (hTheory : trace.theory = th) :
-  Trace.isSimulationValid sys params trace → trace.isValid sys.toRelational := by
-  subst th
-  intro h
-  rcases h with ⟨hInit, hSteps⟩
-  refine {
-    theorySatisfiesAssumptions := by simp [EnumerableTransitionSystem.toRelational]
-    initialStateSatisfiesInit := ?_
-    stepsValid := ?_
-  }
-  · simpa [EnumerableTransitionSystem.toRelational] using hInit
-  · simpa [Steps.validFrom] using
-      StepList.validFromSimulation_sound trace.theory sys params trace.initialState trace.steps.toList hSteps
-
-theorem Trace.isSimulationValid_complete {ρ σ κ : Type} {th : ρ}
-  [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (hTheory : trace.theory = th) :
-  trace.isValid sys.toRelational -> Trace.isSimulationValid sys params trace := by
-  subst th
-  intro h
-  have hInit : trace.initialState ∈ sys.initStates := by
-    simpa [EnumerableTransitionSystem.toRelational] using h.initialStateSatisfiesInit
-  have hSteps : StepList.validFromSimulation sys params trace.theory trace.initialState trace.steps.toList := by
-    exact StepList.validFromSimulation_complete trace.theory sys params trace.initialState trace.steps.toList (by
-      simpa [Steps.validFrom] using h.stepsValid)
-  exact ⟨hInit, hSteps⟩
-
 theorem pickedTransition_valid {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   (th : ρ)
@@ -165,16 +89,16 @@ def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : ViolationKind → Prop
   | .assumptionFailure violates =>
-      Trace.isSimulationValid sys params trace ∧
+      trace.isValid sys.toRelational ∧
       params.violatedAssumptions trace.theory = violates ∧
       violates ≠ []
   | .safetyFailure violates =>
-      Trace.isSimulationValid sys params trace ∧
+      trace.isValid sys.toRelational ∧
       trace.failingStep = none ∧
       violatedInvariantNames params trace.theory trace.lastState = violates ∧
       violates ≠ []
   | .deadlock =>
-      Trace.isSimulationValid sys params trace ∧
+      trace.isValid sys.toRelational ∧
       trace.failingStep = none ∧
       (Veil.ModelChecker.Concrete.partitionExecutionOutcome
         (sys.tr trace.theory trace.lastState)).fst = [] ∧
@@ -182,7 +106,7 @@ def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
         (sys.tr trace.theory trace.lastState)).snd = [] ∧
       !params.terminating.holdsOn trace.theory trace.lastState = true
   | .assertionFailure exId =>
-      Trace.isSimulationValid sys params trace ∧
+      trace.isValid sys.toRelational ∧
       ∃ step,
         trace.failingStep = some step ∧
         (step.transitionLabel, ExecutionOutcome.assertionFailure exId step.nextState) ∈
@@ -191,16 +115,15 @@ def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
 theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
-  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (violation : ViolationKind)
-  (hTheory : trace.theory = th) :
+  (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (violation : ViolationKind) :
   Trace.witnessesSimulationViolation sys params trace violation →
     trace.isValid sys.toRelational := by
   intro h
   cases violation with
-  | assumptionFailure _ => exact Trace.isSimulationValid_sound sys params trace hTheory h.1
-  | safetyFailure _ => exact Trace.isSimulationValid_sound sys params trace hTheory h.1
-  | deadlock => exact Trace.isSimulationValid_sound sys params trace hTheory h.1
-  | assertionFailure _ => exact Trace.isSimulationValid_sound sys params trace hTheory h.1
+  | assumptionFailure _ => exact h.1
+  | safetyFailure _ => exact h.1
+  | deadlock => exact h.1
+  | assertionFailure _ => exact h.1
 
 def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
@@ -256,7 +179,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
               initialStateSatisfiesInit := hValid.initialStateSatisfiesInit
               stepsValid := hValid.stepsValid
             }
-          refine ⟨Trace.isSimulationValid_complete sys params failedTrace (by simp [failedTrace, hTheory]) hValidFail, step, rfl, ?_⟩
+          refine ⟨hValidFail, step, rfl, ?_⟩
           have hLastFail : failedTrace.lastState = currSt := by
             simpa [failedTrace, Trace.lastState] using hLast
           rw [hLastFail]
@@ -276,8 +199,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
                     simp [hTheory, hLast, hPartition, hFailures]
                   have hDeadlock : !params.terminating.holdsOn trace.theory trace.lastState = true := by
                     simpa [hTheory, hLast] using hTerminating
-                  exact ⟨Trace.isSimulationValid_complete sys params trace hTheory hValid,
-                    hNoFail, hNoSuccesses, hNoFailures, hDeadlock⟩
+                  exact ⟨hValid, hNoFail, hNoSuccesses, hNoFailures, hDeadlock⟩
               | false =>
                   simp [simulateOnceLoop, hPartition, hFailures, hNexts, hTerminating] at h
           | cons hd tl =>
@@ -336,7 +258,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
                   have hViolEq : violatedInvariantNames params trace'.theory trace'.lastState =
                       violatedInvariantNames params th selected.2 := by
                     simp [hTheory', hLast']
-                  exact ⟨Trace.isSimulationValid_complete sys params trace' hTheory' hValid', hNoFail', hViolEq, hNonempty⟩
+                  exact ⟨hValid', hNoFail', hViolEq, hNonempty⟩
 
 theorem simulateOnce_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited σ] [Inhabited (κ × σ)]
@@ -398,7 +320,7 @@ theorem simulateOnce_sound {ρ σ κ : Type}
             simp only [StateT.run_bind, Id.instMonad] at h
             simpa [initStates, p, idx, gen', hlt, selectedInit, initTrace, hNonemptyRaw] using h
           cases hFound
-          exact ⟨Trace.isSimulationValid_complete sys params initTrace rfl hValid, hNoFail, rfl, hNonempty⟩
+          exact ⟨hValid, hNoFail, rfl, hNonempty⟩
 
 /-- Any violation reported by a single indexed random trace is sound. -/
 theorem simulateTraceAtIndex_sound {ρ σ κ : Type}
