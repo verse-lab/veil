@@ -68,50 +68,6 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
           simulateLoopM hooks sys params th cfg remaining (traceIndex + 1)
 termination_by remaining
 
-private def simulateLoopId {ρ σ κ : Type} {th₀ : ρ}
-  (shouldStop : Nat → Bool)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
-  (params : SearchParameters ρ σ)
-  (th : ρ)
-  (cfg : SimulateConfig)
-  (remaining : Nat)
-  (traceIndex : Nat)
-  : SimulateResult ρ σ κ :=
-  if shouldStop traceIndex then
-    {
-      result := some .cancelled
-      tracesRun := traceIndex
-      maxTraces := cfg.maxTraces
-      elapsedMs := 0
-      seed := cfg.seed
-      depth := 0
-    }
-  else
-    match remaining with
-    | 0 =>
-        {
-          result := none
-          tracesRun := cfg.maxTraces
-          maxTraces := cfg.maxTraces
-          elapsedMs := 0
-          seed := cfg.seed
-          depth := 0
-        }
-    | remaining + 1 =>
-        match simulateTraceAtIndex sys params th cfg traceIndex with
-        | some (result, stepsUsed) =>
-            {
-              result := some result
-              tracesRun := traceIndex + 1
-              maxTraces := cfg.maxTraces
-              elapsedMs := 0
-              seed := cfg.seed
-              depth := stepsUsed
-            }
-        | none =>
-            simulateLoopId shouldStop sys params th cfg remaining (traceIndex + 1)
-termination_by remaining
-
 @[inline, specialize]
 def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -124,7 +80,11 @@ def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
   if hasNoInitialStates sys then
     noInitialStatesResult cfg
   else
-    simulateLoopId shouldStop sys params th cfg cfg.maxTraces 0
+    simulateLoopM
+      ({ shouldStop := fun traceIndex => shouldStop traceIndex
+         onTraceProgress := fun _ => ()
+         onViolation := () } : SimulationHooks Id)
+      sys params th cfg cfg.maxTraces 0
 
 @[inline, specialize]
 def simulateCore {ρ σ κ : Type} {th₀ : ρ}
@@ -196,25 +156,32 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type}
   (cfg : SimulateConfig)
   (shouldStop : Nat → Bool) :
   ∀ remaining traceIndex,
-    ReportedViolationSound sys params (SimulateResult.result (simulateLoopId shouldStop sys params th cfg remaining traceIndex)) := by
+    ReportedViolationSound sys params
+      (SimulateResult.result
+        (simulateLoopM
+          ({ shouldStop := fun traceIndex => shouldStop traceIndex
+             onTraceProgress := fun _ => ()
+             onViolation := () } : SimulationHooks Id)
+          sys params th cfg remaining traceIndex)) := by
   intro remaining
   induction remaining with
   | zero =>
       intro traceIndex
-      cases hStop : shouldStop traceIndex <;> simp [simulateLoopId, hStop, ReportedViolationSound]
+      cases hStop : shouldStop traceIndex <;>
+        simp [simulateLoopM, hStop, ReportedViolationSound, Id.instMonad]
   | succ remaining ih =>
       intro traceIndex
       cases hStop : shouldStop traceIndex with
       | true =>
-          simp [simulateLoopId, hStop, ReportedViolationSound]
+          simp [simulateLoopM, hStop, ReportedViolationSound, Id.instMonad]
       | false =>
           by_cases hTrace : simulateTraceAtIndex sys params th cfg traceIndex = none
-          · simpa [simulateLoopId, hStop, hTrace] using ih (traceIndex + 1)
+          · simpa [simulateLoopM, hStop, hTrace, Id.instMonad] using ih (traceIndex + 1)
           · cases hRun : simulateTraceAtIndex sys params th cfg traceIndex with
             | none => contradiction
             | some pair =>
                 rcases pair with ⟨result, depth⟩
-                simpa [simulateLoopId, hStop, hRun] using
+                simpa [simulateLoopM, hStop, hRun, Id.instMonad] using
                   simulateTraceAtIndex_sound th sys params cfg traceIndex result depth hRun
 
 theorem simulateCommandSemantics_sound {ρ σ κ : Type}
