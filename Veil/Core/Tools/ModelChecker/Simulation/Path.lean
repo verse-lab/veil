@@ -11,54 +11,6 @@ theorem randNat_lt_length {α : Type} (xs : List α) (h : xs ≠ []) (gen : StdG
   simp [Nat.not_lt.mpr (Nat.zero_le (xs.length - 1)), hk]
   exact Nat.mod_lt _ hlen
 
-structure PickedTransition {σ κ : Type} (nexts : List (κ × σ)) where
-  value : κ × σ
-  mem : value ∈ nexts
-
-def pickNextTransition {σ κ : Type}
-  (nexts : List (κ × σ)) (h : nexts ≠ []) : StateM StdGen (PickedTransition nexts) := do
-  let gen ← get
-  let p := randNat gen 0 (nexts.length - 1)
-  let idx := p.1
-  let gen' := p.2
-  have hlt : idx < nexts.length := by
-    dsimp [idx, p]
-    exact randNat_lt_length nexts h gen
-  set gen'
-  return {
-    value := nexts.get ⟨idx, hlt⟩
-    mem := by exact List.get_mem nexts ⟨idx, hlt⟩
-  }
-
-theorem pickNextTransition_mem {σ κ : Type}
-  (nexts : List (κ × σ)) (gen : StdGen) (h : nexts ≠ []) :
-  ((pickNextTransition nexts h).run gen).1.value ∈ nexts :=
-  ((pickNextTransition nexts h).run gen).1.mem
-
-structure PickedInitState {σ : Type} (initStates : List σ) where
-  value : σ
-  mem : value ∈ initStates
-
-def pickInitialState {σ : Type}
-  (initStates : List σ) (h : initStates ≠ []) : StateM StdGen (PickedInitState initStates) := do
-  let gen ← get
-  let p := randNat gen 0 (initStates.length - 1)
-  let idx := p.1
-  let gen' := p.2
-  have hlt : idx < initStates.length := by
-    dsimp [idx, p]
-    exact randNat_lt_length initStates h gen
-  set gen'
-  return {
-    value := initStates.get ⟨idx, hlt⟩
-    mem := by exact List.get_mem initStates ⟨idx, hlt⟩
-  }
-
-theorem pickInitialState_mem {σ : Type}
-  (initStates : List σ) (gen : StdGen) (h : initStates ≠ []) :
-  ((pickInitialState initStates h).run gen).1.value ∈ initStates :=
-  ((pickInitialState initStates h).run gen).1.mem
-
 private def SimulationResult.depth {ρ σ κ : Type} : SimulationResult ρ σ κ → Nat
   | .foundViolation _ trace => trace.steps.size + if trace.failingStep.isSome then 1 else 0
   | .cancelled => 0
@@ -91,8 +43,15 @@ def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
       | hd :: tl =>
         let nexts := hd :: tl
         have hNonempty : nexts ≠ [] := by simp
-        let picked ← pickNextTransition nexts hNonempty
-        let (label, nextSt) := picked.value
+        let gen ← get
+        let p := randNat gen 0 (nexts.length - 1)
+        let idx := p.1
+        let gen' := p.2
+        have hlt : idx < nexts.length := by
+          dsimp [idx, p]
+          exact randNat_lt_length nexts hNonempty gen
+        set gen'
+        let (label, nextSt) := nexts.get ⟨idx, hlt⟩
         let trace := trace.push { transitionLabel := label, nextState := nextSt }
         let violations := violatedInvariantNames params th nextSt
         if !violations.isEmpty then
@@ -112,8 +71,17 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   match initStates with
   | [] => return none
   | hd :: tl =>
-      let picked ← pickInitialState (hd :: tl) (by simp)
-      let initSt := picked.value
+      let initStates := hd :: tl
+      have hNonempty : initStates ≠ [] := by simp
+      let gen ← get
+      let p := randNat gen 0 (initStates.length - 1)
+      let idx := p.1
+      let gen' := p.2
+      have hlt : idx < initStates.length := by
+        dsimp [idx, p]
+        exact randNat_lt_length initStates hNonempty gen
+      set gen'
+      let initSt := initStates.get ⟨idx, hlt⟩
       let initTrace : Trace ρ σ κ := { theory := th, initialState := initSt, steps := #[] }
       let initViolations := violatedInvariantNames params th initSt
       if !initViolations.isEmpty then
