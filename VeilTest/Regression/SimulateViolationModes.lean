@@ -31,7 +31,7 @@ Seed: 1
 
 #guard_msgs(drop info, drop warning) in
 set_option veil.violationIsError false in
-#simulate compiled {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate interpreted {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
 /--
 error: ❌ Violation: safety_failure (violates: safe_flag)
@@ -42,6 +42,6 @@ error: ❌ Violation: safety_failure (violates: safe_flag)
 Seed: 1
 -/
 #guard_msgs in
-#simulate {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate interpreted {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
 end SimulateViolationModes

@@ -66,7 +66,7 @@ Seed: 1
   assumptions_hold_by decide
 
 #guard_msgs(drop info, drop warning) in
-#simulate compiled { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
+#simulate interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
   assumptions_hold_by native_decide
 
@@ -75,7 +75,7 @@ info: ✅ No violation in 1 traces
 Seed: 1
 -/
 #guard_msgs in
-#simulate { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
+#simulate interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
   assumptions_hold_by native_decide
 
