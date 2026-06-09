@@ -1,4 +1,4 @@
-import Veil.Frontend.DSL.Module.Util.LocalRProp
+import Veil.Frontend.DSL.Module.Util.AbstractState
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -215,8 +215,8 @@ private def Module.proveLocalityForTheoryPredicateCore (mod : Module) (nm : Name
       | throwError "unexpected shape of theory predicate {f}: expected an application with Theory.casesOn as the function"
     lambdaTelescope theoryCasesOnBody fun theoryFields body => do
       let simplifyBody : Simp.Simplifier :=
-        Simp.simp #[``replaceLocalTheoryPropWithCoreAppOnLCtxFields]
-          |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
+        Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType]
+          |>.andThen (Simp.simp #[``replaceLocalTheoryPropWithCoreAppOnLCtxFields])
       let bodyResult ← simplifyBody body
       let core ← mkLambdaFVars theoryFields bodyResult.expr
       trace[veil.debug] "core for LocalTheoryProp instance of {nm}: {core}"

@@ -1,4 +1,4 @@
-import Veil.Frontend.DSL.Module.Util.AbstractState
+import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -278,8 +278,9 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
         -- now, `body` should be the actual body of the predicate
         letBoundedTelescope body (.some <| if mod._useFieldRepTC then stateFieldsConc.size else 0) fun stateFields body => do
           let simplifyBody : Simp.Simplifier :=
-            Simp.simp #[``replaceLocalRPropWithCoreAppOnLCtxFields]
-              |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
+            Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType]
+              |>.andThen (Simp.simp #[``replaceLocalTheoryPropWithCoreAppOnLCtxFields,
+                ``replaceLocalRPropWithCoreAppOnLCtxFields])
           let bodyResult ← simplifyBody body
           -- Construct `core` independently from the simplified leaf body. In
           -- field-representation mode, the canonical state fields are let-bound
