@@ -245,6 +245,11 @@ def withTheoryAndStateFn (mod : Module) (t : Term) (motiveType : Option Term) (t
 /-- The result of elaborating a Veil term together with its generated syntax
 fragments and definition body. -/
 structure ElaboratedVeilTerm where
+  -- TODO: The Parameter metadata needs a systematic way to describe the exact
+  -- binder order of generated Lean declarations. Assertion/ghost/assembled
+  -- definitions currently store user params, generated theory/state binders,
+  -- and extracted Decidable params in different places, so later code has to
+  -- reconstruct the binder order in fragile declaration-kind-specific ways.
   extraParams : Array Parameter
   thstBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
   term : Term

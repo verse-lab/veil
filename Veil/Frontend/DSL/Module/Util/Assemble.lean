@@ -39,6 +39,10 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let attrs : Array Attribute := #[{name := `invSimp}, {name := `nextSimp}] ++ veilAbbrevAttrs
   let expr ← liftTermElabM <| cleanupVeilDefinitionExpr veilTerm.expr
   let _ ← liftTermElabM <| addVeilDefinition base.name expr (red := .abbrev) (attr := attrs)
+  if mod._useLocalRPropTC && ((base.kind matches .invariant) || (base.kind matches .safety)) && !(← isModelCheckCompileMode) then
+    liftTermElabM do
+      mod.proveLocalityForStatePredicate base.name base.userSyntax (some veilTerm.expr)
+      mod.tryDefineLocalAbstractEqForStatePredicate base.name base.userSyntax
   return mod
 
 /-! ## Derived Definition Management -/
@@ -57,7 +61,14 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
     | some ty => pure (some ty)
     | none => pure none
   let veilTerm ← liftTermElabM $ mod.mkVeilTerm name kind? params term motiveType (justTheory := justTheory) (quantifyCapitals := isRelation)
-  let params := (← explicitBindersToParameters params name) ++ (← veilTerm.thstBinders.mapM (bracketedBinderToParameter · name))
+  let thstParams ← veilTerm.thstBinders.mapIdxM fun i x => do
+    -- TODO This is bad, but should be working now
+    let p ← bracketedBinderToParameter x name
+    match i with
+    | 0 => pure { p with kind := .theoryArg }
+    | 1 => pure { p with kind := .stateArg }
+    | _ => pure p
+  let params := (← explicitBindersToParameters params name) ++ thstParams
   -- FIXME: for the following line, we implicitly assume that this is the order in
   -- which binders get generated for the definition. We should instead first
   -- create a definition without `stx`, use the relevant functions to get the
@@ -70,6 +81,11 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
   let _ ← liftTermElabM <| addVeilDefinition name expr (red := .abbrev) (attr := attrs)
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := veilTerm.extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := .none }
   let mod ← mod.registerDerivedDefinition ddef
+  if isRelation && !justTheory && mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
+    liftTermElabM do
+      let ref ← getRef
+      mod.proveLocalityForStatePredicate name ref (some veilTerm.expr)
+      mod.tryDefineLocalAbstractEqForStatePredicate name ref
   return mod
 
 /-! ## Assertion Assembly (Private) -/

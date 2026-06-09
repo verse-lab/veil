@@ -75,6 +75,10 @@ inductive ParameterKind where
   | moduleTypeclass (kind : ModuleTypeClassKind)
   /-- A parameter that _a particular definition_ makes. -/
   | definitionParameter (defName : Name) (kind : DefinitionParameterKind)
+  /-- The auto-generated theory value parameter appended to state predicates. -/
+  | theoryArg
+  /-- The auto-generated state value parameter appended to state predicates. -/
+  | stateArg
 deriving Inhabited, BEq, Repr
 
 inductive Mutability where

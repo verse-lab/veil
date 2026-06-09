@@ -292,63 +292,6 @@ where
     let arr := #[(simpTerm, (← mkFreshUserName `LocalRProp.core_eq))]
     let ctx' ← elabSimpArgForTerms ctx arr
     pure <| Simp.simpCore ctx'
-  toAbstractStateBodyStx (scrutinee abstractStateSortTerm : Term) : TermElabM Term := do
-    mod.withTheoryAndStateTermTemplate
-      [(.state .none "_conc", scrutinee, false)]
-      (some (← `($stateIdent $abstractStateSortTerm)))
-      (fun _ stateFields => `(⟨$[$stateFields],*⟩))
-  /-- A meta-level construction for turning a `x : State χ` into `State FieldAbstractType`. -/
-  toAbstractStateFun (abstractStateSortTerm : Term) (stateType abstractStateTypeExpr : Expr) : TermElabM Expr := do
-    let stIdent := mkVeilImplementationDetailIdent `st    -- locally used here
-    let body ← toAbstractStateBodyStx stIdent abstractStateSortTerm
-    let argTy ← `($stateIdent $fieldConcreteType)
-    let funTerm ← `(fun ($stIdent : $argTy) => $body)
-    let funTypeExpr ← mkArrow stateType abstractStateTypeExpr
-    let funExpr ← withoutErrToSorry $ elabTermAndSynthesize funTerm (some funTypeExpr)
-    pure funExpr
-  isDefEqModuloDecidableInstances (e1 e2 : Expr) : MetaM (Option <| Option Expr) := do
-    if ← isDefEq e1 e2 then
-      return some none
-    let e1 ← whnf e1
-    let e2 ← whnf e2
-    let r1 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneral]) e1
-    let r2 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneral]) e2
-    if ← isDefEq r1.expr r2.expr then
-      -- Return the proof that `e1` = `e2`
-      -- `r1.proof : e1 = r1.expr, r2.proof : e2 = r2.expr`
-      -- So `Eq.trans (r1.proof) (Eq.symm (r2.proof)) : e1 = e2`
-      let pf1 ← r1.getProof
-      let pf2 ← r2.getProof >>= mkEqSymm
-      let pf ← mkEqTrans pf1 pf2
-      return some (some pf)
-    else
-      return none
-  specializeArgsForStateχ (allParams : Array Parameter) (vs : Array Expr) (theoryType stateType : Expr) : TermElabM (Array <| Option Expr) := do
-    allParams.zipWithM (bs := vs) fun p v => do
-      match p.kind with
-      | .backgroundTheory => pure <| some theoryType        -- NOTE: Without this, there seems to be some unification issue
-      | .environmentState => pure <| some stateType
-      | .moduleTypeclass .backgroundTheory | .moduleTypeclass .environmentState => pure none
-      | .definitionParameter _ .typeclass =>
-        -- If `v` is a `Decidable`, then skip
-        let ty ← inferType v
-        if ty.getForallBody.getAppFn'.isConstOf ``Decidable then pure none else pure <| some v
-      | _ => pure <| some v
-  specializeArgsForStateAbstract (allParams : Array Parameter) (vs : Array Expr)
-    (theoryType abstractStateTypeExpr abstractStateSortExpr : Expr) : TermElabM (Array <| Option Expr) := do
-    allParams.zipWithM (bs := vs) fun p v => do
-      match p.kind with
-      | .backgroundTheory => pure <| some theoryType
-      | .environmentState => pure <| some abstractStateTypeExpr
-      | .fieldConcreteType => pure <| some abstractStateSortExpr
-      | .moduleTypeclass .fieldRepresentation
-      | .moduleTypeclass .lawfulFieldRepresentation
-      | .moduleTypeclass .backgroundTheory | .moduleTypeclass .environmentState => pure none
-      | .definitionParameter _ .typeclass =>
-        -- If `v` is a `Decidable`, then skip
-        let ty ← inferType v
-        if ty.getForallBody.getAppFn'.isConstOf ``Decidable then pure none else pure <| some v
-      | _ => pure <| some v
   /-- Step 1: Construct the wp specialized to `(Theory, State χ)` with reflexive
   substate instances, adjusted post (`fun u _ st => post u r (setIn st s)`),
   and `readFrom r`/`getFrom s`. -/
@@ -393,14 +336,6 @@ where
       throwError s!"wp_local_eq step 2 (LocalRProp) had no effect for {nm}"
     let proof ← mkEqTrans proof (← step2Result.getProof)
     return (step2Result.expr, proof)
-  getAbstractStateRelated (stateType : Expr) : TermElabM (Term × Expr × Expr) := do
-    let sortIdents ← mod.uninterpretedParamIdents
-    -- NOTE: If possible, the following should be changed into `Expr`-level manipulation
-    let abstractStateSortTerm ← `($fieldAbstractDispatcher $sortIdents*)
-    let abstractStateSortExpr ← withoutErrToSorry $ elabTermAndSynthesize abstractStateSortTerm none
-    -- kind of hacky here
-    let abstractStateTypeExpr := mkApp stateType.getAppFn' abstractStateSortExpr
-    pure (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr)
   step3PostTerm (uIdent thIdent stIdent localRPropTCArgIdent : Ident) (abstractStateSortTerm : Term) : TermElabM Term := do
     let step3PostBody ← mod.withTheoryAndStateTermTemplate
       [(.theory, thIdent, false), (.state .none .none, stIdent, false)]
@@ -421,7 +356,7 @@ where
       (readFromArg getFromArg : Expr)
       (handler : Expr) (wpDef_fqn : Name) (vs : Array Expr)
       : TermElabM (Expr × Expr) := do
-    let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← getAbstractStateRelated stateType
+    let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← mod.getAbstractStateRelated stateType
     -- (a) Abstract post: fun u th st => Theory.casesOn th ... => State.casesOn st ... => inst.core ...
     let step3Post ← do
       let step3PostTerm ← step3PostTerm uIdent thIdent stIdent localRPropTCArgIdent abstractStateSortTerm
@@ -429,7 +364,7 @@ where
       withoutErrToSorry $ elabTermAndSynthesize step3PostTerm (some step3PostTypeExpr)
     -- (b) Abstract pre-state: State.casesOn (getFrom s) fun f_conc... => let f := (χ_rep _).get f_conc; ...; ⟨f...⟩
     let step3PreState ← do
-      let funExpr ← toAbstractStateFun abstractStateSortTerm stateType abstractStateTypeExpr
+      let funExpr ← mod.toAbstractStateFun abstractStateSortTerm stateType abstractStateTypeExpr
       Core.betaReduce <| mkApp funExpr getFromArg
     -- (c) Build wp application with abstract types
     let step3AllArgs ← specializeArgsForStateAbstract allParams vs theoryType abstractStateTypeExpr abstractStateSortExpr
@@ -623,9 +558,9 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
       `handler, `post, `localRPropTC, `r, `s, `x, `th, `st].map mkVeilImplementationDetailIdent
     | unreachable!
 
-  let absst ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $auxs)) abstractStateSortTerm
-  let absst₀ ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $s₀)) abstractStateSortTerm
-  let absst₁ ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $s₁)) abstractStateSortTerm
+  let absst ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $auxs)) abstractStateSortTerm
+  let absst₀ ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $s₀)) abstractStateSortTerm
+  let absst₁ ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $s₁)) abstractStateSortTerm
 
   -- Arguments
   let transitionTy ← `(∀ $[$polyBinders]*, $(mkIdent ``Transition) $environmentTheory $environmentState)
@@ -679,7 +614,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
     let auxrr := mkVeilImplementationDetailIdent `rr
     let auxss := mkVeilImplementationDetailIdent `ss
     let post ← do
-      let absst ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $auxs)) abstractStateSortTerm
+      let absst ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $auxs)) abstractStateSortTerm
       `(fun $auxr $auxs => ¬ ($(mkIdent ``readFrom) $auxr = $auxrr ∧ $absst = $auxss))
     let ty ← `(@$localRPropTC $paramArgs* $post)
     let coreStx ← do
@@ -762,14 +697,14 @@ private def defineTransitionAbstract (mod : Module) (nm : Name) (dk : Declaratio
       let getFromArg' ← mkAppM ``getFrom #[s']
       let theoryType ← (inferType readFromArg >>= instantiateMVars)
       let stateType ← (inferType getFromArg >>= instantiateMVars)
-      let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← defineWpLocalEq.getAbstractStateRelated mod stateType
+      let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← mod.getAbstractStateRelated stateType
 
       let source := trApp
       let target ← do
-        let funExpr ← defineWpLocalEq.toAbstractStateFun mod abstractStateSortTerm stateType abstractStateTypeExpr
+        let funExpr ← mod.toAbstractStateFun abstractStateSortTerm stateType abstractStateTypeExpr
         let preState ← Core.betaReduce <| mkApp funExpr getFromArg
         let postState ← Core.betaReduce <| mkApp funExpr getFromArg'
-        let targetArgs ← defineWpLocalEq.specializeArgsForStateAbstract allParams vs theoryType abstractStateTypeExpr abstractStateSortExpr
+        let targetArgs ← specializeArgsForStateAbstract allParams vs theoryType abstractStateTypeExpr abstractStateSortExpr
         Tactic.classical <|
           mkAppOptM trFqn <| targetArgs ++ #[some readFromArg, some preState, some postState]
       let sourceImpTarget ← mkArrow source target
@@ -871,8 +806,8 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Co
   let hole ← `(term| _ )
 
   let absr₀ ← `($(mkIdent ``readFrom) $r₀)
-  let absst₀ ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $s₀)) abstractStateSortTerm
-  let absst₁ ← AuxiliaryDefinitions.defineWpLocalEq.toAbstractStateBodyStx mod (← `($(mkIdent ``getFrom) $s₁)) abstractStateSortTerm
+  let absst₀ ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $s₀)) abstractStateSortTerm
+  let absst₁ ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $s₁)) abstractStateSortTerm
 
   let some dk := mod._declarations[assembledNextName]?
     | throwError "simplifyLocalRPropCore: {assembledNextName} not found in module declarations"

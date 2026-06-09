@@ -1,6 +1,7 @@
 import Veil.Frontend.DSL.Module.Util.Basic
 import Veil.Frontend.DSL.Module.Util.StateTheory
 import Veil.Frontend.DSL.Module.Util.Assertions
+import Veil.Frontend.DSL.Module.Util.AbstractState
 import Veil.Frontend.DSL.Module.Util.LocalRProp
 import Veil.Frontend.DSL.Module.Util.Assemble
 import Veil.Frontend.DSL.Module.Util.ForModelChecker

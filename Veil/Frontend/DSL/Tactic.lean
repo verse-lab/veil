@@ -649,7 +649,7 @@ where
 private def smallScaleAxiomatizationSimpSet (withLocalRPropTC? : Bool) : Array Name :=
   let base := #[``id, ``instIsSubStateOfRefl, ``instIsSubReaderOfRefl]
   if withLocalRPropTC? then
-    base.push ``Veil.replaceLocalRPropReflCase |>.push `LocalRProp.core
+    base.push ``Veil.replaceLocalRPropWithCoreAppOnLCtxFields |>.push `LocalRProp.core
   else base.push `ghostRelSimp
 
 /-- Perform "small-scale axiomatization" for a ghost relation `nmFull` based

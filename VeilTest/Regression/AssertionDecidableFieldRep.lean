@@ -4,9 +4,6 @@ set_option linter.unusedVariables false
 
 veil module AssertionDecidableFieldRep
 
--- FIXME: `LocalRPropTC` is broken in this case
-veil_set_option useLocalRPropTC false
-
 type node
 relation r : node → node → Bool
 individual x : node
@@ -16,6 +13,31 @@ individual x : node
 -- Regression: extracted Decidable instances for assertions must line up with
 -- the concrete field representation used by the elaborated assertion body.
 invariant [decidableForallFieldRep] (if (∀ m, r x m) then x = x else x ≠ x)
+
+/--
+info: AssertionDecidableFieldRep.decidableForallFieldRep.local_abstract_eq {ρ σ node : Type} [node_dec_eq : DecidableEq node]
+  [node_inhabited : Inhabited node] {χ : State.Label → Type}
+  [χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+  [χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)]
+  [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ]
+  [(r_conc : χ State.Label.r) →
+      (x_conc : χ State.Label.x) →
+        Decidable (∀ (m : node), FieldRepresentation.get r_conc (id (FieldRepresentation.get x_conc)) m = true)]
+  (th : ρ := by veil_exact_theory) (st : σ := by veil_exact_state) :
+  decidableForallFieldRep th st =
+    decidableForallFieldRep (readFrom th)
+      (State.casesOn (getFrom st) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+-/
+#guard_msgs in
+#check decidableForallFieldRep.local_abstract_eq
 
 end AssertionDecidableFieldRep
 

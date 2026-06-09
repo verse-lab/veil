@@ -41,6 +41,32 @@ def Lean.Meta.mkLambdaFVarsImplicit (vs : Array Expr) (e : Expr) (usedOnly : Boo
       Expr.lam n d b bi
     | _, _ => e
 
+def longestCommonArraySuffixSize [BEq α] (xs ys : Array α) : Nat := Id.run do
+  let limit := Nat.min xs.size ys.size
+  let mut n := 0
+  while h : n < limit do
+    have : n < xs.size := Nat.lt_of_lt_of_le h (Nat.min_le_left _ _)
+    have : n < ys.size := Nat.lt_of_lt_of_le h (Nat.min_le_right _ _)
+    let x := xs[xs.size - 1 - n]
+    let y := ys[ys.size - 1 - n]
+    if x == y then
+      n := n + 1
+    else
+      break
+  return n
+
+/-- Like `mkLambdaFVars xs body`, but first performs eta reduction for the
+longest suffix of `xs` that occurs as the trailing arguments of `body`.
+
+For example, given `xs = #[x, y]` and `body = f a x y`, this returns
+`f a`. Given `body = f a x y z`, no suffix matches and the result is
+`fun x y => f a x y z`. -/
+def Lean.Meta.mkLambdaFVarsWithAppSuffixEta (xs : Array Expr) (body : Expr) : MetaM Expr := body.withApp fun f args => do
+  let n := longestCommonArraySuffixSize xs args
+  let xs := xs.extract 0 (xs.size - n)
+  let args := args.extract 0 (args.size - n)
+  mkLambdaFVars xs (mkAppN f args)
+
 def Lean.Elab.Attribute.mkStx [Monad m] [MonadQuotation m] (attr : Attribute) : m (TSyntax `Lean.Parser.Term.attrInstance) := do
   let kindStx ← match attr.kind with
     | AttributeKind.global => `(Lean.Parser.Term.attrKind| )

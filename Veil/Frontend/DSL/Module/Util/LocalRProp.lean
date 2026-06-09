@@ -1,4 +1,4 @@
-import Veil.Frontend.DSL.Module.Util.Assertions
+import Veil.Frontend.DSL.Module.Util.AbstractState
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -74,78 +74,159 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
 
 /-! ## Simplification Infrastructure -/
 
-private def getLocalRPropInst (f : Expr) (args : Array Expr) : SimpM (Option (Expr × Expr × Expr)) := do
-  let (targetInstType, th, st) ← do
-    let targetInstName ← resolveGlobalConstNoOverloadCore localRPropTCName
-    let targetInstInfo ← getConstInfo targetInstName
-    let mut argsMore := args.take (targetInstInfo.type.getForallArity - 1)    -- the 1 accounts for the `post` parameter
-    let (self, th, st) ← do
-      let ρ := args[0]! ; let σ := args[1]!
-      -- remove the arguments representing theory and state from `args`,
-      -- by a heuristic
-      let args' := args.reverse
-      let some thPos ← args'.findIdxM? fun a => do isDefEq (← inferType a) ρ
-        | return none
-      let thPos := args.size - 1 - thPos
-      let some stPos ← args'.findIdxM? fun a => do isDefEq (← inferType a) σ
-        | return none
-      let stPos := args.size - 1 - stPos
-      -- a special check: see the comment below
-      let self ← if thPos == args.size - 2 && stPos == args.size - 1 then
-          pure <| mkAppN f (args.pop.pop)
-        else
-          let thName ← mkFreshUserName `th ; let stName ← mkFreshUserName `st
-          withLocalDeclsDND #[(thName, ρ.consumeMData), (stName, σ.consumeMData)] fun ldecls => do
-            let argsAbstracted := args.set! thPos ldecls[0]! |>.set! stPos ldecls[1]!
-            mkLambdaFVars ldecls <| mkAppN f argsAbstracted
-      pure (self, args[thPos]!, args[stPos]!)
-    argsMore := argsMore.push self
-    let targetInstType ← mkAppOptM targetInstName (argsMore.map Option.some)
-    pure (targetInstType, th, st)
-  let e ← synthInstance targetInstType
-  pure <| some (e, th, st)
+private structure StatePredicateLayout where
+  params : Array Parameter
+  thPos : Nat
+  stPos : Nat
 
-/-- This `dsimproc` attempts to replace assertions that have associated
-`LocalRProp` instances with their `core` definitions. -/
-dsimproc_decl replaceLocalRPropReflCase (_) := fun e => do
-  let f := e.getAppFn'
-  let args := e.getAppArgs'
-  unless f.isConst && args.size ≥ 4 do return .continue
-  -- search for the `LocalRProp` instance of `nm`
-  -- NOTE: The following code relies on some hacks
+private def Module.localDeclarationName? (mod : Module) (fullName : Name) : Option Name :=
+  if mod._declarations.contains fullName then
+    some fullName
+  else
+    -- `_declarations` stores the names as module-local DSL names, while the
+    -- simplifier sees the fully qualified Lean constants added under the
+    -- current namespace. Keep only the declaration suffix before consulting
+    -- the metadata table.
+    let localName := fullName.updatePrefix Name.anonymous
+    if mod._declarations.contains localName then some localName else none
+
+private def Module.statePredicateExprParams [Monad m] [MonadQuotation m] [MonadError m]
+    (mod : Module) (nm : Name) (dk : DeclarationKind) : m (Array Parameter) := do
+  -- TODO Replace this reconstruction with a systematic Parameter-layout API.
+  -- Locality needs the exact binder order of generated Lean declarations, but
+  -- assertion, ghost, and assembled-definition metadata currently split user
+  -- params, extracted Decidable params, and generated theory/state binders
+  -- differently.
+  let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams nm dk
+  -- TODO State assertions and assembled invariant-like definitions do have
+  -- theory/state binders in their generated Lean declarations. Assertions get
+  -- defaults from `withTheoryAndState` (`:= by veil_exact_theory/state`), while
+  -- `Invariants`/`Safeties` get explicit `rd`/`st` binders from assembly.
+  -- Their metadata does not record those binders as `Parameter`s, unlike ghost
+  -- definitions where `defineGhostDefinition` tags `thstBinders` as
+  -- `.theoryArg`/`.stateArg`. The synthetic params below paper over that gap.
+  let thParam := { kind := .theoryArg, name := `th, «type» := ← `(term| $environmentTheory), userSyntax := .missing }
+  let stParam := { kind := .stateArg, name := `st, «type» := ← `(term| $environmentState), userSyntax := .missing }
+  match dk with
+  | .stateAssertion k =>
+    unless isStateAssertionWithState k do
+      throwError "{nm} is not a state assertion with a state argument"
+    pure <| baseParams ++ extraParams ++ #[thParam, stParam]
+  | .derivedDefinition (.ghost true) _ =>
+    -- FIXME: Relax this to support general ghost definitions
+    let (userParams, thstParams) := actualParams.partition fun p => p.kind != .theoryArg && p.kind != .stateArg
+    unless (thstParams.any (·.kind == .theoryArg) && thstParams.any (·.kind == .stateArg)) do
+      throwError "state ghost relation {nm} does not carry theory/state argument metadata"
+    -- `mkVeilTerm` elaborates ghost definitions as
+    --   module params, user params, extracted Decidable params, th, st.
+    -- `declarationSplitParams` intentionally separates extra params from
+    -- actual params, so reassemble the order used by the Lean declaration.
+    pure <| baseParams ++ userParams ++ extraParams ++ thstParams
+  | .derivedDefinition .invariantLike _ =>
+    pure <| baseParams ++ extraParams ++ #[thParam, stParam]
+  | _ =>
+    throwError "{nm} is not a recognized LocalRProp state predicate"
+where
+  isStateAssertionWithState : StateAssertionKind → Bool
+  | .assumption => false
+  | .invariant | .safety | .trustedInvariant | .termination | .stateConstraint => true
+
+private def Module.statePredicateLayout [Monad m] [MonadQuotation m] [MonadError m]
+    (mod : Module) (nm : Name) : m StatePredicateLayout := do
+  let some dk := mod._declarations[nm]?
+    | throwError "statePredicateLayout: {nm} not found in module declarations"
+  let params ← mod.statePredicateExprParams nm dk
+  let some thPos := params.findIdx? (·.kind == .theoryArg)
+    | throwError "statePredicateLayout: missing theory argument for {nm}"
+  let some stPos := params.findIdx? (·.kind == .stateArg)
+    | throwError "statePredicateLayout: missing state argument for {nm}"
+  pure { params, thPos, stPos }
+
+private def Module.statePredicateLayout? [Monad m] [MonadQuotation m] [MonadError m]
+    (mod : Module) (nm : Name) : m (Option StatePredicateLayout) := do
   try
-    let some (inst, _, _) ← getLocalRPropInst f args | return .continue
-    let coreFn ← Meta.mkProjection inst `core
-    let coreApp ← do
-      -- relying on `mod` to find the field variables by their
-      -- "canonical names" in the local context
-      let lctx ← getLCtx
-      let mod ← getCurrentModule
-      let scs := mod.immutableComponents ++ mod.mutableComponents
-      let fieldVars ← scs.mapM fun sc => do
-        let nm := sc.name
-        let some ldecl := lctx.findFromUserName? nm
-          | throwError "unable to find theory field {nm} in the local context"
-        pure ldecl.toExpr
-      pure <| mkAppN coreFn fieldVars
-    return .done coreApp
+    pure (some (← mod.statePredicateLayout nm))
   catch _ =>
-    return .continue
+    pure none
 
-simproc_decl replaceLocalRPropGeneralCase (_) := fun e => do
+private def mkStatePredicateSelf (f : Sum Name Expr) (args : Array Expr) (layout : StatePredicateLayout) : MetaM Expr := do
+  let th := args[layout.thPos]!
+  let st := args[layout.stPos]!
+  let thName ← mkFreshUserName `th
+  let stName ← mkFreshUserName `st
+  -- Well, is there any better way to write this?
+  withLocalDeclsDND #[(thName, (← inferType th).consumeMData), (stName, (← inferType st).consumeMData)] fun ldecls => do
+    let argsAbstracted := args.set! layout.thPos ldecls[0]! |>.set! layout.stPos ldecls[1]!
+    let t ← match f with
+      | Sum.inl fName => mkAppOptM fName <| argsAbstracted.map some
+      | Sum.inr fExpr => pure <| mkAppN fExpr argsAbstracted
+    mkLambdaFVarsWithAppSuffixEta ldecls t
+
+private def getLocalRPropInst (f : Expr) (args : Array Expr) : SimpM (Option (Expr × Expr × Expr)) := do
+  let some fName := f.constName? | return none
+  let mod ← getCurrentModule
+  let some nm := mod.localDeclarationName? fName | return none
+  let some layout ← mod.statePredicateLayout? nm | return none
+  unless args.size == layout.params.size do return none
+  unless mod.parameters.size ≤ layout.params.size do return none
+  let self ← mkStatePredicateSelf (.inr f) args layout
+  let targetInstName ← resolveGlobalConstNoOverloadCore localRPropTCName
+  -- TODO: this relies on the invariant that generated state-predicate
+  -- declarations take `mod.parameters` as their exact binder prefix, and that
+  -- `LocalRProp` is parameterized by precisely those module parameters. This
+  -- should eventually come from a systematic Parameter-layout API instead of
+  -- slicing raw application arguments by prefix length.
+  let localRPropArgs := args.take mod.parameters.size
+  let targetInstType ← mkAppOptM targetInstName ((localRPropArgs.push self).map Option.some)
+  let e ← synthInstance targetInstType
+  pure <| some (e, args[layout.thPos]!, args[layout.stPos]!)
+
+private def mkLocalRPropCoreAppOnLCtxFields (mod : Module) (inst : Expr) : SimpM Expr := do
+  let coreFn ← Meta.mkProjection inst `core
+  -- relying on `mod` to find the field variables by their
+  -- "canonical names" in the local context
+  let lctx ← getLCtx
+  let fieldVars ← (mod.immutableComponents ++ mod.mutableComponents).mapM fun sc => do
+    let nm := sc.name
+    let some ldecl := lctx.findFromUserName? nm
+      | throwError "unable to find local field {nm}"
+    pure ldecl.toExpr
+  pure <| mkAppN coreFn fieldVars
+
+-- This `Expr → SimpM Expr` is bespoke!
+private def replaceLocalRPropCore (e : Expr) (rhs? : Option (Expr → SimpM Expr)) : SimpM Simp.Step := do
   let f := e.getAppFn'
   let args := e.getAppArgs'
   unless f.isConst && args.size ≥ 4 do return .continue
   try
     let some (inst, th, st) ← getLocalRPropInst f args | return .continue
-    let coreEq ← Meta.mkProjection inst `core_eq
-    let coreEqApp := mkAppN coreEq #[th, st]
-    let ty ← inferType coreEqApp
-    let ty ← instantiateMVars ty
-    let some ⟨_, _, rhs⟩ := ty.eq? | return .continue
+    let coreEqApp ← do
+      let coreEq ← Meta.mkProjection inst `core_eq
+      pure <| mkAppN coreEq #[th, st]
+    let rhs ← match rhs? with
+      | some rhs => rhs inst
+      | none =>
+        let ty ← inferType coreEqApp
+        let ty ← instantiateMVars ty
+        let some ⟨_, _, rhs⟩ := ty.eq? | return .continue
+        pure rhs
     return .done { expr := rhs, proof? := coreEqApp }
   catch _ =>
     return .continue
+
+/-- Replace a state predicate by its `LocalRProp.core` when the surrounding
+context has already exposed the current theory/state fields.
+
+The old version of this was a `dsimproc` and pretended the proof was `rfl`.
+The replacement has the same rewrite behavior, but carries the predicate's
+`core_eq` proof explicitly. -/
+simproc_decl replaceLocalRPropWithCoreAppOnLCtxFields (_) := fun e => do
+  replaceLocalRPropCore e <| some fun inst => do
+    let mod ← getCurrentModule
+    mkLocalRPropCoreAppOnLCtxFields mod inst
+
+simproc_decl replaceLocalRPropGeneralCase (_) := fun e => do
+  replaceLocalRPropCore e none
 
 /-! ## Locality Proof Generation -/
 
@@ -157,59 +238,97 @@ error message.
 
 This function returns the instance. Its error message shall be handled
 by the caller. -/
-private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name) : MetaM Expr := do
+private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name) (expr? : Option Expr := none) : TermElabM Expr := do
   let nmFull ← resolveGlobalConstNoOverloadCore nm
-  let info ← getConstInfoDefn nmFull
-  -- exploit the shape of `info.value`
-  let inst ← lambdaTelescope info.value fun xs body => do
+  let expr ← match expr? with
+    | some expr => pure expr
+    | none => pure (← getConstInfoDefn nmFull).value
+  let layout ← mod.statePredicateLayout nm
+  -- NOTE: This proof generator peels apart the expression shape produced by
+  -- `mkVeilTerm`/assembly. The hidden invariants are:
+  -- * the outer lambdas are exactly the predicate binders described by
+  --   `layout.params`;
+  -- * after those binders, the body is an application `(fun th st => ...) th st`
+  --   (or the assembled analogue) with exactly the theory/state value args;
+  -- * instantiating that function with `th` and `st` exposes a
+  --   `Theory.casesOn` application whose last argument is the theory-field
+  --   body;
+  -- * that body exposes a `State.casesOn` application whose last argument is
+  --   the state-field body;
+  -- * when field representation typeclasses are enabled, that state-field body
+  --   begins with let-bound canonical fields obtained from concrete fields.
+  -- These assumptions should eventually be replaced by a systematic
+  -- Parameter/layout API, or by recording a more explicit elaboration artifact.
+  let inst ← lambdaTelescope expr fun xs body => do
+    unless xs.size == layout.params.size do
+      throwError "unexpected binder arity for state predicate {nm}, got {xs.size}, expected {layout.params.size}"
     let f := body.getAppFn'
     let [th, st] := body.getAppArgs'.toList
       | throwError "unexpected shape of state predicate {nm}: unable to extract theory and state arguments"
-    let ρ ← inferType th
-    let σ ← inferType st
     let f := f.instantiateLambdasOrApps #[th, st]
     -- `f` should be like `Theory.casesOn ...`
-    let theoryCasesOnBody := f.getAppArgs'.back!
-    lambdaTelescope theoryCasesOnBody fun theoryFields body => do
+    let .app ff theoryCasesOnBody := f
+      | throwError "unexpected shape of state predicate {f}: expected an application with Theory.casesOn as the function"
+    lambdaTelescope theoryCasesOnBody fun theoryFields theoryBody => do
       -- `body` should be like `State.casesOn ...`
-      let stateCasesOnBody := body.getAppArgs'.back!
+      let stateCasesApp := theoryBody
+      let .app ff2 stateCasesOnBody := stateCasesApp
+        | throwError "unexpected shape of state predicate {stateCasesApp}: expected an application with State.casesOn as the function"
       lambdaTelescope stateCasesOnBody fun stateFieldsConc body => do
         -- now, `body` should be the actual body of the predicate
         letBoundedTelescope body (.some <| if mod._useFieldRepTC then stateFieldsConc.size else 0) fun stateFields body => do
-          let stateFieldsInUse := if mod._useFieldRepTC then stateFields else stateFieldsConc
-          -- construct and simplify the `core`
-          let core ← do
-            let tmp ← (Simp.dsimp #[``replaceLocalRPropReflCase]) body
-            mkLambdaFVars (theoryFields ++ stateFieldsInUse) tmp.expr
+          let simplifyBody : Simp.Simplifier :=
+            Simp.simp #[``replaceLocalRPropWithCoreAppOnLCtxFields]
+              |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
+          let bodyResult ← simplifyBody body
+          -- Construct `core` independently from the simplified leaf body. In
+          -- field-representation mode, the canonical state fields are let-bound
+          -- in the peeled expression, so re-declare them as ordinary locals
+          -- before abstracting the `core`.
+          let core ← if mod._useFieldRepTC then
+              let stateFieldDecls ← stateFields.mapM fun f => do
+                let decl ← f.fvarId!.getDecl
+                pure (decl.userName, decl.type)
+              withLocalDeclsDND stateFieldDecls fun stateFieldsPlain => do
+                mkLambdaFVars (theoryFields ++ stateFieldsPlain)
+                  (bodyResult.expr.replaceFVars stateFields stateFieldsPlain)
+            else
+              mkLambdaFVars (theoryFields ++ stateFieldsConc) bodyResult.expr
           trace[veil.debug] "core for LocalRProp instance of {nm}: {core}"
-          -- the `core_eq` should have `proof` inside
-          let coreEq ← do
-            let thName ← mkFreshUserName `th ; let stName ← mkFreshUserName `st
-            withLocalDeclsDND #[(thName, ρ.consumeMData), (stName, σ.consumeMData)] fun ldecls => do
-              let xs' := xs.replace th ldecls[0]! |>.replace st ldecls[1]!
-              let self ← mkAppOptM nmFull (xs'.map Option.some)
-              let eqrefl ← mkEqRefl self
-              mkLambdaFVars ldecls eqrefl
-          -- now, build the instance
           let targetInstName ← resolveGlobalConstNoOverloadCore localRPropTCName
           let some ctor := getStructureLikeCtor? (← getEnv) targetInstName
             | throwError "unexpected error: unable to find constructor for {localRPropTCName}"
           let ctorArgs ← do
-            let targetInstInfo ← getConstInfo targetInstName
-            let mut argsMore := xs.take (targetInstInfo.type.getForallArity - 1)    -- the 1 accounts for the `post` parameter
-            -- `self` is the definition `nmFull` applied to all arguments except `th` and `st`,
-            -- so do a special check: if `th` and `st` are at the tail position, then just pop them;
-            -- otherwise use `mkLambdaFVars` to build it
-            let self ← do
-              let thPos := xs.idxOf th
-              let stPos := xs.idxOf st
-              if thPos == xs.size - 2 && stPos == xs.size - 1 then
-                mkAppOptM nmFull (xs.pop.pop |>.map Option.some)
-              else
-                let tmp ← mkAppOptM nmFull (xs.map Option.some)
-                mkLambdaFVars #[th, st] tmp
-            argsMore := argsMore.push self
-            pure argsMore
+            -- This mirrors `getLocalRPropInst`: `LocalRProp` is parameterized
+            -- by the module-parameter prefix, followed by the state predicate
+            -- with its theory/state arguments abstracted away.
+            unless mod.parameters.size ≤ xs.size do
+              throwError "unexpected module-parameter prefix while building LocalRProp instance for {nm}"
+            let localRPropArgs := xs.take mod.parameters.size
+            let self ← mkStatePredicateSelf (.inl nmFull) xs layout
+            pure (localRPropArgs.push self)
+          -- Construct the `core_eq` proof by "rolling back" what has been peeled off and simplified
+          let coreEq ← do
+            let stateLetExpr ← if mod._useFieldRepTC
+              then mkLetFVars stateFields bodyResult.expr (usedLetOnly := false) (generalizeNondepLet := false)
+              else pure bodyResult.expr
+            let stateLetProof ← if mod._useFieldRepTC
+              then mkLetFVars stateFields (← bodyResult.getProof) (usedLetOnly := false) (generalizeNondepLet := false)
+              else bodyResult.getProof
+            -- CHECK `Result.addLambdas` uses the default `mkLambdaFVars` settings,
+            -- which generalize these nondependent lets and no longer matches
+            -- the `core_eq` RHS generated by `declareLocalRPropTC`.
+            let stateAltExpr ← mkLambdaFVars stateFieldsConc stateLetExpr (generalizeNondepLet := false)
+            let stateAltProof ← stateFieldsConc.foldrM (init := stateLetProof) fun x h => do
+              mkFunExt (← mkLambdaFVars #[x] h (generalizeNondepLet := false))
+            let stateAppNew := mkApp ff2 stateAltExpr
+            let stateAppProof ← mkCongrArg ff2 stateAltProof
+            let stateAppResult : Meta.Simp.Result := { expr := stateAppNew, proof? := some stateAppProof }
+            let theoryAltResult ← stateAppResult.addLambdas theoryFields
+            let fullProof ← mkCongrArg ff (← theoryAltResult.getProof)
+            -- NOTE: Here, implicitly requiring `th` and `st` to be fvars;
+            -- which should be the case in general
+            mkLambdaFVars #[th, st] fullProof
           let inst ← Meta.mkAppOptM ctor.name (ctorArgs |>.push core |>.push coreEq |>.map Option.some)
           mkLambdaFVars xs inst (usedOnly := true)
   check inst
@@ -217,20 +336,139 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
   trace[veil.debug] "LocalRProp instance for {nm}: {inst}"
   return inst
 
+private def Module.defineLocalAbstractEqForStatePredicate (mod : Module) (nm : Name) : TermElabM Unit := do
+  let nmFull ← resolveGlobalConstNoOverloadCore nm
+  let layout ← mod.statePredicateLayout nm
+  let info ← getConstInfoDefn nmFull
+  -- Build, for a state predicate `p`, the theorem
+  --
+  --   p ... th st = p ... (readFrom th) (toAbstractState (getFrom st)).
+  --
+  -- The proof does not unfold `p` directly. Instead, it uses the already
+  -- generated `LocalRProp.core_eq` on the generic side and on the
+  -- abstract-state side, then checks that the two `core` applications match.
+  lambdaTelescope info.value fun xs _ => do
+    unless xs.size == layout.params.size do
+      throwError "defineLocalAbstractEqForStatePredicate: unexpected binder arity for {nm}, got {xs.size}, expected {layout.params.size}"
+    unless mod.parameters.size ≤ layout.params.size do
+      throwError "defineLocalAbstractEqForStatePredicate: malformed layout for {nm}"
+    let th := xs[layout.thPos]!
+    let st := xs[layout.stPos]!
+    -- The left-hand side is evaluated in the original reader/state.  The
+    -- right-hand side lives in the concrete module theory/state obtained from
+    -- `readFrom`/`getFrom`; if field representations are enabled, the concrete
+    -- state is immediately re-packed as the abstract `State FieldAbstractType`.
+    let readFromArg ← mkAppM ``readFrom #[th]
+    let getFromArg ← mkAppM ``getFrom #[st]
+    let theoryType ← inferType readFromArg >>= instantiateMVars
+    let stateType ← inferType getFromArg >>= instantiateMVars
+    let (stateTypeTarget, stateSortTarget?, targetState) ←
+      if mod._useFieldRepTC then
+        let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← mod.getAbstractStateRelated stateType
+        let funExpr ← mod.toAbstractStateFun abstractStateSortTerm stateType abstractStateTypeExpr
+        let targetState ← Core.betaReduce <| mkApp funExpr getFromArg
+        pure (abstractStateTypeExpr, some abstractStateSortExpr, targetState)
+      else
+        pure (stateType, none, getFromArg)
+    -- Translate arguments from the generic declaration into the target
+    -- abstract-state declaration.  Explicit theory/state binders are replaced
+    -- by the supplied `thArg`/`stArg`; module typeclass arguments and
+    -- `Decidable` parameters may be omitted so elaboration can synthesize the
+    -- right instances under `classical`.
+    let specializeArg (thArg stArg : Expr) (p : Parameter) (v : Expr) : TermElabM (Option Expr) := do
+      match p.kind with
+      | .theoryArg => pure (some thArg)
+      | .stateArg => pure (some stArg)
+      | _ =>
+        match stateSortTarget? with
+        | some stateSort => specializeArgForStateAbstract p v theoryType stateTypeTarget stateSort
+        | none => specializeArgForStateχ p v theoryType stateTypeTarget
+    let specializeArgs (params : Array Parameter) (args : Array Expr) (thArg stArg : Expr)
+        : TermElabM (Array (Option Expr)) := do
+      unless params.size == args.size do
+        throwError "defineLocalAbstractEqForStatePredicate: parameter/argument length mismatch for {nm}"
+      params.zipWithM (bs := args) fun p v =>
+        specializeArg thArg stArg p v
+    -- Construct the theorem statement directly from full applications of the
+    -- predicate.  Separately construct the `SProp` arguments needed to
+    -- synthesize the generic and abstract-state `LocalRProp` instances.
+    let lhs ← mkAppOptM nmFull (xs.map some)
+    let targetFullArgs ← specializeArgs layout.params xs readFromArg targetState
+    let rhs ← Tactic.classical <| mkAppOptM nmFull targetFullArgs
+    let postGeneric ← mkStatePredicateSelf (.inl nmFull) xs layout
+    let postTarget ← do
+      let thName ← mkFreshUserName `th
+      let stName ← mkFreshUserName `st
+      -- Rebuild the target predicate under fresh target-world theory/state
+      -- variables so the result has type `SProp targetTheory targetState`.
+      withLocalDeclsDND #[(thName, theoryType.consumeMData), (stName, stateTypeTarget.consumeMData)] fun ldecls => do
+        let targetSelfArgs ← specializeArgs layout.params xs ldecls[0]! ldecls[1]!
+        let targetSelfApp ← Tactic.classical <| mkAppOptM nmFull targetSelfArgs
+        mkLambdaFVarsWithAppSuffixEta ldecls targetSelfApp
+    -- Synthesize the two locality instances:
+    --   genericInst : LocalRProp postGeneric
+    --   targetInst  : LocalRProp postTarget
+    --
+    -- `LocalRProp` itself is parameterized only by the module-parameter
+    -- prefix, so this mirrors the prefix invariant used by `getLocalRPropInst`.
+    let localRPropName ← resolveGlobalConstNoOverloadCore localRPropTCName
+    let localRPropArgs := xs.take mod.parameters.size
+    let genericInstType ← mkAppOptM localRPropName ((localRPropArgs.push postGeneric).map some)
+    let genericInst ← synthInstance genericInstType
+    let targetLocalRPropArgs ← specializeArgs mod.parameters localRPropArgs readFromArg targetState
+    let targetInstType ← Tactic.classical <| mkAppOptM localRPropName (targetLocalRPropArgs.push (some postTarget))
+    let targetInst ← Tactic.classical <| synthInstance targetInstType
+    -- The two `core_eq` fields give:
+    --
+    --   lhs = genericCore
+    --   rhs = targetCore
+    --
+    -- If the predicate is truly local, the cores are definitionally equal
+    -- after neutralizing `Decidable` instances.  Transitivity then yields the
+    -- requested `lhs = rhs`.
+    let genericCoreEq ← Meta.mkProjection genericInst `core_eq
+    let targetCoreEq ← Meta.mkProjection targetInst `core_eq
+    let genericProof := mkAppN genericCoreEq #[th, st]
+    let targetProof := mkAppN targetCoreEq #[readFromArg, targetState]
+    let genericProofType ← inferType genericProof >>= instantiateMVars
+    let some (_, _, genericCore) := genericProofType.eq?
+      | throwError "defineLocalAbstractEqForStatePredicate: expected equality proof for generic core, got{indentExpr genericProofType}"
+    let targetProofType ← inferType targetProof >>= instantiateMVars
+    let some (_, _, targetCore) := targetProofType.eq?
+      | throwError "defineLocalAbstractEqForStatePredicate: expected equality proof for target core, got{indentExpr targetProofType}"
+    let coreProof ←
+      match ← isDefEqModuloDecidableInstances genericCore targetCore with
+      | some none => mkEqRefl genericCore
+      | some (some proof) => pure proof
+      | none =>
+        throwError m!"defineLocalAbstractEqForStatePredicate: core mismatch for {nm}\n  generic: {genericCore}\n  target: {targetCore}"
+    let proof ← mkEqTrans genericProof coreProof
+    let proof ← mkEqTrans proof (← mkEqSymm targetProof)
+    let eqStatement ← mkEq lhs rhs
+    let eqStatement ← instantiateMVars $ ← mkForallFVars xs eqStatement
+    let proof ← instantiateMVars $ ← mkLambdaFVars xs proof
+    let _ ← addVeilTheorem (toLocalAbstractEqName nm) eqStatement proof
+
+def Module.tryDefineLocalAbstractEqForStatePredicate (mod : Module) (nm : Name) (stx : Syntax) : TermElabM Unit := do
+  try
+    mod.defineLocalAbstractEqForStatePredicate nm
+  catch ex =>
+    logWarningAt stx m!"unable to generate local abstract equality for state predicate {nm}: {ex.toMessageData}"
+
 /-! ## Instance Registration -/
 
 /-- Prove locality for the state predicate `nm`, and register
 the corresponding `LocalRProp` instance in the module. Any error
 will be caught and logged as a warning. -/
-def Module.proveLocalityForStatePredicate (mod : Module) (nm : Name) (stx : Syntax) : TermElabM Unit := do
+def Module.proveLocalityForStatePredicate (mod : Module) (nm : Name) (stx : Syntax) (expr? : Option Expr := none) : TermElabM Unit := do
   try
-    let inst ← mod.proveLocalityForStatePredicateCore nm
+    let inst ← mod.proveLocalityForStatePredicateCore nm expr?
     let attrs ← do
       let tmp ← `(Parser.Term.attrInstance| scoped instance)
       elabAttrs (#[tmp])
     let _ ← addVeilDefinition (generateLocalRPropInstName nm) inst (attr := attrs)
   catch ex =>
-    logWarningAt stx s!"unable to prove locality for state predicate {nm}: {← ex.toMessageData.toString}"
+    logWarningAt stx m!"unable to prove locality for state predicate {nm}: {ex.toMessageData}"
 where
   generateLocalRPropInstName (nm : Name) : Name :=
     Name.mkSimple <| "instLocalRProp" ++ nm.capitalize.toString
