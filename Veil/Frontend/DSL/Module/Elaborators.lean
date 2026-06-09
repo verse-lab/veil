@@ -234,6 +234,9 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
   generateIgnoreFn mod
   let mod := { mod with _stateDefined := true }
   if mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
+    let stxs ← liftTermElabM mod.declareLocalTheoryPropTC
+    for stx in stxs do
+      elabVeilCommand stx
     let stxs ← liftTermElabM mod.declareLocalRPropTC
     for stx in stxs do
       elabVeilCommand stx
@@ -273,6 +276,9 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
       let (assumptionCmd, mod) ← mod.assembleAssumptions
       elabVeilCommand assumptionCmd
+      if !mod.assumptions.isEmpty then
+        liftTermElabM do
+          mod.tryDefineLocalAbstractEqForTheoryPredicate assembledAssumptionsName assumptionCmd
       return mod
     let mod ← withTraceNode `veil.perf.elaborator.decl.Invariants (fun _ => return "Invariants") do
       let (invariantCmd, mod) ← mod.assembleInvariants

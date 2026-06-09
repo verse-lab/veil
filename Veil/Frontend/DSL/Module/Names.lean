@@ -113,6 +113,8 @@ def fieldLabelToCodomain (base : Name) : Ident := mkIdent <| fieldLabelToCodomai
 
 def localRPropTCName : Name := `LocalRProp
 def localRPropTC : Ident := mkIdent localRPropTCName
+def localTheoryPropTCName : Name := `LocalTheoryProp
+def localTheoryPropTC : Ident := mkIdent localTheoryPropTCName
 
 /-- `t_EnumClass` is a type class. -/
 def Name.toEnumClass (name : Name) : Name := name.appendAfter "_EnumClass"

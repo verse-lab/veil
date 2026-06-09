@@ -1,4 +1,4 @@
-import Veil.Frontend.DSL.Module.Util.LocalRProp
+import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 
 open Lean Parser Elab Command Term Meta Tactic
@@ -39,8 +39,11 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let attrs : Array Attribute := #[{name := `invSimp}, {name := `nextSimp}] ++ veilAbbrevAttrs
   let expr ← liftTermElabM <| cleanupVeilDefinitionExpr veilTerm.expr
   let _ ← liftTermElabM <| addVeilDefinition base.name expr (red := .abbrev) (attr := attrs)
-  if mod._useLocalRPropTC && ((base.kind matches .invariant) || (base.kind matches .safety)) && !(← isModelCheckCompileMode) then
-    liftTermElabM do
+  if mod._useLocalRPropTC && !(← isModelCheckCompileMode) then liftTermElabM do
+    if base.kind matches .assumption then
+      mod.proveLocalityForTheoryPredicate base.name base.userSyntax (some veilTerm.expr)
+      mod.tryDefineLocalAbstractEqForTheoryPredicate base.name base.userSyntax
+    else if (base.kind matches .invariant) || (base.kind matches .safety) then
       mod.proveLocalityForStatePredicate base.name base.userSyntax (some veilTerm.expr)
       mod.tryDefineLocalAbstractEqForStatePredicate base.name base.userSyntax
   return mod
@@ -81,11 +84,15 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
   let _ ← liftTermElabM <| addVeilDefinition name expr (red := .abbrev) (attr := attrs)
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := veilTerm.extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := .none }
   let mod ← mod.registerDerivedDefinition ddef
-  if isRelation && !justTheory && mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
+  if isRelation && mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
     liftTermElabM do
       let ref ← getRef
-      mod.proveLocalityForStatePredicate name ref (some veilTerm.expr)
-      mod.tryDefineLocalAbstractEqForStatePredicate name ref
+      if justTheory then
+        mod.proveLocalityForTheoryPredicate name ref (some veilTerm.expr)
+        mod.tryDefineLocalAbstractEqForTheoryPredicate name ref
+      else
+        mod.proveLocalityForStatePredicate name ref (some veilTerm.expr)
+        mod.tryDefineLocalAbstractEqForStatePredicate name ref
   return mod
 
 /-! ## Assertion Assembly (Private) -/
