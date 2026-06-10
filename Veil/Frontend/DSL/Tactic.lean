@@ -185,7 +185,8 @@ turns it into the local/core obligation used by the fast WP pipeline. It builds
 the three equality proofs needed by the generated theorem:
 
 * assumptions equal their `Assumptions.core_simplified`,
-* invariants equal their `Invariants.core_simplified`,
+* preconditions equal either `Invariants.core_simplified` or the generated
+  `_true_core` for initializer goals whose precondition is `fun _ _ => True`,
 * the action WP equals the abstract-state RHS saved in `wp_local_eq`.
 
 After applying the theorem, it introduces the exposed theory/state fields and
@@ -920,6 +921,7 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| unhygienic intros)
   -- For performance, construct and apply the theorem at `Expr` level instead
   -- of elaborating a script with `apply`, `rw`, and repeated `intro`s.
+  let mod ← getCurrentModule
   let goal ← getMainGoal
   let localThmApp ← goal.withContext do
     let target ← instantiateMVars (← goal.getType)
@@ -940,23 +942,45 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     let invariantsCoreName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedName assembledInvariantsName
     let assumptionsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledAssumptionsName
     let invariantsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledInvariantsName
+    let invariantsName ← resolveGlobalConstNoOverloadCore assembledInvariantsName
     let assuArgs := assu.getAppArgs'
     let preArgs := pre.getAppArgs'
     -- Generated assembled predicates and their `.core_simplified` definitions
     -- share the same parameter prefix.  This is why the arguments already
-    -- present in `assu`/`pre` are exactly the arguments needed below.
+    -- present in `assu` are exactly the arguments needed below.
     let assuCore ← mkAppOptM assumptionsCoreName (assuArgs.map some)
-    let preCore ← mkAppOptM invariantsCoreName (preArgs.map some)
     -- Build the three equality hypotheses expected by the hidden theorem.
     -- `withLocalDecl*` creates the variables that become binders after
     -- `mkLambdaFVars`; no tactic elaboration is used for these proofs.
     let hAssu ← withLocalDeclD (mkVeilImplementationDetailName `th) theoryType fun th => do
       let proof ← mkAppOptM assumptionsEqName (assuArgs.map some ++ #[some th])
       mkLambdaFVars #[th] proof
-    let hPre ← withLocalDeclsDND #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)] fun xs => do
-      let [th, st] := xs.toList | unreachable!
-      let proof ← mkAppOptM invariantsEqName (preArgs.map some ++ #[some th, some st])
-      mkLambdaFVars xs proof
+    let (preCore, hPre) ← do
+      let truePre ← withLocalDeclsDND
+          #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)]
+          fun xs => mkLambdaFVars xs (mkConst ``True)
+      if pre.getAppFn'.isConstOf invariantsName then
+        let preCore ← mkAppOptM invariantsCoreName (preArgs.map some)
+        let hPre ← withLocalDeclsDND #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)] fun xs => do
+          let [th, st] := xs.toList | unreachable!
+          let proof ← mkAppOptM invariantsEqName (preArgs.map some ++ #[some th, some st])
+          mkLambdaFVars xs proof
+        pure (preCore, hPre)
+      else if ← isDefEq pre truePre then
+        let trueCoreConst ← resolveGlobalConstNoOverloadCore trueCoreName
+        -- `_true_core` is generated from the LocalRProp declaration and only
+        -- has the module-parameter prefix.  This relies on the same hidden
+        -- invariant as `core_simplified`: generated predicate applications use
+        -- `mod.parameters` as their exact argument prefix.  For a bare
+        -- `fun _ _ => True`, there is no prefix to reuse, and the implicit
+        -- module binders are filled from the expected type below.
+        let moduleParamArgs := (preArgs.take mod.parameters.size).map some
+        let preCore ← mkAppOptM trueCoreConst moduleParamArgs
+        let hPre ← withLocalDeclsDND #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)] fun xs => do
+          mkLambdaFVars xs (← mkEqRefl (mkConst ``True))
+        pure (preCore, hPre)
+      else
+        throwError "veil_apply_local_wp: expected precondition to be Invariants or True, got{indentExpr pre}"
     let hWp ← withLocalDeclsDND
         #[(mkVeilImplementationDetailName `handler, ← mkArrow (mkConst ``Int) (mkSort .zero)),
           (mkVeilImplementationDetailName `th, theoryType),
@@ -981,7 +1005,6 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   -- recognizes (`th.field`/`st.field`), even though these are now plain local
   -- fields rather than projections.  The final two hypotheses keep the usual
   -- names expected by the local WP solver.
-  let mod ← getCurrentModule
   let introNames :=
     (mod.immutableComponents.map (fun sc => Name.append `th sc.name)).toList ++
     (mod.mutableComponents.map (fun sc => Name.append `st sc.name)).toList ++

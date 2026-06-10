@@ -156,5 +156,7 @@ def localMeetsSpecificationIfSuccessfulAssumingName : Name :=
   mkVeilImplementationDetailName `meetsSpecificationIfSuccessfulAssuming_local
 def localMeetsSpecificationIfSuccessfulAssuming : Ident :=
   mkIdent localMeetsSpecificationIfSuccessfulAssumingName
+def trueCoreName : Name := mkVeilImplementationDetailName `true_core
+def trueCore : Ident := mkIdent trueCoreName
 
 end Veil
