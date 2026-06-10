@@ -1100,11 +1100,12 @@ At this point the goal is already the field-exposed local/core obligation, so
 this path deliberately avoids the old concretization steps. -/
 def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
   let simpBeforeConcretizeTac ← elabSimplifyBeforeConcretizeWp true false
+  -- FIXME: Register `LocalRProp.core` and `LocalTheoryProp.core` in `nextSimp`?
   let tac ← `(tacticSeq|
     veil_dsimp only [$(mkIdent `wpSimp):ident]
     veil_dsimp only [$(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident] at $(mkIdent `has):ident
     veil_dsimp only [$(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident] at $(mkIdent `hinv):ident
-    veil_dsimp only [$(mkIdent `LocalRProp.core):ident, $(mkIdent `nextSimp):ident] at *
+    veil_dsimp only [$(mkIdent `LocalRProp.core):ident, $(mkIdent `LocalTheoryProp.core):ident, $(mkIdent `nextSimp):ident] at *
     __veil_neutralize_decidable_inst
     ($simpBeforeConcretizeTac)
     veil_fol !
