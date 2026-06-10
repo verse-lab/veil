@@ -152,4 +152,9 @@ def actionTagEnumInst : Ident := mkIdent actionTagEnumInstName
 def transitionWeakeningLemmaName : Name := `_transitionWeakeningLemma
 def transitionWeakeningLemma : Ident := mkIdent transitionWeakeningLemmaName
 
+def localMeetsSpecificationIfSuccessfulAssumingName : Name :=
+  mkVeilImplementationDetailName `meetsSpecificationIfSuccessfulAssuming_local
+def localMeetsSpecificationIfSuccessfulAssuming : Ident :=
+  mkIdent localMeetsSpecificationIfSuccessfulAssumingName
+
 end Veil

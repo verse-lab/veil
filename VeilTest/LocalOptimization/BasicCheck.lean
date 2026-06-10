@@ -38,12 +38,18 @@ invariant [inv] x = x
 #check @initializer.ext.wp_local_eq
 #check @act.ext.wp_local_eq
 
+#check _transitionWeakeningLemma
+
 -- tr_abstract should exist for the initializer, the action, and the transition
 #check @initializer.ext.tr_abstract
 #check @act.ext.tr_abstract
 #check @tr_act.ext.tr_abstract
 
 -- core_simplified_eq should exist for the invariant
+#check Assumptions.core_simplified_eq
 #check Invariants.core_simplified_eq
+
+-- local helper theorem for the WP tactic should exist
+#check __veil_meetsSpecificationIfSuccessfulAssuming_local
 
 end LocalOptBasicCheck

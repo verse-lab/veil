@@ -279,6 +279,10 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       if !mod.assumptions.isEmpty then
         liftTermElabM do
           mod.tryDefineLocalAbstractEqForTheoryPredicate assembledAssumptionsName assumptionCmd
+      try
+        liftTermElabM $ mod.simplifyLocalTheoryPropCore assembledAssumptionsName
+      catch ex =>
+        logWarningAt assumptionCmd m!"unable to synthesize LocalTheoryProp simplified core for {assembledAssumptionsName}: {ex.toMessageData}"
       return mod
     let mod ← withTraceNode `veil.perf.elaborator.decl.Invariants (fun _ => return "Invariants") do
       let (invariantCmd, mod) ← mod.assembleInvariants
@@ -289,6 +293,12 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
           liftTermElabM $ mod.simplifyLocalRPropCore assembledInvariantsName
         catch ex =>
           logWarningAt invariantCmd m!"unable to synthesize LocalRProp instance for {assembledInvariantsName}: {ex.toMessageData}"
+      if !mod.invariants.isEmpty then
+        try
+          let localMeetsCmd ← liftTermElabM mod.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem
+          elabVeilCommand localMeetsCmd
+        catch ex =>
+          logWarningAt invariantCmd m!"unable to define {localMeetsSpecificationIfSuccessfulAssumingName}: {ex.toMessageData}"
       return mod
     let mod ← withTraceNode `veil.perf.elaborator.decl.Safeties (fun _ => return "Safeties") do
       let (safetyCmd, mod) ← mod.assembleSafeties

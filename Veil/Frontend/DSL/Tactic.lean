@@ -1,5 +1,4 @@
 import Lean
-import Lean.Meta.Tactic.Assert
 import Veil.Base
 import Veil.Frontend.DSL.State.SubState
 import Veil.Frontend.DSL.Module.Util
@@ -178,6 +177,21 @@ syntax (name := veil_dsimp) "veil_dsimp" dsimpTraceArgsRest : tactic
 syntax (name := veil_dsimp_trace) "veil_dsimp?" dsimpTraceArgsRest : tactic
 
 syntax (name := veil_wp) "veil_wp" : tactic
+/-- Apply the generated local-WP bridge theorem to a public WP VC.
+
+The public goal remains
+`act.meetsSpecificationIfSuccessfulAssuming assu pre post`, but this tactic
+turns it into the local/core obligation used by the fast WP pipeline. It builds
+the three equality proofs needed by the generated theorem:
+
+* assumptions equal their `Assumptions.core_simplified`,
+* invariants equal their `Invariants.core_simplified`,
+* the action WP equals the abstract-state RHS saved in `wp_local_eq`.
+
+After applying the theorem, it introduces the exposed theory/state fields and
+the local assumptions, so downstream tactics can assume the context already
+contains `has` and `hinv` in core form. -/
+syntax (name := veil_apply_local_wp) "veil_apply_local_wp" : tactic
 
 /-- Neutralize all `Decidable` instances in the goal by replacing them
 with `Classical.propDecidable`. Without this, the `Decidable` instances
@@ -898,6 +912,83 @@ def elabVeilWp : DesugarTacticM Unit := veilWithMainContext do
   let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `loomLogicSimpForVeil):ident])
   veilEvalTactic tac
 
+/-- Implementation of `veil_apply_local_wp`; see the tactic syntax declaration
+for the user-facing behavior. -/
+def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
+  -- First expose explicit action parameters; after this, the goal should have
+  -- the public `meetsSpecificationIfSuccessfulAssuming` shape.
+  veilEvalTactic $ ← `(tactic| unhygienic intros)
+  -- For performance, construct and apply the theorem at `Expr` level instead
+  -- of elaborating a script with `apply`, `rw`, and repeated `intro`s.
+  let goal ← getMainGoal
+  let localThmApp ← goal.withContext do
+    let target ← instantiateMVars (← goal.getType)
+    let target := target.consumeMData
+    -- After introducing action parameters, the goal should be exactly the
+    -- public VC shape.  Keep the original `assu/pre/post`; the tactic only
+    -- changes how this goal is proved.
+    let (theoryType, stateType, act, assu, pre, post) ←
+      match_expr target with
+      | VeilM.meetsSpecificationIfSuccessfulAssuming _ theoryType stateType _ act assu pre post =>
+        pure (theoryType, stateType, act, assu, pre, post)
+      | _ =>
+        throwError "veil_apply_local_wp: expected a VeilM.meetsSpecificationIfSuccessfulAssuming goal, got{indentExpr target}"
+    let some actName := act.getAppFn'.constName?
+      | throwError "veil_apply_local_wp: expected action to be headed by a constant, got{indentExpr act}"
+    let wpLocalEqName ← resolveGlobalConstNoOverloadCore (toWpLocalEqName actName)
+    let assumptionsCoreName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedName assembledAssumptionsName
+    let invariantsCoreName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedName assembledInvariantsName
+    let assumptionsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledAssumptionsName
+    let invariantsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledInvariantsName
+    let assuArgs := assu.getAppArgs'
+    let preArgs := pre.getAppArgs'
+    -- Generated assembled predicates and their `.core_simplified` definitions
+    -- share the same parameter prefix.  This is why the arguments already
+    -- present in `assu`/`pre` are exactly the arguments needed below.
+    let assuCore ← mkAppOptM assumptionsCoreName (assuArgs.map some)
+    let preCore ← mkAppOptM invariantsCoreName (preArgs.map some)
+    -- Build the three equality hypotheses expected by the hidden theorem.
+    -- `withLocalDecl*` creates the variables that become binders after
+    -- `mkLambdaFVars`; no tactic elaboration is used for these proofs.
+    let hAssu ← withLocalDeclD (mkVeilImplementationDetailName `th) theoryType fun th => do
+      let proof ← mkAppOptM assumptionsEqName (assuArgs.map some ++ #[some th])
+      mkLambdaFVars #[th] proof
+    let hPre ← withLocalDeclsDND #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)] fun xs => do
+      let [th, st] := xs.toList | unreachable!
+      let proof ← mkAppOptM invariantsEqName (preArgs.map some ++ #[some th, some st])
+      mkLambdaFVars xs proof
+    let hWp ← withLocalDeclsDND
+        #[(mkVeilImplementationDetailName `handler, ← mkArrow (mkConst ``Int) (mkSort .zero)),
+          (mkVeilImplementationDetailName `th, theoryType),
+          (mkVeilImplementationDetailName `st, stateType)]
+        fun xs => do
+      let [handle, th, st] := xs.toList | unreachable!
+      let postFn ← withLocalDeclD (mkVeilImplementationDetailName `u) (mkConst ``Unit) fun u =>
+        mkLambdaFVars #[u] post
+      -- `wp_local_eq` uses the action's parameter prefix, then
+      -- handler/post, the `LocalRProp` instance, and the original th/st.
+      let proof ← mkAppOptM wpLocalEqName <| act.getAppArgs'.map some ++ #[some handle, some postFn, none, some th, some st]
+      mkLambdaFVars xs proof
+    let localThmName ← resolveGlobalConstNoOverloadCore localMeetsSpecificationIfSuccessfulAssumingName
+    -- Module parameters and the WP RHS predicate are implicit in the generated
+    -- theorem, so the tactic only supplies the public VC pieces plus the three
+    -- equality proofs.  `hLocal` is left unapplied; `apply` turns it into the
+    -- exposed local/core goal.
+    mkAppM localThmName #[act, assu, pre, post, assuCore, preCore, hAssu, hPre, hWp]
+  let [goal'] ← goal.apply localThmApp | throwError "unexpected error: applying the local WP theorem did not produce exactly one goal"
+  -- The remaining goal is the theorem's `hLocal` premise.  Introduce exposed
+  -- fields with the same user-name shape that the counterexample printer
+  -- recognizes (`th.field`/`st.field`), even though these are now plain local
+  -- fields rather than projections.  The final two hypotheses keep the usual
+  -- names expected by the local WP solver.
+  let mod ← getCurrentModule
+  let introNames :=
+    (mod.immutableComponents.map (fun sc => Name.append `th sc.name)).toList ++
+    (mod.mutableComponents.map (fun sc => Name.append `st sc.name)).toList ++
+    [`has, `hinv]
+  let (_, goal') ← goal'.introN introNames.length introNames
+  replaceMainGoal [goal']
+
 def elabVeilIntros : DesugarTacticM Unit := veilWithMainContext do
   let wpIntro ← `(tactic|intro $(mkIdent `th) $(mkIdent `st) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩)
   -- This is a bit annoying, but we name these `s₀` and `s₁` rather than `st`
@@ -980,14 +1071,15 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst; veil_concretize_wp; veil_clear; veil_simp at *)
 
-/-- The wplo-specific continuation after `veil_intros` + wpLoTac + invCoreEqTac have succeeded. -/
+/-- The fast WP-local continuation after `veil_apply_local_wp` has succeeded.
+
+At this point the goal is already the field-exposed local/core obligation, so
+this path deliberately avoids the old concretization steps. -/
 def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
   let simpBeforeConcretizeTac ← elabSimplifyBeforeConcretizeWp true false
   let tac ← `(tacticSeq|
-    veil_dsimp only [$(mkIdent `invSimp):ident] at $(mkIdent `has):ident
-    __veil_concretize_state_wp
-    __veil_concretize_fields_wp !
     veil_dsimp only [$(mkIdent `wpSimp):ident]
+    veil_dsimp only [$(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident] at $(mkIdent `has):ident
     veil_dsimp only [$(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident] at $(mkIdent `hinv):ident
     veil_dsimp only [$(mkIdent `LocalRProp.core):ident, $(mkIdent `nextSimp):ident] at *
     __veil_neutralize_decidable_inst
@@ -1010,45 +1102,23 @@ def elabVeilSolveWpDoesNotThrow : DesugarTacticM Unit := veilWithMainContext do
       [↓ $(mkIdent ``ite_self):ident, ↓ $(mkIdent ``implies_true):ident])
     veilEvalTactic <| ← `(tactic| solve | $simpleSolveTac:tactic | veil_concretize_wp; veil_fol; veil_smt)
 
-def findHypsHeadedByConst (nm : Name) : TacticM (Array LocalDecl) := do
-  let nm ← resolveGlobalConstNoOverloadCore nm
-  let lctx ← getLCtx
-  let mut hyps := #[]
-  for ldecl in lctx do
-    if ldecl.isImplementationDetail then continue
-    let ty ← instantiateMVars ldecl.type
-    -- Strip leading foralls
-    let body := ty.getForallBody
-    if body.getAppFn'.isConstOf nm then
-      hyps := hyps.push ldecl
-  return hyps
+/-- Try the local-WP path first; if applying the local bridge theorem fails,
+fall back to the conservative solver.
 
-/-- Try the wplo path first; if the probe fails, fall back to conservative.
-The probe consists of `wpLoTac` and `invCoreEqTac` (using raw `simp` to avoid
-`-failIfUnchanged`). Once the probe succeeds, we commit to the wplo path
-without backtracking. -/
+The probe is `veil_apply_local_wp` itself.  On success it has already changed
+the goal into the exposed local/core obligation, so we commit to
+`__veil_solve_wplo`.  On failure, backtracking restores the original public VC
+and the old conservative route starts with `veil_intros` as before. -/
 def elabVeilSolveWp : DesugarTacticM Unit := veilWithMainContext do
-  -- Step 1: veil_intros (common to both paths)
-  veilEvalTactic $ ← `(tactic| veil_intros)
-  -- Step 2: probe — try wpLoTac + coreEqTac
-  let classicalIdent := mkIdent `Classical
-  -- NOTE: using `simp` (not `veil_simp`) so that `failIfUnchanged` defaults to true,
-  -- which causes the probe to fail cleanly when wpLOSimp lemmas don't apply
-  let wpLoTac ← `(tactic| open $classicalIdent:ident in simp +$(mkIdent `failIfUnchanged):ident only [↓ $(mkIdent `wpLOSimp):ident])
-  let coreEqTac : DesugarTacticM Unit := veilWithMainContext do
-    let hyps ← findHypsHeadedByConst assembledInvariantsName
-    let some hyp := hyps[0]? | return
-    veilEvalTactic (← `(tactic| rw [$(mkIdent <| toCoreSimplifiedEqName assembledInvariantsName):ident] at $(mkIdent hyp.userName):ident))
   let probeSucceeds? ← DesugarTacticM.orElse
     (do
-      veilWithMainContext <| veilEvalTactic wpLoTac
+      veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_apply_local_wp)
       pure true)
     (fun _ => pure false)
   if probeSucceeds? then
-    veilWithMainContext coreEqTac
     veilWithMainContext <| veilEvalTactic <| ← `(tactic| __veil_solve_wplo)
   else
-    veilWithMainContext <| veilEvalTactic <| ← `(tactic| __veil_solve_wp_conservative)
+    veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_intros; __veil_solve_wp_conservative)
 
 @[inherit_doc veil_solve_tr]
 def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
@@ -1102,6 +1172,7 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic veil_dsimp,
   tactic veil_dsimp_trace,
   tactic veil_wp,
+  tactic veil_apply_local_wp,
   tactic veil_intros,
   tactic veil_intro_ho,
   tactic veil_concretize_wp,
@@ -1165,6 +1236,8 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_dsimp?") $ elabVeilDSimp (trace? := true) cfg o params loc
   | `(tactic| veil_wp) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_wp") elabVeilWp
+  | `(tactic| veil_apply_local_wp) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_apply_local_wp") elabVeilApplyLocalWp
   | `(tactic| veil_intros) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_intros") elabVeilIntros
   | `(tactic| veil_intro_ho) => do

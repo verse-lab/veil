@@ -49,6 +49,17 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
       $core:ident : $coreType
       $core_eq:ident : $coreEqType)
   let cmd2 ← `(command| attribute [$(mkIdent `wpSimp):ident] $(mkIdent <| localTheoryPropTCName ++ `core):ident)
+  let cmdTrue ← do
+    let implBinders ← paramBinders.mapM mkImplicitBinder
+    let args ← params.mapM (·.arg)
+    let fieldNames : Array Ident := mod.immutableComponents.map fun sc => mkIdent sc.name
+    let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
+      `(Lean.Parser.Term.funBinder| $f)
+    let coreFn ← mkFunSyntax fieldBinders <| mkIdent ``True
+    `(command| scoped instance $[$implBinders]* :
+        @$localTheoryPropTC $args* (fun _ => True) where
+      $core:ident := $coreFn
+      $core_eq:ident := by intros ; rfl)
   let cmd3 ← do
     let implBinders ← paramBinders.mapM mkImplicitBinder
     let p ← Lean.mkIdent <$> mkFreshUserName `p
@@ -66,7 +77,7 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
         @$localTheoryPropTC $args* (fun $th => $p $th ∧ $q $th) where
       $core:ident := $coreFn
       $core_eq:ident := fun $th => $(mkIdent ``congrArg₂) $(mkIdent ``And) ($inst1.$(mkIdent `core_eq) $th) ($inst2.$(mkIdent `core_eq) $th))
-  pure [cmd1, cmd2, cmd3]
+  pure [cmd1, cmd2, cmdTrue, cmd3]
 
 /-! ## Simplification Infrastructure -/
 
@@ -335,6 +346,67 @@ def Module.proveLocalityForTheoryPredicate (mod : Module) (nm : Name) (stx : Syn
 where
   generateLocalTheoryPropInstName (nm : Name) : Name :=
     Name.mkSimple <| "instLocalTheoryProp" ++ nm.capitalize.toString
+
+/-! ## Simplified LocalTheoryProp for Assembled Definitions -/
+
+/-- Simplify the `LocalTheoryProp.core` for an assembled theory predicate such
+as `Assumptions`, then store both the simplified core and the equation to it.
+
+This mirrors `simplifyLocalRPropCore` for `Invariants`.  The local VC tactic
+uses the resulting `Assumptions.core_simplified_eq` to instantiate the
+field-exposed assumptions core without depending on typeclass search for the
+assembled definition itself. -/
+def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Unit := do
+  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  let some dk := mod._declarations[nm]?
+    | throwError "simplifyLocalTheoryPropCore: {nm} not found in module declarations"
+  let (nmParams, _) ← mod.declarationAllParams nm dk
+  let nmBinders ← nmParams.mapM (·.binder)
+  elabBinders nmBinders fun vs => do
+    let localTheoryPropArgs ← mod.localTheoryPropParams.mapM (·.arg)
+    let nmApp ← do
+      let nmFull ← resolveGlobalConstNoOverloadCore nm
+      mkAppOptM nmFull (vs.map some)
+    let instType ← do
+      let tm ← `(@$localTheoryPropTC $localTheoryPropArgs*)
+      let tc ← withoutErrToSorry <| elabTermAndSynthesize tm none
+      pure <| mkApp tc nmApp
+    let inst ← synthInstance instType
+    let core ← mkProjection inst `core
+    -- Keep this intentionally modest: unfold the typeclass projection and the
+    -- assembled conjunction, then use the same logical simp sets as the state
+    -- core path.
+    let core' ← (Simp.dsimp #[localTheoryPropTCName ++ `core, `nextSimp]) core
+    let core' ← do
+      let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
+      let simps := #[`invSimp, `smtSimp]
+      let simps := if unfoldghostRel? then simps.push `ghostRelSimp else simps
+      (Simp.simp simps) core'.expr
+    let coreSimplifiedFqn ← do
+      let e ← instantiateMVars $ ← mkLambdaFVars vs core'.expr
+      addVeilDefinition (toCoreSimplifiedName nm) e
+    let coreEq ← mkProjection inst `core_eq
+    let ty ← inferType coreEq >>= instantiateMVars
+    forallTelescope ty fun xs eq => do
+      let some (_, _, rhs) := eq.eq?
+        | throwError "unexpected shape of LocalTheoryProp.core_eq type for {nm}"
+      let lhs := mkAppN nmApp xs
+      let (rhs', eqProof) ← do
+        let core'' ← mkAppOptM coreSimplifiedFqn (vs.map some)
+        let rhsAbs ← Meta.kabstract rhs core
+        let rhsFun := Expr.lam `_a (← inferType core) rhsAbs BinderInfo.default
+        let rhs' := Expr.instantiate1 rhsAbs core''
+        let congrProof ← mkCongrArg rhsFun (← core'.getProof)
+        let eqProof ← mkEqTrans (mkAppN coreEq xs) congrProof
+        pure (rhs', eqProof)
+      let rhs' ← (Simp.dsimp #[]) rhs'
+      let fvars := vs ++ xs
+      withImplicitBinderInfos vs do
+        let eqStatement ← do
+          let eq' ← mkEq lhs rhs'.expr
+          instantiateMVars $ ← mkForallFVars fvars eq'
+        let eqProof ← instantiateMVars $ ← mkLambdaFVars fvars eqProof
+        let _ ← addVeilTheorem (toCoreSimplifiedEqName nm) eqStatement eqProof
 
 /-! ## Assembled Definition Simplification -/
 
