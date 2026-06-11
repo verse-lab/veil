@@ -132,6 +132,23 @@ def getState [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] (mod : Mod
       return #[← `(Term.doSeqItem| $(mkIdent f.name):ident := $(mkIdent stVar).$(mkIdent f.name))]
   return #[getState] ++ bindFields
 
+/-- Does this statement run a (potentially state-modifying) VeilM
+sub-computation embedded via `(← e)`?
+
+By the time the assignment cases of `expandDoElemVeil` run, the bind-arrow
+forms (`v ← t`, `r a ← t`) have already been normalized into `:= ←`, i.e. the
+embedded computation appears as a `Term.liftMethod` (`(← e)`) node. We detect
+*any* such node anywhere in the statement.
+
+This is deliberately an over-approximation: refreshing the cached state binders
+after a statement that did *not* actually modify the state is harmless (it
+re-reads the same values), whereas *failing* to refresh after one that did is a
+silent soundness bug (a stale read). So when in doubt, we refresh. A `←`
+belonging to a nested `do` still denotes a computation in the *same* VeilM monad
+when it runs, so refreshing after it is still correct. -/
+def stmtRunsComputation (stx : Syntax) : Bool :=
+  (stx.find? (·.isOfKind ``Lean.Parser.Term.liftMethod)).isSome
+
 macro_rules
   | `(assume  $t) => `($(mkIdent ``VeilM.assume) $t)
   | `(pick   $t)  => `($(mkIdent ``MonadNonDet.pick) $t)
@@ -179,13 +196,31 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
         `(Term.doSeqItem| let $thisId:ident : $ty:term :| $eqWS:ident $thisId:ident ($t : $ty))
       | _ => throwErrorAt stx "unsupported `veil_let` declaration"
     return #[el]
+  -- `pure $t` where `$t` embeds a state-modifying computation (e.g.
+  -- `pure (← act)`): Lean lifts the `←` out and runs it, mutating the state,
+  -- so the cached binders must be refreshed before any later read. We handle it
+  -- exactly like a bare-term statement below (bind the value, refresh, then
+  -- re-emit `pure b`): this preserves the statement's return value *and*
+  -- refreshes the state. (Effect-free `pure`, incl. the auto-inserted
+  -- `pure ()`, has no `←` and falls through to the cheap passthrough.)
+  --
+  -- NOTE: this only covers a single, statement-level `pure (← …)`. A `term`
+  -- may still embed binds in positions we don't special-case; that residual is
+  -- the FIXME below, unfixable in general until Lean ships an extensible
+  -- do-notation. `return $t` needs no refresh: it short-circuits the rest of
+  -- the block, so no later statement reads the (stale) binders.
+  | `(Term.doSeqItem| pure $t:term) =>
+    if stmtRunsComputation t then
+      let b := mkIdent <| ← mkFreshUserName `_bind
+      let bind ← `(Term.doSeqItem| let $b:ident ← $(mkIdent ``pure):ident $t:term)
+      return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| $(mkIdent ``pure):ident $b:ident)]
+    return #[stx]
   -- We don't want to introduce state updates after pure statements, so
   -- we pass these through unchanged
   -- FIXME: we could have `pure (← state_modifying_action)`, so this isn't
   -- sound. In general, you could even have multiple binds in a single
   -- `term`, so this entire approach is broken and really unfixable until
   -- Lean ships an extensible do-notation. It's best-effort for now.
-  | `(Term.doSeqItem| pure $t:term)
   | `(Term.doSeqItem| return $t:term)
   -- NOTE: all the expressions in `require`, `assert`, and `assume`,
   -- `pick-such-that` and `if` need to be `Decidable` for execution.
@@ -204,13 +239,29 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     return #[← `(Term.doSeqItem| $(mkIdent ``VeilM.assert):ident $t $(Syntax.mkNatLit assertId.toNat))]
   -- Conditional boolean statements (`if`)
   | `(Term.doSeqItem| if $t:term then $thn:doSeq $[else if $ts:term then $elifs:doSeq]* $[else $e?:doSeq]?) =>
+    let mkIfWithRefresh (c : Term) (thn els : Array doSeqItem) : TermElabM doSeqItem := do
+      -- If the condition runs a sub-computation (e.g. `if (← act)`), Lean lifts
+      -- the call *before* the `if`, so it mutates the state before either branch
+      -- runs, leaving the cached state binders stale at branch entry. Refresh
+      -- them at the start of each branch body. (When the condition is pure this
+      -- is unnecessary, and skipped.)
+      let (thn, els) ←
+        if stmtRunsComputation c then
+          let refresh ← getState mod
+          pure (refresh ++ thn, refresh ++ els)
+        else
+          pure (thn, els)
+      `(Term.doSeqItem| if $c:term then $thn* else $els*)
     let thn ← expandDoSeqVeil proc thn
     let els ← match e? with
       | some els => expandDoSeqVeil proc els
       | none => pure #[← `(Term.doSeqItem| pure ())]
-    let elifs ← elifs.mapM (expandDoSeqVeil proc)
-    let ret ← `(Term.doSeqItem| if $t:term then $thn* $[else if $ts:term then $elifs*]* else $els*)
-    return #[ret]
+    let rest ← ts.zip elifs |>.foldrM (init := els) fun (elifCond, elif) acc => do
+      let elifExpanded ← expandDoSeqVeil proc elif
+      let res ← mkIfWithRefresh elifCond elifExpanded acc
+      pure #[res]
+    let ret ← mkIfWithRefresh t thn rest
+    pure #[ret]
   -- Conditional existence statements (`if-some`)
   | `(Term.doSeqItem| if $h:term : $t:term then $thn:doSeqItem* else $els:doSeq) =>
     let ids ← collectIfSomeBinderIdents h
@@ -288,6 +339,13 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
     if isStructureAssignment then
       mod.throwIfImmutable name
     let res ← `(Term.doSeqItem| $id:ident := $t:term)
+    -- If the RHS ran a sub-computation (e.g. `v := ← proc` / `v ← proc` for a
+    -- local var, or `child.f := ← childAction` for nested module state), it may
+    -- have mutated *any* field of the state, so the cached state binders for
+    -- every field are stale. Reload them. (A pure RHS cannot change the state,
+    -- so no refresh is emitted in that case.)
+    if stmtRunsComputation t then
+      return #[res] ++ (← getState mod)
     return #[res]
   else
     let .some component := component | unreachable!
@@ -341,10 +399,21 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
         (fun $(mkIdent `st):ident => (($bindId, {$(mkIdent `st) with $id:ident := $bindId}))))
       -- this line also appeared above in `getState`
       let getAgain ← `(Term.doSeqItem| $(mkIdent name):ident := @$(mkIdent ``id) ($(← component.typeStx)) (($fieldRepresentation _).$(mkIdent `get) $concreteField))
+      -- The block above re-binds only the assigned field `name`. If the RHS ran
+      -- a sub-computation (e.g. `w := ← proc`), that call may have written
+      -- *other* fields too; their cached binders (including their `f_conc`) are
+      -- now stale, and a later indexed update of such a field would write back
+      -- from the stale value, discarding the callee's writes. Reload all fields.
+      if stmtRunsComputation t then
+        return #[bind, modifyGetConcrete, getAgain] ++ (← getState mod)
       return #[bind, modifyGetConcrete, getAgain]
     let bind ← `(Term.doSeqItem| let $bindId:ident := $t:term)
     let res ← withRef stx `(Term.doSeqItem| $id:ident ← $(mkIdent ``modifyGet):ident
     (fun $(mkIdent `st):ident => (($bindId, {$(mkIdent `st) with $id:ident := $bindId}))))
+    -- Same rationale as the field-representation branch above: refresh all
+    -- field binders when the RHS may have mutated state beyond `name`.
+    if stmtRunsComputation t then
+      return #[bind, res] ++ (← getState mod)
     return #[bind, res]
 end
 
