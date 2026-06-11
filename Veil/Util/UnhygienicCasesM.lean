@@ -49,7 +49,7 @@ where
           return acc
       return (acc.push g)
 
-def casesType (heads : Array Name) (recursive := false) (allowSplit := true) :
+def casesType (heads : Array Name) (recursive := false) (allowSplit := true) (throwOnNoMatch := true) :
     MVarId → MetaM (List MVarId) :=
   let matcher ty := pure <|
     if let .const n .. := ty.headBeta.getAppFn
@@ -59,12 +59,12 @@ def casesType (heads : Array Name) (recursive := false) (allowSplit := true) :
   let altNames n : MetaM (Array Name) := do
     let .some sinfo := getStructureInfo? (← getEnv) n | return #[]
     pure sinfo.fieldNames
-  casesMatching matcher altNames recursive allowSplit
+  casesMatching matcher altNames recursive allowSplit throwOnNoMatch
 
 /-- Common implementation of `cases_type` and `cases_type!`. -/
 def elabCasesType (heads : Array Ident)
-    (recursive := false) (allowSplit := true) : TacticM Unit := do
+    (recursive := false) (allowSplit := true) (throwOnNoMatch := true) : TacticM Unit := do
   let heads ← heads.mapM (fun stx => realizeGlobalConstNoOverloadWithInfo stx)
-  liftMetaTactic (casesType heads recursive allowSplit)
+  liftMetaTactic (casesType heads recursive allowSplit throwOnNoMatch)
 
 end Veil.Util

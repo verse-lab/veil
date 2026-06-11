@@ -53,17 +53,6 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
       $core:ident : $coreType
       $core_eq:ident : $coreEqType)
   let cmd2 ← `(command| attribute [$(mkIdent `wpSimp):ident] $(mkIdent <| localRPropTCName ++ `core):ident)
-  -- A canonical core for initializer preconditions, whose public `pre` is
-  -- usually `fun _ _ => True` instead of the assembled `Invariants`.  It only
-  -- depends on the module-parameter prefix, then ignores the exposed
-  -- theory/state fields.
-  let cmdTrueCore ← do
-    let implBinders ← paramBinders.mapM mkImplicitBinder
-    let fieldNames : Array Ident := (mod.immutableComponents ++ mod.mutableComponents).map fun sc => mkIdent sc.name
-    let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f => `(Lean.Parser.Term.funBinder| $f)
-    let coreFn ← mkFunSyntax fieldBinders (← `(term| True))
-    `(command| def $trueCore:ident $[$implBinders]* : $coreType := $coreFn)
-  let cmdTrueCoreSimp ← `(command| attribute [$(mkIdent `nextSimp):ident] $trueCore:ident)
   -- Instance for composing `LocalRProp` over `∧`:
   -- Given `[LocalRProp p]` and `[LocalRProp q]`, derive `LocalRProp (fun th st => p th st ∧ q th st)`.
   -- This allows `Invariants` (a conjunction) to automatically get a `LocalRProp` instance.
@@ -81,7 +70,7 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
         @$localRPropTC $args* (fun $th $st => $p $th $st ∧ $q $th $st) where
       $core:ident := $coreFn
       $core_eq:ident := fun $th $st => $(mkIdent ``congrArg₂) $(mkIdent ``And) ($inst1.$(mkIdent `core_eq) $th $st) ($inst2.$(mkIdent `core_eq) $th $st))
-  return [cmd1, cmd2, cmdTrueCore, cmdTrueCoreSimp, cmd3]
+  return [cmd1, cmd2, cmd3]
 
 /-! ## Simplification Infrastructure -/
 
@@ -582,10 +571,10 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
   `(command|
     theorem $localMeetsSpecificationIfSuccessfulAssuming $[$binders]*
         {$mode : $(mkIdent ``Mode)}
-        ($act : $(mkIdent ``VeilM) $mode $environmentTheory $environmentState $(mkIdent ``Unit))
-        ($assu : $environmentTheory → Prop)
-        ($pre : $(mkIdent ``SProp) $environmentTheory $environmentState)
-        ($post : $(mkIdent ``SProp) $environmentTheory $environmentState)
+        {$act : $(mkIdent ``VeilM) $mode $environmentTheory $environmentState $(mkIdent ``Unit)}
+        {$assu : $environmentTheory → Prop}
+        {$pre : $(mkIdent ``SProp) $environmentTheory $environmentState}
+        {$post : $(mkIdent ``SProp) $environmentTheory $environmentState}
         [$postLocal : @$localRPropTC $paramArgs* $post]
         {$pred : $predTy}
         ($assuCore : $assuCoreType)

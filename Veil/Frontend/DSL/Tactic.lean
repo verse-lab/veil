@@ -185,8 +185,9 @@ turns it into the local/core obligation used by the fast WP pipeline. It builds
 the three equality proofs needed by the generated theorem:
 
 * assumptions equal their `Assumptions.core_simplified`,
-* preconditions equal either `Invariants.core_simplified` or the generated
-  `_true_core` for initializer goals whose precondition is `fun _ _ => True`,
+* preconditions equal either `Invariants.core_simplified` or a generated
+  field-lambda returning `True` for initializer goals whose precondition is
+  `fun _ _ => True`,
 * the action WP equals the abstract-state RHS saved in `wp_local_eq`.
 
 After applying the theorem, it introduces the exposed theory/state fields and
@@ -465,7 +466,7 @@ where
 end
 
 elab (name := veilCasesType) "veil_cases_type" recursive:"*"? heads:(ppSpace colGt ident)+ : tactic =>
-  Veil.Util.elabCasesType heads recursive.isSome true
+  Veil.Util.elabCasesType heads recursive.isSome true false
 
 def elabVeilDestruct' : DesugarTacticM Unit := veilWithMainContext do
   let mut targets := #[]
@@ -919,8 +920,10 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   -- First expose explicit action parameters; after this, the goal should have
   -- the public `meetsSpecificationIfSuccessfulAssuming` shape.
   veilEvalTactic $ ← `(tactic| unhygienic intros)
-  -- For performance, construct and apply the theorem at `Expr` level instead
-  -- of elaborating a script with `apply`, `rw`, and repeated `intro`s.
+  -- For performance, use `refine` on the generated bridge theorem and only
+  -- provide the small side-condition terms.  The large VC pieces
+  -- (`act/assu/pre/post`) are implicit theorem arguments and are recovered from
+  -- the expected target instead of being rebuilt as one giant application.
   let mod ← getCurrentModule
   let goal ← getMainGoal
   let localThmApp ← goal.withContext do
@@ -929,77 +932,89 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     -- After introducing action parameters, the goal should be exactly the
     -- public VC shape.  Keep the original `assu/pre/post`; the tactic only
     -- changes how this goal is proved.
-    let (theoryType, stateType, act, assu, pre, post) ←
+    let (theoryType, stateType, act, pre) ←
       match_expr target with
-      | VeilM.meetsSpecificationIfSuccessfulAssuming _ theoryType stateType _ act assu pre post =>
-        pure (theoryType, stateType, act, assu, pre, post)
+      | VeilM.meetsSpecificationIfSuccessfulAssuming _ theoryType stateType _ act _ pre _ =>
+        pure (theoryType, stateType, act, pre)
       | _ =>
         throwError "veil_apply_local_wp: expected a VeilM.meetsSpecificationIfSuccessfulAssuming goal, got{indentExpr target}"
     let some actName := act.getAppFn'.constName?
       | throwError "veil_apply_local_wp: expected action to be headed by a constant, got{indentExpr act}"
     let wpLocalEqName ← resolveGlobalConstNoOverloadCore (toWpLocalEqName actName)
-    let assumptionsCoreName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedName assembledAssumptionsName
-    let invariantsCoreName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedName assembledInvariantsName
-    let assumptionsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledAssumptionsName
     let invariantsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledInvariantsName
     let invariantsName ← resolveGlobalConstNoOverloadCore assembledInvariantsName
-    let assuArgs := assu.getAppArgs'
-    let preArgs := pre.getAppArgs'
-    -- Generated assembled predicates and their `.core_simplified` definitions
-    -- share the same parameter prefix.  This is why the arguments already
-    -- present in `assu` are exactly the arguments needed below.
-    let assuCore ← mkAppOptM assumptionsCoreName (assuArgs.map some)
-    -- Build the three equality hypotheses expected by the hidden theorem.
-    -- `withLocalDecl*` creates the variables that become binders after
-    -- `mkLambdaFVars`; no tactic elaboration is used for these proofs.
-    let hAssu ← withLocalDeclD (mkVeilImplementationDetailName `th) theoryType fun th => do
-      let proof ← mkAppOptM assumptionsEqName (assuArgs.map some ++ #[some th])
-      mkLambdaFVars #[th] proof
-    let (preCore, hPre) ← do
+    let (preCoreTac?, hPreTac) ← do
       let truePre ← withLocalDeclsDND
           #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)]
           fun xs => mkLambdaFVars xs (mkConst ``True)
       if pre.getAppFn'.isConstOf invariantsName then
-        let preCore ← mkAppOptM invariantsCoreName (preArgs.map some)
-        let hPre ← withLocalDeclsDND #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)] fun xs => do
-          let [th, st] := xs.toList | unreachable!
-          let proof ← mkAppOptM invariantsEqName (preArgs.map some ++ #[some th, some st])
-          mkLambdaFVars xs proof
-        pure (preCore, hPre)
+        -- For ordinary action VCs, let `Invariants.core_simplified_eq`
+        -- determine the still-open `preCore` metavariable.  Closing `preCore`
+        -- first with bare `Invariants.core_simplified` loses the module-prefix
+        -- arguments because the expected type is already just the field-core
+        -- function type.
+        pure (none, ← `(tactic| exact $(mkIdent invariantsEqName):ident))
       else if ← isDefEq pre truePre then
-        let trueCoreConst ← resolveGlobalConstNoOverloadCore trueCoreName
-        -- `_true_core` is generated from the LocalRProp declaration and only
-        -- has the module-parameter prefix.  This relies on the same hidden
-        -- invariant as `core_simplified`: generated predicate applications use
-        -- `mod.parameters` as their exact argument prefix.  For a bare
-        -- `fun _ _ => True`, there is no prefix to reuse, and the implicit
-        -- module binders are filled from the expected type below.
-        let moduleParamArgs := (preArgs.take mod.parameters.size).map some
-        let preCore ← mkAppOptM trueCoreConst moduleParamArgs
-        let hPre ← withLocalDeclsDND #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)] fun xs => do
-          mkLambdaFVars xs (← mkEqRefl (mkConst ``True))
-        pure (preCore, hPre)
+        -- Match the hand-written initializer proof: build the true pre-core as
+        -- a plain lambda over the exposed theory/state fields.  Using
+        -- A shared definition for this core would ask Lean to synthesize its
+        -- module/typeclass prefix while some surrounding arguments are still
+        -- metavariables, which can make `IsSubReaderOf`/`IsSubStateOf`
+        -- resolution get stuck.
+        let fieldNames := (mod.immutableComponents ++ mod.mutableComponents).map fun sc =>
+          mkIdent sc.name
+        let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
+          `(Lean.Parser.Term.funBinder| $f)
+        let truePreCore ← mkFunSyntax fieldBinders <| mkIdent ``True
+        pure (some (← `(tactic| exact $truePreCore:term)), ← `(tactic| exact fun _ _ => $(mkIdent ``rfl)))
       else
         throwError "veil_apply_local_wp: expected precondition to be Invariants or True, got{indentExpr pre}"
-    let hWp ← withLocalDeclsDND
-        #[(mkVeilImplementationDetailName `handler, ← mkArrow (mkConst ``Int) (mkSort .zero)),
-          (mkVeilImplementationDetailName `th, theoryType),
-          (mkVeilImplementationDetailName `st, stateType)]
-        fun xs => do
-      let [handle, th, st] := xs.toList | unreachable!
-      let postFn ← withLocalDeclD (mkVeilImplementationDetailName `u) (mkConst ``Unit) fun u =>
-        mkLambdaFVars #[u] post
-      -- `wp_local_eq` uses the action's parameter prefix, then
-      -- handler/post, the `LocalRProp` instance, and the original th/st.
-      let proof ← mkAppOptM wpLocalEqName <| act.getAppArgs'.map some ++ #[some handle, some postFn, none, some th, some st]
-      mkLambdaFVars xs proof
-    let localThmName ← resolveGlobalConstNoOverloadCore localMeetsSpecificationIfSuccessfulAssumingName
-    -- Module parameters and the WP RHS predicate are implicit in the generated
-    -- theorem, so the tactic only supplies the public VC pieces plus the three
-    -- equality proofs.  `hLocal` is left unapplied; `apply` turns it into the
-    -- exposed local/core goal.
-    mkAppM localThmName #[act, assu, pre, post, assuCore, preCore, hAssu, hPre, hWp]
-  let [goal'] ← goal.apply localThmApp | throwError "unexpected error: applying the local WP theorem did not produce exactly one goal"
+    pure (wpLocalEqName, preCoreTac?, hPreTac)
+  let (wpLocalEqName, preCoreTac?, hPreTac) := localThmApp
+  -- NOTE: We intentionally use a lightly-applied `refine` here rather than building a
+  -- fully-instantiated theorem application.  On larger modules, constructing
+  -- the complete application forces Lean to elaborate huge VC terms all at once
+  -- and can blow up memory.  We also avoid probing the generated goals one by
+  -- one: these holes are introduced by the fixed theorem signature, so their
+  -- order is stable and we can close the side-conditions in sequence.
+  --
+  -- With `refine'`, the implicit `pred` argument is left as a natural goal.
+  -- Do not solve it directly: the `hWp` proof below rewrites by `wp_local_eq`,
+  -- and that unification determines `pred` to be the action's abstract WP.  The
+  -- initial goals are therefore, in order:
+  -- `pred`, `assuCore`, `preCore`, `hAssu`, `hPre`, `hWp`, and `hLocal`.
+  -- This mirrors the hand-written proof: close `hAssu` first so it determines
+  -- `assuCore`; for initializer VCs provide the explicit `True` core before
+  -- `hPre`, while ordinary action VCs let `hPre` determine `preCore`; finally
+  -- close `hWp` so it determines `pred`.  `pruneSolvedGoals` removes the
+  -- metavariables solved by these equalities, leaving only the local/core
+  -- obligation.
+  veilEvalTactic $ ← `(tactic|
+    refine' $localMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_)
+  pruneSolvedGoals
+  let [_, _, preCoreGoal, hAssuGoal, hPreGoal, hWpGoal, _] ← getUnsolvedGoals
+    | throwError "veil_apply_local_wp: expected pred/assuCore/preCore/hAssu/hPre/hWp/hLocal goals after applying the bridge theorem"
+  let runAt (what : String) (goal : MVarId) (tac : TSyntax `tactic) : DesugarTacticM Unit := do
+    -- FIXME: This function seems bespoke, and the desugaring does not work well here
+    modify fun s => s.push tac
+    try
+      let subgoals ← withoutRecover <| evalTacticAt tac goal
+      unless subgoals.isEmpty do
+        throwError "tactic produced subgoals"
+      pruneSolvedGoals
+    catch ex =>
+      throwError m!"veil_apply_local_wp: failed while closing {what}:{indentD ex.toMessageData}"
+  runAt "assumptions equality" hAssuGoal <| ←
+    `(tactic| exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident)
+  if let some preCoreTac := preCoreTac? then
+    runAt "precondition core" preCoreGoal preCoreTac
+  runAt "precondition equality" hPreGoal hPreTac
+  runAt "wp_local_eq" hWpGoal <| ←
+    `(tactic|
+      (unhygienic intro $(mkIdent `handler) $(mkIdent `th) $(mkIdent `st);
+       rw [$(mkIdent wpLocalEqName):ident]))
+  let [goal'] ← getUnsolvedGoals
+    | throwError "veil_apply_local_wp: expected exactly one local/core goal after applying the bridge theorem"
   -- The remaining goal is the theorem's `hLocal` premise.  Introduce exposed
   -- fields with the same user-name shape that the counterexample printer
   -- recognizes (`th.field`/`st.field`), even though these are now plain local
