@@ -141,6 +141,11 @@ syntax (name := veil_destruct) "veil_destruct" (colGt ident)* ("only" "[" ident,
 /-- A different implementation of `veil_destruct` that simply collects
 certain `structure`/`class` types to destruct and then pass them to `cases_type*`. -/
 syntax (name := veil_destruct') "veil_destruct'" : tactic
+/-- Destruct hypotheses whose type heads match the given identifiers.
+
+Use `without [h₁, h₂]` to leave those hypotheses untouched while recursively
+destructing the rest. -/
+syntax (name := veil_cases_type) "veil_cases_type" ("*")? (ppSpace colGt ident)+ ("without" "[" ident,* "]")? : tactic
 /-- Split the goal into sub-goals. -/
 syntax (name := veil_destruct_goal) "veil_destruct_goal" : tactic
 
@@ -195,6 +200,24 @@ the local assumptions, so downstream tactics can assume the context already
 contains `has` and `hinv` in core form. -/
 syntax (name := veil_apply_local_wp) "veil_apply_local_wp" : tactic
 
+/-- Apply the generated local-TR bridge theorem to a public TR VC.
+
+The public goal remains
+`tr.meetsSpecificationIfSuccessfulAssuming assu pre post`, but this tactic
+turns it into a field-exposed obligation over the core assumptions,
+core precondition, and an abstract-state transition hypothesis.  It closes the
+bridge theorem's side conditions using:
+
+* `Assumptions.core_simplified_eq`,
+* `Invariants.core_simplified_eq` or a generated `True` core for initializer
+  preconditions,
+* the action's generated `.tr_abstract` theorem.
+
+Unlike the WP path, the abstract transition RHS is not a separate saved
+predicate definition: `.tr_abstract` rewrites from the concrete `.tr` directly
+to the same `.tr` specialized to abstract theory/state. -/
+syntax (name := veil_apply_local_tr) "veil_apply_local_tr" : tactic
+
 /-- Neutralize all `Decidable` instances in the goal by replacing them
 with `Classical.propDecidable`. Without this, the `Decidable` instances
 in the local context might prevent `veil_concretize_state` or
@@ -221,13 +244,17 @@ syntax (name := veil_solve_wp) "veil_solve_wp" : tactic
 syntax (name := __veil_solve_wplo) "__veil_solve_wplo" : tactic
 syntax (name := __veil_solve_wp_conservative) "__veil_solve_wp_conservative" : tactic
 syntax (name := veil_solve_wp_doesnotthrow) "veil_solve_wp_doesnotthrow" : tactic
-/-- Solve transition-style goals. This includes:
-1. Introducing hypotheses with `veil_intros`
-2. Simplifying with `invSimp`
-3. Destructing existentials and conjunctions
-4. Splitting on conditionals with `veil_split_ifs`
-5. Concretizing with `veil_concretize_tr` and solving with `veil_fol; veil_solve` -/
+/-- Solve transition-style goals.
+
+This first probes the local-TR path (`veil_apply_local_tr` followed by
+`__veil_solve_trlo`).  If the bridge theorem does not apply, it falls back to
+the conservative route: introduce with `veil_intros`, simplify with
+`invSimp`/`actSimp`/`ifSimp`, destruct conjunctions/existentials, split
+conditionals, concretize the transition, and finish with `veil_fol; veil_solve`. -/
 syntax (name := veil_solve_tr) "veil_solve_tr" : tactic
+
+syntax (name := __veil_solve_trlo) "__veil_solve_trlo" : tactic
+syntax (name := __veil_solve_tr_conservative) "__veil_solve_tr_conservative" : tactic
 
 /-- Solve bounded model checking (trace) goals. This includes:
 1. Introducing hypotheses with `veil_intros`
@@ -267,7 +294,7 @@ IteratedProd.append Eq.mp LawfulFieldRepresentationSet.set_append
 List.singleton_append CanonicalField.set FieldUpdateDescr.fieldUpdate
 FieldUpdatePat.match IteratedProd.patCmp Bool.and_true Bool.and_eq_true
 decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
-reduceIte ite_true ite_false and_true true_and
+reduceIte ite_true ite_false and_true true_and List.head?
 
 
 def elabVeilRenameHyp (xs ys : Array Syntax) : TacticM Unit := do
@@ -465,9 +492,6 @@ where
 
 end
 
-elab (name := veilCasesType) "veil_cases_type" recursive:"*"? heads:(ppSpace colGt ident)+ : tactic =>
-  Veil.Util.elabCasesType heads recursive.isSome true false
-
 def elabVeilDestruct' : DesugarTacticM Unit := veilWithMainContext do
   let mut targets := #[]
   for hyp in (← getLCtx) do
@@ -478,10 +502,11 @@ def elabVeilDestruct' : DesugarTacticM Unit := veilWithMainContext do
     let some nm := structureName? | continue
     if nm ∈ hypTypesToSkipDestruct then continue
     -- Special check
+    -- FIXME: This is too ad-hoc ...
     if nm == ``And then continue
     targets := targets.push nm
   let targetIdents := targets.map mkIdent
-  veilEvalTactic $ ← `(tactic| veil_cases_type* $[$targetIdents:ident]* ; expose_names )
+  veilEvalTactic $ ← `(tactic| (try veil_cases_type* $[$targetIdents:ident]*) ; expose_names )
 
 private inductive GenericStateKind
   | environmentState
@@ -914,6 +939,44 @@ def elabVeilWp : DesugarTacticM Unit := veilWithMainContext do
   let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `loomLogicSimpForVeil):ident])
   veilEvalTactic tac
 
+private def mkLocalPreconditionTactics (mod : Module) (theoryType stateType pre : Expr)
+    (tacticName : String) : DesugarTacticM (Option (TSyntax `tactic) × TSyntax `tactic) := do
+  let invariantsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledInvariantsName
+  let invariantsName ← resolveGlobalConstNoOverloadCore assembledInvariantsName
+  let truePre ← withLocalDeclsDND
+      #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)]
+      fun xs => mkLambdaFVars xs (mkConst ``True)
+  if pre.getAppFn'.isConstOf invariantsName then
+    -- For ordinary action VCs, let `Invariants.core_simplified_eq` determine
+    -- the still-open `preCore` metavariable.  Closing `preCore` first with bare
+    -- `Invariants.core_simplified` loses the module-prefix arguments because
+    -- the expected type is already just the field-core function type.
+    pure (none, ← `(tactic| exact $(mkIdent invariantsEqName):ident))
+  else if ← isDefEq pre truePre then
+    -- Initializer VCs have precondition `fun _ _ => True`.  Build the matching
+    -- field-level core directly instead of asking Lean to infer a shared
+    -- definition's module/typeclass prefix while bridge theorem arguments are
+    -- still metavariables.
+    let fieldNames := (mod.immutableComponents ++ mod.mutableComponents).map fun sc =>
+      mkIdent sc.name
+    let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
+      `(Lean.Parser.Term.funBinder| $f)
+    let truePreCore ← mkFunSyntax fieldBinders <| mkIdent ``True
+    pure (some (← `(tactic| exact $truePreCore:term)), ← `(tactic| exact fun _ _ => $(mkIdent ``rfl)))
+  else
+    throwError "{tacticName}: expected precondition to be Invariants or True, got{indentExpr pre}"
+
+private def runLocalBridgeSideTactic (tacticName what : String)
+    (goal : MVarId) (tac : TSyntax `tactic) : DesugarTacticM Unit := do
+  modify fun s => s.push tac
+  try
+    let subgoals ← withoutRecover <| evalTacticAt tac goal
+    unless subgoals.isEmpty do
+      throwError "tactic produced subgoals"
+    pruneSolvedGoals
+  catch ex =>
+    throwError m!"{tacticName}: failed while closing {what}:{indentD ex.toMessageData}"
+
 /-- Implementation of `veil_apply_local_wp`; see the tactic syntax declaration
 for the user-facing behavior. -/
 def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
@@ -941,34 +1004,7 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     let some actName := act.getAppFn'.constName?
       | throwError "veil_apply_local_wp: expected action to be headed by a constant, got{indentExpr act}"
     let wpLocalEqName ← resolveGlobalConstNoOverloadCore (toWpLocalEqName actName)
-    let invariantsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledInvariantsName
-    let invariantsName ← resolveGlobalConstNoOverloadCore assembledInvariantsName
-    let (preCoreTac?, hPreTac) ← do
-      let truePre ← withLocalDeclsDND
-          #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)]
-          fun xs => mkLambdaFVars xs (mkConst ``True)
-      if pre.getAppFn'.isConstOf invariantsName then
-        -- For ordinary action VCs, let `Invariants.core_simplified_eq`
-        -- determine the still-open `preCore` metavariable.  Closing `preCore`
-        -- first with bare `Invariants.core_simplified` loses the module-prefix
-        -- arguments because the expected type is already just the field-core
-        -- function type.
-        pure (none, ← `(tactic| exact $(mkIdent invariantsEqName):ident))
-      else if ← isDefEq pre truePre then
-        -- Match the hand-written initializer proof: build the true pre-core as
-        -- a plain lambda over the exposed theory/state fields.  Using
-        -- A shared definition for this core would ask Lean to synthesize its
-        -- module/typeclass prefix while some surrounding arguments are still
-        -- metavariables, which can make `IsSubReaderOf`/`IsSubStateOf`
-        -- resolution get stuck.
-        let fieldNames := (mod.immutableComponents ++ mod.mutableComponents).map fun sc =>
-          mkIdent sc.name
-        let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
-          `(Lean.Parser.Term.funBinder| $f)
-        let truePreCore ← mkFunSyntax fieldBinders <| mkIdent ``True
-        pure (some (← `(tactic| exact $truePreCore:term)), ← `(tactic| exact fun _ _ => $(mkIdent ``rfl)))
-      else
-        throwError "veil_apply_local_wp: expected precondition to be Invariants or True, got{indentExpr pre}"
+    let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_wp"
     pure (wpLocalEqName, preCoreTac?, hPreTac)
   let (wpLocalEqName, preCoreTac?, hPreTac) := localThmApp
   -- NOTE: We intentionally use a lightly-applied `refine` here rather than building a
@@ -994,22 +1030,12 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   pruneSolvedGoals
   let [_, _, preCoreGoal, hAssuGoal, hPreGoal, hWpGoal, _] ← getUnsolvedGoals
     | throwError "veil_apply_local_wp: expected pred/assuCore/preCore/hAssu/hPre/hWp/hLocal goals after applying the bridge theorem"
-  let runAt (what : String) (goal : MVarId) (tac : TSyntax `tactic) : DesugarTacticM Unit := do
-    -- FIXME: This function seems bespoke, and the desugaring does not work well here
-    modify fun s => s.push tac
-    try
-      let subgoals ← withoutRecover <| evalTacticAt tac goal
-      unless subgoals.isEmpty do
-        throwError "tactic produced subgoals"
-      pruneSolvedGoals
-    catch ex =>
-      throwError m!"veil_apply_local_wp: failed while closing {what}:{indentD ex.toMessageData}"
-  runAt "assumptions equality" hAssuGoal <| ←
+  runLocalBridgeSideTactic "veil_apply_local_wp" "assumptions equality" hAssuGoal <| ←
     `(tactic| exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident)
   if let some preCoreTac := preCoreTac? then
-    runAt "precondition core" preCoreGoal preCoreTac
-  runAt "precondition equality" hPreGoal hPreTac
-  runAt "wp_local_eq" hWpGoal <| ←
+    runLocalBridgeSideTactic "veil_apply_local_wp" "precondition core" preCoreGoal preCoreTac
+  runLocalBridgeSideTactic "veil_apply_local_wp" "precondition equality" hPreGoal hPreTac
+  runLocalBridgeSideTactic "veil_apply_local_wp" "wp_local_eq" hWpGoal <| ←
     `(tactic|
       (unhygienic intro $(mkIdent `handler) $(mkIdent `th) $(mkIdent `st);
        rw [$(mkIdent wpLocalEqName):ident]))
@@ -1028,14 +1054,89 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   replaceMainGoal [goal']
   -- Finally, do some cleanup; now this is somehow like `unveil`
   -- NOTE: `whnf` for unfolding `.wp_local_eq.pred`
+  let has := mkIdent `has ; let hinv := mkIdent `hinv
   let tac ← `(tacticSeq|
     __veil_neutralize_decidable_inst
     whnf
-    try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $(mkIdent `has):ident
-    try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $(mkIdent `hinv):ident
-    veil_dsimp only [ $(mkIdent `nextSimp):ident] at *
+    try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $has:ident
+    try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $hinv:ident
+    veil_dsimp only [$(mkIdent `nextSimp):ident]
+    veil_dsimp only [↓ $(mkIdent `reduceStateLabelDomainCodomainDsimproc):ident]
     )
   veilEvalTactic tac
+
+/-- Implementation of `veil_apply_local_tr`; see the tactic syntax declaration
+for the user-facing behavior. -/
+def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
+  -- Match `veil_apply_local_wp`: first expose explicit action parameters so the
+  -- remaining target is the public TR VC.
+  veilEvalTactic $ ← `(tactic| unhygienic intros)
+  let mod ← getCurrentModule
+  let goal ← getMainGoal
+  let localInfo ← goal.withContext do
+    let target ← instantiateMVars (← goal.getType)
+    let target := target.consumeMData
+    let (theoryType, stateType, tr, pre) ←
+      match_expr target with
+      | Transition.meetsSpecificationIfSuccessfulAssuming theoryType stateType tr _ pre _ =>
+        pure (theoryType, stateType, tr, pre)
+      | _ =>
+        throwError "veil_apply_local_tr: expected a Transition.meetsSpecificationIfSuccessfulAssuming goal, got{indentExpr target}"
+    let some trName := tr.getAppFn'.constName?
+      | throwError "veil_apply_local_tr: expected transition to be headed by a constant, got{indentExpr tr}"
+    let trAbstractName ← resolveTransitionAbstractName trName
+    let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_tr"
+    pure (trAbstractName, preCoreTac?, hPreTac)
+  let (trAbstractName, preCoreTac?, hPreTac) := localInfo
+  -- The theorem shape mirrors the WP bridge theorem.  With `refine'`, the
+  -- implicit `trAbs` argument is deliberately left open; the `hTr` side goal
+  -- below closes it by applying `.tr_abstract`, whose target is the transition
+  -- specialized to abstract theory/state.  The resulting goals are:
+  -- `trAbs`, `assuCore`, `preCore`, `hAssu`, `hPre`, `hTr`, and `hLocal`.
+  veilEvalTactic $ ← `(tactic|
+    refine' $localTransitionMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_)
+  pruneSolvedGoals
+  let [_, _, preCoreGoal, hAssuGoal, hPreGoal, hTrGoal, _] ← getUnsolvedGoals
+    | throwError "veil_apply_local_tr: expected trAbs/assuCore/preCore/hAssu/hPre/hTr/hLocal goals after applying the bridge theorem"
+  runLocalBridgeSideTactic "veil_apply_local_tr" "assumptions equality" hAssuGoal <| ←
+    `(tactic| exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident)
+  if let some preCoreTac := preCoreTac? then
+    runLocalBridgeSideTactic "veil_apply_local_tr" "precondition core" preCoreGoal preCoreTac
+  runLocalBridgeSideTactic "veil_apply_local_tr" "precondition equality" hPreGoal hPreTac
+  runLocalBridgeSideTactic "veil_apply_local_tr" "transition abstraction" hTrGoal <| ←
+    `(tactic| unhygienic intro _ _ _ ; apply $(mkIdent trAbstractName):ident)
+  let [goal'] ← getUnsolvedGoals
+    | throwError "veil_apply_local_tr: expected exactly one local/core goal after applying the bridge theorem"
+  -- The remaining local obligation exposes theory fields, pre-state fields,
+  -- post-state fields, then `has`, `hinv`, and the abstract transition fact.
+  -- Keep names close to the old concretization convention for counterexample
+  -- display and for downstream local tactics.
+  let introNames :=
+    (mod.immutableComponents.map (fun sc => Name.append `th sc.name)).toList ++
+    (mod.mutableComponents.map (fun sc => Name.append `st sc.name)).toList ++
+    -- FIXME: Use better name than `s₁`
+    (mod.mutableComponents.map (fun sc => Name.append `s₁ sc.name)).toList ++
+    [`has, `hinv, `htr]
+  let (_, goal') ← goal'.introN introNames.length introNames
+  replaceMainGoal [goal']
+  let has := mkIdent `has ; let hinv := mkIdent `hinv ; let htr := mkIdent `htr
+  let tac ← `(tacticSeq|
+    whnf at $htr:ident
+    try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $has:ident
+    try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $hinv:ident
+    veil_dsimp only [$(mkIdent `nextSimp):ident] at $htr:ident ⊢
+    )
+  veilEvalTactic tac
+where
+  -- FIXME: This is wacky
+  resolveTransitionAbstractName (trName : Name) : TacticM Name := do
+    let base? :=
+      match trName with
+      | .str p "tr" => some p
+      | _ => none
+    let some base := base?
+      | throwError "veil_apply_local_tr: expected transition constant ending in `.tr`, got {trName}"
+    resolveGlobalConstNoOverloadCore (toTransitionAbstractName base)
 
 def elabVeilIntros : DesugarTacticM Unit := veilWithMainContext do
   let wpIntro ← `(tactic|intro $(mkIdent `th) $(mkIdent `st) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩)
@@ -1113,6 +1214,7 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
       -- destructing conjunctions to expose the equalities.
       then `(tactic| (veil_destruct' ; veil_dsimp only at *; veil_intros; (try subst_eqs)) )
       else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
+    -- FIXME: There is `inferNonemptyTac` both in `veil_fol` and `veil_smt` and `concretize_wp`. Just keep one?
     `(tactic| ($inferNonemptyTac:tactic; $tac:tactic))
   veilEvalTactic tac
 
@@ -1129,6 +1231,28 @@ def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
     veil_intro_ho
     veil_fol !
     veil_solve
+    )
+  veilEvalTactic tac
+
+def elabVeilSolveTrlo : DesugarTacticM Unit := veilWithMainContext do
+  -- When we want to resort to SMT solver, we might have to do some destruction
+  -- to avoid higher-order quantification
+  let solver := veil.solver.get (← getOptions)
+  let solveTac ← match solver with
+    -- FIXME: `veil_destruct' ; (unhygienic intros)` is like a wachy `veil_fol !`,
+    -- but somehow we need to avoid `subst` here, otherwise the counterexample
+    -- printing might miss some substituted variables
+    | .smt | .grindAndSMT => `(tactic| (repeat' (first | veil_cases_type* $(mkIdent ``Exists) $(mkIdent ``And) without [$(mkIdent `hinv)] | split_ifs at *)) <;> (expose_names ; veil_destruct' ; (unhygienic intros) ; veil_solve) )
+    | _ => `(tactic| (veil_destruct' ; veil_solve) )
+  -- NOTE: For `tr` case, usually `smtSimp` will call `State.ext_iff`
+  -- and this will incur `@Eq (FieldAbstractType ...)` which can make
+  -- `veil_smt` fail. So we do the dsimproc after `smtSimp`.
+  let htr := mkIdent `htr
+  let tac ← `(tacticSeq|
+    open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at $htr:ident
+    veil_dsimp only [↓ $(mkIdent `reduceStateLabelDomainCodomainDsimproc):ident] at $htr:ident
+    __veil_neutralize_decidable_inst
+    $solveTac
     )
   veilEvalTactic tac
 
@@ -1163,13 +1287,31 @@ def elabVeilSolveWp : DesugarTacticM Unit := veilWithMainContext do
   else
     veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_intros; __veil_solve_wp_conservative)
 
-@[inherit_doc veil_solve_tr]
-def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
+/-- The conservative TR solver: the original transition route after
+`veil_intros`, without trying the local TR bridge theorem. -/
+def elabVeilSolveTrConservative : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
   -- if they're not used. This is undesirable when the variable is an action
   -- parameter, because we need to keep it in the context for model extraction.
-  let tac ← `(tactic| veil_intros; veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_solve))
+  let tac ← `(tactic| veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_solve))
   veilEvalTactic tac
+
+/-- Try the local-TR path first; if applying the local bridge theorem fails,
+fall back to the old transition solver.
+
+The probe mirrors `veil_solve_wp`: `veil_apply_local_tr` either commits the
+goal to the exposed local/core TR obligation, or backtracking restores the
+public TR VC before the conservative route starts with `veil_intros`. -/
+def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
+  let probeSucceeds? ← DesugarTacticM.orElse
+    (do
+      veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_apply_local_tr)
+      pure true)
+    (fun _ => pure false)
+  if probeSucceeds? then
+    veilWithMainContext <| veilEvalTactic <| ← `(tactic| __veil_solve_trlo)
+  else
+    veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_intros; __veil_solve_tr_conservative)
 
 @[inherit_doc veil_bmc]
 def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
@@ -1199,13 +1341,16 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic __veil_neutralize_decidable_inst,
   tactic __veil_ghost_relation_ssa,
   tactic __veil_solve_wplo,
+  tactic __veil_solve_trlo,
   tactic __veil_solve_wp_conservative,
+  tactic __veil_solve_tr_conservative,
   -- User-facing tactics
   tactic veil_solve,
   tactic veil_infer_nonempty,
   tactic veil_rename_hyp,
   tactic veil_destruct,
   tactic veil_destruct',
+  tactic veil_cases_type,
   tactic veil_clear,
   tactic veil_destruct_goal,
   tactic veil_smt,
@@ -1216,6 +1361,7 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic veil_dsimp_trace,
   tactic veil_wp,
   tactic veil_apply_local_wp,
+  tactic veil_apply_local_tr,
   tactic veil_intros,
   tactic veil_intro_ho,
   tactic veil_concretize_wp,
@@ -1257,6 +1403,10 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct") $ elabVeilDestructSpecificHyp ids onlyStructs excludedStructs
   | `(tactic| veil_destruct' ) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct'") $ elabVeilDestruct'
+  | `(tactic| veil_cases_type $[*%$recursive?]? $heads:ident* $[without [$skipIds:ident,*]]?) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_cases_type") $
+      Veil.Util.elabCasesType heads (recursive := recursive?.isSome) (allowSplit := true)
+        (skipNames := skipIds.elim #[] (fun ids => ids.getElems.map (·.getId)))
   | `(tactic| veil_clear $ids:ident*) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_clear") $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do
@@ -1281,6 +1431,8 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_wp") elabVeilWp
   | `(tactic| veil_apply_local_wp) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_apply_local_wp") elabVeilApplyLocalWp
+  | `(tactic| veil_apply_local_tr) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "veil_apply_local_tr") elabVeilApplyLocalTr
   | `(tactic| veil_intros) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_intros") elabVeilIntros
   | `(tactic| veil_intro_ho) => do
@@ -1295,8 +1447,12 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_wp") elabVeilSolveWp
   | `(tactic| __veil_solve_wplo) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_wplo") elabVeilSolveWplo
+  | `(tactic| __veil_solve_trlo) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_trlo") elabVeilSolveTrlo
   | `(tactic| __veil_solve_wp_conservative) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_wp_conservative") elabVeilSolveWpConservative
+  | `(tactic| __veil_solve_tr_conservative) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_tr_conservative") elabVeilSolveTrConservative
   | `(tactic| veil_solve_wp_doesnotthrow) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_wp_doesnotthrow") elabVeilSolveWpDoesNotThrow
   | `(tactic| veil_solve_tr) => do

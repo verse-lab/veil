@@ -349,6 +349,33 @@ where
 
 /-! ## Simplified LocalTheoryProp for Assembled Definitions -/
 
+/-- Reduce generated `State.Label.toDomain`/`State.Label.toCodomain` dispatchers
+wherever they occur in an expression, including hidden type arguments such as
+the type parameter of `Eq`.
+
+This is intentionally a one-shot expression transform: callers can run it from a
+single dsimproc at the root, and the transform itself finds all dispatcher
+occurrences.  Each replacement is produced by reducible WHNF, so the result is
+definitionally equal to the input and can be returned by a dsimproc. -/
+def reduceStateLabelDomainCodomain (targetNames : List Name) (n : Nat) (e : Expr) : MetaM Expr :=
+  Meta.transform e (skipConstInApp := true) (post := fun sube => sube.withApp' fun f args => do
+    let some nm := f.constName? | return .continue
+    unless args.size == n && targetNames.contains nm do return .continue
+    let sube' ← Meta.whnfR sube
+    return .done sube')
+
+-- NOTE: This is mainly for not letting `veil_smt` fail due to weird reasons
+dsimproc_decl reduceStateLabelDomainCodomainDsimproc (_) := fun e => do
+  let targetNames := [fieldLabelToDomainName stateName, fieldLabelToCodomainName stateName,
+    fieldAbstractDispatcherName]
+  let targetNames ← targetNames.mapM resolveGlobalConstNoOverloadCore
+  -- Compute how many arguments are expected
+  -- Something that happens to hold here: all them expect the same number of arguments
+  let n ← do
+    let info ← getConstInfo targetNames.head!
+    pure info.type.getForallArity
+  return .done (← reduceStateLabelDomainCodomain targetNames n e)
+
 /-- Simplify the `LocalTheoryProp.core` for an assembled theory predicate such
 as `Assumptions`, then store both the simplified core and the equation to it.
 
@@ -376,7 +403,9 @@ def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Un
     -- Keep this intentionally modest: unfold the typeclass projection and the
     -- assembled conjunction, then use the same logical simp sets as the state
     -- core path.
-    let core' ← (Simp.dsimp #[`nextSimp]) core
+    -- FIXME: Here, we implicitly rely on that `Simp.dsimp` registers simprocs as `pre`
+    let core' ← (Simp.dsimp #[``reduceStateLabelDomainCodomainDsimproc]) core
+    let core' ← (Simp.dsimp #[`nextSimp]) core'.expr
     let core' ← do
       let simps := #[`invSimp, `smtSimp]
       -- let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)

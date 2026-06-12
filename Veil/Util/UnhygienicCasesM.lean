@@ -10,7 +10,7 @@ open Lean Meta Elab Tactic MVarId
 partial def casesMatching (matcher : Expr → MetaM (Option α))
     (altNames : α → MetaM (Array Name))
     (recursive := false) (allowSplit := true)
-    (throwOnNoMatch := true) (g : MVarId) : MetaM (List MVarId) := do
+    (throwOnNoMatch := true) (skipNames : Array Name := #[]) (g : MVarId) : MetaM (List MVarId) := do
   let result := (← go g).toList
   if throwOnNoMatch && result == [g] then
     throwError "no match"
@@ -22,6 +22,7 @@ where
     g.withContext do
       for ldecl in ← getLCtx do
         if ldecl.isImplementationDetail then continue
+        if skipNames.contains ldecl.userName then continue
         if let some info ← matcher ldecl.type then
           let mut acc := acc
           let subgoals ← if allowSplit then
@@ -49,7 +50,7 @@ where
           return acc
       return (acc.push g)
 
-def casesType (heads : Array Name) (recursive := false) (allowSplit := true) (throwOnNoMatch := true) :
+def casesType (heads : Array Name) (recursive := false) (allowSplit := true) (throwOnNoMatch := true) (skipNames : Array Name := #[]) :
     MVarId → MetaM (List MVarId) :=
   let matcher ty := pure <|
     if let .const n .. := ty.headBeta.getAppFn
@@ -59,12 +60,13 @@ def casesType (heads : Array Name) (recursive := false) (allowSplit := true) (th
   let altNames n : MetaM (Array Name) := do
     let .some sinfo := getStructureInfo? (← getEnv) n | return #[]
     pure sinfo.fieldNames
-  casesMatching matcher altNames recursive allowSplit throwOnNoMatch
+  casesMatching matcher altNames recursive allowSplit throwOnNoMatch skipNames
 
 /-- Common implementation of `cases_type` and `cases_type!`. -/
 def elabCasesType (heads : Array Ident)
-    (recursive := false) (allowSplit := true) (throwOnNoMatch := true) : TacticM Unit := do
+    (recursive := false) (allowSplit := true) (throwOnNoMatch := true)
+    (skipNames : Array Name := #[]) : TacticM Unit := do
   let heads ← heads.mapM (fun stx => realizeGlobalConstNoOverloadWithInfo stx)
-  liftMetaTactic (casesType heads recursive allowSplit throwOnNoMatch)
+  liftMetaTactic (casesType heads recursive allowSplit throwOnNoMatch skipNames)
 
 end Veil.Util

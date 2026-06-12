@@ -17,3 +17,11 @@ example (α : Type) (t : Theory α) (n : Nat) : 1 + n = n + 1 := by
   #check t.a
   #check t.b
   ac_rfl
+
+example (α : Type) (t keep : Theory α) (n : Nat) : 1 + n = n + 1 := by
+  veil_cases_type* Theory without [keep]
+  #check t.a
+  #check t.b
+  #check keep
+  have _ : Theory α := keep
+  ac_rfl

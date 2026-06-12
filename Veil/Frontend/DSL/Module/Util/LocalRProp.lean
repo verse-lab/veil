@@ -458,6 +458,110 @@ def Module.tryDefineLocalAbstractEqForStatePredicate (mod : Module) (nm : Name) 
 
 /-! ## Local VC Helper Theorem -/
 
+/-- Syntax bundle for one group of exposed state fields in a generated local VC
+helper theorem.
+
+The same state fields are needed in three related shapes: binders for the
+field-level local obligation, a structure literal for abstract transition/WP
+arguments, and a `rcases` pattern plus canonicalized arguments for destructing a
+concrete `getFrom` during the proof. -/
+private structure LocalVCStateFieldView where
+  binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  args : Array Ident
+  struct : Term
+  concArgs : Array Ident
+  pat : TSyntax `rcasesPat
+  coreArgs : Array Term
+
+/-- Shared syntax bundle for the generated WP/TR local VC helper theorems.
+
+This contains only the common plumbing: module parameters, the abstract
+theory/state types, theory-field exposure, core predicate types, and the RHS
+templates used by `hAssu`/`hPre`.  The WP/TR-specific premises and proof scripts
+remain in their own theorem generators. -/
+private structure LocalVCTheoremContext where
+  params : Array Parameter
+  binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  paramArgs : Array Term
+  abstractStateSortTerm : Term
+  abstractStateTypeTerm : Term
+  theoryTy : Term
+  assuCoreType : Term
+  stateCoreType : Term
+  theoryFieldBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  theoryFieldArgs : Array Ident
+  theoryStruct : Term
+  theoryFieldPat : TSyntax `rcasesPat
+  assuRhs : Term
+  preRhs : Term
+
+/-- One exposed state view for local VC helper theorems.
+
+`binderSuffix` names the fields quantified in the local obligation, while
+`concSuffix` names the fields produced by destructing a concrete `getFrom`.
+In field-representation mode, `coreArgs` canonicalizes those concrete fields
+with `FieldRepresentation.get`; otherwise they are the destructed fields. -/
+private def Module.mkLocalVCStateFieldView (mod : Module)
+    (binderSuffix concSuffix : String) : TermElabM LocalVCStateFieldView := do
+  let binders ← mod.mutableComponents.mapM fun (sc : StateComponent) => do
+    `(bracketedBinder| ($(Lean.mkIdent (appendNameSuffix sc.name binderSuffix)) : $(← sc.typeStx)))
+  let args := mod.mutableComponents.map fun (sc : StateComponent) =>
+    Lean.mkIdent (appendNameSuffix sc.name binderSuffix)
+  let struct ← `(term| ⟨$[$args],*⟩)
+  let concArgs := mod.mutableComponents.map fun sc =>
+    Lean.mkIdent (appendNameSuffix sc.name concSuffix)
+  let pat ← `(rcasesPat| ⟨$[$concArgs:ident],*⟩)
+  let coreArgs ← concArgs.mapM fun f =>
+    if mod._useFieldRepTC then
+      `(term| ($fieldRepresentation _).$(mkIdent `get) $f:ident)
+    else
+      pure f
+  pure { binders, args, struct, concArgs, pat, coreArgs }
+where
+  appendNameSuffix (n : Name) (suffix : String) : Name :=
+    if suffix == "" then n else n.appendAfter suffix
+
+/-- Shared syntax context for WP/TR local VC helper theorems.
+
+This deliberately stops before the payload-specific part: WP still owns its
+`hWp`/`pred` shape, and TR still owns its `hTr`/two-state shape.  The shared
+part is the stable plumbing: module binders, abstract-state type, theory field
+view, and the assumption/precondition core RHS templates. -/
+private def Module.mkLocalVCTheoremContext (mod : Module)
+    (assuCore preCore th st : Ident) : TermElabM LocalVCTheoremContext := do
+  let params := mod.parameters
+  let paramBinders ← params.mapM (·.binder)
+  -- The generated local helper theorems are applied by tactics using the
+  -- concrete VC pieces.  Keeping module parameters implicit avoids reflecting
+  -- over this prefix in every tactic.
+  let binders ← paramBinders.mapM mkImplicitBinder
+  let paramArgs ← params.mapM (·.arg)
+  let sortIdents ← mod.uninterpretedParamIdents
+  let abstractStateSortTerm ← `($fieldAbstractDispatcher $sortIdents*)
+  let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
+  let theoryTy ← `($theoryIdent $sortIdents*)
+  let prop ← `(term| Prop)
+  let theoryFieldTypes ← mod.immutableComponents.mapM (·.typeStx)
+  let stateFieldTypes ← mod.mutableComponents.mapM (·.typeStx)
+  let assuCoreType ← mkArrowStx theoryFieldTypes.toList (some prop)
+  let stateCoreType ← mkArrowStx (theoryFieldTypes ++ stateFieldTypes).toList (some prop)
+  let theoryFieldBinders ← mod.immutableComponents.mapM fun (sc : StateComponent) => do
+    `(bracketedBinder| ($(Lean.mkIdent sc.name) : $(← sc.typeStx)))
+  let theoryFieldArgs := mod.immutableComponents.map fun (sc : StateComponent) => Lean.mkIdent sc.name
+  let theoryStruct ← `(term| ⟨$[$theoryFieldArgs],*⟩)
+  let theoryFieldPat ← `(rcasesPat| ⟨$[$theoryFieldArgs:ident],*⟩)
+  let assuRhs ←
+    mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some prop) (fun theoryFields _ =>
+      `($assuCore $theoryFields*))
+  let preRhs ←
+    mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "_conc", st, true)] (some prop) (fun theoryFields stateFields =>
+      `($preCore $theoryFields* $stateFields*))
+  pure {
+    params, binders, paramArgs, abstractStateSortTerm, abstractStateTypeTerm,
+    theoryTy, assuCoreType, stateCoreType, theoryFieldBinders, theoryFieldArgs,
+    theoryStruct, theoryFieldPat, assuRhs, preRhs
+  }
+
 /-- Generate the hidden theorem used by the local WP tactic.
 
 The theorem keeps the public VC shape unchanged:
@@ -479,37 +583,28 @@ with the local/core goal.
 -/
 def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Module) :
     TermElabM Command := do
-  let params := mod.parameters
-  let paramBinders ← params.mapM (·.binder)
-  -- This theorem is only a generated bridge used by `veil_apply_local_wp`.
-  -- Keep module parameters implicit so the tactic can apply it by passing the
-  -- actual VC pieces, without reflecting over the theorem's module-prefix
-  -- binders. Typeclass binders stay typeclass binders.
-  let binders ← paramBinders.mapM mkImplicitBinder
-  let paramArgs ← params.mapM (·.arg)
-  let sortIdents ← mod.uninterpretedParamIdents
-  let abstractStateSortTerm ← `($fieldAbstractDispatcher $sortIdents*)
-  let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
-  let theoryTy ← `($theoryIdent $sortIdents*)
   let [mode, act, assu, pre, post, pred, postLocal, assuCore, preCore,
     hAssu, hPre, hWp, hLocal, handler, u, th, st, thAbs, stAbs, hpre] :=
     [`mode, `act, `assu, `pre, `post, `pred, `localRPropTC, `assuCore, `preCore,
       `hAssu, `hPre, `hWp, `hLocal, `handler, `u, `th, `st, `th_abs, `st_abs, `hpre].map mkVeilImplementationDetailIdent
     | unreachable!
-  let theoryFieldTypes ← mod.immutableComponents.mapM (·.typeStx)
-  let stateFieldTypes ← mod.mutableComponents.mapM (·.typeStx)
-  let assuCoreType ← mkArrowStx theoryFieldTypes.toList (← `(term| Prop))
-  let stateCoreType ← mkArrowStx (theoryFieldTypes ++ stateFieldTypes).toList (← `(term| Prop))
+  let ctx ← mod.mkLocalVCTheoremContext assuCore preCore th st
+  let stateView ← mod.mkLocalVCStateFieldView "" "_conc"
+  let {
+    params := _, binders, paramArgs, abstractStateSortTerm,
+    abstractStateTypeTerm, theoryTy, assuCoreType, stateCoreType,
+    theoryFieldBinders, theoryFieldArgs, theoryStruct, theoryFieldPat,
+    assuRhs, preRhs
+  } := ctx
+  let {
+    binders := stateFieldBinders, args := stateFieldArgs,
+    struct := stateStruct, concArgs := _, pat := stateFieldPat,
+    coreArgs := stateCoreArgs
+  } := stateView
   let predTy ← do
     let intToProp ← `($(mkIdent ``Int) → Prop)
     let veilSpecMUnit ← `($(mkIdent ``VeilSpecM) $theoryTy $abstractStateTypeTerm $(mkIdent ``Unit))
     `($intToProp → $veilSpecMUnit)
-  let theoryFieldBinders ← mod.immutableComponents.mapM fun (sc : StateComponent) => do
-    `(bracketedBinder| ($(Lean.mkIdent sc.name) : $(← sc.typeStx)))
-  let stateFieldBinders ← mod.mutableComponents.mapM fun (sc : StateComponent) => do
-    `(bracketedBinder| ($(Lean.mkIdent sc.name) : $(← sc.typeStx)))
-  let theoryFieldArgs := mod.immutableComponents.map fun (sc : StateComponent) => Lean.mkIdent sc.name
-  let stateFieldArgs := mod.mutableComponents.map fun (sc : StateComponent) => Lean.mkIdent sc.name
   -- This is the post term used by `wp_local_eq`: the concrete `post` is
   -- evaluated through its `LocalRProp.core` on abstract-state fields.
   let postLocalTerm ← do
@@ -523,8 +618,6 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
       (considerFieldRepTC := false)
     `(term| fun $u $thAbs $stAbs => $body)
   let trueHandler ← `(term| fun _ => $(mkIdent ``True))
-  let theoryStruct ← `(term| ⟨$[$theoryFieldArgs],*⟩)
-  let stateStruct ← `(term| ⟨$[$stateFieldArgs],*⟩)
   let hLocalType ← do
     -- `hLocal` is the obligation the tactic should leave behind after applying
     -- this theorem: fields are exposed, assumptions/preconditions are cores,
@@ -539,32 +632,9 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
       pure body
     else
       `(term| ∀ $fieldBinders*, $body)
-  let assuRhs ←
-    mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some (← `(term| Prop))) (fun theoryFields _ =>
-      `($assuCore $theoryFields*))
-  let preRhs ←
-    mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "_conc", st, true)] (some (← `(term| Prop))) (fun theoryFields stateFields =>
-      `($preCore $theoryFields* $stateFields*))
   -- The abstract state on the RHS of `wp_local_eq`, built the same way as the
   -- action-side `declareTransitionWeakeningLemma`.
   let absSt ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $st)) abstractStateSortTerm
-  -- The generated proof below explicitly destructs the current reader/state.
-  -- These patterns name the exposed fields so the last `exact` can apply the
-  -- field-core premise without relying on generated names from `cases`.
-  let theoryFieldPat ←
-    `(rcasesPat| ⟨$[$theoryFieldArgs:ident],*⟩)
-  let stateFieldConcArgs := mod.mutableComponents.map fun sc =>
-    Lean.mkIdent (sc.name.appendAfter "_conc")
-  let stateFieldPat ←
-    `(rcasesPat| ⟨$[$stateFieldConcArgs:ident],*⟩)
-  let stateCoreArgs ← stateFieldConcArgs.mapM fun f =>
-    if mod._useFieldRepTC then
-      -- The RHS generated by `withTheoryAndStateTermTemplate` canonicalizes
-      -- concrete fields with `FieldRepresentation.get`; use the same spelling
-      -- when applying `hLocal`.
-      `(term| ($fieldRepresentation _).$(mkIdent `get) $f:ident)
-    else
-      pure f
   let hLocalArgs := theoryFieldArgs ++ stateCoreArgs
   let hTh := mkVeilImplementationDetailIdent `hth
   let hSt := mkVeilImplementationDetailIdent `hst
@@ -611,6 +681,131 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
       -- representation lets before applying the field-core obligation.
       dsimp at $hpre:ident ⊢
       exact $hLocal $hLocalArgs* ($(mkIdent ``And.left) $hpre) ($(mkIdent ``And.right) $hpre))
+
+/-- Generate the hidden theorem used by the local TR tactic.
+
+This is the transition analogue of
+`__veil_meetsSpecificationIfSuccessfulAssuming_local`.  It keeps the public TR
+VC shape unchanged:
+
+```lean
+tr.meetsSpecificationIfSuccessfulAssuming assu pre post
+```
+
+but changes the proof obligation into a field-exposed one.  The assumptions and
+precondition still use the same `core_simplified` equalities as the WP helper;
+the WP equality premise is replaced by `hTr`, which connects the concrete
+transition to an abstract-state transition predicate.  This first version is
+intentionally copied from the WP helper instead of factored, so the two theorem
+shapes can be inspected side by side while the TR tactic is being developed. -/
+def Module.defineTransitionMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Module) :
+    TermElabM Command := do
+  let [tr, assu, pre, post, trAbs, postLocal, assuCore, preCore,
+    hAssu, hPre, hTr, hLocal, th, st, stNext, hpre, htr, htrAbs] :=
+    [`tr, `assu, `pre, `post, `trAbs, `localRPropTC, `assuCore, `preCore,
+      `hAssu, `hPre, `hTr, `hLocal, `th, `st, `st_next, `hpre, `htr, `htr_abs].map mkVeilImplementationDetailIdent
+    | unreachable!
+  let ctx ← mod.mkLocalVCTheoremContext assuCore preCore th st
+  let preStateView ← mod.mkLocalVCStateFieldView "_pre" "_pre_conc"
+  let postStateView ← mod.mkLocalVCStateFieldView "_post" "_post_conc"
+  let {
+    params := _, binders, paramArgs, abstractStateSortTerm,
+    abstractStateTypeTerm, theoryTy, assuCoreType, stateCoreType,
+    theoryFieldBinders, theoryFieldArgs, theoryStruct, theoryFieldPat,
+    assuRhs, preRhs
+  } := ctx
+  let {
+    binders := preStateFieldBinders, args := preStateFieldArgs,
+    struct := preStateStruct, concArgs := _, pat := preStateFieldPat,
+    coreArgs := preStateCoreArgs
+  } := preStateView
+  let {
+    binders := postStateFieldBinders, args := postStateFieldArgs,
+    struct := postStateStruct, concArgs := _, pat := postStateFieldPat,
+    coreArgs := postStateCoreArgs
+  } := postStateView
+  let hLocalType ← do
+    -- This is the TR-side local obligation: after fields are exposed, the user
+    -- receives core assumptions, a core precondition, and the abstract
+    -- transition fact, and must prove the postcondition core on the next state.
+    let has := mkIdent `has ; let hinv := mkIdent `hinv
+    let postLocalCore ← `($postLocal.$(mkIdent `core))
+    let body ← `(term|
+      ∀ ($has : $assuCore $theoryFieldArgs*)
+        ($hinv : $preCore $theoryFieldArgs* $preStateFieldArgs*)
+        ($htrAbs : $trAbs $theoryStruct $preStateStruct $postStateStruct),
+      $postLocalCore $theoryFieldArgs* $postStateFieldArgs*)
+    let fieldBinders := theoryFieldBinders ++ preStateFieldBinders ++ postStateFieldBinders
+    if fieldBinders.isEmpty then
+      pure body
+    else
+      `(term| ∀ $fieldBinders*, $body)
+  -- `hTr` talks about the same abstract-state view that `tr_abstract` uses:
+  -- read the theory from `th`, abstract the current state, and abstract the
+  -- next state.
+  let absSt ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $st)) abstractStateSortTerm
+  let absStNext ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $stNext)) abstractStateSortTerm
+  let hLocalArgs := theoryFieldArgs ++ preStateCoreArgs ++ postStateCoreArgs
+  let postLocalCoreEq ← do
+    let coreEq ← `($postLocal.$(mkIdent `core_eq))
+    `($coreEq $th $stNext)
+  let postLocalCoreEqRule ← `(Lean.Parser.Tactic.rwRule| $postLocalCoreEq:term)
+  let hTh := mkVeilImplementationDetailIdent `hth
+  let hSt := mkVeilImplementationDetailIdent `hst
+  let hStNext := mkVeilImplementationDetailIdent `hst_next
+  `(command|
+    theorem $localTransitionMeetsSpecificationIfSuccessfulAssuming $[$binders]*
+        {$tr : $(mkIdent ``Transition) $environmentTheory $environmentState}
+        {$assu : $environmentTheory → Prop}
+        {$pre : $(mkIdent ``SProp) $environmentTheory $environmentState}
+        {$post : $(mkIdent ``SProp) $environmentTheory $environmentState}
+        [$postLocal : @$localRPropTC $paramArgs* $post]
+        {$trAbs : $(mkIdent ``Transition) $theoryTy $abstractStateTypeTerm}
+        ($assuCore : $assuCoreType)
+        ($preCore : $stateCoreType)
+        ($hAssu : ∀ ($th : $environmentTheory), $assu $th = $assuRhs)
+        ($hPre : ∀ ($th : $environmentTheory) ($st : $environmentState), $pre $th $st = $preRhs)
+        ($hTr : ∀ ($th : $environmentTheory) ($st : $environmentState) ($stNext : $environmentState),
+          $tr $th $st $stNext →
+            $trAbs ($(mkIdent ``readFrom) $th) $absSt $absStNext)
+        ($hLocal : $hLocalType) :
+        $(mkIdent ``Transition.meetsSpecificationIfSuccessfulAssuming)
+          $tr
+          $assu
+          $pre
+          $post := by
+      unfold $(mkIdent ``Transition.meetsSpecificationIfSuccessfulAssuming)
+        $(mkIdent ``Transition.meetsSpecificationIfSuccessful)
+        $(mkIdent ``Transition.triple)
+      intro $th:ident $st:ident $stNext:ident $hpre:ident $htr:ident
+      have $htrAbs:ident := $hTr:ident $th:ident $st:ident $stNext:ident $htr:ident
+      rw [$hAssu:ident $th:ident, $hPre:ident $th:ident $st:ident] at $hpre:ident
+      -- Unlike the WP helper, the TR goal still has the public postcondition
+      -- as its conclusion.  Rewrite it through the supplied `LocalRProp`
+      -- instance before exposing the next-state fields.
+      rw [$postLocalCoreEqRule]
+      -- Expose theory, pre-state, and post-state fields.  This is the TR
+      -- version of the theorem-level concretization step used by the WP helper.
+      unhygienic rcases $hTh:ident : $(mkIdent ``readFrom) $th:ident with $theoryFieldPat
+      unhygienic rcases $hSt:ident : $(mkIdent ``getFrom) $st:ident with $preStateFieldPat
+      unhygienic rcases $hStNext:ident : $(mkIdent ``getFrom) $stNext:ident with $postStateFieldPat
+      -- Clean up the abstract-transition hypothesis and the core precondition
+      -- after the `rcases` equations.  These are `try` rewrites for the same
+      -- reason as in the WP helper: `rcases` may already have rewritten some
+      -- occurrences.
+      try rw [$hTh:ident] at $hpre:ident
+      try rw [$hTh:ident] at $htrAbs:ident
+      try rw [$hTh:ident]
+      try rw [$hSt:ident] at $hpre:ident
+      try rw [$hSt:ident] at $htrAbs:ident
+      try rw [$hSt:ident]
+      try rw [$hStNext:ident] at $htrAbs:ident
+      try rw [$hStNext:ident]
+      dsimp at $hpre:ident $htrAbs:ident ⊢
+      exact $hLocal $hLocalArgs*
+        ($(mkIdent ``And.left) $hpre)
+        ($(mkIdent ``And.right) $hpre)
+        $htrAbs)
 
 /-! ## Instance Registration -/
 
@@ -662,8 +857,8 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
     let inst ← synthInstance instType
     let core ← mkProjection inst `core
     -- Step 2: simplify the `core` field
-    -- NOTE: can do more `simp` here, can do less `dsimp` here
-    let core' ← (Simp.dsimp #[`nextSimp]) core
+    let core' ← (Simp.dsimp #[``reduceStateLabelDomainCodomainDsimproc]) core
+    let core' ← (Simp.dsimp #[`nextSimp]) core'.expr
     let core' ← do
       let simps := #[`invSimp, `smtSimp]
       -- let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)

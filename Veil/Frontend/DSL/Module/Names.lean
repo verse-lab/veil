@@ -157,4 +157,9 @@ def localMeetsSpecificationIfSuccessfulAssumingName : Name :=
 def localMeetsSpecificationIfSuccessfulAssuming : Ident :=
   mkIdent localMeetsSpecificationIfSuccessfulAssumingName
 
+def localTransitionMeetsSpecificationIfSuccessfulAssumingName : Name :=
+  mkVeilImplementationDetailName `transition_meetsSpecificationIfSuccessfulAssuming_local
+def localTransitionMeetsSpecificationIfSuccessfulAssuming : Ident :=
+  mkIdent localTransitionMeetsSpecificationIfSuccessfulAssumingName
+
 end Veil

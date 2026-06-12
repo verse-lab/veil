@@ -32,7 +32,7 @@ error: Initialization must establish the invariant:
         Theory:
 
         Pre-state:
-          r = []
+          r = [0]
         Action: initializer
         Post-state:
           r = [0]
