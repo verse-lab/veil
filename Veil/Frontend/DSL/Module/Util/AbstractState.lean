@@ -33,19 +33,46 @@ def Module.getAbstractStateRelated (mod : Module) (stateType : Expr) : TermElabM
   let abstractStateTypeExpr := mkApp stateType.getAppFn' abstractStateSortExpr
   pure (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr)
 
+/-- Parameters that are introduced only to quantify over a concrete
+theory/state/field-representation environment.
+
+When a generated artifact has already been specialized to the module's
+abstract state, these parameters should usually disappear from the saved
+definition/theorem interface; keeping them around exposes irrelevant plumbing
+such as `ρ`, `σ`, `χ`, `IsSubStateOf`, `IsSubReaderOf`, and field
+representation instances. -/
+def isAbstractStateLocalParam (p : Parameter) : Bool :=
+  match p.kind with
+  | .backgroundTheory | .environmentState | .fieldConcreteType => true
+  | .moduleTypeclass .fieldRepresentation
+  | .moduleTypeclass .lawfulFieldRepresentation
+  | .moduleTypeclass .environmentState
+  | .moduleTypeclass .backgroundTheory => true
+  | _ => false
+
+/-- Filter an argument array using the corresponding `Parameter` metadata. -/
+def filterArgsByParams [Monad m] (params : Array Parameter) (args : Array α)
+    (keep : Parameter → α → m Bool) : m (Array α) := do
+  let args ← params.zipWithM (bs := args) fun p arg => do
+    if ← keep p arg then pure (some arg) else pure none
+  pure <| args.filterMap id
+
 private def isDecidableType (ty : Expr) : Bool :=
   ty.getForallBody.getAppFn'.isConstOf ``Decidable
+
+def isDecidableDefParameter (p : Parameter) (v : Expr) : MetaM Bool := do
+  match p.kind with
+  | .definitionParameter _ .typeclass =>
+    let ty ← inferType v
+    pure <| isDecidableType ty
+  | _ => pure false
 
 def specializeArgForStateχ (p : Parameter) (v theoryType stateType : Expr) : TermElabM (Option Expr) := do
   match p.kind with
   | .backgroundTheory => pure <| some theoryType        -- NOTE: Without this, there seems to be some unification issue
   | .environmentState => pure <| some stateType
   | .moduleTypeclass .backgroundTheory | .moduleTypeclass .environmentState => pure none
-  | .definitionParameter _ .typeclass =>
-    -- If `v` is a `Decidable`, then skip
-    let ty ← inferType v
-    if isDecidableType ty then pure none else pure <| some v
-  | _ => pure <| some v
+  | _ => if ← isDecidableDefParameter p v then pure none else pure <| some v
 
 def specializeArgsForStateχ (params : Array Parameter) (args : Array Expr)
     (theoryType stateType : Expr) : TermElabM (Array (Option Expr)) := do
@@ -64,11 +91,7 @@ def specializeArgForStateAbstract (p : Parameter) (v theoryType abstractStateTyp
   | .moduleTypeclass .lawfulFieldRepresentation
   | .moduleTypeclass .backgroundTheory
   | .moduleTypeclass .environmentState => pure none
-  | .definitionParameter _ .typeclass =>
-    -- If `v` is a `Decidable`, then skip
-    let ty ← inferType v
-    if isDecidableType ty then pure none else pure <| some v
-  | _ => pure <| some v
+  | _ => if ← isDecidableDefParameter p v then pure none else pure <| some v
 
 def specializeArgsForStateAbstract (params : Array Parameter) (args : Array Expr)
     (theoryType abstractStateTypeExpr abstractStateSortExpr : Expr) : TermElabM (Array (Option Expr)) := do

@@ -70,5 +70,6 @@ attribute [smtSimp] Bool.ite_eq_true_distrib Bool.ite_eq_false_distrib
   Bool.ite_eq_false beq_iff_eq bne_iff_ne beq_eq_false_iff_ne BEq.rfl
   Bool.and_eq_true Bool.or_eq_true
 
+attribute [smtSimp] and_true true_and
 
 end Veil

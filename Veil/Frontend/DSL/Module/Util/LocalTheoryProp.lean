@@ -48,7 +48,7 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
     `(command| class $localTheoryPropTC $[$binders]* where
       $core:ident : $coreType
       $core_eq:ident : $coreEqType)
-  let cmd2 ← `(command| attribute [$(mkIdent `wpSimp):ident] $(mkIdent <| localTheoryPropTCName ++ `core):ident)
+  let cmd2 ← `(command| attribute [$(mkIdent `nextSimp):ident] $(mkIdent <| localTheoryPropTCName ++ `core):ident)
   let cmdTrue ← do
     let implBinders ← paramBinders.mapM mkImplicitBinder
     let args ← params.mapM (·.arg)
@@ -376,12 +376,12 @@ def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Un
     -- Keep this intentionally modest: unfold the typeclass projection and the
     -- assembled conjunction, then use the same logical simp sets as the state
     -- core path.
-    let core' ← (Simp.dsimp #[localTheoryPropTCName ++ `core, `nextSimp]) core
+    let core' ← (Simp.dsimp #[`nextSimp]) core
     let core' ← do
-      let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
       let simps := #[`invSimp, `smtSimp]
-      let simps := if unfoldghostRel? then simps.push `ghostRelSimp else simps
-      (Simp.simp simps) core'.expr
+      -- let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
+      -- let simps := if unfoldghostRel? then simps.push `ghostRelSimp else simps
+      (evalOpenClassical ∘ Simp.simp simps) core'.expr
     let coreSimplifiedFqn ← do
       let e ← instantiateMVars $ ← mkLambdaFVars vs core'.expr
       addVeilDefinition (toCoreSimplifiedName nm) e

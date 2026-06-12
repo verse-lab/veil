@@ -31,6 +31,7 @@ def toWpSuccName (n : Name) : Name := n ++ `wpSucc
 def toWpSuccEqName (n : Name) : Name := n ++ `wpSucc_eq
 def toWpExName (n : Name) : Name := n ++ `wpEx
 def toWpExEqName (n : Name) : Name := n ++ `wpEx_eq
+def toWpEqLocalName (n : Name) : Name := toWpEqName n ++ `local
 
 def toTransitionName (n : Name) : Name := n ++ `tr
 def toTransitionEqName (n : Name) : Name := n ++ `tr_eq_wpSucc
@@ -41,6 +42,7 @@ def toExQuantifiedTransitionEqName (n : Name) : Name := n ++ `exTr_eq
 -- def toEndToEndEqName (n : Name) : Name := n ++ `twoState_eq
 
 def toWpLocalEqName (n : Name) : Name := n ++ `wp_local_eq
+def toWpLocalPredName (n : Name) : Name := toWpLocalEqName n ++ `pred
 def toLocalAbstractEqName (n : Name) : Name := n ++ `local_abstract_eq
 
 def toCoreSimplifiedName (n : Name) : Name := n ++ `core_simplified

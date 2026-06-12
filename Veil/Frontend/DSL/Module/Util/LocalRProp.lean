@@ -52,7 +52,7 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
     `(command| class $localRPropTC $[$binders]* where
       $core:ident : $coreType
       $core_eq:ident : $coreEqType)
-  let cmd2 ← `(command| attribute [$(mkIdent `wpSimp):ident] $(mkIdent <| localRPropTCName ++ `core):ident)
+  let cmd2 ← `(command| attribute [$(mkIdent `nextSimp):ident] $(mkIdent <| localRPropTCName ++ `core):ident)
   -- Instance for composing `LocalRProp` over `∧`:
   -- Given `[LocalRProp p]` and `[LocalRProp q]`, derive `LocalRProp (fun th st => p th st ∧ q th st)`.
   -- This allows `Invariants` (a conjunction) to automatically get a `LocalRProp` instance.
@@ -663,12 +663,12 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
     let core ← mkProjection inst `core
     -- Step 2: simplify the `core` field
     -- NOTE: can do more `simp` here, can do less `dsimp` here
-    let core' ← (Simp.dsimp #[`LocalRProp.core, `nextSimp]) core
+    let core' ← (Simp.dsimp #[`nextSimp]) core
     let core' ← do
-      let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
       let simps := #[`invSimp, `smtSimp]
-      let simps := if unfoldghostRel? then simps.push `ghostRelSimp else simps
-      (Simp.simp simps) core'.expr
+      -- let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
+      -- let simps := if unfoldghostRel? then simps.push `ghostRelSimp else simps
+      (evalOpenClassical ∘ Simp.simp simps) core'.expr
     -- Step 3: save simplified core as a definition
     let coreSimplifiedFqn ← do
       let e ← instantiateMVars $ ← mkLambdaFVars vs core'.expr

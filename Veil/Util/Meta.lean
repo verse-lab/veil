@@ -649,6 +649,16 @@ def evalOpen (decl : TSyntax `Lean.Parser.Command.openDecl) (k : MetaM α) : Met
   finally
     popScope
 
+-- NOTE: The uses of `open Classical` below is mainly for allowing
+-- rewriting based simplification where the target term is depended by
+-- instances like `Decidable`. For the whole term after rewriting to
+-- typecheck, these instances need to be reconstructed, which might
+-- fail due to unknown reasons. By opening `Classical`, we provide
+-- default instances for `Decidable`, so the reconstruction will
+-- always succeed. This is a bit of a hack, but it works for now.
+def evalOpenClassical (k : MetaM α) : MetaM α := do
+  evalOpen (← `(Parser.Command.openDecl| $(mkIdent `Classical):ident)) k
+
 /-- Returns `(fun $binders* => $body)`, but takes care of the case
 where `binders` is empty. -/
 def mkFunSyntax [Monad m] [MonadQuotation m] (binders : TSyntaxArray `Lean.Parser.Term.funBinder) (body : TSyntax `term) : m (TSyntax `term) := do

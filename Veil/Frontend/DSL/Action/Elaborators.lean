@@ -128,16 +128,6 @@ private def simpGetSetForFieldRepTC (ctx : Meta.Simp.Context) : TermElabM Meta.S
     pure (stx, name)
   elabSimpArgForTerms ctx simps
 
--- NOTE: The uses of `open Classical` below is mainly for allowing
--- rewriting based simplification where the target term is depended by
--- instances like `Decidable`. For the whole term after rewriting to
--- typecheck, these instances need to be reconstructed, which might
--- fail due to unknown reasons. By opening `Classical`, we provide
--- default instances for `Decidable`, so the reconstruction will
--- always succeed. This is a bit of a hack, but it works for now.
-private def evalOpenClassical (k : MetaM α) : MetaM α := do
-  evalOpen (← `(Parser.Command.openDecl| $(mkIdent `Classical):ident)) k
-
 private def simplifierGetSetForFieldRepTC : TermElabM Simplifier := do
   let ctx ← mkVeilSimpCtx #[]
   let ctx' ← simpGetSetForFieldRepTC ctx
@@ -282,8 +272,7 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
         instantiateMVars $ ← mkLambdaFVars fvars pf
       trace[veil.debug] "final eq statement: {eqStatement}"
       let _ ← do
-        let attr ← elabAttr $ ← `(Parser.Term.attrInstance| wpLOSimp ↓ )
-        addVeilTheorem (toWpLocalEqName nm) eqStatement eqProof (attr := #[attr])
+        addVeilTheorem (toWpLocalEqName nm) eqStatement eqProof
 where
   /-- Simplify using the locally assumed `LocalRProp` instance for `post` *only*. -/
   buildLocalRPropSimp : TermElabM Simplifier := do
@@ -347,7 +336,12 @@ where
     `(fun $uIdent $thIdent $stIdent => $step3PostBody)
   /-- Step 3: Construct the target at abstract field types using
   `withTheoryAndStateTermTemplate`, then prove equality by simplifying
-  the Step 2 result with `dsimp -zeta` + `get_set_idempotent'`. -/
+  the Step 2 result with `dsimp -zeta` + `get_set_idempotent'`.
+
+  The final target is not left as the raw abstract `act.ext.wp`.  We define
+  `act.ext.wp_local_eq.pred`, the stable simplified abstract WP predicate, and
+  return the corresponding application.  The proof stored in `wp_local_eq`
+  itself is the only equality proof connecting the raw WP to this predicate. -/
   eliminateFieldRep (source proof : Expr) (nm : Name)
       (allParams : Array Parameter)
       (theoryType stateType : Expr)
@@ -393,7 +387,83 @@ where
         -- `pf2 : step3SimpResult.expr = step3Target`
         mkEqTrans pf1 pf2
     let proof ← mkEqTrans proof subproof
-    return (step3Target, proof)
+
+    -- Build a generic version of the abstract WP target and simplify it once.
+    -- `step3Target` above is the specialization of this generic expression to
+    -- the concrete `handler`, `LocalRProp.core` postcondition, `readFrom r`,
+    -- and abstracted `getFrom s`.
+    let postTy ← mkArrowN #[mkConst ``Unit, theoryType, abstractStateTypeExpr] (mkSort .zero)
+    let pName := mkVeilImplementationDetailName `post
+    let thName := mkVeilImplementationDetailName `th
+    let stName := mkVeilImplementationDetailName `st
+    withLocalDeclsDND #[(pName, postTy), (thName, theoryType), (stName, abstractStateTypeExpr)] fun xs => do
+      let genericTarget ← Tactic.classical <|
+        mkAppOptM wpDef_fqn <| step3AllArgs ++ #[some handler] ++ xs.map some
+      let finalSimp : Simplifier :=
+        Simp.unfold #[wpDef_fqn]
+          |>.andThen (Simp.dsimp #[`nextSimp])
+          |>.andThen (evalOpenClassical ∘ Simp.simp #[`invSimp, `smtSimp])
+          |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
+      let genericResult ← finalSimp genericTarget
+      let predArgs ← filterArgsByParams allParams vs fun p v => do
+        pure <| !(isAbstractStateLocalParam p) && !(← isDecidableDefParameter p v)
+      -- The saved local predicate is already specialized to the abstract
+      -- theory/state world.  Do not quantify over concrete plumbing parameters
+      -- such as `ρ`, `σ`, `χ`, substate/subreader instances, or field
+      -- representation instances.  Decidable extra parameters are also
+      -- dropped because their propositions may still mention the concrete
+      -- field-representation variables; the neutralized simplified body should
+      -- not retain them as predicate arguments.
+      -- NOTE: I have no idea why there can be mvars, but anyway ...
+      let predExpr ← mkLambdaFVars (predArgs ++ #[handler] ++ xs) genericResult.expr >>= instantiateMVars
+      /-
+      trace[veil.debug] "defining local predicate {toWpLocalPredName nm} with body {predExpr}"
+      if predExpr.hasFVar then
+        let fvars := collectFVars {} predExpr
+        throwError m!"predExpr has unexpected free variables: {← fvars.fvarSet.toList.mapM (·.getUserName)}"
+      -/
+      let predFqn ← addVeilDefinition (toWpLocalPredName nm) predExpr (attr := #[{name := `reducible}])
+      let predAppGeneric ← mkAppOptM predFqn (predArgs.map some ++ #[some handler] ++ xs.map some)
+      -- Store the abstract-state simplification proof as a named theorem.
+      -- `wp_local_eq` and transition abstraction both need this equality; using
+      -- the theorem keeps the generated proof terms from duplicating the full
+      -- simplifier proof.
+      let localEqBaseArgs := predArgs ++ #[handler] ++ xs
+      let localEqBaseArgIds := FVarIdSet.ofArray <| localEqBaseArgs.map (·.fvarId!)
+      let genericTargetFVarIds := (collectFVars {} genericTarget).fvarIds
+      let localEqExtraArgs := genericTargetFVarIds.filterMap fun id =>
+        if localEqBaseArgIds.contains id then none else some (mkFVar id)
+      -- WORKAROUND: `genericTarget` is elaborated in a context where some
+      -- outer generated `Decidable` instances may survive as free variables
+      -- even after `Tactic.classical`.  The intended `.wp_eq.local` theorem is
+      -- currently used only by transition weakening rewrites, so keep `.pred`'s
+      -- interface clean and quantify these leftover variables only on the
+      -- equality theorem.  This relies on the current invariant that
+      -- `step3AllArgs` has already specialized away concrete field
+      -- representation plumbing, so the extra free variables here should just
+      -- be directly retained generated `Decidable` instance variables.
+      let localEqArgs := localEqBaseArgs ++ localEqExtraArgs
+      let localEqStatement ← mkForallFVars localEqArgs (← mkEq genericTarget predAppGeneric) >>= instantiateMVars
+      let localEqProof ← mkLambdaFVars localEqArgs (← genericResult.getProof) >>= instantiateMVars
+      /-
+      trace[veil.debug] "defining local equality theorem {toWpLocalEqName nm} with statement {localEqStatement} and proof {localEqProof}"
+      if localEqStatement.hasFVar then
+        let fvars := collectFVars {} localEqStatement
+        throwError m!"wp_local_eq step 3 (eliminate field rep) failed for {nm} because the local equality localEqStatement has unexpected free variables: {← fvars.fvarSet.toList.mapM (·.getUserName)}"
+      if localEqProof.hasFVar then
+        let fvars := collectFVars {} localEqProof
+        throwError m!"wp_local_eq step 3 (eliminate field rep) failed for {nm} because the local equality proof has unexpected free variables: {← fvars.fvarSet.toList.mapM (·.getUserName)}"
+      -/
+      let localEqFqn ← addVeilTheorem (toWpEqLocalName nm) localEqStatement localEqProof
+      let predApp ← mkAppOptM predFqn (predArgs.map some ++
+        #[some handler, some step3Post, some readFromArg, some step3PreState])
+      -- Connect Step 3 to the saved predicate through the named theorem, not by
+      -- inlining the raw `genericResult` proof.
+      let localEqProof ← mkAppOptM localEqFqn (predArgs.map some ++
+        #[some handler, some step3Post, some readFromArg, some step3PreState] ++
+        localEqExtraArgs.map some)
+      let proof ← mkEqTrans proof localEqProof
+      return (predApp, proof)
 
 /-- **Pre-compute** the `wp` for the given action, store it in the `act.wp`
 definition, and prove `act.wp_eq` which states that this definition is equal to
@@ -539,7 +609,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
   let params := mod.parameters
   let paramBinders ← params.mapM (·.binder)
   let paramArgs ← params.mapM (·.arg)
-  let polyParams := params.filter isPolyParam
+  let polyParams := params.filter isAbstractStateLocalParam
   let polyBinders ← polyParams.mapM (·.binder)
   let polyArgs ← polyParams.mapM (·.arg)
 
@@ -661,14 +731,6 @@ where
       -- not have correct type under different specialized types
       | .moduleTypeclass _ | .definitionParameter _ .typeclass => hole
       | _ => arg
-  isPolyParam (p : Parameter) : Bool :=
-    match p.kind with
-    | .backgroundTheory | .environmentState | .fieldConcreteType => true
-    | .moduleTypeclass .fieldRepresentation
-    | .moduleTypeclass .lawfulFieldRepresentation
-    | .moduleTypeclass .environmentState
-    | .moduleTypeclass .backgroundTheory => true
-    | _ => false
 
 open Meta AuxiliaryDefinitions in
 /-- For an action's `.ext.tr`, generate a theorem:
@@ -711,7 +773,7 @@ private def defineTransitionAbstract (mod : Module) (nm : Name) (dk : Declaratio
 
       let proof ←
         if notFromTransition? then
-          proveViaTransitionWeakeningLemma sourceImpTarget nm allParams allArgs abstractStateSortTerm rss
+          proveViaTransitionWeakeningLemma sourceImpTarget nm allParams vs allArgs abstractStateSortTerm rss
         else
           -- For "native transitions", the proof is much easier
           proveSourceImpliesTargetForNativeTransition sourceImpTarget trFqn nm
@@ -731,10 +793,11 @@ where
   /-- Prove `source → target` by applying the module's `_transitionWeakeningLemma`
   with the action's `derived_eq`, `wp_local_eq`, and `wp_eq` theorems. -/
   proveViaTransitionWeakeningLemma (goal : Expr) (nm : Name) (allParams : Array Parameter)
-    (allArgs : Array Term) (abstractStateSortTerm : Term) (rss : Array Expr) : TermElabM Expr := do
+    (allArgExprs : Array Expr) (allArgs : Array Term) (abstractStateSortTerm : Term)
+    (rss : Array Expr) : TermElabM Expr := do
     let modParams := mod.parameters
     let modArgs ← modParams.mapM (·.arg)
-    let polyParams := modParams.filter Module.declareTransitionWeakeningLemma.isPolyParam
+    let polyParams := modParams.filter isAbstractStateLocalParam
     let polyArgs : Array Term := polyParams.map fun x => mkIdent <| x.name.appendAfter "_"
     let polyFunBinders ← polyParams.mapM fun x => `(Lean.Parser.Term.funBinder| $(mkIdent <| x.name.appendAfter "_"):ident)
     let hole ← `(term| _)
@@ -749,15 +812,23 @@ where
     let actStx ← do
       let body ← `(@$(mkIdent nm) $specializedArgsForTrAndAct*)
       mkFunSyntax polyFunBinders body
+    let predArgs ← filterArgsByParams allParams (allArgs.zip allArgExprs) fun p (_, v) => do
+      pure <| !(isAbstractStateLocalParam p) && !(← isDecidableDefParameter p v)
+    let predArgs := predArgs.map (·.1)
     let predStx ← do
       let sortIdents ← mod.uninterpretedParamIdents
       let theoryTy ← `($theoryIdent $sortIdents*)
       let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
-      let specializedArgsForPred := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
-      `(@$(mkIdent <| toWpName nm) $specializedArgsForPred*)
+      if mod._useFieldRepTC then
+        `(@$(mkIdent <| toWpLocalPredName nm) $predArgs*)
+      else
+        -- FIXME: Will this work?
+        let specializedArgsForAbstract := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
+        `(@$(mkIdent <| toWpName nm) $specializedArgsForAbstract*)
     let derivedEqThm := toDerivedEqName nm
     let wpLocalEqThm := toWpLocalEqName nm
     let wpEqThm := toWpEqName nm
+    let wpEqLocalThm := toWpEqLocalName nm
     let [tr, act, pred, trDerivedEq, wpLocalEq, wpEq] :=
       [`tr, `act, `pred, `tr_derived_eq, `wp_local_eq, `wp_eq].map mkVeilImplementationDetailIdent
       | unreachable!
@@ -765,6 +836,15 @@ where
       let userName ← x.fvarId!.getUserName
       pure <| mkIdent userName
     let h := mkIdent `h
+    let wpEqProof ←
+      if mod._useFieldRepTC
+      -- `wp_eq` only rewrites to the raw abstract-state `act.ext.wp`.
+      -- Since `pred` is now the pre-simplified `.wp_local_eq.pred`, the
+      -- transition lemma must use the saved pointwise equality to that
+      -- predicate.
+      -- FIXME: This tactic might indicate that the design of transition weakening lemma is not good
+      then `(term| by intros ; rw [$(mkIdent wpEqThm):ident] ; (try funext _ _ ; rw [$(mkIdent wpEqLocalThm):ident]))
+      else `(term| by intros ; rw [$(mkIdent wpEqThm):ident])
     -- NOTE: Below, `h` is not `applied` because `__veil_neutralize_decidable_inst` might
     -- unexpectedly simplify away certain things. Also, using `__veil_neutralize_decidable_inst !`
     -- since the instances might not be fully applied
@@ -776,7 +856,7 @@ where
         ($pred := $predStx)
         ($trDerivedEq := by intros; rw [$(mkIdent derivedEqThm):ident])
         ($wpLocalEq := by intros; rw [$(mkIdent wpLocalEqThm):ident])
-        ($wpEq := by intros; rw [$(mkIdent wpEqThm):ident])
+        ($wpEq := $wpEqProof)
       __veil_neutralize_decidable_inst !
       exact $h
       )

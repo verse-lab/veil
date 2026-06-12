@@ -1026,6 +1026,16 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     [`has, `hinv]
   let (_, goal') ← goal'.introN introNames.length introNames
   replaceMainGoal [goal']
+  -- Finally, do some cleanup; now this is somehow like `unveil`
+  -- NOTE: `whnf` for unfolding `.wp_local_eq.pred`
+  let tac ← `(tacticSeq|
+    __veil_neutralize_decidable_inst
+    whnf
+    try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $(mkIdent `has):ident
+    try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $(mkIdent `hinv):ident
+    veil_dsimp only [ $(mkIdent `nextSimp):ident] at *
+    )
+  veilEvalTactic tac
 
 def elabVeilIntros : DesugarTacticM Unit := veilWithMainContext do
   let wpIntro ← `(tactic|intro $(mkIdent `th) $(mkIdent `st) ⟨$(mkIdent `has), $(mkIdent `hinv)⟩)
@@ -1114,15 +1124,9 @@ def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
 At this point the goal is already the field-exposed local/core obligation, so
 this path deliberately avoids the old concretization steps. -/
 def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
-  let simpBeforeConcretizeTac ← elabSimplifyBeforeConcretizeWp true false
-  -- FIXME: Register `LocalRProp.core` and `LocalTheoryProp.core` in `nextSimp`?
   let tac ← `(tacticSeq|
-    veil_dsimp only [$(mkIdent `wpSimp):ident]
-    veil_dsimp only [$(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident] at $(mkIdent `has):ident
-    veil_dsimp only [$(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident] at $(mkIdent `hinv):ident
-    veil_dsimp only [$(mkIdent `LocalRProp.core):ident, $(mkIdent `LocalTheoryProp.core):ident, $(mkIdent `nextSimp):ident] at *
-    __veil_neutralize_decidable_inst
-    ($simpBeforeConcretizeTac)
+    open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident]
+    veil_intro_ho
     veil_fol !
     veil_solve
     )
