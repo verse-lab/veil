@@ -234,8 +234,8 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
     (Name.mkSimple s!"{actName}_succeedsAndPreservesInvariants") vcKind
 
 /-- Generate a TR-style (transition-based) VC for checking if an action preserves
-an invariant clause. This is an alternative to the WP-style VC and only runs
-when the WP-style VC fails. -/
+an invariant clause. For ordinary actions this is the fallback VC; for actions
+defined with `transition`, this is the primary VC. -/
 private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadQuotation m]
     [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m]
     [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
@@ -284,22 +284,35 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
   -- Prepare all VC data outside the lock
   let vcData ← actsToCheck.foldlM (init := #[]) fun acc act => do
     let clauseVCs ← mod.checkableInvariants.foldlM (init := #[]) fun acc' invClause => do
+      let trPrimary := act.info.isTransition
       let wpVC ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name
-        act.declarationKind invClause.name InductionVCKind.primary
+        act.declarationKind invClause.name
+        (if trPrimary then InductionVCKind.alternative else InductionVCKind.primary)
       let trVC ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name
-        act.declarationKind invClause.name InductionVCKind.alternative
-      return acc'.push (act, wpVC, trVC)
+        act.declarationKind invClause.name
+        (if trPrimary then InductionVCKind.primary else InductionVCKind.alternative)
+      return acc'.push (act, wpVC, trVC, trPrimary)
     return acc ++ clauseVCs
   -- Add all VCs atomically
   Verifier.withVCManager fun ref => do
-    for (act, wpVC, trVC) in vcData do
+    for (act, wpVC, trVC, trPrimary) in vcData do
       let mgr ← ref.get
-      -- WP-style VC (primary)
-      let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
-      let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
-      -- TR-style VC (alternative) - only runs when WP-style VC fails
-      let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
-      let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+      let mgr ←
+        if trPrimary then do
+          -- Actions written in `transition` syntax should be proved in their
+          -- native two-state form first.  The WP VC still exists as the
+          -- fallback, but it no longer drives the normal path for these actions.
+          let (mgr, trVCId) := mgr.addVC trVC {} #[]
+          let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+          let (mgr, wpVCId) := mgr.addAlternativeVC wpVC trVCId #[]
+          mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+        else do
+          -- Ordinary actions keep the existing WP-first behavior.  TR remains a
+          -- fallback counterexample/proof route if the WP VC fails.
+          let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
+          let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+          let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
+          mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
       ref.set mgr
 
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/
