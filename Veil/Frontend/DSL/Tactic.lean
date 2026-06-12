@@ -1124,13 +1124,13 @@ def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
     __veil_neutralize_decidable_inst
     ($simpBeforeConcretizeTac)
     veil_fol !
-    veil_smt
+    veil_solve
     )
   veilEvalTactic tac
 
 /-- The conservative WP solver (the original approach without wp_local_eq). -/
 def elabVeilSolveWpConservative : DesugarTacticM Unit := veilWithMainContext do
-  let tac ← `(tactic| veil_wp; veil_concretize_wp; veil_fol; veil_smt)
+  let tac ← `(tactic| veil_wp; veil_concretize_wp; veil_fol; veil_solve)
   veilEvalTactic tac
 
 def elabVeilSolveWpDoesNotThrow : DesugarTacticM Unit := veilWithMainContext do
@@ -1139,7 +1139,7 @@ def elabVeilSolveWpDoesNotThrow : DesugarTacticM Unit := veilWithMainContext do
   veilWithMainContext do
     let simpleSolveTac ← `(tactic| veil_simp only
       [↓ $(mkIdent ``ite_self):ident, ↓ $(mkIdent ``implies_true):ident])
-    veilEvalTactic <| ← `(tactic| solve | $simpleSolveTac:tactic | veil_concretize_wp; veil_fol; veil_smt)
+    veilEvalTactic <| ← `(tactic| solve | $simpleSolveTac:tactic | veil_concretize_wp; veil_fol; veil_solve)
 
 /-- Try the local-WP path first; if applying the local bridge theorem fails,
 fall back to the conservative solver.
