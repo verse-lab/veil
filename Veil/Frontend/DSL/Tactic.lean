@@ -957,25 +957,12 @@ private def mkLocalPreconditionTactics (mod : Module) (theoryType stateType pre 
     -- field-level core directly instead of asking Lean to infer a shared
     -- definition's module/typeclass prefix while bridge theorem arguments are
     -- still metavariables.
-    let fieldNames := (mod.immutableComponents ++ mod.mutableComponents).map fun sc =>
-      mkIdent sc.name
-    let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
-      `(Lean.Parser.Term.funBinder| $f)
+    let hole ← `(Lean.Parser.Term.funBinder| _ )
+    let fieldBinders := Array.replicate (mod.immutableComponents.size + mod.mutableComponents.size) hole
     let truePreCore ← mkFunSyntax fieldBinders <| mkIdent ``True
     pure (some (← `(tactic| exact $truePreCore:term)), ← `(tactic| exact fun _ _ => $(mkIdent ``rfl)))
   else
     throwError "{tacticName}: expected precondition to be Invariants or True, got{indentExpr pre}"
-
-private def runLocalBridgeSideTactic (tacticName what : String)
-    (goal : MVarId) (tac : TSyntax `tactic) : DesugarTacticM Unit := do
-  modify fun s => s.push tac
-  try
-    let subgoals ← withoutRecover <| evalTacticAt tac goal
-    unless subgoals.isEmpty do
-      throwError "tactic produced subgoals"
-    pruneSolvedGoals
-  catch ex =>
-    throwError m!"{tacticName}: failed while closing {what}:{indentD ex.toMessageData}"
 
 /-- Implementation of `veil_apply_local_wp`; see the tactic syntax declaration
 for the user-facing behavior. -/
@@ -1007,39 +994,34 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_wp"
     pure (wpLocalEqName, preCoreTac?, hPreTac)
   let (wpLocalEqName, preCoreTac?, hPreTac) := localThmApp
-  -- NOTE: We intentionally use a lightly-applied `refine` here rather than building a
-  -- fully-instantiated theorem application.  On larger modules, constructing
-  -- the complete application forces Lean to elaborate huge VC terms all at once
-  -- and can blow up memory.  We also avoid probing the generated goals one by
-  -- one: these holes are introduced by the fixed theorem signature, so their
-  -- order is stable and we can close the side-conditions in sequence.
+  -- NOTE: We intentionally use a lightly-applied `refine` here rather than
+  -- building a fully-instantiated theorem application.  On larger modules,
+  -- constructing the complete application forces Lean to elaborate huge VC
+  -- terms all at once and can blow up memory.
   --
-  -- With `refine'`, the implicit `pred` argument is left as a natural goal.
-  -- Do not solve it directly: the `hWp` proof below rewrites by `wp_local_eq`,
-  -- and that unification determines `pred` to be the action's abstract WP.  The
-  -- initial goals are therefore, in order:
+  -- The bracketed `<;> [...]` block documents the fixed side-goal order
+  -- produced by the bridge theorem and keeps tactic desugaring readable.  The
+  -- implicit `pred` argument is left as a natural goal.  Do not solve it
+  -- directly: the `hWp` branch rewrites by `wp_local_eq`, and that unification
+  -- determines `pred` to be the action's abstract WP.  The initial goals are:
   -- `pred`, `assuCore`, `preCore`, `hAssu`, `hPre`, `hWp`, and `hLocal`.
-  -- This mirrors the hand-written proof: close `hAssu` first so it determines
-  -- `assuCore`; for initializer VCs provide the explicit `True` core before
-  -- `hPre`, while ordinary action VCs let `hPre` determine `preCore`; finally
-  -- close `hWp` so it determines `pred`.  `pruneSolvedGoals` removes the
-  -- metavariables solved by these equalities, leaving only the local/core
-  -- obligation.
-  veilEvalTactic $ ← `(tactic|
-    refine' $localMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_)
-  pruneSolvedGoals
-  let [_, _, preCoreGoal, hAssuGoal, hPreGoal, hWpGoal, _] ← getUnsolvedGoals
-    | throwError "veil_apply_local_wp: expected pred/assuCore/preCore/hAssu/hPre/hWp/hLocal goals after applying the bridge theorem"
-  runLocalBridgeSideTactic "veil_apply_local_wp" "assumptions equality" hAssuGoal <| ←
-    `(tactic| exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident)
-  if let some preCoreTac := preCoreTac? then
-    runLocalBridgeSideTactic "veil_apply_local_wp" "precondition core" preCoreGoal preCoreTac
-  runLocalBridgeSideTactic "veil_apply_local_wp" "precondition equality" hPreGoal hPreTac
-  runLocalBridgeSideTactic "veil_apply_local_wp" "wp_local_eq" hWpGoal <| ←
+  let preCoreTac ← match preCoreTac? with
+    | some tac => pure tac
+    | none => `(tactic| skip)
+  let hWpTac ←
     `(tactic|
       (unhygienic intro $(mkIdent `handler) $(mkIdent `th) $(mkIdent `st);
        rw [$(mkIdent wpLocalEqName):ident]))
-  let [goal'] ← getUnsolvedGoals
+  veilEvalTactic $ ← `(tactic|
+    refine' $localMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_ <;>
+      [ skip
+      ; skip
+      ; $preCoreTac:tactic
+      ; exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident
+      ; $hPreTac:tactic
+      ; $hWpTac:tactic
+      ; skip ])
+  let [_] ← getUnsolvedGoals
     | throwError "veil_apply_local_wp: expected exactly one local/core goal after applying the bridge theorem"
   -- The remaining goal is the theorem's `hLocal` premise.  Introduce exposed
   -- fields with the same user-name shape that the counterexample printer
@@ -1047,11 +1029,11 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   -- fields rather than projections.  The final two hypotheses keep the usual
   -- names expected by the local WP solver.
   let introNames :=
-    (mod.immutableComponents.map (fun sc => Name.append `th sc.name)).toList ++
-    (mod.mutableComponents.map (fun sc => Name.append `st sc.name)).toList ++
-    [`has, `hinv]
-  let (_, goal') ← goal'.introN introNames.length introNames
-  replaceMainGoal [goal']
+    (mod.immutableComponents.map (fun sc => Name.append `th sc.name)) ++
+    (mod.mutableComponents.map (fun sc => Name.append `st sc.name)) ++
+    #[`has, `hinv]
+  let introIdents := introNames.map Lean.mkIdent
+  veilEvalTactic $ ← `(tactic| unhygienic intro $introIdents*)
   -- Finally, do some cleanup; now this is somehow like `unveil`
   -- NOTE: `whnf` for unfolding `.wp_local_eq.pred`
   let has := mkIdent `has ; let hinv := mkIdent `hinv
@@ -1088,37 +1070,39 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
     let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_tr"
     pure (trAbstractName, preCoreTac?, hPreTac)
   let (trAbstractName, preCoreTac?, hPreTac) := localInfo
-  -- The theorem shape mirrors the WP bridge theorem.  With `refine'`, the
-  -- implicit `trAbs` argument is deliberately left open; the `hTr` side goal
-  -- below closes it by applying `.tr_abstract`, whose target is the transition
-  -- specialized to abstract theory/state.  The resulting goals are:
+  -- The theorem shape mirrors the WP bridge theorem.  The bracketed
+  -- `<;> [...]` block exposes the fixed side-goal order in the generated
+  -- tactic script.  The implicit `trAbs` argument is deliberately left open;
+  -- the `hTr` branch closes it by applying `.tr_abstract`, whose target is the
+  -- transition specialized to abstract theory/state.  The resulting goals are:
   -- `trAbs`, `assuCore`, `preCore`, `hAssu`, `hPre`, `hTr`, and `hLocal`.
+  let preCoreTac ← match preCoreTac? with
+    | some tac => pure tac
+    | none => `(tactic| skip)
+  let hTrTac ← `(tactic| (unhygienic intro _ _ _; apply $(mkIdent trAbstractName):ident))
   veilEvalTactic $ ← `(tactic|
-    refine' $localTransitionMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_)
-  pruneSolvedGoals
-  let [_, _, preCoreGoal, hAssuGoal, hPreGoal, hTrGoal, _] ← getUnsolvedGoals
-    | throwError "veil_apply_local_tr: expected trAbs/assuCore/preCore/hAssu/hPre/hTr/hLocal goals after applying the bridge theorem"
-  runLocalBridgeSideTactic "veil_apply_local_tr" "assumptions equality" hAssuGoal <| ←
-    `(tactic| exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident)
-  if let some preCoreTac := preCoreTac? then
-    runLocalBridgeSideTactic "veil_apply_local_tr" "precondition core" preCoreGoal preCoreTac
-  runLocalBridgeSideTactic "veil_apply_local_tr" "precondition equality" hPreGoal hPreTac
-  runLocalBridgeSideTactic "veil_apply_local_tr" "transition abstraction" hTrGoal <| ←
-    `(tactic| unhygienic intro _ _ _ ; apply $(mkIdent trAbstractName):ident)
-  let [goal'] ← getUnsolvedGoals
+    refine' $localTransitionMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_ <;>
+      [ skip
+      ; skip
+      ; $preCoreTac:tactic
+      ; exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident
+      ; $hPreTac:tactic
+      ; $hTrTac:tactic
+      ; skip ])
+  let [_] ← getUnsolvedGoals
     | throwError "veil_apply_local_tr: expected exactly one local/core goal after applying the bridge theorem"
   -- The remaining local obligation exposes theory fields, pre-state fields,
   -- post-state fields, then `has`, `hinv`, and the abstract transition fact.
   -- Keep names close to the old concretization convention for counterexample
   -- display and for downstream local tactics.
   let introNames :=
-    (mod.immutableComponents.map (fun sc => Name.append `th sc.name)).toList ++
-    (mod.mutableComponents.map (fun sc => Name.append `st sc.name)).toList ++
+    (mod.immutableComponents.map (fun sc => Name.append `th sc.name)) ++
+    (mod.mutableComponents.map (fun sc => Name.append `st sc.name)) ++
     -- FIXME: Use better name than `s₁`
-    (mod.mutableComponents.map (fun sc => Name.append `s₁ sc.name)).toList ++
-    [`has, `hinv, `htr]
-  let (_, goal') ← goal'.introN introNames.length introNames
-  replaceMainGoal [goal']
+    (mod.mutableComponents.map (fun sc => Name.append `s₁ sc.name)) ++
+    #[`has, `hinv, `htr]
+  let introIdents := introNames.map Lean.mkIdent
+  veilEvalTactic $ ← `(tactic| unhygienic intro $introIdents*)
   let has := mkIdent `has ; let hinv := mkIdent `hinv ; let htr := mkIdent `htr
   let tac ← `(tacticSeq|
     whnf at $htr:ident
