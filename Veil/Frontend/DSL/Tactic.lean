@@ -229,7 +229,7 @@ replace the noncomputable `Decidable` instances with those in the local context.
 Therefore, unless we do not use `simp [wpSimp]`, the changes made to `Decidable`
 instances during WP generation will be reverted, and this tactic is still
 required in verification. -/
-syntax (name := __veil_neutralize_decidable_inst) "__veil_neutralize_decidable_inst" ("!")? : tactic
+syntax (name := __veil_neutralize_decidable_inst) "__veil_neutralize_decidable_inst" ("!")? (ppSpace location)? : tactic
 
 syntax (name := __veil_ghost_relation_ssa) "__veil_ghost_relation_ssa" ("at" ident)? : tactic
 
@@ -671,10 +671,9 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
     $(mkIdent ``Bool.eq_decide_to_iff):ident] at *))
 
 @[inherit_doc __veil_neutralize_decidable_inst]
-def elabVeilNeutralizeDecidableInst (deep : Bool) : DesugarTacticM Unit := veilWithMainContext do
-  -- NOTE: Apply this at `*` since in cases like `tr` VCs, `decide` can appear in the local context
+def elabVeilNeutralizeDecidableInst (deep : Bool) (loc : Option (TSyntax ``Lean.Parser.Tactic.location)) : DesugarTacticM Unit := veilWithMainContext do
   let nm := if deep then ``Veil.Util.neutralizeDecidableInstGeneral else ``Veil.Util.neutralizeDecidableInstDepth0
-  veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent nm):ident] at *)
+  veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent nm):ident] $[$loc]?)
   clearDecidableInsts
 where
   clearDecidableInsts : DesugarTacticM Unit := veilWithMainContext do
@@ -1177,14 +1176,14 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
   let concretizeFieldsTac ← if fast
     then `(tactic| __veil_concretize_fields_wp !)
     else `(tactic| __veil_concretize_fields_wp)
-  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; ($preTac) ; __veil_neutralize_decidable_inst ; __veil_concretize_state_wp ; $concretizeFieldsTac )
+  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; ($preTac) ; __veil_neutralize_decidable_inst at * ; __veil_concretize_state_wp ; $concretizeFieldsTac )
   veilEvalTactic tac
 
 @[inherit_doc veil_concretize_tr]
 def elabVeilConcretizeTr : DesugarTacticM Unit := veilWithMainContext do
   -- FIXME: figure out how to do the axiomatisation for ghost relations in TR
   let ghostRel ← `(tactic| veil_simp only [$(mkIdent `ghostRelSimp):ident] at *)
-  let tac ← `(tacticSeq| __veil_neutralize_decidable_inst; $ghostRel; __veil_concretize_state_tr; __veil_concretize_fields_tr)
+  let tac ← `(tacticSeq| __veil_neutralize_decidable_inst at * ; $ghostRel; __veil_concretize_state_tr; __veil_concretize_fields_tr)
   veilEvalTactic tac
 
 def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
@@ -1203,7 +1202,7 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic tac
 
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
-  veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst; veil_concretize_wp; veil_clear; veil_simp at *)
+  veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst at *; veil_concretize_wp; veil_clear; veil_simp at *)
 
 /-- The fast WP-local continuation after `veil_apply_local_wp` has succeeded.
 
@@ -1235,7 +1234,7 @@ def elabVeilSolveTrlo : DesugarTacticM Unit := veilWithMainContext do
   let tac ← `(tacticSeq|
     open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at $htr:ident
     veil_dsimp only [↓ $(mkIdent `reduceStateLabelDomainCodomainDsimproc):ident] at $htr:ident
-    __veil_neutralize_decidable_inst
+    __veil_neutralize_decidable_inst at $htr:ident ⊢
     $solveTac
     )
   veilEvalTactic tac
@@ -1370,8 +1369,8 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_fields_wp") (elabVeilConcretizeFieldsWp (agg.isSome))
   | `(tactic| __veil_concretize_fields_tr) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_fields_tr") elabVeilConcretizeFieldsTr
-  | `(tactic| __veil_neutralize_decidable_inst $[!%$agg]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_neutralize_decidable_inst") (elabVeilNeutralizeDecidableInst (agg.isSome))
+  | `(tactic| __veil_neutralize_decidable_inst $[!%$agg]? $[$loc]?) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "__veil_neutralize_decidable_inst") (elabVeilNeutralizeDecidableInst (agg.isSome) loc)
   | `(tactic| __veil_ghost_relation_ssa $[at $hyp:ident]?) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_ghost_relation_ssa") (elabGhostRelationSSA hyp)
   -- User-facing tactics

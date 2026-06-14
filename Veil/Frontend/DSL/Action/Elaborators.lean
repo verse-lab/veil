@@ -857,7 +857,7 @@ where
         ($trDerivedEq := by intros; rw [$(mkIdent derivedEqThm):ident])
         ($wpLocalEq := by intros; rw [$(mkIdent wpLocalEqThm):ident])
         ($wpEq := $wpEqProof)
-      __veil_neutralize_decidable_inst !
+      __veil_neutralize_decidable_inst ! at *
       exact $h
       )
     proveAndCheck tac goal nm "source → target (via transitionWeakeningLemma)"
@@ -868,7 +868,7 @@ where
       intro $h:ident
       convert $h:ident
       dsimp only [$(mkIdent trFqn):ident]
-      __veil_neutralize_decidable_inst
+      __veil_neutralize_decidable_inst at *
       rfl)
     proveAndCheck tac goal nm "source → target (native transition case)"
 
@@ -956,7 +956,7 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Co
           -- be very careful here
           let thm ← `(@$(mkIdent <| toTransitionAbstractName <| toExtName s.name) $allArgs* $r₀ $s₀ $s₁)
           let tmp := mkIdent `tmp   -- using `mkVeilImplementationDetailIdent` here causes some problem
-          `(tactic| (revert $h:ident ; have $tmp := $thm ; __veil_neutralize_decidable_inst ! ; exact $tmp) )
+          `(tactic| (revert $h:ident ; have $tmp := $thm ; __veil_neutralize_decidable_inst ! at * ; exact $tmp) )
         pure #[pathFindingTac, existsTac, revertAndApplyTac]
       pure res.flatten
     `(term| by
