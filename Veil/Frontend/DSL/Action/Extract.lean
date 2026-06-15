@@ -151,6 +151,23 @@ scoped elab "veil_dsimp_decidable_instances_before_extraction" : tactic => withM
   let simps := #[``Preprocessing.simpFieldRepresentationSetSingle, ``Preprocessing.simpFieldRepresentationGet].map Lean.mkIdent
   evalTactic <| ← `(tactic| dsimp -$(mkIdent `failIfUnchanged) only [$[$simps:ident],*] at $targets:ident* )
 
+open Tactic in
+/--
+Run Loom's extraction tactic, but turn leftover generated proof goals into a
+short Veil-facing diagnostic. In particular, this avoids Lean's noisy
+"could not synthesize default value" report when a `let x :| p` ranges over a
+type that cannot be enumerated.
+-/
+scoped elab "veil_extract_list_tactic" : tactic => do
+  evalTactic (← `(tactic| extract_list_tactic))
+  unless (← getUnsolvedGoals).isEmpty do
+    throwError
+      "could not extract executable choices for a nondeterministic pick.\n\n\
+      A `let x :| p` choice must have finitely enumerable candidates. \
+      Provide a `Veil.Enumeration`/`MultiExtractor.Candidates` instance for \
+      the picked type, or use a finite/enumerated type instead of an infinite \
+      type such as `Nat`."
+
 section Extraction
 
 variable [Monad m] [MonadQuotation m] [MonadError m]
@@ -204,10 +221,10 @@ where
       -- NOTE: The following are added to work around a bug (?) fixed in Lean v4.27.0-rc1
       ``id, ``inferInstance, ``inferInstanceAs, instFieldRepresentationName].map Lean.mkIdent
   let extractSimps := if intoMonadicActions then extractSimps.push extractor else extractSimps
-  let extractedBody ← if intoMonadicActions then `(($extractor ($κ) _ _ ($body) : $targetType))
+  let extractedBody ← if intoMonadicActions then `(($extractor ($κ) _ _ ($body) (h := by veil_extract_list_tactic) : $targetType))
     -- Use the first `show` to have more concise type information that can be
     -- registered to the discrimination tree
-    else `(show $targetType ($bodyBeforeSimp) from show $targetType ($body) by extract_list_tactic)
+    else `(show $targetType ($bodyBeforeSimp) from show $targetType ($body) by veil_extract_list_tactic)
   `((veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged) [$[$extractSimps:ident],*]
     ($extractedBody)))
 

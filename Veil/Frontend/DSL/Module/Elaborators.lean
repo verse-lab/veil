@@ -304,8 +304,6 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
     elabVeilCommand rtsCmd
     pure mod
-  Extract.runGenExtractCommand mod
-  elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   unless (← isModelCheckCompileMode) do
     Verifier.runManager
     mod.generateDoesNotThrowVCs
@@ -314,6 +312,18 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     mod.generateInvariantVCs
   -- Invariant VCs are generated here; verifier commands decide when to start them.
   return { mod with _specFinalizedAt := some stx }
+
+private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) : CommandElabM Unit := do
+  if (← getEnv).contains (mod.name ++ enumerableTransitionSystemName) then
+    return
+  let savedState ← get
+  let stepOrAbort (act : CommandElabM Unit) : CommandElabM Unit := do
+    act
+    if (← get).messages.hasErrors then
+      modify fun s => { savedState with messages := s.messages, traceState := s.traceState }
+      throwAbortCommand
+  stepOrAbort <| Extract.runGenExtractCommand mod
+  stepOrAbort <| elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
   results.vcs.foldl (init := 0) fun count vc =>
@@ -925,6 +935,7 @@ where
     -- evaluates them at runtime before BFS.
     if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    mod.ensureExecutableModelCheckerDefinitions
     -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
     let parallelCfg ← match config.sequential, config.parallelCfg with
       | true, _ => pure none
