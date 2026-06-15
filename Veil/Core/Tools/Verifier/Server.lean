@@ -15,6 +15,12 @@ open Lean Elab Command Std
 /-- Holds the state of the VCManager for the current file. -/
 initialize vcManager : Std.Mutex (VCManager VCMetadata SmtResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
 
+/-- Errors thrown inside the manager loop. The loop runs detached from any
+command snapshot (registering its infinite task would hang the build), so
+exceptions it catches are invisible to the editor; they are recorded here and
+surfaced as warnings by `awaitFilteredWithLogging` on its next poll. -/
+initialize managerLoopErrors : IO.Ref (Array String) ← IO.mkRef #[]
+
 def sendNotification (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
   let _ ← vcManagerCh.send notification
 
@@ -29,23 +35,46 @@ def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNoti
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
-/-- Start the given dischargers, send them to the task registration channel for the frontend
-    to register via `logSnapshotTask`, and update the VCManager with the started tasks. -/
-private def startAndRegisterTasks
-    (toStart : Array (VerificationCondition VCMetadata SmtResult × Discharger SmtResult))
-    : CommandElabM Unit := do
-  for (vc, discharger) in toStart do
+/-- Start up to `count` ready dischargers matching `filter`: spawn each task
+(`Discharger.run` only *spawns* — the elaboration/solving runs on the thread
+pool), send it to the task registration channel for the frontend to register
+via `logSnapshotTask`, and write the started discharger back into its node.
+
+Must be called with the `vcManager` lock held, as part of a handler's single
+critical section: holding the lock, the `(vc, discharger)` pairs returned by
+`readyTasks` are *current*, so the write-back cannot clobber concurrent
+frontend updates (interactive `@[veil]` registrations, added dischargers, a
+reset) — the lost-update interleavings the old unlock-between-phases structure
+allowed. The caller is responsible for `ref.set` of the returned manager. -/
+private def startReadyTasksLocked (mgr : VCManager VCMetadata SmtResult)
+    (count : Nat) (filter : VCMetadata → Bool := fun _ => true)
+    : CommandElabM (VCManager VCMetadata SmtResult) := do
+  let mut mgr := mgr
+  let ready := (← mgr.readyTasks filter).take count
+  for (vc, discharger) in ready do
     let discharger' ← discharger.run
     if let some task := discharger'.task then
       -- Send to channel for frontend to register (instead of registering directly here)
       let _ ← Veil.taskRegistrationCh.send { task, cancelTk := discharger'.cancelTk }
-    vcManager.atomically (fun ref => do
-      let mut mgr ← ref.get
-      let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
-      mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
-      ref.set mgr)
-  -- Notify frontend that new tasks are available to register
-  Frontend.notify
+    let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
+    mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
+  return mgr
+
+/-- Cancel every discharger of `mgr` and drain queued-but-not-yet-registered
+task registrations, cancelling each. Called by both reset paths so replacing
+the manager state never leaks running work: tasks already registered with the
+language server are cancelled by it on re-elaboration, but entries still queued
+in `taskRegistrationCh` would otherwise never be registered *nor* cancelled,
+and running dischargers would keep computing for a manager generation whose
+results are ignored (see `Discharger.cancelTk` for the cancellation latency
+contract). Public so reset behavior can be regression-tested deterministically
+(`VeilTest/Regression/VerifierServerRaces.lean`). -/
+def cancelAbandonedWork (mgr : VCManager VCMetadata SmtResult) : IO Unit := do
+  mgr.cancelAllDischargers
+  while true do
+    match ← Veil.taskRegistrationCh.tryRecv with
+    | some info => info.cancelTk.set
+    | none => break
 
 /-- Starts a separate task (on a dedicated thread) that runs the VCManager.
 If this is called multiple times, each call will reset the VC manager. -/
@@ -58,61 +87,54 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         -- blocks until we get a notification
         -- NOTE: this `get` is really problematic, as it increases the threadpool size
         let notification := (← vcManagerCh.recv).get
+        -- Each notification is processed in ONE `vcManager.atomically` section:
+        -- decisions (`readyTasks`) and write-backs see the same state, frontend
+        -- writers (`withVCManager`, `@[veil]` registration, the frontend-side
+        -- reset in `runManager`) are serialized against the whole handler, and
+        -- the single `ref.set` at the end makes a failed handler roll back
+        -- wholesale instead of leaving torn state. Holding the lock here is
+        -- cheap: `Discharger.run` only spawns a task, channel sends are
+        -- non-blocking, and discharger task bodies never take this mutex.
         match notification with
         | .dischargerResult dischargerId res => do
-          -- Phase 1: Update state, get ready tasks (inside atomically)
-          let toStart ← vcManager.atomically (fun ref => do
+          vcManager.atomically (fun ref => do
             let mut mgr ← ref.get
             if dischargerId.managerId != mgr._managerId then
-              -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV dischargerResult from manager ID {dischargerId.managerId} (our ID: {mgr._managerId}); ignoring"
-              return #[]
-            -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV {res.kindString} notification from discharger {dischargerId} after {res.time}ms (solved: {mgr._totalSolved}/{mgr.nodes.size})"
+              return
             mgr ← mgr.recordDischargerResult dischargerId res
-            -- Get ready tasks AFTER markDischarger so freshly woken alternatives can be scheduled
-            let ready ← mgr.readyTasks
-            let ready := ready.take 1  -- Only start 1 at a time
-            ref.set mgr
-            return ready.toArray)
-          -- Phase 2 & 3: Start tasks, register snapshots, and update manager
-          startAndRegisterTasks toStart
+            -- Start ready tasks AFTER recordDischargerResult so freshly woken
+            -- alternatives can be scheduled. Only start 1 at a time.
+            mgr ← startReadyTasksLocked mgr 1
+            ref.set mgr)
           Frontend.notify
-          -- dbg_trace "({← IO.monoMsNow}) [Manager] SEND frontend notification"
         | .startAll => do
-          -- Phase 1: Get ready tasks (inside atomically)
-          let toStart ← vcManager.atomically (fun ref => do
-            let mgr ← ref.get
-            -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV startAll notification"
-            let ready ← mgr.readyTasks
-            let ready := ready.take (← getNumCores)
-            return ready.toArray)
-          -- Phase 2 & 3: Start tasks, register snapshots, and update manager
-          startAndRegisterTasks toStart
-        | .startFiltered filter => do
-          -- Phase 1: Get ready tasks matching filter (inside atomically)
-          let toStart ← vcManager.atomically (fun ref => do
-            let mgr ← ref.get
-            -- let _matches := mgr.nodes.values.filter (fun node => filter node.metadata) |>.map (·.metadata.displayName)
-            -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV startFiltered notification (matches: {_matches})"
-            let ready ← mgr.readyTasks filter
-            let ready := ready.take (← getNumCores)
-            return ready.toArray)
-          -- Phase 2 & 3: Start tasks, register snapshots, and update manager
-          startAndRegisterTasks toStart
-          -- Check if done and notify
+          let numCores ← getNumCores
           vcManager.atomically (fun ref => do
-            let mgr ← ref.get
-            if mgr.isDoneFiltered filter then Frontend.notify)
+            ref.set (← startReadyTasksLocked (← ref.get) numCores))
+          Frontend.notify
+        | .startFiltered filter => do
+          let numCores ← getNumCores
+          vcManager.atomically (fun ref => do
+            ref.set (← startReadyTasksLocked (← ref.get) numCores filter))
+          -- Wake pollers (they re-check `isDoneFiltered` under their own lock)
+          Frontend.notify
         | .reset managerId => vcManager.atomically (fun ref => do
           let mut mgr ← ref.get
           if mgr._managerId != managerId then
-            -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV reset notification for manager ID {managerId} (our ID: {mgr._managerId}); ignoring"
             return
-          -- dbg_trace "({← IO.monoMsNow}) [Manager] RECV reset notification meant for us (manager ID: {mgr._managerId})"
+          -- Reap abandoned work before dropping the only references to it
+          cancelAbandonedWork mgr
           mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
           ref.set mgr)
       catch ex =>
-        -- Log errors but continue processing to prevent the manager loop from dying
-        dbg_trace "[VCManager] Error in manager loop: {← ex.toMessageData.toString}"
+        -- Log errors but continue processing to prevent the manager loop from
+        -- dying. The single-`ref.set` discipline above means a failed handler
+        -- left the manager unchanged. Nothing logged here reaches the editor
+        -- (the loop is not registered with `logSnapshotTask`), so also record
+        -- the error for `awaitFilteredWithLogging` to surface as a warning.
+        let msg ← ex.toMessageData.toString
+        dbg_trace "[VCManager] Error in manager loop: {msg}"
+        managerLoopErrors.modify (·.push msg)
   ) cancelTk
   vcServerStarted.atomically (fun ref => do
     if !(← ref.get) then
@@ -124,10 +146,10 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
     else
       vcManager.atomically (fun managerRef => do
         let mgr ← managerRef.get
+        -- Reap abandoned work before dropping the only references to it
+        cancelAbandonedWork mgr
         let mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
-        managerRef.set mgr
-        -- dbg_trace "({← IO.monoMsNow}) [Manager] Reset state for manager ID {mgr._managerId}"
-        )
+        managerRef.set mgr)
     ref.set true
   )
 
@@ -144,6 +166,10 @@ private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
     : CommandElabM (VerificationResults VCMetadata SmtResult) := do
   while true do
     logPendingDischargerTasks
+    -- Surface manager-loop errors where the user is looking; the loop itself
+    -- cannot log to the editor (it is not registered with `logSnapshotTask`).
+    for err in ← managerLoopErrors.modifyGet fun errs => (errs, #[]) do
+      logWarning m!"VC manager loop error: {err}"
     let result? ← vcManager.atomically fun ref => do
       let mgr ← ref.get
       if mgr.isDoneFiltered filter then

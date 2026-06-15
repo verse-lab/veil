@@ -117,9 +117,6 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
           let endTime ← IO.monoMsNow
           liftTermElabM $ mkTraceDischargerResult dischargerId.name numTransitions
             isExpectedSat smtCh (endTime - startTime) (ex? := some ex)
-        finally
-          if ← cancelTk.isSet then
-            pure ()
       )
       -- Resolve the result promise so Discharger.status can read it
       resultPromise.resolve res

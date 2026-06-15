@@ -138,7 +138,11 @@ structure Discharger (ResultT : Type) where
   can be shown to the user, e.g. when a VC's corresponding `theorem` is
   pretty-printed. -/
   term : Option Term := none
-  /-- A cancellation token for the discharger. -/
+  /-- A cancellation token for the discharger. Cancellation is *cooperative*:
+  Lean elaboration observes the token at heartbeat checkpoints, but an
+  in-flight in-process cvc5 `checkSat` (FFI) cannot be interrupted from Lean.
+  Setting the token therefore takes effect at the next heartbeat, or once the
+  current solver call returns or hits `veil.smt.timeout`. -/
   cancelTk : IO.CancelToken
   /-- The snapshot tree task for integration with the language server's error
   reporting. This is produced by `wrapAsyncAsSnapshot`. -/
@@ -497,27 +501,14 @@ def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
       | none => pure none)
   return ready
 
-def VCManager.startTask (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) (discharger : Discharger ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
-  let discharger' ← discharger.run
-  return { mgr with nodes := mgr.nodes.insert vc.uid { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }}
-
-def VCManager.executeOne (mgr : VCManager VCMetaT ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
-  let ready ← mgr.readyTasks
-  match ready with
-  | [] => return mgr
-  | (vc, discharger) :: _ => mgr.startTask vc discharger
-
-def VCManager.start (mgr : VCManager VCMetaT ResultT) (howMany : Nat := 0)
-    (filter : VCMetaT → Bool := fun _ => true) : BaseIO (VCManager VCMetaT ResultT) := do
-  let mut mgr' := mgr
-  let ready ← mgr'.readyTasks filter
-  let toExecute := if howMany == 0 then ready else ready.take howMany
-  for (vc, discharger) in toExecute do
-     mgr' ← mgr'.startTask vc discharger
-  if toExecute.length > 0 then
-    pure ()
-    -- dbg_trace "[VCManager.start] finished scheduling {toExecute.length} ready tasks (out of {ready.length} total ready)"
-  return mgr'
+/-- Set the cancellation token of every discharger in the manager. Used on
+reset, so abandoned dischargers stop (cooperatively, see `Discharger.cancelTk`)
+instead of running to timeout for a manager generation whose results will be
+ignored. Setting the token of a finished or interactive discharger is a no-op. -/
+def VCManager.cancelAllDischargers (mgr : VCManager VCMetaT ResultT) : BaseIO Unit := do
+  for (_, vc) in mgr.nodes do
+    for discharger in vc.dischargers do
+      discharger.cancelTk.set
 
 private def dischargerErrorIsTimeout (res : DischargerResult ResultT) : Bool :=
   match res with

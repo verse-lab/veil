@@ -109,9 +109,6 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
           let dischargerResult ← liftTermElabM $ mkDischargerResult dischargerId.name actName smtCh
             (.inr ex) (endTime - startTime)
           return dischargerResult
-        finally
-          if ← cancelTk.isSet then
-            pure ()
       )
       -- Resolve the result promise so Discharger.status can read it
       resultPromise.resolve res
