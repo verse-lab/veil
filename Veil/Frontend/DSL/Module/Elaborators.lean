@@ -1153,7 +1153,7 @@ private def simulationResultWasCancelled (combinedJson : Json) : Bool :=
 
 private def finishWithSimulationResult (ctx : ModelCheckContext) (combinedJson : Json) : CommandElabM Unit := do
   if simulationResultWasCancelled combinedJson then
-    liftIO <| ModelChecker.Concrete.cancelProgress ctx.instanceId
+    liftIO <| ModelChecker.Concrete.cancelProgress ctx.instanceId combinedJson
   else
     elabModelCheck.finishWithResult ctx combinedJson
 
@@ -1224,7 +1224,11 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
     try
       let combinedJson ← IO.ofExcept (← ioComputation.toIO')
       match (← ctx.cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) with
-      | (true, false) => ModelChecker.Concrete.cancelProgress ctx.instanceId
+      | (true, false) =>
+          if simulationResultWasCancelled combinedJson then
+            finishWithSimulationResult ctx combinedJson
+          else
+            ModelChecker.Concrete.cancelProgress ctx.instanceId
       | (false, _) => finishWithSimulationResult ctx combinedJson
       | (true, true) => pure ()
     catch e : Exception =>

@@ -243,11 +243,11 @@ def setCompilationCancelToken (instanceId : Nat) (cancelToken? : Option IO.Cance
   withRefs instanceId fun refs => refs.compilationCancelTokenRef.set cancelToken?
 
 /-- Mark progress as cancelled for a given instance ID. -/
-def cancelProgress (instanceId : Nat) : IO Unit := withRefs instanceId fun refs => do
+def cancelProgress (instanceId : Nat) (resultJson : Lean.Json := Json.mkObj [("result", "cancelled")]) : IO Unit := withRefs instanceId fun refs => do
   let now ← IO.monoMsNow
   refs.progressRef.modify fun p => { p with
     status := "Cancelled", isRunning := false, isCancelled := true, elapsedMs := now - p.startTimeMs }
-  refs.resultRef.set (some (Json.mkObj [("result", "cancelled")]))
+  refs.resultRef.set (some resultJson)
 
 /-- Wait for model check to complete and return the result JSON. -/
 partial def waitForResult (instanceId : Nat) (pollIntervalMs : Nat := 100) : IO (Option Lean.Json) := do
