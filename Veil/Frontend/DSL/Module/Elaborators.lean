@@ -13,6 +13,7 @@ import Veil.Core.Tools.Verifier.Results
 import Veil.Core.UI.Verifier.VerificationResults
 import Veil.Core.UI.Trace.TraceDisplay
 import Veil.Core.Tools.ModelChecker.Concrete.Checker
+import Veil.Core.Tools.ModelChecker.Simulation
 import Veil.Frontend.DSL.Action.Extract
 import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing
@@ -606,6 +607,35 @@ def defaultThresholdToParallel : Nat := 20
 
 declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 
+declare_command_config_elab elabSimulateConfig ModelChecker.Simulation.SimulateConfig
+
+/--
+Check whether a particular config field was written explicitly in the command syntax.
+
+`elabSimulateConfig` returns a complete `SimulateConfig`, so omitted fields are
+indistinguishable from fields explicitly written with their structure defaults
+after elaboration. Inspect the raw `Parser.Tactic.optConfig` only for this
+distinction. A `(config := cfg)` item is an opaque full `SimulateConfig`, so it
+is treated as explicitly providing all fields rather than being overlaid with
+global options.
+-/
+def simulateConfigHasField (cfgStx : Syntax) (fieldName : Name) : Bool :=
+  Lean.Elab.Tactic.mkConfigItemViews (Lean.Parser.Tactic.getConfigItems cfgStx) |>.any
+    (fun item =>
+      let optionName := item.option.getId.eraseMacroScopes
+      optionName == fieldName || optionName == `config)
+
+/-- Return which `#simulate` trace-bound fields were supplied by command syntax. -/
+private def simulateTraceBoundFieldsExplicit (cfgStx : Syntax) : Bool × Bool :=
+  (simulateConfigHasField cfgStx `maxTraces, simulateConfigHasField cfgStx `maxSteps)
+
+/-- Resolve `#simulate` trace-bound fields, preserving explicit default literals. -/
+def resolveSimulateTraceBounds (cfg0 : ModelChecker.Simulation.SimulateConfig)
+    (commandHasMaxTraces commandHasMaxSteps : Bool) (optionMaxTraces optionMaxSteps : Nat) : Nat × Nat :=
+  let maxTraces := if commandHasMaxTraces then cfg0.maxTraces else optionMaxTraces
+  let maxSteps := if commandHasMaxSteps then cfg0.maxSteps else optionMaxSteps
+  (maxTraces, maxSteps)
+
 /-- Model checking mode: interpreted only, compiled only, or default (both with handoff). -/
 inductive ModelCheckingMode where
   | interpreted
@@ -630,6 +660,73 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
     | `(modelCheckMode| compiled) => .compiled
     | _ => .default
 
+/-- Get all action label names for never-enabled action warnings. -/
+private def getActionLabelNames (mod : Module) : CommandElabM (List String) := do
+  let labelTypeName ← resolveGlobalConstNoOverload labelType
+  return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
+
+/-- Warn if the module contains transitions (which are slow to model check). -/
+private def warnAboutTransitions (mod : Module) : CommandElabM Unit := do
+  let transitions := mod.procedures.filter (·.info.isTransition)
+  if transitions.isEmpty then return
+  let names := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
+  logWarning m!"Explicit state model checking of transitions is SLOW!\n\n\
+    The current implementation enumerates all possible states and filters those satisfying \
+    the transition relation. Your specification has {transitions.size} \
+    transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
+    Consider encoding transitions as imperative actions where possible."
+
+/-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields. -/
+private def resolveTheoryTerm (cmdName : String) (theoryTermOpt : Option Term)
+    (mod : Module) (instTerm : Term) : CommandElabM Term := do
+  match theoryTermOpt with
+  | some t => pure t
+  | none =>
+    unless mod.immutableComponents.isEmpty do
+      let fieldStrs := mod.immutableComponents.map (fun c => s!"{c.name} := ...")
+      let theoryExample := "{ " ++ ", ".intercalate fieldStrs.toList ++ " }"
+      throwError "This module has immutable fields, so you must specify the theory instantiation:\n\
+        {cmdName} {instTerm} {theoryExample}"
+    `({})
+
+/-- Prepend `name` with `mod.name`. -/
+private def mkIdentWithModName (mod : Module) (name : Name) : Ident :=
+  Lean.mkIdent (mod.name ++ name)
+
+/-- Build search parameters for model checking / simulation. -/
+private def buildSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
+  let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
+    `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
+        ($(mkIdent `name) := $(quote sa.name))
+        ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName mod sa.name) $(mkIdent `th)))
+  -- Build SafetyProperty.mk syntax for a StateAssertion
+  let mkProp (sa : StateAssertion) : CommandElabM Term :=
+    `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
+        ($(mkIdent `name) := $(quote sa.name))
+        ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
+  let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
+  let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+  -- FIXME: Only recognizing the first termination property might confuse users
+  let terminatingProp ← match mod.terminations[0]? with
+    | some t => mkProp t
+    | none => `($(mkIdent `default))
+  let constraintList ← `([$((← mod.stateConstraints.mapM mkProp)),*])
+  let earlyTermConds ← do
+    let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
+                  $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
+                  $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
+    if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
+    else pure base
+  `({ $(mkIdent `assumptions):ident := $assumptionList, $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
+      $(mkIdent `stateConstraints):ident := $constraintList,
+      $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
+
+/-- Stable identity for a single compiled command invocation within a file. -/
+private def getCompiledCommandId (cmdName : String) (stx : Syntax) : CommandElabM String := do
+  let some startPos := stx.getPos? | throwError s!"Unexpected error: {cmdName} has no position"
+  let some endPos := stx.getTailPos? | throwError s!"Unexpected error: {cmdName} has no end position"
+  pure s!"{startPos.1}-{endPos.1}"
+
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
@@ -644,19 +741,6 @@ def elabModelCheck : CommandElab := fun stx => do
     let cfg := stx[4]
     elabModelCheckCore stx mode instTerm theoryTermOpt assumptionsHoldBy cfg
 where
-  /-- Get the theory term, defaulting to `{}` if not provided and there are no theory fields.
-      Throws a helpful error if theory fields exist but no term was provided. -/
-  getTheoryTerm (theoryTermOpt : Option Term) (mod : Module) (instTerm : Term) : CommandElabM Term := do
-    match theoryTermOpt with
-    | some t => pure t
-    | none =>
-      unless mod.immutableComponents.isEmpty do
-        let fieldStrs := mod.immutableComponents.map (fun c => s!"{c.name} := ...")
-        let theoryExample := "{ " ++ ", ".intercalate fieldStrs.toList ++ " }"
-        throwError "This module has immutable fields, so you must specify the theory instantiation:\n\
-          #model_check {instTerm} {theoryExample}"
-      `({})
-
   /-- Generate the model source for compilation:
       1. Insert `set_option veil.__modelCheckCompileMode true` after imports
       2. Keep everything up to the point where the spec was finalized
@@ -685,72 +769,21 @@ where
     let modelCheckCmd := String.Pos.Raw.extract src modelCheckStart modelCheckEnd
     return beforeImports ++ compileModePreamble ++ afterImportsToSpecFinalized ++ "\n" ++ modelCheckCmd ++ "\n"
 
-  /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
-  mkIdentWithModName (mod : Module) (name : Name) : Ident :=
-    Lean.mkIdent (mod.name ++ name)
-
-  /-- Display a TraceDisplayViewer widget with the given result term. -/
-  displayResultWidget (stx : Syntax) (resultTerm : Term) : CommandElabM Unit := do
-    let widgetExpr ← `(open ProofWidgets.Jsx in
-      <ProofWidgets.TraceDisplayViewer result={$resultTerm} layout={"vertical"} />)
-    let html ← ← liftTermElabM <| ProofWidgets.HtmlCommand.evalCommandMHtml <| ← ``(ProofWidgets.HtmlEval.eval $widgetExpr)
-    liftCoreM <| Widget.savePanelWidgetInfo
-      (hash ProofWidgets.HtmlDisplayPanel.javascript)
-      (return json% { html: $(← Server.rpcEncode html) }) stx
-
-  mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
-    let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
-      `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
-          ($(mkIdent `name) := $(quote sa.name))
-          ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName mod sa.name) $(mkIdent `th)))
-    -- Build SafetyProperty.mk syntax for a StateAssertion
-    let mkProp (sa : StateAssertion) : CommandElabM Term :=
-      `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
-          ($(mkIdent `name) := $(quote sa.name))
-          ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
-    let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
-    let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
-    -- FIXME: Only recognizing the first termination property might confuse users
-    let terminatingProp ← match mod.terminations[0]? with
-      | some t => mkProp t
-      | none => `($(mkIdent `default))
-    let constraintList ← `([$((← mod.stateConstraints.mapM mkProp)),*])
-    let earlyTermConds ← do
-      let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
-                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
-                    $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.deadlockOccurred)])
-      if config.maxDepth > 0 then `($base ++ [$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.reachedDepthBound) $(quote config.maxDepth)])
-      else pure base
-    `({ $(mkIdent `assumptions):ident := $assumptionList, $(mkIdent `invariants):ident := $safetyList, $(mkIdent `terminating):ident := $terminatingProp,
-        $(mkIdent `stateConstraints):ident := $constraintList,
-        $(mkIdent `earlyTerminationConditions):ident := $earlyTermConds })
-
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
       (instTerm theoryTerm : Term) : CommandElabM Term := do
     let inst := mkVeilImplementationDetailIdent `inst
     let th := mkVeilImplementationDetailIdent `th
     let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
-    let sp ← mkSearchParameters mod config
+    let sp ← buildSearchParameters mod config
     -- Model checker call with type annotation to help inference
     -- Note: findReachable takes parallelCfg, progressInstanceId, and cancelToken as the last three args
     `((let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
-         ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
-         ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
-         $sp : _ → _ → _ → IO _))
-
-  /-- Warn if the module contains transitions (which are slow to model check). -/
-  warnAboutTransitions (mod : Module) : CommandElabM Unit := do
-    let transitions := mod.procedures.filter (·.info.isTransition)
-    if transitions.isEmpty then return
-    let names := ", ".intercalate (transitions.map (·.info.name.toString) |>.toList)
-    logWarning m!"Explicit state model checking of transitions is SLOW!\n\n\
-      The current implementation enumerates all possible states and filters those satisfying \
-      the transition relation. Your specification has {transitions.size} \
-      transition{if transitions.size > 1 then "s" else ""}: {names}\n\n\
-      Consider encoding transitions as imperative actions where possible."
+          ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
+          ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
+          $sp : _ → _ → _ → IO _))
 
   /-- Check that the provided theory satisfies all module assumptions by
       elaborating a proof obligation using the assembled `Assumptions` definition.
@@ -777,7 +810,6 @@ where
         dsimp only [$assembledAssumptions:ident]
         $userTac:tactic)
     elabVeilCommand proofCmd
-
   /-- Create an error JSON object. -/
   errorJson (msg : String) : Json := Json.mkObj [("error", msg)]
 
@@ -791,7 +823,10 @@ where
 
   /-- Handle internal mode: define and export the model checker result. -/
   elabModelCheckInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
-    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult) (pcfg : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat) (cancelToken : IO.CancelToken) := $callExpr pcfg progressInstanceId cancelToken))
+    elabVeilCommand (← `(def $(mkIdent `modelCheckerResult)
+        (pcfg : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat)
+        (cancelToken : IO.CancelToken) : IO Lean.Json :=
+      Lean.toJson <$> $callExpr pcfg progressInstanceId cancelToken))
     elabVeilCommand (← `(end $(mkIdent mod.name)))
     elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
 
@@ -808,12 +843,10 @@ where
     ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary not found at {binPath}")
     return none
 
-  /-- Run the model checker binary and finish with result. Returns true if completed. -/
-  runBinaryAndFinish (binPath : System.FilePath) (parallelCfg : Option ModelChecker.ParallelConfig)
-      (instanceId : Nat) (cancelToken : IO.CancelToken)
-      (assertionSources : Std.HashMap AssertionId AssertionSourceInfo) : IO Bool := do
+  /-- Run the compiled binary and return its JSON result if completed. -/
+  runBinaryForJson (binPath : System.FilePath) (args : Array String)
+      (instanceId : Nat) (cancelToken : IO.CancelToken) : IO (Option Json) := do
     ModelChecker.Concrete.updateStatus instanceId "Running compiled binary..."
-    let args := parallelCfg.map (fun p => #[s!"{p.numSubTasks}", s!"{p.thresholdToParallel}"]) |>.getD #[]
     let child ← IO.Process.spawn {
       cmd := toString (binPath / "ModelCheckerMain"), args,
       stdin := .piped, stdout := .piped, stderr := .piped }
@@ -826,30 +859,32 @@ where
         match Json.parse line >>= FromJson.fromJson? (α := ModelChecker.Concrete.Progress) with
         | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
             refs.progressRef.modify fun old =>
-              let historyPoint : ModelChecker.Concrete.ProgressHistoryPoint := {
-                timestamp := p.elapsedMs
-                diameter := p.diameter
-                statesFound := p.statesFound
-                distinctStates := p.distinctStates
-                queue := p.queue
-              }
-              { p with allActionLabels := old.allActionLabels, history := old.history.push historyPoint }
+              let history := match p.simulation with
+                | some _ => old.history
+                | none =>
+                  let historyPoint : ModelChecker.Concrete.ProgressHistoryPoint := {
+                    timestamp := p.elapsedMs
+                    diameter := p.diameter
+                    statesFound := p.statesFound
+                    distinctStates := p.distinctStates
+                    queue := p.queue
+                  }
+                  old.history.push historyPoint
+              { p with allActionLabels := old.allActionLabels, history }
         | .error _ => stderrAccum.modify (· ++ line)
     let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
     let waitTask ← IO.asTask (prio := .dedicated) child.wait
     -- Monitor for cancellation
     while !(← IO.hasFinished waitTask) do
-      if ← checkCancelled cancelToken instanceId then child.kill; return false
+      if ← checkCancelled cancelToken instanceId then child.kill; return none
       IO.sleep 100
     let stdout ← IO.ofExcept (← IO.wait stdoutTask)
     let exitCode ← IO.ofExcept (← IO.wait waitTask)
     let stderr ← stderrAccum.get
     if exitCode != 0 then
       ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary exited with code {exitCode}{if stderr.isEmpty then "" else s!"\n{stderr}"}")
-      return true
-    let json := Json.parse stdout |>.toOption.getD (errorJson s!"Failed to parse output: {stdout.take 500}")
-    ModelChecker.Concrete.finishProgress instanceId (enrichJsonWithAssertions json assertionSources)
-    return true
+      return none
+    return some (Json.parse stdout |>.toOption.getD (errorJson s!"Failed to parse output: {stdout.take 500}"))
 
   /-- Elaborate the interpreted mode computation. Must be called synchronously. -/
   elaborateInterpretedComputation (instanceId : Nat) (callExpr : Term)
@@ -862,11 +897,6 @@ where
       let expr ← Term.elabTerm resultExpr none
       Term.synthesizeSyntheticMVarsNoPostponing
       unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
-
-  /-- Get all action label names for never-enabled action warnings. -/
-  getActionLabelNames (mod : Module) : CommandElabM (List String) := do
-    let labelTypeName ← resolveGlobalConstNoOverload labelType
-    return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
 
   /-- Log model checking result. -/
   logModelCheckResult (stx : Syntax) (resultJson : Json) : CommandElabM Unit := do
@@ -895,24 +925,43 @@ where
     logModelCheckResult ctx.stx json
     ModelChecker.Concrete.finishProgress ctx.instanceId json
 
+  modelCheckerCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
+    exportedName := "modelCheckerResult"
+    supportsParallelConfig := true
+  }
+
+  simulateCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
+    exportedName := "simulateResult"
+  }
+
   /-- Run the compiled binary and log the result. -/
   runBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder : System.FilePath)
-      (sourceFile : String) : CommandElabM Unit := do
+      (sourceFile : String) (command : ModelChecker.Compilation.CompiledCommandSpec)
+      (commandId : String) : CommandElabM Unit := do
     let some binPath ← verifyBinaryExists buildFolder ctx.instanceId | return
-    let _ ← runBinaryAndFinish binPath ctx.parallelCfg ctx.instanceId ctx.cancelToken ctx.assertionSources
-    ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
+    let args := ctx.parallelCfg.map (fun p => #[s!"{p.numSubTasks}", s!"{p.thresholdToParallel}"]) |>.getD #[]
+    let some json ← runBinaryForJson binPath args ctx.instanceId ctx.cancelToken | return
+    ModelChecker.Concrete.finishProgress ctx.instanceId (enrichJsonWithAssertions json ctx.assertionSources)
+    ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
     let some resultJson ← ModelChecker.Concrete.getResultJson ctx.instanceId | return
     logModelCheckResult ctx.stx resultJson
 
   /-- Compile the model. Returns the build folder path if compilation succeeded, none otherwise. -/
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
-      (instanceId : Nat) : IO (Option System.FilePath) := do
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
-    ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
+      (commandId : String) (instanceId : Nat) (cancelToken : IO.CancelToken)
+      (command : ModelChecker.Compilation.CompiledCommandSpec) : IO (Option System.FilePath) := do
+    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString command commandId
+    ModelChecker.Compilation.markRegistryInProgress sourceFile command commandId instanceId buildFolder
     let result ← ModelChecker.Compilation.runProcessWithStatusCallback
+      sourceFile
+      command
+      commandId
       { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
+      instanceId cancelToken
       (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
       (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
+    if result.interrupted then
+      return none
     if result.exitCode != 0 then
       ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (mkCompilationErrorMsg result))
       return none
@@ -927,7 +976,7 @@ where
     let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
     mod.throwIfSpecNotFinalized
 
-    let theoryTerm ← getTheoryTerm theoryTermOpt mod instTerm
+    let theoryTerm ← resolveTheoryTerm "#model_check" theoryTermOpt mod instTerm
 
     warnAboutTransitions mod
     let config ← elabModelCheckerConfig cfg
@@ -980,13 +1029,15 @@ where
     -- dbg_trace "elabModelCheckCompiledMode"
     let ctx ← allocModelCheckContext mod stx parallelCfg
     let sourceFile ← getFileName
+    let commandId ← getCompiledCommandId "#model_check" stx
     let modelSource ← generateModelSource mod stx
 
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
+        let some buildFolder ← compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
+          modelCheckerCommandSpec | return
         if ← checkCancelled ctx.cancelToken ctx.instanceId then return
-        runBinaryAndLogResult ctx buildFolder sourceFile
+        runBinaryAndLogResult ctx buildFolder sourceFile modelCheckerCommandSpec commandId
       catch e : Exception =>
         handleModelCheckError ctx e
     ) ctx.cancelToken
@@ -1001,6 +1052,7 @@ where
     -- dbg_trace "elabModelCheckWithHandoff"
     let ctx ← allocModelCheckContext mod stx parallelCfg
     let sourceFile ← getFileName
+    let commandId ← getCompiledCommandId "#model_check" stx
     let modelSource ← generateModelSource mod stx
     let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
 
@@ -1022,10 +1074,11 @@ where
     let compilationCancelTk ← IO.CancelToken.new
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
+        let some buildFolder ← compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
+          modelCheckerCommandSpec | return
         -- Skip handoff if violation found or interpreted finished
         if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) then
-          ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
+          ModelChecker.Compilation.markRegistryFinished sourceFile modelCheckerCommandSpec commandId buildFolder
           return
         -- Handoff to compiled binary
         ModelChecker.Concrete.requestHandoff ctx.instanceId
@@ -1033,7 +1086,7 @@ where
         let _ ← IO.wait interpretedTask
         let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
         let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
-        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile
+        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile modelCheckerCommandSpec commandId
       catch e : Exception =>
         ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
     ) compilationCancelTk
@@ -1042,4 +1095,222 @@ where
 
     ModelChecker.displayStreamingProgress stx ctx.instanceId
 
+/-- Build the progress-aware simulator runtime call syntax. -/
+private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
+    (sp : Term) (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Term := do
+  let inst := mkVeilImplementationDetailIdent `inst
+  let th := mkVeilImplementationDetailIdent `th
+  let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+  let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
+      $(quote cfg.maxTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
+  `((let $inst : $instantiationType := $instTerm
+      let $th : $theoryIdent $instSortArgs* := $theoryTerm
+      $(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
+        ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
+        $sp $th $cfgTerm : _ → _ → IO _))
+
+/-- Build the simulator runtime call syntax with progress and cancellation hooks. -/
+private def mkSimulateJsonExpr (resultIdent : Ident) : CommandElabM Term :=
+  `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.toDisplayJson) $resultIdent)
+
+private def generateCompiledModelSourcePrefix (mod : Module) (stx : Syntax) : CommandElabM String := do
+  let src := (← getFileMap).source
+  let afterImportsPos := ModelChecker.Compilation.findPosAfterImports src
+  let compileModePreamble := "\nset_option veil.__modelCheckCompileMode true\n"
+  let some specFinalizedAtStx := mod.specFinalizedAtStx
+    | throwError "Internal error: spec should be finalized before generating model source"
+  let some commandStart := stx.getPos? | throwError "Unexpected error: command has no position"
+  let modelCheckTriggeredFinalization := specFinalizedAtStx.getPos? == stx.getPos?
+  let specFinalizedAtPos := if modelCheckTriggeredFinalization
+    then commandStart
+    else specFinalizedAtStx.getTailPos?.getD commandStart
+  let beforeImports := String.Pos.Raw.extract src 0 afterImportsPos
+  let afterImportsToSpecFinalized := String.Pos.Raw.extract src afterImportsPos specFinalizedAtPos
+  return beforeImports ++ compileModePreamble ++ afterImportsToSpecFinalized ++ "\n"
+
+private def getSourceSlice (stx : Syntax) : CommandElabM String := do
+  let some startPos := stx.getPos? | throwError "Unexpected error: syntax has no start position"
+  let some endPos := stx.getTailPos? | throwError "Unexpected error: syntax has no end position"
+  return String.Pos.Raw.extract (← getFileMap).source startPos endPos
+
+private def generateSimulateModelSource (mod : Module) (stx : Syntax)
+    (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM String := do
+  let srcPrefix ← generateCompiledModelSourcePrefix mod stx
+  let instSrc ← getSourceSlice stx[2]
+  let theorySrc ← if stx[3].isNone then pure " {}" else do
+    let raw ← getSourceSlice stx[3][0]
+    pure s!" {raw}"
+  let cmd := s!"#simulate {instSrc}{theorySrc} (maxTraces := {cfg.maxTraces}) (maxSteps := {cfg.maxSteps}) (seed := {cfg.seed})"
+  return srcPrefix ++ cmd ++ "\n"
+
+private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : CommandElabM (IO Lean.Json) := do
+  let resultIdent := mkVeilImplementationDetailIdent `simulateRuntimeResult
+  let jsonExpr ← mkSimulateJsonExpr resultIdent
+  let resultExpr ← `(do
+    let some refs ← Veil.ModelChecker.Concrete.getProgressRefs $(quote instanceId) | pure Lean.Json.null
+    let $resultIdent ← ($callExpr $(quote instanceId) refs.cancelToken)
+    pure $jsonExpr)
+  liftTermElabM do
+    let expr ← Term.elabTerm resultExpr none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
+
+private def simulationResultWasCancelled (combinedJson : Json) : Bool :=
+  match combinedJson.getObjValAs? String "result" |>.toOption with
+  | some "cancelled" => true
+  | _ => false
+
+private def finishWithSimulationResult (ctx : ModelCheckContext) (combinedJson : Json) : CommandElabM Unit := do
+  if simulationResultWasCancelled combinedJson then
+    liftIO <| ModelChecker.Concrete.cancelProgress ctx.instanceId combinedJson
+  else
+    elabModelCheck.finishWithResult ctx combinedJson
+
+private def runSimulateBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder : System.FilePath)
+    (sourceFile : String) (commandId : String) : CommandElabM Unit := do
+  let some binPath ← elabModelCheck.verifyBinaryExists buildFolder ctx.instanceId | return
+  let some combinedJson ← elabModelCheck.runBinaryForJson binPath #[] ctx.instanceId ctx.cancelToken | return
+  ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
+  finishWithSimulationResult ctx combinedJson
+
+private def elabSimulateInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
+  let resultIdent := mkVeilImplementationDetailIdent `simulateRuntimeResult
+  let jsonExpr ← mkSimulateJsonExpr resultIdent
+  elabVeilCommand (← `(def $(mkIdent `simulateResult)
+      (progressInstanceId : Nat) (cancelToken : IO.CancelToken) : IO Lean.Json := do
+    let $resultIdent ← ($callExpr progressInstanceId cancelToken)
+    pure $jsonExpr))
+  elabVeilCommand (← `(end $(mkIdent mod.name)))
+  elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `simulateResult))))
+
+private def elabSimulateInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term) : CommandElabM Unit := do
+  let ctx ← elabModelCheck.allocModelCheckContext mod stx none
+  let ioComputation ← elaborateSimulateComputation ctx.instanceId callExpr
+  let computation ← Command.wrapAsyncAsSnapshot (fun () => do
+    try
+      if ← elabModelCheck.checkCancelled ctx.cancelToken ctx.instanceId then return
+      let combinedJson ← IO.ofExcept (← ioComputation.toIO')
+      finishWithSimulationResult ctx combinedJson
+    catch e : Exception =>
+      elabModelCheck.handleModelCheckError ctx e
+  ) ctx.cancelToken
+  let task ← BaseIO.asTask (computation ()) (prio := .dedicated)
+  Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task }
+  ModelChecker.displayStreamingProgress stx ctx.instanceId
+
+private def elabSimulateCompiledMode (mod : Module) (stx : Syntax)
+    (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Unit := do
+  let ctx ← elabModelCheck.allocModelCheckContext mod stx none
+  let sourceFile ← getFileName
+  let commandId ← getCompiledCommandId "#simulate" stx
+  let modelSource ← generateSimulateModelSource mod stx cfg
+  let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
+    try
+      let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
+        elabModelCheck.simulateCommandSpec | return
+      if ← elabModelCheck.checkCancelled ctx.cancelToken ctx.instanceId then return
+      runSimulateBinaryAndLogResult ctx buildFolder sourceFile commandId
+    catch e : Exception =>
+      elabModelCheck.handleModelCheckError ctx e
+  ) ctx.cancelToken
+  let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
+  Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := compilationTask }
+  ModelChecker.displayStreamingProgress stx ctx.instanceId
+
+private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
+    (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Unit := do
+  let ctx ← elabModelCheck.allocModelCheckContext mod stx none
+  let sourceFile ← getFileName
+  let commandId ← getCompiledCommandId "#simulate" stx
+  let modelSource ← generateSimulateModelSource mod stx cfg
+  let ioComputation ← elaborateSimulateComputation ctx.instanceId callExpr
+  let compilationCancelTk ← IO.CancelToken.new
+  liftIO <| ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId (some compilationCancelTk)
+  let finishCompilation (buildFolder : System.FilePath) : IO Unit := do
+    ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
+    ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+  let interpretedComputation ← Command.wrapAsyncAsSnapshot (fun () => do
+    try
+      let combinedJson ← IO.ofExcept (← ioComputation.toIO')
+      match (← ctx.cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) with
+      | (true, false) =>
+          if simulationResultWasCancelled combinedJson then
+            finishWithSimulationResult ctx combinedJson
+          else
+            ModelChecker.Concrete.cancelProgress ctx.instanceId
+      | (false, _) => finishWithSimulationResult ctx combinedJson
+      | (true, true) => pure ()
+    catch e : Exception =>
+      elabModelCheck.handleModelCheckError ctx e
+  ) ctx.cancelToken
+  let interpretedTask ← BaseIO.asTask (interpretedComputation ()) (prio := .dedicated)
+  Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
+  let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
+    try
+      let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
+        elabModelCheck.simulateCommandSpec | do
+          ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+          return
+      if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) ||
+          (← ModelChecker.Concrete.isCancelled ctx.instanceId) then
+        finishCompilation buildFolder
+        return
+      ModelChecker.Concrete.requestHandoff ctx.instanceId
+      ctx.cancelToken.set
+      let _ ← IO.wait interpretedTask
+      if (← ctx.cancelToken.isSet) && !(← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) then
+        ModelChecker.Concrete.cancelProgress ctx.instanceId
+        finishCompilation buildFolder
+        return
+      if (← ModelChecker.Concrete.getResultJson ctx.instanceId).isSome || (← ModelChecker.Concrete.isCancelled ctx.instanceId) then
+        finishCompilation buildFolder
+        return
+      let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
+      ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+      let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
+      runSimulateBinaryAndLogResult ctxWithNewToken buildFolder sourceFile commandId
+    catch e : Exception =>
+      ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+      ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
+  ) compilationCancelTk
+  let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
+  Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
+  ModelChecker.displayStreamingProgress stx ctx.instanceId
+
+@[command_elab Veil.simulate]
+def elabSimulate : CommandElab := fun stx => do
+  withTraceNode `veil.perf.elaborator.simulate (fun _ => return "#simulate") do
+    let mode := getModelCheckingMode stx[1]
+    let instTerm : Term := ⟨stx[2]⟩
+    let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
+    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[5].isNone then none else some ⟨stx[5][0][1]⟩
+    let mod ← getCurrentModule (errMsg := "You cannot #simulate outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    let theoryTerm ← resolveTheoryTerm "#simulate" theoryTermOpt mod instTerm
+    warnAboutTransitions mod
+    let simulateCfgStx := stx[4]
+    let cfg0 ← elabSimulateConfig simulateCfgStx
+    let opts ← getOptions
+    let (hasMaxTraces, hasMaxSteps) := simulateTraceBoundFieldsExplicit simulateCfgStx
+    let optionMaxTraces := veil.simulate.maxTraces.get opts
+    let optionMaxSteps := veil.simulate.maxSteps.get opts
+    let (maxTraces, maxSteps) := resolveSimulateTraceBounds cfg0 hasMaxTraces hasMaxSteps
+      optionMaxTraces optionMaxSteps
+    let seed ← liftIO <| if cfg0.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg0.seed
+    let cfg : ModelChecker.Simulation.SimulateConfig := { cfg0 with maxTraces, maxSteps, seed }
+    let mcCfg : ModelCheckerConfig := { maxDepth := 0, sequential := false, parallelCfg := none }
+    if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
+      elabModelCheck.checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    mod.ensureExecutableModelCheckerDefinitions
+    let sp ← buildSearchParameters mod mcCfg
+    let runtimeCallExpr ← mkSimulatorRuntimeCall mod instTerm theoryTerm sp cfg
+    if ← isModelCheckCompileMode then
+      elabSimulateInternalMode mod runtimeCallExpr
+      return
+    let effectiveMode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
+    match effectiveMode with
+    | .interpreted => elabSimulateInterpretedMode mod stx runtimeCallExpr
+    | .compiled => elabSimulateCompiledMode mod stx cfg
+    | .default => elabSimulateWithHandoff mod stx runtimeCallExpr cfg
 end Veil

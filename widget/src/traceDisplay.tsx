@@ -45,13 +45,17 @@ interface Violation {
 }
 
 interface EarlyTerminationCondition {
-  kind: "found_violating_state" | "deadlock_occurred" | "reached_depth_bound";
+  kind: "found_violating_state" | "deadlock_occurred" | "reached_depth_bound" | "reached_trace_limit";
   depth?: number;
+  traces_run?: number;
+  max_traces?: number;
 }
 
 interface TerminationReason {
-  kind: "explored_all_reachable_states" | "early_termination";
+  kind: "explored_all_reachable_states" | "early_termination" | "reached_trace_limit" | "no_initial_states";
   condition?: EarlyTerminationCondition;
+  traces_run?: number;
+  max_traces?: number;
 }
 
 interface TraceData {
@@ -71,15 +75,22 @@ type ModelCheckingResult =
       result: "found_violation";
       violation: Violation;
       trace: TraceData | null;
+      seed?: number;
     }
   | {
       result: "no_violation_found";
-      explored_states: number;
-      termination_reason: TerminationReason;
+      explored_states?: number;
+      termination_reason?: TerminationReason;
+      traces_run?: number;
+      max_traces?: number;
       trace?: TraceData | null;
+      seed?: number;
     }
   | {
       result: "cancelled";
+      traces_run?: number;
+      max_traces?: number;
+      seed?: number;
     }
   | {
       // Trace-only data without a result (for displaying execution traces)
@@ -297,15 +308,30 @@ const ResultHeader: React.FC<{
   violation?: Violation;
   exploredStates?: number;
   terminationReason?: TerminationReason;
-}> = ({ resultType, violation, exploredStates, terminationReason }) => {
+  tracesRun?: number;
+  maxTraces?: number;
+  seed?: number;
+}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, maxTraces, seed }) => {
+  const seedDetails = seed !== undefined ? (
+    <div className="result-details">
+      <strong>Seed:</strong> {seed}
+    </div>
+  ) : null;
+
   if (resultType === "cancelled") {
+    const details = tracesRun !== undefined && maxTraces !== undefined
+      ? `Checked ${tracesRun}/${maxTraces} traces before cancellation`
+      : tracesRun !== undefined
+        ? `Checked ${tracesRun} traces before cancellation`
+        : 'Run was cancelled before completion';
     return (
       <div className="result-header result-cancelled">
         <span className="result-icon">⊘</span>
         <span className="result-label">Cancelled</span>
         <div className="result-details">
-          Model checking was cancelled before completion
+          {details}
         </div>
+        {seedDetails}
       </div>
     );
   }
@@ -344,6 +370,7 @@ const ResultHeader: React.FC<{
             <strong>Location:</strong> {violation.assertion_info.moduleName}.{violation.assertion_info.procedureName} (line {violation.assertion_info.line}, column {violation.assertion_info.column})
           </div>
         )}
+        {seedDetails}
       </div>
     );
   }
@@ -353,9 +380,31 @@ const ResultHeader: React.FC<{
     const countSuffix = count !== undefined ? ` (explored ${count} states)` : '';
     const countText = count !== undefined ? `Explored ${count} states` : null;
 
-    if (!reason) return countText;
+    if (!reason) {
+      if (tracesRun !== undefined && maxTraces !== undefined) {
+        return `Checked ${tracesRun}/${maxTraces} traces`;
+      }
+      if (tracesRun !== undefined) {
+        return `Checked ${tracesRun} traces`;
+      }
+      return countText;
+    }
     if (reason.kind === "explored_all_reachable_states") {
       return count !== undefined ? `Explored all reachable states (${count})` : `Explored all reachable states`;
+    }
+    if (reason.kind === "reached_trace_limit") {
+      const tracesRun = reason.traces_run;
+      const maxTraces = reason.max_traces;
+      if (tracesRun !== undefined && maxTraces !== undefined) {
+        return `Checked ${tracesRun}/${maxTraces} traces`;
+      }
+      if (tracesRun !== undefined) {
+        return `Checked ${tracesRun} traces`;
+      }
+      return `Checked configured trace budget`;
+    }
+    if (reason.kind === "no_initial_states") {
+      return `No initial states available after applying state constraints`;
     }
     if (reason.kind === "early_termination" && reason.condition) {
       switch (reason.condition.kind) {
@@ -365,6 +414,17 @@ const ResultHeader: React.FC<{
           return `Stopped: deadlock occurred${countSuffix}`;
         case "reached_depth_bound":
           return `Reached depth bound ${reason.condition.depth}${countSuffix}`;
+        case "reached_trace_limit":
+          if (tracesRun !== undefined && maxTraces !== undefined) {
+            return `Checked ${tracesRun}/${maxTraces} traces`;
+          }
+          if (reason.condition.traces_run !== undefined && reason.condition.max_traces !== undefined) {
+            return `Checked ${reason.condition.traces_run}/${reason.condition.max_traces} traces`;
+          }
+          if (reason.condition.traces_run !== undefined) {
+            return `Checked ${reason.condition.traces_run} traces`;
+          }
+          return `Checked configured trace budget`;
         default:
           return `Early termination${countSuffix}`;
       }
@@ -383,6 +443,7 @@ const ResultHeader: React.FC<{
           <span>{terminationText}</span>
         </div>
       )}
+      {seedDetails}
     </div>
   );
 };
@@ -784,17 +845,26 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
             {'result' in result && (
               <>
                 {result.result === "cancelled" ? (
-                  <ResultHeader resultType="cancelled" />
+                  <ResultHeader
+                    resultType="cancelled"
+                    tracesRun={result.traces_run}
+                    maxTraces={result.max_traces}
+                    seed={result.seed}
+                  />
                 ) : result.result === "no_violation_found" ? (
                   <ResultHeader
                     resultType="no_violation_found"
                     exploredStates={result.explored_states}
                     terminationReason={result.termination_reason}
+                    tracesRun={result.traces_run}
+                    maxTraces={result.max_traces}
+                    seed={result.seed}
                   />
                 ) : (
                   <ResultHeader
                     resultType="found_violation"
                     violation={result.violation}
+                    seed={result.seed}
                   />
                 )}
               </>

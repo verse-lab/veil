@@ -192,16 +192,16 @@ def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ �
 -- achieve zero additional memory allocation here?
 
 /-- Partition a list of `(label × ExecutionOutcome)` pairs into two components:
-a list of successful transitions, and a list of transitions where exceptions
-were raised. The divergence part is discarded. -/
+a list of successful transitions, and a list of labeled transitions where
+exceptions were raised. The divergence part is discarded. -/
 def partitionExecutionOutcome (outcomes : List (κ × ExecutionOutcome Int σ)) :
-  List (κ × σ) × List (Int × σ) :=
+  List (κ × σ) × List (κ × Int × σ) :=
   outcomes.foldr
     (init := ([], []))
     (fun (label, outcome) (succs, exns) =>
       match outcome with
       | .success st => ((label, st) :: succs, exns)
-      | .assertionFailure exId st => (succs, (exId, st) :: exns)
+      | .assertionFailure exId st => (succs, (label, exId, st) :: exns)
       | .divergence => (succs, exns))
 
 theorem partitionExecutionOutcome.fst_spec {κ σ : Type} (outcomes : List (κ × ExecutionOutcome Int σ)) :
@@ -213,16 +213,24 @@ theorem partitionExecutionOutcome.fst_spec {κ σ : Type} (outcomes : List (κ �
   | nil => simp
   | cons x l ih => rcases x with ⟨l, _ | _ | _⟩ <;> grind
 
+theorem partitionExecutionOutcome.snd_spec {κ σ : Type} (outcomes : List (κ × ExecutionOutcome Int σ)) :
+  ∀ (label : κ) (exId : Int) (st : σ),
+    (label, exId, st) ∈ (partitionExecutionOutcome outcomes).snd ↔
+    (label, ExecutionOutcome.assertionFailure exId st) ∈ outcomes := by
+  introv ; unfold partitionExecutionOutcome
+  induction outcomes with
+  | nil => simp
+  | cons x l ih => rcases x with ⟨l, _ | _ | _⟩ <;> grind
+
 -- NOTE: If this function is put inside `BaseSearchContext.checkViolationsAndMaybeTerminate`,
 -- `specialize` of `List.filterMap` may not exhibit
 def checkViolationsAndMaybeTerminate
   (completedDepth : Nat)
   (hasSuccessfulTransition : Bool)
-  (assertionFailures : List (Int × σ)) :
+  (assertionFailures : List (κ × Int × σ)) :
   List (σₕ × ViolationKind) × Option (EarlyTerminationReason σₕ) :=
   -- Compute all violation conditions once
-  let safetyViolations := params.invariants.filterMap fun p =>
-    if !p.holdsOn th curr then some p.name else none
+  let safetyViolations := violatedInvariantNames params th curr
   let safetyViolation := !safetyViolations.isEmpty
   let deadlock := !hasSuccessfulTransition && !params.terminating.holdsOn th curr
 
@@ -231,13 +239,14 @@ def checkViolationsAndMaybeTerminate
     (if safetyViolation then [(fpSt, .safetyFailure safetyViolations)] else []) ++
     (if deadlock then [(fpSt, .deadlock)] else []) ++
     -- NOTE: This should be further optimized to avoid extra memory allocation
-    (assertionFailures.map fun (exId, _) => (fpSt, .assertionFailure exId))
+    (assertionFailures.map fun (_, exId, _) => (fpSt, .assertionFailure exId))
 
   let earlyTermination := params.earlyTerminationConditions.findSome? fun
     | .foundViolatingState => if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
     | .reachedDepthBound bound => if completedDepth >= bound then some (.reachedDepthBound bound) else none
+    | .reachedTraceLimit _ => none
     | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
-    | .assertionFailed => assertionFailures.head?.map fun (exId, _) => .assertionFailed fpSt exId
+    | .assertionFailed => assertionFailures.head?.map fun (_, exId, _) => .assertionFailed fpSt exId
     | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
   (newViolations, earlyTermination)
 
@@ -258,6 +267,7 @@ def BaseSearchContext.processState
       match x with
       | .foundViolatingState fp violations => {ctx with finished := some (.earlyTermination (.foundViolatingState fp violations))}
       | .reachedDepthBound bound => {ctx with finished := some (.earlyTermination (.reachedDepthBound bound))}
+      | .reachedTraceLimit maxTraces => {ctx with finished := some (.earlyTermination (.reachedTraceLimit maxTraces))}
       | .deadlockOccurred fp => {ctx with finished := some (.earlyTermination (.deadlockOccurred fp))}
       | .assertionFailed fp exId => {ctx with finished := some (.earlyTermination (.assertionFailed fp exId))}
       | .cancelled => {ctx with finished := some (.earlyTermination .cancelled)}

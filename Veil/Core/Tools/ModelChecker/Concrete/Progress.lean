@@ -59,7 +59,14 @@ structure ProgressHistoryPoint where
   queue : Nat
   deriving ToJson, FromJson, Inhabited, Repr
 
-/-- Progress information for model checking, using TLC-style terminology. -/
+/-- Progress information for a simulation run. -/
+structure SimulationProgress where
+  tracesRun : Nat := 0
+  maxTraces : Nat := 0
+  depth : Nat := 0
+  deriving ToJson, FromJson, Inhabited, Repr
+
+/-- Progress information for model checking or simulation. -/
 structure Progress where
   status : String := "Initializing..."
   /-- Length of the longest behavior found so far (BFS depth) -/
@@ -82,6 +89,8 @@ structure Progress where
   allActionLabels : List String := []
   /-- Time-series history for charting progress over time -/
   history : Array ProgressHistoryPoint := #[]
+  /-- Progress information for `#simulate`; absent for `#model_check`. -/
+  simulation : Option SimulationProgress := none
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Refs for tracking progress of a single model checker instance. -/
@@ -90,6 +99,8 @@ structure ProgressRefs where
   resultRef : IO.Ref (Option Lean.Json)
   /-- Cancellation token for this instance. -/
   cancelToken : IO.CancelToken
+  /-- Cancellation token for background compilation, when default handoff is active. -/
+  compilationCancelTokenRef : IO.Ref (Option IO.CancelToken)
   /-- Set by compilation task to signal interpreted mode to stop for handoff. -/
   handoffRequested : IO.Ref Bool
   /-- Set by interpreted mode when a violation is found (prevents handoff). -/
@@ -125,6 +136,7 @@ def allocProgressInstance (allActionLabels : List String := []) : IO (Nat × IO.
     progressRef := ← IO.mkRef { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true, allActionLabels }
     resultRef := ← IO.mkRef none
     cancelToken := cancelTk
+    compilationCancelTokenRef := ← IO.mkRef none
     handoffRequested := ← IO.mkRef false
     violationFound := ← IO.mkRef false
   }
@@ -174,6 +186,27 @@ def updateStatus (instanceId : Nat) (status : String) : IO Unit := withRefs inst
   let now ← IO.monoMsNow
   refs.progressRef.modify fun p => { p with status, elapsedMs := now - p.startTimeMs }
 
+/-- Update progress for a simulation run. -/
+def updateSimulationProgress (instanceId : Nat) (status : String)
+    (tracesRun maxTraces depth : Nat) : IO Unit := do
+  let now ← IO.monoMsNow
+  if let some refs ← getProgressRefs instanceId then
+    refs.progressRef.modify fun p =>
+      { p with
+        status
+        elapsedMs := now - p.startTimeMs
+        simulation := some { tracesRun, maxTraces, depth } }
+  if ← compiledModeEnabled.get then
+    let startTime ← compiledModeStartTime.get
+    let p : Progress := {
+      status := status
+      isRunning := true
+      startTimeMs := startTime
+      elapsedMs := now - startTime
+      simulation := some { tracesRun, maxTraces, depth }
+    }
+    IO.eprintln (toJson p).compress
+
 /-- Mark progress as complete for a given instance ID. -/
 def finishProgress (instanceId : Nat) (resultJson : Lean.Json) : IO Unit := withRefs instanceId fun refs => do
   let now ← IO.monoMsNow
@@ -199,14 +232,22 @@ def isCancelled (instanceId : Nat) : IO Bool := do
   | none => return false
 
 /-- Request cancellation for an instance. -/
-def requestCancellation (instanceId : Nat) : IO Unit := withRefs instanceId (·.cancelToken.set)
+def requestCancellation (instanceId : Nat) : IO Unit := withRefs instanceId fun refs => do
+  refs.cancelToken.set
+  let compilationCancelToken? ← refs.compilationCancelTokenRef.get
+  if let some compilationCancelToken := compilationCancelToken? then
+    compilationCancelToken.set
+
+/-- Register or clear the background compilation cancellation token for an instance. -/
+def setCompilationCancelToken (instanceId : Nat) (cancelToken? : Option IO.CancelToken) : IO Unit :=
+  withRefs instanceId fun refs => refs.compilationCancelTokenRef.set cancelToken?
 
 /-- Mark progress as cancelled for a given instance ID. -/
-def cancelProgress (instanceId : Nat) : IO Unit := withRefs instanceId fun refs => do
+def cancelProgress (instanceId : Nat) (resultJson : Lean.Json := Json.mkObj [("result", "cancelled")]) : IO Unit := withRefs instanceId fun refs => do
   let now ← IO.monoMsNow
   refs.progressRef.modify fun p => { p with
     status := "Cancelled", isRunning := false, isCancelled := true, elapsedMs := now - p.startTimeMs }
-  refs.resultRef.set (some (Json.mkObj [("result", "cancelled")]))
+  refs.resultRef.set (some resultJson)
 
 /-- Wait for model check to complete and return the result JSON. -/
 partial def waitForResult (instanceId : Nat) (pollIntervalMs : Nat := 100) : IO (Option Lean.Json) := do

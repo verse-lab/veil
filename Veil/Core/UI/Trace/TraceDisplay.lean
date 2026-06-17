@@ -88,6 +88,15 @@ def formatTrace (j : Json) (ind : String := "  ") : String := Id.run do
   | .arr states => r ++ (states.toList.map (fmtState · ind) |> "\n".intercalate)
   | _ => r ++ s!"{ind}(no states)"
 
+private def fmtSeedSuffix (j : Json) : String :=
+  let seed := j.getObjValD "seed"
+  if seed == .null then "" else s!"\nSeed: {fmtJson seed}"
+
+private def isNoInitialStatesTermination (j : Json) : Bool :=
+  match j.getObjValD "termination_reason" with
+  | .obj reason => fmtJson ((Json.obj reason).getObjValD "kind") == "no_initial_states"
+  | _ => false
+
 def formatModelCheckingResult (j : Json) : MessageData :=
   match fmtJson (j.getObjValD "result") with
   | "found_violation" =>
@@ -97,12 +106,17 @@ def formatModelCheckingResult (j : Json) : MessageData :=
       | _ => ""
     let trace := j.getObjValD "trace"
     let traceMsg := if trace == .null then "" else s!"\n{formatTrace trace}"
-    m!"❌ Violation: {fmtJson (v.getObjValD "kind")}{violates}{traceMsg}"
+    m!"❌ Violation: {fmtJson (v.getObjValD "kind")}{violates}{traceMsg}{fmtSeedSuffix j}"
   | "no_violation_found" =>
     let trace := j.getObjValD "trace"
-    if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}"
-    else m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states)"
-  | "cancelled" => m!"⚠️ Cancelled"
+    if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}{fmtSeedSuffix j}"
+    else if isNoInitialStatesTermination j then
+      m!"✅ No initial states available after applying state constraints{fmtSeedSuffix j}"
+    else if j.getObjValD "traces_run" != .null then
+      m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces{fmtSeedSuffix j}"
+    else
+      m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states){fmtSeedSuffix j}"
+  | "cancelled" => m!"⚠️ Cancelled{fmtSeedSuffix j}"
   | r => if j.getObjValD "error" != .null then m!"💥 Error: {fmtJson (j.getObjValD "error")}" else m!"Unknown: {r}"
 
 end Veil.TraceDisplay

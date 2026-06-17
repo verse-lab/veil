@@ -498,8 +498,23 @@ private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := 
   </details>
 
 /-- Convert Progress to Html for display, with optional Stop button. Uses TLC-style terminology. -/
-def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
-  <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
+def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := Id.run do
+  let (progressRows, metricsHistory, actionCoverage) : Array Html × Html × Html :=
+    match p.simulation with
+    | some sim =>
+        (#[
+          statRow "Traces Run:" (toString sim.tracesRun),
+          statRow "Max Traces:" (toString sim.maxTraces),
+          statRow "Depth:" (toString sim.depth),
+        ], .text "", .text "")
+    | none =>
+        (#[
+          statRow "Diameter:" (toString p.diameter),
+          statRow "States Found:" (toString p.statesFound),
+          statRow "Distinct States:" (toString p.distinctStates),
+          statRow "Queue:" (toString p.queue),
+        ], metricsHistoryHtml p.history, actionCoverageHtml p.actionStats p.allActionLabels)
+  return <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
     {if p.isRunning then
       <div style={json% {"marginTop": "8px", "display": "flex", "alignItems": "center", "gap": "12px"}}>
         <div style={json% {"color": "#0066cc"}}>
@@ -518,16 +533,10 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
         <div style={json% {"color": "#00aa00", "fontWeight": "bold"}}>Done!</div>
       </div>}
     <table style={json% {"borderCollapse": "collapse"}}>
-      <tbody>
-        {statRow "Diameter:" (toString p.diameter)}
-        {statRow "States Found:" (toString p.statesFound)}
-        {statRow "Distinct States:" (toString p.distinctStates)}
-        {statRow "Queue:" (toString p.queue)}
-        {statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)}
-      </tbody>
+      {.element "tbody" #[] (progressRows.push (statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)))}
     </table>
-    {metricsHistoryHtml p.history}
-    {actionCoverageHtml p.actionStats p.allActionLabels}
+    {metricsHistory}
+    {actionCoverage}
     {match p.compilationStatus with
      | .inProgress ms lines => if lines.isEmpty then .text "" else compilationLogHtml ms lines
      | .failed err => compilationFailureHtml err

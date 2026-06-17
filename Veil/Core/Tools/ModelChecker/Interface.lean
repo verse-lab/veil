@@ -51,6 +51,7 @@ inductive EarlyTerminationCondition where
   | deadlockOccurred
   | assertionFailed
   | reachedDepthBound (depth : Nat)
+  | reachedTraceLimit (maxTraces : Nat)
   | cancelled
 deriving Inhabited, Hashable, BEq, Repr
 
@@ -61,13 +62,14 @@ inductive EarlyTerminationReason (σₕ : Type) where
   | deadlockOccurred (fp : σₕ)
   | assertionFailed (fp : σₕ) (exceptionId : Int)
   | reachedDepthBound (depth : Nat)
+  | reachedTraceLimit (maxTraces : Nat)
   | cancelled
 deriving Inhabited, Hashable, BEq, Repr
 
 /-- Check if the termination reason represents a violation that should prevent handoff. -/
 def EarlyTerminationReason.isViolation {σₕ : Type} : EarlyTerminationReason σₕ → Bool
   | .foundViolatingState _ _ | .deadlockOccurred _ | .assertionFailed _ _ => true
-  | .reachedDepthBound _ | .cancelled => false
+  | .reachedDepthBound _ | .reachedTraceLimit _ | .cancelled => false
 
 instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
   toJson
@@ -75,6 +77,7 @@ instance [ToJson σₕ] : ToJson (EarlyTerminationReason σₕ) where
     | .deadlockOccurred fp => Json.mkObj [("kind", "deadlock_occurred"), ("state_fingerprint", toJson fp)]
     | .assertionFailed fp exId => Json.mkObj [("kind", "assertion_failed"), ("state_fingerprint", toJson fp), ("exception_id", toJson exId)]
     | .reachedDepthBound depth => Json.mkObj [("kind", "reached_depth_bound"), ("depth", toJson depth)]
+    | .reachedTraceLimit maxTraces => Json.mkObj [("kind", "reached_trace_limit"), ("max_traces", toJson maxTraces)]
     | .cancelled => Json.mkObj [("kind", "cancelled")]
 
 inductive TerminationReason (σₕ : Type) where
@@ -279,6 +282,29 @@ def SearchParameters.violatedAssumptions (params : SearchParameters ρ σ) (th :
   params.assumptions.filterMap fun p =>
     if p.holdsOn th then none else some p.name
 
+/-- Create a filtered transition system that explores only states satisfying
+state constraints. -/
+@[inline]
+def restrictSystemByStateConstraints {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) :
+  EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀ :=
+  if params.stateConstraints.isEmpty then sys else {
+    initStates := sys.initStates.filter (params.satisfiesConstraints th)
+    tr := fun th' st => (sys.tr th' st).filter fun (_, outcome) =>
+      match outcome with
+      | .success st' => params.satisfiesConstraints th st'
+      -- Assertion failures should satisfy constraints to be considered.
+      | .assertionFailure _ st' => params.satisfiesConstraints th st'
+      -- Divergence has no successor state to constrain.
+      | .divergence => true
+  }
+
+@[inline]
+def violatedInvariantNames {ρ σ : Type}
+  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List Lean.Name :=
+  params.invariants.filterMap fun p =>
+    if !p.holdsOn th st then some p.name else none
 -- class ModelChecker (ts : TransitionSystem ρ σ l) where
 --   isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ
 

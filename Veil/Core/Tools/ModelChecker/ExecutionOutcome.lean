@@ -21,7 +21,7 @@ inductive ExecutionOutcome (ε σ : Type) where
   | assertionFailure (error : ε) (state : σ)
   /-- The action diverged (did not terminate). -/
   | divergence
-deriving Repr, BEq, Inhabited
+deriving Repr, BEq, DecidableEq, Inhabited
 
 namespace ExecutionOutcome
 
@@ -32,36 +32,6 @@ def toPostState : ExecutionOutcome ε σ → Option σ
   | .success st => .some st
   | .assertionFailure _ _ => .none
   | .divergence => .none
-
-/-- Check if the outcome is a successful transition. -/
-@[inline]
-def isSuccess : ExecutionOutcome ε σ → Bool
-  | .success _ => true
-  | _ => false
-
-/-- Check if the outcome is an assertion failure. -/
-@[inline]
-def isAssertionFailure : ExecutionOutcome ε σ → Bool
-  | .assertionFailure _ _ => true
-  | _ => false
-
-/-- Check if the outcome is divergence. -/
-@[inline]
-def isDivergence : ExecutionOutcome ε σ → Bool
-  | .divergence => true
-  | _ => false
-
-/-- Extract the state from a successful outcome. -/
-@[inline]
-def getSuccessState? : ExecutionOutcome ε σ → Option σ
-  | .success st => some st
-  | _ => none
-
-/-- Extract the error and state from an assertion failure. -/
-@[inline]
-def getAssertionFailure? : ExecutionOutcome ε σ → Option (ε × σ)
-  | .assertionFailure e st => some (e, st)
-  | _ => none
 
 /-- Extract just the exception ID from an assertion failure. -/
 @[inline]

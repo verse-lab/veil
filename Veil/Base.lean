@@ -142,4 +142,14 @@ register_option veil.smt.timeout : Nat := {
   descr := "Timeout for the SMT solver in seconds. Default is 60 seconds."
 }
 
+register_option veil.simulate.maxTraces : Nat := {
+  defValue := 10000
+  descr := "Maximum number of traces to generate during simulation. Default is 10000."
+}
+
+register_option veil.simulate.maxSteps : Nat := {
+  defValue := 100
+  descr := "Maximum number of steps per trace during simulation. Default is 100 (same as TLC)."
+}
+
 end Veil
