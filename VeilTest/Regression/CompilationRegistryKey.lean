@@ -36,3 +36,22 @@ open Veil.ModelChecker.Compilation
   markRegistryFinished sourceFile simulateCommand "simulate-a" simulateBuildDirA
   markRegistryFinished sourceFile simulateCommand "simulate-b" simulateBuildDirB
   markRegistryFinished sourceFile simulateCommand "simulate-c" simulateBuildDirC
+
+#eval do
+  let sourceFile := "/tmp/compilation-build-folder-cache.lean"
+  let command : CompiledCommandSpec := {
+    exportedName := "simulateResult"
+  }
+  let firstSource := "namespace CacheFirst\nend CacheFirst\n"
+  let secondSource := "namespace CacheSecond\nend CacheSecond\n"
+  let firstFolder ← createBuildFolder sourceFile firstSource "CacheFirst" command "simulate-cache"
+  let cacheDir := firstFolder / ".lake" / "build"
+  IO.FS.createDirAll cacheDir
+  let cacheSentinel := cacheDir / "cache-sentinel"
+  IO.FS.writeFile cacheSentinel "cached"
+  let secondFolder ← createBuildFolder sourceFile secondSource "CacheSecond" command "simulate-cache"
+  assert! (toString firstFolder == toString secondFolder)
+  assert! (← cacheSentinel.pathExists)
+  assert! ((← IO.FS.readFile (secondFolder / "Model.lean")) == secondSource)
+  assert! ((← IO.FS.readFile (secondFolder / "ModelCheckerMain.lean")) == modelCheckerMainTemplate "CacheSecond" command)
+  assert! ((← IO.FS.readFile (secondFolder / "lakefile.lean")) == lakefileTemplate)
