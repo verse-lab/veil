@@ -36,11 +36,23 @@ def mkEnumAxiomatisation {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : 
 def mkEnumConcreteType {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Array Ident) : m (Array (TSyntax `command)) := do
   let name := Ident.toEnumConcreteType id
   let ctors ← elems.mapM fun el => `(Lean.Parser.Command.ctor| | $el:ident )
-  let baseClasses := #[``DecidableEq, ``Repr].map Lean.mkIdent
+  let baseClasses := #[``DecidableEq].map Lean.mkIdent
   let derivings := if !ctors.isEmpty then baseClasses ++ (#[ ``Inhabited, ``Nonempty].map Lean.mkIdent) else baseClasses
   let indType ← `(inductive $name where $[$ctors]* deriving $[$derivings:ident],*)
+  let reprInst ← do
+    let x := mkVeilImplementationDetailIdent `x
+    let fallback ← `(term| "<unrepresentable>")
+    let reprBody ← elems.foldrM (init := fallback) fun (el : Ident) (acc : Term) => do
+      let concEl := Lean.mkIdent (name.getId ++ el.getId)
+      `(term| if $x:ident = $concEl:ident then $(Syntax.mkStrLit el.getId.getString!) else $acc)
+    `(command|
+      instance : $(Lean.mkIdent ``Repr) $name where
+        $(Lean.mkIdent `reprPrec):ident $x:ident _ := $reprBody)
+  let toJsonInst ← `(command|
+    instance : $(Lean.mkIdent ``Lean.ToJson) $name where
+      $(Lean.mkIdent `toJson):ident x := $(Lean.mkIdent ``Lean.Json.str) ($(Lean.mkIdent ``reprStr) x))
   -- show that the concrete type satisfies the axiomatisation
-  let concElems : Array Ident := elems.map fun el => mkIdent (name.getId ++ el.getId)
+  let concElems : Array Ident := elems.map fun el => Lean.mkIdent (name.getId ++ el.getId)
   let instFields ← (elems.zip concElems).mapM fun (el, concEl) => `(Lean.Parser.Term.structInstField| $el:ident := $concEl:ident)
   let distinctField ← `(Lean.Parser.Term.structInstField| $enumDistinct:ident :=  (by (try decide); (try grind)))
   let completeField ← do
@@ -55,6 +67,6 @@ def mkEnumConcreteType {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Ar
   let ordInst ← `(command| instance : $(mkIdent ``Ord) $name := $(mkIdent ``Veil.Ord.ofFinEncodable) $name)
   let transOrdInst ← `(command| instance : $(mkIdent ``Std.TransOrd) $name := $(mkIdent ``Veil.Std.TransOrd.ofFinEncodable) $name)
   let lawfulEqOrdInst ← `(command| instance : $(mkIdent ``Std.LawfulEqOrd) $name := $(mkIdent ``Veil.Std.LawfulEqOrd.ofFinEncodable) $name)
-  return #[indType, instanceAx, derivedInsts, ordInst, transOrdInst, lawfulEqOrdInst]
+  return #[indType, reprInst, toJsonInst, instanceAx, derivedInsts, ordInst, transOrdInst, lawfulEqOrdInst]
 
 end Veil

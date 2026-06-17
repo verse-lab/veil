@@ -29,42 +29,18 @@ The following set of actions must preserve the invariant and successfully termin
     inv_0 ... ❌
       Counterexample (WP):
         Theory:
-          msg_req_rsp_type_Enum.erply = bar_mod.msg_req_rsp_type_IndT.erply
-          msg_req_rsp_type_Enum.espec = bar_mod.msg_req_rsp_type_IndT.espec
-          msg_req_rsp_type_Enum.idle_r_r = bar_mod.msg_req_rsp_type_IndT.idle_r_r
-          msg_req_rsp_type_Enum.nack = bar_mod.msg_req_rsp_type_IndT.nack
-          msg_req_rsp_type_Enum.rdex = bar_mod.msg_req_rsp_type_IndT.rdex
-          msg_req_rsp_type_Enum.rdsh = bar_mod.msg_req_rsp_type_IndT.rdsh
-          msg_req_rsp_type_Enum.srply = bar_mod.msg_req_rsp_type_IndT.srply
-          msg_req_rsp_type_Enum.sspec = bar_mod.msg_req_rsp_type_IndT.sspec
-          msg_req_rsp_type_Enum.upack = bar_mod.msg_req_rsp_type_IndT.upack
-          msg_req_rsp_type_Enum.upgrd = bar_mod.msg_req_rsp_type_IndT.upgrd
-          msg_req_rsp_type_Enum.wack = bar_mod.msg_req_rsp_type_IndT.wack
-          msg_req_rsp_type_Enum.wb = bar_mod.msg_req_rsp_type_IndT.wb
-          msg_req_rsp_type_Enum.wbbak = bar_mod.msg_req_rsp_type_IndT.wbbak
+          enum msg_req_rsp_type = {erply, espec, idle_r_r, nack, rdex, rdsh, srply, sspec, upack, upgrd, wack, wb, wbbak}
         Pre-state:
-          net_req_rsp_kind = [[0, bar_mod.msg_req_rsp_type_IndT.idle_r_r]]
+          net_req_rsp_kind = [[0, idle_r_r]]
         Action: p_req(p=0)
       Counterexample (TR):
         Theory:
-          msg_req_rsp_type_Enum.erply = bar_mod.msg_req_rsp_type_IndT.erply
-          msg_req_rsp_type_Enum.espec = bar_mod.msg_req_rsp_type_IndT.espec
-          msg_req_rsp_type_Enum.idle_r_r = bar_mod.msg_req_rsp_type_IndT.idle_r_r
-          msg_req_rsp_type_Enum.nack = bar_mod.msg_req_rsp_type_IndT.nack
-          msg_req_rsp_type_Enum.rdex = bar_mod.msg_req_rsp_type_IndT.rdex
-          msg_req_rsp_type_Enum.rdsh = bar_mod.msg_req_rsp_type_IndT.rdsh
-          msg_req_rsp_type_Enum.srply = bar_mod.msg_req_rsp_type_IndT.srply
-          msg_req_rsp_type_Enum.sspec = bar_mod.msg_req_rsp_type_IndT.sspec
-          msg_req_rsp_type_Enum.upack = bar_mod.msg_req_rsp_type_IndT.upack
-          msg_req_rsp_type_Enum.upgrd = bar_mod.msg_req_rsp_type_IndT.upgrd
-          msg_req_rsp_type_Enum.wack = bar_mod.msg_req_rsp_type_IndT.wack
-          msg_req_rsp_type_Enum.wb = bar_mod.msg_req_rsp_type_IndT.wb
-          msg_req_rsp_type_Enum.wbbak = bar_mod.msg_req_rsp_type_IndT.wbbak
+          enum msg_req_rsp_type = {erply, espec, idle_r_r, nack, rdex, rdsh, srply, sspec, upack, upgrd, wack, wb, wbbak}
         Pre-state:
-          net_req_rsp_kind = [[0, bar_mod.msg_req_rsp_type_IndT.idle_r_r]]
+          net_req_rsp_kind = [[0, idle_r_r]]
         Action: p_req(p=0)
         Post-state:
-          net_req_rsp_kind = [[0, bar_mod.msg_req_rsp_type_IndT.rdsh]]
+          net_req_rsp_kind = [[0, rdsh]]
 -/
 #guard_msgs in
 #check_invariants

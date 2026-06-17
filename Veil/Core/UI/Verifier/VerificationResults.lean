@@ -183,6 +183,27 @@ private def formatJsonObject (json : Json) (indent : String := "  ") : String :=
   | .obj kvs => "\n".intercalate (kvs.toArray.map fun (k, v) => s!"{indent}{k} = {formatJsonValue v}").toList
   | _ => formatJsonValue json
 
+private def enumTheoryEntry? (key : String) : Option (String × String) :=
+  match key.splitOn "_Enum." with
+  | [enumName, ctor] =>
+    if enumName.isEmpty || ctor.isEmpty then none else some (enumName, ctor)
+  | _ => none
+
+/-- Format theory entries, grouping enum adapter assignments into compact enum declarations. -/
+private def formatTheoryObject (json : Json) (indent : String := "  ") : String :=
+  match json with
+  | .obj kvs =>
+    let entries := kvs.toArray
+    let enumEntries := (entries.filterMap fun (k, _) => enumTheoryEntry? k).toList
+    let regularLines := (entries.filter fun (k, _) => (enumTheoryEntry? k).isNone).toList.map
+      fun (k, v) => s!"{indent}{k} = {formatJsonValue v}"
+    let enumLines := (enumEntries.map Prod.fst).eraseDups.map fun enumName =>
+      let ctors := (enumEntries.filterMap fun (name, ctor) =>
+        if name == enumName then some ctor else none).eraseDups
+      indent ++ "enum " ++ enumName ++ " = {" ++ ", ".intercalate ctors ++ "}"
+    "\n".intercalate (enumLines ++ regularLines)
+  | _ => formatJsonValue json
+
 /-- Extract theory entries, including theory-related `extraVals` such as
 `tot.le` that the widget folds into the theory panel. -/
 private def extractTheoryEntries (json : Json) : Json := Id.run do
@@ -224,7 +245,7 @@ private def formatCounterexampleJson (json : Json) (style : String) : MessageDat
   let postState := json.getObjValD "postState"
   let label := json.getObjValD "label"
   let mut msg := m!"      Counterexample ({style}):\n"
-  msg := msg ++ m!"        Theory:\n{formatJsonObject theory "          "}\n"
+  msg := msg ++ m!"        Theory:\n{formatTheoryObject theory "          "}\n"
   msg := msg ++ m!"        Pre-state:\n{formatJsonObject preState "          "}\n"
   msg := msg ++ m!"        Action: {formatLabelJson label}\n"
   unless postState == .null do

@@ -133,6 +133,24 @@ type StatusFilter = 'all' | 'proven' | 'disproven' | 'unknown' | 'error' | 'time
 
 // ========== Helpers ==========
 
+const parseEnumTheoryKey = (key: string): [string, string] | null => {
+  const match = key.match(/^(.+)_Enum\.(.+)$/);
+  return match ? [match[1], match[2]] : null;
+};
+
+const compactEnumDecls = (fields: Record<string, unknown>): string[] => {
+  const enumEntries = Object.keys(fields)
+    .map(parseEnumTheoryKey)
+    .filter((entry): entry is [string, string] => entry !== null);
+
+  return [...new Set(enumEntries.map(([enumName]) => enumName))].map((enumName) => {
+    const constructors = enumEntries
+      .filter(([name]) => name === enumName)
+      .map(([, ctor]) => ctor);
+    return `enum ${enumName} = {${[...new Set(constructors)].join(', ')}}`;
+  });
+};
+
 /** Key-value row component for state display */
 const CexKVRow: React.FC<{
   k: string;
@@ -190,9 +208,13 @@ const CollapsibleFieldsPanel: React.FC<{
   title: string;
   fields: Record<string, unknown>;
   defaultExpanded?: boolean;
-}> = ({ title, fields, defaultExpanded = false }) => {
+  compactEnums?: boolean;
+}> = ({ title, fields, defaultExpanded = false, compactEnums = false }) => {
   const [expanded, setExpanded] = React.useState(defaultExpanded);
-  const entries = Object.entries(fields);
+  const enumDecls = compactEnums ? compactEnumDecls(fields) : [];
+  const entries = Object.entries(fields)
+    .filter(([key]) => !compactEnums || parseEnumTheoryKey(key) === null);
+  const count = enumDecls.length + entries.length;
 
   return (
     <div className="cex-theory-panel">
@@ -202,14 +224,17 @@ const CollapsibleFieldsPanel: React.FC<{
       >
         <span className="cex-theory-toggle">{expanded ? '▼' : '▶'}</span>
         <span className="cex-theory-label">{title}</span>
-        <span className="cex-theory-count">({entries.length} {entries.length === 1 ? 'field' : 'fields'})</span>
+        <span className="cex-theory-count">({count} {count === 1 ? 'field' : 'fields'})</span>
       </div>
       {expanded && (
         <div className="cex-theory-body">
-          {entries.length === 0 ? (
+          {count === 0 ? (
             <div className="cex-empty-state">No fields</div>
           ) : (
             <div className="cex-kv-table">
+              {enumDecls.map(decl => (
+                <div key={decl} className="cex-kv-row cex-enum-row"><code>{decl}</code></div>
+              ))}
               {entries.map(([k, v]) => (
                 <CexKVRow key={k} k={k} v={v} />
               ))}
@@ -381,7 +406,7 @@ const StructuredCexView: React.FC<{
 
       {/* Theory (collapsible, expanded by default) */}
       {Object.keys(combinedTheory).length > 0 && (
-        <CollapsibleFieldsPanel title="Theory" fields={combinedTheory} defaultExpanded={true} />
+        <CollapsibleFieldsPanel title="Theory" fields={combinedTheory} defaultExpanded={true} compactEnums={true} />
       )}
 
       {/* Centered action chip above panels (when side-by-side) */}
@@ -2089,6 +2114,19 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
     .cex-kv-row.changed {
       background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 213, 0, 0.15));
       border-left: 3px solid var(--vscode-editor-findMatchHighlightBorder, #ffd500);
+    }
+
+    .cex-enum-row {
+      grid-template-columns: 1fr;
+    }
+
+    .cex-enum-row code {
+      background: transparent;
+      padding: 0;
+      color: var(--vscode-foreground);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      word-break: break-all;
     }
 
     .cex-kv-key {
