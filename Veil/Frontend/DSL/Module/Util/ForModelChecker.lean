@@ -168,14 +168,12 @@ def main (args : List String) : IO Unit := do
 "
 
 /-- Create the temp build folder with all necessary files.
-Returns the absolute path to the build folder. -/
+Returns the absolute path to the build folder. Generated inputs are overwritten
+on each call while preserving the Lake build cache in the folder. -/
 def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
     (command : CompiledCommandSpec) (commandId : String) : IO System.FilePath := do
   let veilPath ← IO.currentDir
   let buildFolder ← generateBuildFolderName sourceFile command commandId
-  -- Recreate the build folder from scratch to avoid stale Lake state from prior runs.
-  if ← buildFolder.pathExists then
-    IO.FS.removeDirAll buildFolder
   IO.FS.createDirAll buildFolder
   -- Write the lakefile
   IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
