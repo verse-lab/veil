@@ -324,6 +324,10 @@ instance (priority := high + 200) {α : Type u} [Veil.Enumeration α] : MultiExt
   find := fun _ => Veil.Enumeration.allValues
   find_iff := by simp ; grind
 
+instance (priority := high) {α : Type u} (a : α) : Veil.Enumeration {x : α // Veil.eqWithoutSubst x a} where
+  allValues := [⟨a, rfl⟩]
+  complete := by rintro ⟨x, h⟩ ; simp [Veil.eqWithoutSubst] at h ; simp [h]
+
 def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] [instec : ExtCandidates Candidates Std.Format p] :
   ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
   (findOfCandidates _) (VeilM.pickSuchThat τ p) := ConstrainedExtractResult.pickList _ _ _ _ p (instec := instec)
@@ -358,6 +362,8 @@ attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.bind ConstrainedExtractResult.assume
   ConstrainedExtractResult.filterAuxM
   ConstrainedExtractResult.pick
+  -- findOfCandidates Candidates.find ExtCandidates.rep ExtCandidates.core
+  -- instEnumerationEqWithoutSubst
   ConstrainedExtractResult.pickList ConstrainedExtractResult.liftM ConstrainedExtractResult.ite
   ConstrainedExtractResult.val
   ConstrainedExtractResult.pickSuchThat_VeilM

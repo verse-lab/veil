@@ -63,7 +63,7 @@ def HO_forall_push_left_impl : Simp.Simproc := fun e => do
 
 simproc HO_forall_push_left (∀_ _, _) := HO_forall_push_left_impl
 attribute [forallQuantifierSimp] HO_forall_push_left
-attribute [forallQuantifierSimp] forall_const forall_eq forall_eq
+attribute [forallQuantifierSimp] forall_const
 
 section forall_and
 set_option linter.unusedSectionVars false

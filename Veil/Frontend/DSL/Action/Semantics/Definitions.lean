@@ -56,6 +56,23 @@ abbrev Transition (ρ σ : Type) := ρ -> σ -> σ -> Prop
 
 end Types
 
+/-! ## Sharing barriers -/
+
+/-- A deterministic `let` wrapper used as a sharing barrier during WP generation.
+
+Unlike Lean's ordinary `let`, this should only be unfolded by dedicated rules
+late in the verification pipeline. -/
+def letEq (a : α) (f : α → β) : β := f a
+
+theorem letEq_to_forall (a : α) (p : α → Prop) : letEq a p = (∀ b, a = b → p b) := by
+  unfold letEq ; grind
+
+/-- Equality packaged as a non-substituting predicate for Veil `veil_let`. -/
+def eqWithoutSubst (a b : α) : Prop := a = b
+
+-- CHECK Maybe remove later
+instance [inst : DecidableEq α] : Decidable (eqWithoutSubst (a : α) b) := inst a b
+
 /-! ## Theory  -/
 section Theory
 

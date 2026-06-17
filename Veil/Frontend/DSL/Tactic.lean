@@ -1191,11 +1191,7 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
     let classicalIdent := mkIdent `Classical
     let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
     let tac ← if fast
-      -- NOTE: The `subst_eqs` is for equalities between higher-order stuff,
-      -- especially relations produced after `concretize_fields`. This can
-      -- happen for unchanged fields in transitions. The `veil_destruct` is for
-      -- destructing conjunctions to expose the equalities.
-      then `(tactic| (veil_destruct' ; veil_dsimp only at *; veil_intros; (try subst_eqs)) )
+      then `(tactic| (veil_destruct' ; veil_dsimp only at *; veil_intros) )
       else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
     -- FIXME: There is `inferNonemptyTac` both in `veil_fol` and `veil_smt` and `concretize_wp`. Just keep one?
     `(tactic| ($inferNonemptyTac:tactic; $tac:tactic))

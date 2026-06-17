@@ -26,6 +26,45 @@ abbrev doSeqItem := TSyntax ``Term.doSeqItem
 
 syntax "let" term ":" term ":|" term : doElem
 
+/--
+In an action block, `veil_let x := v` gives a name to `v` without eagerly
+inlining it during verification.
+
+**WARNING**: The right-hand side `v` should be a pure expression.
+-/
+-- NOTE: Do not replace this with `syntax ... : doElem`. Since term-level `veil_let`
+-- is also a term parser, Lean's ordinary `doReassign` parser can otherwise
+-- consume an action block fragment like `veil_let x := v; y := x` as
+-- `(veil_let x := v; y) := x`.
+@[doElem_parser high] def veilLetDo := leading_parser
+  "veil_let " >> Lean.Parser.Term.letDecl
+
+/--
+In a term, `veil_let x := v; body` gives a name to `v` inside `body` without
+eagerly inlining it during verification. The semicolon before `body` is part of
+the syntax.
+-/
+-- NOTE: We intentionally require an explicit semicolon here instead of Lean's
+-- `optSemicolon`; otherwise this term parser may capture the next do/action
+-- statement as the body of the term-level `veil_let`.
+@[term_parser]
+def veilLetTerm := leading_parser:leadPrec
+  withPosition ("veil_let " >> Lean.Parser.Term.letDecl) >>
+  "; " >> termParser
+
+macro_rules
+  | `(veil_let $decl:letDecl; $body:term) => do
+    let letEq := mkIdent ``Veil.letEq
+    let thisId := mkIdent `this
+    match decl with
+    | `(letDecl| $x:ident := $t:term) => `($letEq $t (fun $x:ident => $body))
+    | `(letDecl| $x:ident : $ty:term := $t:term) => `($letEq ($t : $ty) (fun ($x:ident : $ty) => $body))
+    | `(letDecl| $x:term := $t:term) => `($letEq $t (fun $x:term => $body))
+    | `(letDecl| $x:term : $ty:term := $t:term) => `($letEq ($t : $ty) (fun $x:term => $body))
+    | `(letDecl| := $t:term) => `($letEq $t (fun $thisId:ident => $body))
+    | `(letDecl| : $ty:term := $t:term) => `($letEq ($t : $ty) (fun $thisId:ident => $body))
+    | _ => Macro.throwUnsupported
+
 /- See:
  - https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/Pattern.20match.20and.20name.20binder.20.60none.60/near/514568614
  - https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/.60reducible.60.20bug.20with.20.60namedPattern.60s.3F/near/534955024
@@ -101,6 +140,24 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   match stx with
   -- Ignore semicolons
   | `(Term.doSeqItem| $stx ;) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $stx:doElem)
+  | `(Term.doSeqItem| veil_let $decl:letDecl) => do
+    let eqWS := mkIdent ``Veil.eqWithoutSubst
+    let thisId := mkIdent `this
+    let el ← match decl with
+      | `(letDecl| $x:ident := $t:term) =>
+        `(Term.doSeqItem| let $x:ident :| $eqWS:ident $x:ident $t)
+      | `(letDecl| $x:ident : $ty:term := $t:term) =>
+        `(Term.doSeqItem| let $x:ident : $ty:term :| $eqWS:ident $x:ident ($t : $ty))
+      | `(letDecl| $x:term := $t:term) =>
+        `(Term.doSeqItem| let $x:term :| $eqWS:ident $x:term $t)
+      | `(letDecl| $x:term : $ty:term := $t:term) =>
+        `(Term.doSeqItem| let $x:term : $ty:term :| $eqWS:ident $x:term ($t : $ty))
+      | `(letDecl| := $t:term) =>
+        `(Term.doSeqItem| let $thisId:ident :| $eqWS:ident $thisId:ident $t)
+      | `(letDecl| : $ty:term := $t:term) =>
+        `(Term.doSeqItem| let $thisId:ident : $ty:term :| $eqWS:ident $thisId:ident ($t : $ty))
+      | _ => throwErrorAt stx "unsupported `veil_let` declaration"
+    return #[el]
   -- We don't want to introduce state updates after pure statements, so
   -- we pass these through unchanged
   -- FIXME: we could have `pure (← state_modifying_action)`, so this isn't

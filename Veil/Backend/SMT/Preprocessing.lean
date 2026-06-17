@@ -1,6 +1,8 @@
 import Lean
 import Batteries.Lean.Meta.UnusedNames
 import Veil.Backend.SMT.Base
+-- FIXME: This is somehow coupling frontend and backend, not very good
+import Veil.Frontend.DSL.Action.Semantics.Definitions
 
 open Lean Meta Elab Tactic
 
@@ -60,6 +62,7 @@ theorem Bool.eq_decide_to_iff {b : Bool} {p : Prop} [inst : Decidable p] :
 
 attribute [smtSimp] exists_prop forall_const
 attribute [smtSimp] decide_eq_true_eq decide_eq_false_iff_not
+attribute [smtSimp] Veil.letEq_to_forall Veil.eqWithoutSubst
 
 -- If-then-else simplification lemmas
 attribute [smtSimp] ite_true ite_false dite_true dite_false ite_self
