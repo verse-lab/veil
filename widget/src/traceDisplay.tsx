@@ -52,7 +52,7 @@ interface EarlyTerminationCondition {
 }
 
 interface TerminationReason {
-  kind: "explored_all_reachable_states" | "early_termination" | "reached_trace_limit";
+  kind: "explored_all_reachable_states" | "early_termination" | "reached_trace_limit" | "no_initial_states";
   condition?: EarlyTerminationCondition;
   traces_run?: number;
   max_traces?: number;
@@ -88,6 +88,8 @@ type ModelCheckingResult =
     }
   | {
       result: "cancelled";
+      traces_run?: number;
+      max_traces?: number;
       seed?: number;
     }
   | {
@@ -317,12 +319,17 @@ const ResultHeader: React.FC<{
   ) : null;
 
   if (resultType === "cancelled") {
+    const details = tracesRun !== undefined && maxTraces !== undefined
+      ? `Checked ${tracesRun}/${maxTraces} traces before cancellation`
+      : tracesRun !== undefined
+        ? `Checked ${tracesRun} traces before cancellation`
+        : 'Run was cancelled before completion';
     return (
       <div className="result-header result-cancelled">
         <span className="result-icon">⊘</span>
         <span className="result-label">Cancelled</span>
         <div className="result-details">
-          Model checking was cancelled before completion
+          {details}
         </div>
         {seedDetails}
       </div>
@@ -395,6 +402,9 @@ const ResultHeader: React.FC<{
         return `Checked ${tracesRun} traces`;
       }
       return `Checked configured trace budget`;
+    }
+    if (reason.kind === "no_initial_states") {
+      return `No initial states available after applying state constraints`;
     }
     if (reason.kind === "early_termination" && reason.condition) {
       switch (reason.condition.kind) {
@@ -835,7 +845,12 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
             {'result' in result && (
               <>
                 {result.result === "cancelled" ? (
-                  <ResultHeader resultType="cancelled" seed={result.seed} />
+                  <ResultHeader
+                    resultType="cancelled"
+                    tracesRun={result.traces_run}
+                    maxTraces={result.max_traces}
+                    seed={result.seed}
+                  />
                 ) : result.result === "no_violation_found" ? (
                   <ResultHeader
                     resultType="no_violation_found"
