@@ -14,6 +14,10 @@ inductive SimulationResult (ρ σ κ : Type) where
   | foundViolation (violation : ViolationKind) (viaTrace : Trace ρ σ κ)
 deriving Inhabited, Repr
 
+def SimulationResult.depth {ρ σ κ : Type} : SimulationResult ρ σ κ → Nat
+  | .foundViolation _ trace => trace.steps.size + if trace.failingStep.isSome then 1 else 0
+  | .cancelled => 0
+
 inductive SimulationTerminationReason where
   | noInitialStates
 deriving Inhabited, Hashable, BEq, Repr
@@ -28,7 +32,11 @@ structure SimulateResult (ρ σ κ : Type) where
   maxTraces : Nat
   elapsedMs : Nat
   seed : Nat
-  depth : Nat
   terminationReason : Option SimulationTerminationReason := none
+
+def SimulateResult.depth {ρ σ κ : Type} (result : SimulateResult ρ σ κ) : Nat :=
+  match result.result with
+  | some result => result.depth
+  | none => 0
 
 end Veil.ModelChecker.Simulation

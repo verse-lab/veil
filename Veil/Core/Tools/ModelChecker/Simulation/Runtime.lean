@@ -10,7 +10,6 @@ private def noInitialStatesResult {ρ σ κ : Type} (cfg : SimulateConfig) : Sim
   maxTraces := cfg.maxTraces
   elapsedMs := 0
   seed := cfg.seed
-  depth := 0
   terminationReason := some .noInitialStates
 }
 
@@ -39,7 +38,6 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
       maxTraces := cfg.maxTraces
       elapsedMs := 0
       seed := cfg.seed
-      depth := 0
     }
   match remaining with
   | 0 =>
@@ -49,12 +47,11 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
         maxTraces := cfg.maxTraces
         elapsedMs := 0
         seed := cfg.seed
-        depth := 0
       }
   | remaining + 1 =>
       hooks.onTraceProgress traceIndex
       match simulateTraceAtIndex sys params th cfg traceIndex with
-      | some (result, stepsUsed) =>
+      | some result =>
           hooks.onViolation
           return {
             result := some result
@@ -62,7 +59,6 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
             maxTraces := cfg.maxTraces
             elapsedMs := 0
             seed := cfg.seed
-            depth := stepsUsed
           }
       | none =>
           simulateLoopM hooks sys params th cfg remaining (traceIndex + 1)
@@ -179,10 +175,9 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type}
           · simpa [simulateLoopM, hStop, hTrace, Id.instMonad] using ih (traceIndex + 1)
           · cases hRun : simulateTraceAtIndex sys params th cfg traceIndex with
             | none => contradiction
-            | some pair =>
-                rcases pair with ⟨result, depth⟩
+            | some result =>
                 simpa [simulateLoopM, hStop, hRun, Id.instMonad] using
-                  simulateTraceAtIndex_sound th sys params cfg traceIndex result depth hRun
+                  simulateTraceAtIndex_sound th sys params cfg traceIndex result hRun
 
 theorem simulateCommandSemantics_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
