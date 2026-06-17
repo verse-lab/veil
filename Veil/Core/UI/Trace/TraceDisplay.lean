@@ -92,6 +92,11 @@ private def fmtSeedSuffix (j : Json) : String :=
   let seed := j.getObjValD "seed"
   if seed == .null then "" else s!"\nSeed: {fmtJson seed}"
 
+private def isNoInitialStatesTermination (j : Json) : Bool :=
+  match j.getObjValD "termination_reason" with
+  | .obj reason => fmtJson ((Json.obj reason).getObjValD "kind") == "no_initial_states"
+  | _ => false
+
 def formatModelCheckingResult (j : Json) : MessageData :=
   match fmtJson (j.getObjValD "result") with
   | "found_violation" =>
@@ -105,7 +110,7 @@ def formatModelCheckingResult (j : Json) : MessageData :=
   | "no_violation_found" =>
     let trace := j.getObjValD "trace"
     if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}{fmtSeedSuffix j}"
-    else if fmtJson (j.getObjValD "termination_reason") == "no_initial_states" then
+    else if isNoInitialStatesTermination j then
       m!"✅ No initial states available after applying state constraints{fmtSeedSuffix j}"
     else if j.getObjValD "traces_run" != .null then
       m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces{fmtSeedSuffix j}"
