@@ -11,10 +11,6 @@ theorem randNat_lt_length {α : Type} (xs : List α) (h : xs ≠ []) (gen : StdG
   simp [Nat.not_lt.mpr (Nat.zero_le (xs.length - 1)), hk]
   exact Nat.mod_lt _ hlen
 
-private def SimulationResult.depth {ρ σ κ : Type} : SimulationResult ρ σ κ → Nat
-  | .foundViolation _ trace => trace.steps.size + if trace.failingStep.isSome then 1 else 0
-  | .cancelled => 0
-
 @[inline, specialize]
 def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -91,7 +87,7 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
 
 /--
 Simulates the trace identified by `traceIndex` using seed `cfg.seed + traceIndex`.
-Returns the first violation found by that trace together with its derived trace depth.
+Returns the first violation found by that trace.
 -/
 def simulateTraceAtIndex {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -99,9 +95,9 @@ def simulateTraceAtIndex {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (cfg : SimulateConfig)
   (traceIndex : Nat)
-  : Option (SimulationResult ρ σ κ × Nat) :=
+  : Option (SimulationResult ρ σ κ) :=
   let traceSeed := cfg.seed + traceIndex
   let (maybeResult, _) := (simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)
-  maybeResult.map (fun result => (result, SimulationResult.depth result))
+  maybeResult
 
 end Veil.ModelChecker.Simulation
