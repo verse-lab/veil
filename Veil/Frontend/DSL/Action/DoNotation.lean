@@ -125,13 +125,14 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     let assertId ← mkNewAssertion proc stx
     return #[← `(Term.doSeqItem| $(mkIdent ``VeilM.assert):ident $t $(Syntax.mkNatLit assertId.toNat))]
   -- Conditional boolean statements (`if`)
-  | `(Term.doSeqItem| if $t:term then $thn:doSeq else $els:doSeq) =>
+  | `(Term.doSeqItem| if $t:term then $thn:doSeq $[else if $ts:term then $elifs:doSeq]* $[else $e?:doSeq]?) =>
     let thn ← expandDoSeqVeil proc thn
-    let els ← expandDoSeqVeil proc els
-    let ret ← `(Term.doSeqItem| if $t then $thn* else $els*)
+    let els ← match e? with
+      | some els => expandDoSeqVeil proc els
+      | none => pure #[← `(Term.doSeqItem| pure ())]
+    let elifs ← elifs.mapM (expandDoSeqVeil proc)
+    let ret ← `(Term.doSeqItem| if $t:term then $thn* $[else if $ts:term then $elifs*]* else $els*)
     return #[ret]
-  | `(Term.doSeqItem| if $t:term then $thn:doSeq) =>
-    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $t then $thn:doSeq else pure ())
   -- Conditional existence statements (`if-some`)
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
     let fs ← `(Term.doSeqItem| let $h:ident :| $t:term)

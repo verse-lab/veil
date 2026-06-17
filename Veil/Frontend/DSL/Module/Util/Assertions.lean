@@ -242,13 +242,21 @@ def withTheoryAndStateFn (mod : Module) (t : Term) (motiveType : Option Term) (t
 
 /-! ## Term Creation -/
 
+/-- The result of elaborating a Veil term together with its generated syntax
+fragments and definition body. -/
+structure ElaboratedVeilTerm where
+  extraParams : Array Parameter
+  thstBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  term : Term
+  expr : Expr
+
 /-- Elaborates the term with all state and theory variables bound (or just
 theory if `justTheory` is true). When `quantifyCapitals` is true,
 capitalized variables are universally quantified via `uqc%` (only valid for
 `Prop`-returning terms). The `motiveType` parameter controls the motive used
 in the `casesOn` eliminators. -/
 def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term)
-  (motiveType : Option Term) (justTheory : Bool := false) (quantifyCapitals : Bool := false) : TermElabM (Array Parameter × Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term × Term) := do
+  (motiveType : Option Term) (justTheory : Bool := false) (quantifyCapitals : Bool := false) : TermElabM ElaboratedVeilTerm := do
   let baseParams ← mod.declarationBaseParams dk
   let binders ← baseParams.mapM (·.binder)
   let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
@@ -260,10 +268,34 @@ def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (param
   let (thstBinders, term') ← if justTheory then withTheory body motiveType else withTheoryAndState body motiveType
   let term' := Syntax.inheritSourceSpanFrom term' term
   -- Record the `Decidable` instances that are needed for the assertion.
-  let (insts, _) ← elabBinders (binders ++ paramBinders ++ thstBinders) $ fun _ => getRequiredDecidableInstances name term' (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+  let allBinders := binders ++ paramBinders ++ thstBinders
+  let (insts, expr) ← elabBinders allBinders $ fun vs => do
+    let (insts, expr) ← getRequiredDecidableInstances name term' (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+    let expr ← instantiateMVars expr
+    -- Segment `vs`
+    let baseFVars := vs.extract 0 binders.size
+    let paramFVars := vs.extract binders.size (binders.size + paramBinders.size)
+    let thstFVars := vs.extract (binders.size + paramBinders.size) vs.size
+    let decMVars := insts.map (·.2)
+    -- Binder infos are intentionally mixed here:
+    -- * module-level base parameters should be implicit,
+    -- * user parameters and the theory/state arguments keep their binder info,
+    -- * extracted `Decidable` metavariables become typeclass arguments.
+    let expr ← Meta.mkLambdaFVars (paramFVars ++ decMVars ++ thstFVars) expr
+      (binderInfoForMVars := BinderInfo.instImplicit)
+    let expr ← Meta.mkLambdaFVarsImplicit baseFVars expr
+    let expr ← instantiateMVars expr
+    if expr.hasMVar then
+      throwError "mvar(s) exist in the elaborated assertion expression. Consider adding more type annotations."
+    pure (insts, expr)
   trace[veil.debug] "insts: {insts.map (·.1)}"
   let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionParameter name .typeclass, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT, userSyntax := .missing })
-  return (extraParams, thstBinders, term', body)
+  return {
+    extraParams := extraParams
+    thstBinders := thstBinders
+    term := term'
+    expr := expr
+  }
 
 end AssertionElab
 

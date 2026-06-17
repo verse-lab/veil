@@ -102,44 +102,40 @@ error: Initialization must establish the invariant:
   inv_0 ... ❌
       Counterexample (WP):
         Theory:
-          EnumA_Enum.nop = EnumNamesInCTIs.EnumA_IndT.nop
-          EnumB_Enum.a = EnumNamesInCTIs.EnumB_IndT.a
-          EnumB_Enum.b = EnumNamesInCTIs.EnumB_IndT.b
+          enum EnumA = {nop}
+          enum EnumB = {a, b}
         Pre-state:
-          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.a]]
+          req = [[nop, a]]
         Action: initializer
       Counterexample (TR):
         Theory:
-          EnumA_Enum.nop = EnumNamesInCTIs.EnumA_IndT.nop
-          EnumB_Enum.a = EnumNamesInCTIs.EnumB_IndT.a
-          EnumB_Enum.b = EnumNamesInCTIs.EnumB_IndT.b
+          enum EnumA = {nop}
+          enum EnumB = {a, b}
         Pre-state:
-          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.a]]
+          req = [[nop, a]]
         Action: initializer
         Post-state:
-          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.a]]
+          req = [[nop, a]]
 The following set of actions must preserve the invariant and successfully terminate:
   foo
     doesNotThrow ... ✅
     inv_0 ... ❌
       Counterexample (WP):
         Theory:
-          EnumA_Enum.nop = EnumNamesInCTIs.EnumA_IndT.nop
-          EnumB_Enum.a = EnumNamesInCTIs.EnumB_IndT.a
-          EnumB_Enum.b = EnumNamesInCTIs.EnumB_IndT.b
+          enum EnumA = {nop}
+          enum EnumB = {a, b}
         Pre-state:
-          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.b]]
+          req = [[nop, b]]
         Action: foo
       Counterexample (TR):
         Theory:
-          EnumA_Enum.nop = EnumNamesInCTIs.EnumA_IndT.nop
-          EnumB_Enum.a = EnumNamesInCTIs.EnumB_IndT.a
-          EnumB_Enum.b = EnumNamesInCTIs.EnumB_IndT.b
+          enum EnumA = {nop}
+          enum EnumB = {a, b}
         Pre-state:
-          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.b]]
+          req = [[nop, b]]
         Action: foo
         Post-state:
-          req = [[EnumNamesInCTIs.EnumA_IndT.nop, EnumNamesInCTIs.EnumB_IndT.a]]
+          req = [[nop, a]]
 -/
 #guard_msgs in
 #check_invariants

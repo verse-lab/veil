@@ -305,8 +305,6 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
     elabVeilCommand rtsCmd
     pure mod
-  Extract.runGenExtractCommand mod
-  elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
   unless (← isModelCheckCompileMode) do
     Verifier.runManager
     mod.generateDoesNotThrowVCs
@@ -315,6 +313,18 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     mod.generateInvariantVCs
   -- Invariant VCs are generated here; verifier commands decide when to start them.
   return { mod with _specFinalizedAt := some stx }
+
+private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) : CommandElabM Unit := do
+  if (← getEnv).contains (mod.name ++ enumerableTransitionSystemName) then
+    return
+  let savedState ← get
+  let stepOrAbort (act : CommandElabM Unit) : CommandElabM Unit := do
+    act
+    if (← get).messages.hasErrors then
+      modify fun s => { savedState with messages := s.messages, traceState := s.traceState }
+      throwAbortCommand
+  stepOrAbort <| Extract.runGenExtractCommand mod
+  stepOrAbort <| elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
   results.vcs.foldl (init := 0) fun count vc =>
@@ -509,13 +519,12 @@ def elabGhostDefinition : CommandElab := fun stx => do
     let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost definition outside of a Veil module!")
     mod ← mod.ensureStateIsDefined
     mod.throwIfSpecAlreadyFinalized
-    let (isRelation, stateGhost?, (cmd, new_mod)) ← match stx with
+    let (isRelation, stateGhost?, new_mod) ← match stx with
     | `(command|$[theory%$forTheory]? ghost relation $nm:ident $br:explicitBinders ? := $t:term) =>
       pure (true, forTheory.isNone, ← mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := true))
     | `(command|$[theory%$forTheory]? ghost function $nm:ident $br:explicitBinders ? $[: $retTy:term]? := $t:term) =>
       pure (false, forTheory.isNone, ← mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := false) (retType := retTy))
     | _ => throwUnsupportedSyntax
-    elabVeilCommand cmd
     if isRelation && mod._useLocalRPropTC && stateGhost? && !(← isModelCheckCompileMode) then liftTermElabM $ new_mod.proveLocalityForStatePredicate nm stx
     localEnv.modifyModule (fun _ => new_mod)
 
@@ -543,8 +552,7 @@ def elabAssertion : CommandElab := fun stx => do
     | .stateConstraint => "state_constraint"
   withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
     -- Elaborate the assertion in the Lean environment
-    let (cmd, mod') ← mod.defineAssertion assertion
-    elabVeilCommand cmd
+    let mod' ← mod.defineAssertion assertion
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
     if mod._useLocalRPropTC && (assertion.kind matches .invariant || assertion.kind matches .safety) && !(← isModelCheckCompileMode) then liftTermElabM $ mod'.proveLocalityForStatePredicate assertion.name stx
     localEnv.modifyModule (fun _ => mod')
@@ -976,6 +984,7 @@ where
     -- evaluates them at runtime before BFS.
     if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    mod.ensureExecutableModelCheckerDefinitions
     -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
     let parallelCfg ← match config.sequential, config.parallelCfg with
       | true, _ => pure none
