@@ -975,7 +975,7 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   -- the expected target instead of being rebuilt as one giant application.
   let mod ← getCurrentModule
   let goal ← getMainGoal
-  let localThmApp ← goal.withContext do
+  let (actName, wpLocalEqName, preCoreTac?, hPreTac) ← goal.withContext do
     let target ← instantiateMVars (← goal.getType)
     let target := target.consumeMData
     -- After introducing action parameters, the goal should be exactly the
@@ -991,8 +991,7 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
       | throwError "veil_apply_local_wp: expected action to be headed by a constant, got{indentExpr act}"
     let wpLocalEqName ← resolveGlobalConstNoOverloadCore (toWpLocalEqName actName)
     let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_wp"
-    pure (wpLocalEqName, preCoreTac?, hPreTac)
-  let (wpLocalEqName, preCoreTac?, hPreTac) := localThmApp
+    pure (actName, wpLocalEqName, preCoreTac?, hPreTac)
   -- NOTE: We intentionally use a lightly-applied `refine` here rather than
   -- building a fully-instantiated theorem application.  On larger modules,
   -- constructing the complete application forces Lean to elaborate huge VC
@@ -1034,11 +1033,12 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   let introIdents := introNames.map Lean.mkIdent
   veilEvalTactic $ ← `(tactic| unhygienic intro $introIdents*)
   -- Finally, do some cleanup; now this is somehow like `unveil`
-  -- NOTE: `whnf` for unfolding `.wp_local_eq.pred`
+  -- NOTE:  We directly unfold `.wp_local_eq.pred` now; `whnf` might be too aggressive
+  -- (e.g., reducing `ite` into `Decidable.rec`). Similar for the `tr` case
   let has := mkIdent `has ; let hinv := mkIdent `hinv
   let tac ← `(tacticSeq|
     __veil_neutralize_decidable_inst
-    whnf
+    try unfold $(mkIdent <| toWpLocalPredName actName):ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $has:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $hinv:ident
     veil_dsimp only [$(mkIdent `nextSimp):ident]
@@ -1054,7 +1054,7 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| unhygienic intros)
   let mod ← getCurrentModule
   let goal ← getMainGoal
-  let localInfo ← goal.withContext do
+  let (trName, trAbstractName, preCoreTac?, hPreTac) ← goal.withContext do
     let target ← instantiateMVars (← goal.getType)
     let target := target.consumeMData
     let (theoryType, stateType, tr, pre) ←
@@ -1067,8 +1067,7 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
       | throwError "veil_apply_local_tr: expected transition to be headed by a constant, got{indentExpr tr}"
     let trAbstractName ← resolveTransitionAbstractName trName
     let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_tr"
-    pure (trAbstractName, preCoreTac?, hPreTac)
-  let (trAbstractName, preCoreTac?, hPreTac) := localInfo
+    pure (trName, trAbstractName, preCoreTac?, hPreTac)
   -- The theorem shape mirrors the WP bridge theorem.  The bracketed
   -- `<;> [...]` block exposes the fixed side-goal order in the generated
   -- tactic script.  The implicit `trAbs` argument is deliberately left open;
@@ -1078,7 +1077,8 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
   let preCoreTac ← match preCoreTac? with
     | some tac => pure tac
     | none => `(tactic| skip)
-  let hTrTac ← `(tactic| (unhygienic intro _ _ _; apply $(mkIdent trAbstractName):ident))
+  -- NOTE:: `-synthAssignedInstances` is required to avoid certain unexpected synthesis failure
+  let hTrTac ← `(tactic| (unhygienic intro _ _ _; apply -$(mkIdent `synthAssignedInstances) $(mkIdent trAbstractName):ident))
   veilEvalTactic $ ← `(tactic|
     refine' $localTransitionMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_ <;>
       [ skip
@@ -1104,7 +1104,7 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| unhygienic intro $introIdents*)
   let has := mkIdent `has ; let hinv := mkIdent `hinv ; let htr := mkIdent `htr
   let tac ← `(tacticSeq|
-    whnf at $htr:ident
+    try unfold $(mkIdent trName) at $htr:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $has:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $hinv:ident
     veil_dsimp only [$(mkIdent `nextSimp):ident] at $htr:ident ⊢
