@@ -147,4 +147,9 @@ register_option veil.experimental.generateWpLocalEq : Bool := {
   descr := "Experimental. If true, `wp_local_eq` theorems will be generated after `wp` generation."
 }
 
+register_option veil.experimental.wpCompact : Bool := {
+  defValue := true
+  descr := "Experimental. If true, compact generated `wp_local_eq.pred` definitions by sharing duplicated postcondition branches with `letEq` and exposing abstract-state conditionals field-wise."
+}
+
 end Veil

@@ -665,10 +665,10 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
   elabVeilConcretizeFieldsWp false
 
   -- Step 3: Final simplification
-  -- NOTE: `Bool.eq_decide_to_iff` is ONLY used here for now; it might be
+  -- NOTE: `Bool.decide_eq_bool_eq` is ONLY used here for now; it might be
   -- added into `smtSimp` as well, but just to be very conservative
   veilWithMainContext $ veilEvalTactic (← `(tactic| veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident,
-    $(mkIdent ``Bool.eq_decide_to_iff):ident] at *))
+    $(mkIdent ``Bool.decide_eq_bool_eq):ident] at *))
 
 @[inherit_doc __veil_neutralize_decidable_inst]
 def elabVeilNeutralizeDecidableInst (deep : Bool) (loc : Option (TSyntax ``Lean.Parser.Tactic.location)) : DesugarTacticM Unit := veilWithMainContext do

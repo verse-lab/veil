@@ -241,5 +241,116 @@ attribute [wpSimp] wpBindPreserveBinder wpChoicePreserveBinder
 
 end PickSimprocs
 
+/-!
+## WP compactification rewrites
+
+This is a deliberately small, proof-producing compaction pass for duplicated
+postconditions in generated WPs.
+
+The algorithm runs as `wpCompactIteSimp` post-simplification (`↑`):
+
+1. First do the cheap guards once: the expression must be a proposition, and it
+   must be an `if`.
+
+2. Before trying to merge the current `if`, repeatedly hoist branch-local
+   sharing barriers introduced by this pass:
+
+   `if p then marked(letEq v f) else b`
+
+   is rewritten with `ite_letEq_hoist_left`, and symmetrically for the right
+   branch.  After hoisting one barrier, the algorithm recurses into the newly
+   produced `letEq` continuation and keeps hoisting until the inner `if` has no
+   marked `letEq` branch left.  The metadata marker is a provenance bit: only
+   `letEq`s introduced by this compactification pass are hoisted.
+
+3. Once there is no marked branch-local `letEq`, try the actual postcondition
+   merge.  Since Lean applications are binary, the duplicated-continuation test
+   only compares the two branches' immediate `appFn`s:
+
+   `if p then k a₁ else k a₂`
+
+   is rewritten with `ite_push_cond_into_arg` to
+
+   `letEq (decide p) fun b => k (if b then a₁ else a₂)`.
+
+The theorem `ite_push_cond_into_arg` and the hoisting theorems are intentionally
+not registered as ordinary simp rules: unguarded use would rewrite unrelated
+conditionals, and hoisting every `letEq` would destroy the provenance invariant.
+All root rewrites below use `rewriteRoot?`, so each rewrite comes with an
+equality proof.  Recursive work under a generated `letEq` continuation is lifted
+back with `funext` and `congrArg`; metadata is definitionally transparent and
+carries no proof obligation.
+-/
+section CompactSimprocs
+
+open Lean Meta
+
+private def wpCompactIteMarkerKey : Name := `Veil.wpCompactLetEq
+
+private partial def wpCompactIteImpl : Simp.Simproc := fun e => do
+  let e := e.consumeMData
+  unless (← Meta.isProp e) && e.isIte do
+    return .continue
+  let result ← compactIte e
+  if let some res := result then
+    return .done res
+  else
+    return .continue
+where
+  iteBranches? (e : Expr) : Option (Expr × Expr) := do
+    let_expr ite _ _ _ thenBranch elseBranch := e | none
+    some (thenBranch, elseBranch)
+  isLetEq (e : Expr) : Bool := e.isAppOfArity' ``letEq 4
+  isMarkedLetEq : Expr → Bool
+    | .mdata md body => md.getBool wpCompactIteMarkerKey false && isLetEq body
+    | _ => false
+  sameAppFn (thenBranch elseBranch : Expr) : Bool :=
+    match thenBranch.consumeMData, elseBranch.consumeMData with
+    | .app thenFn _, .app elseFn _ => thenFn.consumeMData == elseFn.consumeMData
+    | _, _ => false
+  pushSameContinuation (e thenBranch elseBranch : Expr) : SimpM (Option Simp.Result) := do
+    unless sameAppFn thenBranch elseBranch do
+      return none
+    let some (rhs, proof) ← rewriteRoot? e ``ite_push_cond_into_arg | return none
+    return some { expr := markLetEqUnchecked rhs, proof? := some proof }
+  compactIte (e : Expr) : SimpM (Option Simp.Result) := do
+    let some (thenBranch, elseBranch) := iteBranches? e.consumeMData | return none
+    let some lem :=
+      if isMarkedLetEq thenBranch then
+        some ``ite_letEq_hoist_left
+      else if isMarkedLetEq elseBranch then
+        some ``ite_letEq_hoist_right
+      else
+        none
+      | pushSameContinuation e thenBranch elseBranch
+    let some (rhs, _) ← rewriteRoot? e lem | return none
+    let afterHoist : Simp.Result := { expr := markLetEqUnchecked rhs }
+    let some bodyResult ← compactMarkedLetEqBody afterHoist.expr | return some afterHoist
+    return some (← afterHoist.mkEqTrans bodyResult)
+  compactMarkedLetEqBody (e : Expr) : SimpM (Option Simp.Result) := do
+    let .mdata md body := e | return none
+    let body := body.consumeMData
+    let .app letEqFn f := body | return none
+    lambdaBoundedTelescope f 1 fun xs body => do
+      if xs.isEmpty then
+        return none
+      let some bodyResult ← compactIte body | return none
+      let resNew ← bodyResult.addLambdas xs
+      let fNew := resNew.expr
+      let funProof ← resNew.getProof
+      let proof ← mkCongrArg letEqFn funProof
+      return some {
+        expr := .mdata md (mkApp letEqFn fNew)
+        proof? := some proof
+      }
+  markLetEqUnchecked (e : Expr) : Expr :=
+    .mdata (MData.empty.insert wpCompactIteMarkerKey (.ofBool true)) e
+
+simproc_decl wpCompactIte (ite _ _ _) := wpCompactIteImpl
+
+attribute [wpCompactIteSimp ↑] wpCompactIte
+
+end CompactSimprocs
+
 
 end Veil

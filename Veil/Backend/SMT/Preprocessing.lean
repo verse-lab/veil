@@ -57,8 +57,13 @@ attribute [smtSimp] funextEq
   { rintro ⟨⟨a, b⟩, h⟩ ; exact ⟨a, b, h⟩ }
   { rintro ⟨a, b, h⟩ ; exact ⟨⟨a, b⟩, h⟩ }
 
-theorem Bool.eq_decide_to_iff {b : Bool} {p : Prop} [inst : Decidable p] :
-  b = @decide p inst ↔ (b = true ↔ p) := by grind
+@[smtSimp low]
+theorem Bool.decide_eq_bool_eq {p : Prop} [dec : Decidable p] :
+  (b = @decide p dec) = ((b = true) = p) := by grind
+
+@[smtSimp low]
+theorem Bool.decide_eq_bool_eq' {p : Prop} [dec : Decidable p] :
+  (@decide p dec = b) = ((b = true) = p) := by grind
 
 attribute [smtSimp] exists_prop forall_const
 attribute [smtSimp] decide_eq_true_eq decide_eq_false_iff_not

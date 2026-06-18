@@ -227,6 +227,42 @@ where
   mkToJsonInstances : m (Array Syntax) := do
     pure #[← `(veil_deriving $(mkIdent ``Lean.ToJson) for $stateIdent with_priority low)]
 
+/-- Generate a module-specific theorem exposing conditionals over abstract
+states as a field-wise structure literal.  Relation/function fields are
+eta-expanded so the condition is pushed to pointwise applications instead of
+forming a function-valued conditional.  The theorem is used only by the WP
+compactification pipeline. -/
+private def Module.stateIteEtaFieldsTheoremStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Option Syntax) := do
+  if mod.mutableComponents.isEmpty then
+    return none
+  let paramBinders ← mod.uninterpretedParamBinders
+  let sortIdents ← mod.uninterpretedParamIdents
+  let fieldAbstractType ← `(term| $fieldAbstractDispatcher $sortIdents*)
+  let stateTy ← `(term| $(mkIdent stateName) $fieldAbstractType)
+  let p := mkIdent `p
+  let s1 := mkIdent `s1
+  let s2 := mkIdent `s2
+  let rhsFields ← mod.mutableComponents.mapM (mkFieldIte p s1 s2)
+  let rhs ← `(term| $(mkIdent <| stateName ++ `mk):ident $rhsFields*)
+  let thm ← `(command|
+    @[wpCompactStateSimp ↑]
+    theorem $(mkIdent stateIteEtaFieldsName):ident $paramBinders* {$p : Prop} [$(mkIdent ``Decidable) $p] ($s1 $s2 : $stateTy) :
+        (if $p then $s1 else $s2) = $rhs := by
+      split <;> rfl)
+  return some thm
+where
+  mkFieldIte [Monad m] [MonadQuotation m] (p s1 s2 : Ident) (sc : StateComponent) : m Term := do
+    let field := mkIdent sc.name
+    let res ← sc.domainTerms.mapIdxM fun i domain => do
+      let arg := mkVeilImplementationDetailIdent <| Name.mkSimple s!"wpcompact_{sc.name}_{i}"
+      let binder ← `(Lean.Parser.Term.funBinder| ($arg:ident : $domain))
+      return (arg, binder)
+    let (args, binders) := res.unzip
+    let thenField ← `(term| $s1.$field:ident $args*)
+    let elseField ← `(term| $s2.$field:ident $args*)
+    let body ← `(term| if $p then $thenField else $elseField)
+    mkFunSyntax binders body
+
 /-- Syntax for *defining* the immutable background theory of a module as a
 `structure`. The syntax for the type is `mod.theoryStx`. -/
 private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
@@ -261,6 +297,7 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [A
   let concreteFieldRepInsts ← mkFieldRepresentationInstancesForConcrete mod repConfigs
   let abstractFieldRepInsts ← mkFieldRepresentationInstancesForAbstract mod
   let enumerationInst ← `(command| deriving instance $(mkIdent ``Enumeration):ident for $stateIdent)
+  let stateIteEtaFields ← mod.stateIteEtaFieldsTheoremStx
   let stateStx ← mod.stateStx (withFieldConcreteType? := true)
   -- `State.mk.injEq` is only generated when the structure has fields, so skip it when there is no field
   let smtAttr : Array Syntax ← if mod.mutableComponents.isEmpty then pure #[] else
@@ -269,7 +306,8 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [A
   let extAttr ← `(command| attribute [ext] $stateIdent)   -- cannot use `$(mkIdent `ext)` here
   let extIffAttr ← `(command| attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `ext_iff):ident)
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[enumerationInst] ++ smtAttr ++ #[extAttr, extIffAttr])
+  let compactThms := stateIteEtaFields.elim #[] (#[·])
+  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stateDefs ++ concreteFieldRepInsts ++ abstractFieldRepInsts ++ #[enumerationInst] ++ compactThms ++ smtAttr ++ #[extAttr, extIffAttr])
 where
   /-- Generate `FieldRepresentation` and `LawfulFieldRepresentation` instances for a given field type dispatcher. -/
   mkFieldRepresentationInstancesCore (mod : Module)

@@ -67,6 +67,17 @@ def letEq (a : α) (f : α → β) : β := f a
 theorem letEq_to_forall (a : α) (p : α → Prop) : letEq a p = (∀ b, a = b → p b) := by
   unfold letEq ; grind
 
+theorem ite_letEq_hoist_left {p : Prop} [Decidable p] {v : α} {f : α → β} {b : β} :
+    (if p then letEq v f else b) = letEq v fun a => if p then f a else b := rfl
+
+theorem ite_letEq_hoist_right {p : Prop} [Decidable p] {v : α} {f : α → β} {a : β} :
+    (if p then a else letEq v f) = letEq v fun b => if p then a else f b := rfl
+
+theorem ite_push_cond_into_arg (f : α → β) {p : Prop} [Decidable p] {a₁ a₂ : α} :
+    (if p then f a₁ else f a₂) = letEq (@decide p ‹Decidable p›) fun b => f (if b then a₁ else a₂) := by
+  unfold letEq
+  grind
+
 /-- Equality packaged as a non-substituting predicate for Veil `veil_let`. -/
 def eqWithoutSubst (a b : α) : Prop := a = b
 

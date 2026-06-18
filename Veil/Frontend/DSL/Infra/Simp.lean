@@ -12,6 +12,15 @@ register_simp_attr wpLOSimp
 /-- Attribute added to `.wpgen` definitions of actions/procedures. -/
 register_simp_attr wpDefUnfoldSimp
 
+/-- Attribute added to proof-producing ITE compactification rules for generated
+WP predicates.  These rules preserve `letEq` sharing barriers and should only
+be used in the WP compactification pipeline, not in general SMT preprocessing. -/
+register_simp_attr wpCompactIteSimp
+
+/-- Attribute added to generated abstract-state eta rules used after
+`wpCompactIteSimp` has pushed branch conditions into post-state arguments. -/
+register_simp_attr wpCompactStateSimp
+
 /-- Attribute added to definitions/theorems related to `IsSubStateOf` and `IsSubReaderOf`. -/
 register_simp_attr substateSimp
 

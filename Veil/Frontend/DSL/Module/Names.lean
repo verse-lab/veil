@@ -110,6 +110,7 @@ def fieldLabelToDomainName (base : Name) : Name := structureFieldLabelTypeName b
 def fieldLabelToDomain (base : Name) : Ident := mkIdent <| fieldLabelToDomainName base
 def fieldLabelToCodomainName (base : Name) : Name := structureFieldLabelTypeName base ++ `toCodomain
 def fieldLabelToCodomain (base : Name) : Ident := mkIdent <| fieldLabelToCodomainName base
+def stateIteEtaFieldsName : Name := stateName ++ `ite_eta_fields
 
 def localRPropTCName : Name := `LocalRProp
 def localRPropTC : Ident := mkIdent localRPropTCName

@@ -399,11 +399,22 @@ where
     withLocalDeclsDND #[(pName, postTy), (thName, theoryType), (stName, abstractStateTypeExpr)] fun xs => do
       let genericTarget ← Tactic.classical <|
         mkAppOptM wpDef_fqn <| step3AllArgs ++ #[some handler] ++ xs.map some
-      let finalSimp : Simplifier :=
+      let finalSimpBase : Simplifier :=
         Simp.unfold #[wpDef_fqn]
           |>.andThen (Simp.dsimp #[`nextSimp])
           |>.andThen (evalOpenClassical ∘ Simp.simp #[`invSimp, `smtSimp])
-          |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
+      let finalSimp : Simplifier :=
+        if veil.experimental.wpCompact.get (← getOptions) then
+          -- First compact duplicated postcondition branches while preserving
+          -- `letEq` sharing barriers; then expose abstract-state conditionals
+          -- field-wise without re-running the ITE compactifier.
+          finalSimpBase
+            |>.andThen (evalOpenClassical ∘ Simp.simp #[`wpCompactIteSimp])
+            |>.andThen (evalOpenClassical ∘ Simp.simp #[`wpCompactStateSimp])
+            |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
+        else
+          finalSimpBase
+            |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
       let genericResult ← finalSimp genericTarget
       let predArgs ← filterArgsByParams allParams vs fun p v => do
         pure <| !(isAbstractStateLocalParam p) && !(← isDecidableDefParameter p v)
