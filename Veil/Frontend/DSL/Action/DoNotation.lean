@@ -157,6 +157,10 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   match stx with
   -- Ignore semicolons
   | `(Term.doSeqItem| $stx ;) => expandDoElemVeil proc $ ← `(Term.doSeqItem| $stx:doElem)
+  | `(Term.doSeqItem| veil_var $x:ident : $ty:term) => do
+    let pickItem ← `(Term.doSeqItem| let $x:ident ← pick ($ty:term))
+    let mutItem ← `(Term.doSeqItem| let mut $x:ident := $x:ident)
+    return #[pickItem] ++ (← expandDoElemVeil proc mutItem)
   | `(Term.doSeqItem| veil_let $decl:letDecl) => do
     let eqWS := mkIdent ``Veil.eqWithoutSubst
     let thisId := mkIdent `this

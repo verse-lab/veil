@@ -14,6 +14,7 @@ scoped syntax (name := kw_require) "require" : veilActionKeyword
 scoped syntax (name := kw_assume) "assume" : veilActionKeyword
 scoped syntax (name := kw_assert) "assert" : veilActionKeyword
 scoped syntax (name := kw_pick) "pick" : veilActionKeyword
+scoped syntax (name := kw_veil_var) "veil_var" : veilActionKeyword
 
 /-- Precondition -/
 scoped syntax (name := kw_requires) "requires" : veilActionKeyword
@@ -56,6 +57,20 @@ syntax (name := pickExpression) kw_pick (lineEq term) ? : term
 
 /-- Binds a variable to a value that satisfies a predicate. -/
 scoped syntax (name := letPick) "let" term ":|" term : doElem
+
+private def veilVarType := withForbidden "veil_var" termParser
+
+/--
+`veil_var x : τ` declares an Ivy-style uninitialized mutable local by picking
+an arbitrary initial value of type `τ`.
+It expands like:
+
+```
+let x ← pick τ
+let mut x := x
+```
+-/
+scoped syntax (name := veilVarDo) kw_veil_var ident " : " veilVarType : doElem
 
 scoped syntax (name := havocAssignment) (priority := high) atomic(term ":=" "*") : doElem
 
