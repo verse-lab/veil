@@ -27,6 +27,16 @@ abbrev doSeqItem := TSyntax ``Term.doSeqItem
 syntax "let" term ":" term ":|" term : doElem
 
 /--
+Lean's built-in `if h : p then ...` do-element parser only accepts an identifier
+for `h`. Veil's if-some syntax also allows tuple witnesses such as
+`if (x, y) : p x y then ...`, so we add a parser that accepts a term-shaped
+witness and desugar it below.
+-/
+@[doElem_parser high] def ifSomeDo := leading_parser
+  "if " >> termParser maxPrec >> " : " >> termParser >> " then " >>
+  Lean.Parser.Term.doSeq >> optional ("else " >> Lean.Parser.Term.doSeq)
+
+/--
 In an action block, `veil_let x := v` gives a name to `v` without eagerly
 inlining it during verification.
 
@@ -129,6 +139,13 @@ macro_rules
   | `(doElem| let $x:term :| $p) => `(doElem| let $x:term ← $(mkIdent ``VeilM.pickSuchThat):ident _ (fun $x => $p))
   | `(doElem| let $x:term : $ty:term :| $p) => `(doElem| let $x:term ← $(mkIdent ``VeilM.pickSuchThat):ident $ty (fun $x => $p))
 
+/-- Parse a tuple of identifiers. Note that the syntax of tuple seems non-trivial. -/
+private def collectIfSomeBinderIdents (pat : Term) : TermElabM (Array Ident) := do
+  match pat with
+  | `(term| $x:ident) => return #[x]
+  | `(($_:hygieneInfo $x:ident, $xs:ident,*)) => return #[x] ++ xs.getElems
+  | _ => throwErrorAt pat "unsupported witness pattern for Veil `if-some`; expected an identifier or tuple of identifiers"
+
 mutual
 partial def expandDoSeqVeil (proc : Name) (stx : doSeq) : TermElabM (Array doSeqItem) :=
   match stx with
@@ -191,13 +208,15 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
     let ret ← `(Term.doSeqItem| if $t:term then $thn* $[else if $ts:term then $elifs*]* else $els*)
     return #[ret]
   -- Conditional existence statements (`if-some`)
-  | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeqItem* else $els:doSeq) =>
-    let fs ← `(Term.doSeqItem| let $h:ident :| $t:term)
+  | `(Term.doSeqItem| if $h:term : $t:term then $thn:doSeqItem* else $els:doSeq) =>
+    let ids ← collectIfSomeBinderIdents h
+    let fs ← `(Term.doSeqItem| let $h:term :| $t:term)
     let thn := fs :: thn.toList |>.toArray
+    let existsGuard ← `(term| ∃ $[$ids:ident]*, $t:term)
     -- TODO: should we use a `dite` here?
-    expandDoElemVeil proc $ ← `(Term.doSeqItem| if (∃ $h:ident, $t) then $thn* else $els)
-  | `(Term.doSeqItem| if $h:ident : $t:term then $thn) =>
-    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:ident : $t:term then $thn else pure ())
+    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $existsGuard:term then $thn* else $els)
+  | `(Term.doSeqItem| if $h:term : $t:term then $thn:doSeq) =>
+    expandDoElemVeil proc $ ← `(Term.doSeqItem| if $h:term : $t:term then $thn else pure ())
   -- Non-deterministic assignments
   | `(Term.doSeqItem| $id:ident := *) =>
     let (frApp, ex) ← freshPick mod id

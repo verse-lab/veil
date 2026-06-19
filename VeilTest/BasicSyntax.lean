@@ -8,6 +8,7 @@ type node
 abbrev Nat3 := Fin 3
 
 relation r : node -> Nat3 -> Bool
+relation r4 : node -> Nat3 -> node -> Nat3 -> Bool
 individual n : node
 function f : Nat3 -> Nat3
 
@@ -64,5 +65,29 @@ action foo4 (k : Nat3) (m : node) {
 /-- info: true -/
 #guard_msgs in
 #eval isElaboratedCorrectly ``foo4
+
+#guard_msgs(drop warning) in
+action foo5 {
+  if (x, k) : r x k then
+    n := x
+  else
+    n := n
+}
+
+/-- info: true -/
+#guard_msgs in
+#eval isElaboratedCorrectly ``foo5
+
+#guard_msgs(drop warning) in
+action foo6 {
+  if (x, k, y, j) : r4 x k y j then
+    n := y
+  else
+    n := n
+}
+
+/-- info: true -/
+#guard_msgs in
+#eval isElaboratedCorrectly ``foo6
 
 end Test
