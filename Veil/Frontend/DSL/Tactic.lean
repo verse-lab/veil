@@ -938,6 +938,13 @@ def elabVeilWp : DesugarTacticM Unit := veilWithMainContext do
   let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `loomLogicSimpForVeil):ident])
   veilEvalTactic tac
 
+private def mkTrueLocalRPropComponents [Monad m] [MonadQuotation m] (mod : Module) : m (Term × Term) := do
+  let hole ← `(Lean.Parser.Term.funBinder| _ )
+  let fieldBinders := Array.replicate (mod.immutableComponents.size + mod.mutableComponents.size) hole
+  let trueCore ← mkFunSyntax fieldBinders <| mkIdent ``True
+  let rflLocalEq ← `(term| fun _ _ => $(mkIdent ``rfl))
+  return (trueCore, rflLocalEq)
+
 private def mkLocalPreconditionTactics (mod : Module) (theoryType stateType pre : Expr)
     (tacticName : String) : DesugarTacticM (Option (TSyntax `tactic) × TSyntax `tactic) := do
   let invariantsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledInvariantsName
@@ -956,10 +963,8 @@ private def mkLocalPreconditionTactics (mod : Module) (theoryType stateType pre 
     -- field-level core directly instead of asking Lean to infer a shared
     -- definition's module/typeclass prefix while bridge theorem arguments are
     -- still metavariables.
-    let hole ← `(Lean.Parser.Term.funBinder| _ )
-    let fieldBinders := Array.replicate (mod.immutableComponents.size + mod.mutableComponents.size) hole
-    let truePreCore ← mkFunSyntax fieldBinders <| mkIdent ``True
-    pure (some (← `(tactic| exact $truePreCore:term)), ← `(tactic| exact fun _ _ => $(mkIdent ``rfl)))
+    let (truePreCore, rflLocalEq) ← mkTrueLocalRPropComponents mod
+    pure (some (← `(tactic| exact $truePreCore:term)), ← `(tactic| exact $rflLocalEq:term))
   else
     throwError "{tacticName}: expected precondition to be Invariants or True, got{indentExpr pre}"
 
@@ -975,23 +980,37 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   -- the expected target instead of being rebuilt as one giant application.
   let mod ← getCurrentModule
   let goal ← getMainGoal
-  let (actName, wpLocalEqName, preCoreTac?, hPreTac) ← goal.withContext do
+  let (actName, wpLocalEqName, preCoreTac?, hPreTac, handlerTerm, postIsTrue) ← goal.withContext do
     let target ← instantiateMVars (← goal.getType)
     let target := target.consumeMData
-    -- After introducing action parameters, the goal should be exactly the
-    -- public VC shape.  Keep the original `assu/pre/post`; the tactic only
-    -- changes how this goal is proved.
-    let (theoryType, stateType, act, pre) ←
+    -- After introducing action parameters, the goal should be one of the
+    -- public WP-style VC shapes.  Keep the original `assu/pre/post`; the tactic
+    -- only changes how this goal is proved.
+    let (theoryType, stateType, act, pre, handlerTerm, postIsTrue) ←
       match_expr target with
-      | VeilM.meetsSpecificationIfSuccessfulAssuming _ theoryType stateType _ act _ pre _ =>
-        pure (theoryType, stateType, act, pre)
+      | VeilM.meetsSpecificationIfSuccessfulAssuming _ theoryType stateType _ act _ pre post =>
+        let truePost ← withLocalDeclsDND
+          #[(mkVeilImplementationDetailName `th, theoryType), (mkVeilImplementationDetailName `st, stateType)]
+          fun xs => mkLambdaFVars xs (mkConst ``True)
+        pure (theoryType, stateType, act, pre,
+          ← `(term| fun _ => $(mkIdent ``True)),
+          ← isDefEq post truePost)
+      | VeilM.doesNotThrowAssuming_ex _ theoryType stateType _ act _ pre ex =>
+        -- NOTE: We rely on the assumption that `ex` is a fvar; otherwise, constructing
+        -- the handler at the syntax level might not be reliable, if through delaboration
+        let lctx ← getLCtx
+        let some exDecl := lctx.findFVar? ex | throwError "veil_apply_local_wp: could not find a local declaration for the exception{indentExpr ex}"
+        let exBinder := mkIdent <| exDecl.userName.appendAfter "'"    -- avoid name clashing
+        pure (theoryType, stateType, act, pre,
+          ← `(term| fun $exBinder:funBinder => $exBinder:ident ≠ $(mkIdent exDecl.userName):term),
+          true)
       | _ =>
-        throwError "veil_apply_local_wp: expected a VeilM.meetsSpecificationIfSuccessfulAssuming goal, got{indentExpr target}"
+        throwError "veil_apply_local_wp: expected a VeilM.meetsSpecificationIfSuccessfulAssuming or VeilM.doesNotThrowAssuming_ex goal, got{indentExpr target}"
     let some actName := act.getAppFn'.constName?
       | throwError "veil_apply_local_wp: expected action to be headed by a constant, got{indentExpr act}"
     let wpLocalEqName ← resolveGlobalConstNoOverloadCore (toWpLocalEqName actName)
     let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_wp"
-    pure (actName, wpLocalEqName, preCoreTac?, hPreTac)
+    pure (actName, wpLocalEqName, preCoreTac?, hPreTac, handlerTerm, postIsTrue)
   -- NOTE: We intentionally use a lightly-applied `refine` here rather than
   -- building a fully-instantiated theorem application.  On larger modules,
   -- constructing the complete application forces Lean to elaborate huge VC
@@ -1006,12 +1025,25 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   let preCoreTac ← match preCoreTac? with
     | some tac => pure tac
     | none => `(tactic| skip)
-  let hWpTac ←
-    `(tactic|
-      (unhygienic intro $(mkIdent `handler) $(mkIdent `th) $(mkIdent `st);
-       rw [$(mkIdent wpLocalEqName):ident]))
-  veilEvalTactic $ ← `(tactic|
-    refine' $localMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_ <;>
+  let truePostTerm ← `(term| fun _ _ => $(mkIdent ``True))
+  let truePostInst? ← if postIsTrue then
+      let (trueCore, rflLocalEq) ← mkTrueLocalRPropComponents mod
+      pure <| some <| ← `(term| ⟨$trueCore:term, $rflLocalEq:term⟩)
+    else pure none
+  let hWpTac ← do
+    let tm ← match truePostInst? with
+      | some inst => `($(mkIdent wpLocalEqName):ident ($(mkVeilImplementationDetailIdent `localRPropTC) := $inst:term))
+      | none => `($(mkIdent wpLocalEqName):ident)
+    `(tactic| (unhygienic intro $(mkIdent `handler) $(mkIdent `th) $(mkIdent `st) ; rw [$tm:term]))
+  let refineTac ← do
+    let tm ← match truePostInst? with
+      | some inst => `($localMeetsSpecificationIfSuccessfulAssuming:ident
+        ($(mkVeilImplementationDetailIdent `post):ident := $truePostTerm:term)
+        ($(mkVeilImplementationDetailIdent `localRPropTC):ident := $inst:term)
+        $handlerTerm:term ?_ ?_ ?_ ?_ ?_ ?_)
+      | none => `($localMeetsSpecificationIfSuccessfulAssuming:ident
+        $handlerTerm:term ?_ ?_ ?_ ?_ ?_ ?_)
+    `(tactic| refine' $tm:term <;>
       [ skip
       ; skip
       ; $preCoreTac:tactic
@@ -1019,6 +1051,7 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
       ; $hPreTac:tactic
       ; $hWpTac:tactic
       ; skip ])
+  veilEvalTactic refineTac
   let [_] ← getUnsolvedGoals
     | throwError "veil_apply_local_wp: expected exactly one local/core goal after applying the bridge theorem"
   -- The remaining goal is the theorem's `hLocal` premise.  Introduce exposed
@@ -1242,11 +1275,10 @@ def elabVeilSolveWpConservative : DesugarTacticM Unit := veilWithMainContext do
 
 def elabVeilSolveWpDoesNotThrow : DesugarTacticM Unit := veilWithMainContext do
   -- If you don't write `assert`, then most likely the goal is trivial
-  veilEvalTactic <| ← `(tactic| veil_intros; veil_wp )
-  veilWithMainContext do
-    let simpleSolveTac ← `(tactic| veil_simp only
-      [↓ $(mkIdent ``ite_self):ident, ↓ $(mkIdent ``implies_true):ident])
-    veilEvalTactic <| ← `(tactic| solve | $simpleSolveTac:tactic | veil_concretize_wp; veil_fol; veil_solve)
+  veilEvalTactic <| ← `(tactic| solve
+    | veil_intros; veil_wp;
+      veil_simp only [↓ $(mkIdent ``ite_self):ident, ↓ $(mkIdent ``implies_true):ident]
+    | veil_apply_local_wp; __veil_solve_wplo )
 
 /-- Try the local-WP path first; if applying the local bridge theorem fails,
 fall back to the conservative solver.

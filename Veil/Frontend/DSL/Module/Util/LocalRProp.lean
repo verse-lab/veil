@@ -617,7 +617,6 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
       (stateSortTerm := some abstractStateSortTerm)
       (considerFieldRepTC := false)
     `(term| fun $u $thAbs $stAbs => $body)
-  let trueHandler ← `(term| fun _ => $(mkIdent ``True))
   let hLocalType ← do
     -- `hLocal` is the obligation the tactic should leave behind after applying
     -- this theorem: fields are exposed, assumptions/preconditions are cores,
@@ -626,7 +625,7 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
     let body ← `(term|
       ∀ ($has : $assuCore $theoryFieldArgs*)
         ($hinv : $preCore $theoryFieldArgs* $stateFieldArgs*),
-      $pred $trueHandler $postLocalTerm $theoryStruct $stateStruct)
+      $pred $handler $postLocalTerm $theoryStruct $stateStruct)
     let fieldBinders := theoryFieldBinders ++ stateFieldBinders
     if fieldBinders.isEmpty then
       pure body
@@ -647,6 +646,7 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
         {$post : $(mkIdent ``SProp) $environmentTheory $environmentState}
         [$postLocal : @$localRPropTC $paramArgs* $post]
         {$pred : $predTy}
+        ($handler : $(mkIdent ``Int) → Prop)
         ($assuCore : $assuCoreType)
         ($preCore : $stateCoreType)
         ($hAssu : ∀ ($th : $environmentTheory), $assu $th = $assuRhs)
@@ -655,14 +655,14 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
           [IgnoreEx $handler| $(mkIdent ``wp) $act (fun _ => $post) $th $st] =
             $pred $handler $postLocalTerm ($(mkIdent ``readFrom) $th) $absSt)
         ($hLocal : $hLocalType) :
-        $(mkIdent ``VeilM.meetsSpecificationIfSuccessfulAssuming)
+        [IgnoreEx $handler| $(mkIdent ``triple)
+          (fun $th $st => $assu $th ∧ $pre $th $st)
           $act
-          $assu
-          $pre
-          $post := by
-      unfold $(mkIdent ``VeilM.meetsSpecificationIfSuccessfulAssuming) $(mkIdent ``VeilM.meetsSpecificationIfSuccessful) $(mkIdent ``triple)
+          (fun _ => $post)] := by
+      unfold $(mkIdent ``triple)
+      dsimp -$(mkIdent `failIfUnchanged) only
       intro $th:ident $st:ident $hpre:ident
-      rw [$hWp:ident $trueHandler $th:ident $st:ident]
+      rw [$hWp:ident $handler:ident $th:ident $st:ident]
       rw [$hAssu:ident $th:ident, $hPre:ident $th:ident $st:ident] at $hpre:ident
       -- Expose fields from the generic reader/state. This is the theorem-level
       -- counterpart of the old `concretize` step; because the theorem is only

@@ -133,16 +133,31 @@ private def simplifierGetSetForFieldRepTC : TermElabM Simplifier := do
   let ctx' ← simpGetSetForFieldRepTC ctx
   return (evalOpenClassical ∘ Simp.simpCore ctx')
 
+/-- Return all declaration binders/arguments, together with the half-open range
+in the corresponding `elabBinders` fvars that belongs to generated extra
+parameters. -/
+private def declarationAllBindersArgsWithExtraRange (mod : Module) (nm : Name) (dk : DeclarationKind) :
+    TermElabM (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term × Nat × Nat) := do
+  let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams nm dk
+  let allParams := baseParams ++ extraParams ++ actualParams
+  let allBinders ← allParams.mapM (·.binder)
+  let allArgs ← allParams.mapM (·.arg)
+  pure (allBinders, allArgs, baseParams.size, baseParams.size + extraParams.size)
+
 /-- Define a theorem stating `∀ xs, lhs = rhs xs`, where `proof` is the proof
 term for `lhs = rhs xs` (`xs` are free variables in the local context), and
 `rhs` is a `Name` (i.e., a definition). `eqThmName` is the name of the theorem
-to be defined. -/
-private def proveEqABoutBody (lhs : Expr) (rhs : Name) (xs : Array Expr) (proof : Expr)
-  (eqThmName : Name) (eqThmAttrs : Array Attribute) : TermElabM Unit := do
+to be defined.
+
+**NOTE**: `extraFVars` will be turned into implicit arguments. -/
+private def proveEqAboutBody (lhs : Expr) (rhs : Name) (xs : Array Expr) (proof : Expr)
+  (eqThmName : Name) (eqThmAttrs : Array Attribute) (extraFVars : Array Expr := #[]) : TermElabM Unit := do
   let rhs ← Meta.mkAppOptM rhs $ xs.map Option.some
   let eqStatement ← Meta.mkEq lhs rhs
-  let eqStatement ← instantiateMVars $ ← Meta.mkForallFVars xs eqStatement
-  let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars xs proof
+  let (eqStatement, eqProof) ← Meta.withImplicitBinderInfos extraFVars do
+    let eqStatement ← instantiateMVars $ ← Meta.mkForallFVars xs eqStatement
+    let eqProof ← instantiateMVars $ ← Meta.mkLambdaFVars xs proof
+    pure (eqStatement, eqProof)
   let _ ← addVeilTheorem eqThmName eqStatement eqProof (attr := eqThmAttrs)
 
 -- FIXME: Unfolding ghost relation as below is not very good. We might want
@@ -202,7 +217,7 @@ Special note: for transition-generated WPs, we skip Step 3 since they are typica
 the shape of `∀ (s : State χ), ...`, for which proving `↔` might be impossible.
 -/
 private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (wpAppAfterSimp : Meta.Simp.Result)
-    (vs : Array Expr) (handler post : Expr)
+    (vs extraFVars : Array Expr) (handler post : Expr)
     (dk : DeclarationKind) (wpDef_fqn : Name) (notFromTransition? : Bool) : TermElabM Unit := do
   -- NOTE: Transition-generated WPs are typically in the shape of `∀ (s : State χ), ...`,
   -- for which proving `↔` in step 3 might be impossible, and consequently, the tactic workflow
@@ -227,8 +242,8 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
       let (r, s) := (rs[0]!, rs[1]!)
 
       -- Get params
-      let (allModParams, actualParams) ← mod.declarationAllParams nm dk
-      let allParams := allModParams ++ actualParams
+      let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams nm dk
+      let allParams := baseParams ++ extraParams ++ actualParams
       let readFromArg ← mkAppM ``readFrom #[r]
       let getFromArg ← mkAppM ``getFrom #[s]
       let theoryType ← (inferType readFromArg >>= instantiateMVars)
@@ -255,21 +270,23 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
           eliminateFieldRep curTarget proof nm
             allParams theoryType stateType
             uIdent thIdent stIdent localRPropTCArgIdent
-            readFromArg getFromArg handler wpDef_fqn vs
+            readFromArg getFromArg handler wpDef_fqn vs extraFVars
         else
           pure (curTarget, proof)
 
       -- Register theorem: ∀ (vs handler post inst r s), rawBody = curResult.expr
       let fvars := (vs ++ #[handler, post, inst, r, s])
-      let eqStatement ← instantiateMVars $ ← mkForallFVars fvars (← mkEq originalWpAppBody curTarget)
-      let eqProof ← do
-        -- NOTE: `wpAppAfterSimp` DOES NOT have `r` and `s`, so need to do a congruence here
-        let pf ← do
-          let pfPre ← wpAppAfterSimp.getProof
-          let pfPreCongr ← mkCongrFun pfPre r
-          let pfPreCongr ← mkCongrFun pfPreCongr s
-          mkEqTrans pfPreCongr proof
-        instantiateMVars $ ← mkLambdaFVars fvars pf
+      let (eqStatement, eqProof) ← Meta.withImplicitBinderInfos extraFVars do
+        let eqStatement ← instantiateMVars $ ← mkForallFVars fvars (← mkEq originalWpAppBody curTarget)
+        let eqProof ← do
+          -- NOTE: `wpAppAfterSimp` DOES NOT have `r` and `s`, so need to do a congruence here
+          let pf ← do
+            let pfPre ← wpAppAfterSimp.getProof
+            let pfPreCongr ← mkCongrFun pfPre r
+            let pfPreCongr ← mkCongrFun pfPreCongr s
+            mkEqTrans pfPreCongr proof
+          instantiateMVars $ ← mkLambdaFVars fvars pf
+        pure (eqStatement, eqProof)
       trace[veil.debug] "final eq statement: {eqStatement}"
       let _ ← do
         addVeilTheorem (toWpLocalEqName nm) eqStatement eqProof
@@ -348,7 +365,7 @@ where
       (uIdent thIdent stIdent : Ident)
       (localRPropTCArgIdent : Ident)
       (readFromArg getFromArg : Expr)
-      (handler : Expr) (wpDef_fqn : Name) (vs : Array Expr)
+      (handler : Expr) (wpDef_fqn : Name) (vs extraFVars : Array Expr)
       : TermElabM (Expr × Expr) := do
     let (abstractStateSortTerm, abstractStateSortExpr, abstractStateTypeExpr) ← mod.getAbstractStateRelated stateType
     -- (a) Abstract post: fun u th st => Theory.casesOn th ... => State.casesOn st ... => inst.core ...
@@ -454,8 +471,10 @@ where
       -- representation plumbing, so the extra free variables here should just
       -- be directly retained generated `Decidable` instance variables.
       let localEqArgs := localEqBaseArgs ++ localEqExtraArgs
-      let localEqStatement ← mkForallFVars localEqArgs (← mkEq genericTarget predAppGeneric) >>= instantiateMVars
-      let localEqProof ← mkLambdaFVars localEqArgs (← genericResult.getProof) >>= instantiateMVars
+      let (localEqStatement, localEqProof) ← Meta.withImplicitBinderInfos extraFVars do
+        let localEqStatement ← mkForallFVars localEqArgs (← mkEq genericTarget predAppGeneric) >>= instantiateMVars
+        let localEqProof ← mkLambdaFVars localEqArgs (← genericResult.getProof) >>= instantiateMVars
+        pure (localEqStatement, localEqProof)
       /-
       trace[veil.debug] "defining local equality theorem {toWpLocalEqName nm} with statement {localEqStatement} and proof {localEqProof}"
       if localEqStatement.hasFVar then
@@ -488,9 +507,10 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
   -- Use dynamic trace class name so each WP computation appears separately in the profiler
   withTraceNode (`veil.perf.extract.defineWp ++ nm) (fun _ => return s!"defineWp {nm} ({modeStr})") do
     let fqn ← getFullyQualifiedName nm
-    let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
+    let (allBinders, allArgs, extraStart, extraStop) ← declarationAllBindersArgsWithExtraRange mod nm dk
     let wpDef ← wpTemplate fqn allArgs
     elabBinders allBinders $ fun vs => do -- `vs` are the fvars for the definition binders
+    let extraFVars := vs.extract extraStart extraStop
     -- Warning to future maintainers: this code performs nitty-gritty simplification,
     -- and we've spent a long time on it. It appears that it's difficult to do this
     -- any other way. Trying to significantly rewrite this code is likely going to
@@ -540,14 +560,15 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       -- (*) it's easier to construct the proof here with the body
       let #[handler, post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
       let wpSimpAttrHigh ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ high)
-      proveEqABoutBody body wpDef_fqn (vs ++ xs) (← resBody.getProof) (toWpEqName nm) #[wpSimpAttrHigh]
+      proveEqAboutBody body wpDef_fqn (vs ++ xs) (← resBody.getProof) (toWpEqName nm) #[wpSimpAttrHigh]
+        (extraFVars := extraFVars)
 
       if mod._useLocalRPropTC then
       if dk matches .derivedDefinition .actionLike _ then
       if mode matches .external then
       if veil.experimental.generateWpLocalEq.get (← getOptions) then
         try
-          defineWpLocalEq mod nm body resBody vs handler post dk wpDef_fqn notFromTransition?
+          defineWpLocalEq mod nm body resBody vs extraFVars handler post dk wpDef_fqn notFromTransition?
         catch ex =>
           -- For non-transition wps, warn if any step fails (all 3 steps expected)
           logWarning m!"unable to generate wp_local_eq for {nm}: {ex.toMessageData}"
@@ -573,9 +594,10 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
   -- Use dynamic trace class name so each transition computation appears separately in the profiler
   withTraceNode (`veil.perf.extract.defineTransition ++ nm) (fun _ => return s!"defineTransition {nm}") do
     let sourceWpFqn ← getFullyQualifiedName (toWpName nm)
-    let (allBinders, allArgs) ← mod.declarationAllBindersArgs nm dk
+    let (allBinders, allArgs, extraStart, extraStop) ← declarationAllBindersArgsWithExtraRange mod nm dk
     let trDef ← transitionTemplate sourceWpFqn allArgs
     elabBinders allBinders $ fun vs => do
+      let extraFVars := vs.extract extraStart extraStop
       -- (1) Elaborate the template
       let e ← withTraceNode (`veil.perf.extract.elabTerm ++ nm) (fun _ => return s!"elabTerm transition {nm}") do
         withoutErrToSorry $ elabTermAndSynthesize trDef none
@@ -592,7 +614,8 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
         let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
         let trDef_fqn ← addVeilDefinition (toTransitionName nm) trExpr (attr := #[{name := `reducible}] ++ attrs)
         -- (4) Prove the equality theorem
-        proveEqABoutBody body trDef_fqn (vs ++ xs) (← resBody.getProof) (toTransitionEqName nm) #[]
+        proveEqAboutBody body trDef_fqn (vs ++ xs) (← resBody.getProof) (toTransitionEqName nm) #[]
+          (extraFVars := extraFVars)
         -- (5) Prove the derived_eq theorem: VeilM.toTransitionDerived act.ext = act.ext.tr
         -- by connecting `toWpEq` and `toTransitionEq` theorems
         -- Use the action's fully qualified name (nm is already the external mode name)
@@ -609,7 +632,8 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
           let res ← Meta.mkAppM ``derive_eq_template #[heq1, heq2]
           pure res
         let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
-        proveEqABoutBody derivedExpr trDef_fqn vs proof (toDerivedEqName nm) attrs
+        proveEqAboutBody derivedExpr trDef_fqn vs proof (toDerivedEqName nm) attrs
+          (extraFVars := extraFVars)
 
 end AuxiliaryDefinitions
 
