@@ -196,6 +196,16 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
         `(Term.doSeqItem| let $thisId:ident : $ty:term :| $eqWS:ident $thisId:ident ($t : $ty))
       | _ => throwErrorAt stx "unsupported `veil_let` declaration"
     return #[el]
+  -- Ordinary local `let`s do not mutate state. Refresh only if their initializer
+  -- runs an embedded VeilM computation via `(← ...)`.
+  | `(Term.doSeqItem| let $decl:letDecl) =>
+    if stmtRunsComputation decl.raw then
+      return #[stx] ++ (← getState mod)
+    return #[stx]
+  | `(Term.doSeqItem| let mut $decl:letDecl) =>
+    if stmtRunsComputation decl.raw then
+      return #[stx] ++ (← getState mod)
+    return #[stx]
   -- `pure $t` where `$t` embeds a state-modifying computation (e.g.
   -- `pure (← act)`): Lean lifts the `←` out and runs it, mutating the state,
   -- so the cached binders must be refreshed before any later read. We handle it
