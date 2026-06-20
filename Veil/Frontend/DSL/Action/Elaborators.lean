@@ -566,7 +566,6 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       if mod._useLocalRPropTC then
       if dk matches .derivedDefinition .actionLike _ then
       if mode matches .external then
-      if veil.experimental.generateWpLocalEq.get (← getOptions) then
         try
           defineWpLocalEq mod nm body resBody vs extraFVars handler post dk wpDef_fqn notFromTransition?
         catch ex =>
