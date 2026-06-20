@@ -52,11 +52,35 @@ procedure set_x {
   return true
 }
 
+-- A variant that writes `x` but steers control flow into the `else` branch.
+procedure set_x_then_false {
+  x := true
+  return false
+}
+
 -- The previously-buggy form: the state-modifying call sits in the `if`
 -- condition. The branch body now refreshes the binders, so `y := x` reads the
 -- up-to-date `x = true`.
 action call_in_if_condition {
   if (← set_x) then
+    y := x
+}
+
+-- Mixed with `else if`: the state-modifying call sits in the nested condition,
+-- and the nested branch body must read the refreshed `x`.
+action call_in_else_if_condition {
+  if false then
+    y := false
+  else if (← set_x) then
+    y := x
+}
+
+-- Mixed the other way around: the outer condition mutates `x` before control
+-- enters the `else if`, whose condition must read refreshed state.
+action call_before_else_if_condition {
+  if (← set_x_then_false) then
+    y := false
+  else if x then
     y := x
 }
 
@@ -69,7 +93,7 @@ action control_if_condition {
     y := x
 }
 
--- Both actions establish `x = true ∧ y = true`, so `x → y` is an invariant.
+-- All actions establish `x = true ∧ y = true`, so `x → y` is an invariant.
 invariant [y_tracks_x] x → y
 
 #guard_msgs(drop warning) in
@@ -81,6 +105,12 @@ info: Initialization must establish the invariant:
   doesNotThrow ... ✅
   y_tracks_x ... ✅
 The following set of actions must preserve the invariant and successfully terminate:
+  call_in_else_if_condition
+    doesNotThrow ... ✅
+    y_tracks_x ... ✅
+  call_before_else_if_condition
+    doesNotThrow ... ✅
+    y_tracks_x ... ✅
   call_in_if_condition
     doesNotThrow ... ✅
     y_tracks_x ... ✅
