@@ -58,4 +58,8 @@ unsat trace {
 
 #check_invariants
 
+#gen_theorems
+
+#gen_reachable_invariants
+
 end RingDec

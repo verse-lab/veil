@@ -89,6 +89,23 @@ instance nodeBetweenDecidable (th : RingTheorems.Theory) :
   dsimp [Between.btw, nodeBetween, ordered_ring]
   infer_instance
 
+abbrev ConcreteSingleLeader (th : RingTheorems.Theory) (sc : ConcreteState) : Prop :=
+  @RingTheorems.single_leader
+    RingTheorems.Theory ConcreteState RingTheorems.FieldAbstractType
+    RingTheorems.instAbstractFieldRepresentation
+    RingTheorems.instLawfulAbstractFieldRepresentation
+    inferInstance inferInstance th sc
+
+abbrev AbstractSingleLeader (th : RingTheorems.Theory) [Inhabited (Node th)]
+    (sa : AbstractState th) : Prop :=
+  @RingDec.single_leader
+    (RingDec.Theory (Node th)) (AbstractState th) (Node th)
+    (nodeDecidableEq th) inferInstance (nodeTotalOrder th) (nodeBetween th)
+    (RingDec.FieldAbstractType (Node th))
+    (RingDec.instAbstractFieldRepresentation (Node th))
+    (RingDec.instLawfulAbstractFieldRepresentation (Node th))
+    inferInstance inferInstance RingDec.Theory.mk sa
+
 noncomputable def abstractSystem (th : RingTheorems.Theory)
     (hass : RingTheorems.Assumptions RingTheorems.Theory th) :
     RelationalTransitionSystem (RingDec.Theory (Node th)) (AbstractState th) (RingDec.Label (Node th)) := by
@@ -116,6 +133,9 @@ noncomputable def abstractState (th : RingTheorems.Theory) (s : ConcreteState) :
 
 def StateRel (th : RingTheorems.Theory) (sc : ConcreteState) (sa : AbstractState th) : Prop :=
   MessageInvariants th sc ∧
+  (concreteLeader sc).Nodup ∧
+  (∀ L ∈ concreteLeader sc, L ∈ th.allNodes) ∧
+  (∀ n : Node th, n.val ∈ concreteLeader sc → sa.leader n = true) ∧
   (∀ sender dst : Node th,
     (∃ m ∈ concreteMessages sc, m.payload = sender.val ∧ m.dst = dst.val) →
       sa.pending sender dst = true)
@@ -295,6 +315,28 @@ theorem setAbstractLeader_true_mono {th : RingTheorems.Theory}
       FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
       IteratedArrow.uncurry, IteratedProd.patCmp]
 
+theorem abstractSendPost_leader {th : RingTheorems.Theory}
+    (sa : AbstractState th) (sender dst n : Node th) :
+    (abstractSendPost sa sender dst).leader n = sa.leader n := by
+  simp [abstractSendPost]
+
+theorem abstractRecvPost_leader_self {th : RingTheorems.Theory}
+    (sa : AbstractState th) (dst next : Node th) :
+    (abstractRecvPost sa dst dst next).leader dst = true := by
+  simpa [abstractRecvPost] using setAbstractLeader_true_self sa.leader dst
+
+theorem abstractRecvPost_leader_self_mono {th : RingTheorems.Theory}
+    (sa : AbstractState th) (dst next n : Node th) (h : sa.leader n = true) :
+    (abstractRecvPost sa dst dst next).leader n = true := by
+  simpa [abstractRecvPost] using setAbstractLeader_true_mono sa.leader dst n h
+
+theorem abstractRecvPost_leader_nonself {th : RingTheorems.Theory}
+    (sa : AbstractState th) {sender dst next n : Node th} (hne : sender ≠ dst) :
+    (abstractRecvPost sa sender dst next).leader n = sa.leader n := by
+  by_cases hle : TotalOrder.le dst sender
+  · simp [abstractRecvPost, hne, hle]
+  · simp [abstractRecvPost, hne, hle]
+
 theorem setAbstractPending_forward_self {th : RingTheorems.Theory}
     (pending : RingDec.FieldAbstractType (Node th) RingDec.State.Label.pending)
     (sender dst next : Node th) :
@@ -350,10 +392,19 @@ theorem setAbstractPending_forward_of_ne {th : RingTheorems.Theory}
       IteratedArrow.uncurry, IteratedProd.patCmp]
 
 theorem stateRel_project {th : RingTheorems.Theory} {s : ConcreteState}
-    (hinv : MessageInvariants th s) :
+    (hinv : MessageInvariants th s)
+    (hleader_nodup : (concreteLeader s).Nodup)
+    (hleader_mem : ∀ L ∈ concreteLeader s, L ∈ th.allNodes) :
     StateRel th s (abstractState th s) := by
   constructor
   · exact hinv
+  constructor
+  · exact hleader_nodup
+  constructor
+  · exact hleader_mem
+  constructor
+  · intro n hn
+    simp [abstractState, hn]
   · intro sender dst hpending
     simp [abstractState]
     simpa [concreteMessages] using hpending
@@ -632,7 +683,7 @@ theorem ring_refines (th : RingTheorems.Theory)
     simp [abstractSystem, RingDec.relationalTransitionSystem, RingDec.Assumptions]
   · intro sc _ hinit
     letI := nodeInhabited th hass
-    refine ⟨abstractState th sc, ?_, stateRel_project (messageInvariants_init hinit)⟩
+    refine ⟨abstractState th sc, ?_, ?_⟩
     have hinitConcrete := hinit
     simp only [RingTheorems.relationalTransitionSystem, RingTheorems.Init, nextSimp] at hinitConcrete
     subst sc
@@ -642,10 +693,24 @@ theorem ring_refines (th : RingTheorems.Theory)
       CanonicalField.set,
       FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
       IteratedArrow.uncurry, IteratedProd.patCmp]
+    · have hmsg := messageInvariants_init hinit
+      have hinitConcrete := hinit
+      simp only [RingTheorems.relationalTransitionSystem, RingTheorems.Init, nextSimp] at hinitConcrete
+      subst sc
+      apply stateRel_project
+      · exact hmsg
+      · simp +unfoldPartialApp [concreteLeader, instIsSubStateOfRefl.setIn_overwrite,
+          FieldRepresentation.set, RingTheorems.instAbstractFieldRepresentation,
+          CanonicalField.set, FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match,
+          IteratedArrow.curry, IteratedArrow.uncurry, IteratedProd.patCmp]
+      · simp +unfoldPartialApp [concreteLeader, instIsSubStateOfRefl.setIn_overwrite,
+          FieldRepresentation.set, RingTheorems.instAbstractFieldRepresentation,
+          CanonicalField.set, FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match,
+          IteratedArrow.curry, IteratedArrow.uncurry, IteratedProd.patCmp]
   · intro sc sc' sa label _ hrel htr
     cases label with
     | send =>
-        rcases hrel with ⟨hinv, hpendingRel⟩
+        rcases hrel with ⟨hinv, hleader_nodup, hleader_mem, hleaderRel, hpendingRel⟩
         have htrOriginal := htr
         simp only [nextSimp] at htr
         rcases htr with ⟨n, hn, hstep⟩
@@ -657,12 +722,35 @@ theorem ring_refines (th : RingTheorems.Theory)
           RelationalTransitionSystem.multistep.single (abstract_send_step hass sa nNode), ?_⟩
         have hinv' : MessageInvariants th sc' :=
           messageInvariants_send hass hinv htrOriginal
+        let msg : RingTheorems.Message :=
+          { payload := n, src := n,
+            dst := RingTheorems.nextNode n { allNodes := th.allNodes } }
+        have hleader_eq : concreteLeader sc' = concreteLeader sc := by
+          by_cases hmem : msg ∈ concreteMessages sc
+          · have hs : sc = sc' := by
+              have hmem' : msg ∈ sc.messages := by simpa [concreteMessages] using hmem
+              simpa [msg, FieldRepresentation.get, RingTheorems.instAbstractFieldRepresentation,
+                hmem'] using hstep
+            subst sc'
+            rfl
+          · have hs := by
+              have hmem' : msg ∉ sc.messages := by simpa [concreteMessages] using hmem
+              simpa [msg, FieldRepresentation.get, RingTheorems.instAbstractFieldRepresentation,
+                hmem'] using hstep
+            subst sc'
+            simp +unfoldPartialApp [concreteLeader]
         constructor
         · exact hinv'
+        constructor
+        · simpa [hleader_eq] using hleader_nodup
+        constructor
+        · intro L hL
+          exact hleader_mem L (by simpa [hleader_eq] using hL)
+        constructor
+        · intro n hL
+          simpa [sa', abstractSendPost_leader] using
+            hleaderRel n (by simpa [hleader_eq] using hL)
         · intro sender dst hp
-          let msg : RingTheorems.Message :=
-            { payload := n, src := n,
-              dst := RingTheorems.nextNode n { allNodes := th.allNodes } }
           by_cases hmem : msg ∈ concreteMessages sc
           · have hs : sc = sc' := by
               have hmem' : msg ∈ sc.messages := by simpa [concreteMessages] using hmem
@@ -696,7 +784,7 @@ theorem ring_refines (th : RingTheorems.Theory)
               simpa [sa', abstractSendPost] using
                 setAbstractPending_true_mono sa.pending nNode next sender dst hold
     | recv =>
-        rcases hrel with ⟨hinv, hpendingRel⟩
+        rcases hrel with ⟨hinv, hleader_nodup, hleader_mem, hleaderRel, hpendingRel⟩
         have htrOriginal := htr
         simp only [nextSimp] at htr
         rcases htr with ⟨m, hm, hstep⟩
@@ -723,12 +811,145 @@ theorem ring_refines (th : RingTheorems.Theory)
                 simpa [finalPost, recvPost] using abstract_send_step hass recvPost dst))
           · have hinv' : MessageInvariants th sc' :=
               messageInvariants_recv hass hinv htrOriginal
-            constructor
-            · exact hinv'
-            intro sender' dst' hp
             let fmsg : RingTheorems.Message :=
               { payload := m.payload, src := m.dst,
                 dst := RingTheorems.nextNode m.dst { allNodes := th.allNodes } }
+            have hleader_nodup' : (concreteLeader sc').Nodup := by
+              by_cases hcond : m.payload = m.dst ∧ m.dst ∉ concreteLeader sc
+              · have hs := by
+                  have hcond' : m.payload = m.dst ∧ m.dst ∉ sc.leader := by
+                    simpa [concreteLeader] using hcond
+                  simpa [concreteMessages, FieldRepresentation.get,
+                    RingTheorems.instAbstractFieldRepresentation, hcond'] using hstep
+                subst sc'
+                simpa +unfoldPartialApp [concreteLeader, FieldRepresentation.set,
+                  RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                  FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                  IteratedArrow.uncurry, IteratedProd.patCmp] using
+                    List.Nodup.cons hcond.2 hleader_nodup
+              · have hle : m.dst ≤ m.payload := by omega
+                by_cases hfmem : fmsg ∈ sc.messages.erase m
+                · have hs := by
+                    have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                      simpa [concreteLeader] using hcond
+                    simpa [fmsg, concreteMessages, FieldRepresentation.get,
+                      RingTheorems.instAbstractFieldRepresentation, hcond', hle, hfmem] using hstep
+                  subst sc'
+                  simpa +unfoldPartialApp [concreteLeader, FieldRepresentation.set,
+                    RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                    FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                    IteratedArrow.uncurry, IteratedProd.patCmp] using hleader_nodup
+                · have hs := by
+                    have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                      simpa [concreteLeader] using hcond
+                    simpa [fmsg, concreteMessages, FieldRepresentation.get,
+                      RingTheorems.instAbstractFieldRepresentation, hcond', hle, hfmem] using hstep
+                  subst sc'
+                  simpa +unfoldPartialApp [concreteLeader, concreteMessages, FieldRepresentation.set,
+                    RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                    FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                    IteratedArrow.uncurry, IteratedProd.patCmp] using hleader_nodup
+            have hleader_mem' : ∀ L ∈ concreteLeader sc', L ∈ th.allNodes := by
+              intro L hL
+              by_cases hcond : m.payload = m.dst ∧ m.dst ∉ concreteLeader sc
+              · have hs := by
+                  have hcond' : m.payload = m.dst ∧ m.dst ∉ sc.leader := by
+                    simpa [concreteLeader] using hcond
+                  simpa [concreteMessages, FieldRepresentation.get,
+                    RingTheorems.instAbstractFieldRepresentation, hcond'] using hstep
+                subst sc'
+                have hL_cases : L = m.dst ∨ L ∈ concreteLeader sc := by
+                  simpa +unfoldPartialApp [concreteLeader, FieldRepresentation.set,
+                    RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                    FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                    IteratedArrow.uncurry, IteratedProd.patCmp] using hL
+                rcases hL_cases with rfl | hL_old
+                · exact dst.property
+                · exact hleader_mem L hL_old
+              · have hle : m.dst ≤ m.payload := by omega
+                by_cases hfmem : fmsg ∈ sc.messages.erase m
+                · have hs := by
+                    have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                      simpa [concreteLeader] using hcond
+                    simpa [fmsg, concreteMessages, FieldRepresentation.get,
+                      RingTheorems.instAbstractFieldRepresentation, hcond', hle, hfmem] using hstep
+                  subst sc'
+                  exact hleader_mem L (by
+                    simpa +unfoldPartialApp [concreteLeader, FieldRepresentation.set,
+                      RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                      FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                      IteratedArrow.uncurry, IteratedProd.patCmp] using hL)
+                · have hs := by
+                    have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                      simpa [concreteLeader] using hcond
+                    simpa [fmsg, concreteMessages, FieldRepresentation.get,
+                      RingTheorems.instAbstractFieldRepresentation, hcond', hle, hfmem] using hstep
+                  subst sc'
+                  exact hleader_mem L (by
+                    simpa +unfoldPartialApp [concreteLeader, concreteMessages, FieldRepresentation.set,
+                      RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                      FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                      IteratedArrow.uncurry, IteratedProd.patCmp] using hL)
+            have hleaderRel' :
+                ∀ n : Node th, n.val ∈ concreteLeader sc' → finalPost.leader n = true := by
+              intro n hL
+              by_cases hcond : m.payload = m.dst ∧ m.dst ∉ concreteLeader sc
+              · have hs := by
+                  have hcond' : m.payload = m.dst ∧ m.dst ∉ sc.leader := by
+                    simpa [concreteLeader] using hcond
+                  simpa [concreteMessages, FieldRepresentation.get,
+                    RingTheorems.instAbstractFieldRepresentation, hcond'] using hstep
+                subst sc'
+                have hL_cases : n.val = m.dst ∨ n.val ∈ concreteLeader sc := by
+                  simpa +unfoldPartialApp [concreteLeader, FieldRepresentation.set,
+                    RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                    FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                    IteratedArrow.uncurry, IteratedProd.patCmp] using hL
+                rcases hL_cases with hn_dst | hL_old
+                · have hn_eq : n = dst := Subtype.ext hn_dst
+                  subst n
+                  have hrecv := abstractRecvPost_leader_self sa dst next
+                  simpa [finalPost, abstractSendPost_leader] using hrecv
+                · have hold := hleaderRel n hL_old
+                  have hrecv := abstractRecvPost_leader_self_mono sa dst next n hold
+                  simpa [finalPost, abstractSendPost_leader] using hrecv
+              · have hle : m.dst ≤ m.payload := by omega
+                by_cases hfmem : fmsg ∈ sc.messages.erase m
+                · have hs := by
+                    have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                      simpa [concreteLeader] using hcond
+                    simpa [fmsg, concreteMessages, FieldRepresentation.get,
+                      RingTheorems.instAbstractFieldRepresentation, hcond', hle, hfmem] using hstep
+                  subst sc'
+                  have hold := hleaderRel n (by
+                    simpa +unfoldPartialApp [concreteLeader, FieldRepresentation.set,
+                      RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                      FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                      IteratedArrow.uncurry, IteratedProd.patCmp] using hL)
+                  have hrecv := abstractRecvPost_leader_self_mono sa dst next n hold
+                  simpa [finalPost, abstractSendPost_leader] using hrecv
+                · have hs := by
+                    have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                      simpa [concreteLeader] using hcond
+                    simpa [fmsg, concreteMessages, FieldRepresentation.get,
+                      RingTheorems.instAbstractFieldRepresentation, hcond', hle, hfmem] using hstep
+                  subst sc'
+                  have hold := hleaderRel n (by
+                    simpa +unfoldPartialApp [concreteLeader, concreteMessages, FieldRepresentation.set,
+                      RingTheorems.instAbstractFieldRepresentation, CanonicalField.set,
+                      FieldUpdateDescr.fieldUpdate, FieldUpdatePat.match, IteratedArrow.curry,
+                      IteratedArrow.uncurry, IteratedProd.patCmp] using hL)
+                  have hrecv := abstractRecvPost_leader_self_mono sa dst next n hold
+                  simpa [finalPost, abstractSendPost_leader] using hrecv
+            constructor
+            · exact hinv'
+            constructor
+            · exact hleader_nodup'
+            constructor
+            · exact hleader_mem'
+            constructor
+            · exact hleaderRel'
+            intro sender' dst' hp
             have oldCoverage :
                 ∀ msg ∈ sc.messages.erase m,
                   msg.payload = sender'.val → msg.dst = dst'.val →
@@ -831,9 +1052,6 @@ theorem ring_refines (th : RingTheorems.Theory)
             RelationalTransitionSystem.multistep.single (abstract_recv_step hass hpending), ?_⟩
           have hinv' : MessageInvariants th sc' :=
             messageInvariants_recv hass hinv htrOriginal
-          constructor
-          · exact hinv'
-          intro sender' dst' hp
           have hpayload_ne_dst : m.payload ≠ m.dst := by
             intro hpayload_dst
             apply hself
@@ -845,6 +1063,47 @@ theorem ring_refines (th : RingTheorems.Theory)
           let fmsg : RingTheorems.Message :=
             { payload := m.payload, src := m.dst,
               dst := RingTheorems.nextNode m.dst { allNodes := th.allNodes } }
+          have hleader_eq : concreteLeader sc' = concreteLeader sc := by
+            by_cases hle : m.dst ≤ m.payload
+            · by_cases hfmem : fmsg ∈ sc.messages.erase m
+              · have hs := by
+                  have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                    simpa [concreteLeader] using hcond
+                  simpa [fmsg, concreteMessages, FieldRepresentation.get,
+                    RingTheorems.instAbstractFieldRepresentation, hcond', hle, hfmem] using hstep
+                subst sc'
+                simp +unfoldPartialApp [concreteLeader]
+              · have hs := by
+                  have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                    simpa [concreteLeader] using hcond
+                  simpa [fmsg, concreteMessages, FieldRepresentation.get,
+                    RingTheorems.instAbstractFieldRepresentation, hcond', hle, hfmem] using hstep
+                subst sc'
+                simp +unfoldPartialApp [concreteLeader]
+            · have hs := by
+                have hcond' : ¬(m.payload = m.dst ∧ m.dst ∉ sc.leader) := by
+                  simpa [concreteLeader] using hcond
+                simpa [concreteMessages, FieldRepresentation.get,
+                  RingTheorems.instAbstractFieldRepresentation, hcond', hle] using hstep
+              subst sc'
+              simp +unfoldPartialApp [concreteLeader]
+          have hleaderRel' :
+              ∀ n : Node th, n.val ∈ concreteLeader sc' → finalPost.leader n = true := by
+            intro n hL
+            have hold := hleaderRel n (by simpa [hleader_eq] using hL)
+            simpa [finalPost] using
+              (abstractRecvPost_leader_nonself sa (sender := sender) (dst := dst)
+                (next := next) (n := n) hself).trans hold
+          constructor
+          · exact hinv'
+          constructor
+          · simpa [hleader_eq] using hleader_nodup
+          constructor
+          · intro L hL
+            exact hleader_mem L (by simpa [hleader_eq] using hL)
+          constructor
+          · exact hleaderRel'
+          intro sender' dst' hp
           by_cases hle : m.dst ≤ m.payload
           · have hleAbs : TotalOrder.le dst sender := by
               simpa [dst, sender, TotalOrder.le, nodeTotalOrder] using hle
@@ -956,5 +1215,65 @@ theorem ring_refines (th : RingTheorems.Theory)
                 (sender := sender) (dst := dst) (sender' := sender') (dst' := dst')
                 (Or.inl holdSender)
               simpa [finalPost, abstractRecvPost, hself, hleAbs, hpres] using holdPending
+
+theorem stateRel_single_leader {th : RingTheorems.Theory} {sc : ConcreteState}
+    {sa : AbstractState th}
+    [Inhabited (Node th)]
+    (hrel : StateRel th sc sa)
+    (habs : AbstractSingleLeader th sa) :
+    ConcreteSingleLeader th sc := by
+  rcases hrel with ⟨_, hleader_nodup, hleader_mem, hleaderRel, _⟩
+  have hlen : (concreteLeader sc).length ≤ 1 := by
+    cases hleader_eq : concreteLeader sc with
+    | nil =>
+        simp
+    | cons x xs =>
+        cases hxs_eq : xs with
+        | nil =>
+            simp
+        | cons y ys =>
+            exfalso
+            have hxmem : x ∈ concreteLeader sc := by
+              simp [hleader_eq]
+            have hymem : y ∈ concreteLeader sc := by
+              simp [hleader_eq, hxs_eq]
+            let xNode : Node th := ⟨x, hleader_mem x hxmem⟩
+            let yNode : Node th := ⟨y, hleader_mem y hymem⟩
+            have hxlead : sa.leader xNode = true := hleaderRel xNode hxmem
+            have hylead : sa.leader yNode = true := hleaderRel yNode hymem
+            have hxyNode : xNode = yNode := habs xNode yNode ⟨hxlead, hylead⟩
+            have hxy : x = y := congrArg Subtype.val hxyNode
+            have hxy_ne : x ≠ y := by
+              have hnodup : (x :: y :: ys).Nodup := by
+                simpa [hleader_eq, hxs_eq] using hleader_nodup
+              cases hnodup with
+              | cons hnot _ => exact hnot y (by simp)
+            exact hxy_ne hxy
+  simpa [ConcreteSingleLeader, RingTheorems.single_leader, concreteLeader] using hlen
+
+theorem single_leader_via_refinement :
+    RingTheorems.relationalTransitionSystem.isInvariant
+      (fun th sc =>
+        @RingTheorems.single_leader
+          RingTheorems.Theory ConcreteState RingTheorems.FieldAbstractType
+          RingTheorems.instAbstractFieldRepresentation
+          RingTheorems.instLawfulAbstractFieldRepresentation
+          inferInstance inferInstance th sc) := by
+  intro th sc hreach
+  have hass : RingTheorems.Assumptions RingTheorems.Theory th := by
+    simpa [RingTheorems.relationalTransitionSystem] using
+      RelationalTransitionSystem.reachable_assumptions
+        RingTheorems.relationalTransitionSystem th sc hreach
+  letI := nodeInhabited th hass
+  rcases RelationalTransitionSystem.PointedTraceForwardSimulation.reachable
+      (ring_refines th hass) hreach with
+    ⟨sa, hreachA, hrel⟩
+  have hreachDec :
+      (RingDec.relationalTransitionSystem (node := Node th)).reachable RingDec.Theory.mk sa := by
+    simpa [abstractSystem] using hreachA
+  have habs : AbstractSingleLeader th sa := by
+    simpa [AbstractSingleLeader] using
+      RingDec.single_leader.is_inv (node := Node th) RingDec.Theory.mk sa hreachDec
+  exact stateRel_single_leader hrel habs
 
 end RingRefinement
